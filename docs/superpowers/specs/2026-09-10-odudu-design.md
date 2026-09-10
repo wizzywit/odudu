@@ -29,13 +29,18 @@ Node 24.
 - Purchasing OpenID Foundation certification. The conformance suite is used
   as an engineering quality bar, not to obtain a badge.
 - Supporting databases other than PostgreSQL, initially.
-- Multi-tenant SaaS hosting. The deployment model is self-hosted.
+- Operating Odudu as a hosted service. Realms provide logical multi-tenancy
+within one deployment, but the delivery model is self-hosting.
 
 ### Constraints
 
 - Development happens in bursts, with gaps of weeks. Every increment must
   end resumable.
 - Effort is budgeted in hours, never calendar dates.
+
+This document is the umbrella design. Each phase in section 11 gets its
+own specification and implementation plan before it is built; this one
+fixes the decisions that span all of them.
 
 ## 2. Decisions
 
