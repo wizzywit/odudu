@@ -1,5 +1,24 @@
 # Next
 
+## Start here
+
+**P0 is complete and merged. P1 is the OAuth 2.1 / OpenID Connect core.**
+
+Before any endpoint code, write the clause tables:
+`docs/protocols/rfc6749.md` and `docs/protocols/rfc7636.md`, mapping each
+MUST and SHOULD to the test that covers it (design spec, section 10). That
+table is what makes "P1 is done" countable instead of a feeling, and it is
+the same activity as the learning goal.
+
+Then follow the phase sequence in `CLAUDE.md` — brainstorm P1's scope,
+write its spec and plan, execute it task by task.
+
+Everything below is the record of P0: what it delivered, what it
+deliberately deferred, and the decisions taken with their trigger
+conditions.
+
+---
+
 **Position:** P0 complete. All exit criteria met:
 
 - `pnpm verify` green locally and in CI (format, typecheck, lint,
