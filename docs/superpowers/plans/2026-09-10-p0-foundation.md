@@ -986,7 +986,7 @@ const schema = z.object({
   ODUDU_HTTP_PORT: z.coerce.number().int().min(1).max(65_535).default(3000),
   ODUDU_DATABASE_URL: z.url(),
   ODUDU_LOG_LEVEL: z
-    .enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace'])
+    .enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent'])
     .default('info'),
 });
 
@@ -1653,7 +1653,7 @@ export default defineConfig({
         test: {
           name: 'unit',
           include: ['{packages,apps}/*/src/**/*.test.ts', 'tests/**/*.test.ts'],
-          exclude: ['**/*.int.test.ts'],
+          exclude: ['**/node_modules/**', '**/dist/**', '**/*.int.test.ts'],
           environment: 'node',
         },
       },
@@ -2138,7 +2138,7 @@ import { createLogger } from './logger.js';
 
 const config = loadConfig({
   ODUDU_DATABASE_URL: 'postgres://u:p@localhost:5432/odudu',
-  ODUDU_LOG_LEVEL: 'silent' as never,
+  ODUDU_LOG_LEVEL: 'silent',
 });
 
 function fakeDatabase(behaviour: 'ok' | 'down'): DatabaseHandle {
