@@ -3,6 +3,8 @@ set -euo pipefail
 
 cd "$(dirname "$0")"
 
+[ -f .env ] || cp .env.example .env
+
 cleanup() { docker compose down -v --remove-orphans || true; }
 trap cleanup EXIT
 
