@@ -1,0 +1,17 @@
+export type ErrorCode =
+  | 'config_invalid'
+  | 'module_duplicate'
+  | 'module_unknown_dependency'
+  | 'module_cycle'
+  | 'module_stop_failed'
+  | 'realm_context_missing';
+
+export class OduduError extends Error {
+  readonly code: ErrorCode;
+
+  constructor(code: ErrorCode, message: string, options?: ErrorOptions) {
+    super(message, options);
+    this.name = 'OduduError';
+    this.code = code;
+  }
+}
