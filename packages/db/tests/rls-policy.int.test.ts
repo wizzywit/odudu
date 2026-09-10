@@ -17,6 +17,12 @@ interface TableRlsRow {
   policy_count: number;
 }
 
+interface PolicyRow {
+  tablename: string;
+  policyname: string;
+  qual: string | null;
+}
+
 let containerHandle: TestDatabase | undefined;
 let dbHandle: DatabaseHandle | undefined;
 
@@ -67,6 +73,47 @@ describe('row-level security coverage', () => {
       expect.soft(row.row_security_enabled, `${row.table_name}: relrowsecurity`).toBe(true);
       expect.soft(row.row_security_forced, `${row.table_name}: relforcerowsecurity`).toBe(true);
       expect.soft(row.policy_count, `${row.table_name}: pg_policies count`).toBeGreaterThan(0);
+    }
+  });
+
+  it('every policy on a checked table actually filters by app.realm_id', async () => {
+    // Counting policies (test above) passes for a policy that exists but
+    // never references app.realm_id — e.g. `USING (true)` — which forces
+    // RLS and satisfies "at least one policy" while filtering nothing.
+    // Inspecting pg_policies.qual is what tells a decorative policy apart
+    // from one that actually scopes rows to a tenant.
+    const rows = await handle.sql<TableRlsRow[]>`
+      select
+        c.relname as table_name,
+        (
+          select count(*)::int
+          from pg_policies p
+          where p.schemaname = 'public' and p.tablename = c.relname
+        ) as policy_count
+      from pg_class c
+      join pg_namespace n on n.oid = c.relnamespace
+      where n.nspname = 'public' and c.relkind in ('r', 'p')
+    `;
+    const checkedTables = rows
+      .filter((row) => !RLS_EXEMPT_TABLES.has(row.table_name))
+      .map((row) => row.table_name);
+
+    expect(checkedTables.length).toBeGreaterThan(0);
+
+    const policies = await handle.sql<PolicyRow[]>`
+      select tablename, policyname, qual
+      from pg_policies
+      where schemaname = 'public' and tablename = any(${checkedTables})
+    `;
+
+    for (const table of checkedTables) {
+      const tablePolicies = policies.filter((p) => p.tablename === table);
+      expect.soft(tablePolicies.length, `${table}: has at least one policy`).toBeGreaterThan(0);
+      for (const policy of tablePolicies) {
+        expect
+          .soft(policy.qual ?? '', `${table}.${policy.policyname}: qual references app.realm_id`)
+          .toContain('app.realm_id');
+      }
     }
   });
 });
