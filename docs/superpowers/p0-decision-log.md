@@ -403,7 +403,7 @@ during a fix wave. Revisit at P1.
 fixed both residuals myself rather than opening a second fix wave,
 which the process forbids. Both are one-liners — a workflow `if` condition
 and a sentence in a plan document — and both are verifiable by CI, which is
-green on c9d13d1. Leaving a comment in a public repository that asserts a
+green on ab95c83. Leaving a comment in a public repository that asserts a
 protection it does not provide was not an acceptable park. Cost if wrong: a
 controller-authored change reviewed only by CI rather than by a fresh
 reviewer.
@@ -467,3 +467,16 @@ inconsistent with the trouble taken to loopback-bind compose. 0.0.0.0 is
 needed only inside the container, which the image already sets. Nothing in
 the repo had said how to start the application at all. Cost if wrong: a dev
 who genuinely wants LAN access must set the variable back.
+
+---
+
+## Note on commit references
+
+Commit SHAs quoted above were rewritten once, on 2026-09-10, to strip
+tool-attribution trailers from two commits. Only messages changed — the
+resulting trees are byte-identical, verified by diffing against the
+pre-rewrite head. References here were remapped to the new SHAs; anything
+quoted elsewhere from before that rewrite may not resolve.
+
+A `commit-msg` hook and a CI job now enforce the rule that was violated, so
+this should not recur.
