@@ -1,17 +1,11 @@
 import { defineConfig } from 'drizzle-kit';
 
-// No fallback: a default here would silently point at whatever Postgres
-// happens to be listening on the developer's machine. This repo's compose
-// stack publishes Postgres on 5442, not the Postgres default 5432, because
-// 5432 is commonly a real, native database on the host — a hardcoded
-// fallback of either port is a guess that risks talking to (and, for
-// `drizzle-kit push`, modifying) the wrong server. Fail instead.
-const databaseUrl = process.env.ODUDU_DATABASE_URL;
-if (!databaseUrl) {
-  throw new Error(
-    'ODUDU_DATABASE_URL is not set. Set it before running drizzle-kit — see infra/docker/.env.example (compose, port 5442) or .env.example (host-run server).',
-  );
-}
+// Falls back to the throwaway compose stack's published port, 5442 — never
+// to Postgres's default 5432, which commonly hosts a real, native database
+// on the developer's own machine. Guessing 5432 risks talking to (and, for
+// `drizzle-kit push`, modifying) the wrong server; 5442 carries no such
+// risk, since nothing but this repo's disposable compose stack uses it.
+const databaseUrl = process.env.ODUDU_DATABASE_URL ?? 'postgres://odudu:odudu@localhost:5442/odudu';
 
 export default defineConfig({
   dialect: 'postgresql',

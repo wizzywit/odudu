@@ -27,9 +27,9 @@ local-development placeholders and names `compose.yaml` as its consumer.
 cannot interpolate into a `.sql` file: Postgres' entrypoint runs `*.sh`
 scripts from `docker-entrypoint-initdb.d` with the container's environment
 already present, so the script reads `$ODUDU_SVC_PASSWORD` and passes it to
-`psql` as a bound variable (`-v svc_password=... ` interpolated via `:'…'`,
-which psql quotes as a SQL string literal), rather than concatenating it
-into SQL text.
+`psql` as a bound variable (`-v svc_password=...`), which applies SQL
+string-literal quoting via `:'…'` rather than concatenating it into SQL
+text.
 
 `infra/docker/smoke.sh` creates `.env` from `.env.example` when absent, so
 CI and first-time runs still start the stack without a manual step.
@@ -67,3 +67,18 @@ documented value.
 non-CI path (a developer running compose directly) with the old hardcoded
 password, half-solving exactly the problem ADR 0014's own consequences
 section flagged.
+
+## Amendment — 2026-09-10 — smoke.sh no longer bootstraps `.env`
+
+The Decision section above says `infra/docker/smoke.sh` creates `.env`
+from `.env.example` when absent. That was true as originally implemented,
+but it defeated the property this ADR exists to buy: the normal way to run
+the stack (`smoke.sh`) never actually required the deliberate act, it just
+started with the example's placeholder values silently copied into place.
+
+`smoke.sh` now fails closed instead: if `infra/docker/.env` is missing, it
+prints instructions and exits 1 without creating anything. CI's `container`
+job in `.github/workflows/verify.yml` gained its own explicit step that
+copies `.env.example` to `.env` before calling `smoke.sh`, so the bootstrap
+that CI still needs is a visible, deliberate line in the pipeline rather
+than a silent default inside the script.
