@@ -16,8 +16,9 @@ are forbidden in `packages/*/src` and `apps/*/src`, enforced by
 `dependency-cruiser`. Cross-package imports use the package name and resolve
 through that package's `index.ts`.
 
-The `tests/boundaries/fixtures` tree is exempt — its relative imports exist
-precisely to trigger boundary violations.
+The `tests/boundaries/fixtures` tree keeps its relative imports — they exist
+precisely to trigger boundary violations, and the `boundaries` CLI run never
+scans `tests/`, so they cannot fail the gate.
 
 ## Rationale
 

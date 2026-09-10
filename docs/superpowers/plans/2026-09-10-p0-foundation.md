@@ -21,8 +21,9 @@
   imports as `#/clock.js`. Relative specifiers (`./`, `../`) are forbidden in
   `packages/*/src` and `apps/*/src`. Cross-package imports use the package
   name (`@odudu/kernel`) and resolve only through that package's `index.ts`.
-  See ADR 0013. The `tests/boundaries/fixtures` tree is exempt: its relative
-  imports exist to trigger boundary violations.
+  See ADR 0013. The `tests/boundaries/fixtures` tree keeps its relative
+  imports — they exist to trigger boundary violations, and the `boundaries`
+  CLI run never scans `tests/`.
 - Comments carry only what the code cannot express. Where none is needed, write none. (`CLAUDE.md`)
 - Commit messages contain no `Co-Authored-By` or tool-attribution trailers.
 - Test-driven: the failing test is written and observed failing before implementation.
