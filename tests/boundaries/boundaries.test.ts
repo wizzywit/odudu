@@ -52,6 +52,18 @@ describe('boundary rules', () => {
     expect((await violations('no-usecase-to-adapter')).length).toBeGreaterThan(0);
   });
 
+  it('rejects a service importing a repository', async () => {
+    expect((await violations('service-is-a-leaf')).length).toBeGreaterThan(0);
+  });
+
+  it('does not flag a clean service with zero violations', async () => {
+    const output = await cruiseFixtures();
+    const fromGoodService = output.summary.violations.filter((v) =>
+      v.from.endsWith('domain-example/src/service/some-service.ts'),
+    );
+    expect(fromGoodService).toHaveLength(0);
+  });
+
   it('permits a view importing service, with zero violations', async () => {
     const output = await cruiseFixtures();
     const fromGoodView = output.summary.violations.filter((v) =>
