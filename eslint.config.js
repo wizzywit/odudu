@@ -31,7 +31,7 @@ export default tseslint.config(
         {
           patterns: [
             {
-              group: ['./*', '../*'],
+              regex: '^\\.\\.?(/|$)',
               message: 'Use #/ subpath imports (ADR 0013), not relative paths.',
             },
           ],
