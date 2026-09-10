@@ -1,6 +1,6 @@
 # 0014 — Development credentials are committed inline
 
-**Status:** Accepted · 2026-09-10
+**Status:** Superseded by 0015 · 2026-09-10
 
 ## Context
 
