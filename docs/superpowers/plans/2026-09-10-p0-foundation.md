@@ -1776,14 +1776,14 @@ ALTER TABLE realms ENABLE ROW LEVEL SECURITY;
 ALTER TABLE realms FORCE ROW LEVEL SECURITY;
 
 CREATE POLICY realms_isolation ON realms
-  USING (id = current_setting('app.realm_id', true)::uuid);
+  USING (id = nullif(current_setting('app.realm_id', true), '')::uuid);
 ```
 
 Three details that matter:
 
 - `odudu_app` is `NOLOGIN`: it is a group role holding privileges. Deployment creates a login user and grants membership, so no password ever appears in a migration.
 - `FORCE ROW LEVEL SECURITY` subjects the table owner to the policy too. Superusers still bypass RLS entirely, which is why tests must connect as a non-superuser.
-- `current_setting('app.realm_id', true)` returns `NULL` when unset, making the predicate `NULL` and filtering every row. **Unset context means zero rows, not all rows** — the policy fails closed.
+- `current_setting('app.realm_id', true)` returns `NULL` only the first time a backend touches the GUC. Once `set_config` has run on a connection the value reverts to `''` — not `NULL` — at transaction end, for the rest of that connection's life, and casting `''` to `uuid` raises `22P02` instead of filtering. `nullif` collapses both cases to `NULL` before the cast. **Unset context then means zero rows — not all rows, and not an error** — so the policy fails closed.
 
 Register it with drizzle-kit's journal:
 

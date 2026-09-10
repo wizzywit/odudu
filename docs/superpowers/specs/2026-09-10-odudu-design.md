@@ -201,6 +201,13 @@ cross-tenant leakage:
 realm context between requests sharing a pooled connection. This has an
 explicit test.
 
+The policy predicate wraps the setting in `nullif(…, '')` before casting.
+`current_setting(name, true)` yields `NULL` only until a backend first touches
+the GUC; afterwards it reverts to the empty string at transaction end, and
+casting `''` to `uuid` raises an error rather than filtering. With `nullif`,
+missing realm context yields zero rows rather than an exception — the policy
+fails closed either way.
+
 A `system` realm exists and is structurally identical to every other realm.
 Cross-realm administration is an explicit permission, not a property of
 living in a particular realm. This avoids Keycloak's `master` realm

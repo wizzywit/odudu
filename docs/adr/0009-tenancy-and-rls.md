@@ -41,3 +41,18 @@ story and scales migration cost with tenant count.
 
 **Schema per realm.** Strong isolation, but every migration runs N times
 and `search_path` management is error-prone with pooling.
+
+## Correction, 2026-09-10
+
+This ADR's implementation notes assumed `current_setting('app.realm_id', true)`
+returns `NULL` whenever the setting is absent. It does so only until a backend
+first touches the GUC; after `set_config` has run once on a connection, the
+value reverts to the empty string at transaction end for the remainder of that
+connection's life. Casting `''` to `uuid` raises `22P02`, so the policy as
+first written would have failed with an error rather than filtering to zero
+rows.
+
+The policy therefore wraps the lookup in `nullif(…, '')`. The decision is
+unchanged; only the predicate needed writing correctly. Found by executing the
+policy against a real PostgreSQL container in task 7, not by reasoning from
+the documentation.
