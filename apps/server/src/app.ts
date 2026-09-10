@@ -8,6 +8,13 @@ import { registerHealth } from '#/health';
 export interface AppDeps {
   readonly database: DatabaseHandle;
   readonly logger: PinoLogger;
+  /**
+   * Whether to trust `X-Forwarded-*` headers when deriving `request.ip`.
+   * Defaults to `false`: with no reverse proxy in front of the server,
+   * those headers are client-controlled, and `request.ip` will later feed
+   * rate limiting, brute-force lockout, and audit records.
+   */
+  readonly trustProxy?: boolean;
 }
 
 export function buildApp(deps: AppDeps): FastifyInstance {
@@ -15,7 +22,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     loggerInstance: deps.logger,
     genReqId: () => newId(),
     requestIdHeader: 'x-request-id',
-    trustProxy: true,
+    trustProxy: deps.trustProxy ?? false,
   });
 
   app.addHook('onRequest', async (request, reply) => {

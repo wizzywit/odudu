@@ -44,4 +44,16 @@ describe('loadConfig', () => {
   it('leaves the application database url unset by default', () => {
     expect('ODUDU_APP_DATABASE_URL' in loadConfig(minimal)).toBe(false);
   });
+
+  it('defaults ODUDU_TRUST_PROXY to false', () => {
+    expect(loadConfig(minimal).ODUDU_TRUST_PROXY).toBe(false);
+  });
+
+  it('parses ODUDU_TRUST_PROXY=true as true', () => {
+    expect(loadConfig({ ...minimal, ODUDU_TRUST_PROXY: 'true' }).ODUDU_TRUST_PROXY).toBe(true);
+  });
+
+  it('parses the literal string ODUDU_TRUST_PROXY=false as false', () => {
+    expect(loadConfig({ ...minimal, ODUDU_TRUST_PROXY: 'false' }).ODUDU_TRUST_PROXY).toBe(false);
+  });
 });

@@ -1,6 +1,14 @@
 import { z } from 'zod';
 import { OduduError } from '#/errors';
 
+// z.coerce.boolean() coerces any non-empty string, including "false", to
+// true — env vars are always strings, so that reads the literal string
+// "false" as truthy. This maps only the two spellings that mean something.
+const booleanEnvVar = z
+  .enum(['true', 'false'])
+  .optional()
+  .transform((value) => value === 'true');
+
 const schema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   ODUDU_HTTP_HOST: z.string().min(1).default('0.0.0.0'),
@@ -8,6 +16,7 @@ const schema = z.object({
   ODUDU_DATABASE_URL: z.url(),
   ODUDU_MIGRATIONS_DIR: z.string().min(1).optional(),
   ODUDU_APP_DATABASE_URL: z.url().optional(),
+  ODUDU_TRUST_PROXY: booleanEnvVar,
   ODUDU_LOG_LEVEL: z
     .enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent'])
     .default('info'),
