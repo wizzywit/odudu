@@ -1,21 +1,21 @@
 # Local development only. Do not deploy this file, or any variant of it,
-# to a shared or public environment. Every credential below (postgres
-# superuser, odudu_svc's password) is fixed, checked into a public
-# repository, and therefore public knowledge. Both published ports are
-# bound to loopback for the same reason; if you change that, you are
-# publishing a trivially-passworded Postgres and an unauthenticated app
-# server to the network.
+# to a shared or public environment. Requires infra/docker/.env (copy
+# infra/docker/.env.example) — with no defaults here, the stack cannot
+# start until you supply values. Both published ports are bound to
+# loopback regardless of what those values are; if you change that, you
+# are publishing Postgres and the app server to the network.
 services:
   postgres:
     image: postgres:17-alpine
     environment:
-      POSTGRES_USER: odudu
-      POSTGRES_PASSWORD: odudu
-      POSTGRES_DB: odudu
+      POSTGRES_USER: ${POSTGRES_USER:?set in infra/docker/.env, see infra/docker/.env.example}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set in infra/docker/.env, see infra/docker/.env.example}
+      POSTGRES_DB: ${POSTGRES_DB:?set in infra/docker/.env, see infra/docker/.env.example}
+      ODUDU_SVC_PASSWORD: ${ODUDU_SVC_PASSWORD:?set in infra/docker/.env, see infra/docker/.env.example}
     volumes:
       - ./initdb:/docker-entrypoint-initdb.d:ro
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U odudu -d odudu']
+      test: ['CMD-SHELL', 'pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}']
       interval: 2s
       timeout: 3s
       retries: 30
@@ -31,8 +31,8 @@ services:
       context: ../..
       dockerfile: infra/docker/Dockerfile
     environment:
-      ODUDU_DATABASE_URL: postgres://odudu:odudu@postgres:5432/odudu
-      ODUDU_APP_DATABASE_URL: postgres://odudu_svc:odudu_svc@postgres:5432/odudu
+      ODUDU_DATABASE_URL: postgres://${POSTGRES_USER:?set in infra/docker/.env, see infra/docker/.env.example}:${POSTGRES_PASSWORD:?set in infra/docker/.env, see infra/docker/.env.example}@postgres:5432/${POSTGRES_DB:?set in infra/docker/.env, see infra/docker/.env.example}
+      ODUDU_APP_DATABASE_URL: postgres://odudu_svc:${ODUDU_SVC_PASSWORD:?set in infra/docker/.env, see infra/docker/.env.example}@postgres:5432/${POSTGRES_DB:?set in infra/docker/.env, see infra/docker/.env.example}
       ODUDU_LOG_LEVEL: info
     depends_on:
       postgres:
