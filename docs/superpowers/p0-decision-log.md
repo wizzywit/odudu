@@ -257,7 +257,7 @@ extension, Vitest's resolver does. Every test passed for eight tasks because
 nothing had run plain `node` until now. I verified in an isolated probe that
 `"#/*.js": "./src/*.ts"` resolves under BOTH Node 24 type stripping and tsc
 with nodenext, and reproduced the failure in this repo first. Plan, spec and
-ADR 0013 corrected in 2aded83 with an honest note that the resolution claim
+ADR 0013 corrected in the commit correcting the mapping in the plan, spec and ADR 0013 with an honest note that the resolution claim
 was asserted from documentation rather than executed. The code change enters
 the fix loop. Cost if wrong: none; both halves were run before deciding.
 
@@ -403,7 +403,7 @@ during a fix wave. Revisit at P1.
 fixed both residuals myself rather than opening a second fix wave,
 which the process forbids. Both are one-liners — a workflow `if` condition
 and a sentence in a plan document — and both are verifiable by CI, which is
-green on ab95c83. Leaving a comment in a public repository that asserts a
+green by CI on the commit closing the final review's residuals. Leaving a comment in a public repository that asserts a
 protection it does not provide was not an acceptable park. Cost if wrong: a
 controller-authored change reviewed only by CI rather than by a fresh
 reviewer.
@@ -472,11 +472,12 @@ who genuinely wants LAN access must set the variable back.
 
 ## Note on commit references
 
-Commit SHAs quoted above were rewritten once, on 2026-09-10, to strip
-tool-attribution trailers from two commits. Only messages changed — the
-resulting trees are byte-identical, verified by diffing against the
-pre-rewrite head. References here were remapped to the new SHAs; anything
-quoted elsewhere from before that rewrite may not resolve.
+This log deliberately refers to commits by description rather than by SHA.
+The branch's history was rewritten twice before landing — once to strip
+tool-attribution trailers from two commits (messages only; the resulting
+trees were byte-identical, verified by diffing against the pre-rewrite head),
+and again by the rebase that merged it. A SHA quoted here would have gone
+stale both times.
 
 A `commit-msg` hook and a CI job now enforce the rule that was violated, so
 this should not recur.
