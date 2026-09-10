@@ -960,7 +960,7 @@ describe('loadConfig', () => {
   });
 
   it('rejects a missing database url', () => {
-    expect(() => loadConfig({})).toThrowError(OduduError);
+    expect(() => loadConfig({})).toThrow(OduduError);
   });
 
   it('names every offending key in the message', () => {
@@ -1172,19 +1172,19 @@ describe('ModuleRegistry', () => {
 
   it('rejects a duplicate module name', () => {
     const registry = new ModuleRegistry().register({ name: 'db' });
-    expect(() => registry.register({ name: 'db' })).toThrowError(OduduError);
+    expect(() => registry.register({ name: 'db' })).toThrow(OduduError);
   });
 
   it('rejects an unknown dependency', async () => {
     const registry = new ModuleRegistry().register({ name: 'http', dependsOn: ['nope'] });
-    await expect(registry.start(context())).rejects.toThrowError(/nope/);
+    await expect(registry.start(context())).rejects.toThrow(/nope/);
   });
 
   it('rejects a dependency cycle', async () => {
     const registry = new ModuleRegistry()
       .register({ name: 'a', dependsOn: ['b'] })
       .register({ name: 'b', dependsOn: ['a'] });
-    await expect(registry.start(context())).rejects.toThrowError(/cycle/i);
+    await expect(registry.start(context())).rejects.toThrow(/cycle/i);
   });
 
   it('stops every remaining module even when one throws', async () => {
@@ -1199,7 +1199,7 @@ describe('ModuleRegistry', () => {
     });
 
     await registry.start(context());
-    await expect(registry.stop()).rejects.toThrowError(OduduError);
+    await expect(registry.stop()).rejects.toThrow(OduduError);
     expect(log).toContain('stop:db');
   });
 });
@@ -1651,9 +1651,7 @@ describe('migrations', () => {
   });
 
   it('rejects a duplicate realm name', async () => {
-    await expect(
-      handle.db.insert(realms).values({ id: newId(), name: 'acme' }),
-    ).rejects.toThrowError();
+    await expect(handle.db.insert(realms).values({ id: newId(), name: 'acme' })).rejects.toThrow();
   });
 
   it('is idempotent when run a second time', async () => {
@@ -1888,7 +1886,7 @@ describe('withRealm', () => {
   });
 
   it('rejects an empty realm id', async () => {
-    await expect(withRealm(app.db, '', async () => undefined)).rejects.toThrowError(OduduError);
+    await expect(withRealm(app.db, '', async () => undefined)).rejects.toThrow(OduduError);
   });
 });
 ```
