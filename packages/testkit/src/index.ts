@@ -1,1 +1,1 @@
-export { startTestDatabase, type TestDatabase } from '#/postgres.js';
+export { createAppRole, startTestDatabase, type TestDatabase } from '#/postgres.js';

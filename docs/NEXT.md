@@ -1,14 +1,19 @@
 # Next
 
-**Position:** P0.6 complete. `@odudu/db` aggregates per-domain Drizzle
-schema slices into one ordered migration timeline — `realms` is the first
-slice — with a `postgres.js`-backed client and a `runMigrations(db, folder)`
-runner that takes its folder as a parameter so Task 9's bundling doesn't
-break `import.meta.url` resolution. `@odudu/testkit` provides
-`startTestDatabase()`, a Testcontainers-backed real PostgreSQL 17 instance
-for integration tests.
+**Position:** P0.7 complete. `realms` is force-RLS protected: the app
+connects as the non-superuser `odudu_svc` role (member of `odudu_app`),
+and `withRealm(db, realmId, fn)` binds `app.realm_id` for the transaction
+via `set_config(..., true)` — the bindable form of `SET LOCAL`. An unset
+or reverted realm setting fails closed to zero rows, not every row; this
+required guarding the RLS predicate with `nullif(..., '')` because Postgres
+resets a touched custom GUC to `''`, not `NULL`, once a connection has used
+it — verified against a live container, not assumed from docs.
+`@odudu/testkit` adds `createAppRole(adminUrl)` to provision that role for
+tests. `@odudu/kernel` adds the optional `ODUDU_APP_DATABASE_URL` for the
+restricted runtime connection (owner `ODUDU_DATABASE_URL` is still used for
+migrations).
 
-**Next increment:** Task 7.
+**Next increment:** Task 8.
 
 **Verify:** `pnpm verify` exits zero, but now requires a running Docker
 daemon — the `integration` Vitest project starts a real PostgreSQL

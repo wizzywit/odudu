@@ -8,6 +8,13 @@
       "when": 1789044675478,
       "tag": "0000_aspiring_human_cannonball",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1789044675479,
+      "tag": "0001_row_level_security",
+      "breakpoints": true
     }
   ]
 }

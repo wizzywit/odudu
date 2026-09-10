@@ -12,6 +12,7 @@ export default tseslint.config(
             '*.config.js',
             '*.config.ts',
             'packages/*/*.config.ts',
+            'apps/*/*.config.ts',
             '.dependency-cruiser.cjs',
           ],
           defaultProject: 'tsconfig.base.json',

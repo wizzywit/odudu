@@ -15,8 +15,12 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await handle.close();
-  await container.stop();
+  // beforeAll can throw before assignment (Docker down, image pull failure);
+  // guard so afterAll fails with the real cause instead of a TypeError.
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+  await handle?.close();
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+  await container?.stop();
 });
 
 describe('migrations', () => {
@@ -48,7 +52,14 @@ describe('migrations', () => {
   });
 
   it('rejects a duplicate realm name', async () => {
-    await expect(handle.db.insert(realms).values({ id: newId(), name: 'acme' })).rejects.toThrow();
+    await expect(
+      handle.db.insert(realms).values({ id: newId(), name: 'acme' }),
+    ).rejects.toMatchObject({
+      cause: {
+        code: '23505',
+        constraint_name: 'realms_name_unique',
+      },
+    });
   });
 
   it('is idempotent when run a second time', async () => {

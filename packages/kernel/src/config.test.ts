@@ -38,6 +38,10 @@ describe('loadConfig', () => {
   });
 
   it('leaves the migrations directory unset by default', () => {
-    expect(loadConfig(minimal).ODUDU_MIGRATIONS_DIR).toBeUndefined();
+    expect('ODUDU_MIGRATIONS_DIR' in loadConfig(minimal)).toBe(false);
+  });
+
+  it('leaves the application database url unset by default', () => {
+    expect('ODUDU_APP_DATABASE_URL' in loadConfig(minimal)).toBe(false);
   });
 });
