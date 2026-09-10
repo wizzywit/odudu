@@ -37,5 +37,11 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    healthcheck:
+      test: ['CMD', 'wget', '-qO-', 'http://127.0.0.1:3000/health/ready']
+      interval: 5s
+      timeout: 3s
+      start_period: 10s
+      retries: 5
     ports:
       - '127.0.0.1:3000:3000'
