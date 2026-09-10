@@ -4,3 +4,5 @@ node_modules
 **/.turbo
 **/coverage
 .git
+**/.env
+**/*.env
