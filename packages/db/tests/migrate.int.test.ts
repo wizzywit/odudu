@@ -1,9 +1,9 @@
 import { newId } from '@odudu/kernel';
 import { startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { createDatabase, type DatabaseHandle } from '#/client.js';
-import { MIGRATIONS_DIR, runMigrations } from '#/migrate.js';
-import { realms } from '#/schema/index.js';
+import { createDatabase, type DatabaseHandle } from '#/client';
+import { MIGRATIONS_DIR, runMigrations } from '#/migrate';
+import { realms } from '#/schema/index';
 
 // Guarded (possibly-undefined) handles for cleanup: beforeAll can throw
 // before assignment (Docker down, image pull failure), and afterAll must

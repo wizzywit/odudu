@@ -31,7 +31,12 @@ export default tseslint.config(
     extends: [tseslint.configs.disableTypeChecked],
   },
   {
-    files: ['packages/*/src/**/*.ts', 'apps/*/src/**/*.ts'],
+    files: [
+      'packages/*/src/**/*.ts',
+      'apps/*/src/**/*.ts',
+      'packages/*/tests/**/*.ts',
+      'apps/*/tests/**/*.ts',
+    ],
     rules: {
       'no-restricted-imports': [
         'error',

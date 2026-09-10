@@ -14,7 +14,7 @@ describe('no-restricted-imports for relative paths', () => {
   });
 
   const flagged = ['.', '..', './version.js', '../foo.js', '../../foo.js'];
-  const allowed = ['zod', 'node:url', '@odudu/kernel', '#/version.js'];
+  const allowed = ['zod', 'node:url', '@odudu/kernel', '#/version'];
 
   for (const specifier of flagged) {
     it(`rejects specifier ${JSON.stringify(specifier)}`, async () => {

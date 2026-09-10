@@ -10,8 +10,8 @@ file move. The usual remedy in the TypeScript world is a `paths` alias in
 
 ## Decision
 
-Each package declares `"imports": { "#/*.js": "./src/*.ts" }` in its
-`package.json`. Intra-package imports use `#/clock.js`. Relative specifiers
+Each package declares `"imports": { "#/*": "./src/*.ts" }` in its
+`package.json`. Intra-package imports use `#/clock`. Relative specifiers
 are forbidden in `packages/*/src` and `apps/*/src`, enforced by
 `dependency-cruiser`. Cross-package imports use the package name and resolve
 through that package's `index.ts`.
@@ -29,7 +29,7 @@ runs under `node src/main.ts` via type stripping, under Vitest, or inside a
 bundle.
 
 The decisive property is scoping. A `#` specifier resolves only within the
-package that declares it: `@odudu/db` cannot write `#/clock.js` and reach
+package that declares it: `@odudu/db` cannot write `#/clock` and reach
 into `packages/kernel/src/clock.ts`. TypeScript `paths` are global to the
 whole monorepo, so an alias would resolve across package boundaries and
 straight past the `index.ts` public surface — opening a hole underneath the
@@ -44,8 +44,7 @@ read worse, not better.
 
 - Every new package must declare the `imports` field. A package that forgets
   it fails loudly on the first `#/` import rather than resolving oddly.
-- Specifiers keep their `.js` extension, as ESM requires.
-- Same-directory imports are written `#/clock.js` rather than `./clock.js`.
+- Same-directory imports are written `#/clock` rather than `./clock`.
   Marginally longer, but it makes the rule absolute and the
   `dependency-cruiser` check trivial: no relative specifiers at all.
 
@@ -81,3 +80,20 @@ The lesson is narrower than the decision: the reasoning about `#` scoping and
 about avoiding a monorepo-global alias table was sound, but "resolves
 identically everywhere" was asserted from documentation rather than executed.
 A claim about resolution should be run before it is written down.
+
+## Refinement, 2026-09-10 (extensionless)
+
+`"#/*.js": "./src/*.ts"` worked, but it made the specifier lie: `#/clock.js`
+names a file, `clock.js`, that does not exist on disk — only `clock.ts`
+does. The `.js` was carried over from `nodenext`'s expectation that a
+_relative_ specifier names the emitted file, which does not apply here: a
+subpath import is resolved through the `imports` map, not by Node reading
+the specifier's own extension, so the map can perform the `.ts` translation
+without the specifier needing to say `.js` at all.
+
+The mapping is now `"#/*": "./src/*.ts"`, and specifiers drop the extension:
+`#/clock`, `#/schema/index`. Verified empirically across the same three
+resolvers as the correction above — `node` with native type stripping,
+`tsc` with `nodenext`, and esbuild (tsup's engine, including running the
+produced bundle) — with nested paths, before this refinement was applied
+to the codebase.

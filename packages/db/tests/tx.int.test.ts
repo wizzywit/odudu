@@ -2,10 +2,10 @@ import { newId, OduduError } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { createDatabase, type DatabaseHandle } from '#/client.js';
-import { MIGRATIONS_DIR, runMigrations } from '#/migrate.js';
-import { realms } from '#/schema/index.js';
-import { type RealmScopedDatabase, withRealm } from '#/tx.js';
+import { createDatabase, type DatabaseHandle } from '#/client';
+import { MIGRATIONS_DIR, runMigrations } from '#/migrate';
+import { realms } from '#/schema/index';
+import { type RealmScopedDatabase, withRealm } from '#/tx';
 
 const REALM_A = newId();
 const REALM_B = newId();

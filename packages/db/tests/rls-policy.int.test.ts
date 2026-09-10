@@ -1,7 +1,7 @@
 import { startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { createDatabase, type DatabaseHandle } from '#/client.js';
-import { MIGRATIONS_DIR, runMigrations } from '#/migrate.js';
+import { createDatabase, type DatabaseHandle } from '#/client';
+import { MIGRATIONS_DIR, runMigrations } from '#/migrate';
 
 // Tables that legitimately have no realm-scoped RLS policy. Kept explicit and
 // short: drizzle's own migration bookkeeping table lives in the "drizzle"
