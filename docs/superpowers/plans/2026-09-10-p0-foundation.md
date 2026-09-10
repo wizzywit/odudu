@@ -17,8 +17,8 @@
 - Every dependency version in this plan is exact, no ranges. Verified against the registry on 2026-09-10.
 - ESM only. `"type": "module"` everywhere, `verbatimModuleSyntax` on.
 - **Intra-package imports use Node subpath imports, never relative paths.**
-  Each package declares `"imports": { "#/*.js": "./src/*.ts" }`, and code inside it
-  imports as `#/clock.js`. Relative specifiers (`./`, `../`) are forbidden in
+  Each package declares `"imports": { "#/*": "./src/*.ts" }`, and code inside it
+  imports as `#/clock`. Relative specifiers (`./`, `../`) are forbidden in
   `packages/*/src` and `apps/*/src`. Cross-package imports use the package
   name (`@odudu/kernel`) and resolve only through that package's `index.ts`.
   See ADR 0013. The `tests/boundaries/fixtures` tree keeps its relative
@@ -236,7 +236,7 @@ Packages export TypeScript source rather than a build output. Nothing consumes t
 
 ```ts
 import { describe, expect, it } from 'vitest';
-import { KERNEL_VERSION } from '#/version.js';
+import { KERNEL_VERSION } from '#/version';
 
 describe('KERNEL_VERSION', () => {
   it('is a semver string', () => {
@@ -280,7 +280,7 @@ export const KERNEL_VERSION = '0.0.0';
 `packages/kernel/src/index.ts`:
 
 ```ts
-export { KERNEL_VERSION } from '#/version.js';
+export { KERNEL_VERSION } from '#/version';
 ```
 
 - [ ] **Step 9: Run the test to verify it passes**
@@ -802,7 +802,7 @@ export class OduduError extends Error {
 
 ```ts
 import { describe, expect, it } from 'vitest';
-import { FakeClock, systemClock } from '#/clock.js';
+import { FakeClock, systemClock } from '#/clock';
 
 describe('FakeClock', () => {
   it('does not move on its own', () => {
@@ -886,7 +886,7 @@ Expected: PASS, 4 tests.
 
 ```ts
 import { describe, expect, it } from 'vitest';
-import { newId } from '#/ids.js';
+import { newId } from '#/ids';
 
 describe('newId', () => {
   it('produces a UUID with version nibble 7', () => {
@@ -941,8 +941,8 @@ Expected: PASS, 3 tests.
 
 ```ts
 import { describe, expect, it } from 'vitest';
-import { loadConfig } from '#/config.js';
-import { OduduError } from '#/errors.js';
+import { loadConfig } from '#/config';
+import { OduduError } from '#/errors';
 
 const minimal = { ODUDU_DATABASE_URL: 'postgres://user:pw@localhost:5432/odudu' };
 
@@ -995,7 +995,7 @@ Expected: FAIL — cannot resolve `./config.js`.
 
 ```ts
 import { z } from 'zod';
-import { OduduError } from '#/errors.js';
+import { OduduError } from '#/errors';
 
 const schema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
@@ -1046,12 +1046,12 @@ export interface Logger {
 - [ ] **Step 16: Export everything from `index.ts`**
 
 ```ts
-export { KERNEL_VERSION } from '#/version.js';
-export { OduduError, type ErrorCode } from '#/errors.js';
-export { type Clock, systemClock, FakeClock } from '#/clock.js';
-export { newId } from '#/ids.js';
-export { type Config, loadConfig } from '#/config.js';
-export { type Logger } from '#/logger.js';
+export { KERNEL_VERSION } from '#/version';
+export { OduduError, type ErrorCode } from '#/errors';
+export { type Clock, systemClock, FakeClock } from '#/clock';
+export { newId } from '#/ids';
+export { type Config, loadConfig } from '#/config';
+export { type Logger } from '#/logger';
 ```
 
 - [ ] **Step 17: Write `.env.example`**
@@ -1110,11 +1110,11 @@ This is the seed of the plugin system. Because `apps/server` composes itself fro
 
 ```ts
 import { describe, expect, it } from 'vitest';
-import { FakeClock } from '#/clock.js';
-import { loadConfig } from '#/config.js';
-import { OduduError } from '#/errors.js';
-import { type Logger } from '#/logger.js';
-import { ModuleRegistry, type OduduModule } from '#/registry.js';
+import { FakeClock } from '#/clock';
+import { loadConfig } from '#/config';
+import { OduduError } from '#/errors';
+import { type Logger } from '#/logger';
+import { ModuleRegistry, type OduduModule } from '#/registry';
 
 const noopLogger: Logger = {
   debug: () => {},
@@ -1218,10 +1218,10 @@ Expected: FAIL — cannot resolve `./registry.js`.
 - [ ] **Step 3: Write `registry.ts`**
 
 ```ts
-import { type Clock } from '#/clock.js';
-import { type Config } from '#/config.js';
-import { OduduError } from '#/errors.js';
-import { type Logger } from '#/logger.js';
+import { type Clock } from '#/clock';
+import { type Config } from '#/config';
+import { OduduError } from '#/errors';
+import { type Logger } from '#/logger';
 
 export interface ModuleContext {
   readonly config: Config;
@@ -1326,7 +1326,7 @@ Expected: PASS, 6 tests.
 Append to `packages/kernel/src/index.ts`:
 
 ```ts
-export { ModuleRegistry, type ModuleContext, type OduduModule } from '#/registry.js';
+export { ModuleRegistry, type ModuleContext, type OduduModule } from '#/registry';
 ```
 
 - [ ] **Step 6: Run the full pipeline**
@@ -1389,7 +1389,7 @@ Integration tests use a real PostgreSQL container. The bugs that matter in an id
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "imports": { "#/*.js": "./src/*.ts" },
+  "imports": { "#/*": "./src/*.ts" },
   "exports": { ".": "./src/index.ts" },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json",
@@ -1414,7 +1414,7 @@ Integration tests use a real PostgreSQL container. The bugs that matter in an id
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "imports": { "#/*.js": "./src/*.ts" },
+  "imports": { "#/*": "./src/*.ts" },
   "exports": { ".": "./src/index.ts" },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json"
@@ -1460,7 +1460,7 @@ export const realms = pgTable('realms', {
 `packages/db/src/schema/index.ts`:
 
 ```ts
-export * from '#/schema/realms.js';
+export * from '#/schema/realms';
 ```
 
 Each domain package will add its own slice here as it arrives. The `db` package aggregates them so there is exactly one ordered migration timeline (spec §3).
@@ -1472,7 +1472,7 @@ Each domain package will add its own slice here as it arrives. The `db` package 
 ```ts
 import { drizzle, type PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import postgres, { type Sql } from 'postgres';
-import * as schema from '#/schema/index.js';
+import * as schema from '#/schema/index';
 
 export type Database = PostgresJsDatabase<typeof schema>;
 
@@ -1505,7 +1505,7 @@ export function createDatabase(url: string, options: { max?: number } = {}): Dat
 ```ts
 import { fileURLToPath } from 'node:url';
 import { migrate } from 'drizzle-orm/postgres-js/migrator';
-import { type Database } from '#/client.js';
+import { type Database } from '#/client';
 
 export const MIGRATIONS_DIR = fileURLToPath(new URL('../drizzle', import.meta.url));
 
@@ -1519,9 +1519,9 @@ export async function runMigrations(db: Database, folder: string = MIGRATIONS_DI
 `packages/db/src/index.ts`:
 
 ```ts
-export { createDatabase, type Database, type DatabaseHandle } from '#/client.js';
-export { MIGRATIONS_DIR, runMigrations } from '#/migrate.js';
-export * from '#/schema/index.js';
+export { createDatabase, type Database, type DatabaseHandle } from '#/client';
+export { MIGRATIONS_DIR, runMigrations } from '#/migrate';
+export * from '#/schema/index';
 ```
 
 - [ ] **Step 5: Add `ODUDU_MIGRATIONS_DIR` to the config schema**
@@ -1593,7 +1593,7 @@ export async function startTestDatabase(): Promise<TestDatabase> {
 `packages/testkit/src/index.ts`:
 
 ```ts
-export { startTestDatabase, type TestDatabase } from '#/postgres.js';
+export { startTestDatabase, type TestDatabase } from '#/postgres';
 ```
 
 - [ ] **Step 8: Write the failing integration test**
@@ -1604,9 +1604,9 @@ export { startTestDatabase, type TestDatabase } from '#/postgres.js';
 import { newId } from '@odudu/kernel';
 import { startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { createDatabase, type DatabaseHandle } from '#/client.js';
-import { MIGRATIONS_DIR, runMigrations } from '#/migrate.js';
-import { realms } from '#/schema/index.js';
+import { createDatabase, type DatabaseHandle } from '#/client';
+import { MIGRATIONS_DIR, runMigrations } from '#/migrate';
+import { realms } from '#/schema/index';
 
 let container: TestDatabase;
 let handle: DatabaseHandle;
@@ -1827,10 +1827,10 @@ Export it from `packages/testkit/src/index.ts`.
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { createDatabase, type DatabaseHandle } from '#/client.js';
-import { MIGRATIONS_DIR, runMigrations } from '#/migrate.js';
-import { realms } from '#/schema/index.js';
-import { withRealm } from '#/tx.js';
+import { createDatabase, type DatabaseHandle } from '#/client';
+import { MIGRATIONS_DIR, runMigrations } from '#/migrate';
+import { realms } from '#/schema/index';
+import { withRealm } from '#/tx';
 
 const REALM_A = newId();
 const REALM_B = newId();
@@ -1913,7 +1913,7 @@ Expected: FAIL — cannot resolve `./tx.js`.
 ```ts
 import { OduduError } from '@odudu/kernel';
 import { sql } from 'drizzle-orm';
-import { type Database } from '#/client.js';
+import { type Database } from '#/client';
 
 export async function withRealm<T>(
   db: Database,
@@ -1974,7 +1974,7 @@ it('leaves the application database url unset by default', () => {
 Append to `packages/db/src/index.ts`:
 
 ```ts
-export { withRealm } from '#/tx.js';
+export { withRealm } from '#/tx';
 ```
 
 ```bash
@@ -2031,7 +2031,7 @@ The server composes itself from registered modules rather than wiring things inl
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "imports": { "#/*.js": "./src/*.ts" },
+  "imports": { "#/*": "./src/*.ts" },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json",
     "dev": "node --watch src/main.ts"
@@ -2059,7 +2059,7 @@ The server composes itself from registered modules rather than wiring things inl
 import { loadConfig, type Logger } from '@odudu/kernel';
 import { Writable } from 'node:stream';
 import { describe, expect, it } from 'vitest';
-import { createLogger } from '#/logger.js';
+import { createLogger } from '#/logger';
 
 const config = loadConfig({ ODUDU_DATABASE_URL: 'postgres://u:p@localhost:5432/odudu' });
 
@@ -2157,8 +2157,8 @@ Expected: PASS, 3 tests.
 import { type DatabaseHandle } from '@odudu/db';
 import { loadConfig } from '@odudu/kernel';
 import { describe, expect, it } from 'vitest';
-import { buildApp } from '#/app.js';
-import { createLogger } from '#/logger.js';
+import { buildApp } from '#/app';
+import { createLogger } from '#/logger';
 
 const config = loadConfig({
   ODUDU_DATABASE_URL: 'postgres://u:p@localhost:5432/odudu',
@@ -2268,7 +2268,7 @@ import { type DatabaseHandle } from '@odudu/db';
 import { newId } from '@odudu/kernel';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { type Logger as PinoLogger } from 'pino';
-import { registerHealth } from '#/health.js';
+import { registerHealth } from '#/health';
 
 export interface AppDeps {
   readonly database: DatabaseHandle;
@@ -2359,10 +2359,10 @@ export function httpModule(app: FastifyInstance): OduduModule {
 import { createDatabase } from '@odudu/db';
 import { loadConfig, ModuleRegistry, systemClock } from '@odudu/kernel';
 import closeWithGrace from 'close-with-grace';
-import { buildApp } from '#/app.js';
-import { createLogger } from '#/logger.js';
-import { databaseModule } from '#/modules/database.js';
-import { httpModule } from '#/modules/http.js';
+import { buildApp } from '#/app';
+import { createLogger } from '#/logger';
+import { databaseModule } from '#/modules/database';
+import { httpModule } from '#/modules/http';
 
 const config = loadConfig();
 const logger = createLogger(config);

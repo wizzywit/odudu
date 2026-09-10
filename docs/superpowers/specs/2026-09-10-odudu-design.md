@@ -164,14 +164,18 @@ Intra-package imports use Node subpath imports, never relative paths. Each
 package declares:
 
 ```json
-{ "imports": { "#/*.js": "./src/*.ts" } }
+{ "imports": { "#/*": "./src/*.ts" } }
 ```
 
-and code inside it imports as `#/clock.js`. Relative specifiers are
+and code inside it imports as `#/clock`. Relative specifiers are
 forbidden in package and app source, enforced by `dependency-cruiser`.
 
 Cross-package imports use the package name — `@odudu/kernel` — and resolve
 only through that package's `index.ts`.
+
+Specifiers carry no file extension: the mapping targets `./src/*.ts`, so
+`#/clock` resolves to the real `clock.ts` rather than to an emitted filename
+that does not exist on disk.
 
 The two prefixes therefore carry meaning: `#/` is always "inside this
 package", `@odudu/*` is always "another package's public surface". Node
@@ -374,6 +378,11 @@ audit configuration, and explain authorization decisions.
 | Conformance | OpenID Foundation suite             | full compose stack        | nightly, on demand |
 | Load        | token endpoint, Argon2id throughput | k6                        | per phase          |
 | Console     | Playwright                          | app + seeded realm        | every PR           |
+
+Unit tests sit beside the code they cover, so a module with no test
+alongside it is visibly untested. Container-backed integration tests live in
+a per-package `tests/` directory instead: they are slow, need Docker, and run
+as a separate Vitest project.
 
 Integration tests run against real PostgreSQL, never a mock. The bugs that
 matter in an identity provider live in transaction boundaries, unique

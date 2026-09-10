@@ -97,3 +97,19 @@ resolvers as the correction above — `node` with native type stripping,
 `tsc` with `nodenext`, and esbuild (tsup's engine, including running the
 produced bundle) — with nested paths, before this refinement was applied
 to the codebase.
+
+## Amendment, 2026-09-10
+
+The mapping is now `"#/*": "./src/*.ts"` and specifiers carry no extension:
+`#/clock`, not `#/clock.js`.
+
+The earlier `"#/*.js": "./src/*.ts"` form worked, but it kept the `.js`
+convention `nodenext` normally imposes — where source names the file the
+compiler _would_ emit rather than the file that exists. Moving the extension
+entirely into the mapping removes that indirection: the specifier names a
+module, and exactly one place in the repo knows what a module is stored as.
+
+Verified before adoption, across every resolver in use — `node` with native
+type stripping, `tsc` with `nodenext`, and esbuild including running the
+resulting bundle — and with nested paths. Running it first was the explicit
+lesson of the Correction above.
