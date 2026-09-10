@@ -6,4 +6,4 @@ export const realms = pgTable('realms', {
   displayName: text('display_name'),
   enabled: boolean('enabled').notNull().default(true),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-});
+}).enableRLS();
