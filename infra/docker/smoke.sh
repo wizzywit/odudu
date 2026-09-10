@@ -9,6 +9,10 @@ if [ ! -f .env ]; then
   exit 1
 fi
 
+set -a
+source .env
+set +a
+
 cleanup() { docker compose down -v --remove-orphans || true; }
 trap cleanup EXIT
 
@@ -42,12 +46,12 @@ fi
 # BYPASSRLS. Inserting a real row as the owner first, then asserting
 # odudu_svc still sees 0, is what actually exercises the policy predicate.
 docker compose exec -T postgres \
-  psql -U odudu -d odudu -c \
+  psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c \
   "insert into realms (id, name) values ('00000000-0000-0000-0000-000000000001', 'smoke-test-realm') on conflict (id) do nothing;" \
   > /dev/null
 
 count_output="$(docker compose exec -T postgres \
-  psql -U odudu_svc -d odudu -tAc 'select count(*) from realms;')" || {
+  psql -U odudu_svc -d "$POSTGRES_DB" -tAc 'select count(*) from realms;')" || {
   echo "odudu_svc cannot query realms (grant/RLS wiring is broken)" >&2
   docker compose logs odudu >&2
   exit 1
@@ -60,7 +64,7 @@ fi
 echo "odudu_svc sees 0 rows in realms despite a real row existing (RLS filters it)"
 
 policy_output="$(docker compose exec -T postgres \
-  psql -U odudu -d odudu -tAc "select policyname from pg_policies where tablename = 'realms';")"
+  psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tAc "select policyname from pg_policies where tablename = 'realms';")"
 policy_output="$(echo "$policy_output" | tr -d '[:space:]')"
 if [ "$policy_output" != "realms_isolation" ]; then
   echo "expected realms_isolation policy on realms, got '$policy_output'" >&2

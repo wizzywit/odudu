@@ -8,10 +8,10 @@ services:
   postgres:
     image: postgres:17-alpine
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:?set in infra/docker/.env, see infra/docker/.env.example}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set in infra/docker/.env, see infra/docker/.env.example}
-      POSTGRES_DB: ${POSTGRES_DB:?set in infra/docker/.env, see infra/docker/.env.example}
-      ODUDU_SVC_PASSWORD: ${ODUDU_SVC_PASSWORD:?set in infra/docker/.env, see infra/docker/.env.example}
+      POSTGRES_USER: ${POSTGRES_USER:?see infra/docker/.env.example}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?see infra/docker/.env.example}
+      POSTGRES_DB: ${POSTGRES_DB:?see infra/docker/.env.example}
+      ODUDU_SVC_PASSWORD: ${ODUDU_SVC_PASSWORD:?see infra/docker/.env.example}
     volumes:
       - ./initdb:/docker-entrypoint-initdb.d:ro
     healthcheck:
@@ -31,8 +31,8 @@ services:
       context: ../..
       dockerfile: infra/docker/Dockerfile
     environment:
-      ODUDU_DATABASE_URL: postgres://${POSTGRES_USER:?set in infra/docker/.env, see infra/docker/.env.example}:${POSTGRES_PASSWORD:?set in infra/docker/.env, see infra/docker/.env.example}@postgres:5432/${POSTGRES_DB:?set in infra/docker/.env, see infra/docker/.env.example}
-      ODUDU_APP_DATABASE_URL: postgres://odudu_svc:${ODUDU_SVC_PASSWORD:?set in infra/docker/.env, see infra/docker/.env.example}@postgres:5432/${POSTGRES_DB:?set in infra/docker/.env, see infra/docker/.env.example}
+      ODUDU_DATABASE_URL: postgres://${POSTGRES_USER:?see infra/docker/.env.example}:${POSTGRES_PASSWORD:?see infra/docker/.env.example}@postgres:5432/${POSTGRES_DB:?see infra/docker/.env.example}
+      ODUDU_APP_DATABASE_URL: postgres://odudu_svc:${ODUDU_SVC_PASSWORD:?see infra/docker/.env.example}@postgres:5432/${POSTGRES_DB:?see infra/docker/.env.example}
       ODUDU_LOG_LEVEL: info
     depends_on:
       postgres:

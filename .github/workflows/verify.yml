@@ -49,7 +49,9 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - name: Bootstrap infra/docker/.env from .env.example (CI-only; smoke.sh requires it to already exist)
+      # smoke.sh fails closed if infra/docker/.env is missing (ADR 0015) —
+      # this is the deliberate act CI performs in its place.
+      - name: Bootstrap infra/docker/.env
         run: cp infra/docker/.env.example infra/docker/.env
 
       - name: Build and smoke-test the stack

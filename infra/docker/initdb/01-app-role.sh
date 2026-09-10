@@ -15,9 +15,8 @@ set -euo pipefail
 # environment, and its comment for the ordering this still does not
 # cover).
 #
-# The password is passed in as a psql variable (-v) rather than
-# interpolated into the SQL text; :'svc_password' has psql apply SQL
-# string-literal quoting to it, so it is never string-concatenated in.
+# The password is passed as a bound psql variable (-v svc_password=...);
+# :'svc_password' applies psql's SQL string-literal quoting to it.
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" \
   -v svc_password="$ODUDU_SVC_PASSWORD" <<'SQL'
 CREATE ROLE odudu_app NOLOGIN;
