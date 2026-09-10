@@ -68,9 +68,11 @@ export class ModuleRegistry {
       if (state.get(name) === 'done') return;
 
       if (state.get(name) === 'visiting') {
+        const fullTrail = [...trail, name];
+        const cycleStart = fullTrail.indexOf(name);
         throw new OduduError(
           'module_cycle',
-          `Module dependency cycle: ${[...trail, name].join(' -> ')}`,
+          `Module dependency cycle: ${fullTrail.slice(cycleStart).join(' -> ')}`,
         );
       }
 

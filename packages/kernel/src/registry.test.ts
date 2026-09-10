@@ -78,19 +78,56 @@ describe('ModuleRegistry', () => {
     await expect(registry.start(context())).rejects.toThrow(/cycle/i);
   });
 
-  it('stops every remaining module even when one throws', async () => {
+  it('reports a self-dependency cycle as a single node', async () => {
+    const registry = new ModuleRegistry().register({ name: 'a', dependsOn: ['a'] });
+    await expect(registry.start(context())).rejects.toThrow(/a -> a/);
+  });
+
+  it('trims the cycle trail to the cycle, excluding any non-cycle prefix', async () => {
+    const registry = new ModuleRegistry()
+      .register({ name: 'x', dependsOn: ['a'] })
+      .register({ name: 'a', dependsOn: ['b'] })
+      .register({ name: 'b', dependsOn: ['a'] });
+
+    const error: unknown = await registry.start(context()).catch((caught: unknown) => caught);
+
+    expect(error).toBeInstanceOf(Error);
+    expect((error as Error).message).toMatch(/a -> b -> a/);
+    expect((error as Error).message).not.toContain('x -> ');
+  });
+
+  it('stops every remaining module even when one throws or rejects', async () => {
     const log: string[] = [];
-    const registry = new ModuleRegistry().register(recorder('db', log)).register({
-      name: 'http',
-      dependsOn: ['db'],
-      start: () => Promise.resolve(),
-      stop: () => {
-        throw new Error('socket stuck');
-      },
-    });
+    const registry = new ModuleRegistry()
+      .register(recorder('db', log))
+      .register({
+        name: 'http',
+        dependsOn: ['db'],
+        start: () => Promise.resolve(),
+        stop: () => Promise.reject(new Error('socket stuck')),
+      })
+      .register({
+        name: 'cache',
+        dependsOn: ['db'],
+        start: () => Promise.resolve(),
+        stop: () => {
+          throw new Error('handle closed');
+        },
+      });
 
     await registry.start(context());
-    await expect(registry.stop()).rejects.toThrow(OduduError);
+
+    const error = await registry.stop().catch((caught: unknown) => caught);
+
+    expect(error).toBeInstanceOf(OduduError);
+    const oduduError = error as OduduError;
+    expect(oduduError.code).toBe('module_stop_failed');
+    expect(oduduError.cause).toBeInstanceOf(AggregateError);
+    const aggregate = oduduError.cause as AggregateError;
+    expect(aggregate.errors).toHaveLength(2);
+    expect(aggregate.errors.map((e: Error) => e.message)).toEqual(
+      expect.arrayContaining(['socket stuck', 'handle closed']),
+    );
     expect(log).toContain('stop:db');
   });
 });
