@@ -40,6 +40,18 @@ describe('boundary rules', () => {
     ).toBe(false);
   });
 
+  it('rejects a circular import', async () => {
+    expect((await violations('no-circular')).length).toBeGreaterThan(0);
+  });
+
+  it('rejects a view importing a repository', async () => {
+    expect((await violations('no-view-to-repository')).length).toBeGreaterThan(0);
+  });
+
+  it('rejects a usecase importing an adapter', async () => {
+    expect((await violations('no-usecase-to-adapter')).length).toBeGreaterThan(0);
+  });
+
   it('permits a view importing service, with zero violations', async () => {
     const output = await cruiseFixtures();
     const fromGoodView = output.summary.violations.filter((v) =>

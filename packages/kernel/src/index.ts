@@ -1,1 +1,1 @@
-export { KERNEL_VERSION } from './version.js';
+export { KERNEL_VERSION } from '#/version.js';
