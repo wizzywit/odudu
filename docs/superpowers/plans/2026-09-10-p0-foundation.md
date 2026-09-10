@@ -17,7 +17,7 @@
 - Every dependency version in this plan is exact, no ranges. Verified against the registry on 2026-09-10.
 - ESM only. `"type": "module"` everywhere, `verbatimModuleSyntax` on.
 - **Intra-package imports use Node subpath imports, never relative paths.**
-  Each package declares `"imports": { "#/*": "./src/*" }`, and code inside it
+  Each package declares `"imports": { "#/*.js": "./src/*.ts" }`, and code inside it
   imports as `#/clock.js`. Relative specifiers (`./`, `../`) are forbidden in
   `packages/*/src` and `apps/*/src`. Cross-package imports use the package
   name (`@odudu/kernel`) and resolve only through that package's `index.ts`.
@@ -1389,7 +1389,7 @@ Integration tests use a real PostgreSQL container. The bugs that matter in an id
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "imports": { "#/*": "./src/*" },
+  "imports": { "#/*.js": "./src/*.ts" },
   "exports": { ".": "./src/index.ts" },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json",
@@ -1414,7 +1414,7 @@ Integration tests use a real PostgreSQL container. The bugs that matter in an id
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "imports": { "#/*": "./src/*" },
+  "imports": { "#/*.js": "./src/*.ts" },
   "exports": { ".": "./src/index.ts" },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json"
@@ -2031,7 +2031,7 @@ The server composes itself from registered modules rather than wiring things inl
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "imports": { "#/*": "./src/*" },
+  "imports": { "#/*.js": "./src/*.ts" },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json",
     "dev": "node --watch src/main.ts"

@@ -164,7 +164,7 @@ Intra-package imports use Node subpath imports, never relative paths. Each
 package declares:
 
 ```json
-{ "imports": { "#/*": "./src/*" } }
+{ "imports": { "#/*.js": "./src/*.ts" } }
 ```
 
 and code inside it imports as `#/clock.js`. Relative specifiers are

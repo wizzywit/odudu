@@ -10,7 +10,7 @@ file move. The usual remedy in the TypeScript world is a `paths` alias in
 
 ## Decision
 
-Each package declares `"imports": { "#/*": "./src/*" }` in its
+Each package declares `"imports": { "#/*.js": "./src/*.ts" }` in its
 `package.json`. Intra-package imports use `#/clock.js`. Relative specifiers
 are forbidden in `packages/*/src` and `apps/*/src`, enforced by
 `dependency-cruiser`. Cross-package imports use the package name and resolve
@@ -62,3 +62,22 @@ public surfaces, defeating ADR 0010.
 kernel). Native and needs no aliases, but it requires `exports` to publish
 `./*`, which would expose every internal module to every other package —
 the opposite of what ADR 0010 wants.
+
+## Correction, 2026-09-10
+
+This ADR originally specified the mapping `"#/*": "./src/*"`. That mapping
+does not work under Node's native type stripping: `#/clock.js` resolves to
+`src/clock.js`, and the file on disk is `clock.ts`. Node does not rewrite the
+extension. Vitest's resolver does, which is why every test passed and nothing
+caught it until Task 8 first ran `node src/main.ts` directly — the exact
+command this ADR's rationale claimed would work.
+
+The mapping is therefore `"#/*.js": "./src/*.ts"`, which makes the extension
+rewrite part of the mapping itself. Verified empirically under both Node 24
+type stripping and `tsc` with `nodenext`; the specifier written in source is
+unchanged.
+
+The lesson is narrower than the decision: the reasoning about `#` scoping and
+about avoiding a monorepo-global alias table was sound, but "resolves
+identically everywhere" was asserted from documentation rather than executed.
+A claim about resolution should be run before it is written down.
