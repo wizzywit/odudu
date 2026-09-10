@@ -1,0 +1,34 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: odudu
+      POSTGRES_PASSWORD: odudu
+      POSTGRES_DB: odudu
+    volumes:
+      - ./initdb:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U odudu -d odudu']
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    ports:
+      # Host-side port only: the container listens on 5432, but the host
+      # commonly already has a native postgres bound to 5432, so the
+      # published port is moved rather than changing the in-container port
+      # (which every other service in this file addresses by its default).
+      - '5442:5432'
+
+  odudu:
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile
+    environment:
+      ODUDU_DATABASE_URL: postgres://odudu:odudu@postgres:5432/odudu
+      ODUDU_APP_DATABASE_URL: postgres://odudu_svc:odudu_svc@postgres:5432/odudu
+      ODUDU_LOG_LEVEL: info
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - '3000:3000'

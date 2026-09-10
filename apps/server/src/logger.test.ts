@@ -62,4 +62,24 @@ describe('createLogger', () => {
     expect(lines()).not.toContain('super-secret-token');
     expect(lines()).toContain('[redacted]');
   });
+
+  it('redacts a real set-cookie response header logged through the running app', async () => {
+    const { stream, lines } = capture();
+    const logger = createLogger(config, stream);
+    const database: DatabaseHandle = {
+      db: {} as DatabaseHandle['db'],
+      sql: (() => Promise.resolve([{ ok: 1 }])) as unknown as DatabaseHandle['sql'],
+      close: () => Promise.resolve(),
+    };
+    const app = buildApp({ database, logger });
+    app.get('/set-cookie-probe', (_request, reply) => {
+      reply.header('set-cookie', '__Host-alpha-session=super-secret-cookie-value');
+      return { ok: true };
+    });
+
+    await app.inject({ method: 'GET', url: '/set-cookie-probe' });
+
+    expect(lines()).not.toContain('super-secret-cookie-value');
+    expect(lines()).toContain('[redacted]');
+  });
 });
