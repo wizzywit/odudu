@@ -427,3 +427,43 @@ precede filtering, because a wrong dependency graph turns "skipped" into
 "untested code merged" — a semantics an identity provider should not adopt
 for a speed win it does not need. Cost if wrong: CI stays slower than
 necessary for a phase or two.
+
+## 36
+
+the owner rejected the smoke.sh `.env` bootstrap after seeing it,
+and they were right — a script that silently materialises .env from the
+example defeats the exact property the task bought, since the normal entry
+point would then always start with the example's values. Replaced with a
+fail-closed check plus an explicit named CI step, so the deliberate act is
+recorded in the pipeline rather than hidden in a script. Cost if wrong: one
+manual `cp` on first run, now documented in the README.
+
+## 37
+
+the owner also caught that drizzle.config.ts defaulted to
+localhost:5432 — their machine's real Postgres — where compose publishes 5442. Latent because db:generate never connects, but `drizzle-kit push`
+would have modified their actual database. First fixed by throwing, which
+broke offline codegen on a fresh clone; settled on the 5442 fallback, which
+is safe precisely because that port is the throwaway stack. Cost if wrong:
+a connecting drizzle-kit command with the variable unset talks to the dev
+stack instead of failing.
+
+## 38
+
+parking the final Minor rather than reopening a loop — ADR 0015's
+Decision prose was style-trimmed in place instead of being left untouched
+with the change noted in its dated Amendment, which is a literal deviation
+from the immutability rule the repo documents for itself. Meaning unchanged;
+re-editing to un-edit is churn. Recorded here so the deviation is not
+silent. Cost if wrong: the ADR's own convention is slightly less strictly
+observed than it claims.
+
+## 39
+
+documented both run paths in the README after verifying each one for
+real, and fixed a defect the verification surfaced — .env.example defaulted
+ODUDU_HTTP_HOST to 0.0.0.0, so a host-run dev server published to the LAN,
+inconsistent with the trouble taken to loopback-bind compose. 0.0.0.0 is
+needed only inside the container, which the image already sets. Nothing in
+the repo had said how to start the application at all. Cost if wrong: a dev
+who genuinely wants LAN access must set the variable back.
