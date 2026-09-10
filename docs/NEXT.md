@@ -1,9 +1,8 @@
 # Next
 
-**Position:** P0.1 complete. Workspace, tooling, and `pnpm verify` green
-locally. No CI yet.
+**Position:** P0.2 complete, CI green and proven to fail on a type error.
 
-**Next increment:** Task 2 — GitHub Actions running `pnpm verify`.
+**Next increment:** Task 3 — dependency-cruiser boundary rules.
 
 **Verify:** `pnpm verify` exits zero.
 
