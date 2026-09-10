@@ -9,9 +9,12 @@ const config = loadConfig({
   ODUDU_LOG_LEVEL: 'silent',
 });
 
-function fakeDatabase(behaviour: 'ok' | 'down'): DatabaseHandle {
+function fakeDatabase(behaviour: 'ok' | 'down'): DatabaseHandle & { calls: number } {
+  const state = { calls: 0 };
+
   const sql = (() => {
-    if (behaviour === 'down') return Promise.reject(new Error('connection refused'));
+    state.calls += 1;
+    if (behaviour === 'down') throw new Error('connection refused');
     return Promise.resolve([{ ok: 1 }]);
   }) as unknown as DatabaseHandle['sql'];
 
@@ -19,33 +22,36 @@ function fakeDatabase(behaviour: 'ok' | 'down'): DatabaseHandle {
     db: {} as DatabaseHandle['db'],
     sql,
     close: () => Promise.resolve(),
+    get calls() {
+      return state.calls;
+    },
   };
 }
 
 function app(behaviour: 'ok' | 'down') {
-  return buildApp({
-    database: fakeDatabase(behaviour),
-    logger: createLogger(loadConfig({ ODUDU_DATABASE_URL: config.ODUDU_DATABASE_URL })),
-  });
+  const database = fakeDatabase(behaviour);
+  return { app: buildApp({ database, logger: createLogger(config) }), database };
 }
 
 describe('health endpoints', () => {
   it('reports live without touching the database', async () => {
-    const response = await app('down').inject({ method: 'GET', url: '/health/live' });
+    const { app: instance, database } = app('down');
+    const response = await instance.inject({ method: 'GET', url: '/health/live' });
 
     expect(response.statusCode).toBe(200);
     expect(response.json()).toEqual({ status: 'ok' });
+    expect(database.calls).toBe(0);
   });
 
   it('reports ready when the database answers', async () => {
-    const response = await app('ok').inject({ method: 'GET', url: '/health/ready' });
+    const response = await app('ok').app.inject({ method: 'GET', url: '/health/ready' });
 
     expect(response.statusCode).toBe(200);
     expect(response.json()).toEqual({ status: 'ok', checks: { database: 'ok' } });
   });
 
   it('reports 503 when the database does not answer', async () => {
-    const response = await app('down').inject({ method: 'GET', url: '/health/ready' });
+    const response = await app('down').app.inject({ method: 'GET', url: '/health/ready' });
 
     expect(response.statusCode).toBe(503);
     expect(response.json()).toEqual({
@@ -55,7 +61,7 @@ describe('health endpoints', () => {
   });
 
   it('echoes a correlation id', async () => {
-    const response = await app('ok').inject({
+    const response = await app('ok').app.inject({
       method: 'GET',
       url: '/health/live',
       headers: { 'x-request-id': 'given-id' },
@@ -65,7 +71,7 @@ describe('health endpoints', () => {
   });
 
   it('generates a correlation id when none is supplied', async () => {
-    const response = await app('ok').inject({ method: 'GET', url: '/health/live' });
+    const response = await app('ok').app.inject({ method: 'GET', url: '/health/live' });
 
     expect(response.headers['x-request-id']).toMatch(/^[0-9a-f-]{36}$/);
   });

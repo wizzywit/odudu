@@ -39,18 +39,35 @@ entirely, which would make the redaction decorative). `main.ts` warns on
 every boot when `ODUDU_APP_DATABASE_URL` is unset, since serving as the
 owner role then bypasses row-level security.
 
-**Found while verifying Task 8:** plain `node apps/server/src/main.ts`
-cannot actually resolve the codebase's own `#/*.js` subpath imports back to
-their `.ts` files — Node's native type-stripping strips syntax but does no
-`.js`-to-`.ts` extension mapping, contradicting ADR 0013's claim that the
-same specifier resolves identically under `node`, Vitest, and a bundle.
-Vitest's resolver (esbuild-based) masks this, so it went uncaught through
-Tasks 4–7. The real end-to-end boot in this task's verification (migrations
-ran, `/health/ready` returned `{"status":"ok","checks":{"database":"ok"}}`
-against a live container, graceful shutdown observed) only succeeded using
-a throwaway Node loader hook outside the repo; no repository file relies on
-it. ADR 0013 needs a correction or Task 9's `tsup` build needs to be treated
-as required for any real `node` execution, not just production packaging.
+**Task 8 review fix:** the repo-wide subpath-imports mapping was corrected
+to `"#/*.js": "./src/*.ts"` in all four `package.json` files (`kernel`,
+`db`, `testkit`, `server`), matching ADR 0013's Correction section. The
+previous mapping (`"#/*": "./src/*"`) resolved under Vitest (whose esbuild
+resolver rewrites the extension) but not under plain Node, which throws
+`ERR_MODULE_NOT_FOUND` because it strips TypeScript syntax without ever
+mapping `.js` specifiers back to `.ts` files on disk. The brief's literal
+step-12 command, `node apps/server/src/main.ts`, now boots against a real
+PostgreSQL container with no loader hook of any kind: migrations run,
+`/health/ready` returns `{"status":"ok","checks":{"database":"ok"}}`, and
+SIGTERM shuts the process down gracefully (verified socket-closed, not
+process-killed). `pnpm --filter @odudu/server dev` also starts cleanly.
+Specifiers in source (`#/app.js`, etc.) were unchanged — only the mapping
+moved.
+
+Also closed from the same review: readiness/liveness fakes now prove
+independence instead of merely tolerating it (the down-fake throws
+synchronously and the live test asserts zero database calls); the silent
+log level from `health.test.ts`'s config is actually passed into
+`createLogger` instead of being shadowed by a second, defaulted
+`loadConfig()` call; redaction is now also tested end-to-end through
+`buildApp`/`inject()`, exercising Fastify's real `prevLogger.child()`
+serializer merge rather than only the standalone `createLogger` instance;
+the `res.headers["set-cookie"]` redact path got an actual `res` serializer
+so it's no longer decorative; `health.ts` logs readiness failures via
+`request.log` so the correlation id is attached; `httpModule`'s `dependsOn`
+and `databaseModule`'s close-once-when-shared behavior are now covered by
+`apps/server/src/modules/*.test.ts`; and the unused `pino-pretty`
+dependency was removed.
 
 **Next increment:** Task 9.
 
@@ -58,4 +75,4 @@ as required for any real `node` execution, not just production packaging.
 daemon — the `integration` Vitest project starts a real PostgreSQL
 container.
 
-**Blocked on:** nothing, but see the ADR 0013 discrepancy noted above.
+**Blocked on:** nothing.

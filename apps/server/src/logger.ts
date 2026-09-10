@@ -16,6 +16,10 @@ export function createLogger(config: Config, destination?: DestinationStream): P
           url: request.url,
           headers: request.headers,
         }),
+        res: (reply: { statusCode: number; getHeaders: () => unknown }) => ({
+          statusCode: reply.statusCode,
+          headers: reply.getHeaders(),
+        }),
       },
     },
     destination,
