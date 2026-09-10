@@ -60,6 +60,13 @@ genuinely enforced in the container:
 ./infra/docker/smoke.sh
 ```
 
+Enable the repo's git hooks once per clone — they reject commit messages
+carrying tool-attribution trailers, which CI also enforces:
+
+```bash
+git config core.hooksPath .githooks
+```
+
 **The gate** everything must pass — formatting, types, lint, architectural
 boundaries, and tests including container-backed integration ones. Needs
 Docker running:

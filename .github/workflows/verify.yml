@@ -56,3 +56,23 @@ jobs:
 
       - name: Build and smoke-test the stack
         run: ./infra/docker/smoke.sh
+
+  commit-messages:
+    if: >-
+      github.event_name == 'push' ||
+      github.event.pull_request.head.repo.full_name != github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # The check reads commit messages, so it needs real history.
+          fetch-depth: 0
+      - name: Reject tool-attribution trailers
+        run: |
+          if git log --format=%B origin/main..HEAD |
+             grep -inE 'co-authored-by:.*(claude|anthropic)|generated with .*(claude|anthropic)|🤖'; then
+            echo "::error::A commit message carries a tool-attribution trailer. See .githooks/commit-msg" >&2
+            exit 1
+          fi
+          echo "commit messages clean"

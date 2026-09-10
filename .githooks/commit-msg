@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# Rejects tool-attribution trailers. Human co-authors are fine; the pattern
+# below matches only generated attribution, which this project does not carry
+# (CLAUDE.md). Installed by `git config core.hooksPath .githooks` — see the
+# README. CI enforces the same rule, so a clone without the hook is caught.
+set -euo pipefail
+
+msg_file="$1"
+
+if grep -inE 'co-authored-by:.*(claude|anthropic)|generated with .*(claude|anthropic)|🤖' "$msg_file"; then
+  cat >&2 <<'MSG'
+
+Commit rejected: the message carries a tool-attribution trailer.
+
+This project's commit messages are subject and body only. Remove the line
+shown above and commit again.
+MSG
+  exit 1
+fi
