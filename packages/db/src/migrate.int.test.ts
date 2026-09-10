@@ -5,22 +5,29 @@ import { createDatabase, type DatabaseHandle } from '#/client.js';
 import { MIGRATIONS_DIR, runMigrations } from '#/migrate.js';
 import { realms } from '#/schema/index.js';
 
+// Guarded (possibly-undefined) handles for cleanup: beforeAll can throw
+// before assignment (Docker down, image pull failure), and afterAll must
+// still run without a TypeError obscuring the real cause.
+let containerHandle: TestDatabase | undefined;
+let dbHandle: DatabaseHandle | undefined;
+
+// Non-optional bindings for the test bodies below, which only ever run
+// after beforeAll has succeeded.
 let container: TestDatabase;
 let handle: DatabaseHandle;
 
 beforeAll(async () => {
-  container = await startTestDatabase();
-  handle = createDatabase(container.adminUrl);
+  containerHandle = await startTestDatabase();
+  container = containerHandle;
+
+  dbHandle = createDatabase(container.adminUrl);
+  handle = dbHandle;
   await runMigrations(handle.db, MIGRATIONS_DIR);
 });
 
 afterAll(async () => {
-  // beforeAll can throw before assignment (Docker down, image pull failure);
-  // guard so afterAll fails with the real cause instead of a TypeError.
-  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-  await handle?.close();
-  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-  await container?.stop();
+  await dbHandle?.close();
+  await containerHandle?.stop();
 });
 
 describe('migrations', () => {

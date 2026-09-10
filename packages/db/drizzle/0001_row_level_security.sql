@@ -2,7 +2,18 @@ CREATE ROLE odudu_app NOLOGIN;
 
 GRANT USAGE ON SCHEMA public TO odudu_app;
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO odudu_app;
-ALTER DEFAULT PRIVILEGES IN SCHEMA public
+
+-- ALTER DEFAULT PRIVILEGES attaches only to the role that executes it (the
+-- implicit target when FOR ROLE is omitted is "the current role", which is
+-- what CURRENT_USER makes explicit here). A table later created by a
+-- *different* owner role would get no default grant. All migrations run on
+-- one owner connection today, so CURRENT_USER is stable across migrations —
+-- but that stability is an operational invariant, not something Postgres
+-- enforces: if the migration runner is ever pointed at a different owner
+-- role mid-series, future tables silently stop inheriting this grant (the
+-- failure is a loud `permission denied` for the app role, not a data leak,
+-- since RLS below is the independent second line of defence).
+ALTER DEFAULT PRIVILEGES FOR ROLE CURRENT_USER IN SCHEMA public
   GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO odudu_app;
 
 ALTER TABLE realms ENABLE ROW LEVEL SECURITY;
