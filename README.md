@@ -1,5 +1,26 @@
 # Odudu
 
+> ## ⚠️ Not production ready — do not put this in front of real users
+>
+> Odudu is an identity provider under active construction. Credential
+> handling, session management, and the token pipeline are incomplete and
+> have not been security reviewed. A working `docker compose up` exists so
+> the project can be developed and tested; it is **not** evidence that any
+> part of this is safe to deploy. Use Keycloak, Ory, or Zitadel for anything
+> real.
+>
+> This notice will be removed only after a deliberate hardening pass, and
+> its removal will be announced in the changelog.
+
+_Odudu_ — power, authority. Ibibio, Akwa Ibom, Nigeria.
+
+An identity and access management platform: an OAuth 2.1 / OpenID Connect
+provider with Keycloak feature parity, plus a first-class agent identity
+layer for delegated authority, guardrails, and machine-readable
+administration.
+
+Self-hostable as one container plus PostgreSQL.
+
 _Odudu_ — power, authority. Ibibio, Akwa Ibom, Nigeria.
 
 An identity and access management platform: an OAuth 2.1 / OpenID Connect
@@ -11,11 +32,20 @@ Self-hostable as one container plus PostgreSQL.
 
 ## Status
 
-Design complete. Implementation begins at P0.
+**P0 (foundation) complete.** No protocol surface yet — P0 built the ground
+the rest stands on: the monorepo and its single `pnpm verify` gate,
+machine-checked architectural boundaries, the kernel primitives, one ordered
+migration timeline with PostgreSQL row-level security, a Fastify server
+composed from kernel modules, and a container proven to boot by CI on every
+push. P1 begins the OAuth 2.1 / OpenID Connect core.
 
-- [Design specification](docs/superpowers/specs/2026-09-10-odudu-design.md)
-- [Architecture decision records](docs/adr/)
-- [What to do next](docs/NEXT.md)
+- [Design specification](docs/superpowers/specs/2026-09-10-odudu-design.md) —
+  what this is, and the twelve phases with their exit criteria
+- [Architecture decision records](docs/adr/) — the decisions, several with
+  dated corrections recording what turned out wrong
+- [Decision log](docs/superpowers/p0-decision-log.md) — judgement calls made
+  during P0, each with what it would cost if wrong
+- [What to do next](docs/NEXT.md) — including what P0 deliberately deferred
 
 ## Running it
 
@@ -86,3 +116,9 @@ Odudu makes that the centre of the design rather than an afterthought, and
 does it with standard mechanisms — RFC 8693 token exchange, `act` and
 `may_act` claims, CIBA for out-of-band approval — so relying parties need
 no special knowledge.
+
+## License
+
+[Apache-2.0](LICENSE). The patent grant is deliberate: identity
+infrastructure is exactly the kind of thing an organisation's legal team
+asks about before adopting.
