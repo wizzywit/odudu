@@ -21,38 +21,39 @@ module.exports = {
       severity: 'error',
       comment: 'Protocols stay independently testable and independently deletable.',
       from: { path: '(^|/)packages/protocol-([^/]+)/' },
-      to: { path: '(^|/)packages/protocol-(?!\\1)[^/]+/' },
+      to: { path: '(^|/)packages/protocol-(?!$2/)[^/]+/' },
     },
-    // Layer paths use lookaheads, not `/src/(.+/)?view/`: dependency-cruiser's
-    // safe-regex check rejects any optional group wrapping a quantifier
-    // (star height > 1) regardless of whether it is actually catastrophic,
-    // and `(.+/)?` is exactly that shape. Two independent lookaheads keep
-    // "somewhere under src" and "a `view` segment" as sibling checks instead
-    // of nesting one repetition inside another.
+    // `/src/(.+/)?view/` fails dependency-cruiser's safe-regex check (star
+    // height > 1: the optional group wraps a quantifier). The alternation
+    // below is unquantified, so it stays star-height 1 while still matching
+    // `view` directly under `src` or nested arbitrarily deep beneath it, in
+    // that left-to-right order.
     {
       name: 'no-view-to-repository',
       severity: 'error',
-      from: { path: '(?=.*/src/)(?=.*/view/)' },
-      to: { path: '(?=.*/src/)(?=.*/repository/)' },
+      from: { path: '/src/(?:view|.*/view)/' },
+      to: { path: '/src/(?:repository|.*/repository)/' },
     },
     {
       name: 'no-view-to-adapter',
       severity: 'error',
-      from: { path: '(?=.*/src/)(?=.*/view/)' },
-      to: { path: '(?=.*/src/)(?=.*/adapter/)' },
+      from: { path: '/src/(?:view|.*/view)/' },
+      to: { path: '/src/(?:adapter|.*/adapter)/' },
     },
     {
       name: 'no-usecase-to-adapter',
       severity: 'error',
-      from: { path: '(?=.*/src/)(?=.*/usecase/)' },
-      to: { path: '(?=.*/src/)(?=.*/adapter/)' },
+      from: { path: '/src/(?:usecase|.*/usecase)/' },
+      to: { path: '/src/(?:adapter|.*/adapter)/' },
     },
     {
       name: 'service-is-a-leaf',
       severity: 'error',
       comment: 'service holds domain logic and depends on no other layer.',
-      from: { path: '(?=.*/src/)(?=.*/service/)' },
-      to: { path: '(?=.*/src/)(?=.*/(?:view|usecase|repository|adapter)/)' },
+      from: { path: '/src/(?:service|.*/service)/' },
+      to: {
+        path: '/src/(?:(?:view|usecase|repository|adapter)|.*/(?:view|usecase|repository|adapter))/',
+      },
     },
   ],
   options: {
