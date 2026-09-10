@@ -1,0 +1,23 @@
+{
+  "name": "@odudu/server",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "imports": {
+    "#/*": "./src/*"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "dev": "node --watch src/main.ts"
+  },
+  "dependencies": {
+    "@odudu/db": "workspace:*",
+    "@odudu/kernel": "workspace:*",
+    "close-with-grace": "2.5.0",
+    "fastify": "5.12.3",
+    "pino": "10.3.1"
+  },
+  "devDependencies": {
+    "pino-pretty": "13.1.3"
+  }
+}

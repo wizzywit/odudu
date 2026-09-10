@@ -1,0 +1,43 @@
+import { loadConfig, type Logger } from '@odudu/kernel';
+import { Writable } from 'node:stream';
+import { describe, expect, it } from 'vitest';
+import { createLogger } from '#/logger.js';
+
+const config = loadConfig({ ODUDU_DATABASE_URL: 'postgres://u:p@localhost:5432/odudu' });
+
+function capture(): { stream: Writable; lines: () => string } {
+  const chunks: string[] = [];
+  const stream = new Writable({
+    write(chunk, _encoding, callback) {
+      chunks.push(String(chunk));
+      callback();
+    },
+  });
+  return { stream, lines: () => chunks.join('') };
+}
+
+describe('createLogger', () => {
+  it('redacts the authorization header', () => {
+    const { stream, lines } = capture();
+    const logger = createLogger(config, stream);
+
+    logger.info({ req: { headers: { authorization: 'Bearer super-secret-token' } } }, 'incoming');
+
+    expect(lines()).not.toContain('super-secret-token');
+    expect(lines()).toContain('[redacted]');
+  });
+
+  it('redacts the cookie header', () => {
+    const { stream, lines } = capture();
+    const logger = createLogger(config, stream);
+
+    logger.info({ req: { headers: { cookie: '__Host-alpha-session=abc123' } } }, 'incoming');
+
+    expect(lines()).not.toContain('abc123');
+  });
+
+  it('satisfies the kernel Logger interface', () => {
+    const kernelLogger: Logger = createLogger(config);
+    expect(typeof kernelLogger.child).toBe('function');
+  });
+});
