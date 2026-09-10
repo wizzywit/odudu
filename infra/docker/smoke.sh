@@ -30,6 +30,16 @@ fi
 # "permission denied for table realms" on every real request, and they
 # must run against the restricted role from inside the running stack, not
 # be asserted from a transcript.
+#
+# A count of 0 against an empty table is vacuous — it holds whether RLS
+# filters, whether the policy exists at all, or even if odudu_svc had
+# BYPASSRLS. Inserting a real row as the owner first, then asserting
+# odudu_svc still sees 0, is what actually exercises the policy predicate.
+docker compose exec -T postgres \
+  psql -U odudu -d odudu -c \
+  "insert into realms (id, name) values ('00000000-0000-0000-0000-000000000001', 'smoke-test-realm') on conflict (id) do nothing;" \
+  > /dev/null
+
 count_output="$(docker compose exec -T postgres \
   psql -U odudu_svc -d odudu -tAc 'select count(*) from realms;')" || {
   echo "odudu_svc cannot query realms (grant/RLS wiring is broken)" >&2
@@ -38,10 +48,10 @@ count_output="$(docker compose exec -T postgres \
 }
 count_output="$(echo "$count_output" | tr -d '[:space:]')"
 if [ "$count_output" != "0" ]; then
-  echo "expected odudu_svc to see 0 rows in realms, got '$count_output'" >&2
+  echo "expected odudu_svc to see 0 rows in realms (one row exists, owned by no realm context), got '$count_output'" >&2
   exit 1
 fi
-echo "odudu_svc can query realms and sees 0 rows"
+echo "odudu_svc sees 0 rows in realms despite a real row existing (RLS filters it)"
 
 policy_output="$(docker compose exec -T postgres \
   psql -U odudu -d odudu -tAc "select policyname from pg_policies where tablename = 'realms';")"
