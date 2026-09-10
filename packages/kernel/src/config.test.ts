@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { loadConfig } from '#/config.js';
-import { OduduError } from '#/errors.js';
+import { loadConfig } from '#/config';
+import { OduduError } from '#/errors';
 
 const minimal = { ODUDU_DATABASE_URL: 'postgres://user:pw@localhost:5432/odudu' };
 

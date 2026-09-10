@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { FakeClock, systemClock } from '#/clock.js';
+import { FakeClock, systemClock } from '#/clock';
 
 describe('FakeClock', () => {
   it('does not move on its own', () => {

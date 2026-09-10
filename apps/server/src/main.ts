@@ -1,10 +1,10 @@
 import { createDatabase } from '@odudu/db';
 import { loadConfig, ModuleRegistry, systemClock } from '@odudu/kernel';
 import closeWithGrace from 'close-with-grace';
-import { buildApp } from '#/app.js';
-import { createLogger } from '#/logger.js';
-import { databaseModule } from '#/modules/database.js';
-import { httpModule } from '#/modules/http.js';
+import { buildApp } from '#/app';
+import { createLogger } from '#/logger';
+import { databaseModule } from '#/modules/database';
+import { httpModule } from '#/modules/http';
 
 const config = loadConfig();
 const logger = createLogger(config);

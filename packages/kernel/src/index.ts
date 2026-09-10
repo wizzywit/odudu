@@ -1,7 +1,7 @@
-export { KERNEL_VERSION } from '#/version.js';
-export { OduduError, type ErrorCode } from '#/errors.js';
-export { type Clock, systemClock, FakeClock } from '#/clock.js';
-export { newId } from '#/ids.js';
-export { type Config, loadConfig } from '#/config.js';
-export { type Logger } from '#/logger.js';
-export { ModuleRegistry, type ModuleContext, type OduduModule } from '#/registry.js';
+export { KERNEL_VERSION } from '#/version';
+export { OduduError, type ErrorCode } from '#/errors';
+export { type Clock, systemClock, FakeClock } from '#/clock';
+export { newId } from '#/ids';
+export { type Config, loadConfig } from '#/config';
+export { type Logger } from '#/logger';
+export { ModuleRegistry, type ModuleContext, type OduduModule } from '#/registry';

@@ -1,1 +1,1 @@
-export * from '#/schema/realms.js';
+export * from '#/schema/realms';

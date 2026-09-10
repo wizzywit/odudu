@@ -3,7 +3,7 @@ import { newId } from '@odudu/kernel';
 import Fastify, { type FastifyInstance, type RawServerDefault } from 'fastify';
 import { type IncomingMessage, type ServerResponse } from 'node:http';
 import { type Logger as PinoLogger } from 'pino';
-import { registerHealth } from '#/health.js';
+import { registerHealth } from '#/health';
 
 export interface AppDeps {
   readonly database: DatabaseHandle;

@@ -1,6 +1,6 @@
 import { type FastifyInstance } from 'fastify';
 import { describe, expect, it } from 'vitest';
-import { httpModule } from '#/modules/http.js';
+import { httpModule } from '#/modules/http';
 
 function fakeApp(): FastifyInstance & { closes: number } {
   const state = { closes: 0 };

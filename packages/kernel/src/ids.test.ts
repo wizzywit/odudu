@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { newId } from '#/ids.js';
+import { newId } from '#/ids';
 
 describe('newId', () => {
   it('produces a UUID with version nibble 7', () => {

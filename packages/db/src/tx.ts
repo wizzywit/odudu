@@ -1,6 +1,6 @@
 import { OduduError } from '@odudu/kernel';
 import { sql } from 'drizzle-orm';
-import { type Database } from '#/client.js';
+import { type Database } from '#/client';
 
 declare const realmScopedBrand: unique symbol;
 

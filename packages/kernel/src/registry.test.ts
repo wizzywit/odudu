@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { FakeClock } from '#/clock.js';
-import { loadConfig } from '#/config.js';
-import { OduduError } from '#/errors.js';
-import { type Logger } from '#/logger.js';
-import { ModuleRegistry, type OduduModule } from '#/registry.js';
+import { FakeClock } from '#/clock';
+import { loadConfig } from '#/config';
+import { OduduError } from '#/errors';
+import { type Logger } from '#/logger';
+import { ModuleRegistry, type OduduModule } from '#/registry';
 
 const noopLogger: Logger = {
   debug: () => undefined,

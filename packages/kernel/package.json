@@ -7,7 +7,7 @@
     ".": "./src/index.ts"
   },
   "imports": {
-    "#/*.js": "./src/*.ts"
+    "#/*": "./src/*.ts"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json"

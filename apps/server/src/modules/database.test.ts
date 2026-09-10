@@ -1,6 +1,6 @@
 import { type DatabaseHandle } from '@odudu/db';
 import { describe, expect, it } from 'vitest';
-import { databaseModule } from '#/modules/database.js';
+import { databaseModule } from '#/modules/database';
 
 function fakeHandle(): DatabaseHandle & { closes: number } {
   const state = { closes: 0 };

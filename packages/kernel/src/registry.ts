@@ -1,7 +1,7 @@
-import { type Clock } from '#/clock.js';
-import { type Config } from '#/config.js';
-import { OduduError } from '#/errors.js';
-import { type Logger } from '#/logger.js';
+import { type Clock } from '#/clock';
+import { type Config } from '#/config';
+import { OduduError } from '#/errors';
+import { type Logger } from '#/logger';
 
 export interface ModuleContext {
   readonly config: Config;

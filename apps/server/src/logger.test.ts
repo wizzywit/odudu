@@ -2,8 +2,8 @@ import { type DatabaseHandle } from '@odudu/db';
 import { loadConfig, type Logger } from '@odudu/kernel';
 import { Writable } from 'node:stream';
 import { describe, expect, it } from 'vitest';
-import { buildApp } from '#/app.js';
-import { createLogger } from '#/logger.js';
+import { buildApp } from '#/app';
+import { createLogger } from '#/logger';
 
 const config = loadConfig({ ODUDU_DATABASE_URL: 'postgres://u:p@localhost:5432/odudu' });
 
