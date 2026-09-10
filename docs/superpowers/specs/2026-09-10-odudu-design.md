@@ -60,6 +60,7 @@ they were rejected.
 | Tenancy        | Shared tables keyed by realm, with row-level security        | 0009 |
 | Code structure | Five functional layers, enforced                             | 0010 |
 | Monorepo       | pnpm workspaces + Turborepo                                  | 0011 |
+| Imports        | Node subpath imports (`#/*`), not path aliases               | 0013 |
 
 The runtime choice rests on precedent: `node-oidc-provider` is an officially
 OpenID-certified provider written in JavaScript, and Logto ships the full
@@ -155,6 +156,27 @@ repository, Drizzle/LDAP/SMTP client, domain service.
 
 Folder-level boundaries are enforced by `dependency-cruiser` in CI. A
 convention without mechanical enforcement decays in weeks.
+
+### Imports
+
+Intra-package imports use Node subpath imports, never relative paths. Each
+package declares:
+
+```json
+{ "imports": { "#/*": "./src/*" } }
+```
+
+and code inside it imports as `#/clock.js`. Relative specifiers are
+forbidden in package and app source, enforced by `dependency-cruiser`.
+
+Cross-package imports use the package name — `@odudu/kernel` — and resolve
+only through that package's `index.ts`.
+
+The two prefixes therefore carry meaning: `#/` is always "inside this
+package", `@odudu/*` is always "another package's public surface". Node
+scopes `#` specifiers to the package that declares them, so no package can
+reach another's internals even by accident. Layer and package boundaries
+stop being rules we police and become properties of the resolver.
 
 ### Comments
 
