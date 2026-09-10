@@ -117,7 +117,11 @@ writing `docs/protocols/rfc6749.md` and `docs/protocols/rfc7636.md` with
 the clause tables described in spec section 10, before any endpoint code.
 The requirement table is what makes "P1 is done" countable.
 
-**Verify:** `pnpm verify` exits zero; `./infra/docker/smoke.sh` exits zero.
+**Verify:** `pnpm verify` exits zero; `./infra/docker/smoke.sh` exits zero
+(one-time setup: `cp infra/docker/.env.example infra/docker/.env` — the
+stack deliberately refuses to start without it, see ADR 0015; CI does this
+itself as an explicit step in `.github/workflows/verify.yml`'s `container`
+job).
 
 **Blocked on:** nothing.
 
@@ -202,5 +206,3 @@ the conditions under which to revisit.
 - The `res` serializer still emits all reply headers with only `set-cookie`
   denylisted — the remaining instance of the pattern removed on the request
   side.
-- `.env.example` points at `localhost:5432` while compose publishes 5442, and
-  nothing documents how to create `odudu_svc` outside compose.

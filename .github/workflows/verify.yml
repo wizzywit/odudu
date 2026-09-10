@@ -48,5 +48,9 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
+
+      - name: Bootstrap infra/docker/.env from .env.example (CI-only; smoke.sh requires it to already exist)
+        run: cp infra/docker/.env.example infra/docker/.env
+
       - name: Build and smoke-test the stack
         run: ./infra/docker/smoke.sh

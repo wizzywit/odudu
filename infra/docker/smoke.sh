@@ -3,7 +3,11 @@ set -euo pipefail
 
 cd "$(dirname "$0")"
 
-[ -f .env ] || cp .env.example .env
+if [ ! -f .env ]; then
+  echo "infra/docker/.env is missing. Run: cp infra/docker/.env.example infra/docker/.env" >&2
+  echo "This is not done for you: .env holds the values the stack refuses to start without (see docs/adr/0015-environment-driven-credentials.md)." >&2
+  exit 1
+fi
 
 cleanup() { docker compose down -v --remove-orphans || true; }
 trap cleanup EXIT
