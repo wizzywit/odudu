@@ -168,7 +168,8 @@ package declares:
 ```
 
 and code inside it imports as `#/clock`. Relative specifiers are
-forbidden in package and app source, enforced by `dependency-cruiser`.
+forbidden in package and app source and tests, enforced by ESLint's
+`no-restricted-imports`.
 
 Cross-package imports use the package name — `@odudu/kernel` — and resolve
 only through that package's `index.ts`.

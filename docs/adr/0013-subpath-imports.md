@@ -12,9 +12,10 @@ file move. The usual remedy in the TypeScript world is a `paths` alias in
 
 Each package declares `"imports": { "#/*": "./src/*.ts" }` in its
 `package.json`. Intra-package imports use `#/clock`. Relative specifiers
-are forbidden in `packages/*/src` and `apps/*/src`, enforced by
-`dependency-cruiser`. Cross-package imports use the package name and resolve
-through that package's `index.ts`.
+are forbidden in `packages/*/src`, `apps/*/src`, `packages/*/tests` and
+`apps/*/tests`, enforced by ESLint's `no-restricted-imports`. Cross-package
+imports use the package name and resolve through that package's
+`index.ts`.
 
 The `tests/boundaries/fixtures` tree keeps its relative imports — they exist
 precisely to trigger boundary violations, and the `boundaries` CLI run never
@@ -45,8 +46,8 @@ read worse, not better.
 - Every new package must declare the `imports` field. A package that forgets
   it fails loudly on the first `#/` import rather than resolving oddly.
 - Same-directory imports are written `#/clock` rather than `./clock`.
-  Marginally longer, but it makes the rule absolute and the
-  `dependency-cruiser` check trivial: no relative specifiers at all.
+  Marginally longer, but it makes the rule absolute and the ESLint check
+  trivial: no relative specifiers at all.
 
 ## Alternatives rejected
 
@@ -81,7 +82,7 @@ about avoiding a monorepo-global alias table was sound, but "resolves
 identically everywhere" was asserted from documentation rather than executed.
 A claim about resolution should be run before it is written down.
 
-## Refinement, 2026-09-10 (extensionless)
+## Amendment, 2026-09-10 (extensionless)
 
 `"#/*.js": "./src/*.ts"` worked, but it made the specifier lie: `#/clock.js`
 names a file, `clock.js`, that does not exist on disk — only `clock.ts`
@@ -95,21 +96,6 @@ The mapping is now `"#/*": "./src/*.ts"`, and specifiers drop the extension:
 `#/clock`, `#/schema/index`. Verified empirically across the same three
 resolvers as the correction above — `node` with native type stripping,
 `tsc` with `nodenext`, and esbuild (tsup's engine, including running the
-produced bundle) — with nested paths, before this refinement was applied
-to the codebase.
-
-## Amendment, 2026-09-10
-
-The mapping is now `"#/*": "./src/*.ts"` and specifiers carry no extension:
-`#/clock`, not `#/clock.js`.
-
-The earlier `"#/*.js": "./src/*.ts"` form worked, but it kept the `.js`
-convention `nodenext` normally imposes — where source names the file the
-compiler _would_ emit rather than the file that exists. Moving the extension
-entirely into the mapping removes that indirection: the specifier names a
-module, and exactly one place in the repo knows what a module is stored as.
-
-Verified before adoption, across every resolver in use — `node` with native
-type stripping, `tsc` with `nodenext`, and esbuild including running the
-resulting bundle — and with nested paths. Running it first was the explicit
-lesson of the Correction above.
+produced bundle) — with nested paths, before this amendment was applied to
+the codebase. Running it first was the explicit lesson of the Correction
+above.
