@@ -1460,7 +1460,7 @@ export const realms = pgTable('realms', {
 `packages/db/src/schema/index.ts`:
 
 ```ts
-export * from '#/realms.js';
+export * from '#/schema/realms.js';
 ```
 
 Each domain package will add its own slice here as it arrives. The `db` package aggregates them so there is exactly one ordered migration timeline (spec §3).
