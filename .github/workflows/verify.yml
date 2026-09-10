@@ -1,13 +1,14 @@
 name: verify
 
-# `pull_request` exists only to gate fork PRs: a fork's push never reaches
-# this repo's Actions, so without it a fork PR gets no CI at all. For a
-# same-repo branch the push event already covers the commit, so the job
-# below skips the pull_request run in that case — the concurrency group
-# cannot dedupe them, since a push and a pull_request for the same commit
-# land in different groups and both would run to completion.
+# Runs on pull requests, and on pushes to main after a merge. A branch push
+# with no pull request open gets nothing on purpose: gating at the pull
+# request is what makes fork contributions safe (a fork's push never reaches
+# this repo's Actions), and triggering on both would run every check twice
+# under different concurrency groups, leaving phantom skipped checks on the
+# pull request.
 on:
   push:
+    branches: [main]
   pull_request:
 
 permissions:
@@ -19,10 +20,6 @@ concurrency:
 
 jobs:
   verify:
-    # Same-repo pull requests are already covered by their push event.
-    if: >-
-      github.event_name == 'push' ||
-      github.event.pull_request.head.repo.full_name != github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -41,9 +38,6 @@ jobs:
       - run: pnpm verify
 
   container:
-    if: >-
-      github.event_name == 'push' ||
-      github.event.pull_request.head.repo.full_name != github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -58,9 +52,6 @@ jobs:
         run: ./infra/docker/smoke.sh
 
   commit-messages:
-    if: >-
-      github.event_name == 'push' ||
-      github.event.pull_request.head.repo.full_name != github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
