@@ -130,4 +130,37 @@ describe('ModuleRegistry', () => {
     );
     expect(log).toContain('stop:db');
   });
+
+  it('stops already-started modules when a later module fails to start', async () => {
+    const log: string[] = [];
+    const registry = new ModuleRegistry()
+      .register(recorder('db', log))
+      .register(recorder('cache', log, ['db']))
+      .register({
+        name: 'http',
+        dependsOn: ['cache'],
+        start: () => Promise.reject(new Error('listen EADDRINUSE')),
+        stop: () => Promise.resolve(),
+      });
+
+    await expect(registry.start(context())).rejects.toThrow('listen EADDRINUSE');
+
+    expect(log).toEqual(['start:db', 'start:cache', 'stop:cache', 'stop:db']);
+  });
+
+  it('leaves nothing to stop after a rolled-back start', async () => {
+    const log: string[] = [];
+    const registry = new ModuleRegistry().register(recorder('db', log)).register({
+      name: 'http',
+      dependsOn: ['db'],
+      start: () => Promise.reject(new Error('boom')),
+    });
+
+    await expect(registry.start(context())).rejects.toThrow('boom');
+    log.length = 0;
+
+    await registry.stop();
+
+    expect(log).toEqual([]);
+  });
 });

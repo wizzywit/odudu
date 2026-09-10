@@ -29,10 +29,26 @@ export class ModuleRegistry {
   }
 
   async start(ctx: ModuleContext): Promise<void> {
-    for (const module of this.#resolveOrder()) {
-      await module.start?.(ctx);
-      this.#started.push(module);
-      ctx.logger.debug({ module: module.name }, 'module started');
+    try {
+      for (const module of this.#resolveOrder()) {
+        await module.start?.(ctx);
+        this.#started.push(module);
+        ctx.logger.debug({ module: module.name }, 'module started');
+      }
+    } catch (error) {
+      // Roll back whatever already started rather than leaving it running
+      // with only close-with-grace's top-level catch as a backstop. The
+      // original start failure is what the caller needs to see; a stop
+      // failure during rollback is attached as its cause instead of
+      // replacing it.
+      try {
+        await this.stop();
+      } catch (stopError) {
+        throw new Error('start failed, and rollback also failed', {
+          cause: new AggregateError([error, stopError]),
+        });
+      }
+      throw error;
     }
   }
 
