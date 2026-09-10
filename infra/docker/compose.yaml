@@ -1,3 +1,10 @@
+# Local development only. Do not deploy this file, or any variant of it,
+# to a shared or public environment. Every credential below (postgres
+# superuser, odudu_svc's password) is fixed, checked into a public
+# repository, and therefore public knowledge. Both published ports are
+# bound to loopback for the same reason; if you change that, you are
+# publishing a trivially-passworded Postgres and an unauthenticated app
+# server to the network.
 services:
   postgres:
     image: postgres:17-alpine
@@ -17,7 +24,7 @@ services:
       # commonly already has a native postgres bound to 5432, so the
       # published port is moved rather than changing the in-container port
       # (which every other service in this file addresses by its default).
-      - '5442:5432'
+      - '127.0.0.1:5442:5432'
 
   odudu:
     build:
@@ -31,4 +38,4 @@ services:
       postgres:
         condition: service_healthy
     ports:
-      - '3000:3000'
+      - '127.0.0.1:3000:3000'

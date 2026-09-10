@@ -7,7 +7,7 @@
 - the server boots in a container and reports ready; CI proves it on every
   push
 - the migration runner is proven, including idempotency
-- ADRs 0001–0012 committed
+- ADRs 0001–0013 committed
 - dependency-cruiser enforces both package and layer boundaries, with
   fixtures proving the rules reject violations
 
@@ -34,30 +34,74 @@ pg_policies where tablename = 'realms'` returns `realms_isolation`. Setting
 `ODUDU_APP_DATABASE_URL` also means `main.ts`'s bypass warning never fires
 in the compose stack — confirmed absent from the container's logs.
 
-Wiring `odudu_svc` into RLS needed one thing the brief's literal SQL did
-not have: `infra/docker/initdb/01-app-role.sql` creates the role via
-Postgres's `docker-entrypoint-initdb.d`, which runs once, before the
-`odudu` container ever starts — i.e. before migration 0001 has created the
-`odudu_app` role that `odudu_svc` needs to inherit from. Granting that
-membership from `initdb` is impossible (the role it would grant doesn't
-exist yet); granting it unconditionally from a migration breaks the
-integration tests, which create `odudu_svc` the other way around (`@odudu/
-testkit`'s `createAppRole` runs after migrations). `packages/db/drizzle/
-0002_grant_service_role.sql` resolves this with a guarded `DO` block —
-`GRANT odudu_app TO odudu_svc` only `IF EXISTS` — so it grants immediately
-in compose and no-ops harmlessly in tests, where `createAppRole` does the
-grant explicitly once the role exists.
+Wiring `odudu_svc` into RLS originally needed a workaround the brief's
+literal SQL did not have — see "Review fixes" below for the finished
+shape. `infra/docker/initdb/01-app-role.sql` now creates `odudu_app`,
+`odudu_svc`, and grants membership between them during Postgres cluster
+init, all before the `odudu` container (and therefore any migration) ever
+starts. `packages/db/drizzle/0001_row_level_security.sql`'s `CREATE ROLE
+odudu_app` is guarded (`IF NOT EXISTS`) so it still creates the role in
+the integration-test path, where no `initdb` script runs and
+`@odudu/testkit`'s `createAppRole` grants membership explicitly after
+migrations, the same as before. `packages/db/drizzle/0002_grant_service_role.sql`
+is kept as a harmless guarded no-op backstop rather than deleted (Drizzle
+already recorded it applied); its comment is now explicit that it does not
+make every ordering safe — see "Review fixes" for the production ordering
+it still cannot repair.
 
 The host-side `postgres` port in `compose.yaml` was moved from `5432` to
 `5442` (the container still listens on 5432) because this machine already
 has a native PostgreSQL bound to host port 5432; changing the host mapping
 rather than the in-container port keeps every service in the file
-addressing postgres by its default port.
+addressing postgres by its default port. Both host-side ports
+(`127.0.0.1:5442:5432` and `127.0.0.1:3000:3000`) are now bound to
+loopback only — see "Review fixes".
 
 `infra/docker/smoke.sh` brings the stack up, polls `/health/ready` for up
-to 120s, and tears the stack down on exit either way; it is now also the
-`container` job in `.github/workflows/verify.yml`, run on every push
-alongside the existing `verify` job.
+to 120s, then asserts from inside the running stack that `odudu_svc` can
+query `realms` and sees `0` rows (not a permission error) and that the
+`realms_isolation` policy exists, before tearing the stack down on exit
+either way. It is the `container` job in `.github/workflows/verify.yml`,
+run on every push alongside the existing `verify` job.
+
+**Review fixes (post-merge hardening of this task).** A scoped review
+found three hardening gaps and two smaller issues, all now closed:
+
+1. `smoke.sh` originally only probed `/health/ready`, which runs `select 1`
+   and needs no table privilege — it could not tell a working RLS grant
+   from a broken one, and both smoke runs during the original
+   implementation were green before and after the grant migration existed.
+   `smoke.sh` now runs the brief's step 8 as hard, automatic assertions
+   (query `realms` as `odudu_svc`, expect `0` not `permission denied`;
+   query `pg_policies` for `realms_isolation`) so CI enforces this on every
+   push. Verified by breaking the grant deliberately (commenting out both
+   the `initdb` grant and the 0002 migration's grant) and confirming
+   `smoke.sh` still reports `odudu became ready` but then fails on the new
+   check with `permission denied for table realms`, not a readiness
+   timeout; restored, and confirmed green again.
+2. The grant migration's `IF EXISTS` guard made it a permanent silent
+   no-op in a third ordering — `odudu_svc` created by tooling after
+   migrations, with nothing playing `createAppRole`'s part — which is
+   invisible to `/health/ready` forever after. Fixed by moving role and
+   membership provisioning for the compose stack into
+   `infra/docker/initdb/01-app-role.sql`, which always runs before
+   migrations, rather than depending on a migration to grant membership
+   into a role that may not exist yet. `0001`'s `CREATE ROLE odudu_app`
+   was made idempotent so it still works standalone in the
+   Testcontainers-based integration-test path. `0002` is kept as a
+   redundant backstop with an honest comment about what it still cannot
+   fix (a real deployment with a third provisioning path).
+3. `compose.yaml` committed a plainly-passworded Postgres and app server
+   published on `0.0.0.0`, unmarked, in a public repository for a security
+   product. Added a header comment stating this file is local-development
+   only and the credentials are public knowledge, and bound both publishes
+   to `127.0.0.1`.
+4. The Dockerfile's build stage did not copy the root `.npmrc`
+   (`engine-strict=true`), so the image build silently ran `pnpm install`
+   with engine enforcement off. Added `.npmrc` to the `COPY`.
+5. `smoke.sh`'s `cleanup` trap ran under `set -e`; a failing
+   `docker compose down` could mask a pending success exit code. `cleanup`
+   now tolerates its own failure.
 
 **Carried review item, closed:** Task 8 added a `res` serializer so
 `res.headers["set-cookie"]` redaction was live but unproven.
@@ -90,4 +134,18 @@ The requirement table is what makes "P1 is done" countable.
 - `infra/docker/compose.yaml` publishes postgres on host port `5442`
   instead of the default `5432` to avoid colliding with a native postgres
   on the development host; anyone connecting to the compose stack's
-  database directly from the host needs to use that port.
+  database directly from the host needs to use that port. Both host
+  publishes are bound to `127.0.0.1`, and the file is local-development
+  only — its credentials are fixed and public.
+- `infra/docker/initdb/01-app-role.sql` is what makes `odudu_svc`'s RLS
+  grant reliable in this repository's only deployment surface (compose). A
+  real production deployment that provisions `odudu_svc` a different way —
+  after migrations, with nothing playing the part of that script or
+  `@odudu/testkit`'s `createAppRole` — would still hit the silent,
+  permanent no-op described in `packages/db/drizzle/0002_grant_service_role.sql`'s
+  comment: Drizzle marks the grant migration applied on the first run
+  regardless, and no later redeploy repairs it, while `/health/ready` stays
+  green throughout. There is no production deployment target yet to build
+  the equivalent safeguard for; whoever adds one needs an explicit,
+  idempotent, post-migration provisioning step for this role, not a
+  migration.

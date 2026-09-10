@@ -1,4 +1,15 @@
-CREATE ROLE odudu_app NOLOGIN;
+-- Guarded rather than a bare CREATE ROLE: compose (infra/docker/initdb/
+-- 01-app-role.sql) now pre-creates this role during cluster init, before
+-- this migration ever runs, so the role already exists in that path. The
+-- integration-test path (Testcontainers, no initdb script) still hits this
+-- migration with the role absent, so the guard must create it there.
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = 'odudu_app') THEN
+    CREATE ROLE odudu_app NOLOGIN;
+  END IF;
+END
+$$;
 
 GRANT USAGE ON SCHEMA public TO odudu_app;
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO odudu_app;
