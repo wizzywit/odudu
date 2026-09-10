@@ -1,14 +1,14 @@
 import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
-  { ignores: ['**/dist/**', '**/.turbo/**', '**/coverage/**'] },
+  { ignores: ['**/dist/**', '**/.turbo/**', '**/coverage/**', 'tests/boundaries/fixtures/**'] },
   tseslint.configs.strictTypeChecked,
   tseslint.configs.stylisticTypeChecked,
   {
     languageOptions: {
       parserOptions: {
         projectService: {
-          allowDefaultProject: ['*.config.js', '*.config.ts'],
+          allowDefaultProject: ['*.config.js', '*.config.ts', '.dependency-cruiser.cjs'],
         },
         tsconfigRootDir: import.meta.dirname,
       },

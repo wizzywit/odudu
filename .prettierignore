@@ -2,3 +2,4 @@ dist
 coverage
 .turbo
 pnpm-lock.yaml
+tests/boundaries/fixtures

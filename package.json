@@ -12,10 +12,12 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "vitest run",
-    "verify": "pnpm format:check && pnpm typecheck && pnpm lint && pnpm test"
+    "boundaries": "depcruise --config .dependency-cruiser.cjs packages $( [ -d apps ] && echo apps )",
+    "verify": "pnpm format:check && pnpm typecheck && pnpm lint && pnpm boundaries && pnpm test"
   },
   "devDependencies": {
     "@types/node": "24.13.4",
+    "dependency-cruiser": "18.2.0",
     "eslint": "10.10.0",
     "prettier": "3.9.6",
     "turbo": "2.10.12",
