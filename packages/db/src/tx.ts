@@ -17,13 +17,18 @@ export type RealmScopedDatabase = Omit<Database, 'transaction'> & {
   readonly [realmScopedBrand]: true;
 };
 
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export async function withRealm<T>(
   db: Database,
   realmId: string,
   fn: (tx: RealmScopedDatabase) => Promise<T>,
 ): Promise<T> {
-  if (realmId.length === 0) {
-    throw new OduduError('realm_context_missing', 'withRealm requires a realm id');
+  if (!UUID_PATTERN.test(realmId)) {
+    throw new OduduError(
+      'realm_context_missing',
+      `withRealm requires a UUID realm id, got ${JSON.stringify(realmId)}`,
+    );
   }
 
   return db.transaction(async (tx) => {

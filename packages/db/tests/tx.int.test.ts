@@ -109,6 +109,18 @@ describe('withRealm', () => {
     );
   });
 
+  it('rejects a non-UUID realm id before it ever reaches Postgres', async () => {
+    await expect(withRealm(app.db, 'not-a-uuid', () => Promise.resolve(undefined))).rejects.toThrow(
+      OduduError,
+    );
+
+    // Confirms the rejection happens at the withRealm boundary, not as a
+    // driver-level 22P02 surfacing coincidentally as some other error: the
+    // pool is left usable afterwards.
+    const rows = await app.db.select().from(realms);
+    expect(rows).toEqual([]);
+  });
+
   it('cannot pass a realm-scoped handle back into withRealm (type-level guard)', () => {
     // Never invoked — its only job is to fail `tsc` (packages/db/tsconfig.json
     // includes this test file) if RealmScopedDatabase regresses back to a
