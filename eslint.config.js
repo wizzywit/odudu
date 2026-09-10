@@ -8,7 +8,13 @@ export default tseslint.config(
     languageOptions: {
       parserOptions: {
         projectService: {
-          allowDefaultProject: ['*.config.js', '*.config.ts', '.dependency-cruiser.cjs'],
+          allowDefaultProject: [
+            '*.config.js',
+            '*.config.ts',
+            'packages/*/*.config.ts',
+            '.dependency-cruiser.cjs',
+          ],
+          defaultProject: 'tsconfig.base.json',
         },
         tsconfigRootDir: import.meta.dirname,
       },

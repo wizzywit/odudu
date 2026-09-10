@@ -6,6 +6,7 @@ const schema = z.object({
   ODUDU_HTTP_HOST: z.string().min(1).default('0.0.0.0'),
   ODUDU_HTTP_PORT: z.coerce.number().int().min(1).max(65_535).default(3000),
   ODUDU_DATABASE_URL: z.url(),
+  ODUDU_MIGRATIONS_DIR: z.string().min(1).optional(),
   ODUDU_LOG_LEVEL: z
     .enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent'])
     .default('info'),

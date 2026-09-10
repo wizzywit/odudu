@@ -36,4 +36,8 @@ describe('loadConfig', () => {
   it('returns a frozen object', () => {
     expect(Object.isFrozen(loadConfig(minimal))).toBe(true);
   });
+
+  it('leaves the migrations directory unset by default', () => {
+    expect(loadConfig(minimal).ODUDU_MIGRATIONS_DIR).toBeUndefined();
+  });
 });

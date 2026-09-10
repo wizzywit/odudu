@@ -12,6 +12,8 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "vitest run",
+    "test:unit": "vitest run --project unit",
+    "test:integration": "vitest run --project integration",
     "boundaries": "depcruise --config .dependency-cruiser.cjs packages $( [ -d apps ] && echo apps )",
     "verify": "pnpm format:check && pnpm typecheck && pnpm lint && pnpm boundaries && pnpm test"
   },

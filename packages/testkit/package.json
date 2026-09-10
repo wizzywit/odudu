@@ -1,0 +1,19 @@
+{
+  "name": "@odudu/testkit",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "imports": {
+    "#/*": "./src/*"
+  },
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@testcontainers/postgresql": "12.1.0",
+    "postgres": "3.4.9"
+  }
+}

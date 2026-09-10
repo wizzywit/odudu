@@ -1,6 +1,11 @@
 packages:
   - 'apps/*'
   - 'packages/*'
+allowBuilds:
+  cpu-features: true
+  esbuild: true
+  protobufjs: true
+  ssh2: true
 minimumReleaseAgeExclude:
   - '@types/node@24.13.4'
   - zod@4.6.1
