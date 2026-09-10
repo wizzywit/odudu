@@ -1,11 +1,11 @@
 name: verify
 
-# `pull_request` gates fork PRs: a fork's push event never reaches this
-# repo's Actions runs, so without it a fork PR got no CI at all. For a
-# same-repo branch both `push` and `pull_request` now fire for the same
-# commit; the concurrency group below keys on the PR number when one
-# exists so the push-triggered run for that commit is canceled in favor of
-# the pull_request-triggered one, rather than both running to completion.
+# `pull_request` exists only to gate fork PRs: a fork's push never reaches
+# this repo's Actions, so without it a fork PR gets no CI at all. For a
+# same-repo branch the push event already covers the commit, so the job
+# below skips the pull_request run in that case — the concurrency group
+# cannot dedupe them, since a push and a pull_request for the same commit
+# land in different groups and both would run to completion.
 on:
   push:
   pull_request:
@@ -19,6 +19,10 @@ concurrency:
 
 jobs:
   verify:
+    # Same-repo pull requests are already covered by their push event.
+    if: >-
+      github.event_name == 'push' ||
+      github.event.pull_request.head.repo.full_name != github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -37,6 +41,9 @@ jobs:
       - run: pnpm verify
 
   container:
+    if: >-
+      github.event_name == 'push' ||
+      github.event.pull_request.head.repo.full_name != github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:

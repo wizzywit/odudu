@@ -19,7 +19,8 @@
 - **Intra-package imports use Node subpath imports, never relative paths.**
   Each package declares `"imports": { "#/*": "./src/*.ts" }`, and code inside it
   imports as `#/clock`. Relative specifiers (`./`, `../`) are forbidden in
-  `packages/*/src` and `apps/*/src`. Cross-package imports use the package
+  `packages/*/src`, `apps/*/src`, `packages/*/tests` and `apps/*/tests`,
+  enforced by ESLint `no-restricted-imports` (not dependency-cruiser). Cross-package imports use the package
   name (`@odudu/kernel`) and resolve only through that package's `index.ts`.
   See ADR 0013. The `tests/boundaries/fixtures` tree keeps its relative
   imports — they exist to trigger boundary violations, and the `boundaries`

@@ -62,6 +62,7 @@ they were rejected.
 | Monorepo           | pnpm workspaces + Turborepo                                  | 0011 |
 | TypeScript version | Pinned to 6.x, not 7.x                                       | 0012 |
 | Imports            | Node subpath imports (`#/*`), not path aliases               | 0013 |
+| Dev credentials    | Committed inline, loopback-bound, never-deploy               | 0014 |
 
 The runtime choice rests on precedent: `node-oidc-provider` is an officially
 OpenID-certified provider written in JavaScript, and Logto ships the full

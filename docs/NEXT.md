@@ -159,3 +159,48 @@ The requirement table is what makes "P1 is done" countable.
   create. It was never created — its job (correlation id generation,
   per-request setup) folded into `app.ts`'s `genReqId` option and its
   `onRequest` hook instead, which turned out to be all that was needed.
+
+## Recorded decisions with trigger conditions
+
+**Affected-package-only CI.** Turborepo and pnpm both support
+`--filter='...[<ref>]'` — changed packages plus their dependents — so no
+tooling change is needed to adopt it. Not adopted now: CI runs in about 50
+seconds end to end, and `test` is a root-level `vitest run` rather than a
+per-package Turbo task, which is a prerequisite. When adopting, prefer
+Turborepo **caching** first: an unchanged package replays its cached result
+instead of being skipped, which gives the same wall-clock win without the
+"we did not run those tests" semantics that a wrong graph turns into an
+untested merge. Apply filtering only to genuinely slow jobs, keep typecheck,
+lint, boundaries and unit tests always-full, and set `globalDependencies` at
+the same time so a root config or lockfile change still forces everything.
+
+- Trigger for caching: CI exceeds roughly 5 minutes (likely P4, when
+  Playwright arrives).
+- Trigger for filtering: slow suites dominate — P8 SAML interop, P9 policy
+  evaluation, or the nightly conformance suite.
+
+**Committed development credentials.** Kept inline deliberately; see
+ADR 0014 for the reasoning, the three controls that make it acceptable, and
+the conditions under which to revisit.
+
+## Deferred from the final review
+
+- `meta/0002_snapshot.json` records `policies: {}` while `realms_isolation`
+  exists in every migrated database. Declaring `pgPolicy(...)` on the table
+  would make `drizzle-kit generate` emit a `CREATE POLICY` that fails with
+  42710 on existing databases. Record the policy in the snapshot, or leave a
+  comment in `realms.ts`, before touching policies declaratively.
+- `smoke.sh`'s owner-side INSERT does not use `-v ON_ERROR_STOP=1` and
+  discards output, so a silent insert failure would make the RLS assertion
+  vacuous again while still printing success.
+- `ODUDU_TRUST_PROXY=` (a bare key) now refuses boot rather than defaulting
+  off — correct by strictness, but a new way for a previously-booting
+  environment to fail.
+- The boundary suite's negative control filters a fixture with no imports at
+  all, so it cannot demonstrate that `service-is-a-leaf` is not over-broad.
+  A service importing another service would.
+- The `res` serializer still emits all reply headers with only `set-cookie`
+  denylisted — the remaining instance of the pattern removed on the request
+  side.
+- `.env.example` points at `localhost:5432` while compose publishes 5442, and
+  nothing documents how to create `odudu_svc` outside compose.
