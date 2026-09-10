@@ -183,6 +183,23 @@ job).
   per-request setup) folded into `app.ts`'s `genReqId` option and its
   `onRequest` hook instead, which turned out to be all that was needed.
 
+## Deployment gaps, for whoever asks next
+
+`README.md` now has a Deploying section stating plainly that the container
+image is the artifact and the compose file is development-only. What it lists
+as missing, in the order it would matter: there is no protocol surface to
+serve until P1; there is no published image or release process; secrets are
+environment variables and nothing more; there is no backup or restore
+guidance; and multi-replica deployment is blocked on migration locking and a
+shared session cache, both P11.
+
+The fully-local path (your own Postgres, no Docker) needs exactly one
+bootstrap statement — `CREATE USER odudu_svc` — because migration 0001
+creates `odudu_app` and 0002 grants membership when the serving role already
+exists. Verified against a bare PostgreSQL 17 with no init scripts: the
+server boots, migrations apply, and the serving role sees zero rows through
+row-level security rather than a permission error.
+
 ## Recorded decisions with trigger conditions
 
 **Affected-package-only CI.** Turborepo and pnpm both support
