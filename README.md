@@ -83,6 +83,24 @@ migrations on boot, so there is no separate migrate step.
 Do not run both at once: each wants port 3000. Postgres is published on
 **5442**, not 5432, because a host commonly already has one there.
 
+**Everything on your host** — your own Postgres, no Docker at all. Needs one
+bootstrap statement, because the restricted serving role is normally created
+by the compose stack's init scripts:
+
+```sql
+CREATE DATABASE odudu;
+CREATE USER odudu_svc LOGIN PASSWORD 'choose-one';
+```
+
+The owner role in `ODUDU_DATABASE_URL` must be able to `CREATE ROLE` —
+migrations create `odudu_app` and grant `odudu_svc` membership in it, which
+is what puts the serving connection under row-level security. Point both URLs
+at your own port (5432 by default, not 5442) and start the server:
+
+```bash
+pnpm --filter @odudu/server dev
+```
+
 **Check the whole thing works**, including that row-level security is
 genuinely enforced in the container:
 
@@ -116,6 +134,47 @@ Odudu makes that the centre of the design rather than an afterthought, and
 does it with standard mechanisms — RFC 8693 token exchange, `act` and
 `may_act` claims, CIBA for out-of-band approval — so relying parties need
 no special knowledge.
+
+## Deploying
+
+**The deployable artifact is the container image, not `infra/docker/compose.yaml`.**
+That compose file is development-only and says so at the top: its credentials
+are committed and publicly known, and both ports bind to loopback. Do not
+`docker compose up` it in production.
+
+A real deployment today looks like:
+
+1. Build the image from `infra/docker/Dockerfile`. It is multi-stage, runs as
+   a non-root user, and carries a `HEALTHCHECK` against `/health/ready`.
+2. Provide a PostgreSQL 17 you operate, with two roles: an owner that can
+   `CREATE ROLE` and own the schema, and a restricted login role for serving.
+3. Set `ODUDU_DATABASE_URL` (owner, used for migrations) and
+   `ODUDU_APP_DATABASE_URL` (restricted, used to serve). **The server refuses
+   to boot with `NODE_ENV=production` if the second is unset** — serving as
+   the owner would bypass row-level security, so that failure is deliberate.
+4. Terminate TLS in front of it. The server speaks plain HTTP. Set
+   `ODUDU_TRUST_PROXY=true` only behind a proxy that overwrites
+   `X-Forwarded-*`, or `request.ip` becomes client-controlled.
+5. Run one instance. Migrations run on boot from every process and take no
+   advisory lock, so concurrent replicas would race.
+
+### What is not built yet
+
+Being straight about this, because "self-hostable" should mean something:
+
+|                                                                    | Phase |
+| ------------------------------------------------------------------ | ----- |
+| Any authentication endpoint to actually serve                      | P1    |
+| Published images and a release process                             | —     |
+| Secret management beyond environment variables                     | —     |
+| Backup and restore guidance                                        | —     |
+| Multi-replica support: migration locking, shared session cache, HA | P11   |
+| Helm chart or Kubernetes manifests                                 | P11   |
+
+The single-container-plus-Postgres shape is a deliberate design decision
+(ADR 0002) and the image is built for it. But until P1 lands there is no
+protocol surface, so there is nothing for users to authenticate against —
+the notice at the top of this file is not boilerplate.
 
 ## License
 
