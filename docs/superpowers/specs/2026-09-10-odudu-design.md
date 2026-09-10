@@ -30,7 +30,7 @@ Node 24.
   as an engineering quality bar, not to obtain a badge.
 - Supporting databases other than PostgreSQL, initially.
 - Operating Odudu as a hosted service. Realms provide logical multi-tenancy
-within one deployment, but the delivery model is self-hosting.
+  within one deployment, but the delivery model is self-hosting.
 
 ### Constraints
 
