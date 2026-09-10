@@ -10,7 +10,7 @@ budgets to. What kind of object an agent is determines the P0 data model.
 
 ## Decision
 
-An agent *type* is a registered OAuth client. An agent *instance* is an
+An agent _type_ is a registered OAuth client. An agent _instance_ is an
 ephemeral first-class principal minted at delegation time, carrying owner,
 type, parent, granted scopes, budget, and expiry, and reaped on TTL.
 
@@ -30,7 +30,7 @@ type, parent, granted scopes, budget, and expiry, and reaped on TTL.
 
 **Agent is an OAuth client** (what Keycloak's model forces). Entirely
 standards-native and fastest to build, but clients are configuration rather
-than directory entries: one `client_id` per agent *type*, so a specific
+than directory entries: one `client_id` per agent _type_, so a specific
 session spawned by a specific user at a specific time is
 indistinguishable from every other. No owner edge, no per-instance
 revocation, coarse audit. Registering a client per instance means unbounded

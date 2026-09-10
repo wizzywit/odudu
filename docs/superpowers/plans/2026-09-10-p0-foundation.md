@@ -27,18 +27,18 @@
 
 ## Task budget
 
-| Task | Deliverable | Hours |
-|---|---|---|
-| 1 | Workspace skeleton, `pnpm verify` green locally | 4–6 |
-| 2 | GitHub Actions running `pnpm verify` | 1–2 |
-| 3 | `dependency-cruiser` boundary rules, tested with violating fixtures | 3–4 |
-| 4 | `kernel`: config, clock, IDs, errors | 3–5 |
-| 5 | `kernel`: module registry with lifecycle | 2–4 |
-| 6 | `db`: connection, migration runner, Testcontainers harness | 4–6 |
-| 7 | Row-level security, `withRealm`, pooled-connection leak test | 4–5 |
-| 8 | `apps/server`: Fastify, health, logging, graceful shutdown | 3–4 |
-| 9 | Dockerfile, compose, container boot proof | 3–4 |
-| | **Total** | **27–40** |
+| Task | Deliverable                                                         | Hours     |
+| ---- | ------------------------------------------------------------------- | --------- |
+| 1    | Workspace skeleton, `pnpm verify` green locally                     | 4–6       |
+| 2    | GitHub Actions running `pnpm verify`                                | 1–2       |
+| 3    | `dependency-cruiser` boundary rules, tested with violating fixtures | 3–4       |
+| 4    | `kernel`: config, clock, IDs, errors                                | 3–5       |
+| 5    | `kernel`: module registry with lifecycle                            | 2–4       |
+| 6    | `db`: connection, migration runner, Testcontainers harness          | 4–6       |
+| 7    | Row-level security, `withRealm`, pooled-connection leak test        | 4–5       |
+| 8    | `apps/server`: Fastify, health, logging, graceful shutdown          | 3–4       |
+| 9    | Dockerfile, compose, container boot proof                           | 3–4       |
+|      | **Total**                                                           | **27–40** |
 
 The spec budgeted P0 at 20–30 hours. This plan is above that. The overage is Task 7: proving row-level security and the `SET LOCAL` pooling footgun is real work that the spec's own exit criteria did not name. It is worth doing now — retrofitting tenant isolation onto populated tables is far more expensive — but if hours are tight, Task 7 is the one that could defer to P3 without blocking anything else.
 
@@ -101,12 +101,14 @@ Each file has one responsibility. `kernel` holds no I/O beyond reading `process.
 ### Task 1: Workspace skeleton and the verify pipeline
 
 **Files:**
+
 - Create: `package.json`, `pnpm-workspace.yaml`, `.npmrc`, `turbo.json`, `tsconfig.base.json`, `eslint.config.js`, `.prettierrc.json`, `.prettierignore`, `vitest.config.ts`
 - Create: `packages/kernel/package.json`, `packages/kernel/tsconfig.json`, `packages/kernel/src/index.ts`, `packages/kernel/src/version.ts`
 - Test: `packages/kernel/src/version.test.ts`
 - Create: `docs/adr/0012-typescript-6-not-7.md`
 
 **Interfaces:**
+
 - Consumes: nothing.
 - Produces: `pnpm verify` (format check, typecheck, lint, test). Workspace package `@odudu/kernel` resolving to `./src/index.ts`. Every later package copies `packages/kernel/tsconfig.json` verbatim.
 
@@ -157,8 +159,8 @@ Expected: `12.3.4`. If it fails with `MODULE_NOT_FOUND`, the corepack cache is c
 
 ```yaml
 packages:
-  - "apps/*"
-  - "packages/*"
+  - 'apps/*'
+  - 'packages/*'
 ```
 
 `.npmrc`:
@@ -431,9 +433,11 @@ TypeScript is pinned to 6.0.3 because typescript-eslint 8.70.0 caps at
 ### Task 2: Continuous integration
 
 **Files:**
+
 - Create: `.github/workflows/verify.yml`
 
 **Interfaces:**
+
 - Consumes: `pnpm verify` from Task 1.
 - Produces: a required status check named `verify` on every push and pull request.
 
@@ -530,6 +534,7 @@ git push
 ### Task 3: Boundary enforcement
 
 **Files:**
+
 - Create: `.dependency-cruiser.cjs`
 - Create: `tests/boundaries/fixtures/packages/domain-example/src/leak.ts`
 - Create: `tests/boundaries/fixtures/packages/protocol-example/src/thing.ts`
@@ -540,10 +545,11 @@ git push
 - Modify: `.prettierignore`, `eslint.config.js`, `vitest.config.ts` — exclude the fixture tree
 
 **Interfaces:**
+
 - Consumes: nothing from earlier tasks.
 - Produces: `pnpm boundaries`, and a `.dependency-cruiser.cjs` whose `forbidden` array later tasks extend as new packages appear.
 
-The fixtures are code that is *supposed* to violate the rules. A linter nobody has watched reject something is not known to work.
+The fixtures are code that is _supposed_ to violate the rules. A linter nobody has watched reject something is not known to work.
 
 - [ ] **Step 1: Install dependency-cruiser**
 
@@ -632,7 +638,8 @@ module.exports = {
     {
       name: 'no-domain-to-protocol',
       severity: 'error',
-      comment: 'Users do not know what OIDC is. This is what lets SAML arrive without touching identity.',
+      comment:
+        'Users do not know what OIDC is. This is what lets SAML arrive without touching identity.',
       from: { path: '(^|/)packages/domain-[^/]+/' },
       to: { path: '(^|/)packages/protocol-[^/]+/' },
     },
@@ -735,12 +742,14 @@ git push
 ### Task 4: Kernel primitives — errors, clock, IDs, configuration
 
 **Files:**
+
 - Create: `packages/kernel/src/errors.ts`, `packages/kernel/src/clock.ts`, `packages/kernel/src/ids.ts`, `packages/kernel/src/config.ts`, `packages/kernel/src/logger.ts`
 - Test: `packages/kernel/src/clock.test.ts`, `packages/kernel/src/ids.test.ts`, `packages/kernel/src/config.test.ts`
 - Modify: `packages/kernel/src/index.ts`, `packages/kernel/package.json`
 - Create: `.env.example`
 
 **Interfaces:**
+
 - Consumes: nothing from earlier tasks.
 - Produces:
   - `class OduduError extends Error` with `readonly code: ErrorCode`
@@ -1072,11 +1081,13 @@ git push
 ### Task 5: Kernel module registry
 
 **Files:**
+
 - Create: `packages/kernel/src/registry.ts`
 - Test: `packages/kernel/src/registry.test.ts`
 - Modify: `packages/kernel/src/index.ts`
 
 **Interfaces:**
+
 - Consumes: `Config`, `Clock`, `Logger`, `OduduError` from Task 4.
 - Produces:
   - `interface ModuleContext { readonly config: Config; readonly clock: Clock; readonly logger: Logger }`
@@ -1170,16 +1181,14 @@ describe('ModuleRegistry', () => {
 
   it('stops every remaining module even when one throws', async () => {
     const log: string[] = [];
-    const registry = new ModuleRegistry()
-      .register(recorder('db', log))
-      .register({
-        name: 'http',
-        dependsOn: ['db'],
-        start: async () => {},
-        stop: async () => {
-          throw new Error('socket stuck');
-        },
-      });
+    const registry = new ModuleRegistry().register(recorder('db', log)).register({
+      name: 'http',
+      dependsOn: ['db'],
+      start: async () => {},
+      stop: async () => {
+        throw new Error('socket stuck');
+      },
+    });
 
     await registry.start(context());
     await expect(registry.stop()).rejects.toThrowError(OduduError);
@@ -1339,6 +1348,7 @@ git push
 ### Task 6: Database package, migrations, and the Testcontainers harness
 
 **Files:**
+
 - Create: `packages/db/package.json`, `packages/db/tsconfig.json`, `packages/db/drizzle.config.ts`
 - Create: `packages/db/src/index.ts`, `packages/db/src/client.ts`, `packages/db/src/migrate.ts`, `packages/db/src/schema/index.ts`, `packages/db/src/schema/realms.ts`
 - Create: `packages/testkit/package.json`, `packages/testkit/tsconfig.json`, `packages/testkit/src/index.ts`, `packages/testkit/src/postgres.ts`
@@ -1349,6 +1359,7 @@ git push
 - Generated: `packages/db/drizzle/0000_*.sql`
 
 **Interfaces:**
+
 - Consumes: `newId` from Task 4.
 - Produces:
   - `type Database = PostgresJsDatabase<typeof schema>`
@@ -1514,9 +1525,9 @@ In `packages/kernel/src/config.ts`, add to the Zod object:
 Add to `packages/kernel/src/config.test.ts`:
 
 ```ts
-  it('leaves the migrations directory unset by default', () => {
-    expect(loadConfig(minimal).ODUDU_MIGRATIONS_DIR).toBeUndefined();
-  });
+it('leaves the migrations directory unset by default', () => {
+  expect(loadConfig(minimal).ODUDU_MIGRATIONS_DIR).toBeUndefined();
+});
 ```
 
 `kernel` cannot import `db`, so the default lives at the call site in `apps/server`.
@@ -1725,6 +1736,7 @@ git push
 ### Task 7: Row-level security and the realm transaction helper
 
 **Files:**
+
 - Create: `packages/db/src/tx.ts`
 - Create: `packages/db/drizzle/0001_row_level_security.sql` (hand-written)
 - Test: `packages/db/src/tx.int.test.ts`
@@ -1732,6 +1744,7 @@ git push
 - Modify: `packages/kernel/src/config.ts` — add optional `ODUDU_APP_DATABASE_URL`
 
 **Interfaces:**
+
 - Consumes: `Database`, `DatabaseHandle`, `createDatabase`, `runMigrations`, `realms` from Task 6; `OduduError` from Task 4.
 - Produces:
   - `function withRealm<T>(db: Database, realmId: string, fn: (tx: Database) => Promise<T>): Promise<T>`
@@ -1943,9 +1956,9 @@ In `packages/kernel/src/config.ts`:
 Add to `packages/kernel/src/config.test.ts`:
 
 ```ts
-  it('leaves the application database url unset by default', () => {
-    expect(loadConfig(minimal).ODUDU_APP_DATABASE_URL).toBeUndefined();
-  });
+it('leaves the application database url unset by default', () => {
+  expect(loadConfig(minimal).ODUDU_APP_DATABASE_URL).toBeUndefined();
+});
 ```
 
 - [ ] **Step 9: Export and run the full pipeline**
@@ -1983,12 +1996,14 @@ git push
 ### Task 8: The server application
 
 **Files:**
+
 - Create: `apps/server/package.json`, `apps/server/tsconfig.json`
 - Create: `apps/server/src/logger.ts`, `apps/server/src/health.ts`, `apps/server/src/app.ts`, `apps/server/src/main.ts`
 - Create: `apps/server/src/modules/database.ts`, `apps/server/src/modules/http.ts`
 - Test: `apps/server/src/health.test.ts`, `apps/server/src/logger.test.ts`
 
 **Interfaces:**
+
 - Consumes: `loadConfig`, `newId`, `systemClock`, `ModuleRegistry`, `type OduduModule`, `type Logger` from Tasks 4–5; `createDatabase`, `type DatabaseHandle`, `runMigrations`, `MIGRATIONS_DIR` from Task 6.
 - Produces:
   - `function createLogger(config: Config, destination?: DestinationStream): PinoLogger`
@@ -2419,6 +2434,7 @@ git push
 ### Task 9: Container image, compose stack, and the boot proof
 
 **Files:**
+
 - Create: `apps/server/tsup.config.ts`
 - Create: `infra/docker/Dockerfile`, `infra/docker/compose.yaml`, `infra/docker/initdb/01-app-role.sql`, `infra/docker/smoke.sh`
 - Modify: `apps/server/package.json` — `build` script, tsup devDependency
@@ -2427,6 +2443,7 @@ git push
 - Modify: `.dockerignore` (create)
 
 **Interfaces:**
+
 - Consumes: everything from Tasks 1–8.
 - Produces: an image whose `CMD` is `node dist/main.js`, and `infra/docker/smoke.sh` exiting zero when the stack becomes ready.
 
@@ -2636,13 +2653,13 @@ Expected: `realms_isolation`.
 Append to `.github/workflows/verify.yml`:
 
 ```yaml
-  container:
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@v7
-      - name: Build and smoke-test the stack
-        run: ./infra/docker/smoke.sh
+container:
+  runs-on: ubuntu-latest
+  timeout-minutes: 20
+  steps:
+    - uses: actions/checkout@v7
+    - name: Build and smoke-test the stack
+      run: ./infra/docker/smoke.sh
 ```
 
 - [ ] **Step 10: Push and watch CI**

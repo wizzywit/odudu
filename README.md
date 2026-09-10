@@ -1,6 +1,6 @@
 # Odudu
 
-*Odudu* — power, authority. Ibibio, Akwa Ibom, Nigeria.
+_Odudu_ — power, authority. Ibibio, Akwa Ibom, Nigeria.
 
 An identity and access management platform: an OAuth 2.1 / OpenID Connect
 provider with Keycloak feature parity, plus a first-class agent identity

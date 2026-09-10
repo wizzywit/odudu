@@ -14,13 +14,13 @@ none.
 
 Five functional layers, in the consoles and on the server alike:
 
-| Layer | Contains | Business logic |
-|---|---|---|
-| view | rendering, integration code | no |
-| usecase | orchestration of one journey | no |
-| repository | state, refetch decisions | no |
-| adapter | wire contract: endpoints, DTOs, mapping | API-contract only |
-| service | domain and application logic | yes |
+| Layer      | Contains                                | Business logic    |
+| ---------- | --------------------------------------- | ----------------- |
+| view       | rendering, integration code             | no                |
+| usecase    | orchestration of one journey            | no                |
+| repository | state, refetch decisions                | no                |
+| adapter    | wire contract: endpoints, DTOs, mapping | API-contract only |
+| service    | domain and application logic            | yes               |
 
 Permitted imports:
 

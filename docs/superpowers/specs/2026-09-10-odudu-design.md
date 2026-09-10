@@ -3,7 +3,7 @@
 **Date:** 2026-09-10
 **Status:** Approved
 
-*Odudu* means power or authority in Ibibio (Akwa Ibom, Nigeria).
+_Odudu_ means power or authority in Ibibio (Akwa Ibom, Nigeria).
 
 ## 1. What this is
 
@@ -47,19 +47,19 @@ fixes the decisions that span all of them.
 Each of these has an ADR in `docs/adr/` recording the alternatives and why
 they were rejected.
 
-| Area | Decision | ADR |
-|---|---|---|
-| Runtime | TypeScript on Node 24 | 0001 |
-| Deployment | Self-hostable: one container + PostgreSQL | 0002 |
-| Agent model | Hybrid: type is a client, instance is an ephemeral principal | 0003 |
-| HTTP | Fastify 5 | 0004 |
-| Database | PostgreSQL 17 only | 0005 |
-| DB access | Drizzle ORM | 0006 |
-| Schemas | Zod 4 authored, compiled to JSON Schema | 0007 |
-| Lint | ESLint 9 flat with type-aware rules | 0008 |
-| Tenancy | Shared tables keyed by realm, with row-level security | 0009 |
-| Code structure | Five functional layers, enforced | 0010 |
-| Monorepo | pnpm workspaces + Turborepo | 0011 |
+| Area           | Decision                                                     | ADR  |
+| -------------- | ------------------------------------------------------------ | ---- |
+| Runtime        | TypeScript on Node 24                                        | 0001 |
+| Deployment     | Self-hostable: one container + PostgreSQL                    | 0002 |
+| Agent model    | Hybrid: type is a client, instance is an ephemeral principal | 0003 |
+| HTTP           | Fastify 5                                                    | 0004 |
+| Database       | PostgreSQL 17 only                                           | 0005 |
+| DB access      | Drizzle ORM                                                  | 0006 |
+| Schemas        | Zod 4 authored, compiled to JSON Schema                      | 0007 |
+| Lint           | ESLint 9 flat with type-aware rules                          | 0008 |
+| Tenancy        | Shared tables keyed by realm, with row-level security        | 0009 |
+| Code structure | Five functional layers, enforced                             | 0010 |
+| Monorepo       | pnpm workspaces + Turborepo                                  | 0011 |
 
 The runtime choice rests on precedent: `node-oidc-provider` is an officially
 OpenID-certified provider written in JavaScript, and Logto ships the full
@@ -126,23 +126,23 @@ what keeps the single-container promise honest.
 
 Applies to the consoles and the server alike.
 
-| Layer | Responsibility | Business logic |
-|---|---|---|
-| view | render; integration code only | no |
-| usecase | orchestrate one journey; arrange a view model | no |
-| repository | maintain state; decide when to refetch | no |
-| adapter | talk to the network or the database; own the wire contract | API-contract logic only |
-| service | domain and application logic; side effects | yes |
+| Layer      | Responsibility                                             | Business logic          |
+| ---------- | ---------------------------------------------------------- | ----------------------- |
+| view       | render; integration code only                              | no                      |
+| usecase    | orchestrate one journey; arrange a view model              | no                      |
+| repository | maintain state; decide when to refetch                     | no                      |
+| adapter    | talk to the network or the database; own the wire contract | API-contract logic only |
+| service    | domain and application logic; side effects                 | yes                     |
 
 Permitted imports:
 
-| Layer | May import | Never imports |
-|---|---|---|
-| view | own model, `shared/view` | repository, adapter |
-| usecase | repository, service, view models | adapter |
-| repository | adapter, service | view, usecase |
-| adapter | transport, service | view, usecase, repository |
-| service | nothing | everything else |
+| Layer      | May import                       | Never imports             |
+| ---------- | -------------------------------- | ------------------------- |
+| view       | own model, `shared/view`         | repository, adapter       |
+| usecase    | repository, service, view models | adapter                   |
+| repository | adapter, service                 | view, usecase             |
+| adapter    | transport, service               | view, usecase, repository |
+| service    | nothing                          | everything else           |
 
 Features expose a single `index.ts`; no feature reaches into another's
 internals.
@@ -301,7 +301,7 @@ rather than an API redesign.
 
 ## 9. Agent identity layer
 
-An agent *type* is a registered OAuth client. An agent *instance* is an
+An agent _type_ is a registered OAuth client. An agent _instance_ is an
 ephemeral first-class principal minted at delegation time, carrying its
 owner, type, parent, granted scopes, budget, and expiry, and reaped on TTL.
 
@@ -335,15 +335,15 @@ audit configuration, and explain authorization decisions.
 
 ## 10. Testing
 
-| Level | Scope | Infrastructure | Frequency |
-|---|---|---|---|
-| Unit | service packages | none | every save |
-| Contract | repository and adapter | Testcontainers PostgreSQL | every PR |
-| Flow | full grant journeys over HTTP | app + database | every PR |
-| Adversarial | attacks that must fail | app + database | every PR |
-| Conformance | OpenID Foundation suite | full compose stack | nightly, on demand |
-| Load | token endpoint, Argon2id throughput | k6 | per phase |
-| Console | Playwright | app + seeded realm | every PR |
+| Level       | Scope                               | Infrastructure            | Frequency          |
+| ----------- | ----------------------------------- | ------------------------- | ------------------ |
+| Unit        | service packages                    | none                      | every save         |
+| Contract    | repository and adapter              | Testcontainers PostgreSQL | every PR           |
+| Flow        | full grant journeys over HTTP       | app + database            | every PR           |
+| Adversarial | attacks that must fail              | app + database            | every PR           |
+| Conformance | OpenID Foundation suite             | full compose stack        | nightly, on demand |
+| Load        | token endpoint, Argon2id throughput | k6                        | per phase          |
+| Console     | Playwright                          | app + seeded realm        | every PR           |
 
 Integration tests run against real PostgreSQL, never a mock. The bugs that
 matter in an identity provider live in transaction boundaries, unique
@@ -383,20 +383,20 @@ Implementation follows test-driven development.
 
 ## 11. Roadmap
 
-| # | Phase | Effort | Exit criterion |
-|---|---|---|---|
-| P0 | Foundation | 20–30 h | `pnpm verify` green in CI; server boots in a container; migration runner proven; ADRs committed; boundaries enforced |
-| P1 | OAuth 2.1 / OIDC core | 60–100 h | OIDF Basic OP and Config OP plans pass; every in-scope MUST traced to a test |
-| P2 | Identity and credentials | 60–80 h | password, TOTP and passkey login through the flow engine; adversarial suite green |
-| P3 | Realms, clients, consent, dynamic registration | 40–60 h | OIDF Dynamic OP plan passes; cross-realm RLS probes green |
-| P4 | Admin API and consoles | 100–150 h | full lifecycle manageable from the UI; Playwright green; OpenAPI published |
-| P5 | Agent identity layer | 80–120 h | property-based attenuation tests pass; budgets atomic under concurrency; CIBA approvals end to end |
-| P6 | Identity brokering | 40–60 h | login via Google and an upstream OIDC IdP; mix-up tests green |
-| P7 | User federation (LDAP) | 60–100 h | LDAP-backed authentication, write-back and sync |
-| P8 | SAML 2.0 IdP | 100–150 h | interop with a real SP; signature-wrapping corpus green |
-| P9 | Authorization services | 100–150 h | policy evaluation and UMA 2.0 |
-| P10 | Extensibility and theming | 60–100 h | a third-party provider loads without a rebuild |
-| P11 | HA, clustering, performance | 60–100 h | three replicas behind a load balancer; documented p99 |
+| #   | Phase                                          | Effort    | Exit criterion                                                                                                       |
+| --- | ---------------------------------------------- | --------- | -------------------------------------------------------------------------------------------------------------------- |
+| P0  | Foundation                                     | 20–30 h   | `pnpm verify` green in CI; server boots in a container; migration runner proven; ADRs committed; boundaries enforced |
+| P1  | OAuth 2.1 / OIDC core                          | 60–100 h  | OIDF Basic OP and Config OP plans pass; every in-scope MUST traced to a test                                         |
+| P2  | Identity and credentials                       | 60–80 h   | password, TOTP and passkey login through the flow engine; adversarial suite green                                    |
+| P3  | Realms, clients, consent, dynamic registration | 40–60 h   | OIDF Dynamic OP plan passes; cross-realm RLS probes green                                                            |
+| P4  | Admin API and consoles                         | 100–150 h | full lifecycle manageable from the UI; Playwright green; OpenAPI published                                           |
+| P5  | Agent identity layer                           | 80–120 h  | property-based attenuation tests pass; budgets atomic under concurrency; CIBA approvals end to end                   |
+| P6  | Identity brokering                             | 40–60 h   | login via Google and an upstream OIDC IdP; mix-up tests green                                                        |
+| P7  | User federation (LDAP)                         | 60–100 h  | LDAP-backed authentication, write-back and sync                                                                      |
+| P8  | SAML 2.0 IdP                                   | 100–150 h | interop with a real SP; signature-wrapping corpus green                                                              |
+| P9  | Authorization services                         | 100–150 h | policy evaluation and UMA 2.0                                                                                        |
+| P10 | Extensibility and theming                      | 60–100 h  | a third-party provider loads without a rebuild                                                                       |
+| P11 | HA, clustering, performance                    | 60–100 h  | three replicas behind a load balancer; documented p99                                                                |
 
 Total: roughly 800–1200 hours.
 
