@@ -149,3 +149,13 @@ The requirement table is what makes "P1 is done" countable.
   the equivalent safeguard for; whoever adds one needs an explicit,
   idempotent, post-migration provisioning step for this role, not a
   migration.
+- `databaseModule` runs `runMigrations` on every boot, from every process,
+  with no advisory lock. One replica is fine; the three replicas P11
+  promises would all attempt the migration runner concurrently on
+  deployment, racing each other. Whoever adds the second replica needs a
+  `pg_advisory_lock`-guarded runner (or an out-of-band migration step) before
+  scaling `odudu` horizontally.
+- The plan for this phase listed `apps/server/src/context.ts` as a file to
+  create. It was never created — its job (correlation id generation,
+  per-request setup) folded into `app.ts`'s `genReqId` option and its
+  `onRequest` hook instead, which turned out to be all that was needed.
