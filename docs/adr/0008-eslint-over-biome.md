@@ -1,4 +1,4 @@
-# 0008 — ESLint 9 flat config over Biome
+# 0008 — ESLint flat config over Biome
 
 **Status:** Accepted · 2026-09-10
 
@@ -8,7 +8,7 @@ Biome is 10–30× faster than ESLint and would normally win on merit.
 
 ## Decision
 
-ESLint 9 flat config with type-aware `@typescript-eslint` rules, plus
+ESLint flat config with type-aware `@typescript-eslint` rules, plus
 Prettier. `dependency-cruiser` runs standalone for boundary enforcement.
 
 ## Rationale
@@ -22,3 +22,10 @@ That single pair of rules is worth the slower lint.
 
 Linting is slower than it needs to be. Revisit if Biome gains type-aware
 analysis.
+
+## Correction, 2026-09-10
+
+This ADR originally said "ESLint 9". The installed version is 10.10.0; the
+major was written from memory rather than checked. The decision is unchanged
+— only the version number was wrong, so this is a factual correction rather
+than a superseding ADR.
