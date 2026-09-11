@@ -82,25 +82,26 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
       // so it never leaves a consumed session with nothing issued for it.
       completeLogin: (input) =>
         withRealm(deps.database.db, input.realmId, async (tx) => {
+          const now = clock.now();
           const consumed = await consumeAuthenticationSession(tx, input.authSessionId, clock);
           if (!consumed) return { kind: 'already_consumed' };
 
           const { sessionId } = await establishSession(tx, input.realmId, input.subjectId, clock);
-          const { code } = await issueAuthorizationCode(
-            tx,
-            {
-              realmId: input.realmId,
-              clientId: input.clientId,
-              subjectId: input.subjectId,
-              redirectUri: input.redirectUri,
-              scope: input.scope,
-              nonce: input.nonce,
-              codeChallenge: input.codeChallenge,
-              codeChallengeMethod: input.codeChallengeMethod,
-              authTime: clock.now(),
-            },
-            clock,
-          );
+          // authTime and expiresAt both derive from this single `now`, not a
+          // fresh clock read inside issueAuthorizationCode — otherwise two
+          // reads straddling a millisecond boundary could store a TTL
+          // slightly over 60s.
+          const { code } = await issueAuthorizationCode(tx, {
+            realmId: input.realmId,
+            clientId: input.clientId,
+            subjectId: input.subjectId,
+            redirectUri: input.redirectUri,
+            scope: input.scope,
+            nonce: input.nonce,
+            codeChallenge: input.codeChallenge,
+            codeChallengeMethod: input.codeChallengeMethod,
+            authTime: now,
+          });
           return { kind: 'issued', sessionId, code };
         }),
     });

@@ -4,7 +4,6 @@ import {
   type PendingRequest,
 } from '@odudu/authn-flows';
 import { type RealmScopedDatabase } from '@odudu/db';
-import { systemClock, type Clock } from '@odudu/kernel';
 import { authorizationCodeRepository } from '#/repository/codes';
 import { type RealmLookup } from '#/repository/realm-lookup';
 import { generateAuthorizationCode, hashAuthorizationCode } from '#/service/authorization-code';
@@ -27,10 +26,13 @@ export interface IssueAuthorizationCodeInput {
 }
 
 // Returns the raw code exactly once; only its hash is ever persisted.
+// `expiresAt` is derived from `input.authTime`, not a fresh clock read, so
+// the TTL stored is exactly 60s by construction: both columns come from the
+// one `now` the caller captured, never two separate clock reads that could
+// straddle a millisecond boundary.
 export async function issueAuthorizationCode(
   tx: RealmScopedDatabase,
   input: IssueAuthorizationCodeInput,
-  clock: Clock = systemClock,
 ): Promise<{ code: string }> {
   const code = generateAuthorizationCode();
   await authorizationCodeRepository(tx).create({
@@ -44,7 +46,7 @@ export async function issueAuthorizationCode(
     codeChallenge: input.codeChallenge,
     codeChallengeMethod: input.codeChallengeMethod,
     authTime: input.authTime,
-    expiresAt: new Date(clock.now().getTime() + AUTHORIZATION_CODE_TTL_MS),
+    expiresAt: new Date(input.authTime.getTime() + AUTHORIZATION_CODE_TTL_MS),
   });
   return { code };
 }

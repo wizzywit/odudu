@@ -3,7 +3,7 @@ import { isRegisteredRedirectUri } from '#/service/redirect-uri';
 
 const REGISTERED = ['https://app.example/callback'];
 
-describe('isRegisteredRedirectUri', () => {
+describe('[OIDC-CORE-3.1.2.1-06] isRegisteredRedirectUri', () => {
   it('matches the exact registered string', () => {
     expect(isRegisteredRedirectUri('https://app.example/callback', REGISTERED)).toBe(true);
   });

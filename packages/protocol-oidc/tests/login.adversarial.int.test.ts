@@ -280,7 +280,7 @@ describe('[OIDC-CORE-3.1.2.5-01] a successful login produces a code and a redire
 });
 
 describe('[RFC6749-4.1.2-03] a granted authorization code expires shortly after issuance', () => {
-  it('stores an expires_at about 60 seconds after auth_time', async () => {
+  it('stores an expires_at exactly 60 seconds after auth_time', async () => {
     const realmName = await setupLoginRealm(`acme-expiry-${newId()}`);
     const res = await submitLogin({ ...GOOD, realmName });
     const code = new URL(locationHeader(res)).searchParams.get('code');
@@ -288,9 +288,11 @@ describe('[RFC6749-4.1.2-03] a granted authorization code expires shortly after 
 
     const timing = await timingOfIssuedCode(code);
     if (timing === undefined) throw new Error('expected the issued code to be stored');
+    // auth_time and expires_at both derive from the one clock read that
+    // issues the code, so the TTL is exact, not merely close: a second
+    // clock read straddling a millisecond boundary would show up here.
     const ttlMs = timing.expiresAt.getTime() - timing.authTime.getTime();
-    expect(ttlMs).toBeGreaterThan(55_000);
-    expect(ttlMs).toBeLessThanOrEqual(60_000);
+    expect(ttlMs).toBe(60_000);
   });
 });
 
@@ -317,7 +319,7 @@ describe('[OIDC-CORE-3.1.2.1-05] the login form cannot be driven cross-site', ()
   });
 });
 
-describe('[OIDC-CORE-3.1.2.1-06] the parked request is what binds the code', () => {
+describe('the parked request is what binds the code', () => {
   it('ignores scope and redirect_uri resubmitted with the form', async () => {
     const res = await submitLogin({
       ...GOOD,
