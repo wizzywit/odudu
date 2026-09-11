@@ -14,3 +14,11 @@ export function generateAuthorizationCode(): string {
 export function hashAuthorizationCode(code: string): string {
   return createHash('sha256').update(code).digest('base64url');
 }
+
+// The predicate a token endpoint must gate redemption on: once `now` has
+// reached `expiresAt`, the code is spent, whether or not it was ever
+// exchanged. Kept here, not inlined at the call site, so "expired" means
+// the same thing everywhere it is checked.
+export function isAuthorizationCodeExpired(expiresAt: Date, now: Date): boolean {
+  return now.getTime() >= expiresAt.getTime();
+}

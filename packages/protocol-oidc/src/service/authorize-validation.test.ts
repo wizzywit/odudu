@@ -1,3 +1,4 @@
+import { discoveryDocument } from '@odudu/contracts';
 import { type ClientRecord } from '@odudu/domain-realm';
 import { describe, expect, it } from 'vitest';
 import { validateAuthorizationRequest } from '#/service/authorize-validation';
@@ -94,6 +95,42 @@ describe('[RFC6749-4.1.2.1-02] failures after redirect_uri is trusted redirect w
       error: expected,
       state: params.state,
     });
+  });
+});
+
+describe('scope acceptance', () => {
+  it('accepts openid together with profile and email', () => {
+    const outcome = validateAuthorizationRequest(
+      { ...params, scope: 'openid profile email' },
+      client,
+      config,
+    );
+    expect(outcome).toMatchObject({ kind: 'ok' });
+  });
+
+  it('still rejects a scope token nothing recognizes', () => {
+    const outcome = validateAuthorizationRequest(
+      { ...params, scope: 'openid unknown-scope' },
+      client,
+      config,
+    );
+    expect(outcome).toMatchObject({ kind: 'redirect', error: 'invalid_scope' });
+  });
+
+  it('accepts exactly what discovery advertises as scopes_supported, and nothing beyond it', () => {
+    const advertised = discoveryDocument({ issuer: 'https://idp.example' }).scopes_supported;
+
+    expect(
+      validateAuthorizationRequest({ ...params, scope: advertised.join(' ') }, client, config),
+    ).toMatchObject({ kind: 'ok' });
+
+    expect(
+      validateAuthorizationRequest(
+        { ...params, scope: [...advertised, 'not-advertised'].join(' ') },
+        client,
+        config,
+      ),
+    ).toMatchObject({ kind: 'redirect', error: 'invalid_scope' });
   });
 });
 

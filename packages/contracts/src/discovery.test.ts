@@ -59,8 +59,8 @@ describe('[OIDC-DISCOVERY-3-01] the discovery document', () => {
     expect(doc.id_token_signing_alg_values_supported).toEqual(['RS256', 'ES256']);
   });
 
-  it('advertises the openid scope', () => {
-    expect(doc.scopes_supported).toContain('openid');
+  it('advertises openid, profile and email', () => {
+    expect([...doc.scopes_supported].sort()).toEqual(['email', 'openid', 'profile']);
   });
 
   it('advertises at least one claim name', () => {

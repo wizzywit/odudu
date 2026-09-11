@@ -187,6 +187,16 @@ async function scopeOfIssuedCode(code: string): Promise<string | undefined> {
   return rows[0]?.scope;
 }
 
+async function timingOfIssuedCode(
+  code: string,
+): Promise<{ authTime: Date; expiresAt: Date } | undefined> {
+  const rows = await owner.db
+    .select({ authTime: authorizationCodes.authTime, expiresAt: authorizationCodes.expiresAt })
+    .from(authorizationCodes)
+    .where(eq(authorizationCodes.codeHash, hashAuthorizationCode(code)));
+  return rows[0];
+}
+
 async function realmIdByName(name: string): Promise<string | undefined> {
   const rows = await owner.db.select({ id: realms.id }).from(realms).where(eq(realms.name, name));
   return rows[0]?.id;
@@ -266,6 +276,21 @@ describe('[OIDC-CORE-3.1.2.5-01] a successful login produces a code and a redire
 
     expect(rows.map((r) => r.codeHash)).not.toContain(code);
     expect(rows).toHaveLength(1);
+  });
+});
+
+describe('[RFC6749-4.1.2-03] a granted authorization code expires shortly after issuance', () => {
+  it('stores an expires_at about 60 seconds after auth_time', async () => {
+    const realmName = await setupLoginRealm(`acme-expiry-${newId()}`);
+    const res = await submitLogin({ ...GOOD, realmName });
+    const code = new URL(locationHeader(res)).searchParams.get('code');
+    if (code === null) throw new Error('expected a code on the redirect');
+
+    const timing = await timingOfIssuedCode(code);
+    if (timing === undefined) throw new Error('expected the issued code to be stored');
+    const ttlMs = timing.expiresAt.getTime() - timing.authTime.getTime();
+    expect(ttlMs).toBeGreaterThan(55_000);
+    expect(ttlMs).toBeLessThanOrEqual(60_000);
   });
 });
 
@@ -350,6 +375,35 @@ describe('failed and abandoned logins', () => {
     });
     expect(res.statusCode).toBe(400);
     expect(await countAuthorizationCodes(realmName)).toBe(0);
+  });
+});
+
+describe('the authentication session is single-use', () => {
+  it('rejects a second submission of the same auth_session_id and issues no second code', async () => {
+    const realmName = await setupLoginRealm(`acme-reuse-${newId()}`);
+    const authSessionId = await startAuthSession(http, realmName);
+
+    const first = await submitLogin({ ...GOOD, realmName, csrf: authSessionId });
+    expect(first.statusCode).toBe(302);
+    expect(await countAuthorizationCodes(realmName)).toBe(1);
+
+    const second = await submitLogin({ ...GOOD, realmName, csrf: authSessionId });
+    expect(second.statusCode).toBe(400);
+    expect(await countAuthorizationCodes(realmName)).toBe(1);
+  });
+
+  it('produces exactly one code from two concurrent submissions of the same auth_session_id', async () => {
+    const realmName = await setupLoginRealm(`acme-race-${newId()}`);
+    const authSessionId = await startAuthSession(http, realmName);
+
+    const [first, second] = await Promise.all([
+      submitLogin({ ...GOOD, realmName, csrf: authSessionId }),
+      submitLogin({ ...GOOD, realmName, csrf: authSessionId }),
+    ]);
+
+    const statusCodes = [first.statusCode, second.statusCode].sort();
+    expect(statusCodes).toEqual([302, 400]);
+    expect(await countAuthorizationCodes(realmName)).toBe(1);
   });
 });
 

@@ -44,6 +44,7 @@ export {
   startAuthentication,
   loadPendingRequest,
   advance,
+  consumeAuthenticationSession,
   establishSession,
   type AdvanceInput,
 } from '#/usecase/executor';

@@ -1,5 +1,6 @@
 import {
   advance,
+  consumeAuthenticationSession,
   establishSession,
   loadPendingRequest,
   startAuthentication,
@@ -70,19 +71,38 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
         withRealm(deps.database.db, realmId, (tx) => advance(tx, authSessionId, input, clock)),
       loadPendingRequest: (realmId, authSessionId) =>
         withRealm(deps.database.db, realmId, (tx) => loadPendingRequest(tx, authSessionId)),
-      establishSession: (realmId, subjectId) =>
-        withRealm(deps.database.db, realmId, (tx) =>
-          establishSession(tx, realmId, subjectId, clock),
-        ),
       resolveClientId: (realmId, oauthClientId) =>
         withRealm(deps.database.db, realmId, async (tx) => {
           const client = await clientRepository(tx).byClientId(oauthClientId);
           return client === null ? null : client.id;
         }),
-      issueAuthorizationCode: (input) =>
-        withRealm(deps.database.db, input.realmId, (tx) =>
-          issueAuthorizationCode(tx, input, clock),
-        ),
+      // One transaction: the conditional consume, and — only if it actually
+      // consumed the session — establishing the SSO session and issuing the
+      // code. A failure anywhere in here rolls all three back together,
+      // so it never leaves a consumed session with nothing issued for it.
+      completeLogin: (input) =>
+        withRealm(deps.database.db, input.realmId, async (tx) => {
+          const consumed = await consumeAuthenticationSession(tx, input.authSessionId, clock);
+          if (!consumed) return { kind: 'already_consumed' };
+
+          const { sessionId } = await establishSession(tx, input.realmId, input.subjectId, clock);
+          const { code } = await issueAuthorizationCode(
+            tx,
+            {
+              realmId: input.realmId,
+              clientId: input.clientId,
+              subjectId: input.subjectId,
+              redirectUri: input.redirectUri,
+              scope: input.scope,
+              nonce: input.nonce,
+              codeChallenge: input.codeChallenge,
+              codeChallengeMethod: input.codeChallengeMethod,
+              authTime: clock.now(),
+            },
+            clock,
+          );
+          return { kind: 'issued', sessionId, code };
+        }),
     });
 
     return Promise.resolve();

@@ -103,6 +103,19 @@ export async function advance(
   return AUTHENTICATORS[step](tx, input);
 }
 
+// The gate that makes an authentication session single-use. The caller
+// (protocol-oidc's login-submission wiring) must run this in the same
+// transaction as issuing whatever the successful login produces, so a
+// failure past this point rolls the consume back with it rather than
+// stranding a consumed session with nothing issued for it.
+export async function consumeAuthenticationSession(
+  tx: RealmScopedDatabase,
+  authSessionId: string,
+  clock: Clock = systemClock,
+): Promise<boolean> {
+  return authenticationSessionRepository(tx).consume(authSessionId, clock.now());
+}
+
 export async function establishSession(
   tx: RealmScopedDatabase,
   realmId: string,

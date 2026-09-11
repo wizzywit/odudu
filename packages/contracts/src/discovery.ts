@@ -18,6 +18,11 @@ export interface DiscoveryDocumentOptions {
   readonly issuer: string;
 }
 
+// The one list of scopes Odudu accepts, shared with authorize-validation.ts
+// so the two cannot drift apart — discovery advertises exactly what
+// /authorize will accept, never more, never less.
+export const SUPPORTED_SCOPES = ['openid', 'profile', 'email'] as const;
+
 // registration_endpoint is omitted entirely (not published empty or null):
 // dynamic client registration is P3's work (docs/protocols/oidc-discovery.md).
 export function discoveryDocument(opts: DiscoveryDocumentOptions): DiscoveryDocument {
@@ -43,7 +48,7 @@ export function discoveryDocument(opts: DiscoveryDocumentOptions): DiscoveryDocu
     code_challenge_methods_supported: ['S256'],
     grant_types_supported: ['authorization_code', 'refresh_token', 'client_credentials'],
     authorization_response_iss_parameter_supported: true,
-    scopes_supported: ['openid'],
+    scopes_supported: SUPPORTED_SCOPES,
     claims_supported: ['sub'],
   };
 }

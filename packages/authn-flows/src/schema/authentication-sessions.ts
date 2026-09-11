@@ -11,6 +11,11 @@ export const authenticationSessions = pgTable('authentication_sessions', {
   pendingRequest: jsonb('pending_request').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  // Set exactly once, by the atomic conditional UPDATE in
+  // authenticationSessionRepository().consume() — never read-then-written —
+  // so a session that has already driven one successful login cannot drive
+  // a second, even from two requests racing on the same id.
+  consumedAt: timestamp('consumed_at', { withTimezone: true }),
 }).enableRLS();
 
 // The bytes validated at /authorize are the bytes bound to the code later
@@ -32,4 +37,5 @@ export interface AuthenticationSessionRecord {
   pendingRequest: PendingRequest;
   createdAt: Date;
   expiresAt: Date;
+  consumedAt: Date | null;
 }

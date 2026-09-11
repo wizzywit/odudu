@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
 import { type RealmScopedDatabase } from '@odudu/db';
 import {
   authenticationSessions,
@@ -13,6 +13,7 @@ function toRecord(row: typeof authenticationSessions.$inferSelect): Authenticati
     pendingRequest: row.pendingRequest as PendingRequest,
     createdAt: row.createdAt,
     expiresAt: row.expiresAt,
+    consumedAt: row.consumedAt,
   };
 }
 
@@ -39,6 +40,21 @@ export function authenticationSessionRepository(tx: RealmScopedDatabase) {
 
     async create(values: NewAuthenticationSession): Promise<void> {
       await tx.insert(authenticationSessions).values(values);
+    },
+
+    // A single conditional UPDATE, not read-then-write: the WHERE clause is
+    // the only thing standing between one successful login and two, so it
+    // has to be the same statement that flips the flag. Returns whether
+    // this call is the one that consumed the session — false means either
+    // it never existed or a previous call (possibly racing this one) already
+    // did, and the caller must not proceed as though it owns the session.
+    async consume(id: string, consumedAt: Date): Promise<boolean> {
+      const rows = await tx
+        .update(authenticationSessions)
+        .set({ consumedAt })
+        .where(and(eq(authenticationSessions.id, id), isNull(authenticationSessions.consumedAt)))
+        .returning({ id: authenticationSessions.id });
+      return rows.length > 0;
     },
   };
 }

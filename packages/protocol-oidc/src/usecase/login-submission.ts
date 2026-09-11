@@ -54,6 +54,28 @@ export type LoginSubmissionOutcome =
   | { kind: 'reject'; authSessionId: string }
   | { kind: 'redirect'; location: string; sessionId: string };
 
+// Everything the atomic completion step needs to establish the SSO session
+// and issue the code, gathered ahead of the call so that step can be one
+// transaction: consume the authentication session, then act on the result,
+// with nothing else in between to roll back separately.
+export interface CompleteLoginInput {
+  realmId: string;
+  authSessionId: string;
+  subjectId: string;
+  clientId: string;
+  redirectUri: string;
+  scope: string;
+  nonce: string | null;
+  codeChallenge: string;
+  codeChallengeMethod: 'S256';
+}
+
+export type CompleteLoginOutcome =
+  // The conditional consume found the session already used — by an earlier
+  // request, or by one that raced this one to the same UPDATE — so nothing
+  // was established or issued.
+  { kind: 'already_consumed' } | { kind: 'issued'; sessionId: string; code: string };
+
 export interface LoginSubmissionDeps {
   findRealm(name: string): Promise<RealmLookup | null>;
   advance(
@@ -62,9 +84,12 @@ export interface LoginSubmissionDeps {
     input: AdvanceInput,
   ): Promise<AuthenticatorResult>;
   loadPendingRequest(realmId: string, authSessionId: string): Promise<PendingRequest | null>;
-  establishSession(realmId: string, subjectId: string): Promise<{ sessionId: string }>;
   resolveClientId(realmId: string, oauthClientId: string): Promise<string | null>;
-  issueAuthorizationCode(input: IssueAuthorizationCodeInput): Promise<{ code: string }>;
+  // Consumes the authentication session and, only if that succeeds,
+  // establishes the SSO session and issues the authorization code — all in
+  // the one transaction this name promises. See index.ts for the wiring
+  // that makes it one `withRealm` call rather than three.
+  completeLogin(input: CompleteLoginInput): Promise<CompleteLoginOutcome>;
 }
 
 // The handler this drives treats a submission whose auth_session_id does
@@ -81,7 +106,6 @@ export async function handleLoginSubmission(
   issuerBase: string,
   authSessionId: string | undefined,
   input: AdvanceInput,
-  clock: Clock = systemClock,
 ): Promise<LoginSubmissionOutcome> {
   if (authSessionId === undefined || authSessionId.length === 0) {
     return { kind: 'unauthenticated' };
@@ -115,19 +139,27 @@ export async function handleLoginSubmission(
     return { kind: 'unauthenticated' };
   }
 
-  const { sessionId } = await deps.establishSession(realm.id, result.subjectId);
-
-  const { code } = await deps.issueAuthorizationCode({
+  const completed = await deps.completeLogin({
     realmId: realm.id,
-    clientId,
+    authSessionId,
     subjectId: result.subjectId,
+    clientId,
     redirectUri: pending.redirectUri,
     scope: pending.scope,
     nonce: pending.nonce,
     codeChallenge: pending.codeChallenge,
     codeChallengeMethod: pending.codeChallengeMethod,
-    authTime: clock.now(),
   });
+
+  // A second submission of the same auth_session_id — a back-button press,
+  // a retried POST — reaches here after advance() and loadPendingRequest()
+  // both succeed again; completeLogin's atomic consume is what stops it
+  // from minting a second SSO session and a second code for the same
+  // parked request.
+  if (completed.kind === 'already_consumed') {
+    return { kind: 'unauthenticated' };
+  }
+  const { sessionId, code } = completed;
 
   const location = new URL(pending.redirectUri);
   location.searchParams.set('code', code);

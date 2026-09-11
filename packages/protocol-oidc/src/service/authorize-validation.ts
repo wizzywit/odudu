@@ -1,4 +1,5 @@
 import { type PendingRequest } from '@odudu/authn-flows';
+import { SUPPORTED_SCOPES } from '@odudu/contracts';
 import { type ClientRecord } from '@odudu/domain-realm';
 import { type ClientOidcConfig } from '#/schema/client-oidc-config';
 import { isRegisteredRedirectUri } from '#/service/redirect-uri';
@@ -8,10 +9,13 @@ export type AuthorizeOutcome =
   | { kind: 'render'; error: string; description: string }
   | { kind: 'redirect'; redirectUri: string; error: string; state: string | null };
 
-// P1 publishes exactly one scope in discovery (scopes_supported: ['openid']);
-// anything else is unknown rather than silently ignored, so a client relying
-// on a scope Odudu does not grant finds out at request time, not later.
-const KNOWN_SCOPES = new Set(['openid']);
+// The same list discovery.ts advertises as scopes_supported, imported
+// rather than duplicated so the two cannot drift apart. profile and email
+// are accepted here so the claim mappers gated on them have a token to
+// attach claims to; claims_supported stays at just `sub` until those
+// mappers exist, since advertising a claim nothing yet returns would be
+// the same dishonesty in the other direction.
+const KNOWN_SCOPES = new Set<string>(SUPPORTED_SCOPES);
 
 function scopesAreKnown(scope: string | undefined): boolean {
   const tokens = (scope ?? 'openid').split(' ').filter((token) => token.length > 0);
