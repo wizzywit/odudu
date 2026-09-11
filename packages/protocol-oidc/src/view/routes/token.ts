@@ -1,6 +1,7 @@
 import { withRealm, type DatabaseHandle } from '@odudu/db';
-import { type Clock } from '@odudu/kernel';
+import { type ClaimMapperRegistry, type Clock } from '@odudu/kernel';
 import { type FastifyInstance, type FastifyRequest } from 'fastify';
+import { type ClaimContext } from '#/service/claims';
 import { TokenError } from '#/service/errors';
 import { issueTokens, type TokenResponse } from '#/usecase/token-issuance';
 
@@ -13,6 +14,11 @@ export interface TokenRouteDeps {
   kek: Uint8Array;
   clock: Clock;
   verifyPassword: (hash: string, secret: string) => Promise<boolean>;
+  // Shared with /userinfo: the ID token's claims and a /userinfo response
+  // for the same subject and scope come from the same registry, so one can
+  // never carry a claim the other omits.
+  claimMappers: ClaimMapperRegistry<ClaimContext>;
+  loadClaimContext(realmId: string, subjectId: string): Promise<ClaimContext>;
 }
 
 // Matches discovery.ts's issuerBaseFor and its issuer construction exactly
@@ -44,6 +50,8 @@ export function registerTokenRoute(app: FastifyInstance, deps: TokenRouteDeps): 
             kek: deps.kek,
             clock: deps.clock,
             verifyPassword: deps.verifyPassword,
+            claimMappers: deps.claimMappers,
+            loadClaimContext: (realmId, subjectId) => deps.loadClaimContext(realmId, subjectId),
           },
           request.body,
           request.headers.authorization,

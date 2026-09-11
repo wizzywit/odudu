@@ -7,12 +7,13 @@ import {
 } from '@odudu/authn-flows';
 import { signingKeyRepository } from '@odudu/crypto';
 import { withRealm, type DatabaseHandle } from '@odudu/db';
-import { verifyPassword } from '@odudu/domain-identity';
+import { userRepository, verifyPassword } from '@odudu/domain-identity';
 import { clientRepository } from '@odudu/domain-realm';
 import { systemClock, type Clock } from '@odudu/kernel';
 import { type FastifyPluginAsync } from 'fastify';
 import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
 import { realmLookupRepository } from '#/repository/realm-lookup';
+import { standardClaimMappers } from '#/service/claims';
 import { issueAuthorizationCode } from '#/usecase/login-submission';
 import { type ResolvedClient } from '#/usecase/authorization-request';
 import { registerAuthorizeRoute } from '#/view/routes/authorize';
@@ -20,6 +21,7 @@ import { registerDiscoveryRoute } from '#/view/routes/discovery';
 import { registerJwksRoute } from '#/view/routes/jwks';
 import { registerLoginRoute } from '#/view/routes/login';
 import { registerTokenRoute } from '#/view/routes/token';
+import { registerUserinfoRoute } from '#/view/routes/userinfo';
 
 export interface OidcRoutesDeps {
   database: DatabaseHandle;
@@ -49,8 +51,17 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
     const findRealm = (name: string) => realmLookupRepository(deps.ownerDatabase.db).byName(name);
     const clock = deps.clock ?? systemClock;
     const tls = deps.tls ?? false;
+    // One registry per process, shared by discovery (claimNames, for
+    // claims_supported), /userinfo, and token issuance's ID token claims —
+    // so a mapper registered once reaches every consumer the same way.
+    const claimMappers = standardClaimMappers();
+    const loadClaimContext = (realmId: string, subjectId: string) =>
+      withRealm(deps.database.db, realmId, async (tx) => ({
+        subjectId,
+        user: await userRepository(tx).bySubjectId(subjectId),
+      }));
 
-    registerDiscoveryRoute(app, { findRealm });
+    registerDiscoveryRoute(app, { findRealm, claimNames: () => claimMappers.claimNames() });
     registerJwksRoute(app, {
       findRealm,
       listPublishableKeys: (realmId) =>
@@ -117,6 +128,15 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
       kek: deps.kek,
       clock,
       verifyPassword,
+      claimMappers,
+      loadClaimContext,
+    });
+    registerUserinfoRoute(app, {
+      findRealm,
+      listPublishableKeys: (realmId) =>
+        withRealm(deps.database.db, realmId, (tx) => signingKeyRepository(tx).listPublishable()),
+      loadClaimContext,
+      claimMappers,
     });
 
     return Promise.resolve();

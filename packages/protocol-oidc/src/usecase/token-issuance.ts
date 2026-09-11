@@ -3,7 +3,7 @@ import { SUPPORTED_SCOPES } from '@odudu/contracts';
 import { withRealm, type DatabaseHandle, type RealmScopedDatabase } from '@odudu/db';
 import { subjectRepository } from '@odudu/domain-identity';
 import { clientRepository, verifyClientSecret, type ClientRecord } from '@odudu/domain-realm';
-import { type Clock, newId } from '@odudu/kernel';
+import { type ClaimMapperRegistry, type Clock, newId } from '@odudu/kernel';
 import { clientOidcConfigRepository, type ClientOidcConfig } from '#/repository/client-oidc-config';
 import { authorizationCodeRepository } from '#/repository/codes';
 import { tokenGrantRepository, type TokenGrantRecord } from '#/repository/grants';
@@ -11,6 +11,7 @@ import { refreshTokenRepository } from '#/repository/refresh';
 import { rotateRefreshToken } from '#/usecase/refresh-rotation';
 import { hashAuthorizationCode } from '#/service/authorization-code';
 import { evaluateAuthorizationCodeGrant } from '#/service/authorization-code-grant';
+import { type ClaimContext } from '#/service/claims';
 import { evaluateClientCredentialsGrant } from '#/service/client-credentials-grant';
 import {
   invalidClient,
@@ -35,6 +36,12 @@ export interface TokenIssuanceDeps {
   kek: Uint8Array;
   clock: Clock;
   verifyPassword: (hash: string, secret: string) => Promise<boolean>;
+  // Shared with /userinfo: the ID token's claims beyond the envelope
+  // (`iss`/`aud`/`iat`/`exp`/`nonce`/`auth_time`) come from the same
+  // registry, so a claim present in one can never be missing from the
+  // other for the same subject and scope.
+  claimMappers: ClaimMapperRegistry<ClaimContext>;
+  loadClaimContext(realmId: string, subjectId: string): Promise<ClaimContext>;
 }
 
 export interface TokenResponse {
@@ -304,14 +311,20 @@ async function issueAuthorizationCodeTokens(
   // carry.
   let idToken: string | undefined;
   if (scope.includes('openid')) {
+    // The same claim mapper registry /userinfo assembles from — `sub`
+    // arrives through it too, so there is exactly one place that decides
+    // what a subject's `openid`/`profile`/`email` scopes produce, not one
+    // for the ID token and a second for /userinfo.
+    const claimContext = await deps.loadClaimContext(deps.realmId, code.subjectId);
+    const userClaims = await deps.claimMappers.assemble(scope, claimContext);
     const idTokenClaims = {
       iss: deps.issuer,
-      sub: code.subjectId,
       aud: client.clientId,
       iat,
       exp,
       auth_time: Math.floor(code.authTime.getTime() / 1000),
       ...(code.nonce !== null ? { nonce: code.nonce } : {}),
+      ...userClaims,
     };
     idToken = await signJwt(idTokenClaims, { key, kek: deps.kek });
   }

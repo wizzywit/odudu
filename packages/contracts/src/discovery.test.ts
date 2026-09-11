@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { discoveryDocument } from '#/discovery';
 
-const doc = discoveryDocument({ issuer: 'https://idp.example/realms/acme' });
+const CLAIMS_SUPPORTED = ['sub', 'name', 'email', 'email_verified'];
+
+const doc = discoveryDocument({
+  issuer: 'https://idp.example/realms/acme',
+  claimsSupported: CLAIMS_SUPPORTED,
+});
 
 describe('[OIDC-DISCOVERY-3-01] the discovery document', () => {
   it('advertises only the code response type', () => {
@@ -37,7 +42,10 @@ describe('[OIDC-DISCOVERY-3-01] the discovery document', () => {
   });
 
   it('strips a trailing slash from a supplied issuer', () => {
-    const trimmed = discoveryDocument({ issuer: 'https://idp.example/realms/acme/' });
+    const trimmed = discoveryDocument({
+      issuer: 'https://idp.example/realms/acme/',
+      claimsSupported: CLAIMS_SUPPORTED,
+    });
     expect(trimmed.issuer).toBe('https://idp.example/realms/acme');
   });
 
@@ -71,7 +79,7 @@ describe('[OIDC-DISCOVERY-3-01] the discovery document', () => {
     expect([...doc.scopes_supported].sort()).toEqual(['email', 'openid', 'profile']);
   });
 
-  it('advertises at least one claim name', () => {
-    expect(doc.claims_supported.length).toBeGreaterThan(0);
+  it('advertises exactly the claims_supported list it was given, never a hardcoded one', () => {
+    expect(doc.claims_supported).toBe(CLAIMS_SUPPORTED);
   });
 });

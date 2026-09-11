@@ -43,5 +43,14 @@ export function userRepository(tx: RealmScopedDatabase) {
       const row = rows[0];
       return row === undefined ? null : { subject: toSubject(row.subject), user: toUser(row.user) };
     },
+
+    // The claim mapper registry's lookup: an access token carries `sub`,
+    // never a username, and a service or agent_instance subject has no
+    // users row at all — that's a null result here, not an error.
+    async bySubjectId(subjectId: string): Promise<UserRecord | null> {
+      const rows = await tx.select().from(users).where(eq(users.subjectId, subjectId));
+      const row = rows[0];
+      return row === undefined ? null : toUser(row);
+    },
   };
 }

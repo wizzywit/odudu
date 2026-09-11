@@ -120,7 +120,10 @@ describe('scope acceptance', () => {
   });
 
   it('accepts exactly what discovery advertises as scopes_supported, and nothing beyond it', () => {
-    const advertised = discoveryDocument({ issuer: 'https://idp.example' }).scopes_supported;
+    const advertised = discoveryDocument({
+      issuer: 'https://idp.example',
+      claimsSupported: [],
+    }).scopes_supported;
 
     expect(
       validateAuthorizationRequest({ ...params, scope: advertised.join(' ') }, client, config),

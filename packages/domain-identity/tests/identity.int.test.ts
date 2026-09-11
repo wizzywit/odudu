@@ -128,6 +128,41 @@ describe('userRepository', () => {
     expect(found).toBeNull();
   });
 
+  it('finds a user by subject id', async () => {
+    const realmId = newId();
+    const username = `bob-${newId()}`;
+
+    const subjectId = await withRealm(app.db, realmId, async (tx) => {
+      await seedRealm(tx, realmId);
+      const subject = await subjectRepository(tx).create({ realmId, type: 'user' });
+      await insertUserRow(tx, subject.id, realmId, { username, email: 'bob@example.com' });
+      return subject.id;
+    });
+
+    const found = await withRealm(app.db, realmId, async (tx) =>
+      userRepository(tx).bySubjectId(subjectId),
+    );
+
+    expect(found?.username).toBe(username);
+    expect(found?.email).toBe('bob@example.com');
+  });
+
+  it('returns null from bySubjectId for a subject with no user row', async () => {
+    const realmId = newId();
+
+    const subjectId = await withRealm(app.db, realmId, async (tx) => {
+      await seedRealm(tx, realmId);
+      const subject = await subjectRepository(tx).create({ realmId, type: 'service' });
+      return subject.id;
+    });
+
+    const found = await withRealm(app.db, realmId, async (tx) =>
+      userRepository(tx).bySubjectId(subjectId),
+    );
+
+    expect(found).toBeNull();
+  });
+
   it('refuses a user whose realm differs from its subject', async () => {
     const realmA = newId();
     const realmB = newId();

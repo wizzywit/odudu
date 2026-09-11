@@ -11,7 +11,8 @@ export type ErrorCode =
   | 'jwt_kid_missing'
   | 'jwt_unknown_key'
   | 'jwt_alg_mismatch'
-  | 'jwt_typ_mismatch';
+  | 'jwt_typ_mismatch'
+  | 'claim_mapper_duplicate';
 
 export class OduduError extends Error {
   readonly code: ErrorCode;

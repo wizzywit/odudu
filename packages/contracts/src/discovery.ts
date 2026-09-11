@@ -19,6 +19,12 @@ export interface DiscoveryDocument {
 
 export interface DiscoveryDocumentOptions {
   readonly issuer: string;
+  // Required, not defaulted: the set of claims Odudu can actually return is
+  // owned by protocol-oidc's claim mapper registry, not by this package, so
+  // there is no honest default here to fall back to. Passing it through
+  // rather than hardcoding it is what keeps this list from drifting away
+  // from what `/userinfo` and ID token issuance actually produce.
+  readonly claimsSupported: readonly string[];
 }
 
 // The one list of scopes Odudu accepts, shared with authorize-validation.ts
@@ -56,6 +62,6 @@ export function discoveryDocument(opts: DiscoveryDocumentOptions): DiscoveryDocu
     token_endpoint_auth_methods_supported: TOKEN_ENDPOINT_AUTH_METHODS_SUPPORTED,
     authorization_response_iss_parameter_supported: true,
     scopes_supported: SUPPORTED_SCOPES,
-    claims_supported: ['sub'],
+    claims_supported: opts.claimsSupported,
   };
 }
