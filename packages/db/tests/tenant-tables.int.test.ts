@@ -36,7 +36,10 @@ it('every table in public is force-RLS with at least one policy', async () => {
       from pg_class c
       join pg_namespace n on n.oid = c.relnamespace
       left join pg_policies p on p.tablename = c.relname and p.schemaname = 'public'
-     where n.nspname = 'public' and c.relkind = 'r'
+     -- 'r' (ordinary table) and 'p' (partitioned table) are both in scope: a
+     -- tenant table declared as partitioned has relkind = 'p' and would
+     -- otherwise ship with no RLS and no test failure.
+     where n.nspname = 'public' and c.relkind in ('r', 'p')
      group by 1, 2, 3
      order by 1
   `);

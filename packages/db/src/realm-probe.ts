@@ -30,6 +30,13 @@ function firstRow<T>(rows: readonly T[]): T {
  * Probe `realms` directly instead of through this helper.
  */
 export async function expectRealmIsolation(db: Database, probe: RealmProbe): Promise<void> {
+  if (probe.table === 'realms') {
+    throw new Error(
+      "expectRealmIsolation cannot probe 'realms': its policy keys on `id`, not `realm_id`, " +
+        'and it already has its own hand-written isolation test.',
+    );
+  }
+
   const realmA = crypto.randomUUID();
   const realmB = crypto.randomUUID();
 
