@@ -31,7 +31,10 @@ function fakeDatabase(behaviour: 'ok' | 'down'): DatabaseHandle & { calls: numbe
 
 function app(behaviour: 'ok' | 'down') {
   const database = fakeDatabase(behaviour);
-  return { app: buildApp({ database, logger: createLogger(config) }), database };
+  return {
+    app: buildApp({ database, ownerDatabase: database, logger: createLogger(config) }),
+    database,
+  };
 }
 
 describe('health endpoints', () => {

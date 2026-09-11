@@ -15,12 +15,15 @@ export interface AppDeps {
    * `@odudu/protocol-oidc`'s realm-lookup repository for the one thing it is
    * used for: resolving `{realm}` from a request path to an id and an
    * enabled flag before any realm context exists to scope that lookup by.
-   * Defaults to `database`, matching `main.ts`'s own fallback when
-   * `ODUDU_APP_DATABASE_URL` is unset — that already means every query
-   * bypasses RLS, so this adds nothing worse in that already-misconfigured
-   * case.
+   * Required, not defaulted: on the RLS-constrained connection this lookup
+   * returns zero rows unconditionally (`realms_isolation` keys on `id`,
+   * with no realm context set yet), which 404s every realm forever —
+   * indistinguishable from "no realms configured" unless a caller is
+   * forced to supply this explicitly. Callers that genuinely want the
+   * owner/runtime connection to be the same one (e.g. local dev without
+   * `ODUDU_APP_DATABASE_URL`, as in `main.ts`) pass `database` again here.
    */
-  readonly ownerDatabase?: DatabaseHandle;
+  readonly ownerDatabase: DatabaseHandle;
   readonly logger: PinoLogger;
   /**
    * Whether to trust `X-Forwarded-*` headers when deriving `request.ip`.
@@ -50,9 +53,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   void app.register(cookie);
 
   registerHealth(app, deps);
-  void app.register(
-    oidcRoutes({ database: deps.database, ownerDatabase: deps.ownerDatabase ?? deps.database }),
-  );
+  void app.register(oidcRoutes({ database: deps.database, ownerDatabase: deps.ownerDatabase }));
 
   return app;
 }

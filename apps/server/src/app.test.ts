@@ -19,6 +19,7 @@ const database: DatabaseHandle = {
 function appWithIpProbe(trustProxy?: boolean) {
   const app = buildApp({
     database,
+    ownerDatabase: database,
     logger: createLogger(config),
     ...(trustProxy === undefined ? {} : { trustProxy }),
   });

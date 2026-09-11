@@ -89,7 +89,7 @@ describe('createLogger', () => {
       sql: (() => Promise.resolve([{ ok: 1 }])) as unknown as DatabaseHandle['sql'],
       close: () => Promise.resolve(),
     };
-    const app = buildApp({ database, logger });
+    const app = buildApp({ database, ownerDatabase: database, logger });
 
     await app.inject({
       method: 'GET',
@@ -109,7 +109,7 @@ describe('createLogger', () => {
       sql: (() => Promise.resolve([{ ok: 1 }])) as unknown as DatabaseHandle['sql'],
       close: () => Promise.resolve(),
     };
-    const app = buildApp({ database, logger });
+    const app = buildApp({ database, ownerDatabase: database, logger });
     app.get('/authorize-probe', () => ({ ok: true }));
 
     await app.inject({
@@ -130,7 +130,7 @@ describe('createLogger', () => {
       sql: (() => Promise.resolve([{ ok: 1 }])) as unknown as DatabaseHandle['sql'],
       close: () => Promise.resolve(),
     };
-    const app = buildApp({ database, logger });
+    const app = buildApp({ database, ownerDatabase: database, logger });
     app.get('/set-cookie-probe', (_request, reply) => {
       reply.header('set-cookie', '__Host-alpha-session=super-secret-cookie-value');
       return { ok: true };

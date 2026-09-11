@@ -17,6 +17,11 @@ CREATE TABLE client_oidc_config (
   -- verified against real PostgreSQL — so `NULL >= 1` is NULL and the CHECK
   -- would pass vacuously on the exact empty-array case this constraint
   -- exists to reject. cardinality() returns 0 for an empty array instead.
+  -- `grant_types = ARRAY['client_credentials']` is exact array equality,
+  -- intentionally: a client whose grants are exactly {client_credentials}
+  -- has no interactive flow and needs no redirect URI. Adding refresh_token
+  -- to that array still requires one, since refresh_token is meaningless
+  -- without an interactive grant to originate the refresh token from.
   CONSTRAINT client_oidc_config_redirect_uris_present
     CHECK (cardinality(redirect_uris) >= 1 OR grant_types = ARRAY['client_credentials'])
 );

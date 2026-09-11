@@ -152,6 +152,39 @@ describe('clientOidcConfigRepository', () => {
     expect((cause as Error).message).toContain('client_oidc_config_redirect_uris_present');
   });
 
+  it('rejects a client_credentials-plus-refresh_token client with no redirect URIs', async () => {
+    // Pins the exact-array-equality reading of client_oidc_config_redirect_uris_present:
+    // grant_types = ARRAY['client_credentials'] is false once refresh_token joins the
+    // array, so this combination still requires at least one redirect URI.
+    const realmId = newId();
+    const clientId = newId();
+
+    let error: unknown;
+    try {
+      await withRealm(app.db, realmId, async (tx) => {
+        await seedRealmAndClient(tx, realmId, clientId);
+        await clientOidcConfigRepository(tx).create({
+          clientId,
+          realmId,
+          redirectUris: [],
+          grantTypes: ['client_credentials', 'refresh_token'],
+          tokenEndpointAuthMethod: 'client_secret_basic',
+          audiences: [],
+          accessTokenTtlSeconds: 300,
+          refreshTokenTtlSeconds: 1_209_600,
+        });
+      });
+      expect.unreachable('expected the empty-redirect-uris insert to be rejected');
+    } catch (caught) {
+      error = caught;
+    }
+
+    expect(error).toBeInstanceOf(Error);
+    const cause = (error as Error).cause;
+    expect(cause).toBeInstanceOf(Error);
+    expect((cause as Error).message).toContain('client_oidc_config_redirect_uris_present');
+  });
+
   it('isolates configs by realm', async () => {
     await expectRealmIsolation(app.db, {
       table: 'client_oidc_config',
