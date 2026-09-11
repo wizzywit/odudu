@@ -206,6 +206,25 @@ importers:
         specifier: 5.0.0
         version: 5.0.0(@types/node@24.13.4)(vite@8.2.2(@types/node@24.13.4)(esbuild@0.28.2)(tsx@4.23.13)(yaml@2.9.0))
 
+  packages/domain-realm:
+    dependencies:
+      '@odudu/db':
+        specifier: workspace:*
+        version: link:../db
+      '@odudu/kernel':
+        specifier: workspace:*
+        version: link:../kernel
+      drizzle-orm:
+        specifier: 0.45.2
+        version: 0.45.2(postgres@3.4.9)
+    devDependencies:
+      '@odudu/testkit':
+        specifier: workspace:*
+        version: link:../testkit
+      vitest:
+        specifier: 5.0.0
+        version: 5.0.0(@types/node@24.13.4)(vite@8.2.2(@types/node@24.13.4)(esbuild@0.28.2)(tsx@4.23.13)(yaml@2.9.0))
+
   packages/kernel:
     dependencies:
       uuidv7:
