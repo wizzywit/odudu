@@ -1,6 +1,7 @@
 packages:
   - 'apps/*'
   - 'packages/*'
+  - 'tools/*'
 # A newly published package version is more likely to be compromised
 # (supply-chain attacks are typically pulled within hours of publish) or
 # simply broken. 1440 minutes (24h) gives the ecosystem time to notice

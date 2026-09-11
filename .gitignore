@@ -4,6 +4,7 @@ build/
 coverage/
 .turbo/
 *.tsbuildinfo
+trace-report.json
 .env
 .env.*
 !.env.example

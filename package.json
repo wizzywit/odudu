@@ -11,11 +11,13 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "test": "vitest run",
+    "test": "vitest run --reporter=default --reporter=json --outputFile=trace-report.json",
     "test:unit": "vitest run --project unit",
     "test:integration": "vitest run --project integration",
     "boundaries": "depcruise --config .dependency-cruiser.cjs packages apps",
-    "verify": "pnpm format:check && pnpm typecheck && pnpm lint && pnpm boundaries && pnpm test"
+    "//trace": "reads trace-report.json, which only `pnpm test` produces — run that first",
+    "trace": "node tools/trace/src/index.ts trace-report.json",
+    "verify": "pnpm format:check && pnpm typecheck && pnpm lint && pnpm boundaries && pnpm test && pnpm trace"
   },
   "devDependencies": {
     "@types/node": "24.13.4",

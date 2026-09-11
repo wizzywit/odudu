@@ -1,0 +1,15 @@
+{
+  "name": "@odudu/trace",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "imports": {
+    "#/*": "./src/*.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "bin": {
+    "odudu-trace": "./src/index.ts"
+  }
+}
