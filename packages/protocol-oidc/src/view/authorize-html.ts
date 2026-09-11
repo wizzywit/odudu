@@ -26,8 +26,8 @@ export function renderAuthorizeErrorPage(error: string, description: string): st
 // The hidden field is the whole of this page's CSRF defence: authSessionId
 // is an unguessable id (newId()) that only a browser which actually loaded
 // this response — rendered same-origin, never carried in a URL an attacker
-// could read or replay — can submit back. The next task's handler treats a
-// submission whose auth_session_id does not name a live authentication
+// could read or replay — can submit back. POST /realms/{realm}/login-actions/authenticate
+// treats a submission whose auth_session_id does not name a live authentication
 // session as unauthenticated, exactly as it would treat a missing token.
 export function renderLoginForm(realm: string, authSessionId: string): string {
   const action = `/realms/${escapeHtml(realm)}/login-actions/authenticate`;
