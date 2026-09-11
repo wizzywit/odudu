@@ -56,6 +56,7 @@ async function buildHttp(deps: {
     oidcRoutes({
       database: deps.database,
       ownerDatabase: owner,
+      kek: Buffer.alloc(32, 7),
       ...(deps.tls !== undefined ? { tls: deps.tls } : {}),
       ...(deps.clock !== undefined ? { clock: deps.clock } : {}),
     }),

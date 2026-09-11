@@ -18,6 +18,7 @@
     "@odudu/contracts": "workspace:*",
     "@odudu/crypto": "workspace:*",
     "@odudu/db": "workspace:*",
+    "@odudu/domain-identity": "workspace:*",
     "@odudu/domain-realm": "workspace:*",
     "@odudu/kernel": "workspace:*",
     "drizzle-orm": "0.45.2",
@@ -25,7 +26,6 @@
   },
   "devDependencies": {
     "@fastify/formbody": "9.0.0",
-    "@odudu/domain-identity": "workspace:*",
     "@odudu/testkit": "workspace:*",
     "vitest": "5.0.0"
   }

@@ -48,7 +48,9 @@ beforeAll(async () => {
 
   http = Fastify();
   httpApp = http;
-  await http.register(oidcRoutes({ database: app, ownerDatabase: owner }));
+  await http.register(
+    oidcRoutes({ database: app, ownerDatabase: owner, kek: Buffer.alloc(32, 7) }),
+  );
   await http.ready();
 
   const acmeId = newId();

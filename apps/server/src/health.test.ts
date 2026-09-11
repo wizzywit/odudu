@@ -32,7 +32,12 @@ function fakeDatabase(behaviour: 'ok' | 'down'): DatabaseHandle & { calls: numbe
 function app(behaviour: 'ok' | 'down') {
   const database = fakeDatabase(behaviour);
   return {
-    app: buildApp({ database, ownerDatabase: database, logger: createLogger(config) }),
+    app: buildApp({
+      database,
+      ownerDatabase: database,
+      kek: config.ODUDU_KEK,
+      logger: createLogger(config),
+    }),
     database,
   };
 }

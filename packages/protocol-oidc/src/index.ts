@@ -7,6 +7,7 @@ import {
 } from '@odudu/authn-flows';
 import { signingKeyRepository } from '@odudu/crypto';
 import { withRealm, type DatabaseHandle } from '@odudu/db';
+import { verifyPassword } from '@odudu/domain-identity';
 import { clientRepository } from '@odudu/domain-realm';
 import { systemClock, type Clock } from '@odudu/kernel';
 import { type FastifyPluginAsync } from 'fastify';
@@ -18,12 +19,17 @@ import { registerAuthorizeRoute } from '#/view/routes/authorize';
 import { registerDiscoveryRoute } from '#/view/routes/discovery';
 import { registerJwksRoute } from '#/view/routes/jwks';
 import { registerLoginRoute } from '#/view/routes/login';
+import { registerTokenRoute } from '#/view/routes/token';
 
 export interface OidcRoutesDeps {
   database: DatabaseHandle;
   // The owner (RLS-bypassing) connection — see repository/realm-lookup.ts
   // for why resolving {realm} by name needs it and why that is safe.
   ownerDatabase: DatabaseHandle;
+  // Unwraps the private half of the realm's active signing key so /token
+  // can sign access and ID tokens. Required, not defaulted: there is no
+  // safe placeholder for a key-encryption key.
+  kek: Uint8Array;
   // Whether this process serves over TLS — picks the session cookie's
   // __Host- prefix and Secure attribute. Defaults off, matching the compose
   // stack's plain-HTTP local loop.
@@ -104,6 +110,13 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
           });
           return { kind: 'issued', sessionId, code };
         }),
+    });
+    registerTokenRoute(app, {
+      database: deps.database,
+      findRealm,
+      kek: deps.kek,
+      clock,
+      verifyPassword,
     });
 
     return Promise.resolve();

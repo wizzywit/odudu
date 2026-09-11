@@ -20,6 +20,7 @@ function appWithIpProbe(trustProxy?: boolean) {
   const app = buildApp({
     database,
     ownerDatabase: database,
+    kek: config.ODUDU_KEK,
     logger: createLogger(config),
     ...(trustProxy === undefined ? {} : { trustProxy }),
   });

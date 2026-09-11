@@ -314,6 +314,9 @@ importers:
       '@odudu/db':
         specifier: workspace:*
         version: link:../db
+      '@odudu/domain-identity':
+        specifier: workspace:*
+        version: link:../domain-identity
       '@odudu/domain-realm':
         specifier: workspace:*
         version: link:../domain-realm
@@ -330,9 +333,6 @@ importers:
       '@fastify/formbody':
         specifier: 9.0.0
         version: 9.0.0
-      '@odudu/domain-identity':
-        specifier: workspace:*
-        version: link:../domain-identity
       '@odudu/testkit':
         specifier: workspace:*
         version: link:../testkit

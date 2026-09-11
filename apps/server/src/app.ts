@@ -24,6 +24,12 @@ export interface AppDeps {
    * `ODUDU_APP_DATABASE_URL`, as in `main.ts`) pass `database` again here.
    */
   readonly ownerDatabase: DatabaseHandle;
+  /**
+   * Unwraps the private half of a realm's active signing key so `/token`
+   * can sign access and ID tokens — `@odudu/kernel`'s config schema already
+   * decodes and length-checks `ODUDU_KEK` at the config boundary.
+   */
+  readonly kek: Uint8Array;
   readonly logger: PinoLogger;
   /**
    * Whether to trust `X-Forwarded-*` headers when deriving `request.ip`.
@@ -53,7 +59,9 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   app.register(cookie);
 
   registerHealth(app, deps);
-  app.register(oidcRoutes({ database: deps.database, ownerDatabase: deps.ownerDatabase }));
+  app.register(
+    oidcRoutes({ database: deps.database, ownerDatabase: deps.ownerDatabase, kek: deps.kek }),
+  );
 
   return app;
 }

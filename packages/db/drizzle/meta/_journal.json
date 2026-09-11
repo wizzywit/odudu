@@ -71,6 +71,13 @@
       "when": 1789049381652,
       "tag": "0009_authentication_sessions_consumed_at",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1789049381653,
+      "tag": "0010_token_grants",
+      "breakpoints": true
     }
   ]
 }

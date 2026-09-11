@@ -27,6 +27,7 @@ if (runtime === owner) {
 const app = buildApp({
   database: runtime,
   ownerDatabase: owner,
+  kek: config.ODUDU_KEK,
   logger,
   trustProxy: config.ODUDU_TRUST_PROXY,
 });
