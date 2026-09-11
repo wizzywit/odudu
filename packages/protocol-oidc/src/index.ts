@@ -1,7 +1,12 @@
+import { startAuthentication } from '@odudu/authn-flows';
 import { signingKeyRepository } from '@odudu/crypto';
 import { withRealm, type DatabaseHandle } from '@odudu/db';
+import { clientRepository } from '@odudu/domain-realm';
 import { type FastifyPluginAsync } from 'fastify';
+import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
 import { realmLookupRepository } from '#/repository/realm-lookup';
+import { type ResolvedClient } from '#/usecase/authorization-request';
+import { registerAuthorizeRoute } from '#/view/routes/authorize';
 import { registerDiscoveryRoute } from '#/view/routes/discovery';
 import { registerJwksRoute } from '#/view/routes/jwks';
 
@@ -25,6 +30,18 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
       findRealm,
       listPublishableKeys: (realmId) =>
         withRealm(deps.database.db, realmId, (tx) => signingKeyRepository(tx).listPublishable()),
+    });
+    registerAuthorizeRoute(app, {
+      findRealm,
+      resolveClient: (realmId, oauthClientId) =>
+        withRealm(deps.database.db, realmId, async (tx): Promise<ResolvedClient> => {
+          const client = await clientRepository(tx).byClientId(oauthClientId);
+          if (client === null) return { client: null, config: null };
+          const config = await clientOidcConfigRepository(tx).byClientId(client.id);
+          return { client, config };
+        }),
+      startAuthentication: (realmId, request) =>
+        withRealm(deps.database.db, realmId, (tx) => startAuthentication(tx, realmId, request)),
     });
 
     return Promise.resolve();

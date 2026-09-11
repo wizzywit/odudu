@@ -302,6 +302,9 @@ importers:
 
   packages/protocol-oidc:
     dependencies:
+      '@odudu/authn-flows':
+        specifier: workspace:*
+        version: link:../authn-flows
       '@odudu/contracts':
         specifier: workspace:*
         version: link:../contracts

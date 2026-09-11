@@ -14,6 +14,7 @@
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
+    "@odudu/authn-flows": "workspace:*",
     "@odudu/contracts": "workspace:*",
     "@odudu/crypto": "workspace:*",
     "@odudu/db": "workspace:*",
