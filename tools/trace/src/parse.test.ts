@@ -61,4 +61,23 @@ describe('parseRows', () => {
     const bad = TABLE.replace('| `RFC7636-4.1-01` | covered |', '| — | covered |');
     expect(() => parseRows('rfc7636.md', bad)).toThrow(/covered.*test id/i);
   });
+
+  it('throws rather than silently dropping a clause row with an escaped pipe', () => {
+    const bad = TABLE.replace(
+      '| 4.4.1 | MUST | plain is rejected | — | gap |',
+      '| 4.4.1 | MUST | plain is rejected \\| escaped | — | gap |',
+    );
+    expect(() => parseRows('rfc7636.md', bad)).toThrow(/rfc7636\.md:\d+.*6 cells/);
+  });
+
+  it('throws on an unrecognised level inside the clause table', () => {
+    const bad = TABLE.replace('| 4.2 | SHOULD |', '| 4.2 | SHOULDNT |');
+    expect(() => parseRows('rfc7636.md', bad)).toThrow(/rfc7636\.md:\d+.*SHOULDNT/);
+  });
+
+  it('skips a legitimate non-clause table elsewhere in the file without error', () => {
+    const withNotesTable = `${TABLE}\n## Reading notes\n\n| Term | Meaning |\n| ---- | ------- |\n| PKCE | Proof Key for Code Exchange |\n`;
+    const rows = parseRows('rfc7636.md', withNotesTable);
+    expect(rows).toHaveLength(4);
+  });
 });

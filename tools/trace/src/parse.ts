@@ -14,6 +14,15 @@ export interface Row {
 }
 
 const LEVELS = new Set(['MUST', 'SHOULD', 'MAY']);
+const CLAUSE_HEADER = ['Clause', 'Level', 'Requirement', 'Test ID', 'Status'];
+
+function isClauseHeader(cells: string[]): boolean {
+  return cells.length === CLAUSE_HEADER.length && cells.every((c, i) => c === CLAUSE_HEADER[i]);
+}
+
+function isSeparatorRow(cells: string[]): boolean {
+  return cells.every((c) => /^:?-+:?$/u.test(c));
+}
 
 function cell(cells: string[], i: number): string {
   const value = cells[i];
@@ -42,20 +51,42 @@ function parseStatus(raw: string, where: string): Status {
 
 export function parseRows(file: string, markdown: string): Row[] {
   const rows: Row[] = [];
+  const lines = markdown.split('\n');
+  let inClauseTable = false;
 
-  for (const line of markdown.split('\n')) {
+  for (let i = 0; i < lines.length; i++) {
+    const line = cell(lines, i);
     const trimmed = line.trim();
-    if (!trimmed.startsWith('|')) continue;
+
+    if (!trimmed.startsWith('|')) {
+      inClauseTable = false;
+      continue;
+    }
 
     const cells = trimmed
       .slice(1, -1)
       .split('|')
       .map((c) => c.trim());
-    if (cells.length !== 5) continue;
-    if (!LEVELS.has(cell(cells, 1))) continue;
+
+    if (isClauseHeader(cells)) {
+      inClauseTable = true;
+      continue;
+    }
+
+    if (isSeparatorRow(cells)) continue;
+    if (!inClauseTable) continue;
+
+    const lineWhere = `${file}:${String(i + 1)}`;
+    if (cells.length !== 5) {
+      throw new Error(`${lineWhere}: clause row has ${String(cells.length)} cells, expected 5`);
+    }
+
+    const level = cell(cells, 1);
+    if (!LEVELS.has(level)) {
+      throw new Error(`${lineWhere}: unrecognised level ${JSON.stringify(level)}`);
+    }
 
     const clause = cell(cells, 0);
-    const level = cell(cells, 1);
     const requirement = cell(cells, 2);
     const testCell = cell(cells, 3);
     const statusCell = cell(cells, 4);
