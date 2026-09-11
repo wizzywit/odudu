@@ -24,7 +24,12 @@ if (runtime === owner) {
   logger.warn({}, 'ODUDU_APP_DATABASE_URL is unset; serving as the owner role bypasses RLS');
 }
 
-const app = buildApp({ database: runtime, logger, trustProxy: config.ODUDU_TRUST_PROXY });
+const app = buildApp({
+  database: runtime,
+  ownerDatabase: owner,
+  logger,
+  trustProxy: config.ODUDU_TRUST_PROXY,
+});
 
 const registry = new ModuleRegistry()
   .register(databaseModule(owner, runtime))

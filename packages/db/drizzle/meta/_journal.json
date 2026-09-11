@@ -50,6 +50,13 @@
       "when": 1789049381649,
       "tag": "0006_sessions",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1789049381650,
+      "tag": "0007_client_oidc_config",
+      "breakpoints": true
     }
   ]
 }

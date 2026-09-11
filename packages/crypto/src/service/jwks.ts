@@ -1,3 +1,9 @@
+// The private/symmetric JWK members no published key may ever carry.
+// Exported so every place that asserts this (this package's own tests, and
+// protocol-oidc's wire-level JWKS test) checks against one list rather than
+// each retyping it out of sync.
+export const PRIVATE_JWK_MEMBERS = ['d', 'p', 'q', 'dp', 'dq', 'qi', 'k'] as const;
+
 // An allowlist, not a denylist: a key type added later must be taught to this
 // function explicitly rather than having its private members published by
 // default.

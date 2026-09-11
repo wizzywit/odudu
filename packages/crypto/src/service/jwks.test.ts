@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { assembleJwks, toPublicJwk } from '#/service/jwks';
+import { assembleJwks, PRIVATE_JWK_MEMBERS, toPublicJwk } from '#/service/jwks';
 
-const PRIVATE_MEMBERS = ['d', 'p', 'q', 'dp', 'dq', 'qi', 'k'];
+const PRIVATE_MEMBERS = PRIVATE_JWK_MEMBERS;
 
 const rsa = {
   kty: 'RSA',

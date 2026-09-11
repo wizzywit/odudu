@@ -1,5 +1,8 @@
+import cookie from '@fastify/cookie';
+import formbody from '@fastify/formbody';
 import { type DatabaseHandle } from '@odudu/db';
 import { newId } from '@odudu/kernel';
+import { oidcRoutes } from '@odudu/protocol-oidc';
 import Fastify, { type FastifyInstance, type RawServerDefault } from 'fastify';
 import { type IncomingMessage, type ServerResponse } from 'node:http';
 import { type Logger as PinoLogger } from 'pino';
@@ -7,6 +10,17 @@ import { registerHealth } from '#/health';
 
 export interface AppDeps {
   readonly database: DatabaseHandle;
+  /**
+   * The owner (RLS-bypassing) connection — see
+   * `@odudu/protocol-oidc`'s realm-lookup repository for the one thing it is
+   * used for: resolving `{realm}` from a request path to an id and an
+   * enabled flag before any realm context exists to scope that lookup by.
+   * Defaults to `database`, matching `main.ts`'s own fallback when
+   * `ODUDU_APP_DATABASE_URL` is unset — that already means every query
+   * bypasses RLS, so this adds nothing worse in that already-misconfigured
+   * case.
+   */
+  readonly ownerDatabase?: DatabaseHandle;
   readonly logger: PinoLogger;
   /**
    * Whether to trust `X-Forwarded-*` headers when deriving `request.ip`.
@@ -29,7 +43,16 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     reply.header('x-request-id', request.id);
   });
 
+  // Registered here rather than by a route: Tasks 12 and 13 both need form
+  // bodies (/token) and cookies (the session established in Task 10), and
+  // plugin registration is an app-wide concern.
+  void app.register(formbody);
+  void app.register(cookie);
+
   registerHealth(app, deps);
+  void app.register(
+    oidcRoutes({ database: deps.database, ownerDatabase: deps.ownerDatabase ?? deps.database }),
+  );
 
   return app;
 }
