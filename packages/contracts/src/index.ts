@@ -10,5 +10,7 @@ export {
   refreshTokenGrantSchema,
   clientCredentialsGrantSchema,
   tokenRequestSchema,
+  TOKEN_ENDPOINT_AUTH_METHODS_SUPPORTED,
   type TokenRequest,
+  type TokenEndpointAuthMethod,
 } from '#/token';

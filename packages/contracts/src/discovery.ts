@@ -1,3 +1,5 @@
+import { TOKEN_ENDPOINT_AUTH_METHODS_SUPPORTED } from '#/token';
+
 export interface DiscoveryDocument {
   readonly issuer: string;
   readonly authorization_endpoint: string;
@@ -9,6 +11,7 @@ export interface DiscoveryDocument {
   readonly id_token_signing_alg_values_supported: readonly string[];
   readonly code_challenge_methods_supported: readonly string[];
   readonly grant_types_supported: readonly string[];
+  readonly token_endpoint_auth_methods_supported: readonly string[];
   readonly authorization_response_iss_parameter_supported: boolean;
   readonly scopes_supported: readonly string[];
   readonly claims_supported: readonly string[];
@@ -47,6 +50,10 @@ export function discoveryDocument(opts: DiscoveryDocumentOptions): DiscoveryDocu
     id_token_signing_alg_values_supported: ['RS256', 'ES256'],
     code_challenge_methods_supported: ['S256'],
     grant_types_supported: ['authorization_code', 'refresh_token', 'client_credentials'],
+    // Built from the same constant `authenticateClient` validates against
+    // (@odudu/contracts' token.ts), so discovery can never advertise a
+    // method the token endpoint would actually reject.
+    token_endpoint_auth_methods_supported: TOKEN_ENDPOINT_AUTH_METHODS_SUPPORTED,
     authorization_response_iss_parameter_supported: true,
     scopes_supported: SUPPORTED_SCOPES,
     claims_supported: ['sub'],

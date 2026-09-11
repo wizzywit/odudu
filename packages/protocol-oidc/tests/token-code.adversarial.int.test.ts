@@ -56,6 +56,7 @@ interface Client {
 let webApp: Client;
 let otherApp: Client;
 let spa: Client;
+let postApp: Client;
 let subjectId: string;
 
 async function setupTokenRealm(): Promise<void> {
@@ -131,6 +132,27 @@ async function setupTokenRealm(): Promise<void> {
     });
     spa = { clientId: 'spa', dbId: spaDbId, secret: null };
 
+    const postAppDbId = newId();
+    await tx.insert(clients).values({
+      id: postAppDbId,
+      realmId: REALM_ID,
+      clientId: 'post-app',
+      name: 'client_secret_post app',
+      type: 'confidential',
+      secretHash: await hashPassword('postsecret'),
+    });
+    await clientOidcConfigRepository(tx).create({
+      clientId: postAppDbId,
+      realmId: REALM_ID,
+      redirectUris: [REDIRECT_URI],
+      grantTypes: ['authorization_code'],
+      tokenEndpointAuthMethod: 'client_secret_post',
+      audiences: [AUDIENCE],
+      accessTokenTtlSeconds: 300,
+      refreshTokenTtlSeconds: 1_209_600,
+    });
+    postApp = { clientId: 'post-app', dbId: postAppDbId, secret: 'postsecret' };
+
     const key = await generateSigningKey('RS256', KEK);
     await tx.insert(signingKeys).values({
       id: newId(),
@@ -186,9 +208,19 @@ async function issueCode(opts: IssueCodeOptions = {}): Promise<{ code: string; c
 
 interface RedeemOptions {
   as?: Client;
+  // The Basic-auth secret. `undefined` (default) uses the client's own
+  // secret; `null` suppresses the Authorization header entirely.
   secret?: string | null;
+  // A client_secret_post value to put in the form body alongside
+  // client_id. Independent of `secret`, so a test can request both at once
+  // (to prove the "no more than one method" rejection) or the body value
+  // alone (to prove client_secret_post's accept path).
+  bodySecret?: string;
   verifier?: string | null;
   redirectUri?: string;
+  // Finding 1: omits every way of identifying the client — no Authorization
+  // header, no client_id, no client_secret anywhere in the request.
+  omitClientId?: boolean;
 }
 
 async function redeem(code: string, opts: RedeemOptions = {}): Promise<LightMyRequestResponse> {
@@ -204,12 +236,23 @@ async function redeem(code: string, opts: RedeemOptions = {}): Promise<LightMyRe
     'content-type': 'application/x-www-form-urlencoded',
   };
 
-  const secret = opts.secret === null ? undefined : (opts.secret ?? client.secret ?? undefined);
-  if (secret !== undefined) {
-    const basic = Buffer.from(`${client.clientId}:${secret}`).toString('base64');
-    headers.authorization = `Basic ${basic}`;
-  } else {
-    form.set('client_id', client.clientId);
+  if (opts.omitClientId !== true) {
+    const basicSecret =
+      opts.secret === null ? undefined : (opts.secret ?? client.secret ?? undefined);
+    const bodySecret = opts.bodySecret;
+    const usingBasic = basicSecret !== undefined;
+    const usingBodySecret = bodySecret !== undefined;
+
+    if (usingBasic) {
+      const basic = Buffer.from(`${client.clientId}:${basicSecret}`).toString('base64');
+      headers.authorization = `Basic ${basic}`;
+    }
+    if (bodySecret !== undefined) {
+      form.set('client_secret', bodySecret);
+    }
+    if (!usingBasic || usingBodySecret) {
+      form.set('client_id', client.clientId);
+    }
   }
 
   return http.inject({
@@ -310,9 +353,9 @@ describe('[RFC6749-4.1.2-02] authorization code replay', () => {
   });
 
   // A refresh token is not issued by this grant in P1 (no refresh_tokens
-  // table exists yet — that is a later task's migration), so revocation is
-  // proven directly against the grant row the first redemption created,
-  // rather than by attempting to use a refresh token that does not exist.
+  // table exists yet), so revocation is proven directly against the grant
+  // row the first redemption created, rather than by attempting to use a
+  // refresh token that does not exist.
   it('[RFC6749-4.1.2-04] revokes the grant issued by the first redemption', async () => {
     const { code, codeHash } = await issueCode();
     const first = await redeem(code);
@@ -414,8 +457,8 @@ describe('[OIDC-CORE-3.1.3.7-01] the id token binds to the request', () => {
   });
 });
 
-describe('[RFC6749-3.2.1-01] client authentication', () => {
-  it('returns 401 and WWW-Authenticate for a bad secret', async () => {
+describe('client authentication', () => {
+  it('[RFC6749-5.2-02] returns 401 and WWW-Authenticate for a bad secret', async () => {
     const { code } = await issueCode();
     const res = await redeem(code, { secret: 'wrong' });
     expect(res.statusCode).toBe(401);
@@ -427,6 +470,42 @@ describe('[RFC6749-3.2.1-01] client authentication', () => {
     const { code } = await issueCode({ client: spa });
     const res = await redeem(code, { as: spa, secret: 'anything' });
     expect(res.statusCode).toBe(401);
+  });
+
+  it('[RFC6749-3.2.1-01] refuses a confidential client that omits credentials entirely', async () => {
+    const { code } = await issueCode();
+    const res = await redeem(code, { omitClientId: true });
+    expect(res.statusCode).toBe(401);
+    expect(res.json<{ error: string }>().error).toBe('invalid_client');
+  });
+});
+
+describe('client_secret_post (RFC 6749 §2.3.1)', () => {
+  it('[RFC6749-2.3.1-01] accepts a client configured for client_secret_post presenting its secret in the body', async () => {
+    const { code } = await issueCode({ client: postApp });
+    const res = await redeem(code, { as: postApp, secret: null, bodySecret: postApp.secret ?? '' });
+    expect(res.statusCode).toBe(200);
+  });
+
+  it('refuses a client_secret_post client that instead authenticates over Basic', async () => {
+    const { code } = await issueCode({ client: postApp });
+    const res = await redeem(code, { as: postApp });
+    expect(res.statusCode).toBe(401);
+    expect(res.json<{ error: string }>().error).toBe('invalid_client');
+  });
+
+  it('refuses a client_secret_basic client presenting client_secret in the body', async () => {
+    const { code } = await issueCode();
+    const res = await redeem(code, { secret: null, bodySecret: webApp.secret ?? '' });
+    expect(res.statusCode).toBe(401);
+    expect(res.json<{ error: string }>().error).toBe('invalid_client');
+  });
+
+  it('[RFC6749-2.3-01] refuses a request presenting both a Basic header and a body client_secret', async () => {
+    const { code } = await issueCode();
+    const res = await redeem(code, { bodySecret: webApp.secret ?? '' });
+    expect(res.statusCode).toBe(401);
+    expect(res.json<{ error: string }>().error).toBe('invalid_client');
   });
 });
 

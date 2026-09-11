@@ -115,9 +115,10 @@ export function authorizationCodeRepository(tx: RealmScopedDatabase) {
   };
 }
 
-// Standalone export mirroring the interface the brief specifies —
+// Standalone export of the redemption contract —
 // `consumeAuthorizationCode(tx, codeHash)` — for callers that do not need
-// the rest of the repository.
+// the rest of the repository, e.g. the concurrency test that redeems
+// directly against a transaction.
 export async function consumeAuthorizationCode(
   tx: RealmScopedDatabase,
   codeHash: string,

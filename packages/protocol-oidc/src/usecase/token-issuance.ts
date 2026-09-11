@@ -7,13 +7,13 @@ import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
 import { authorizationCodeRepository } from '#/repository/codes';
 import { tokenGrantRepository } from '#/repository/grants';
 import { hashAuthorizationCode } from '#/service/authorization-code';
+import { evaluateAuthorizationCodeGrant } from '#/service/authorization-code-grant';
 import {
   invalidClient,
   invalidGrant,
   invalidRequest,
   unsupportedGrantType,
 } from '#/service/errors';
-import { verifyPkce } from '#/service/pkce';
 import { resolveScope } from '#/service/scope';
 
 export interface TokenIssuanceDeps {
@@ -117,21 +117,51 @@ const WWW_AUTHENTICATE = 'Basic realm="token"';
 
 // Stage 2: client authentication. Every failure here — an unknown
 // client_id, a disabled client, a wrong secret, a public client presenting
-// a secret it was never issued — reports the same `invalid_client` (401,
-// WWW-Authenticate: Basic), never which of those it was.
+// a secret it was never issued, a client presenting the method it is not
+// configured for, or a client presenting more than one method at once —
+// reports the same `invalid_client` (401, WWW-Authenticate: Basic), never
+// which of those it was.
+//
+// A client authenticates the way it is registered to, not whichever way
+// happens to work: `client_secret_basic` (RFC 6749 §2.3.1's Authorization
+// header) and `client_secret_post` (the same section's body parameters) are
+// both accepted, but only from a client whose stored
+// `token_endpoint_auth_method` names that one — and never both in the same
+// request (RFC 6749 §2.3: a client uses no more than one authentication
+// method per request).
 async function authenticateClient(
   tx: RealmScopedDatabase,
   deps: TokenIssuanceDeps,
   basic: BasicCredentials | undefined,
   bodyClientId: string | undefined,
+  bodyClientSecret: string | undefined,
 ): Promise<ClientRecord> {
+  if (basic !== undefined && bodyClientSecret !== undefined) throw invalidClient(WWW_AUTHENTICATE);
+
   const oauthClientId = basic?.clientId ?? bodyClientId;
   if (oauthClientId === undefined) throw invalidClient(WWW_AUTHENTICATE);
 
   const client = await clientRepository(tx).byClientId(oauthClientId);
   if (client === null) throw invalidClient(WWW_AUTHENTICATE);
 
-  const presented = basic?.secret ?? null;
+  const config = await clientOidcConfigRepository(tx).byClientId(client.id);
+  if (config === null) throw invalidClient(WWW_AUTHENTICATE);
+
+  let presented: string | null;
+  if (basic !== undefined) {
+    if (config.tokenEndpointAuthMethod !== 'client_secret_basic') {
+      throw invalidClient(WWW_AUTHENTICATE);
+    }
+    presented = basic.secret;
+  } else if (bodyClientSecret !== undefined) {
+    if (config.tokenEndpointAuthMethod !== 'client_secret_post') {
+      throw invalidClient(WWW_AUTHENTICATE);
+    }
+    presented = bodyClientSecret;
+  } else {
+    presented = null;
+  }
+
   const ok = await verifyClientSecret(client, presented, deps.verifyPassword);
   if (!ok) throw invalidClient(WWW_AUTHENTICATE);
 
@@ -140,7 +170,10 @@ async function authenticateClient(
 
 // Stage 3: the authorization_code grant. `consume` is one atomic UPDATE, so
 // the database — not a check-then-set race — decides which of two
-// concurrent redemptions wins. Every other way this can fail (unknown code,
+// concurrent redemptions wins. The grant-specific rules themselves (client
+// match, redirect_uri match, PKCE) are `evaluateAuthorizationCodeGrant`, a
+// pure service function that runs no queries — this usecase only loads,
+// consumes and, on failure, revokes. Every way this can fail (unknown code,
 // expired, replayed, wrong client, wrong redirect_uri, PKCE mismatch)
 // converges on the same `invalid_grant`: a resource server or attacker
 // probing these cannot learn which check they failed (RFC 6749 §5.2).
@@ -167,11 +200,13 @@ async function redeemAuthorizationCode(
     }
     throw invalidGrant();
   }
-  if (record.clientId !== client.id) throw invalidGrant();
-  if (record.redirectUri !== request.redirectUri) throw invalidGrant();
-  if (!verifyPkce(request.codeVerifier, record.codeChallenge, record.codeChallengeMethod)) {
-    throw invalidGrant();
-  }
+
+  const decision = evaluateAuthorizationCodeGrant(record, client, {
+    redirectUri: request.redirectUri,
+    codeVerifier: request.codeVerifier,
+  });
+  if (!decision.ok) throw invalidGrant();
+
   return record;
 }
 
@@ -183,7 +218,13 @@ export async function issueTokens(
 ): Promise<TokenResponse> {
   const request = parseStructure(body);
   const basic = parseBasicAuth(authorizationHeader);
-  const client = await authenticateClient(tx, deps, basic, request.clientId);
+  const client = await authenticateClient(
+    tx,
+    deps,
+    basic,
+    request.clientId,
+    readOptionalField(body, 'client_secret'),
+  );
   const code = await redeemAuthorizationCode(tx, deps, request, client);
 
   const config = await clientOidcConfigRepository(tx).byClientId(client.id);

@@ -1,4 +1,5 @@
 import { integer, pgTable, text, uuid } from 'drizzle-orm/pg-core';
+import { type TokenEndpointAuthMethod } from '@odudu/contracts';
 import { clients } from '@odudu/domain-realm';
 
 // Policies are written as hand-authored SQL in packages/db/drizzle/, never
@@ -28,7 +29,7 @@ export interface ClientOidcConfig {
   realmId: string;
   redirectUris: string[];
   grantTypes: string[];
-  tokenEndpointAuthMethod: 'client_secret_basic' | 'client_secret_post' | 'none';
+  tokenEndpointAuthMethod: TokenEndpointAuthMethod;
   audiences: string[];
   accessTokenTtlSeconds: number;
   refreshTokenTtlSeconds: number;
