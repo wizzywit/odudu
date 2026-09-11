@@ -142,6 +142,9 @@ importers:
 
   apps/server:
     dependencies:
+      '@odudu/authn-flows':
+        specifier: workspace:*
+        version: link:../../packages/authn-flows
       '@odudu/db':
         specifier: workspace:*
         version: link:../../packages/db

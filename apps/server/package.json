@@ -12,6 +12,7 @@
     "build": "tsup"
   },
   "dependencies": {
+    "@odudu/authn-flows": "workspace:*",
     "@odudu/db": "workspace:*",
     "@odudu/kernel": "workspace:*",
     "close-with-grace": "2.5.0",

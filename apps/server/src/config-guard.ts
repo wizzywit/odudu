@@ -1,3 +1,4 @@
+import { warnIfCookieFallbackActive } from '@odudu/authn-flows';
 import { type Config, OduduError } from '@odudu/kernel';
 
 /**
@@ -15,4 +16,13 @@ export function assertProductionAppDatabaseUrl(config: Config): void {
         'for serving traffic.',
     );
   }
+}
+
+/**
+ * `ODUDU_TLS=false` makes @odudu/authn-flows drop the `__Host-` cookie
+ * prefix — a weaker mode meant for local development only. Wiring the
+ * warning here, at boot, is what makes it noisy instead of silent.
+ */
+export function warnIfTlsDisabled(config: Config, log: (message: string) => void): void {
+  warnIfCookieFallbackActive(config.ODUDU_TLS, log);
 }

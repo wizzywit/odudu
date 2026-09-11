@@ -34,6 +34,11 @@ const schema = z.object({
   ODUDU_MIGRATIONS_DIR: z.string().min(1).optional(),
   ODUDU_APP_DATABASE_URL: z.url().optional(),
   ODUDU_TRUST_PROXY: booleanEnvVar,
+  // Whether this process itself terminates TLS, or (via a reverse proxy)
+  // knows the client's connection to be HTTPS. Off by default: the compose
+  // stack serves plain HTTP on :3000 today. Read by @odudu/authn-flows to
+  // pick the session cookie's __Host- prefix and to decide whether to warn.
+  ODUDU_TLS: booleanEnvVar,
   ODUDU_LOG_LEVEL: z
     .enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent'])
     .default('info'),

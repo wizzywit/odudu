@@ -12,7 +12,14 @@ function toRecord(row: typeof sessions.$inferSelect): SessionRecord {
   };
 }
 
-// Read-only access to an established SSO session — this is what a later
+export interface NewSession {
+  id: string;
+  realmId: string;
+  subjectId: string;
+  expiresAt: Date;
+}
+
+// All persistence for an established SSO session. `byId` is what a later
 // request (Task 12/13's cookie check, a logout handler) resolves the
 // `__Host-<realm>-session` cookie's value against.
 export function sessionRepository(tx: RealmScopedDatabase) {
@@ -21,6 +28,10 @@ export function sessionRepository(tx: RealmScopedDatabase) {
       const rows = await tx.select().from(sessions).where(eq(sessions.id, id));
       const row = rows[0];
       return row === undefined ? null : toRecord(row);
+    },
+
+    async create(values: NewSession): Promise<void> {
+      await tx.insert(sessions).values(values);
     },
   };
 }

@@ -1,6 +1,6 @@
 import { loadConfig } from '@odudu/kernel';
-import { describe, expect, it } from 'vitest';
-import { assertProductionAppDatabaseUrl } from '#/config-guard';
+import { describe, expect, it, vi } from 'vitest';
+import { assertProductionAppDatabaseUrl, warnIfTlsDisabled } from '#/config-guard';
 
 const base = {
   ODUDU_DATABASE_URL: 'postgres://user:pw@localhost:5432/odudu',
@@ -31,5 +31,25 @@ describe('assertProductionAppDatabaseUrl', () => {
     expect(() => {
       assertProductionAppDatabaseUrl(config);
     }).not.toThrow();
+  });
+});
+
+describe('warnIfTlsDisabled', () => {
+  it('warns when ODUDU_TLS is off', () => {
+    const config = loadConfig({ ...base });
+    const log = vi.fn();
+
+    warnIfTlsDisabled(config, log);
+
+    expect(log).toHaveBeenCalledOnce();
+  });
+
+  it('does not warn when ODUDU_TLS is on', () => {
+    const config = loadConfig({ ...base, ODUDU_TLS: 'true' });
+    const log = vi.fn();
+
+    warnIfTlsDisabled(config, log);
+
+    expect(log).not.toHaveBeenCalled();
   });
 });

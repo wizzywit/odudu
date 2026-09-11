@@ -2,7 +2,7 @@ import { createDatabase } from '@odudu/db';
 import { loadConfig, ModuleRegistry, systemClock } from '@odudu/kernel';
 import closeWithGrace from 'close-with-grace';
 import { buildApp } from '#/app';
-import { assertProductionAppDatabaseUrl } from '#/config-guard';
+import { assertProductionAppDatabaseUrl, warnIfTlsDisabled } from '#/config-guard';
 import { createLogger } from '#/logger';
 import { databaseModule } from '#/modules/database';
 import { httpModule } from '#/modules/http';
@@ -11,6 +11,9 @@ const config = loadConfig();
 const logger = createLogger(config);
 
 assertProductionAppDatabaseUrl(config);
+warnIfTlsDisabled(config, (message) => {
+  logger.warn({}, message);
+});
 
 const owner = createDatabase(config.ODUDU_DATABASE_URL);
 const runtime = config.ODUDU_APP_DATABASE_URL

@@ -13,7 +13,7 @@ import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { establishSession, loadPendingRequest, startAuthentication } from '#/service/executor';
+import { establishSession, loadPendingRequest, startAuthentication } from '#/usecase/executor';
 import { sessions } from '#/schema/sessions';
 import { type PendingRequest } from '#/schema/authentication-sessions';
 

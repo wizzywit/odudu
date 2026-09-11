@@ -1,14 +1,11 @@
-import { eq } from 'drizzle-orm';
 import { type RealmScopedDatabase } from '@odudu/db';
+import { credentialRepository, userRepository } from '@odudu/domain-identity';
 import { newId, systemClock, type Clock } from '@odudu/kernel';
-import {
-  authenticationSessions,
-  type AuthenticationSessionRecord,
-  type PendingRequest,
-} from '#/schema/authentication-sessions';
-import { sessions } from '#/schema/sessions';
+import { authenticationSessionRepository } from '#/repository/authentication-sessions';
+import { sessionRepository } from '#/repository/sessions';
+import { type PendingRequest } from '#/schema/authentication-sessions';
 import { type AuthenticatorResult } from '#/schema/authenticator';
-import { passwordStep } from '#/service/authenticators/password';
+import { passwordStep, type PasswordVerification } from '#/service/authenticators/password';
 
 type StepName = 'password';
 
@@ -18,27 +15,44 @@ type StepName = 'password';
 // DISABLED requirements without changing what a caller of `advance` sees.
 const STEPS: readonly StepName[] = ['password'];
 
+// Never assigned to a real subject (subject ids come from `newId()`), so a
+// lookup against it always misses — which is the point: it lets the
+// unknown-user path issue the exact same credential query as the
+// wrong-password path, rather than skipping it.
+const DUMMY_SUBJECT_ID = '00000000-0000-0000-0000-000000000000';
+
+async function passwordVerificationFor(
+  tx: RealmScopedDatabase,
+  username: string,
+): Promise<PasswordVerification> {
+  const found = await userRepository(tx).byUsername(username);
+  const storedHash = await credentialRepository(tx).passwordFor(
+    found === null ? DUMMY_SUBJECT_ID : found.subject.id,
+  );
+  return { subjectId: found === null ? null : found.subject.id, storedHash };
+}
+
+async function runPasswordStep(
+  tx: RealmScopedDatabase,
+  input: AdvanceInput,
+): Promise<AuthenticatorResult> {
+  if (input.username === undefined || input.password === undefined) {
+    return passwordStep(input, { subjectId: null, storedHash: null });
+  }
+  return passwordStep(input, await passwordVerificationFor(tx, input.username));
+}
+
 const AUTHENTICATORS: Record<
   StepName,
   (tx: RealmScopedDatabase, input: AdvanceInput) => Promise<AuthenticatorResult>
 > = {
-  password: passwordStep,
+  password: runPasswordStep,
 };
 
 const AUTH_SESSION_TTL_MS = 30 * 60_000;
 // An SSO session outlives any one authentication: 12 hours covers a working
 // day without forcing a re-login mid-session.
 const SESSION_TTL_MS = 12 * 60 * 60_000;
-
-function toRecord(row: typeof authenticationSessions.$inferSelect): AuthenticationSessionRecord {
-  return {
-    id: row.id,
-    realmId: row.realmId,
-    pendingRequest: row.pendingRequest as PendingRequest,
-    createdAt: row.createdAt,
-    expiresAt: row.expiresAt,
-  };
-}
 
 export async function startAuthentication(
   tx: RealmScopedDatabase,
@@ -47,7 +61,7 @@ export async function startAuthentication(
   clock: Clock = systemClock,
 ): Promise<{ authSessionId: string }> {
   const id = newId();
-  await tx.insert(authenticationSessions).values({
+  await authenticationSessionRepository(tx).create({
     id,
     realmId,
     pendingRequest: request,
@@ -60,12 +74,8 @@ export async function loadPendingRequest(
   tx: RealmScopedDatabase,
   authSessionId: string,
 ): Promise<PendingRequest | null> {
-  const rows = await tx
-    .select()
-    .from(authenticationSessions)
-    .where(eq(authenticationSessions.id, authSessionId));
-  const row = rows[0];
-  return row === undefined ? null : toRecord(row).pendingRequest;
+  const record = await authenticationSessionRepository(tx).byId(authSessionId);
+  return record === null ? null : record.pendingRequest;
 }
 
 export interface AdvanceInput {
@@ -79,12 +89,8 @@ export async function advance(
   input: AdvanceInput,
   clock: Clock = systemClock,
 ): Promise<AuthenticatorResult> {
-  const rows = await tx
-    .select()
-    .from(authenticationSessions)
-    .where(eq(authenticationSessions.id, authSessionId));
-  const row = rows[0];
-  if (row === undefined || row.expiresAt.getTime() <= clock.now().getTime()) {
+  const record = await authenticationSessionRepository(tx).byId(authSessionId);
+  if (record === null || record.expiresAt.getTime() <= clock.now().getTime()) {
     return { kind: 'failure', reason: 'authentication_session_expired' };
   }
 
@@ -106,7 +112,7 @@ export async function establishSession(
   // Always a fresh id, even for the same subject: reusing the pre-auth id
   // here is exactly the session-fixation hole this function exists to close.
   const id = newId();
-  await tx.insert(sessions).values({
+  await sessionRepository(tx).create({
     id,
     realmId,
     subjectId,

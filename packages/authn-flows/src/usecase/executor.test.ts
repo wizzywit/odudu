@@ -16,7 +16,7 @@ import {
   establishSession,
   loadPendingRequest,
   startAuthentication,
-} from '#/service/executor';
+} from '#/usecase/executor';
 import { type PendingRequest } from '#/schema/authentication-sessions';
 
 let containerHandle: TestDatabase | undefined;

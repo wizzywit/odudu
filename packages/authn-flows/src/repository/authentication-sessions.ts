@@ -16,8 +16,15 @@ function toRecord(row: typeof authenticationSessions.$inferSelect): Authenticati
   };
 }
 
-// Read-only access to the parked-request row, independent of the executor's
-// own state-machine flow — for callers (logging, admin inspection, a future
+export interface NewAuthenticationSession {
+  id: string;
+  realmId: string;
+  pendingRequest: PendingRequest;
+  expiresAt: Date;
+}
+
+// All persistence for the parked-request row, both for the executor's own
+// state-machine flow and for callers (logging, admin inspection, a future
 // "resend" path) that want the row without driving `advance`.
 export function authenticationSessionRepository(tx: RealmScopedDatabase) {
   return {
@@ -28,6 +35,10 @@ export function authenticationSessionRepository(tx: RealmScopedDatabase) {
         .where(eq(authenticationSessions.id, id));
       const row = rows[0];
       return row === undefined ? null : toRecord(row);
+    },
+
+    async create(values: NewAuthenticationSession): Promise<void> {
+      await tx.insert(authenticationSessions).values(values);
     },
   };
 }

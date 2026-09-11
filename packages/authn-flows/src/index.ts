@@ -15,6 +15,14 @@
 //
 // Task 18's OpenID conformance spike must confirm this choice holds up
 // against the conformance suite, which may run over HTTP too.
+
+// This package produces only the cookie name. Task 12, when it actually sets
+// the header, must also set: HttpOnly (never readable from script), SameSite
+// (Lax at minimum, to survive the top-level redirect back from /authorize),
+// Path=/ (required by __Host- when TLS is on, and kept the same in the
+// fallback so the two modes differ only in name and Secure), and Secure
+// (only when TLS is on — see the fallback rationale above). Dropping Secure
+// in the non-TLS fallback must not mean dropping the other three.
 export function sessionCookieName(realm: string, tls: boolean): string {
   return tls ? `__Host-${realm}-session` : `${realm}-session`;
 }
@@ -37,8 +45,12 @@ export {
   advance,
   establishSession,
   type AdvanceInput,
-} from '#/service/executor';
-export { passwordStep, type PasswordInput } from '#/service/authenticators/password';
+} from '#/usecase/executor';
+export {
+  passwordStep,
+  type PasswordInput,
+  type PasswordVerification,
+} from '#/service/authenticators/password';
 export { authenticationSessionRepository } from '#/repository/authentication-sessions';
 export { sessionRepository } from '#/repository/sessions';
 export {
