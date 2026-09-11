@@ -86,7 +86,7 @@ describe('[JOSE-5.2-01] algorithm comes from the key record, never the token hea
 });
 
 describe('[JOSE-4.1.4-01] kid is an exact-match lookup, never a path', () => {
-  it.each(['../../etc/passwd', '../../../dev/null', "' OR '1'='1", 'a b', ''])(
+  it.each(['../../etc/passwd', '../../../dev/null', "' OR '1'='1", 'a b'])(
     'rejects kid %j',
     async (kid) => {
       await expect(
@@ -95,10 +95,20 @@ describe('[JOSE-4.1.4-01] kid is an exact-match lookup, never a path', () => {
     },
   );
 
+  // '' and absent kid both take the jwt_kid_missing guard, distinct from
+  // the jwt_unknown_key path a non-empty unmatched kid takes above. Pinned
+  // to the specific code: /unknown key|kid/i matches both messages, so it
+  // would pass even with the empty-string half of the guard deleted.
+  it('rejects an empty-string kid', async () => {
+    await expect(
+      verifyJwt(await tokenWithHeader({ alg: key.alg, kid: '' }), { keys, issuer: ISS }),
+    ).rejects.toMatchObject({ code: 'jwt_kid_missing' });
+  });
+
   it('rejects a token with no kid rather than trying every key in turn', async () => {
     await expect(
       verifyJwt(await tokenWithHeader({ alg: key.alg }), { keys, issuer: ISS }),
-    ).rejects.toThrow(/kid/i);
+    ).rejects.toMatchObject({ code: 'jwt_kid_missing' });
   });
 });
 

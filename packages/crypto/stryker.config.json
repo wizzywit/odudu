@@ -1,4 +1,5 @@
 {
+  "_comment": "break: 75 is aspirational, not currently met (~14%). @stryker-mutator/vitest-runner@10.0.0 has a targeted-test-selection defect: whenever it narrows a mutant run to a specific test subset (testNamePattern non-empty), testsCompleted comes back 0 and the mutant is reported Survived without running. sign.ts and jwks.ts have narrow, input-specific tests that trigger this path far more than generate.ts/kek.ts, so their scores read near zero regardless of test quality. See .superpowers/sdd/2026-09-11-p1-oauth-oidc-core/task-7-report.md for the repro and root cause. Do not lower break to make this pass; raise it once the runner is fixed.",
   "packageManager": "pnpm",
   "testRunner": "vitest",
   "plugins": ["@stryker-mutator/vitest-runner"],
