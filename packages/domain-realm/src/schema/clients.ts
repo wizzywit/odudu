@@ -15,6 +15,12 @@ export const clients = pgTable('clients', {
   type: text('type').notNull(),
   secretHash: text('secret_hash'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  // Nullable: a public client has no service account. Populated for
+  // confidential clients by Task 16's seed, read by Task 14's
+  // client_credentials grant, whose issued token's `sub` is this subject.
+  // Added in domain-identity's migration (0005), not here, because subjects
+  // does not exist until that migration runs.
+  serviceSubjectId: uuid('service_subject_id'),
 }).enableRLS();
 
 // Lives beside the table, not in the repository, so that `service` (which
