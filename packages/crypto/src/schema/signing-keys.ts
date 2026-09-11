@@ -17,3 +17,18 @@ export const signingKeys = pgTable('signing_keys', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   notAfter: timestamp('not_after', { withTimezone: true }),
 }).enableRLS();
+
+// Lives beside the table, not in the repository, so that `service` (which
+// may depend on no other layer) can reference the shape of a signing key
+// without depending on the repository that reads it.
+export interface SigningKeyRecord {
+  id: string;
+  realmId: string;
+  kid: string;
+  alg: 'RS256' | 'ES256';
+  status: 'active' | 'rotating' | 'retired';
+  publicJwk: Record<string, unknown>;
+  privateJwkEncrypted: string;
+  createdAt: Date;
+  notAfter: Date | null;
+}

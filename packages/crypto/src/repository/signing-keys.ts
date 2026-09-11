@@ -1,19 +1,9 @@
 import { type RealmScopedDatabase } from '@odudu/db';
 import { OduduError } from '@odudu/kernel';
 import { asc, eq, ne } from 'drizzle-orm';
-import { signingKeys } from '#/schema/signing-keys';
+import { signingKeys, type SigningKeyRecord } from '#/schema/signing-keys';
 
-export interface SigningKeyRecord {
-  id: string;
-  realmId: string;
-  kid: string;
-  alg: 'RS256' | 'ES256';
-  status: 'active' | 'rotating' | 'retired';
-  publicJwk: Record<string, unknown>;
-  privateJwkEncrypted: string;
-  createdAt: Date;
-  notAfter: Date | null;
-}
+export type { SigningKeyRecord } from '#/schema/signing-keys';
 
 function toRecord(row: typeof signingKeys.$inferSelect): SigningKeyRecord {
   return {

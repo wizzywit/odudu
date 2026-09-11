@@ -6,7 +6,12 @@ export type ErrorCode =
   | 'module_stop_failed'
   | 'realm_context_missing'
   | 'kek_invalid'
-  | 'signing_key_not_found';
+  | 'signing_key_not_found'
+  | 'jwt_header_invalid'
+  | 'jwt_kid_missing'
+  | 'jwt_unknown_key'
+  | 'jwt_alg_mismatch'
+  | 'jwt_typ_mismatch';
 
 export class OduduError extends Error {
   readonly code: ErrorCode;
