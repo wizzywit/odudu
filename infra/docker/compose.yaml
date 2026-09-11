@@ -34,6 +34,7 @@ services:
       ODUDU_DATABASE_URL: postgres://${POSTGRES_USER:?see infra/docker/.env.example}:${POSTGRES_PASSWORD:?see infra/docker/.env.example}@postgres:5432/${POSTGRES_DB:?see infra/docker/.env.example}
       ODUDU_APP_DATABASE_URL: postgres://odudu_svc:${ODUDU_SVC_PASSWORD:?see infra/docker/.env.example}@postgres:5432/${POSTGRES_DB:?see infra/docker/.env.example}
       ODUDU_LOG_LEVEL: info
+      ODUDU_KEK: ${ODUDU_KEK:?see infra/docker/.env.example}
     depends_on:
       postgres:
         condition: service_healthy

@@ -156,6 +156,28 @@ importers:
         specifier: 8.5.1
         version: 8.5.1(postcss@8.5.28)(supports-color@7.2.0)(tsx@4.23.13)(typescript@6.0.3)(yaml@2.9.0)
 
+  packages/crypto:
+    dependencies:
+      '@odudu/db':
+        specifier: workspace:*
+        version: link:../db
+      '@odudu/kernel':
+        specifier: workspace:*
+        version: link:../kernel
+      drizzle-orm:
+        specifier: 0.45.2
+        version: 0.45.2(postgres@3.4.9)
+      jose:
+        specifier: 6.2.12
+        version: 6.2.12
+    devDependencies:
+      '@odudu/testkit':
+        specifier: workspace:*
+        version: link:../testkit
+      vitest:
+        specifier: 5.0.0
+        version: 5.0.0(@types/node@24.13.4)(vite@8.2.2(@types/node@24.13.4)(esbuild@0.28.2)(tsx@4.23.13)(yaml@2.9.0))
+
   packages/db:
     dependencies:
       '@odudu/kernel':
@@ -176,7 +198,7 @@ importers:
         version: 0.31.10
       vitest:
         specifier: 5.0.0
-        version: 5.0.0
+        version: 5.0.0(@types/node@24.13.4)(vite@8.2.2(@types/node@24.13.4)(esbuild@0.28.2)(tsx@4.23.13)(yaml@2.9.0))
 
   packages/kernel:
     dependencies:
@@ -2056,6 +2078,9 @@ packages:
 
   jackspeak@3.4.3:
     resolution: {integrity: sha512-OGlZQpz2yfahA/Rd1Y8Cd9SIEsqvXkLVoSw/cgwhnhFMDbsQFeZYoJJ7bIZBS9BcamUW96asq/npPWugM+RQBw==}
+
+  jose@6.2.12:
+    resolution: {integrity: sha512-9NiFmJEex0sy2Dk58j2UGBSHgUs2ypF9eZSu4L6vjOX3Dp96Sw1F3uL+H+D1sx02jZZdzUT0HgvCy59CuvXcWw==}
 
   joycon@3.1.1:
     resolution: {integrity: sha512-34wB/Y7MW7bzjKRjUKTa46I2Z7eV62Rkhva+KkopW7Qvv/OSWBqvkSY7vusOPrNuZcUG3tApvdVgNB8POj3SPw==}
@@ -4406,6 +4431,8 @@ snapshots:
       '@isaacs/cliui': 8.0.2
     optionalDependencies:
       '@pkgjs/parseargs': 0.11.0
+
+  jose@6.2.12: {}
 
   joycon@3.1.1: {}
 

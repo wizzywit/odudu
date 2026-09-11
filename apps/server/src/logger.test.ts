@@ -5,7 +5,10 @@ import { describe, expect, it } from 'vitest';
 import { buildApp } from '#/app';
 import { createLogger } from '#/logger';
 
-const config = loadConfig({ ODUDU_DATABASE_URL: 'postgres://u:p@localhost:5432/odudu' });
+const config = loadConfig({
+  ODUDU_DATABASE_URL: 'postgres://u:p@localhost:5432/odudu',
+  ODUDU_KEK: Buffer.alloc(32, 9).toString('base64'),
+});
 
 function capture(): { stream: Writable; lines: () => string } {
   const chunks: string[] = [];

@@ -9,6 +9,23 @@ const booleanEnvVar = z
   .optional()
   .transform((value) => value === 'true');
 
+// Decoded and length-checked here, at the config boundary, so every later
+// consumer can assume 32 raw bytes rather than re-validating a base64 string.
+const kekBytes = z
+  .string()
+  .min(1)
+  .transform((value, ctx) => {
+    const decoded = Buffer.from(value, 'base64');
+    if (decoded.length !== 32) {
+      ctx.addIssue({
+        code: 'custom',
+        message: `ODUDU_KEK must decode to exactly 32 bytes, got ${String(decoded.length)}`,
+      });
+      return z.NEVER;
+    }
+    return decoded;
+  });
+
 const schema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   ODUDU_HTTP_HOST: z.string().min(1).default('0.0.0.0'),
@@ -20,6 +37,7 @@ const schema = z.object({
   ODUDU_LOG_LEVEL: z
     .enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent'])
     .default('info'),
+  ODUDU_KEK: kekBytes,
 });
 
 export type Config = Readonly<z.infer<typeof schema>>;

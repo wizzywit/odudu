@@ -2,7 +2,10 @@ import { loadConfig } from '@odudu/kernel';
 import { describe, expect, it } from 'vitest';
 import { assertProductionAppDatabaseUrl } from '#/config-guard';
 
-const base = { ODUDU_DATABASE_URL: 'postgres://user:pw@localhost:5432/odudu' };
+const base = {
+  ODUDU_DATABASE_URL: 'postgres://user:pw@localhost:5432/odudu',
+  ODUDU_KEK: Buffer.alloc(32, 9).toString('base64'),
+};
 
 describe('assertProductionAppDatabaseUrl', () => {
   it('throws when NODE_ENV is production and ODUDU_APP_DATABASE_URL is unset', () => {
