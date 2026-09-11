@@ -27,8 +27,8 @@ export function subjectRepository(tx: RealmScopedDatabase) {
       return row === undefined ? null : toRecord(row);
     },
 
-    // Used by Task 16's seed (a service subject for a confidential client)
-    // and by the user repository's registration path.
+    // Used when provisioning a confidential client's service subject, and by
+    // the user repository's registration path.
     async create(input: NewSubject): Promise<SubjectRecord> {
       const rows = await tx
         .insert(subjects)

@@ -1,7 +1,8 @@
 import { z } from 'zod';
 
-// The /token body schemas, one per grant type P1 implements (design spec
-// §6, stage 3 is grant-specific; stages 1-2 are shared and live in Task 13).
+// The /token body schemas, one per supported grant type. Only the
+// grant-specific validation stage differs between them; client authentication
+// and structural validation are shared by the token endpoint itself.
 export const authorizationCodeGrantSchema = z.object({
   grant_type: z.literal('authorization_code'),
   code: z.string(),

@@ -20,8 +20,8 @@ export interface NewSession {
 }
 
 // All persistence for an established SSO session. `byId` is what a later
-// request (Task 12/13's cookie check, a logout handler) resolves the
-// `__Host-<realm>-session` cookie's value against.
+// request — /authorize's single-sign-on check, or a logout handler — resolves
+// the `__Host-<realm>-session` cookie's value against.
 export function sessionRepository(tx: RealmScopedDatabase) {
   return {
     async byId(id: string): Promise<SessionRecord | null> {

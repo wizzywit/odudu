@@ -35,9 +35,9 @@ export function clientRepository(tx: RealmScopedDatabase) {
       return row === undefined ? null : toRecord(row);
     },
 
-    // Task 16's seed CLI creates clients directly through this repository,
-    // and Task 11 reads them back alongside their OIDC config — both need
-    // an insert path, so it is added here rather than deferred.
+    // The bootstrap seed command creates clients through this repository, and
+    // client resolution reads them back alongside their OIDC config, so an
+    // insert path belongs here rather than only in a migration.
     async create(input: NewClient): Promise<ClientRecord> {
       const rows = await tx
         .insert(clients)

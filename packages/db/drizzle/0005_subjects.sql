@@ -51,12 +51,11 @@ ALTER TABLE user_credentials FORCE ROW LEVEL SECURITY;
 CREATE POLICY user_credentials_isolation ON user_credentials
   USING (realm_id = nullif(current_setting('app.realm_id', true), '')::uuid);
 
--- client_credentials (Task 14) issues a token whose `sub` is the client's
--- own service-account subject, and token_grants.subject_id will be NOT NULL
--- with a foreign key — so every confidential client needs a subject to
--- point at. This column cannot live in 0004_clients.sql: subjects did not
--- exist yet. Nullable because a public client has no service account;
--- Task 16's seed populates it for confidential clients, Task 14 reads it.
+-- The client_credentials grant issues a token whose `sub` is the client's own
+-- service-account subject, and token_grants.subject_id is NOT NULL with a
+-- foreign key — so every confidential client needs a subject to point at.
+-- This column cannot live in 0004_clients.sql: subjects did not exist yet.
+-- Nullable because a public client has no service account.
 ALTER TABLE clients ADD COLUMN service_subject_id uuid;
 ALTER TABLE clients ADD CONSTRAINT clients_service_subject_fk
   FOREIGN KEY (realm_id, service_subject_id) REFERENCES subjects(realm_id, id) ON DELETE SET NULL;

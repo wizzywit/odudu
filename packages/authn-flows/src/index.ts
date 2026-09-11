@@ -1,4 +1,4 @@
-// Cookie naming (Task 10, Step 1): __Host- requires Secure, Path=/, and no
+// Cookie naming: __Host- requires Secure, Path=/, and no
 // Domain attribute — which browsers enforce by rejecting the whole cookie if
 // the connection isn't HTTPS. The compose stack serves plain HTTP on :3000
 // today, so always emitting __Host- would silently break every local login.
@@ -13,11 +13,12 @@
 // TLS-provisioning work into this task for no security gain in a
 // single-developer local loop that talks to itself over loopback.
 //
-// Task 18's OpenID conformance spike must confirm this choice holds up
-// against the conformance suite, which may run over HTTP too.
+// The OpenID conformance run must confirm this choice holds up: the suite may
+// itself drive the server over plain HTTP.
 
-// This package produces only the cookie name. Task 12, when it actually sets
-// the header, must also set: HttpOnly (never readable from script), SameSite
+// This package produces only the cookie name. Whoever sets the header — the
+// login handler behind /authorize — must also set: HttpOnly (never readable
+// from script), SameSite
 // (Lax at minimum, to survive the top-level redirect back from /authorize),
 // Path=/ (required by __Host- when TLS is on, and kept the same in the
 // fallback so the two modes differ only in name and Secure), and Secure

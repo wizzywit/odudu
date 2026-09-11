@@ -46,14 +46,14 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     reply.header('x-request-id', request.id);
   });
 
-  // Registered here rather than by a route: Tasks 12 and 13 both need form
-  // bodies (/token) and cookies (the session established in Task 10), and
-  // plugin registration is an app-wide concern.
-  void app.register(formbody);
-  void app.register(cookie);
+  // Registered here rather than by a route: the token endpoint needs
+  // form-encoded bodies and the authorization endpoint needs the session
+  // cookie, and plugin registration is an app-wide concern.
+  app.register(formbody);
+  app.register(cookie);
 
   registerHealth(app, deps);
-  void app.register(oidcRoutes({ database: deps.database, ownerDatabase: deps.ownerDatabase }));
+  app.register(oidcRoutes({ database: deps.database, ownerDatabase: deps.ownerDatabase }));
 
   return app;
 }

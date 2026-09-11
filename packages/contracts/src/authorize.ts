@@ -1,8 +1,10 @@
 import { z } from 'zod';
 
 // The /authorize query schema (RFC 6749 §4.1.1, PKCE mandatory per this
-// phase's design). Structural shape only — Task 12 owns the ordering rules
-// (which failures render vs. redirect) that this schema cannot express.
+// phase's design). Structural shape only: the /authorize handler owns the
+// ordering rules — which failures render an error page and which redirect to
+// the client — because a schema cannot express that a check's position in the
+// sequence is what makes it safe.
 export const authorizeQuerySchema = z.object({
   response_type: z.string(),
   client_id: z.string(),

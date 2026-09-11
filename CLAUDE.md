@@ -46,6 +46,30 @@ Comments carry only what the code cannot express. No restating the obvious,
 no ceremony, no verbose block headers. Where no comment is needed, write
 none.
 
+Write for a reader who has never seen the plan that produced the code.
+**Never reference the development process from a comment** — no "Task 12",
+no "Step 3", no "the brief", no "finding 2", no phase-plan slot numbers.
+Those are scaffolding; they are meaningless six months later and actively
+misleading once the plan is archived. Name the thing instead: not "read by
+Task 14's grant" but "read by the client_credentials grant"; not "Task 16's
+seed populates it" but "populated when a confidential client is provisioned".
+
+Referring to a _durable_ artefact is fine and often useful: an RFC clause, an
+ADR number, a file path, a migration filename, a named subsystem.
+
+## Statements
+
+Call a function as `doThing()`. Never `void doThing()`.
+
+The `void` operator as a statement exists only to silence
+`@typescript-eslint/no-floating-promises`, and it silences it everywhere —
+including where a dropped promise is a real bug. If a call trips that rule,
+fix the cause: `await` it, return it, or, where a library's return value is
+deliberately thenable and leaving it unawaited is the documented usage, add
+that call to `allowForKnownSafeCalls` in `eslint.config.js` with a comment
+saying why it is safe. `fastify`'s `register` is there for exactly that
+reason.
+
 ## Layering
 
 Five functional layers, in the consoles and on the server alike:

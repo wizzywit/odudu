@@ -1,8 +1,8 @@
 import { type ClientRecord } from '#/schema/clients';
 
 // The comparison function is injected rather than imported: domain-realm must
-// not depend on domain-identity, and Task 9's Argon2id verifier is what the
-// server passes in.
+// not depend on domain-identity, which is where the Argon2id verifier lives.
+// The server wires the two together.
 export async function verifyClientSecret(
   client: ClientRecord,
   presented: string | null,

@@ -16,7 +16,7 @@ export const clients = pgTable('clients', {
   secretHash: text('secret_hash'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   // Nullable: a public client has no service account. Populated for
-  // confidential clients by Task 16's seed, read by Task 14's
+  // confidential clients when the client is provisioned, and read by the
   // client_credentials grant, whose issued token's `sub` is this subject.
   // Added in domain-identity's migration (0005), not here, because subjects
   // does not exist until that migration runs.
@@ -27,7 +27,7 @@ export const clients = pgTable('clients', {
 // may depend on no other layer) can reference the shape of a client without
 // depending on the repository that reads it. Deliberately has no
 // redirect_uris, grant_types or token_endpoint_auth_method: those are OAuth
-// vocabulary and live in protocol-oidc's client_oidc_config (Task 11).
+// vocabulary and live in protocol-oidc's client_oidc_config.
 export interface ClientRecord {
   id: string;
   realmId: string;

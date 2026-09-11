@@ -21,7 +21,16 @@ export default tseslint.config(
       },
     },
     rules: {
-      '@typescript-eslint/no-floating-promises': 'error',
+      '@typescript-eslint/no-floating-promises': [
+        'error',
+        {
+          // Fastify's register() returns the instance, which is thenable only
+          // so that `await app.register(...)` can force plugin readiness.
+          // Registration itself is deferred until listen()/ready(), so leaving
+          // the call unawaited is the ordinary usage, not a dropped promise.
+          allowForKnownSafeCalls: [{ from: 'package', package: 'fastify', name: 'register' }],
+        },
+      ],
       '@typescript-eslint/no-misused-promises': 'error',
       '@typescript-eslint/consistent-type-imports': 'error',
     },

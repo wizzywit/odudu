@@ -21,7 +21,8 @@ export const clientOidcConfig = pgTable('client_oidc_config', {
 }).enableRLS();
 
 // Redirect URIs and grant types are OAuth vocabulary; they live here rather
-// than on domain-realm's protocol-agnostic ClientRecord (Task 8).
+// than on domain-realm's protocol-agnostic ClientRecord, so that a second
+// protocol can add its own configuration table without touching the domain.
 export interface ClientOidcConfig {
   clientId: string;
   realmId: string;
