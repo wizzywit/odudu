@@ -2,6 +2,10 @@ import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
   { ignores: ['**/dist/**', '**/.turbo/**', '**/coverage/**', 'tests/boundaries/fixtures/**'] },
+  // A disable comment that no longer suppresses anything is a claim about the
+  // code that has quietly stopped being true; failing on it keeps the small
+  // number of live suppressions honest and reviewable.
+  { linterOptions: { reportUnusedDisableDirectives: 'error' } },
   tseslint.configs.strictTypeChecked,
   tseslint.configs.stylisticTypeChecked,
   {

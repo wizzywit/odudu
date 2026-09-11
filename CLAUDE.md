@@ -98,6 +98,13 @@ import each other.
 
 ## Non-negotiables
 
+- **No `any`.** Not as an annotation, not as a cast, not leaked in from an
+  untyped boundary such as `JSON.parse`. Use `unknown` and narrow it. The
+  `no-explicit-any` and `no-unsafe-*` rules enforce this, and
+  `tests/lint/no-any.test.ts` additionally fails the build if any source file
+  waives one of them with an inline `eslint-disable` — a lint rule anybody can
+  switch off in a comment is not a ban. If a third-party type genuinely forces
+  your hand, raise it rather than suppressing it.
 - Test-driven. Tests precede implementation.
 - Integration tests run against real PostgreSQL via Testcontainers, never a
   mock.
