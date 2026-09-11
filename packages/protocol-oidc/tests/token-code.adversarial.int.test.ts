@@ -57,6 +57,7 @@ let webApp: Client;
 let otherApp: Client;
 let spa: Client;
 let postApp: Client;
+let refreshApp: Client;
 let subjectId: string;
 
 async function setupTokenRealm(): Promise<void> {
@@ -152,6 +153,27 @@ async function setupTokenRealm(): Promise<void> {
       refreshTokenTtlSeconds: 1_209_600,
     });
     postApp = { clientId: 'post-app', dbId: postAppDbId, secret: 'postsecret' };
+
+    const refreshAppDbId = newId();
+    await tx.insert(clients).values({
+      id: refreshAppDbId,
+      realmId: REALM_ID,
+      clientId: 'refresh-app',
+      name: 'Refresh-capable app',
+      type: 'confidential',
+      secretHash: await hashPassword('refreshsecret'),
+    });
+    await clientOidcConfigRepository(tx).create({
+      clientId: refreshAppDbId,
+      realmId: REALM_ID,
+      redirectUris: [REDIRECT_URI],
+      grantTypes: ['authorization_code', 'refresh_token'],
+      tokenEndpointAuthMethod: 'client_secret_basic',
+      audiences: [AUDIENCE],
+      accessTokenTtlSeconds: 300,
+      refreshTokenTtlSeconds: 1_209_600,
+    });
+    refreshApp = { clientId: 'refresh-app', dbId: refreshAppDbId, secret: 'refreshsecret' };
 
     const key = await generateSigningKey('RS256', KEK);
     await tx.insert(signingKeys).values({
@@ -263,6 +285,26 @@ async function redeem(code: string, opts: RedeemOptions = {}): Promise<LightMyRe
   });
 }
 
+async function refreshWith(refreshToken: string, client: Client): Promise<LightMyRequestResponse> {
+  const form = new URLSearchParams();
+  form.set('grant_type', 'refresh_token');
+  form.set('refresh_token', refreshToken);
+
+  const headers: Record<string, string> = {
+    'content-type': 'application/x-www-form-urlencoded',
+  };
+  if (client.secret !== null) {
+    headers.authorization = `Basic ${Buffer.from(`${client.clientId}:${client.secret}`).toString('base64')}`;
+  }
+
+  return http.inject({
+    method: 'POST',
+    url: `/realms/${REALM}/protocol/openid-connect/token`,
+    payload: form.toString(),
+    headers,
+  });
+}
+
 function decodeSegment(segment: string): Record<string, unknown> {
   return JSON.parse(Buffer.from(segment, 'base64url').toString('utf8')) as Record<string, unknown>;
 }
@@ -352,11 +394,10 @@ describe('[RFC6749-4.1.2-02] authorization code replay', () => {
     expect(second.json<{ error: string }>().error).toBe('invalid_grant');
   });
 
-  // A refresh token is not issued by this grant in P1 (no refresh_tokens
-  // table exists yet), so revocation is proven directly against the grant
-  // row the first redemption created, rather than by attempting to use a
-  // refresh token that does not exist.
-  it('[RFC6749-4.1.2-04] revokes the grant issued by the first redemption', async () => {
+  // Proves the grant row is revoked, not merely the refresh token's own
+  // `used_at`/expiry columns — a necessary but not sufficient condition for
+  // the clause below, which is why it carries no RFC bracket id of its own.
+  it('revokes the grant issued by the first redemption', async () => {
     const { code, codeHash } = await issueCode();
     const first = await redeem(code);
     expect(first.statusCode).toBe(200);
@@ -367,6 +408,35 @@ describe('[RFC6749-4.1.2-02] authorization code replay', () => {
     expect(grantId).toBeTruthy();
     if (grantId === null) throw new Error('expected the first redemption to have a grant');
     expect(await grantRevokedAt(grantId)).not.toBeNull();
+  });
+
+  // The end-to-end proof RFC 6749 §4.1.2 actually asks for: not just that
+  // the grant row carries a `revoked_at`, but that a refresh token issued
+  // from the replayed code is genuinely unusable afterward.
+  it('[RFC6749-4.1.2-04] rejects the refresh token issued by the first redemption once the code is replayed', async () => {
+    const { code } = await issueCode({ client: refreshApp });
+    const first = await redeem(code, { as: refreshApp });
+    expect(first.statusCode).toBe(200);
+    const { refresh_token: refreshToken } = first.json<{ refresh_token?: string }>();
+    if (refreshToken === undefined)
+      throw new Error('expected the first redemption to issue a refresh token');
+
+    const replay = await redeem(code, { as: refreshApp });
+    expect(replay.statusCode).toBe(400);
+
+    const refreshAttempt = await refreshWith(refreshToken, refreshApp);
+    expect(refreshAttempt.statusCode).toBe(400);
+    expect(refreshAttempt.json<{ error: string }>().error).toBe('invalid_grant');
+  });
+});
+
+describe('authorization_code issuance for a client without the refresh_token grant', () => {
+  it('carries no refresh_token field in the token response', async () => {
+    const { code } = await issueCode();
+    const res = await redeem(code);
+    expect(res.statusCode).toBe(200);
+    const body = res.json<Record<string, unknown>>();
+    expect('refresh_token' in body).toBe(false);
   });
 });
 

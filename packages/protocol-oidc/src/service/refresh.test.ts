@@ -49,7 +49,7 @@ describe('generateRefreshToken / hashRefreshToken', () => {
 });
 
 describe('evaluateRefreshGrant', () => {
-  it('[RFC6749-6-03] permits a matching client with no requested scope, keeping the original scope', () => {
+  it('permits a matching client with no requested scope, keeping the original scope', () => {
     const decision = evaluateRefreshGrant(grant, client, subject, { requestedScope: '' });
     expect(decision).toEqual({ ok: true, scope: ['openid', 'profile'] });
   });

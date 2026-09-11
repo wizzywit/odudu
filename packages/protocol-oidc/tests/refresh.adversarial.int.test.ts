@@ -302,6 +302,27 @@ describe('[RFC6749-10.4-01] refresh token rotation and reuse detection', () => {
     expect(res.json<{ scope: string }>().scope).toBe('openid');
   });
 
+  // refresh_tokens has no scope column of its own — the rotated token's
+  // scope, when it is next presented, comes from the grant it belongs to,
+  // not from whatever was requested on the refresh that minted it. Narrow
+  // on the first refresh, then present the resulting token with no scope
+  // parameter and confirm it yields the grant's full original scope back,
+  // not the narrowed one.
+  it('[RFC6749-6-03] the rotated refresh token inherits the grant scope, not the narrowed request that minted it', async () => {
+    const { refreshToken: rt1 } = await issueInitialRefreshToken('openid profile');
+    const first = await refresh(rt1, { scope: 'openid' });
+    expect(first.statusCode).toBe(200);
+    const { refresh_token: rt2, scope: firstScope } = first.json<{
+      refresh_token: string;
+      scope: string;
+    }>();
+    expect(firstScope).toBe('openid');
+
+    const second = await refresh(rt2);
+    expect(second.statusCode).toBe(200);
+    expect(second.json<{ scope: string }>().scope).toBe('openid profile');
+  });
+
   it('refuses a refresh token whose subject was disabled since issue', async () => {
     const { refreshToken: rt1 } = await issueInitialRefreshToken();
     await disableSubject(subjectId);
