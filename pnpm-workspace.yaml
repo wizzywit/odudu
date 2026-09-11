@@ -15,3 +15,17 @@ allowBuilds:
 minimumReleaseAgeExclude:
   - '@types/node@24.13.4'
   - zod@4.6.1
+# @node-rs/argon2 ships a native .node binary as a platform-specific optional
+# dependency of packages/domain-identity, not of the workspace root or of
+# @odudu/server. pnpm's isolated linker would otherwise nest it under
+# packages/domain-identity/node_modules — several directories below where
+# Node's module resolution looks from a file under an image's /app — so a
+# bare `import '@node-rs/argon2'` couldn't resolve there without a
+# hand-written symlink. Hoisting it (and its per-platform sibling package)
+# to the root node_modules is what lets it resolve on its own.
+# verified: on this repo's pinned pnpm (12.3.4), this setting is read from
+# pnpm-workspace.yaml, not .npmrc — a plain .npmrc `public-hoist-pattern`
+# was silently ignored for workspace installs (confirmed empty
+# `publicHoistPattern` in the resulting node_modules/.modules.yaml).
+publicHoistPattern:
+  - '@node-rs/argon2*'
