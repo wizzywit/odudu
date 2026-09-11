@@ -47,31 +47,32 @@ Everything in P0's plan still binds. Repeated here because an implementer sees o
 
 ## Task budget
 
-| Task | Deliverable                                                     | Hours     |
-| ---- | --------------------------------------------------------------- | --------- |
-| 1    | `trace` tool + `rfc7636.md` clause table                        | 4–6       |
-| 2    | `rfc6749.md` + `rfc6750.md` clause tables                       | 5–6       |
-| 3    | `oidc-core.md` clause table                                     | 5–6       |
-| 4    | `oidc-discovery.md`, `rfc9068.md`, `rfc9207.md`, `jose.md`      | 4–6       |
-| 5    | The tenant-table guard: RLS made mechanical                     | 3–4       |
-| 6    | `crypto`: key storage, KEK encryption, JWKS assembly            | 5–6       |
-| 7    | `crypto`: signing, verification, algorithm-confusion defenses   | 4–6       |
-| 8    | `domain-realm`: clients                                         | 3–4       |
-| 9    | `domain-identity`: subjects, users, credentials, Argon2id       | 5–6       |
-| 10   | `authn-flows`: sessions and the persisted executor              | 5–6       |
-| 11   | `protocol-oidc`: `contracts`, discovery and JWKS endpoints      | 4–5       |
-| 12   | `protocol-oidc`: `/authorize` and the redirect boundary         | 5–6       |
-| 13   | `protocol-oidc`: `/token` — the pipeline, code + PKCE           | 6         |
-| 14   | Refresh rotation, family revocation, `client_credentials`       | 5–6       |
-| 15   | `/userinfo` and the claim mapper registry                       | 4–5       |
-| 16   | The bootstrap seed CLI                                          | 3–4       |
-| 17   | Adversarial suite consolidation; `smoke.sh` end-to-end exchange | 4–5       |
-| 18   | Conformance harness; `trace` strict mode; phase close           | 5–6       |
-|      | **Total**                                                       | **79–98** |
+| Task | Deliverable                                                     | Hours      |
+| ---- | --------------------------------------------------------------- | ---------- |
+| 1    | `trace` tool + `rfc7636.md` clause table                        | 4–6        |
+| 2    | `rfc6749.md` + `rfc6750.md` clause tables                       | 5–6        |
+| 3    | `oidc-core.md` clause table                                     | 5–6        |
+| 4    | `oidc-discovery.md`, `rfc9068.md`, `rfc9207.md`, `jose.md`      | 4–6        |
+| 5    | The tenant-table guard: RLS made mechanical                     | 3–4        |
+| 6    | `crypto`: key storage, KEK encryption, JWKS assembly            | 5–6        |
+| 7    | `crypto`: signing, verification, algorithm-confusion defenses   | 4–6        |
+| 8    | `domain-realm`: clients                                         | 3–4        |
+| 9    | `domain-identity`: subjects, users, credentials, Argon2id       | 5–6        |
+| 10   | `authn-flows`: sessions and the persisted executor              | 5–6        |
+| 11   | `protocol-oidc`: `contracts`, discovery and JWKS endpoints      | 4–5        |
+| 12   | `protocol-oidc`: `/authorize` and the redirect boundary         | 5–6        |
+| 13   | Login submission, code issuance, and the redirect back          | 5–6        |
+| 14   | `protocol-oidc`: `/token` — the pipeline, code + PKCE           | 6          |
+| 15   | Refresh rotation, family revocation, `client_credentials`       | 5–6        |
+| 16   | `/userinfo` and the claim mapper registry                       | 4–5        |
+| 17   | The bootstrap seed CLI                                          | 3–4        |
+| 18   | Adversarial suite consolidation; `smoke.sh` end-to-end exchange | 4–5        |
+| 19   | Conformance harness; `trace` strict mode; phase close           | 5–6        |
+|      | **Total**                                                       | **84–104** |
 
 The spec budgets P1 at 60–100 hours. This lands inside it, at the top. Tasks 1–4 are 18–24 hours of _reading_, which is the single largest uncertainty and also the phase's learning goal.
 
-Eighteen tasks rather than the spec's "roughly fifteen": the spec's items 2 and 9 were each written as "several increments", and this expands them.
+Nineteen tasks rather than the spec's "roughly fifteen": the spec's items 2 and 9 were each written as "several increments", and this expands them.
 
 ## Spikes
 
@@ -82,11 +83,11 @@ Eighteen tasks rather than the spec's "roughly fifteen": the spec's items 2 and 
 | 6     | Vitest's JSON reporter exposes full test titles `trace` can key on     | Task 1    | key on file+name pairs from a custom reporter       |
 | 4     | `jose` rejects `alg: none` and algorithm substitution under our config | Task 7    | hand-roll header checks before calling `jose`       |
 | 1     | `@node-rs/argon2` works when marked external to the tsup bundle        | Task 9    | the whole bundling path is reconsidered — escalate  |
-| 5     | Zod→ajv handles `/token`'s form-encoded body                           | Task 13   | validate with Zod directly at the route boundary    |
-| 2     | The conformance suite accepts an `http://` issuer for a local OP       | Task 18   | TLS in compose becomes part of Task 18              |
-| 3     | Config OP can be driven unattended through the suite's API             | Task 18   | Config OP joins Basic OP as a documented manual run |
+| 5     | Zod→ajv handles `/token`'s form-encoded body                           | Task 14   | validate with Zod directly at the route boundary    |
+| 2     | The conformance suite accepts an `http://` issuer for a local OP       | Task 19   | TLS in compose becomes part of Task 19              |
+| 3     | Config OP can be driven unattended through the suite's API             | Task 19   | Config OP joins Basic OP as a documented manual run |
 
-Spike 2 has a second consumer discovered while writing the walkthrough: **`__Host-` cookies require `Secure`, therefore HTTPS.** Task 10 must either serve HTTPS locally or accept a non-`__Host-` cookie name in development. That is the same TLS decision as spike 2, so Task 10 records the choice and Task 18 confirms it.
+Spike 2 has a second consumer discovered while writing the walkthrough: **`__Host-` cookies require `Secure`, therefore HTTPS.** Task 10 must either serve HTTPS locally or accept a non-`__Host-` cookie name in development. That is the same TLS decision as spike 2, so Task 10 records the choice and Task 19 confirms it.
 
 ## File Structure
 
@@ -605,7 +606,7 @@ Root `package.json` — add to `scripts`:
 
 Add `trace-report.json` to `.gitignore`.
 
-> **Why `trace` is not strict yet.** Every MUST is a `gap` on the day its table is written, so a strict gate would make Tasks 2–4 unmergeable. `ODUDU_TRACE_STRICT=1` is turned on permanently in Task 18, once the gap count is zero. Until then `trace` still fails the build on a dangling test id or a failing referenced test — the two failures that indicate the map is lying rather than incomplete.
+> **Why `trace` is not strict yet.** Every MUST is a `gap` on the day its table is written, so a strict gate would make Tasks 2–4 unmergeable. `ODUDU_TRACE_STRICT=1` is turned on permanently in Task 19, once the gap count is zero. Until then `trace` still fails the build on a dangling test id or a failing referenced test — the two failures that indicate the map is lying rather than incomplete.
 
 - [ ] **Step 13: Write `docs/protocols/rfc7636.md`**
 
@@ -668,7 +669,7 @@ assertionResults[].fullName before keying on it."
 **Interfaces:**
 
 - Consumes: the table format and status vocabulary from Task 1.
-- Produces: the `RFC6749-*` and `RFC6750-*` test ID namespaces that Tasks 12–15 fill in.
+- Produces: the `RFC6749-*` and `RFC6750-*` test ID namespaces that Tasks 12–16 fill in.
 
 - [ ] **Step 1: Write `docs/protocols/rfc6749.md`**
 
@@ -790,7 +791,7 @@ Everything else gets one `n/a` row: `n/a: implemented by jose 6.2.12, not by Odu
 pnpm trace
 ```
 
-Write the reported counts into the commit message. This is the number Task 18 must drive to zero gaps.
+Write the reported counts into the commit message. This is the number Task 19 must drive to zero gaps.
 
 - [ ] **Step 6: Verify and commit**
 
@@ -1930,7 +1931,7 @@ inside the built container image rather than on the host.
 - **(a)** Always `__Host-<realm>-session`, and serve HTTPS locally from this task onward.
 - **(b)** `__Host-<realm>-session` when TLS is on, otherwise `<realm>-session` with `Secure` off, plus a boot-time warning whenever the fallback is active.
 
-Recommended: **(b)**. It keeps the production shape correct, keeps local development frictionless, and makes the weaker mode noisy rather than silent. Whichever is chosen, Task 18 confirms it against the conformance suite.
+Recommended: **(b)**. It keeps the production shape correct, keeps local development frictionless, and makes the weaker mode noisy rather than silent. Whichever is chosen, Task 19 confirms it against the conformance suite.
 
 Write the unit test for the choice:
 
@@ -2138,7 +2139,7 @@ Expected: FAIL, modules not found.
 
 - [ ] **Step 3: Register the Fastify plugins**
 
-Add `@fastify/formbody@9.0.0` and `@fastify/cookie@11.1.2` to `apps/server/package.json` and register them in `app.ts`. Tasks 12 and 13 need both, and plugin registration is an `app.ts` concern rather than a route's.
+Add `@fastify/formbody@9.0.0` and `@fastify/cookie@11.1.2` to `apps/server/package.json` and register them in `app.ts`. Tasks 12 and 14 need both, and plugin registration is an `app.ts` concern rather than a route's.
 
 - [ ] **Step 4: Implement discovery and JWKS**
 
@@ -2375,7 +2376,263 @@ added quietly.
 
 ---
 
-### Task 13: `/token` — the pipeline, and the authorization code grant
+### Task 13: The login submission, code issuance, and the redirect back
+
+Task 12 ends with `/authorize` rendering a login form. This task completes the
+journey: the form's POST, the SSO session cookie, the authorization code, and
+the 302 that carries it home. Without it nothing ever produces a `code`, and
+`/token` has nothing to exchange.
+
+**Files:**
+
+- Create: `packages/protocol-oidc/src/schema/authorization-codes.ts`, `src/repository/codes.ts`
+- Create: `packages/protocol-oidc/src/service/authorization-code.ts`, `src/service/authorization-code.test.ts`
+- Create: `packages/protocol-oidc/src/usecase/login-submission.ts`
+- Create: `packages/protocol-oidc/src/view/routes/login.ts`
+- Create: `packages/protocol-oidc/tests/login.adversarial.int.test.ts`
+- Create: `packages/db/drizzle/0008_authorization_codes.sql`
+- Modify: `packages/protocol-oidc/src/view/routes/authorize.ts` (the form it renders must post here and carry a CSRF token)
+
+**Interfaces:**
+
+- Consumes: `advance`, `establishSession`, `loadPendingRequest`, `sessionCookieName` (`@odudu/authn-flows`); `ClientOidcConfig` (Task 11).
+- Produces: `issueAuthorizationCode(tx, input): Promise<{ code: string }>` — returns the raw code once; only its hash is stored.
+- Produces: `authorizationCodeRepository(tx)` with `create(...)`. The atomic single-use consume lands in Task 14, which owns redemption.
+- Produces: `AuthorizationCodeRecord` in `schema/`, carrying every value `/token` must check the redemption against.
+
+**The endpoint path**
+
+`POST /realms/{realm}/login-actions/authenticate`
+
+Deliberately **not** under `/protocol/openid-connect/`. That namespace is the
+OIDC wire protocol, and this is our own login UI, which no specification
+describes and no client library calls. Keycloak draws the same line. Record
+this in a comment so nobody "tidies" it into the protocol namespace later.
+
+- [ ] **Step 1: Write the migration**
+
+`packages/db/drizzle/0008_authorization_codes.sql`:
+
+```sql
+CREATE TABLE authorization_codes (
+  code_hash             text PRIMARY KEY,
+  realm_id              uuid NOT NULL REFERENCES realms(id) ON DELETE CASCADE,
+  client_id             uuid NOT NULL,
+  subject_id            uuid NOT NULL,
+  redirect_uri          text NOT NULL,
+  scope                 text NOT NULL,
+  nonce                 text,
+  code_challenge        text NOT NULL,
+  code_challenge_method text NOT NULL,
+  auth_time             timestamptz NOT NULL,
+  expires_at            timestamptz NOT NULL,
+  consumed_at           timestamptz,
+  grant_id              uuid,
+  CONSTRAINT authorization_codes_method_check CHECK (code_challenge_method = 'S256'),
+  CONSTRAINT authorization_codes_client_fk FOREIGN KEY (realm_id, client_id)
+    REFERENCES clients(realm_id, id) ON DELETE CASCADE,
+  CONSTRAINT authorization_codes_subject_fk FOREIGN KEY (realm_id, subject_id)
+    REFERENCES subjects(realm_id, id) ON DELETE CASCADE
+);
+
+ALTER TABLE authorization_codes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE authorization_codes FORCE ROW LEVEL SECURITY;
+
+CREATE POLICY authorization_codes_isolation ON authorization_codes
+  USING (realm_id = nullif(current_setting('app.realm_id', true), '')::uuid);
+```
+
+The primary key is the **hash**. The raw code is never stored, so a backup, a
+log, or a SQL injection elsewhere yields nothing redeemable. `grant_id` is
+deliberately left without a foreign key — it is filled in during redemption,
+after the grant row exists, and a constraint there buys no safety.
+
+Run `npx vitest run --project integration packages/db/tests/tenant-tables.int.test.ts`
+afterwards; it fails any table in `public` without `ENABLE` + `FORCE ROW LEVEL
+SECURITY` and a policy.
+
+- [ ] **Step 2: Write the failing code-issuance test**
+
+`packages/protocol-oidc/src/service/authorization-code.test.ts`:
+
+```ts
+describe('[RFC6749-4.1.2-03] the authorization code is opaque and stored hashed', () => {
+  it('returns a high-entropy code', () => {
+    const code = generateAuthorizationCode();
+    expect(code).toMatch(/^[A-Za-z0-9_-]{43,}$/);
+  });
+
+  it('returns a different code every time', () => {
+    expect(generateAuthorizationCode()).not.toEqual(generateAuthorizationCode());
+  });
+
+  it('hashes the code so the stored value cannot be replayed', () => {
+    const code = generateAuthorizationCode();
+    const hash = hashAuthorizationCode(code);
+    expect(hash).not.toContain(code);
+    expect(hashAuthorizationCode(code)).toEqual(hash);
+  });
+});
+```
+
+- [ ] **Step 3: Run it, watch it fail, implement**
+
+Run: `npx vitest run packages/protocol-oidc/src/service/authorization-code.test.ts` — expect FAIL, module not found.
+
+Generate with `randomBytes(32).toString('base64url')` and hash with SHA-256.
+A code lives 60 seconds: it is redeemed by a backend within a second or two of
+the redirect, and a short window shrinks how long an intercepted code is worth
+anything.
+
+- [ ] **Step 4: Write the failing login-submission tests**
+
+`packages/protocol-oidc/tests/login.adversarial.int.test.ts`. These run at the
+wire level because that is where the defects live:
+
+```ts
+describe('[OIDC-CORE-3.1.2.5-01] a successful login produces a code and a redirect', () => {
+  it('redirects to the registered redirect_uri with code, state and iss', async () => {
+    const res = await submitLogin({ username: 'ada', password: PASSWORD });
+    expect(res.statusCode).toBe(302);
+    const location = new URL(res.headers.location as string);
+    expect(location.origin + location.pathname).toBe('https://app.example/callback');
+    expect(location.searchParams.get('code')).toBeTruthy();
+    expect(location.searchParams.get('state')).toBe('xyz 123');
+    expect(location.searchParams.get('iss')).toBe(`${ISSUER}`);
+  });
+
+  it('[RFC9207-2-01] the iss parameter equals the discovery issuer exactly', async () => {
+    const doc = (await app.inject({ url: `/realms/acme/.well-known/openid-configuration` })).json();
+    const location = new URL((await submitLogin(GOOD)).headers.location as string);
+    expect(location.searchParams.get('iss')).toBe(doc.issuer);
+  });
+
+  it('never puts the raw code in the database', async () => {
+    const code = new URL((await submitLogin(GOOD)).headers.location as string).searchParams.get(
+      'code',
+    );
+    const rows = await allAuthorizationCodes();
+    expect(rows.map((r) => r.code_hash)).not.toContain(code);
+    expect(rows).toHaveLength(1);
+  });
+});
+
+describe('[OIDC-CORE-3.1.2.1-05] the login form cannot be driven cross-site', () => {
+  it('rejects a submission with no CSRF token', async () => {
+    expect((await submitLogin({ ...GOOD, csrf: null })).statusCode).toBe(400);
+  });
+
+  it('rejects a submission carrying another session"s CSRF token', async () => {
+    expect((await submitLogin({ ...GOOD, csrf: await csrfForAnotherSession() })).statusCode).toBe(
+      400,
+    );
+  });
+});
+
+describe('[OIDC-CORE-3.1.2.1-06] the parked request is what binds the code', () => {
+  it('ignores scope and redirect_uri resubmitted with the form', async () => {
+    const res = await submitLogin({
+      ...GOOD,
+      extra: { scope: 'openid admin', redirect_uri: 'https://evil.example/cb' },
+    });
+    const location = new URL(res.headers.location as string);
+    expect(location.origin).toBe('https://app.example');
+    expect(await scopeOfIssuedCode()).toBe('openid profile');
+  });
+});
+
+describe('the session cookie', () => {
+  it('is HttpOnly, SameSite and Path-scoped', async () => {
+    const cookie = (await submitLogin(GOOD)).headers['set-cookie'] as string;
+    expect(cookie).toMatch(/HttpOnly/i);
+    expect(cookie).toMatch(/SameSite=Lax/i);
+    expect(cookie).toMatch(/Path=\//i);
+  });
+
+  it('carries Secure and the __Host- prefix only when TLS is on', async () => {
+    expect(await cookieWithTls(true)).toMatch(/^__Host-acme-session=.*Secure/);
+    expect(await cookieWithTls(false)).not.toMatch(/Secure/);
+    expect(await cookieWithTls(false)).toMatch(/HttpOnly/i);
+  });
+});
+
+describe('failed and abandoned logins', () => {
+  it('re-challenges on a wrong password without issuing a code', async () => {
+    const res = await submitLogin({ ...GOOD, password: 'wrong' });
+    expect(res.statusCode).toBe(200);
+    expect(await countAuthorizationCodes()).toBe(0);
+  });
+
+  it('fails an expired authentication session without issuing a code', async () => {
+    clock.advance(31 * 60_000);
+    expect((await submitLogin(GOOD)).statusCode).toBe(400);
+    expect(await countAuthorizationCodes()).toBe(0);
+  });
+});
+```
+
+The resubmitted-`scope` test is the one that proves the parking from
+`@odudu/authn-flows` is actually load-bearing. If it passes trivially, check
+that the handler really is reading `loadPendingRequest` rather than the body.
+
+- [ ] **Step 5: Run them, watch them fail, implement**
+
+The handler, in order:
+
+1. Read the authentication-session id and the CSRF token from the request; reject a mismatch before anything else.
+2. `advance(tx, authSessionId, { username, password })`.
+3. On `challenge`, re-render the form; on `failure`, render an error. Neither issues anything.
+4. On `success`: `establishSession(...)`, set the cookie with the attributes `@odudu/authn-flows` documents — `HttpOnly`, `SameSite=Lax`, `Path=/`, and `Secure` plus the `__Host-` prefix when TLS is on.
+5. `loadPendingRequest(tx, authSessionId)` — **the only source** of `scope`, `redirect_uri`, `nonce`, `state` and `code_challenge`. Never the request body.
+6. Issue the code, binding all of the above plus `client_id`, `subject_id` and `auth_time`.
+7. 302 to the parked `redirect_uri` with `code`, `state` and `iss`.
+
+`SameSite=Lax` rather than `Strict`: the browser arrives at `/authorize` by a
+top-level redirect from the client, and `Strict` would drop the session cookie
+on that navigation, breaking single sign-on.
+
+- [ ] **Step 6: Add the realm probe and mark the clause rows**
+
+Add one `expectRealmIsolation` call for `authorization_codes`, imported from
+`@odudu/db/testing`. Then mark the rows this task covers in
+`docs/protocols/rfc6749.md`, `oidc-core.md` and `rfc9207.md` with the test IDs
+your tests carry, and confirm `pnpm trace`'s covered count rises by exactly
+that many.
+
+- [ ] **Step 7: Verify and commit**
+
+```bash
+npx vitest run packages/protocol-oidc/src
+npx vitest run --project integration packages/protocol-oidc
+npx vitest run --project integration packages/db/tests/tenant-tables.int.test.ts
+pnpm trace
+pnpm verify
+```
+
+```bash
+git add packages/protocol-oidc packages/db docs/protocols
+git commit -m "Issue authorization codes and complete the redirect back"
+```
+
+Full message body:
+
+```
+The login form posts to a path outside the OIDC namespace, because it is our
+own UI rather than anything a specification describes or a client library
+calls.
+
+Every value bound to the code comes from the request parked server-side at
+/authorize, never from the form body — a test resubmits a widened scope and an
+attacker-controlled redirect_uri and asserts both are ignored.
+
+Codes are stored as a SHA-256 hash, so a backup or a leaked log yields nothing
+redeemable, and they live 60 seconds because a backend redeems them within a
+second or two of the redirect.
+```
+
+---
+
+### Task 14: `/token` — the pipeline, and the authorization code grant
 
 The centrepiece. Six of the nine adversarial corpus entries live here.
 
@@ -2384,9 +2641,10 @@ The centrepiece. Six of the nine adversarial corpus entries live here.
 - Create: `packages/protocol-oidc/src/service/pkce.ts`, `src/service/pkce.test.ts`
 - Create: `src/service/scope.ts`, `src/service/scope.test.ts`, `src/service/errors.ts`
 - Create: `src/usecase/token-issuance.ts`, `src/view/routes/token.ts`
-- Create: `src/repository/{codes,grants}.ts`, `src/schema/{authorization-codes,token-grants}.ts`
+- Create: `src/repository/grants.ts`, `src/schema/token-grants.ts`
+- Modify: `src/repository/codes.ts` — add the atomic single-use consume alongside the create the preceding task added
 - Create: `packages/protocol-oidc/tests/token-code.adversarial.int.test.ts`
-- Create: `packages/db/drizzle/0008_codes_and_grants.sql`
+- Create: `packages/db/drizzle/0009_token_grants.sql`
 
 **Interfaces:**
 
@@ -2522,7 +2780,7 @@ All four terms are written now even though two are inert in P1. P5's attenuation
 
 - [ ] **Step 6: Write the migration**
 
-`packages/db/drizzle/0008_codes_and_grants.sql`:
+`packages/db/drizzle/0009_token_grants.sql`:
 
 ```sql
 CREATE TABLE token_grants (
@@ -2541,37 +2799,13 @@ CREATE TABLE token_grants (
     REFERENCES subjects(realm_id, id) ON DELETE CASCADE
 );
 
-CREATE TABLE authorization_codes (
-  code_hash             text PRIMARY KEY,
-  realm_id              uuid NOT NULL REFERENCES realms(id) ON DELETE CASCADE,
-  client_id             uuid NOT NULL,
-  subject_id            uuid NOT NULL,
-  redirect_uri          text NOT NULL,
-  scope                 text NOT NULL,
-  nonce                 text,
-  code_challenge        text NOT NULL,
-  code_challenge_method text NOT NULL,
-  auth_time             timestamptz NOT NULL,
-  expires_at            timestamptz NOT NULL,
-  consumed_at           timestamptz,
-  grant_id              uuid,
-  CONSTRAINT authorization_codes_method_check CHECK (code_challenge_method = 'S256'),
-  CONSTRAINT authorization_codes_client_fk FOREIGN KEY (realm_id, client_id)
-    REFERENCES clients(realm_id, id) ON DELETE CASCADE
-);
-
 ALTER TABLE token_grants ENABLE ROW LEVEL SECURITY;
 ALTER TABLE token_grants FORCE ROW LEVEL SECURITY;
 CREATE POLICY token_grants_isolation ON token_grants
   USING (realm_id = nullif(current_setting('app.realm_id', true), '')::uuid);
-
-ALTER TABLE authorization_codes ENABLE ROW LEVEL SECURITY;
-ALTER TABLE authorization_codes FORCE ROW LEVEL SECURITY;
-CREATE POLICY authorization_codes_isolation ON authorization_codes
-  USING (realm_id = nullif(current_setting('app.realm_id', true), '')::uuid);
 ```
 
-The primary key is the hash: the raw code is never stored, so it cannot be read out of a backup or a log.
+`authorization_codes` is created by the preceding task, which issues the codes; this migration adds only the grant table they are redeemed into. `token_grants_realm_id_unique` exists so the refresh-token table can carry a composite foreign key on `(realm_id, grant_id)`.
 
 - [ ] **Step 7: Write the failing atomic-consumption test**
 
@@ -2759,14 +2993,14 @@ own implementation.
 
 ---
 
-### Task 14: Refresh rotation, family revocation, and `client_credentials`
+### Task 15: Refresh rotation, family revocation, and `client_credentials`
 
 **Files:**
 
 - Create: `packages/protocol-oidc/src/service/refresh.ts`, `src/service/refresh.test.ts`
 - Create: `src/repository/refresh.ts`, `src/schema/refresh-tokens.ts`
 - Create: `packages/protocol-oidc/tests/refresh.adversarial.int.test.ts`, `tests/client-credentials.int.test.ts`
-- Create: `packages/db/drizzle/0009_refresh_tokens.sql`
+- Create: `packages/db/drizzle/0010_refresh_tokens.sql`
 
 **Interfaces:**
 
@@ -2920,7 +3154,7 @@ to avoid re-involving, and nobody authenticated.
 
 ---
 
-### Task 15: `/userinfo` and the claim mapper registry
+### Task 16: `/userinfo` and the claim mapper registry
 
 **Files:**
 
@@ -3041,7 +3275,7 @@ strings end up in history, Referer headers and access logs.
 
 ---
 
-### Task 16: The bootstrap seed CLI
+### Task 17: The bootstrap seed CLI
 
 **Files:**
 
@@ -3116,7 +3350,7 @@ It is idempotent: smoke.sh and CI both run it more than once.
 
 ---
 
-### Task 17: Adversarial suite consolidation and the container end-to-end exchange
+### Task 18: Adversarial suite consolidation and the container end-to-end exchange
 
 **Files:**
 
@@ -3230,7 +3464,7 @@ them. Also closed P0's deferred ON_ERROR_STOP item in the same file.
 
 ---
 
-### Task 18: The conformance harness, strict traceability, and the phase gate
+### Task 19: The conformance harness, strict traceability, and the phase gate
 
 **Files:**
 
@@ -3327,15 +3561,15 @@ build. "P1 is done" is a number CI computes, not a judgement.
 
 Run against the spec after the plan was written.
 
-**1. Spec coverage.** Every decision in spec section 2 maps to a task: 2.1 clients forward (Task 8, 11), 2.2 and 2.3 traced set (Tasks 1–4), 2.4 flow executor and Argon2 (Tasks 9, 10), 2.5 RFC 9068 tokens (Tasks 7, 13), 2.6 seed CLI (Task 16), 2.7 multi-key shape (Task 6), 2.8 conformance (Task 18). Section 3's six packages are Tasks 6–12. All eleven tables in section 4 appear in migrations 0003–0009. The eight pipeline stages are Task 13. Section 6's tooling is Task 1. Section 7's nine corpus entries are distributed across Tasks 7, 12, 13, 14, 15 and 17. All eight exit criteria are checked individually in Task 18 Step 7.
+**1. Spec coverage.** Every decision in spec section 2 maps to a task: 2.1 clients forward (Task 8, 11), 2.2 and 2.3 traced set (Tasks 1–4), 2.4 flow executor and Argon2 (Tasks 9, 10), 2.5 RFC 9068 tokens (Tasks 7, 14), 2.6 seed CLI (Task 17), 2.7 multi-key shape (Task 6), 2.8 conformance (Task 19). Section 3's six packages are Tasks 6–12. All eleven tables in section 4 appear in migrations 0003–0009. The eight pipeline stages are Task 14. Section 6's tooling is Task 1. Section 7's nine corpus entries are distributed across Tasks 7, 12, 14, 15, 16 and 18. All eight exit criteria are checked individually in Task 19 Step 7.
 
 **2. Gaps found and closed during review.**
 
-- The spec's §7 lists audience confusion and cross-realm leakage among the corpus entries, but neither had a natural home in an endpoint task. Task 17 was given both explicitly rather than leaving them to fall between tasks.
+- The spec's §7 lists audience confusion and cross-realm leakage among the corpus entries, but neither had a natural home in an endpoint task. Task 18 was given both explicitly rather than leaving them to fall between tasks.
 - `client_oidc_config` was in the file structure but had no migration. Added to Task 11.
-- Nothing created the first signing key, so a seeded realm could not issue a token. Added to Task 16's first test.
-- The spec's §9 spike table says spike 5 (Zod→ajv on form bodies) hosts in Task 13, but Task 11 registers `@fastify/formbody` first. The spike stays in Task 13, where the first form-encoded _body schema_ is written; Task 11 only registers the plugin.
+- Nothing created the first signing key, so a seeded realm could not issue a token. Added to Task 17's first test.
+- The spec's §9 spike table says spike 5 (Zod→ajv on form bodies) hosts in Task 14, but Task 11 registers `@fastify/formbody` first. The spike stays in Task 14, where the first form-encoded _body schema_ is written; Task 11 only registers the plugin.
 
-**3. Type consistency.** `RealmScopedDatabase`, `withRealm` and `createAppRole` match the existing exports in `packages/db/src/index.ts` and `packages/testkit/src/index.ts` — verified by reading those files, not assumed. `SigningKeyRecord` is defined in Task 6 and consumed with the same member names in Tasks 7, 11 and 15. `ClientRecord` (Task 8) and `ClientOidcConfig` (Task 11) are separate types throughout, never conflated. `PendingRequest` is defined in Task 10 and produced by Task 12's `AuthorizeOutcome`. `AuthenticatorResult` uses `kind` as its discriminant, matching `AuthorizeOutcome` and `RotationOutcome`.
+**3. Type consistency.** `RealmScopedDatabase`, `withRealm` and `createAppRole` match the existing exports in `packages/db/src/index.ts` and `packages/testkit/src/index.ts` — verified by reading those files, not assumed. `SigningKeyRecord` is defined in Task 6 and consumed with the same member names in Tasks 7, 11 and 16. `ClientRecord` (Task 8) and `ClientOidcConfig` (Task 11) are separate types throughout, never conflated. `PendingRequest` is defined in Task 10 and produced by Task 12's `AuthorizeOutcome`. `AuthenticatorResult` uses `kind` as its discriminant, matching `AuthorizeOutcome` and `RotationOutcome`.
 
-**4. One deliberate inconsistency, flagged rather than fixed.** Task 8's `verifyClientSecret` takes its comparison function by injection because `domain-realm` must not import `domain-identity`. An implementer reading Task 8 alone may find the third parameter odd; the comment in the code says why, and Task 13 is where the real Argon2id comparator is passed in.
+**4. One deliberate inconsistency, flagged rather than fixed.** Task 8's `verifyClientSecret` takes its comparison function by injection because `domain-realm` must not import `domain-identity`. An implementer reading Task 8 alone may find the third parameter odd; the comment in the code says why, and Task 14 is where the real Argon2id comparator is passed in.
