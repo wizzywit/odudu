@@ -24,6 +24,8 @@
     "fastify": "5.12.3"
   },
   "devDependencies": {
+    "@fastify/formbody": "9.0.0",
+    "@odudu/domain-identity": "workspace:*",
     "@odudu/testkit": "workspace:*",
     "vitest": "5.0.0"
   }
