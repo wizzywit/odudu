@@ -15,8 +15,17 @@ function toRecord(row: typeof clientOidcConfig.$inferSelect): ClientOidcConfig {
     audiences: row.audiences,
     accessTokenTtlSeconds: row.accessTokenTtlSeconds,
     refreshTokenTtlSeconds: row.refreshTokenTtlSeconds,
+    clientCredentialsScopes: row.clientCredentialsScopes,
   };
 }
+
+// `clientCredentialsScopes` defaults to none: every existing caller that
+// predates the client_credentials grant creates a config without deciding
+// on one, and an empty allowlist is the safe default for a client no one
+// has yet configured for it.
+export type NewClientOidcConfig = Omit<ClientOidcConfig, 'clientCredentialsScopes'> & {
+  clientCredentialsScopes?: string[];
+};
 
 export function clientOidcConfigRepository(tx: RealmScopedDatabase) {
   return {
@@ -32,7 +41,7 @@ export function clientOidcConfigRepository(tx: RealmScopedDatabase) {
       return row === undefined ? null : toRecord(row);
     },
 
-    async create(input: ClientOidcConfig): Promise<ClientOidcConfig> {
+    async create(input: NewClientOidcConfig): Promise<ClientOidcConfig> {
       const rows = await tx
         .insert(clientOidcConfig)
         .values({
@@ -44,6 +53,7 @@ export function clientOidcConfigRepository(tx: RealmScopedDatabase) {
           audiences: input.audiences,
           accessTokenTtlSeconds: input.accessTokenTtlSeconds,
           refreshTokenTtlSeconds: input.refreshTokenTtlSeconds,
+          clientCredentialsScopes: input.clientCredentialsScopes ?? [],
         })
         .returning();
       const row = rows[0];

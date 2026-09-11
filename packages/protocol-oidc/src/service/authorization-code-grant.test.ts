@@ -15,6 +15,7 @@ const client: ClientRecord = {
   type: 'confidential',
   secretHash: 'hashed:secret',
   createdAt: new Date('2026-01-01T00:00:00.000Z'),
+  serviceSubjectId: null,
 };
 
 const record: AuthorizationCodeRecord = {

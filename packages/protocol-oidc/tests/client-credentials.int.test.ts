@@ -1,0 +1,232 @@
+import { generateSigningKey, signingKeys } from '@odudu/crypto';
+import { hashPassword, subjectRepository } from '@odudu/domain-identity';
+import {
+  createDatabase,
+  MIGRATIONS_DIR,
+  realms,
+  runMigrations,
+  withRealm,
+  type DatabaseHandle,
+  type RealmScopedDatabase,
+} from '@odudu/db';
+import { clients } from '@odudu/domain-realm';
+import { newId } from '@odudu/kernel';
+import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
+import formbody from '@fastify/formbody';
+import Fastify, { type FastifyInstance, type LightMyRequestResponse } from 'fastify';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { oidcRoutes } from '#/index';
+import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
+
+let containerHandle: TestDatabase | undefined;
+let ownerHandle: DatabaseHandle | undefined;
+let appHandle: DatabaseHandle | undefined;
+let httpApp: FastifyInstance | undefined;
+
+let container: TestDatabase;
+let owner: DatabaseHandle;
+let app: DatabaseHandle;
+let http: FastifyInstance;
+
+let REALM: string;
+let REALM_ID: string;
+
+const AUDIENCE = 'https://api.example';
+const KEK = Buffer.alloc(32, 11);
+
+let batchJobServiceSubjectId: string;
+
+async function setupRealm(): Promise<void> {
+  REALM = `client-credentials-${newId()}`;
+  REALM_ID = newId();
+
+  await withRealm(app.db, REALM_ID, async (tx: RealmScopedDatabase) => {
+    await tx.insert(realms).values({ id: REALM_ID, name: REALM });
+
+    const serviceSubject = await subjectRepository(tx).create({
+      realmId: REALM_ID,
+      type: 'service',
+    });
+    batchJobServiceSubjectId = serviceSubject.id;
+
+    const batchJobDbId = newId();
+    await tx.insert(clients).values({
+      id: batchJobDbId,
+      realmId: REALM_ID,
+      clientId: 'batch-job',
+      name: 'Batch job',
+      type: 'confidential',
+      secretHash: await hashPassword('s3cret'),
+      serviceSubjectId: batchJobServiceSubjectId,
+    });
+    await clientOidcConfigRepository(tx).create({
+      clientId: batchJobDbId,
+      realmId: REALM_ID,
+      redirectUris: [],
+      grantTypes: ['client_credentials'],
+      tokenEndpointAuthMethod: 'client_secret_basic',
+      audiences: [AUDIENCE],
+      accessTokenTtlSeconds: 300,
+      refreshTokenTtlSeconds: 1_209_600,
+      clientCredentialsScopes: ['reports:read'],
+    });
+
+    // A confidential client whose grant_types claims client_credentials but
+    // which was never provisioned with a service_subject_id — the
+    // configuration error the grant must refuse at request time rather than
+    // silently minting a token with no one behind it.
+    const unprovisionedDbId = newId();
+    await tx.insert(clients).values({
+      id: unprovisionedDbId,
+      realmId: REALM_ID,
+      clientId: 'unprovisioned-job',
+      name: 'Unprovisioned job',
+      type: 'confidential',
+      secretHash: await hashPassword('anothersecret'),
+    });
+    await clientOidcConfigRepository(tx).create({
+      clientId: unprovisionedDbId,
+      realmId: REALM_ID,
+      redirectUris: [],
+      grantTypes: ['client_credentials'],
+      tokenEndpointAuthMethod: 'client_secret_basic',
+      audiences: [AUDIENCE],
+      accessTokenTtlSeconds: 300,
+      refreshTokenTtlSeconds: 1_209_600,
+      clientCredentialsScopes: ['reports:read'],
+    });
+
+    const spaDbId = newId();
+    await tx.insert(clients).values({
+      id: spaDbId,
+      realmId: REALM_ID,
+      clientId: 'spa',
+      name: 'Public SPA',
+      type: 'public',
+      secretHash: null,
+    });
+    await clientOidcConfigRepository(tx).create({
+      clientId: spaDbId,
+      realmId: REALM_ID,
+      redirectUris: ['https://app.example/callback'],
+      grantTypes: ['client_credentials'],
+      tokenEndpointAuthMethod: 'none',
+      audiences: [AUDIENCE],
+      accessTokenTtlSeconds: 300,
+      refreshTokenTtlSeconds: 1_209_600,
+      clientCredentialsScopes: ['reports:read'],
+    });
+
+    const key = await generateSigningKey('RS256', KEK);
+    await tx.insert(signingKeys).values({
+      id: newId(),
+      realmId: REALM_ID,
+      kid: key.kid,
+      alg: key.alg,
+      status: 'active',
+      publicJwk: key.publicJwk,
+      privateJwkEncrypted: key.privateJwkEncrypted,
+    });
+  });
+}
+
+beforeAll(async () => {
+  containerHandle = await startTestDatabase();
+  container = containerHandle;
+
+  ownerHandle = createDatabase(container.adminUrl);
+  owner = ownerHandle;
+  await runMigrations(owner.db, MIGRATIONS_DIR);
+
+  const appUrl = await createAppRole(container.adminUrl);
+  appHandle = createDatabase(appUrl, { max: 5 });
+  app = appHandle;
+
+  await setupRealm();
+
+  http = Fastify();
+  await http.register(formbody);
+  await http.register(oidcRoutes({ database: app, ownerDatabase: owner, kek: KEK }));
+  await http.ready();
+  httpApp = http;
+}, 120_000);
+
+afterAll(async () => {
+  await httpApp?.close();
+  await appHandle?.close();
+  await ownerHandle?.close();
+  await containerHandle?.stop();
+});
+
+async function clientCredentials(
+  clientId: string,
+  secret: string | null,
+  scope?: string,
+): Promise<LightMyRequestResponse> {
+  const form = new URLSearchParams();
+  form.set('grant_type', 'client_credentials');
+  if (scope !== undefined) form.set('scope', scope);
+
+  const headers: Record<string, string> = {
+    'content-type': 'application/x-www-form-urlencoded',
+  };
+  if (secret === null) {
+    form.set('client_id', clientId);
+  } else {
+    headers.authorization = `Basic ${Buffer.from(`${clientId}:${secret}`).toString('base64')}`;
+  }
+
+  return http.inject({
+    method: 'POST',
+    url: `/realms/${REALM}/protocol/openid-connect/token`,
+    payload: form.toString(),
+    headers,
+  });
+}
+
+function decodePayload(jwt: string): Record<string, unknown> {
+  const segment = jwt.split('.')[1];
+  if (segment === undefined) throw new Error('expected a JWT payload segment');
+  return JSON.parse(Buffer.from(segment, 'base64url').toString('utf8')) as Record<string, unknown>;
+}
+
+describe('[RFC6749-4.4-01] client credentials grant', () => {
+  it('issues an access token for a confidential client', async () => {
+    const res = await clientCredentials('batch-job', 's3cret', 'reports:read');
+    expect(res.statusCode).toBe(200);
+    expect(res.json<{ scope: string }>().scope).toBe('reports:read');
+  });
+
+  it('[RFC6749-4.4.3-01] issues no refresh token', async () => {
+    const res = await clientCredentials('batch-job', 's3cret');
+    expect(res.json<{ refresh_token?: string }>().refresh_token).toBeUndefined();
+  });
+
+  it('issues no id token, because no person authenticated', async () => {
+    const res = await clientCredentials('batch-job', 's3cret');
+    expect(res.json<{ id_token?: string }>().id_token).toBeUndefined();
+  });
+
+  it('[RFC6749-4.4-02] refuses a public client', async () => {
+    const res = await clientCredentials('spa', null);
+    expect(res.statusCode).toBe(401);
+    expect(res.json<{ error: string }>().error).toBe('invalid_client');
+  });
+
+  it('[RFC6749-3.3-02] refuses scope beyond what the client is allowed', async () => {
+    const res = await clientCredentials('batch-job', 's3cret', 'admin');
+    expect(res.json<{ error: string }>().error).toBe('invalid_scope');
+  });
+
+  it('sets sub to the client service-account subject', async () => {
+    const res = await clientCredentials('batch-job', 's3cret', 'reports:read');
+    const { access_token: accessToken } = res.json<{ access_token: string }>();
+    expect(decodePayload(accessToken).sub).toBe(batchJobServiceSubjectId);
+  });
+
+  it('refuses a confidential client with no provisioned service subject', async () => {
+    const res = await clientCredentials('unprovisioned-job', 'anothersecret', 'reports:read');
+    expect(res.statusCode).toBe(400);
+    expect(res.json<{ error: string }>().error).toBe('unauthorized_client');
+  });
+});

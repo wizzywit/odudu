@@ -18,6 +18,7 @@ const client: ClientRecord = {
   type: 'confidential',
   secretHash: 'hashed:secret',
   createdAt: new Date('2026-01-01T00:00:00Z'),
+  serviceSubjectId: null,
 };
 
 const config: ClientOidcConfig = {
@@ -29,6 +30,7 @@ const config: ClientOidcConfig = {
   audiences: [],
   accessTokenTtlSeconds: 300,
   refreshTokenTtlSeconds: 1_209_600,
+  clientCredentialsScopes: [],
 };
 
 const params: Record<string, string | undefined> = {

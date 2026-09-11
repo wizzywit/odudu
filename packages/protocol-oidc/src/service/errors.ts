@@ -3,7 +3,8 @@ export type TokenErrorCode =
   | 'invalid_client'
   | 'invalid_grant'
   | 'unsupported_grant_type'
-  | 'invalid_scope';
+  | 'invalid_scope'
+  | 'unauthorized_client';
 
 // The one shape every /token failure reports through. `invalidGrant()` in
 // particular is called from every distinct way an authorization_code
@@ -42,4 +43,13 @@ export function unsupportedGrantType(): TokenError {
 
 export function invalidScope(): TokenError {
   return new TokenError('invalid_scope', 400);
+}
+
+// RFC 6749 §5.2: the client is authenticated but not authorized to use this
+// grant type. Used for a confidential client that has never been
+// provisioned with a service subject — a configuration error caught at
+// request time, distinct from `invalid_client` (which is about who the
+// client is, not what it's allowed to do).
+export function unauthorizedClient(): TokenError {
+  return new TokenError('unauthorized_client', 400);
 }

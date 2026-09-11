@@ -13,6 +13,7 @@ const confidential = {
   type: 'confidential' as const,
   secretHash: 'hashed:s3cret',
   createdAt: new Date(),
+  serviceSubjectId: null,
 };
 const publicClient = { ...confidential, type: 'public' as const, secretHash: null };
 

@@ -37,4 +37,5 @@ export interface ClientRecord {
   type: 'public' | 'confidential';
   secretHash: string | null;
   createdAt: Date;
+  serviceSubjectId: string | null;
 }

@@ -15,6 +15,7 @@ function toRecord(row: typeof clients.$inferSelect): ClientRecord {
     type: row.type as ClientRecord['type'],
     secretHash: row.secretHash,
     createdAt: row.createdAt,
+    serviceSubjectId: row.serviceSubjectId,
   };
 }
 
@@ -25,6 +26,7 @@ export interface NewClient {
   type: 'public' | 'confidential';
   secretHash: string | null;
   enabled?: boolean;
+  serviceSubjectId?: string | null;
 }
 
 export function clientRepository(tx: RealmScopedDatabase) {
@@ -49,6 +51,7 @@ export function clientRepository(tx: RealmScopedDatabase) {
           type: input.type,
           secretHash: input.secretHash,
           enabled: input.enabled ?? true,
+          serviceSubjectId: input.serviceSubjectId ?? null,
         })
         .returning();
       const row = rows[0];

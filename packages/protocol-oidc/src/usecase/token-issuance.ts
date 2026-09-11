@@ -1,27 +1,34 @@
-import { signJwt, signingKeyRepository } from '@odudu/crypto';
+import { signJwt, signingKeyRepository, type SigningKeyRecord } from '@odudu/crypto';
 import { SUPPORTED_SCOPES } from '@odudu/contracts';
 import { withRealm, type DatabaseHandle, type RealmScopedDatabase } from '@odudu/db';
+import { subjectRepository } from '@odudu/domain-identity';
 import { clientRepository, verifyClientSecret, type ClientRecord } from '@odudu/domain-realm';
 import { type Clock, newId } from '@odudu/kernel';
-import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
+import { clientOidcConfigRepository, type ClientOidcConfig } from '#/repository/client-oidc-config';
 import { authorizationCodeRepository } from '#/repository/codes';
-import { tokenGrantRepository } from '#/repository/grants';
+import { tokenGrantRepository, type TokenGrantRecord } from '#/repository/grants';
+import { refreshTokenRepository } from '#/repository/refresh';
+import { rotateRefreshToken } from '#/usecase/refresh-rotation';
 import { hashAuthorizationCode } from '#/service/authorization-code';
 import { evaluateAuthorizationCodeGrant } from '#/service/authorization-code-grant';
+import { evaluateClientCredentialsGrant } from '#/service/client-credentials-grant';
 import {
   invalidClient,
   invalidGrant,
   invalidRequest,
+  invalidScope,
+  unauthorizedClient,
   unsupportedGrantType,
 } from '#/service/errors';
+import { evaluateRefreshGrant, generateRefreshToken, hashRefreshToken } from '#/service/refresh';
 import { resolveScope } from '#/service/scope';
 
 export interface TokenIssuanceDeps {
-  // Used only to revoke a replayed code's grant in its own, independently
-  // committed transaction (see redeemAuthorizationCode): the enclosing
-  // `tx` this call runs in is always rolled back once it throws
-  // `invalid_grant`, and a revocation is exactly the side effect that must
-  // survive that rollback.
+  // Used only to run a step in its own, independently committed
+  // transaction: the enclosing `tx` this call runs in is always rolled
+  // back once it throws, and both the authorization_code grant's
+  // replay-revocation and the refresh_token grant's rotation are exactly
+  // the kind of side effect that must survive that rollback.
   database: DatabaseHandle;
   realmId: string;
   issuer: string;
@@ -33,25 +40,38 @@ export interface TokenIssuanceDeps {
 export interface TokenResponse {
   access_token: string;
   id_token?: string;
+  refresh_token?: string;
   token_type: 'Bearer';
   expires_in: number;
   scope: string;
 }
 
 // Stage 1: structural validation. What's genuinely malformed — no
-// grant_type, or an authorization_code request missing `code`/`redirect_uri`
-// — is `invalid_request` here. `code_verifier`'s presence is a PKCE rule
-// (RFC 7636 §4.5), not shape, so its absence is left to stage 3, which
-// reports it exactly like any other PKCE failure: `invalid_grant`, per
-// ADR 0007's split between structure at the boundary and rules in a
-// service.
-interface StructuredRequest {
-  grantType: string;
-  code: string;
-  redirectUri: string;
-  clientId: string | undefined;
-  codeVerifier: string;
-}
+// grant_type, an authorization_code request missing `code`/`redirect_uri`,
+// or a refresh_token request missing `refresh_token` — is `invalid_request`
+// here. `code_verifier`'s presence is a PKCE rule (RFC 7636 §4.5), not
+// shape, so its absence is left to stage 3, which reports it exactly like
+// any other PKCE failure: `invalid_grant`, per ADR 0007's split between
+// structure at the boundary and rules in a service.
+type StructuredRequest =
+  | {
+      grantType: 'authorization_code';
+      code: string;
+      redirectUri: string;
+      clientId: string | undefined;
+      codeVerifier: string;
+    }
+  | {
+      grantType: 'refresh_token';
+      refreshToken: string;
+      clientId: string | undefined;
+      scope: string;
+    }
+  | {
+      grantType: 'client_credentials';
+      clientId: string | undefined;
+      scope: string;
+    };
 
 function readField(body: Record<string, string | string[] | undefined>, key: string): string {
   const value = body[key];
@@ -80,6 +100,25 @@ function parseStructure(body: Record<string, string | string[] | undefined>): St
       redirectUri,
       clientId: readOptionalField(body, 'client_id'),
       codeVerifier: readField(body, 'code_verifier'),
+    };
+  }
+
+  if (grantType === 'refresh_token') {
+    const refreshToken = readField(body, 'refresh_token');
+    if (refreshToken.length === 0) throw invalidRequest();
+    return {
+      grantType,
+      refreshToken,
+      clientId: readOptionalField(body, 'client_id'),
+      scope: readField(body, 'scope'),
+    };
+  }
+
+  if (grantType === 'client_credentials') {
+    return {
+      grantType,
+      clientId: readOptionalField(body, 'client_id'),
+      scope: readField(body, 'scope'),
     };
   }
 
@@ -135,7 +174,7 @@ async function authenticateClient(
   basic: BasicCredentials | undefined,
   bodyClientId: string | undefined,
   bodyClientSecret: string | undefined,
-): Promise<ClientRecord> {
+): Promise<{ client: ClientRecord; config: ClientOidcConfig }> {
   if (basic !== undefined && bodyClientSecret !== undefined) throw invalidClient(WWW_AUTHENTICATE);
 
   const oauthClientId = basic?.clientId ?? bodyClientId;
@@ -165,7 +204,7 @@ async function authenticateClient(
   const ok = await verifyClientSecret(client, presented, deps.verifyPassword);
   if (!ok) throw invalidClient(WWW_AUTHENTICATE);
 
-  return client;
+  return { client, config };
 }
 
 // Stage 3: the authorization_code grant. `consume` is one atomic UPDATE, so
@@ -180,7 +219,7 @@ async function authenticateClient(
 async function redeemAuthorizationCode(
   tx: RealmScopedDatabase,
   deps: TokenIssuanceDeps,
-  request: StructuredRequest,
+  request: Extract<StructuredRequest, { grantType: 'authorization_code' }>,
   client: ClientRecord,
 ) {
   const codeHash = hashAuthorizationCode(request.code);
@@ -210,60 +249,59 @@ async function redeemAuthorizationCode(
   return record;
 }
 
-export async function issueTokens(
-  tx: RealmScopedDatabase,
+// Stages 5-6, shared by every grant: sign an access token bound to `sub`
+// and `scope`. The audience is the resource API this realm's client is
+// configured for, falling back to the issuer itself when none is set.
+async function mintAccessToken(
   deps: TokenIssuanceDeps,
-  body: Record<string, string | string[] | undefined>,
-  authorizationHeader: string | undefined,
-): Promise<TokenResponse> {
-  const request = parseStructure(body);
-  const basic = parseBasicAuth(authorizationHeader);
-  const client = await authenticateClient(
-    tx,
-    deps,
-    basic,
-    request.clientId,
-    readOptionalField(body, 'client_secret'),
-  );
-  const code = await redeemAuthorizationCode(tx, deps, request, client);
-
-  const config = await clientOidcConfigRepository(tx).byClientId(client.id);
-  if (config === null) throw invalidGrant();
-
-  // Stage 4: scope resolution. P1 has no consent screen and no per-client
-  // scope allowlist beyond what /authorize already accepted against
-  // SUPPORTED_SCOPES, so this mostly passes the stored scope through — the
-  // shape the refresh_token and client_credentials grants will narrow for
-  // real once a consented or delegated set exists.
-  const scope = resolveScope(code.scope, [...SUPPORTED_SCOPES], null, null);
-
-  const now = deps.clock.now();
+  input: { subjectId: string; clientId: string; scope: string[]; config: ClientOidcConfig },
+  key: SigningKeyRecord,
+  now: Date,
+): Promise<{ accessToken: string; audience: string[]; iat: number; exp: number }> {
   const iat = Math.floor(now.getTime() / 1000);
-  const accessTokenTtl = config.accessTokenTtlSeconds;
-  const exp = iat + accessTokenTtl;
+  const exp = iat + input.config.accessTokenTtlSeconds;
+  const audience = input.config.audiences.length > 0 ? input.config.audiences : [deps.issuer];
 
-  // Stage 5: claims assembly. The access token's audience is the resource
-  // API this realm's client is configured for; the ID token's audience is
-  // the client itself — RFC 9068 §2.2 vs. OIDC Core §2, the distinction the
-  // `typ` header alone cannot carry.
-  const audience = config.audiences.length > 0 ? config.audiences : [deps.issuer];
   const accessTokenClaims = {
     iss: deps.issuer,
-    sub: code.subjectId,
+    sub: input.subjectId,
     aud: audience,
-    client_id: client.clientId,
-    scope: scope.join(' '),
+    client_id: input.clientId,
+    scope: input.scope.join(' '),
     iat,
     exp,
     jti: newId(),
   };
+  const accessToken = await signJwt(accessTokenClaims, { key, kek: deps.kek, typ: 'at+jwt' });
+  return { accessToken, audience, iat, exp };
+}
 
+async function issueAuthorizationCodeTokens(
+  tx: RealmScopedDatabase,
+  deps: TokenIssuanceDeps,
+  request: Extract<StructuredRequest, { grantType: 'authorization_code' }>,
+  client: ClientRecord,
+  config: ClientOidcConfig,
+): Promise<TokenResponse> {
+  const code = await redeemAuthorizationCode(tx, deps, request, client);
+
+  // Stage 4: scope resolution. P1 has no consent screen and no per-client
+  // scope allowlist beyond what /authorize already accepted against
+  // SUPPORTED_SCOPES, so this mostly passes the stored scope through.
+  const scope = resolveScope(code.scope, [...SUPPORTED_SCOPES], null, null);
+  const now = deps.clock.now();
   const key = await signingKeyRepository(tx).active();
 
-  // Stage 6: mint. Both tokens are signed by the same key at the same
-  // moment; only `typ` tells a resource server which is which.
-  const accessToken = await signJwt(accessTokenClaims, { key, kek: deps.kek, typ: 'at+jwt' });
+  const { accessToken, audience, iat, exp } = await mintAccessToken(
+    deps,
+    { subjectId: code.subjectId, clientId: client.clientId, scope, config },
+    key,
+    now,
+  );
 
+  // The ID token's audience is the client itself — RFC 9068 §2.2 vs. OIDC
+  // Core §2, the distinction the access token's `typ` header alone cannot
+  // carry.
   let idToken: string | undefined;
   if (scope.includes('openid')) {
     const idTokenClaims = {
@@ -278,8 +316,8 @@ export async function issueTokens(
     idToken = await signJwt(idTokenClaims, { key, kek: deps.kek });
   }
 
-  // Stage 7: persist the grant and bind the code's redemption to it — the
-  // anchor a future revocation call, or a refresh token, points back at.
+  // Persist the grant and bind the code's redemption to it — the anchor a
+  // future revocation call, or a refresh token, points back at.
   const grant = await tokenGrantRepository(tx).create({
     realmId: deps.realmId,
     clientId: client.id,
@@ -289,12 +327,154 @@ export async function issueTokens(
   });
   await authorizationCodeRepository(tx).attachGrant(code.codeHash, grant.id);
 
-  // Stage 8: response assembly.
+  // A refresh token is meaningless without an interactive grant to
+  // originate from — client_oidc_config's own check constraint requires a
+  // redirect_uri wherever `refresh_token` appears in `grant_types` for
+  // exactly this reason — so it is issued only for a client actually
+  // configured for it, never unconditionally.
+  let refreshToken: string | undefined;
+  if (config.grantTypes.includes('refresh_token')) {
+    refreshToken = generateRefreshToken();
+    await refreshTokenRepository(tx).create({
+      tokenHash: hashRefreshToken(refreshToken),
+      realmId: deps.realmId,
+      grantId: grant.id,
+      expiresAt: new Date(now.getTime() + config.refreshTokenTtlSeconds * 1000),
+    });
+  }
+
   return {
     access_token: accessToken,
     ...(idToken !== undefined ? { id_token: idToken } : {}),
+    ...(refreshToken !== undefined ? { refresh_token: refreshToken } : {}),
     token_type: 'Bearer',
-    expires_in: accessTokenTtl,
+    expires_in: config.accessTokenTtlSeconds,
     scope: scope.join(' '),
   };
+}
+
+// Stage 3 (and everything after) for `refresh_token`. Rotation runs in its
+// own transaction, independently committed via `withRealm`, before this
+// function's own `tx` does anything else: reuse detection and family
+// revocation must survive even though the request this call belongs to
+// will end in `invalid_grant`, which rolls the enclosing `tx` back. Once
+// rotation has committed, everything else here is read-only against
+// already-settled state, so running it inside the enclosing `tx` risks
+// nothing.
+async function issueRefreshTokens(
+  tx: RealmScopedDatabase,
+  deps: TokenIssuanceDeps,
+  request: Extract<StructuredRequest, { grantType: 'refresh_token' }>,
+  client: ClientRecord,
+  config: ClientOidcConfig,
+): Promise<TokenResponse> {
+  const now = deps.clock.now();
+  const presentedHash = hashRefreshToken(request.refreshToken);
+
+  const outcome = await withRealm(deps.database.db, deps.realmId, (rotationTx) =>
+    rotateRefreshToken(rotationTx, presentedHash, now, config.refreshTokenTtlSeconds),
+  );
+  if (outcome.kind !== 'rotated') throw invalidGrant();
+
+  const grant: TokenGrantRecord = outcome.grant;
+  const subject = await subjectRepository(tx).byId(grant.subjectId);
+  if (subject === null) throw invalidGrant();
+
+  const decision = evaluateRefreshGrant(grant, client, subject, { requestedScope: request.scope });
+  if (!decision.ok) {
+    throw decision.reason === 'scope_widened' ? invalidScope() : invalidGrant();
+  }
+
+  const scope = [...decision.scope];
+  const key = await signingKeyRepository(tx).active();
+  const { accessToken } = await mintAccessToken(
+    deps,
+    { subjectId: grant.subjectId, clientId: client.clientId, scope, config },
+    key,
+    now,
+  );
+
+  return {
+    access_token: accessToken,
+    refresh_token: outcome.next,
+    token_type: 'Bearer',
+    expires_in: config.accessTokenTtlSeconds,
+    scope: scope.join(' '),
+  };
+}
+
+// Stage 3 (and everything after) for `client_credentials`. No PKCE, no
+// redirect_uri, no session and no human: `sub` is the client's own
+// service-account subject, so there is no refresh token (nothing to avoid
+// re-involving) and no ID token (nobody authenticated).
+async function issueClientCredentialsTokens(
+  tx: RealmScopedDatabase,
+  deps: TokenIssuanceDeps,
+  request: Extract<StructuredRequest, { grantType: 'client_credentials' }>,
+  client: ClientRecord,
+  config: ClientOidcConfig,
+): Promise<TokenResponse> {
+  const decision = evaluateClientCredentialsGrant(client, config.clientCredentialsScopes, {
+    requestedScope: request.scope,
+  });
+  if (!decision.ok) {
+    if (decision.reason === 'not_confidential') throw invalidClient(WWW_AUTHENTICATE);
+    if (decision.reason === 'no_service_subject') throw unauthorizedClient();
+    throw invalidScope();
+  }
+
+  // `evaluateClientCredentialsGrant` already refused a client with no
+  // service_subject_id, so this is a plain non-null read here.
+  const serviceSubjectId = client.serviceSubjectId;
+  if (serviceSubjectId === null) throw unauthorizedClient();
+
+  const scope = [...decision.scope];
+  const now = deps.clock.now();
+  const key = await signingKeyRepository(tx).active();
+  const { accessToken, audience } = await mintAccessToken(
+    deps,
+    { subjectId: serviceSubjectId, clientId: client.clientId, scope, config },
+    key,
+    now,
+  );
+
+  await tokenGrantRepository(tx).create({
+    realmId: deps.realmId,
+    clientId: client.id,
+    subjectId: serviceSubjectId,
+    scope: scope.join(' '),
+    audience,
+  });
+
+  return {
+    access_token: accessToken,
+    token_type: 'Bearer',
+    expires_in: config.accessTokenTtlSeconds,
+    scope: scope.join(' '),
+  };
+}
+
+export async function issueTokens(
+  tx: RealmScopedDatabase,
+  deps: TokenIssuanceDeps,
+  body: Record<string, string | string[] | undefined>,
+  authorizationHeader: string | undefined,
+): Promise<TokenResponse> {
+  const request = parseStructure(body);
+  const basic = parseBasicAuth(authorizationHeader);
+  const { client, config } = await authenticateClient(
+    tx,
+    deps,
+    basic,
+    request.clientId,
+    readOptionalField(body, 'client_secret'),
+  );
+
+  if (request.grantType === 'authorization_code') {
+    return issueAuthorizationCodeTokens(tx, deps, request, client, config);
+  }
+  if (request.grantType === 'refresh_token') {
+    return issueRefreshTokens(tx, deps, request, client, config);
+  }
+  return issueClientCredentialsTokens(tx, deps, request, client, config);
 }
