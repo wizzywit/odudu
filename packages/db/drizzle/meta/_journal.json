@@ -43,6 +43,13 @@
       "when": 1789049381648,
       "tag": "0005_subjects",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1789049381649,
+      "tag": "0006_sessions",
+      "breakpoints": true
     }
   ]
 }
