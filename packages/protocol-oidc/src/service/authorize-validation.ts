@@ -40,6 +40,11 @@ export function validateAuthorizationRequest(
   params: Record<string, string | undefined>,
   client: ClientRecord | null,
   config: ClientOidcConfig | null,
+  // Set when normalizeAuthorizeQuery collapsed a repeated query parameter
+  // other than client_id/redirect_uri (those render before reaching here —
+  // see query-normalization.ts). Checked immediately below the boundary,
+  // ahead of every other below-boundary rule.
+  repeatedKey: string | null = null,
 ): AuthorizeOutcome {
   // Order is the contract. Everything above the redirect boundary reports by
   // rendering: until redirect_uri is known to belong to a real, enabled
@@ -62,6 +67,8 @@ export function validateAuthorizationRequest(
     error,
     state,
   });
+
+  if (repeatedKey !== null) return reject('invalid_request');
 
   if (params.response_type !== 'code') return reject('unsupported_response_type');
 

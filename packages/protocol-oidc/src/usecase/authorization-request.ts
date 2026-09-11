@@ -5,6 +5,7 @@ import {
   validateAuthorizationRequest,
   type AuthorizeOutcome,
 } from '#/service/authorize-validation';
+import { normalizeAuthorizeQuery } from '#/service/query-normalization';
 
 export type AuthorizationRequestOutcome =
   | { kind: 'render'; error: string; description: string }
@@ -35,11 +36,15 @@ export interface AuthorizeUsecaseDeps {
 export async function handleAuthorizationRequest(
   deps: AuthorizeUsecaseDeps,
   realmName: string,
-  params: Record<string, string | undefined>,
+  rawParams: Record<string, string | string[] | undefined>,
 ): Promise<AuthorizationRequestOutcome> {
+  const normalized = normalizeAuthorizeQuery(rawParams);
+  if (normalized.kind === 'render') return normalized;
+  const { params, repeatedKey } = normalized;
+
   const realm = await deps.findRealm(realmName);
   if (!realm?.enabled) {
-    const outcome = validateAuthorizationRequest(params, null, null);
+    const outcome = validateAuthorizationRequest(params, null, null, repeatedKey);
     if (outcome.kind === 'ok') {
       throw new Error(
         'unreachable: validateAuthorizationRequest cannot succeed with a null client',
@@ -54,7 +59,12 @@ export async function handleAuthorizationRequest(
       ? { client: null, config: null }
       : await deps.resolveClient(realm.id, oauthClientId);
 
-  const outcome = validateAuthorizationRequest(params, resolved.client, resolved.config);
+  const outcome = validateAuthorizationRequest(
+    params,
+    resolved.client,
+    resolved.config,
+    repeatedKey,
+  );
   if (outcome.kind !== 'ok') return outcome;
 
   const { authSessionId } = await deps.startAuthentication(realm.id, outcome.request);

@@ -56,6 +56,29 @@ describe('[RFC6749-4.1.2.1-01] failures before redirect_uri is trusted must not 
   ])('renders rather than redirects: %s', (_label, p, c) => {
     expect(validateAuthorizationRequest(p, c, config).kind).toBe('render');
   });
+
+  it('renders for an enabled, known client whose OIDC config row is missing', () => {
+    expect(validateAuthorizationRequest(params, client, null)).toMatchObject({
+      kind: 'render',
+      error: 'invalid_client',
+    });
+  });
+});
+
+describe('a repeated non-trust query parameter redirects with invalid_request', () => {
+  it('redirects rather than proceeding to any other check', () => {
+    expect(validateAuthorizationRequest(params, client, config, 'state')).toMatchObject({
+      kind: 'redirect',
+      redirectUri: params.redirect_uri,
+      error: 'invalid_request',
+      state: params.state,
+    });
+  });
+
+  it('takes priority over an otherwise-valid request', () => {
+    const outcome = validateAuthorizationRequest(params, client, config, 'scope');
+    expect(outcome).not.toMatchObject({ kind: 'ok' });
+  });
 });
 
 describe('[RFC6749-4.1.2.1-02] failures after redirect_uri is trusted redirect with state', () => {

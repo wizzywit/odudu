@@ -46,6 +46,17 @@ function authorizeUrl(overrides: Record<string, string | undefined> = {}): strin
   return `/realms/${REALM}/protocol/openid-connect/auth?${query.toString()}`;
 }
 
+// Builds a request URL carrying a repeated query key, which authorizeUrl
+// (backed by URLSearchParams.set) cannot express.
+function authorizeUrlWithRepeatedKey(repeatedKey: string, values: [string, string]): string {
+  const base = authorizeUrl();
+  const query = new URLSearchParams(base.slice(base.indexOf('?') + 1));
+  query.delete(repeatedKey);
+  for (const value of values) query.append(repeatedKey, value);
+  const path = base.slice(0, base.indexOf('?'));
+  return `${path}?${query.toString()}`;
+}
+
 beforeAll(async () => {
   containerHandle = await startTestDatabase();
   container = containerHandle;
@@ -115,6 +126,30 @@ describe('[RFC6749-4.1.2.1-04] returns state unchanged on a redirected error', (
     if (typeof location !== 'string') throw new Error('expected a location header');
     expect(new URL(location).searchParams.get('state')).toBe('xyz 123');
     expect(new URL(location).searchParams.get('error')).toBe('unsupported_response_type');
+  });
+});
+
+describe('a repeated client_id or redirect_uri renders — no location header at all', () => {
+  it.each([
+    ['client_id', [CLIENT_ID, 'someone-else'] satisfies [string, string]],
+    ['redirect_uri', [REDIRECT_URI, 'https://evil.example/cb'] satisfies [string, string]],
+  ])('repeated %s', async (key, values) => {
+    const res = await http.inject({ url: authorizeUrlWithRepeatedKey(key, values) });
+    expect(res.statusCode).toBe(400);
+    expect(res.headers.location).toBeUndefined();
+  });
+});
+
+describe('a repeated state or scope redirects with invalid_request', () => {
+  it.each([
+    ['state', ['first', 'second'] satisfies [string, string]],
+    ['scope', ['openid', 'openid'] satisfies [string, string]],
+  ])('repeated %s', async (key, values) => {
+    const res = await http.inject({ url: authorizeUrlWithRepeatedKey(key, values) });
+    expect(res.statusCode).toBe(302);
+    const location = res.headers.location;
+    if (typeof location !== 'string') throw new Error('expected a location header');
+    expect(new URL(location).searchParams.get('error')).toBe('invalid_request');
   });
 });
 
