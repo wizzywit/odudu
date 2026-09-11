@@ -183,6 +183,28 @@ job).
   per-request setup) folded into `app.ts`'s `genReqId` option and its
   `onRequest` hook instead, which turned out to be all that was needed.
 
+## Login page theming, for P2 to decide
+
+The design spec lists `ThemeProvider` among `kernel`'s registries (section 8)
+and puts theming in P10, whose exit criterion is that a third-party provider
+loads without a rebuild. Nothing is in place yet: the registry does not exist,
+and the sign-in and error pages are hardcoded HTML in
+`packages/protocol-oidc/src/view/authorize-html.ts` — dependency-free, with
+every interpolated value escaped.
+
+Those forty-odd lines are not the risk. The risk is page count: P2 adds an OTP
+page and a passkey page, P3 a consent screen, P4 the console. Each one written
+the same way, by a different task, leaves P10 retrofitting a theming contract
+across six pages that never shared a shape. The spec's promise that
+extensibility is "additive rather than a rewrite" is made about modules, and
+does not extend to pages on its own.
+
+Defining that contract now, against a single page, would be guessing. **P2 is
+where it should be decided**, when three pages exist and the real variation is
+visible. Whoever picks it up: the seam is the render function's signature, and
+the question is what a theme is allowed to replace — the whole document, a
+body fragment, or only styling.
+
 ## Deployment gaps, for whoever asks next
 
 `README.md` now has a Deploying section stating plainly that the container
