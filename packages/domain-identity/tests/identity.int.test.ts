@@ -163,6 +163,54 @@ describe('userRepository', () => {
     expect(found).toBeNull();
   });
 
+  it('cannot find a user by username under a different realm context', async () => {
+    const realmA = newId();
+    const realmB = newId();
+    const username = `carol-${newId()}`;
+
+    await withRealm(app.db, realmA, async (tx) => {
+      await seedRealm(tx, realmA);
+      const subject = await subjectRepository(tx).create({ realmId: realmA, type: 'user' });
+      await insertUserRow(tx, subject.id, realmA, { username });
+    });
+
+    await withRealm(app.db, realmB, async (tx) => seedRealm(tx, realmB));
+
+    const foundFromB = await withRealm(app.db, realmB, async (tx) =>
+      userRepository(tx).byUsername(username),
+    );
+    expect(foundFromB).toBeNull();
+
+    const foundFromA = await withRealm(app.db, realmA, async (tx) =>
+      userRepository(tx).byUsername(username),
+    );
+    expect(foundFromA?.user.username).toBe(username);
+  });
+
+  it('cannot find a user by subject id under a different realm context', async () => {
+    const realmA = newId();
+    const realmB = newId();
+
+    const subjectId = await withRealm(app.db, realmA, async (tx) => {
+      await seedRealm(tx, realmA);
+      const subject = await subjectRepository(tx).create({ realmId: realmA, type: 'user' });
+      await insertUserRow(tx, subject.id, realmA, { email: 'carol@example.com' });
+      return subject.id;
+    });
+
+    await withRealm(app.db, realmB, async (tx) => seedRealm(tx, realmB));
+
+    const foundFromB = await withRealm(app.db, realmB, async (tx) =>
+      userRepository(tx).bySubjectId(subjectId),
+    );
+    expect(foundFromB).toBeNull();
+
+    const foundFromA = await withRealm(app.db, realmA, async (tx) =>
+      userRepository(tx).bySubjectId(subjectId),
+    );
+    expect(foundFromA?.email).toBe('carol@example.com');
+  });
+
   it('refuses a user whose realm differs from its subject', async () => {
     const realmA = newId();
     const realmB = newId();

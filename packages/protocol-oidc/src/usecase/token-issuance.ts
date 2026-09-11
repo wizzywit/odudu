@@ -257,8 +257,12 @@ async function redeemAuthorizationCode(
 }
 
 // Stages 5-6, shared by every grant: sign an access token bound to `sub`
-// and `scope`. The audience is the resource API this realm's client is
-// configured for, falling back to the issuer itself when none is set.
+// and `scope`. The audience is the issuer itself, plus whatever resource
+// APIs this realm's client is configured for — the issuer is never
+// dropped in favor of a configured audience, since a token that cannot be
+// used at the issuer's own endpoints (e.g. /userinfo) would be unusable
+// for anything OIDC promised the client (RFC 9068 §4: a resource server,
+// including this one, must find itself in `aud` or refuse the token).
 async function mintAccessToken(
   deps: TokenIssuanceDeps,
   input: { subjectId: string; clientId: string; scope: string[]; config: ClientOidcConfig },
@@ -267,7 +271,9 @@ async function mintAccessToken(
 ): Promise<{ accessToken: string; audience: string[]; iat: number; exp: number }> {
   const iat = Math.floor(now.getTime() / 1000);
   const exp = iat + input.config.accessTokenTtlSeconds;
-  const audience = input.config.audiences.length > 0 ? input.config.audiences : [deps.issuer];
+  const audience = input.config.audiences.includes(deps.issuer)
+    ? input.config.audiences
+    : [...input.config.audiences, deps.issuer];
 
   const accessTokenClaims = {
     iss: deps.issuer,

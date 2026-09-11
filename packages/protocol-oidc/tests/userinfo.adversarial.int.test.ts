@@ -53,12 +53,13 @@ interface RealmSetup {
 
 let primary: RealmSetup;
 let other: RealmSetup;
+let foreignAudience: RealmSetup;
 
 function userinfoUrl(realm: string): string {
   return `/realms/${realm}/protocol/openid-connect/userinfo`;
 }
 
-async function setupRealm(label: string): Promise<RealmSetup> {
+async function setupRealm(label: string, audiences: string[] = []): Promise<RealmSetup> {
   const realmName = `userinfo-${label}-${newId()}`;
   const realmId = newId();
 
@@ -89,7 +90,7 @@ async function setupRealm(label: string): Promise<RealmSetup> {
       redirectUris: [REDIRECT_URI],
       grantTypes: ['authorization_code'],
       tokenEndpointAuthMethod: 'client_secret_basic',
-      audiences: [],
+      audiences,
       accessTokenTtlSeconds: 300,
       refreshTokenTtlSeconds: 1_209_600,
     });
@@ -172,6 +173,7 @@ async function mintRawAccessToken(
   realm: RealmSetup,
   overrides: {
     iss?: string;
+    aud?: string[];
     exp?: number;
     typ?: string;
     scope?: string;
@@ -183,7 +185,7 @@ async function mintRawAccessToken(
     {
       iss: overrides.iss ?? realm.issuer,
       sub: realm.subjectId,
-      aud: [realm.issuer],
+      aud: overrides.aud ?? [realm.issuer],
       client_id: realm.client.clientId,
       scope: overrides.scope ?? 'openid',
       iat: now,
@@ -192,6 +194,14 @@ async function mintRawAccessToken(
     },
     { key, kek: KEK, typ: overrides.typ ?? 'at+jwt' },
   );
+}
+
+// Decodes the payload without verifying — used only to inspect what a token
+// minted through the real issuance path actually carries, never to make a
+// trust decision.
+function decodePayload(token: string): Record<string, unknown> {
+  const segment = token.split('.')[1] ?? '';
+  return JSON.parse(Buffer.from(segment, 'base64url').toString('utf8')) as Record<string, unknown>;
 }
 
 function tamper(token: string): string {
@@ -230,6 +240,7 @@ beforeAll(async () => {
 
   primary = await setupRealm('primary');
   other = await setupRealm('other');
+  foreignAudience = await setupRealm('foreign-aud', ['https://some-other-api.example']);
 }, 120_000);
 
 afterAll(async () => {
@@ -329,6 +340,27 @@ describe("[OIDC-CORE-5.3.2-01] sub is always present, and an ungranted scope's c
     expect(body).not.toHaveProperty('email');
     expect(body).not.toHaveProperty('email_verified');
     expect(body).not.toHaveProperty('name');
+  });
+});
+
+describe('aud must contain a resource indicator identifying this issuer', () => {
+  it('a client configured with a foreign audience still gets a token usable at this issuer, because aud always carries both', async () => {
+    const { accessToken } = await issueTokens(foreignAudience, 'openid email');
+    const payload = decodePayload(accessToken);
+    expect(payload.aud).toEqual(
+      expect.arrayContaining(['https://some-other-api.example', foreignAudience.issuer]),
+    );
+
+    const res = await userinfo(foreignAudience.realmName, accessToken);
+    expect(res.statusCode).toBe(200);
+    expect(res.json<Record<string, unknown>>()).toHaveProperty('email');
+  });
+
+  it('[RFC9068-4-05] rejects a token whose aud genuinely lacks the issuer, minted directly rather than through mintAccessToken', async () => {
+    const raw = await mintRawAccessToken(primary, { aud: ['https://some-other-api.example'] });
+    const res = await userinfo(primary.realmName, raw);
+    expect(res.statusCode).toBe(401);
+    expect(res.headers['www-authenticate']).toMatch(/error="invalid_token"/);
   });
 });
 

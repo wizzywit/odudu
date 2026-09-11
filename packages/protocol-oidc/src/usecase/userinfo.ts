@@ -29,11 +29,13 @@ function scopesOf(scopeClaim: unknown): string[] {
 // Validation order, matching RFC 9068 §4 and RFC 6750 §3.1: signature and
 // `kid` (inside verifyJwt) → `typ: at+jwt` (also verifyJwt — this is what
 // stops an ID Token, signed by the same key at the same moment, being
-// presented here) → `iss` → `exp` → `aud` (verifyJwt again, via jose's
-// claim checks) → and only once the token itself is genuinely valid, the
-// `openid` scope check, reported as a distinct 403 rather than folded into
-// the same 401 an attacker could use to distinguish "bad token" from
-// "valid token, wrong scope".
+// presented here) → `iss` → `exp` → `aud` contains this issuer (verifyJwt's
+// `audience` option, checked against jose's claim checks — a token whose
+// `aud` is an array is accepted as long as the issuer is one of its
+// members, never dropped to a bare string match) → and only once the
+// token itself is genuinely valid, the `openid` scope check, reported as
+// a distinct 403 rather than folded into the same 401 an attacker could
+// use to distinguish "bad token" from "valid token, wrong scope".
 export async function resolveUserinfo(
   deps: UserinfoDeps,
   realmName: string,
@@ -50,7 +52,7 @@ export async function resolveUserinfo(
 
   let payload;
   try {
-    payload = await verifyJwt(token, { keys, issuer, typ: 'at+jwt' });
+    payload = await verifyJwt(token, { keys, issuer, audience: issuer, typ: 'at+jwt' });
   } catch {
     return { kind: 'invalid_token' };
   }
