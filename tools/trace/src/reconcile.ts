@@ -57,12 +57,36 @@ function mustFinding(row: Row, where: string, strict: boolean): Finding {
   };
 }
 
+// One id is routinely carried by several test results: a
+// `describe('[ID] …')` holding several `it`s reports each `it` separately,
+// under a `fullName` ending in that same id. Indexing them into one entry
+// per id (`new Map(results.map((r) => [r.id, r]))`, as this used to be) kept
+// whichever the reporter emitted last, so a red test could be hidden by a
+// green sibling and its row still reconcile as covered. Duplication is not
+// the error here — losing it is. A row is covered only when every result
+// carrying its id passed.
+function groupById(results: TestResult[]): Map<string, TestResult[]> {
+  const byId = new Map<string, TestResult[]>();
+  for (const result of results) {
+    const carried = byId.get(result.id);
+    if (carried === undefined) byId.set(result.id, [result]);
+    else carried.push(result);
+  }
+  return byId;
+}
+
+function failureMessage(where: string, id: string, failed: TestResult[]): string {
+  const first = failed[0]?.title ?? id;
+  const rest = failed.length - 1;
+  return `${where}: ${id} failed: ${first}${rest > 0 ? ` (and ${String(rest)} more carrying that id)` : ''}`;
+}
+
 export function reconcile(
   rows: Row[],
   results: TestResult[],
   options: { strict?: boolean; headings?: Map<string, Set<string>> } = {},
 ): Finding[] {
-  const byId = new Map(results.map((r) => [r.id, r]));
+  const byId = groupById(results);
   const findings: Finding[] = [];
   const rowIds = new Set(rows.map((r) => r.testId).filter((id): id is string => id !== null));
 
@@ -92,8 +116,8 @@ export function reconcile(
       continue;
     }
 
-    const result = row.testId === null ? undefined : byId.get(row.testId);
-    if (!result) {
+    const carried = row.testId === null ? undefined : byId.get(row.testId);
+    if (carried === undefined || carried.length === 0) {
       findings.push({
         severity: 'error',
         row,
@@ -102,8 +126,13 @@ export function reconcile(
       continue;
     }
 
-    if (!result.passed) {
-      findings.push({ severity: 'error', row, message: `${where}: ${row.testId ?? '?'} failed` });
+    const failed = carried.filter((r) => !r.passed);
+    if (failed.length > 0) {
+      findings.push({
+        severity: 'error',
+        row,
+        message: failureMessage(where, row.testId ?? '?', failed),
+      });
     }
   }
 

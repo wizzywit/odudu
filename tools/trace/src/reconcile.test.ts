@@ -142,6 +142,73 @@ describe('reconcile', () => {
     });
   });
 
+  // A `describe('[ID] ...')` holding several `it`s reports one result per
+  // `it`, every one of them carrying that id, so an id naming several
+  // results is the ordinary case rather than a mistake. Reducing them to one
+  // result per id lets a green sibling hide a red one.
+  describe('an id carried by several test results', () => {
+    const passing = { id: 'RFC7636-4.1-01', title: '[RFC7636-4.1-01] a sibling that passes' };
+    const failing = { id: 'RFC7636-4.1-01', title: '[RFC7636-4.1-01] the one that fails' };
+
+    it('is silent when every result carrying it passed', () => {
+      expect(
+        reconcile(
+          [row({})],
+          [
+            { ...passing, passed: true },
+            { ...failing, passed: true },
+          ],
+        ),
+      ).toEqual([]);
+    });
+
+    it('errors when the failing result came first', () => {
+      const findings = reconcile(
+        [row({})],
+        [
+          { ...failing, passed: false },
+          { ...passing, passed: true },
+        ],
+      );
+      expect(findings).toHaveLength(1);
+      expect(findings[0]).toMatchObject({ severity: 'error' });
+      expect(nth(findings, 0).message).toMatch(/failed/i);
+    });
+
+    it('errors when the failing result came last', () => {
+      const findings = reconcile(
+        [row({})],
+        [
+          { ...passing, passed: true },
+          { ...failing, passed: false },
+        ],
+      );
+      expect(findings).toHaveLength(1);
+      expect(findings[0]).toMatchObject({ severity: 'error' });
+    });
+
+    it('names the failing result rather than a passing sibling', () => {
+      const findings = reconcile(
+        [row({})],
+        [
+          { ...failing, passed: false },
+          { ...passing, passed: true },
+        ],
+      );
+      expect(nth(findings, 0).message).toContain('the one that fails');
+      expect(nth(findings, 0).message).not.toContain('a sibling that passes');
+    });
+
+    it('reports every row the id covers, not just the first', () => {
+      const findings = reconcile(
+        [row({ clause: '4.1' }), row({ clause: '4.4' })],
+        [{ ...failing, passed: false }],
+      );
+      expect(findings).toHaveLength(2);
+      expect(findings.map((f) => f.row?.clause)).toEqual(['4.1', '4.4']);
+    });
+  });
+
   it('ignores deferred and n/a rows entirely', () => {
     const findings = reconcile(
       [
