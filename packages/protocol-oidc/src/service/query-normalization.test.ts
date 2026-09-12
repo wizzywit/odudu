@@ -80,6 +80,59 @@ describe('a non-string value is absent, whatever parser produced it', () => {
   });
 });
 
+describe('[RFC6749-3.1-01] a parameter sent without a value is treated as omitted', () => {
+  it.each([
+    'client_id',
+    'redirect_uri',
+    'response_type',
+    'scope',
+    'state',
+    'nonce',
+    'code_challenge',
+    'code_challenge_method',
+  ])('drops an empty %s rather than carrying a zero-length value forward', (key) => {
+    const result = normalizeAuthorizeQuery({ response_type: 'code', [key]: '' });
+    expect(result).toMatchObject({ kind: 'ok', repeatedKey: null });
+    if (result.kind !== 'ok') throw new Error('expected ok');
+    expect(result.params[key]).toBeUndefined();
+  });
+
+  it('drops an empty value out of a repeated parameter without calling it repeated', () => {
+    expect(normalizeAuthorizeQuery({ state: ['', 'only-value'] })).toEqual({
+      kind: 'ok',
+      params: { state: 'only-value' },
+      repeatedKey: null,
+    });
+  });
+
+  it('treats a parameter whose every value is empty as absent', () => {
+    expect(normalizeAuthorizeQuery({ state: ['', ''] })).toEqual({
+      kind: 'ok',
+      params: {},
+      repeatedKey: null,
+    });
+  });
+});
+
+describe('a key carrying a value that could not be read is never singular', () => {
+  it.each(['client_id', 'redirect_uri'])(
+    'renders for a %s whose second value is not a string',
+    (key) => {
+      expect(normalizeAuthorizeQuery({ [key]: ['a', 7] })).toMatchObject({
+        kind: 'render',
+        error: 'invalid_request',
+      });
+    },
+  );
+
+  it('flags a state whose second value is not a string as repeated', () => {
+    expect(normalizeAuthorizeQuery({ state: ['a', 7] })).toMatchObject({
+      kind: 'ok',
+      repeatedKey: 'state',
+    });
+  });
+});
+
 describe('a repeated non-trust parameter is reported, not silently resolved', () => {
   it.each(['state', 'scope'])('takes the first value for %s but flags it as repeated', (key) => {
     const result = normalizeAuthorizeQuery({

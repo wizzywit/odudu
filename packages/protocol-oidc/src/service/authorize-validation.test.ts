@@ -139,6 +139,15 @@ describe('scope acceptance', () => {
   });
 });
 
+describe('[RFC6749-3.3-03] an omitted scope resolves to the documented default', () => {
+  it('parks openid, the one scope every realm supports, when the request names none', () => {
+    const outcome = validateAuthorizationRequest(omit(params, 'scope'), client, config);
+    expect(outcome).toMatchObject({ kind: 'ok' });
+    if (outcome.kind !== 'ok') throw new Error('expected ok');
+    expect(outcome.request.scope).toBe('openid');
+  });
+});
+
 describe('validateAuthorizationRequest — the success path', () => {
   it('parks the whole request, including a null state and nonce, when everything checks out', () => {
     const outcome = validateAuthorizationRequest(omit(params, 'state'), client, config);

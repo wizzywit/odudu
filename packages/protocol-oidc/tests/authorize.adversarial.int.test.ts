@@ -218,6 +218,21 @@ describe('a repeated state or scope redirects with invalid_request', () => {
   });
 });
 
+describe('an empty-valued query parameter behaves as an omitted one', () => {
+  it('defaults an empty scope instead of failing it as an unknown one', async () => {
+    const res = await http.inject({ url: authorizeUrl({ scope: '' }) });
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toContain('name="auth_session_id"');
+  });
+
+  it('does not echo an empty state back on an error redirect', async () => {
+    const res = await http.inject({ url: authorizeUrl({ response_type: 'token', state: '' }) });
+    const location = res.headers.location;
+    if (typeof location !== 'string') throw new Error('expected a location header');
+    expect(new URL(location).searchParams.has('state')).toBe(false);
+  });
+});
+
 describe('the success path starts an authentication session and renders the login form', () => {
   it('returns 200 with an HTML form posting to the login-actions handler', async () => {
     const res = await http.inject({ url: authorizeUrl() });

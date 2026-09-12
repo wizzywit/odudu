@@ -23,15 +23,29 @@ export type QueryNormalization =
 // redirect_uri exists to send the error to.
 const AMBIGUOUS_TRUST_KEYS = new Set(['client_id', 'redirect_uri']);
 
-// An array of parameter values, or undefined when the key carries no string
-// value at all. A single string reads as one value; anything else — number,
-// object, null, an array once its non-string entries are discarded — is the
-// parameter not being present.
-function stringValues(value: unknown): string[] | undefined {
-  if (typeof value === 'string') return [value];
-  if (!Array.isArray(value)) return undefined;
-  const strings = value.filter((entry): entry is string => typeof entry === 'string');
-  return strings.length === 0 ? undefined : strings;
+// What a key resolves to: the value to use, and whether more than one value
+// was sent under it. `ambiguous` is deliberately not "more than one string
+// survived": a value this code cannot read — a number, an object, whatever
+// a parser produced — is still a value the client sent, and a key carrying
+// one alongside a string is exactly as untrustworthy as a key carrying two
+// strings. Collapsing it to a lone string would let a repeated client_id or
+// redirect_uri past the boundary that exists to stop it.
+interface ParameterValue {
+  value: string;
+  ambiguous: boolean;
+}
+
+// Undefined when the key carries no usable value at all: no string among
+// what was sent, or nothing left once empty values are discarded.
+function parameterValue(raw: unknown): ParameterValue | undefined {
+  const sent = Array.isArray(raw) ? raw : [raw];
+  // RFC 6749 §3.1: a parameter sent without a value is treated as if it had
+  // been omitted, so `scope=` defaults like an absent scope rather than
+  // failing as an unknown one, and `state=` is not echoed back empty.
+  const present = sent.filter((entry) => entry !== '');
+  const value = present.find((entry): entry is string => typeof entry === 'string');
+  if (value === undefined) return undefined;
+  return { value, ambiguous: present.length > 1 };
 }
 
 export function normalizeAuthorizeQuery(raw: unknown): QueryNormalization {
@@ -43,12 +57,11 @@ export function normalizeAuthorizeQuery(raw: unknown): QueryNormalization {
   }
 
   for (const [key, rawValue] of Object.entries(raw)) {
-    const values = stringValues(rawValue);
-    if (values === undefined) continue;
+    const resolved = parameterValue(rawValue);
+    if (resolved === undefined) continue;
 
-    const [first, ...rest] = values;
-    if (rest.length === 0) {
-      params[key] = first;
+    if (!resolved.ambiguous) {
+      params[key] = resolved.value;
       continue;
     }
 
@@ -61,7 +74,7 @@ export function normalizeAuthorizeQuery(raw: unknown): QueryNormalization {
     }
 
     repeatedKey ??= key;
-    params[key] = first;
+    params[key] = resolved.value;
   }
 
   return { kind: 'ok', params, repeatedKey };
