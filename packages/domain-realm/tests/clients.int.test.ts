@@ -7,7 +7,7 @@ import {
   type DatabaseHandle,
   type RealmScopedDatabase,
 } from '@odudu/db';
-import { expectRealmIsolation } from '@odudu/db/testing';
+import { expectCrossRealmMethodProbe, expectRealmIsolation } from '@odudu/db/testing';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -168,6 +168,21 @@ describe('clientRepository', () => {
       seed: async (tx, realmId) => {
         await seedRealm(tx, realmId);
         await insertClient(tx, realmId);
+      },
+    });
+  });
+
+  it('cannot find a client by client_id under a different realm context', async () => {
+    await expectCrossRealmMethodProbe(app.db, {
+      seed: async (tx, realmId) => {
+        await seedRealm(tx, realmId);
+        const clientId = `probe-${newId()}`;
+        await insertClient(tx, realmId, { clientId });
+        return clientId;
+      },
+      attempt: async (tx, clientId) => clientRepository(tx).byClientId(clientId),
+      expectBlocked: (result) => {
+        expect(result).toBeNull();
       },
     });
   });

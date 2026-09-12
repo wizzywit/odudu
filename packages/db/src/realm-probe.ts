@@ -29,6 +29,46 @@ function firstRow<T>(rows: readonly T[]): T {
  * unrelated to realmA, so the isolation this helper proves would not hold.
  * Probe `realms` directly instead of through this helper.
  */
+/**
+ * Probes one repository method directly, rather than the table it reads:
+ * seeds a row under realm A, then calls the method under realm B's context
+ * with whatever key `seed` returned. `expectBlocked` asserts the method
+ * could not see it — `null`, `false`, an empty array, or a thrown error,
+ * depending on the method's own contract. For a method that mutates, pass
+ * `verifyRealmAUnaffected` to confirm realm A's row was left untouched by
+ * the realm-B call — a `consume`-style method that silently succeeds across
+ * realms is worse than one that only reads across realms.
+ *
+ * Complements `expectRealmIsolation`: that helper proves a table's rows are
+ * filtered by realm at the SQL level, which does not by itself prove that
+ * every repository method built on top of it — keyed by an id, a hash, or a
+ * client_id rather than by scanning the table — actually gets no result
+ * when called from the wrong realm.
+ */
+export interface CrossRealmMethodProbe<Seeded> {
+  seed: (tx: RealmScopedDatabase, realmId: string) => Promise<Seeded>;
+  attempt: (tx: RealmScopedDatabase, seeded: Seeded) => Promise<unknown>;
+  expectBlocked: (result: unknown) => void;
+  verifyRealmAUnaffected?: (tx: RealmScopedDatabase, seeded: Seeded) => Promise<void>;
+}
+
+export async function expectCrossRealmMethodProbe<Seeded>(
+  db: Database,
+  probe: CrossRealmMethodProbe<Seeded>,
+): Promise<void> {
+  const realmA = crypto.randomUUID();
+  const realmB = crypto.randomUUID();
+
+  const seeded = await withRealm(db, realmA, async (tx) => probe.seed(tx, realmA));
+
+  const result = await withRealm(db, realmB, async (tx) => probe.attempt(tx, seeded));
+  probe.expectBlocked(result);
+
+  if (probe.verifyRealmAUnaffected !== undefined) {
+    await withRealm(db, realmA, async (tx) => probe.verifyRealmAUnaffected?.(tx, seeded));
+  }
+}
+
 export async function expectRealmIsolation(db: Database, probe: RealmProbe): Promise<void> {
   if (probe.table === 'realms') {
     throw new Error(

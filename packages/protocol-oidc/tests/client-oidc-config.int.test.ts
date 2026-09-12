@@ -7,7 +7,7 @@ import {
   type DatabaseHandle,
   type RealmScopedDatabase,
 } from '@odudu/db';
-import { expectRealmIsolation } from '@odudu/db/testing';
+import { expectCrossRealmMethodProbe, expectRealmIsolation } from '@odudu/db/testing';
 import { clients } from '@odudu/domain-realm';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
@@ -201,6 +201,30 @@ describe('clientOidcConfigRepository', () => {
           accessTokenTtlSeconds: 300,
           refreshTokenTtlSeconds: 1_209_600,
         });
+      },
+    });
+  });
+
+  it('cannot find a config by client id under a different realm context', async () => {
+    await expectCrossRealmMethodProbe(app.db, {
+      seed: async (tx, realmId) => {
+        const clientId = newId();
+        await seedRealmAndClient(tx, realmId, clientId);
+        await clientOidcConfigRepository(tx).create({
+          clientId,
+          realmId,
+          redirectUris: ['https://app.example/callback'],
+          grantTypes: ['authorization_code'],
+          tokenEndpointAuthMethod: 'client_secret_basic',
+          audiences: [],
+          accessTokenTtlSeconds: 300,
+          refreshTokenTtlSeconds: 1_209_600,
+        });
+        return clientId;
+      },
+      attempt: async (tx, clientId) => clientOidcConfigRepository(tx).byClientId(clientId),
+      expectBlocked: (result) => {
+        expect(result).toBeNull();
       },
     });
   });

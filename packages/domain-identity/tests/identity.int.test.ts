@@ -7,7 +7,7 @@ import {
   type DatabaseHandle,
   type RealmScopedDatabase,
 } from '@odudu/db';
-import { expectRealmIsolation } from '@odudu/db/testing';
+import { expectCrossRealmMethodProbe, expectRealmIsolation } from '@odudu/db/testing';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -90,6 +90,19 @@ describe('subjectRepository', () => {
       subjectRepository(tx).byId(created.id),
     );
     expect(found?.id).toBe(created.id);
+  });
+
+  it('cannot find a subject by id under a different realm context', async () => {
+    await expectCrossRealmMethodProbe(app.db, {
+      seed: async (tx, realmId) => {
+        await seedRealm(tx, realmId);
+        return subjectRepository(tx).create({ realmId, type: 'user' });
+      },
+      attempt: async (tx, subject) => subjectRepository(tx).byId(subject.id),
+      expectBlocked: (result) => {
+        expect(result).toBeNull();
+      },
+    });
   });
 });
 
@@ -284,6 +297,27 @@ describe('credentialRepository', () => {
     );
 
     expect(password).toBeNull();
+  });
+
+  it('finds no password credential under a different realm context', async () => {
+    await expectCrossRealmMethodProbe(app.db, {
+      seed: async (tx, realmId) => {
+        await seedRealm(tx, realmId);
+        const subject = await subjectRepository(tx).create({ realmId, type: 'user' });
+        await tx.insert(userCredentials).values({
+          id: newId(),
+          realmId,
+          subjectId: subject.id,
+          type: 'password',
+          secretData: '$argon2id$fake-hash',
+        });
+        return subject.id;
+      },
+      attempt: async (tx, subjectId) => credentialRepository(tx).passwordFor(subjectId),
+      expectBlocked: (result) => {
+        expect(result).toBeNull();
+      },
+    });
   });
 });
 

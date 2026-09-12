@@ -7,8 +7,8 @@ import {
   type DatabaseHandle,
   type RealmScopedDatabase,
 } from '@odudu/db';
-import { expectRealmIsolation } from '@odudu/db/testing';
-import { newId } from '@odudu/kernel';
+import { expectCrossRealmMethodProbe, expectRealmIsolation } from '@odudu/db/testing';
+import { newId, OduduError } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { signingKeyRepository } from '#/repository/signing-keys';
@@ -151,6 +151,39 @@ describe('signingKeyRepository', () => {
       seed: async (tx, realmId) => {
         await seedRealm(tx, realmId);
         await insertKey(tx, realmId);
+      },
+    });
+  });
+
+  it('lists no publishable keys under a different realm context', async () => {
+    await expectCrossRealmMethodProbe(app.db, {
+      seed: async (tx, realmId) => {
+        await seedRealm(tx, realmId);
+        await insertKey(tx, realmId);
+      },
+      attempt: async (tx) => signingKeyRepository(tx).listPublishable(),
+      expectBlocked: (result) => {
+        expect(result).toEqual([]);
+      },
+    });
+  });
+
+  it('finds no active key under a different realm context', async () => {
+    await expectCrossRealmMethodProbe(app.db, {
+      seed: async (tx, realmId) => {
+        await seedRealm(tx, realmId);
+        await insertKey(tx, realmId, { status: 'active' });
+      },
+      attempt: async (tx) => {
+        try {
+          return { key: await signingKeyRepository(tx).active() };
+        } catch (error) {
+          return { error };
+        }
+      },
+      expectBlocked: (result) => {
+        expect(result).toHaveProperty('error');
+        expect((result as { error: unknown }).error).toBeInstanceOf(OduduError);
       },
     });
   });

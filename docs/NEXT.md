@@ -252,9 +252,6 @@ the conditions under which to revisit.
   would make `drizzle-kit generate` emit a `CREATE POLICY` that fails with
   42710 on existing databases. Record the policy in the snapshot, or leave a
   comment in `realms.ts`, before touching policies declaratively.
-- `smoke.sh`'s owner-side INSERT does not use `-v ON_ERROR_STOP=1` and
-  discards output, so a silent insert failure would make the RLS assertion
-  vacuous again while still printing success.
 - `ODUDU_TRUST_PROXY=` (a bare key) now refuses boot rather than defaulting
   off — correct by strictness, but a new way for a previously-booting
   environment to fail.
