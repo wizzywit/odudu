@@ -14,6 +14,7 @@ import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import formbody from '@fastify/formbody';
 import Fastify, { type FastifyInstance, type LightMyRequestResponse } from 'fastify';
+import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { oidcRoutes } from '#/index';
 import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
@@ -524,6 +525,32 @@ describe('aud must contain a resource indicator identifying this issuer', () => 
     const res = await userinfo(primary.realmName, raw);
     expect(res.statusCode).toBe(401);
     expect(res.headers['www-authenticate']).toMatch(/error="invalid_token"/);
+  });
+});
+
+// §5.1's obligation is about the value a client receives, so the proof runs
+// end to end: put a non-conforming address on the very row this endpoint
+// reads its claims from, then ask the endpoint what it emits. The column
+// constraint users_email_addr_spec (packages/db/drizzle/0012_users_email_addr_spec.sql)
+// is what makes the answer the conforming address rather than the malformed
+// one, on every write path there is rather than the one the repository owns.
+describe('[OIDC-CORE-5.1-01] the emitted email claim conforms to RFC 5322 addr-spec', () => {
+  it('cannot be made to emit an address the column will not hold', async () => {
+    const stored = await withRealm(app.db, primary.realmId, async (tx) => {
+      await tx
+        .update(users)
+        .set({ email: 'alice at example dot com' })
+        .where(eq(users.subjectId, primary.subjectId));
+    }).then(
+      () => true,
+      () => false,
+    );
+    expect(stored).toBe(false);
+
+    const { accessToken } = await issueTokens(primary, 'openid email');
+    const res = await userinfo(primary.realmName, accessToken);
+    expect(res.statusCode).toBe(200);
+    expect(res.json<Record<string, unknown>>().email).toBe('alice@example.com');
   });
 });
 

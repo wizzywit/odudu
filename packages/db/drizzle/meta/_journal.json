@@ -85,6 +85,13 @@
       "when": 1789049381654,
       "tag": "0011_refresh_tokens",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1789049381655,
+      "tag": "0012_users_email_addr_spec",
+      "breakpoints": true
     }
   ]
 }

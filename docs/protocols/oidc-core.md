@@ -171,15 +171,33 @@ that says plainly what it enforces.
 So `packages/domain-identity/src/service/email.ts` enforces a strict
 subset — dot-atom local part, dot-atom domain of two or more labels, RFC
 5321 §4.5.3.1's octet limits — chosen so that everything accepted is
-unambiguously a valid addr-spec. `userRepository.create` refuses anything
-else, which is the boundary that matters: the column is bare `text` and
-the claim is emitted from it verbatim, so an address that gets in is a
-malformed claim in every token and `/userinfo` response afterwards.
+unambiguously a valid addr-spec.
+
+**Where that subset is enforced is the whole of the claim.** The claim is
+emitted verbatim from `users.email`
+(`packages/protocol-oidc/src/service/claims.ts`), so the obligation is
+true or false of the column, not of any one function that writes to it. A
+repository method constrains one writer; it said nothing about a test
+helper, a future admin API, a migration or a DBA, and for a while it said
+nothing about any path that actually produced a claim either. The column
+now carries `users_email_addr_spec`
+(`packages/db/drizzle/0012_users_email_addr_spec.sql`), a `CHECK` spelling
+the same subset in SQL, so there is no write path that can put a
+non-conforming address where the claim is read from.
+`userRepository.create` keeps its own check, demoted to what it is: an
+earlier, friendlier refusal that names the option an operator got wrong
+instead of surfacing a constraint violation.
+
+Two spellings of one rule drift. The integration suite
+(`packages/domain-identity/tests/identity.int.test.ts`) runs a fixed list
+of addresses — conforming and not — past both the column and
+`isEmailAddress` and fails if they ever disagree.
 
 The cost is stated rather than hidden: a user whose real address needs a
 quoted local part, a comment, a domain literal or a single-label domain
 cannot be stored. Raising that ceiling means implementing the grammar, not
-widening the pattern.
+widening the pattern — and now means writing a migration as well, which is
+the right amount of friction for changing what a claim is allowed to say.
 
 ### The third error parameter §3.1.2.6 does not know about
 

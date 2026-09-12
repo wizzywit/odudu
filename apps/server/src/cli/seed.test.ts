@@ -37,4 +37,15 @@ describe('seed option validation', () => {
       }),
     ).rejects.toThrow(/together/);
   });
+
+  it('refuses an email with nobody to attach it to', async () => {
+    await expect(
+      seed({
+        realm: 'acme',
+        clientId: 'web-app',
+        redirectUris: ['https://app.example/callback'],
+        email: 'ada@example.com',
+      }),
+    ).rejects.toThrow(/email/);
+  });
 });

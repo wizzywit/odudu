@@ -72,11 +72,16 @@ export function userRepository(tx: RealmScopedDatabase) {
       // `text`, so this is the boundary where a non-conforming address can
       // still be refused instead of becoming a malformed claim in every
       // token and /userinfo response thereafter.
+      // The rejected address stays out of the message. apps/server/src/logger.ts
+      // allowlists what may be logged precisely so end-user data does not
+      // reach a log line, and an error message is one `logger.error({ err })`
+      // away from being one.
       if (email !== null && !isEmailAddress(email)) {
         throw new OduduError(
           'invalid_email',
-          `${JSON.stringify(email)} is not an address the email claim may carry — see ` +
-            'packages/domain-identity/src/service/email.ts for the accepted form.',
+          `the email given for user ${JSON.stringify(input.username)} is not an address the ` +
+            'email claim may carry — see packages/domain-identity/src/service/email.ts for the ' +
+            'accepted form.',
         );
       }
 

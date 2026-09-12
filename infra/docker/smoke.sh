@@ -85,7 +85,8 @@ set -o pipefail
 
 docker compose exec -T odudu node dist/main.js seed \
   --realm smoke --client smoke-app --client-secret smoke-secret \
-  --redirect-uri http://localhost:3000/cb --user smoke --password smoke-password
+  --redirect-uri http://localhost:3000/cb --user smoke --password smoke-password \
+  --email smoke@example.com
 
 VERIFIER=$(openssl rand -hex 32)
 CHALLENGE=$(printf '%s' "$VERIFIER" | openssl dgst -binary -sha256 | openssl base64 | tr '+/' '-_' | tr -d '=')

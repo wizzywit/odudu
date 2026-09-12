@@ -6,7 +6,7 @@ import {
   withRealm,
   type DatabaseHandle,
 } from '@odudu/db';
-import { subjects } from '@odudu/domain-identity';
+import { subjects, users } from '@odudu/domain-identity';
 import { clients } from '@odudu/domain-realm';
 import { newId } from '@odudu/kernel';
 import { clientOidcConfigRepository } from '@odudu/protocol-oidc';
@@ -100,6 +100,16 @@ async function serviceSubjectType(realmId: string, clientId: string): Promise<st
   return subjectRow.type;
 }
 
+async function seededEmail(realmId: string, username: string): Promise<string | null> {
+  const rows = await owner.db
+    .select({ email: users.email })
+    .from(users)
+    .where(and(eq(users.realmId, realmId), eq(users.username, username)));
+  const row = rows[0];
+  if (row === undefined) throw new Error(`no user ${username} in realm ${realmId}`);
+  return row.email;
+}
+
 function uniqueOptions(): SeedOptions {
   const suffix = newId();
   return {
@@ -178,6 +188,41 @@ describe('seed', () => {
     await seed(options);
 
     await expect(seed({ ...options, username: 'grace', password: 'pw' })).rejects.toThrow(/grace/);
+  });
+
+  // Every `email` claim a demo or an end-to-end run has ever seen was put
+  // there by a test helper, because seed could not set one. A claim nothing
+  // in the product can produce is a claim nothing exercises.
+  it('stores the email it is given on the seeded user', async () => {
+    const options = uniqueOptions();
+
+    const result = await seed({ ...options, email: 'ada@example.com' });
+
+    expect(await seededEmail(result.realmId, 'ada')).toBe('ada@example.com');
+  });
+
+  it('leaves the seeded user without an email when none is given', async () => {
+    const options = uniqueOptions();
+
+    const result = await seed(options);
+
+    expect(await seededEmail(result.realmId, 'ada')).toBeNull();
+  });
+
+  it('refuses an address the email claim could not carry', async () => {
+    const options = uniqueOptions();
+
+    await expect(seed({ ...options, email: 'ada at example.com' })).rejects.toThrow(/email/);
+  });
+
+  it('refuses a second run with a different email for the same user', async () => {
+    const options = uniqueOptions();
+
+    await seed({ ...options, email: 'ada@example.com' });
+
+    await expect(seed({ ...options, email: 'ada@other.example' })).rejects.toThrow(
+      /different email/,
+    );
   });
 
   it('defaults a confidential client to client_secret_basic', async () => {

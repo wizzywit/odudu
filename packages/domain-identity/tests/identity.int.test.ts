@@ -14,6 +14,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { credentialRepository } from '#/repository/credentials';
 import { subjectRepository } from '#/repository/subjects';
 import { userRepository } from '#/repository/users';
+import { isEmailAddress } from '#/service/email';
 import { subjects } from '#/schema/subjects';
 import { userCredentials } from '#/schema/user-credentials';
 import { users } from '#/schema/users';
@@ -131,9 +132,11 @@ describe('userRepository', () => {
     expect(found?.subject.realmId).toBe(realmId);
   });
 
-  // OIDC Core §5.1: the `email` claim is emitted verbatim from this column,
-  // so an address that is not an addr-spec has to be stopped on the way in.
-  it('[OIDC-CORE-5.1-01] refuses to store an address the email claim could not carry', async () => {
+  // OIDC Core §5.1: the `email` claim is emitted verbatim from this column.
+  // users_email_addr_spec is what makes that true; this method refuses the
+  // same values earlier, so an operator gets a message naming the option
+  // rather than a constraint-violation stack.
+  it('refuses to store an address the email claim could not carry', async () => {
     const realmId = newId();
 
     await expect(
@@ -148,6 +151,33 @@ describe('userRepository', () => {
         });
       }),
     ).rejects.toMatchObject({ code: 'invalid_email' });
+  });
+
+  // apps/server/src/logger.ts allowlists what may be logged so end-user data
+  // does not reach a log line; an error message carrying the address would
+  // walk straight past that the moment anything logs `{ err }`.
+  it('keeps the rejected address out of the error it throws', async () => {
+    const realmId = newId();
+
+    const rejected = 'mallory the unrouteable';
+    const error = await withRealm(app.db, realmId, async (tx) => {
+      await seedRealm(tx, realmId);
+      const subject = await subjectRepository(tx).create({ realmId, type: 'user' });
+      return userRepository(tx)
+        .create({
+          subjectId: subject.id,
+          realmId,
+          username: `mallory-${newId()}`,
+          email: rejected,
+        })
+        .then(
+          () => null,
+          (caught: unknown) => caught,
+        );
+    });
+
+    expect(error).toBeInstanceOf(Error);
+    expect(String(error)).not.toContain(rejected);
   });
 
   it('stores a conforming address, and stores no address at all without complaint', async () => {
@@ -305,6 +335,89 @@ describe('userRepository', () => {
     const cause = (error as Error).cause;
     expect(cause).toBeInstanceOf(Error);
     expect((cause as Error).message).toContain('users_subject_realm_fk');
+  });
+});
+
+// The repository guard constrains one writer. The column constrains every
+// writer there will ever be, which is what the OIDC Core §5.1 row claims.
+describe('users_email_addr_spec, the column constraint behind the email claim', () => {
+  it('refuses a non-conforming address inserted straight into the table', async () => {
+    const realmId = newId();
+
+    await expect(
+      withRealm(app.db, realmId, async (tx) => {
+        await seedRealm(tx, realmId);
+        const subjectId = await insertSubject(tx, realmId);
+        await insertUserRow(tx, subjectId, realmId, { email: 'not an address' });
+      }),
+      // Drizzle wraps the driver error; the SQLSTATE and the constraint name
+      // are on .cause.
+    ).rejects.toMatchObject({
+      cause: { code: '23514', constraint_name: 'users_email_addr_spec' },
+    });
+  });
+
+  // Two spellings of one rule — this predicate and `isEmailAddress` — drift
+  // unless something compares them. The repository's error message would
+  // start describing a form the column no longer accepts, or, worse, the
+  // column would accept what the repository promised to refuse.
+  it('accepts exactly what isEmailAddress accepts', async () => {
+    const cases = [
+      'alice@example.com',
+      'carol.o-brien+tag@mail.example.com',
+      "!#$%&'*+/=?^_`{|}~-@example.com",
+      'a@b.co',
+      'ALICE@EXAMPLE.COM',
+      'alice@sub.domain.example.co.uk',
+      `${'a'.repeat(64)}@example.com`,
+      `${'a'.repeat(65)}@example.com`,
+      'not an address',
+      '',
+      '@example.com',
+      'alice@',
+      'alice@example',
+      '.alice@example.com',
+      'alice.@example.com',
+      'ali..ce@example.com',
+      'alice@.example.com',
+      'alice@example..com',
+      'alice@-example.com',
+      'alice@example-.com',
+      'alice@[192.0.2.1]',
+      '"quoted local"@example.com',
+      'alice(comment)@example.com',
+      ' alice@example.com',
+      'alice@example.com ',
+      'alice@exa mple.com',
+      'alice@@example.com',
+      'alice@example.com\nbob@example.com',
+      `${'a'.repeat(250)}@example.com`,
+    ];
+
+    const realmId = newId();
+    await withRealm(app.db, realmId, async (tx) => {
+      await seedRealm(tx, realmId);
+    });
+
+    // One transaction per case: a constraint violation aborts the
+    // transaction it happens in, and every statement after it in that
+    // transaction fails for a reason that has nothing to do with the address.
+    const accepted: boolean[] = [];
+    for (const candidate of cases) {
+      accepted.push(
+        await withRealm(app.db, realmId, async (tx) => {
+          const subjectId = await insertSubject(tx, realmId);
+          await insertUserRow(tx, subjectId, realmId, { email: candidate });
+        }).then(
+          () => true,
+          () => false,
+        ),
+      );
+    }
+
+    expect(Object.fromEntries(cases.map((c, i) => [c, accepted[i]]))).toEqual(
+      Object.fromEntries(cases.map((c) => [c, isEmailAddress(c)])),
+    );
   });
 });
 

@@ -29,6 +29,7 @@ function parseSeedOptions(argv: string[]): SeedOptions {
       'redirect-uri': { type: 'string', multiple: true },
       user: { type: 'string' },
       password: { type: 'string' },
+      email: { type: 'string' },
     },
   });
 
@@ -55,6 +56,7 @@ function parseSeedOptions(argv: string[]): SeedOptions {
     ...(authMethod !== undefined ? { tokenEndpointAuthMethod: authMethod } : {}),
     ...(values.user !== undefined ? { username: values.user } : {}),
     ...(values.password !== undefined ? { password: values.password } : {}),
+    ...(values.email !== undefined ? { email: values.email } : {}),
   };
 }
 

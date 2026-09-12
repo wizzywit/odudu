@@ -37,6 +37,12 @@ export interface SeedOptions {
   redirectUris: string[];
   username?: string;
   password?: string;
+  // The seeded user is the one every demo and end-to-end run authenticates
+  // as, so it is the only user whose `email` claim anything exercises. What
+  // an address may be is `users_email_addr_spec`'s business
+  // (packages/db/drizzle/0012_users_email_addr_spec.sql); this only decides
+  // whether there is one.
+  email?: string;
 }
 
 export interface SeedResult {
@@ -70,6 +76,15 @@ function assertUserOptionsPaired(opts: SeedOptions): void {
     throw new OduduError(
       'seed_invalid_options',
       'username and password must be supplied together, or not at all',
+    );
+  }
+}
+
+function assertEmailHasAUser(opts: SeedOptions): void {
+  if (opts.email !== undefined && opts.username === undefined) {
+    throw new OduduError(
+      'seed_invalid_options',
+      'email belongs to a user, so it needs a username and password alongside it',
     );
   }
 }
@@ -165,6 +180,17 @@ async function assertMatchesExisting(
       throw new OduduError(
         'seed_conflict',
         `client ${opts.clientId} already exists in realm ${opts.realm}, but user ${opts.username} was not seeded with it; seed does not add users to an existing client`,
+      );
+    }
+
+    // An omitted --email asserts no address, the same way an omitted
+    // --token-endpoint-auth-method asserts the default: a run that quietly
+    // left a previously seeded address alone would report agreement it had
+    // not checked.
+    if ((existingUser.user.email ?? undefined) !== opts.email) {
+      throw new OduduError(
+        'seed_conflict',
+        `user ${opts.username} already exists with a different email`,
       );
     }
 
@@ -264,6 +290,7 @@ async function performSeed(
         subjectId: userSubject.id,
         realmId,
         username: opts.username,
+        ...(opts.email !== undefined ? { email: opts.email } : {}),
       });
       await credentialRepository(tx).create({
         realmId,
@@ -284,6 +311,7 @@ async function performSeed(
 export async function seed(opts: SeedOptions): Promise<SeedResult> {
   assertAbsoluteRedirectUris(opts.redirectUris);
   assertUserOptionsPaired(opts);
+  assertEmailHasAUser(opts);
   assertAuthMethodPairedWithSecret(opts);
 
   const config = loadConfig();
