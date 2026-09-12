@@ -112,6 +112,125 @@ describe('[JOSE-4.1.4-01] kid is an exact-match lookup, never a path', () => {
   });
 });
 
+describe('[JOSE-4.1.1-02] the header alg is only honoured when the verifier understands it', () => {
+  it('verifies a token whose header alg is the one the key record pins', async () => {
+    const token = await signJwt({ sub: 's', iss: ISS }, { key, kek: KEK });
+    const headerText = Buffer.from(token.split('.')[0] ?? '', 'base64url').toString('utf8');
+    expect(headerText).toContain(`"alg":"${key.alg}"`);
+    await expect(verifyJwt(token, { keys, issuer: ISS })).resolves.toMatchObject({ sub: 's' });
+  });
+
+  // The body and signature stay genuine in every case below: only the alg
+  // the header advertises changes, so a verifier that took the header's
+  // word for the algorithm — or ignored alg altogether — would accept these.
+  // `undefined` serializes away, leaving a header with no alg member.
+  it.each([
+    { case: 'an algorithm no JWA registers', alg: 'RS9999' },
+    { case: 'a different RSA algorithm', alg: 'RS512' },
+    { case: 'an algorithm for another key type', alg: 'ES256' },
+    { case: 'the unsecured algorithm', alg: 'none' },
+    { case: 'a non-string alg', alg: 42 },
+    { case: 'no alg at all', alg: undefined },
+  ])('rejects $case', async ({ alg }) => {
+    const forged = await tokenWithHeader({ alg, kid: key.kid });
+    await expect(verifyJwt(forged, { keys, issuer: ISS })).rejects.toMatchObject({
+      code: 'jwt_alg_mismatch',
+    });
+  });
+});
+
+describe('[JOSE-7.2-01] a token that fails any validation step is rejected outright', () => {
+  // A token that passes every step, so each case below differs from an
+  // accepted token in exactly the one step it is named for.
+  async function genuine(expiresIn = '5m'): Promise<string> {
+    const jwk = unwrapPrivateJwk<Record<string, unknown>>(key.privateJwkEncrypted, KEK);
+    const privateKey = await importJWK(jwk, key.alg);
+    return new SignJWT({ sub: 'subject', aud: 'https://api.example' })
+      .setProtectedHeader({ alg: key.alg, kid: key.kid })
+      .setIssuer(ISS)
+      .setExpirationTime(expiresIn)
+      .sign(privateKey);
+  }
+
+  function corruptSignature(token: string): string {
+    const [header, body, signature = ''] = token.split('.');
+    const flipped = signature.startsWith('A') ? `B${signature.slice(1)}` : `A${signature.slice(1)}`;
+    return `${String(header)}.${String(body)}.${flipped}`;
+  }
+
+  // The options are thunks because `keys` is only assigned in beforeAll,
+  // after this table is built.
+  const cases: {
+    step: string;
+    token: () => Promise<string>;
+    opts: () => Parameters<typeof verifyJwt>[1];
+    message: RegExp;
+  }[] = [
+    {
+      step: 'the kid is structurally unusable',
+      token: async () => tokenWithHeader({ alg: key.alg, kid: '' }),
+      opts: () => ({ keys, issuer: ISS }),
+      message: /kid/i,
+    },
+    {
+      step: 'the kid names no key this verifier holds',
+      token: async () => tokenWithHeader({ alg: key.alg, kid: 'no-such-key' }),
+      opts: () => ({ keys, issuer: ISS }),
+      message: /unknown key/i,
+    },
+    {
+      step: 'the header alg is not the key record alg',
+      token: async () => tokenWithHeader({ alg: 'ES256', kid: key.kid }),
+      opts: () => ({ keys, issuer: ISS }),
+      message: /alg/i,
+    },
+    {
+      step: 'the typ is not what the call site requires',
+      token: async () => genuine(),
+      opts: () => ({ keys, issuer: ISS, typ: 'at+jwt' }),
+      message: /typ/i,
+    },
+    {
+      step: 'the signature does not verify',
+      token: async () => corruptSignature(await genuine()),
+      opts: () => ({ keys, issuer: ISS }),
+      message: /signature/i,
+    },
+    {
+      step: 'the issuer is not the expected one',
+      token: async () => genuine(),
+      opts: () => ({ keys, issuer: 'https://someone-else.example' }),
+      message: /iss/i,
+    },
+    {
+      step: 'the audience does not include this principal',
+      token: async () => genuine(),
+      opts: () => ({ keys, issuer: ISS, audience: 'https://elsewhere.example' }),
+      message: /aud/i,
+    },
+    {
+      step: 'the token has expired',
+      token: async () => genuine('-1s'),
+      opts: () => ({ keys, issuer: ISS }),
+      message: /exp/i,
+    },
+  ];
+
+  it.each(cases)('rejects a token where $step', async ({ token, opts, message }) => {
+    const outcome = await verifyJwt(await token(), opts()).then(
+      (payload) => ({ resolved: true, payload }),
+      (error: unknown) => ({ resolved: false, error }),
+    );
+
+    expect(outcome.resolved).toBe(false);
+    expect('payload' in outcome).toBe(false);
+
+    const error: unknown = 'error' in outcome ? outcome.error : undefined;
+    expect(error).toBeInstanceOf(Error);
+    expect(error instanceof Error ? error.message : '').toMatch(message);
+  });
+});
+
 describe('[RFC9068-2.1-01] token type confusion', () => {
   it('rejects an ID token where an access token is required', async () => {
     const idToken = await signJwt({ sub: 's' }, { key, kek: KEK });
