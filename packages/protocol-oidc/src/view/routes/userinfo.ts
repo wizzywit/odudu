@@ -1,17 +1,12 @@
 import { type FastifyInstance } from 'fastify';
 import { resolveUserinfo, type UserinfoDeps } from '#/usecase/userinfo';
-
-// Matches discovery.ts's issuerBaseFor exactly, so a token's `iss` is
-// checked against the same string this realm's discovery document names.
-function issuerBaseFor(request: { protocol: string; hostname: string }): string {
-  return `${request.protocol}://${request.hostname}`;
-}
+import { realmIssuerFor } from '#/view/issuer';
 
 export function registerUserinfoRoute(app: FastifyInstance, deps: UserinfoDeps): void {
   app.get<{ Params: { realm: string } }>(
     '/realms/:realm/protocol/openid-connect/userinfo',
     async (request, reply) => {
-      const issuer = `${issuerBaseFor(request)}/realms/${request.params.realm}`;
+      const issuer = realmIssuerFor(request, request.params.realm);
       const outcome = await resolveUserinfo(
         deps,
         request.params.realm,

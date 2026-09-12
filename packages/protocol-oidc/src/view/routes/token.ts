@@ -1,9 +1,10 @@
 import { withRealm, type DatabaseHandle } from '@odudu/db';
 import { type ClaimMapperRegistry, type Clock } from '@odudu/kernel';
-import { type FastifyInstance, type FastifyRequest } from 'fastify';
+import { type FastifyInstance } from 'fastify';
 import { type ClaimContext } from '#/service/claims';
 import { TokenError } from '#/service/errors';
 import { issueTokens, type TokenResponse } from '#/usecase/token-issuance';
+import { realmIssuerFor } from '#/view/issuer';
 
 export interface TokenRouteDeps {
   database: DatabaseHandle;
@@ -21,14 +22,6 @@ export interface TokenRouteDeps {
   loadClaimContext(realmId: string, subjectId: string): Promise<ClaimContext>;
 }
 
-// Matches discovery.ts's issuerBaseFor and its issuer construction exactly
-// (`${issuerBase}/realms/${realmName}`), so a token's `iss` is always the
-// same string a client already learned from this realm's discovery
-// document.
-function issuerBaseFor(request: FastifyRequest): string {
-  return `${request.protocol}://${request.hostname}`;
-}
-
 export function registerTokenRoute(app: FastifyInstance, deps: TokenRouteDeps): void {
   app.post<{
     Params: { realm: string };
@@ -37,7 +30,7 @@ export function registerTokenRoute(app: FastifyInstance, deps: TokenRouteDeps): 
     const realm = await deps.findRealm(request.params.realm);
     if (!realm?.enabled) return reply.code(404).send();
 
-    const issuer = `${issuerBaseFor(request)}/realms/${request.params.realm}`;
+    const issuer = realmIssuerFor(request, request.params.realm);
 
     try {
       const response: TokenResponse = await withRealm(deps.database.db, realm.id, (tx) =>

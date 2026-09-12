@@ -1,17 +1,11 @@
 import { sessionCookieName } from '@odudu/authn-flows';
-import { type FastifyInstance, type FastifyRequest } from 'fastify';
+import { type FastifyInstance } from 'fastify';
 import { handleLoginSubmission, type LoginSubmissionDeps } from '#/usecase/login-submission';
 import { renderAuthorizeErrorPage, renderLoginForm } from '#/view/authorize-html';
+import { issuerBaseFor } from '#/view/issuer';
 
 export interface LoginRouteDeps extends LoginSubmissionDeps {
   tls: boolean;
-}
-
-// Matches discovery.ts's issuerBaseFor: request.protocol/hostname respect
-// trustProxy the same way request.ip does, so behind a reverse proxy that
-// terminates TLS, ODUDU_TRUST_PROXY must be on for this to read https.
-function issuerBaseFor(request: FastifyRequest): string {
-  return `${request.protocol}://${request.hostname}`;
 }
 
 // @fastify/formbody parses a repeated field into an array; every field this
