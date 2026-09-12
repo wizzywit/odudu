@@ -218,6 +218,42 @@ describe('a repeated state or scope redirects with invalid_request', () => {
   });
 });
 
+describe('an unsupported response_mode is answered with 400 and nothing else', () => {
+  it('[OIDC-CORE-3.1.2.6-01] answers response_mode=fragment with 400 and no response parameters', async () => {
+    const res = await http.inject({ url: authorizeUrl({ response_mode: 'fragment' }) });
+    expect(res.statusCode).toBe(400);
+    expect(res.headers.location).toBeUndefined();
+    expect(res.body).not.toContain('name="auth_session_id"');
+  });
+
+  it('answers response_mode=query exactly as a request naming no mode', async () => {
+    const res = await http.inject({ url: authorizeUrl({ response_mode: 'query' }) });
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toContain('name="auth_session_id"');
+  });
+});
+
+// OIDC Core §3.1.2.6: Odudu implements no request objects (§6), and the
+// client has to be told so — a client whose signed parameters were
+// discarded in silence would believe they had been honoured.
+describe('request objects are refused by name rather than ignored', () => {
+  async function errorReturnedFor(key: string): Promise<string | null> {
+    const res = await http.inject({ url: authorizeUrl({ [key]: 'https://app.example/req.jwt' }) });
+    expect(res.statusCode).toBe(302);
+    const location = res.headers.location;
+    if (typeof location !== 'string') throw new Error('expected a location header');
+    return new URL(location).searchParams.get('error');
+  }
+
+  it('[OIDC-CORE-3.1.2.6-02] returns request_not_supported for a request parameter', async () => {
+    expect(await errorReturnedFor('request')).toBe('request_not_supported');
+  });
+
+  it('[OIDC-CORE-3.1.2.6-03] returns request_uri_not_supported for a request_uri parameter', async () => {
+    expect(await errorReturnedFor('request_uri')).toBe('request_uri_not_supported');
+  });
+});
+
 describe('an empty-valued query parameter behaves as an omitted one', () => {
   it('defaults an empty scope instead of failing it as an unknown one', async () => {
     const res = await http.inject({ url: authorizeUrl({ scope: '' }) });

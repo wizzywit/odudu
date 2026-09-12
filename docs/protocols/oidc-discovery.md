@@ -44,6 +44,10 @@ values that make later conformance testing predictable:
   `token_endpoint_auth_signing_alg_values_supported` are `["RS256", "ES256"]`
   — the phase's only two signing algorithms; no symmetric (`HS*`) or `none`
   value is ever listed.
+- `response_modes_supported: ["query"]` — the only Response Mode Odudu
+  answers in (`docs/protocols/oidc-core.md` §3.1.2.6). It is stated rather
+  than omitted: §3 defaults an omitted value to `["query", "fragment"]`,
+  which would advertise a mode the authorization endpoint refuses.
 - `subject_types_supported: ["public"]` — pairwise subject identifiers are
   not part of this phase's scope; only `public` is offered.
 - `registration_endpoint` is omitted from the document entirely while

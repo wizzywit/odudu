@@ -17,6 +17,13 @@ describe('[OIDC-DISCOVERY-3-01] the discovery document', () => {
     expect(doc.code_challenge_methods_supported).toEqual(['S256']);
   });
 
+  // Omitting this member does not mean "no opinion": OIDC Discovery §3
+  // gives it the default ["query", "fragment"], which would promise a
+  // delivery mode /authorize refuses.
+  it('advertises only the query response mode', () => {
+    expect(doc.response_modes_supported).toEqual(['query']);
+  });
+
   it('advertises the iss parameter', () => {
     expect(doc.authorization_response_iss_parameter_supported).toBe(true);
   });

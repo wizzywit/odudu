@@ -7,6 +7,7 @@ export interface DiscoveryDocument {
   readonly userinfo_endpoint: string;
   readonly jwks_uri: string;
   readonly response_types_supported: readonly string[];
+  readonly response_modes_supported: readonly string[];
   readonly subject_types_supported: readonly string[];
   readonly id_token_signing_alg_values_supported: readonly string[];
   readonly code_challenge_methods_supported: readonly string[];
@@ -52,6 +53,10 @@ export function discoveryDocument(opts: DiscoveryDocumentOptions): DiscoveryDocu
     // types. A client that reads discovery and trusts it cannot be offered a
     // weaker flow.
     response_types_supported: ['code'],
+    // Stated rather than left to its default: OIDC Discovery §3 defaults an
+    // omitted response_modes_supported to ["query", "fragment"], and
+    // /authorize refuses `fragment` (OIDC Core §3.1.2.6).
+    response_modes_supported: ['query'],
     subject_types_supported: ['public'],
     id_token_signing_alg_values_supported: ['RS256', 'ES256'],
     code_challenge_methods_supported: ['S256'],

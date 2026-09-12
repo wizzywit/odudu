@@ -2,6 +2,7 @@ import { type PendingRequest } from '@odudu/authn-flows';
 import { SUPPORTED_SCOPES } from '@odudu/contracts';
 import { type ClientRecord } from '@odudu/domain-realm';
 import { type ClientOidcConfig } from '#/schema/client-oidc-config';
+import { isWellFormedPkceString } from '#/service/pkce';
 import { isRegisteredRedirectUri } from '#/service/redirect-uri';
 
 export type AuthorizeOutcome =
@@ -16,6 +17,15 @@ export type AuthorizeOutcome =
 // mappers exist, since advertising a claim nothing yet returns would be
 // the same dishonesty in the other direction.
 const KNOWN_SCOPES = new Set<string>(SUPPORTED_SCOPES);
+
+// The only Response Mode Odudu answers in, and the default one for
+// `response_type=code` (OIDC Core §3.1.2.1). `fragment` and `form_post`
+// deliver the response by means this server does not implement, so a
+// client asking for either is told, not quietly answered in another mode.
+// Discovery advertises this same list as response_modes_supported —
+// omitting the member would default it to ["query", "fragment"]
+// (OIDC Discovery §3) and promise what this rejects.
+const SUPPORTED_RESPONSE_MODE = 'query';
 
 function scopesAreKnown(scope: string | undefined): boolean {
   const tokens = (scope ?? 'openid').split(' ').filter((token) => token.length > 0);
@@ -54,6 +64,21 @@ export function validateAuthorizationRequest(
   // rendering: until redirect_uri is known to belong to a real, enabled
   // client, sending the user there is an open redirect wearing this server's
   // domain. RFC 6749 §4.1.2.1 says MUST NOT automatically redirect.
+  //
+  // The Response Mode comes first of all, and reports by rendering whatever
+  // else is wrong with the request: it names how the response is to be
+  // delivered, so an unsupported one leaves no way to deliver an error
+  // either. OIDC Core §3.1.2.6 asks for an HTTP 400 carrying no error
+  // response parameters, which is what rendering is.
+  const responseMode = params.response_mode;
+  if (responseMode !== undefined && responseMode !== SUPPORTED_RESPONSE_MODE) {
+    return {
+      kind: 'render',
+      error: 'invalid_request',
+      description: `Unsupported response_mode; this server answers in ${SUPPORTED_RESPONSE_MODE} only`,
+    };
+  }
+
   if (!client || !client.enabled || !config) {
     return { kind: 'render', error: 'invalid_client', description: 'Unknown or disabled client' };
   }
@@ -74,10 +99,17 @@ export function validateAuthorizationRequest(
 
   if (repeatedKey !== null) return reject('invalid_request');
 
+  // OIDC Core §3.1.2.6: request objects (§6) are not implemented, and the
+  // specification requires saying so. Silently dropping the parameter would
+  // leave the client believing the parameters it signed were the ones
+  // honoured, when the ones honoured are whatever the query string carried.
+  if (params.request !== undefined) return reject('request_not_supported');
+  if (params.request_uri !== undefined) return reject('request_uri_not_supported');
+
   if (params.response_type !== 'code') return reject('unsupported_response_type');
 
   const codeChallenge = params.code_challenge;
-  if (codeChallenge === undefined || codeChallenge.length === 0) {
+  if (codeChallenge === undefined || !isWellFormedPkceString(codeChallenge)) {
     return reject('invalid_request');
   }
   if (params.code_challenge_method !== 'S256') return reject('invalid_request');

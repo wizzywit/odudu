@@ -100,6 +100,91 @@ describe('[RFC6749-4.1.2.1-02] failures after redirect_uri is trusted redirect w
   });
 });
 
+describe('an unsupported response mode is refused, not silently changed', () => {
+  it.each(['fragment', 'form_post', 'web_message', 'QUERY', 'query fragment'])(
+    'renders rather than answering in the mode it does support: %s',
+    (mode) => {
+      expect(
+        validateAuthorizationRequest({ ...params, response_mode: mode }, client, config),
+      ).toMatchObject({ kind: 'render' });
+    },
+  );
+
+  it('accepts the one mode Odudu answers in', () => {
+    expect(
+      validateAuthorizationRequest({ ...params, response_mode: 'query' }, client, config),
+    ).toMatchObject({ kind: 'ok' });
+  });
+
+  it('accepts a request naming no response mode at all', () => {
+    expect(validateAuthorizationRequest(params, client, config)).toMatchObject({ kind: 'ok' });
+  });
+
+  it('accepts exactly what discovery advertises as response_modes_supported', () => {
+    const advertised = discoveryDocument({
+      issuer: 'https://idp.example',
+      claimsSupported: [],
+    }).response_modes_supported;
+
+    for (const mode of advertised) {
+      expect(
+        validateAuthorizationRequest({ ...params, response_mode: mode }, client, config),
+      ).toMatchObject({ kind: 'ok' });
+    }
+    expect(advertised).not.toContain('fragment');
+  });
+
+  // An unsupported mode is refused before the client is even looked up:
+  // there is no response to deliver by a means the server does not have.
+  it('renders for an unsupported mode even when nothing else about the request is valid', () => {
+    expect(
+      validateAuthorizationRequest(
+        { ...params, response_mode: 'fragment', client_id: 'nope' },
+        null,
+        null,
+      ),
+    ).toMatchObject({ kind: 'render' });
+  });
+});
+
+describe('request objects are refused by name, not ignored', () => {
+  it.each([
+    ['request', 'request_not_supported'],
+    ['request_uri', 'request_uri_not_supported'],
+  ])('redirects with %s', (key, expected) => {
+    expect(
+      validateAuthorizationRequest(
+        { ...params, [key]: 'https://app.example/req.jwt' },
+        client,
+        config,
+      ),
+    ).toMatchObject({ kind: 'redirect', error: expected, state: params.state });
+  });
+});
+
+describe('[RFC7636-4.2-01] the code challenge is checked for shape, not merely presence', () => {
+  it.each([
+    ['one character', 'a'],
+    ['42 characters', 'a'.repeat(42)],
+    ['129 characters', 'a'.repeat(129)],
+    ['a character outside the unreserved set', `${'a'.repeat(42)}+`],
+    ['base64 padding', `${'a'.repeat(42)}=`],
+    ['a space', `${'a'.repeat(42)} `],
+  ])('redirects with invalid_request for %s', (_label, challenge) => {
+    expect(
+      validateAuthorizationRequest({ ...params, code_challenge: challenge }, client, config),
+    ).toMatchObject({ kind: 'redirect', error: 'invalid_request' });
+  });
+
+  it.each([43, 128])('accepts a %s-character challenge from the unreserved set', (length) => {
+    const challenge = `${'-._~'.repeat(8)}${'a'.repeat(length - 32)}`;
+    expect(challenge).toHaveLength(length);
+    expect(
+      validateAuthorizationRequest({ ...params, code_challenge: challenge }, client, config),
+    ).toMatchObject({ kind: 'ok' });
+  });
+});
+
 describe('scope acceptance', () => {
   it('accepts openid together with profile and email', () => {
     const outcome = validateAuthorizationRequest(
