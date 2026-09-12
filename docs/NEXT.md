@@ -37,14 +37,20 @@ trigger condition Task 10's `__Host-` cookie fallback was waiting for.
 every push to `main` and every pull request, mirroring `container`'s
 structure.
 
-Running the **Basic OP** plan (35 modules, `results/`) found that 30 fail
-for one shared reason: odudu makes PKCE mandatory on every
-`authorization_code` request, and the Basic OP profile's tests (bar the
-one built to test PKCE, which passes) don't send it. This is reported,
-not patched — reversing PKCE-mandatory to chase Basic OP certification
-would undo a deliberate OAuth 2.1 alignment decision, and that trade is
-not this task's to make. Whether it is ever closed, and how, is for the
-next task to decide with the full clause-gap picture in view.
+Running the **Basic OP** plan (35 modules, `results/`) exposed a genuine
+conflict, now settled in **ADR 0016**: odudu requires PKCE on every
+`authorization_code` request, and Basic OP — a profile written before PKCE
+was mandatory anywhere — sends plain requests in every module but its own
+PKCE one, which passes. The ruling is that mandatory PKCE stays and the
+exit criterion changes. Odudu does not claim Basic OP certification.
+
+The run stays, with its purpose changed: it is the evidence that the only
+divergence is the intended one. That holds only while every module's cause
+is individually confirmed, which is why `infra/conformance/README.md`
+carries a per-module inventory rather than a summary. The first summary
+written for this run said "30 failures, one cause" and concealed an
+unimplemented MUST — OIDC Core §3.1.2.1 requires POST at the authorization
+endpoint, and it returned 404.
 
 A latent, unrelated bug surfaced while wiring the TLS proxy: odudu's
 issuer and endpoint URLs (`packages/protocol-oidc/src/view/routes/

@@ -3554,16 +3554,16 @@ The artifact at https://claude.ai/code/artifact/029aaa24-d96b-4b6b-97a9-51d4d0dd
 
 Do not tick any of these from memory — run the command and paste the result into the commit message:
 
-| #   | Criterion                            | Command                                                                                            |
-| --- | ------------------------------------ | -------------------------------------------------------------------------------------------------- |
-| 1   | verify green including trace         | `pnpm verify`                                                                                      |
-| 2   | zero gaps                            | `pnpm trace`                                                                                       |
-| 3   | Config OP green in CI                | the `conformance` job                                                                              |
-| 4   | Basic OP green with export           | committed results file                                                                             |
-| 5   | `client_credentials` proven          | `npx vitest run --project integration packages/protocol-oidc/tests/client-credentials.int.test.ts` |
-| 6   | adversarial entries green            | `npx vitest run --project integration -t adversarial`                                              |
-| 7   | every table has a policy and a probe | `npx vitest run --project integration packages/db/tests/tenant-tables.int.test.ts`                 |
-| 8   | container end-to-end exchange        | `./infra/docker/smoke.sh`                                                                          |
+| #   | Criterion                                                       | Command                                                                                            |
+| --- | --------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| 1   | verify green including trace                                    | `pnpm verify`                                                                                      |
+| 2   | zero gaps                                                       | `pnpm trace`                                                                                       |
+| 3   | Config OP green in CI                                           | the `conformance` job                                                                              |
+| 4   | Basic OP run with export, every divergence confirmed (ADR 0016) | committed results file                                                                             |
+| 5   | `client_credentials` proven                                     | `npx vitest run --project integration packages/protocol-oidc/tests/client-credentials.int.test.ts` |
+| 6   | adversarial entries green                                       | `npx vitest run --project integration -t adversarial`                                              |
+| 7   | every table has a policy and a probe                            | `npx vitest run --project integration packages/db/tests/tenant-tables.int.test.ts`                 |
+| 8   | container end-to-end exchange                                   | `./infra/docker/smoke.sh`                                                                          |
 
 - [ ] **Step 8: Update `docs/NEXT.md`**
 

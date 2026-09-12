@@ -209,6 +209,13 @@ plan is automated in CI — it is a discovery test and needs no browser. The
 Unattended automation of the interactive plan waits for P4, when Playwright
 and a real login UI arrive.
 
+**Amended 2026-09-12, after standing the suite up.** Basic OP cannot pass
+against a server that requires PKCE of every client, and mandatory PKCE
+stays. The Basic OP run is therefore evidence rather than a gate: it proves
+the only divergence is the intended one, which holds only while every
+module's cause is individually confirmed. ADR 0016 carries the full
+reasoning and the rejected alternatives.
+
 **Rejected — automated nightly for both.** Depends entirely on how
 unattended browser automation of the interactive plan lands, which is the
 least predictable item in the budget, for a capability P4 supplies anyway.
@@ -448,8 +455,12 @@ exist.
 2. Zero `gap` rows across all clause tables; every in-scope MUST `covered`
 3. OIDF **Config OP** plan green, automated in CI against the compose
    stack
-4. OIDF **Basic OP** plan green, with a committed results export and a
-   reproducible documented procedure
+4. OIDF **Basic OP** plan run reproducibly, with a committed results
+   export, and every divergence from it individually confirmed — not
+   sampled — as a consequence of mandatory PKCE. The plan cannot pass:
+   Basic OP predates PKCE being mandatory and sends plain authorization
+   requests in every module but its own PKCE one. ADR 0016 records the
+   ruling and what was given up for it.
 5. `client_credentials` proven by flow tests and by adversarial cases —
    scope escalation beyond client-allowed, and rejection for a public
    client. The Basic OP plan does not exercise this grant, so without an
