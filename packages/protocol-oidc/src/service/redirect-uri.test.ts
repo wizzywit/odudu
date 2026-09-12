@@ -23,4 +23,30 @@ describe('[OIDC-CORE-3.1.2.1-06] isRegisteredRedirectUri', () => {
   it('rejects a URI absent from the registered list entirely', () => {
     expect(isRegisteredRedirectUri('https://evil.example/cb', REGISTERED)).toBe(false);
   });
+
+  // OAuth 2.1 removed wildcard matching, so a registration that looks like a
+  // pattern is a literal string and matches only itself. Nothing here treats
+  // `*` as standing for anything.
+  it.each([
+    'https://app.example/anything',
+    'https://app.example/*',
+    'https://other.example/callback',
+  ])('does not let a registered wildcard match %s', (presented) => {
+    expect(isRegisteredRedirectUri(presented, ['https://*.example/*'])).toBe(false);
+  });
+
+  it.each([
+    'https://app.example.evil.test/callback',
+    'https://evil.test/?u=https://app.example/callback',
+    'https://app.example:443/callback',
+    'https://App.Example/callback',
+    'http://app.example/callback',
+    'https://app.example/callback/../callback',
+  ])('rejects %s, which only a normalizing comparison would accept', (presented) => {
+    expect(isRegisteredRedirectUri(presented, REGISTERED)).toBe(false);
+  });
+
+  it('matches a registration that is itself a literal wildcard string', () => {
+    expect(isRegisteredRedirectUri('https://app.example/*', ['https://app.example/*'])).toBe(true);
+  });
 });

@@ -16,8 +16,41 @@ describe('the authorization code is opaque and stored hashed', () => {
     expect(code).toMatch(/^[A-Za-z0-9_-]{43,}$/);
   });
 
+  // Exactly 43 base64url characters is exactly 32 bytes, which is 256 bits —
+  // past both the 2^-128 RFC 6749 §10.10 requires of a generated credential
+  // and the 2^-160 it recommends. Width alone does not establish that,
+  // though: 8 random bytes padded out to 43 characters decode to 32 bytes
+  // and match the same shape, so the width is checked here and the
+  // randomness behind it is checked over a sample below.
+  it('is 43 base64url characters, which is 32 bytes wide', () => {
+    const code = generateAuthorizationCode();
+    expect(code).toMatch(/^[A-Za-z0-9_-]{43}$/);
+    expect(Buffer.from(code, 'base64url')).toHaveLength(32);
+  });
+
   it('returns a different code every time', () => {
     expect(generateAuthorizationCode()).not.toEqual(generateAuthorizationCode());
+  });
+
+  // A single pair being different is satisfied by a counter. A large sample
+  // with no collision at all is what a random source looks like, and is what
+  // "cannot be guessed" needs underneath it.
+  it('produces no repeat across a large sample', () => {
+    const sample = new Set(Array.from({ length: 5_000 }, () => generateAuthorizationCode()));
+    expect(sample.size).toBe(5_000);
+  });
+
+  // Structure is what a guesser exploits: a fixed prefix, padding, an
+  // embedded constant, a counter in a known position. Every one of those
+  // shows up as a character position that never changes, so every position
+  // is checked — not the code's width, which padding restores, and not a
+  // collision count, which 64 bits of randomness would also pass.
+  it('varies at every character position across a sample', () => {
+    const codes = Array.from({ length: 256 }, () => generateAuthorizationCode());
+    const constant = Array.from({ length: 43 }, (_unused, i) => i).filter(
+      (i) => new Set(codes.map((code) => code[i])).size === 1,
+    );
+    expect(constant).toEqual([]);
   });
 
   it('hashes the code so the stored value cannot be replayed', () => {
