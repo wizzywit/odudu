@@ -84,6 +84,35 @@ describe('sessionRepository', () => {
 });
 
 describe('authenticationSessionRepository', () => {
+  // `byId` is read twice per login attempt by the flow executor: once to
+  // load the parked request and once after `consume` succeeds. `consume`
+  // being realm-scoped says nothing about the read that precedes it, which
+  // is where the parked request — client_id, redirect_uri, scope, nonce —
+  // would leak across realms.
+  it('cannot find an authentication session by id under a different realm context', async () => {
+    await expectCrossRealmMethodProbe(app.db, {
+      seed: async (tx, realmId) => {
+        await seedRealm(tx, realmId);
+        const id = newId();
+        await authenticationSessionRepository(tx).create({
+          id,
+          realmId,
+          pendingRequest: PENDING_REQUEST,
+          expiresAt: new Date(Date.now() + 600_000),
+        });
+        return id;
+      },
+      verifySeeded: async (tx, id) => {
+        const found = await authenticationSessionRepository(tx).byId(id);
+        expect(found?.pendingRequest.clientId).toBe(PENDING_REQUEST.clientId);
+      },
+      attempt: async (tx, id) => authenticationSessionRepository(tx).byId(id),
+      expectBlocked: (result) => {
+        expect(result).toBeNull();
+      },
+    });
+  });
+
   it('cannot consume an authentication session under a different realm context, and leaves it unconsumed', async () => {
     await expectCrossRealmMethodProbe(app.db, {
       seed: async (tx, realmId) => {
