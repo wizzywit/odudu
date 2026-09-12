@@ -3,10 +3,24 @@
 ## Start here
 
 **P0 is complete and merged. P1 (the OAuth 2.1 / OpenID Connect core) is
-underway on `p1-oauth-oidc-core`; task 19 (the conformance harness) is the
-most recent increment — see "Task 19" below. The two tasks after it close
-the phase: closing the remaining MUST-level clause gaps the conformance
-run surfaced, and the phase's final exit-criteria confirmation.**
+underway on `p1-oauth-oidc-core`; the authorization endpoint's outstanding
+normative gaps are the most recent increment — see "The authorization
+endpoint's normative gaps" below. What remains is the phase's final
+exit-criteria confirmation.**
+
+**The authorization endpoint's normative gaps.** `iss` now rides on error
+authorization responses as well as successful ones (RFC 9207 §2, whose
+single MUST is tabled as two rows precisely because one row covered by a
+success-path test is what hid the omission); an empty parameter value is
+treated as omitted (RFC 6749 §3.1); an unsupported `response_mode` is
+refused with a bare HTTP 400 and discovery states
+`response_modes_supported: ["query"]` rather than inheriting Discovery
+§3's `["query", "fragment"]` default; `request` and `request_uri` are
+answered with `request_not_supported` / `request_uri_not_supported`
+instead of being dropped in silence; and `code_challenge` is checked
+against RFC 7636 §4.2's shape, sharing one pattern with the verifier. The
+issuer has one definition (`packages/protocol-oidc/src/view/issuer.ts`)
+built on `request.host`, which fixes the dropped-port bug recorded below.
 
 Before any endpoint code, write the clause tables:
 `docs/protocols/rfc6749.md` and `docs/protocols/rfc7636.md`, mapping each
