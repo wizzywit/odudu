@@ -7,4 +7,11 @@ export {
   type NewSigningKey,
   type SigningKeyRecord,
 } from '#/repository/signing-keys';
-export { signJwt, verifyJwt, AUDIENCE_UNCHECKED, type ExpectedAudience } from '#/service/sign';
+export {
+  signJwt,
+  verifyJwt,
+  AUDIENCE_UNCHECKED,
+  TYP_UNCHECKED,
+  type ExpectedAudience,
+  type ExpectedTyp,
+} from '#/service/sign';

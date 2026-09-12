@@ -3,7 +3,7 @@ import { SignJWT, importJWK } from 'jose';
 import { generateSigningKey } from '#/service/generate';
 import { unwrapPrivateJwk } from '#/service/kek';
 import { type SigningKeyRecord } from '#/schema/signing-keys';
-import { AUDIENCE_UNCHECKED, signJwt, verifyJwt } from '#/service/sign';
+import { AUDIENCE_UNCHECKED, TYP_UNCHECKED, signJwt, verifyJwt } from '#/service/sign';
 
 const KEK = new Uint8Array(32).fill(9);
 const ISS = 'https://issuer.example';
@@ -70,7 +70,7 @@ describe('[JOSE-5.2-01] algorithm comes from the key record, never the token hea
     const forged = `${String(header)}.${String(body)}.`;
 
     await expect(
-      verifyJwt(forged, { keys, issuer: ISS, audience: AUDIENCE_UNCHECKED }),
+      verifyJwt(forged, { keys, issuer: ISS, audience: AUDIENCE_UNCHECKED, typ: TYP_UNCHECKED }),
     ).rejects.toThrow();
   });
 
@@ -80,6 +80,7 @@ describe('[JOSE-5.2-01] algorithm comes from the key record, never the token hea
         keys,
         issuer: ISS,
         audience: AUDIENCE_UNCHECKED,
+        typ: TYP_UNCHECKED,
       }),
     ).rejects.toThrow(/alg/i);
   });
@@ -90,6 +91,7 @@ describe('[JOSE-5.2-01] algorithm comes from the key record, never the token hea
         keys,
         issuer: ISS,
         audience: AUDIENCE_UNCHECKED,
+        typ: TYP_UNCHECKED,
       }),
     ).rejects.toThrow(/alg/i);
   });
@@ -104,6 +106,7 @@ describe('[JOSE-4.1.4-01] kid is an exact-match lookup, never a path', () => {
           keys,
           issuer: ISS,
           audience: AUDIENCE_UNCHECKED,
+          typ: TYP_UNCHECKED,
         }),
       ).rejects.toThrow(/unknown key|kid/i);
     },
@@ -119,6 +122,7 @@ describe('[JOSE-4.1.4-01] kid is an exact-match lookup, never a path', () => {
         keys,
         issuer: ISS,
         audience: AUDIENCE_UNCHECKED,
+        typ: TYP_UNCHECKED,
       }),
     ).rejects.toMatchObject({ code: 'jwt_kid_missing' });
   });
@@ -129,6 +133,7 @@ describe('[JOSE-4.1.4-01] kid is an exact-match lookup, never a path', () => {
         keys,
         issuer: ISS,
         audience: AUDIENCE_UNCHECKED,
+        typ: TYP_UNCHECKED,
       }),
     ).rejects.toMatchObject({ code: 'jwt_kid_missing' });
   });
@@ -140,7 +145,7 @@ describe('[JOSE-4.1.1-02] the header alg is only honoured when the verifier unde
     const headerText = Buffer.from(token.split('.')[0] ?? '', 'base64url').toString('utf8');
     expect(headerText).toContain(`"alg":"${key.alg}"`);
     await expect(
-      verifyJwt(token, { keys, issuer: ISS, audience: AUDIENCE_UNCHECKED }),
+      verifyJwt(token, { keys, issuer: ISS, audience: AUDIENCE_UNCHECKED, typ: TYP_UNCHECKED }),
     ).resolves.toMatchObject({ sub: 's' });
   });
 
@@ -158,7 +163,7 @@ describe('[JOSE-4.1.1-02] the header alg is only honoured when the verifier unde
   ])('rejects $case', async ({ alg }) => {
     const forged = await tokenWithHeader({ alg, kid: key.kid });
     await expect(
-      verifyJwt(forged, { keys, issuer: ISS, audience: AUDIENCE_UNCHECKED }),
+      verifyJwt(forged, { keys, issuer: ISS, audience: AUDIENCE_UNCHECKED, typ: TYP_UNCHECKED }),
     ).rejects.toMatchObject({
       code: 'jwt_alg_mismatch',
     });
@@ -195,19 +200,19 @@ describe('[JOSE-7.2-01] a token that fails any validation step is rejected outri
     {
       step: 'the kid is structurally unusable',
       token: async () => tokenWithHeader({ alg: key.alg, kid: '' }),
-      opts: () => ({ keys, issuer: ISS, audience: AUDIENCE_UNCHECKED }),
+      opts: () => ({ keys, issuer: ISS, audience: AUDIENCE_UNCHECKED, typ: TYP_UNCHECKED }),
       message: /kid/i,
     },
     {
       step: 'the kid names no key this verifier holds',
       token: async () => tokenWithHeader({ alg: key.alg, kid: 'no-such-key' }),
-      opts: () => ({ keys, issuer: ISS, audience: AUDIENCE_UNCHECKED }),
+      opts: () => ({ keys, issuer: ISS, audience: AUDIENCE_UNCHECKED, typ: TYP_UNCHECKED }),
       message: /unknown key/i,
     },
     {
       step: 'the header alg is not the key record alg',
       token: async () => tokenWithHeader({ alg: 'ES256', kid: key.kid }),
-      opts: () => ({ keys, issuer: ISS, audience: AUDIENCE_UNCHECKED }),
+      opts: () => ({ keys, issuer: ISS, audience: AUDIENCE_UNCHECKED, typ: TYP_UNCHECKED }),
       message: /alg/i,
     },
     {
@@ -219,25 +224,35 @@ describe('[JOSE-7.2-01] a token that fails any validation step is rejected outri
     {
       step: 'the signature does not verify',
       token: async () => corruptSignature(await genuine()),
-      opts: () => ({ keys, issuer: ISS, audience: AUDIENCE_UNCHECKED }),
+      opts: () => ({ keys, issuer: ISS, audience: AUDIENCE_UNCHECKED, typ: TYP_UNCHECKED }),
       message: /signature/i,
     },
     {
       step: 'the issuer is not the expected one',
       token: async () => genuine(),
-      opts: () => ({ keys, issuer: 'https://someone-else.example', audience: AUDIENCE_UNCHECKED }),
+      opts: () => ({
+        keys,
+        issuer: 'https://someone-else.example',
+        audience: AUDIENCE_UNCHECKED,
+        typ: TYP_UNCHECKED,
+      }),
       message: /iss/i,
     },
     {
       step: 'the audience does not include this principal',
       token: async () => genuine(),
-      opts: () => ({ keys, issuer: ISS, audience: 'https://elsewhere.example' }),
+      opts: () => ({
+        keys,
+        issuer: ISS,
+        audience: 'https://elsewhere.example',
+        typ: TYP_UNCHECKED,
+      }),
       message: /aud/i,
     },
     {
       step: 'the token has expired',
       token: async () => genuine('-1s'),
-      opts: () => ({ keys, issuer: ISS, audience: AUDIENCE_UNCHECKED }),
+      opts: () => ({ keys, issuer: ISS, audience: AUDIENCE_UNCHECKED, typ: TYP_UNCHECKED }),
       message: /exp/i,
     },
   ];
@@ -270,5 +285,64 @@ describe('[RFC9068-2.1-01] token type confusion', () => {
     await expect(
       verifyJwt(accessToken, { keys, issuer: ISS, audience: AUDIENCE_UNCHECKED, typ: 'at+jwt' }),
     ).resolves.toMatchObject({ sub: 's' });
+  });
+});
+
+// The other direction: a reader of ID Tokens cannot name the typ it wants,
+// because an OIDC Core §2 ID Token has none. What it can say is which typ is
+// not welcome, and refusing `at+jwt` is refusing an access token.
+describe('a typ the verifier refuses', () => {
+  it('rejects a token carrying the refused typ', async () => {
+    const accessToken = await signJwt({ sub: 's', iss: ISS }, { key, kek: KEK, typ: 'at+jwt' });
+    await expect(
+      verifyJwt(accessToken, {
+        keys,
+        issuer: ISS,
+        audience: AUDIENCE_UNCHECKED,
+        typ: { refused: 'at+jwt' },
+      }),
+    ).rejects.toThrow(/typ/i);
+  });
+
+  it('accepts a token carrying no typ at all', async () => {
+    const idToken = await signJwt({ sub: 's', iss: ISS }, { key, kek: KEK });
+    await expect(
+      verifyJwt(idToken, {
+        keys,
+        issuer: ISS,
+        audience: AUDIENCE_UNCHECKED,
+        typ: { refused: 'at+jwt' },
+      }),
+    ).resolves.toMatchObject({ sub: 's' });
+  });
+
+  it('accepts a token carrying some other typ', async () => {
+    const token = await signJwt({ sub: 's', iss: ISS }, { key, kek: KEK, typ: 'JWT' });
+    await expect(
+      verifyJwt(token, {
+        keys,
+        issuer: ISS,
+        audience: AUDIENCE_UNCHECKED,
+        typ: { refused: 'at+jwt' },
+      }),
+    ).resolves.toMatchObject({ sub: 's' });
+  });
+
+  // Silence used to mean "check nothing", and that is how an access token
+  // came to be honoured as an `id_token_hint`: the call site said nothing
+  // about typ and got the token-type confusion RFC 9068 §2.1 exists to
+  // prevent. As with `audience`, the guarantee is carried by the type, so
+  // this assertion is a compile-time one — making `typ` optional again turns
+  // the directive below into an unused-`@ts-expect-error` from
+  // `pnpm typecheck`.
+  it('will not verify at all unless the caller states a typ policy', () => {
+    // @ts-expect-error — `typ` is required; declining the check is
+    // TYP_UNCHECKED, said out loud.
+    const omitted: Parameters<typeof verifyJwt>[1] = {
+      keys: [],
+      issuer: ISS,
+      audience: AUDIENCE_UNCHECKED,
+    };
+    expect(omitted).not.toHaveProperty('typ');
   });
 });

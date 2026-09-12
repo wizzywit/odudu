@@ -81,6 +81,24 @@ async function mintIdToken(
   );
 }
 
+// The claims /token gives an access token (RFC 9068 §2.2): `aud` the issuer
+// itself rather than the client, plus `client_id` and `jti`. Signed without
+// the `at+jwt` of §2.1 unless a caller adds it.
+async function accessTokenClaims(sub: string): Promise<Record<string, unknown>> {
+  const now = Math.floor(Date.now() / 1000);
+  const iss = await issuer();
+  return {
+    iss,
+    sub,
+    aud: [iss],
+    client_id: CLIENT_ID,
+    scope: 'openid',
+    iat: now,
+    exp: now + 300,
+    jti: newId(),
+  };
+}
+
 async function errorOnRedirect(url: string): Promise<string | null> {
   const res = await http.inject({ url });
   expect(res.statusCode).toBe(302);
@@ -677,6 +695,28 @@ describe('[OIDC-CORE-3.1.2.2-01] an id_token_hint this server did not issue is r
   it('refuses a hint signed by this realm but claiming another issuer', async () => {
     const hint = await mintIdToken({ iss: 'https://another.example/realms/acme', sub: newId() });
     expect(await errorOnRedirect(authorizeUrl({ id_token_hint: hint }))).toBe('invalid_request');
+  });
+
+  // An access token this realm minted for the same End-User satisfies
+  // everything §3.1.2.2 asks about the issuer — this realm's key, this
+  // realm's `iss` — and is still not an ID Token. RFC 9068 §2.1 gives it
+  // `typ: at+jwt` so the two cannot be confused, which is the distinction
+  // /userinfo already relies on in the other direction.
+  it('refuses an access token this realm minted for the same subject', async () => {
+    const hint = await signJwt(await accessTokenClaims(newId()), {
+      key: realmKey,
+      kek: KEK,
+      typ: 'at+jwt',
+    });
+    expect(await errorOnRedirect(authorizeUrl({ id_token_hint: hint }))).toBe('invalid_request');
+  });
+
+  // The refusal above is the `typ` header and nothing else about the access
+  // token's claims: the same payload without it is honoured.
+  it('honours the same claims when they carry no at+jwt typ', async () => {
+    const hint = await signJwt(await accessTokenClaims(newId()), { key: realmKey, kek: KEK });
+    const res = await http.inject({ url: authorizeUrl({ id_token_hint: hint }) });
+    expect(res.statusCode).toBe(200);
   });
 
   it('refuses a hint carrying no sub to identify anybody by', async () => {

@@ -133,7 +133,17 @@ async function subjectOfIdTokenHint(
     // one back as a hint is not the principal RFC 7519 §4.1.3 addresses and
     // has no audience of its own to match. §3.1.2.2 asks only that the OP
     // was its issuer, which `issuer` and the realm's own keys settle.
-    const payload = await verifyJwt(hint, { keys, issuer, audience: AUDIENCE_UNCHECKED });
+    const payload = await verifyJwt(hint, {
+      keys,
+      issuer,
+      audience: AUDIENCE_UNCHECKED,
+      // An ID Token has no `typ` of its own — OIDC Core §2 defines none and
+      // the ones /token issues carry none — so the honest demand is not
+      // "must be an ID Token" but "must not be an access token", which RFC
+      // 9068 §2.1's `at+jwt` names exactly. /userinfo makes the mirror image
+      // of this check of the token presented to it.
+      typ: { refused: 'at+jwt' },
+    });
     return typeof payload.sub === 'string' && payload.sub.length > 0 ? payload.sub : null;
   } catch {
     return null;

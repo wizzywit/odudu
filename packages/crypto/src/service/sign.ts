@@ -55,9 +55,44 @@ export const AUDIENCE_UNCHECKED = Symbol('audience unchecked');
 
 export type ExpectedAudience = string | typeof AUDIENCE_UNCHECKED;
 
+// RFC 9068 §2.1 gives an access token `typ: at+jwt` so that it cannot be
+// taken for another kind of JWT, while an OIDC Core §2 ID Token carries no
+// `typ` at all. A verifier that names neither inherits the confusion: an
+// access token was honoured as an `id_token_hint` for exactly as long as
+// this option was optional and that call site said nothing. So a policy is
+// required, in one of three forms — the `typ` that must be there, a `typ`
+// that must not be (all a reader of ID Tokens can honestly demand), or this
+// symbol, which declines the check in a value a grep can find.
+export const TYP_UNCHECKED = Symbol('typ unchecked');
+
+export type ExpectedTyp = string | { refused: string } | typeof TYP_UNCHECKED;
+
+function checkTyp(headerTyp: unknown, expected: ExpectedTyp): void {
+  if (expected === TYP_UNCHECKED) return;
+
+  if (typeof expected === 'string') {
+    if (headerTyp !== expected) {
+      throw new OduduError(
+        'jwt_typ_mismatch',
+        `Expected typ ${expected}, got ${String(headerTyp)}`,
+      );
+    }
+    return;
+  }
+
+  if (headerTyp === expected.refused) {
+    throw new OduduError('jwt_typ_mismatch', `typ ${expected.refused} is not accepted here`);
+  }
+}
+
 export async function verifyJwt(
   token: string,
-  opts: { keys: SigningKeyRecord[]; issuer: string; audience: ExpectedAudience; typ?: string },
+  opts: {
+    keys: SigningKeyRecord[];
+    issuer: string;
+    audience: ExpectedAudience;
+    typ: ExpectedTyp;
+  },
 ): Promise<JWTPayload> {
   const header = decodeProtectedHeaderSafely(token);
 
@@ -78,9 +113,7 @@ export async function verifyJwt(
     );
   }
 
-  if (opts.typ !== undefined && header.typ !== opts.typ) {
-    throw new OduduError('jwt_typ_mismatch', `Expected typ ${opts.typ}, got ${String(header.typ)}`);
-  }
+  checkTyp(header.typ, opts.typ);
 
   const publicKey = await importJWK(record.publicJwk, record.alg);
   const { payload } = await jwtVerify(token, publicKey, {

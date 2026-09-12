@@ -169,18 +169,26 @@ login the request itself said it did not want. The authentication session
 is deliberately left unconsumed, so the end-user the hint names can still
 sign in against the same parked request.
 
-**Two `id_token_hint` rows stay `gap`, and one laxness is recorded here.**
-§3.1.2.2's SHOULD to accept a hint past its `exp` is not implemented:
-`verifyJwt` enforces `exp` for every token this server reads, and carving
-out an exception belongs with the session lookup that would make an expired
-hint useful in the first place. §3.1.2.1's MAY to answer `invalid_request`
-when `prompt=none` arrives without a hint is declined on purpose —
-`login_required` describes what actually happened. And the hint is verified
-as a token this realm signed, not specifically as an ID Token: an access
-token, which carries `typ: at+jwt` and the same `sub`, would be accepted as
-a hint. It identifies the same end-user, so the comparison it feeds is the
-same one; distinguishing the two needs the JWT header, which `verifyJwt`
-does not hand back.
+**Two `id_token_hint` rows stay `gap`.** §3.1.2.2's SHOULD to accept a hint
+past its `exp` is not implemented: `verifyJwt` enforces `exp` for every token
+this server reads, and carving out an exception belongs with the session
+lookup that would make an expired hint useful in the first place. §3.1.2.1's
+MAY to answer `invalid_request` when `prompt=none` arrives without a hint is
+declined on purpose — `login_required` describes what actually happened.
+
+**An access token is not an ID Token, and is refused as a hint.** §3.1.2.1
+says the parameter carries an ID Token previously issued by this OP, so a
+check that asked only "did this realm sign it?" would accept an access token
+minted for the same end-user — valid signature, this realm's `iss`, the same
+`sub`. What it cannot be is "must be an ID Token": OIDC Core §2 gives an ID
+Token no `typ` of its own and the ones `/token` issues carry none, so the
+demand that can honestly be made is _must not be an access token_, which RFC
+9068 §2.1's `typ: at+jwt` names exactly. `verifyJwt` therefore requires every
+caller to state a `typ` policy — the type it demands, a type it refuses, or
+`TYP_UNCHECKED` — the way it already requires an audience policy, because
+this confusion existed for precisely as long as that option could be left
+unsaid. `/userinfo` makes the mirror-image check of the token presented to
+it.
 
 **Discovery advertises none of this, deliberately.** OIDC Discovery 1.0 §3
 defines no metadata for `prompt`: `prompt_values_supported` comes from
