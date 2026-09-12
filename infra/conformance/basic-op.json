@@ -9,6 +9,16 @@
     "client_secret": "conformance-secret",
     "redirect_uri": "https://localhost.emobix.co.uk:8443/test/a/odudu-basic-op/callback"
   },
+  "client2": {
+    "client_id": "conformance-client-2",
+    "client_secret": "conformance-secret-2",
+    "redirect_uri": "https://localhost.emobix.co.uk:8443/test/a/odudu-basic-op/callback"
+  },
+  "client_secret_post": {
+    "client_id": "conformance-client-2",
+    "client_secret": "conformance-secret-2",
+    "redirect_uri": "https://localhost.emobix.co.uk:8443/test/a/odudu-basic-op/callback"
+  },
   "browser": [
     {
       "match": "https://proxy/realms/conformance/protocol/openid-connect/auth*",
@@ -18,14 +28,15 @@
           "optional": true,
           "match": "https://proxy/realms/conformance/protocol/openid-connect/auth*",
           "commands": [
-            ["text", "name", "username", "conformance-user"],
-            ["text", "name", "password", "conformance-password"],
-            ["click", "css", "button[type=submit]"]
+            ["text", "name", "username", "conformance-user", "optional"],
+            ["text", "name", "password", "conformance-password", "optional"],
+            ["click", "css", "button[type=submit]", "optional"]
           ]
         },
         {
           "task": "Verify Complete",
-          "match": "*/test/*/callback*",
+          "optional": true,
+          "match": "https://localhost.emobix.co.uk:8443/test/*/callback*",
           "commands": [["wait", "id", "submission_complete", 10]]
         }
       ]

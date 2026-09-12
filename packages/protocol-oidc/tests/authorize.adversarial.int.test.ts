@@ -10,6 +10,7 @@ import {
 import { clients } from '@odudu/domain-realm';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
+import formbody from '@fastify/formbody';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { oidcRoutes } from '#/index';
@@ -29,8 +30,10 @@ const REALM = 'acme';
 const CLIENT_ID = 'authorize-adversarial-client';
 const REDIRECT_URI = 'https://app.example/callback';
 
-function authorizeUrl(overrides: Record<string, string | undefined> = {}): string {
-  const params: Record<string, string | undefined> = {
+function authorizeParams(
+  overrides: Record<string, string | undefined> = {},
+): Record<string, string | undefined> {
+  return {
     response_type: 'code',
     client_id: CLIENT_ID,
     redirect_uri: REDIRECT_URI,
@@ -39,11 +42,32 @@ function authorizeUrl(overrides: Record<string, string | undefined> = {}): strin
     code_challenge_method: 'S256',
     ...overrides,
   };
+}
+
+function authorizeUrl(overrides: Record<string, string | undefined> = {}): string {
+  const params = authorizeParams(overrides);
   const query = new URLSearchParams();
   for (const [key, value] of Object.entries(params)) {
     if (value !== undefined) query.set(key, value);
   }
   return `/realms/${REALM}/protocol/openid-connect/auth?${query.toString()}`;
+}
+
+// OIDC Core §3.1.2 requires the Authorization Endpoint to support both GET
+// and POST; this posts the same parameters GET would carry in the query
+// string, form-encoded in the body instead, to the same path.
+function postAuthorize(overrides: Record<string, string | undefined> = {}) {
+  const params = authorizeParams(overrides);
+  const body = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== undefined) body.set(key, value);
+  }
+  return http.inject({
+    method: 'POST',
+    url: `/realms/${REALM}/protocol/openid-connect/auth`,
+    headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    payload: body.toString(),
+  });
 }
 
 // Builds a request URL carrying a repeated query key, which authorizeUrl
@@ -71,6 +95,7 @@ beforeAll(async () => {
 
   http = Fastify();
   httpApp = http;
+  await http.register(formbody);
   await http.register(
     oidcRoutes({ database: app, ownerDatabase: owner, kek: Buffer.alloc(32, 7) }),
   );
@@ -162,5 +187,48 @@ describe('the success path starts an authentication session and renders the logi
     expect(res.headers['content-type']).toContain('text/html');
     expect(res.body).toContain(`/realms/${REALM}/login-actions/authenticate`);
     expect(res.body).toContain('name="auth_session_id"');
+  });
+});
+
+describe('[OIDC-CORE-3.1.2-01] POST at the authorization endpoint behaves exactly like GET', () => {
+  it('rejects an unregistered redirect_uri with no location header, same as GET', async () => {
+    const overrides = { redirect_uri: 'https://evil.example/cb' };
+    const getRes = await http.inject({ url: authorizeUrl(overrides) });
+    const postRes = await postAuthorize(overrides);
+
+    expect(postRes.statusCode).toBe(getRes.statusCode);
+    expect(postRes.statusCode).toBe(400);
+    expect(postRes.headers.location).toBeUndefined();
+  });
+
+  it('redirects with unsupported_response_type and the same state, same as GET', async () => {
+    const overrides = { response_type: 'token', state: 'xyz 123' };
+    const getRes = await http.inject({ url: authorizeUrl(overrides) });
+    const postRes = await postAuthorize(overrides);
+
+    expect(postRes.statusCode).toBe(getRes.statusCode);
+    expect(postRes.statusCode).toBe(302);
+    const getLocation = getRes.headers.location;
+    const postLocation = postRes.headers.location;
+    if (typeof getLocation !== 'string' || typeof postLocation !== 'string') {
+      throw new Error('expected a location header');
+    }
+    expect(new URL(postLocation).searchParams.get('state')).toBe(
+      new URL(getLocation).searchParams.get('state'),
+    );
+    expect(new URL(postLocation).searchParams.get('error')).toBe(
+      new URL(getLocation).searchParams.get('error'),
+    );
+  });
+
+  it('starts an authentication session and renders the same login form, same as GET', async () => {
+    const getRes = await http.inject({ url: authorizeUrl() });
+    const postRes = await postAuthorize();
+
+    expect(postRes.statusCode).toBe(getRes.statusCode);
+    expect(postRes.statusCode).toBe(200);
+    expect(postRes.headers['content-type']).toBe(getRes.headers['content-type']);
+    expect(postRes.body).toContain(`/realms/${REALM}/login-actions/authenticate`);
+    expect(postRes.body).toContain('name="auth_session_id"');
   });
 });

@@ -1,8 +1,15 @@
 import { signingKeys } from '@odudu/crypto';
-import { createDatabase, MIGRATIONS_DIR, runMigrations, type DatabaseHandle } from '@odudu/db';
+import {
+  createDatabase,
+  MIGRATIONS_DIR,
+  runMigrations,
+  withRealm,
+  type DatabaseHandle,
+} from '@odudu/db';
 import { subjects } from '@odudu/domain-identity';
 import { clients } from '@odudu/domain-realm';
 import { newId } from '@odudu/kernel';
+import { clientOidcConfigRepository } from '@odudu/protocol-oidc';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import { and, eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -59,6 +66,20 @@ async function clientType(realmId: string, clientId: string): Promise<string> {
   const row = rows[0];
   if (row === undefined) throw new Error(`no client ${clientId} in realm ${realmId}`);
   return row.type;
+}
+
+async function tokenEndpointAuthMethod(realmId: string, oauthClientId: string): Promise<string> {
+  return withRealm(owner.db, realmId, async (tx) => {
+    const clientRows = await tx
+      .select()
+      .from(clients)
+      .where(and(eq(clients.realmId, realmId), eq(clients.clientId, oauthClientId)));
+    const clientRow = clientRows[0];
+    if (clientRow === undefined) throw new Error(`no client ${oauthClientId} in realm ${realmId}`);
+    const config = await clientOidcConfigRepository(tx).byClientId(clientRow.id);
+    if (config === null) throw new Error(`no oidc config for client ${oauthClientId}`);
+    return config.tokenEndpointAuthMethod;
+  });
 }
 
 async function serviceSubjectType(realmId: string, clientId: string): Promise<string | null> {
@@ -157,6 +178,48 @@ describe('seed', () => {
     await seed(options);
 
     await expect(seed({ ...options, username: 'grace', password: 'pw' })).rejects.toThrow(/grace/);
+  });
+
+  it('defaults a confidential client to client_secret_basic', async () => {
+    const options = uniqueOptions();
+
+    const result = await seed(options);
+
+    expect(await tokenEndpointAuthMethod(result.realmId, result.clientId)).toBe(
+      'client_secret_basic',
+    );
+  });
+
+  it('seeds a confidential client with client_secret_post when requested', async () => {
+    const options = uniqueOptions();
+
+    const result = await seed({ ...options, tokenEndpointAuthMethod: 'client_secret_post' });
+
+    expect(await tokenEndpointAuthMethod(result.realmId, result.clientId)).toBe(
+      'client_secret_post',
+    );
+  });
+
+  it('refuses tokenEndpointAuthMethod given without a client secret', async () => {
+    const options = uniqueOptions();
+    const publicOptions: SeedOptions = {
+      realm: options.realm,
+      clientId: options.clientId,
+      redirectUris: options.redirectUris,
+      tokenEndpointAuthMethod: 'client_secret_post',
+    };
+
+    await expect(seed(publicOptions)).rejects.toThrow(/client secret/);
+  });
+
+  it('refuses a second run with a different token endpoint auth method for the same client', async () => {
+    const options = uniqueOptions();
+
+    await seed({ ...options, tokenEndpointAuthMethod: 'client_secret_basic' });
+
+    await expect(
+      seed({ ...options, tokenEndpointAuthMethod: 'client_secret_post' }),
+    ).rejects.toThrow(/token endpoint auth method/);
   });
 });
 

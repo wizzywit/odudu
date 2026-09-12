@@ -6,7 +6,6 @@
 # `conformance` job in .github/workflows/verify.yml runs; it is also the
 # fastest way to reproduce that job locally.
 set -euo pipefail
-set -o pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SUITE_TAG="release-v5.1.36"

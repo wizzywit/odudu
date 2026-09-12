@@ -140,8 +140,127 @@ Ran to completion against a seeded `conformance` realm (client
 and `results/basic-op-2026-09-12-v5.1.36-logs.zip` (the suite's own
 per-test export, `GET /api/plan/export/<planId>`).
 
-**30 of 35 modules failed, 2 passed, 3 skipped.** This is not 30
-independent bugs — it is one cause, hit 30 times:
+**The original run scored 30 FAILED / 2 PASSED / 3 SKIPPED, and this
+document originally attributed all 30 failures to one cause (mandatory
+PKCE). That was wrong for 5 of the 30** — a code-review pass that read
+every module's log, not just the first one, found three unrelated
+things hiding behind a tidy one-line summary. This section now reports
+what each failure actually was, and the fix-round-1 rerun that
+followed. See `.superpowers/sdd/2026-09-11-p1-oauth-oidc-core/task-19-report.md`,
+`## Fix round 1`, for the full account; the corrected export is
+`results/basic-op-2026-09-12-v5.1.36-fixround1.json` (plus its
+`-logs.zip`), committed alongside the original rather than replacing it.
+
+### What the 30 original failures actually were
+
+**25 of 30 were the deliberate mandatory-PKCE divergence** described
+below and unaffected by anything in this section.
+
+**1 of 30 (`oidcc-ensure-post-request-succeeds`) was a real, unrelated
+gap**: the authorization endpoint did not accept `POST` at all —
+
+```
+404 {"message":"Route POST:/realms/conformance/protocol/openid-connect/auth not found"}
+```
+
+OpenID Connect Core §3.1.2 requires the Authorization Endpoint to
+support both GET and POST; this was a genuine defect, fixed by adding a
+POST route that shares the GET route's validation usecase (see the
+report for how). After the fix, this module reaches the server and
+fails for the same PKCE reason as the other 25 — it has moved buckets,
+not disappeared.
+
+**2 of 30 (`oidcc-server-client-secret-post`, `oidcc-refresh-token`)
+never reached odudu at all** — they failed inside the suite itself,
+resolving static client configuration, before a single HTTP request
+left the test runner:
+
+```
+"msg": "As static client was selected, the test configuration must contain a client configuration", "src": "GetStaticClientConfiguration"
+"msg": "Definition for client2 not present in supplied configuration", "src": "GetStaticClient2Configuration"
+```
+
+`basic-op.json` only defined one static client. `oidcc-refresh-token`
+extends `AbstractOIDCCMultipleClient`, which needs a second client
+(`client2`); `oidcc-server-client-secret-post`'s own test class
+(`OIDCCServerTestClientSecretPost`) copies a top-level
+`client_secret_post` config block into `client` before running — a
+third, differently-named slot the config never provided. `basic-op.json`
+now defines `client2` and `client_secret_post`, both backed by a second
+seeded client (`conformance-client-2`, seeded with
+`--token-endpoint-auth-method client_secret_post`). After the fix, both
+modules reach odudu and fail for the same PKCE reason as the other 25.
+
+**2 of 30 (`oidcc-ensure-registered-redirect-uri`,
+`oidcc-ensure-request-object-with-redirect-uri`) failed because odudu's
+correct behaviour crashed the test harness's own browser automation**,
+not because odudu did anything wrong. odudu correctly serves a 400
+"Unregistered redirect URI" page for these — exactly the open-redirect
+defence this phase treats as its most security-sensitive decision — but
+`basic-op.json`'s browser automation unconditionally tried to fill in a
+login form on that page:
+
+```
+"msg": "Unable to locate element: [name=\"username\"]"
+```
+
+Read against the suite's own source
+(`net.openid.conformance.frontchannel.BrowserControl`): a task's `match`
+is checked only against the *browser's current URL*, and both the login
+form and this error page are served, unredirected, at the exact same
+URL — so no `match` pattern can distinguish them by URL alone. The
+actual per-element escape hatch the suite provides is a trailing
+`"optional"` argument on each `text`/`click` command, which skips a
+missing element instead of throwing; `basic-op.json`'s `Login` task now
+uses it on all three commands. That same investigation surfaced a
+second, sharper bug in the `Verify Complete` task: its match pattern
+(`*/test/*/callback*`) is checked with a plain wildcard/substring
+match against the *entire* current URL, including its query string —
+and since the error page's URL still carries the client's own
+`redirect_uri=https://.../test/a/.../callback...` as a query parameter,
+the pattern matched the auth page's URL too, and the task then hung for
+10 seconds waiting for a `submission_complete` element that only exists
+on the real callback page. Anchoring the pattern to the actual callback
+origin (`https://localhost.emobix.co.uk:8443/test/*/callback*`) fixes
+that.
+
+After both fixes, neither module crashes: the `Login` task now skips
+cleanly, and `Verify Complete` correctly skips too (URL genuinely does
+not match). Both modules then reach `ExpectRedirectUriErrorPage`, a
+suite condition that intentionally requires a human to confirm a
+screenshot of the error page in the suite's own UI — the suite has no
+unattended way to auto-approve it. Our scripted rerun (`run-basic-op.sh`)
+polls each module for a fixed window and then moves to the next,
+reusing the shared test alias; for these two, the poll window elapses
+while the module is still waiting on that manual step, and the next
+module's alias claim then reports it `INTERRUPTED`. That is a
+limitation of running Basic OP unattended (already documented above as
+a deliberately manual, browser-driven plan), not a Odudu defect and not
+a new one introduced by this fix — it is the same category as the
+`client2`/`client_secret_post` gaps: harness/script behaviour, now
+understood and named rather than hidden behind a crash.
+
+### The corrected rerun
+
+**28 FAILED / 2 PASSED / 3 SKIPPED / 2 INTERRUPTED (pending manual
+review).** Every one of the 28 `FAILED` modules was individually
+confirmed (not sampled) to fail via odudu's mandatory-PKCE rejection —
+`CheckIfAuthorizationEndpointError` (or, for
+`oidcc-prompt-none-not-logged-in`, the equivalent
+`CheckErrorFromAuthorizationEndpointIsOneThatRequiredAUserInterface`
+check, which sees the same `invalid_request` where it expected a
+prompt-specific error) reporting the exact same
+`error=invalid_request` this section describes below. No module failed
+for a reason outside that list.
+
+The 3 `SKIPPED` modules (`oidcc-scope-address`, `oidcc-scope-phone`,
+`oidcc-scope-all`) are unchanged: a separate, expected consequence of
+odudu's `scopes_supported` being `openid`, `profile`, `email` only (P1's
+deliberate scope — `address` and `phone` are not part of this phase),
+which the suite skips rather than fails for scopes the discovery
+document does not advertise.
+
+### The mandatory-PKCE divergence itself
 
 > odudu makes PKCE mandatory on every `authorization_code` request (P1
 > design decision: OAuth 2.1 alignment, `S256` only, no exception for
@@ -162,13 +281,6 @@ request_uri: https://proxy/realms/conformance/protocol/openid-connect/auth?clien
 -> callback?error=invalid_request&state=...
 "msg": "The authorization was expected to succeed, but the server returned an error from the authorization endpoint", "result": "FAILURE"
 ```
-
-The 3 `SKIPPED` modules (`oidcc-scope-address`, `oidcc-scope-phone`,
-`oidcc-scope-all`) are a separate, expected consequence: odudu's
-`scopes_supported` is `openid`, `profile`, `email` only (P1's deliberate
-scope — `address` and `phone` are not part of this phase), and the suite
-skips scope tests for scopes the discovery document does not advertise
-rather than failing them.
 
 **This is reported, not patched.** Making PKCE optional to pass Basic OP
 would reverse an explicit, documented P1 design decision for the sake of

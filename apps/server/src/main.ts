@@ -21,6 +21,7 @@ function parseSeedOptions(argv: string[]): SeedOptions {
       realm: { type: 'string' },
       client: { type: 'string' },
       'client-secret': { type: 'string' },
+      'token-endpoint-auth-method': { type: 'string' },
       'redirect-uri': { type: 'string', multiple: true },
       user: { type: 'string' },
       password: { type: 'string' },
@@ -31,11 +32,23 @@ function parseSeedOptions(argv: string[]): SeedOptions {
     throw new Error('seed requires --realm and --client');
   }
 
+  const authMethod = values['token-endpoint-auth-method'];
+  if (
+    authMethod !== undefined &&
+    authMethod !== 'client_secret_basic' &&
+    authMethod !== 'client_secret_post'
+  ) {
+    throw new Error(
+      '--token-endpoint-auth-method must be client_secret_basic or client_secret_post',
+    );
+  }
+
   return {
     realm: values.realm,
     clientId: values.client,
     redirectUris: values['redirect-uri'] ?? [],
     ...(values['client-secret'] !== undefined ? { clientSecret: values['client-secret'] } : {}),
+    ...(authMethod !== undefined ? { tokenEndpointAuthMethod: authMethod } : {}),
     ...(values.user !== undefined ? { username: values.user } : {}),
     ...(values.password !== undefined ? { password: values.password } : {}),
   };

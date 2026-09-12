@@ -5,7 +5,6 @@
 # results to $OUT_DIR (default: a temp directory) on the way out; it does
 # not overwrite the committed results/ files.
 set -euo pipefail
-set -o pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SUITE_TAG="release-v5.1.36"
@@ -51,6 +50,16 @@ docker compose -p odudu-conformance -f "$SCRIPT_DIR/compose.yaml" exec -T odudu 
   --client conformance-client --client-secret conformance-secret \
   --redirect-uri "https://localhost.emobix.co.uk:8443/test/a/odudu-basic-op/callback" \
   --user conformance-user --password conformance-password
+
+# basic-op.json's "client2" — oidcc-server-client-secret-post and
+# oidcc-refresh-token each need a second static client, and the former
+# specifically exercises client_secret_post rather than client2 just being
+# a duplicate of client1's client_secret_basic.
+docker compose -p odudu-conformance -f "$SCRIPT_DIR/compose.yaml" exec -T odudu \
+  node dist/main.js seed --realm "$REALM" \
+  --client conformance-client-2 --client-secret conformance-secret-2 \
+  --token-endpoint-auth-method client_secret_post \
+  --redirect-uri "https://localhost.emobix.co.uk:8443/test/a/odudu-basic-op/callback"
 
 SUITE_DIR="$SUITE_DIR" docker compose -p oidf-suite -f "$SCRIPT_DIR/suite-compose.yaml" up -d
 

@@ -9,12 +9,26 @@ import {
 } from '@odudu/domain-identity';
 import { clientRepository, verifyClientSecret, type ClientRecord } from '@odudu/domain-realm';
 import { loadConfig, newId, OduduError } from '@odudu/kernel';
-import { clientOidcConfigRepository, realmLookupRepository } from '@odudu/protocol-oidc';
+import {
+  clientOidcConfigRepository,
+  realmLookupRepository,
+  type ClientOidcConfig,
+} from '@odudu/protocol-oidc';
+
+// A confidential client's method of proving its secret at /token: either
+// RFC 6749 §2.3.1 form (Authorization header or body parameter). Public
+// clients present none of either and are always seeded as 'none' — this
+// option only ever changes a confidential client's method.
+type ConfidentialTokenEndpointAuthMethod = Extract<
+  ClientOidcConfig['tokenEndpointAuthMethod'],
+  'client_secret_basic' | 'client_secret_post'
+>;
 
 export interface SeedOptions {
   realm: string;
   clientId: string;
   clientSecret?: string;
+  tokenEndpointAuthMethod?: ConfidentialTokenEndpointAuthMethod;
   redirectUris: string[];
   username?: string;
   password?: string;
@@ -51,6 +65,18 @@ function assertUserOptionsPaired(opts: SeedOptions): void {
     throw new OduduError(
       'seed_invalid_options',
       'username and password must be supplied together, or not at all',
+    );
+  }
+}
+
+// A token endpoint auth method describes how a confidential client proves
+// its secret; a public client has no secret to prove, so naming a method
+// without one is a contradiction rather than a preference to honour.
+function assertAuthMethodPairedWithSecret(opts: SeedOptions): void {
+  if (opts.tokenEndpointAuthMethod !== undefined && opts.clientSecret === undefined) {
+    throw new OduduError(
+      'seed_invalid_options',
+      'tokenEndpointAuthMethod requires a client secret',
     );
   }
 }
@@ -96,6 +122,18 @@ async function assertMatchesExisting(
     throw new OduduError(
       'seed_conflict',
       `client ${opts.clientId} already exists with different redirect URIs`,
+    );
+  }
+
+  const expectedAuthMethod = opts.tokenEndpointAuthMethod ?? 'client_secret_basic';
+  if (
+    config !== null &&
+    expectedType === 'confidential' &&
+    config.tokenEndpointAuthMethod !== expectedAuthMethod
+  ) {
+    throw new OduduError(
+      'seed_conflict',
+      `client ${opts.clientId} already exists with a different token endpoint auth method`,
     );
   }
 
@@ -179,7 +217,8 @@ async function performSeed(
         type === 'confidential'
           ? ['authorization_code', 'refresh_token', 'client_credentials']
           : ['authorization_code', 'refresh_token'],
-      tokenEndpointAuthMethod: type === 'confidential' ? 'client_secret_basic' : 'none',
+      tokenEndpointAuthMethod:
+        type === 'confidential' ? (opts.tokenEndpointAuthMethod ?? 'client_secret_basic') : 'none',
       audiences: [],
       accessTokenTtlSeconds: 300,
       refreshTokenTtlSeconds: 1_209_600,
@@ -229,6 +268,7 @@ async function performSeed(
 export async function seed(opts: SeedOptions): Promise<SeedResult> {
   assertAbsoluteRedirectUris(opts.redirectUris);
   assertUserOptionsPaired(opts);
+  assertAuthMethodPairedWithSecret(opts);
 
   const config = loadConfig();
   const owner = createDatabase(config.ODUDU_DATABASE_URL);
