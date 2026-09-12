@@ -5,6 +5,7 @@ import {
   type AuthorizeUsecaseDeps,
 } from '#/usecase/authorization-request';
 import { renderAuthorizeErrorPage, renderLoginForm } from '#/view/authorize-html';
+import { sendHtml } from '#/view/html-response';
 import { realmIssuerFor } from '#/view/issuer';
 import { namesUnsupportedRepresentation } from '#/view/media-type';
 
@@ -30,10 +31,7 @@ async function respondToAuthorizationRequest(
   const outcome = await handleAuthorizationRequest(deps, realm, params, issuer);
 
   if (outcome.kind === 'render') {
-    return reply
-      .code(400)
-      .type('text/html')
-      .send(renderAuthorizeErrorPage(outcome.error, outcome.description));
+    return sendHtml(reply, 400, renderAuthorizeErrorPage(outcome.error, outcome.description));
   }
 
   if (outcome.kind === 'redirect') {
@@ -47,7 +45,7 @@ async function respondToAuthorizationRequest(
     return reply.code(302).header('location', target.toString()).send();
   }
 
-  return reply.code(200).type('text/html').send(renderLoginForm(realm, outcome.authSessionId));
+  return sendHtml(reply, 200, renderLoginForm(realm, outcome.authSessionId));
 }
 
 export function registerAuthorizeRoute(app: FastifyInstance, deps: AuthorizeUsecaseDeps): void {
@@ -81,15 +79,14 @@ export function registerAuthorizeRoute(app: FastifyInstance, deps: AuthorizeUsec
     {
       onRequest: async (request, reply) => {
         if (namesUnsupportedRepresentation(request)) {
-          await reply
-            .code(415)
-            .type('text/html')
-            .send(
-              renderAuthorizeErrorPage(
-                'invalid_request',
-                `Authorization request parameters must be sent as ${FORM_MEDIA_TYPE}.`,
-              ),
-            );
+          await sendHtml(
+            reply,
+            415,
+            renderAuthorizeErrorPage(
+              'invalid_request',
+              `Authorization request parameters must be sent as ${FORM_MEDIA_TYPE}.`,
+            ),
+          );
         }
       },
     },

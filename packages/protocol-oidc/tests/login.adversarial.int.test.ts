@@ -914,3 +914,33 @@ describe('[OIDC-CORE-16.22-01] the redirect to the redirection URI is never a 30
     expect([307, 308]).not.toContain(res.statusCode);
   });
 });
+
+// The other half of RFC 6749 §10.13's obligation, on the other handler that
+// renders to the End-User. The CSRF token above stops a cross-site *form
+// submission*; it does nothing about a cross-site *frame*, where the
+// submission is genuine and same-origin and it is the End-User who has been
+// deceived about what they were clicking. Both pages this handler renders
+// are covered: the re-challenge form, where the credentials are typed, and
+// the error page, which is as framable and as persuasive as any other.
+describe('[OIDC-CORE-3.1.2.3-05] no page the login handler renders can be framed', () => {
+  function expectRefusesFraming(res: LightMyRequestResponse, what: string): void {
+    expect(`${what}: ${String(res.headers['content-type'])}`).toContain('text/html');
+    expect(`${what}: ${String(res.headers['content-security-policy'])}`).toContain(
+      "frame-ancestors 'none'",
+    );
+    expect(`${what}: ${String(res.headers['x-frame-options'])}`).toBe(`${what}: DENY`);
+  }
+
+  it('refuses framing on the form a wrong password re-challenges with', async () => {
+    const realmName = await setupLoginRealm(`acme-framing-rechallenge-${newId()}`);
+    const res = await submitLogin({ ...GOOD, password: 'wrong', realmName });
+    expect(res.statusCode).toBe(200);
+    expectRefusesFraming(res, 'the re-challenge form');
+  });
+
+  it('refuses framing on the error page an unusable session is refused with', async () => {
+    const res = await submitLogin({ ...GOOD, csrf: null });
+    expect(res.statusCode).toBe(400);
+    expectRefusesFraming(res, 'the error page');
+  });
+});

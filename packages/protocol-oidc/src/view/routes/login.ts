@@ -2,6 +2,7 @@ import { sessionCookieName } from '@odudu/authn-flows';
 import { type FastifyInstance } from 'fastify';
 import { handleLoginSubmission, type LoginSubmissionDeps } from '#/usecase/login-submission';
 import { renderAuthorizeErrorPage, renderLoginForm } from '#/view/authorize-html';
+import { sendHtml } from '#/view/html-response';
 import { issuerBaseFor } from '#/view/issuer';
 
 export interface LoginRouteDeps extends LoginSubmissionDeps {
@@ -40,15 +41,14 @@ export function registerLoginRoute(app: FastifyInstance, deps: LoginRouteDeps): 
     );
 
     if (outcome.kind === 'unauthenticated') {
-      return reply
-        .code(400)
-        .type('text/html')
-        .send(
-          renderAuthorizeErrorPage(
-            'invalid_request',
-            'This sign-in attempt is no longer valid. Go back and start again.',
-          ),
-        );
+      return sendHtml(
+        reply,
+        400,
+        renderAuthorizeErrorPage(
+          'invalid_request',
+          'This sign-in attempt is no longer valid. Go back and start again.',
+        ),
+      );
     }
 
     // No set-cookie: nothing was established to carry in one.
@@ -57,10 +57,7 @@ export function registerLoginRoute(app: FastifyInstance, deps: LoginRouteDeps): 
     }
 
     if (outcome.kind === 'reject') {
-      return reply
-        .code(200)
-        .type('text/html')
-        .send(renderLoginForm(request.params.realm, outcome.authSessionId));
+      return sendHtml(reply, 200, renderLoginForm(request.params.realm, outcome.authSessionId));
     }
 
     const cookieName = sessionCookieName(request.params.realm, deps.tls);

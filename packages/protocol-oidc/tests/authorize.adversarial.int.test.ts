@@ -20,7 +20,7 @@ import { newId } from '@odudu/kernel';
 import { eq } from 'drizzle-orm';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import formbody from '@fastify/formbody';
-import Fastify, { type FastifyInstance } from 'fastify';
+import Fastify, { type FastifyInstance, type LightMyRequestResponse } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { oidcRoutes } from '#/index';
 import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
@@ -1432,5 +1432,45 @@ describe('[RFC6749-10.14-01] a hostile state is returned encoded, never as marku
     expect(res.body).not.toContain(MARKUP_REALM);
     expect(res.body).toContain('&lt;script&gt;');
     expect(res.body).toContain('&quot;&gt;');
+  });
+});
+
+// RFC 6749 §10.13, carried into OIDC Core §3.1.2.3: a sign-in page an
+// attacker can frame is a sign-in page an attacker can overlay, and the
+// end-user's click lands on whichever control the invisible frame has
+// positioned under the cursor. The countermeasure has to be on every page
+// the endpoint renders, not only the one with the form — an error page that
+// can be framed is a page an attacker can position and style to convince an
+// end-user of something.
+//
+// The set is enumerated rather than sampled: RENDERED_ERROR_CASES is every
+// way this endpoint answers with markup instead of a redirect, plus the
+// login form and the 415 the POST refuses an unsupported representation
+// with.
+describe('[OIDC-CORE-3.1.2.3-05] no page this endpoint renders can be framed', () => {
+  function expectRefusesFraming(res: LightMyRequestResponse, what: string): void {
+    expect(`${what}: ${String(res.headers['content-type'])}`).toContain('text/html');
+    expect(`${what}: ${String(res.headers['content-security-policy'])}`).toContain(
+      "frame-ancestors 'none'",
+    );
+    expect(`${what}: ${String(res.headers['x-frame-options'])}`).toBe(`${what}: DENY`);
+  }
+
+  it('refuses framing on the login form', async () => {
+    expectRefusesFraming(await http.inject({ url: authorizeUrl() }), 'the login form');
+  });
+
+  it('refuses framing on every rendered error page', async () => {
+    for (const errorCase of RENDERED_ERROR_CASES) {
+      const res = await http.inject({ url: await errorCase.url() });
+      expect(`${errorCase.name}: ${String(res.statusCode)}`).toBe(`${errorCase.name}: 400`);
+      expectRefusesFraming(res, errorCase.name);
+    }
+  });
+
+  it('refuses framing on the page that refuses an unsupported representation', async () => {
+    const res = await postAuthorizeRaw('{}', { 'content-type': 'application/json' });
+    expect(res.statusCode).toBe(415);
+    expectRefusesFraming(res, 'the 415 page');
   });
 });

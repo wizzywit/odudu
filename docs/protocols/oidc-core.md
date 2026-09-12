@@ -348,6 +348,37 @@ rather than failing — RFC 6749 §3.3 permits exactly that, and the default
 is `openid`, the value §3.1.2.2 is asking after. `OIDC-CORE-3.1.2.2-03`
 states that exception rather than hiding it.
 
+### §3.1.2.3's two countermeasures, split into two rows
+
+§3.1.2.3 asks for CSRF _and_ clickjacking countermeasures in one sentence,
+and for most of P1 one row carried both against one test id — a test that
+asserted the CSRF half only. Nothing failed. `reconcile` holds a `covered`
+row green so long as every result carrying its id passes, so a row whose
+words name two obligations and whose id names a test proving one of them is
+indistinguishable, to the tool and to a reader skimming the status column,
+from a row that is wholly met. The clickjacking half had no implementation
+at all.
+
+The fix is structural rather than a better test. The sentence is two
+obligations with two different defences — an unguessable token in the form
+against a cross-site _submission_, a framing refusal against a cross-site
+_frame_ — so it is two rows, each naming its own test id. Deleting either
+test now leaves a row citing an id no test carries, which `reconcile`
+reports as an error in both modes. Carrying both halves under one id would
+not: dropping one of two test files leaves the surviving one green and the
+row with it. The general rule the episode argues for is that a row's
+requirement text should name one obligation, and a conjunction in the
+specification's words is a reason to split rather than to write a longer
+row.
+
+What discharges the second row is in `packages/protocol-oidc/src/view/html-response.ts`:
+`Content-Security-Policy: frame-ancestors 'none'` with `X-Frame-Options:
+DENY` beside it, on every page this server renders to an end-user. The
+countermeasure lives at one choke point rather than at each `reply.send`,
+and `html-response.test.ts` fails the build if any other file in the view
+layer names the HTML media type — so a page added later cannot acquire a
+content type without acquiring the headers too.
+
 ### §16.4: the three ways this server can expose an access token
 
 "Access Tokens MUST NOT be exposed to unauthorized parties" is a property,
@@ -558,7 +589,8 @@ carrying milliseconds, is a failure rather than a presence.
 | 3.1.2.3 | MUST   | with `prompt=login`, the end-user is reauthenticated even if already authenticated                                                                                                                                                                                                             | `OIDC-CORE-3.1.2.3-03` | covered                                                                                                                                                                                                                                                                                                                               |
 | 3.1.2.3 | MUST   | with `prompt=none`, the authorization server does not interact with the end-user                                                                                                                                                                                                               | `OIDC-CORE-3.1.2.3-02` | covered                                                                                                                                                                                                                                                                                                                               |
 | 3.1.2.3 | MUST   | with `prompt=none`, an error is returned if the end-user is not already authenticated or cannot be silently authenticated                                                                                                                                                                      | `OIDC-CORE-3.1.2.3-01` | covered                                                                                                                                                                                                                                                                                                                               |
-| 3.1.2.3 | MUST   | when interacting with the end-user, the authorization server employs CSRF and clickjacking countermeasures per RFC 6749 §§10.12–10.13                                                                                                                                                          | `OIDC-CORE-3.1.2.1-05` | covered                                                                                                                                                                                                                                                                                                                               |
+| 3.1.2.3 | MUST   | when interacting with the end-user, the authorization server employs CSRF countermeasures per RFC 6749 §10.12                                                                                                                                                                                  | `OIDC-CORE-3.1.2.1-05` | covered                                                                                                                                                                                                                                                                                                                               |
+| 3.1.2.3 | MUST   | when interacting with the end-user, the authorization server employs clickjacking countermeasures per RFC 6749 §10.13                                                                                                                                                                          | `OIDC-CORE-3.1.2.3-05` | covered                                                                                                                                                                                                                                                                                                                               |
 | 3.1.2.4 | MUST   | once authenticated, the authorization server obtains an authorization decision before releasing information to the client                                                                                                                                                                      | —                      | deferred: P3 — no consent screen exists yet                                                                                                                                                                                                                                                                                           |
 | 3.1.2.5 | MUST   | the Authorization Response returns the parameters defined in RFC 6749 §4.1.2 as query parameters on `redirect_uri`, unless a different Response Mode is used                                                                                                                                   | `OIDC-CORE-3.1.2.5-01` | covered                                                                                                                                                                                                                                                                                                                               |
 | 3.1.2.6 | SHOULD | on error, other parameters beyond `error` and `state` are not returned to the redirection URI                                                                                                                                                                                                  | —                      | n/a: amended by RFC 9207 §2, whose MUST puts `iss` on every authorization response, error responses included; `docs/protocols/rfc9207.md` carries that obligation. Odudu returns `error`, `state` and `iss` and nothing else                                                                                                          |
