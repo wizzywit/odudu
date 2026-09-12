@@ -216,6 +216,141 @@ function tamper(token: string): string {
   return parts.join('.');
 }
 
+// Rewrites a claim in the payload and re-encodes it, leaving the header and
+// the signature exactly as the issuer produced them: the modification RFC
+// 6750 §5.2's integrity requirement is about, as opposed to a corrupted
+// signature over an untouched payload.
+function tamperPayload(token: string, claims: Record<string, unknown>): string {
+  const parts = token.split('.');
+  const payload = { ...decodePayload(token), ...claims };
+  parts[1] = Buffer.from(JSON.stringify(payload), 'utf8').toString('base64url');
+  return parts.join('.');
+}
+
+interface AuthParam {
+  name: string;
+  value: string;
+}
+
+interface Challenge {
+  scheme: string;
+  params: AuthParam[];
+}
+
+const TOKEN_CHAR = /[A-Za-z0-9!#$%&'*+.^_`|~-]/u;
+
+// RFC 7235 §4.1's challenge, narrowed to the one shape RFC 6750 §3 defines:
+// an auth-scheme token followed by a comma-separated list of `name=value`
+// auth-params whose value is a token or a quoted-string. The assertions
+// below are about that grammar, so they read it rather than matching one
+// spelling of it — a challenge that reordered its params, quoted a value
+// differently, or padded its separators would still have to satisfy them.
+function parseChallenge(raw: string): Challenge {
+  let i = 0;
+
+  const skipSpace = (): void => {
+    while (raw.charAt(i) === ' ' || raw.charAt(i) === '\t') i++;
+  };
+
+  const readToken = (): string => {
+    const start = i;
+    while (i < raw.length && TOKEN_CHAR.test(raw.charAt(i))) i++;
+    if (i === start) throw new Error(`expected a token at offset ${String(i)} of ${raw}`);
+    return raw.slice(start, i);
+  };
+
+  const readValue = (): string => {
+    if (raw.charAt(i) !== '"') return readToken();
+    i++;
+    let value = '';
+    for (;;) {
+      const c = raw.charAt(i);
+      if (c === '') throw new Error(`unterminated quoted-string in ${raw}`);
+      i++;
+      if (c === '"') return value;
+      if (c === '\\') {
+        value += raw.charAt(i);
+        i++;
+        continue;
+      }
+      value += c;
+    }
+  };
+
+  const scheme = readToken();
+  const params: AuthParam[] = [];
+  skipSpace();
+
+  while (i < raw.length) {
+    const name = readToken();
+    skipSpace();
+    if (raw.charAt(i) !== '=') throw new Error(`expected '=' at offset ${String(i)} of ${raw}`);
+    i++;
+    skipSpace();
+    params.push({ name, value: readValue() });
+    skipSpace();
+    if (i < raw.length) {
+      if (raw.charAt(i) !== ',') throw new Error(`expected ',' at offset ${String(i)} of ${raw}`);
+      i++;
+      skipSpace();
+    }
+  }
+
+  return { scheme, params };
+}
+
+function challengeOf(res: LightMyRequestResponse): Challenge {
+  const header = res.headers['www-authenticate'];
+  if (typeof header !== 'string') {
+    throw new Error(`expected one WWW-Authenticate header, got ${JSON.stringify(header)}`);
+  }
+  return parseChallenge(header);
+}
+
+// RFC 6750 §3's NQCHAR: printable ASCII less the space, the double quote and
+// the backslash. `scope` values and `error_uri` are built from it.
+const NQCHAR = /^[\x21\x23-\x5B\x5D-\x7E]+$/u;
+// NQSCHAR, the same set with the space admitted — `error` and
+// `error_description`.
+const NQSCHAR = /^[\x20-\x21\x23-\x5B\x5D-\x7E]*$/u;
+
+const VALUE_RULES = new Map<string, (value: string) => boolean>([
+  ['scope', (v) => v.split(' ').every((val) => NQCHAR.test(val))],
+  ['error', (v) => NQSCHAR.test(v)],
+  ['error_description', (v) => NQSCHAR.test(v)],
+  ['error_uri', (v) => NQCHAR.test(v) && URL.canParse(v, 'https://resource.invalid/')],
+]);
+
+// Every challenge the endpoint can emit, one per branch of
+// packages/protocol-oidc/src/view/routes/userinfo.ts — the only place in
+// Odudu that emits a `Bearer` challenge at all. §3's requirements are
+// universally quantified over challenges, so the assertions that read them
+// are only as strong as this list is complete.
+async function everyChallenge(): Promise<Challenge[]> {
+  const { accessToken } = await issueTokens(primary, 'openid');
+  const noCredentials = await userinfo(primary.realmName, null);
+  expect(noCredentials.statusCode).toBe(401);
+
+  const twoMethods = await postUserinfoRaw(
+    primary.realmName,
+    formBody({ access_token: accessToken }),
+    {
+      'content-type': 'application/x-www-form-urlencoded',
+      authorization: `Bearer ${accessToken}`,
+    },
+  );
+  expect(twoMethods.statusCode).toBe(400);
+
+  const badToken = await userinfo(primary.realmName, tamper(accessToken));
+  expect(badToken.statusCode).toBe(401);
+
+  const { accessToken: unscoped } = await issueTokens(primary, 'profile email');
+  const wrongScope = await userinfo(primary.realmName, unscoped);
+  expect(wrongScope.statusCode).toBe(403);
+
+  return [noCredentials, twoMethods, badToken, wrongScope].map(challengeOf);
+}
+
 async function userinfo(realmName: string, token: string | null): Promise<LightMyRequestResponse> {
   return http.inject({
     method: 'GET',
@@ -287,6 +422,50 @@ describe('[RFC6750-3-01] WWW-Authenticate on a request with no credentials', () 
     // carried no authentication information at all — distinct from the
     // `error="invalid_token"` a rejected, present token gets below.
     expect(res.headers['www-authenticate']).not.toMatch(/error=/);
+  });
+});
+
+describe('the shape of every WWW-Authenticate challenge', () => {
+  it('[RFC6750-3-02] names the Bearer auth-scheme and carries at least one auth-param', async () => {
+    const challenges = await everyChallenge();
+    expect(challenges).toHaveLength(4);
+    for (const challenge of challenges) {
+      expect(challenge.scheme).toBe('Bearer');
+      expect(challenge.params.length).toBeGreaterThanOrEqual(1);
+    }
+  });
+
+  it('[RFC6750-3-03] never repeats an auth-param name', async () => {
+    for (const challenge of await everyChallenge()) {
+      const names = challenge.params.map((p) => p.name);
+      expect(names).toEqual([...new Set(names)]);
+    }
+  });
+
+  it('[RFC6750-3-04] keeps every attribute value inside the character set §3 gives it', async () => {
+    for (const challenge of await everyChallenge()) {
+      for (const { name, value } of challenge.params) {
+        const rule = VALUE_RULES.get(name);
+        if (rule === undefined) continue;
+        expect({ name, value, conforms: rule(value) }).toEqual({ name, value, conforms: true });
+      }
+    }
+  });
+});
+
+describe('[RFC6750-5.2-01] a modified token is refused', () => {
+  it('rejects a token whose payload was rewritten under the issuer’s own signature', async () => {
+    const { accessToken } = await issueTokens(primary, 'openid');
+    const pristine = await userinfo(primary.realmName, accessToken);
+    expect(pristine.statusCode).toBe(200);
+    expect(pristine.json<Record<string, unknown>>().sub).toBe(primary.subjectId);
+
+    const modified = tamperPayload(accessToken, { sub: other.subjectId });
+    expect(decodePayload(modified).sub).toBe(other.subjectId);
+
+    const res = await userinfo(primary.realmName, modified);
+    expect(res.statusCode).toBe(401);
+    expect(res.headers['www-authenticate']).toMatch(/error="invalid_token"/);
   });
 });
 
