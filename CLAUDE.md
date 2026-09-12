@@ -49,6 +49,28 @@ progress rather than a defect. The `conformance` job builds the OIDF suite
 from source, which is minutes per run — affordable per increment, not per
 commit.
 
+### The documentation an increment owns
+
+`README.md` and `docs/request-paths.md` describe what the server does
+**now**, not what it did when they were written. An increment that changes
+a request, a response, a branch, an error code, an endpoint, a command or a
+default updates them in the same commit as the code — they are part of
+finishing the work, in the way a test is, not a tidy-up afterwards.
+
+`docs/request-paths.md` carries a stronger promise than most prose: every
+command in it has been executed against a running stack and every response
+in it is real output. Changing behaviour without re-running the affected
+transcript silently downgrades it to a claim, which is the state it was
+written to escape. If a command cannot be run, the document says so rather
+than showing output nobody produced.
+
+Saying this is not enough on its own — an instruction to keep prose current
+is unfalsifiable, because a stale document and a checked one look identical.
+So the parts that can be checked are checked: `tests/docs/` compares what
+these documents assert against what the server actually serves, and fails
+the build on drift. When you add a claim that could be checked that way,
+add the check with it.
+
 ### The rule P0 was written to produce
 
 Every plan-level defect in P0 shared one shape: **a claim about how a
