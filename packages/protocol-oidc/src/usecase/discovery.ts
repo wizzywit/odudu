@@ -1,5 +1,6 @@
 import { discoveryDocument, type DiscoveryDocument } from '@odudu/contracts';
 import { type RealmLookup } from '#/repository/realm-lookup';
+import { realmIssuer } from '#/service/issuer';
 
 export interface DiscoveryUsecaseDeps {
   findRealm(name: string): Promise<RealmLookup | null>;
@@ -20,7 +21,7 @@ export async function resolveDiscoveryDocument(
   const realm = await deps.findRealm(realmName);
   if (!realm?.enabled) return null;
   return discoveryDocument({
-    issuer: `${issuerBase}/realms/${realmName}`,
+    issuer: realmIssuer(issuerBase, realmName),
     claimsSupported: deps.claimNames(),
   });
 }

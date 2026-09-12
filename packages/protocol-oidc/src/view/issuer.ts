@@ -1,4 +1,23 @@
 import { type FastifyRequest } from 'fastify';
+import { realmIssuer } from '#/service/issuer';
+
+const DEFAULT_PORT: Record<string, string> = { http: '80', https: '443' };
+
+// The port separator is the last colon that is not inside an IPv6 literal's
+// brackets, so an authority ending in `]` carries no port at all.
+const PORT_SUFFIX = /:(\d+)$/u;
+
+// `Host: idp.example:443` and `Host: idp.example` name the same authority
+// over https, and RFC 3986 §3.2.3 makes the default port's presence
+// insignificant. Left in, they would be two different issuer strings for
+// one deployment — and since `/userinfo` verifies an access token against
+// the issuer recomputed from the Host of the request presenting it, a token
+// minted through one spelling would be rejected at the other.
+function canonicalAuthority(protocol: string, host: string): string {
+  const match = PORT_SUFFIX.exec(host);
+  if (match === null) return host;
+  return match[1] === DEFAULT_PORT[protocol] ? host.slice(0, match.index) : host;
+}
 
 // The one definition of Odudu's issuer identifier. OIDC Discovery §3 and
 // §4.3 require the `issuer` in the discovery document, the `iss` claim in
@@ -14,12 +33,12 @@ import { type FastifyRequest } from 'fastify';
 // deployment served on a non-default port from advertising endpoint URLs
 // nobody can reach.
 export function issuerBaseFor(request: Pick<FastifyRequest, 'protocol' | 'host'>): string {
-  return `${request.protocol}://${request.host}`;
+  return `${request.protocol}://${canonicalAuthority(request.protocol, request.host)}`;
 }
 
 export function realmIssuerFor(
   request: Pick<FastifyRequest, 'protocol' | 'host'>,
   realm: string,
 ): string {
-  return `${issuerBaseFor(request)}/realms/${realm}`;
+  return realmIssuer(issuerBaseFor(request), realm);
 }

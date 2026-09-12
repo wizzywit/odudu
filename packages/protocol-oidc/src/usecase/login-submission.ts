@@ -7,6 +7,7 @@ import { type RealmScopedDatabase } from '@odudu/db';
 import { authorizationCodeRepository } from '#/repository/codes';
 import { type RealmLookup } from '#/repository/realm-lookup';
 import { generateAuthorizationCode, hashAuthorizationCode } from '#/service/authorization-code';
+import { realmIssuer } from '#/service/issuer';
 
 // A code lives 60 seconds: it is redeemed by a backend within a second or
 // two of the redirect, and a short window shrinks how long an intercepted
@@ -166,8 +167,7 @@ export async function handleLoginSubmission(
   const location = new URL(pending.redirectUri);
   location.searchParams.set('code', code);
   if (pending.state !== null) location.searchParams.set('state', pending.state);
-  // Matches discoveryDocument()'s issuer exactly: `${issuerBase}/realms/${realmName}`.
-  location.searchParams.set('iss', `${issuerBase}/realms/${realmName}`);
+  location.searchParams.set('iss', realmIssuer(issuerBase, realmName));
 
   return { kind: 'redirect', location: location.toString(), sessionId };
 }
