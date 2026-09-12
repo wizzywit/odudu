@@ -61,6 +61,9 @@ describe('row-level security coverage', () => {
         ) as policy_count
       from pg_class c
       join pg_namespace n on n.oid = c.relnamespace
+      -- 'r' (ordinary table) and 'p' (partitioned table) are both in scope:
+      -- a tenant table declared as partitioned has relkind = 'p' and would
+      -- otherwise ship with no RLS and no failure here.
       where n.nspname = 'public' and c.relkind in ('r', 'p')
       order by c.relname
     `;
