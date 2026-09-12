@@ -9,6 +9,15 @@ export type Status =
   // alongside the ones addressed to somebody else. The reference names the
   // prose that discharges it, and reconcile checks it resolves.
   | { kind: 'documented'; reference: string }
+  // The obligation is in scope, understood, and deliberately not satisfied
+  // by this process — TLS on the wire, which Odudu does not terminate, is
+  // the whole of the set today. `gap` would say nobody got to it and `n/a`
+  // would say it is addressed to somebody else; neither is true, and both
+  // lose the only thing worth recording, which is where the obligation *is*
+  // met. The reference names the prose that says so, and reconcile checks
+  // it resolves. Deliberately carries no phase: a row whose honest answer
+  // is "a later phase does this" is `deferred:` (see ADR 0017).
+  | { kind: 'accepted'; reference: string }
   | { kind: 'gap' };
 
 export interface Row {
@@ -55,6 +64,9 @@ function parseStatus(raw: string, where: string): Status {
 
   const documented = /^documented:\s*(\S.*)$/u.exec(raw);
   if (documented) return { kind: 'documented', reference: group(documented, 1) };
+
+  const accepted = /^accepted:\s*(\S.*)$/u.exec(raw);
+  if (accepted) return { kind: 'accepted', reference: group(accepted, 1) };
 
   throw new Error(`${where}: unrecognised status ${JSON.stringify(raw)}`);
 }

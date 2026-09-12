@@ -68,6 +68,22 @@ describe('parseRows', () => {
     expect(() => parseRows('rfc7636.md', bad)).toThrow(/documented/);
   });
 
+  it('captures the reference from an accepted status', () => {
+    const table = TABLE.replace(
+      '| — | gap |',
+      '| — | accepted: see "TLS: what a boot guard settles" — the proxy terminates TLS |',
+    );
+    expect(nth(parseRows('rfc7636.md', table), 1).status).toEqual({
+      kind: 'accepted',
+      reference: 'see "TLS: what a boot guard settles" — the proxy terminates TLS',
+    });
+  });
+
+  it('rejects an accepted status with nothing after the colon', () => {
+    const bad = TABLE.replace('| — | gap |', '| — | accepted: |');
+    expect(() => parseRows('rfc7636.md', bad)).toThrow(/accepted/);
+  });
+
   it('rejects a status it does not recognise rather than ignoring the row', () => {
     const bad = TABLE.replace('| covered |', '| probably fine |');
     expect(() => parseRows('rfc7636.md', bad)).toThrow(/probably fine/);

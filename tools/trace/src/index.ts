@@ -29,13 +29,15 @@ const counts = {
   deferred: rows.filter((r) => r.status.kind === 'deferred').length,
   na: rows.filter((r) => r.status.kind === 'na').length,
   documented: rows.filter((r) => r.status.kind === 'documented').length,
+  accepted: rows.filter((r) => r.status.kind === 'accepted').length,
 };
 
 for (const f of findings) console.error(`${f.severity}: ${f.message}`);
 console.log(
   `trace: ${String(counts.covered)} covered, ${String(counts.gap)} gap, ` +
     `${String(counts.deferred)} deferred, ${String(counts.na)} n/a, ` +
-    `${String(counts.documented)} documented` +
+    `${String(counts.documented)} documented, ` +
+    `${String(counts.accepted)} accepted` +
     (strict ? ' (strict)' : ''),
 );
 

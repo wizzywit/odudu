@@ -2,11 +2,77 @@
 
 ## Start here
 
-**P0 is complete and merged. P1 (the OAuth 2.1 / OpenID Connect core) is
-underway on `p1-oauth-oidc-core`; closing `docs/protocols/oidc-core.md` is
-the most recent increment — see "The last of OIDC Core's MUST gaps" below.
-What remains is the decision about strict traceability, and then the
-phase's final exit-criteria confirmation.**
+**P0 and P1 are complete. P2 (authentication: MFA, passkeys, the flow tree)
+is next, and nothing has started on it — brainstorm its scope first, per
+`CLAUDE.md`.** Odudu now serves the OAuth 2.1 / OpenID Connect core: the
+`authorization_code`, `refresh_token` and `client_credentials` grants, and
+the authorize, token, userinfo, jwks and discovery endpoints. The rest of
+this file is the record of how that happened; what follows is the part a
+newcomer to P2 needs before touching anything.
+
+**`pnpm trace` runs strict, and a new MUST with no test fails the build.**
+That is the one workflow change to know. Add a clause row for every MUST and
+SHOULD P2 introduces, and close it with a test id — `gap` is now an error
+under `pnpm verify`, not a warning to be triaged later. The six statuses and
+what each is for are in `docs/protocols/rfc6749.md`'s reading note "The six
+statuses, and what the two prose ones are for".
+
+**Eighteen MUSTs are `accepted:`, and they are not work items.** Seventeen
+of them come to the same thing — a property of a connection this process
+does not terminate. Fifteen are one claim in five specifications' words:
+that TLS is present, and good, on the wire. Odudu serves HTTP behind a
+reverse proxy, so nothing here can observe a ciphersuite, a certificate, or
+whether the bytes were encrypted; closing them needs Odudu to terminate TLS
+itself, or evidence gathered where the connection actually is. Neither is a
+test in this repository, and neither is P2's job. The other two are the
+`https` half of an issuer identifier (OIDC Core §2 and RFC 9207 §2):
+`realmIssuer` builds the identifier, but the scheme is whatever the proxy
+asserts through `X-Forwarded-Proto`, and closing those needs a scheme this
+process establishes rather than reads off a header. The eighteenth is RFC 6749 §10.10's umbrella sentence, which is fully held —
+by three test ids, where a row can carry one. Each cites the reading note
+that explains it, and `pnpm trace` fails if that note is renamed away. ADR
+0017 records the status, and the hole in strict mode it deliberately opens.
+
+**The TLS posture, stated once.** `assertProductionTls`
+(`apps/server/src/config-guard.ts`) refuses to boot with `NODE_ENV=production`
+and `ODUDU_TLS` off. That is what closes the rows phrased as the server
+_requiring_ TLS, and it rests on **two** operator assertions, not one:
+`NODE_ENV` gates the guard and is exactly as operator-controlled as
+`ODUDU_TLS` — `infra/docker/compose.yaml` turns the guard off with one line,
+legitimately, because it serves plain HTTP on loopback.
+`infra/conformance/compose.yaml` is the stack that runs the production
+configuration behind real TLS.
+
+**Key rotation is still owed.** `signing_keys` carries `status`
+(`active` / `rotating` / `retired`) and `not_after` from migration 0003;
+JWKS publishes every non-retired key, signing selects the active one, and
+`signing_keys_one_active` permits exactly one active key. The _operation_
+that promotes and retires keys does not exist — the phase spec put it at
+"P3 or P4, whichever first has a caller". Nothing in P2 needs it, but a
+deployment running long enough to want a new key today has no supported way
+to get one.
+
+**`user_credentials.type` is P2's to widen.** Migration 0005 constrains it
+to `CHECK (type IN ('password'))`, with `UNIQUE (subject_id, type)` beside
+it. Every second factor P2 adds — TOTP, a passkey, a recovery code — needs
+that check widened by migration, and the uniqueness rule reconsidered at the
+same time: one row per type per subject is right for a password and wrong
+for passkeys, of which a user may enrol several.
+
+**47 rows are `deferred:`, and 11 of them name P2**: ten in
+`docs/protocols/oidc-core.md` and one in `docs/protocols/rfc6749.md`. They
+are the clauses that need a reusable session to have a reachable branch at
+all — `prompt=login`'s "an error is returned if reauthentication cannot be
+performed" is the shape of them, unreachable while `/authorize` starts a
+fresh authentication every time and never reads the SSO cookie it sets.
+Read them before scoping P2; they are its requirements, already written
+down. The other 36 are P3's (consent, dynamic registration, audience
+configuration, RFC 8707 `resource` indicators).
+
+**Known limitations carried into P1 are still carried**, at the end of this
+file — the `id_token_hint` audience, cookie namespacing, the single RLS
+policy, the native-module bundling trap `@node-rs/argon2` walks into in P2,
+and the migration runner's missing advisory lock.
 
 **The last of OIDC Core's MUST gaps.** `docs/protocols/oidc-core.md` went
 from 29 MUST rows with no test to 6. Twenty-two were closed — the ID
@@ -36,11 +102,9 @@ and the relaxed-constraint breakage proof turns both red.
 §3.1.2, §3.1.3, §5.3 and §16.17 ×2 are TLS on the wire, and §2's `iss` row
 asks for an `https` scheme this process does not choose — the same operator
 assertion `docs/protocols/rfc9207.md` already declines to treat as proof.
-The phase-wide residue and what to do about strict mode are set out at the
-end of `.superpowers/sdd/2026-09-11-p1-oauth-oidc-core/progress.md`, under
-"Strict mode and the residue"; the recommendation there is a new
-`accepted:` status that strict mode tolerates but that keeps printing, and
-it is the project owner's call, not a decision already taken.
+That call has since been made: all six became `accepted:` rows, and strict
+mode is now `pnpm trace`'s default. **ADR 0017** records the status, the two
+options rejected, and the hole in strict mode a tolerated status is.
 
 **Two defects found by reading a row against its test.** Both were found
 while writing clause tests, and both were real rather than theoretical.
@@ -197,7 +261,8 @@ clauses that oblige an authorization server to _state_ something (RFC 6749
 §3.3's scope defaults). Its reference must quote a reading-note heading of
 its own file and `pnpm trace` checks the heading still exists, so the
 promise that prose exists is enforced rather than trusted. A MUST recorded
-this way is reported, and fails under strict mode.
+this way is reported, and fails under strict mode. (A sixth, `accepted:`,
+followed it and is held to the same check — see ADR 0017.)
 
 The TLS reading note now says that four `covered` rows rest on **two**
 operator assertions, not one: `NODE_ENV` gates the guard and is exactly as
@@ -476,11 +541,13 @@ body fragment, or only styling.
 
 `README.md` now has a Deploying section stating plainly that the container
 image is the artifact and the compose file is development-only. What it lists
-as missing, in the order it would matter: there is no protocol surface to
-serve until P1; there is no published image or release process; secrets are
-environment variables and nothing more; there is no backup or restore
-guidance; and multi-replica deployment is blocked on migration locking and a
-shared session cache, both P11.
+as missing, in the order it would matter: there is no published image or
+release process; secrets are environment variables and nothing more; there
+is no backup or restore guidance; there is no way to rotate a signing key
+once one is in the field; and multi-replica deployment is blocked on
+migration locking and a shared session cache, both P11. The protocol surface
+itself is no longer among them — P1 shipped it, and `README.md` describes
+what it serves.
 
 The fully-local path (your own Postgres, no Docker) needs exactly one
 bootstrap statement — `CREATE USER odudu_svc` — because migration 0001

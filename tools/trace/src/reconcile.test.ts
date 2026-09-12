@@ -142,6 +142,69 @@ describe('reconcile', () => {
     });
   });
 
+  // `accepted:` says the obligation is understood and deliberately not met
+  // in this process. The reference has to name the prose that says where it
+  // is met instead, on the same terms `documented:` is held to — and strict
+  // mode must not escalate it, since a status strict turns red is a status
+  // nobody can use for a limitation that is never going away.
+  describe('an accepted row', () => {
+    const accepted = (reference: string, over: Partial<Row> = {}): Row =>
+      row({ testId: null, status: { kind: 'accepted', reference }, ...over });
+    const headings = new Map([['rfc7636.md', new Set(['TLS and the deployment boundary'])]]);
+
+    it('errors when its reference quotes a heading that is not there', () => {
+      const findings = reconcile([accepted('see "The nonexistent note" above')], [], { headings });
+      expect(findings[0]).toMatchObject({ severity: 'error' });
+      expect(nth(findings, 0).message).toMatch(/nonexistent note/);
+    });
+
+    it('errors when its reference quotes no heading at all', () => {
+      const findings = reconcile([accepted('the reverse proxy does this')], [], { headings });
+      expect(findings[0]).toMatchObject({ severity: 'error' });
+      expect(nth(findings, 0).message).toMatch(/heading/i);
+    });
+
+    it('errors on a missing heading in strict mode too', () => {
+      const findings = reconcile([accepted('see "The nonexistent note" above')], [], {
+        headings,
+        strict: true,
+      });
+      expect(findings[0]).toMatchObject({ severity: 'error' });
+    });
+
+    it('warns that a MUST is recorded this way, so it never goes quiet', () => {
+      const findings = reconcile([accepted('see "TLS and the deployment boundary" above')], [], {
+        headings,
+      });
+      expect(findings).toHaveLength(1);
+      expect(findings[0]).toMatchObject({ severity: 'warn' });
+      expect(nth(findings, 0).message).toMatch(/MUST/);
+    });
+
+    it('still only warns on that MUST in strict mode', () => {
+      const findings = reconcile([accepted('see "TLS and the deployment boundary" above')], [], {
+        headings,
+        strict: true,
+      });
+      expect(findings).toHaveLength(1);
+      expect(findings[0]).toMatchObject({ severity: 'warn' });
+      expect(findings.some((f) => f.severity === 'error')).toBe(false);
+    });
+
+    it('says nothing at all about a SHOULD recorded this way', () => {
+      expect(
+        reconcile(
+          [accepted('see "TLS and the deployment boundary" above', { level: 'SHOULD' })],
+          [],
+          {
+            headings,
+            strict: true,
+          },
+        ),
+      ).toEqual([]);
+    });
+  });
+
   // A `describe('[ID] ...')` holding several `it`s reports one result per
   // `it`, every one of them carrying that id, so an id naming several
   // results is the ordinary case rather than a mistake. Reducing them to one

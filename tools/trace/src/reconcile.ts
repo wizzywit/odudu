@@ -7,31 +7,62 @@ export interface Finding {
   message: string;
 }
 
-// A `documented:` row's reference has to quote the heading it points at, so
-// that something other than a reader can tell whether the prose is still
-// there. A reference naming no heading of its own file is a broken promise,
-// and is an error whether or not strict mode is on — the same treatment a
-// `covered` row gets when its test id matches nothing.
-const QUOTED = /[\u201c"]([^\u201d"]+)[\u201d"]/gu;
+// A `documented:` or `accepted:` row's reference has to quote the heading it
+// points at, so that something other than a reader can tell whether the
+// prose is still there. A reference naming no heading of its own file is a
+// broken promise, and is an error whether or not strict mode is on — the
+// same treatment a `covered` row gets when its test id matches nothing.
+const QUOTED = /[“"]([^”"]+)[”"]/gu;
 
-function documentedFinding(
+// What a row discharged by prose rather than by a passing test is worth.
+// `documented:` escalates its MUST under strict, because prose standing in
+// for observable behaviour is the defect this table exists to catch.
+// `accepted:` does not: the obligation is one this process has decided it
+// will never satisfy, so no work here would pay the row off and a build
+// that goes red over it can only be quieted by lying about the row. Both
+// are reported in both modes, so neither ever goes silent.
+interface ProseStatus {
+  verb: string;
+  mustSeverity: (strict: boolean) => Finding['severity'];
+  mustMessage: string;
+}
+
+const DOCUMENTED: ProseStatus = {
+  verb: 'documented by',
+  mustSeverity: (strict) => (strict ? 'error' : 'warn'),
+  mustMessage: 'MUST discharged by prose alone',
+};
+
+const ACCEPTED: ProseStatus = {
+  verb: 'accepted against',
+  mustSeverity: () => 'warn',
+  mustMessage: 'MUST accepted rather than held by a test here',
+};
+
+function proseFinding(
   row: Row,
   reference: string,
+  kind: ProseStatus,
   headings: Map<string, Set<string>> | undefined,
   strict: boolean,
 ): Finding | null {
-  const where = `${row.file} \u00a7${row.clause}`;
+  const where = `${row.file} §${row.clause}`;
   const quoted = [...reference.matchAll(QUOTED)].map((m) => m[1]);
+
+  const mustFinding = (): Finding | null =>
+    row.level === 'MUST'
+      ? { severity: kind.mustSeverity(strict), row, message: `${where}: ${kind.mustMessage}` }
+      : null;
 
   if (quoted.length === 0) {
     return {
       severity: 'error',
       row,
-      message: `${where}: documented by prose but the reference quotes no heading (${reference})`,
+      message: `${where}: ${kind.verb} prose but the reference quotes no heading (${reference})`,
     };
   }
 
-  if (headings === undefined) return row.level === 'MUST' ? mustFinding(row, where, strict) : null;
+  if (headings === undefined) return mustFinding();
 
   const known = headings.get(row.file) ?? new Set<string>();
   const missing = quoted.filter((title) => title !== undefined && !known.has(title));
@@ -39,22 +70,11 @@ function documentedFinding(
     return {
       severity: 'error',
       row,
-      message: `${where}: documented by ${missing.map((t) => JSON.stringify(t)).join(', ')}, which is not a heading in ${row.file}`,
+      message: `${where}: ${kind.verb} ${missing.map((t) => JSON.stringify(t)).join(', ')}, which is not a heading in ${row.file}`,
     };
   }
 
-  return row.level === 'MUST' ? mustFinding(row, where, strict) : null;
-}
-
-// Prose answers a SHOULD of the shape "the authorization server documents
-// its own behaviour". A MUST discharged by prose alone is the shape of the
-// defects this table exists to catch, so it is called out either way.
-function mustFinding(row: Row, where: string, strict: boolean): Finding {
-  return {
-    severity: strict ? 'error' : 'warn',
-    row,
-    message: `${where}: MUST discharged by prose alone`,
-  };
+  return mustFinding();
 }
 
 // One id is routinely carried by several test results: a
@@ -95,10 +115,11 @@ export function reconcile(
 
     if (row.status.kind === 'deferred' || row.status.kind === 'na') continue;
 
-    if (row.status.kind === 'documented') {
-      const finding = documentedFinding(
+    if (row.status.kind === 'documented' || row.status.kind === 'accepted') {
+      const finding = proseFinding(
         row,
         row.status.reference,
+        row.status.kind === 'documented' ? DOCUMENTED : ACCEPTED,
         options.headings,
         options.strict ?? false,
       );
