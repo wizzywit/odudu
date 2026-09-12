@@ -36,8 +36,15 @@ const grant: TokenGrantRecord = {
 
 // The other half of RFC6749-10.10-02; see the note on the authorization
 // code's describe in service/authorization-code.test.ts.
-describe('[RFC6749-10.10-02] generateRefreshToken / hashRefreshToken', () => {
-  it('[RFC6749-10.4-02] produces a 43-character base64url token', () => {
+describe('[RFC6749-10.10-02] generateRefreshToken', () => {
+  // 43 base64url characters is 32 bytes, which is 256 bits — past the 2^-128
+  // §10.10 requires and the 2^-160 it recommends. The same property is
+  // asserted again under RFC6749-10.4-02 below rather than borrowed from
+  // here: a row is only held by the tests that carry its own id, and the
+  // trace tool reads the innermost id in a test's full name, so an `it`
+  // nested here under a different id would leave this row holding the two
+  // sampling assertions alone — neither of which tells 64 bits from 256.
+  it('produces a 43-character base64url token, which is 32 bytes wide', () => {
     const token = generateRefreshToken();
     expect(token).toMatch(/^[A-Za-z0-9_-]{43}$/);
     expect(Buffer.from(token, 'base64url')).toHaveLength(32);
@@ -60,12 +67,51 @@ describe('[RFC6749-10.10-02] generateRefreshToken / hashRefreshToken', () => {
     const sample = new Set(Array.from({ length: 5_000 }, () => generateRefreshToken()));
     expect(sample.size).toBe(5_000);
   });
+});
+
+// §10.4's "cannot be generated, modified, or guessed by unauthorized
+// parties", for the three verbs separately: guessing is the width and the
+// randomness behind it, generating is what possession of the store does not
+// buy, and modifying is what happens to a token that is looked up by digest.
+describe('[RFC6749-10.4-02] a refresh token cannot be generated, modified or guessed', () => {
+  it('is 32 bytes wide, so guessing one is a 2^-256 proposition', () => {
+    const token = generateRefreshToken();
+    expect(token).toMatch(/^[A-Za-z0-9_-]{43}$/);
+    expect(Buffer.from(token, 'base64url')).toHaveLength(32);
+  });
 
   it('hashes the same token identically and different tokens differently', () => {
     const a = generateRefreshToken();
     const b = generateRefreshToken();
     expect(hashRefreshToken(a)).toBe(hashRefreshToken(a));
     expect(hashRefreshToken(a)).not.toBe(hashRefreshToken(b));
+  });
+
+  // A SHA-256 digest, base64url-encoded, is 43 characters — the same shape
+  // as the token itself. So a stolen row *looks* like a presentable token,
+  // and the only thing making it useless is that presenting it hashes it
+  // again, to something the store does not hold.
+  it('stores a digest that is not itself a working token', () => {
+    const token = generateRefreshToken();
+    const stored = hashRefreshToken(token);
+    expect(stored).not.toBe(token);
+    expect(hashRefreshToken(stored)).not.toBe(stored);
+  });
+
+  // Refresh tokens are looked up by digest, so tampering does not have to be
+  // detected — it has to be unsurvivable. Every one-character edit of a
+  // token must hash to something no row holds, and a digest that ignored
+  // part of its input (a truncating or prefix-only hash) would not.
+  it('gives every single-character edit of a token a different digest', () => {
+    const token = generateRefreshToken();
+    const stored = hashRefreshToken(token);
+    const edits = Array.from({ length: token.length }, (_unused, i) => {
+      const replacement = token[i] === 'A' ? 'B' : 'A';
+      return `${token.slice(0, i)}${replacement}${token.slice(i + 1)}`;
+    });
+
+    const collisions = edits.filter((edit) => hashRefreshToken(edit) === stored);
+    expect(collisions).toEqual([]);
   });
 });
 
