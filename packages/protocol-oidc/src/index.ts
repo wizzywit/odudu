@@ -61,14 +61,17 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
         user: await userRepository(tx).bySubjectId(subjectId),
       }));
 
+    // The keys /jwks publishes, and the ones an `id_token_hint` is checked
+    // against at /authorize — one definition, so a client trusting the
+    // published set and this server judging a hint cannot disagree.
+    const listPublishableKeys = (realmId: string) =>
+      withRealm(deps.database.db, realmId, (tx) => signingKeyRepository(tx).listPublishable());
+
     registerDiscoveryRoute(app, { findRealm, claimNames: () => claimMappers.claimNames() });
-    registerJwksRoute(app, {
-      findRealm,
-      listPublishableKeys: (realmId) =>
-        withRealm(deps.database.db, realmId, (tx) => signingKeyRepository(tx).listPublishable()),
-    });
+    registerJwksRoute(app, { findRealm, listPublishableKeys });
     registerAuthorizeRoute(app, {
       findRealm,
+      listPublishableKeys,
       resolveClient: (realmId, oauthClientId) =>
         withRealm(deps.database.db, realmId, async (tx): Promise<ResolvedClient> => {
           const client = await clientRepository(tx).byClientId(oauthClientId);

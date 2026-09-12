@@ -51,6 +51,11 @@ export function registerLoginRoute(app: FastifyInstance, deps: LoginRouteDeps): 
         );
     }
 
+    // No set-cookie: nothing was established to carry in one.
+    if (outcome.kind === 'error_redirect') {
+      return reply.code(302).header('location', outcome.location).send();
+    }
+
     if (outcome.kind === 'reject') {
       return reply
         .code(200)

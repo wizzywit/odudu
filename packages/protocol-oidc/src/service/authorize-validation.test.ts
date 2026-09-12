@@ -247,6 +247,56 @@ describe('validateAuthorizationRequest — the success path', () => {
         codeChallenge: params.code_challenge,
         codeChallengeMethod: 'S256',
       },
+      prompts: new Set(),
+      idTokenHint: null,
     });
+  });
+});
+
+// OIDC Core §3.1.2.1's `prompt` and `id_token_hint` are both answered past
+// this function — one by refusing to authenticate anybody, the other by a
+// signature check — so what it owes them is the parse, and the position of
+// that parse in the sequence.
+describe('prompt and id_token_hint reach the usecase through the validated outcome', () => {
+  it('carries the parsed prompt values out', () => {
+    const outcome = validateAuthorizationRequest(
+      { ...params, prompt: 'login consent' },
+      client,
+      config,
+    );
+    if (outcome.kind !== 'ok') throw new Error('expected the request to validate');
+    expect([...outcome.prompts].sort()).toEqual(['consent', 'login']);
+  });
+
+  it('carries an id_token_hint out unread', () => {
+    const outcome = validateAuthorizationRequest(
+      { ...params, id_token_hint: 'not.a.jwt' },
+      client,
+      config,
+    );
+    if (outcome.kind !== 'ok') throw new Error('expected the request to validate');
+    // Whether the hint is one this server issued is not decidable here: it
+    // takes the realm's keys, which this layer has no way to reach.
+    expect(outcome.idTokenHint).toBe('not.a.jwt');
+  });
+
+  it.each(['none login', 'unheard_of', 'NONE'])(
+    'redirects with invalid_request for prompt=%o rather than parking the request',
+    (prompt) => {
+      expect(validateAuthorizationRequest({ ...params, prompt }, client, config)).toMatchObject({
+        kind: 'redirect',
+        redirectUri: params.redirect_uri,
+        error: 'invalid_request',
+        state: params.state,
+      });
+    },
+  );
+
+  it('renders rather than redirecting a malformed prompt when the client is unknown', () => {
+    // The §4.1.2.1 boundary decides this, not the parameter: there is no
+    // registered redirect_uri to carry the error to.
+    expect(validateAuthorizationRequest({ ...params, prompt: 'none login' }, null, null).kind).toBe(
+      'render',
+    );
   });
 });

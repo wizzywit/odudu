@@ -1,3 +1,4 @@
+import { verifyJwt, type SigningKeyRecord } from '@odudu/crypto';
 import { type ClientRecord } from '@odudu/domain-realm';
 import { type ClientOidcConfig } from '#/schema/client-oidc-config';
 import { type RealmLookup } from '#/repository/realm-lookup';
@@ -19,6 +20,11 @@ export interface ResolvedClient {
 
 export interface AuthorizeUsecaseDeps {
   findRealm(name: string): Promise<RealmLookup | null>;
+  // The realm's own signing keys, which is the whole of "did this server
+  // issue that ID Token?" (OIDC Core §3.1.2.2). The same set /jwks
+  // publishes and /userinfo verifies against, so a hint minted with a key
+  // that has since rotated out of publication is no longer honoured.
+  listPublishableKeys(realmId: string): Promise<SigningKeyRecord[]>;
   // Scoped to the resolved realm by the caller composing this dependency
   // (index.ts), the same way listPublishableKeys is for the JWKS route.
   resolveClient(realmId: string, oauthClientId: string): Promise<ResolvedClient>;
@@ -37,6 +43,9 @@ export async function handleAuthorizationRequest(
   deps: AuthorizeUsecaseDeps,
   realmName: string,
   rawParams: unknown,
+  // This realm's issuer identifier, as the discovery document states it: the
+  // `iss` an id_token_hint has to carry to have come from here.
+  issuer: string,
 ): Promise<AuthorizationRequestOutcome> {
   const normalized = normalizeAuthorizeQuery(rawParams);
   if (normalized.kind === 'render') return normalized;
@@ -67,6 +76,62 @@ export async function handleAuthorizationRequest(
   );
   if (outcome.kind !== 'ok') return outcome;
 
-  const { authSessionId } = await deps.startAuthentication(realm.id, outcome.request);
+  // Below the §4.1.2.1 boundary: redirect_uri has been matched against the
+  // client's registrations, so everything from here reports by redirecting
+  // (OIDC Core §3.1.2.6).
+  const { request } = outcome;
+  const reject = (error: string): AuthorizationRequestOutcome => ({
+    kind: 'redirect',
+    redirectUri: request.redirectUri,
+    error,
+    state: request.state,
+  });
+
+  let hintSubject: string | null = null;
+  if (outcome.idTokenHint !== null) {
+    const subject = await subjectOfIdTokenHint(deps, realm.id, issuer, outcome.idTokenHint);
+    if (subject === null) return reject('invalid_request');
+    hintSubject = subject;
+  }
+
+  // OIDC Core §3.1.2.3: with `prompt=none` the authorization server MUST NOT
+  // display any authentication or consent user interface, and MUST return an
+  // error if the End-User is not already authenticated. Nothing on this path
+  // reads the SSO session cookie — authentication always starts afresh — so
+  // no End-User is ever already authenticated here, and `login_required`
+  // (§3.1.2.6) is the whole of the behaviour rather than a shortcut through
+  // it. Session reuse would turn this into a decision; today it is a fact.
+  if (outcome.prompts.has('none')) return reject('login_required');
+
+  const { authSessionId } = await deps.startAuthentication(realm.id, {
+    ...request,
+    // `prompt=login` needs nothing parked: authentication is unconditional
+    // (§3.1.2.3's reauthentication is what this server does for every
+    // request). The hint is a different matter — whether the End-User who
+    // signs in is the one it identifies can only be judged once they have,
+    // which is the login submission, so it travels with the parked request.
+    ...(hintSubject !== null ? { idTokenHintSubject: hintSubject } : {}),
+  });
   return { kind: 'started', authSessionId };
+}
+
+// OIDC Core §3.1.2.2: "the OP MUST validate that it was the issuer of the ID
+// Token" — a signature made by one of this realm's keys, over a payload whose
+// `iss` is this realm. Returns the subject it identifies, or null for a hint
+// this server cannot recognise as its own. `exp` is enforced by verifyJwt,
+// so a hint past its expiry is refused rather than accepted as §3.1.2.2's
+// SHOULD allows (see the reading note in docs/protocols/oidc-core.md).
+async function subjectOfIdTokenHint(
+  deps: AuthorizeUsecaseDeps,
+  realmId: string,
+  issuer: string,
+  hint: string,
+): Promise<string | null> {
+  const keys = await deps.listPublishableKeys(realmId);
+  try {
+    const payload = await verifyJwt(hint, { keys, issuer });
+    return typeof payload.sub === 'string' && payload.sub.length > 0 ? payload.sub : null;
+  } catch {
+    return null;
+  }
 }

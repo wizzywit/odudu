@@ -27,7 +27,7 @@ async function respondToAuthorizationRequest(
   issuer: string,
   reply: FastifyReply,
 ): Promise<FastifyReply> {
-  const outcome = await handleAuthorizationRequest(deps, realm, params);
+  const outcome = await handleAuthorizationRequest(deps, realm, params, issuer);
 
   if (outcome.kind === 'render') {
     return reply

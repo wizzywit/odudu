@@ -55,6 +55,10 @@ export async function issueAuthorizationCode(
 export type LoginSubmissionOutcome =
   | { kind: 'unauthenticated' }
   | { kind: 'reject'; authSessionId: string }
+  // Authentication succeeded, and the request is still answered with an
+  // error at the client's redirect_uri: no SSO session is established and no
+  // code is issued, so there is no cookie to set either.
+  | { kind: 'error_redirect'; location: string }
   | { kind: 'redirect'; location: string; sessionId: string };
 
 // Everything the atomic completion step needs to establish the SSO session
@@ -93,6 +97,22 @@ export interface LoginSubmissionDeps {
   // the one transaction this name promises. See index.ts for the wiring
   // that makes it one `withRealm` call rather than three.
   completeLogin(input: CompleteLoginInput): Promise<CompleteLoginOutcome>;
+}
+
+// An authorization error response delivered to the parked request's own
+// redirect_uri (OIDC Core §3.1.2.6), carrying `iss` for the same reason the
+// success redirect does (RFC 9207 §2).
+function errorRedirect(
+  pending: PendingRequest,
+  realmName: string,
+  issuerBase: string,
+  error: string,
+): string {
+  const location = new URL(pending.redirectUri);
+  location.searchParams.set('error', error);
+  if (pending.state !== null) location.searchParams.set('state', pending.state);
+  location.searchParams.set('iss', realmIssuer(issuerBase, realmName));
+  return location.toString();
 }
 
 // The handler this drives treats a submission whose auth_session_id does
@@ -135,6 +155,21 @@ export async function handleLoginSubmission(
   const pending = await deps.loadPendingRequest(realm.id, authSessionId);
   if (pending === null) {
     return { kind: 'unauthenticated' };
+  }
+
+  // OIDC Core §3.1.2.1: with an `id_token_hint`, a positive response is for
+  // the End-User the hint identifies — one already logged in, or one who
+  // "becomes logged in as a result of the request", which is the only case
+  // this server has. Somebody else signing in is not that End-User, so the
+  // request is answered with `login_required` and nothing is issued. The
+  // authentication session is deliberately left unconsumed: the right
+  // End-User can still sign in against the same parked request.
+  const hintSubject = pending.idTokenHintSubject;
+  if (hintSubject !== undefined && hintSubject !== result.subjectId) {
+    return {
+      kind: 'error_redirect',
+      location: errorRedirect(pending, realmName, issuerBase, 'login_required'),
+    };
   }
 
   const clientId = await deps.resolveClientId(realm.id, pending.clientId);

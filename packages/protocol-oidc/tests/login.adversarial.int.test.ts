@@ -1,3 +1,4 @@
+import { generateSigningKey, signingKeys, signJwt, type SigningKeyRecord } from '@odudu/crypto';
 import { hashPassword, subjectRepository, userCredentials, users } from '@odudu/domain-identity';
 import {
   createDatabase,
@@ -41,6 +42,7 @@ const CLIENT_ID = 'login-adversarial-client';
 const REDIRECT_URI = 'https://app.example/callback';
 const USERNAME = 'ada';
 const PASSWORD = 'correct horse battery staple';
+const KEK = Buffer.alloc(32, 7);
 
 let REALM: string;
 let REALM_BETA: string;
@@ -56,7 +58,7 @@ async function buildHttp(deps: {
     oidcRoutes({
       database: deps.database,
       ownerDatabase: owner,
-      kek: Buffer.alloc(32, 7),
+      kek: KEK,
       ...(deps.tls !== undefined ? { tls: deps.tls } : {}),
       ...(deps.clock !== undefined ? { clock: deps.clock } : {}),
     }),
@@ -97,8 +99,64 @@ async function setupLoginRealm(name: string): Promise<string> {
       type: 'password',
       secretData: await hashPassword(PASSWORD),
     });
+
+    // Every realm gets a signing key: an id_token_hint is only a hint this
+    // server issued if one of these keys signed it (OIDC Core §3.1.2.2).
+    const generated = await generateSigningKey('ES256', KEK);
+    const key: SigningKeyRecord = {
+      id: newId(),
+      realmId,
+      kid: generated.kid,
+      alg: generated.alg,
+      status: 'active',
+      publicJwk: generated.publicJwk,
+      privateJwkEncrypted: generated.privateJwkEncrypted,
+      createdAt: new Date(),
+      notAfter: null,
+    };
+    signingKeyOf.set(name, key);
+    await tx.insert(signingKeys).values({
+      id: key.id,
+      realmId,
+      kid: key.kid,
+      alg: key.alg,
+      status: 'active',
+      publicJwk: key.publicJwk,
+      privateJwkEncrypted: key.privateJwkEncrypted,
+    });
   });
   return name;
+}
+
+const signingKeyOf = new Map<string, SigningKeyRecord>();
+
+async function subjectIdOf(realmName: string): Promise<string> {
+  const realmId = await realmIdByName(realmName);
+  if (realmId === undefined) throw new Error(`no realm ${realmName}`);
+  const rows = await owner.db
+    .select({ subjectId: users.subjectId })
+    .from(users)
+    .where(eq(users.realmId, realmId));
+  const row = rows[0];
+  if (row === undefined) throw new Error(`no user in ${realmName}`);
+  return row.subjectId;
+}
+
+// An ID Token of the shape /token issues, signed by the realm's own key.
+async function mintIdToken(realmName: string, sub: string): Promise<string> {
+  const key = signingKeyOf.get(realmName);
+  if (key === undefined) throw new Error(`no signing key for ${realmName}`);
+  const now = Math.floor(Date.now() / 1000);
+  return signJwt(
+    {
+      iss: await issuerFor(http, realmName),
+      aud: CLIENT_ID,
+      sub,
+      iat: now,
+      exp: now + 300,
+    },
+    { key, kek: KEK },
+  );
 }
 
 function authorizeUrl(
@@ -122,8 +180,12 @@ function authorizeUrl(
   return `/realms/${realmName}/protocol/openid-connect/auth?${query.toString()}`;
 }
 
-async function startAuthSession(instance: FastifyInstance, realmName: string): Promise<string> {
-  const res = await instance.inject({ url: authorizeUrl(realmName) });
+async function startAuthSession(
+  instance: FastifyInstance,
+  realmName: string,
+  overrides: Record<string, string | undefined> = {},
+): Promise<string> {
+  const res = await instance.inject({ url: authorizeUrl(realmName, overrides) });
   if (res.statusCode !== 200) {
     throw new Error(`expected /authorize to render the login form, got ${String(res.statusCode)}`);
   }
@@ -145,13 +207,19 @@ interface SubmitLoginOptions {
   // string: use this exact value (a foreign or fabricated session id).
   csrf?: string | null;
   extra?: Record<string, string>;
+  // Parameters for the /authorize request that parks the request this
+  // submission completes — an id_token_hint, say, which the form itself has
+  // no field for and could not be trusted to carry if it did.
+  authorize?: Record<string, string | undefined>;
 }
 
 async function submitLogin(opts: SubmitLoginOptions): Promise<LightMyRequestResponse> {
   const instance = opts.instance ?? http;
   const realmName = opts.realmName ?? REALM;
   const authSessionId =
-    opts.csrf === undefined ? await startAuthSession(instance, realmName) : opts.csrf;
+    opts.csrf === undefined
+      ? await startAuthSession(instance, realmName, opts.authorize ?? {})
+      : opts.csrf;
 
   const form = new URLSearchParams();
   if (authSessionId !== null) form.set('auth_session_id', authSessionId);
@@ -441,5 +509,83 @@ describe('realm isolation', () => {
         });
       },
     });
+  });
+});
+
+// OIDC Core §3.1.2.3: "If this parameter [prompt] contains login, the
+// Authorization Server MUST reauthenticate the End-User even if the End-User
+// is already authenticated." §15.1 makes that behaviour mandatory to
+// implement. This server authenticates unconditionally — /authorize never
+// reads the session cookie — so the requirement is met by construction; what
+// these assertions hold is that a live session does not change the answer,
+// and that `login` is a value the endpoint accepts rather than refuses.
+describe('[OIDC-CORE-3.1.2.3-03] prompt=login authenticates again despite a live session', () => {
+  it('renders a fresh login form for a request carrying the session cookie just set', async () => {
+    const realmName = await setupLoginRealm(`acme-prompt-login-${newId()}`);
+    const loggedIn = await submitLogin({ ...GOOD, realmName });
+    const cookie = loggedIn.headers['set-cookie'];
+    if (typeof cookie !== 'string') throw new Error('expected a session cookie to be set');
+
+    const res = await http.inject({
+      url: authorizeUrl(realmName, { prompt: 'login' }),
+      headers: { cookie: cookie.split(';')[0] ?? '' },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toContain('name="auth_session_id"');
+    // Not a silent authorization: no code reaches the client without the
+    // End-User going through the form this response just served.
+    expect(res.headers.location).toBeUndefined();
+  });
+
+  it('issues a code only once that second authentication is completed', async () => {
+    const realmName = await setupLoginRealm(`acme-prompt-login-code-${newId()}`);
+    await submitLogin({ ...GOOD, realmName });
+    expect(await countAuthorizationCodes(realmName)).toBe(1);
+
+    const res = await submitLogin({ ...GOOD, realmName, authorize: { prompt: 'login' } });
+    expect(res.statusCode).toBe(302);
+    expect(new URL(locationHeader(res)).searchParams.get('code')).toBeTruthy();
+    expect(await countAuthorizationCodes(realmName)).toBe(2);
+  });
+});
+
+// OIDC Core §3.1.2.1: with an `id_token_hint`, "if the End-User identified by
+// the ID Token is logged in or is logged in by the request, then the
+// Authorization Server returns a positive response; otherwise, it SHOULD
+// return an error, such as login_required". "Logged in by the request" is the
+// only case this server has, so honouring the hint means comparing it to
+// whoever actually signed in.
+describe('[OIDC-CORE-3.1.2.1-09] an id_token_hint names who the response is about', () => {
+  it('issues a code when the End-User who signs in is the one the hint identifies', async () => {
+    const realmName = await setupLoginRealm(`acme-hint-match-${newId()}`);
+    const hint = await mintIdToken(realmName, await subjectIdOf(realmName));
+
+    const res = await submitLogin({ ...GOOD, realmName, authorize: { id_token_hint: hint } });
+
+    expect(res.statusCode).toBe(302);
+    const location = new URL(locationHeader(res));
+    expect(location.searchParams.get('code')).toBeTruthy();
+    expect(location.searchParams.get('error')).toBeNull();
+  });
+
+  it('answers login_required when somebody else signs in, and issues nothing', async () => {
+    const realmName = await setupLoginRealm(`acme-hint-mismatch-${newId()}`);
+    const hint = await mintIdToken(realmName, newId());
+
+    const res = await submitLogin({ ...GOOD, realmName, authorize: { id_token_hint: hint } });
+
+    expect(res.statusCode).toBe(302);
+    const location = new URL(locationHeader(res));
+    expect(location.origin + location.pathname).toBe(REDIRECT_URI);
+    expect(location.searchParams.get('error')).toBe('login_required');
+    expect(location.searchParams.get('code')).toBeNull();
+    expect(location.searchParams.get('state')).toBe('xyz 123');
+    expect(location.searchParams.get('iss')).toBe(await issuerFor(http, realmName));
+    // The authentication succeeded and was still not turned into anything:
+    // no code for the client, and no SSO session cookie for a login the
+    // client's own request said it did not want.
+    expect(await countAuthorizationCodes(realmName)).toBe(0);
+    expect(res.headers['set-cookie']).toBeUndefined();
   });
 });

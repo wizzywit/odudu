@@ -29,6 +29,10 @@ export interface PendingRequest {
   nonce: string | null;
   codeChallenge: string;
   codeChallengeMethod: 'S256';
+  // The subject named by a validated `id_token_hint` (OIDC Core §3.1.2.1).
+  // Absent when the request carried no hint; when present, whoever signs in
+  // has to be that subject for the request to be answered positively.
+  idTokenHintSubject?: string;
 }
 
 export interface AuthenticationSessionRecord {

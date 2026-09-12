@@ -7,8 +7,17 @@ import {
   type DatabaseHandle,
   type RealmScopedDatabase,
 } from '@odudu/db';
+import { authenticationSessions } from '@odudu/authn-flows';
+import {
+  generateSigningKey,
+  signingKeys,
+  signJwt,
+  type GeneratedSigningKey,
+  type SigningKeyRecord,
+} from '@odudu/crypto';
 import { clients } from '@odudu/domain-realm';
 import { newId } from '@odudu/kernel';
+import { eq } from 'drizzle-orm';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import formbody from '@fastify/formbody';
 import Fastify, { type FastifyInstance } from 'fastify';
@@ -29,6 +38,62 @@ let http: FastifyInstance;
 const REALM = 'acme';
 const CLIENT_ID = 'authorize-adversarial-client';
 const REDIRECT_URI = 'https://app.example/callback';
+const KEK = Buffer.alloc(32, 7);
+
+let realmId: string;
+// The realm's own active signing key, and one that is structurally identical
+// but was never given to the realm — the difference between a hint this
+// server issued and a hint somebody else minted (OIDC Core §3.1.2.2).
+let realmKey: SigningKeyRecord;
+let foreignKey: SigningKeyRecord;
+
+function asRecord(generated: GeneratedSigningKey, forRealmId: string): SigningKeyRecord {
+  return {
+    id: newId(),
+    realmId: forRealmId,
+    kid: generated.kid,
+    alg: generated.alg,
+    status: 'active',
+    publicJwk: generated.publicJwk,
+    privateJwkEncrypted: generated.privateJwkEncrypted,
+    createdAt: new Date(),
+    notAfter: null,
+  };
+}
+
+async function issuer(): Promise<string> {
+  const res = await http.inject({ url: `/realms/${REALM}/.well-known/openid-configuration` });
+  return res.json<{ issuer: string }>().issuer;
+}
+
+// An ID Token of the shape /token issues (OIDC Core §2): no `typ` header,
+// `aud` the client, `sub` the End-User.
+async function mintIdToken(
+  claims: { iss: string; sub: string; exp?: number },
+  key: SigningKeyRecord = realmKey,
+): Promise<string> {
+  const now = Math.floor(Date.now() / 1000);
+  return signJwt(
+    { aud: CLIENT_ID, iat: now, exp: claims.exp ?? now + 300, iss: claims.iss, sub: claims.sub },
+    { key, kek: KEK },
+  );
+}
+
+async function errorOnRedirect(url: string): Promise<string | null> {
+  const res = await http.inject({ url });
+  expect(res.statusCode).toBe(302);
+  const location = res.headers.location;
+  if (typeof location !== 'string') throw new Error('expected a location header');
+  return new URL(location).searchParams.get('error');
+}
+
+async function countAuthenticationSessions(): Promise<number> {
+  const rows = await owner.db
+    .select({ id: authenticationSessions.id })
+    .from(authenticationSessions)
+    .where(eq(authenticationSessions.realmId, realmId));
+  return rows.length;
+}
 
 function authorizeParams(
   overrides: Record<string, string | undefined> = {},
@@ -110,7 +175,7 @@ beforeAll(async () => {
   );
   await http.ready();
 
-  const realmId = newId();
+  realmId = newId();
   const clientId = newId();
   await withRealm(app.db, realmId, async (tx: RealmScopedDatabase) => {
     await tx.insert(realms).values({ id: realmId, name: REALM });
@@ -132,7 +197,22 @@ beforeAll(async () => {
       accessTokenTtlSeconds: 300,
       refreshTokenTtlSeconds: 1_209_600,
     });
+
+    realmKey = asRecord(await generateSigningKey('ES256', KEK), realmId);
+    await tx.insert(signingKeys).values({
+      id: realmKey.id,
+      realmId,
+      kid: realmKey.kid,
+      alg: realmKey.alg,
+      status: 'active',
+      publicJwk: realmKey.publicJwk,
+      privateJwkEncrypted: realmKey.privateJwkEncrypted,
+    });
   });
+
+  // Never inserted anywhere: a key this server has no record of, standing in
+  // for every other issuer's keys at once.
+  foreignKey = asRecord(await generateSigningKey('ES256', KEK), realmId);
 }, 120_000);
 
 afterAll(async () => {
@@ -457,5 +537,146 @@ describe('[OIDC-CORE-3.1.2.1-01] POST at the authorization endpoint takes form e
 
     expect(res.statusCode).toBe(415);
     expect(res.body).not.toContain('name="auth_session_id"');
+  });
+});
+
+// OIDC Core §3.1.2.3: "If this parameter [prompt] contains none ... the
+// Authorization Server MUST NOT display any authentication or consent user
+// interface", and "MUST return an error if an End-User is not already
+// authenticated". Nothing in this server reads the session cookie at
+// /authorize, so no End-User is ever already authenticated at this point and
+// the error is unconditional — which is the behaviour §3.1.2.1 describes,
+// arrived at without a session to reuse rather than in spite of one.
+describe('prompt=none never authenticates and never shows a page', () => {
+  it('[OIDC-CORE-3.1.2.3-01] redirects with login_required rather than rendering anything', async () => {
+    const res = await http.inject({ url: authorizeUrl({ prompt: 'none', state: 'xyz 123' }) });
+
+    expect(res.statusCode).toBe(302);
+    const location = res.headers.location;
+    if (typeof location !== 'string') throw new Error('expected a location header');
+    const target = new URL(location);
+    expect(target.origin + target.pathname).toBe(REDIRECT_URI);
+    expect(target.searchParams.get('error')).toBe('login_required');
+    expect(target.searchParams.get('state')).toBe('xyz 123');
+    expect(target.searchParams.get('iss')).toBe(await issuer());
+  });
+
+  it('[OIDC-CORE-3.1.2.3-02] displays no user interface and starts no authentication session', async () => {
+    const before = await countAuthenticationSessions();
+    const res = await http.inject({ url: authorizeUrl({ prompt: 'none' }) });
+
+    // No page at all: not a login form, not an error page, nothing with a
+    // control on it. A 302 whose body carried the form would still be
+    // displaying an authentication user interface.
+    expect(res.body).not.toContain('<form');
+    expect(res.body).not.toContain('name="auth_session_id"');
+    // "Does not interact with the End-User" is a claim about state too: an
+    // authentication session parked here is a login this server is waiting
+    // to be completed.
+    expect(await countAuthenticationSessions()).toBe(before);
+  });
+
+  it('answers a POSTed prompt=none exactly as the GET', async () => {
+    const getRes = await http.inject({ url: authorizeUrl({ prompt: 'none' }) });
+    const postRes = await postAuthorize({ prompt: 'none' });
+    expect(postRes.statusCode).toBe(getRes.statusCode);
+    expect(postRes.headers.location).toBe(getRes.headers.location);
+  });
+});
+
+// OIDC Core §3.1.2.1: "If this parameter contains none with any other value,
+// an error is returned" — the values are mutually exclusive, and a server
+// that honoured one of them would be choosing which half of a contradiction
+// the client meant.
+describe('[OIDC-CORE-3.1.2.1-07] prompt=none combined with any other value is an error', () => {
+  it.each(['none login', 'login none', 'none consent', 'none select_account'])(
+    'redirects with invalid_request for prompt=%o',
+    async (prompt) => {
+      expect(await errorOnRedirect(authorizeUrl({ prompt }))).toBe('invalid_request');
+    },
+  );
+
+  // The combination is refused as a malformed request, not answered as if
+  // the `none` had been sent on its own: login_required here would be this
+  // server deciding the contradiction in the client's stead.
+  it('does not answer the combination as a bare prompt=none', async () => {
+    expect(await errorOnRedirect(authorizeUrl({ prompt: 'none login' }))).not.toBe(
+      'login_required',
+    );
+  });
+});
+
+// §3.1.2.1 leaves this a MAY: an unrecognized value may be errored on or
+// ignored. Odudu errors, so that a client asking for an interaction this
+// server has never heard of is told, rather than answered as though it had
+// asked for nothing.
+describe('[OIDC-CORE-3.1.2.1-08] an undefined prompt value is refused rather than ignored', () => {
+  it.each(['unheard_of', 'login unheard_of', 'Login'])(
+    'redirects with invalid_request for prompt=%o',
+    async (prompt) => {
+      expect(await errorOnRedirect(authorizeUrl({ prompt }))).toBe('invalid_request');
+    },
+  );
+
+  it.each(['login', 'consent', 'select_account'])('still accepts prompt=%s', async (prompt) => {
+    const res = await http.inject({ url: authorizeUrl({ prompt }) });
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toContain('name="auth_session_id"');
+  });
+});
+
+// OIDC Core §3.1.2.2: "the OP MUST validate that it was the issuer of that ID
+// Token". Signature and `iss`, against the realm's own keys — the same two
+// checks /userinfo makes of an access token.
+describe('[OIDC-CORE-3.1.2.2-01] an id_token_hint this server did not issue is refused', () => {
+  it('refuses a hint that is not a JWT at all', async () => {
+    expect(await errorOnRedirect(authorizeUrl({ id_token_hint: 'not.a.jwt' }))).toBe(
+      'invalid_request',
+    );
+  });
+
+  it('refuses a well-formed hint signed by a key this realm does not publish', async () => {
+    const hint = await mintIdToken({ iss: await issuer(), sub: newId() }, foreignKey);
+    expect(await errorOnRedirect(authorizeUrl({ id_token_hint: hint }))).toBe('invalid_request');
+  });
+
+  // The signature alone is not the check: a token minted by this realm's key
+  // but claiming another issuer was not issued by this OP either, and a
+  // signature-only check would accept it.
+  it('refuses a hint signed by this realm but claiming another issuer', async () => {
+    const hint = await mintIdToken({ iss: 'https://another.example/realms/acme', sub: newId() });
+    expect(await errorOnRedirect(authorizeUrl({ id_token_hint: hint }))).toBe('invalid_request');
+  });
+
+  it('refuses a hint carrying no sub to identify anybody by', async () => {
+    const now = Math.floor(Date.now() / 1000);
+    const hint = await signJwt(
+      { iss: await issuer(), aud: CLIENT_ID, iat: now, exp: now + 300 },
+      { key: realmKey, kek: KEK },
+    );
+    expect(await errorOnRedirect(authorizeUrl({ id_token_hint: hint }))).toBe('invalid_request');
+  });
+
+  it('accepts a hint it did issue and carries on to authentication', async () => {
+    const hint = await mintIdToken({ iss: await issuer(), sub: newId() });
+    const res = await http.inject({ url: authorizeUrl({ id_token_hint: hint }) });
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toContain('name="auth_session_id"');
+  });
+
+  // Validating the hint comes first: `prompt=none` decides how to answer a
+  // request, and a request carrying an unusable hint is not one to answer
+  // with the prompt's own error.
+  it('refuses an unusable hint under prompt=none as invalid_request, not login_required', async () => {
+    expect(
+      await errorOnRedirect(authorizeUrl({ prompt: 'none', id_token_hint: 'not.a.jwt' })),
+    ).toBe('invalid_request');
+  });
+
+  it('still answers prompt=none with login_required when the hint is good', async () => {
+    const hint = await mintIdToken({ iss: await issuer(), sub: newId() });
+    expect(await errorOnRedirect(authorizeUrl({ prompt: 'none', id_token_hint: hint }))).toBe(
+      'login_required',
+    );
   });
 });

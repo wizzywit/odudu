@@ -3,10 +3,21 @@ import { SUPPORTED_SCOPES } from '@odudu/contracts';
 import { type ClientRecord } from '@odudu/domain-realm';
 import { type ClientOidcConfig } from '#/schema/client-oidc-config';
 import { isWellFormedPkceString } from '#/service/pkce';
+import { parsePrompt, type PromptValue } from '#/service/prompt';
 import { isRegisteredRedirectUri } from '#/service/redirect-uri';
 
 export type AuthorizeOutcome =
-  | { kind: 'ok'; request: PendingRequest }
+  | {
+      kind: 'ok';
+      request: PendingRequest;
+      // What the request asks about interacting with the End-User, and the
+      // hint naming who the End-User is meant to be. Both are answered after
+      // this function returns — `none` by refusing to authenticate anybody,
+      // the hint by a signature check against the realm's own keys — because
+      // neither is decidable from the request parameters alone.
+      prompts: ReadonlySet<PromptValue>;
+      idTokenHint: string | null;
+    }
   | { kind: 'render'; error: string; description: string }
   | { kind: 'redirect'; redirectUri: string; error: string; state: string | null };
 
@@ -115,8 +126,19 @@ export function validateAuthorizationRequest(
   if (params.code_challenge_method !== 'S256') return reject('invalid_request');
   if (!scopesAreKnown(params.scope)) return reject('invalid_scope');
 
+  // `prompt` is a request parameter like any other, so a malformed one is
+  // refused here rather than acted on later: `none` alongside another value
+  // (OIDC Core §3.1.2.1), or a value outside the four the specification
+  // defines — the MAY that §3.1.2.1 grants, taken because a client asking
+  // for something this server has never heard of is better told so than
+  // answered as if it had asked for nothing.
+  const prompt = parsePrompt(params.prompt);
+  if (prompt.kind === 'invalid') return reject('invalid_request');
+
   return {
     kind: 'ok',
     request: toPendingRequest(client, params, redirectUri, state, codeChallenge),
+    prompts: prompt.values,
+    idTokenHint: params.id_token_hint ?? null,
   };
 }
