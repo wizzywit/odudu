@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseRows } from '#/parse';
+import { parseRows, readingNoteHeadings } from '#/parse';
 
 function nth<T>(arr: T[], i: number): T {
   const value = arr[i];
@@ -52,6 +52,22 @@ describe('parseRows', () => {
     });
   });
 
+  it('captures the reference from a documented status', () => {
+    const table = TABLE.replace(
+      '| 4.4.1 | MUST | plain is rejected | — | gap |',
+      '| 4.4.1 | SHOULD | the server documents its defaults | — | documented: see "The default scope" above |',
+    );
+    expect(nth(parseRows('rfc7636.md', table), 1).status).toEqual({
+      kind: 'documented',
+      reference: 'see "The default scope" above',
+    });
+  });
+
+  it('rejects a documented status with nothing after the colon', () => {
+    const bad = TABLE.replace('| — | gap |', '| — | documented: |');
+    expect(() => parseRows('rfc7636.md', bad)).toThrow(/documented/);
+  });
+
   it('rejects a status it does not recognise rather than ignoring the row', () => {
     const bad = TABLE.replace('| covered |', '| probably fine |');
     expect(() => parseRows('rfc7636.md', bad)).toThrow(/probably fine/);
@@ -79,5 +95,18 @@ describe('parseRows', () => {
     const withNotesTable = `${TABLE}\n## Reading notes\n\n| Term | Meaning |\n| ---- | ------- |\n| PKCE | Proof Key for Code Exchange |\n`;
     const rows = parseRows('rfc7636.md', withNotesTable);
     expect(rows).toHaveLength(4);
+  });
+});
+
+describe('readingNoteHeadings', () => {
+  it('collects every heading a documented row could point at', () => {
+    const markdown = '# RFC 7636\n\n## Reading notes\n\n### The default scope\n\ntext\n';
+    expect(readingNoteHeadings(markdown)).toEqual(
+      new Set(['RFC 7636', 'Reading notes', 'The default scope']),
+    );
+  });
+
+  it('does not mistake a hash inside a table row for a heading', () => {
+    expect(readingNoteHeadings('| 4.1 | MUST | # not a heading | — | gap |\n')).toEqual(new Set());
   });
 });

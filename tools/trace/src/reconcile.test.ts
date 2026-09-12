@@ -91,6 +91,57 @@ describe('reconcile', () => {
     expect(findings).toEqual([]);
   });
 
+  // `documented:` is a promise that prose exists. A promise nothing checks
+  // is what this phase kept getting bitten by, so the reference has to name
+  // a heading the file actually carries.
+  describe('a documented row', () => {
+    const documented = (reference: string, over: Partial<Row> = {}): Row =>
+      row({ testId: null, level: 'SHOULD', status: { kind: 'documented', reference }, ...over });
+    const headings = new Map([['rfc7636.md', new Set(['The default scope'])]]);
+
+    it('is silent when its reference quotes a heading of its own file', () => {
+      expect(
+        reconcile([documented('see "The default scope" above')], [], { headings, strict: true }),
+      ).toEqual([]);
+    });
+
+    it('errors when its reference quotes a heading that is not there', () => {
+      const findings = reconcile([documented('see "The nonexistent note" above')], [], {
+        headings,
+      });
+      expect(findings[0]).toMatchObject({ severity: 'error' });
+      expect(nth(findings, 0).message).toMatch(/nonexistent note/);
+    });
+
+    it('errors when its reference quotes no heading at all', () => {
+      const findings = reconcile([documented('it is written down somewhere')], [], { headings });
+      expect(findings[0]).toMatchObject({ severity: 'error' });
+      expect(nth(findings, 0).message).toMatch(/heading/i);
+    });
+
+    // Prose is an answer to "documents its own behaviour", which is what a
+    // SHOULD of that shape asks for. A MUST discharged by prose alone is the
+    // shape of every defect this table exists to stop.
+    it('warns when a MUST is discharged by prose alone', () => {
+      const findings = reconcile(
+        [documented('see "The default scope" above', { level: 'MUST' })],
+        [],
+        { headings },
+      );
+      expect(findings[0]).toMatchObject({ severity: 'warn' });
+      expect(nth(findings, 0).message).toMatch(/MUST/);
+    });
+
+    it('errors on that MUST in strict mode', () => {
+      const findings = reconcile(
+        [documented('see "The default scope" above', { level: 'MUST' })],
+        [],
+        { headings, strict: true },
+      );
+      expect(findings[0]).toMatchObject({ severity: 'error' });
+    });
+  });
+
   it('ignores deferred and n/a rows entirely', () => {
     const findings = reconcile(
       [

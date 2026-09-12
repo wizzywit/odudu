@@ -396,10 +396,14 @@ holds reading notes and one table:
 | 4.2     | MUST   | implicit grant response                  | —                    | n/a — removed in OAuth 2.1 |
 | 3.1.2   | SHOULD | …                                        | `RFC6749-3.1.2-01`   | deferred — P3              |
 
-Status takes exactly four forms: `covered`, `deferred: <phase> —
-<reason>`, `n/a: <reason>`, and `gap`. The `n/a` rows carry OAuth 2.1's
-deviations, which is how decision 2.2 stays honest without a second
-document.
+Status takes exactly five forms: `covered`, `deferred: <phase> —
+<reason>`, `n/a: <reason>`, `documented: "<heading>" <reason>`, and `gap`.
+The `n/a` rows carry OAuth 2.1's deviations, which is how decision 2.2
+stays honest without a second document. `documented:` holds the clauses
+that oblige an authorization server to _state_ something rather than to do
+it, which no test can observe and which `n/a` would misfile as
+inapplicable; its reference quotes a reading-note heading, and `pnpm
+trace` checks the heading is still there.
 
 Test IDs appear verbatim in test titles, so a row and a test are greppable
 from either direction.

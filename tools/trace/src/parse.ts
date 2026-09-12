@@ -2,6 +2,13 @@ export type Status =
   | { kind: 'covered' }
   | { kind: 'deferred'; phase: string; reason: string }
   | { kind: 'na'; reason: string }
+  // The obligation is to say something rather than to do something — "the
+  // authorization server documents its scope requirements", and its like.
+  // `covered` cannot hold such a row, because there is no behaviour a test
+  // could observe, and `n/a` would file a requirement Odudu *meets*
+  // alongside the ones addressed to somebody else. The reference names the
+  // prose that discharges it, and reconcile checks it resolves.
+  | { kind: 'documented'; reference: string }
   | { kind: 'gap' };
 
 export interface Row {
@@ -45,6 +52,9 @@ function parseStatus(raw: string, where: string): Status {
 
   const na = /^n\/a:\s*(.+)$/u.exec(raw);
   if (na) return { kind: 'na', reason: group(na, 1) };
+
+  const documented = /^documented:\s*(\S.*)$/u.exec(raw);
+  if (documented) return { kind: 'documented', reference: group(documented, 1) };
 
   throw new Error(`${where}: unrecognised status ${JSON.stringify(raw)}`);
 }
@@ -109,4 +119,19 @@ export function parseRows(file: string, markdown: string): Row[] {
   }
 
   return rows;
+}
+
+// Every ATX heading in a protocol document, which is what a `documented:`
+// row's reference points at. The leading `|` guard keeps a hash inside a
+// clause row's requirement text from reading as one.
+const HEADING = /^#{1,6}\s+(\S.*?)\s*$/u;
+
+export function readingNoteHeadings(markdown: string): Set<string> {
+  const headings = new Set<string>();
+  for (const line of markdown.split('\n')) {
+    if (line.startsWith('|')) continue;
+    const match = HEADING.exec(line);
+    if (match !== null) headings.add(group(match, 1));
+  }
+  return headings;
 }
