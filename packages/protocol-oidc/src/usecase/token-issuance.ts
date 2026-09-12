@@ -85,12 +85,18 @@ function readField(body: Record<string, string | string[] | undefined>, key: str
   return typeof value === 'string' ? value : '';
 }
 
+// RFC 6749 §3.2: a parameter sent with an empty value is treated as if it
+// had been omitted. `readField`'s callers get that for free by testing the
+// result for length zero; here the absence has to be made explicit, because
+// the caller cannot see the difference — `client_secret=` counted as a
+// second authentication method being presented, refusing a request that
+// succeeded without the parameter at all.
 function readOptionalField(
   body: Record<string, string | string[] | undefined>,
   key: string,
 ): string | undefined {
   const value = body[key];
-  return typeof value === 'string' ? value : undefined;
+  return typeof value === 'string' && value.length > 0 ? value : undefined;
 }
 
 function parseStructure(body: Record<string, string | string[] | undefined>): StructuredRequest {
@@ -372,14 +378,54 @@ async function issueAuthorizationCodeTokens(
   };
 }
 
+// The grant rules for `refresh_token`, decided from the presented token
+// before anything is rotated. Nothing here writes: it can refuse the
+// request, never admit it, which is why running it ahead of the atomic
+// single-use consume costs that consume none of its authority.
+//
+// Deciding this only *after* rotation, from the rotated record, is what
+// made a refresh token a weapon: rotation marks the presented token used
+// and commits, so any client able to authenticate at this realm could burn
+// a token belonging to another, and the owner's next refresh was then
+// detected as reuse and revoked its whole family.
+async function evaluatePresentedRefreshToken(
+  tx: RealmScopedDatabase,
+  request: Extract<StructuredRequest, { grantType: 'refresh_token' }>,
+  client: ClientRecord,
+  presentedHash: string,
+): Promise<void> {
+  const presented = await refreshTokenRepository(tx).byHash(presentedHash);
+  // Unknown here and unknown to the rotation below are the same
+  // `invalid_grant`; the rotation is skipped because there is nothing to
+  // rotate, not because this is a different answer.
+  if (presented === null) throw invalidGrant();
+
+  const grant = await tokenGrantRepository(tx).byId(presented.grantId);
+  if (grant === null) throw invalidGrant();
+
+  const subject = await subjectRepository(tx).byId(grant.subjectId);
+  if (subject === null) throw invalidGrant();
+
+  const decision = evaluateRefreshGrant(grant, client, subject, { requestedScope: request.scope });
+  if (!decision.ok) {
+    throw decision.reason === 'scope_widened' ? invalidScope() : invalidGrant();
+  }
+}
+
 // Stage 3 (and everything after) for `refresh_token`. Rotation runs in its
-// own transaction, independently committed via `withRealm`, before this
-// function's own `tx` does anything else: reuse detection and family
-// revocation must survive even though the request this call belongs to
-// will end in `invalid_grant`, which rolls the enclosing `tx` back. Once
-// rotation has committed, everything else here is read-only against
-// already-settled state, so running it inside the enclosing `tx` risks
-// nothing.
+// own transaction, independently committed via `withRealm`: reuse detection
+// and family revocation must survive even though the request this call
+// belongs to will end in `invalid_grant`, which rolls the enclosing `tx`
+// back. Once rotation has committed, everything else here is read-only
+// against already-settled state, so running it inside the enclosing `tx`
+// risks nothing.
+//
+// The decision is taken twice against two different reads of the grant, and
+// deliberately so. The first read gates the rotation, so a request that was
+// never going to succeed consumes nothing. The second is the one that
+// governs, because it reads the grant inside the transaction that rotated
+// the token — a family revoked between the two reads must not still hand
+// back an access token.
 async function issueRefreshTokens(
   tx: RealmScopedDatabase,
   deps: TokenIssuanceDeps,
@@ -389,6 +435,8 @@ async function issueRefreshTokens(
 ): Promise<TokenResponse> {
   const now = deps.clock.now();
   const presentedHash = hashRefreshToken(request.refreshToken);
+
+  await evaluatePresentedRefreshToken(tx, request, client, presentedHash);
 
   const outcome = await withRealm(deps.database.db, deps.realmId, (rotationTx) =>
     rotateRefreshToken(rotationTx, presentedHash, now, config.refreshTokenTtlSeconds),

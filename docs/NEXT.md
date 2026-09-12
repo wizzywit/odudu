@@ -3,10 +3,88 @@
 ## Start here
 
 **P0 is complete and merged. P1 (the OAuth 2.1 / OpenID Connect core) is
-underway on `p1-oauth-oidc-core`; the canonical issuer, the TLS boot
-guard, POST at `/userinfo` and the `email` write boundary are the most
-recent increment — see "The issuer, TLS, userinfo POST and email" below.
-What remains is the phase's final exit-criteria confirmation.**
+underway on `p1-oauth-oidc-core`; the empty-value rule at `/token` and the
+refresh grant's evaluation order are the most recent increment — see "Two
+defects found by reading a row against its test" below. What remains is
+the phase's final exit-criteria confirmation.**
+
+**Two defects found by reading a row against its test.** Both were found
+while writing clause tests, and both were real rather than theoretical.
+
+`readOptionalField` (`packages/protocol-oidc/src/usecase/token-issuance.ts`)
+returned `''` for a parameter sent with an empty value, where RFC 6749 §3.2
+requires it to be read as omitted. Its two callers are `client_secret` and
+`client_id`; the first one mattered. A redemption carrying an
+`Authorization: Basic` header **and** `client_secret=` was refused 401
+`invalid_client` as two authentication methods presented at once (§2.3.1),
+where the identical request with the parameter left out returned 200 — the
+rule being applied was right and its trigger was wrong. §3.2's row is now
+`RFC6749-3.2-04` rather than a gap, and the test is built around the
+optional parameter, because a required one cannot tell empty from absent:
+both fail it identically. The reading note under "The default scope, and
+the empty parameter value" records why that distinction is the whole of
+the row.
+
+**Nothing is consumed on the refresh grant until the grant has been
+evaluated.** `issueRefreshTokens` rotated first and checked the
+token-to-client binding afterwards. The binding was enforced — so no MUST
+was broken — but rotation marks the presented token used and commits in
+its own transaction, so any client registered in the realm that learned
+another client's refresh token could burn it: the victim's next legitimate
+refresh was then detected as reuse, and reuse revokes the entire family.
+Reuse detection is one of this phase's headline security properties, and
+it was usable as a weapon against the client it exists to protect. The
+same was true of a client's own request that merely asked for a wider
+scope than it was granted.
+
+`evaluateRefreshGrant` now runs on both sides of the rotation. Before it,
+from a read-only lookup, as a gate that can only refuse: a request that
+was never going to succeed marks nothing used. After it, against the grant
+the rotating transaction itself read, as the decision that governs — a
+family revoked between the two reads must not still yield an access token.
+What is atomic is unchanged and deliberately so: the single-use `consume`
+in `refreshTokenRepository` is still one `UPDATE ... WHERE used_at IS NULL
+AND expires_at > now() RETURNING *`, and it alone picks the winner between
+two concurrent redemptions. Adding a read in front of it cannot turn that
+into a race, because the read grants nothing — two concurrent redemptions
+by the rightful client both pass the gate, and exactly one `UPDATE` still
+matches. The widened window can only produce additional refusals, never an
+additional success.
+
+`client_oidc_config_refresh_token_ttl_floor` (migration 0014) puts a floor
+of one second under `refresh_token_ttl_seconds`, which had no bound of any
+kind. Zero or less issues a refresh token that expired before the client
+received it, indistinguishable to every caller from one that was never
+issued. There is deliberately **no** ceiling to match 0013's hour: an
+`at+jwt` access token is self-contained, so its TTL is the whole
+unrevocable window, whereas every refresh token presentation is a database
+round-trip that reads the grant — revoking the grant ends it whatever the
+column says, which makes the TTL an idle timeout rather than exposure. No
+clause row asks for a number and none is derivable, so none was invented.
+
+**`prompt` and `id_token_hint` are answered at `/authorize`.** OIDC Core
+§15.1's mandatory `prompt` behaviours are implementable without P2's
+reusable session: `/authorize` starts a fresh authentication every time and
+never reads the SSO cookie it sets, so no End-User is ever already
+authenticated there and `prompt=none` is `login_required` unconditionally —
+§3.1.2.3's actual requirement, not a stand-in. `none` beside any other
+value is refused (§3.1.2.1 makes them exclusive), as is a value outside the
+four the specification defines. `id_token_hint` is verified as a token this
+realm signed carrying this realm's `iss` (§3.1.2.2) against the same keys
+`/jwks` publishes, before the prompt is acted on; the validated subject
+rides on the parked request, so a sign-in by somebody else answers
+`login_required` with no code, no cookie and no consumed authentication
+session. Two rows stay `gap` knowingly — see the reading note in
+`docs/protocols/oidc-core.md`.
+
+**`pnpm trace` consults every test result carrying a row's id, not the
+last one.** A `describe('[ID] …')` holding several `it`s reports one result
+per `it`, all under that id, so an id naming several results is the
+ordinary case — 55 of 104 ids in a full run. Indexing one result per id
+kept whichever the reporter emitted last, and a red test could reconcile
+its row green behind a passing sibling. A row is now covered only when
+every result carrying its id passed, and the finding names the test that
+failed.
 
 **Three defaults that were safe by accident.** An access token's lifetime
 now has a ceiling the server owns rather than one its clients happen to

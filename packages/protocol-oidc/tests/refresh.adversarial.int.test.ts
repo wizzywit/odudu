@@ -246,6 +246,14 @@ async function grantRevokedAt(grantId: string): Promise<Date | null> {
   return rows[0]?.revokedAt ?? null;
 }
 
+async function refreshTokenUsedAt(token: string): Promise<Date | null> {
+  const rows = await owner.db
+    .select({ usedAt: refreshTokens.usedAt })
+    .from(refreshTokens)
+    .where(eq(refreshTokens.tokenHash, hashRefreshToken(token)));
+  return rows[0]?.usedAt ?? null;
+}
+
 async function disableSubject(id: string): Promise<void> {
   await owner.db.update(subjects).set({ disabledAt: new Date() }).where(eq(subjects.id, id));
 }
@@ -545,5 +553,104 @@ describe('[RFC6749-6-07] the presented refresh token is validated', () => {
     const replay = await refresh(refreshToken);
     expect(replay.statusCode).toBe(400);
     expect(replay.json<{ error: string }>().error).toBe('invalid_grant');
+  });
+});
+
+// The binding check refuses the attacker either way, so a test that stops at
+// the 400 proves nothing here. What is under test is the cost the attempt
+// leaves behind: rotation marks the presented token used, and a token burned
+// on behalf of a client that does not own it makes the owner's next refresh
+// look like reuse — which revokes the whole family. Any client registered in
+// this realm can authenticate, so learning one refresh token would otherwise
+// be enough to end the session it belongs to.
+describe('[ODUDU-REFRESH-CROSS-CLIENT-DOS-01] a refresh token burned by a client that does not own it', () => {
+  it('leaves the token unspent and the owning client refreshing normally', async () => {
+    const { refreshToken: rt1, grantId } = await issueInitialRefreshToken();
+
+    const attack = await refresh(rt1, { as: otherApp });
+    expect(attack.statusCode).toBe(400);
+    expect(attack.json<{ error: string }>().error).toBe('invalid_grant');
+    expect(await refreshTokenUsedAt(rt1)).toBeNull();
+
+    const owned = await refresh(rt1);
+    expect(owned.statusCode).toBe(200);
+    expect(await grantRevokedAt(grantId)).toBeNull();
+  });
+
+  it('does not revoke the family however many times it is attempted', async () => {
+    const { refreshToken: rt1, grantId } = await issueInitialRefreshToken();
+
+    for (let attempt = 0; attempt < 3; attempt++) {
+      expect((await refresh(rt1, { as: otherApp })).statusCode).toBe(400);
+    }
+
+    const first = await refresh(rt1);
+    expect(first.statusCode).toBe(200);
+    const rt2 = first.json<{ refresh_token: string }>().refresh_token;
+
+    // The successor rotates too: a family revoked by the attempts above
+    // would refuse here even though the first refresh had already committed.
+    expect((await refresh(rt2)).statusCode).toBe(200);
+    expect(await grantRevokedAt(grantId)).toBeNull();
+  });
+
+  // The scope rule is evaluated on the same pass as the binding, so a
+  // request the owner itself gets wrong must not cost it the family either.
+  it('does not spend the token on a request refused for widening scope', async () => {
+    const { refreshToken: rt1, grantId } = await issueInitialRefreshToken('openid profile');
+
+    const widened = await refresh(rt1, { scope: 'openid profile admin' });
+    expect(widened.json<{ error: string }>().error).toBe('invalid_scope');
+    expect(await refreshTokenUsedAt(rt1)).toBeNull();
+
+    expect((await refresh(rt1)).statusCode).toBe(200);
+    expect(await grantRevokedAt(grantId)).toBeNull();
+  });
+});
+
+// A refresh token's expiry is its issue time plus this column
+// (packages/db/drizzle/0014_refresh_token_ttl_floor.sql). A value of zero or
+// less issues one that is already expired, which no caller can distinguish
+// from a token that was never issued.
+describe('[ODUDU-REFRESH-TTL-FLOOR-01] a refresh token TTL that expires on issue', () => {
+  async function provisioningError(refreshTokenTtlSeconds: number): Promise<string> {
+    try {
+      await withRealm(app.db, REALM_ID, async (tx) => {
+        const clientDbId = newId();
+        await tx.insert(clients).values({
+          id: clientDbId,
+          realmId: REALM_ID,
+          clientId: `ttl-probe-${clientDbId}`,
+          name: 'TTL probe',
+          type: 'confidential',
+          secretHash: 'hashed:secret',
+        });
+        await clientOidcConfigRepository(tx).create({
+          clientId: clientDbId,
+          realmId: REALM_ID,
+          redirectUris: [REDIRECT_URI],
+          grantTypes: ['authorization_code', 'refresh_token'],
+          tokenEndpointAuthMethod: 'client_secret_basic',
+          audiences: [AUDIENCE],
+          accessTokenTtlSeconds: 300,
+          refreshTokenTtlSeconds,
+        });
+      });
+    } catch (caught) {
+      // The driver's own error, naming the constraint, is the `cause` of
+      // the query wrapper drizzle throws.
+      const cause = caught instanceof Error ? caught.cause : null;
+      return cause instanceof Error ? cause.message : String(caught);
+    }
+    return '';
+  }
+
+  it('cannot be provisioned, at zero or below', async () => {
+    expect(await provisioningError(0)).toContain('client_oidc_config_refresh_token_ttl_floor');
+    expect(await provisioningError(-1)).toContain('client_oidc_config_refresh_token_ttl_floor');
+  });
+
+  it('provisions at one second, the shortest lifetime that issues a usable token', async () => {
+    expect(await provisioningError(1)).toBe('');
   });
 });

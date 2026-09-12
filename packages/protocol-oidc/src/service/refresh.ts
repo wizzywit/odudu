@@ -33,11 +33,12 @@ export type RefreshGrantDecision =
     };
 
 // Stage 3's grant-specific rules for `refresh_token`, pure: no queries, no
-// I/O. `grant` and `subject` are already loaded by the usecase from the
-// record the atomic rotation returned; this only decides whether that
-// already-rotated pairing may proceed. Order matters for the same reason it
-// does in evaluateAuthorizationCodeGrant: a wrong client must never be
-// reported as a scope failure.
+// I/O. `grant` and `subject` are loaded by the usecase, which runs this both
+// before rotation — so a request refused here never marks the presented
+// token used, and so cannot make the owner's next refresh look like reuse —
+// and again afterward against the grant the rotating transaction read. Order
+// matters for the same reason it does in evaluateAuthorizationCodeGrant: a
+// wrong client must never be reported as a scope failure.
 export function evaluateRefreshGrant(
   grant: TokenGrantRecord,
   client: ClientRecord,

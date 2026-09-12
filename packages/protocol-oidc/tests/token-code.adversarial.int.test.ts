@@ -713,6 +713,61 @@ describe('[RFC6749-3.2-03] a parameter included more than once', () => {
   });
 });
 
+// §3.2's rule is about every parameter of the request, and the ones that
+// carry it least visibly are the optional ones: a required parameter read as
+// empty and a required parameter read as absent both fail the same way, so
+// they cannot tell the two readings apart. `client_secret` can. An empty one
+// used to count as a second authentication method under RFC 6749 §2.3.1's
+// one-method-per-request rule, refusing a request that succeeds with the
+// parameter left out.
+describe('[RFC6749-3.2-04] a token request parameter sent with no value', () => {
+  it('redeems a code presented with an empty client_secret beside the Basic header', async () => {
+    const { code } = await issueCode();
+    const res = await postForm(
+      [...redemptionParams(code), ['client_secret', '']],
+      basicHeader(webApp),
+    );
+    expect(res.statusCode).toBe(200);
+  });
+
+  it('refuses the same redemption once that client_secret carries any value', async () => {
+    const { code } = await issueCode();
+    const res = await postForm(
+      [...redemptionParams(code), ['client_secret', webApp.secret ?? '']],
+      basicHeader(webApp),
+    );
+    expect(res.statusCode).toBe(401);
+    expect(res.json<{ error: string }>().error).toBe('invalid_client');
+  });
+
+  it('reads an empty client_id as a client that named itself not at all', async () => {
+    const { code } = await issueCode({ client: spa });
+    const empty = await postForm([...redemptionParams(code), ['client_id', '']]);
+    expect(empty.statusCode).toBe(401);
+    expect(empty.json<{ error: string }>().error).toBe('invalid_client');
+
+    // The same code still redeems, which is what makes the refusal above
+    // about the empty value rather than about a spent code.
+    const named = await postForm([...redemptionParams(code), ['client_id', spa.clientId]]);
+    expect(named.statusCode).toBe(200);
+  });
+
+  it('reads an empty required parameter as absent', async () => {
+    const { code } = await issueCode();
+    for (const key of ['grant_type', 'code', 'redirect_uri']) {
+      const res = await postForm(
+        [...without(redemptionParams(code), key), [key, '']],
+        basicHeader(webApp),
+      );
+      expect(res.statusCode).toBe(400);
+      expect(res.json<{ error: string }>().error).toBe('invalid_request');
+    }
+
+    const accepted = await postForm(redemptionParams(code), basicHeader(webApp));
+    expect(accepted.statusCode).toBe(200);
+  });
+});
+
 describe('[RFC6749-3.2.1-02] a client that does not authenticate identifies itself with client_id', () => {
   it('redeems for a public client that sends client_id', async () => {
     const { code } = await issueCode({ client: spa });

@@ -99,6 +99,13 @@
       "when": 1789049381656,
       "tag": "0013_access_token_ttl_ceiling",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1789049381657,
+      "tag": "0014_refresh_token_ttl_floor",
+      "breakpoints": true
     }
   ]
 }

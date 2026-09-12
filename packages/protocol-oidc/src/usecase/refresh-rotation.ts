@@ -16,10 +16,11 @@ export type RotationOutcome =
 // later statement failed would be worse than not detecting it at all.
 //
 // Whether the *caller* (the requesting client) actually owns this token —
-// client match, subject enabled, requested scope — is deliberately not
-// checked here. Like evaluateAuthorizationCodeGrant, that is a decision made
-// afterward, from the already-rotated record, so it can be a pure,
-// query-free function with its own direct unit tests.
+// client match, subject enabled, requested scope — is not decided here, so
+// that it can stay a pure, query-free function with its own direct unit
+// tests (evaluateRefreshGrant). The usecase runs it on both sides of this
+// call: once before, so a request that cannot succeed never marks a token
+// used, and once after, against the grant this transaction read.
 export async function rotateRefreshToken(
   tx: RealmScopedDatabase,
   presentedHash: string,
