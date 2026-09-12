@@ -3,10 +3,47 @@
 ## Start here
 
 **P0 is complete and merged. P1 (the OAuth 2.1 / OpenID Connect core) is
-underway on `p1-oauth-oidc-core`; the authorization endpoint's outstanding
-normative gaps are the most recent increment — see "The authorization
-endpoint's normative gaps" below. What remains is the phase's final
-exit-criteria confirmation.**
+underway on `p1-oauth-oidc-core`; the canonical issuer, the TLS boot
+guard, POST at `/userinfo` and the `email` write boundary are the most
+recent increment — see "The issuer, TLS, userinfo POST and email" below.
+What remains is the phase's final exit-criteria confirmation.**
+
+**The issuer, TLS, userinfo POST and email.** The issuer is canonical
+again: the previous increment's move to `request.host` kept a non-default
+port but let `Host: idp.example:443` and `Host: idp.example` become two
+issuers for one deployment, which `/userinfo` — verifying an access token
+against the issuer recomputed from that request's Host — turned into a 401. The scheme's default port is now dropped and every other port kept,
+IPv6 literals included, and `realmIssuer` joins base and realm in one
+place all five producers use.
+
+`ODUDU_TLS` is no longer advisory: with `NODE_ENV=production` and TLS
+unasserted, the server refuses to boot. That closes the four RFC 6749 rows
+phrased as _the authorization server requires TLS_ and nothing else — a
+boot guard proves an operator was made to assert TLS, not that TLS is on
+the wire, and `docs/protocols/rfc6749.md`'s reading note names every row
+it deliberately leaves as a gap. The development compose stack now says
+`NODE_ENV=development`, since it serves plain HTTP on loopback;
+`infra/conformance/compose.yaml` is the stack that runs the production
+configuration behind real TLS.
+
+`/userinfo` answers POST as well as GET (OIDC Core §5.3), accepting the
+token in the `Authorization` header or, on a POST, in a form-encoded
+`access_token` body (RFC 6750 §2.2) — the reading note that excused
+GET-only contradicted a MUST and is corrected. Both methods present at
+once is §3.1's `invalid_request`. `/authorize` and `/userinfo` now share
+one media-type rule, which also answers a body arriving with no
+`Content-Type` rather than letting Fastify's own 415 reply in a second
+representation.
+
+`email` is validated where it is written (`userRepository.create`),
+against a stated subset of RFC 5322 addr-spec rather than an
+approximation of the whole grammar — see the reading note in
+`docs/protocols/oidc-core.md` for what the subset refuses.
+
+OIDC Core §3.1.2.6's "no other parameters on an error response" is
+recorded as a knowing deviation rather than a gap: RFC 9207 §2 MUSTs `iss`
+onto every authorization response, and a future reader closing that gap
+would delete a mix-up-attack countermeasure.
 
 **The authorization endpoint's normative gaps.** `iss` now rides on error
 authorization responses as well as successful ones (RFC 9207 §2, whose
@@ -19,8 +56,8 @@ refused with a bare HTTP 400 and discovery states
 answered with `request_not_supported` / `request_uri_not_supported`
 instead of being dropped in silence; and `code_challenge` is checked
 against RFC 7636 §4.2's shape, sharing one pattern with the verifier. The
-issuer has one definition (`packages/protocol-oidc/src/view/issuer.ts`)
-built on `request.host`, which fixes the dropped-port bug recorded below.
+issuer has one definition (`packages/protocol-oidc/src/view/issuer.ts`),
+which fixes the dropped-port bug recorded below.
 
 Before any endpoint code, write the clause tables:
 `docs/protocols/rfc6749.md` and `docs/protocols/rfc7636.md`, mapping each
