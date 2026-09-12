@@ -3,7 +3,7 @@ import { SignJWT, importJWK } from 'jose';
 import { generateSigningKey } from '#/service/generate';
 import { unwrapPrivateJwk } from '#/service/kek';
 import { type SigningKeyRecord } from '#/schema/signing-keys';
-import { signJwt, verifyJwt } from '#/service/sign';
+import { AUDIENCE_UNCHECKED, signJwt, verifyJwt } from '#/service/sign';
 
 const KEK = new Uint8Array(32).fill(9);
 const ISS = 'https://issuer.example';
@@ -69,18 +69,28 @@ describe('[JOSE-5.2-01] algorithm comes from the key record, never the token hea
     const [header, body] = signed.split('.');
     const forged = `${String(header)}.${String(body)}.`;
 
-    await expect(verifyJwt(forged, { keys, issuer: ISS })).rejects.toThrow();
+    await expect(
+      verifyJwt(forged, { keys, issuer: ISS, audience: AUDIENCE_UNCHECKED }),
+    ).rejects.toThrow();
   });
 
   it('rejects an RS256 public key used as an HS256 secret', async () => {
     await expect(
-      verifyJwt(await forgeHs256UsingPublicKey(key), { keys, issuer: ISS }),
+      verifyJwt(await forgeHs256UsingPublicKey(key), {
+        keys,
+        issuer: ISS,
+        audience: AUDIENCE_UNCHECKED,
+      }),
     ).rejects.toThrow(/alg/i);
   });
 
   it('rejects a header alg that differs from the key record alg', async () => {
     await expect(
-      verifyJwt(await tokenWithHeader({ alg: 'ES256', kid: key.kid }), { keys, issuer: ISS }),
+      verifyJwt(await tokenWithHeader({ alg: 'ES256', kid: key.kid }), {
+        keys,
+        issuer: ISS,
+        audience: AUDIENCE_UNCHECKED,
+      }),
     ).rejects.toThrow(/alg/i);
   });
 });
@@ -90,7 +100,11 @@ describe('[JOSE-4.1.4-01] kid is an exact-match lookup, never a path', () => {
     'rejects kid %j',
     async (kid) => {
       await expect(
-        verifyJwt(await tokenWithHeader({ alg: key.alg, kid }), { keys, issuer: ISS }),
+        verifyJwt(await tokenWithHeader({ alg: key.alg, kid }), {
+          keys,
+          issuer: ISS,
+          audience: AUDIENCE_UNCHECKED,
+        }),
       ).rejects.toThrow(/unknown key|kid/i);
     },
   );
@@ -101,13 +115,21 @@ describe('[JOSE-4.1.4-01] kid is an exact-match lookup, never a path', () => {
   // would pass even with the empty-string half of the guard deleted.
   it('rejects an empty-string kid', async () => {
     await expect(
-      verifyJwt(await tokenWithHeader({ alg: key.alg, kid: '' }), { keys, issuer: ISS }),
+      verifyJwt(await tokenWithHeader({ alg: key.alg, kid: '' }), {
+        keys,
+        issuer: ISS,
+        audience: AUDIENCE_UNCHECKED,
+      }),
     ).rejects.toMatchObject({ code: 'jwt_kid_missing' });
   });
 
   it('rejects a token with no kid rather than trying every key in turn', async () => {
     await expect(
-      verifyJwt(await tokenWithHeader({ alg: key.alg }), { keys, issuer: ISS }),
+      verifyJwt(await tokenWithHeader({ alg: key.alg }), {
+        keys,
+        issuer: ISS,
+        audience: AUDIENCE_UNCHECKED,
+      }),
     ).rejects.toMatchObject({ code: 'jwt_kid_missing' });
   });
 });
@@ -117,7 +139,9 @@ describe('[JOSE-4.1.1-02] the header alg is only honoured when the verifier unde
     const token = await signJwt({ sub: 's', iss: ISS }, { key, kek: KEK });
     const headerText = Buffer.from(token.split('.')[0] ?? '', 'base64url').toString('utf8');
     expect(headerText).toContain(`"alg":"${key.alg}"`);
-    await expect(verifyJwt(token, { keys, issuer: ISS })).resolves.toMatchObject({ sub: 's' });
+    await expect(
+      verifyJwt(token, { keys, issuer: ISS, audience: AUDIENCE_UNCHECKED }),
+    ).resolves.toMatchObject({ sub: 's' });
   });
 
   // The body and signature stay genuine in every case below: only the alg
@@ -133,7 +157,9 @@ describe('[JOSE-4.1.1-02] the header alg is only honoured when the verifier unde
     { case: 'no alg at all', alg: undefined },
   ])('rejects $case', async ({ alg }) => {
     const forged = await tokenWithHeader({ alg, kid: key.kid });
-    await expect(verifyJwt(forged, { keys, issuer: ISS })).rejects.toMatchObject({
+    await expect(
+      verifyJwt(forged, { keys, issuer: ISS, audience: AUDIENCE_UNCHECKED }),
+    ).rejects.toMatchObject({
       code: 'jwt_alg_mismatch',
     });
   });
@@ -169,37 +195,37 @@ describe('[JOSE-7.2-01] a token that fails any validation step is rejected outri
     {
       step: 'the kid is structurally unusable',
       token: async () => tokenWithHeader({ alg: key.alg, kid: '' }),
-      opts: () => ({ keys, issuer: ISS }),
+      opts: () => ({ keys, issuer: ISS, audience: AUDIENCE_UNCHECKED }),
       message: /kid/i,
     },
     {
       step: 'the kid names no key this verifier holds',
       token: async () => tokenWithHeader({ alg: key.alg, kid: 'no-such-key' }),
-      opts: () => ({ keys, issuer: ISS }),
+      opts: () => ({ keys, issuer: ISS, audience: AUDIENCE_UNCHECKED }),
       message: /unknown key/i,
     },
     {
       step: 'the header alg is not the key record alg',
       token: async () => tokenWithHeader({ alg: 'ES256', kid: key.kid }),
-      opts: () => ({ keys, issuer: ISS }),
+      opts: () => ({ keys, issuer: ISS, audience: AUDIENCE_UNCHECKED }),
       message: /alg/i,
     },
     {
       step: 'the typ is not what the call site requires',
       token: async () => genuine(),
-      opts: () => ({ keys, issuer: ISS, typ: 'at+jwt' }),
+      opts: () => ({ keys, issuer: ISS, audience: AUDIENCE_UNCHECKED, typ: 'at+jwt' }),
       message: /typ/i,
     },
     {
       step: 'the signature does not verify',
       token: async () => corruptSignature(await genuine()),
-      opts: () => ({ keys, issuer: ISS }),
+      opts: () => ({ keys, issuer: ISS, audience: AUDIENCE_UNCHECKED }),
       message: /signature/i,
     },
     {
       step: 'the issuer is not the expected one',
       token: async () => genuine(),
-      opts: () => ({ keys, issuer: 'https://someone-else.example' }),
+      opts: () => ({ keys, issuer: 'https://someone-else.example', audience: AUDIENCE_UNCHECKED }),
       message: /iss/i,
     },
     {
@@ -211,7 +237,7 @@ describe('[JOSE-7.2-01] a token that fails any validation step is rejected outri
     {
       step: 'the token has expired',
       token: async () => genuine('-1s'),
-      opts: () => ({ keys, issuer: ISS }),
+      opts: () => ({ keys, issuer: ISS, audience: AUDIENCE_UNCHECKED }),
       message: /exp/i,
     },
   ];
@@ -234,13 +260,15 @@ describe('[JOSE-7.2-01] a token that fails any validation step is rejected outri
 describe('[RFC9068-2.1-01] token type confusion', () => {
   it('rejects an ID token where an access token is required', async () => {
     const idToken = await signJwt({ sub: 's' }, { key, kek: KEK });
-    await expect(verifyJwt(idToken, { keys, issuer: ISS, typ: 'at+jwt' })).rejects.toThrow(/typ/i);
+    await expect(
+      verifyJwt(idToken, { keys, issuer: ISS, audience: AUDIENCE_UNCHECKED, typ: 'at+jwt' }),
+    ).rejects.toThrow(/typ/i);
   });
 
   it('accepts an access token whose typ matches what the caller requires', async () => {
     const accessToken = await signJwt({ sub: 's', iss: ISS }, { key, kek: KEK, typ: 'at+jwt' });
     await expect(
-      verifyJwt(accessToken, { keys, issuer: ISS, typ: 'at+jwt' }),
+      verifyJwt(accessToken, { keys, issuer: ISS, audience: AUDIENCE_UNCHECKED, typ: 'at+jwt' }),
     ).resolves.toMatchObject({ sub: 's' });
   });
 });

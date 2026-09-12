@@ -43,9 +43,21 @@ function decodeProtectedHeaderSafely(token: string): Record<string, unknown> {
   return parsed as Record<string, unknown>;
 }
 
+// RFC 7519 §4.1.3: a principal that finds itself absent from a present `aud`
+// MUST reject the token. A verifier naming no audience checks none, so the
+// obligation used to be switched off by silence — the /userinfo mix-up that
+// accepted another audience's token was one call site forgetting an optional
+// option. Naming an audience is therefore required. A call site that is
+// genuinely not the token's audience — the OP reading an `id_token_hint`,
+// whose `aud` is the requesting client rather than the OP — declares that
+// here, in a value a reader and a grep can both find.
+export const AUDIENCE_UNCHECKED = Symbol('audience unchecked');
+
+export type ExpectedAudience = string | typeof AUDIENCE_UNCHECKED;
+
 export async function verifyJwt(
   token: string,
-  opts: { keys: SigningKeyRecord[]; issuer: string; audience?: string; typ?: string },
+  opts: { keys: SigningKeyRecord[]; issuer: string; audience: ExpectedAudience; typ?: string },
 ): Promise<JWTPayload> {
   const header = decodeProtectedHeaderSafely(token);
 
@@ -74,7 +86,7 @@ export async function verifyJwt(
   const { payload } = await jwtVerify(token, publicKey, {
     algorithms: [record.alg],
     issuer: opts.issuer,
-    ...(opts.audience === undefined ? {} : { audience: opts.audience }),
+    ...(typeof opts.audience === 'string' ? { audience: opts.audience } : {}),
   });
 
   return payload;

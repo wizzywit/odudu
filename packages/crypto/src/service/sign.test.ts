@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { OduduError } from '@odudu/kernel';
 import { generateSigningKey } from '#/service/generate';
 import { type SigningKeyRecord } from '#/schema/signing-keys';
-import { signJwt, verifyJwt } from '#/service/sign';
+import { AUDIENCE_UNCHECKED, signJwt, verifyJwt } from '#/service/sign';
 
 const KEK = new Uint8Array(32).fill(5);
 const ISS = 'https://issuer.example';
@@ -26,21 +26,34 @@ describe('signJwt / verifyJwt', () => {
   it('round-trips a payload signed with an RS256 key', async () => {
     const key = await makeKey('RS256');
     const token = await signJwt({ sub: 'user-1', iss: ISS }, { key, kek: KEK });
-    const payload = await verifyJwt(token, { keys: [key], issuer: ISS });
+    const payload = await verifyJwt(token, {
+      keys: [key],
+      issuer: ISS,
+      audience: AUDIENCE_UNCHECKED,
+    });
     expect(payload.sub).toBe('user-1');
   });
 
   it('round-trips a payload signed with an ES256 key', async () => {
     const key = await makeKey('ES256');
     const token = await signJwt({ sub: 'user-2', iss: ISS }, { key, kek: KEK });
-    const payload = await verifyJwt(token, { keys: [key], issuer: ISS });
+    const payload = await verifyJwt(token, {
+      keys: [key],
+      issuer: ISS,
+      audience: AUDIENCE_UNCHECKED,
+    });
     expect(payload.sub).toBe('user-2');
   });
 
   it('carries the requested typ header through to verification', async () => {
     const key = await makeKey('RS256');
     const token = await signJwt({ sub: 'user-3', iss: ISS }, { key, kek: KEK, typ: 'at+jwt' });
-    const payload = await verifyJwt(token, { keys: [key], issuer: ISS, typ: 'at+jwt' });
+    const payload = await verifyJwt(token, {
+      keys: [key],
+      issuer: ISS,
+      audience: AUDIENCE_UNCHECKED,
+      typ: 'at+jwt',
+    });
     expect(payload.sub).toBe('user-3');
   });
 
@@ -48,7 +61,11 @@ describe('signJwt / verifyJwt', () => {
     const key = await makeKey('RS256');
     const token = await signJwt({ sub: 'user-4', iss: ISS }, { key, kek: KEK });
     await expect(
-      verifyJwt(token, { keys: [key], issuer: 'https://someone-else.example' }),
+      verifyJwt(token, {
+        keys: [key],
+        issuer: 'https://someone-else.example',
+        audience: AUDIENCE_UNCHECKED,
+      }),
     ).rejects.toThrow();
   });
 
@@ -67,14 +84,18 @@ describe('signJwt / verifyJwt', () => {
     const first = await makeKey('RS256');
     const second = await makeKey('ES256');
     const token = await signJwt({ sub: 'user-6', iss: ISS }, { key: second, kek: KEK });
-    const payload = await verifyJwt(token, { keys: [first, second], issuer: ISS });
+    const payload = await verifyJwt(token, {
+      keys: [first, second],
+      issuer: ISS,
+      audience: AUDIENCE_UNCHECKED,
+    });
     expect(payload.sub).toBe('user-6');
   });
 
   it('throws OduduError, not a raw SyntaxError, on a malformed header', async () => {
     const key = await makeKey('RS256');
     await expect(
-      verifyJwt('not-a-jwt-at-all', { keys: [key], issuer: ISS }),
+      verifyJwt('not-a-jwt-at-all', { keys: [key], issuer: ISS, audience: AUDIENCE_UNCHECKED }),
     ).rejects.toBeInstanceOf(OduduError);
   });
 });
@@ -198,6 +219,20 @@ describe('[JOSE-4.1-02] aud is matched against the principal processing the toke
     );
   });
 
+  // The check is only as good as its default. An optional `audience` made
+  // omission mean "check nothing", which is this clause switched off by
+  // silence at whichever call site forgot it — how a token minted for
+  // another audience once reached /userinfo. The guarantee is carried by the
+  // type rather than by a runtime test, so this assertion is a compile-time
+  // one: making `audience` optional again turns the directive below into an
+  // unused-`@ts-expect-error` error from `pnpm typecheck`.
+  it('will not verify at all unless the caller states an audience policy', () => {
+    // @ts-expect-error — `audience` is required; declining the check is
+    // AUDIENCE_UNCHECKED, said out loud.
+    const omitted: Parameters<typeof verifyJwt>[1] = { keys: [], issuer: ISS };
+    expect(omitted).not.toHaveProperty('audience');
+  });
+
   it('rejects an aud entry that merely has the principal as a prefix', async () => {
     const key = await makeKey('RS256');
     const token = await signJwt(
@@ -218,7 +253,9 @@ describe('[JOSE-4.1-03] a token is not accepted at or after the time in exp', ()
   it('accepts a token whose exp is still ahead', async () => {
     const key = await makeKey('RS256');
     const token = await signJwt({ sub: 'u', iss: ISS, exp: nowSeconds() + 300 }, { key, kek: KEK });
-    await expect(verifyJwt(token, { keys: [key], issuer: ISS })).resolves.toMatchObject({
+    await expect(
+      verifyJwt(token, { keys: [key], issuer: ISS, audience: AUDIENCE_UNCHECKED }),
+    ).resolves.toMatchObject({
       sub: 'u',
     });
   });
@@ -228,12 +265,16 @@ describe('[JOSE-4.1-03] a token is not accepted at or after the time in exp', ()
   it('rejects a token at the instant named by exp', async () => {
     const key = await makeKey('RS256');
     const token = await signJwt({ sub: 'u', iss: ISS, exp: nowSeconds() }, { key, kek: KEK });
-    await expect(verifyJwt(token, { keys: [key], issuer: ISS })).rejects.toThrow(/exp/i);
+    await expect(
+      verifyJwt(token, { keys: [key], issuer: ISS, audience: AUDIENCE_UNCHECKED }),
+    ).rejects.toThrow(/exp/i);
   });
 
   it('rejects a token one second past exp', async () => {
     const key = await makeKey('RS256');
     const token = await signJwt({ sub: 'u', iss: ISS, exp: nowSeconds() - 1 }, { key, kek: KEK });
-    await expect(verifyJwt(token, { keys: [key], issuer: ISS })).rejects.toThrow(/exp/i);
+    await expect(
+      verifyJwt(token, { keys: [key], issuer: ISS, audience: AUDIENCE_UNCHECKED }),
+    ).rejects.toThrow(/exp/i);
   });
 });

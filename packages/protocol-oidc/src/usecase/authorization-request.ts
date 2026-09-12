@@ -1,4 +1,4 @@
-import { verifyJwt, type SigningKeyRecord } from '@odudu/crypto';
+import { AUDIENCE_UNCHECKED, verifyJwt, type SigningKeyRecord } from '@odudu/crypto';
 import { type ClientRecord } from '@odudu/domain-realm';
 import { type ClientOidcConfig } from '#/schema/client-oidc-config';
 import { type RealmLookup } from '#/repository/realm-lookup';
@@ -129,7 +129,11 @@ async function subjectOfIdTokenHint(
 ): Promise<string | null> {
   const keys = await deps.listPublishableKeys(realmId);
   try {
-    const payload = await verifyJwt(hint, { keys, issuer });
+    // An ID token's `aud` is the client it was issued to, so the OP reading
+    // one back as a hint is not the principal RFC 7519 §4.1.3 addresses and
+    // has no audience of its own to match. §3.1.2.2 asks only that the OP
+    // was its issuer, which `issuer` and the realm's own keys settle.
+    const payload = await verifyJwt(hint, { keys, issuer, audience: AUDIENCE_UNCHECKED });
     return typeof payload.sub === 'string' && payload.sub.length > 0 ? payload.sub : null;
   } catch {
     return null;

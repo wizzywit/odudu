@@ -8,6 +8,39 @@ guard, POST at `/userinfo` and the `email` write boundary are the most
 recent increment — see "The issuer, TLS, userinfo POST and email" below.
 What remains is the phase's final exit-criteria confirmation.**
 
+**Three defaults that were safe by accident.** An access token's lifetime
+now has a ceiling the server owns rather than one its clients happen to
+choose: `client_oidc_config_access_token_ttl_ceiling` (migration 0013)
+holds `access_token_ttl_seconds` between 1 second and one hour, so no row
+a longer-lived token could be issued from can exist. The bound sits on the
+column rather than at issuance deliberately — a clamp while minting would
+issue something other than the registration says, and would be true only
+of the code path that remembers it, while a constraint is true of every
+writer including the admin API that does not exist yet. Raising it costs a
+migration on purpose. That closes RFC 6750 §5.2's "token lifetime is
+limited" and §5.3's "one hour or less" with a test about what the database
+will hold at all plus the `exp - iat` of a token issued for the
+longest-lived client that can exist — not about a fixture's own TTL.
+
+`verifyJwt` no longer accepts a token with no audience policy stated:
+`audience` is a required argument, and a call site that is genuinely not
+the token's audience — the OP reading an `id_token_hint`, whose `aud` is
+the requesting client — passes `AUDIENCE_UNCHECKED`. An optional option
+made RFC 7519 §4.1.3 switch off by silence, which is what let a token
+minted for another audience reach `/userinfo`; the type now carries the
+guarantee, and `packages/crypto/src/service/sign.test.ts` holds it with a
+`@ts-expect-error` that `pnpm typecheck` fails on the moment the argument
+becomes optional again. **`packages/protocol-oidc/src/usecase/authorization-request.ts`
+was the one live call site that named no audience.** Whether an
+`id_token_hint` issued to one client should be honoured when presented by
+another is left open, and recorded under "Known limitations" below.
+
+RFC 7519 §4.1's `jti` row is closed where the claim is actually minted
+(`packages/protocol-oidc/src/usecase/token-issuance.ts`), by asserting
+that an access token fetched from `/token` carries a uuidv7 and that two
+of them differ — `packages/crypto` could never have answered it, since
+`signJwt` assigns no `jti`.
+
 **The issuer, TLS, userinfo POST and email.** The issuer is canonical
 again: the previous increment's move to `request.host` kept a non-default
 port but let `Host: idp.example:443` and `Host: idp.example` become two
@@ -262,6 +295,12 @@ job).
 
 **Known limitations carried into P1:**
 
+- An `id_token_hint` is verified with `AUDIENCE_UNCHECKED`: this server
+  checks that it issued the token (OIDC Core §3.1.2.2) but not that the
+  client presenting it is the one the token was issued to. The hint only
+  constrains which End-User may complete the login, so a foreign hint
+  grants nothing; tightening it to the requesting `client_id` is a
+  behaviour change that wants its own clause row and test.
 - Realm cookies are namespaced rather than host-isolated (spec section 6).
 - Only the `realms` table has an RLS policy. Every new tenant table needs
   `ENABLE`/`FORCE ROW LEVEL SECURITY` plus a policy, and a foreign-realm

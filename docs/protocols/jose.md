@@ -49,6 +49,24 @@ and not `jose`'s:
   are Odudu's decisions, made at the call sites that mint and verify
   tokens.
 
+  `jti` is the one row here that cannot be answered from within
+  `packages/crypto` at all: `signJwt` assigns none, and a test that put a
+  `jti` of its own into a payload would prove only that the test called a
+  distinct-value generator. The claim is minted in
+  `packages/protocol-oidc/src/usecase/token-issuance.ts`, so `JOSE-4.1-04`
+  asserts it there — that the token an access-token request comes back with
+  carries a uuidv7, and that two such tokens for one client carry different
+  ones. `newId`'s own distinctness is asserted separately in
+  `packages/kernel/src/ids.test.ts`; the link this row needed was that an
+  access token carries one of its values. ID tokens carry no `jti`, which
+  §4.1.7 permits — the requirement is about the values that are assigned.
+
+  Naming an audience is likewise not optional: `verifyJwt`'s `audience`
+  is a required argument, and a call site that is not itself the token's
+  audience passes `AUDIENCE_UNCHECKED` rather than leaving the option out.
+  An optional one made §4.1.3 switch off by silence, which is how a token
+  minted for another audience once reached `/userinfo`.
+
 ## Clause table
 
 | Clause                             | Level  | Requirement                                                                                                                                           | Test ID         | Status                                        |
@@ -62,7 +80,7 @@ and not `jose`'s:
 | RFC7519-4.1                        | MUST   | Claim Names within a minted JWT's Claims Set are unique                                                                                               | `JOSE-4.1-01`   | covered                                       |
 | RFC7519-4.1                        | MUST   | when an `aud` claim is present, the principal processing the JWT identifies itself with a value in it, or the JWT is rejected                         | `JOSE-4.1-02`   | covered                                       |
 | RFC7519-4.1                        | MUST   | a JWT is not accepted for processing on or after the time identified by its `exp` claim                                                               | `JOSE-4.1-03`   | covered                                       |
-| RFC7519-4.1                        | MUST   | a minted JWT's `jti` value is assigned so that the probability of collision with another value from the same issuer is negligible                     | —               | gap                                           |
+| RFC7519-4.1                        | MUST   | a minted JWT's `jti` value is assigned so that the probability of collision with another value from the same issuer is negligible                     | `JOSE-4.1-04`   | covered                                       |
 | RFC7519-7.2                        | MUST   | if any JWT validation step fails, the JWT is rejected outright                                                                                        | `JOSE-7.2-01`   | covered                                       |
 | RFC7519-7.2                        | SHOULD | a JWT that decodes and validates structurally is nonetheless rejected unless its algorithm is one the verifying call site accepts                     | `JOSE-5.2-01`   | covered                                       |
 | RFC7515/7517/7518/7519 (remainder) | MUST   | every other provision of JSON Web Signature, JSON Web Key, JSON Web Algorithms, and JSON Web Token                                                    | —               | n/a: implemented by jose 6.2.12, not by Odudu |
