@@ -184,6 +184,29 @@ async function clientCredentials(
   });
 }
 
+// Ordered pairs rather than an object, so a request can leave client_id or
+// the credential out entirely instead of sending an empty one.
+async function postToken(
+  params: [string, string][],
+  headers: Record<string, string> = {},
+): Promise<LightMyRequestResponse> {
+  const body = params
+    .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
+    .join('&');
+  return http.inject({
+    method: 'POST',
+    url: `/realms/${REALM}/protocol/openid-connect/token`,
+    payload: body,
+    headers: { 'content-type': 'application/x-www-form-urlencoded', ...headers },
+  });
+}
+
+function basicHeader(clientId: string, secret: string): Record<string, string> {
+  return {
+    authorization: `Basic ${Buffer.from(`${clientId}:${secret}`).toString('base64')}`,
+  };
+}
+
 function decodePayload(jwt: string): Record<string, unknown> {
   const segment = jwt.split('.')[1];
   if (segment === undefined) throw new Error('expected a JWT payload segment');
@@ -228,5 +251,40 @@ describe('[RFC6749-4.4-01] client credentials grant', () => {
     const res = await clientCredentials('unprovisioned-job', 'anothersecret', 'reports:read');
     expect(res.statusCode).toBe(400);
     expect(res.json<{ error: string }>().error).toBe('unauthorized_client');
+  });
+});
+
+// RFC 6749 §4.4.2 and §6 each require client authentication on their own
+// grant. The obligation is per-grant, and a request that authenticates is
+// carried alongside every refusal here so that the refusal is about the
+// credential and not about the rest of the request.
+describe('[RFC6749-4.4.2-01] client authentication on the client_credentials grant', () => {
+  const grant: [string, string][] = [
+    ['grant_type', 'client_credentials'],
+    ['scope', 'reports:read'],
+  ];
+
+  it('issues a token to a confidential client presenting its registered secret', async () => {
+    const res = await postToken(grant, basicHeader('batch-job', 's3cret'));
+    expect(res.statusCode).toBe(200);
+  });
+
+  it('refuses the same request with a wrong secret', async () => {
+    const res = await postToken(grant, basicHeader('batch-job', 'not-the-secret'));
+    expect(res.statusCode).toBe(401);
+    expect(res.json<{ error: string }>().error).toBe('invalid_client');
+    expect(res.headers['www-authenticate']).toMatch(/Basic/);
+  });
+
+  it('refuses the same request from a client that names itself but presents no credential', async () => {
+    const res = await postToken([...grant, ['client_id', 'batch-job']]);
+    expect(res.statusCode).toBe(401);
+    expect(res.json<{ error: string }>().error).toBe('invalid_client');
+  });
+
+  it('refuses the same request with no client identification at all', async () => {
+    const res = await postToken(grant);
+    expect(res.statusCode).toBe(401);
+    expect(res.json<{ error: string }>().error).toBe('invalid_client');
   });
 });

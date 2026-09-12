@@ -285,6 +285,47 @@ async function redeem(code: string, opts: RedeemOptions = {}): Promise<LightMyRe
   });
 }
 
+function tokenUrl(): string {
+  return `/realms/${REALM}/protocol/openid-connect/token`;
+}
+
+function basicHeader(client: Client): Record<string, string> {
+  if (client.secret === null) return {};
+  const encoded = Buffer.from(`${client.clientId}:${client.secret}`).toString('base64');
+  return { authorization: `Basic ${encoded}` };
+}
+
+// Posts a form body built from ordered pairs rather than an object, so a
+// parameter can be sent twice, omitted, or sent with no value — none of
+// which a `Record` can express.
+async function postForm(
+  params: [string, string][],
+  headers: Record<string, string> = {},
+): Promise<LightMyRequestResponse> {
+  const body = params
+    .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
+    .join('&');
+  return http.inject({
+    method: 'POST',
+    url: tokenUrl(),
+    payload: body,
+    headers: { 'content-type': 'application/x-www-form-urlencoded', ...headers },
+  });
+}
+
+function redemptionParams(code: string, redirectUri: string = REDIRECT_URI): [string, string][] {
+  return [
+    ['grant_type', 'authorization_code'],
+    ['code', code],
+    ['redirect_uri', redirectUri],
+    ['code_verifier', VERIFIER],
+  ];
+}
+
+function without(params: [string, string][], key: string): [string, string][] {
+  return params.filter(([name]) => name !== key);
+}
+
 async function refreshWith(refreshToken: string, client: Client): Promise<LightMyRequestResponse> {
   const form = new URLSearchParams();
   form.set('grant_type', 'refresh_token');
@@ -599,6 +640,248 @@ describe('atomic code consumption', () => {
 
     const consumed = results.filter((r) => r.status === 'fulfilled' && r.value !== null);
     expect(consumed).toHaveLength(1);
+  });
+});
+
+// Every test below pairs the assertion with the request that differs from
+// it in exactly one way and succeeds. Without that pair a 400 proves only
+// that something was wrong with the request — a mistyped URL answers 404
+// and a stale realm answers 404 just as readily as the rule under test.
+describe('[RFC6749-3.2-01] the token endpoint is POST-only', () => {
+  it('answers POST at the URL that every other method is refused at', async () => {
+    const { code } = await issueCode();
+    const posted = await postForm(redemptionParams(code), basicHeader(webApp));
+    expect(posted.statusCode).toBe(200);
+
+    for (const method of ['GET', 'PUT', 'PATCH', 'DELETE'] as const) {
+      const res = await http.inject({ method, url: tokenUrl(), headers: basicHeader(webApp) });
+      expect(res.statusCode).toBe(404);
+    }
+  });
+});
+
+describe('[RFC6749-3.2-02] unrecognized token request parameters', () => {
+  it('redeems a code that arrives alongside parameters the endpoint knows nothing about', async () => {
+    const { code } = await issueCode();
+    const res = await postForm(
+      [
+        ...redemptionParams(code),
+        ['audience', 'https://elsewhere.example'],
+        ['resource', 'urn:example:api'],
+        ['assertion', 'not-a-parameter-of-this-grant'],
+      ],
+      basicHeader(webApp),
+    );
+    expect(res.statusCode).toBe(200);
+
+    // The control for "ignored": the endpoint is reading this body rather
+    // than waving every body through, so the 200 above is the extra
+    // parameters being dropped and not the request going unexamined.
+    const { code: second } = await issueCode();
+    const tampered = await postForm(
+      redemptionParams(second, SECOND_REGISTERED_URI),
+      basicHeader(webApp),
+    );
+    expect(tampered.statusCode).toBe(400);
+  });
+});
+
+describe('[RFC6749-3.2-03] a parameter included more than once', () => {
+  it('refuses a redemption repeating grant_type, with the identical value', async () => {
+    const { code } = await issueCode();
+    const res = await postForm(
+      [...redemptionParams(code), ['grant_type', 'authorization_code']],
+      basicHeader(webApp),
+    );
+    expect(res.statusCode).toBe(400);
+    expect(res.json<{ error: string }>().error).toBe('invalid_request');
+
+    // The same code, sent once, still redeems: duplication is the whole of
+    // the difference, and the refusal consumed nothing.
+    const accepted = await postForm(redemptionParams(code), basicHeader(webApp));
+    expect(accepted.statusCode).toBe(200);
+  });
+
+  it('refuses a redemption repeating code, with the identical value', async () => {
+    const { code } = await issueCode();
+    const res = await postForm([...redemptionParams(code), ['code', code]], basicHeader(webApp));
+    expect(res.statusCode).toBe(400);
+    expect(res.json<{ error: string }>().error).toBe('invalid_request');
+
+    const accepted = await postForm(redemptionParams(code), basicHeader(webApp));
+    expect(accepted.statusCode).toBe(200);
+  });
+});
+
+describe('[RFC6749-3.2.1-02] a client that does not authenticate identifies itself with client_id', () => {
+  it('redeems for a public client that sends client_id', async () => {
+    const { code } = await issueCode({ client: spa });
+    const res = await postForm([...redemptionParams(code), ['client_id', spa.clientId]]);
+    expect(res.statusCode).toBe(200);
+  });
+
+  it('refuses the same redemption with client_id omitted', async () => {
+    const { code } = await issueCode({ client: spa });
+    const res = await postForm(redemptionParams(code));
+    expect(res.statusCode).toBe(401);
+    expect(res.json<{ error: string }>().error).toBe('invalid_client');
+  });
+});
+
+describe('[RFC6749-4.1.3-03] grant_type on the access token request', () => {
+  it('refuses a redemption that omits grant_type', async () => {
+    const { code } = await issueCode();
+    const res = await postForm(without(redemptionParams(code), 'grant_type'), basicHeader(webApp));
+    expect(res.statusCode).toBe(400);
+    expect(res.json<{ error: string }>().error).toBe('invalid_request');
+
+    const accepted = await postForm(redemptionParams(code), basicHeader(webApp));
+    expect(accepted.statusCode).toBe(200);
+  });
+
+  it('refuses an unregistered grant_type value', async () => {
+    const { code } = await issueCode();
+    const res = await postForm(
+      [
+        ['grant_type', 'urn:example:invented-grant'],
+        ...without(redemptionParams(code), 'grant_type'),
+      ],
+      basicHeader(webApp),
+    );
+    expect(res.statusCode).toBe(400);
+    expect(res.json<{ error: string }>().error).toBe('unsupported_grant_type');
+  });
+
+  it('does not redeem a code presented under another registered grant_type', async () => {
+    const { code } = await issueCode();
+    const res = await postForm(
+      [['grant_type', 'client_credentials'], ...without(redemptionParams(code), 'grant_type')],
+      basicHeader(webApp),
+    );
+    expect(res.statusCode).not.toBe(200);
+
+    // The code survived the attempt untouched, which is what "that request
+    // was not an authorization_code redemption" means in practice.
+    const accepted = await postForm(redemptionParams(code), basicHeader(webApp));
+    expect(accepted.statusCode).toBe(200);
+  });
+});
+
+describe('[RFC6749-4.1.3-04] code on the access token request', () => {
+  it('refuses a redemption that omits code', async () => {
+    const { code } = await issueCode();
+    const res = await postForm(without(redemptionParams(code), 'code'), basicHeader(webApp));
+    expect(res.statusCode).toBe(400);
+    expect(res.json<{ error: string }>().error).toBe('invalid_request');
+
+    const accepted = await postForm(redemptionParams(code), basicHeader(webApp));
+    expect(accepted.statusCode).toBe(200);
+  });
+});
+
+describe('[RFC6749-4.1.3-05] redirect_uri on the access token request', () => {
+  it('refuses a redemption that omits redirect_uri', async () => {
+    const { code } = await issueCode();
+    const res = await postForm(
+      without(redemptionParams(code), 'redirect_uri'),
+      basicHeader(webApp),
+    );
+    expect(res.statusCode).toBe(400);
+    expect(res.json<{ error: string }>().error).toBe('invalid_request');
+
+    const accepted = await postForm(redemptionParams(code), basicHeader(webApp));
+    expect(accepted.statusCode).toBe(200);
+  });
+
+  it('refuses a redirect_uri that is registered but is not the one the code was obtained with', async () => {
+    const { code } = await issueCode({ redirectUri: REDIRECT_URI });
+    const res = await postForm(redemptionParams(code, SECOND_REGISTERED_URI), basicHeader(webApp));
+    expect(res.statusCode).toBe(400);
+    expect(res.json<{ error: string }>().error).toBe('invalid_grant');
+  });
+
+  it('redeems a code obtained with the second registered redirect_uri when that same value is presented', async () => {
+    const { code } = await issueCode({ redirectUri: SECOND_REGISTERED_URI });
+    const res = await postForm(redemptionParams(code, SECOND_REGISTERED_URI), basicHeader(webApp));
+    expect(res.statusCode).toBe(200);
+  });
+});
+
+describe('[RFC6749-5.1-02] the members of a successful token response', () => {
+  it('carries access_token, token_type, expires_in, and the issued scope the request never named', async () => {
+    const { code } = await issueCode({ scope: 'openid profile' });
+    const params = redemptionParams(code);
+    expect(params.some(([name]) => name === 'scope')).toBe(false);
+
+    const res = await postForm(params, basicHeader(webApp));
+    expect(res.statusCode).toBe(200);
+    const body = res.json<Record<string, unknown>>();
+
+    expect(typeof body.access_token).toBe('string');
+    expect(body.access_token).not.toBe('');
+    expect(body.token_type).toBe('Bearer');
+    expect(typeof body.expires_in).toBe('number');
+    // The request asked for no scope at all, so what was issued cannot be
+    // identical to what was requested, and §5.1 requires saying so.
+    expect(body.scope).toBe('openid profile');
+  });
+});
+
+describe('[RFC6749-5.2-03] the members of a token error response', () => {
+  it('carries error and nothing else, on every distinct failure', async () => {
+    const unknownCode = await postForm(redemptionParams('nonexistent'), basicHeader(webApp));
+    const badSecret = await postForm(redemptionParams((await issueCode()).code), {
+      authorization: `Basic ${Buffer.from(`${webApp.clientId}:wrong`).toString('base64')}`,
+    });
+    const malformed = await postForm(
+      without(redemptionParams((await issueCode()).code), 'code'),
+      basicHeader(webApp),
+    );
+    const unsupported = await postForm([['grant_type', 'urn:example:nope']], basicHeader(webApp));
+
+    for (const res of [unknownCode, badSecret, malformed, unsupported]) {
+      expect(res.statusCode).toBeGreaterThanOrEqual(400);
+      expect(Object.keys(res.json<Record<string, unknown>>())).toEqual(['error']);
+    }
+  });
+});
+
+describe('[RFC6749-10.5-01] authorization codes are short-lived and single-use', () => {
+  it('refuses a code past its expiry, and a second redemption of a live one', async () => {
+    const expired = await issueCode({ authTimeOffsetMs: -120_000, ttlMs: 60_000 });
+    const refusedForAge = await postForm(redemptionParams(expired.code), basicHeader(webApp));
+    expect(refusedForAge.statusCode).toBe(400);
+    expect(refusedForAge.json<{ error: string }>().error).toBe('invalid_grant');
+
+    // Identical in every respect but the expiry window, which is what makes
+    // the refusal above about age rather than about anything else.
+    const live = await issueCode({ ttlMs: 60_000 });
+    expect((await postForm(redemptionParams(live.code), basicHeader(webApp))).statusCode).toBe(200);
+
+    const second = await postForm(redemptionParams(live.code), basicHeader(webApp));
+    expect(second.statusCode).toBe(400);
+    expect(second.json<{ error: string }>().error).toBe('invalid_grant');
+  });
+});
+
+describe('[RFC6749-10.5-02] an authenticable client is authenticated and the code confirmed as its own', () => {
+  it('refuses a wrong secret, refuses a code belonging to another client, and redeems for the client the code was issued to', async () => {
+    const { code } = await issueCode();
+
+    const wrongSecret = await postForm(redemptionParams(code), {
+      authorization: `Basic ${Buffer.from(`${webApp.clientId}:wrong`).toString('base64')}`,
+    });
+    expect(wrongSecret.statusCode).toBe(401);
+    expect(wrongSecret.json<{ error: string }>().error).toBe('invalid_client');
+
+    // otherApp authenticates perfectly well; the code is simply not its.
+    const foreign = await issueCode();
+    const substituted = await postForm(redemptionParams(foreign.code), basicHeader(otherApp));
+    expect(substituted.statusCode).toBe(400);
+    expect(substituted.json<{ error: string }>().error).toBe('invalid_grant');
+
+    const accepted = await postForm(redemptionParams(code), basicHeader(webApp));
+    expect(accepted.statusCode).toBe(200);
   });
 });
 

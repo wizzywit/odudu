@@ -23,7 +23,7 @@ import { authorizationCodeRepository } from '#/repository/codes';
 import { refreshTokens } from '#/schema/refresh-tokens';
 import { tokenGrants } from '#/schema/token-grants';
 import { generateAuthorizationCode, hashAuthorizationCode } from '#/service/authorization-code';
-import { hashRefreshToken } from '#/service/refresh';
+import { generateRefreshToken, hashRefreshToken } from '#/service/refresh';
 import { rotateRefreshToken } from '#/usecase/refresh-rotation';
 
 let containerHandle: TestDatabase | undefined;
@@ -284,9 +284,18 @@ describe('[RFC6749-10.4-01] refresh token rotation and reuse detection', () => {
     expect(await grantRevokedAt(grantId)).not.toBeNull();
   });
 
-  it('refuses a refresh token presented by a different client', async () => {
-    const { refreshToken: rt1 } = await issueInitialRefreshToken();
-    const res = await refresh(rt1, { as: otherApp });
+  // RFC 6749 §6: the binding is to the client the token was issued to, not
+  // to any client that can authenticate. otherApp's own credentials are
+  // accepted at the endpoint — the first refresh here shows the same
+  // request shape succeeding for the client that owns the token — and the
+  // refusal is the binding check alone.
+  it('[RFC6749-6-06] refuses a refresh token presented by a different client', async () => {
+    const own = await issueInitialRefreshToken();
+    expect((await refresh(own.refreshToken)).statusCode).toBe(200);
+
+    const foreign = await issueInitialRefreshToken();
+    const res = await refresh(foreign.refreshToken, { as: otherApp });
+    expect(res.statusCode).toBe(400);
     expect(res.json<{ error: string }>().error).toBe('invalid_grant');
   });
 
@@ -432,5 +441,109 @@ describe('realm isolation', () => {
         });
       },
     });
+  });
+});
+
+// Ordered pairs rather than an object, so a request can omit a parameter
+// outright instead of sending an empty one.
+async function postToken(
+  params: [string, string][],
+  headers: Record<string, string> = {},
+): Promise<LightMyRequestResponse> {
+  const body = params
+    .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
+    .join('&');
+  return http.inject({
+    method: 'POST',
+    url: `/realms/${REALM}/protocol/openid-connect/token`,
+    payload: body,
+    headers: { 'content-type': 'application/x-www-form-urlencoded', ...headers },
+  });
+}
+
+// RFC 6749 §6 restates §3.2.1's client authentication for the refresh
+// request specifically, so it is proved on this grant rather than inferred
+// from the authorization_code grant enforcing the same rule.
+describe('[RFC6749-6-05] client authentication on the refresh request', () => {
+  it('refreshes for a confidential client presenting its registered secret', async () => {
+    const { refreshToken } = await issueInitialRefreshToken();
+    const res = await postToken(
+      [
+        ['grant_type', 'refresh_token'],
+        ['refresh_token', refreshToken],
+      ],
+      { authorization: basicAuth(webApp) },
+    );
+    expect(res.statusCode).toBe(200);
+  });
+
+  it('refuses the same request with a wrong secret', async () => {
+    const { refreshToken } = await issueInitialRefreshToken();
+    const wrong = `Basic ${Buffer.from(`${webApp.clientId}:not-the-secret`).toString('base64')}`;
+    const res = await postToken(
+      [
+        ['grant_type', 'refresh_token'],
+        ['refresh_token', refreshToken],
+      ],
+      { authorization: wrong },
+    );
+    expect(res.statusCode).toBe(401);
+    expect(res.json<{ error: string }>().error).toBe('invalid_client');
+    expect(res.headers['www-authenticate']).toMatch(/Basic/);
+  });
+
+  it('refuses the same request from a client that names itself but presents no credential', async () => {
+    const { refreshToken } = await issueInitialRefreshToken();
+    const res = await postToken([
+      ['grant_type', 'refresh_token'],
+      ['refresh_token', refreshToken],
+      ['client_id', webApp.clientId],
+    ]);
+    expect(res.statusCode).toBe(401);
+    expect(res.json<{ error: string }>().error).toBe('invalid_client');
+  });
+
+  it('refuses the same request with no client identification at all', async () => {
+    const { refreshToken } = await issueInitialRefreshToken();
+    const res = await postToken([
+      ['grant_type', 'refresh_token'],
+      ['refresh_token', refreshToken],
+    ]);
+    expect(res.statusCode).toBe(401);
+    expect(res.json<{ error: string }>().error).toBe('invalid_client');
+  });
+});
+
+describe('[RFC6749-6-07] the presented refresh token is validated', () => {
+  it('refuses a token that was never issued', async () => {
+    const res = await refresh(generateRefreshToken());
+    expect(res.statusCode).toBe(400);
+    expect(res.json<{ error: string }>().error).toBe('invalid_grant');
+  });
+
+  it('refuses a token whose expiry has passed, and accepts the same token before it', async () => {
+    const live = await issueInitialRefreshToken();
+    expect((await refresh(live.refreshToken)).statusCode).toBe(200);
+
+    // Identical in every respect but expires_at, which is what makes the
+    // refusal below about the expiry and nothing else.
+    const aged = await issueInitialRefreshToken();
+    await owner.db
+      .update(refreshTokens)
+      .set({ expiresAt: new Date(Date.now() - 60_000) })
+      .where(eq(refreshTokens.tokenHash, hashRefreshToken(aged.refreshToken)));
+
+    const res = await refresh(aged.refreshToken);
+    expect(res.statusCode).toBe(400);
+    expect(res.json<{ error: string }>().error).toBe('invalid_grant');
+  });
+
+  it('refuses a token that has already been redeemed once', async () => {
+    const { refreshToken } = await issueInitialRefreshToken();
+    expect((await refresh(refreshToken)).statusCode).toBe(200);
+
+    const replay = await refresh(refreshToken);
+    expect(replay.statusCode).toBe(400);
+    expect(replay.json<{ error: string }>().error).toBe('invalid_grant');
   });
 });
