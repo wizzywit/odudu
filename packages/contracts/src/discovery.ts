@@ -15,7 +15,11 @@ export interface DiscoveryDocument {
   readonly token_endpoint_auth_methods_supported: readonly string[];
   readonly authorization_response_iss_parameter_supported: boolean;
   readonly scopes_supported: readonly string[];
-  readonly claims_supported: readonly string[];
+  // Optional because OIDC Discovery §4.2 requires a claim with zero
+  // elements to be omitted rather than served as []; every other list here
+  // is built from a non-empty literal, so this is the only member that can
+  // be absent.
+  readonly claims_supported?: readonly string[];
 }
 
 export interface DiscoveryDocumentOptions {
@@ -67,6 +71,6 @@ export function discoveryDocument(opts: DiscoveryDocumentOptions): DiscoveryDocu
     token_endpoint_auth_methods_supported: TOKEN_ENDPOINT_AUTH_METHODS_SUPPORTED,
     authorization_response_iss_parameter_supported: true,
     scopes_supported: SUPPORTED_SCOPES,
-    claims_supported: opts.claimsSupported,
+    ...(opts.claimsSupported.length > 0 ? { claims_supported: opts.claimsSupported } : {}),
   };
 }

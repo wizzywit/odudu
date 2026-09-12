@@ -90,3 +90,32 @@ describe('[OIDC-DISCOVERY-3-01] the discovery document', () => {
     expect(doc.claims_supported).toBe(CLAIMS_SUPPORTED);
   });
 });
+
+describe('[OIDC-DISCOVERY-4.2-01] a metadata claim with zero elements', () => {
+  it('never appears in the document as an empty array or a null', () => {
+    for (const [member, value] of Object.entries(doc)) {
+      expect(value, member).not.toBeNull();
+      if (Array.isArray(value)) {
+        expect(value, member).not.toHaveLength(0);
+      }
+    }
+  });
+
+  // Every other list in the document is built here from a literal that is
+  // never empty; claims_supported is the one passed in, so it is the only
+  // member whose emptiness is reachable from outside this package.
+  it('is omitted rather than published empty when the supplied claim list is empty', () => {
+    const noClaims = discoveryDocument({
+      issuer: 'https://idp.example/realms/acme',
+      claimsSupported: [],
+    });
+    expect(Object.keys(noClaims)).not.toContain('claims_supported');
+    expect(JSON.stringify(noClaims)).not.toContain('claims_supported');
+  });
+
+  // Dynamic client registration is P3's work: the member is left out
+  // altogether rather than published as null or an empty string.
+  it('leaves registration_endpoint out of the document entirely', () => {
+    expect(Object.keys(doc)).not.toContain('registration_endpoint');
+  });
+});
