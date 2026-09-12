@@ -3464,7 +3464,9 @@ them. Also closed P0's deferred ON_ERROR_STOP item in the same file.
 
 ---
 
-### Task 19: The conformance harness, strict traceability, and the phase gate
+### Task 19: The conformance harness
+
+Stands the OpenID Foundation suite up, answers the two open spikes, runs both plans, and wires the non-interactive one into continuous integration. The countable close and the documentation follow in the next two tasks.
 
 **Files:**
 
@@ -3500,6 +3502,20 @@ Seed a realm, run the plan, export the results JSON, and commit it under `infra/
 
 Add a `conformance` job to `.github/workflows/verify.yml` mirroring the existing `container` job's structure. It brings up the stack, seeds, runs the Config OP plan, and fails on any failed test.
 
+---
+
+### Task 20: Closing the MUST gaps and switching traceability to strict
+
+Measured at the end of the adversarial task: **181 MUST-level rows are still `gap`** — rfc6749 69, oidc-core 63, rfc6750 18, rfc9068 9, jose 7, rfc7636 7, oidc-discovery 4, rfc9207 4. Strict mode fails on exactly those, so this is what stands between the phase and its exit criterion.
+
+Only 36 of the 181 even mention a client, relying party or resource server, and several of those are really server duties — so this is not a classification pass that can be absorbed into one increment. It is genuine test-writing against server obligations.
+
+**Size it before starting it.** Triage all 181 first, into: a row a P1 behaviour already satisfies but nothing asserts (write the test); a row about another party's duty (`n/a: client-side guidance`); a row about a feature outside this phase (`deferred: <phase> — <reason>`, and the phase must be one the design spec section 11 names). Report the three counts before writing any test — that number is what tells us whether this is one increment or six.
+
+**Do not reclassify a row merely to make the number fall.** A server MUST that P1 genuinely does not satisfy stays `gap` and becomes a visible, honest decision about the phase's completion — which is the whole reason the apparatus exists.
+
+Six consecutive tasks each marked a row `covered` against a test proving something else. Every row marked here gets its requirement text read against the assertion that is supposed to prove it.
+
 - [ ] **Step 5: Drive the gap count to zero**
 
 ```bash
@@ -3517,6 +3533,22 @@ Root `package.json`:
 ```
 
 Run `pnpm verify`. It must pass. From here, a new MUST row with no test fails the build.
+
+---
+
+### Task 21: Documentation and the phase gate
+
+What a reader needs in order to run P1, and the countable confirmation that it is done.
+
+- [ ] **Step A: Document the request surface**
+
+Update `README.md` with every supported request path, how to run them, how they fit together, and what follows from each — the complete flow of the P1 state, runnable by someone new to the repository. A separate linked markdown document is preferable to bloating the README; the README must link it prominently.
+
+Cover at minimum: the five endpoints and the login submission path; the seed command and its flags; how to obtain a token end to end with real commands; what each grant is for; and what P1 deliberately does not implement.
+
+- [ ] **Step B: Update the published request-path walkthrough**
+
+The artifact at https://claude.ai/code/artifact/029aaa24-d96b-4b6b-97a9-51d4d0ddfb45 was written before any of this existed and its commands are intended-shape, not verified output. Bring it to the current testable state: scopes are `openid`, `profile` and `email`; the login posts to `/realms/{realm}/login-actions/authenticate`; `client_secret_post` is supported; access tokens always carry the issuer in `aud`; and every command should be one that actually runs.
 
 - [ ] **Step 7: Confirm every exit criterion, one at a time**
 
