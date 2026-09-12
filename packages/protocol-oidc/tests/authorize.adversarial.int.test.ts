@@ -165,6 +165,35 @@ describe('[RFC6749-4.1.2.1-04] returns state unchanged on a redirected error', (
   });
 });
 
+// RFC 9207 §2 puts `iss` on every authorization response, error responses
+// included: the mix-up attack it defeats is played out on exactly this
+// path, where the attacker steers the victim into a failing request at the
+// honest server and has the response delivered as if it came from theirs.
+describe('[RFC9207-2-02] an error authorization response carries iss too', () => {
+  it('sets iss on the error redirect to the realm discovery issuer', async () => {
+    const doc = (
+      await http.inject({ url: `/realms/${REALM}/.well-known/openid-configuration` })
+    ).json<{ issuer: string }>();
+    const res = await http.inject({ url: authorizeUrl({ response_type: 'token' }) });
+
+    expect(res.statusCode).toBe(302);
+    const location = res.headers.location;
+    if (typeof location !== 'string') throw new Error('expected a location header');
+    const returned = new URL(location);
+    expect(returned.searchParams.get('error')).toBe('unsupported_response_type');
+    expect(returned.searchParams.get('iss')).toBe(doc.issuer);
+  });
+
+  it('sets iss on an error redirect carrying no state', async () => {
+    const res = await http.inject({
+      url: authorizeUrl({ response_type: 'token', state: undefined }),
+    });
+    const location = res.headers.location;
+    if (typeof location !== 'string') throw new Error('expected a location header');
+    expect(new URL(location).searchParams.get('iss')).not.toBeNull();
+  });
+});
+
 describe('a repeated client_id or redirect_uri renders — no location header at all', () => {
   it.each([
     ['client_id', [CLIENT_ID, 'someone-else'] satisfies [string, string]],

@@ -4,6 +4,7 @@ import {
   type AuthorizeUsecaseDeps,
 } from '#/usecase/authorization-request';
 import { renderAuthorizeErrorPage, renderLoginForm } from '#/view/authorize-html';
+import { realmIssuerFor } from '#/view/issuer';
 
 const PATH = '/realms/:realm/protocol/openid-connect/auth';
 
@@ -37,6 +38,7 @@ async function respondToAuthorizationRequest(
   deps: AuthorizeUsecaseDeps,
   realm: string,
   params: unknown,
+  issuer: string,
   reply: FastifyReply,
 ): Promise<FastifyReply> {
   const outcome = await handleAuthorizationRequest(deps, realm, params);
@@ -52,6 +54,10 @@ async function respondToAuthorizationRequest(
     const target = new URL(outcome.redirectUri);
     target.searchParams.set('error', outcome.error);
     if (outcome.state !== null) target.searchParams.set('state', outcome.state);
+    // RFC 9207 §2: every authorization response names the issuer, error
+    // responses included — a client that cannot tell which server failed
+    // its request is exactly the client a mix-up attack preys on.
+    target.searchParams.set('iss', issuer);
     return reply.code(302).header('location', target.toString()).send();
   }
 
@@ -60,7 +66,13 @@ async function respondToAuthorizationRequest(
 
 export function registerAuthorizeRoute(app: FastifyInstance, deps: AuthorizeUsecaseDeps): void {
   app.get<{ Params: { realm: string } }>(PATH, (request, reply) =>
-    respondToAuthorizationRequest(deps, request.params.realm, request.query, reply),
+    respondToAuthorizationRequest(
+      deps,
+      request.params.realm,
+      request.query,
+      realmIssuerFor(request, request.params.realm),
+      reply,
+    ),
   );
 
   // OIDC Core §3.1.2.1 fixes the POST representation: the parameters are
@@ -87,6 +99,12 @@ export function registerAuthorizeRoute(app: FastifyInstance, deps: AuthorizeUsec
       },
     },
     (request, reply) =>
-      respondToAuthorizationRequest(deps, request.params.realm, request.body, reply),
+      respondToAuthorizationRequest(
+        deps,
+        request.params.realm,
+        request.body,
+        realmIssuerFor(request, request.params.realm),
+        reply,
+      ),
   );
 }
