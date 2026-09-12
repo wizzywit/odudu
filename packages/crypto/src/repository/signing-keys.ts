@@ -72,7 +72,7 @@ export function signingKeyRepository(tx: RealmScopedDatabase) {
         .returning();
       const row = rows[0];
       if (row === undefined) {
-        throw new Error('insert into signing_keys returned no row');
+        throw new OduduError('insert_returned_no_row', 'insert into signing_keys returned no row');
       }
       return toRecord(row);
     },

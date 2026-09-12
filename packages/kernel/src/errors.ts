@@ -14,7 +14,8 @@ export type ErrorCode =
   | 'jwt_typ_mismatch'
   | 'claim_mapper_duplicate'
   | 'seed_invalid_options'
-  | 'seed_conflict';
+  | 'seed_conflict'
+  | 'insert_returned_no_row';
 
 export class OduduError extends Error {
   readonly code: ErrorCode;

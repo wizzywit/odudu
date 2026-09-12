@@ -101,16 +101,27 @@ async function assertMatchesExisting(
 
   if (opts.username !== undefined && opts.password !== undefined) {
     const existingUser = await userRepository(tx).byUsername(opts.username);
-    if (existingUser !== null) {
-      const storedHash = await credentialRepository(tx).passwordFor(existingUser.subject.id);
-      const passwordMatches =
-        storedHash !== null && (await verifyPassword(storedHash, opts.password));
-      if (!passwordMatches) {
-        throw new OduduError(
-          'seed_conflict',
-          `user ${opts.username} already exists with a different password`,
-        );
-      }
+    if (existingUser === null) {
+      // The client already exists, so this run's job is only to verify
+      // agreement with what was seeded before — it never creates a second
+      // user against an existing client. Silently accepting a username
+      // that was never seeded would exit 0 having done nothing, which is
+      // worse than refusing: refuse, so the operator adds the user through
+      // a fresh realm/client or notices the typo.
+      throw new OduduError(
+        'seed_conflict',
+        `client ${opts.clientId} already exists in realm ${opts.realm}, but user ${opts.username} was not seeded with it; seed does not add users to an existing client`,
+      );
+    }
+
+    const storedHash = await credentialRepository(tx).passwordFor(existingUser.subject.id);
+    const passwordMatches =
+      storedHash !== null && (await verifyPassword(storedHash, opts.password));
+    if (!passwordMatches) {
+      throw new OduduError(
+        'seed_conflict',
+        `user ${opts.username} already exists with a different password`,
+      );
     }
   }
 }

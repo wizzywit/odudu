@@ -1,5 +1,6 @@
 import { signingKeys } from '@odudu/crypto';
 import { createDatabase, MIGRATIONS_DIR, runMigrations, type DatabaseHandle } from '@odudu/db';
+import { subjects } from '@odudu/domain-identity';
 import { clients } from '@odudu/domain-realm';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
@@ -58,6 +59,24 @@ async function clientType(realmId: string, clientId: string): Promise<string> {
   const row = rows[0];
   if (row === undefined) throw new Error(`no client ${clientId} in realm ${realmId}`);
   return row.type;
+}
+
+async function serviceSubjectType(realmId: string, clientId: string): Promise<string | null> {
+  const clientRows = await owner.db
+    .select({ serviceSubjectId: clients.serviceSubjectId })
+    .from(clients)
+    .where(and(eq(clients.realmId, realmId), eq(clients.clientId, clientId)));
+  const clientRow = clientRows[0];
+  if (clientRow === undefined) throw new Error(`no client ${clientId} in realm ${realmId}`);
+  if (clientRow.serviceSubjectId === null) return null;
+
+  const subjectRows = await owner.db
+    .select({ type: subjects.type })
+    .from(subjects)
+    .where(eq(subjects.id, clientRow.serviceSubjectId));
+  const subjectRow = subjectRows[0];
+  if (subjectRow === undefined) throw new Error(`no subject ${clientRow.serviceSubjectId}`);
+  return subjectRow.type;
 }
 
 function uniqueOptions(): SeedOptions {
@@ -130,5 +149,38 @@ describe('seed', () => {
     await expect(
       seed({ ...options, redirectUris: ['https://app.example/other-callback'] }),
     ).rejects.toThrow(/different redirect URIs/);
+  });
+
+  it('refuses a --user naming someone not seeded on an already-existing client, rather than silently doing nothing', async () => {
+    const options = uniqueOptions();
+
+    await seed(options);
+
+    await expect(seed({ ...options, username: 'grace', password: 'pw' })).rejects.toThrow(/grace/);
+  });
+});
+
+describe('seed: service-account subject', () => {
+  it('links a confidential client to a service-account subject', async () => {
+    const options = uniqueOptions();
+
+    const result = await seed(options);
+
+    expect(await serviceSubjectType(result.realmId, result.clientId)).toBe('service');
+  });
+
+  it('creates a public client with no service-account subject', async () => {
+    const options = uniqueOptions();
+    const publicOptions: SeedOptions = {
+      realm: options.realm,
+      clientId: options.clientId,
+      redirectUris: options.redirectUris,
+      username: 'ada',
+      password: 'pw',
+    };
+
+    const result = await seed(publicOptions);
+
+    expect(await serviceSubjectType(result.realmId, result.clientId)).toBeNull();
   });
 });

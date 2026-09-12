@@ -1,4 +1,5 @@
 import { type RealmScopedDatabase } from '@odudu/db';
+import { OduduError } from '@odudu/kernel';
 import { eq } from 'drizzle-orm';
 import { subjects, type SubjectRecord } from '#/schema/subjects';
 import { users, type UserRecord } from '#/schema/users';
@@ -74,7 +75,7 @@ export function userRepository(tx: RealmScopedDatabase) {
         .returning();
       const row = rows[0];
       if (row === undefined) {
-        throw new Error('insert into users returned no row');
+        throw new OduduError('insert_returned_no_row', 'insert into users returned no row');
       }
       return toUser(row);
     },

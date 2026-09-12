@@ -9,6 +9,11 @@ import { createLogger } from '#/logger';
 import { databaseModule } from '#/modules/database';
 import { httpModule } from '#/modules/http';
 
+// --client-secret and --password land in process listings (ps) and shell
+// history, since both are plain command-line flags. Acceptable for a local
+// bootstrap tool run by an operator who already controls the machine, but
+// not something to carry over if this ever grows a networked or CI-invoked
+// mode.
 function parseSeedOptions(argv: string[]): SeedOptions {
   const { values } = parseArgs({
     args: argv,
