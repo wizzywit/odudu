@@ -63,6 +63,13 @@ describe('presentedBearerToken across the header and the form-encoded body', () 
     expect(presentedBearerToken(undefined, { access_token: '' })).toEqual({ kind: 'absent' });
   });
 
+  // A parser is free to hand back an object with a prototype; anything
+  // reached through it was never sent by the client.
+  it('does not read an inherited access_token as a presented credential', () => {
+    const body: unknown = Object.create({ access_token: 'inherited' });
+    expect(presentedBearerToken(undefined, body)).toEqual({ kind: 'absent' });
+  });
+
   it('is unmoved by a body that is not a parameter bag', () => {
     expect(presentedBearerToken('Bearer abc', 'access_token=abc')).toEqual({
       kind: 'present',

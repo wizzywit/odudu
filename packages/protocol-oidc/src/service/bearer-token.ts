@@ -22,11 +22,18 @@ export type PresentedToken =
 // The body arrives as `unknown` because that is what a body parser hands
 // back; only a single non-empty string is a token. RFC 6749 §3.1 makes
 // `access_token=` an omitted parameter rather than an empty credential.
+//
+// Own enumerable properties only, read through Object.entries: a client
+// presents a credential by sending it, and anything reachable only through
+// the object's prototype was put there by whatever built the object, not by
+// the client. `'access_token' in body` would accept that as a presentation.
 function formEncodedToken(body: unknown): PresentedToken {
   if (typeof body !== 'object' || body === null || Array.isArray(body)) return { kind: 'absent' };
-  if (!('access_token' in body)) return { kind: 'absent' };
 
-  const value: unknown = body.access_token;
+  const entry = Object.entries(body).find(([key]) => key === 'access_token');
+  if (entry === undefined) return { kind: 'absent' };
+
+  const value: unknown = entry[1];
   // A repeated `access_token` presents the token twice inside one method,
   // ambiguous for the same reason two methods are.
   if (Array.isArray(value)) return { kind: 'ambiguous' };
