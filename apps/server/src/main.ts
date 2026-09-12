@@ -4,7 +4,11 @@ import { loadConfig, ModuleRegistry, systemClock } from '@odudu/kernel';
 import closeWithGrace from 'close-with-grace';
 import { buildApp } from '#/app';
 import { type SeedOptions, seed } from '#/cli/seed';
-import { assertProductionAppDatabaseUrl, warnIfTlsDisabled } from '#/config-guard';
+import {
+  assertProductionAppDatabaseUrl,
+  assertProductionTls,
+  warnIfTlsDisabled,
+} from '#/config-guard';
 import { createLogger } from '#/logger';
 import { databaseModule } from '#/modules/database';
 import { httpModule } from '#/modules/http';
@@ -64,6 +68,7 @@ const config = loadConfig();
 const logger = createLogger(config);
 
 assertProductionAppDatabaseUrl(config);
+assertProductionTls(config);
 warnIfTlsDisabled(config, (message) => {
   logger.warn({}, message);
 });

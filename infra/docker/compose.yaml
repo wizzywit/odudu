@@ -31,6 +31,12 @@ services:
       context: ../..
       dockerfile: infra/docker/Dockerfile
     environment:
+      # The image sets NODE_ENV=production; this stack serves plain HTTP on
+      # loopback, so it says otherwise rather than setting ODUDU_TLS=true and
+      # lying to the boot guard that refuses plaintext production traffic
+      # (apps/server/src/config-guard.ts). infra/conformance/compose.yaml is
+      # the stack that runs the production configuration, behind real TLS.
+      NODE_ENV: development
       ODUDU_DATABASE_URL: postgres://${POSTGRES_USER:?see infra/docker/.env.example}:${POSTGRES_PASSWORD:?see infra/docker/.env.example}@postgres:5432/${POSTGRES_DB:?see infra/docker/.env.example}
       ODUDU_APP_DATABASE_URL: postgres://odudu_svc:${ODUDU_SVC_PASSWORD:?see infra/docker/.env.example}@postgres:5432/${POSTGRES_DB:?see infra/docker/.env.example}
       ODUDU_LOG_LEVEL: info
