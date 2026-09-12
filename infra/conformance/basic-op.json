@@ -1,0 +1,34 @@
+{
+  "alias": "odudu-basic-op",
+  "description": "odudu Basic OP: authorization_code with PKCE, static client",
+  "server": {
+    "discoveryUrl": "https://proxy/realms/conformance/.well-known/openid-configuration"
+  },
+  "client": {
+    "client_id": "conformance-client",
+    "client_secret": "conformance-secret",
+    "redirect_uri": "https://localhost.emobix.co.uk:8443/test/a/odudu-basic-op/callback"
+  },
+  "browser": [
+    {
+      "match": "https://proxy/realms/conformance/protocol/openid-connect/auth*",
+      "tasks": [
+        {
+          "task": "Login",
+          "optional": true,
+          "match": "https://proxy/realms/conformance/protocol/openid-connect/auth*",
+          "commands": [
+            ["text", "name", "username", "conformance-user"],
+            ["text", "name", "password", "conformance-password"],
+            ["click", "css", "button[type=submit]"]
+          ]
+        },
+        {
+          "task": "Verify Complete",
+          "match": "*/test/*/callback*",
+          "commands": [["wait", "id", "submission_complete", 10]]
+        }
+      ]
+    }
+  ]
+}

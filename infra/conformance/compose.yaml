@@ -1,0 +1,57 @@
+# The odudu side of a conformance run: postgres, the server, and a TLS
+# proxy in front of it, all on the shared `odudu-conformance` network
+# where the OpenID Foundation suite (brought up separately by
+# suite-compose.yaml, see README.md) can reach them by name. Not for
+# anything but a conformance run — every credential here is a disposable
+# placeholder that lives only for the run's duration.
+networks:
+  default:
+    name: odudu-conformance
+    external: true
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: odudu
+      POSTGRES_PASSWORD: odudu
+      POSTGRES_DB: odudu
+      ODUDU_SVC_PASSWORD: odudu_svc
+    volumes:
+      - ../docker/initdb:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U odudu -d odudu']
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  odudu:
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile
+    environment:
+      ODUDU_DATABASE_URL: postgres://odudu:odudu@postgres:5432/odudu
+      ODUDU_APP_DATABASE_URL: postgres://odudu_svc:odudu_svc@postgres:5432/odudu
+      ODUDU_LOG_LEVEL: info
+      ODUDU_KEK: KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio=
+      # A conformance run always sits behind proxy's TLS termination — see
+      # README.md's answer to whether a Config OP plan accepts http://.
+      ODUDU_TLS: 'true'
+      ODUDU_TRUST_PROXY: 'true'
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD', 'wget', '-qO-', 'http://127.0.0.1:3000/health/ready']
+      interval: 5s
+      timeout: 3s
+      start_period: 10s
+      retries: 5
+
+  proxy:
+    build: ./proxy
+    depends_on:
+      odudu:
+        condition: service_healthy
+    ports:
+      - '127.0.0.1:8543:443'

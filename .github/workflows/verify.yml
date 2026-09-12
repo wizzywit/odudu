@@ -51,6 +51,23 @@ jobs:
       - name: Build and smoke-test the stack
         run: ./infra/docker/smoke.sh
 
+  conformance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Cache the conformance suite's Maven repository
+        uses: actions/cache@v4
+        with:
+          path: /tmp/conformance-m2
+          key: conformance-suite-m2-release-v5.1.36
+
+      - name: Run the Config OP conformance plan
+        run: ./infra/conformance/run-config-op.sh
+        env:
+          MAVEN_CACHE: /tmp/conformance-m2
+
   commit-messages:
     runs-on: ubuntu-latest
     timeout-minutes: 5

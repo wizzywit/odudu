@@ -2,7 +2,11 @@
 
 ## Start here
 
-**P0 is complete and merged. P1 is the OAuth 2.1 / OpenID Connect core.**
+**P0 is complete and merged. P1 (the OAuth 2.1 / OpenID Connect core) is
+underway on `p1-oauth-oidc-core`; task 19 (the conformance harness) is the
+most recent increment — see "Task 19" below. The two tasks after it close
+the phase: closing the remaining MUST-level clause gaps the conformance
+run surfaced, and the phase's final exit-criteria confirmation.**
 
 Before any endpoint code, write the clause tables:
 `docs/protocols/rfc6749.md` and `docs/protocols/rfc7636.md`, mapping each
@@ -16,6 +20,41 @@ write its spec and plan, execute it task by task.
 Everything below is the record of P0: what it delivered, what it
 deliberately deferred, and the decisions taken with their trigger
 conditions.
+
+---
+
+**Task 19: the conformance harness.** `infra/conformance/` stands up the
+OpenID Foundation suite (pinned `release-v5.1.36`) against odudu. Both
+open spikes are answered and recorded in `infra/conformance/README.md`:
+a Config OP plan demands `https://` unconditionally (verified against the
+suite's own source and by provoking the failure directly), and Config OP
+is fully driveable through the suite's HTTP API with no browser and — in
+the dev-mode setup this harness uses — no token either. `compose.yaml`
+puts a self-signed-TLS `nginx` proxy in front of the otherwise-unmodified
+odudu container (`ODUDU_TLS=true`, `ODUDU_TRUST_PROXY=true`), which is the
+trigger condition Task 10's `__Host-` cookie fallback was waiting for.
+`.github/workflows/verify.yml`'s new `conformance` job runs Config OP on
+every push to `main` and every pull request, mirroring `container`'s
+structure.
+
+Running the **Basic OP** plan (35 modules, `results/`) found that 30 fail
+for one shared reason: odudu makes PKCE mandatory on every
+`authorization_code` request, and the Basic OP profile's tests (bar the
+one built to test PKCE, which passes) don't send it. This is reported,
+not patched — reversing PKCE-mandatory to chase Basic OP certification
+would undo a deliberate OAuth 2.1 alignment decision, and that trade is
+not this task's to make. Whether it is ever closed, and how, is for the
+next task to decide with the full clause-gap picture in view.
+
+A latent, unrelated bug surfaced while wiring the TLS proxy: odudu's
+issuer and endpoint URLs (`packages/protocol-oidc/src/view/routes/
+discovery.ts`, `login.ts`) are built from Fastify's `request.hostname`,
+which silently drops the port even when `X-Forwarded-Host` supplies one
+under `trustProxy` — verified directly against the container. The
+conformance proxy sidesteps it by listening on the default HTTPS port
+443, but a real deployment on any other port behind a reverse proxy would
+advertise the wrong endpoint URLs. Not fixed here; flagged for whoever
+picks it up next.
 
 ---
 

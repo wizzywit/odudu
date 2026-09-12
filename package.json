@@ -18,7 +18,8 @@
     "//trace": "reads trace-report.json, which only `pnpm test` produces — run that first",
     "trace": "node tools/trace/src/index.ts trace-report.json",
     "verify": "pnpm format:check && pnpm typecheck && pnpm lint && pnpm boundaries && turbo run build && pnpm test && pnpm trace",
-    "mutate:crypto": "stryker run packages/crypto/stryker.config.json"
+    "mutate:crypto": "stryker run packages/crypto/stryker.config.json",
+    "conformance:config-op": "bash infra/conformance/run-config-op.sh"
   },
   "devDependencies": {
     "@stryker-mutator/core": "10.0.0",
