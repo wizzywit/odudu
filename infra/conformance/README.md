@@ -206,7 +206,7 @@ login form on that page:
 
 Read against the suite's own source
 (`net.openid.conformance.frontchannel.BrowserControl`): a task's `match`
-is checked only against the *browser's current URL*, and both the login
+is checked only against the _browser's current URL_, and both the login
 form and this error page are served, unredirected, at the exact same
 URL — so no `match` pattern can distinguish them by URL alone. The
 actual per-element escape hatch the suite provides is a trailing
@@ -215,7 +215,7 @@ missing element instead of throwing; `basic-op.json`'s `Login` task now
 uses it on all three commands. That same investigation surfaced a
 second, sharper bug in the `Verify Complete` task: its match pattern
 (`*/test/*/callback*`) is checked with a plain wildcard/substring
-match against the *entire* current URL, including its query string —
+match against the _entire_ current URL, including its query string —
 and since the error page's URL still carries the client's own
 `redirect_uri=https://.../test/a/.../callback...` as a query parameter,
 the pattern matched the auth page's URL too, and the task then hung for
