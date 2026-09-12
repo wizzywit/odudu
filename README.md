@@ -21,31 +21,31 @@ administration.
 
 Self-hostable as one container plus PostgreSQL.
 
-_Odudu_ — power, authority. Ibibio, Akwa Ibom, Nigeria.
-
-An identity and access management platform: an OAuth 2.1 / OpenID Connect
-provider with Keycloak feature parity, plus a first-class agent identity
-layer for delegated authority, guardrails, and machine-readable
-administration.
-
-Self-hostable as one container plus PostgreSQL.
-
 ## Status
 
-**P0 (foundation) complete.** No protocol surface yet — P0 built the ground
-the rest stands on: the monorepo and its single `pnpm verify` gate,
-machine-checked architectural boundaries, the kernel primitives, one ordered
-migration timeline with PostgreSQL row-level security, a Fastify server
-composed from kernel modules, and a container proven to boot by CI on every
-push. P1 begins the OAuth 2.1 / OpenID Connect core.
+**The OAuth 2.1 / OpenID Connect core is built.** A realm serves discovery,
+JWKS, `/authorize` with a password login, `/token` and `/userinfo`, and
+answers the `authorization_code` (PKCE mandatory, no exception),
+`refresh_token` (rotating, with reuse detection that revokes the family) and
+`client_credentials` grants. That sits on the P0 foundation: the monorepo and
+its single `pnpm verify` gate, machine-checked architectural boundaries, the
+kernel primitives, one ordered migration timeline with PostgreSQL row-level
+security, and a container proven to boot by CI on every push.
 
+There is still no consent screen, no admin API, no second factor, and no
+token exchange — P2 onwards.
+
+- **[Request paths](docs/request-paths.md)** — every endpoint, every branch,
+  and what to do next from each one, with the real transcript of a full
+  sign-in, a refresh rotation and a replay. Start here to run it.
 - [Design specification](docs/superpowers/specs/2026-09-10-odudu-design.md) —
   what this is, and the twelve phases with their exit criteria
 - [Architecture decision records](docs/adr/) — the decisions, several with
   dated corrections recording what turned out wrong
 - [Decision log](docs/superpowers/p0-decision-log.md) — judgement calls made
   during P0, each with what it would cost if wrong
-- [What to do next](docs/NEXT.md) — including what P0 deliberately deferred
+- [What to do next](docs/NEXT.md) — including what has been deliberately
+  deferred, and to when
 
 ## Running it
 
@@ -60,6 +60,18 @@ cp .env.example .env                             # the server, run on your host
 
 Neither is created for you: the stack refuses to start without its own
 (ADR 0015), so nothing can be lifted and run by accident.
+
+`infra/docker/.env.example` carries a throwaway `ODUDU_KEK` for the compose
+stack. The root `.env.example` deliberately leaves it empty, and the server
+refuses to boot until it holds 32 base64-encoded bytes, so generate one
+before the host run below:
+
+```bash
+node -e "console.log('ODUDU_KEK=' + require('node:crypto').randomBytes(32).toString('base64'))" >> .env
+```
+
+Changing this value later makes every private signing key already wrapped
+with the old one unreadable.
 
 **Everything in Docker** — server and Postgres, closest to how it deploys:
 
@@ -108,6 +120,26 @@ genuinely enforced in the container:
 ./infra/docker/smoke.sh
 ```
 
+That drives a full authorization-code-with-PKCE exchange against the
+container — seed a realm and client, request `/authorize`, submit the login
+form the way a browser would, redeem the code at `/token` — and then tears
+the stack down, volumes included.
+
+**Sign somebody in yourself.** There is no admin API yet, so the first realm,
+client, user and signing key come from the seed command in the server image:
+
+```bash
+cd infra/docker && docker compose up -d --build
+docker compose exec -T odudu node dist/main.js seed \
+  --realm demo --client demo-spa \
+  --redirect-uri http://localhost:8080/callback \
+  --user ada --password correct-horse-battery --email ada@example.com
+curl http://localhost:3000/realms/demo/.well-known/openid-configuration
+```
+
+[docs/request-paths.md](docs/request-paths.md) takes it from there, hop by
+hop, with every response it actually returns.
+
 Enable the repo's git hooks once per clone — they reject commit messages
 carrying tool-attribution trailers, which CI also enforces:
 
@@ -134,6 +166,26 @@ Odudu makes that the centre of the design rather than an afterthought, and
 does it with standard mechanisms — RFC 8693 token exchange, `act` and
 `may_act` claims, CIBA for out-of-band approval — so relying parties need
 no special knowledge.
+
+## Conformance, and what is not claimed
+
+The OpenID Foundation's **Config OP** plan passes, unattended, in CI, against
+the stack in `infra/conformance/` — a real TLS-terminating proxy in front of
+the server, because the suite demands `https` unconditionally.
+
+Odudu does **not** claim OIDF **Basic OP** certification, and will not. Basic
+OP is written against OpenID Connect Core 1.0, which predates PKCE being
+mandatory anywhere, so every module in it but the dedicated PKCE one sends an
+authorization request carrying no `code_challenge`. Odudu requires PKCE of
+every client with no exception and no per-client opt-out, and refuses those
+requests. The run is kept reproducible and every divergence individually
+confirmed — 28 of 35 modules, each checked rather than sampled — so the
+evidence says exactly what stands between this server and that profile.
+ADR 0016 records the ruling and the two alternatives rejected;
+`infra/conformance/README.md` carries the module-by-module inventory.
+
+The trade is real and worth stating plainly: a relying party that cannot do
+PKCE cannot use Odudu.
 
 ## Deploying
 
@@ -168,7 +220,9 @@ Being straight about this, because "self-hostable" should mean something:
 
 |                                                                    | Phase |
 | ------------------------------------------------------------------ | ----- |
-| Any authentication endpoint to actually serve                      | P1    |
+| A consent screen, and dynamic client registration                  | P3    |
+| An admin API — seeding is the only administrative surface          | P4    |
+| Token introspection and revocation, and any logout endpoint        | —     |
 | Published images and a release process                             | —     |
 | Secret management beyond environment variables                     | —     |
 | Backup and restore guidance                                        | —     |
@@ -176,9 +230,12 @@ Being straight about this, because "self-hostable" should mean something:
 | Helm chart or Kubernetes manifests                                 | P11   |
 
 The single-container-plus-Postgres shape is a deliberate design decision
-(ADR 0002) and the image is built for it. But until P1 lands there is no
-protocol surface, so there is nothing for users to authenticate against —
-the notice at the top of this file is not boilerplate.
+(ADR 0002) and the image is built for it. There is now a protocol surface to
+serve, and users can be authenticated against it — but credentials are
+seeded from a command line, nothing has had a hardening pass, and the full
+list of what each endpoint does not yet do is in
+[docs/request-paths.md](docs/request-paths.md). The notice at the top of this
+file is not boilerplate.
 
 ## License
 
