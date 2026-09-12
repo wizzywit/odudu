@@ -44,3 +44,23 @@ describe('[RFC6749-2.3.1-01] client secret verification', () => {
     );
   });
 });
+
+describe('[RFC6749-2.3-02] public clients are never authenticated by a presented secret', () => {
+  // RFC 6749 §2.3: a credential a public client can present is not a secret,
+  // so the client's type — not the presence of a matching hash — decides.
+  const publicWithSecret = { ...publicClient, secretHash: 'hashed:s3cret' };
+
+  it('refuses a public client even when the presented secret matches its stored hash', async () => {
+    expect(await verifyClientSecret(publicWithSecret, 's3cret', compare)).toBe(false);
+  });
+
+  it('never consults the comparison function for a public client', async () => {
+    let consulted = false;
+    const spying = (hash: string, secret: string) => {
+      consulted = true;
+      return compare(hash, secret);
+    };
+    await verifyClientSecret(publicWithSecret, 's3cret', spying);
+    expect(consulted).toBe(false);
+  });
+});
