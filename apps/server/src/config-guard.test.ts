@@ -1,8 +1,15 @@
 import { loadConfig } from '@odudu/kernel';
-import { describe, expect, it } from 'vitest';
-import { assertProductionAppDatabaseUrl } from '#/config-guard';
+import { describe, expect, it, vi } from 'vitest';
+import {
+  assertProductionAppDatabaseUrl,
+  assertProductionTls,
+  warnIfTlsDisabled,
+} from '#/config-guard';
 
-const base = { ODUDU_DATABASE_URL: 'postgres://user:pw@localhost:5432/odudu' };
+const base = {
+  ODUDU_DATABASE_URL: 'postgres://user:pw@localhost:5432/odudu',
+  ODUDU_KEK: Buffer.alloc(32, 9).toString('base64'),
+};
 
 describe('assertProductionAppDatabaseUrl', () => {
   it('throws when NODE_ENV is production and ODUDU_APP_DATABASE_URL is unset', () => {
@@ -28,5 +35,55 @@ describe('assertProductionAppDatabaseUrl', () => {
     expect(() => {
       assertProductionAppDatabaseUrl(config);
     }).not.toThrow();
+  });
+});
+
+describe('[RFC6749-3.1-02] assertProductionTls', () => {
+  it('throws when NODE_ENV is production and ODUDU_TLS is off', () => {
+    const config = loadConfig({ ...base, NODE_ENV: 'production' });
+    expect(() => {
+      assertProductionTls(config);
+    }).toThrow(/ODUDU_TLS/);
+  });
+
+  it('throws when NODE_ENV is production and ODUDU_TLS is explicitly false', () => {
+    const config = loadConfig({ ...base, NODE_ENV: 'production', ODUDU_TLS: 'false' });
+    expect(() => {
+      assertProductionTls(config);
+    }).toThrow(/ODUDU_TLS/);
+  });
+
+  it('does not throw when NODE_ENV is production and ODUDU_TLS is on', () => {
+    const config = loadConfig({ ...base, NODE_ENV: 'production', ODUDU_TLS: 'true' });
+    expect(() => {
+      assertProductionTls(config);
+    }).not.toThrow();
+  });
+
+  it('does not throw outside production even when ODUDU_TLS is off', () => {
+    const config = loadConfig({ ...base, NODE_ENV: 'development' });
+    expect(() => {
+      assertProductionTls(config);
+    }).not.toThrow();
+  });
+});
+
+describe('warnIfTlsDisabled', () => {
+  it('warns when ODUDU_TLS is off', () => {
+    const config = loadConfig({ ...base });
+    const log = vi.fn();
+
+    warnIfTlsDisabled(config, log);
+
+    expect(log).toHaveBeenCalledOnce();
+  });
+
+  it('does not warn when ODUDU_TLS is on', () => {
+    const config = loadConfig({ ...base, ODUDU_TLS: 'true' });
+    const log = vi.fn();
+
+    warnIfTlsDisabled(config, log);
+
+    expect(log).not.toHaveBeenCalled();
   });
 });

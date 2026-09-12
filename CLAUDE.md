@@ -26,6 +26,51 @@ The sequence, in order:
 Work happens on a branch; `main` is protected and requires `verify`,
 `container` and `commit-messages` to pass.
 
+### CI runs on the branch, from the first increment
+
+**Open a draft pull request with the first push of a phase branch, and push
+at the end of every increment.** An increment is not finished until CI is
+green on the pushed commit — a failure there is fixed before the next
+increment starts, not collected for the end.
+
+This is a mechanism, not a preference. `verify.yml` triggers on
+`pull_request` and on push to `main`; a branch with no pull request open
+runs **nothing**, however often it is pushed. P1 ran nineteen increments
+that way, and a broken container build survived eight of them unnoticed —
+`pnpm verify` does not build the image, and `container` and `conformance`
+have no local equivalent anybody runs by habit. "CI green" was an exit
+criterion that had never once been observed.
+
+The unit is the increment, not the commit. An increment is several commits,
+sometimes written concurrently; pushing each one races the others, spends
+CI on states nobody intends to keep, and makes "fix before proceeding"
+meaningless, since a red build partway through an increment is a work in
+progress rather than a defect. The `conformance` job builds the OIDF suite
+from source, which is minutes per run — affordable per increment, not per
+commit.
+
+### The documentation an increment owns
+
+`README.md` and `docs/request-paths.md` describe what the server does
+**now**, not what it did when they were written. An increment that changes
+a request, a response, a branch, an error code, an endpoint, a command or a
+default updates them in the same commit as the code — they are part of
+finishing the work, in the way a test is, not a tidy-up afterwards.
+
+`docs/request-paths.md` carries a stronger promise than most prose: every
+command in it has been executed against a running stack and every response
+in it is real output. Changing behaviour without re-running the affected
+transcript silently downgrades it to a claim, which is the state it was
+written to escape. If a command cannot be run, the document says so rather
+than showing output nobody produced.
+
+Saying this is not enough on its own — an instruction to keep prose current
+is unfalsifiable, because a stale document and a checked one look identical.
+So the parts that can be checked are checked: `tests/docs/` compares what
+these documents assert against what the server actually serves, and fails
+the build on drift. When you add a claim that could be checked that way,
+add the check with it.
+
 ### The rule P0 was written to produce
 
 Every plan-level defect in P0 shared one shape: **a claim about how a
@@ -45,6 +90,30 @@ on it. `docs/superpowers/p0-decision-log.md` has the full account.
 Comments carry only what the code cannot express. No restating the obvious,
 no ceremony, no verbose block headers. Where no comment is needed, write
 none.
+
+Write for a reader who has never seen the plan that produced the code.
+**Never reference the development process from a comment** — no "Task 12",
+no "Step 3", no "the brief", no "finding 2", no phase-plan slot numbers.
+Those are scaffolding; they are meaningless six months later and actively
+misleading once the plan is archived. Name the thing instead: not "read by
+Task 14's grant" but "read by the client_credentials grant"; not "Task 16's
+seed populates it" but "populated when a confidential client is provisioned".
+
+Referring to a _durable_ artefact is fine and often useful: an RFC clause, an
+ADR number, a file path, a migration filename, a named subsystem.
+
+## Statements
+
+Call a function as `doThing()`. Never `void doThing()`.
+
+The `void` operator as a statement exists only to silence
+`@typescript-eslint/no-floating-promises`, and it silences it everywhere —
+including where a dropped promise is a real bug. If a call trips that rule,
+fix the cause: `await` it, return it, or, where a library's return value is
+deliberately thenable and leaving it unawaited is the documented usage, add
+that call to `allowForKnownSafeCalls` in `eslint.config.js` with a comment
+saying why it is safe. `fastify`'s `register` is there for exactly that
+reason.
 
 ## Layering
 
@@ -74,11 +143,19 @@ import each other.
 
 ## Non-negotiables
 
+- **No `any`.** Not as an annotation, not as a cast, not leaked in from an
+  untyped boundary such as `JSON.parse`. Use `unknown` and narrow it. The
+  `no-explicit-any` and `no-unsafe-*` rules enforce this, and
+  `tests/lint/no-any.test.ts` additionally fails the build if any source file
+  waives one of them with an inline `eslint-disable` — a lint rule anybody can
+  switch off in a comment is not a ban. If a third-party type genuinely forces
+  your hand, raise it rather than suppressing it.
 - Test-driven. Tests precede implementation.
 - Integration tests run against real PostgreSQL via Testcontainers, never a
   mock.
 - Every repository method is probed with a foreign `realm_id`.
 - `SET LOCAL`, never `SET`, for realm context. A session-scoped setting
   leaks between pooled requests.
-- Every increment ends with CI green, branch merged, and `docs/NEXT.md`
+- Every increment ends with CI green **on a pushed commit with a pull
+  request open** (see "CI runs on the branch"), branch merged, and `docs/NEXT.md`
   updated.

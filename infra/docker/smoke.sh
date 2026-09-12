@@ -45,10 +45,12 @@ fi
 # filters, whether the policy exists at all, or even if odudu_svc had
 # BYPASSRLS. Inserting a real row as the owner first, then asserting
 # odudu_svc still sees 0, is what actually exercises the policy predicate.
+# -v ON_ERROR_STOP=1 and letting psql's own output through (rather than
+# discarding it) means a failed insert fails this script loudly instead of
+# leaving the RLS assertion below vacuous.
 docker compose exec -T postgres \
-  psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c \
-  "insert into realms (id, name) values ('00000000-0000-0000-0000-000000000001', 'smoke-test-realm') on conflict (id) do nothing;" \
-  > /dev/null
+  psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c \
+  "insert into realms (id, name) values ('00000000-0000-0000-0000-000000000001', 'smoke-test-realm') on conflict (id) do nothing;"
 
 count_output="$(docker compose exec -T postgres \
   psql -U odudu_svc -d "$POSTGRES_DB" -tAc 'select count(*) from realms;')" || {
@@ -71,5 +73,77 @@ if [ "$policy_output" != "realms_isolation" ]; then
   exit 1
 fi
 echo "realms_isolation policy is present"
+
+# A container that boots but never issues a token is not a working server —
+# the same trap /health/ready's vacuous pass was, one layer up. This drives
+# a full authorization_code-with-PKCE exchange against the running stack:
+# seed a realm and client, request /authorize, submit the login form the
+# way a browser would (no browser involved — the code below is that
+# browser), redeem the code at /token, and check the access token's typ.
+# Every step below uses -f or an explicit status check.
+set -o pipefail
+
+docker compose exec -T odudu node dist/main.js seed \
+  --realm smoke --client smoke-app --client-secret smoke-secret \
+  --redirect-uri http://localhost:3000/cb --user smoke --password smoke-password \
+  --email smoke@example.com
+
+VERIFIER=$(openssl rand -hex 32)
+CHALLENGE=$(printf '%s' "$VERIFIER" | openssl dgst -binary -sha256 | openssl base64 | tr '+/' '-_' | tr -d '=')
+
+# Portable base64url decode (macOS's `base64` and Linux's disagree on their
+# decode flag; openssl's is the same on both, and this script already
+# leans on openssl for the challenge above).
+b64url_decode() {
+  local input="$1"
+  local rem=$(( ${#input} % 4 ))
+  if [ "$rem" -eq 2 ]; then input="${input}=="; elif [ "$rem" -eq 3 ]; then input="${input}="; fi
+  printf '%s' "$input" | tr -- '-_' '+/' | openssl base64 -d -A
+}
+
+# GET /authorize renders the login form the browser would see; the hidden
+# auth_session_id field is this flow's CSRF token, so it has to come from a
+# real response, not be fabricated.
+AUTH_HTML=$(curl -sS -f --get \
+  --data-urlencode 'response_type=code' \
+  --data-urlencode 'client_id=smoke-app' \
+  --data-urlencode 'redirect_uri=http://localhost:3000/cb' \
+  --data-urlencode 'scope=openid' \
+  --data-urlencode 'state=s' \
+  --data-urlencode "code_challenge=$CHALLENGE" \
+  --data-urlencode 'code_challenge_method=S256' \
+  'http://localhost:3000/realms/smoke/protocol/openid-connect/auth')
+
+AUTH_SESSION_ID=$(printf '%s' "$AUTH_HTML" | sed -n 's/.*name="auth_session_id" value="\([^"]*\)".*/\1/p')
+test -n "$AUTH_SESSION_ID" || { echo "smoke: no auth_session_id in the rendered login form" >&2; exit 1; }
+
+# POST the credentials the way the login form would, then read the
+# authorization code out of the redirect's Location header — no browser
+# involved, this is what one would have driven.
+LOGIN_HEADERS="$(mktemp)"
+curl -sS -f -D "$LOGIN_HEADERS" -o /dev/null \
+  --data-urlencode "auth_session_id=$AUTH_SESSION_ID" \
+  --data-urlencode 'username=smoke' \
+  --data-urlencode 'password=smoke-password' \
+  'http://localhost:3000/realms/smoke/login-actions/authenticate'
+
+CODE=$(grep -i '^location:' "$LOGIN_HEADERS" | sed -n 's/.*[?&]code=\([^&[:space:]]*\).*/\1/p' | tr -d '\r\n')
+rm -f "$LOGIN_HEADERS"
+test -n "$CODE" || { echo "smoke: no authorization code issued" >&2; exit 1; }
+
+TOKEN_RESPONSE=$(curl -sS -f -u smoke-app:smoke-secret \
+  --data-urlencode 'grant_type=authorization_code' \
+  --data-urlencode "code=$CODE" \
+  --data-urlencode 'redirect_uri=http://localhost:3000/cb' \
+  --data-urlencode "code_verifier=$VERIFIER" \
+  'http://localhost:3000/realms/smoke/protocol/openid-connect/token')
+
+ACCESS=$(printf '%s' "$TOKEN_RESPONSE" | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')
+test -n "$ACCESS" || { echo "smoke: no access token issued" >&2; exit 1; }
+
+TYP=$(b64url_decode "${ACCESS%%.*}" | sed -n 's/.*"typ":"\([^"]*\)".*/\1/p')
+test "$TYP" = "at+jwt" || { echo "smoke: access token typ was '$TYP', expected at+jwt" >&2; exit 1; }
+
+echo "smoke: full code+PKCE exchange completed against the container"
 
 exit 0

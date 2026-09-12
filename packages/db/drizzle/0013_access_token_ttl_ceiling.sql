@@ -1,0 +1,25 @@
+-- An access token's `exp` is its issuance time plus this column
+-- (packages/protocol-oidc/src/usecase/token-issuance.ts), and Odudu's access
+-- tokens are self-contained `at+jwt` JWTs: a resource server verifies a
+-- signature and an expiry and has nothing else to consult, so the lifetime is
+-- the whole of the window in which a stolen token still works. RFC 6750 §5.3
+-- asks for an hour or less, and until now the column's only bound was its
+-- 300-second default — a property of how clients happen to be provisioned
+-- rather than one the server enforced.
+--
+-- The ceiling lives here rather than at issuance for two reasons. A clamp
+-- applied while minting would issue something other than what the client was
+-- registered with, silently, and `expires_in` would then have to disagree
+-- with the registration too. And a constraint on the column is true of every
+-- writer there will ever be, including the admin API this repository does not
+-- have yet, whereas a clamp is true only of the one code path that remembers
+-- to apply it.
+--
+-- One hour is fixed rather than configurable: a deployment that raises it is
+-- lengthening the unrevocable window for every client at once, which is a
+-- decision that should cost a migration and leave a trace, not an environment
+-- variable. The lower bound is the same statement from the other side — a
+-- token expiring at or before the instant it is issued is not a short-lived
+-- token but an unusable one.
+ALTER TABLE client_oidc_config ADD CONSTRAINT client_oidc_config_access_token_ttl_ceiling
+  CHECK (access_token_ttl_seconds BETWEEN 1 AND 3600);

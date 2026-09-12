@@ -1,0 +1,25 @@
+{
+  "name": "@odudu/domain-realm",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "imports": {
+    "#/*": "./src/*.ts"
+  },
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "main": "./src/index.ts",
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@odudu/db": "workspace:*",
+    "@odudu/kernel": "workspace:*",
+    "drizzle-orm": "0.45.2"
+  },
+  "devDependencies": {
+    "@odudu/testkit": "workspace:*",
+    "vitest": "5.0.0"
+  }
+}

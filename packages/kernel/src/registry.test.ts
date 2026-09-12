@@ -15,7 +15,10 @@ const noopLogger: Logger = {
 
 function context() {
   return {
-    config: loadConfig({ ODUDU_DATABASE_URL: 'postgres://u:p@localhost:5432/odudu' }),
+    config: loadConfig({
+      ODUDU_DATABASE_URL: 'postgres://u:p@localhost:5432/odudu',
+      ODUDU_KEK: Buffer.alloc(32, 9).toString('base64'),
+    }),
     clock: new FakeClock(new Date('2026-01-01T00:00:00.000Z')),
     logger: noopLogger,
   };

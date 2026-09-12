@@ -1,0 +1,302 @@
+import { discoveryDocument } from '@odudu/contracts';
+import { type ClientRecord } from '@odudu/domain-realm';
+import { describe, expect, it } from 'vitest';
+import { validateAuthorizationRequest } from '#/service/authorize-validation';
+import { type ClientOidcConfig } from '#/schema/client-oidc-config';
+
+function omit<T extends Record<string, unknown>, K extends keyof T>(obj: T, key: K): Omit<T, K> {
+  const entries = Object.entries(obj).filter(([k]) => k !== key);
+  return Object.fromEntries(entries) as Omit<T, K>;
+}
+
+const client: ClientRecord = {
+  id: 'a2f0b7a2-6e8e-4c9a-9b6f-1d1f9a6a9f01',
+  realmId: 'e1c1c1c1-6e8e-4c9a-9b6f-1d1f9a6a9f02',
+  clientId: 'oauth-client-1',
+  name: 'A confidential client',
+  enabled: true,
+  type: 'confidential',
+  secretHash: 'hashed:secret',
+  createdAt: new Date('2026-01-01T00:00:00Z'),
+  serviceSubjectId: null,
+};
+
+const config: ClientOidcConfig = {
+  clientId: client.id,
+  realmId: client.realmId,
+  redirectUris: ['https://app.example/callback'],
+  grantTypes: ['authorization_code', 'refresh_token'],
+  tokenEndpointAuthMethod: 'client_secret_basic',
+  audiences: [],
+  accessTokenTtlSeconds: 300,
+  refreshTokenTtlSeconds: 1_209_600,
+  clientCredentialsScopes: [],
+};
+
+const params: Record<string, string | undefined> = {
+  response_type: 'code',
+  client_id: 'oauth-client-1',
+  redirect_uri: 'https://app.example/callback',
+  scope: 'openid',
+  state: 'xyz-state',
+  code_challenge: 'a'.repeat(43),
+  code_challenge_method: 'S256',
+};
+
+describe('[RFC6749-4.1.2.1-01] failures before redirect_uri is trusted must not redirect', () => {
+  it.each([
+    ['unknown client', { ...params, client_id: 'nope' }, null],
+    ['disabled client', params, { ...client, enabled: false }],
+    ['missing redirect_uri', omit(params, 'redirect_uri'), client],
+    ['unregistered redirect_uri', { ...params, redirect_uri: 'https://evil.example/cb' }, client],
+    ['trailing slash added', { ...params, redirect_uri: 'https://app.example/callback/' }, client],
+    ['path case changed', { ...params, redirect_uri: 'https://app.example/Callback' }, client],
+    [
+      'extra query parameter',
+      { ...params, redirect_uri: 'https://app.example/callback?x=1' },
+      client,
+    ],
+  ])('renders rather than redirects: %s', (_label, p, c) => {
+    expect(validateAuthorizationRequest(p, c, config).kind).toBe('render');
+  });
+
+  it('renders for an enabled, known client whose OIDC config row is missing', () => {
+    expect(validateAuthorizationRequest(params, client, null)).toMatchObject({
+      kind: 'render',
+      error: 'invalid_client',
+    });
+  });
+});
+
+describe('a repeated non-trust query parameter redirects with invalid_request', () => {
+  it('redirects rather than proceeding to any other check', () => {
+    expect(validateAuthorizationRequest(params, client, config, 'state')).toMatchObject({
+      kind: 'redirect',
+      redirectUri: params.redirect_uri,
+      error: 'invalid_request',
+      state: params.state,
+    });
+  });
+
+  it('takes priority over an otherwise-valid request', () => {
+    const outcome = validateAuthorizationRequest(params, client, config, 'scope');
+    expect(outcome).not.toMatchObject({ kind: 'ok' });
+  });
+});
+
+describe('[RFC6749-4.1.2.1-02] failures after redirect_uri is trusted redirect with state', () => {
+  it.each([
+    ['bad response_type', { ...params, response_type: 'token' }, 'unsupported_response_type'],
+    ['missing code_challenge', omit(params, 'code_challenge'), 'invalid_request'],
+    ['plain challenge method', { ...params, code_challenge_method: 'plain' }, 'invalid_request'],
+    ['missing challenge method', omit(params, 'code_challenge_method'), 'invalid_request'],
+    ['unknown scope', { ...params, scope: 'openid wat' }, 'invalid_scope'],
+  ])('redirects with %s', (_label, p, expected) => {
+    expect(validateAuthorizationRequest(p, client, config)).toMatchObject({
+      kind: 'redirect',
+      error: expected,
+      state: params.state,
+    });
+  });
+});
+
+describe('an unsupported response mode is refused, not silently changed', () => {
+  it.each(['fragment', 'form_post', 'web_message', 'QUERY', 'query fragment'])(
+    'renders rather than answering in the mode it does support: %s',
+    (mode) => {
+      expect(
+        validateAuthorizationRequest({ ...params, response_mode: mode }, client, config),
+      ).toMatchObject({ kind: 'render' });
+    },
+  );
+
+  it('accepts the one mode Odudu answers in', () => {
+    expect(
+      validateAuthorizationRequest({ ...params, response_mode: 'query' }, client, config),
+    ).toMatchObject({ kind: 'ok' });
+  });
+
+  it('accepts a request naming no response mode at all', () => {
+    expect(validateAuthorizationRequest(params, client, config)).toMatchObject({ kind: 'ok' });
+  });
+
+  it('accepts exactly what discovery advertises as response_modes_supported', () => {
+    const advertised = discoveryDocument({
+      issuer: 'https://idp.example',
+      claimsSupported: [],
+    }).response_modes_supported;
+
+    for (const mode of advertised) {
+      expect(
+        validateAuthorizationRequest({ ...params, response_mode: mode }, client, config),
+      ).toMatchObject({ kind: 'ok' });
+    }
+    expect(advertised).not.toContain('fragment');
+  });
+
+  // An unsupported mode is refused before the client is even looked up:
+  // there is no response to deliver by a means the server does not have.
+  it('renders for an unsupported mode even when nothing else about the request is valid', () => {
+    expect(
+      validateAuthorizationRequest(
+        { ...params, response_mode: 'fragment', client_id: 'nope' },
+        null,
+        null,
+      ),
+    ).toMatchObject({ kind: 'render' });
+  });
+});
+
+describe('request objects are refused by name, not ignored', () => {
+  it.each([
+    ['request', 'request_not_supported'],
+    ['request_uri', 'request_uri_not_supported'],
+  ])('redirects with %s', (key, expected) => {
+    expect(
+      validateAuthorizationRequest(
+        { ...params, [key]: 'https://app.example/req.jwt' },
+        client,
+        config,
+      ),
+    ).toMatchObject({ kind: 'redirect', error: expected, state: params.state });
+  });
+});
+
+describe('[RFC7636-4.2-01] the code challenge is checked for shape, not merely presence', () => {
+  it.each([
+    ['one character', 'a'],
+    ['42 characters', 'a'.repeat(42)],
+    ['129 characters', 'a'.repeat(129)],
+    ['a character outside the unreserved set', `${'a'.repeat(42)}+`],
+    ['base64 padding', `${'a'.repeat(42)}=`],
+    ['a space', `${'a'.repeat(42)} `],
+  ])('redirects with invalid_request for %s', (_label, challenge) => {
+    expect(
+      validateAuthorizationRequest({ ...params, code_challenge: challenge }, client, config),
+    ).toMatchObject({ kind: 'redirect', error: 'invalid_request' });
+  });
+
+  it.each([43, 128])('accepts a %s-character challenge from the unreserved set', (length) => {
+    const challenge = `${'-._~'.repeat(8)}${'a'.repeat(length - 32)}`;
+    expect(challenge).toHaveLength(length);
+    expect(
+      validateAuthorizationRequest({ ...params, code_challenge: challenge }, client, config),
+    ).toMatchObject({ kind: 'ok' });
+  });
+});
+
+describe('scope acceptance', () => {
+  it('accepts openid together with profile and email', () => {
+    const outcome = validateAuthorizationRequest(
+      { ...params, scope: 'openid profile email' },
+      client,
+      config,
+    );
+    expect(outcome).toMatchObject({ kind: 'ok' });
+  });
+
+  it('still rejects a scope token nothing recognizes', () => {
+    const outcome = validateAuthorizationRequest(
+      { ...params, scope: 'openid unknown-scope' },
+      client,
+      config,
+    );
+    expect(outcome).toMatchObject({ kind: 'redirect', error: 'invalid_scope' });
+  });
+
+  it('accepts exactly what discovery advertises as scopes_supported, and nothing beyond it', () => {
+    const advertised = discoveryDocument({
+      issuer: 'https://idp.example',
+      claimsSupported: [],
+    }).scopes_supported;
+
+    expect(
+      validateAuthorizationRequest({ ...params, scope: advertised.join(' ') }, client, config),
+    ).toMatchObject({ kind: 'ok' });
+
+    expect(
+      validateAuthorizationRequest(
+        { ...params, scope: [...advertised, 'not-advertised'].join(' ') },
+        client,
+        config,
+      ),
+    ).toMatchObject({ kind: 'redirect', error: 'invalid_scope' });
+  });
+});
+
+describe('[RFC6749-3.3-03] an omitted scope resolves to the documented default', () => {
+  it('parks openid, the one scope every realm supports, when the request names none', () => {
+    const outcome = validateAuthorizationRequest(omit(params, 'scope'), client, config);
+    expect(outcome).toMatchObject({ kind: 'ok' });
+    if (outcome.kind !== 'ok') throw new Error('expected ok');
+    expect(outcome.request.scope).toBe('openid');
+  });
+});
+
+describe('validateAuthorizationRequest — the success path', () => {
+  it('parks the whole request, including a null state and nonce, when everything checks out', () => {
+    const outcome = validateAuthorizationRequest(omit(params, 'state'), client, config);
+    expect(outcome).toEqual({
+      kind: 'ok',
+      request: {
+        clientId: client.clientId,
+        redirectUri: params.redirect_uri,
+        scope: 'openid',
+        state: null,
+        nonce: null,
+        codeChallenge: params.code_challenge,
+        codeChallengeMethod: 'S256',
+      },
+      prompts: new Set(),
+      idTokenHint: null,
+    });
+  });
+});
+
+// OIDC Core §3.1.2.1's `prompt` and `id_token_hint` are both answered past
+// this function — one by refusing to authenticate anybody, the other by a
+// signature check — so what it owes them is the parse, and the position of
+// that parse in the sequence.
+describe('prompt and id_token_hint reach the usecase through the validated outcome', () => {
+  it('carries the parsed prompt values out', () => {
+    const outcome = validateAuthorizationRequest(
+      { ...params, prompt: 'login consent' },
+      client,
+      config,
+    );
+    if (outcome.kind !== 'ok') throw new Error('expected the request to validate');
+    expect([...outcome.prompts].sort()).toEqual(['consent', 'login']);
+  });
+
+  it('carries an id_token_hint out unread', () => {
+    const outcome = validateAuthorizationRequest(
+      { ...params, id_token_hint: 'not.a.jwt' },
+      client,
+      config,
+    );
+    if (outcome.kind !== 'ok') throw new Error('expected the request to validate');
+    // Whether the hint is one this server issued is not decidable here: it
+    // takes the realm's keys, which this layer has no way to reach.
+    expect(outcome.idTokenHint).toBe('not.a.jwt');
+  });
+
+  it.each(['none login', 'unheard_of', 'NONE'])(
+    'redirects with invalid_request for prompt=%o rather than parking the request',
+    (prompt) => {
+      expect(validateAuthorizationRequest({ ...params, prompt }, client, config)).toMatchObject({
+        kind: 'redirect',
+        redirectUri: params.redirect_uri,
+        error: 'invalid_request',
+        state: params.state,
+      });
+    },
+  );
+
+  it('renders rather than redirecting a malformed prompt when the client is unknown', () => {
+    // The §4.1.2.1 boundary decides this, not the parameter: there is no
+    // registered redirect_uri to carry the error to.
+    expect(validateAuthorizationRequest({ ...params, prompt: 'none login' }, null, null).kind).toBe(
+      'render',
+    );
+  });
+});

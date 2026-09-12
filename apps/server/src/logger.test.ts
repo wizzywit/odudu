@@ -5,7 +5,10 @@ import { describe, expect, it } from 'vitest';
 import { buildApp } from '#/app';
 import { createLogger } from '#/logger';
 
-const config = loadConfig({ ODUDU_DATABASE_URL: 'postgres://u:p@localhost:5432/odudu' });
+const config = loadConfig({
+  ODUDU_DATABASE_URL: 'postgres://u:p@localhost:5432/odudu',
+  ODUDU_KEK: Buffer.alloc(32, 9).toString('base64'),
+});
 
 function capture(): { stream: Writable; lines: () => string } {
   const chunks: string[] = [];
@@ -86,7 +89,7 @@ describe('createLogger', () => {
       sql: (() => Promise.resolve([{ ok: 1 }])) as unknown as DatabaseHandle['sql'],
       close: () => Promise.resolve(),
     };
-    const app = buildApp({ database, logger });
+    const app = buildApp({ database, ownerDatabase: database, kek: config.ODUDU_KEK, logger });
 
     await app.inject({
       method: 'GET',
@@ -106,7 +109,7 @@ describe('createLogger', () => {
       sql: (() => Promise.resolve([{ ok: 1 }])) as unknown as DatabaseHandle['sql'],
       close: () => Promise.resolve(),
     };
-    const app = buildApp({ database, logger });
+    const app = buildApp({ database, ownerDatabase: database, kek: config.ODUDU_KEK, logger });
     app.get('/authorize-probe', () => ({ ok: true }));
 
     await app.inject({
@@ -127,7 +130,7 @@ describe('createLogger', () => {
       sql: (() => Promise.resolve([{ ok: 1 }])) as unknown as DatabaseHandle['sql'],
       close: () => Promise.resolve(),
     };
-    const app = buildApp({ database, logger });
+    const app = buildApp({ database, ownerDatabase: database, kek: config.ODUDU_KEK, logger });
     app.get('/set-cookie-probe', (_request, reply) => {
       reply.header('set-cookie', '__Host-alpha-session=super-secret-cookie-value');
       return { ok: true };

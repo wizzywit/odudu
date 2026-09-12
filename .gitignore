@@ -4,6 +4,10 @@ build/
 coverage/
 .turbo/
 *.tsbuildinfo
+trace-report.json
+.stryker-tmp/
+reports/
+stryker.log
 .env
 .env.*
 !.env.example

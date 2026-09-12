@@ -1,0 +1,26 @@
+-- A refresh token's `expires_at` is the instant it was issued plus this
+-- column (packages/protocol-oidc/src/usecase/refresh-rotation.ts, and the
+-- authorization_code grant in token-issuance.ts). Zero issues a token that
+-- has already expired by the time the client receives it, and a negative
+-- value one that expired before it existed; either way the next refresh is
+-- refused as `invalid_grant`, indistinguishable from a token that was never
+-- issued at all. The floor is the same statement as the lower half of
+-- client_oidc_config_access_token_ttl_ceiling
+-- (packages/db/drizzle/0013_access_token_ttl_ceiling.sql): a credential that
+-- cannot be used once is not short-lived, it is broken.
+--
+-- There is deliberately no upper bound to match that migration's one hour.
+-- The hour exists because an `at+jwt` access token is self-contained: a
+-- resource server checks a signature and an expiry, so the lifetime is the
+-- whole of the unrevocable window. A refresh token is the opposite — every
+-- presentation is an atomic UPDATE against `refresh_tokens` that also reads
+-- the grant, so revoking the grant or the family ends it at that instant
+-- whatever the column says, and the TTL is an idle timeout rather than a
+-- window of exposure. Neither RFC 6749 §6 nor §10.4 states a duration, and
+-- no clause row asks for one; a ceiling here would be a number invented to
+-- look prudent, imposed on every deployment, with nothing to derive it from.
+-- Whoever does derive one — a maximum session length in a later phase, say —
+-- should add it then, with the reasoning, rather than have it inherited from
+-- here.
+ALTER TABLE client_oidc_config ADD CONSTRAINT client_oidc_config_refresh_token_ttl_floor
+  CHECK (refresh_token_ttl_seconds >= 1);

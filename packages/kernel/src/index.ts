@@ -5,3 +5,4 @@ export { newId } from '#/ids';
 export { type Config, loadConfig } from '#/config';
 export { type Logger } from '#/logger';
 export { ModuleRegistry, type ModuleContext, type OduduModule } from '#/registry';
+export { ClaimMapperRegistry, type ClaimMapper } from '#/registries/claim-mapper';

@@ -1,0 +1,49 @@
+# The OpenID Foundation conformance suite itself. Not vendored — run.sh
+# clones the pinned tag (see README.md) into SUITE_DIR and builds the jar
+# with the suite's own builder-compose.yml before this file is brought up.
+# `extra_hosts` matters only for plans against a host-side provider; the
+# odudu proxy in compose.yaml is reachable by container name over the
+# shared `odudu-conformance` network instead, so this run needs it for
+# nothing but parity with the suite's documented setup.
+networks:
+  default:
+    name: odudu-conformance
+    external: true
+
+services:
+  mongodb:
+    image: mongo:6.0.13
+    extra_hosts:
+      - 'localhost:host-gateway'
+
+  server:
+    build:
+      context: ${SUITE_DIR}/server-dev
+    volumes:
+      - ${SUITE_DIR}/target/:/server/
+    command: >
+      java
+      -jar /server/fapi-test-suite.jar
+      -Djdk.tls.maxHandshakeMessageSize=65536
+      --fintechlabs.base_url=https://localhost.emobix.co.uk:8443
+      --fintechlabs.base_mtls_url=https://localhost.emobix.co.uk:8444
+      --fintechlabs.devmode=true
+      --fintechlabs.startredir=true
+    depends_on:
+      - mongodb
+    extra_hosts:
+      - 'localhost:host-gateway'
+
+  httpd:
+    build:
+      context: ${SUITE_DIR}/httpd
+      dockerfile: Dockerfile-static
+    volumes:
+      - ${SUITE_DIR}/src/main/resources/:/usr/local/apache2/htdocs/
+    ports:
+      - '127.0.0.1:8443:8443'
+      - '127.0.0.1:8444:8444'
+    depends_on:
+      - server
+    extra_hosts:
+      - 'localhost:host-gateway'
