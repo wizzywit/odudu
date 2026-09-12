@@ -1148,6 +1148,7 @@ getting `invalid_request` rather than `invalid_client`.
 | Both methods presented at once                          | 401    | `invalid_client`         |
 | Public client presenting a secret                       | 401    | `invalid_client`         |
 | Public client asking for `client_credentials`           | 401    | `invalid_client`         |
+| Confidential client with no service account             | 400    | `unauthorized_client`    |
 | Unknown, expired or replayed `code`                     | 400    | `invalid_grant`          |
 | Wrong or missing `code_verifier`                        | 400    | `invalid_grant`          |
 | `redirect_uri` different from the code's                | 400    | `invalid_grant`          |
@@ -1176,6 +1177,14 @@ The expired-code row was verified by waiting out the 60-second lifetime and
 redeeming: `{"error":"invalid_grant"}`. Refresh-token expiry was not waited
 out — the lifetime is 14 days — but expiry, reuse and an unknown token all
 leave the same atomic consume returning nothing, and so answer identically.
+
+`unauthorized_client` is the one row with no command above it. The seed
+command always provisions a confidential client with a service account, so
+the compose stack cannot produce a client that lacks one; the row's evidence
+is `packages/protocol-oidc/tests/client-credentials.int.test.ts`, which
+builds that client against a real database. It is distinct from
+`invalid_client` on purpose: the client is who it says it is, and the
+refusal is about how it was provisioned (RFC 6749 §5.2).
 
 #### Client authentication is by the registered method and no other
 
