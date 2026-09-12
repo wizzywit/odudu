@@ -28,7 +28,14 @@ export function carriesUnsupportedRepresentation(headers: {
 }): boolean {
   if (headers.contentType !== undefined) return !isFormEncoded(headers.contentType);
   return (
-    (headers.contentLength !== undefined && headers.contentLength !== '0') ||
+    (headers.contentLength !== undefined && !statesAnEmptyBody(headers.contentLength)) ||
     headers.transferEncoding !== undefined
   );
+}
+
+// RFC 9110 §8.6 spells Content-Length as `1*DIGIT`, so `0` and `00` are one
+// length written two ways. Comparing the raw field value against `'0'` would
+// answer a bodiless POST with 415 for the sake of a leading zero.
+function statesAnEmptyBody(contentLength: string): boolean {
+  return /^0+$/u.test(contentLength.trim());
 }
