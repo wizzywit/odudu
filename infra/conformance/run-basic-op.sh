@@ -3,7 +3,9 @@
 # see README.md's answer to spike 3 for why Config OP is the automated
 # plan and this one stays a manual, reproducible run. Exports the plan's
 # results to $OUT_DIR (default: a temp directory) on the way out; it does
-# not overwrite the committed results/ files.
+# not overwrite the committed results/ files. Promoting a run into results/
+# is deliberate and manual: copy the summary and the zip in, then delete the
+# oldest run's pair — README.md's "What results/ keeps" explains why two.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

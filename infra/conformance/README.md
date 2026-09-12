@@ -174,6 +174,23 @@ non-PKCE causes were fixed is committed alongside it, rather than
 replacing it, as `results/basic-op-2026-09-12-v5.1.36-rerun.json` and its
 `-logs.zip`.
 
+### What `results/` keeps, and why it keeps anything
+
+Two runs: the current one and the one it supersedes. A reader comparing
+them can see what a fix changed, which is the whole reason the superseded
+run was not overwritten. A third run is history nobody reads, and each one
+costs about 300KB of zip that git keeps for good — so **a new run prunes
+the oldest**, and `tests/lint/conformance-results-retention.test.ts` fails
+the build if `results/` ever holds more than two.
+
+Both halves of a run stay together. The `.json` is this repository's own
+summary — a claim — and the `-logs.zip` is the suite's untouched export —
+the evidence. Keeping only the summary would be keeping the artefact that
+has already been wrong: the first one written for this plan reported all
+30 failures as a single cause, and reading the zip is what showed that
+five of them were three other things, one of which was an unimplemented
+MUST. ADR 0016 records why these exports are committed at all.
+
 ### What the 30 original failures actually were
 
 **25 of 30 were the deliberate mandatory-PKCE divergence** described
