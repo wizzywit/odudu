@@ -1,11 +1,46 @@
+import { parseArgs } from 'node:util';
 import { createDatabase } from '@odudu/db';
 import { loadConfig, ModuleRegistry, systemClock } from '@odudu/kernel';
 import closeWithGrace from 'close-with-grace';
 import { buildApp } from '#/app';
+import { type SeedOptions, seed } from '#/cli/seed';
 import { assertProductionAppDatabaseUrl, warnIfTlsDisabled } from '#/config-guard';
 import { createLogger } from '#/logger';
 import { databaseModule } from '#/modules/database';
 import { httpModule } from '#/modules/http';
+
+function parseSeedOptions(argv: string[]): SeedOptions {
+  const { values } = parseArgs({
+    args: argv,
+    options: {
+      realm: { type: 'string' },
+      client: { type: 'string' },
+      'client-secret': { type: 'string' },
+      'redirect-uri': { type: 'string', multiple: true },
+      user: { type: 'string' },
+      password: { type: 'string' },
+    },
+  });
+
+  if (values.realm === undefined || values.client === undefined) {
+    throw new Error('seed requires --realm and --client');
+  }
+
+  return {
+    realm: values.realm,
+    clientId: values.client,
+    redirectUris: values['redirect-uri'] ?? [],
+    ...(values['client-secret'] !== undefined ? { clientSecret: values['client-secret'] } : {}),
+    ...(values.user !== undefined ? { username: values.user } : {}),
+    ...(values.password !== undefined ? { password: values.password } : {}),
+  };
+}
+
+if (process.argv[2] === 'seed') {
+  const result = await seed(parseSeedOptions(process.argv.slice(3)));
+  console.log(JSON.stringify(result));
+  process.exit(0);
+}
 
 const config = loadConfig();
 const logger = createLogger(config);

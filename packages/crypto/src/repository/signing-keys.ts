@@ -27,6 +27,17 @@ function firstOrThrow(rows: readonly SigningKeyRecord[]): SigningKeyRecord {
   return row;
 }
 
+export interface NewSigningKey {
+  id: string;
+  realmId: string;
+  kid: string;
+  alg: 'RS256' | 'ES256';
+  status: 'active' | 'rotating' | 'retired';
+  publicJwk: Record<string, unknown>;
+  privateJwkEncrypted: string;
+  notAfter?: Date | null;
+}
+
 export function signingKeyRepository(tx: RealmScopedDatabase) {
   return {
     async listPublishable(): Promise<SigningKeyRecord[]> {
@@ -41,6 +52,29 @@ export function signingKeyRepository(tx: RealmScopedDatabase) {
     async active(): Promise<SigningKeyRecord> {
       const rows = await tx.select().from(signingKeys).where(eq(signingKeys.status, 'active'));
       return firstOrThrow(rows.map(toRecord));
+    },
+
+    // The bootstrap seed command is the only caller today: a realm cannot
+    // issue a token, and /jwks has nothing to publish, until it has one.
+    async create(input: NewSigningKey): Promise<SigningKeyRecord> {
+      const rows = await tx
+        .insert(signingKeys)
+        .values({
+          id: input.id,
+          realmId: input.realmId,
+          kid: input.kid,
+          alg: input.alg,
+          status: input.status,
+          publicJwk: input.publicJwk,
+          privateJwkEncrypted: input.privateJwkEncrypted,
+          notAfter: input.notAfter ?? null,
+        })
+        .returning();
+      const row = rows[0];
+      if (row === undefined) {
+        throw new Error('insert into signing_keys returned no row');
+      }
+      return toRecord(row);
     },
   };
 }

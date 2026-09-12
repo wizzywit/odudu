@@ -6,6 +6,12 @@ export interface RealmLookup {
   enabled: boolean;
 }
 
+export interface NewRealm {
+  id: string;
+  name: string;
+  displayName?: string | null;
+}
+
 // Resolving {realm} from the request path happens before any realm context
 // exists to `SET LOCAL app.realm_id` into, so there is no id yet to scope
 // this lookup by. `realms`' own isolation policy keys on `id`, and FORCE ROW
@@ -27,6 +33,22 @@ export function realmLookupRepository(db: Database) {
         .from(realms)
         .where(eq(realms.name, name));
       return rows[0] ?? null;
+    },
+
+    // The bootstrap seed command creates the first realm through this same
+    // owner-connection bypass: `byName` above already establishes that no
+    // realm context can exist before a realm is resolved, and creating one
+    // is the other side of that same gap.
+    async create(input: NewRealm): Promise<RealmLookup> {
+      const rows = await db
+        .insert(realms)
+        .values({ id: input.id, name: input.name, displayName: input.displayName ?? null })
+        .returning({ id: realms.id, enabled: realms.enabled });
+      const row = rows[0];
+      if (row === undefined) {
+        throw new Error('insert into realms returned no row');
+      }
+      return row;
     },
   };
 }

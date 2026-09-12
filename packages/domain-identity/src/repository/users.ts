@@ -29,6 +29,13 @@ export interface UserWithSubject {
   user: UserRecord;
 }
 
+export interface NewUser {
+  subjectId: string;
+  realmId: string;
+  username: string;
+  email?: string | null;
+}
+
 export function userRepository(tx: RealmScopedDatabase) {
   return {
     // Joins subjects because class-table inheritance splits identity
@@ -51,6 +58,25 @@ export function userRepository(tx: RealmScopedDatabase) {
       const rows = await tx.select().from(users).where(eq(users.subjectId, subjectId));
       const row = rows[0];
       return row === undefined ? null : toUser(row);
+    },
+
+    // The bootstrap seed command is the only caller today: a user profile
+    // is created once its subject exists, never before.
+    async create(input: NewUser): Promise<UserRecord> {
+      const rows = await tx
+        .insert(users)
+        .values({
+          subjectId: input.subjectId,
+          realmId: input.realmId,
+          username: input.username,
+          email: input.email ?? null,
+        })
+        .returning();
+      const row = rows[0];
+      if (row === undefined) {
+        throw new Error('insert into users returned no row');
+      }
+      return toUser(row);
     },
   };
 }
