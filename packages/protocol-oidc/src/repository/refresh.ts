@@ -85,10 +85,14 @@ export function refreshTokenRepository(tx: RealmScopedDatabase) {
       return row === undefined ? null : toRecord(row);
     },
 
-    // Read-only, and never part of the rotation decision itself: reuse
-    // detection reaches for this only after `consume` has already returned
-    // null, to tell an already-used token (reuse — revoke the family) apart
-    // from one that never existed or already expired (unknown).
+    // Read-only, and never the thing that marks a token spent — that is
+    // `consume`'s single UPDATE alone. Two callers read it. The grant gate
+    // in usecase/token-issuance.ts reads it *before* rotation, to decide
+    // from the presented token whether the request can succeed at all, so
+    // that one which cannot never consumes anything. Reuse detection reads
+    // it *after* `consume` has returned null, to tell an already-used token
+    // (reuse — revoke the family) from one that never existed or already
+    // expired (unknown).
     async byHash(tokenHash: string): Promise<RefreshTokenRecord | null> {
       const rows = await tx
         .select()

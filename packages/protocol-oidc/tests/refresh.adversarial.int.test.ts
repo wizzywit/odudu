@@ -469,6 +469,61 @@ async function postToken(
   });
 }
 
+// RFC 6749 §6: `grant_type` is REQUIRED and its value is `refresh_token`.
+// Every other test here sends that value and succeeds, which shows it is
+// accepted and nothing more; what makes it required is that no other value,
+// and no absence, redeems the same token.
+describe('[RFC6749-6-02] grant_type on the refresh request', () => {
+  it('refuses a refresh request that omits grant_type, and accepts the same one with it', async () => {
+    const { refreshToken } = await issueInitialRefreshToken();
+    const omitted = await postToken([['refresh_token', refreshToken]], {
+      authorization: basicAuth(webApp),
+    });
+    expect(omitted.statusCode).toBe(400);
+    expect(omitted.json<{ error: string }>().error).toBe('invalid_request');
+
+    const accepted = await postToken(
+      [
+        ['grant_type', 'refresh_token'],
+        ['refresh_token', refreshToken],
+      ],
+      { authorization: basicAuth(webApp) },
+    );
+    expect(accepted.statusCode).toBe(200);
+  });
+
+  it('refuses an unregistered grant_type value', async () => {
+    const { refreshToken } = await issueInitialRefreshToken();
+    const res = await postToken(
+      [
+        ['grant_type', 'urn:example:invented-grant'],
+        ['refresh_token', refreshToken],
+      ],
+      { authorization: basicAuth(webApp) },
+    );
+    expect(res.statusCode).toBe(400);
+    expect(res.json<{ error: string }>().error).toBe('unsupported_grant_type');
+  });
+
+  // Presented under another grant this client holds, the token is not
+  // redeemed — and, just as importantly, is not spent by the attempt.
+  it('does not redeem a refresh token presented under another registered grant_type', async () => {
+    const { refreshToken } = await issueInitialRefreshToken();
+    const res = await postToken(
+      [
+        ['grant_type', 'authorization_code'],
+        ['refresh_token', refreshToken],
+      ],
+      { authorization: basicAuth(webApp) },
+    );
+    expect(res.statusCode).not.toBe(200);
+    expect(await refreshTokenUsedAt(refreshToken)).toBeNull();
+
+    const accepted = await refresh(refreshToken);
+    expect(accepted.statusCode).toBe(200);
+  });
+});
+
 // RFC 6749 §6 restates §3.2.1's client authentication for the refresh
 // request specifically, so it is proved on this grant rather than inferred
 // from the authorization_code grant enforcing the same rule.

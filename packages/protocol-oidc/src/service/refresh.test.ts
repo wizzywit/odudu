@@ -34,10 +34,31 @@ const grant: TokenGrantRecord = {
   revokedAt: null,
 };
 
-describe('generateRefreshToken / hashRefreshToken', () => {
+// The other half of RFC6749-10.10-02; see the note on the authorization
+// code's describe in service/authorization-code.test.ts.
+describe('[RFC6749-10.10-02] generateRefreshToken / hashRefreshToken', () => {
   it('[RFC6749-10.4-02] produces a 43-character base64url token', () => {
     const token = generateRefreshToken();
     expect(token).toMatch(/^[A-Za-z0-9_-]{43}$/);
+    expect(Buffer.from(token, 'base64url')).toHaveLength(32);
+  });
+
+  // Width is not entropy: 8 random bytes padded out to 43 characters decode
+  // to 32 bytes and satisfy the assertion above. Structure is what a guesser
+  // exploits — a fixed prefix, padding, an embedded constant, a counter in a
+  // known position — and every one of those shows up as a character position
+  // that never varies, so every position is checked across a sample.
+  it('varies at every character position across a sample', () => {
+    const tokens = Array.from({ length: 256 }, () => generateRefreshToken());
+    const constant = Array.from({ length: 43 }, (_unused, i) => i).filter(
+      (i) => new Set(tokens.map((token) => token[i])).size === 1,
+    );
+    expect(constant).toEqual([]);
+  });
+
+  it('produces no repeat across a large sample', () => {
+    const sample = new Set(Array.from({ length: 5_000 }, () => generateRefreshToken()));
+    expect(sample.size).toBe(5_000);
   });
 
   it('hashes the same token identically and different tokens differently', () => {

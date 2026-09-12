@@ -5,12 +5,13 @@ import {
   isAuthorizationCodeExpired,
 } from '#/service/authorization-code';
 
-// Not tagged with a coverage id: no RFC6749 §10.10 row is scoped to
-// authorization codes alone (its "generated credential" language spans
-// access tokens, refresh tokens and passwords too), and claiming that row
-// covered on the strength of this test alone would overstate what it
-// proves.
-describe('the authorization code is opaque and stored hashed', () => {
+// RFC 6749 §10.10's probability bounds are about "a generated credential
+// not intended for end-user handling", of which Odudu mints two: the
+// authorization code and the refresh token. The id is carried here and by
+// generateRefreshToken's own describe in service/refresh.test.ts, so the
+// row it holds is only covered while both of them pass — a bound stated
+// over a class is not held by evidence about one member of it.
+describe('[RFC6749-10.10-02] the authorization code is opaque and stored hashed', () => {
   it('returns a high-entropy code', () => {
     const code = generateAuthorizationCode();
     expect(code).toMatch(/^[A-Za-z0-9_-]{43,}$/);

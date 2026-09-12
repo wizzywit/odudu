@@ -96,6 +96,32 @@ async function setupRealm(): Promise<void> {
       clientCredentialsScopes: ['reports:read'],
     });
 
+    // Registered for client_secret_post, so a credential it sends as a
+    // request parameter is one this server will read — which is what makes
+    // where the parameter sits the only thing under test in
+    // RFC6749-2.3.1-02.
+    const postingJobDbId = newId();
+    await tx.insert(clients).values({
+      id: postingJobDbId,
+      realmId: REALM_ID,
+      clientId: 'posting-job',
+      name: 'Posting job',
+      type: 'confidential',
+      secretHash: await hashPassword('p0stsecret'),
+      serviceSubjectId: batchJobServiceSubjectId,
+    });
+    await clientOidcConfigRepository(tx).create({
+      clientId: postingJobDbId,
+      realmId: REALM_ID,
+      redirectUris: [],
+      grantTypes: ['client_credentials'],
+      tokenEndpointAuthMethod: 'client_secret_post',
+      audiences: [AUDIENCE],
+      accessTokenTtlSeconds: 300,
+      refreshTokenTtlSeconds: 1_209_600,
+      clientCredentialsScopes: ['reports:read'],
+    });
+
     const spaDbId = newId();
     await tx.insert(clients).values({
       id: spaDbId,
@@ -286,5 +312,61 @@ describe('[RFC6749-4.4.2-01] client authentication on the client_credentials gra
     const res = await postToken(grant);
     expect(res.statusCode).toBe(401);
     expect(res.json<{ error: string }>().error).toBe('invalid_client');
+  });
+});
+
+// RFC 6749 §2.3.1: credentials carried as request parameters go in the body
+// and "MUST NOT be included in the request URI". The client half of that is
+// unenforceable on its own — what makes it hold is a token endpoint that
+// reads no credential from the query string, so a client that puts one
+// there gets no authentication out of it, only a secret in the access log.
+describe('[RFC6749-2.3.1-02] client credentials in the request URI authenticate nobody', () => {
+  const grant: [string, string][] = [
+    ['grant_type', 'client_credentials'],
+    ['scope', 'reports:read'],
+  ];
+
+  async function postWithQuery(
+    query: Record<string, string>,
+    headers: Record<string, string> = {},
+  ): Promise<LightMyRequestResponse> {
+    const body = grant
+      .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
+      .join('&');
+    return http.inject({
+      method: 'POST',
+      url: `/realms/${REALM}/protocol/openid-connect/token?${new URLSearchParams(query).toString()}`,
+      payload: body,
+      headers: { 'content-type': 'application/x-www-form-urlencoded', ...headers },
+    });
+  }
+
+  // posting-job is registered for client_secret_post: these exact two
+  // parameters, sent in the body, authenticate it. Sent in the query string
+  // instead they authenticate nobody, so the refusal is attributable to
+  // where they were and to nothing else.
+  it('refuses a client_secret_post credential that arrives in the query string', async () => {
+    const res = await postWithQuery({ client_id: 'posting-job', client_secret: 'p0stsecret' });
+    expect(res.statusCode).toBe(401);
+    expect(res.json<{ error: string }>().error).toBe('invalid_client');
+
+    const inTheBody = await postToken([
+      ...grant,
+      ['client_id', 'posting-job'],
+      ['client_secret', 'p0stsecret'],
+    ]);
+    expect(inTheBody.statusCode).toBe(200);
+  });
+
+  // A query component is otherwise no obstacle: the same URL, with the
+  // credential presented the way its client registered to present it, is
+  // answered. A server that read the query string would see two
+  // authentication methods here and refuse under §2.3.1.
+  it('issues a token for the identical URL once the credential moves to the header', async () => {
+    const res = await postWithQuery(
+      { client_id: 'batch-job', client_secret: 's3cret' },
+      basicHeader('batch-job', 's3cret'),
+    );
+    expect(res.statusCode).toBe(200);
   });
 });

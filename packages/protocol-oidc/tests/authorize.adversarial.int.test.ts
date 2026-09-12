@@ -305,7 +305,7 @@ describe('[RFC9207-2-02] an error authorization response carries iss too', () =>
   });
 });
 
-describe('a repeated client_id or redirect_uri renders — no location header at all', () => {
+describe('[RFC6749-3.1-04] a repeated client_id or redirect_uri renders — no location header at all', () => {
   it.each([
     ['client_id', [CLIENT_ID, 'someone-else'] satisfies [string, string]],
     ['redirect_uri', [REDIRECT_URI, 'https://evil.example/cb'] satisfies [string, string]],
@@ -316,7 +316,7 @@ describe('a repeated client_id or redirect_uri renders — no location header at
   });
 });
 
-describe('a repeated state or scope redirects with invalid_request', () => {
+describe('[RFC6749-3.1-04] a repeated state or scope redirects with invalid_request', () => {
   it.each([
     ['state', ['first', 'second'] satisfies [string, string]],
     ['scope', ['openid', 'openid'] satisfies [string, string]],
@@ -1062,6 +1062,47 @@ describe('[OIDC-CORE-3.1.2.6-06] error parameters arrive in the query component'
   );
 });
 
+// RFC 6749 §4.1.2.1 fixes the syntax of all three error-response members:
+// `error` and `error_description` are NQSCHAR (printable ASCII less the
+// double quote and the backslash), `error_uri` is NQCHAR — the same set
+// without the space — and a URI-reference besides. `error` additionally
+// comes from the registry: §4.1.2.1's seven codes, plus the extension
+// codes §8.5 admits, which is what OIDC Core §3.1.2.6 registered.
+describe('[RFC6749-4.1.2.1-05] the members of an authorization error response', () => {
+  const NQSCHAR = /^[\x20\x21\x23-\x5B\x5D-\x7E]*$/u;
+  const NQCHAR = /^[\x21\x23-\x5B\x5D-\x7E]*$/u;
+
+  it.each(REDIRECTED_ERROR_CASES)('names a registered error code for $name', async ({ url }) => {
+    const answer = await answerTo(await url());
+    if (answer.kind !== 'redirect') throw new Error('expected a redirect');
+    const error = answer.target.searchParams.get('error');
+    if (error === null) throw new Error('expected an error parameter');
+    expect(AUTHORIZATION_ERROR_CODES.has(error)).toBe(true);
+    expect(error).toMatch(NQSCHAR);
+  });
+
+  // The two optional members are never emitted, so their character-set
+  // rules hold vacuously — and this is what says so out loud, rather than
+  // leaving "conforms" resting on an emptiness nobody checks. Should either
+  // ever start being populated, the rules are applied to it here.
+  it.each(REDIRECTED_ERROR_CASES)(
+    'keeps error_description and error_uri inside their character sets for $name',
+    async ({ url }) => {
+      const answer = await answerTo(await url());
+      if (answer.kind !== 'redirect') throw new Error('expected a redirect');
+
+      const description = answer.target.searchParams.get('error_description');
+      if (description !== null) expect(description).toMatch(NQSCHAR);
+
+      const uri = answer.target.searchParams.get('error_uri');
+      if (uri !== null) {
+        expect(uri).toMatch(NQCHAR);
+        expect(URL.canParse(uri, 'https://client.invalid/')).toBe(true);
+      }
+    },
+  );
+});
+
 // OIDC Core §16.22: a 307 obliges the user agent to repeat the method and
 // body of the request it is answering, which for a POSTed authorization
 // request would forward the request body to the client's redirection URI.
@@ -1166,7 +1207,7 @@ describe('[OIDC-CORE-3.1.2.2-06] unrecognized request parameters change nothing'
 // than once. The request half is answered above (a repeated client_id or
 // redirect_uri renders, anything else redirects with invalid_request); this
 // is the response half, which the server owns outright.
-describe('no response parameter is ever sent more than once', () => {
+describe('[RFC6749-3.1-04] no response parameter is ever sent more than once', () => {
   it.each(REDIRECTED_ERROR_CASES)(
     'sends one of each parameter on the error for $name',
     async ({ url }) => {
@@ -1189,7 +1230,7 @@ describe('no response parameter is ever sent more than once', () => {
 // is `code`, and a missing or unrecognized one takes the §4.1.2.1 error
 // path — a redirect carrying `unsupported_response_type`, not a rendered
 // page and not a grant.
-describe('response_type is code, and nothing else is answered as if it were', () => {
+describe('[RFC6749-3.1.1-01] response_type is code, and nothing else is answered as if it were', () => {
   it('admits response_type=code', async () => {
     expect((await answerTo(authorizeUrl())).kind).toBe('form');
   });
@@ -1220,7 +1261,7 @@ describe('response_type is code, and nothing else is answered as if it were', ()
 // RFC 6749 §4.1.1: `client_id` is REQUIRED. With no client there is no
 // registration to match a redirect_uri against, so §4.1.2.1 forbids
 // redirecting and the answer is rendered.
-describe('client_id is required, and a request without one is never redirected', () => {
+describe('[RFC6749-4.1.1-01] client_id is required, and a request without one is never redirected', () => {
   it('renders rather than redirecting when client_id is absent', async () => {
     const res = await http.inject({ url: authorizeUrl({ client_id: undefined }) });
     expect(res.statusCode).toBe(400);
@@ -1243,7 +1284,7 @@ describe('client_id is required, and a request without one is never redirected',
 // RFC 6749 §4.1.1: the required parameters are validated before the server
 // proceeds — before, in particular, anything is created. A rejected request
 // leaves no authentication session parked behind it for anyone to complete.
-describe('an invalid authorization request creates nothing', () => {
+describe('[RFC6749-4.1.1-02] an invalid authorization request creates nothing', () => {
   it.each(ALL_ERROR_CASES)('parks no authentication session for $name', async ({ url }) => {
     const before = await countAuthenticationSessions();
     await http.inject({ url: await url() });
@@ -1261,7 +1302,7 @@ describe('an invalid authorization request creates nothing', () => {
 // RFC 6749 §3.1.2.3 and OAuth 2.1: the redirection endpoint is selected by
 // exact string comparison. Every near miss below is a URI an attacker would
 // like a normalizing comparison to accept.
-describe('redirect_uri is matched by exact string comparison, with no wildcards', () => {
+describe('[RFC6749-3.1.2.3-01] redirect_uri is matched by exact string comparison, with no wildcards', () => {
   it.each([
     'https://app.example/callback/',
     'https://app.example/Callback',
@@ -1290,7 +1331,7 @@ describe('redirect_uri is matched by exact string comparison, with no wildcards'
 // RFC 6749 §10.14: received values are sanitized before they are echoed.
 // `state` is the one request parameter this server hands back verbatim, so
 // it is the one that has to survive the trip without becoming markup.
-describe('a hostile state is returned encoded, never as markup', () => {
+describe('[RFC6749-10.14-01] a hostile state is returned encoded, never as markup', () => {
   const HOSTILE = '"><script>alert(1)</script>';
 
   it('percent-encodes the state in the Location header', async () => {
