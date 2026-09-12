@@ -28,11 +28,19 @@ export type QueryNormalization =
 // request that also asked for `fragment`, which is precisely what OIDC Core
 // §3.1.2.6 requires a bare HTTP 400 for.
 //
+// response_type is here for the same reason: it selects the Response Mode
+// a request that names none gets (OAuth 2.0 Multiple Response Type Encoding
+// Practices §2.1), so two response types are two delivery modes stated
+// indirectly. RFC 6749 §4.1.2.1 does prescribe a redirect for
+// `unsupported_response_type`, but that is an answer to a request whose
+// response type could be read and was not supported; a repeat leaves no
+// response type to read and no mode to answer in.
+//
 // Any other repeated parameter (state, scope, ...) does not affect what can
 // be trusted or how a response can be delivered, so it is left for
 // validateAuthorizationRequest to reject below the boundary, once a
 // redirect_uri exists to send the error to.
-const RENDER_ON_REPEAT = new Set(['client_id', 'redirect_uri', 'response_mode']);
+const RENDER_ON_REPEAT = new Set(['client_id', 'redirect_uri', 'response_mode', 'response_type']);
 
 // What a key resolves to. `ambiguous` is deliberately not "more than one
 // string survived": a value this code cannot read — a number, an object,

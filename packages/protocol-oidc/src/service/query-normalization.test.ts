@@ -216,3 +216,21 @@ describe('a repeated response_mode renders rather than redirecting', () => {
     });
   });
 });
+
+// A response type names the default Response Mode, so two of them name two
+// ways of delivering one response — the same problem as two response modes.
+describe('a repeated response_type renders rather than redirecting', () => {
+  it('renders when the two response types imply two response modes', () => {
+    expect(normalizeAuthorizeQuery({ response_type: ['code', 'token'] })).toMatchObject({
+      kind: 'render',
+      error: 'invalid_request',
+    });
+  });
+
+  it('renders even when both values are the response type this server answers', () => {
+    expect(normalizeAuthorizeQuery({ response_type: ['code', 'code'] })).toMatchObject({
+      kind: 'render',
+      error: 'invalid_request',
+    });
+  });
+});
