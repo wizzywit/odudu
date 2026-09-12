@@ -80,7 +80,7 @@ afterAll(async () => {
   await containerHandle?.stop();
 });
 
-describe('[OIDC-DISCOVERY-3-02] unknown and disabled realms are indistinguishable', () => {
+describe('[ODUDU-DISCOVERY-REALM-404-01] unknown and disabled realms are indistinguishable', () => {
   it.each(['no-such-realm', 'disabled-realm'])('returns 404 for %s', async (realm) => {
     const res = await http.inject({ url: `/realms/${realm}/.well-known/openid-configuration` });
     expect(res.statusCode).toBe(404);

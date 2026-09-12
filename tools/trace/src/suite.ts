@@ -8,6 +8,17 @@ export interface TestResult {
 
 const ID_IN_TITLE = /\[([A-Z0-9]+(?:-[A-Za-z0-9.]+)+)\]/gu;
 
+// A test id names either a specification clause (traceable to a
+// docs/protocols row: `RFC6749-...`, `OIDC-CORE-...`, `JOSE-...`, ...) or an
+// Odudu-only property that no specification imposes. The `ODUDU-` prefix is
+// the entire boundary: anything else is treated as a specification id and
+// must resolve to a row, on pain of failing the build.
+const PROJECT_ID_PREFIX = 'ODUDU-';
+
+export function isSpecificationId(id: string): boolean {
+  return !id.startsWith(PROJECT_ID_PREFIX);
+}
+
 // `fullName` concatenates every ancestor describe title with the test's own
 // title, outermost first. A describe nested inside one that already carries
 // an id therefore carries two bracketed ids in the same string — and the

@@ -180,6 +180,11 @@ describe('clientRepository', () => {
         await insertClient(tx, realmId, { clientId });
         return clientId;
       },
+      verifySeeded: async (tx, clientId) => {
+        const found = await clientRepository(tx).byClientId(clientId);
+        expect(found).not.toBeNull();
+        expect(found?.clientId).toBe(clientId);
+      },
       attempt: async (tx, clientId) => clientRepository(tx).byClientId(clientId),
       expectBlocked: (result) => {
         expect(result).toBeNull();

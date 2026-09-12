@@ -222,6 +222,10 @@ describe('clientOidcConfigRepository', () => {
         });
         return clientId;
       },
+      verifySeeded: async (tx, clientId) => {
+        const found = await clientOidcConfigRepository(tx).byClientId(clientId);
+        expect(found).not.toBeNull();
+      },
       attempt: async (tx, clientId) => clientOidcConfigRepository(tx).byClientId(clientId),
       expectBlocked: (result) => {
         expect(result).toBeNull();

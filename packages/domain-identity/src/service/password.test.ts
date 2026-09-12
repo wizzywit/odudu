@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { hashPassword, verifyPassword } from '#/service/password';
 
-describe('[OIDC-CORE-3.1.2.2-01] password verification', () => {
+describe('[ODUDU-PASSWORD-HASHING-01] password verification', () => {
   it('round-trips a password', async () => {
     const hash = await hashPassword('correct-horse-battery-staple');
     expect(await verifyPassword(hash, 'correct-horse-battery-staple')).toBe(true);

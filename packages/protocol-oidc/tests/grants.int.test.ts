@@ -103,6 +103,10 @@ describe('tokenGrantRepository', () => {
   it('cannot find a grant by id under a different realm context', async () => {
     await expectCrossRealmMethodProbe(app.db, {
       seed: async (tx, realmId) => createGrant(tx, realmId),
+      verifySeeded: async (tx, grant) => {
+        const found = await tokenGrantRepository(tx).byId(grant.id);
+        expect(found).not.toBeNull();
+      },
       attempt: async (tx, grant) => tokenGrantRepository(tx).byId(grant.id),
       expectBlocked: (result) => {
         expect(result).toBeNull();
@@ -113,6 +117,10 @@ describe('tokenGrantRepository', () => {
   it('leaves a grant unrevoked when revoke is called under a different realm context', async () => {
     await expectCrossRealmMethodProbe(app.db, {
       seed: async (tx, realmId) => createGrant(tx, realmId),
+      verifySeeded: async (tx, grant) => {
+        const found = await tokenGrantRepository(tx).byId(grant.id);
+        expect(found?.revokedAt).toBeNull();
+      },
       attempt: async (tx, grant) => tokenGrantRepository(tx).revoke(grant.id, new Date()),
       expectBlocked: (result) => {
         expect(result).toBeUndefined();

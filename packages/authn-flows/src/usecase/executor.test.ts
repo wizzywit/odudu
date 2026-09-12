@@ -75,7 +75,7 @@ async function seedRealmAndUser(
   return subject.id;
 }
 
-describe('[OIDC-CORE-3.1.2.1-02] the request is parked server-side, not carried by the browser', () => {
+describe('[ODUDU-AUTHN-REQUEST-PARKING-01] the request is parked server-side, not carried by the browser', () => {
   it('returns an opaque id that does not contain the request', async () => {
     const realmId = newId();
     const { authSessionId } = await withRealm(app.db, realmId, async (tx) => {
@@ -118,7 +118,7 @@ describe('[OIDC-CORE-3.1.2.1-02] the request is parked server-side, not carried 
   });
 });
 
-describe('[OIDC-CORE-3.1.2.1-03] session fixation', () => {
+describe('[ODUDU-AUTHN-SESSION-FIXATION-01] session fixation', () => {
   it('issues a session id that differs from the pre-authentication one', async () => {
     const realmId = newId();
 
@@ -156,7 +156,7 @@ describe('[OIDC-CORE-3.1.2.1-03] session fixation', () => {
   });
 });
 
-describe('[OIDC-CORE-3.1.2.1-04] the password step does not enumerate users', () => {
+describe('[ODUDU-AUTHN-NO-USER-ENUMERATION-01] the password step does not enumerate users', () => {
   it('fails identically for an unknown user and a wrong password', async () => {
     const realmId = newId();
 

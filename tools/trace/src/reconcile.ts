@@ -1,9 +1,9 @@
 import { type Row } from '#/parse';
-import { type TestResult } from '#/suite';
+import { isSpecificationId, type TestResult } from '#/suite';
 
 export interface Finding {
   severity: 'error' | 'warn';
-  row: Row;
+  row?: Row;
   message: string;
 }
 
@@ -14,6 +14,7 @@ export function reconcile(
 ): Finding[] {
   const byId = new Map(results.map((r) => [r.id, r]));
   const findings: Finding[] = [];
+  const rowIds = new Set(rows.map((r) => r.testId).filter((id): id is string => id !== null));
 
   for (const row of rows) {
     const where = `${row.file} §${row.clause}`;
@@ -43,6 +44,15 @@ export function reconcile(
     if (!result.passed) {
       findings.push({ severity: 'error', row, message: `${where}: ${row.testId ?? '?'} failed` });
     }
+  }
+
+  for (const result of results) {
+    if (!isSpecificationId(result.id)) continue;
+    if (rowIds.has(result.id)) continue;
+    findings.push({
+      severity: 'error',
+      message: `${result.id}: test title carries a specification-style id but no docs/protocols row references it (${result.title})`,
+    });
   }
 
   return findings;

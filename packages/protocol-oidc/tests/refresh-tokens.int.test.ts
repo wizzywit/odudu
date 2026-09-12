@@ -77,6 +77,10 @@ describe('refreshTokenRepository', () => {
   it('cannot find a refresh token by hash under a different realm context', async () => {
     await expectCrossRealmMethodProbe(app.db, {
       seed: async (tx, realmId) => issueRefreshToken(tx, realmId),
+      verifySeeded: async (tx, tokenHash) => {
+        const found = await refreshTokenRepository(tx).byHash(tokenHash);
+        expect(found).not.toBeNull();
+      },
       attempt: async (tx, tokenHash) => refreshTokenRepository(tx).byHash(tokenHash),
       expectBlocked: (result) => {
         expect(result).toBeNull();
@@ -87,6 +91,10 @@ describe('refreshTokenRepository', () => {
   it('cannot consume a refresh token under a different realm context, and leaves it unused', async () => {
     await expectCrossRealmMethodProbe(app.db, {
       seed: async (tx, realmId) => issueRefreshToken(tx, realmId),
+      verifySeeded: async (tx, tokenHash) => {
+        const found = await refreshTokenRepository(tx).byHash(tokenHash);
+        expect(found?.usedAt).toBeNull();
+      },
       attempt: async (tx, tokenHash) => refreshTokenRepository(tx).consume(tokenHash),
       expectBlocked: (result) => {
         expect(result).toBeNull();
@@ -101,6 +109,10 @@ describe('refreshTokenRepository', () => {
   it('does not attach a replacement to a refresh token under a different realm context', async () => {
     await expectCrossRealmMethodProbe(app.db, {
       seed: async (tx, realmId) => issueRefreshToken(tx, realmId),
+      verifySeeded: async (tx, tokenHash) => {
+        const found = await refreshTokenRepository(tx).byHash(tokenHash);
+        expect(found?.replacedBy).toBeNull();
+      },
       attempt: async (tx, tokenHash) =>
         refreshTokenRepository(tx).attachReplacement(tokenHash, newId()),
       expectBlocked: (result) => {

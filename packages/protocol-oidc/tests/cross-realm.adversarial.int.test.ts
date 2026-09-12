@@ -327,7 +327,7 @@ describe('audience confusion between clients', () => {
   });
 });
 
-describe('[OIDC-CORE-16.1-01] cross-realm leakage', () => {
+describe('[ODUDU-CROSS-REALM-LEAKAGE-01] cross-realm leakage', () => {
   it('cannot redeem realm A code at realm B token endpoint', async () => {
     const code = generateAuthorizationCode();
     const codeHash = hashAuthorizationCode(code);
@@ -357,9 +357,11 @@ describe('[OIDC-CORE-16.1-01] cross-realm leakage', () => {
 
   it('cannot use a realm A session to authorize in realm B', async () => {
     // /authorize always renders a fresh challenge regardless of any cookie
-    // presented — there is no single-sign-on path yet that could read a
-    // session cookie across realms, so this also stands as a regression
-    // guard for whenever that path is added.
+    // presented, but that is true today only because no code path reads a
+    // session cookie at all — there is no single-sign-on flow yet. Unlike
+    // its siblings above, this assertion does not prove cross-realm
+    // isolation of anything; it is a regression guard that will start
+    // meaning something once a cookie-read path exists at /authorize.
     const res = await http.inject({
       url: authorizeUrl(realmB.realmName, sharedApp.b),
       cookies: { [`${realmA.realmName}-session`]: newId() },

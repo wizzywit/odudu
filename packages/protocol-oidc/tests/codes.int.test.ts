@@ -87,6 +87,10 @@ describe('authorizationCodeRepository', () => {
   it('cannot find a code by hash under a different realm context', async () => {
     await expectCrossRealmMethodProbe(app.db, {
       seed: async (tx, realmId) => issueCode(tx, realmId),
+      verifySeeded: async (tx, codeHash) => {
+        const found = await authorizationCodeRepository(tx).byHash(codeHash);
+        expect(found).not.toBeNull();
+      },
       attempt: async (tx, codeHash) => authorizationCodeRepository(tx).byHash(codeHash),
       expectBlocked: (result) => {
         expect(result).toBeNull();
@@ -97,6 +101,10 @@ describe('authorizationCodeRepository', () => {
   it('cannot consume a code under a different realm context, and leaves it unconsumed', async () => {
     await expectCrossRealmMethodProbe(app.db, {
       seed: async (tx, realmId) => issueCode(tx, realmId),
+      verifySeeded: async (tx, codeHash) => {
+        const found = await authorizationCodeRepository(tx).byHash(codeHash);
+        expect(found?.consumedAt).toBeNull();
+      },
       attempt: async (tx, codeHash) => authorizationCodeRepository(tx).consume(codeHash),
       expectBlocked: (result) => {
         expect(result).toBeNull();
@@ -111,6 +119,10 @@ describe('authorizationCodeRepository', () => {
   it('does not attach a grant to a code under a different realm context', async () => {
     await expectCrossRealmMethodProbe(app.db, {
       seed: async (tx, realmId) => issueCode(tx, realmId),
+      verifySeeded: async (tx, codeHash) => {
+        const found = await authorizationCodeRepository(tx).byHash(codeHash);
+        expect(found?.grantId).toBeNull();
+      },
       attempt: async (tx, codeHash) =>
         authorizationCodeRepository(tx).attachGrant(codeHash, newId()),
       expectBlocked: (result) => {

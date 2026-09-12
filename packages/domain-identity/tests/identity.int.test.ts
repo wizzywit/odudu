@@ -98,6 +98,10 @@ describe('subjectRepository', () => {
         await seedRealm(tx, realmId);
         return subjectRepository(tx).create({ realmId, type: 'user' });
       },
+      verifySeeded: async (tx, subject) => {
+        const found = await subjectRepository(tx).byId(subject.id);
+        expect(found?.id).toBe(subject.id);
+      },
       attempt: async (tx, subject) => subjectRepository(tx).byId(subject.id),
       expectBlocked: (result) => {
         expect(result).toBeNull();
@@ -312,6 +316,10 @@ describe('credentialRepository', () => {
           secretData: '$argon2id$fake-hash',
         });
         return subject.id;
+      },
+      verifySeeded: async (tx, subjectId) => {
+        const found = await credentialRepository(tx).passwordFor(subjectId);
+        expect(found).not.toBeNull();
       },
       attempt: async (tx, subjectId) => credentialRepository(tx).passwordFor(subjectId),
       expectBlocked: (result) => {

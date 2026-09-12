@@ -71,6 +71,10 @@ describe('sessionRepository', () => {
         });
         return id;
       },
+      verifySeeded: async (tx, id) => {
+        const found = await sessionRepository(tx).byId(id);
+        expect(found).not.toBeNull();
+      },
       attempt: async (tx, id) => sessionRepository(tx).byId(id),
       expectBlocked: (result) => {
         expect(result).toBeNull();
@@ -92,6 +96,10 @@ describe('authenticationSessionRepository', () => {
           expiresAt: new Date(Date.now() + 600_000),
         });
         return id;
+      },
+      verifySeeded: async (tx, id) => {
+        const found = await authenticationSessionRepository(tx).byId(id);
+        expect(found?.consumedAt).toBeNull();
       },
       attempt: async (tx, id) => authenticationSessionRepository(tx).consume(id, new Date()),
       expectBlocked: (result) => {

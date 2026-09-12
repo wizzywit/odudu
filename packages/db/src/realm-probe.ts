@@ -47,6 +47,14 @@ function firstRow<T>(rows: readonly T[]): T {
  */
 export interface CrossRealmMethodProbe<Seeded> {
   seed: (tx: RealmScopedDatabase, realmId: string) => Promise<Seeded>;
+  /**
+   * Confirms, under realm A's own context, that `seed` actually produced a
+   * row in the state the test expects before the cross-realm attempt runs
+   * at all. Without this, a `seed` that silently no-ops (a bad fixture, a
+   * schema drift) leaves nothing in realm B to find either — the probe
+   * would still pass, on no evidence.
+   */
+  verifySeeded: (tx: RealmScopedDatabase, seeded: Seeded) => Promise<void>;
   attempt: (tx: RealmScopedDatabase, seeded: Seeded) => Promise<unknown>;
   expectBlocked: (result: unknown) => void;
   verifyRealmAUnaffected?: (tx: RealmScopedDatabase, seeded: Seeded) => Promise<void>;
@@ -60,6 +68,7 @@ export async function expectCrossRealmMethodProbe<Seeded>(
   const realmB = crypto.randomUUID();
 
   const seeded = await withRealm(db, realmA, async (tx) => probe.seed(tx, realmA));
+  await withRealm(db, realmA, async (tx) => probe.verifySeeded(tx, seeded));
 
   const result = await withRealm(db, realmB, async (tx) => probe.attempt(tx, seeded));
   probe.expectBlocked(result);

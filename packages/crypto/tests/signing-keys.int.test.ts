@@ -161,6 +161,10 @@ describe('signingKeyRepository', () => {
         await seedRealm(tx, realmId);
         await insertKey(tx, realmId);
       },
+      verifySeeded: async (tx) => {
+        const found = await signingKeyRepository(tx).listPublishable();
+        expect(found.length).toBeGreaterThan(0);
+      },
       attempt: async (tx) => signingKeyRepository(tx).listPublishable(),
       expectBlocked: (result) => {
         expect(result).toEqual([]);
@@ -173,6 +177,10 @@ describe('signingKeyRepository', () => {
       seed: async (tx, realmId) => {
         await seedRealm(tx, realmId);
         await insertKey(tx, realmId, { status: 'active' });
+      },
+      verifySeeded: async (tx) => {
+        const found = await signingKeyRepository(tx).active();
+        expect(found.status).toBe('active');
       },
       attempt: async (tx) => {
         try {

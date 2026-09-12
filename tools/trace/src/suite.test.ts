@@ -2,7 +2,7 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { readSuite } from '#/suite';
+import { isSpecificationId, readSuite } from '#/suite';
 
 function report(assertionResults: { fullName: string; status: string }[]): unknown {
   return { testResults: [{ assertionResults }] };
@@ -76,5 +76,19 @@ describe('readSuite — id extraction', () => {
         passed: false,
       },
     ]);
+  });
+});
+
+describe('isSpecificationId', () => {
+  it('treats an RFC-style id as a specification id', () => {
+    expect(isSpecificationId('RFC7636-4.1-01')).toBe(true);
+  });
+
+  it('treats an OIDC-style id as a specification id', () => {
+    expect(isSpecificationId('OIDC-CORE-3.1.2.1-02')).toBe(true);
+  });
+
+  it('treats an ODUDU-prefixed id as a project id, not a specification id', () => {
+    expect(isSpecificationId('ODUDU-CROSS-REALM-LEAKAGE-01')).toBe(false);
   });
 });

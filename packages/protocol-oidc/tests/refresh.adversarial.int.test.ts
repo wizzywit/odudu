@@ -296,7 +296,7 @@ describe('[RFC6749-10.4-01] refresh token rotation and reuse detection', () => {
     expect(res.json<{ error: string }>().error).toBe('invalid_scope');
   });
 
-  it('[RFC6749-6-02] permits narrowing scope on refresh', async () => {
+  it('[ODUDU-REFRESH-SCOPE-NARROW-01] permits narrowing scope on refresh', async () => {
     const { refreshToken: rt1 } = await issueInitialRefreshToken();
     const res = await refresh(rt1, { scope: 'openid' });
     expect(res.json<{ scope: string }>().scope).toBe('openid');

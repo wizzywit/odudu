@@ -55,6 +55,42 @@ describe('reconcile', () => {
     expect(findings[0]).toMatchObject({ severity: 'error' });
   });
 
+  it('errors when a test title carries a specification-style id that matches no row', () => {
+    const findings = reconcile(
+      [row({})],
+      [
+        { id: 'RFC7636-4.1-01', title: '[RFC7636-4.1-01] verifier length', passed: true },
+        { id: 'RFC9999-1-01', title: '[RFC9999-1-01] an orphan clause id', passed: true },
+      ],
+    );
+    expect(findings).toHaveLength(1);
+    expect(findings[0]).toMatchObject({ severity: 'error' });
+    expect(nth(findings, 0).message).toMatch(/RFC9999-1-01/);
+  });
+
+  it('ignores an orphan test id in the project namespace', () => {
+    const findings = reconcile(
+      [row({})],
+      [
+        { id: 'RFC7636-4.1-01', title: '[RFC7636-4.1-01] verifier length', passed: true },
+        {
+          id: 'ODUDU-SOME-PROPERTY-01',
+          title: '[ODUDU-SOME-PROPERTY-01] a project id',
+          passed: true,
+        },
+      ],
+    );
+    expect(findings).toEqual([]);
+  });
+
+  it('is silent when a specification-style test id matches a row', () => {
+    const findings = reconcile(
+      [row({})],
+      [{ id: 'RFC7636-4.1-01', title: '[RFC7636-4.1-01] verifier length', passed: true }],
+    );
+    expect(findings).toEqual([]);
+  });
+
   it('ignores deferred and n/a rows entirely', () => {
     const findings = reconcile(
       [
