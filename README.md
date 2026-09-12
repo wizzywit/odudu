@@ -35,9 +35,17 @@ security, and a container proven to boot by CI on every push.
 There is still no consent screen, no admin API, no second factor, and no
 token exchange — P2 onwards.
 
-- **[Request paths](docs/request-paths.md)** — every endpoint, every branch,
-  and what to do next from each one, with the real transcript of a full
-  sign-in, a refresh rotation and a replay. Start here to run it.
+> ### → [docs/request-paths.md](docs/request-paths.md)
+>
+> **Every request this server answers, and every branch each one can take,
+> as commands you can paste.** Discovery, `/authorize`, the login form,
+> `/token` for all three grants, `/userinfo` — each with the real response,
+> each refusal with the reason it is that refusal and not another, and what
+> a client does next from wherever it has landed. Every command in it was
+> run against the stack these instructions build.
+>
+> Read it once [Running it](#running-it) below has handed you a token.
+
 - [Design specification](docs/superpowers/specs/2026-09-10-odudu-design.md) —
   what this is, and the twelve phases with their exit criteria
 - [Architecture decision records](docs/adr/) — the decisions, several with
@@ -72,6 +80,16 @@ node -e "console.log('ODUDU_KEK=' + require('node:crypto').randomBytes(32).toStr
 
 Changing this value later makes every private signing key already wrapped
 with the old one unreadable.
+
+That has a consequence worth knowing before you hit it. The two files hold
+**different** keys — the compose stack's throwaway one, and the one you just
+generated — and both point at the same database. Seed a realm under one and
+serve it under the other, and discovery and `/authorize` keep working, while
+`/token` returns a 500 reading `Unsupported state or unable to authenticate
+data`: that is the private key failing to unwrap, and it says nothing about
+why. If you intend to move between the two ways of running, copy the
+`ODUDU_KEK` line from `infra/docker/.env` into the root `.env` so both
+processes hold the same key.
 
 **Everything in Docker** — server and Postgres, closest to how it deploys:
 
@@ -130,15 +148,92 @@ client, user and signing key come from the seed command in the server image:
 
 ```bash
 cd infra/docker && docker compose up -d --build
+until curl -fsS http://localhost:3000/health/ready; do sleep 2; done
+```
+
+Wait for that, rather than seeding straight after `up -d`. The container is
+started before it has finished applying migrations, and a seed run in the
+gap fails with `relation "realms" does not exist`.
+
+```bash
 docker compose exec -T odudu node dist/main.js seed \
   --realm demo --client demo-spa \
   --redirect-uri http://localhost:8080/callback \
   --user ada --password correct-horse-battery --email ada@example.com
-curl http://localhost:3000/realms/demo/.well-known/openid-configuration
 ```
 
-[docs/request-paths.md](docs/request-paths.md) takes it from there, hop by
-hop, with every response it actually returns.
+```json
+{ "created": true, "realm": "demo", "realmId": "01a096f4-…", "clientId": "demo-spa" }
+```
+
+That realm now serves the protocol. The discovery document is the one
+request every client makes first, and every URL below comes out of it:
+
+```bash
+curl -sS http://localhost:3000/realms/demo/.well-known/openid-configuration
+```
+
+```json
+{
+  "issuer": "http://localhost:3000/realms/demo",
+  "authorization_endpoint": "http://localhost:3000/realms/demo/protocol/openid-connect/auth",
+  "token_endpoint": "http://localhost:3000/realms/demo/protocol/openid-connect/token",
+  "userinfo_endpoint": "http://localhost:3000/realms/demo/protocol/openid-connect/userinfo",
+  "jwks_uri": "http://localhost:3000/realms/demo/protocol/openid-connect/certs"
+}
+```
+
+(Five of the fifteen members it returns; the other ten, and what a client
+does with each, are in the guide.)
+
+And this signs ada in and comes back with tokens — the whole
+authorization-code-with-PKCE flow, with `curl` standing in for the browser,
+whose only job in it is to follow a redirect and submit a form:
+
+```bash
+BASE=http://localhost:3000/realms/demo/protocol/openid-connect
+VERIFIER=$(openssl rand -hex 32)
+CHALLENGE=$(printf '%s' "$VERIFIER" | openssl dgst -binary -sha256 \
+  | openssl base64 | tr '+/' '-_' | tr -d '=')
+
+AUTH_SESSION_ID=$(curl -sS --get \
+  --data-urlencode 'response_type=code' --data-urlencode 'client_id=demo-spa' \
+  --data-urlencode 'redirect_uri=http://localhost:8080/callback' \
+  --data-urlencode 'scope=openid profile email' --data-urlencode 'state=xyz-123' \
+  --data-urlencode "code_challenge=$CHALLENGE" \
+  --data-urlencode 'code_challenge_method=S256' \
+  "$BASE/auth" | sed -n 's/.*name="auth_session_id" value="\([^"]*\)".*/\1/p')
+
+CODE=$(curl -sS -D - -o /dev/null \
+  --data-urlencode "auth_session_id=$AUTH_SESSION_ID" \
+  --data-urlencode 'username=ada' --data-urlencode 'password=correct-horse-battery' \
+  http://localhost:3000/realms/demo/login-actions/authenticate \
+  | sed -n 's/.*[?&]code=\([^&[:space:]]*\).*/\1/p' | tr -d '\r')
+
+curl -sS --data-urlencode 'grant_type=authorization_code' \
+  --data-urlencode "code=$CODE" \
+  --data-urlencode 'redirect_uri=http://localhost:8080/callback' \
+  --data-urlencode 'client_id=demo-spa' --data-urlencode "code_verifier=$VERIFIER" \
+  "$BASE/token"
+```
+
+```json
+{
+  "access_token": "eyJhbGciOiJSUzI1NiIs…",
+  "id_token": "eyJhbGciOiJSUzI1NiIs…",
+  "refresh_token": "oXh8ADRkl4m7eVdblQ3r…",
+  "token_type": "Bearer",
+  "expires_in": 300,
+  "scope": "openid profile email"
+}
+```
+
+(Token values truncated; they differ every run.)
+
+**[docs/request-paths.md](docs/request-paths.md) takes it from there** — what
+each of those tokens is for, what `/userinfo` does with them, how a refresh
+rotates, and every way each request above can be refused, with the response
+each refusal actually returns.
 
 Enable the repo's git hooks once per clone — they reject commit messages
 carrying tool-attribution trailers, which CI also enforces:
