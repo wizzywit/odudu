@@ -1,4 +1,4 @@
-import { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
+import { type FastifyInstance, type FastifyReply } from 'fastify';
 import {
   handleAuthorizationRequest,
   type AuthorizeUsecaseDeps,
@@ -12,23 +12,14 @@ const PATH = '/realms/:realm/protocol/openid-connect/auth';
 // (OIDC Core §3.1.2 requires the Authorization Endpoint to support both) —
 // but everything past "where do the parameters come from" is one shared
 // path, so the two methods cannot drift out of agreement with each other,
-// down to a POST with no body answering exactly as a GET with no query
-// parameters does.
+// down to a POST naming no representation at all answering exactly as a
+// GET with no query parameters does.
 const FORM_MEDIA_TYPE = 'application/x-www-form-urlencoded';
 
 function isFormEncoded(contentType: string | undefined): boolean {
   if (contentType === undefined) return false;
   const [mediaType] = contentType.split(';');
   return mediaType?.trim().toLowerCase() === FORM_MEDIA_TYPE;
-}
-
-// A POST with no body is a request carrying no parameters, which is a
-// perfectly ordinary (invalid) authorization request and must answer like
-// one; only a body that is actually there has a representation to reject.
-function carriesBody(request: FastifyRequest): boolean {
-  const length = request.headers['content-length'];
-  if (request.headers['transfer-encoding'] !== undefined) return true;
-  return length !== undefined && length !== '0';
 }
 
 // Parameters reach the handler as `unknown` because that is the truth: they
@@ -76,16 +67,24 @@ export function registerAuthorizeRoute(app: FastifyInstance, deps: AuthorizeUsec
   );
 
   // OIDC Core §3.1.2.1 fixes the POST representation: the parameters are
-  // form serialized. A body in any other media type is an unsupported
-  // representation rather than a malformed authorization request, so it is
-  // refused with 415 (RFC 9110 §15.5.16) before any parser runs — the
-  // request is never parsed, so no redirect_uri has been established to
-  // trust, and there is nowhere to redirect an error to either.
+  // form serialized. Any other media type is an unsupported representation
+  // rather than a malformed authorization request, so it is refused with
+  // 415 (RFC 9110 §15.5.16) before any parser runs — the request is never
+  // parsed, so no redirect_uri has been established to trust, and there is
+  // nowhere to redirect an error to either.
+  //
+  // The test is the media type, not whether a body arrived: an empty JSON
+  // request names the same unsupported representation a full one does, and
+  // keying on the body instead handed it to Fastify's JSON parser, which
+  // answered a different status in a different media type for what is the
+  // same refusal. A request naming no content type at all carries no
+  // representation to refuse and is simply a request with no parameters.
   app.post<{ Params: { realm: string } }>(
     PATH,
     {
       onRequest: async (request, reply) => {
-        if (carriesBody(request) && !isFormEncoded(request.headers['content-type'])) {
+        const contentType = request.headers['content-type'];
+        if (contentType !== undefined && !isFormEncoded(contentType)) {
           await reply
             .code(415)
             .type('text/html')

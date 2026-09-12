@@ -364,6 +364,25 @@ describe('[OIDC-CORE-3.1.2.1-01] POST at the authorization endpoint takes form e
     },
   );
 
+  // A body-less POST does not escape the media-type rule: an empty JSON
+  // request is still a request in a representation this endpoint does not
+  // take, and answering it with the body parser's own 400 would make the
+  // same media type mean two different things.
+  it('refuses an empty body in an unsupported media type exactly as a non-empty one', async () => {
+    const nonEmpty = await postAuthorizeRaw(JSON.stringify(authorizeParams()), {
+      'content-type': 'application/json',
+    });
+    const empty = await postAuthorizeRaw('', {
+      'content-type': 'application/json',
+      'content-length': '0',
+    });
+
+    expect(empty.statusCode).toBe(nonEmpty.statusCode);
+    expect(empty.statusCode).toBe(415);
+    expect(empty.headers['content-type']).toBe(nonEmpty.headers['content-type']);
+    expect(empty.body).toBe(nonEmpty.body);
+  });
+
   it('accepts a form body that names its charset', async () => {
     const body = new URLSearchParams();
     for (const [key, value] of Object.entries(authorizeParams())) {
