@@ -112,7 +112,10 @@ async function setupRealm(label: string, audiences: string[] = []): Promise<Real
   return {
     realmName,
     realmId,
-    issuer: `http://localhost/realms/${realmName}`,
+    // The authority the request carried, port included: light-my-request
+    // sends `Host: localhost:80`, and the issuer names what the client
+    // addressed (packages/protocol-oidc/src/view/issuer.ts).
+    issuer: `http://localhost:80/realms/${realmName}`,
     client: { clientId: 'web-app', dbId: clientId.webAppDbId, secret: 'supersecret' },
     subjectId: clientId.subjectId,
   };

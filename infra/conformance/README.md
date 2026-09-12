@@ -67,21 +67,20 @@ on every image build) that terminates TLS and forwards to `odudu:3000`
 over plain HTTP inside the compose network, setting
 `X-Forwarded-Proto: https` so odudu's own trust-proxy logic sees HTTPS.
 
-**A finding surfaced by building this, not designed for it:** the proxy
-listens on port **443**, not some other port mapped in from the host, and
-that is deliberate rather than cosmetic. Fastify's `request.hostname` —
-which `packages/protocol-oidc/src/view/routes/discovery.ts` and
-`login.ts` both build the issuer and redirect targets from — strips the
-port unconditionally, including when reading `X-Forwarded-Host` under
+**A finding surfaced by building this, not designed for it — since
+fixed:** the proxy listens on port **443**, and that was originally what
+kept a product bug out of sight. Fastify's `request.hostname`, which
+every issuer in the product used to be built from, strips the port
+unconditionally, including when reading `X-Forwarded-Host` under
 `trustProxy`. Verified directly against the odudu container:
 `X-Forwarded-Host: myhost.example:9999` with `X-Forwarded-Proto: https`
-still comes back as issuer `https://myhost.example/realms/...` — port
-silently dropped. Every URL in the discovery document is built the same
-way, so a run on port 443 (the scheme default, where "no port" is
-correct) never exercises this, but a real deployment terminating TLS on
-any other port would advertise the wrong endpoint URLs. That is a product
-bug, not a conformance-harness one, and it is out of this task's scope to
-fix — flagged as a follow-up rather than patched here.
+came back as issuer `https://myhost.example/realms/...`, port silently
+dropped — so any deployment terminating TLS on a non-default port
+advertised endpoint URLs nobody could reach. Every issuer now comes from
+one definition built on `request.host`, which keeps the port
+(`packages/protocol-oidc/src/view/issuer.ts`, covered by
+`issuer.test.ts`). A run on 443 still never exercises it, which is why
+that test drives Fastify directly rather than relying on this stack.
 
 ## Spike 3: can Config OP be driven without a browser?
 

@@ -118,7 +118,10 @@ async function setupRealm(label: string): Promise<RealmSetup> {
     return subject.id;
   });
 
-  return { realmName, realmId, issuer: `http://localhost/realms/${realmName}`, subjectId };
+  // Port included: light-my-request sends `Host: localhost:80`, and the
+  // issuer names the authority the client addressed
+  // (packages/protocol-oidc/src/view/issuer.ts).
+  return { realmName, realmId, issuer: `http://localhost:80/realms/${realmName}`, subjectId };
 }
 
 function basicAuth(client: Client): string {

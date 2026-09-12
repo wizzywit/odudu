@@ -52,15 +52,15 @@ written for this run said "30 failures, one cause" and concealed an
 unimplemented MUST — OIDC Core §3.1.2.1 requires POST at the authorization
 endpoint, and it returned 404.
 
-A latent, unrelated bug surfaced while wiring the TLS proxy: odudu's
-issuer and endpoint URLs (`packages/protocol-oidc/src/view/routes/
-discovery.ts`, `login.ts`) are built from Fastify's `request.hostname`,
-which silently drops the port even when `X-Forwarded-Host` supplies one
-under `trustProxy` — verified directly against the container. The
-conformance proxy sidesteps it by listening on the default HTTPS port
-443, but a real deployment on any other port behind a reverse proxy would
-advertise the wrong endpoint URLs. Not fixed here; flagged for whoever
-picks it up next.
+A latent, unrelated bug surfaced while wiring the TLS proxy, and has
+since been fixed: odudu's issuer and endpoint URLs were built from
+Fastify's `request.hostname`, which silently drops the port even when
+`X-Forwarded-Host` supplies one under `trustProxy` — verified directly
+against the container. The conformance proxy sidesteps it by listening on
+the default HTTPS port 443, so no conformance run would have caught it.
+There is now one issuer definition, built on `request.host`
+(`packages/protocol-oidc/src/view/issuer.ts`), with `issuer.test.ts`
+driving Fastify directly for the ports the proxy never exercises.
 
 ---
 
