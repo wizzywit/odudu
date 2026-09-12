@@ -134,6 +134,56 @@ describe('[ODUDU-ISSUER-02] the scheme default port never appears in the issuer'
     expect(base).toBe('http://[2001:db8::1]');
   });
 
+  // RFC 3986 §3.2.3 spells the port as `*DIGIT`, so `:00443` and `:443` are
+  // one port written two ways, and an empty port is no port at all.
+  it('reads a port written with leading zeros as that port', async () => {
+    const padded = await probe(
+      { trustProxy: true },
+      { host: 'idp.example:00443', 'x-forwarded-proto': 'https' },
+    );
+    expect(padded.base).toBe('https://idp.example');
+  });
+
+  it('spells a non-default port without its leading zeros', async () => {
+    const padded = await probe(
+      { trustProxy: true },
+      { host: 'idp.example:08443', 'x-forwarded-proto': 'https' },
+    );
+    expect(padded.base).toBe('https://idp.example:8443');
+  });
+
+  it('drops an empty port and its delimiter', async () => {
+    const empty = await probe(
+      { trustProxy: true },
+      { host: 'idp.example:', 'x-forwarded-proto': 'https' },
+    );
+    expect(empty.base).toBe('https://idp.example');
+  });
+
+  // RFC 3986 §6.2.2.1 makes the host case-insensitive.
+  it('spells the host in lower case however the Host header shouted it', async () => {
+    const shouted = await probe({ trustProxy: false }, { host: 'IDP.EXAMPLE:8443' });
+    expect(shouted.base).toBe('http://idp.example:8443');
+  });
+
+  // `idp.example.` states the DNS root label that `idp.example` leaves
+  // implicit; both name one host.
+  it('drops an explicit DNS root label', async () => {
+    const rooted = await probe({ trustProxy: false }, { host: 'idp.example.:8443' });
+    expect(rooted.base).toBe('http://idp.example:8443');
+  });
+
+  it('gives one issuer to every spelling of one authority', async () => {
+    const spellings = await Promise.all(
+      ['idp.example', 'idp.example:443', 'idp.example:00443', 'idp.example:', 'IDP.EXAMPLE.'].map(
+        (host) => probe({ trustProxy: true }, { host, 'x-forwarded-proto': 'https' }),
+      ),
+    );
+    expect(new Set(spellings.map((s) => s.realmIssuer))).toEqual(
+      new Set(['https://idp.example/realms/acme']),
+    );
+  });
+
   // light-my-request supplies `localhost:80` when no Host header is sent,
   // which is the same authority as a bare `localhost` and must spell the
   // same.
