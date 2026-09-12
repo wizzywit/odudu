@@ -1,4 +1,5 @@
-import { generateSigningKey, signingKeys } from '@odudu/crypto';
+import { createPublicKey, verify, type JsonWebKey } from 'node:crypto';
+import { generateSigningKey, signJwt, signingKeys, type SigningKeyRecord } from '@odudu/crypto';
 import { hashPassword, subjectRepository } from '@odudu/domain-identity';
 import {
   createDatabase,
@@ -937,6 +938,261 @@ describe('[RFC6749-10.5-02] an authenticable client is authenticated and the cod
 
     const accepted = await postForm(redemptionParams(code), basicHeader(webApp));
     expect(accepted.statusCode).toBe(200);
+  });
+});
+
+// OIDC Discovery §3 and §4.3 make the issuer identifier one string: what
+// the document says, what the URL the document was fetched from prefixes,
+// and what a redeemed ID Token puts in `iss`. An absolute URL is written
+// out here rather than a path, because light-my-request derives the Host
+// header from it — so the well-known URL these assertions compare against
+// is the one the request actually carried, not one reassembled afterwards.
+const WELL_KNOWN_SUFFIX = '/.well-known/openid-configuration';
+
+function wellKnownUrl(): string {
+  return `http://localhost/realms/${REALM}${WELL_KNOWN_SUFFIX}`;
+}
+
+async function discoveryDocumentOf(): Promise<Record<string, unknown>> {
+  const res = await http.inject({ url: wellKnownUrl() });
+  expect(res.statusCode).toBe(200);
+  return res.json<Record<string, unknown>>();
+}
+
+async function discoveryIssuer(): Promise<unknown> {
+  return (await discoveryDocumentOf()).issuer;
+}
+
+async function redeemedIdToken(): Promise<string> {
+  const { code } = await issueCode();
+  const res = await redeem(code);
+  expect(res.statusCode).toBe(200);
+  const { id_token: idToken } = res.json<{ id_token?: string }>();
+  if (idToken === undefined) throw new Error('expected an id_token');
+  return idToken;
+}
+
+async function redeemedAccessToken(opts: IssueCodeOptions = {}): Promise<string> {
+  const { code } = await issueCode(opts);
+  const res = await redeem(code);
+  expect(res.statusCode).toBe(200);
+  return res.json<{ access_token: string }>().access_token;
+}
+
+describe('the issuer identifier is one string wherever it appears', () => {
+  it('[OIDC-DISCOVERY-3-02] is byte-identical to the iss of an ID Token from the same realm', async () => {
+    const issuer = await discoveryIssuer();
+    expect(typeof issuer).toBe('string');
+    expect(decodePayload(await redeemedIdToken()).iss).toBe(issuer);
+  });
+
+  it('[OIDC-DISCOVERY-4.3-01] is the exact prefix of the URL it was fetched from, and the ID Token iss', async () => {
+    const issuer = await discoveryIssuer();
+    expect(`${String(issuer)}${WELL_KNOWN_SUFFIX}`).toBe(wellKnownUrl());
+    expect(decodePayload(await redeemedIdToken()).iss).toBe(issuer);
+  });
+});
+
+async function publishedJwk(kid: string): Promise<JsonWebKey> {
+  const res = await http.inject({ url: `/realms/${REALM}/protocol/openid-connect/certs` });
+  expect(res.statusCode).toBe(200);
+  const { keys } = res.json<{ keys: (JsonWebKey & { kid?: string })[] }>();
+  const jwk = keys.find((candidate) => candidate.kid === kid);
+  if (jwk === undefined) throw new Error(`the realm publishes no key ${kid}`);
+  return jwk;
+}
+
+// RS256 is RSASSA-PKCS1-v1_5 over SHA-256 of the signing input. Checked
+// with node's own primitives rather than the library that produced the
+// signature, so the assertion does not reduce to that library agreeing
+// with itself.
+function rs256SignatureIsValid(token: string, jwk: JsonWebKey): boolean {
+  const [header, payload, signature] = token.split('.');
+  if (header === undefined || payload === undefined || signature === undefined) return false;
+  return verify(
+    'sha256',
+    Buffer.from(`${header}.${payload}`),
+    createPublicKey({ key: jwk, format: 'jwk' }),
+    Buffer.from(signature, 'base64url'),
+  );
+}
+
+async function activeSigningKeyAlg(): Promise<string> {
+  const rows = await owner.db
+    .select({ alg: signingKeys.alg })
+    .from(signingKeys)
+    .where(eq(signingKeys.realmId, REALM_ID));
+  const alg = rows[0]?.alg;
+  if (alg === undefined) throw new Error('the realm holds no signing key');
+  return alg;
+}
+
+describe('a JWT access token as RFC 9068 §2.1 requires it', () => {
+  it('[RFC9068-2.1-02] carries a signature that verifies under the key the realm publishes', async () => {
+    const accessToken = await redeemedAccessToken();
+    const kid = decodeHeader(accessToken).kid;
+    expect(typeof kid).toBe('string');
+    expect(rs256SignatureIsValid(accessToken, await publishedJwk(String(kid)))).toBe(true);
+  });
+
+  it('[RFC9068-2.1-03] names the realm key algorithm, which no key may spell none', async () => {
+    const accessToken = await redeemedAccessToken();
+    const alg = await activeSigningKeyAlg();
+    expect(decodeHeader(accessToken).alg).toBe(alg);
+    expect(['RS256', 'ES256']).toContain(alg);
+
+    // The algorithm in the header is the stored key's, so "never `none`" is
+    // a property of what signing_keys can hold rather than of this fixture:
+    // signing_keys_alg_check (packages/db/drizzle/0003_signing_keys.sql) is
+    // what refuses the row an unsigned access token would need.
+    const stored = await withRealm(app.db, REALM_ID, (tx) =>
+      tx.insert(signingKeys).values({
+        id: newId(),
+        realmId: REALM_ID,
+        kid: `unsigned-${newId()}`,
+        alg: 'none',
+        status: 'active',
+        publicJwk: {},
+        privateJwkEncrypted: 'ciphertext-placeholder',
+      }),
+    ).then(
+      () => true,
+      () => false,
+    );
+    expect(stored).toBe(false);
+  });
+
+  // "Include RS256 among their supported signature algorithms" is a claim
+  // about both ends at once, so both ends answer it here: the realm mints an
+  // RS256 access token, and the resource server this same deployment runs
+  // accepts it.
+  it('[RFC9068-2.1-05] is minted under RS256 by this realm and accepted under RS256 by its resource server', async () => {
+    expect(await activeSigningKeyAlg()).toBe('RS256');
+
+    const accessToken = await redeemedAccessToken();
+    expect(decodeHeader(accessToken).alg).toBe('RS256');
+    const kid = String(decodeHeader(accessToken).kid);
+    expect((await publishedJwk(kid)).kty).toBe('RSA');
+    expect(rs256SignatureIsValid(accessToken, await publishedJwk(kid))).toBe(true);
+    expect((await userinfo(accessToken)).statusCode).toBe(200);
+  });
+
+  it('[RFC9068-2.1-04] declares the at+jwt media type in its typ header parameter', async () => {
+    expect(decodeHeader(await redeemedAccessToken()).typ).toBe('at+jwt');
+  });
+});
+
+async function userinfo(token: string): Promise<LightMyRequestResponse> {
+  return http.inject({
+    method: 'GET',
+    url: `/realms/${REALM}/protocol/openid-connect/userinfo`,
+    headers: { authorization: `Bearer ${token}` },
+  });
+}
+
+function base64urlJson(value: Record<string, unknown>): string {
+  return Buffer.from(JSON.stringify(value)).toString('base64url');
+}
+
+// The claims an access token of this realm carries, built from the values
+// the realm was seeded with rather than lifted off a genuine token, so a
+// forgery differs from the real thing in its signature and nothing else.
+async function accessTokenClaims(): Promise<Record<string, unknown>> {
+  const issuer = String(await discoveryIssuer());
+  const iat = Math.floor(Date.now() / 1000);
+  return {
+    iss: issuer,
+    sub: subjectId,
+    aud: [AUDIENCE, issuer],
+    client_id: webApp.clientId,
+    scope: 'openid profile',
+    iat,
+    exp: iat + 300,
+    jti: newId(),
+  };
+}
+
+describe('the userinfo endpoint validates a token against the keys this realm publishes', () => {
+  it('[RFC9068-4-06] refuses a token whose header names alg none', async () => {
+    const kid = String(decodeHeader(await redeemedAccessToken()).kid);
+    const header = base64urlJson({ alg: 'none', kid, typ: 'at+jwt' });
+    const payload = base64urlJson(await accessTokenClaims());
+
+    const res = await userinfo(`${header}.${payload}.`);
+    expect(res.statusCode).toBe(401);
+    expect(res.headers['www-authenticate']).toMatch(/error="invalid_token"/);
+  });
+
+  it('[RFC9068-4-07] refuses a token signed by a key it does not publish, under a kid it does', async () => {
+    const genuine = await redeemedAccessToken();
+    expect((await userinfo(genuine)).statusCode).toBe(200);
+
+    const foreign = await generateSigningKey('RS256', KEK);
+    const impersonating: SigningKeyRecord = {
+      id: newId(),
+      realmId: REALM_ID,
+      kid: String(decodeHeader(genuine).kid),
+      alg: foreign.alg,
+      status: 'active',
+      publicJwk: foreign.publicJwk,
+      privateJwkEncrypted: foreign.privateJwkEncrypted,
+      createdAt: new Date(),
+      notAfter: null,
+    };
+    const forged = await signJwt(await accessTokenClaims(), {
+      key: impersonating,
+      kek: KEK,
+      typ: 'at+jwt',
+    });
+
+    const res = await userinfo(forged);
+    expect(res.statusCode).toBe(401);
+    expect(res.headers['www-authenticate']).toMatch(/error="invalid_token"/);
+  });
+});
+
+describe('[RFC7636-4.5-02] the transform is the one bound to the code, never one the client names', () => {
+  // A code whose stored challenge *is* the verifier redeems under `plain`
+  // and cannot redeem under `S256`, so it tells the two transforms apart.
+  it('refuses a verifier that would only match under the plain transform the request asked for', async () => {
+    const { code } = await issueCode({ codeChallenge: VERIFIER });
+    const res = await postForm(
+      [...redemptionParams(code), ['code_challenge_method', 'plain']],
+      basicHeader(webApp),
+    );
+    expect(res.statusCode).toBe(400);
+    expect(res.json<{ error: string }>().error).toBe('invalid_grant');
+  });
+
+  it('redeems a code bound to S256 whatever method the request names', async () => {
+    const { code } = await issueCode();
+    const res = await postForm(
+      [...redemptionParams(code), ['code_challenge_method', 'plain']],
+      basicHeader(webApp),
+    );
+    expect(res.statusCode).toBe(200);
+  });
+});
+
+describe('[RFC7636-7.2-01] S256 is supported, and it is the transform actually applied', () => {
+  it('advertises S256 and redeems a code challenged with an S256 digest', async () => {
+    const advertised = (await discoveryDocumentOf()).code_challenge_methods_supported;
+    expect(advertised).toEqual(['S256']);
+
+    const { code } = await issueCode({ codeChallenge: CHALLENGE });
+    expect((await redeem(code, { verifier: VERIFIER })).statusCode).toBe(200);
+  });
+});
+
+describe('what an issued access token is restricted to', () => {
+  it('[RFC6750-5.2-03] carries a scope claim naming the scope the grant was made for, not a fixed one', async () => {
+    expect(decodePayload(await redeemedAccessToken()).scope).toBe('openid profile');
+    expect(decodePayload(await redeemedAccessToken({ scope: 'openid' })).scope).toBe('openid');
+  });
+
+  it('[RFC6750-5.3-02] carries an aud restricted to the configured audiences and this issuer', async () => {
+    const issuer = await discoveryIssuer();
+    expect(decodePayload(await redeemedAccessToken()).aud).toEqual([AUDIENCE, issuer]);
   });
 });
 
