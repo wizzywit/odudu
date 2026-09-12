@@ -618,11 +618,18 @@ the conditions under which to revisit.
 
 ## Deferred from the final review
 
-- `meta/0002_snapshot.json` records `policies: {}` while `realms_isolation`
-  exists in every migrated database. Declaring `pgPolicy(...)` on the table
-  would make `drizzle-kit generate` emit a `CREATE POLICY` that fails with
-  42710 on existing databases. Record the policy in the snapshot, or leave a
-  comment in `realms.ts`, before touching policies declaratively.
+- **Closed, differently than this item expected.** The snapshots are not
+  maintained at all — `drizzle/meta/` holds two of fifteen migrations — and
+  `db:generate` has been retired rather than repaired: pointing it at every
+  table would have meant reconciling generated SQL against fifteen
+  hand-written migrations carrying RLS policies, thirteen CHECK constraints
+  and guarded DO blocks that no `pgTable` expresses, and declaring the
+  policies so it could see them emits the 42710 this item describes. SQL is
+  the source of truth, `packages/db/README.md` says so, and
+  `packages/db/tests/schema-drift.int.test.ts` compares the declarations
+  against a freshly migrated database. `drizzle-kit` remains an unused
+  devDependency of `packages/db`; removing it rewrites `pnpm-lock.yaml`,
+  which is worth doing on its own, away from other work.
 - `ODUDU_TRUST_PROXY=` (a bare key) now refuses boot rather than defaulting
   off — correct by strictness, but a new way for a previously-booting
   environment to fail.

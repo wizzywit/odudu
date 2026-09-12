@@ -30,7 +30,9 @@ answers the `authorization_code` (PKCE mandatory, no exception),
 `client_credentials` grants. That sits on the P0 foundation: the monorepo and
 its single `pnpm verify` gate, machine-checked architectural boundaries, the
 kernel primitives, one ordered migration timeline with PostgreSQL row-level
-security, and a container proven to boot by CI on every push.
+security, and a container CI builds and boots on every pull request and on
+every merge to `main` — a branch push with no pull request open runs
+nothing, by design (`.github/workflows/verify.yml`).
 
 There is still no consent screen, no admin API, no second factor, and no
 token exchange — P2 onwards.
