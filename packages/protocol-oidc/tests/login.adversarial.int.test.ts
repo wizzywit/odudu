@@ -453,6 +453,51 @@ describe('[RFC6749-4.1.2-03] a granted authorization code expires shortly after 
   });
 });
 
+// OIDC Core §15.1 makes returning `auth_time` when it is requested mandatory
+// for every OP. The specification defines two ways to request it — `max_age`
+// (§3.1.2.1) and an Essential Claim in the `claims` parameter (§5.5) — and
+// Odudu honours neither as a request: it emits `auth_time` in every ID Token
+// it issues, so both requests are answered by a superset of what they asked
+// for. See the reading note "§15.1's `auth_time`, answered unconditionally".
+//
+// The value is checked against the stored `auth_time` of the code the login
+// actually issued, not merely for presence: a claim carrying the token's own
+// issuance time, or milliseconds, would be a different claim wearing the
+// right name.
+describe('[OIDC-CORE-15.1-05] auth_time comes back whichever way a client asks for it', () => {
+  const ESSENTIAL_AUTH_TIME = JSON.stringify({ id_token: { auth_time: { essential: true } } });
+
+  it.each([
+    { name: 'max_age', authorize: { max_age: '300' } },
+    { name: 'an essential claims request', authorize: { claims: ESSENTIAL_AUTH_TIME } },
+  ])(
+    'returns the End-User’s authentication time for a request carrying $name',
+    async ({ authorize }) => {
+      const realmName = await setupLoginRealm(`acme-authtime-${newId()}`);
+      const res = await submitLogin({
+        ...GOOD,
+        realmName,
+        authorize: { ...authorize, code_challenge: CHALLENGE },
+      });
+      expect(res.statusCode).toBe(302);
+      const code = new URL(locationHeader(res)).searchParams.get('code');
+      if (code === null) throw new Error('expected a code on the redirect');
+
+      const timing = await timingOfIssuedCode(code);
+      if (timing === undefined) throw new Error('expected the issued code to be stored');
+
+      const redeemed = await redeemCode(realmName, code);
+      expect(redeemed.statusCode).toBe(200);
+      const { id_token: idToken } = redeemed.json<{ id_token?: string }>();
+      if (idToken === undefined) throw new Error('expected an id_token');
+
+      const authTime = jwtPayload(idToken).auth_time;
+      expect(typeof authTime).toBe('number');
+      expect(authTime).toBe(Math.floor(timing.authTime.getTime() / 1000));
+    },
+  );
+});
+
 describe('[RFC9207-2-01] the iss parameter equals the discovery issuer exactly', () => {
   it('matches the realm discovery document issuer', async () => {
     const realmName = await setupLoginRealm(`acme-iss-${newId()}`);

@@ -326,10 +326,9 @@ const VALUE_RULES = new Map<string, (value: string) => boolean>([
 // Odudu that emits a `Bearer` challenge at all. §3's requirements are
 // universally quantified over challenges, so the assertions that read them
 // are only as strong as this list is complete.
-async function everyChallenge(): Promise<Challenge[]> {
+async function everyErrorResponse(): Promise<LightMyRequestResponse[]> {
   const { accessToken } = await issueTokens(primary, 'openid');
   const noCredentials = await userinfo(primary.realmName, null);
-  expect(noCredentials.statusCode).toBe(401);
 
   const twoMethods = await postUserinfoRaw(
     primary.realmName,
@@ -339,16 +338,23 @@ async function everyChallenge(): Promise<Challenge[]> {
       authorization: `Bearer ${accessToken}`,
     },
   );
-  expect(twoMethods.statusCode).toBe(400);
 
   const badToken = await userinfo(primary.realmName, tamper(accessToken));
-  expect(badToken.statusCode).toBe(401);
 
   const { accessToken: unscoped } = await issueTokens(primary, 'profile email');
   const wrongScope = await userinfo(primary.realmName, unscoped);
-  expect(wrongScope.statusCode).toBe(403);
 
-  return [noCredentials, twoMethods, badToken, wrongScope].map(challengeOf);
+  const responses = [noCredentials, twoMethods, badToken, wrongScope];
+  // Each of these is a request the endpoint must refuse; *which* refusal each
+  // one is belongs to OIDC-CORE-5.3.3-01, which reads §3.1's status codes off
+  // this same list. Asserting them here as well would let this helper answer
+  // that row's question on its behalf.
+  for (const res of responses) expect(res.statusCode).toBeGreaterThanOrEqual(400);
+  return responses;
+}
+
+async function everyChallenge(): Promise<Challenge[]> {
+  return (await everyErrorResponse()).map(challengeOf);
 }
 
 async function userinfo(realmName: string, token: string | null): Promise<LightMyRequestResponse> {
@@ -450,6 +456,46 @@ describe('the shape of every WWW-Authenticate challenge', () => {
         expect({ name, value, conforms: rule(value) }).toEqual({ name, value, conforms: true });
       }
     }
+  });
+});
+
+// OIDC Core §5.3.3: the UserInfo Endpoint's error responses are RFC 6750
+// §3's. §3 asks for a `WWW-Authenticate` challenge in the `Bearer` scheme;
+// §3.1 fixes which status code each error code is reported with, and says an
+// error code is omitted altogether when the request carried no
+// authentication information. Held over every error this endpoint has rather
+// than over a chosen one, so a branch that answers some other way is a
+// failure rather than an omission.
+const STATUS_FOR_ERROR = new Map<string | undefined, number>([
+  [undefined, 401],
+  ['invalid_request', 400],
+  ['invalid_token', 401],
+  ['insufficient_scope', 403],
+]);
+
+describe('[OIDC-CORE-5.3.3-01] the UserInfo Endpoint reports errors the way RFC 6750 §3 does', () => {
+  it('answers every failure with a Bearer challenge whose error code carries §3.1’s status', async () => {
+    const responses = await everyErrorResponse();
+    expect(responses).toHaveLength(4);
+
+    const reported = responses.map((res) => {
+      const challenge = challengeOf(res);
+      expect(challenge.scheme).toBe('Bearer');
+      return {
+        error: challenge.params.find((p) => p.name === 'error')?.value,
+        status: res.statusCode,
+      };
+    });
+
+    for (const { error, status } of reported) {
+      expect({ error, status }).toEqual({ error, status: STATUS_FOR_ERROR.get(error) });
+    }
+
+    // The three §3.1 error codes and the credential-less case are each
+    // genuinely exercised, so the mapping above is checked against every
+    // entry it has rather than against whichever the endpoint happened to
+    // produce four of.
+    expect(new Set(reported.map((r) => r.error))).toEqual(new Set(STATUS_FOR_ERROR.keys()));
   });
 });
 

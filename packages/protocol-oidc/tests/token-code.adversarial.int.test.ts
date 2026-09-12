@@ -1,6 +1,6 @@
 import { createPublicKey, verify, type JsonWebKey } from 'node:crypto';
 import { generateSigningKey, signJwt, signingKeys, type SigningKeyRecord } from '@odudu/crypto';
-import { hashPassword, subjectRepository } from '@odudu/domain-identity';
+import { hashPassword, subjectRepository, subjects } from '@odudu/domain-identity';
 import {
   createDatabase,
   MIGRATIONS_DIR,
@@ -1044,14 +1044,17 @@ describe('a JWT access token as RFC 9068 §2.1 requires it', () => {
     // The algorithm in the header is the stored key's, so "never `none`" is
     // a property of what signing_keys can hold rather than of this fixture:
     // signing_keys_alg_check (packages/db/drizzle/0003_signing_keys.sql) is
-    // what refuses the row an unsigned access token would need.
+    // what refuses the row an unsigned access token would need. `retired`,
+    // not `active`: signing_keys_one_active refuses any second active key
+    // whatever its alg, and an assertion it answers proves nothing about the
+    // algorithm at all.
     const stored = await withRealm(app.db, REALM_ID, (tx) =>
       tx.insert(signingKeys).values({
         id: newId(),
         realmId: REALM_ID,
         kid: `unsigned-${newId()}`,
         alg: 'none',
-        status: 'active',
+        status: 'retired',
         publicJwk: {},
         privateJwkEncrypted: 'ciphertext-placeholder',
       }),
@@ -1181,6 +1184,211 @@ describe('[RFC7636-7.2-01] S256 is supported, and it is the transform actually a
 
     const { code } = await issueCode({ codeChallenge: CHALLENGE });
     expect((await redeem(code, { verifier: VERIFIER })).statusCode).toBe(200);
+  });
+});
+
+// OIDC Core §2's REQUIRED claims, read off a token the Token Endpoint
+// actually returned rather than off `signJwt`'s arguments — the claim set is
+// assembled in `issueAuthorizationCodeTokens`
+// (packages/protocol-oidc/src/usecase/token-issuance.ts), and a claim lost
+// between there and the wire is exactly what these rows are about.
+//
+// §2's `iss` row is deliberately absent: it asks for an https URL, and the
+// scheme is whatever the request arrived under. See the reading note
+// "`iss`: the half of §2 this process cannot assert".
+describe('the claims OIDC Core §2 makes REQUIRED of an ID Token', () => {
+  it('[OIDC-CORE-2-02] carries a sub no longer than 255 ASCII characters, unique to one subject and never reassigned', async () => {
+    const sub = decodePayload(await redeemedIdToken()).sub;
+    expect(sub).toBe(subjectId);
+    expect(typeof sub).toBe('string');
+    // ASCII, printable, and within §2's length bound.
+    expect(String(sub)).toMatch(/^[\x21-\x7E]{1,255}$/u);
+
+    // "Locally unique" and "never reassigned" are properties of where the
+    // value comes from, not of one token: `sub` is the subjects row's
+    // primary key, so two subjects cannot share one and a retired subject's
+    // identifier cannot be handed to a new one.
+    const second = await withRealm(app.db, REALM_ID, (tx) =>
+      subjectRepository(tx).create({ realmId: REALM_ID, type: 'user' }),
+    );
+    expect(second.id).not.toBe(subjectId);
+
+    const reassigned = await withRealm(app.db, REALM_ID, (tx) =>
+      tx.insert(subjects).values({ id: subjectId, realmId: REALM_ID, type: 'user' }),
+    ).then(
+      () => true,
+      () => false,
+    );
+    expect(reassigned).toBe(false);
+  });
+
+  it('[OIDC-CORE-2-03] carries an exp that is a JSON number of seconds since the epoch', async () => {
+    const before = Math.floor(Date.now() / 1000);
+    const payload = decodePayload(await redeemedIdToken());
+    expect(typeof payload.exp).toBe('number');
+    const exp = Number(payload.exp);
+    expect(Number.isInteger(exp)).toBe(true);
+    // Seconds, not milliseconds: a millisecond value would sit three orders
+    // of magnitude above the current epoch second, and the `webApp` fixture's
+    // 300-second lifetime is the whole distance this may travel.
+    expect(exp).toBeGreaterThanOrEqual(before);
+    expect(exp).toBeLessThanOrEqual(before + 300 + 60);
+  });
+
+  it('[OIDC-CORE-2-04] carries an iat that is a JSON number of seconds since the epoch', async () => {
+    const before = Math.floor(Date.now() / 1000);
+    const payload = decodePayload(await redeemedIdToken());
+    expect(typeof payload.iat).toBe('number');
+    const iat = Number(payload.iat);
+    expect(Number.isInteger(iat)).toBe(true);
+    expect(iat).toBeGreaterThanOrEqual(before - 60);
+    expect(iat).toBeLessThanOrEqual(before + 60);
+  });
+
+  it('[OIDC-CORE-2-05] is signed using JWS: three compact segments whose signature verifies under the published key', async () => {
+    const idToken = await redeemedIdToken();
+    const segments = idToken.split('.');
+    expect(segments).toHaveLength(3);
+    expect(segments[2]).not.toBe('');
+
+    const kid = decodeHeader(idToken).kid;
+    expect(typeof kid).toBe('string');
+    expect(rs256SignatureIsValid(idToken, await publishedJwk(String(kid)))).toBe(true);
+  });
+
+  it('[OIDC-CORE-2-06] names the realm key algorithm in alg, which no key may spell none', async () => {
+    const alg = await activeSigningKeyAlg();
+    expect(decodeHeader(await redeemedIdToken()).alg).toBe(alg);
+    expect(alg).not.toBe('none');
+
+    // The header's alg is the stored key's, so "never `none`" is a property
+    // of what signing_keys can hold. signing_keys_alg_check
+    // (packages/db/drizzle/0003_signing_keys.sql) is what refuses the row an
+    // unsigned ID Token would have to be minted from — and the row is offered
+    // as `retired` so that signing_keys_one_active, which refuses any second
+    // active key whatever its alg, cannot be what turns it away.
+    const stored = await withRealm(app.db, REALM_ID, (tx) =>
+      tx.insert(signingKeys).values({
+        id: newId(),
+        realmId: REALM_ID,
+        kid: `unsigned-id-token-${newId()}`,
+        alg: 'none',
+        status: 'retired',
+        publicJwk: {},
+        privateJwkEncrypted: 'ciphertext-placeholder',
+      }),
+    ).then(
+      () => true,
+      () => false,
+    );
+    expect(stored).toBe(false);
+  });
+});
+
+// §3.1.3.1: a confidential client authenticates "using the method registered
+// for it". The accepting half alone would pass for a server that accepted
+// whichever method happened to arrive, so all three cases are one assertion:
+// the registered method works, and each client's *other* method does not.
+describe('[OIDC-CORE-3.1.3.1-01] a confidential client authenticates by its registered method and no other', () => {
+  it('accepts each client over the method it registered and refuses it over the other', async () => {
+    const overPost = await redeem((await issueCode({ client: postApp })).code, {
+      as: postApp,
+      secret: null,
+      bodySecret: postApp.secret ?? '',
+    });
+    expect(overPost.statusCode).toBe(200);
+
+    const postClientOverBasic = await redeem((await issueCode({ client: postApp })).code, {
+      as: postApp,
+    });
+    expect(postClientOverBasic.statusCode).toBe(401);
+    expect(postClientOverBasic.json<{ error: string }>().error).toBe('invalid_client');
+
+    const overBasic = await redeem((await issueCode()).code, { as: webApp });
+    expect(overBasic.statusCode).toBe(200);
+
+    const basicClientOverPost = await redeem((await issueCode()).code, {
+      as: webApp,
+      secret: null,
+      bodySecret: webApp.secret ?? '',
+    });
+    expect(basicClientOverPost.statusCode).toBe(401);
+    expect(basicClientOverPost.json<{ error: string }>().error).toBe('invalid_client');
+  });
+});
+
+// §3.1.3.2's last verification step, and §3.1.3.3's `id_token` member, are
+// one behaviour: an ID Token comes back exactly when the code was issued for
+// an Authentication Request — one carrying the `openid` scope — and a code
+// issued for a plain OAuth authorization request yields an access token and
+// no ID Token.
+describe('[OIDC-CORE-3.1.3.2-01] an ID Token is returned for a code issued to an Authentication Request, and only then', () => {
+  it('returns id_token for an openid code and omits it entirely for one without openid', async () => {
+    const openid = await redeem((await issueCode({ scope: 'openid profile' })).code);
+    expect(openid.statusCode).toBe(200);
+    expect(openid.json<{ id_token?: string }>().id_token).toBeTruthy();
+
+    const oauthOnly = await redeem((await issueCode({ scope: 'profile' })).code);
+    expect(oauthOnly.statusCode).toBe(200);
+    const body = oauthOnly.json<Record<string, unknown>>();
+    expect(body.access_token).toBeTruthy();
+    expect(Object.keys(body)).not.toContain('id_token');
+  });
+});
+
+// §3.1.3.4: the Token Error Response is `application/json` with status 400.
+// Held over the same enumeration of distinct failures RFC6749-5.2-03 sweeps,
+// with the one documented divergence — see the reading note "§3.1.3.4's 400,
+// and the 401 RFC 6749 §5.2 requires".
+describe('[OIDC-CORE-3.1.3.4-01] every Token Error Response is JSON, with 400 unless the client failed to authenticate', () => {
+  it('answers each distinct failure with application/json and the status its error code carries', async () => {
+    const unknownCode = await postForm(redemptionParams('nonexistent'), basicHeader(webApp));
+    const badSecret = await postForm(redemptionParams((await issueCode()).code), {
+      authorization: `Basic ${Buffer.from(`${webApp.clientId}:wrong`).toString('base64')}`,
+    });
+    const malformed = await postForm(
+      without(redemptionParams((await issueCode()).code), 'code'),
+      basicHeader(webApp),
+    );
+    const unsupported = await postForm([['grant_type', 'urn:example:nope']], basicHeader(webApp));
+    const wrongVerifier = await redeem((await issueCode()).code, { verifier: 'x'.repeat(43) });
+
+    const responses = [unknownCode, badSecret, malformed, unsupported, wrongVerifier];
+    expect(responses.map((res) => res.json<{ error: string }>().error)).toEqual([
+      'invalid_grant',
+      'invalid_client',
+      'invalid_request',
+      'unsupported_grant_type',
+      'invalid_grant',
+    ]);
+
+    for (const res of responses) {
+      expect(res.headers['content-type']).toMatch(/^application\/json/);
+      const { error } = res.json<{ error: string }>();
+      expect({ error, status: res.statusCode }).toEqual({
+        error,
+        status: error === 'invalid_client' ? 401 : 400,
+      });
+    }
+  });
+});
+
+// §15.1 makes RS256 mandatory to implement for every OP. Both halves of
+// "supports": what the realm actually signs an ID Token with, and what the
+// discovery document tells a client it can expect.
+describe('[OIDC-CORE-15.1-04] the OP signs ID Tokens with RS256', () => {
+  it('mints an ID Token under RS256 verifiable with an RSA key, and advertises RS256', async () => {
+    expect(await activeSigningKeyAlg()).toBe('RS256');
+
+    const idToken = await redeemedIdToken();
+    expect(decodeHeader(idToken).alg).toBe('RS256');
+    const kid = String(decodeHeader(idToken).kid);
+    expect((await publishedJwk(kid)).kty).toBe('RSA');
+    expect(rs256SignatureIsValid(idToken, await publishedJwk(kid))).toBe(true);
+
+    expect(
+      (await discoveryDocumentOf()).id_token_signing_alg_values_supported as string[],
+    ).toContain('RS256');
   });
 });
 

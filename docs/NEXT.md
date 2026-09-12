@@ -3,10 +3,44 @@
 ## Start here
 
 **P0 is complete and merged. P1 (the OAuth 2.1 / OpenID Connect core) is
-underway on `p1-oauth-oidc-core`; the empty-value rule at `/token` and the
-refresh grant's evaluation order are the most recent increment — see "Two
-defects found by reading a row against its test" below. What remains is
-the phase's final exit-criteria confirmation.**
+underway on `p1-oauth-oidc-core`; closing `docs/protocols/oidc-core.md` is
+the most recent increment — see "The last of OIDC Core's MUST gaps" below.
+What remains is the decision about strict traceability, and then the
+phase's final exit-criteria confirmation.**
+
+**The last of OIDC Core's MUST gaps.** `docs/protocols/oidc-core.md` went
+from 29 MUST rows with no test to 6. Twenty-two were closed — the ID
+Token's REQUIRED claims and its signature read off a token `/token`
+actually returned, the Token Endpoint's registered-authentication-method
+rule, the `id_token` that arrives exactly when the code was issued for a
+request carrying `openid`, the Token Error Response's media type and
+status, the UserInfo endpoint's RFC 6750 §3 error shape, RS256, and
+`auth_time` — and seven of those cite RFC 6749 assertions rather than new
+tests, because §3.1.3.2 restates §4.1.3's verification steps for the OIDC
+case and Odudu has one token endpoint. One row moved to `deferred: P2`:
+`prompt=login`'s "an error is returned if reauthentication cannot be
+performed" has no reachable branch until a session can be reused, which is
+what `deferred:` is for.
+
+**A covered row was passing for a reason that was not the requirement.**
+`RFC9068-2.1-03` proved "no key may spell `none`" by inserting
+`alg = 'none'` with `status = 'active'` and asserting the insert fails. It
+does fail — because of `signing_keys_one_active`, the unique index that
+refuses any second active key whatever its algorithm. Relaxing
+`signing_keys_alg_check` to admit `'none'` left the test green. Both that
+assertion and the new `OIDC-CORE-2-06` now offer the probe row as
+`retired`, so the algorithm check is the only thing that can turn it away,
+and the relaxed-constraint breakage proof turns both red.
+
+**Six oidc-core MUSTs stay `gap` on purpose**, with a reading note each:
+§3.1.2, §3.1.3, §5.3 and §16.17 ×2 are TLS on the wire, and §2's `iss` row
+asks for an `https` scheme this process does not choose — the same operator
+assertion `docs/protocols/rfc9207.md` already declines to treat as proof.
+The phase-wide residue and what to do about strict mode are set out at the
+end of `.superpowers/sdd/2026-09-11-p1-oauth-oidc-core/progress.md`, under
+"Strict mode and the residue"; the recommendation there is a new
+`accepted:` status that strict mode tolerates but that keeps printing, and
+it is the project owner's call, not a decision already taken.
 
 **Two defects found by reading a row against its test.** Both were found
 while writing clause tests, and both were real rather than theoretical.
