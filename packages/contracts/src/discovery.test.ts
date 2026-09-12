@@ -24,10 +24,6 @@ describe('[OIDC-DISCOVERY-3-01] the discovery document', () => {
     expect(doc.response_modes_supported).toEqual(['query']);
   });
 
-  it('advertises the iss parameter', () => {
-    expect(doc.authorization_response_iss_parameter_supported).toBe(true);
-  });
-
   it('advertises exactly the three grant types P1 implements', () => {
     expect([...doc.grant_types_supported].sort()).toEqual([
       'authorization_code',
@@ -117,5 +113,25 @@ describe('[OIDC-DISCOVERY-4.2-01] a metadata claim with zero elements', () => {
   // altogether rather than published as null or an empty string.
   it('leaves registration_endpoint out of the document entirely', () => {
     expect(Object.keys(doc)).not.toContain('registration_endpoint');
+  });
+});
+
+describe('[RFC9207-2.3-01] the issuer identifier a client validates `iss` against', () => {
+  it('is published in the metadata, so the `iss` parameter has a value to be compared to', () => {
+    expect(doc.issuer).toBe('https://idp.example/realms/acme');
+    expect(new URL(doc.issuer).protocol).toBe('https:');
+  });
+});
+
+describe('[RFC9207-2.3-02] support for the `iss` authorization-response parameter', () => {
+  it('is declared true in the metadata', () => {
+    expect(doc.authorization_response_iss_parameter_supported).toBe(true);
+  });
+});
+
+describe('[RFC6749-3.1-03] the advertised authorization endpoint URI', () => {
+  it('carries no fragment component', () => {
+    expect(doc.authorization_endpoint).not.toContain('#');
+    expect(new URL(doc.authorization_endpoint).hash).toBe('');
   });
 });
