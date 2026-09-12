@@ -35,10 +35,30 @@ one media-type rule, which also answers a body arriving with no
 `Content-Type` rather than letting Fastify's own 415 reply in a second
 representation.
 
-`email` is validated where it is written (`userRepository.create`),
-against a stated subset of RFC 5322 addr-spec rather than an
-approximation of the whole grammar — see the reading note in
-`docs/protocols/oidc-core.md` for what the subset refuses.
+`email` is constrained **on the column it is emitted from**
+(`users_email_addr_spec`, migration 0012), against a stated subset of RFC
+5322 addr-spec rather than an approximation of the whole grammar — see the
+reading note in `docs/protocols/oidc-core.md` for what the subset refuses.
+Validating in `userRepository.create` alone left OIDC Core §5.1 enforced
+on no path that produces a claim: nothing in production passed an email to
+that method, and every `email` Odudu emitted was inserted raw by a test
+helper. The repository keeps its check as the friendlier, earlier refusal;
+a parity assertion holds the SQL and TypeScript spellings of the subset in
+agreement case by case. `seed --email` exists so the user every demo and
+end-to-end run authenticates as can carry the claim at all.
+
+The traceability tables have a fifth status, `documented:`, for the
+clauses that oblige an authorization server to _state_ something (RFC 6749
+§3.3's scope defaults). Its reference must quote a reading-note heading of
+its own file and `pnpm trace` checks the heading still exists, so the
+promise that prose exists is enforced rather than trusted. A MUST recorded
+this way is reported, and fails under strict mode.
+
+The TLS reading note now says that four `covered` rows rest on **two**
+operator assertions, not one: `NODE_ENV` gates the guard and is exactly as
+operator-controlled as `ODUDU_TLS` — `infra/docker/compose.yaml` disables
+the guard on the production image with one line. `README.md`'s deployment
+steps and `.env.example` document the guard.
 
 OIDC Core §3.1.2.6's "no other parameters on an error response" is
 recorded as a knowing deviation rather than a gap: RFC 9207 §2 MUSTs `iss`
