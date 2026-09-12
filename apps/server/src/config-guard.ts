@@ -27,9 +27,11 @@ export function assertProductionAppDatabaseUrl(config: Config): void {
  * can enforce in its own process is to refuse to serve production traffic
  * unless the operator states that something in front of it does.
  *
- * `docs/protocols/rfc6749.md` records what this does and does not settle: an
- * operator who sets `ODUDU_TLS=true` in front of a plaintext listener has
- * lied, and nothing here can tell.
+ * `docs/protocols/rfc6749.md` records what this does and does not settle.
+ * Two assertions carry it, not one: `ODUDU_TLS=true` in front of a plaintext
+ * listener is a lie nothing here can tell, and so is any `NODE_ENV` other
+ * than `production` on a deployment serving real users — that one silences
+ * this guard outright.
  */
 export function assertProductionTls(config: Config): void {
   if (config.NODE_ENV === 'production' && !config.ODUDU_TLS) {

@@ -152,9 +152,13 @@ A real deployment today looks like:
    `ODUDU_APP_DATABASE_URL` (restricted, used to serve). **The server refuses
    to boot with `NODE_ENV=production` if the second is unset** — serving as
    the owner would bypass row-level security, so that failure is deliberate.
-4. Terminate TLS in front of it. The server speaks plain HTTP. Set
-   `ODUDU_TRUST_PROXY=true` only behind a proxy that overwrites
-   `X-Forwarded-*`, or `request.ip` becomes client-controlled.
+4. Terminate TLS in front of it. The server speaks plain HTTP. **With
+   `NODE_ENV=production` it refuses to boot until `ODUDU_TLS=true` says
+   something in front of it is doing that** — every credential it issues
+   travels as plaintext over the connection, so the assertion is demanded
+   rather than assumed. Set `ODUDU_TRUST_PROXY=true` only behind a proxy
+   that overwrites `X-Forwarded-*`, or `request.ip` becomes
+   client-controlled.
 5. Run one instance. Migrations run on boot from every process and take no
    advisory lock, so concurrent replicas would race.
 
