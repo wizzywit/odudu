@@ -26,6 +26,29 @@ The sequence, in order:
 Work happens on a branch; `main` is protected and requires `verify`,
 `container` and `commit-messages` to pass.
 
+### CI runs on the branch, from the first increment
+
+**Open a draft pull request with the first push of a phase branch, and push
+at the end of every increment.** An increment is not finished until CI is
+green on the pushed commit — a failure there is fixed before the next
+increment starts, not collected for the end.
+
+This is a mechanism, not a preference. `verify.yml` triggers on
+`pull_request` and on push to `main`; a branch with no pull request open
+runs **nothing**, however often it is pushed. P1 ran nineteen increments
+that way, and a broken container build survived eight of them unnoticed —
+`pnpm verify` does not build the image, and `container` and `conformance`
+have no local equivalent anybody runs by habit. "CI green" was an exit
+criterion that had never once been observed.
+
+The unit is the increment, not the commit. An increment is several commits,
+sometimes written concurrently; pushing each one races the others, spends
+CI on states nobody intends to keep, and makes "fix before proceeding"
+meaningless, since a red build partway through an increment is a work in
+progress rather than a defect. The `conformance` job builds the OIDF suite
+from source, which is minutes per run — affordable per increment, not per
+commit.
+
 ### The rule P0 was written to produce
 
 Every plan-level defect in P0 shared one shape: **a claim about how a
@@ -111,5 +134,6 @@ import each other.
 - Every repository method is probed with a foreign `realm_id`.
 - `SET LOCAL`, never `SET`, for realm context. A session-scoped setting
   leaks between pooled requests.
-- Every increment ends with CI green, branch merged, and `docs/NEXT.md`
+- Every increment ends with CI green **on a pushed commit with a pull
+  request open** (see "CI runs on the branch"), branch merged, and `docs/NEXT.md`
   updated.
