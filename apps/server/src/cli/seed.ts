@@ -19,6 +19,11 @@ import {
 // RFC 6749 §2.3.1 form (Authorization header or body parameter). Public
 // clients present none of either and are always seeded as 'none' — this
 // option only ever changes a confidential client's method.
+//
+// Omitted means `client_secret_basic`, on a re-run as much as on a first
+// run: seed asserts the whole desired state, so re-running against a
+// client registered for `client_secret_post` without naming it again is a
+// conflict, not a no-op.
 type ConfidentialTokenEndpointAuthMethod = Extract<
   ClientOidcConfig['tokenEndpointAuthMethod'],
   'client_secret_basic' | 'client_secret_post'
@@ -125,15 +130,26 @@ async function assertMatchesExisting(
     );
   }
 
+  // Every other option here is compared against what was asked for, and
+  // this one is no different: an omitted auth method is not "whatever is
+  // already there", it is the default that a first run would have created.
+  // Saying which of the two the run asserted, and how, is the difference
+  // between a message an operator can act on and one that reads like a bug.
   const expectedAuthMethod = opts.tokenEndpointAuthMethod ?? 'client_secret_basic';
   if (
     config !== null &&
     expectedType === 'confidential' &&
     config.tokenEndpointAuthMethod !== expectedAuthMethod
   ) {
+    const source =
+      opts.tokenEndpointAuthMethod === undefined
+        ? 'the default applied when --token-endpoint-auth-method is omitted'
+        : 'requested with --token-endpoint-auth-method';
     throw new OduduError(
       'seed_conflict',
-      `client ${opts.clientId} already exists with a different token endpoint auth method`,
+      `client ${opts.clientId} already exists with token endpoint auth method ` +
+        `${config.tokenEndpointAuthMethod}, but this run asks for ${expectedAuthMethod} ` +
+        `(${source})`,
     );
   }
 

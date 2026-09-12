@@ -212,6 +212,35 @@ describe('seed', () => {
     await expect(seed(publicOptions)).rejects.toThrow(/client secret/);
   });
 
+  // Omitting the option is not "leave whatever is there alone": seed
+  // asserts the whole desired state, and the option has a default, so an
+  // omitted flag asserts that default. An operator who seeded
+  // client_secret_post and re-runs the command without the flag is asking
+  // for something different from what exists, and has to be told so in
+  // terms they can act on.
+  it('refuses a second run that omits the auth method for a client_secret_post client', async () => {
+    const options = uniqueOptions();
+
+    await seed({ ...options, tokenEndpointAuthMethod: 'client_secret_post' });
+
+    await expect(seed(options)).rejects.toThrow(/token endpoint auth method/);
+  });
+
+  it('names the stored method, the asserted one, and where the asserted one came from', async () => {
+    const options = uniqueOptions();
+
+    await seed({ ...options, tokenEndpointAuthMethod: 'client_secret_post' });
+
+    const error = await seed(options).then(
+      () => null,
+      (thrown: unknown) => thrown,
+    );
+    if (!(error instanceof Error)) throw new Error('expected seed to reject');
+    expect(error.message).toContain('client_secret_post');
+    expect(error.message).toContain('client_secret_basic');
+    expect(error.message).toContain('--token-endpoint-auth-method');
+  });
+
   it('refuses a second run with a different token endpoint auth method for the same client', async () => {
     const options = uniqueOptions();
 
