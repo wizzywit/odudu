@@ -70,6 +70,15 @@ function postAuthorize(overrides: Record<string, string | undefined> = {}) {
   });
 }
 
+function postAuthorizeRaw(payload: string, headers: Record<string, string>) {
+  return http.inject({
+    method: 'POST',
+    url: `/realms/${REALM}/protocol/openid-connect/auth`,
+    headers,
+    payload,
+  });
+}
+
 // Builds a request URL carrying a repeated query key, which authorizeUrl
 // (backed by URLSearchParams.set) cannot express.
 function authorizeUrlWithRepeatedKey(repeatedKey: string, values: [string, string]): string {
@@ -230,5 +239,71 @@ describe('[OIDC-CORE-3.1.2-01] POST at the authorization endpoint behaves exactl
     expect(postRes.headers['content-type']).toBe(getRes.headers['content-type']);
     expect(postRes.body).toContain(`/realms/${REALM}/login-actions/authenticate`);
     expect(postRes.body).toContain('name="auth_session_id"');
+  });
+
+  it('renders what a parameterless GET renders when the body is absent', async () => {
+    const getRes = await http.inject({
+      url: `/realms/${REALM}/protocol/openid-connect/auth`,
+    });
+    const postRes = await postAuthorizeRaw('', { 'content-length': '0' });
+
+    expect(postRes.statusCode).toBe(getRes.statusCode);
+    expect(postRes.statusCode).toBe(400);
+    expect(postRes.headers['content-type']).toBe(getRes.headers['content-type']);
+    expect(postRes.body).toBe(getRes.body);
+  });
+
+  it('renders what a parameterless GET renders for an empty form body', async () => {
+    const getRes = await http.inject({
+      url: `/realms/${REALM}/protocol/openid-connect/auth`,
+    });
+    const postRes = await postAuthorizeRaw('', {
+      'content-type': 'application/x-www-form-urlencoded',
+    });
+
+    expect(postRes.statusCode).toBe(getRes.statusCode);
+    expect(postRes.body).toBe(getRes.body);
+  });
+});
+
+// OIDC Core §3.1.2.1: POST parameters are form serialized. Any other media
+// type is an unsupported representation, so it is refused at the HTTP layer
+// before a parser gets to invent values of the wrong type for rules —
+// mandatory PKCE above all — that are written for strings.
+describe('[OIDC-CORE-3.1.2.1-01] POST at the authorization endpoint takes form encoding only', () => {
+  it.each(['application/json', 'text/plain', 'application/xml'])(
+    'refuses a %s body with 415 and no redirect',
+    async (contentType) => {
+      const res = await postAuthorizeRaw(JSON.stringify(authorizeParams()), {
+        'content-type': contentType,
+      });
+
+      expect(res.statusCode).toBe(415);
+      expect(res.headers.location).toBeUndefined();
+      expect(res.body).not.toContain('name="auth_session_id"');
+    },
+  );
+
+  it('accepts a form body that names its charset', async () => {
+    const body = new URLSearchParams();
+    for (const [key, value] of Object.entries(authorizeParams())) {
+      if (value !== undefined) body.set(key, value);
+    }
+    const res = await postAuthorizeRaw(body.toString(), {
+      'content-type': 'application/x-www-form-urlencoded; charset=utf-8',
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toContain('name="auth_session_id"');
+  });
+
+  it('does not let a JSON body past mandatory PKCE by typing code_challenge as a number', async () => {
+    const res = await postAuthorizeRaw(
+      JSON.stringify({ ...authorizeParams(), code_challenge: 1234 }),
+      { 'content-type': 'application/json' },
+    );
+
+    expect(res.statusCode).toBe(415);
+    expect(res.body).not.toContain('name="auth_session_id"');
   });
 });

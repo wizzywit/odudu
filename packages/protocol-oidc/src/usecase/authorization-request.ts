@@ -36,7 +36,7 @@ export interface AuthorizeUsecaseDeps {
 export async function handleAuthorizationRequest(
   deps: AuthorizeUsecaseDeps,
   realmName: string,
-  rawParams: Record<string, string | string[] | undefined>,
+  rawParams: unknown,
 ): Promise<AuthorizationRequestOutcome> {
   const normalized = normalizeAuthorizeQuery(rawParams);
   if (normalized.kind === 'render') return normalized;
