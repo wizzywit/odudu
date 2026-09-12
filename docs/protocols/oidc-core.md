@@ -96,7 +96,7 @@ these checks succeed for a correctly implemented client — a wrong `iss`,
 a missing audience entry, a stale `exp`, or a dropped `nonce` all turn
 into an RP-side rejection of an otherwise successful login.
 
-### `prompt=login`: forced reauthentication is a P1 gap, not a P2 deferral
+### `prompt` and `id_token_hint`: P1 gaps, not P2 deferrals
 
 §15.1 makes `prompt=login` mandatory-to-implement for every OP, and the
 specification's bar for it is narrow: do not reuse an existing session,
@@ -111,6 +111,27 @@ fresh enough to skip a new login. That distinction is why `max_age`-
 triggered reauthentication (§2's `auth_time` requirement, §3.1.2.1,
 §15.1) stays deferred to P2 while `prompt=login`'s own rows are `gap`
 below — P1 already has everything `prompt=login` requires.
+
+The same argument covers `prompt=none`, and more cheaply. Its bar is: do
+not interact with the end-user, and return an error if the end-user is not
+already authenticated and cannot be silently authenticated (§3.1.2.3,
+§15.1). `handleAuthorizationRequest` calls `startAuthentication`
+unconditionally and never reads the `__Host-<realm>-session` cookie it
+later sets, so P1 can never silently authenticate anyone — which makes
+"always return `login_required`" a complete and conformant implementation
+of `prompt=none` for this server, reachable with no session-reuse
+machinery at all. Rejecting `prompt` values that combine `none` with
+anything else is plain parameter validation on top. These rows are `gap`,
+not a P2 deferral.
+
+`id_token_hint` is a third case that looks like it needs session reuse and
+does not. Validating that Odudu issued the hint (§3.1.2.2) is signature and
+`iss` checking against the realm's own keys, which `/token` and `/userinfo`
+already do. And §3.1.2.1's rule admits the end-user who "becomes logged in
+as a result of the request" — which is every successful P1 login — so
+honouring the hint means comparing its `sub` to whoever authenticated and
+erroring when they differ. Neither needs a reusable session, so both stay
+`gap`.
 
 ### Response Mode: `query` and nothing else
 
