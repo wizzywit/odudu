@@ -101,13 +101,86 @@ function failureMessage(where: string, id: string, failed: TestResult[]): string
   return `${where}: ${id} failed: ${first}${rest > 0 ? ` (and ${String(rest)} more carrying that id)` : ''}`;
 }
 
+// How many MUST rows a file is allowed to silence, per status, recorded in
+// `tools/trace/silenced-musts.json` and required to match exactly.
+export interface SilencedMusts {
+  deferred: number;
+  na: number;
+}
+
+// `deferred:` and `n/a:` are the two statuses that say nothing per row, and
+// nothing is the right amount to say about any one of them: there are
+// hundreds, and a warning printed on every run for a row nobody will act on
+// is the furniture ADR 0017 warned against — it would bury the handful of
+// `accepted:` warnings that mode exists to make visible. What was wrong was
+// that silencing a *new* MUST that way also cost nothing.
+//
+// So the rows stay quiet and the counts do not. Each file's tally is
+// recorded, and a tally that no longer matches is reported — upwards,
+// because a MUST has been silenced and somebody should have to say so in a
+// reviewed diff; downwards, because a census that overstates what is
+// silenced is slack the next row can be silenced into for free. Per file,
+// so a rise in one table cannot be hidden by a fall in another.
+function censusFindings(
+  rows: Row[],
+  census: Map<string, SilencedMusts>,
+  strict: boolean,
+): Finding[] {
+  const actual = new Map<string, SilencedMusts>();
+  for (const row of rows) {
+    const entry = actual.get(row.file) ?? { deferred: 0, na: 0 };
+    if (row.level === 'MUST') {
+      if (row.status.kind === 'deferred') entry.deferred += 1;
+      if (row.status.kind === 'na') entry.na += 1;
+    }
+    actual.set(row.file, entry);
+  }
+
+  const findings: Finding[] = [];
+  for (const file of census.keys()) {
+    if (actual.has(file)) continue;
+    findings.push({
+      severity: 'error',
+      message: `${file}: the silenced-MUST census names a file with no clause table`,
+    });
+  }
+
+  for (const [file, counts] of [...actual].sort(([a], [b]) => a.localeCompare(b))) {
+    const recorded = census.get(file) ?? { deferred: 0, na: 0 };
+    for (const status of ['deferred', 'na'] as const) {
+      const found = counts[status];
+      const expected = recorded[status];
+      if (found === expected) continue;
+      const direction =
+        found > expected
+          ? 'a MUST has been silenced without the census being raised to say so'
+          : 'the census is now too high and must be lowered to match';
+      findings.push({
+        severity: strict ? 'error' : 'warn',
+        message:
+          `${file}: ${String(found)} MUST rows are ${status === 'na' ? 'n/a' : status}, ` +
+          `tools/trace/silenced-musts.json records ${String(expected)} — ${direction}`,
+      });
+    }
+  }
+
+  return findings;
+}
+
 export function reconcile(
   rows: Row[],
   results: TestResult[],
-  options: { strict?: boolean; headings?: Map<string, Set<string>> } = {},
+  options: {
+    strict?: boolean;
+    headings?: Map<string, Set<string>>;
+    silenced?: Map<string, SilencedMusts>;
+  } = {},
 ): Finding[] {
   const byId = groupById(results);
-  const findings: Finding[] = [];
+  const findings: Finding[] =
+    options.silenced === undefined
+      ? []
+      : censusFindings(rows, options.silenced, options.strict ?? false);
   const rowIds = new Set(rows.map((r) => r.testId).filter((id): id is string => id !== null));
 
   for (const row of rows) {

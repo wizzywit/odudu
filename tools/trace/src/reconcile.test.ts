@@ -272,7 +272,10 @@ describe('reconcile', () => {
     });
   });
 
-  it('ignores deferred and n/a rows entirely', () => {
+  // Deliberately silent per row, and held instead by the census below —
+  // see ADR 0017's 2026-09-12 amendment for why 111 rows printing every run
+  // would cost more than it bought.
+  it('says nothing about an individual deferred or n/a row', () => {
     const findings = reconcile(
       [
         row({ testId: null, status: { kind: 'deferred', phase: 'P3', reason: 'r' } }),
@@ -282,5 +285,84 @@ describe('reconcile', () => {
       { strict: true },
     );
     expect(findings).toEqual([]);
+  });
+
+  describe('the silenced-MUST census', () => {
+    const deferred = row({ testId: null, status: { kind: 'deferred', phase: 'P3', reason: 'r' } });
+    const na = row({ testId: null, status: { kind: 'na', reason: 'r' } });
+    const census = (deferredCount: number, naCount: number) =>
+      new Map([['rfc7636.md', { deferred: deferredCount, na: naCount }]]);
+
+    it('is silent when every file matches its recorded counts', () => {
+      const findings = reconcile([deferred, na], [], {
+        strict: true,
+        silenced: census(1, 1),
+      });
+      expect(findings).toEqual([]);
+    });
+
+    it('errors in strict mode on a MUST newly silenced as n/a', () => {
+      const findings = reconcile([deferred, na, na], [], {
+        strict: true,
+        silenced: census(1, 1),
+      });
+      expect(findings).toHaveLength(1);
+      expect(findings[0]).toMatchObject({ severity: 'error' });
+      expect(nth(findings, 0).message).toMatch(/n\/a/);
+      expect(nth(findings, 0).message).toMatch(/2.*1|1.*2/);
+    });
+
+    it('errors in strict mode on a MUST newly silenced as deferred', () => {
+      const findings = reconcile([deferred, deferred, na], [], {
+        strict: true,
+        silenced: census(1, 1),
+      });
+      expect(findings).toHaveLength(1);
+      expect(nth(findings, 0).message).toMatch(/deferred/);
+    });
+
+    it('warns rather than errors outside strict mode', () => {
+      const findings = reconcile([deferred, na, na], [], { silenced: census(1, 1) });
+      expect(findings[0]).toMatchObject({ severity: 'warn' });
+    });
+
+    // A ratchet that only ever stops things getting worse leaves the census
+    // permanently overstating what is silenced, and that slack is room for
+    // the next row to be silenced for free.
+    it('errors when a file now silences fewer MUSTs than the census records', () => {
+      const findings = reconcile([na], [], { strict: true, silenced: census(1, 1) });
+      expect(findings).toHaveLength(1);
+      expect(nth(findings, 0).message).toMatch(/deferred/);
+      expect(nth(findings, 0).message).toMatch(/lower|fewer|down/i);
+    });
+
+    it('counts a silenced SHOULD or MAY towards nothing', () => {
+      const findings = reconcile(
+        [row({ level: 'SHOULD', testId: null, status: { kind: 'na', reason: 'r' } })],
+        [],
+        { strict: true, silenced: census(0, 0) },
+      );
+      expect(findings).toEqual([]);
+    });
+
+    it('treats a file absent from the census as silencing nothing', () => {
+      const findings = reconcile([na], [], { strict: true, silenced: new Map() });
+      expect(findings).toHaveLength(1);
+      expect(nth(findings, 0).message).toContain('rfc7636.md');
+    });
+
+    it('errors when the census names a file that carries no clause table', () => {
+      const findings = reconcile([], [], {
+        strict: true,
+        silenced: new Map([['rfc-gone.md', { deferred: 0, na: 3 }]]),
+      });
+      expect(findings).toHaveLength(1);
+      expect(nth(findings, 0).message).toContain('rfc-gone.md');
+    });
+
+    it('is skipped entirely when no census is supplied', () => {
+      const findings = reconcile([deferred, na], [], { strict: true });
+      expect(findings).toEqual([]);
+    });
   });
 });

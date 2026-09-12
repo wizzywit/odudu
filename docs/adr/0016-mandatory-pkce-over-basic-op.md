@@ -86,3 +86,40 @@ FAPI 2.0 family, which brings sender-constrained tokens (DPoP or mTLS) and
 PAR with it. Those are P3-and-later surfaces. When they land, this ADR
 should be revisited to name the profile Odudu can actually certify against,
 rather than leaving "no certification" as the permanent answer.
+
+## Correction, 2026-09-12 (what the run actually returned)
+
+The Context above reads as though the dedicated PKCE module is the only
+module in the plan that passes. It is not. The committed rerun export,
+`infra/conformance/results/basic-op-2026-09-12-v5.1.36-rerun.json`, counts
+**28 FAILED, 2 PASSED, 3 SKIPPED, 2 INTERRUPTED** across the 35 modules,
+and the second pass is `oidcc-response-type-missing`.
+
+That module does send a plain authorization request with no
+`code_challenge`, exactly as the Context says every non-PKCE module does.
+It passes anyway because an authorization-endpoint _error_ is its expected
+outcome: its final check is
+`CheckErrorFromAuthorizationEndpointErrorInvalidRequestOrUnsupportedResponseType`,
+which accepts `invalid_request` alongside the `unsupported_response_type`
+the module was written to elicit. The mandatory-PKCE rejection is
+`invalid_request`, so it satisfies the module's own expectation. A module
+whose pass condition is an error is indifferent to which error it gets —
+which is worth recording, because it means the pass count is not a measure
+of the divergence in either direction.
+
+The remaining seven are neither passes nor PKCE failures. Three are
+SKIPPED (`oidcc-scope-address`, `oidcc-scope-phone`, `oidcc-scope-all`) —
+the suite skips scopes `scopes_supported` does not advertise, and P1
+advertises `openid`, `profile` and `email` only. Two are INTERRUPTED
+(`oidcc-ensure-registered-redirect-uri`,
+`oidcc-ensure-request-object-with-redirect-uri`): both reached the correct
+400 error page, and both then wait on a human uploading a screenshot in the
+suite's UI, which an unattended run cannot supply.
+
+None of this weakens the decision. The claim the ADR rests on is about the
+28, not about the 7: every one of the 28 was individually confirmed to fail
+on the mandatory-PKCE rejection and on nothing else, and that claim is
+unchanged. What the correction removes is a stronger reading the original
+wording invited — that the suite sorts cleanly into "the PKCE module" and
+"everything else" — which would have made a future run's second pass look
+like a regression rather than the pre-existing fact it is.

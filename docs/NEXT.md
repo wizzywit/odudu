@@ -10,12 +10,21 @@ the authorize, token, userinfo, jwks and discovery endpoints. The rest of
 this file is the record of how that happened; what follows is the part a
 newcomer to P2 needs before touching anything.
 
-**`pnpm trace` runs strict, and a new MUST with no test fails the build.**
-That is the one workflow change to know. Add a clause row for every MUST and
-SHOULD P2 introduces, and close it with a test id — `gap` is now an error
-under `pnpm verify`, not a warning to be triaged later. The six statuses and
-what each is for are in `docs/protocols/rfc6749.md`'s reading note "The six
-statuses, and what the two prose ones are for".
+**`pnpm trace` runs strict, and a new MUST that is not `covered` costs
+something in every one of the six statuses.** That is the one workflow
+change to know. Add a clause row for every MUST and SHOULD P2 introduces,
+and close it with a test id. Left `gap` or `documented:`, a MUST is an error
+under `pnpm verify`, not a warning to be triaged later. Recorded
+`accepted:`, it warns on every run and its reference must quote a heading
+the tool checks still exists. Recorded `deferred:` or `n/a:`, it prints
+nothing — but the count of MUSTs each clause table silences that way is
+recorded in `tools/trace/silenced-musts.json`, the tool requires the
+recorded number to equal the number it finds, and a new one therefore fails
+the build until somebody raises the count in a diff a reviewer sees.
+The six statuses and what each is for are in
+`docs/protocols/rfc6749.md`'s reading note "The six statuses, and what the
+two prose ones are for"; why the silent two are held by a census rather than
+by printing is in ADR 0017's 2026-09-12 amendment.
 
 **Eighteen MUSTs are `accepted:`, and they are not work items.** Seventeen
 of them come to the same thing — a property of a connection this process
@@ -514,6 +523,34 @@ job).
   create. It was never created — its job (correlation id generation,
   per-request setup) folded into `app.ts`'s `genReqId` option and its
   `onRequest` hook instead, which turned out to be all that was needed.
+
+**A clause row concealed missing security work for the thirteenth time, and
+the first time it was security work.** OIDC Core §3.1.2.3 asks for CSRF
+_and_ clickjacking countermeasures in one sentence; one row carried both
+against `OIDC-CORE-3.1.2.1-05`, which asserts the CSRF half only, and no
+clickjacking defence existed anywhere in the repository. It does now —
+`Content-Security-Policy: frame-ancestors 'none'` with `X-Frame-Options:
+DENY` beside it, on every page this server renders, set at a single choke
+point (`packages/protocol-oidc/src/view/html-response.ts`) that
+`html-response.test.ts` keeps single by failing the build if any other file
+in the view layer names the HTML media type. The row is now two rows with
+two test ids, which is the arrangement that cannot lose a half silently: one
+id carried by two tests stays green when one of them is deleted, two ids do
+not. **The general rule: a row's requirement text names one obligation, and
+a conjunction in the specification's words is a reason to split the row.**
+The clickjacking obligation on the authorization server is RFC 6749 §10.13
+and needs a row of its own in `docs/protocols/rfc6749.md`, which has none.
+
+**Two of the six statuses failed a build over nothing.** `deferred:` and
+`n/a:` were skipped before any level check, so a MUST silenced with either
+produced exit 0 and no output at all — not even the warning `accepted:`
+gets. They are still quiet per row, on purpose: 111 MUSTs sit behind them,
+and printing 111 lines would bury the 18 `accepted:` warnings rather than
+surface anything. What changed is that the counts are recorded per clause
+table in `tools/trace/silenced-musts.json` and required to match exactly, so
+silencing a new MUST now fails strict trace until somebody raises a number
+in a reviewed diff. ADR 0017's 2026-09-12 amendment has the ruling, what it
+buys, and the two ways it can still be defeated.
 
 ## Login page theming, for P2 to decide
 

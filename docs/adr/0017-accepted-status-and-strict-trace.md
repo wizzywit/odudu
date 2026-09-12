@@ -111,3 +111,67 @@ never fails a build makes it free.
 **Give `accepted:` a phase field anyway.** Considered and rejected above: it
 would make `accepted: P3 — …` writable, which is `deferred:` with strict
 mode disarmed. The absence of the field is what forces the choice.
+
+## Amendment, 2026-09-12 (the two statuses strict never looked at)
+
+This ADR reasoned about `accepted:` against `gap` and against `documented:`
+and did not look at the other two. It should have. Measured after the fact,
+by adding one fresh MUST row under each status and running strict trace:
+
+| status      | strict exit | output                  |
+| ----------- | ----------- | ----------------------- |
+| `gap`       | 1           | one error               |
+| `accepted:` | 0           | one warn, in both modes |
+| `deferred:` | 0           | **nothing at all**      |
+| `n/a:`      | 0           | **nothing at all**      |
+
+`reconcile` skipped `deferred` and `n/a` rows before any level check, so a
+MUST recorded that way produced no finding in either mode. The consequences
+section above claims "a new MUST row with no test fails `pnpm verify`"; that
+was true only of the status somebody writing the row has no reason to
+choose. The cheapest way to silence a MUST was the status nobody had
+thought to check, and 111 MUST rows — 84 `n/a`, 27 `deferred` — already sat
+behind the two.
+
+**The decision is that they stay silent per row, and stop being free.**
+
+Printing them would have been the consistent-looking answer and is the
+wrong one, by this ADR's own argument. It rejected leaving strict off partly
+because "a warning that has been printed on every run for two phases is
+furniture; nobody will notice the twentieth line". There are eighteen
+`accepted:` warnings today, and that is close to the ceiling at which a
+human still reads them. Adding 111 lines would not make the 111 visible; it
+would make the 18 invisible, and it would fail nothing, so nothing would
+change except the cost of reading the output. A warning that cannot fail a
+build is only worth printing while somebody is still counting it.
+
+So the count is what is held instead. `tools/trace/silenced-musts.json`
+records, per clause table, how many MUST rows it silences with `deferred:`
+and with `n/a:`, and `reconcile` requires the recorded number to **equal**
+the number it finds. A new MUST silenced either way fails strict trace with
+the file, both numbers, and what to do; existing rows print nothing. The
+check is per file, so a rise in one table cannot be cancelled by a fall in
+another, and both directions are enforced — a census left standing above the
+truth is slack the next row can be silenced into for free, which is the
+failure this replaces.
+
+What this buys and what it does not:
+
+- A MUST can still be silenced. It now costs a line in a reviewed diff that
+  says, in numbers, that one more obligation went quiet — which is the same
+  standard `accepted:` is held to, arrived at by counting rather than by
+  printing.
+- The tool still cannot read a reason. It could not for `accepted:` either;
+  this ADR said so plainly and the residual risk is unchanged. Nothing here
+  checks that an `n/a:` reason is true, only that a new one was noticed.
+- It is defeatable by someone who converts an existing `n/a` row to
+  `covered` in the same file and same commit as they silence a new one. That
+  is deliberate work with a net-zero diff, not an oversight, and it is a
+  strictly higher bar than the nothing it replaces.
+- The 111 existing rows are not audited by this. They are a backlog, and
+  the census is the number that makes the backlog's size a fact somebody has
+  to restate every time it grows.
+
+`accepted:` keeps the treatment this ADR gave it: a warn in both modes, and
+a reference the build verifies. Six remains the ceiling; nothing here adds a
+status.

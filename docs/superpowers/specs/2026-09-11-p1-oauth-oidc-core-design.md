@@ -475,6 +475,34 @@ exist.
    realm, client and user, and a full code+PKCE exchange completes against
    the running stack
 
+**Criterion 2 amended 2026-09-12, after counting the rows it quantifies
+over.** As written it is false, and was false on the day the tables were
+first filled in. The honest criterion is: **no MUST row is `gap` or
+`documented:` in any clause table, and every MUST that is not `covered`
+carries one of the three statuses that say why, whose totals are recorded
+and checked.** As the phase closes that is 358 MUST rows — 229 `covered`,
+18 `accepted:`, 27 `deferred:`, 84 `n/a:`, none `gap`.
+
+Two things were wrong with the original. "Zero `gap` rows across all clause
+tables" quantified over every row, and 94 remain — 56 SHOULD and 38 MAY.
+That was never the intent: strict mode errors on a MUST `gap` only, so the
+build has been green the whole time the criterion's first clause was false,
+which is precisely the arrangement a criterion is supposed to prevent. And
+"every in-scope MUST `covered`" leaned on "in-scope" to do work nothing ever
+defined — 129 MUSTs are not `covered`, and whether each is out of scope is
+the judgment written into its status cell, not something the phrase settles.
+
+This is weaker than what was promised, and worth saying so rather than
+reading the words to fit. 129 MUST rows are held by an argument rather than
+by a test, and 111 of those (`deferred:` and `n/a:`) print nothing on a
+normal run. What the phase actually guarantees is that each of the 129 was
+looked at, that none can be added without the count that makes it visible
+being raised in a reviewed diff (ADR 0017's 2026-09-12 amendment), and that
+the remaining SHOULD and MAY gaps are recorded as gaps rather than dressed
+up. It does not guarantee that any of the 129 arguments is true; a tool can
+check that prose exists and that a number matches, never that either is
+right.
+
 Criterion 8 exists because of P0's lesson. A smoke test that only probed
 `/health/ready` passed identically before and after the RLS grant existed
 — it could not distinguish working from broken. The equivalent trap here
