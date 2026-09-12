@@ -172,8 +172,8 @@ describe('userRepository', () => {
       ];
     });
 
-    expect(withEmail?.email).toBe('carol.o-brien+tag@mail.example.com');
-    expect(withoutEmail?.email).toBeNull();
+    expect(withEmail.email).toBe('carol.o-brien+tag@mail.example.com');
+    expect(withoutEmail.email).toBeNull();
   });
 
   it('returns null when no user matches', async () => {

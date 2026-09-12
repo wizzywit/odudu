@@ -1,7 +1,8 @@
 import { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
-import { FORM_MEDIA_TYPE, isFormEncoded } from '#/service/media-type';
+import { FORM_MEDIA_TYPE } from '#/service/media-type';
 import { resolveUserinfo, type UserinfoDeps } from '#/usecase/userinfo';
 import { realmIssuerFor } from '#/view/issuer';
+import { namesUnsupportedRepresentation } from '#/view/media-type';
 
 const PATH = '/realms/:realm/protocol/openid-connect/userinfo';
 
@@ -59,9 +60,9 @@ export function registerUserinfoRoute(app: FastifyInstance, deps: UserinfoDeps):
   // other media type is an unsupported representation rather than a bad
   // token, so it is refused with 415 (RFC 9110 §15.5.16) before a parser
   // runs — the same rule `/authorize` applies, sharing one media-type test
-  // with it. A POST naming no content type carries no representation to
-  // refuse: it is a request whose only credential is the Authorization
-  // header, and is answered like one.
+  // with it. A POST naming no content type and carrying no body carries no
+  // representation to refuse: it is a request whose only credential is the
+  // Authorization header, and is answered like one.
   //
   // Unlike `/authorize`, the refusal has no body: this endpoint answers a
   // machine in JSON and reports every other failure in headers alone.
@@ -69,8 +70,7 @@ export function registerUserinfoRoute(app: FastifyInstance, deps: UserinfoDeps):
     PATH,
     {
       onRequest: async (request, reply) => {
-        const contentType = request.headers['content-type'];
-        if (contentType !== undefined && !isFormEncoded(contentType)) {
+        if (namesUnsupportedRepresentation(request)) {
           await reply.code(415).header('accept-post', FORM_MEDIA_TYPE).send();
         }
       },

@@ -220,10 +220,45 @@ describe('a repeated state or scope redirects with invalid_request', () => {
 
 describe('an unsupported response_mode is answered with 400 and nothing else', () => {
   it('[OIDC-CORE-3.1.2.6-01] answers response_mode=fragment with 400 and no response parameters', async () => {
-    const res = await http.inject({ url: authorizeUrl({ response_mode: 'fragment' }) });
+    const res = await http.inject({
+      url: authorizeUrl({ response_mode: 'fragment', state: 'the-state-value' }),
+    });
     expect(res.statusCode).toBe(400);
     expect(res.headers.location).toBeUndefined();
     expect(res.body).not.toContain('name="auth_session_id"');
+    // "No error response parameters" is a claim about the whole response,
+    // not only about the status line and the Location header: a 400 whose
+    // body is a form auto-posting `error` and `state` to the redirect URI
+    // would deliver every parameter this clause forbids. Nothing in the
+    // response may name the redirect target, carry the request's `state`,
+    // or be able to submit anything anywhere.
+    expect(res.body).not.toContain(REDIRECT_URI);
+    expect(res.body).not.toContain('the-state-value');
+    expect(res.body).not.toContain('<form');
+    expect(res.body).not.toContain('error=');
+  });
+
+  // A repeated response_mode names an unsupported mode as surely as a lone
+  // `fragment` does, and is answered the same way rather than falling
+  // through to the repeated-parameter rule, which redirects.
+  it('answers a repeated response_mode naming fragment with the same bare 400', async () => {
+    const res = await http.inject({
+      url: authorizeUrlWithRepeatedKey('response_mode', ['query', 'fragment']),
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.headers.location).toBeUndefined();
+    expect(res.body).not.toContain(REDIRECT_URI);
+  });
+
+  it('answers a repeated response_mode the same way whichever order it arrives in', async () => {
+    const queryFirst = await http.inject({
+      url: authorizeUrlWithRepeatedKey('response_mode', ['query', 'fragment']),
+    });
+    const fragmentFirst = await http.inject({
+      url: authorizeUrlWithRepeatedKey('response_mode', ['fragment', 'query']),
+    });
+    expect(queryFirst.statusCode).toBe(fragmentFirst.statusCode);
+    expect(queryFirst.body).toBe(fragmentFirst.body);
   });
 
   it('answers response_mode=query exactly as a request naming no mode', async () => {
@@ -394,6 +429,24 @@ describe('[OIDC-CORE-3.1.2.1-01] POST at the authorization endpoint takes form e
 
     expect(res.statusCode).toBe(200);
     expect(res.body).toContain('name="auth_session_id"');
+  });
+
+  // RFC 9110 §8.3: a payload arriving with no Content-Type has an unknown
+  // media type. Unknown is unsupported here, and letting it reach Fastify's
+  // own FST_ERR_CTP_INVALID_MEDIA_TYPE put back exactly what this endpoint
+  // set out to remove — one refusal in two representations, this one a JSON
+  // error object where every other refusal is an HTML page.
+  it('refuses a body naming no content type exactly as it refuses a named unsupported one', async () => {
+    const named = await postAuthorizeRaw(JSON.stringify(authorizeParams()), {
+      'content-type': 'application/json',
+    });
+    const unnamed = await postAuthorizeRaw(JSON.stringify(authorizeParams()), {});
+
+    expect(unnamed.statusCode).toBe(named.statusCode);
+    expect(unnamed.statusCode).toBe(415);
+    expect(unnamed.headers['content-type']).toBe(named.headers['content-type']);
+    expect(unnamed.headers['content-type']).toContain('text/html');
+    expect(unnamed.body).toBe(named.body);
   });
 
   it('does not let a JSON body past mandatory PKCE by typing code_challenge as a number', async () => {

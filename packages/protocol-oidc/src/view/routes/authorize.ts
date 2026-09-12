@@ -1,11 +1,12 @@
 import { type FastifyInstance, type FastifyReply } from 'fastify';
-import { FORM_MEDIA_TYPE, isFormEncoded } from '#/service/media-type';
+import { FORM_MEDIA_TYPE } from '#/service/media-type';
 import {
   handleAuthorizationRequest,
   type AuthorizeUsecaseDeps,
 } from '#/usecase/authorization-request';
 import { renderAuthorizeErrorPage, renderLoginForm } from '#/view/authorize-html';
 import { realmIssuerFor } from '#/view/issuer';
+import { namesUnsupportedRepresentation } from '#/view/media-type';
 
 const PATH = '/realms/:realm/protocol/openid-connect/auth';
 
@@ -71,14 +72,15 @@ export function registerAuthorizeRoute(app: FastifyInstance, deps: AuthorizeUsec
   // request names the same unsupported representation a full one does, and
   // keying on the body instead handed it to Fastify's JSON parser, which
   // answered a different status in a different media type for what is the
-  // same refusal. A request naming no content type at all carries no
-  // representation to refuse and is simply a request with no parameters.
+  // same refusal. A request naming no content type and carrying no body
+  // carries no representation to refuse and is simply a request with no
+  // parameters; a body with no content type has an unknown media type
+  // (RFC 9110 §8.3), and unknown is unsupported here.
   app.post<{ Params: { realm: string } }>(
     PATH,
     {
       onRequest: async (request, reply) => {
-        const contentType = request.headers['content-type'];
-        if (contentType !== undefined && !isFormEncoded(contentType)) {
+        if (namesUnsupportedRepresentation(request)) {
           await reply
             .code(415)
             .type('text/html')

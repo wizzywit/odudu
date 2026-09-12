@@ -67,9 +67,11 @@ describe('a non-string value is absent, whatever parser produced it', () => {
     expect(result).toMatchObject({ kind: 'ok', params: { state: 'second' } });
   });
 
-  it('treats a parameter whose every value is a non-string as absent', () => {
+  // Carrying nothing forward is right; calling it unrepeated was not. Two
+  // values nobody can read are still two values.
+  it('carries no value forward when every value is a non-string, and still reports the repeat', () => {
     const result = normalizeAuthorizeQuery({ state: [7, {}] });
-    expect(result).toMatchObject({ kind: 'ok', repeatedKey: null });
+    expect(result).toMatchObject({ kind: 'ok', repeatedKey: 'state' });
     if (result.kind !== 'ok') throw new Error('expected ok');
     expect(result.params.state).toBeUndefined();
   });
@@ -152,5 +154,65 @@ describe('a repeated non-trust parameter is reported, not silently resolved', ()
       scope: ['c', 'd'],
     });
     expect(result).toMatchObject({ kind: 'ok', repeatedKey: 'state' });
+  });
+});
+
+// The last hole in "more than one present value is ambiguous": when *every*
+// value sent under a key is unreadable, there is no string left to collapse
+// to, and dropping the key silently made a repeat stop looking like one.
+// Unreachable through the parsers in use today; the rule is the point.
+describe('a key whose every value is unreadable is still a repeated key', () => {
+  it('flags a state carrying two non-strings as repeated', () => {
+    expect(normalizeAuthorizeQuery({ state: [7, 8] })).toMatchObject({
+      kind: 'ok',
+      repeatedKey: 'state',
+    });
+  });
+
+  it('leaves the unreadable key out of params rather than inventing a value', () => {
+    const result = normalizeAuthorizeQuery({ state: [7, 8] });
+    expect(result.kind).toBe('ok');
+    if (result.kind !== 'ok') throw new Error('expected ok');
+    expect('state' in result.params).toBe(false);
+  });
+
+  it.each(['client_id', 'redirect_uri'])(
+    'renders for a %s carrying two non-strings, never redirecting',
+    (key) => {
+      expect(normalizeAuthorizeQuery({ [key]: [7, 8] })).toMatchObject({
+        kind: 'render',
+        error: 'invalid_request',
+      });
+    },
+  );
+
+  it('still treats a lone unreadable value as an omitted parameter', () => {
+    expect(normalizeAuthorizeQuery({ state: 7 })).toMatchObject({
+      kind: 'ok',
+      repeatedKey: null,
+    });
+  });
+
+  it('does not count empty values towards the repeat', () => {
+    expect(normalizeAuthorizeQuery({ state: ['', ''] })).toMatchObject({
+      kind: 'ok',
+      repeatedKey: null,
+    });
+  });
+});
+
+describe('a repeated response_mode renders rather than redirecting', () => {
+  it('renders when response_mode is sent twice, whatever the two values are', () => {
+    expect(normalizeAuthorizeQuery({ response_mode: ['query', 'fragment'] })).toMatchObject({
+      kind: 'render',
+      error: 'invalid_request',
+    });
+  });
+
+  it('renders even when both values are the mode this server answers in', () => {
+    expect(normalizeAuthorizeQuery({ response_mode: ['query', 'query'] })).toMatchObject({
+      kind: 'render',
+      error: 'invalid_request',
+    });
   });
 });

@@ -123,6 +123,15 @@ how a response reaches the client, so an unsupported one leaves no way to
 deliver an error either, and the check therefore sits above the §4.1.2.1
 redirect boundary with the other rendering failures.
 
+A repeated `response_mode` is answered the same way. Collapsing
+`response_mode=query&response_mode=fragment` to whichever value was read
+first would let a request that did name `fragment` reach the
+repeated-parameter rule and be answered with a redirect carrying error
+parameters — a response delivered in `query` to a request that also asked
+for a mode this server does not implement. It is refused above the
+boundary with the other two parameters whose repetition leaves no way to
+deliver a response at all (`packages/protocol-oidc/src/service/query-normalization.ts`).
+
 The discovery document states `response_modes_supported: ["query"]` rather
 than omitting the member, because OpenID Connect Discovery §3 defaults an
 omitted value to `["query", "fragment"]` — advertising a mode `/authorize`

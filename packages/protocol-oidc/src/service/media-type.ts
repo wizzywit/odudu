@@ -10,3 +10,25 @@ export function isFormEncoded(contentType: string | undefined): boolean {
   const [mediaType] = contentType.split(';');
   return mediaType?.trim().toLowerCase() === FORM_MEDIA_TYPE;
 }
+
+// Whether a request carries a representation these endpoints cannot read,
+// which is answered with 415 (RFC 9110 §15.5.16) before any parser runs.
+//
+// A request naming no content type at all and carrying no body carries no
+// representation to refuse: it is simply a request with no parameters, and
+// is answered as one. A body arriving with no content type is a different
+// thing — RFC 9110 §8.3 leaves its media type unknown, and unknown is
+// unsupported here. Letting that case fall through to the framework's own
+// media-type error puts back the thing this check exists to remove: one
+// refusal in two representations, depending on which parameter was missing.
+export function carriesUnsupportedRepresentation(headers: {
+  contentType: string | undefined;
+  contentLength: string | undefined;
+  transferEncoding: string | undefined;
+}): boolean {
+  if (headers.contentType !== undefined) return !isFormEncoded(headers.contentType);
+  return (
+    (headers.contentLength !== undefined && headers.contentLength !== '0') ||
+    headers.transferEncoding !== undefined
+  );
+}

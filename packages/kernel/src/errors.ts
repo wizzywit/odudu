@@ -13,6 +13,7 @@ export type ErrorCode =
   | 'jwt_alg_mismatch'
   | 'jwt_typ_mismatch'
   | 'claim_mapper_duplicate'
+  | 'invalid_email'
   | 'seed_invalid_options'
   | 'seed_conflict'
   | 'insert_returned_no_row';
