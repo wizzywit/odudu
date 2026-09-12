@@ -1,4 +1,5 @@
 import { type FastifyInstance, type FastifyReply } from 'fastify';
+import { FORM_MEDIA_TYPE, isFormEncoded } from '#/service/media-type';
 import {
   handleAuthorizationRequest,
   type AuthorizeUsecaseDeps,
@@ -14,14 +15,7 @@ const PATH = '/realms/:realm/protocol/openid-connect/auth';
 // path, so the two methods cannot drift out of agreement with each other,
 // down to a POST naming no representation at all answering exactly as a
 // GET with no query parameters does.
-const FORM_MEDIA_TYPE = 'application/x-www-form-urlencoded';
-
-function isFormEncoded(contentType: string | undefined): boolean {
-  if (contentType === undefined) return false;
-  const [mediaType] = contentType.split(';');
-  return mediaType?.trim().toLowerCase() === FORM_MEDIA_TYPE;
-}
-
+//
 // Parameters reach the handler as `unknown` because that is the truth: they
 // are whatever a body parser produced. normalizeAuthorizeQuery is what turns
 // them back into strings.

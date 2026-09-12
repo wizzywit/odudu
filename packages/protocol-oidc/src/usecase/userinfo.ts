@@ -1,6 +1,6 @@
 import { verifyJwt, type SigningKeyRecord } from '@odudu/crypto';
 import { type ClaimMapperRegistry } from '@odudu/kernel';
-import { extractBearerToken } from '#/service/bearer-token';
+import { presentedBearerToken } from '#/service/bearer-token';
 import { type ClaimContext } from '#/service/claims';
 import { type RealmLookup } from '#/repository/realm-lookup';
 
@@ -16,6 +16,9 @@ export type UserinfoOutcome =
   // No Authorization header at all: RFC 6750 §3.1 SHOULD omits an error
   // code here, distinct from a header that was present but rejected.
   | { kind: 'missing_credentials' }
+  // The token arrived by more than one method, or twice by one. RFC 6750
+  // §3.1 gives this `invalid_request`, and §3.1's HTTP 400.
+  | { kind: 'invalid_request' }
   | { kind: 'invalid_token' }
   | { kind: 'insufficient_scope' }
   | { kind: 'ok'; claims: Record<string, unknown> };
@@ -41,12 +44,17 @@ export async function resolveUserinfo(
   realmName: string,
   issuer: string,
   authorizationHeader: string | undefined,
+  // Whatever a body parser produced for a POST (OIDC Core §5.3); `undefined`
+  // for a GET, which has no body to carry a token in.
+  body: unknown,
 ): Promise<UserinfoOutcome> {
   const realm = await deps.findRealm(realmName);
   if (!realm?.enabled) return { kind: 'not_found' };
 
-  const token = extractBearerToken(authorizationHeader);
-  if (token === undefined) return { kind: 'missing_credentials' };
+  const presented = presentedBearerToken(authorizationHeader, body);
+  if (presented.kind === 'ambiguous') return { kind: 'invalid_request' };
+  if (presented.kind === 'absent') return { kind: 'missing_credentials' };
+  const { token } = presented;
 
   const keys = await deps.listPublishableKeys(realm.id);
 

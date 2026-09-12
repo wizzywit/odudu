@@ -223,6 +223,30 @@ async function userinfo(realmName: string, token: string | null): Promise<LightM
   });
 }
 
+// OIDC Core §5.3 requires GET and POST alike. This posts what GET carries in
+// the Authorization header, in the header still, with no body at all.
+function postUserinfo(realmName: string, token: string | null): Promise<LightMyRequestResponse> {
+  return http.inject({
+    method: 'POST',
+    url: userinfoUrl(realmName),
+    headers: token === null ? {} : { authorization: `Bearer ${token}` },
+  });
+}
+
+function postUserinfoRaw(
+  realmName: string,
+  payload: string,
+  headers: Record<string, string>,
+): Promise<LightMyRequestResponse> {
+  return http.inject({ method: 'POST', url: userinfoUrl(realmName), headers, payload });
+}
+
+function formBody(fields: Record<string, string>): string {
+  const body = new URLSearchParams();
+  for (const [key, value] of Object.entries(fields)) body.set(key, value);
+  return body.toString();
+}
+
 beforeAll(async () => {
   containerHandle = await startTestDatabase();
   container = containerHandle;
@@ -321,6 +345,142 @@ describe('[RFC6750-2.1-01] accepts the Authorization header, and RFC6750-2.3 acc
       url: `${userinfoUrl(primary.realmName)}?access_token=${accessToken}`,
     });
     expect(res.statusCode).toBe(401);
+  });
+});
+
+describe('[OIDC-CORE-5.3-01] the UserInfo Endpoint answers POST exactly as it answers GET', () => {
+  it('returns the same claims for a POST carrying the token in the Authorization header', async () => {
+    const { accessToken } = await issueTokens(primary, 'openid profile email');
+    const getRes = await userinfo(primary.realmName, accessToken);
+    const postRes = await postUserinfo(primary.realmName, accessToken);
+
+    expect(postRes.statusCode).toBe(getRes.statusCode);
+    expect(postRes.statusCode).toBe(200);
+    expect(postRes.headers['content-type']).toBe(getRes.headers['content-type']);
+    expect(postRes.json<Record<string, unknown>>()).toEqual(getRes.json<Record<string, unknown>>());
+  });
+
+  it('returns the same credential-less challenge for a POST as for a GET', async () => {
+    const getRes = await userinfo(primary.realmName, null);
+    const postRes = await postUserinfo(primary.realmName, null);
+
+    expect(postRes.statusCode).toBe(getRes.statusCode);
+    expect(postRes.statusCode).toBe(401);
+    expect(postRes.headers['www-authenticate']).toBe(getRes.headers['www-authenticate']);
+  });
+
+  it('refuses a foreign realm’s token over POST exactly as over GET', async () => {
+    const { accessToken } = await issueTokens(other, 'openid');
+    const getRes = await userinfo(primary.realmName, accessToken);
+    const postRes = await postUserinfo(primary.realmName, accessToken);
+
+    expect(postRes.statusCode).toBe(getRes.statusCode);
+    expect(postRes.statusCode).toBe(401);
+    expect(postRes.headers['www-authenticate']).toMatch(/error="invalid_token"/);
+  });
+});
+
+describe('[RFC6750-2.2-01] a POST may carry the access token in a form-encoded body', () => {
+  it('returns the same claims as the Authorization header does', async () => {
+    const { accessToken } = await issueTokens(primary, 'openid profile email');
+    const headerRes = await userinfo(primary.realmName, accessToken);
+    const bodyRes = await postUserinfoRaw(
+      primary.realmName,
+      formBody({ access_token: accessToken }),
+      { 'content-type': 'application/x-www-form-urlencoded' },
+    );
+
+    expect(bodyRes.statusCode).toBe(200);
+    expect(bodyRes.json<Record<string, unknown>>()).toEqual(
+      headerRes.json<Record<string, unknown>>(),
+    );
+  });
+
+  it('rejects an invalid token from the body with the same challenge the header gets', async () => {
+    const raw = await mintRawAccessToken(primary);
+    const bodyRes = await postUserinfoRaw(
+      primary.realmName,
+      formBody({ access_token: tamper(raw) }),
+      {
+        'content-type': 'application/x-www-form-urlencoded',
+      },
+    );
+
+    expect(bodyRes.statusCode).toBe(401);
+    expect(bodyRes.headers['www-authenticate']).toMatch(/error="invalid_token"/);
+  });
+
+  // RFC 6749 §3.1: a parameter sent without a value is an omitted one, so
+  // this is a request with no credentials, not one with a bad token.
+  it('treats an empty access_token as no credentials at all', async () => {
+    const res = await postUserinfoRaw(primary.realmName, formBody({ access_token: '' }), {
+      'content-type': 'application/x-www-form-urlencoded',
+    });
+
+    expect(res.statusCode).toBe(401);
+    expect(res.headers['www-authenticate']).not.toMatch(/error=/);
+  });
+});
+
+describe('[RFC6750-3.1-03] 400 invalid_request when one request presents the token twice', () => {
+  it('refuses a token sent in the Authorization header and the body at once', async () => {
+    const { accessToken } = await issueTokens(primary, 'openid');
+    const res = await postUserinfoRaw(primary.realmName, formBody({ access_token: accessToken }), {
+      'content-type': 'application/x-www-form-urlencoded',
+      authorization: `Bearer ${accessToken}`,
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.headers['www-authenticate']).toMatch(/error="invalid_request"/);
+  });
+
+  it('refuses a repeated access_token body parameter', async () => {
+    const { accessToken } = await issueTokens(primary, 'openid');
+    const body = new URLSearchParams();
+    body.append('access_token', accessToken);
+    body.append('access_token', accessToken);
+    const res = await postUserinfoRaw(primary.realmName, body.toString(), {
+      'content-type': 'application/x-www-form-urlencoded',
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.headers['www-authenticate']).toMatch(/error="invalid_request"/);
+  });
+});
+
+// RFC 6750 §2.2 fixes the form-encoded body method's content type, and
+// `/authorize` already answers an unsupported representation with 415
+// before any parser runs (packages/protocol-oidc/src/view/routes/authorize.ts).
+// The two endpoints share the rule and the media-type test; they differ only
+// in what they say, because one answers in HTML and this one in JSON.
+describe('[ODUDU-USERINFO-01] a POST body is read only in the form encoding', () => {
+  it.each(['application/json', 'text/plain'])('refuses a %s body with 415', async (contentType) => {
+    const { accessToken } = await issueTokens(primary, 'openid');
+    const res = await postUserinfoRaw(
+      primary.realmName,
+      JSON.stringify({ access_token: accessToken }),
+      { 'content-type': contentType },
+    );
+
+    expect(res.statusCode).toBe(415);
+  });
+
+  it('accepts a form body that names its charset', async () => {
+    const { accessToken } = await issueTokens(primary, 'openid');
+    const res = await postUserinfoRaw(primary.realmName, formBody({ access_token: accessToken }), {
+      'content-type': 'application/x-www-form-urlencoded; charset=utf-8',
+    });
+
+    expect(res.statusCode).toBe(200);
+  });
+
+  // A POST naming no content type carries no representation to refuse; it is
+  // simply a request whose only credential is the Authorization header.
+  it('answers a POST with no content type from the Authorization header alone', async () => {
+    const { accessToken } = await issueTokens(primary, 'openid');
+    const res = await postUserinfo(primary.realmName, accessToken);
+
+    expect(res.statusCode).toBe(200);
   });
 });
 
