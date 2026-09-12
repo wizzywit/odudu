@@ -15,8 +15,8 @@
     "redirect_uri": "https://localhost.emobix.co.uk:8443/test/a/odudu-basic-op/callback"
   },
   "client_secret_post": {
-    "client_id": "conformance-client-2",
-    "client_secret": "conformance-secret-2",
+    "client_id": "conformance-client-post",
+    "client_secret": "conformance-secret-post",
     "redirect_uri": "https://localhost.emobix.co.uk:8443/test/a/odudu-basic-op/callback"
   },
   "browser": [

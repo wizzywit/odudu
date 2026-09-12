@@ -126,11 +126,43 @@ spec, §2.8). Basic OP stays a documented, reproducible manual run: it
 covers an actual login (the suite's built-in HtmlUnit-driven browser
 handles that fine, matched against odudu's real login form — see
 `basic-op.json`'s `browser` block — so "no browser available" is not why
-it stays manual), but its exit criteria and the CI wiring are this task's
-alone to build for Config OP; Basic OP's own unattended path is deferred
-per the design decision already on record.
+it stays manual). Wiring Basic OP into CI would in any case gate every
+build on a profile odudu is not built to pass (next section); it is run
+by hand, when the authorization or token endpoints change.
 
-## Basic OP: what the run found
+## Basic OP: a recorded incompatibility, not an outstanding failure
+
+**odudu cannot pass the Basic OP profile, and will not be changed so that
+it can.** Basic OP is an older OIDC certification profile: it was written
+before PKCE was mandatory, so all but one of its modules send a plain
+`authorization_code` request with no `code_challenge`, and expect it to
+succeed. odudu requires PKCE on every `authorization_code` request (OAuth
+2.1 alignment, `S256` only, no exception for confidential clients), so it
+correctly rejects those requests. Passing Basic OP would mean making PKCE
+optional — weakening the single property this phase exists to guarantee —
+so the ruling on record is that mandatory PKCE stays and the profile does
+not. The phase's certification exit criterion is **Config OP**, which
+passes and runs in CI (see below); Basic OP is not an exit criterion and
+its failures are not a backlog.
+
+### What the Basic OP run is for, then
+
+To prove that mandatory PKCE is the **only** divergence.
+
+A module count alone cannot do that: "30 failed, all PKCE" is equally
+consistent with one intended divergence and several unrelated bugs
+sheltering behind a tidy summary — which is precisely what happened the
+first time this was written up, where 5 of the 30 turned out to have
+nothing to do with PKCE (a missing `POST` route, two missing static
+client slots, two harness crashes — three distinct causes, all
+dissected below and all fixed). So the run is kept reproducible and every
+module's failure cause is confirmed **individually, not sampled**, and
+the run is repeated whenever the authorization or token endpoints change.
+
+The standing rule that gives the run its value: a Basic OP module that
+fails for any reason other than the authorization endpoint answering
+`error=invalid_request` to a request carrying no PKCE parameters is a
+real defect in odudu or in this harness, and is to be treated as one.
 
 Ran to completion against a seeded `conformance` realm (client
 `conformance-client` / `conformance-secret`, user `conformance-user` /
@@ -138,18 +170,10 @@ Ran to completion against a seeded `conformance` realm (client
 2026-09-12. Export committed at
 `results/basic-op-2026-09-12-v5.1.36.json` (compact per-module summary)
 and `results/basic-op-2026-09-12-v5.1.36-logs.zip` (the suite's own
-per-test export, `GET /api/plan/export/<planId>`).
-
-**The original run scored 30 FAILED / 2 PASSED / 3 SKIPPED, and this
-document originally attributed all 30 failures to one cause (mandatory
-PKCE). That was wrong for 5 of the 30** — a code-review pass that read
-every module's log, not just the first one, found three unrelated
-things hiding behind a tidy one-line summary. This section now reports
-what each failure actually was, and the fix-round-1 rerun that
-followed. See `.superpowers/sdd/2026-09-11-p1-oauth-oidc-core/task-19-report.md`,
-`## Fix round 1`, for the full account; the corrected export is
-`results/basic-op-2026-09-12-v5.1.36-fixround1.json` (plus its
-`-logs.zip`), committed alongside the original rather than replacing it.
+per-test export, `GET /api/plan/export/<planId>`). The rerun after the
+non-PKCE causes were fixed is committed alongside it, rather than
+replacing it, as `results/basic-op-2026-09-12-v5.1.36-rerun.json` and its
+`-logs.zip`.
 
 ### What the 30 original failures actually were
 
@@ -165,8 +189,11 @@ gap**: the authorization endpoint did not accept `POST` at all —
 
 OpenID Connect Core §3.1.2 requires the Authorization Endpoint to
 support both GET and POST; this was a genuine defect, fixed by adding a
-POST route that shares the GET route's validation usecase (see the
-report for how). After the fix, this module reaches the server and
+POST route that shares the GET route's validation usecase
+(`packages/protocol-oidc/src/view/routes/authorize.ts`), so that the two
+methods differ only in where the parameters are read from — and, per
+§3.1.2.1, accepts only `application/x-www-form-urlencoded` on POST.
+After the fix, this module reaches the server and
 fails for the same PKCE reason as the other 25 — it has moved buckets,
 not disappeared.
 
@@ -180,14 +207,39 @@ left the test runner:
 "msg": "Definition for client2 not present in supplied configuration", "src": "GetStaticClient2Configuration"
 ```
 
-`basic-op.json` only defined one static client. `oidcc-refresh-token`
-extends `AbstractOIDCCMultipleClient`, which needs a second client
-(`client2`); `oidcc-server-client-secret-post`'s own test class
-(`OIDCCServerTestClientSecretPost`) copies a top-level
-`client_secret_post` config block into `client` before running — a
-third, differently-named slot the config never provided. `basic-op.json`
-now defines `client2` and `client_secret_post`, both backed by a second
-seeded client (`conformance-client-2`, seeded with
+`basic-op.json` only defined one static client. Two more slots were
+needed, and — this is the part worth stating precisely, because it
+decides how each must be seeded — they need clients registered for
+_different_ token endpoint authentication methods.
+
+verified: read `OIDCCServerTestClientSecretPost`,
+`AbstractOIDCCMultipleClient` and `OIDCCBasicTestPlan` (all in
+`src/main/java/net/openid/conformance/openid/`) in the suite source at
+`release-v5.1.36`, obtained with `git clone --depth 1 --branch
+release-v5.1.36 --filter=blob:none --sparse
+https://gitlab.com/openid/conformance-suite.git`, 2026-09-12:
+
+- `OIDCCServerTestClientSecretPost.configureClient()` does exactly what
+  was claimed — for the `static_client` variant it runs
+  `config.add("client", config.get("client_secret_post"))`, replacing the
+  whole `client` object with the `client_secret_post` block (so that block
+  must carry `redirect_uri` too, not just id and secret). Its own comment
+  gives the reason the slot exists at all: "most servers restrict each
+  client to using only one authentication method".
+- `AbstractOIDCCMultipleClient` runs the second client by remapping
+  `client` to `client2`, and `OIDCCBasicTestPlan` runs `OIDCCRefreshToken`
+  in the plan's default `variantCodeBasic` — `ClientAuthType` =
+  `client_secret_basic`. `OIDCCServerTestClientSecretPost` is the only
+  module the plan switches to the `client_secret_post` variant for.
+
+So `client2` is authenticated with HTTP Basic and the `client_secret_post`
+slot with a body parameter, and odudu accepts each method only from a
+client registered for it (`usecase/token-issuance.ts`). One shared client
+cannot serve both slots — whichever method it were registered with, the
+other slot would fail `invalid_client` at the token endpoint.
+`basic-op.json` therefore points `client2` at `conformance-client-2`
+(seeded `--token-endpoint-auth-method client_secret_basic`) and
+`client_secret_post` at a separate `conformance-client-post` (seeded
 `--token-endpoint-auth-method client_secret_post`). After the fix, both
 modules reach odudu and fail for the same PKCE reason as the other 25.
 
@@ -242,6 +294,15 @@ understood and named rather than hidden behind a crash.
 
 ### The corrected rerun
 
+Recorded before the `client2` / `client_secret_post` split described
+above: that rerun still had both slots pointing at one
+`client_secret_post` client, which its numbers could not detect, because
+every one of these modules is rejected at the authorization endpoint for
+missing PKCE and so never reaches the token endpoint where client
+authentication happens. The split is reasoned from the suite's source
+rather than demonstrated by a run, and will stay that way for as long as
+mandatory PKCE keeps these modules from getting that far.
+
 **28 FAILED / 2 PASSED / 3 SKIPPED / 2 INTERRUPTED (pending manual
 review).** Every one of the 28 `FAILED` modules was individually
 confirmed (not sampled) to fail via odudu's mandatory-PKCE rejection —
@@ -282,14 +343,13 @@ request_uri: https://proxy/realms/conformance/protocol/openid-connect/auth?clien
 "msg": "The authorization was expected to succeed, but the server returned an error from the authorization endpoint", "result": "FAILURE"
 ```
 
-**This is reported, not patched.** Making PKCE optional to pass Basic OP
-would reverse an explicit, documented P1 design decision for the sake of
-a certification profile that predates the OAuth 2.1/PKCE-mandatory
-posture — that trade is not this task's to make silently. It is recorded
-here as the finding this phase's conformance work exists to surface;
-closing it (if it is ever closed, rather than accepted as a permanent,
-documented divergence from the Basic OP profile) belongs with the tasks
-that follow this one, not this one.
+**This is accepted, not a defect.** It was put as a decision — make PKCE
+optional and pass Basic OP, or keep it mandatory and fail the profile —
+and answered: PKCE stays mandatory, Basic OP is a permanent documented
+divergence, and Config OP is the certification odudu is held to. Nothing
+downstream is waiting on this; a future profile that assumes PKCE (as
+FAPI 2.0 and the OAuth 2.1 successors do) is where a passing run would
+come from, not a change here.
 
 ## Running it yourself
 
