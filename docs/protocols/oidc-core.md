@@ -128,6 +128,29 @@ than omitting the member, because OpenID Connect Discovery §3 defaults an
 omitted value to `["query", "fragment"]` — advertising a mode `/authorize`
 rejects.
 
+### §5.1's `email`: a subset of addr-spec, stated rather than approximated
+
+§5.1 requires the `email` claim to conform to RFC 5322's addr-spec. That
+obligation runs one way — what Odudu emits must be a valid addr-spec — and
+says nothing about accepting every addr-spec a mail system might. Full
+addr-spec admits quoted local parts, parenthesised comments, folding
+whitespace and domain literals; a regular expression claiming to implement
+all of it and getting it subtly wrong would be worse than a narrower rule
+that says plainly what it enforces.
+
+So `packages/domain-identity/src/service/email.ts` enforces a strict
+subset — dot-atom local part, dot-atom domain of two or more labels, RFC
+5321 §4.5.3.1's octet limits — chosen so that everything accepted is
+unambiguously a valid addr-spec. `userRepository.create` refuses anything
+else, which is the boundary that matters: the column is bare `text` and
+the claim is emitted from it verbatim, so an address that gets in is a
+malformed claim in every token and `/userinfo` response afterwards.
+
+The cost is stated rather than hidden: a user whose real address needs a
+quoted local part, a comment, a domain literal or a single-label domain
+cannot be stored. Raising that ceiling means implementing the grammar, not
+widening the pattern.
+
 ### The third error parameter §3.1.2.6 does not know about
 
 §3.1.2.6 SHOULDs that an error response carry nothing beyond `error` and
@@ -297,7 +320,7 @@ phase roadmap" section.
 | 5.1     | MUST   | `picture` refers to an image file rather than a web page containing one                                                                                                                                                                                                                        | —                      | gap                                                                                                                                                                                                                          |
 | 5.1     | MUST   | the relying party does not rely upon `preferred_username`'s value being unique                                                                                                                                                                                                                 | —                      | n/a: client-side guidance; Odudu is the authorization server, not a client                                                                                                                                                   |
 | 5.1     | MUST   | the relying party does not rely upon `email`'s value being unique                                                                                                                                                                                                                              | —                      | n/a: client-side guidance; Odudu is the authorization server, not a client                                                                                                                                                   |
-| 5.1     | MUST   | `email` conforms to the RFC 5322 `addr-spec` syntax                                                                                                                                                                                                                                            | —                      | gap                                                                                                                                                                                                                          |
+| 5.1     | MUST   | `email` conforms to the RFC 5322 `addr-spec` syntax                                                                                                                                                                                                                                            | `OIDC-CORE-5.1-01`     | covered                                                                                                                                                                                                                      |
 | 5.1     | MUST   | when `phone_number_verified` is true, `phone_number` is in E.164 format                                                                                                                                                                                                                        | —                      | gap                                                                                                                                                                                                                          |
 | 5.1     | MUST   | when `phone_number_verified` is true, any extension is represented in RFC 3966 format                                                                                                                                                                                                          | —                      | gap                                                                                                                                                                                                                          |
 | 5.1.1   | MAY    | the `formatted` and `street_address` address fields may contain multiple lines, separated by CRLF or LF                                                                                                                                                                                        | —                      | gap                                                                                                                                                                                                                          |

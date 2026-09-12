@@ -131,6 +131,51 @@ describe('userRepository', () => {
     expect(found?.subject.realmId).toBe(realmId);
   });
 
+  // OIDC Core §5.1: the `email` claim is emitted verbatim from this column,
+  // so an address that is not an addr-spec has to be stopped on the way in.
+  it('[OIDC-CORE-5.1-01] refuses to store an address the email claim could not carry', async () => {
+    const realmId = newId();
+
+    await expect(
+      withRealm(app.db, realmId, async (tx) => {
+        await seedRealm(tx, realmId);
+        const subject = await subjectRepository(tx).create({ realmId, type: 'user' });
+        return userRepository(tx).create({
+          subjectId: subject.id,
+          realmId,
+          username: `mallory-${newId()}`,
+          email: 'not an address',
+        });
+      }),
+    ).rejects.toMatchObject({ code: 'invalid_email' });
+  });
+
+  it('stores a conforming address, and stores no address at all without complaint', async () => {
+    const realmId = newId();
+
+    const [withEmail, withoutEmail] = await withRealm(app.db, realmId, async (tx) => {
+      await seedRealm(tx, realmId);
+      const one = await subjectRepository(tx).create({ realmId, type: 'user' });
+      const two = await subjectRepository(tx).create({ realmId, type: 'user' });
+      return [
+        await userRepository(tx).create({
+          subjectId: one.id,
+          realmId,
+          username: `carol-${newId()}`,
+          email: 'carol.o-brien+tag@mail.example.com',
+        }),
+        await userRepository(tx).create({
+          subjectId: two.id,
+          realmId,
+          username: `dave-${newId()}`,
+        }),
+      ];
+    });
+
+    expect(withEmail?.email).toBe('carol.o-brien+tag@mail.example.com');
+    expect(withoutEmail?.email).toBeNull();
+  });
+
   it('returns null when no user matches', async () => {
     const realmId = newId();
 

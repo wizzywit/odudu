@@ -2,6 +2,7 @@ import { type RealmScopedDatabase } from '@odudu/db';
 import { OduduError } from '@odudu/kernel';
 import { eq } from 'drizzle-orm';
 import { subjects, type SubjectRecord } from '#/schema/subjects';
+import { isEmailAddress } from '#/service/email';
 import { users, type UserRecord } from '#/schema/users';
 
 export type { UserRecord } from '#/schema/users';
@@ -64,13 +65,28 @@ export function userRepository(tx: RealmScopedDatabase) {
     // The bootstrap seed command is the only caller today: a user profile
     // is created once its subject exists, never before.
     async create(input: NewUser): Promise<UserRecord> {
+      const email = input.email ?? null;
+      // OIDC Core §5.1 requires the `email` claim to conform to RFC 5322's
+      // addr-spec, and the claim is emitted verbatim from this column
+      // (packages/protocol-oidc/src/service/claims.ts). The column is bare
+      // `text`, so this is the boundary where a non-conforming address can
+      // still be refused instead of becoming a malformed claim in every
+      // token and /userinfo response thereafter.
+      if (email !== null && !isEmailAddress(email)) {
+        throw new OduduError(
+          'invalid_email',
+          `${JSON.stringify(email)} is not an address the email claim may carry — see ` +
+            'packages/domain-identity/src/service/email.ts for the accepted form.',
+        );
+      }
+
       const rows = await tx
         .insert(users)
         .values({
           subjectId: input.subjectId,
           realmId: input.realmId,
           username: input.username,
-          email: input.email ?? null,
+          email,
         })
         .returning();
       const row = rows[0];
