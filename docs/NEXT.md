@@ -73,6 +73,16 @@ to a client and need a registered logout URI, and back-channel issues a
 logout token, which is a second token type and therefore its own clause
 table. Section 11 of the design spec carries the full reasoning.
 
+**Comment blocks are capped at eight lines, and the cap is a test.** An
+essay belongs in an ADR or a `docs/protocols/` reading note with a one-line
+pointer back, not above the function it concerns.
+`tests/lint/comment-block-length.test.ts` enforces it over both source trees
+with no allowlist and no inline waiver; blank lines do not split a block and
+over-long lines are weighed by width, so neither dodge works. This exists
+because comment density on this branch ran from 3% of added lines to 42%
+before anybody noticed — the rule was in `CLAUDE.md` the whole time and
+nothing could tell a well-commented file from an over-commented one.
+
 **`pnpm trace` runs strict, and a new MUST that is not `covered` costs
 something in every one of the six statuses.** That is the one workflow
 change to know. Add a clause row for every MUST and SHOULD P2 introduces,
