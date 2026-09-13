@@ -39,7 +39,19 @@ carries the reasoning; the short version is here.
    templates. Self-registration, password reset and address verification all
    wait on this, and `email_verified` cannot be set honestly without it.
    Build the delivery seam before the features that need it, or three
-   features each grow their own half of it.
+   features each grow their own half of it. Self-registration is the point
+   of it: an unverified self-registered address is an account-takeover
+   primitive, so verification has to work before registration is worth
+   having.
+
+**One thing to understand before scoping P2a: there are four ways a user
+gets into a realm**, and they are not alternatives. Self-registration
+(P2a), the admin API called by another application's backend as a service
+account (P4, and it needs P2a's roles to authorise it), just-in-time
+provisioning on first brokered login (P6), and SCIM inbound provisioning
+(P7). Today the seed CLI is the only one, which is why it can look as though
+an administrator must create every account by hand. Section 11 of the design
+spec, "How a user gets into a realm", has the detail and the traps.
 
 That is P2a. **P2b** then takes what P2 always meant: the flow tree with
 TOTP and passkeys, password policies, brute-force protection (a clause row
