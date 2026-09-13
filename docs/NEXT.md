@@ -2,9 +2,38 @@
 
 ## Start here
 
-**P0 and P1 are complete. P2 (authentication: MFA, passkeys, the flow tree,
-and the session lifecycle) is next, and nothing has started on it —
-brainstorm its scope first, per `CLAUDE.md`.** Odudu now serves the OAuth 2.1 / OpenID Connect core: the
+**P0 and P1 are complete. P2 is next and nothing has started on it —
+brainstorm its scope first, per `CLAUDE.md`.**
+
+**Start P2 with these three, in this order.** They were added on 2026-09-13
+after reading Keycloak's surface against the whole roadmap, and they come
+first because each changes work that follows rather than adding to it.
+Section 11 of the design spec, under "What the roadmap did not name",
+carries the reasoning; the short version is here.
+
+1. **Roles, groups and client scopes.** Realm and client roles, composite
+   roles, groups, default roles, scope mappings — and the claims that carry
+   them. Nothing in twelve phases named any of this, and P9's authorization
+   services sits on top of roles rather than supplying them. Odudu's only
+   authorization primitive today is a scope string. Do it first because it
+   **changes the token contract**: every later phase that reads a token
+   reads a different one afterwards. Expect a new clause table, because the
+   claim names are specified, and expect it to be most of the phase.
+2. **Per-client web origins.** There is no CORS handling in the server at
+   all. The public single-page client that `docs/request-paths.md` walks a
+   reader through cannot call `/token` or `/userinfo` from a browser — the
+   preflight fails. Small, self-contained, and it makes the documented flow
+   true from the user agent it was written for.
+3. **Email delivery, then the account lifecycle on top of it.** No SMTP, no
+   templates. Self-registration, password reset and address verification all
+   wait on this, and `email_verified` cannot be set honestly without it.
+   Build the delivery seam before the features that need it, or three
+   features each grow their own half of it.
+
+After those: password policies, brute-force protection (a clause row already
+records it as `deferred: P2`), session idle and maximum lifespans, offline
+access, the flow tree with TOTP and passkeys, an SSO session that is **read**
+as well as written, and RP-initiated logout to end it. Odudu now serves the OAuth 2.1 / OpenID Connect core: the
 `authorization_code`, `refresh_token` and `client_credentials` grants, and
 the authorize, token, userinfo, jwks and discovery endpoints. The rest of
 this file is the record of how that happened; what follows is the part a
