@@ -16,13 +16,10 @@ import {
 } from '@odudu/protocol-oidc';
 
 // A confidential client's method of proving its secret at /token: either
-// RFC 6749 §2.3.1 form (Authorization header or body parameter). Public
-// clients present none of either and are always seeded as 'none' — this
-// option only ever changes a confidential client's method.
-//
-// Omitted means `client_secret_basic`, on a re-run as much as on a first
-// run: seed asserts the whole desired state, so re-running against a
-// client registered for `client_secret_post` without naming it again is a
+// RFC 6749 §2.3.1 form. Public clients are always seeded as 'none'. Omitted
+// means `client_secret_basic` on a re-run as much as on a first run, since
+// seed asserts the whole desired state — re-running against a client
+// registered for `client_secret_post` without naming it again is a
 // conflict, not a no-op.
 type ConfidentialTokenEndpointAuthMethod = Extract<
   ClientOidcConfig['tokenEndpointAuthMethod'],

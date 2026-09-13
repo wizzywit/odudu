@@ -100,7 +100,19 @@ Task 14's grant" but "read by the client_credentials grant"; not "Task 16's
 seed populates it" but "populated when a confidential client is provisioned".
 
 Referring to a _durable_ artefact is fine and often useful: an RFC clause, an
-ADR number, a file path, a migration filename, a named subsystem.
+ADR number, a file path, a migration filename, a named subsystem. That is
+also where an essay goes when you find one: reasoning worth keeping and too
+long for the code moves to an ADR or a `docs/protocols/` reading note, and
+the code keeps a one-line pointer to it.
+
+**No comment block runs longer than eight lines.**
+`tests/lint/comment-block-length.test.ts` fails the build on one, naming the
+file, the line and the length — the rule is otherwise unfalsifiable, and
+went unenforced for twenty commits. It counts a run of comment lines
+unbroken by code, so blank lines do not split a block, and it weights a line
+wider than Prettier's `printWidth` as the lines it reads as. There is no
+allowlist and no inline waiver: a rule anybody can switch off in a comment
+is not a rule.
 
 ## Statements
 

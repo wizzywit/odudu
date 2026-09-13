@@ -1,29 +1,8 @@
-// Cookie naming: __Host- requires Secure, Path=/, and no
-// Domain attribute — which browsers enforce by rejecting the whole cookie if
-// the connection isn't HTTPS. The compose stack serves plain HTTP on :3000
-// today, so always emitting __Host- would silently break every local login.
-//
-// Chosen: (b) — __Host-<realm>-session when TLS is on, otherwise
-// <realm>-session with Secure off, plus a boot-time warning while the
-// fallback is active. This keeps the production cookie shape correct from
-// day one (no later migration of session cookies), keeps `pnpm dev` working
-// without a local CA, and makes the weaker mode something an operator will
-// notice in logs rather than something that silently ships. The alternative,
-// (a) always __Host- and stand up local HTTPS now, was rejected: it moves
-// TLS-provisioning work into this task for no security gain in a
-// single-developer local loop that talks to itself over loopback.
-//
-// The OpenID conformance run must confirm this choice holds up: the suite may
-// itself drive the server over plain HTTP.
-
-// This package produces only the cookie name. Whoever sets the header — the
-// login handler behind /authorize — must also set: HttpOnly (never readable
-// from script), SameSite
-// (Lax at minimum, to survive the top-level redirect back from /authorize),
-// Path=/ (required by __Host- when TLS is on, and kept the same in the
-// fallback so the two modes differ only in name and Secure), and Secure
-// (only when TLS is on — see the fallback rationale above). Dropping Secure
-// in the non-TLS fallback must not mean dropping the other three.
+// `__Host-` requires Secure, and a browser rejects the whole cookie without
+// it, so the compose stack's plain HTTP would silently break every local
+// login. The name therefore follows TLS, and the fallback is announced at
+// boot rather than shipping quietly — ADR 0020, which also lists the
+// attributes the login handler must set alongside the name.
 export function sessionCookieName(realm: string, tls: boolean): string {
   return tls ? `__Host-${realm}-session` : `${realm}-session`;
 }

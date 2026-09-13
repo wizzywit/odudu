@@ -17,20 +17,13 @@ function firstRow<T>(rows: readonly T[]): T {
 }
 
 /**
- * Probes one repository method directly, rather than the table it reads:
- * seeds a row under realm A, then calls the method under realm B's context
- * with whatever key `seed` returned. `expectBlocked` asserts the method
- * could not see it — `null`, `false`, an empty array, or a thrown error,
- * depending on the method's own contract. For a method that mutates, pass
- * `verifyRealmAUnaffected` to confirm realm A's row was left untouched by
- * the realm-B call — a `consume`-style method that silently succeeds across
- * realms is worse than one that only reads across realms.
- *
- * Complements `expectRealmIsolation`: that helper proves a table's rows are
- * filtered by realm at the SQL level, which does not by itself prove that
- * every repository method built on top of it — keyed by an id, a hash, or a
- * client_id rather than by scanning the table — actually gets no result
- * when called from the wrong realm.
+ * Probes one repository method rather than the table it reads: seeds a row
+ * under realm A, then calls the method under realm B with whatever key
+ * `seed` returned. A method keyed by an id, a hash or a client_id is not
+ * covered by `expectRealmIsolation`, which proves only that the table's rows
+ * filter at the SQL level. For a method that mutates, `verifyRealmAUnaffected`
+ * confirms realm A's row survived the realm-B call — a `consume` that
+ * silently succeeds across realms is worse than a read that does.
  */
 export interface CrossRealmMethodProbe<Seeded> {
   seed: (tx: RealmScopedDatabase, realmId: string) => Promise<Seeded>;
@@ -68,15 +61,12 @@ export async function expectCrossRealmMethodProbe<Seeded>(
 /**
  * Seeds one row in realm A, then asserts realm B's context cannot see it and
  * that a missing realm context sees nothing at all. Every repository that
- * touches a tenant table calls this once. Exported from `@odudu/db/testing`,
- * not the package's main entry point, so consuming this in a test never adds
- * vitest to the production dependency graph.
+ * touches a tenant table calls this once. Exported from `@odudu/db/testing`
+ * so consuming it never adds vitest to the production dependency graph.
  *
- * Only for realm_id-keyed tenant tables. `realms` itself is a tenant table
- * whose policy keys on `id`, not `realm_id`: seeding it inside
- * `withRealm(db, realmA, ...)` would insert a row whose primary key is
- * unrelated to realmA, so the isolation this helper proves would not hold.
- * Probe `realms` directly instead of through this helper.
+ * Only for realm_id-keyed tables. `realms`' policy keys on `id`, so seeding
+ * it under `withRealm(db, realmA, ...)` produces a row unrelated to realmA
+ * and proves nothing; probe it directly instead.
  */
 export async function expectRealmIsolation(db: Database, probe: RealmProbe): Promise<void> {
   if (probe.table === 'realms') {

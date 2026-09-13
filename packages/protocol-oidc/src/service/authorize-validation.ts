@@ -74,13 +74,11 @@ export function validateAuthorizationRequest(
   // Order is the contract. Everything above the redirect boundary reports by
   // rendering: until redirect_uri is known to belong to a real, enabled
   // client, sending the user there is an open redirect wearing this server's
-  // domain. RFC 6749 §4.1.2.1 says MUST NOT automatically redirect.
-  //
-  // The Response Mode comes first of all, and reports by rendering whatever
-  // else is wrong with the request: it names how the response is to be
-  // delivered, so an unsupported one leaves no way to deliver an error
-  // either. OIDC Core §3.1.2.6 asks for an HTTP 400 carrying no error
-  // response parameters, which is what rendering is.
+  // domain (RFC 6749 §4.1.2.1 MUST NOT; the reading note for that section in
+  // docs/protocols/rfc6749.md has the split in full). The Response Mode
+  // comes first of all, because it names how a response is delivered and an
+  // unsupported one leaves no way to deliver an error either — OIDC Core
+  // §3.1.2.6's 400 carrying no error parameters is what rendering is.
   const responseMode = params.response_mode;
   if (responseMode !== undefined && responseMode !== SUPPORTED_RESPONSE_MODE) {
     return {

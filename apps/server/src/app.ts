@@ -11,17 +11,13 @@ import { registerHealth } from '#/health';
 export interface AppDeps {
   readonly database: DatabaseHandle;
   /**
-   * The owner (RLS-bypassing) connection — see
-   * `@odudu/protocol-oidc`'s realm-lookup repository for the one thing it is
-   * used for: resolving `{realm}` from a request path to an id and an
-   * enabled flag before any realm context exists to scope that lookup by.
-   * Required, not defaulted: on the RLS-constrained connection this lookup
-   * returns zero rows unconditionally (`realms_isolation` keys on `id`,
-   * with no realm context set yet), which 404s every realm forever —
-   * indistinguishable from "no realms configured" unless a caller is
-   * forced to supply this explicitly. Callers that genuinely want the
-   * owner/runtime connection to be the same one (e.g. local dev without
-   * `ODUDU_APP_DATABASE_URL`, as in `main.ts`) pass `database` again here.
+   * The owner (RLS-bypassing) connection, used for one thing: resolving
+   * `{realm}` from a request path before any realm context exists to scope
+   * that lookup by (ADR 0009's amendment of 2026-09-13). Required rather
+   * than defaulted, because on the RLS-constrained connection the lookup
+   * returns zero rows unconditionally and 404s every realm forever, which
+   * is indistinguishable from "no realms configured". A caller that wants
+   * one connection for both passes `database` again here, as `main.ts` does.
    */
   readonly ownerDatabase: DatabaseHandle;
   /**

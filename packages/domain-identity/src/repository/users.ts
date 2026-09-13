@@ -66,16 +66,12 @@ export function userRepository(tx: RealmScopedDatabase) {
     // is created once its subject exists, never before.
     async create(input: NewUser): Promise<UserRecord> {
       const email = input.email ?? null;
-      // OIDC Core §5.1 requires the `email` claim to conform to RFC 5322's
-      // addr-spec, and the claim is emitted verbatim from this column
-      // (packages/protocol-oidc/src/service/claims.ts). The column is bare
-      // `text`, so this is the boundary where a non-conforming address can
-      // still be refused instead of becoming a malformed claim in every
-      // token and /userinfo response thereafter.
-      // The rejected address stays out of the message. apps/server/src/logger.ts
-      // allowlists what may be logged precisely so end-user data does not
-      // reach a log line, and an error message is one `logger.error({ err })`
-      // away from being one.
+      // An earlier, friendlier refusal than the users_email_addr_spec CHECK
+      // that actually constrains the column (OIDC Core §5.1; see
+      // service/email.ts). The rejected address stays out of the message:
+      // apps/server/src/logger.ts allowlists what may be logged so end-user
+      // data cannot reach a log line, and an error message is one
+      // `logger.error({ err })` away from being one.
       if (email !== null && !isEmailAddress(email)) {
         throw new OduduError(
           'invalid_email',

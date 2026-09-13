@@ -58,14 +58,10 @@ export function registerUserinfoRoute(app: FastifyInstance, deps: UserinfoDeps):
 
   // RFC 6750 §2.2 fixes the form-encoded body method's content type. Any
   // other media type is an unsupported representation rather than a bad
-  // token, so it is refused with 415 (RFC 9110 §15.5.16) before a parser
-  // runs — the same rule `/authorize` applies, sharing one media-type test
-  // with it. A POST naming no content type and carrying no body carries no
-  // representation to refuse: it is a request whose only credential is the
-  // Authorization header, and is answered like one.
-  //
-  // Unlike `/authorize`, the refusal has no body: this endpoint answers a
-  // machine in JSON and reports every other failure in headers alone.
+  // token, refused with 415 before a parser runs — the same rule
+  // `/authorize` applies, through the same media-type test. Unlike
+  // `/authorize`, the refusal has no body: this endpoint answers a machine
+  // in JSON and reports every other failure in headers alone.
   app.post<{ Params: { realm: string } }>(
     PATH,
     {

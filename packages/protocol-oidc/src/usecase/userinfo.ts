@@ -30,15 +30,13 @@ function scopesOf(scopeClaim: unknown): string[] {
 }
 
 // Validation order, matching RFC 9068 §4 and RFC 6750 §3.1: signature and
-// `kid` (inside verifyJwt) → `typ: at+jwt` (also verifyJwt — this is what
-// stops an ID Token, signed by the same key at the same moment, being
-// presented here) → `iss` → `exp` → `aud` contains this issuer (verifyJwt's
-// `audience` option, checked against jose's claim checks — a token whose
-// `aud` is an array is accepted as long as the issuer is one of its
-// members, never dropped to a bare string match) → and only once the
-// token itself is genuinely valid, the `openid` scope check, reported as
-// a distinct 403 rather than folded into the same 401 an attacker could
-// use to distinguish "bad token" from "valid token, wrong scope".
+// `kid` → `typ: at+jwt`, which is what stops an ID Token signed by the same
+// key being presented here → `iss` → `exp` → `aud` contains this issuer
+// (all inside verifyJwt, whose `audience` option accepts an array `aud`
+// containing the issuer rather than matching a bare string) → and only once
+// the token is valid, the `openid` scope check: a 403, not the 401 that
+// would let a caller distinguish a bad token from a valid one with the
+// wrong scope.
 export async function resolveUserinfo(
   deps: UserinfoDeps,
   realmName: string,

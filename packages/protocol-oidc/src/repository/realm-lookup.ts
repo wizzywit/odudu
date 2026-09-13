@@ -13,18 +13,10 @@ export interface NewRealm {
 }
 
 // Resolving {realm} from the request path happens before any realm context
-// exists to `SET LOCAL app.realm_id` into, so there is no id yet to scope
-// this lookup by. `realms`' own isolation policy keys on `id`, and FORCE ROW
-// LEVEL SECURITY binds every non-bypass role including the table owner —
-// verified against a real container: an unscoped SELECT from the ordinary
-// serving role (odudu_svc) returns zero rows regardless of name. `db` here
-// must therefore be the owner connection (apps/server/src/app.ts's
-// AppDeps.ownerDatabase; already used for migrations and bootstrap, and
-// already understood in this codebase to bypass RLS — see the warning in
-// apps/server/src/main.ts), not the RLS-scoped serving connection. The
-// query still selects only `id` and `enabled`, so the bypass discloses
-// nothing about a realm beyond what a client already learns one realm at a
-// time by requesting its discovery document.
+// exists to `SET LOCAL app.realm_id` into, so `db` must be the owner
+// connection (apps/server/src/app.ts's AppDeps.ownerDatabase), not the
+// RLS-scoped serving one, which reads zero rows here. ADR 0009's amendment
+// of 2026-09-13 has why that bypass is safe and why it is the only one.
 export function realmLookupRepository(db: Database) {
   return {
     async byName(name: string): Promise<RealmLookup | null> {

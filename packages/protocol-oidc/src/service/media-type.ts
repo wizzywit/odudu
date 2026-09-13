@@ -12,15 +12,13 @@ export function isFormEncoded(contentType: string | undefined): boolean {
 }
 
 // Whether a request carries a representation these endpoints cannot read,
-// which is answered with 415 (RFC 9110 §15.5.16) before any parser runs.
-//
-// A request naming no content type at all and carrying no body carries no
-// representation to refuse: it is simply a request with no parameters, and
-// is answered as one. A body arriving with no content type is a different
-// thing — RFC 9110 §8.3 leaves its media type unknown, and unknown is
-// unsupported here. Letting that case fall through to the framework's own
-// media-type error puts back the thing this check exists to remove: one
-// refusal in two representations, depending on which parameter was missing.
+// answered with 415 (RFC 9110 §15.5.16) before any parser runs. A request
+// naming no content type and carrying no body carries no representation to
+// refuse: it is a request with no parameters, answered as one. A body with
+// no content type has an unknown media type (RFC 9110 §8.3), and unknown is
+// unsupported here — letting it fall through to the framework's own error
+// puts back what this check removes: one refusal in two representations,
+// depending on which parameter was missing.
 export function carriesUnsupportedRepresentation(headers: {
   contentType: string | undefined;
   contentLength: string | undefined;

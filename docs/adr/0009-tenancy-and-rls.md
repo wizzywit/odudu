@@ -56,3 +56,26 @@ The policy therefore wraps the lookup in `nullif(…, '')`. The decision is
 unchanged; only the predicate needed writing correctly. Found by executing the
 policy against a real PostgreSQL container in task 7, not by reasoning from
 the documentation.
+
+## Amendment, 2026-09-13
+
+Resolving `{realm}` from a request path is the one read that cannot be made
+under realm context: it runs _before_ any realm id exists to
+`SET LOCAL app.realm_id` into. `realms`' own isolation policy keys on `id`,
+and `FORCE ROW LEVEL SECURITY` binds every non-bypass role including the
+table owner — verified against a real container, where an unscoped `SELECT`
+from the ordinary serving role (`odudu_svc`) returns zero rows regardless of
+name.
+
+The realm lookup (`packages/protocol-oidc/src/repository/realm-lookup.ts`)
+therefore takes the owner connection (`AppDeps.ownerDatabase`), already used
+for migrations and bootstrap and already understood here to bypass RLS, not
+the RLS-scoped serving connection. The bypass is kept as narrow as the gap
+it fills: the query selects only `id` and `enabled`, which discloses nothing
+about a realm beyond what any client learns one realm at a time by fetching
+its discovery document. Realm creation by the seed command runs on the same
+connection for the same reason — it is the other side of the same gap.
+
+The decision is unchanged: every request-serving query still runs RLS-scoped
+under `SET LOCAL`. This records the one lookup that structurally cannot, and
+why it is safe.

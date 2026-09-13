@@ -9,18 +9,12 @@ export type RotationOutcome =
   | { readonly kind: 'unknown' };
 
 // The single entry point for redeeming a refresh token. `consume` is one
-// atomic UPDATE, so two concurrent presentations of the same token cannot
-// both win — exactly like authorizationCodeRepository(tx).consume. Reuse
-// detection and family revocation happen inside the same `tx` this function
-// was called with, as one unit: a reuse detected but not revoked because a
-// later statement failed would be worse than not detecting it at all.
-//
-// Whether the *caller* (the requesting client) actually owns this token —
-// client match, subject enabled, requested scope — is not decided here, so
-// that it can stay a pure, query-free function with its own direct unit
-// tests (evaluateRefreshGrant). The usecase runs it on both sides of this
-// call: once before, so a request that cannot succeed never marks a token
-// used, and once after, against the grant this transaction read.
+// atomic UPDATE, so two concurrent presentations cannot both win — exactly
+// like authorizationCodeRepository(tx).consume. Reuse detection and family
+// revocation happen inside the caller's `tx` as one unit: a reuse detected
+// but not revoked because a later statement failed would be worse than not
+// detecting it at all. Whether the requesting client owns this token is
+// decided by evaluateRefreshGrant, on both sides of this call — ADR 0019.
 export async function rotateRefreshToken(
   tx: RealmScopedDatabase,
   presentedHash: string,

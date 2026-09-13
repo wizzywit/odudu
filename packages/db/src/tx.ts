@@ -6,12 +6,10 @@ declare const realmScopedBrand: unique symbol;
 
 /**
  * A database handle bound to one realm's row-level-security context for the
- * life of a `withRealm` transaction. Deliberately omits `.transaction()`:
- * `set_config(..., true)` is transaction-scoped, not savepoint-scoped, so a
- * nested `withRealm` call opening a savepoint would rebind `app.realm_id` for
- * the rest of the outer transaction once the savepoint released. Without
- * `.transaction`, `withRealm(tx, ...)` cannot typecheck — nesting fails to
- * compile instead of silently rebinding the realm at runtime.
+ * life of a `withRealm` transaction. Omits `.transaction()` so that nesting
+ * fails to compile: `set_config(..., true)` is transaction-scoped, not
+ * savepoint-scoped, so a nested `withRealm` would rebind `app.realm_id` for
+ * the rest of the outer transaction once its savepoint released.
  */
 export type RealmScopedDatabase = Omit<Database, 'transaction'> & {
   readonly [realmScopedBrand]: true;

@@ -19,19 +19,14 @@ export function assertProductionAppDatabaseUrl(config: Config): void {
 }
 
 /**
- * Every credential this server issues or accepts — an authorization code in
- * a redirect, a client secret at the token endpoint, a bearer token at
- * `/userinfo` — is a plaintext string that TLS is the only thing protecting.
- * RFC 6749 §3.1, §3.2 and §10.11 each require the authorization server to
- * require TLS; Odudu terminates none itself, so the strongest requirement it
- * can enforce in its own process is to refuse to serve production traffic
- * unless the operator states that something in front of it does.
- *
- * `docs/protocols/rfc6749.md` records what this does and does not settle.
- * Two assertions carry it, not one: `ODUDU_TLS=true` in front of a plaintext
- * listener is a lie nothing here can tell, and so is any `NODE_ENV` other
- * than `production` on a deployment serving real users — that one silences
- * this guard outright.
+ * Every credential this server issues or accepts is a plaintext string that
+ * TLS alone protects. RFC 6749 §3.1, §3.2 and §10.11 require the
+ * authorization server to require TLS; Odudu terminates none, so the most it
+ * can enforce in its own process is to refuse production traffic unless the
+ * operator states that something in front of it does. It rests on two
+ * operator assertions this process cannot check — `ODUDU_TLS` and
+ * `NODE_ENV`, the second of which silences the guard outright. See
+ * `docs/protocols/rfc6749.md`, "TLS: what a boot guard settles".
  */
 export function assertProductionTls(config: Config): void {
   if (config.NODE_ENV === 'production' && !config.ODUDU_TLS) {

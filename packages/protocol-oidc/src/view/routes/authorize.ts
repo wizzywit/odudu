@@ -11,16 +11,12 @@ import { namesUnsupportedRepresentation } from '#/view/media-type';
 
 const PATH = '/realms/:realm/protocol/openid-connect/auth';
 
-// GET carries parameters in the query string, POST in a form-encoded body
-// (OIDC Core §3.1.2 requires the Authorization Endpoint to support both) —
-// but everything past "where do the parameters come from" is one shared
-// path, so the two methods cannot drift out of agreement with each other,
-// down to a POST naming no representation at all answering exactly as a
-// GET with no query parameters does.
-//
-// Parameters reach the handler as `unknown` because that is the truth: they
-// are whatever a body parser produced. normalizeAuthorizeQuery is what turns
-// them back into strings.
+// OIDC Core §3.1.2 requires both methods; they differ only in where the
+// parameters come from, and share everything after, so they cannot drift
+// out of agreement — down to a POST naming no representation answering
+// exactly as a GET with no query parameters does. Parameters arrive as
+// `unknown` because that is the truth: they are whatever a body parser
+// produced, and normalizeAuthorizeQuery turns them back into strings.
 async function respondToAuthorizationRequest(
   deps: AuthorizeUsecaseDeps,
   realm: string,
@@ -59,21 +55,13 @@ export function registerAuthorizeRoute(app: FastifyInstance, deps: AuthorizeUsec
     ),
   );
 
-  // OIDC Core §3.1.2.1 fixes the POST representation: the parameters are
-  // form serialized. Any other media type is an unsupported representation
-  // rather than a malformed authorization request, so it is refused with
-  // 415 (RFC 9110 §15.5.16) before any parser runs — the request is never
-  // parsed, so no redirect_uri has been established to trust, and there is
-  // nowhere to redirect an error to either.
-  //
-  // The test is the media type, not whether a body arrived: an empty JSON
-  // request names the same unsupported representation a full one does, and
-  // keying on the body instead handed it to Fastify's JSON parser, which
-  // answered a different status in a different media type for what is the
-  // same refusal. A request naming no content type and carrying no body
-  // carries no representation to refuse and is simply a request with no
-  // parameters; a body with no content type has an unknown media type
-  // (RFC 9110 §8.3), and unknown is unsupported here.
+  // OIDC Core §3.1.2.1 fixes the POST representation: form serialized. Any
+  // other media type is an unsupported representation rather than a
+  // malformed authorization request, refused with 415 before any parser
+  // runs — nothing is parsed, so no redirect_uri has been established to
+  // trust and there is nowhere to redirect an error to. The test is the
+  // media type, not whether a body arrived (see media-type.ts): an empty
+  // JSON request names the same unsupported representation a full one does.
   app.post<{ Params: { realm: string } }>(
     PATH,
     {

@@ -168,15 +168,12 @@ function decodeBasicCredentials(payload: string): BasicCredentials | undefined {
 }
 
 // RFC 6749 §2.3.1: `Authorization: Basic base64(client_id:client_secret)`.
-//
 // A header naming another scheme presents no client credential — a bearer
-// token at this endpoint is not client authentication — and is left to the
-// body parameters. A header that does name `Basic` and cannot be read as
-// that grammar is a presentation of `client_secret_basic` that failed, and
-// gets the same `invalid_client` as every other failed authentication rather
-// than being dropped so the body can be tried instead: a client cannot
-// escape §2.3's one-method-per-request rule, or a wrong secret, by
-// corrupting its own header.
+// token here is not client authentication — and is left to the body. A
+// header that names `Basic` and cannot be read is a failed presentation of
+// `client_secret_basic`, and fails as one rather than being dropped so the
+// body can be tried instead: a client cannot escape §2.3's
+// one-method-per-request rule, or a wrong secret, by corrupting its header.
 function parseBasicAuth(header: string | undefined): BasicCredentials | undefined {
   if (header === undefined) return undefined;
   const match = /^Basic(?:\s+(.*))?$/i.exec(header);
@@ -187,20 +184,14 @@ function parseBasicAuth(header: string | undefined): BasicCredentials | undefine
   return credentials;
 }
 
-// Stage 2: client authentication. Every failure here — an unknown
-// client_id, a disabled client, a wrong secret, a public client presenting
-// a secret it was never issued, a client presenting the method it is not
-// configured for, or a client presenting more than one method at once —
-// reports the same `invalid_client` (401, WWW-Authenticate: Basic), never
-// which of those it was.
-//
+// Stage 2: client authentication. Every failure here — unknown client_id,
+// disabled client, wrong secret, a public client presenting a secret, the
+// method the client is not configured for, or two methods at once — reports
+// the same `invalid_client` (401, WWW-Authenticate: Basic), never which.
 // A client authenticates the way it is registered to, not whichever way
-// happens to work: `client_secret_basic` (RFC 6749 §2.3.1's Authorization
-// header) and `client_secret_post` (the same section's body parameters) are
-// both accepted, but only from a client whose stored
-// `token_endpoint_auth_method` names that one — and never both in the same
-// request (RFC 6749 §2.3: a client uses no more than one authentication
-// method per request).
+// happens to work: `client_secret_basic` and `client_secret_post` (RFC 6749
+// §2.3.1) are accepted only from a client whose stored
+// `token_endpoint_auth_method` names that one, never both (§2.3).
 async function authenticateClient(
   tx: RealmScopedDatabase,
   deps: TokenIssuanceDeps,
@@ -242,13 +233,11 @@ async function authenticateClient(
 
 // Stage 3: the authorization_code grant. `consume` is one atomic UPDATE, so
 // the database — not a check-then-set race — decides which of two
-// concurrent redemptions wins. The grant-specific rules themselves (client
-// match, redirect_uri match, PKCE) are `evaluateAuthorizationCodeGrant`, a
-// pure service function that runs no queries — this usecase only loads,
-// consumes and, on failure, revokes. Every way this can fail (unknown code,
-// expired, replayed, wrong client, wrong redirect_uri, PKCE mismatch)
-// converges on the same `invalid_grant`: a resource server or attacker
-// probing these cannot learn which check they failed (RFC 6749 §5.2).
+// concurrent redemptions wins. The grant rules themselves (client match,
+// redirect_uri match, PKCE) are `evaluateAuthorizationCodeGrant`, which
+// runs no queries; this usecase only loads, consumes and, on failure,
+// revokes. Every way it can fail converges on the same `invalid_grant`, so
+// a caller probing them cannot learn which check failed (RFC 6749 §5.2).
 async function redeemAuthorizationCode(
   tx: RealmScopedDatabase,
   deps: TokenIssuanceDeps,
@@ -401,13 +390,9 @@ async function issueAuthorizationCodeTokens(
 // The grant rules for `refresh_token`, decided from the presented token
 // before anything is rotated. Nothing here writes: it can refuse the
 // request, never admit it, which is why running it ahead of the atomic
-// single-use consume costs that consume none of its authority.
-//
-// Deciding this only *after* rotation, from the rotated record, is what
-// made a refresh token a weapon: rotation marks the presented token used
-// and commits, so any client able to authenticate at this realm could burn
-// a token belonging to another, and the owner's next refresh was then
-// detected as reuse and revoked its whole family.
+// single-use consume costs that consume none of its authority. Deciding
+// only *after* rotation let any authenticated client burn another's token —
+// ADR 0019.
 async function evaluatePresentedRefreshToken(
   tx: RealmScopedDatabase,
   request: Extract<StructuredRequest, { grantType: 'refresh_token' }>,
@@ -433,19 +418,12 @@ async function evaluatePresentedRefreshToken(
 }
 
 // Stage 3 (and everything after) for `refresh_token`. Rotation runs in its
-// own transaction, independently committed via `withRealm`: reuse detection
-// and family revocation must survive even though the request this call
-// belongs to will end in `invalid_grant`, which rolls the enclosing `tx`
-// back. Once rotation has committed, everything else here is read-only
-// against already-settled state, so running it inside the enclosing `tx`
-// risks nothing.
-//
-// The decision is taken twice against two different reads of the grant, and
-// deliberately so. The first read gates the rotation, so a request that was
-// never going to succeed consumes nothing. The second is the one that
-// governs, because it reads the grant inside the transaction that rotated
-// the token — a family revoked between the two reads must not still hand
-// back an access token.
+// own transaction via `withRealm`, because reuse detection and family
+// revocation must survive a request ending in `invalid_grant`, which rolls
+// the enclosing `tx` back. Everything after it is read-only against settled
+// state. The grant decision taken here is the one that governs — it reads
+// the grant inside the transaction that rotated the token, where the
+// earlier one (ADR 0019) could not see a revocation landing between them.
 async function issueRefreshTokens(
   tx: RealmScopedDatabase,
   deps: TokenIssuanceDeps,
