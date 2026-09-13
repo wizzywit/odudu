@@ -2,13 +2,23 @@
 
 ## Start here
 
-**P0 and P1 are complete. P2 (authentication: MFA, passkeys, the flow tree)
-is next, and nothing has started on it — brainstorm its scope first, per
-`CLAUDE.md`.** Odudu now serves the OAuth 2.1 / OpenID Connect core: the
+**P0 and P1 are complete. P2 (authentication: MFA, passkeys, the flow tree,
+and the session lifecycle) is next, and nothing has started on it —
+brainstorm its scope first, per `CLAUDE.md`.** Odudu now serves the OAuth 2.1 / OpenID Connect core: the
 `authorization_code`, `refresh_token` and `client_credentials` grants, and
 the authorize, token, userinfo, jwks and discovery endpoints. The rest of
 this file is the record of how that happened; what follows is the part a
 newcomer to P2 needs before touching anything.
+
+**P2 now owns logout, which the roadmap had never assigned to anyone.**
+RP-initiated logout (`end_session_endpoint`) belongs to the phase that makes
+the SSO session real: P1 writes a session cookie and never reads it, so an
+endpoint ending a session nothing consults could only assert that a row
+changed. Make the session load-bearing and make it endable in the same
+phase. Front-channel and back-channel logout are P3's — both are addressed
+to a client and need a registered logout URI, and back-channel issues a
+logout token, which is a second token type and therefore its own clause
+table. Section 11 of the design spec carries the full reasoning.
 
 **`pnpm trace` runs strict, and a new MUST that is not `covered` costs
 something in every one of the six statuses.** That is the one workflow

@@ -424,26 +424,51 @@ Implementation follows test-driven development.
 
 ## 11. Roadmap
 
-| #   | Phase                                          | Effort    | Exit criterion                                                                                                                                                 |
-| --- | ---------------------------------------------- | --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| P0  | Foundation                                     | 20–30 h   | `pnpm verify` green in CI; server boots in a container; migration runner proven; ADRs committed; boundaries enforced                                           |
-| P1  | OAuth 2.1 / OIDC core                          | 60–100 h  | OIDF Config OP plan passes; Basic OP runs reproducibly with every divergence confirmed as a recorded decision (ADR 0016); every in-scope MUST traced to a test |
-| P2  | Identity and credentials                       | 60–80 h   | password, TOTP and passkey login through the flow engine; adversarial suite green                                                                              |
-| P3  | Realms, clients, consent, dynamic registration | 40–60 h   | OIDF Dynamic OP plan passes; cross-realm RLS probes green                                                                                                      |
-| P4  | Admin API and consoles                         | 100–150 h | full lifecycle manageable from the UI; Playwright green; OpenAPI published                                                                                     |
-| P5  | Agent identity layer                           | 80–120 h  | property-based attenuation tests pass; budgets atomic under concurrency; CIBA approvals end to end                                                             |
-| P6  | Identity brokering                             | 40–60 h   | login via Google and an upstream OIDC IdP; mix-up tests green                                                                                                  |
-| P7  | User federation (LDAP)                         | 60–100 h  | LDAP-backed authentication, write-back and sync                                                                                                                |
-| P8  | SAML 2.0 IdP                                   | 100–150 h | interop with a real SP; signature-wrapping corpus green                                                                                                        |
-| P9  | Authorization services                         | 100–150 h | policy evaluation and UMA 2.0                                                                                                                                  |
-| P10 | Extensibility and theming                      | 60–100 h  | a third-party provider loads without a rebuild                                                                                                                 |
-| P11 | HA, clustering, performance                    | 60–100 h  | three replicas behind a load balancer; documented p99                                                                                                          |
+| #   | Phase                                          | Effort    | Exit criterion                                                                                                                                                      |
+| --- | ---------------------------------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| P0  | Foundation                                     | 20–30 h   | `pnpm verify` green in CI; server boots in a container; migration runner proven; ADRs committed; boundaries enforced                                                |
+| P1  | OAuth 2.1 / OIDC core                          | 60–100 h  | OIDF Config OP plan passes; Basic OP runs reproducibly with every divergence confirmed as a recorded decision (ADR 0016); every in-scope MUST traced to a test      |
+| P2  | Identity and credentials, session lifecycle    | 60–80 h   | password, TOTP and passkey login through the flow engine; an SSO session that is read as well as written, and ended by RP-initiated logout; adversarial suite green |
+| P3  | Realms, clients, consent, dynamic registration | 40–60 h   | OIDF Dynamic OP plan passes; front-channel and back-channel logout against registered per-client logout URIs; cross-realm RLS probes green                          |
+| P4  | Admin API and consoles                         | 100–150 h | full lifecycle manageable from the UI, including listing a subject's sessions and ending one; Playwright green; OpenAPI published                                   |
+| P5  | Agent identity layer                           | 80–120 h  | property-based attenuation tests pass; budgets atomic under concurrency; CIBA approvals end to end                                                                  |
+| P6  | Identity brokering                             | 40–60 h   | login via Google and an upstream OIDC IdP; mix-up tests green                                                                                                       |
+| P7  | User federation (LDAP)                         | 60–100 h  | LDAP-backed authentication, write-back and sync                                                                                                                     |
+| P8  | SAML 2.0 IdP                                   | 100–150 h | interop with a real SP; signature-wrapping corpus green                                                                                                             |
+| P9  | Authorization services                         | 100–150 h | policy evaluation and UMA 2.0                                                                                                                                       |
+| P10 | Extensibility and theming                      | 60–100 h  | a third-party provider loads without a rebuild                                                                                                                      |
+| P11 | HA, clustering, performance                    | 60–100 h  | three replicas behind a load balancer; documented p99                                                                                                               |
 
 Total: roughly 800–1200 hours.
 
 After P4, at roughly 300 hours, Odudu is usable behind real applications.
 Everything beyond is breadth, and each phase is independently valuable and
 independently abandonable.
+
+**Logout, and why it is split across three phases.** This roadmap named no
+phase for logout until 2026-09-13, which was an omission rather than a
+decision: a provider with no way to end a session is not at parity with the
+incumbents, whatever else it does. It is split because the three logouts
+need different things and become possible at different times.
+
+_RP-initiated logout_ (`end_session_endpoint`, OpenID Connect RP-Initiated
+Logout 1.0) lands in **P2**, because that is where the SSO session becomes
+real. P1 writes a session cookie and never reads it, and an endpoint that
+ends a session nothing consults would be theatre — the tests could only
+assert a row changed. P2 makes the session load-bearing, so the same phase
+should make it endable.
+
+_Front-channel and back-channel logout_ land in **P3**, because both are
+addressed to a client rather than to a browser: they need per-client
+`frontchannel_logout_uri` / `backchannel_logout_uri` registered, which is
+client-registration metadata. Back-channel additionally issues a **logout
+token** — a second token type with its own claim rules, which means its own
+clause table under `docs/protocols/` rather than a footnote in an existing
+one.
+
+_Administrative session termination_ — listing a subject's sessions and
+ending one on their behalf — lands in **P4** with the rest of the admin
+surface, because until there is an admin API there is nowhere to put it.
 
 ### Open decision, deferred deliberately
 
