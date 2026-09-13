@@ -615,6 +615,209 @@ The claims come from the same registry the ID token's claims came from, so
 one can never carry a claim the other omits for the same subject and scope.
 The client must check that `sub` here matches the ID token's `sub`.
 
+## Path A, as a confidential client
+
+Path A ran `demo-spa`, which is public. The other common deployment shape is
+a server-side web application that holds a secret, and a reader who is
+building one needs to see it walked rather than inferred.
+
+It is the same journey. Discovery, `/authorize`, the login POST and
+`/userinfo` are what Path A showed, with `client_id=demo-backend` in place of
+`demo-spa` and nothing else changed — the same PKCE pair, the same login
+form, the same authorization code. One hop differs: at `/token` the client
+authenticates, in the one way it is registered for.
+
+### PKCE is not a public-client concern here
+
+A reader arriving from another provider will expect `code_challenge` to be
+optional for a client that has a secret, and will leave it out. Most
+providers make it a per-client setting; RFC 7636 introduced it for clients
+that cannot keep a secret, and OpenID Connect Core does not ask for it at
+all.
+
+Odudu requires it of every client on every `authorization_code` request,
+with no exception and no per-client opt-out, following OAuth 2.1
+(`draft-ietf-oauth-v2-1-15` §4.1.1). That is not a small divergence: it is
+the entire reason the OpenID Foundation's Basic OP certification plan cannot
+pass here. Every module of that plan but its one dedicated PKCE module sends
+an authorization request carrying no `code_challenge`, and Odudu refuses each
+one — 28 of 35 modules, each failure individually confirmed to be this and
+nothing else. [ADR 0016](adr/0016-mandatory-pkce-over-basic-op.md) records
+the decision and what was given up for it.
+
+Omitting the challenge does not fall back to proving yourself with the
+secret instead. The request is refused at `/authorize`, before a secret
+would ever be presented:
+
+```bash
+curl -sS -D - -o /dev/null --get \
+  --data-urlencode 'response_type=code' \
+  --data-urlencode 'client_id=demo-backend' \
+  --data-urlencode 'redirect_uri=http://localhost:8080/callback' \
+  --data-urlencode 'scope=openid profile email' \
+  --data-urlencode 'state=xyz-123' \
+  'http://localhost:3000/realms/demo/protocol/openid-connect/auth'
+```
+
+```
+HTTP/1.1 302 Found
+location: http://localhost:8080/callback?error=invalid_request&state=xyz-123&iss=http%3A%2F%2Flocalhost%3A3000%2Frealms%2Fdemo
+content-length: 0
+```
+
+The refusal travels back to the client as a redirect rather than a rendered
+page because `client_id` and `redirect_uri` were both good — the boundary is
+in [`/authorize`: the render-versus-redirect boundary](#authorize-the-render-versus-redirect-boundary).
+`state` comes back so the client can match the answer to its request, and
+`iss` (RFC 9207) so it can tell which issuer refused.
+
+### Redeeming the code with `client_secret_basic`
+
+`demo-backend` is registered for `client_secret_basic`, so the secret goes in
+the `Authorization` header. `curl -u` builds it. There is no `client_id`
+parameter: the header already names the client.
+
+```bash
+curl -sS -D - -u demo-backend:demo-backend-secret \
+  --data-urlencode 'grant_type=authorization_code' \
+  --data-urlencode "code=$CODE" \
+  --data-urlencode 'redirect_uri=http://localhost:8080/callback' \
+  --data-urlencode "code_verifier=$VERIFIER" \
+  'http://localhost:3000/realms/demo/protocol/openid-connect/token'
+```
+
+```
+HTTP/1.1 200 OK
+cache-control: no-store
+pragma: no-cache
+content-type: application/json; charset=utf-8
+
+{
+  "access_token": "eyJhbGciOiJSUzI1NiIs…",
+  "id_token": "eyJhbGciOiJSUzI1NiIs…",
+  "refresh_token": "P4dFlaaDHPJDK9sKMYF3…",
+  "token_type": "Bearer",
+  "expires_in": 300,
+  "scope": "openid profile email"
+}
+```
+
+(All three token values truncated.) `$CODE` and `$VERIFIER` are the ones
+[The shell variables the rest of this document uses](#the-shell-variables-the-rest-of-this-document-uses)
+produces, with `client_id=demo-backend` substituted in the first two blocks.
+
+The response is Path A's response, and so are the tokens inside it, except
+where they name the client:
+
+```json
+{
+  "iss": "http://localhost:3000/realms/demo",
+  "sub": "01a09acc-6bd8-…",
+  "aud": ["http://localhost:3000/realms/demo"],
+  "client_id": "demo-backend",
+  "scope": "openid profile email",
+  "iat": 1789303513,
+  "exp": 1789303813,
+  "jti": "01a09acc-e390-…"
+}
+```
+
+```json
+{
+  "iss": "http://localhost:3000/realms/demo",
+  "aud": "demo-backend",
+  "iat": 1789303513,
+  "exp": 1789303813,
+  "auth_time": 1789303513,
+  "nonce": "n-0S6_WzA2Mj",
+  "sub": "01a09acc-6bd8-…",
+  "name": "ada",
+  "email": "ada@example.com",
+  "email_verified": false
+}
+```
+
+(`sub`, `kid` and `jti` shortened; the headers are as Path A's.) `sub` is
+ada's, the same identifier `demo-spa` was given for her — a subject belongs
+to the realm, not to the client that asked. The service-account subject a
+confidential client also carries is a different one, and only
+[`client_credentials`](#path-c-client_credentials) mints tokens for it.
+
+**A refresh token, unlike `client_credentials`.** A user authenticated here
+and is not going to stay at the keyboard, which is the situation refresh
+exists for; it rotates exactly as [Path B](#path-b-refresh-rotation)
+describes, with the client authenticating on each refresh as it did here.
+
+### The same redemption with `client_secret_post`
+
+`demo-post` is registered for `client_secret_post`, so the same two values go
+in the form body instead, and `client_id` is sent because nothing else names
+the client:
+
+```bash
+curl -sS -D - \
+  --data-urlencode 'grant_type=authorization_code' \
+  --data-urlencode "code=$CODE" \
+  --data-urlencode 'redirect_uri=http://localhost:8080/callback' \
+  --data-urlencode 'client_id=demo-post' \
+  --data-urlencode 'client_secret=demo-post-secret' \
+  --data-urlencode "code_verifier=$VERIFIER" \
+  'http://localhost:3000/realms/demo/protocol/openid-connect/token'
+```
+
+```
+HTTP/1.1 200 OK
+cache-control: no-store
+pragma: no-cache
+content-type: application/json; charset=utf-8
+
+{
+  "access_token": "eyJhbGciOiJSUzI1NiIs…",
+  "id_token": "eyJhbGciOiJSUzI1NiIs…",
+  "refresh_token": "a730HWinJoMIqYtxVjr5…",
+  "token_type": "Bearer",
+  "expires_in": 300,
+  "scope": "openid profile email"
+}
+```
+
+(Truncated as above. The tokens differ from the block before only in naming
+`demo-post`.)
+
+Which of the two a client may use is registered, not chosen per request, and
+sending the other is `invalid_client` even with the right secret — the matrix
+is in
+[Client authentication is by the registered method and no other](#client-authentication-is-by-the-registered-method-and-no-other).
+
+Presenting no secret at all is refused the same way. A confidential client
+cannot redeem a code as though it were public, however good the code and the
+verifier are:
+
+```bash
+curl -sS -D - \
+  --data-urlencode 'grant_type=authorization_code' \
+  --data-urlencode "code=$CODE" \
+  --data-urlencode 'redirect_uri=http://localhost:8080/callback' \
+  --data-urlencode 'client_id=demo-backend' \
+  --data-urlencode "code_verifier=$VERIFIER" \
+  'http://localhost:3000/realms/demo/protocol/openid-connect/token'
+```
+
+```
+HTTP/1.1 401 Unauthorized
+www-authenticate: Basic realm="token"
+cache-control: no-store
+pragma: no-cache
+content-type: application/json; charset=utf-8
+
+{"error":"invalid_client"}
+```
+
+**What the client does next:** what Path A's client does, with one
+difference that matters operationally — the secret is held by the server, so
+the access and refresh tokens never need to reach the browser at all. That
+is the reason to be a confidential client.
+
 ## Path B: refresh rotation
 
 Refresh tokens rotate: every successful refresh consumes the presented
