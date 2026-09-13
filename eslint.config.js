@@ -2,6 +2,10 @@ import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
   { ignores: ['**/dist/**', '**/.turbo/**', '**/coverage/**', 'tests/boundaries/fixtures/**'] },
+  // A disable comment that no longer suppresses anything is a claim about the
+  // code that has quietly stopped being true; failing on it keeps the small
+  // number of live suppressions honest and reviewable.
+  { linterOptions: { reportUnusedDisableDirectives: 'error' } },
   tseslint.configs.strictTypeChecked,
   tseslint.configs.stylisticTypeChecked,
   {
@@ -21,7 +25,16 @@ export default tseslint.config(
       },
     },
     rules: {
-      '@typescript-eslint/no-floating-promises': 'error',
+      '@typescript-eslint/no-floating-promises': [
+        'error',
+        {
+          // Fastify's register() returns the instance, which is thenable only
+          // so that `await app.register(...)` can force plugin readiness.
+          // Registration itself is deferred until listen()/ready(), so leaving
+          // the call unawaited is the ordinary usage, not a dropped promise.
+          allowForKnownSafeCalls: [{ from: 'package', package: 'fastify', name: 'register' }],
+        },
+      ],
       '@typescript-eslint/no-misused-promises': 'error',
       '@typescript-eslint/consistent-type-imports': 'error',
     },

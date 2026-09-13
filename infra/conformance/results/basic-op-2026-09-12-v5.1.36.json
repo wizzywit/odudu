@@ -1,0 +1,224 @@
+{
+  "plan": "oidcc-basic-certification-test-plan",
+  "suiteVersion": "5.1.36",
+  "suiteTag": "release-v5.1.36",
+  "ranAt": "2026-09-12T02:03:00Z",
+  "target": "https://proxy/realms/conformance (odudu, behind the conformance TLS proxy)",
+  "counts": {
+    "FAILED": 30,
+    "PASSED": 2,
+    "SKIPPED": 3
+  },
+  "modules": [
+    {
+      "module": "oidcc-server",
+      "testId": "N7kT8XtVVOH09o3",
+      "status": "INTERRUPTED",
+      "result": "FAILED"
+    },
+    {
+      "module": "oidcc-response-type-missing",
+      "testId": "TrH2wX6TpZAOTQ5",
+      "status": "FINISHED",
+      "result": "PASSED"
+    },
+    {
+      "module": "oidcc-userinfo-get",
+      "testId": "V45IEuBCpJ2ouBT",
+      "status": "INTERRUPTED",
+      "result": "FAILED"
+    },
+    {
+      "module": "oidcc-userinfo-post-header",
+      "testId": "V3IAFls8JDbJDPB",
+      "status": "INTERRUPTED",
+      "result": "FAILED"
+    },
+    {
+      "module": "oidcc-userinfo-post-body",
+      "testId": "dYfr4oWedTL1WXj",
+      "status": "INTERRUPTED",
+      "result": "FAILED"
+    },
+    {
+      "module": "oidcc-ensure-request-without-nonce-succeeds-for-code-flow",
+      "testId": "pCU6Sqk3DgxtDPL",
+      "status": "INTERRUPTED",
+      "result": "FAILED"
+    },
+    {
+      "module": "oidcc-scope-profile",
+      "testId": "bSFsCLivx6HfpPi",
+      "status": "INTERRUPTED",
+      "result": "FAILED"
+    },
+    {
+      "module": "oidcc-scope-email",
+      "testId": "3G93jZFsqAnvBPz",
+      "status": "INTERRUPTED",
+      "result": "FAILED"
+    },
+    {
+      "module": "oidcc-scope-address",
+      "testId": "PgBDwMmJyDnSenz",
+      "status": "FINISHED",
+      "result": "SKIPPED"
+    },
+    {
+      "module": "oidcc-scope-phone",
+      "testId": "GVPV0lx8LfXP55c",
+      "status": "FINISHED",
+      "result": "SKIPPED"
+    },
+    {
+      "module": "oidcc-scope-all",
+      "testId": "aC4bH93U1mRmLht",
+      "status": "FINISHED",
+      "result": "SKIPPED"
+    },
+    {
+      "module": "oidcc-ensure-other-scope-order-succeeds",
+      "testId": "4cTbDgOh8e2rxLx",
+      "status": "INTERRUPTED",
+      "result": "FAILED"
+    },
+    {
+      "module": "oidcc-display-page",
+      "testId": "XsQyKsGROR0Z2G5",
+      "status": "INTERRUPTED",
+      "result": "FAILED"
+    },
+    {
+      "module": "oidcc-display-popup",
+      "testId": "AMyAGEWRA7dPEM2",
+      "status": "INTERRUPTED",
+      "result": "FAILED"
+    },
+    {
+      "module": "oidcc-prompt-login",
+      "testId": "Bfxp9umM6qnSTbP",
+      "status": "INTERRUPTED",
+      "result": "FAILED"
+    },
+    {
+      "module": "oidcc-prompt-none-not-logged-in",
+      "testId": "dWZz37D63WwNUvW",
+      "status": "FINISHED",
+      "result": "FAILED"
+    },
+    {
+      "module": "oidcc-prompt-none-logged-in",
+      "testId": "eGFAl3AZFIdPwP0",
+      "status": "INTERRUPTED",
+      "result": "FAILED"
+    },
+    {
+      "module": "oidcc-max-age-1",
+      "testId": "zH7wSATHkVd67q2",
+      "status": "INTERRUPTED",
+      "result": "FAILED"
+    },
+    {
+      "module": "oidcc-max-age-10000",
+      "testId": "Ki7Dp6lrfdH4YWo",
+      "status": "INTERRUPTED",
+      "result": "FAILED"
+    },
+    {
+      "module": "oidcc-ensure-request-with-unknown-parameter-succeeds",
+      "testId": "P8ZVQUrWUOUdiEM",
+      "status": "INTERRUPTED",
+      "result": "FAILED"
+    },
+    {
+      "module": "oidcc-id-token-hint",
+      "testId": "lwVGDY5je7MtIoJ",
+      "status": "INTERRUPTED",
+      "result": "FAILED"
+    },
+    {
+      "module": "oidcc-login-hint",
+      "testId": "opvccPrao6IuHlB",
+      "status": "INTERRUPTED",
+      "result": "FAILED"
+    },
+    {
+      "module": "oidcc-ui-locales",
+      "testId": "6U8xYqjtLw99dM0",
+      "status": "INTERRUPTED",
+      "result": "FAILED"
+    },
+    {
+      "module": "oidcc-claims-locales",
+      "testId": "QDbkqDKYH84Wgw5",
+      "status": "INTERRUPTED",
+      "result": "FAILED"
+    },
+    {
+      "module": "oidcc-ensure-request-with-acr-values-succeeds",
+      "testId": "oHzE1Mx5V0L81eq",
+      "status": "INTERRUPTED",
+      "result": "FAILED"
+    },
+    {
+      "module": "oidcc-codereuse",
+      "testId": "686ntpQ8jWF9dix",
+      "status": "INTERRUPTED",
+      "result": "FAILED"
+    },
+    {
+      "module": "oidcc-codereuse-30seconds",
+      "testId": "Hx5IHYwY6hnNrA1",
+      "status": "INTERRUPTED",
+      "result": "FAILED"
+    },
+    {
+      "module": "oidcc-ensure-registered-redirect-uri",
+      "testId": "sQ00KNyMlPNJkKU",
+      "status": "INTERRUPTED",
+      "result": "FAILED"
+    },
+    {
+      "module": "oidcc-ensure-post-request-succeeds",
+      "testId": "4Umi4d9D2uM2x6A",
+      "status": "INTERRUPTED",
+      "result": "FAILED"
+    },
+    {
+      "module": "oidcc-server-client-secret-post",
+      "testId": "ZduOIo0nYxMUwxF",
+      "status": "INTERRUPTED",
+      "result": "FAILED"
+    },
+    {
+      "module": "oidcc-unsigned-request-object-supported-correctly-or-rejected-as-unsupported",
+      "testId": "eSYqwkfFN2AquiW",
+      "status": "INTERRUPTED",
+      "result": "FAILED"
+    },
+    {
+      "module": "oidcc-claims-essential",
+      "testId": "rjF9G4mdIszKyls",
+      "status": "INTERRUPTED",
+      "result": "FAILED"
+    },
+    {
+      "module": "oidcc-ensure-request-object-with-redirect-uri",
+      "testId": "lpQUFdzyACwBubs",
+      "status": "INTERRUPTED",
+      "result": "FAILED"
+    },
+    {
+      "module": "oidcc-refresh-token",
+      "testId": "ChhUXQJoO4JHROu",
+      "status": "INTERRUPTED",
+      "result": "FAILED"
+    },
+    {
+      "module": "oidcc-ensure-request-with-valid-pkce-succeeds",
+      "testId": "PBC047PxydQpKwh",
+      "status": "FINISHED",
+      "result": "PASSED"
+    }
+  ]
+}

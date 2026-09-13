@@ -7,11 +7,11 @@
     "#/*": "./src/*.ts"
   },
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./testing": "./src/testing.ts"
   },
   "scripts": {
-    "typecheck": "tsc -p tsconfig.json",
-    "db:generate": "drizzle-kit generate"
+    "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
     "@odudu/kernel": "workspace:*",
@@ -20,6 +20,7 @@
   },
   "devDependencies": {
     "@odudu/testkit": "workspace:*",
-    "drizzle-kit": "0.31.10"
+    "drizzle-kit": "0.31.10",
+    "vitest": "5.0.0"
   }
 }

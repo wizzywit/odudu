@@ -1,0 +1,7 @@
+{
+  "alias": "odudu-config-op",
+  "description": "odudu Config OP: discovery document verification",
+  "server": {
+    "discoveryUrl": "https://proxy/realms/conformance/.well-known/openid-configuration"
+  }
+}

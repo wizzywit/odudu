@@ -424,26 +424,170 @@ Implementation follows test-driven development.
 
 ## 11. Roadmap
 
-| #   | Phase                                          | Effort    | Exit criterion                                                                                                       |
-| --- | ---------------------------------------------- | --------- | -------------------------------------------------------------------------------------------------------------------- |
-| P0  | Foundation                                     | 20–30 h   | `pnpm verify` green in CI; server boots in a container; migration runner proven; ADRs committed; boundaries enforced |
-| P1  | OAuth 2.1 / OIDC core                          | 60–100 h  | OIDF Basic OP and Config OP plans pass; every in-scope MUST traced to a test                                         |
-| P2  | Identity and credentials                       | 60–80 h   | password, TOTP and passkey login through the flow engine; adversarial suite green                                    |
-| P3  | Realms, clients, consent, dynamic registration | 40–60 h   | OIDF Dynamic OP plan passes; cross-realm RLS probes green                                                            |
-| P4  | Admin API and consoles                         | 100–150 h | full lifecycle manageable from the UI; Playwright green; OpenAPI published                                           |
-| P5  | Agent identity layer                           | 80–120 h  | property-based attenuation tests pass; budgets atomic under concurrency; CIBA approvals end to end                   |
-| P6  | Identity brokering                             | 40–60 h   | login via Google and an upstream OIDC IdP; mix-up tests green                                                        |
-| P7  | User federation (LDAP)                         | 60–100 h  | LDAP-backed authentication, write-back and sync                                                                      |
-| P8  | SAML 2.0 IdP                                   | 100–150 h | interop with a real SP; signature-wrapping corpus green                                                              |
-| P9  | Authorization services                         | 100–150 h | policy evaluation and UMA 2.0                                                                                        |
-| P10 | Extensibility and theming                      | 60–100 h  | a third-party provider loads without a rebuild                                                                       |
-| P11 | HA, clustering, performance                    | 60–100 h  | three replicas behind a load balancer; documented p99                                                                |
+| #   | Phase                                                            | Effort    | Exit criterion                                                                                                                                                                                                                                                                                                                                    |
+| --- | ---------------------------------------------------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| P0  | Foundation                                                       | 20–30 h   | `pnpm verify` green in CI; server boots in a container; migration runner proven; ADRs committed; boundaries enforced                                                                                                                                                                                                                              |
+| P1  | OAuth 2.1 / OIDC core                                            | 60–100 h  | OIDF Config OP plan passes; Basic OP runs reproducibly with every divergence confirmed as a recorded decision (ADR 0016); every in-scope MUST traced to a test                                                                                                                                                                                    |
+| P2a | Identity model: roles, groups, client scopes, web origins, email | 70–100 h  | realm and client roles, composite roles, groups and client scopes emitted into tokens; per-client web origins so a browser client completes the flow; email delivered, with self-registration and address verification on top of it                                                                                                               |
+| P2b | Credentials, MFA and the session lifecycle                       | 70–100 h  | password, TOTP and passkey login through the flow tree; password policies and brute-force protection; an SSO session that is read as well as written, with idle and maximum lifespans, ended by RP-initiated logout; offline access; adversarial suite green                                                                                      |
+| P3  | Realms, clients, consent, dynamic registration                   | 60–90 h   | OIDF Dynamic OP plan passes; front-channel and back-channel logout against registered per-client logout URIs; token introspection and revocation; `private_key_jwt` and mTLS client authentication; cross-realm RLS probes green                                                                                                                  |
+| P4  | Admin API and consoles                                           | 130–190 h | full lifecycle manageable from the UI, including listing a subject's sessions and ending one; another application able to provision users through the admin API as a service account holding admin roles; an account console for self-service; audit events persisted and queryable; realm import and export; Playwright green; OpenAPI published |
+| P5  | Agent identity layer                                             | 80–120 h  | property-based attenuation tests pass; budgets atomic under concurrency; CIBA approvals end to end                                                                                                                                                                                                                                                |
+| P6  | Identity brokering                                               | 50–70 h   | login via Google and an upstream OIDC IdP; a user provisioned just in time on first brokered login, with the account-linking decision that implies; mix-up tests green                                                                                                                                                                            |
+| P7  | User federation and inbound provisioning                         | 80–130 h  | LDAP-backed authentication, write-back and sync; SCIM 2.0 inbound provisioning, including deprovisioning                                                                                                                                                                                                                                          |
+| P8  | SAML 2.0 IdP                                                     | 100–150 h | interop with a real SP; signature-wrapping corpus green                                                                                                                                                                                                                                                                                           |
+| P9  | Authorization services                                           | 100–150 h | policy evaluation and UMA 2.0                                                                                                                                                                                                                                                                                                                     |
+| P10 | Extensibility and theming                                        | 60–100 h  | a third-party provider loads without a rebuild                                                                                                                                                                                                                                                                                                    |
+| P11 | HA, clustering, performance                                      | 60–100 h  | three replicas behind a load balancer; documented p99                                                                                                                                                                                                                                                                                             |
 
-Total: roughly 800–1200 hours.
+Total: roughly 990–1470 hours.
 
 After P4, at roughly 300 hours, Odudu is usable behind real applications.
 Everything beyond is breadth, and each phase is independently valuable and
 independently abandonable.
+
+### What the roadmap did not name
+
+This roadmap was written outward from the protocol, which is why it is
+strong on protocol depth and was thin on the identity model and the
+administrative surface around it. The following were found missing on
+2026-09-13 by reading Keycloak's surface against all twelve phases, and
+checked against the code rather than assumed. They are recorded here so the
+gap is a decision rather than a discovery made twice.
+
+**Three moved to the top of P2, because they change other phases rather
+than merely adding to them.**
+
+_Roles, groups and client scopes._ The largest single omission. Realm roles,
+client roles, composite roles, groups, default roles and scope mappings are
+the model every application integrating with an identity provider expects,
+and nothing in twelve phases named any of it — P9's authorization services
+is UMA 2.0 and policy evaluation, which sits **on top of** roles rather than
+supplying them. Odudu's only authorization primitive today is a scope
+string. This changes the token contract, so it belongs before the phases
+that consume it, and it is most of why P2's estimate moved from 60–80 to
+140–200 hours.
+
+_Per-client web origins._ There is no CORS handling anywhere in the server.
+A public single-page client — the exact shape `docs/request-paths.md` walks
+a reader through — cannot call `/token` or `/userinfo` from a browser,
+because the preflight fails. The flow is documented and tested end to end
+with `curl`, and does not work from the user agent it was designed for.
+
+_Email delivery, and the account lifecycle downstream of it._ No SMTP, no
+templates. That silently blocks self-registration, password reset, address
+verification, and makes `email_verified` a stored boolean nothing can ever
+set honestly. It is a prerequisite shared by several features rather than a
+feature, which is how it went unnamed.
+
+**Placed in the phase that already owns the surface.** Password policies,
+brute-force protection, session idle and maximum lifespans, and offline
+access join P2. Token introspection (RFC 7662) and revocation (RFC 7009),
+and the `private_key_jwt` and mTLS client authentication methods, join P3
+with the rest of the client-facing surface. A self-service account console,
+persisted and queryable audit events, realm import and export, and
+admin-configurable protocol mappers join P4 — P1 emits events into a
+registry that nothing stores, and the claim mappers are code-only.
+
+**Deliberately left unplaced, and why.** PAR (RFC 9126), DPoP, mTLS-bound
+tokens, the device authorization grant, and step-up authentication with
+`acr`/`amr` have no phase. Naming one now would be guessing: DPoP and PAR
+are the prerequisites for the FAPI 2.0 profiles that ADR 0016 identifies as
+the certification Odudu could actually hold, so they should be scoped
+together with that decision rather than scattered. The signing-key
+**rotation operation** is likewise unplaced in the table while the prose
+says P3/P4 — the shape exists, the operation does not, and whichever phase
+takes it should say so in its exit criterion.
+
+### How a user gets into a realm
+
+An identity provider that can only be populated by an administrator is not
+one anybody deploys. There are four ways in, they are not alternatives to
+each other, and a realm typically has several enabled at once. Recording
+them here because the roadmap named endpoints and phases without ever saying
+which of these it was building.
+
+**Self-registration.** A "Register" link beside the login form; the user
+creates their own account in Odudu's own UI, and the application never sees
+a credential. It is a per-realm setting and a registration flow, and it is
+the reason email is a **P2a** prerequisite rather than a nicety — an
+unverified self-registered address is an account-takeover primitive, so the
+verification path has to exist before the registration path is useful.
+
+**The admin API, called by another application.** The relying party's
+backend authenticates as a service account holding admin roles and creates
+the user itself. This is how most business-to-business integrations work:
+the application owns its signup form and its own onboarding, Odudu owns the
+account. It needs **P2a**'s roles to exist before **P4**'s API can be
+authorised by them, which is one more reason roles come first.
+
+**Just-in-time provisioning.** The user authenticates against Google or an
+upstream provider and the local account is created from that assertion on
+first login. Nobody registers at all. It belongs with brokering at **P6**,
+and it carries a decision that is easy to miss: what happens when the
+asserted address matches an existing local account — link, refuse, or
+challenge. Getting that wrong is an account-takeover path, so it is named in
+the exit criterion rather than left to implementation.
+
+**SCIM 2.0 inbound provisioning.** A directory or an HR system pushes users
+and groups continuously, and — the half people forget — **deprovisions**
+them. This is the standard answer when an enterprise asks how their
+directory stays in sync, and Keycloak does not ship it natively, which makes
+it a place to be better rather than a place to match. It joins **P7**, where
+the other directory-synchronisation machinery lives.
+
+Today none of these exists: the seed CLI is the only way to create a user,
+which is why it can look as though accounts must be made by hand before
+anyone can log in. That is a property of P1, not of the design.
+
+**The console framework is not chosen.** `apps/admin-console/` and
+`apps/account-console/` are in the structure, compile to static assets
+served by `apps/server`, and are exercised by Playwright — but no ADR picks
+what they are built with. React appears once in ADR 0001 as an aside and is
+not a decision. **P4 owes that ADR before its first line of console code**,
+with the deferred-until-informed reasoning that ADR carries for everything
+else.
+
+**P2 is two phases sharing a number, not one.** It was a single 60–80 hour
+phase until the identity model was found missing from the roadmap
+altogether; adding roles, groups, client scopes, web origins and email
+doubled it, and a phase nobody can finish is a phase nobody starts. P2a and
+P2b each get their own spec, plan and exit criteria, and P2a comes first
+because roles change the token contract that P2b's sessions and everything
+after them read.
+
+They share the number **deliberately**. Renumbering the tail of the roadmap
+would rewrite roughly 150 `deferred:` rows in the clause tables whose intent
+is a phase rather than a digit — and `pnpm trace` skips `deferred:` rows
+entirely, so a row renumbered wrongly would be invisible for good. ADRs 0016
+and 0017 also cite phase numbers, and an accepted ADR is corrected by
+appending, not by editing what it said. An existing `deferred: P2` row means
+**P2b** unless it concerns roles, groups, web origins or email.
+
+**Logout, and why it is split across three phases.** This roadmap named no
+phase for logout until 2026-09-13, which was an omission rather than a
+decision: a provider with no way to end a session is not at parity with the
+incumbents, whatever else it does. It is split because the three logouts
+need different things and become possible at different times.
+
+_RP-initiated logout_ (`end_session_endpoint`, OpenID Connect RP-Initiated
+Logout 1.0) lands in **P2**, because that is where the SSO session becomes
+real. P1 writes a session cookie and never reads it, and an endpoint that
+ends a session nothing consults would be theatre — the tests could only
+assert a row changed. P2 makes the session load-bearing, so the same phase
+should make it endable.
+
+_Front-channel and back-channel logout_ land in **P3**, because both are
+addressed to a client rather than to a browser: they need per-client
+`frontchannel_logout_uri` / `backchannel_logout_uri` registered, which is
+client-registration metadata. Back-channel additionally issues a **logout
+token** — a second token type with its own claim rules, which means its own
+clause table under `docs/protocols/` rather than a footnote in an existing
+one.
+
+_Administrative session termination_ — listing a subject's sessions and
+ending one on their behalf — lands in **P4** with the rest of the admin
+surface, because until there is an admin API there is nowhere to put it.
 
 ### Open decision, deferred deliberately
 

@@ -124,15 +124,15 @@ describe('withRealm', () => {
   it('cannot pass a realm-scoped handle back into withRealm (type-level guard)', () => {
     // Never invoked — its only job is to fail `tsc` (packages/db/tsconfig.json
     // includes this test file) if RealmScopedDatabase regresses back to a
-    // structural alias of Database. Guards findings 1 and 2: a nested
-    // withRealm call would open a savepoint whose set_config(..., true) is
-    // released (not rolled back) on success, silently rebinding app.realm_id
-    // for the rest of the outer transaction.
-    function nestedWithRealmMustNotCompile(tx: RealmScopedDatabase): void {
+    // structural alias of Database. A nested withRealm call would open a
+    // savepoint whose set_config(..., true) is released rather than rolled
+    // back on success, silently rebinding app.realm_id for the rest of the
+    // outer transaction.
+    async function nestedWithRealmMustNotCompile(tx: RealmScopedDatabase): Promise<void> {
       // @ts-expect-error — RealmScopedDatabase omits `.transaction()`, which
       // withRealm's `db` parameter requires, so this argument is not
       // assignable and nesting fails to compile.
-      void withRealm(tx, REALM_B, () => Promise.resolve(undefined));
+      await withRealm(tx, REALM_B, () => Promise.resolve(undefined));
     }
 
     expect(nestedWithRealmMustNotCompile).toBeTypeOf('function');

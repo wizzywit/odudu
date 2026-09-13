@@ -9,6 +9,23 @@ const booleanEnvVar = z
   .optional()
   .transform((value) => value === 'true');
 
+// Decoded and length-checked here, at the config boundary, so every later
+// consumer can assume 32 raw bytes rather than re-validating a base64 string.
+const kekBytes = z
+  .string()
+  .min(1)
+  .transform((value, ctx) => {
+    const decoded = Buffer.from(value, 'base64');
+    if (decoded.length !== 32) {
+      ctx.addIssue({
+        code: 'custom',
+        message: `ODUDU_KEK must decode to exactly 32 bytes, got ${String(decoded.length)}`,
+      });
+      return z.NEVER;
+    }
+    return decoded;
+  });
+
 const schema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   ODUDU_HTTP_HOST: z.string().min(1).default('0.0.0.0'),
@@ -17,9 +34,17 @@ const schema = z.object({
   ODUDU_MIGRATIONS_DIR: z.string().min(1).optional(),
   ODUDU_APP_DATABASE_URL: z.url().optional(),
   ODUDU_TRUST_PROXY: booleanEnvVar,
+  // Whether this process itself terminates TLS, or (via a reverse proxy)
+  // knows the client's connection to be HTTPS. Off by default: the compose
+  // stack serves plain HTTP on :3000 today. Read by @odudu/authn-flows to
+  // pick the session cookie's __Host- prefix and to decide whether to warn,
+  // and by apps/server's boot guard, which refuses to serve production
+  // traffic while it is off.
+  ODUDU_TLS: booleanEnvVar,
   ODUDU_LOG_LEVEL: z
     .enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent'])
     .default('info'),
+  ODUDU_KEK: kekBytes,
 });
 
 export type Config = Readonly<z.infer<typeof schema>>;

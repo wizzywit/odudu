@@ -1,0 +1,22 @@
+{
+  "name": "@odudu/contracts",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "imports": {
+    "#/*": "./src/*.ts"
+  },
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "main": "./src/index.ts",
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "zod": "4.6.1"
+  },
+  "devDependencies": {
+    "vitest": "5.0.0"
+  }
+}

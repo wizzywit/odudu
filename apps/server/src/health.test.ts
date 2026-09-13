@@ -6,6 +6,7 @@ import { createLogger } from '#/logger';
 
 const config = loadConfig({
   ODUDU_DATABASE_URL: 'postgres://u:p@localhost:5432/odudu',
+  ODUDU_KEK: Buffer.alloc(32, 9).toString('base64'),
   ODUDU_LOG_LEVEL: 'silent',
 });
 
@@ -30,7 +31,15 @@ function fakeDatabase(behaviour: 'ok' | 'down'): DatabaseHandle & { calls: numbe
 
 function app(behaviour: 'ok' | 'down') {
   const database = fakeDatabase(behaviour);
-  return { app: buildApp({ database, logger: createLogger(config) }), database };
+  return {
+    app: buildApp({
+      database,
+      ownerDatabase: database,
+      kek: config.ODUDU_KEK,
+      logger: createLogger(config),
+    }),
+    database,
+  };
 }
 
 describe('health endpoints', () => {

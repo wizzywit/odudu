@@ -1,0 +1,227 @@
+{
+  "plan": "oidcc-basic-certification-test-plan",
+  "suiteVersion": "5.1.36",
+  "suiteTag": "release-v5.1.36",
+  "ranAt": "2026-09-12T02:31:00Z",
+  "target": "https://proxy/realms/conformance (odudu, behind the conformance TLS proxy) -- fix round 1: POST support, client2/client_secret_post seeding, narrowed browser-task matchers",
+  "counts": {
+    "FAILED": 28,
+    "PASSED": 2,
+    "SKIPPED": 3,
+    "INTERRUPTED": 2
+  },
+  "modules": [
+    {
+      "module": "oidcc-server",
+      "testId": "0bvhdKoXTiNxpE1",
+      "status": "INTERRUPTED",
+      "result": "FAILED"
+    },
+    {
+      "module": "oidcc-response-type-missing",
+      "testId": "Whu5l6M7UTPdRp0",
+      "status": "FINISHED",
+      "result": "PASSED"
+    },
+    {
+      "module": "oidcc-userinfo-get",
+      "testId": "kWS7qvCYeVeclt8",
+      "status": "INTERRUPTED",
+      "result": "FAILED"
+    },
+    {
+      "module": "oidcc-userinfo-post-header",
+      "testId": "KEOnpz5ppL2JjZT",
+      "status": "INTERRUPTED",
+      "result": "FAILED"
+    },
+    {
+      "module": "oidcc-userinfo-post-body",
+      "testId": "wgpvIaFfh9Qn3yW",
+      "status": "INTERRUPTED",
+      "result": "FAILED"
+    },
+    {
+      "module": "oidcc-ensure-request-without-nonce-succeeds-for-code-flow",
+      "testId": "UTVInMqWjvR9eF1",
+      "status": "INTERRUPTED",
+      "result": "FAILED"
+    },
+    {
+      "module": "oidcc-scope-profile",
+      "testId": "gMfj4HKAzUQV650",
+      "status": "INTERRUPTED",
+      "result": "FAILED"
+    },
+    {
+      "module": "oidcc-scope-email",
+      "testId": "YdjvKuGtHQWyVZj",
+      "status": "INTERRUPTED",
+      "result": "FAILED"
+    },
+    {
+      "module": "oidcc-scope-address",
+      "testId": "ETuiMOUkba8bIIW",
+      "status": "FINISHED",
+      "result": "SKIPPED"
+    },
+    {
+      "module": "oidcc-scope-phone",
+      "testId": "uAr20W2tSwq8jfv",
+      "status": "FINISHED",
+      "result": "SKIPPED"
+    },
+    {
+      "module": "oidcc-scope-all",
+      "testId": "88YbohYjyhuGPpZ",
+      "status": "FINISHED",
+      "result": "SKIPPED"
+    },
+    {
+      "module": "oidcc-ensure-other-scope-order-succeeds",
+      "testId": "peO1V60EaXlL1NR",
+      "status": "INTERRUPTED",
+      "result": "FAILED"
+    },
+    {
+      "module": "oidcc-display-page",
+      "testId": "REzyopSmGlu3FEf",
+      "status": "INTERRUPTED",
+      "result": "FAILED"
+    },
+    {
+      "module": "oidcc-display-popup",
+      "testId": "Y50ODU4L6GjJb4w",
+      "status": "INTERRUPTED",
+      "result": "FAILED"
+    },
+    {
+      "module": "oidcc-prompt-login",
+      "testId": "IAw5PfQXzfeiNUr",
+      "status": "INTERRUPTED",
+      "result": "FAILED"
+    },
+    {
+      "module": "oidcc-prompt-none-not-logged-in",
+      "testId": "QZCKwKgx5MS6M8D",
+      "status": "FINISHED",
+      "result": "FAILED"
+    },
+    {
+      "module": "oidcc-prompt-none-logged-in",
+      "testId": "ftIWfkrelYL803b",
+      "status": "INTERRUPTED",
+      "result": "FAILED"
+    },
+    {
+      "module": "oidcc-max-age-1",
+      "testId": "K0DOvTmboylew7p",
+      "status": "INTERRUPTED",
+      "result": "FAILED"
+    },
+    {
+      "module": "oidcc-max-age-10000",
+      "testId": "S8taYetJs9o5dtp",
+      "status": "INTERRUPTED",
+      "result": "FAILED"
+    },
+    {
+      "module": "oidcc-ensure-request-with-unknown-parameter-succeeds",
+      "testId": "G4g0meJ0n4hTp2Y",
+      "status": "INTERRUPTED",
+      "result": "FAILED"
+    },
+    {
+      "module": "oidcc-id-token-hint",
+      "testId": "oL5yhzSMr66klZ3",
+      "status": "INTERRUPTED",
+      "result": "FAILED"
+    },
+    {
+      "module": "oidcc-login-hint",
+      "testId": "HU4PnRYkMVFb1Po",
+      "status": "INTERRUPTED",
+      "result": "FAILED"
+    },
+    {
+      "module": "oidcc-ui-locales",
+      "testId": "Zl0EIrqE9CwCUeH",
+      "status": "INTERRUPTED",
+      "result": "FAILED"
+    },
+    {
+      "module": "oidcc-claims-locales",
+      "testId": "t9i9CSxnUgpob4Y",
+      "status": "INTERRUPTED",
+      "result": "FAILED"
+    },
+    {
+      "module": "oidcc-ensure-request-with-acr-values-succeeds",
+      "testId": "sNoeEly5NtNCBWT",
+      "status": "INTERRUPTED",
+      "result": "FAILED"
+    },
+    {
+      "module": "oidcc-codereuse",
+      "testId": "bwsNoqN4facrE2l",
+      "status": "INTERRUPTED",
+      "result": "FAILED"
+    },
+    {
+      "module": "oidcc-codereuse-30seconds",
+      "testId": "RUOlt2qzNN8iJ3R",
+      "status": "INTERRUPTED",
+      "result": "FAILED"
+    },
+    {
+      "module": "oidcc-ensure-registered-redirect-uri",
+      "testId": "wxeIYWbyVpDgnxm",
+      "status": "WAITING",
+      "result": "INTERRUPTED",
+      "note": "reached the correct 400 error page and odudu's own login-form skip logic, but the module requires a human to confirm a screenshot in the suite UI (ExpectRedirectUriErrorPage); our scripted run polls for a fixed window and moves on, so the alias got reused before the manual step completed"
+    },
+    {
+      "module": "oidcc-ensure-post-request-succeeds",
+      "testId": "BptnVgEsHeAKOUX",
+      "status": "INTERRUPTED",
+      "result": "FAILED"
+    },
+    {
+      "module": "oidcc-server-client-secret-post",
+      "testId": "lr8D5xE47VYAc3u",
+      "status": "INTERRUPTED",
+      "result": "FAILED"
+    },
+    {
+      "module": "oidcc-unsigned-request-object-supported-correctly-or-rejected-as-unsupported",
+      "testId": "c1EXlVyfJ7d20TC",
+      "status": "INTERRUPTED",
+      "result": "FAILED"
+    },
+    {
+      "module": "oidcc-claims-essential",
+      "testId": "9H2XQYjJKP3X9Z0",
+      "status": "INTERRUPTED",
+      "result": "FAILED"
+    },
+    {
+      "module": "oidcc-ensure-request-object-with-redirect-uri",
+      "testId": "7scupf7cw7HnjFQ",
+      "status": "WAITING",
+      "result": "INTERRUPTED",
+      "note": "reached the correct 400 error page and odudu's own login-form skip logic, but the module requires a human to confirm a screenshot in the suite UI (ExpectRedirectUriErrorPage); our scripted run polls for a fixed window and moves on, so the alias got reused before the manual step completed"
+    },
+    {
+      "module": "oidcc-refresh-token",
+      "testId": "WBhoUDbFI280sgP",
+      "status": "INTERRUPTED",
+      "result": "FAILED"
+    },
+    {
+      "module": "oidcc-ensure-request-with-valid-pkce-succeeds",
+      "testId": "EO7xdPzJEci3JRk",
+      "status": "FINISHED",
+      "result": "PASSED"
+    }
+  ]
+}
