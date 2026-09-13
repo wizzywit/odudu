@@ -341,7 +341,9 @@ Being straight about this, because "self-hostable" should mean something:
 | ------------------------------------------------------------------ | ----- |
 | A consent screen, and dynamic client registration                  | P3    |
 | An admin API — seeding is the only administrative surface          | P4    |
-| Token introspection and revocation, and any logout endpoint        | —     |
+| RP-initiated logout (`end_session_endpoint`)                       | P2    |
+| Front-channel and back-channel logout                              | P3    |
+| Token introspection and revocation                                 | —     |
 | Published images and a release process                             | —     |
 | Secret management beyond environment variables                     | —     |
 | Backup and restore guidance                                        | —     |
