@@ -2,10 +2,21 @@
 
 ## Start here
 
-**P0 and P1 are complete. P2 is next and nothing has started on it —
+**P0 and P1 are complete. P2a is next and nothing has started on it —
 brainstorm its scope first, per `CLAUDE.md`.**
 
-**Start P2 with these three, in this order.** They were added on 2026-09-13
+**P2 is now two phases sharing a number.** It doubled when the identity
+model was found missing from the roadmap, and a phase nobody can finish is a
+phase nobody starts. **P2a** is the identity model — roles, groups, client
+scopes, per-client web origins, email. **P2b** is credentials, MFA and the
+session lifecycle, which is what P2 originally meant. Each gets its own
+spec, plan and exit criteria. They share a number because renumbering the
+roadmap's tail would rewrite roughly 150 `deferred:` rows whose intent is a
+phase rather than a digit, and `pnpm trace` skips `deferred:` rows, so a
+mistake there would never surface. **An existing `deferred: P2` row means
+P2b** unless it concerns roles, groups, web origins or email.
+
+**Start P2a with these three, in this order.** They were added on 2026-09-13
 after reading Keycloak's surface against the whole roadmap, and they come
 first because each changes work that follows rather than adding to it.
 Section 11 of the design spec, under "What the roadmap did not name",
@@ -30,10 +41,11 @@ carries the reasoning; the short version is here.
    Build the delivery seam before the features that need it, or three
    features each grow their own half of it.
 
-After those: password policies, brute-force protection (a clause row already
-records it as `deferred: P2`), session idle and maximum lifespans, offline
-access, the flow tree with TOTP and passkeys, an SSO session that is **read**
-as well as written, and RP-initiated logout to end it. Odudu now serves the OAuth 2.1 / OpenID Connect core: the
+That is P2a. **P2b** then takes what P2 always meant: the flow tree with
+TOTP and passkeys, password policies, brute-force protection (a clause row
+already records it as `deferred: P2`, and means this half), session idle and
+maximum lifespans, offline access, an SSO session that is **read** as well as
+written, and RP-initiated logout to end it. Odudu now serves the OAuth 2.1 / OpenID Connect core: the
 `authorization_code`, `refresh_token` and `client_credentials` grants, and
 the authorize, token, userinfo, jwks and discovery endpoints. The rest of
 this file is the record of how that happened; what follows is the part a
