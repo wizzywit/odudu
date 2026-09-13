@@ -143,29 +143,49 @@ interface BasicCredentials {
   secret: string;
 }
 
-// RFC 6749 §2.3.1: `Authorization: Basic base64(client_id:client_secret)`,
-// with both halves percent-decoded per the errata this design follows.
-function parseBasicAuth(header: string | undefined): BasicCredentials | undefined {
-  if (header === undefined) return undefined;
-  const match = /^Basic\s+(.+)$/i.exec(header);
-  if (!match?.[1]) return undefined;
+const WWW_AUTHENTICATE = 'Basic realm="token"';
 
-  let decoded: string;
+// RFC 6749 §2.3.1 encodes each half with
+// `application/x-www-form-urlencoded` before joining them, so decoding is
+// what lets a secret containing `:` — the separator itself — or `%` survive
+// the round trip. `decodeURIComponent` raises `URIError` on a sequence like
+// `%` or `%zz`, and such bytes are not a form-urlencoding at all: they hold
+// no client identifier and no secret to recover. Falling back to them
+// undecoded, as some servers do for clients that never encoded, would leave
+// one registered secret with two accepted spellings on the wire.
+function decodeBasicCredentials(payload: string): BasicCredentials | undefined {
+  const decoded = Buffer.from(payload, 'base64').toString('utf8');
+  const separator = decoded.indexOf(':');
+  if (separator === -1) return undefined;
   try {
-    decoded = Buffer.from(match[1], 'base64').toString('utf8');
+    return {
+      clientId: decodeURIComponent(decoded.slice(0, separator)),
+      secret: decodeURIComponent(decoded.slice(separator + 1)),
+    };
   } catch {
     return undefined;
   }
-
-  const separator = decoded.indexOf(':');
-  if (separator === -1) return undefined;
-  return {
-    clientId: decodeURIComponent(decoded.slice(0, separator)),
-    secret: decodeURIComponent(decoded.slice(separator + 1)),
-  };
 }
 
-const WWW_AUTHENTICATE = 'Basic realm="token"';
+// RFC 6749 §2.3.1: `Authorization: Basic base64(client_id:client_secret)`.
+//
+// A header naming another scheme presents no client credential — a bearer
+// token at this endpoint is not client authentication — and is left to the
+// body parameters. A header that does name `Basic` and cannot be read as
+// that grammar is a presentation of `client_secret_basic` that failed, and
+// gets the same `invalid_client` as every other failed authentication rather
+// than being dropped so the body can be tried instead: a client cannot
+// escape §2.3's one-method-per-request rule, or a wrong secret, by
+// corrupting its own header.
+function parseBasicAuth(header: string | undefined): BasicCredentials | undefined {
+  if (header === undefined) return undefined;
+  const match = /^Basic(?:\s+(.*))?$/i.exec(header);
+  if (match === null) return undefined;
+
+  const credentials = decodeBasicCredentials(match[1] ?? '');
+  if (credentials === undefined) throw invalidClient(WWW_AUTHENTICATE);
+  return credentials;
+}
 
 // Stage 2: client authentication. Every failure here — an unknown
 // client_id, a disabled client, a wrong secret, a public client presenting

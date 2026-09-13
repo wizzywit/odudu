@@ -1444,6 +1444,7 @@ getting `invalid_request` rather than `invalid_client`.
 | Secret in the body from a `client_secret_basic` client  | 401    | `invalid_client`         |
 | Secret in the header from a `client_secret_post` client | 401    | `invalid_client`         |
 | Both methods presented at once                          | 401    | `invalid_client`         |
+| A `Basic` header that is not a form-urlencoding         | 401    | `invalid_client`         |
 | Public client presenting a secret                       | 401    | `invalid_client`         |
 | Public client asking for `client_credentials`           | 401    | `invalid_client`         |
 | Confidential client with no service account             | 400    | `unauthorized_client`    |
@@ -1463,6 +1464,38 @@ getting `invalid_request` rather than `invalid_client`.
 Every 401 carries `WWW-Authenticate: Basic realm="token"`. Every response,
 success or failure, carries `cache-control: no-store` and `pragma:
 no-cache`.
+
+RFC 6749 §2.3.1 puts both halves of the `Basic` payload through
+`application/x-www-form-urlencoded` before the base64, which is what lets a
+secret containing `:` or `%` survive the round trip. A conforming client
+sends `%25` for a literal `%`; `curl -u` encodes nothing, so an operator
+whose secret contains one reaches that row with an ordinary command. The
+header never parses, so the refusal comes before any client is looked up and
+does not depend on the secret being the registered one:
+
+```bash
+curl -sS -D - \
+  -u 'demo-backend:sec%ret' \
+  --data-urlencode 'grant_type=client_credentials' \
+  'http://localhost:3000/realms/demo/protocol/openid-connect/token'
+```
+
+```
+HTTP/1.1 401 Unauthorized
+www-authenticate: Basic realm="token"
+cache-control: no-store
+pragma: no-cache
+content-type: application/json; charset=utf-8
+
+{"error":"invalid_client"}
+```
+
+Those bytes are not a form-urlencoding and hold no secret to recover, so
+they are refused rather than read literally — reading them literally would
+leave one registered secret with two accepted spellings on the wire. The
+refusal is the same `invalid_client` as every other failed client
+authentication, which is what keeps this failure from being distinguishable
+from the rest.
 
 Two deliberate silences. Every client-authentication failure reports the
 same `invalid_client` and never which check failed, so probing cannot

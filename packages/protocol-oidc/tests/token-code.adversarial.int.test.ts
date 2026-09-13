@@ -59,7 +59,13 @@ let otherApp: Client;
 let spa: Client;
 let postApp: Client;
 let refreshApp: Client;
+let oddSecretApp: Client;
 let subjectId: string;
+
+// A registered secret containing both characters RFC 6749 §2.3.1's
+// form-urlencoding exists to carry: the `:` that separates the two halves of
+// the Basic payload, and the `%` that introduces an escape.
+const ODD_SECRET = 'p:ss%word';
 
 async function setupTokenRealm(): Promise<void> {
   REALM = `token-adversarial-${newId()}`;
@@ -175,6 +181,27 @@ async function setupTokenRealm(): Promise<void> {
       refreshTokenTtlSeconds: 1_209_600,
     });
     refreshApp = { clientId: 'refresh-app', dbId: refreshAppDbId, secret: 'refreshsecret' };
+
+    const oddSecretAppDbId = newId();
+    await tx.insert(clients).values({
+      id: oddSecretAppDbId,
+      realmId: REALM_ID,
+      clientId: 'odd-secret-app',
+      name: 'App with a secret needing escapes',
+      type: 'confidential',
+      secretHash: await hashPassword(ODD_SECRET),
+    });
+    await clientOidcConfigRepository(tx).create({
+      clientId: oddSecretAppDbId,
+      realmId: REALM_ID,
+      redirectUris: [REDIRECT_URI],
+      grantTypes: ['authorization_code'],
+      tokenEndpointAuthMethod: 'client_secret_basic',
+      audiences: [AUDIENCE],
+      accessTokenTtlSeconds: 300,
+      refreshTokenTtlSeconds: 1_209_600,
+    });
+    oddSecretApp = { clientId: 'odd-secret-app', dbId: oddSecretAppDbId, secret: ODD_SECRET };
 
     const key = await generateSigningKey('RS256', KEK);
     await tx.insert(signingKeys).values({
@@ -294,6 +321,14 @@ function basicHeader(client: Client): Record<string, string> {
   if (client.secret === null) return {};
   const encoded = Buffer.from(`${client.clientId}:${client.secret}`).toString('base64');
   return { authorization: `Basic ${encoded}` };
+}
+
+// The Basic payload built from whatever bytes a client chose to put there,
+// separator included — the ones RFC 6749 §2.3.1 forbids as much as the ones
+// it prescribes. `basicHeader` cannot express those: it encodes a registered
+// client's own credentials, which are always well formed.
+function basicOf(userinfo: string): Record<string, string> {
+  return { authorization: `Basic ${Buffer.from(userinfo, 'utf8').toString('base64')}` };
 }
 
 // Posts a form body built from ordered pairs rather than an object, so a
@@ -618,6 +653,115 @@ describe('client_secret_post (RFC 6749 §2.3.1)', () => {
     const res = await redeem(code, { bodySecret: webApp.secret ?? '' });
     expect(res.statusCode).toBe(401);
     expect(res.json<{ error: string }>().error).toBe('invalid_client');
+  });
+});
+
+// RFC 6749 §2.3.1 puts both halves of the Basic payload through
+// `application/x-www-form-urlencoded` before the base64, which is what lets a
+// secret containing `:` — the separator itself — or `%` survive the round
+// trip. Bytes that are not a form-urlencoding hold no client identifier and
+// no secret to recover, so they are refused, and refused as the
+// `client_secret_basic` attempt they are: not dropped so that the body
+// parameters can be tried instead, and never as a 5xx. `decodeURIComponent`
+// raising `URIError` on `%` or `%zz` is the mechanism the endpoint has to
+// survive for that to hold.
+describe('Basic credentials that are not a form-urlencoding', () => {
+  it('refuses a secret carrying an unencoded %', async () => {
+    const { code } = await issueCode();
+    const res = await postForm(redemptionParams(code), basicOf('web-app:sec%ret'));
+    expect(res.statusCode).toBe(401);
+    expect(res.json<{ error: string }>().error).toBe('invalid_client');
+    expect(res.headers['www-authenticate']).toMatch(/Basic/);
+  });
+
+  it('refuses a client identifier carrying an unencoded %', async () => {
+    const { code } = await issueCode();
+    const res = await postForm(redemptionParams(code), basicOf('we%b-app:supersecret'));
+    expect(res.statusCode).toBe(401);
+    expect(res.json<{ error: string }>().error).toBe('invalid_client');
+  });
+
+  it('refuses an escape truncated at the end of the payload', async () => {
+    const { code } = await issueCode();
+    const res = await postForm(redemptionParams(code), basicOf('web-app:abc%'));
+    expect(res.statusCode).toBe(401);
+    expect(res.json<{ error: string }>().error).toBe('invalid_client');
+  });
+
+  it('refuses a payload carrying no separator at all', async () => {
+    const { code } = await issueCode({ client: postApp });
+    const res = await postForm(
+      [
+        ...redemptionParams(code),
+        ['client_id', postApp.clientId],
+        ['client_secret', postApp.secret ?? ''],
+      ],
+      basicOf('post-app'),
+    );
+    expect(res.statusCode).toBe(401);
+    expect(res.json<{ error: string }>().error).toBe('invalid_client');
+  });
+
+  // Carries the id the §2.3.1 "supports HTTP Basic" row rests on: the scheme
+  // that section defines is the encoded one, and every other assertion under
+  // that id presents a secret needing no escape, which a server that decoded
+  // nothing would answer identically.
+  it('[RFC6749-4.4.2-01] authenticates a registered secret containing : and % once it is encoded', async () => {
+    const { code } = await issueCode({ client: oddSecretApp });
+    const payload = `${encodeURIComponent(oddSecretApp.clientId)}:${encodeURIComponent(ODD_SECRET)}`;
+    const res = await postForm(redemptionParams(code), basicOf(payload));
+    expect(res.statusCode).toBe(200);
+  });
+
+  // The whole of the difference between refusing these bytes and falling
+  // back to them undecoded: the raw payload below *is* this client's
+  // registered secret, character for character, so a fallback would
+  // authenticate it and leave one secret with two accepted spellings on the
+  // wire.
+  it('refuses that same secret presented raw instead of encoded', async () => {
+    const { code } = await issueCode({ client: oddSecretApp });
+    const res = await postForm(
+      redemptionParams(code),
+      basicOf(`${oddSecretApp.clientId}:${ODD_SECRET}`),
+    );
+    expect(res.statusCode).toBe(401);
+    expect(res.json<{ error: string }>().error).toBe('invalid_client');
+  });
+
+  it('refuses a malformed header beside body credentials that would authenticate', async () => {
+    const { code } = await issueCode({ client: postApp });
+    const credentials: [string, string][] = [
+      ['client_id', postApp.clientId],
+      ['client_secret', postApp.secret ?? ''],
+    ];
+
+    const res = await postForm(
+      [...redemptionParams(code), ...credentials],
+      basicOf('post-app:sec%ret'),
+    );
+    expect(res.statusCode).toBe(401);
+    expect(res.json<{ error: string }>().error).toBe('invalid_client');
+
+    // The same code, with the same body, still redeems once the header is
+    // gone: the refusal is about the header, and it consumed nothing.
+    const accepted = await postForm([...redemptionParams(code), ...credentials]);
+    expect(accepted.statusCode).toBe(200);
+  });
+
+  // Scoped to the scheme that carries client credentials. A header naming
+  // any other scheme presents no client authentication at all, so it is not
+  // a failed one either.
+  it('ignores an Authorization header naming another scheme', async () => {
+    const { code } = await issueCode({ client: postApp });
+    const res = await postForm(
+      [
+        ...redemptionParams(code),
+        ['client_id', postApp.clientId],
+        ['client_secret', postApp.secret ?? ''],
+      ],
+      { authorization: 'Bearer sec%ret' },
+    );
+    expect(res.statusCode).toBe(200);
   });
 });
 
