@@ -86,12 +86,12 @@ with the old one unreadable.
 That has a consequence worth knowing before you hit it. The two files hold
 **different** keys — the compose stack's throwaway one, and the one you just
 generated — and both point at the same database. Seed a realm under one and
-serve it under the other, and discovery and `/authorize` keep working, while
-`/token` returns a 500 reading `Unsupported state or unable to authenticate
-data`: that is the private key failing to unwrap, and it says nothing about
-why. If you intend to move between the two ways of running, copy the
-`ODUDU_KEK` line from `infra/docker/.env` into the root `.env` so both
-processes hold the same key.
+serve it under the other, and discovery, JWKS and `/authorize` keep working,
+while `/token` returns a 500 reading `Unsupported state or unable to
+authenticate data`: that is the private key failing to unwrap, and it says
+nothing about why. If you intend to move between the two ways of running,
+copy the `ODUDU_KEK` line from `infra/docker/.env` into the root `.env` so
+both processes hold the same key.
 
 **Everything in Docker** — server and Postgres, closest to how it deploys:
 
@@ -133,6 +133,13 @@ at your own port (5432 by default, not 5442) and start the server:
 pnpm --filter @odudu/server dev
 ```
 
+Which of the three you picked changes one thing past starting the server:
+how the seed command is invoked, because the container runs a built bundle
+and a host run has the source. The guide defines both once, as a shell
+function every command in it then uses —
+[Pick how you are running it](docs/request-paths.md#pick-how-you-are-running-it).
+The endpoints are on `http://localhost:3000` either way.
+
 **Check the whole thing works**, including that row-level security is
 genuinely enforced in the container:
 
@@ -146,7 +153,8 @@ form the way a browser would, redeem the code at `/token` — and then tears
 the stack down, volumes included.
 
 **Sign somebody in yourself.** There is no admin API yet, so the first realm,
-client, user and signing key come from the seed command in the server image:
+client, user and signing key come from the server's seed command. The run
+below is the all-Docker one:
 
 ```bash
 cd infra/docker && docker compose up -d --build
@@ -154,8 +162,9 @@ until curl -fsS http://localhost:3000/health/ready; do sleep 2; done
 ```
 
 Wait for that, rather than seeding straight after `up -d`. The container is
-started before it has finished applying migrations, and a seed run in the
-gap fails with `relation "realms" does not exist`.
+started before it has finished applying migrations, the seed command runs
+none of its own, and a seed run in the gap fails with `relation "realms" does
+not exist`. A host run needs the same wait, for the same reason.
 
 ```bash
 docker compose exec -T odudu node dist/main.js seed \
@@ -163,6 +172,19 @@ docker compose exec -T odudu node dist/main.js seed \
   --redirect-uri http://localhost:8080/callback \
   --user ada --password correct-horse-battery --email ada@example.com
 ```
+
+With the server on your host it is the same command through the source
+instead, run from the repository root, reading the root `.env` that the `dev`
+script reads:
+
+```bash
+node --env-file=.env apps/server/src/main.ts seed \
+  --realm demo --client demo-spa \
+  --redirect-uri http://localhost:8080/callback \
+  --user ada --password correct-horse-battery --email ada@example.com
+```
+
+Whichever of the two you run first answers:
 
 ```json
 { "created": true, "realm": "demo", "realmId": "01a096f4-…", "clientId": "demo-spa" }

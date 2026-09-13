@@ -2,8 +2,11 @@
 
 Every endpoint Odudu serves today, what a client does with each answer, and
 what happens on each way a request can go wrong. Every command below was run
-against the compose stack (`infra/docker/compose.yaml`) and every response is
-the one that came back.
+and every response is the one that came back. Unless a block says otherwise
+the run was against the compose stack (`infra/docker/compose.yaml`); the
+bootstrap and a full authorization-code exchange were additionally run in
+each of the other two ways of running the server, which
+[Pick how you are running it](#pick-how-you-are-running-it) sets out.
 
 Values that change on every run — authorization codes, tokens, `jti`,
 session ids, timestamps — are shortened or truncated where they appear, and
@@ -44,23 +47,112 @@ error vocabulary is so uniform below: most refusals come from shared code.
 ## Bootstrap
 
 There is no admin API yet, so realms, clients, users and signing keys are
-created by the seed command built into the server image. It is the only way
-to create the first of anything.
+created by the server's seed command. It is the only way to create the first
+of anything.
 
-Bring the stack up first:
+### Pick how you are running it
+
+[README.md](../README.md) describes three ways to run this: everything in
+Docker, Postgres in Docker with the server on your host, and everything on
+your host against a PostgreSQL you operate. They differ in exactly one thing
+this document depends on — **how the seed command is invoked** — because the
+container runs a built bundle and a host run has the source.
+
+So the rest of this document calls the CLI through a shell function named
+`odudu`. Define it once for the way you are running, from the repository
+root, and every command below is the same command in all three.
+
+**Everything in Docker.** The CLI is the bundle inside the running
+container, and the configuration both it and the server read is
+`infra/docker/.env`; the repository-root `.env` plays no part.
 
 ```bash
 cd infra/docker && docker compose up -d --build
 until curl -fsS http://localhost:3000/health/ready; do sleep 2; done
+cd ../..
+odudu() { docker compose -f infra/docker/compose.yaml exec -T odudu node dist/main.js "$@"; }
 ```
 
 ```
 {"status":"ok","checks":{"database":"ok"}}
 ```
 
-The loop is not decoration. `up -d` returns when the container has started,
-which is before it has finished applying migrations, and a seed run in that
-gap fails with `relation "realms" does not exist`.
+**Server on your host**, against either Postgres. Node runs the TypeScript
+source directly, and `--env-file` hands it the repository-root `.env` — the
+same file the `dev` script loads, so the CLI and the server it is seeding
+for read one configuration.
+
+```bash
+pnpm --filter @odudu/server dev            # leave running in another terminal
+until curl -fsS http://localhost:3000/health/ready; do sleep 2; done
+
+odudu() { node --env-file=.env apps/server/src/main.ts "$@"; }
+```
+
+```
+{"status":"ok","checks":{"database":"ok"}}
+```
+
+What else the choice settles:
+
+| What it settles                                | Everything in Docker              | Server on your host                               |
+| ---------------------------------------------- | --------------------------------- | ------------------------------------------------- |
+| What the CLI executes                          | the bundle built into the image   | `apps/server/src/main.ts`, types stripped by Node |
+| Configuration the server and the CLI both read | `infra/docker/.env`               | the repository-root `.env`                        |
+| Base URL of every endpoint                     | `http://localhost:3000`           | `http://localhost:3000`                           |
+| PostgreSQL                                     | compose's, published on port 5442 | compose's on 5442, or one you run yourself        |
+
+The base URL is the same in all three, so no URL below is mode-specific:
+compose publishes `127.0.0.1:3000:3000`, and a host run defaults to the same
+port. Run only one of them at a time — they compete for it.
+
+The readiness loop is not decoration, in either mode. `docker compose up -d`
+returns when the container has started, which is before it has finished
+applying migrations, and the `dev` script returns the shell immediately for
+the same reason. **The seed command does not run migrations**; it expects a
+schema the server put there on boot, and a seed run in that gap fails with
+`relation "realms" does not exist`.
+
+Running everything on your host needs the database and the restricted
+serving role to exist before any of this — one `CREATE DATABASE` and one
+`CREATE USER`, in [README.md](../README.md#running-it), against a PostgreSQL
+whose owner role can `CREATE ROLE`. Nothing after that bootstrap differs from
+the second column above. The run behind this document used a throwaway
+cluster made for it — `initdb -D /tmp/odudu-pg -U postgres`, started with
+`pg_ctl` on port 5433, PostgreSQL 18.6 — rather than the compose stack, so
+that "no Docker at all" meant it.
+
+### The key that has to be the same on both sides
+
+`ODUDU_KEK` wraps each realm's private signing key. It is read from whichever
+configuration the process holds, so **the thing that seeded a realm and the
+thing serving it must hold the same value** — and the two files ship
+_different_ ones: `infra/docker/.env.example` carries a throwaway key, and
+the root `.env.example` leaves it empty for you to generate.
+
+Seeding under compose and then serving from your host is the easy accident:
+both processes are pointed at the same database, and only the key differs.
+It does not fail where you would look for it. Discovery and JWKS answer `200`,
+`/authorize` renders the login form, the login POST returns a code — and
+then:
+
+```
+HTTP/1.1 500 Internal Server Error
+content-type: application/json; charset=utf-8
+
+{"statusCode":500,"error":"Internal Server Error","message":"Unsupported state or unable to authenticate data"}
+```
+
+(That response is from a host run serving the realm the compose stack had
+seeded, with the root `.env` holding a key generated for it rather than the
+stack's.)
+
+That is the private key failing to unwrap, and it names neither the key nor
+the reason. Before seeding anything, copy the `ODUDU_KEK` line from
+`infra/docker/.env` into the root `.env` if you intend to move between the
+two. Changing the value afterwards strands every key already wrapped with
+the old one — a realm seeded under one key cannot be served under another,
+and there is no rotation path yet.
 
 ### A public client, with a user
 
@@ -68,7 +160,7 @@ A public client has no secret. It proves itself with PKCE alone, which is
 what a browser or mobile application should be.
 
 ```bash
-docker compose exec -T odudu node dist/main.js seed \
+odudu seed \
   --realm demo --client demo-spa \
   --redirect-uri http://localhost:8080/callback \
   --user ada --password correct-horse-battery --email ada@example.com
@@ -91,7 +183,7 @@ Seeding asserts a whole desired state, so a re-run with identical arguments
 reports that it changed nothing:
 
 ```bash
-docker compose exec -T odudu node dist/main.js seed \
+odudu seed \
   --realm demo --client demo-spa \
   --redirect-uri http://localhost:8080/callback \
   --user ada --password correct-horse-battery --email ada@example.com
@@ -105,7 +197,7 @@ while a re-run that disagrees with what is stored refuses rather than
 overwriting or silently ignoring the difference:
 
 ```bash
-docker compose exec -T odudu node dist/main.js seed \
+odudu seed \
   --realm demo --client demo-spa \
   --redirect-uri http://localhost:8080/callback \
   --user ada --password wrong-password --email ada@example.com
@@ -125,7 +217,7 @@ presenting it. `--token-endpoint-auth-method` picks that way; omitted, it is
 `client_secret_basic`.
 
 ```bash
-docker compose exec -T odudu node dist/main.js seed \
+odudu seed \
   --realm demo --client demo-backend --client-secret demo-backend-secret \
   --token-endpoint-auth-method client_secret_basic \
   --redirect-uri http://localhost:8080/callback
@@ -136,7 +228,7 @@ docker compose exec -T odudu node dist/main.js seed \
 ```
 
 ```bash
-docker compose exec -T odudu node dist/main.js seed \
+odudu seed \
   --realm demo --client demo-post --client-secret demo-post-secret \
   --token-endpoint-auth-method client_secret_post \
   --redirect-uri http://localhost:8080/callback
@@ -218,7 +310,10 @@ And `$AUTH_SESSION_ID` is consumed by a successful login, so the same goes
 for experiments on the login form.
 
 `infra/docker/smoke.sh` is the same sequence with assertions after each
-step; read it if you would rather have something that fails loudly.
+step; read it if you would rather have something that fails loudly. It
+brings the compose stack up and tears it down again, volumes included, so it
+is the all-Docker way of running whichever one you picked above — and it
+will take port 3000 and the stack's database with it.
 
 ## Path A: authorization code with PKCE
 
@@ -1005,7 +1100,7 @@ completing Path A and keeping the `id_token`; mint another by doing the
 same in a second realm:
 
 ```bash
-docker compose exec -T odudu node dist/main.js seed \
+odudu seed \
   --realm other --client demo-spa \
   --redirect-uri http://localhost:8080/callback \
   --user ada --password correct-horse-battery --email ada@other.example
