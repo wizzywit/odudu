@@ -6,6 +6,7 @@ import { completeEmailVerification } from '#/usecase/verify-email';
 import {
   renderResetLinkFailedPage,
   renderResetPasswordForm,
+  renderResetPasswordRequiredPage,
   renderResetPasswordSucceededPage,
 } from '#/view/reset-html';
 import {
@@ -17,6 +18,12 @@ import {
 export interface ActionTokenRealmLookup {
   readonly id: string;
   readonly enabled: boolean;
+  // The kill switch: an operator who turns this off during an incident
+  // means every outstanding reset-password link to stop working too, not
+  // only the request form. A verify-email link is unaffected — redeeming
+  // one is gated on realm.enabled alone, the same as before this flag
+  // existed.
+  readonly resetPasswordAllowed: boolean;
 }
 
 export interface ActionTokenRouteDeps {
@@ -76,6 +83,9 @@ export function registerActionTokenRoute(app: FastifyInstance, deps: ActionToken
     }
 
     if (peeked.type === 'reset_password') {
+      if (!realm.resetPasswordAllowed) {
+        return sendVerificationHtml(reply, 400, renderResetLinkFailedPage());
+      }
       return sendVerificationHtml(reply, 200, renderResetPasswordForm(request.params.realm, key));
     }
 
@@ -104,8 +114,16 @@ export function registerActionTokenRoute(app: FastifyInstance, deps: ActionToken
     const password = firstNonEmptyString(body.password);
     const realm = key === undefined ? null : await deps.findRealm(request.params.realm);
 
-    if (key === undefined || password === undefined || !realm?.enabled) {
+    if (key === undefined || !realm?.enabled || !realm.resetPasswordAllowed) {
       return sendVerificationHtml(reply, 400, renderResetLinkFailedPage());
+    }
+
+    // Distinct from the link being unusable: the key is present and has
+    // not been checked yet, so telling the redeemer their link "can't be
+    // used" here would be false — it is a missing field, not a spent or
+    // expired token.
+    if (password === undefined) {
+      return sendVerificationHtml(reply, 400, renderResetPasswordRequiredPage());
     }
 
     const result = await completePasswordReset(

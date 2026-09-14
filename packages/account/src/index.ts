@@ -37,6 +37,7 @@ export {
 export {
   renderResetPasswordForm,
   renderResetPasswordSucceededPage,
+  renderResetPasswordRequiredPage,
   renderResetLinkFailedPage,
   renderResetRequestForm,
   renderResetRequestedPage,

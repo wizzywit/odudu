@@ -29,7 +29,7 @@ export interface ResetPasswordRouteDeps {
   readonly findByEmail: (
     tx: RealmScopedDatabase,
     email: string,
-  ) => Promise<{ subjectId: string } | null>;
+  ) => Promise<{ subjectId: string; email: string } | null>;
 }
 
 // @fastify/formbody parses a repeated field into an array; a repeat is
@@ -106,6 +106,17 @@ export function registerResetPasswordRoute(
         reply,
         500,
         renderResetRequestFailedPage('Password reset is temporarily unavailable. Try again later.'),
+      );
+    }
+
+    // Logged, never surfaced: a send failure must not turn into a
+    // different response for an address that exists than one that does
+    // not — see requestPasswordReset for why. The fixed 200 below is
+    // reached the same way whether or not mail actually went out.
+    if (outcome.mailFailed) {
+      request.log.error(
+        { realm: request.params.realm, err: outcome.error },
+        'password reset mail failed to send',
       );
     }
 

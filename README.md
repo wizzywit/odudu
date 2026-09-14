@@ -83,9 +83,23 @@ link that sets a new password, and the `reset_password` branch of `GET`/`POST
 /realms/{realm}/login-actions/action-token` redeems it. The request answers
 identically whether or not the address has an account — same status, same
 body — and sends mail only for the one that does, so the endpoint cannot be
-used to enumerate who has registered. See
-[the password reset section of docs/request-paths.md](docs/request-paths.md#password-reset)
+used to enumerate who has registered; a send failure (a down or
+rate-limiting SMTP server) is absorbed and logged rather than surfaced, for
+the same reason. Completing one reset also retires every other outstanding
+reset-password link for the same subject, and turning
+`reset_password_allowed` off closes redemption as well as the request form.
+See [the password reset section of docs/request-paths.md](docs/request-paths.md#password-reset)
 for the walkthrough.
+
+**Known limitation:** the reset-request endpoint still has a timing
+oracle — mailing an address that exists takes an SMTP round trip longer
+than the single `SELECT` a nonexistent one costs, so a network observer can
+distinguish the two by response time even though the response body and
+status cannot. Closing it needs sending off the request path entirely (an
+outbox table and a background sender), which the phase's own design spec
+rejects: it would be the first background loop in the codebase and a second
+table nothing deletes from. Stated here rather than fixed, on the judgment
+that an honest limitation beats an accidental one.
 
 A mailed verification link is built from `ODUDU_PUBLIC_BASE_URL`, never
 from the request that triggered it — a request's `Host` header is

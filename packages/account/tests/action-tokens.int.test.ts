@@ -243,6 +243,113 @@ describe('peek', () => {
   });
 });
 
+describe('invalidateOutstanding', () => {
+  it('consumes every outstanding token of the given type for the subject, and no other', async () => {
+    const { token: first } = await issue({
+      subjectId: subject,
+      type: 'reset_password',
+      ttlSeconds: TEST_TTL_SECONDS,
+    });
+    const { token: second } = await issue({
+      subjectId: subject,
+      type: 'reset_password',
+      ttlSeconds: TEST_TTL_SECONDS,
+    });
+    // A different type for the same subject, and a verify_email token must
+    // survive: this is reset-password's own cleanup, not a blanket wipe.
+    const { token: verifyToken } = await issue({
+      subjectId: subject,
+      type: 'verify_email',
+      ttlSeconds: TEST_TTL_SECONDS,
+    });
+
+    await withRealm(app.db, realmId, (tx) =>
+      actionTokenRepository(tx).invalidateOutstanding(subject, 'reset_password'),
+    );
+
+    await expect(consume(first, 'reset_password')).resolves.toBeNull();
+    await expect(consume(second, 'reset_password')).resolves.toBeNull();
+    await expect(consume(verifyToken, 'verify_email')).resolves.toMatchObject({
+      subjectId: subject,
+    });
+  });
+
+  it('leaves an already-consumed token consumed, not double-touched', async () => {
+    const { token } = await issue({
+      subjectId: subject,
+      type: 'reset_password',
+      ttlSeconds: TEST_TTL_SECONDS,
+    });
+    const consumedAt = (await consume(token, 'reset_password'))?.consumedAt;
+    if (consumedAt === undefined) throw new Error('token was not consumed');
+
+    await withRealm(app.db, realmId, (tx) =>
+      actionTokenRepository(tx).invalidateOutstanding(subject, 'reset_password'),
+    );
+
+    const rows = await rawSelectAllActionTokens();
+    const row = rows.find((r) => r.tokenHash === sha256HexForTest(token));
+    expect(row?.consumedAt).toEqual(consumedAt);
+  });
+
+  it('does not touch another subject in the same realm', async () => {
+    const otherSubject = await withRealm(app.db, realmId, (tx) => insertSubject(tx, realmId));
+    const { token: mineToken } = await issue({
+      subjectId: subject,
+      type: 'reset_password',
+      ttlSeconds: TEST_TTL_SECONDS,
+    });
+    const { token: theirsToken } = await withRealm(app.db, realmId, (tx) =>
+      actionTokenRepository(tx).issue({
+        realmId,
+        subjectId: otherSubject,
+        type: 'reset_password',
+        ttlSeconds: TEST_TTL_SECONDS,
+      }),
+    );
+
+    await withRealm(app.db, realmId, (tx) =>
+      actionTokenRepository(tx).invalidateOutstanding(subject, 'reset_password'),
+    );
+
+    await expect(consume(mineToken, 'reset_password')).resolves.toBeNull();
+    await expect(consume(theirsToken, 'reset_password')).resolves.toMatchObject({
+      subjectId: otherSubject,
+    });
+  });
+
+  it("cannot invalidate another realm's outstanding tokens", async () => {
+    await expectCrossRealmMethodProbe(app.db, {
+      seed: async (tx, seedRealmId) => {
+        await seedRealm(tx, seedRealmId);
+        const seededSubject = await insertSubject(tx, seedRealmId);
+        const { token } = await actionTokenRepository(tx).issue({
+          realmId: seedRealmId,
+          subjectId: seededSubject,
+          type: 'reset_password',
+          ttlSeconds: TEST_TTL_SECONDS,
+        });
+        return { token, subjectId: seededSubject };
+      },
+      verifySeeded: async (tx, seeded) => {
+        const found = await actionTokenRepository(tx).peek(seeded.token);
+        expect(found).not.toBeNull();
+      },
+      attempt: async (tx, seeded) =>
+        actionTokenRepository(tx).invalidateOutstanding(seeded.subjectId, 'reset_password'),
+      expectBlocked: () => {
+        // invalidateOutstanding returns void; the assertion that matters is
+        // verifyRealmAUnaffected below — an UPDATE an RLS policy narrows to
+        // zero rows still "succeeds" with nothing touched.
+      },
+      verifyRealmAUnaffected: async (tx, seeded) => {
+        const found = await actionTokenRepository(tx).peek(seeded.token);
+        expect(found).not.toBeNull();
+      },
+    });
+  });
+});
+
 describe('realm isolation', () => {
   it('cannot consume a token minted in another realm, and leaves it unconsumed', async () => {
     await expectCrossRealmMethodProbe(app.db, {

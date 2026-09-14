@@ -90,3 +90,17 @@ export function renderResetLinkFailedPage(): string {
 </body>
 </html>`;
 }
+
+// Distinct from renderResetLinkFailedPage: reached only when the key is
+// present and unexamined, so the link itself may be perfectly good — the
+// submission was just missing the one field that matters.
+export function renderResetPasswordRequiredPage(): string {
+  return `<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Can't reset your password</title></head>
+<body>
+<h1>Can't reset your password</h1>
+<p>A new password is required.</p>
+</body>
+</html>`;
+}

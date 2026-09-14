@@ -1302,9 +1302,23 @@ odudu seed \
   --user ada --password correct-horse-battery --email ada@example.com
 ```
 
+There is still no seed flag or admin surface for this setting (the same gap
+[Address verification](#address-verification) and
+[Self-registration](#self-registration) note for the other two), so this
+run flips it with `psql` against the compose stack's database, the same one
+`odudu seed` writes to — by name, since the realm id is generated and this
+document does not capture it:
+
 ```sql
 UPDATE realms SET reset_password_allowed = true WHERE name = 'reset-demo';
 ```
+
+The token a request mints is valid for five minutes
+(`RESET_PASSWORD_TTL_SECONDS`, `packages/account/src/usecase/verify-email.ts`
+— Keycloak's own default for a password-reset action token, chosen because
+the window it opens is an account-takeover window). Run the rest of this
+section within that window, or the link expires and every `curl` past that
+point answers `400` for a different reason than the ones named here.
 
 **This is the property the whole flow exists for**: the response to a
 request naming an address that has an account and one naming an address
@@ -1347,7 +1361,7 @@ of an inbox, and it is there exactly once:
   "level": 30,
   "to": "ada@example.com",
   "subject": "Reset your reset-demo password",
-  "text": "Reset your password for reset-demo by visiting this link:\n\nhttp://localhost:3000/realms/reset-demo/login-actions/action-token?key=du3wPltq39ydyg4va1l5CAzoeBk5velzOUvHI6_x-gg\n\nIf you did not request this, you can ignore this message.",
+  "text": "Reset your password for reset-demo by visiting this link:\n\nhttp://localhost:3000/realms/reset-demo/login-actions/action-token?key=NnBkF0L3rKPh1cuzEi8yMK-tzUnMHxKxk3Sfy-8USEk\n\nIf you did not request this, you can ignore this message.",
   "html": "<p>Reset your password for reset-demo by visiting <a href=\"…\">…</a>.</p><p>If you did not request this, you can ignore this message.</p>",
   "msg": "captured email — no SMTP host configured"
 }
@@ -1369,7 +1383,7 @@ the same `/login-actions/action-token` endpoint answers with a form instead
 of completing an action:
 
 ```bash
-curl -sS 'http://localhost:3000/realms/reset-demo/login-actions/action-token?key=du3wPltq39ydyg4va1l5CAzoeBk5velzOUvHI6_x-gg'
+curl -sS 'http://localhost:3000/realms/reset-demo/login-actions/action-token?key=NnBkF0L3rKPh1cuzEi8yMK-tzUnMHxKxk3Sfy-8USEk'
 ```
 
 ```
@@ -1378,7 +1392,7 @@ curl -sS 'http://localhost:3000/realms/reset-demo/login-actions/action-token?key
 <head><meta charset="utf-8"><title>Choose a new password</title></head>
 <body>
 <form method="post" action="/realms/reset-demo/login-actions/action-token">
-  <input type="hidden" name="key" value="du3wPltq39ydyg4va1l5CAzoeBk5velzOUvHI6_x-gg">
+  <input type="hidden" name="key" value="NnBkF0L3rKPh1cuzEi8yMK-tzUnMHxKxk3Sfy-8USEk">
   <label>New password <input type="password" name="password" autocomplete="new-password"></label>
   <button type="submit">Reset password</button>
 </form>
@@ -1391,7 +1405,7 @@ length, complexity or history is that phase's concern, not this one's:
 
 ```bash
 curl -sS -X POST http://localhost:3000/realms/reset-demo/login-actions/action-token \
-  --data-urlencode 'key=du3wPltq39ydyg4va1l5CAzoeBk5velzOUvHI6_x-gg' \
+  --data-urlencode 'key=NnBkF0L3rKPh1cuzEi8yMK-tzUnMHxKxk3Sfy-8USEk' \
   --data-urlencode 'password=a brand new password'
 ```
 
@@ -1457,8 +1471,8 @@ curl -sS -i -X POST http://localhost:3000/realms/reset-demo/login-actions/authen
 
 ```
 HTTP/1.1 302 Found
-set-cookie: reset-demo-session=01a0a16d-aa25-…; HttpOnly; SameSite=Lax; Path=/
-location: http://localhost:8080/callback?code=LVrexwjRA9kOrP_PBn2LJO6zykU1iVZ7-_REgvrCriw&state=xyz123&iss=http%3A%2F%2Flocalhost%3A3000%2Frealms%2Freset-demo
+set-cookie: reset-demo-session=01a0a184-8d8c-…; HttpOnly; SameSite=Lax; Path=/
+location: http://localhost:8080/callback?code=GKAk-hPPPzrge0CYcPOL4VV-K7327epL7ce6UtqfCBw&state=xyz123&iss=http%3A%2F%2Flocalhost%3A3000%2Frealms%2Freset-demo
 ```
 
 The same link a second time is refused — minted for one redemption, the
@@ -1466,13 +1480,23 @@ same as a verify-email token, and `action_tokens.consumed_at` is now set:
 
 ```bash
 curl -sS -o /dev/null -w '%{http_code}\n' -X POST http://localhost:3000/realms/reset-demo/login-actions/action-token \
-  --data-urlencode 'key=du3wPltq39ydyg4va1l5CAzoeBk5velzOUvHI6_x-gg' \
+  --data-urlencode 'key=NnBkF0L3rKPh1cuzEi8yMK-tzUnMHxKxk3Sfy-8USEk' \
   --data-urlencode 'password=another password'
 ```
 
 ```
 400
 ```
+
+A completed reset also retires every other outstanding reset-password link
+for the same subject, not only the one just spent — a second mailed link
+from an earlier request the user forgot about, or one an attacker
+triggered, dies the moment the legitimate one is redeemed rather than
+staying valid for its own five minutes. And turning `reset_password_allowed`
+off closes redemption as well as the request form: an outstanding link
+minted while it was on answers `400` from `/login-actions/action-token`
+once it is off, the kill switch an operator reaches for during an incident
+covering both halves of the flow.
 
 ## Path B: refresh rotation
 

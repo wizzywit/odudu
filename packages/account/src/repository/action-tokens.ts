@@ -107,5 +107,25 @@ export function actionTokenRepository(tx: RealmScopedDatabase) {
       const row = rows[0];
       return row === undefined ? null : toRecord(row);
     },
+
+    // Called alongside a successful consume, in the same transaction: a
+    // completed reset has to retire every other outstanding reset-password
+    // link for the same subject, not just the one just spent, or a second
+    // mailed link (a prior request, or one an attacker triggered) stays
+    // redeemable for its own five minutes after the legitimate owner has
+    // already regained the account. The just-consumed row is unaffected —
+    // this only ever touches rows still `consumed_at IS NULL`.
+    async invalidateOutstanding(subjectId: string, type: ActionTokenType): Promise<void> {
+      await tx
+        .update(actionTokens)
+        .set({ consumedAt: new Date() })
+        .where(
+          and(
+            eq(actionTokens.subjectId, subjectId),
+            eq(actionTokens.type, type),
+            isNull(actionTokens.consumedAt),
+          ),
+        );
+    },
   };
 }
