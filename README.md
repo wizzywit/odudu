@@ -35,7 +35,9 @@ every merge to `main` — a branch push with no pull request open runs
 nothing, by design (`.github/workflows/verify.yml`).
 
 There is still no consent screen, no admin API, no second factor, and no
-token exchange — P2 onwards.
+token exchange — P2a onwards. The roadmap's second phase is two: **P2a** is
+the identity model — roles, groups, client scopes, per-client web origins,
+email — and **P2b** is credentials, MFA and the session lifecycle.
 
 > ### → [docs/request-paths.md](docs/request-paths.md)
 >
@@ -335,20 +337,29 @@ A real deployment today looks like:
 
 ### What is not built yet
 
-Being straight about this, because "self-hostable" should mean something:
+Being straight about this, because "self-hostable" should mean something.
+Every row says where it stands, and three of them say "no phase" rather
+than leaving a dash to be read as either:
 
-|                                                                    | Phase |
-| ------------------------------------------------------------------ | ----- |
-| A consent screen, and dynamic client registration                  | P3    |
-| An admin API — seeding is the only administrative surface          | P4    |
-| RP-initiated logout (`end_session_endpoint`)                       | P2    |
-| Front-channel and back-channel logout                              | P3    |
-| Token introspection and revocation                                 | —     |
-| Published images and a release process                             | —     |
-| Secret management beyond environment variables                     | —     |
-| Backup and restore guidance                                        | —     |
-| Multi-replica support: migration locking, shared session cache, HA | P11   |
-| Helm chart or Kubernetes manifests                                 | P11   |
+|                                                                    | Where it stands |
+| ------------------------------------------------------------------ | --------------- |
+| A consent screen, and dynamic client registration                  | P3              |
+| An admin API — seeding is the only administrative surface          | P4              |
+| RP-initiated logout (`end_session_endpoint`)                       | P2b             |
+| Front-channel and back-channel logout                              | P3              |
+| Token introspection and revocation                                 | P3              |
+| Published images and a release process                             | no phase        |
+| Secret management beyond environment variables                     | no phase        |
+| Backup and restore guidance                                        | no phase        |
+| Multi-replica support: migration locking, shared session cache, HA | P11             |
+| Helm chart or Kubernetes manifests                                 | P11             |
+
+The three "no phase" rows are operational rather than protocol work, and the
+roadmap — written outward from the specifications — names none of them. They
+are recorded as unplaced so that nobody reads the blank as a promise. The
+credentials the server reads today come from the environment by decision
+(ADR 0015), which settles where they live and not how a deployment manages
+them.
 
 The single-container-plus-Postgres shape is a deliberate design decision
 (ADR 0002) and the image is built for it. There is now a protocol surface to
