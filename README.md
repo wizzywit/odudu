@@ -51,7 +51,7 @@ email — and **P2b** is credentials, MFA and the session lifecycle.
 > Read it once [Running it](#running-it) below has handed you a token.
 
 - [Design specification](docs/superpowers/specs/2026-09-10-odudu-design.md) —
-  what this is, and the twelve phases with their exit criteria
+  what this is, and every phase with its exit criterion
 - [Architecture decision records](docs/adr/) — the decisions, several with
   dated corrections recording what turned out wrong
 - [Decision log](docs/superpowers/p0-decision-log.md) — judgement calls made
@@ -338,28 +338,38 @@ A real deployment today looks like:
 ### What is not built yet
 
 Being straight about this, because "self-hostable" should mean something.
-Every row says where it stands, and three of them say "no phase" rather
-than leaving a dash to be read as either:
+Every row says where it stands, and every row has a phase:
 
 |                                                                    | Where it stands |
 | ------------------------------------------------------------------ | --------------- |
 | A consent screen, and dynamic client registration                  | P3              |
 | An admin API — seeding is the only administrative surface          | P4              |
+| Signing-key rotation — the shape exists, the operation does not    | P4              |
 | RP-initiated logout (`end_session_endpoint`)                       | P2b             |
 | Front-channel and back-channel logout                              | P3              |
 | Token introspection and revocation                                 | P3              |
-| Published images and a release process                             | no phase        |
-| Secret management beyond environment variables                     | no phase        |
-| Backup and restore guidance                                        | no phase        |
+| Published images and a release process                             | P12             |
+| Secret management beyond environment variables                     | P12             |
+| Backup and restore guidance                                        | P12             |
 | Multi-replica support: migration locking, shared session cache, HA | P11             |
 | Helm chart or Kubernetes manifests                                 | P11             |
 
-The three "no phase" rows are operational rather than protocol work, and the
-roadmap — written outward from the specifications — names none of them. They
-are recorded as unplaced so that nobody reads the blank as a promise. The
-credentials the server reads today come from the environment by decision
-(ADR 0015), which settles where they live and not how a deployment manages
-them.
+The last three of those had no phase at all until 2026-09-14. They are
+operational rather than protocol work, and the roadmap — written outward
+from the specifications — had named nobody to do it, so P12, Operational
+readiness, was appended for them. The credentials the server reads today
+come from the environment by decision (ADR 0015), which settles where they
+live and not how a deployment manages them.
+
+**P12 being last in the table does not mean deployment waits on everything
+before it.** Publishing a versioned image depends on no other phase and is
+the prerequisite for anybody running this at all; it should be pulled
+forward as soon as there is something worth tagging. Sourcing secrets from
+something other than the environment is nearly as free — the key-encryption
+key is already behind an interface a KMS adapter can replace. Backup and
+restore guidance is the one worth waiting on, and not on clustering: it is
+cheap to write once the data that must be restored consistently has stopped
+changing shape.
 
 The single-container-plus-Postgres shape is a deliberate design decision
 (ADR 0002) and the image is built for it. There is now a protocol surface to
