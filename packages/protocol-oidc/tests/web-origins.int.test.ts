@@ -44,6 +44,7 @@ async function seedRealmAndClient(
   tx: RealmScopedDatabase,
   realmId: string,
   clientId: string,
+  enabled = true,
 ): Promise<void> {
   await tx.insert(realms).values({ id: realmId, name: `realm-${realmId}` });
   await tx.insert(clients).values({
@@ -53,6 +54,7 @@ async function seedRealmAndClient(
     name: 'A client',
     type: 'confidential',
     secretHash: 'hashed:secret',
+    enabled,
   });
 }
 
@@ -76,10 +78,27 @@ async function insertConfigWithWebOrigins(webOrigins: string[]): Promise<unknown
   });
 }
 
-async function seedClientWithOrigins(realmId: string, webOrigins: string[]): Promise<void> {
+async function seedClientWithOrigins(
+  realmId: string,
+  webOrigins: string[],
+  enabled = true,
+  realmAlreadyExists = false,
+): Promise<void> {
   const clientId = newId();
   await withRealm(app.db, realmId, async (tx) => {
-    await seedRealmAndClient(tx, realmId, clientId);
+    if (realmAlreadyExists) {
+      await tx.insert(clients).values({
+        id: clientId,
+        realmId,
+        clientId: `oauth-client-${clientId}`,
+        name: 'A client',
+        type: 'confidential',
+        secretHash: 'hashed:secret',
+        enabled,
+      });
+    } else {
+      await seedRealmAndClient(tx, realmId, clientId, enabled);
+    }
     await clientOidcConfigRepository(tx).create({
       clientId,
       realmId,
@@ -135,5 +154,16 @@ describe('clientOidcConfigRepository(tx).webOriginsForRealm', () => {
       clientOidcConfigRepository(tx).webOriginsForRealm(),
     );
     expect([...inA]).toEqual(['https://a.example']);
+  });
+
+  it('excludes a disabled client from the union', async () => {
+    const realmId = newId();
+    await seedClientWithOrigins(realmId, ['https://enabled.example']);
+    await seedClientWithOrigins(realmId, ['https://disabled.example'], false, true);
+
+    const union = await withRealm(app.db, realmId, (tx) =>
+      clientOidcConfigRepository(tx).webOriginsForRealm(),
+    );
+    expect([...union]).toEqual(['https://enabled.example']);
   });
 });

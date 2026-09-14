@@ -76,7 +76,10 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
     const resolveClientWebOrigins = (realmId: string, oauthClientId: string) =>
       withRealm(deps.database.db, realmId, async (tx) => {
         const client = await clientRepository(tx).byClientId(oauthClientId);
-        if (client === null) return new Set<string>();
+        // A disabled client's origin must stop working the same way a
+        // disabled client's tokens do — the CORS allowlist is not a second,
+        // forgotten door into a client that was disabled for a reason.
+        if (!client?.enabled) return new Set<string>();
         const config = await clientOidcConfigRepository(tx).byClientId(client.id);
         if (config === null) return new Set<string>();
         return expandWebOrigins(config.webOrigins, config.redirectUris);

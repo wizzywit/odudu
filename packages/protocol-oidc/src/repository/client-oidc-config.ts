@@ -1,4 +1,5 @@
 import { type RealmScopedDatabase } from '@odudu/db';
+import { clients } from '@odudu/domain-realm';
 import { eq } from 'drizzle-orm';
 import { clientOidcConfig, type ClientOidcConfig } from '#/schema/client-oidc-config';
 import { expandWebOrigins } from '#/service/web-origin';
@@ -72,14 +73,18 @@ export function clientOidcConfigRepository(tx: RealmScopedDatabase) {
 
     // A CORS preflight carries no client identity, so the only allowlist
     // available at that moment is the realm's union. The per-client list is
-    // enforced on the real request, where the client is known.
+    // enforced on the real request, where the client is known. Joined to
+    // `clients` and filtered to `enabled`: a client disabled because its
+    // origin was compromised must not keep that origin working here.
     async webOriginsForRealm(): Promise<ReadonlySet<string>> {
       const rows = await tx
         .select({
           webOrigins: clientOidcConfig.webOrigins,
           redirectUris: clientOidcConfig.redirectUris,
         })
-        .from(clientOidcConfig);
+        .from(clientOidcConfig)
+        .innerJoin(clients, eq(clients.id, clientOidcConfig.clientId))
+        .where(eq(clients.enabled, true));
       const union = new Set<string>();
       for (const row of rows) {
         for (const origin of expandWebOrigins(row.webOrigins, row.redirectUris)) union.add(origin);

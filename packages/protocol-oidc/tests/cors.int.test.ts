@@ -1,3 +1,4 @@
+import { generateSigningKey, signJwt, signingKeyRepository, signingKeys } from '@odudu/crypto';
 import {
   createDatabase,
   MIGRATIONS_DIR,
@@ -31,7 +32,11 @@ const KEK = Buffer.alloc(32, 7);
 let REALM: string;
 let REALM_ID: string;
 
-async function seedClient(input: { clientId: string; webOrigins: string[] }): Promise<void> {
+async function seedClient(input: {
+  clientId: string;
+  webOrigins: string[];
+  enabled?: boolean;
+}): Promise<string> {
   const dbId = newId();
   await withRealm(app.db, REALM_ID, async (tx: RealmScopedDatabase) => {
     await tx.insert(clients).values({
@@ -40,6 +45,7 @@ async function seedClient(input: { clientId: string; webOrigins: string[] }): Pr
       clientId: input.clientId,
       name: input.clientId,
       type: 'public',
+      enabled: input.enabled ?? true,
     });
     await clientOidcConfigRepository(tx).create({
       clientId: dbId,
@@ -53,6 +59,7 @@ async function seedClient(input: { clientId: string; webOrigins: string[] }): Pr
       webOrigins: input.webOrigins,
     });
   });
+  return dbId;
 }
 
 function tokenRequestFor(clientId: string): string {
@@ -60,6 +67,28 @@ function tokenRequestFor(clientId: string): string {
   form.set('grant_type', 'client_credentials');
   form.set('client_id', clientId);
   return form.toString();
+}
+
+// Mints an access token directly, bypassing the full authorization_code
+// flow: /userinfo's CORS decision reads `client_id` from the token's own
+// claims, which is all this needs to exercise it.
+async function mintAccessToken(clientId: string): Promise<string> {
+  const key = await withRealm(app.db, REALM_ID, (tx) => signingKeyRepository(tx).active());
+  const issuer = `http://localhost/realms/${REALM}`;
+  const now = Math.floor(Date.now() / 1000);
+  return signJwt(
+    {
+      iss: issuer,
+      sub: newId(),
+      aud: [issuer],
+      client_id: clientId,
+      scope: 'openid',
+      iat: now,
+      exp: now + 300,
+      jti: newId(),
+    },
+    { key, kek: KEK, typ: 'at+jwt' },
+  );
 }
 
 beforeAll(async () => {
@@ -76,9 +105,19 @@ beforeAll(async () => {
 
   REALM = `cors-${newId()}`;
   REALM_ID = newId();
-  await withRealm(app.db, REALM_ID, (tx) =>
-    tx.insert(realms).values({ id: REALM_ID, name: REALM }),
-  );
+  await withRealm(app.db, REALM_ID, async (tx) => {
+    await tx.insert(realms).values({ id: REALM_ID, name: REALM });
+    const key = await generateSigningKey('RS256', KEK);
+    await tx.insert(signingKeys).values({
+      id: newId(),
+      realmId: REALM_ID,
+      kid: key.kid,
+      alg: key.alg,
+      status: 'active',
+      publicJwk: key.publicJwk,
+      privateJwkEncrypted: key.privateJwkEncrypted,
+    });
+  });
 
   http = Fastify();
   await http.register(formbody);
@@ -115,6 +154,84 @@ describe('preflight is answered from the realm, the request from the client', ()
         'content-type': 'application/x-www-form-urlencoded',
       },
       payload: tokenRequestFor(clientA),
+    });
+    expect(actual.headers['access-control-allow-origin']).toBeUndefined();
+    expect(actual.headers.vary).toBe('Origin');
+  });
+
+  it("echoes the origin back on the real /token request when it is the resolved client's own", async () => {
+    const clientC = `app-c-${newId()}`;
+    await seedClient({ clientId: clientC, webOrigins: ['https://c.example'] });
+
+    const actual = await http.inject({
+      method: 'POST',
+      url: `/realms/${REALM}/protocol/openid-connect/token`,
+      headers: {
+        origin: 'https://c.example',
+        'content-type': 'application/x-www-form-urlencoded',
+      },
+      payload: tokenRequestFor(clientC),
+    });
+    expect(actual.headers['access-control-allow-origin']).toBe('https://c.example');
+    expect(actual.headers.vary).toBe('Origin');
+  });
+
+  it("echoes the origin back on the real /userinfo request when it is the resolved client's own", async () => {
+    const clientD = `app-d-${newId()}`;
+    await seedClient({ clientId: clientD, webOrigins: ['https://d.example'] });
+    const accessToken = await mintAccessToken(clientD);
+
+    const own = await http.inject({
+      method: 'GET',
+      url: `/realms/${REALM}/protocol/openid-connect/userinfo`,
+      headers: { origin: 'https://d.example', authorization: `Bearer ${accessToken}` },
+    });
+    expect(own.statusCode).toBe(200);
+    expect(own.headers['access-control-allow-origin']).toBe('https://d.example');
+    expect(own.headers.vary).toBe('Origin');
+
+    const foreign = await http.inject({
+      method: 'GET',
+      url: `/realms/${REALM}/protocol/openid-connect/userinfo`,
+      headers: { origin: 'https://not-d.example', authorization: `Bearer ${accessToken}` },
+    });
+    expect(foreign.statusCode).toBe(200);
+    expect(foreign.headers['access-control-allow-origin']).toBeUndefined();
+    expect(foreign.headers.vary).toBe('Origin');
+  });
+
+  it('excludes a disabled client from the preflight union', async () => {
+    const disabled = `app-disabled-${newId()}`;
+    await seedClient({
+      clientId: disabled,
+      webOrigins: ['https://disabled.example'],
+      enabled: false,
+    });
+
+    const preflight = await http.inject({
+      method: 'OPTIONS',
+      url: `/realms/${REALM}/protocol/openid-connect/token`,
+      headers: { origin: 'https://disabled.example', 'access-control-request-method': 'POST' },
+    });
+    expect(preflight.headers['access-control-allow-origin']).toBeUndefined();
+  });
+
+  it("withholds the header on a disabled client's own real request", async () => {
+    const disabled = `app-disabled-real-${newId()}`;
+    await seedClient({
+      clientId: disabled,
+      webOrigins: ['https://disabled-real.example'],
+      enabled: false,
+    });
+
+    const actual = await http.inject({
+      method: 'POST',
+      url: `/realms/${REALM}/protocol/openid-connect/token`,
+      headers: {
+        origin: 'https://disabled-real.example',
+        'content-type': 'application/x-www-form-urlencoded',
+      },
+      payload: tokenRequestFor(disabled),
     });
     expect(actual.headers['access-control-allow-origin']).toBeUndefined();
     expect(actual.headers.vary).toBe('Origin');
