@@ -120,6 +120,13 @@
       "when": 1789049381659,
       "tag": "0016_client_scopes",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1789049381660,
+      "tag": "0017_roles",
+      "breakpoints": true
     }
   ]
 }

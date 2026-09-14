@@ -21,6 +21,11 @@ describe('boundary rules', () => {
     expect((await violations('no-domain-to-protocol')).length).toBeGreaterThan(0);
   });
 
+  it('rejects @odudu/domain-authz importing a protocol package', async () => {
+    const found = await violations('no-domain-to-protocol');
+    expect(found.some((v) => v.from.includes('domain-authz'))).toBe(true);
+  });
+
   it('rejects a view importing an adapter', async () => {
     expect((await violations('no-view-to-adapter')).length).toBeGreaterThan(0);
   });

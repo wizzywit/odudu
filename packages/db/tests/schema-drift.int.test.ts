@@ -53,6 +53,8 @@ const EXPECTED_CHECKS: Record<string, string> = {
     "CHECK ((((type = 'confidential'::text) AND (secret_hash IS NOT NULL)) OR ((type = 'public'::text) AND (secret_hash IS NULL))))",
   'clients.clients_type_check':
     "CHECK ((type = ANY (ARRAY['public'::text, 'confidential'::text])))",
+  'role_composites.role_composites_not_self': 'CHECK ((parent_role_id <> child_role_id))',
+  'roles.roles_name_has_no_colon': "CHECK (((name !~ ':'::text) AND (name <> ''::text)))",
   'signing_keys.signing_keys_alg_check':
     "CHECK ((alg = ANY (ARRAY['RS256'::text, 'ES256'::text])))",
   'signing_keys.signing_keys_status_check':
