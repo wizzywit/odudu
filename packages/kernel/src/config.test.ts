@@ -86,4 +86,44 @@ describe('loadConfig', () => {
       OduduError,
     );
   });
+
+  it('leaves the SMTP host unset by default', () => {
+    expect('ODUDU_SMTP_HOST' in loadConfig(minimal)).toBe(false);
+  });
+
+  it('defaults the SMTP port to 587', () => {
+    expect(loadConfig(minimal).ODUDU_SMTP_PORT).toBe(587);
+  });
+
+  it('defaults ODUDU_SMTP_STARTTLS to false', () => {
+    expect(loadConfig(minimal).ODUDU_SMTP_STARTTLS).toBe(false);
+  });
+
+  it('accepts a full SMTP configuration', () => {
+    const config = loadConfig({
+      ...minimal,
+      ODUDU_SMTP_HOST: 'smtp.example.test',
+      ODUDU_SMTP_PORT: '2525',
+      ODUDU_SMTP_FROM: 'odudu@example.test',
+      ODUDU_SMTP_USERNAME: 'odudu',
+      ODUDU_SMTP_PASSWORD: 'secret',
+      ODUDU_SMTP_STARTTLS: 'true',
+    });
+    expect(config.ODUDU_SMTP_HOST).toBe('smtp.example.test');
+    expect(config.ODUDU_SMTP_PORT).toBe(2525);
+    expect(config.ODUDU_SMTP_FROM).toBe('odudu@example.test');
+    expect(config.ODUDU_SMTP_USERNAME).toBe('odudu');
+    expect(config.ODUDU_SMTP_PASSWORD).toBe('secret');
+    expect(config.ODUDU_SMTP_STARTTLS).toBe(true);
+  });
+
+  it('rejects an SMTP host with no from address', () => {
+    try {
+      loadConfig({ ...minimal, ODUDU_SMTP_HOST: 'smtp.example.test' });
+      expect.unreachable('loadConfig should have thrown');
+    } catch (error) {
+      expect(error).toBeInstanceOf(OduduError);
+      expect((error as OduduError).message).toContain('ODUDU_SMTP_FROM');
+    }
+  });
 });

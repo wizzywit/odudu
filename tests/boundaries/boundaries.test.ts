@@ -69,6 +69,19 @@ describe('boundary rules', () => {
     expect(fromGoodService).toHaveLength(0);
   });
 
+  it('rejects @odudu/email service importing its own adapter', async () => {
+    const found = await violations('service-is-a-leaf');
+    expect(found.some((v) => v.from.includes('email/src/service/bad-service.ts'))).toBe(true);
+  });
+
+  it('does not flag a clean service in @odudu/email with zero violations', async () => {
+    const output = await cruiseFixtures();
+    const fromGoodService = output.summary.violations.filter((v) =>
+      v.from.endsWith('email/src/service/some-service.ts'),
+    );
+    expect(fromGoodService).toHaveLength(0);
+  });
+
   it('permits a view importing service, with zero violations', async () => {
     const output = await cruiseFixtures();
     const fromGoodView = output.summary.violations.filter((v) =>

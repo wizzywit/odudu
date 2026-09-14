@@ -45,12 +45,37 @@ const schema = z.object({
     .enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent'])
     .default('info'),
   ODUDU_KEK: kekBytes,
+  // @odudu/email's factory reads these to choose an adapter: unset host
+  // means no SMTP server exists to talk to, so it selects the capturing
+  // adapter rather than refusing to boot — a realm with verify_email off
+  // needs no mail at all. Per-realm SMTP is P4's (ADR 0015 puts these
+  // credentials in the environment for now).
+  ODUDU_SMTP_HOST: z.string().min(1).optional(),
+  ODUDU_SMTP_PORT: z.coerce.number().int().min(1).max(65_535).default(587),
+  ODUDU_SMTP_FROM: z.string().min(1).optional(),
+  ODUDU_SMTP_USERNAME: z.string().min(1).optional(),
+  ODUDU_SMTP_PASSWORD: z.string().min(1).optional(),
+  ODUDU_SMTP_STARTTLS: booleanEnvVar,
 });
 
 export type Config = Readonly<z.infer<typeof schema>>;
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
-  const parsed = schema.safeParse(env);
+  const parsed = schema
+    .check((ctx) => {
+      // A host with nowhere to say mail came from would fail every send at
+      // the SMTP server rather than at boot — catch it here, where every
+      // other shape mistake in this file is already caught.
+      if (ctx.value.ODUDU_SMTP_HOST !== undefined && ctx.value.ODUDU_SMTP_FROM === undefined) {
+        ctx.issues.push({
+          code: 'custom',
+          message: 'ODUDU_SMTP_FROM is required when ODUDU_SMTP_HOST is set',
+          input: ctx.value,
+          path: ['ODUDU_SMTP_FROM'],
+        });
+      }
+    })
+    .safeParse(env);
 
   if (!parsed.success) {
     const detail = parsed.error.issues
