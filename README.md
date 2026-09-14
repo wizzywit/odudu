@@ -51,6 +51,23 @@ client identity to check against one) — see
 The seed command has no flag for it yet, so setting one means updating
 `client_oidc_config.web_origins` directly until it grows one.
 
+`email_verified` is now a claim about something that happened: a mailed
+`GET /realms/{realm}/login-actions/action-token?key=…` link, redeemed once,
+flips it. A realm carries three settings for the account lifecycle this
+begins — `registration_allowed`, `verify_email` and `reset_password_allowed`
+— each defaulting off, so upgrading a realm never silently grants it public
+registration or mailed verification. There is no admin surface to change
+them yet, and no registration flow that reads `verify_email` to decide
+whether to send anything; today `odudu seed --send-verification-email` is
+the only way to trigger a send, standing in for the admin console's "Send
+verification email" action until one exists. Outgoing mail goes through
+`ODUDU_SMTP_HOST`, `ODUDU_SMTP_PORT` (default `587`), `ODUDU_SMTP_FROM`,
+`ODUDU_SMTP_USERNAME`, `ODUDU_SMTP_PASSWORD` and `ODUDU_SMTP_STARTTLS`; leave
+`ODUDU_SMTP_HOST` unset and the server logs every message instead of sending
+it, which is what the compose stack does. See
+[the address verification section of docs/request-paths.md](docs/request-paths.md#address-verification)
+for the walkthrough, captured message included.
+
 > ### → [docs/request-paths.md](docs/request-paths.md)
 >
 > **Every request this server answers, and every branch each one can take,
@@ -201,7 +218,13 @@ node --env-file=.env apps/server/src/main.ts seed \
 Whichever of the two you run first answers:
 
 ```json
-{ "created": true, "realm": "demo", "realmId": "01a096f4-…", "clientId": "demo-spa" }
+{
+  "created": true,
+  "realm": "demo",
+  "realmId": "01a096f4-…",
+  "clientId": "demo-spa",
+  "userSubjectId": "01a096f4-…"
+}
 ```
 
 That realm now serves the protocol. The discovery document is the one
@@ -352,19 +375,20 @@ A real deployment today looks like:
 Being straight about this, because "self-hostable" should mean something.
 Every row says where it stands, and every row has a phase:
 
-|                                                                    | Where it stands |
-| ------------------------------------------------------------------ | --------------- |
-| A consent screen, and dynamic client registration                  | P3              |
-| An admin API — seeding is the only administrative surface          | P4              |
-| Signing-key rotation — the shape exists, the operation does not    | P4              |
-| RP-initiated logout (`end_session_endpoint`)                       | P2b             |
-| Front-channel and back-channel logout                              | P3              |
-| Token introspection and revocation                                 | P3              |
-| Published images and a release process                             | P12             |
-| Secret management beyond environment variables                     | P12             |
-| Backup and restore guidance                                        | P12             |
-| Multi-replica support: migration locking, shared session cache, HA | P11             |
-| Helm chart or Kubernetes manifests                                 | P11             |
+|                                                                                                              | Where it stands |
+| ------------------------------------------------------------------------------------------------------------ | --------------- |
+| Self-service registration and password reset — address verification exists; the flows that trigger it do not | P2a             |
+| A consent screen, and dynamic client registration                                                            | P3              |
+| An admin API — seeding is the only administrative surface                                                    | P4              |
+| Signing-key rotation — the shape exists, the operation does not                                              | P4              |
+| RP-initiated logout (`end_session_endpoint`)                                                                 | P2b             |
+| Front-channel and back-channel logout                                                                        | P3              |
+| Token introspection and revocation                                                                           | P3              |
+| Published images and a release process                                                                       | P12             |
+| Secret management beyond environment variables                                                               | P12             |
+| Backup and restore guidance                                                                                  | P12             |
+| Multi-replica support: migration locking, shared session cache, HA                                           | P11             |
+| Helm chart or Kubernetes manifests                                                                           | P11             |
 
 The last three of those had no phase at all until 2026-09-14. They are
 operational rather than protocol work, and the roadmap — written outward

@@ -148,6 +148,9 @@ importers:
       '@fastify/formbody':
         specifier: 9.0.0
         version: 9.0.0
+      '@odudu/account':
+        specifier: workspace:*
+        version: link:../../packages/account
       '@odudu/authn-flows':
         specifier: workspace:*
         version: link:../../packages/authn-flows
@@ -163,6 +166,9 @@ importers:
       '@odudu/domain-realm':
         specifier: workspace:*
         version: link:../../packages/domain-realm
+      '@odudu/email':
+        specifier: workspace:*
+        version: link:../../packages/email
       '@odudu/kernel':
         specifier: workspace:*
         version: link:../../packages/kernel
@@ -197,12 +203,18 @@ importers:
       '@odudu/db':
         specifier: workspace:*
         version: link:../db
+      '@odudu/email':
+        specifier: workspace:*
+        version: link:../email
       '@odudu/kernel':
         specifier: workspace:*
         version: link:../kernel
       drizzle-orm:
         specifier: 0.45.2
         version: 0.45.2(postgres@3.4.9)
+      fastify:
+        specifier: 5.12.3
+        version: 5.12.3
     devDependencies:
       '@odudu/testkit':
         specifier: workspace:*

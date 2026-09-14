@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { buildApp } from '../../apps/server/src/app.js';
 import { createLogger } from '../../apps/server/src/logger.js';
 import { type DatabaseHandle } from '../../packages/db/src/index.js';
+import { capturingSender } from '../../packages/email/src/index.js';
 import { loadConfig } from '../../packages/kernel/src/index.js';
 import { backticked, loadDocument, tableWithHeadings } from './markdown.js';
 
@@ -26,6 +27,7 @@ async function servingApp() {
     ownerDatabase: database,
     kek: config.ODUDU_KEK,
     logger: createLogger(config),
+    emailSender: capturingSender(),
   });
   await app.ready();
   return app;

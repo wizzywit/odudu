@@ -13,4 +13,10 @@ export const realms = pgTable('realms', {
   displayName: text('display_name'),
   enabled: boolean('enabled').notNull().default(true),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  // All three default off (packages/db/drizzle/0022_realm_account_settings.sql):
+  // a realm does not acquire registration, mailed verification or
+  // self-service password reset because it was upgraded.
+  registrationAllowed: boolean('registration_allowed').notNull().default(false),
+  verifyEmail: boolean('verify_email').notNull().default(false),
+  resetPasswordAllowed: boolean('reset_password_allowed').notNull().default(false),
 }).enableRLS();

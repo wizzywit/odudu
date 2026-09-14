@@ -155,6 +155,13 @@
       "when": 1789049381664,
       "tag": "0021_action_tokens",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1789049381665,
+      "tag": "0022_realm_account_settings",
+      "breakpoints": true
     }
   ]
 }

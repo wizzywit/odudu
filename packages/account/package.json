@@ -15,8 +15,10 @@
   },
   "dependencies": {
     "@odudu/db": "workspace:*",
+    "@odudu/email": "workspace:*",
     "@odudu/kernel": "workspace:*",
-    "drizzle-orm": "0.45.2"
+    "drizzle-orm": "0.45.2",
+    "fastify": "5.12.3"
   },
   "devDependencies": {
     "@odudu/testkit": "workspace:*",

@@ -9,6 +9,7 @@ import {
   assertProductionTls,
   warnIfTlsDisabled,
 } from '#/config-guard';
+import { buildEmailSender } from '#/email';
 import { createLogger } from '#/logger';
 import { databaseModule } from '#/modules/database';
 import { httpModule } from '#/modules/http';
@@ -30,6 +31,8 @@ function parseSeedOptions(argv: string[]): SeedOptions {
       user: { type: 'string' },
       password: { type: 'string' },
       email: { type: 'string' },
+      'send-verification-email': { type: 'boolean' },
+      'issuer-base': { type: 'string' },
     },
   });
 
@@ -57,6 +60,10 @@ function parseSeedOptions(argv: string[]): SeedOptions {
     ...(values.user !== undefined ? { username: values.user } : {}),
     ...(values.password !== undefined ? { password: values.password } : {}),
     ...(values.email !== undefined ? { email: values.email } : {}),
+    ...(values['send-verification-email'] !== undefined
+      ? { sendVerificationEmail: values['send-verification-email'] }
+      : {}),
+    ...(values['issuer-base'] !== undefined ? { issuerBase: values['issuer-base'] } : {}),
   };
 }
 
@@ -89,6 +96,7 @@ const app = buildApp({
   ownerDatabase: owner,
   kek: config.ODUDU_KEK,
   logger,
+  emailSender: buildEmailSender(config, logger),
   trustProxy: config.ODUDU_TRUST_PROXY,
 });
 

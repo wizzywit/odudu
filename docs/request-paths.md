@@ -20,17 +20,18 @@ isolated in the database by PostgreSQL row-level security (ADR 0009). Every
 protocol endpoint lives under `/realms/{realm}/`, so the realm is chosen by
 the URL and never by a header or a parameter.
 
-| Method | Path                                               | What it is                    |
-| ------ | -------------------------------------------------- | ----------------------------- |
-| `GET`  | `/realms/{realm}/.well-known/openid-configuration` | Discovery document            |
-| `GET`  | `/realms/{realm}/protocol/openid-connect/certs`    | JWKS (public signing keys)    |
-| `GET`  | `/realms/{realm}/protocol/openid-connect/auth`     | Authorization endpoint        |
-| `POST` | `/realms/{realm}/protocol/openid-connect/auth`     | Authorization endpoint (form) |
-| `POST` | `/realms/{realm}/login-actions/authenticate`       | Login form submission         |
-| `POST` | `/realms/{realm}/protocol/openid-connect/token`    | Token endpoint                |
-| `GET`  | `/realms/{realm}/protocol/openid-connect/userinfo` | UserInfo                      |
-| `POST` | `/realms/{realm}/protocol/openid-connect/userinfo` | UserInfo (form)               |
-| `GET`  | `/health/live`, `/health/ready`                    | Liveness, readiness           |
+| Method | Path                                               | What it is                                          |
+| ------ | -------------------------------------------------- | --------------------------------------------------- |
+| `GET`  | `/realms/{realm}/.well-known/openid-configuration` | Discovery document                                  |
+| `GET`  | `/realms/{realm}/protocol/openid-connect/certs`    | JWKS (public signing keys)                          |
+| `GET`  | `/realms/{realm}/protocol/openid-connect/auth`     | Authorization endpoint                              |
+| `POST` | `/realms/{realm}/protocol/openid-connect/auth`     | Authorization endpoint (form)                       |
+| `POST` | `/realms/{realm}/login-actions/authenticate`       | Login form submission                               |
+| `GET`  | `/realms/{realm}/login-actions/action-token`       | Redeem a mailed action token (address verification) |
+| `POST` | `/realms/{realm}/protocol/openid-connect/token`    | Token endpoint                                      |
+| `GET`  | `/realms/{realm}/protocol/openid-connect/userinfo` | UserInfo                                            |
+| `POST` | `/realms/{realm}/protocol/openid-connect/userinfo` | UserInfo (form)                                     |
+| `GET`  | `/health/live`, `/health/ready`                    | Liveness, readiness                                 |
 
 `/login-actions/authenticate` is deliberately outside the
 `/protocol/openid-connect/` namespace: that namespace is the OIDC wire
@@ -167,10 +168,19 @@ odudu seed \
 ```
 
 ```json
-{ "created": true, "realm": "demo", "realmId": "01a09678-…", "clientId": "demo-spa" }
+{
+  "created": true,
+  "realm": "demo",
+  "realmId": "01a09678-…",
+  "clientId": "demo-spa",
+  "userSubjectId": "01a09678-…"
+}
 ```
 
-(`realmId` is a generated identifier; shortened here.)
+(`realmId` and `userSubjectId` are generated identifiers; shortened here.
+`userSubjectId` is present whenever `--user` names one, whether this run
+created it or found it already seeded — [Address verification](#address-verification)
+below is what it is for.)
 
 `--redirect-uri` may be repeated. It is matched by exact string comparison
 when a request arrives — no trailing-slash tolerance, no case folding, no
@@ -190,7 +200,13 @@ odudu seed \
 ```
 
 ```json
-{ "created": false, "realm": "demo", "realmId": "01a09678-…", "clientId": "demo-spa" }
+{
+  "created": false,
+  "realm": "demo",
+  "realmId": "01a09678-…",
+  "clientId": "demo-spa",
+  "userSubjectId": "01a09678-…"
+}
 ```
 
 while a re-run that disagrees with what is stored refuses rather than
@@ -257,6 +273,88 @@ plain command-line flags, so they land in `ps` output and shell history:
 that is acceptable for a local bootstrap run by an operator who already
 controls the machine, and is not something to carry into CI. And the seeded
 values above are demonstration values in this document; choose your own.
+
+### Address verification
+
+`email_verified` is a stored claim, but until now nothing could set it
+truthfully. `GET /realms/{realm}/login-actions/action-token?key=…` is the
+other half: consuming the link a verification email carries. There is no
+registration flow yet to trigger one on its own (`verify_email` on a realm
+has no reader), so `odudu seed --send-verification-email` stands in for the
+admin console's "Send verification email" action, against `ada`, already
+seeded above:
+
+```bash
+odudu seed \
+  --realm demo --client demo-spa \
+  --redirect-uri http://localhost:8080/callback \
+  --user ada --password correct-horse-battery --email ada@example.com \
+  --send-verification-email
+```
+
+With `ODUDU_SMTP_HOST` unset — true of the compose stack and of every way
+this document runs the server — nothing is actually sent. `capturingSender`
+logs the message it would have sent instead, which is how a reader without
+a mail server gets the link:
+
+```json
+{
+  "level": 30,
+  "to": "ada@example.com",
+  "subject": "Verify your demo account",
+  "text": "Confirm your email address for demo by visiting this link:\n\nhttp://localhost:3000/realms/demo/login-actions/action-token?key=FZDLhOiE8AXyz6zzuGlRy4OkoK7ihPSIBoicxqaMWVM\n\nIf you did not request this, you can ignore this message.",
+  "html": "<p>Confirm your email address for demo by visiting <a href=\"…\">…</a>.</p><p>If you did not request this, you can ignore this message.</p>",
+  "msg": "captured email — no SMTP host configured"
+}
+```
+
+(One line of a larger pino JSON object, reduced to the fields that matter
+here; the key is shortened nowhere else in this document because a reader
+needs the whole thing to follow the link.)
+
+Following the link once verifies it:
+
+```bash
+curl -sS -o /dev/null -w '%{http_code}\n' \
+  'http://localhost:3000/realms/demo/login-actions/action-token?key=FZDLhOiE8AXyz6zzuGlRy4OkoK7ihPSIBoicxqaMWVM'
+```
+
+```
+200
+```
+
+and a fresh ID token for `ada` now carries `"email_verified": true` where it
+read `false` before — nothing else about the token changes, since email
+and its verification status are the only claims this touches:
+
+```json
+{ "email": "ada@example.com", "email_verified": true }
+```
+
+Following the same link again is refused — it was minted for one
+redemption, and `action_tokens.consumed_at` is now set:
+
+```bash
+curl -sS -o /dev/null -w '%{http_code}\n' \
+  'http://localhost:3000/realms/demo/login-actions/action-token?key=FZDLhOiE8AXyz6zzuGlRy4OkoK7ihPSIBoicxqaMWVM'
+```
+
+```
+400
+```
+
+The same 400 answers a key that never existed, one presented to the wrong
+realm, one past its 12-hour lifespan, or one whose address the user has
+since changed — consumption compares the token's stored `email` against the
+user's current one and refuses on any mismatch, so a verification cannot
+outlive the address it was proving. None of those four are told apart in
+the response: the page a browser lands on has no way to use the difference,
+and telling a prober "this exact key existed" is a smaller leak than it
+looks, but not one worth taking for free.
+
+`--send-verification-email` needs `--email`, and needs the named user to
+already exist — seeded in this same run or a previous one — or the command
+refuses with `seed_invalid_options` before touching the database.
 
 ### The shell variables the rest of this document uses
 
@@ -2129,10 +2227,15 @@ session lifecycle. A citation of either half here means that half.
   exit criterion is password, TOTP and passkey login through the flow tree.
   The flow engine behind the single password step is already a step list for
   that reason, but there is one step in it.
-- **No registration, password reset or account recovery.** All three wait on
-  email, which is **P2a**: an unverified self-registered address is an
-  account-takeover primitive, so address verification has to exist before
-  registration is useful. P2a's exit criterion names all three.
+- **No registration, password reset or account recovery.** Address
+  verification — the prerequisite, since an unverified self-registered
+  address is an account-takeover primitive — now exists
+  (`GET /realms/{realm}/login-actions/action-token`, walked through in
+  [Address verification](#address-verification)), but nothing yet triggers
+  it except an operator running `odudu seed --send-verification-email`:
+  `realms.verify_email`, `registration_allowed` and `reset_password_allowed`
+  are columns with no reader. The three flows built on top are **P2a**'s;
+  its exit criterion names all three.
 - **No "remember me".** A persistent session is a session-lifespan setting,
   and lifespans are **P2b**'s; the feature itself is not named in the
   roadmap.

@@ -1,3 +1,4 @@
+import { sendVerificationEmail } from '@odudu/account';
 import { generateSigningKey, signingKeyRepository } from '@odudu/crypto';
 import { createDatabase, withRealm, type Database, type RealmScopedDatabase } from '@odudu/db';
 import {
@@ -20,6 +21,8 @@ import {
   realmLookupRepository,
   type ClientOidcConfig,
 } from '@odudu/protocol-oidc';
+import { buildEmailSender } from '#/email';
+import { createLogger } from '#/logger';
 
 // A confidential client's method of proving its secret at /token: either
 // RFC 6749 §2.3.1 form. Public clients are always seeded as 'none'. Omitted
@@ -46,6 +49,16 @@ export interface SeedOptions {
   // (packages/db/drizzle/0012_users_email_addr_spec.sql); this only decides
   // whether there is one.
   email?: string;
+  // Keycloak's admin console exposes "Send verification email" as an
+  // operator action on a user, independent of the realm's own verify_email
+  // setting: the operator is asserting the address is real, not asking
+  // self-registration to police it. This is that action, reachable before
+  // an admin API exists.
+  sendVerificationEmail?: boolean;
+  // Where the mailed link points. Only meaningful with sendVerificationEmail;
+  // defaults to what a developer running the compose stack sees the server
+  // answer on.
+  issuerBase?: string;
 }
 
 export interface SeedResult {
@@ -53,6 +66,7 @@ export interface SeedResult {
   realm: string;
   realmId: string;
   clientId: string;
+  userSubjectId?: string;
 }
 
 function isAbsoluteUri(uri: string): boolean {
@@ -88,6 +102,15 @@ function assertEmailHasAUser(opts: SeedOptions): void {
     throw new OduduError(
       'seed_invalid_options',
       'email belongs to a user, so it needs a username and password alongside it',
+    );
+  }
+}
+
+function assertSendVerificationEmailHasEmail(opts: SeedOptions): void {
+  if (opts.sendVerificationEmail === true && opts.email === undefined) {
+    throw new OduduError(
+      'seed_invalid_options',
+      'sendVerificationEmail requires an email address to send it to',
     );
   }
 }
@@ -240,7 +263,15 @@ async function performSeed(
     const existingClient = await clientRepository(tx).byClientId(opts.clientId);
     if (existingClient !== null) {
       await assertMatchesExisting(tx, existingClient, opts);
-      return { created: false, realm: opts.realm, realmId, clientId: opts.clientId };
+      const existingUser =
+        opts.username === undefined ? null : await userRepository(tx).byUsername(opts.username);
+      return {
+        created: false,
+        realm: opts.realm,
+        realmId,
+        clientId: opts.clientId,
+        ...(existingUser !== null ? { userSubjectId: existingUser.subject.id } : {}),
+      };
     }
 
     const type: ClientRecord['type'] = opts.clientSecret === undefined ? 'public' : 'confidential';
@@ -300,8 +331,10 @@ async function performSeed(
       });
     }
 
+    let userSubjectId: string | undefined;
     if (opts.username !== undefined && opts.password !== undefined) {
       const userSubject = await subjectRepository(tx).create({ realmId, type: 'user' });
+      userSubjectId = userSubject.id;
       await userRepository(tx).create({
         subjectId: userSubject.id,
         realmId,
@@ -316,7 +349,13 @@ async function performSeed(
       });
     }
 
-    return { created: true, realm: opts.realm, realmId, clientId: opts.clientId };
+    return {
+      created: true,
+      realm: opts.realm,
+      realmId,
+      clientId: opts.clientId,
+      ...(userSubjectId !== undefined ? { userSubjectId } : {}),
+    };
   });
 }
 
@@ -328,6 +367,7 @@ export async function seed(opts: SeedOptions): Promise<SeedResult> {
   assertAbsoluteRedirectUris(opts.redirectUris);
   assertUserOptionsPaired(opts);
   assertEmailHasAUser(opts);
+  assertSendVerificationEmailHasEmail(opts);
   assertAuthMethodPairedWithSecret(opts);
 
   const config = loadConfig();
@@ -337,7 +377,34 @@ export async function seed(opts: SeedOptions): Promise<SeedResult> {
     : owner;
 
   try {
-    return await performSeed(owner.db, runtime.db, config.ODUDU_KEK, opts);
+    const result = await performSeed(owner.db, runtime.db, config.ODUDU_KEK, opts);
+
+    // Sent after performSeed's transaction has committed the user it names,
+    // for the same reason sendVerificationEmail issues its own token inside
+    // its own transaction and mails it only once that commits: withRealm
+    // cannot nest, and a link to a user the database never durably stored
+    // would be worse than no link at all.
+    if (opts.sendVerificationEmail === true && opts.email !== undefined) {
+      if (result.userSubjectId === undefined) {
+        throw new OduduError(
+          'seed_invalid_options',
+          `sendVerificationEmail found no user named ${JSON.stringify(opts.username)} to send to`,
+        );
+      }
+      await sendVerificationEmail(
+        {
+          database: runtime,
+          sender: buildEmailSender(config, createLogger(config)),
+          realmId: result.realmId,
+          realmName: result.realm,
+          realmDisplayName: result.realm,
+          issuerBase: opts.issuerBase ?? `http://localhost:${String(config.ODUDU_HTTP_PORT)}`,
+        },
+        { subjectId: result.userSubjectId, email: opts.email },
+      );
+    }
+
+    return result;
   } finally {
     if (runtime !== owner) await runtime.close();
     await owner.close();

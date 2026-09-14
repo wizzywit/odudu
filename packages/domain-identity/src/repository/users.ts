@@ -175,5 +175,22 @@ export function userRepository(tx: RealmScopedDatabase) {
       }
       return toUser(row);
     },
+
+    // Deliberately not folded into updateProfile: emailVerified is a claim
+    // about the current value of email, set only by consuming a matching
+    // verify_email action token (packages/account/src/usecase/verify-email.ts),
+    // never by a caller patching arbitrary profile fields.
+    async markEmailVerified(subjectId: string): Promise<UserRecord> {
+      const rows = await tx
+        .update(users)
+        .set({ emailVerified: true })
+        .where(eq(users.subjectId, subjectId))
+        .returning();
+      const row = rows[0];
+      if (row === undefined) {
+        throw new OduduError('user_not_found', `user ${subjectId} not found`);
+      }
+      return toUser(row);
+    },
   };
 }

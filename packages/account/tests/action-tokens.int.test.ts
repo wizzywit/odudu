@@ -72,6 +72,10 @@ async function rawSelectAllActionTokens() {
   );
 }
 
+// Arbitrary but realistic; these tests probe issue/consume mechanics,
+// not any particular token type's exposure window.
+const TEST_TTL_SECONDS = 60 * 60;
+
 let realmId: string;
 let subject: string;
 
@@ -97,19 +101,28 @@ describe('issue and consume', () => {
       subjectId: subject,
       type: 'verify_email',
       email: 'ada@example.test',
+      ttlSeconds: TEST_TTL_SECONDS,
     });
     await expect(consume(token, 'verify_email')).resolves.toMatchObject({ subjectId: subject });
   });
 
   it('stores no plaintext token', async () => {
-    const { token } = await issue({ subjectId: subject, type: 'verify_email' });
+    const { token } = await issue({
+      subjectId: subject,
+      type: 'verify_email',
+      ttlSeconds: TEST_TTL_SECONDS,
+    });
     const rows = await rawSelectAllActionTokens();
     expect(rows[0]?.tokenHash).not.toBe(token);
     expect(rows.map((r) => r.tokenHash)).not.toContain(token);
   });
 
   it('refuses a second redemption', async () => {
-    const { token } = await issue({ subjectId: subject, type: 'verify_email' });
+    const { token } = await issue({
+      subjectId: subject,
+      type: 'verify_email',
+      ttlSeconds: TEST_TTL_SECONDS,
+    });
     await consume(token, 'verify_email');
     await expect(consume(token, 'verify_email')).resolves.toBeNull();
   });
@@ -120,12 +133,20 @@ describe('issue and consume', () => {
   });
 
   it('refuses a reset token presented as a verification token', async () => {
-    const { token } = await issue({ subjectId: subject, type: 'reset_password' });
+    const { token } = await issue({
+      subjectId: subject,
+      type: 'reset_password',
+      ttlSeconds: TEST_TTL_SECONDS,
+    });
     await expect(consume(token, 'verify_email')).resolves.toBeNull();
   });
 
   it('keeps the consumed row, because nothing is deleted', async () => {
-    const { token } = await issue({ subjectId: subject, type: 'verify_email' });
+    const { token } = await issue({
+      subjectId: subject,
+      type: 'verify_email',
+      ttlSeconds: TEST_TTL_SECONDS,
+    });
     await consume(token, 'verify_email');
     const rows = await rawSelectAllActionTokens();
     expect(rows).toHaveLength(1);
@@ -133,7 +154,11 @@ describe('issue and consume', () => {
   });
 
   it('lets exactly one of two concurrent redemptions win', async () => {
-    const { token } = await issue({ subjectId: subject, type: 'verify_email' });
+    const { token } = await issue({
+      subjectId: subject,
+      type: 'verify_email',
+      ttlSeconds: TEST_TTL_SECONDS,
+    });
     const results = await Promise.all([
       consume(token, 'verify_email'),
       consume(token, 'verify_email'),
@@ -146,6 +171,7 @@ describe('issue and consume', () => {
       subjectId: subject,
       type: 'verify_email',
       email: 'ada@example.test',
+      ttlSeconds: TEST_TTL_SECONDS,
     });
     await expect(consume(token, 'verify_email')).resolves.toMatchObject({
       email: 'ada@example.test',
@@ -163,6 +189,7 @@ describe('realm isolation', () => {
           realmId: seedRealmId,
           subjectId: seededSubject,
           type: 'verify_email',
+          ttlSeconds: TEST_TTL_SECONDS,
         });
         return token;
       },

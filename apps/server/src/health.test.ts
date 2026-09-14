@@ -1,4 +1,5 @@
 import { type DatabaseHandle } from '@odudu/db';
+import { capturingSender } from '@odudu/email';
 import { loadConfig } from '@odudu/kernel';
 import { describe, expect, it } from 'vitest';
 import { buildApp } from '#/app';
@@ -37,6 +38,7 @@ function app(behaviour: 'ok' | 'down') {
       ownerDatabase: database,
       kek: config.ODUDU_KEK,
       logger: createLogger(config),
+      emailSender: capturingSender(),
     }),
     database,
   };

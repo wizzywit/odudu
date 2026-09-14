@@ -14,11 +14,13 @@
   "dependencies": {
     "@fastify/cookie": "11.1.2",
     "@fastify/formbody": "9.0.0",
+    "@odudu/account": "workspace:*",
     "@odudu/authn-flows": "workspace:*",
     "@odudu/crypto": "workspace:*",
     "@odudu/db": "workspace:*",
     "@odudu/domain-identity": "workspace:*",
     "@odudu/domain-realm": "workspace:*",
+    "@odudu/email": "workspace:*",
     "@odudu/kernel": "workspace:*",
     "@odudu/protocol-oidc": "workspace:*",
     "close-with-grace": "2.5.0",

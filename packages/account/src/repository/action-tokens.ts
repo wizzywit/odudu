@@ -19,17 +19,18 @@ function sha256Hex(token: string): string {
   return createHash('sha256').update(token).digest('hex');
 }
 
-// No realm setting supplies a default for this column — every insert states
-// it, the same as authorizationCodeRepository.create does.
+// ttlSeconds carries no default: `verify_email` and `reset_password` tokens
+// have very different exposure profiles (a day-long password-reset window
+// is an account-takeover window), so a caller states the value it means
+// rather than inheriting one invisibly. See VERIFY_EMAIL_TTL_SECONDS and
+// RESET_PASSWORD_TTL_SECONDS in #/usecase/verify-email.
 export interface IssueActionToken {
   realmId: string;
   subjectId: string;
   type: ActionTokenType;
   email?: string;
-  ttlSeconds?: number;
+  ttlSeconds: number;
 }
-
-const DEFAULT_TTL_SECONDS = 60 * 60 * 24;
 
 function toRecord(row: typeof actionTokens.$inferSelect): ActionTokenRecord {
   return {
@@ -49,7 +50,6 @@ export function actionTokenRepository(tx: RealmScopedDatabase) {
   return {
     async issue(input: IssueActionToken): Promise<{ token: string }> {
       const token = generateActionToken();
-      const ttlSeconds = input.ttlSeconds ?? DEFAULT_TTL_SECONDS;
       await tx.insert(actionTokens).values({
         id: newId(),
         realmId: input.realmId,
@@ -57,7 +57,7 @@ export function actionTokenRepository(tx: RealmScopedDatabase) {
         type: input.type,
         tokenHash: sha256Hex(token),
         email: input.email ?? null,
-        expiresAt: new Date(Date.now() + ttlSeconds * 1000),
+        expiresAt: new Date(Date.now() + input.ttlSeconds * 1000),
         consumedAt: null,
       });
       return { token };

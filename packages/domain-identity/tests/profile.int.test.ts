@@ -229,6 +229,39 @@ describe('the database enforces what the claim promises', () => {
   });
 });
 
+describe('markEmailVerified', () => {
+  it('flips emailVerified for the named user', async () => {
+    const realmId = newId();
+    const subjectId = await withRealm(app.db, realmId, (tx) => seedUser(tx, realmId));
+
+    const updated = await withRealm(app.db, realmId, (tx) =>
+      userRepository(tx).markEmailVerified(subjectId),
+    );
+    expect(updated.emailVerified).toBe(true);
+
+    const reread = await withRealm(app.db, realmId, (tx) =>
+      userRepository(tx).bySubjectId(subjectId),
+    );
+    expect(reread?.emailVerified).toBe(true);
+  });
+
+  it('cannot verify a user in another realm', async () => {
+    const realmA = newId();
+    const realmB = newId();
+    const subjectInA = await withRealm(app.db, realmA, (tx) => seedUser(tx, realmA));
+    await withRealm(app.db, realmB, (tx) => seedRealm(tx, realmB));
+
+    await expect(
+      withRealm(app.db, realmB, (tx) => userRepository(tx).markEmailVerified(subjectInA)),
+    ).rejects.toThrow(/not found/);
+
+    const stillA = await withRealm(app.db, realmA, (tx) =>
+      userRepository(tx).bySubjectId(subjectInA),
+    );
+    expect(stillA?.emailVerified).toBe(false);
+  });
+});
+
 // One transaction per case: a CHECK violation aborts the transaction it
 // happens in, so an update attempted after one in the same transaction
 // fails for a reason unrelated to the value under test.
