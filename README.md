@@ -39,6 +39,13 @@ token exchange — P2a onwards. The roadmap's second phase is two: **P2a** is
 the identity model — roles, groups, client scopes, per-client web origins,
 email — and **P2b** is credentials, MFA and the session lifecycle.
 
+`/token` and `/userinfo` now enforce CORS from a client's own `web_origins`
+(a preflight from the realm's union of every client's, since it carries no
+client identity to check against one) — see
+[the CORS section of docs/request-paths.md](docs/request-paths.md#cors-the-preflight-and-the-request-differ).
+The seed command has no flag for it yet, so setting one means updating
+`client_oidc_config.web_origins` directly until it grows one.
+
 > ### → [docs/request-paths.md](docs/request-paths.md)
 >
 > **Every request this server answers, and every branch each one can take,

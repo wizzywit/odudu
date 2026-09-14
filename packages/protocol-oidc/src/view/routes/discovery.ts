@@ -6,6 +6,9 @@ export function registerDiscoveryRoute(app: FastifyInstance, deps: DiscoveryUsec
   app.get<{ Params: { realm: string } }>(
     '/realms/:realm/.well-known/openid-configuration',
     async (request, reply) => {
+      // A public, unauthenticated document: every origin may read it, and
+      // with a fixed wildcard there is nothing to vary the response on.
+      reply.header('access-control-allow-origin', '*');
       const doc = await resolveDiscoveryDocument(
         deps,
         request.params.realm,

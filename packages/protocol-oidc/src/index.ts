@@ -14,9 +14,11 @@ import { type FastifyPluginAsync } from 'fastify';
 import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
 import { realmLookupRepository } from '#/repository/realm-lookup';
 import { standardClaimMappers } from '#/service/claims';
+import { expandWebOrigins } from '#/service/web-origin';
 import { issueAuthorizationCode } from '#/usecase/login-submission';
 import { type ResolvedClient } from '#/usecase/authorization-request';
 import { registerAuthorizeRoute } from '#/view/routes/authorize';
+import { registerCors } from '#/view/routes/cors';
 import { registerDiscoveryRoute } from '#/view/routes/discovery';
 import { registerJwksRoute } from '#/view/routes/jwks';
 import { registerLoginRoute } from '#/view/routes/login';
@@ -66,6 +68,19 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
     // published set and this server judging a hint cannot disagree.
     const listPublishableKeys = (realmId: string) =>
       withRealm(deps.database.db, realmId, (tx) => signingKeyRepository(tx).listPublishable());
+
+    // Shared by /token and /userinfo: once each has resolved which client
+    // the request is for, this is the same lookup either way — an unknown
+    // or foreign client_id resolves to an empty set, so the caller withholds
+    // the header instead of treating it as an error.
+    const resolveClientWebOrigins = (realmId: string, oauthClientId: string) =>
+      withRealm(deps.database.db, realmId, async (tx) => {
+        const client = await clientRepository(tx).byClientId(oauthClientId);
+        if (client === null) return new Set<string>();
+        const config = await clientOidcConfigRepository(tx).byClientId(client.id);
+        if (config === null) return new Set<string>();
+        return expandWebOrigins(config.webOrigins, config.redirectUris);
+      });
 
     registerDiscoveryRoute(app, { findRealm, claimNames: () => claimMappers.claimNames() });
     registerJwksRoute(app, { findRealm, listPublishableKeys });
@@ -125,21 +140,38 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
           return { kind: 'issued', sessionId, code };
         }),
     });
-    registerTokenRoute(app, {
-      database: deps.database,
-      findRealm,
-      kek: deps.kek,
-      clock,
-      verifyPassword,
-      claimMappers,
-      loadClaimContext,
-    });
-    registerUserinfoRoute(app, {
-      findRealm,
-      listPublishableKeys: (realmId) =>
-        withRealm(deps.database.db, realmId, (tx) => signingKeyRepository(tx).listPublishable()),
-      loadClaimContext,
-      claimMappers,
+    // Own encapsulation scope: `@fastify/cors`'s delegator-driven hook adds
+    // `Vary: Origin` to every response it sees, including a disallowed one
+    // (fetch spec — a shared cache must not serve one origin's answer to
+    // another) — registered on `app` directly, it would reach the two
+    // public documents, which must carry no Vary, and `/authorize` and the
+    // login-actions routes, which must carry no CORS treatment at all.
+    app.register((scope) => {
+      registerCors(scope, {
+        findRealm,
+        webOriginsForRealm: (realmId) =>
+          withRealm(deps.database.db, realmId, (tx) =>
+            clientOidcConfigRepository(tx).webOriginsForRealm(),
+          ),
+      });
+      registerTokenRoute(scope, {
+        database: deps.database,
+        findRealm,
+        kek: deps.kek,
+        clock,
+        verifyPassword,
+        claimMappers,
+        loadClaimContext,
+        resolveClientWebOrigins,
+      });
+      registerUserinfoRoute(scope, {
+        findRealm,
+        listPublishableKeys: (realmId) =>
+          withRealm(deps.database.db, realmId, (tx) => signingKeyRepository(tx).listPublishable()),
+        loadClaimContext,
+        claimMappers,
+        resolveClientWebOrigins,
+      });
     });
 
     return Promise.resolve();

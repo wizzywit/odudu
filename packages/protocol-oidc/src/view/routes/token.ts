@@ -1,6 +1,7 @@
 import { withRealm, type DatabaseHandle } from '@odudu/db';
 import { type ClaimMapperRegistry, type Clock } from '@odudu/kernel';
 import { type FastifyInstance } from 'fastify';
+import { corsHeadersForRequest } from '#/service/cors';
 import { type ClaimContext } from '#/service/claims';
 import { TokenError } from '#/service/errors';
 import { issueTokens, type TokenResponse } from '#/usecase/token-issuance';
@@ -20,6 +21,16 @@ export interface TokenRouteDeps {
   // never carry a claim the other omits.
   claimMappers: ClaimMapperRegistry<ClaimContext>;
   loadClaimContext(realmId: string, subjectId: string): Promise<ClaimContext>;
+  // The real request's CORS decision, unlike the preflight's, is checked
+  // against this one client's own expanded origins — resolved to an empty
+  // set for a client_id this realm does not have, so the header is simply
+  // withheld rather than turning into an error.
+  resolveClientWebOrigins(realmId: string, oauthClientId: string): Promise<ReadonlySet<string>>;
+}
+
+function readClientId(body: Record<string, string | string[] | undefined>): string | undefined {
+  const value = body.client_id;
+  return typeof value === 'string' && value.length > 0 ? value : undefined;
 }
 
 export function registerTokenRoute(app: FastifyInstance, deps: TokenRouteDeps): void {
@@ -29,6 +40,13 @@ export function registerTokenRoute(app: FastifyInstance, deps: TokenRouteDeps): 
   }>('/realms/:realm/protocol/openid-connect/token', async (request, reply) => {
     const realm = await deps.findRealm(request.params.realm);
     if (!realm?.enabled) return reply.code(404).send();
+
+    const clientId = readClientId(request.body);
+    const allowedOrigins =
+      clientId === undefined
+        ? new Set<string>()
+        : await deps.resolveClientWebOrigins(realm.id, clientId);
+    const corsHeaders = corsHeadersForRequest(request.headers.origin, allowedOrigins);
 
     const issuer = realmIssuerFor(request, request.params.realm);
 
@@ -53,6 +71,7 @@ export function registerTokenRoute(app: FastifyInstance, deps: TokenRouteDeps): 
 
       return await reply
         .code(200)
+        .headers(corsHeaders)
         .header('cache-control', 'no-store')
         .header('pragma', 'no-cache')
         .send(response);
@@ -63,6 +82,7 @@ export function registerTokenRoute(app: FastifyInstance, deps: TokenRouteDeps): 
         }
         return reply
           .code(err.status)
+          .headers(corsHeaders)
           .header('cache-control', 'no-store')
           .header('pragma', 'no-cache')
           .send({ error: err.error });

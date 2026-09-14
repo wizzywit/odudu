@@ -1043,6 +1043,168 @@ www-authenticate: Bearer realm="userinfo", error="insufficient_scope"
 **What the client does next:** call the API the token is for, and mint
 another when it expires. There is nothing to store.
 
+## CORS: the preflight and the request differ
+
+A browser single-page client is the reader `## Path A` above walks through,
+and until this section landed its preflight failed: `/token` and
+`/userinfo` sent no `Access-Control-Allow-Origin` at all, so the browser
+never let the page see the response. A preflight (`OPTIONS`) carries no
+client identity — no body, no `Authorization` header, only `Origin`,
+`Access-Control-Request-Method` and `Access-Control-Request-Headers` — so it
+is answered from the **realm's union** of every client's registered
+`web_origins`. The real request that follows is answered from **that one
+client's own** origins, resolved once the request names which client it is:
+`client_id` in the form body at `/token`, the `client_id` claim of the
+bearer token at `/userinfo`. An origin the preflight allowed because it
+belongs to a different client in the same realm is, correctly, withheld on
+the real request — no status code or body changes, the header is just
+absent, and the browser discards the response on its own.
+
+`/certs` and `/.well-known/openid-configuration` are unauthenticated public
+documents: every origin gets `Access-Control-Allow-Origin: *` and no `Vary`.
+`/authorize` and `/login-actions/*` are top-level navigations and get no
+CORS treatment of any kind — a header there would hand a script read access
+to the login page.
+
+The client-registration CLI has no flag for `web_origins` yet, so the two
+clients below were seeded normally and then given origins with one direct
+`UPDATE` against `client_oidc_config` — the commands after it are otherwise
+exactly what `## Path A` already used, against a second realm seeded for
+this section (`cors-demo`, with clients `demo-spa` at
+`https://demo-spa.example`, `other-app` at `https://other-app.example`, and
+`spa-with-user` — also at `https://demo-spa.example` — carrying the user
+that signs in below).
+
+A preflight for `/token`, from an origin that belongs to `other-app`, not to
+the client the real request below will name:
+
+```bash
+curl -sS -D - -o /dev/null -X OPTIONS \
+  http://localhost:3000/realms/cors-demo/protocol/openid-connect/token \
+  -H "Origin: https://other-app.example" \
+  -H "Access-Control-Request-Method: POST"
+```
+
+```
+HTTP/1.1 204 No Content
+vary: Origin
+access-control-allow-origin: https://other-app.example
+access-control-allow-methods: GET, POST, OPTIONS
+access-control-allow-headers: authorization, content-type
+access-control-max-age: 600
+content-length: 0
+```
+
+The real request, same origin, naming `demo-spa` instead — whose own
+origins do not include `other-app.example` — refused a bad refresh token
+exactly as it would with no `Origin` header at all, and the CORS header is
+simply absent from a response that is otherwise unchanged:
+
+```bash
+curl -sS -D - -o /dev/null -X POST \
+  http://localhost:3000/realms/cors-demo/protocol/openid-connect/token \
+  -H "Origin: https://other-app.example" \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  --data "grant_type=refresh_token&refresh_token=bogus&client_id=demo-spa"
+```
+
+```
+HTTP/1.1 400 Bad Request
+vary: Origin
+cache-control: no-store
+pragma: no-cache
+content-type: application/json; charset=utf-8
+```
+
+(`access-control-allow-origin` does not appear in that response at all —
+`vary: Origin` does, on every response from this endpoint, allowed or not,
+so a shared cache never serves one origin's answer to another.) The same
+request with `Origin: https://demo-spa.example` — `demo-spa`'s own origin —
+gets the header back, still a 400 for the same bogus refresh token:
+
+```
+HTTP/1.1 400 Bad Request
+vary: Origin
+access-control-allow-origin: https://demo-spa.example
+cache-control: no-store
+pragma: no-cache
+content-type: application/json; charset=utf-8
+```
+
+`/userinfo` takes the same split from the other side: the client comes from
+the access token's `client_id` claim rather than a body parameter. Signing
+in as `spa-with-user` and calling `/userinfo` with its own origin gets the
+header; with `other-app`'s origin, the same 200 with the same claims, and no
+header:
+
+```bash
+curl -sS -D - -o /dev/null \
+  http://localhost:3000/realms/cors-demo/protocol/openid-connect/userinfo \
+  -H "Authorization: Bearer $ACCESS_TOKEN" -H "Origin: https://demo-spa.example"
+curl -sS -D - -o /dev/null \
+  http://localhost:3000/realms/cors-demo/protocol/openid-connect/userinfo \
+  -H "Authorization: Bearer $ACCESS_TOKEN" -H "Origin: https://other-app.example"
+```
+
+```
+HTTP/1.1 200 OK
+vary: Origin
+access-control-allow-origin: https://demo-spa.example
+content-type: application/json; charset=utf-8
+```
+
+```
+HTTP/1.1 200 OK
+vary: Origin
+content-type: application/json; charset=utf-8
+```
+
+The two public documents, from an origin nothing registered:
+
+```bash
+curl -sS -D - -o /dev/null \
+  http://localhost:3000/realms/cors-demo/protocol/openid-connect/certs \
+  -H "Origin: https://anything.example"
+curl -sS -D - -o /dev/null \
+  http://localhost:3000/realms/cors-demo/.well-known/openid-configuration \
+  -H "Origin: https://anything.example"
+```
+
+```
+HTTP/1.1 200 OK
+access-control-allow-origin: *
+content-type: application/json; charset=utf-8
+```
+
+```
+HTTP/1.1 200 OK
+access-control-allow-origin: *
+content-type: application/json; charset=utf-8
+```
+
+(no `Vary` on either — a fixed wildcard has nothing to vary the response
+on). And `/authorize`, which gets nothing:
+
+```bash
+curl -sS -D - -o /dev/null -X OPTIONS \
+  http://localhost:3000/realms/cors-demo/protocol/openid-connect/auth \
+  -H "Origin: https://other-app.example" \
+  -H "Access-Control-Request-Method: GET"
+```
+
+```
+HTTP/1.1 404 Not Found
+vary: Origin
+content-type: application/json; charset=utf-8
+```
+
+No `access-control-allow-origin` — the browser gets nothing to read this
+response with. The `Vary: Origin` here is a side effect of `@fastify/cors`
+answering every unmatched `OPTIONS` request from one global fallback route
+regardless of which encapsulated scope registered it (`docs/superpowers/p2a-spike-log.md`
+records the mechanism); it is harmless — nothing downstream keys a cache
+entry on it — but it is not hidden here as something it is not.
+
 ## The branches
 
 ### `/authorize`: the render-versus-redirect boundary

@@ -1,12 +1,33 @@
 import { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
+import { corsHeadersForRequest } from '#/service/cors';
 import { FORM_MEDIA_TYPE } from '#/service/media-type';
-import { resolveUserinfo, type UserinfoDeps } from '#/usecase/userinfo';
+import { resolveUserinfo, type UserinfoDeps, type UserinfoOutcome } from '#/usecase/userinfo';
 import { realmIssuerFor } from '#/view/issuer';
 import { namesUnsupportedRepresentation } from '#/view/media-type';
 
 const PATH = '/realms/:realm/protocol/openid-connect/userinfo';
 
 const CHALLENGE = 'Bearer realm="userinfo"';
+
+// The client behind the request is known only once the access token
+// verifies (`ok`, `insufficient_scope`); every earlier outcome — no
+// realm, no credentials, an unparseable or invalid token — has no client
+// to check the origin against, so the header is withheld the same way an
+// origin outside that client's own list would be.
+async function corsHeadersFor(
+  deps: UserinfoDeps,
+  request: FastifyRequest<{ Params: { realm: string } }>,
+  outcome: UserinfoOutcome,
+): Promise<Record<string, string>> {
+  const clientId =
+    outcome.kind === 'ok' || outcome.kind === 'insufficient_scope' ? outcome.clientId : undefined;
+  if (clientId === undefined) return corsHeadersForRequest(request.headers.origin, new Set());
+
+  const realm = await deps.findRealm(request.params.realm);
+  const allowed =
+    realm === null ? new Set<string>() : await deps.resolveClientWebOrigins(realm.id, clientId);
+  return corsHeadersForRequest(request.headers.origin, allowed);
+}
 
 async function respondToUserinfoRequest(
   deps: UserinfoDeps,
@@ -22,29 +43,33 @@ async function respondToUserinfoRequest(
     request.headers.authorization,
     body,
   );
+  const corsHeaders = await corsHeadersFor(deps, request, outcome);
 
   switch (outcome.kind) {
     case 'not_found':
-      return reply.code(404).send();
+      return reply.headers(corsHeaders).code(404).send();
     case 'missing_credentials':
-      return reply.code(401).header('www-authenticate', CHALLENGE).send();
+      return reply.headers(corsHeaders).code(401).header('www-authenticate', CHALLENGE).send();
     case 'invalid_request':
       return reply
+        .headers(corsHeaders)
         .code(400)
         .header('www-authenticate', `${CHALLENGE}, error="invalid_request"`)
         .send();
     case 'invalid_token':
       return reply
+        .headers(corsHeaders)
         .code(401)
         .header('www-authenticate', `${CHALLENGE}, error="invalid_token"`)
         .send();
     case 'insufficient_scope':
       return reply
+        .headers(corsHeaders)
         .code(403)
         .header('www-authenticate', `${CHALLENGE}, error="insufficient_scope"`)
         .send();
     case 'ok':
-      return reply.code(200).send(outcome.claims);
+      return reply.headers(corsHeaders).code(200).send(outcome.claims);
   }
 }
 

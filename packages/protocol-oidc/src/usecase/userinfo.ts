@@ -9,6 +9,10 @@ export interface UserinfoDeps {
   listPublishableKeys(realmId: string): Promise<SigningKeyRecord[]>;
   loadClaimContext(realmId: string, subjectId: string): Promise<ClaimContext>;
   claimMappers: ClaimMapperRegistry<ClaimContext>;
+  // The real request's CORS decision is checked against this one client's
+  // own expanded origins, resolved from the access token's `client_id`
+  // claim rather than any credential the preflight could have carried.
+  resolveClientWebOrigins(realmId: string, oauthClientId: string): Promise<ReadonlySet<string>>;
 }
 
 export type UserinfoOutcome =
@@ -20,8 +24,11 @@ export type UserinfoOutcome =
   // §3.1 gives this `invalid_request`, and §3.1's HTTP 400.
   | { kind: 'invalid_request' }
   | { kind: 'invalid_token' }
-  | { kind: 'insufficient_scope' }
-  | { kind: 'ok'; claims: Record<string, unknown> };
+  // clientId is set here and on `ok` because both are reached only once the
+  // token verifies — it names the client CORS checks the response's origin
+  // against; every earlier outcome never got that far.
+  | { kind: 'insufficient_scope'; clientId: string | undefined }
+  | { kind: 'ok'; claims: Record<string, unknown>; clientId: string | undefined };
 
 function scopesOf(scopeClaim: unknown): string[] {
   return typeof scopeClaim === 'string'
@@ -63,8 +70,10 @@ export async function resolveUserinfo(
     return { kind: 'invalid_token' };
   }
 
+  const clientId = typeof payload.client_id === 'string' ? payload.client_id : undefined;
+
   const scope = scopesOf(payload.scope);
-  if (!scope.includes('openid')) return { kind: 'insufficient_scope' };
+  if (!scope.includes('openid')) return { kind: 'insufficient_scope', clientId };
 
   if (typeof payload.sub !== 'string' || payload.sub.length === 0) {
     return { kind: 'invalid_token' };
@@ -72,5 +81,5 @@ export async function resolveUserinfo(
 
   const ctx = await deps.loadClaimContext(realm.id, payload.sub);
   const claims = await deps.claimMappers.assemble(scope, ctx);
-  return { kind: 'ok', claims };
+  return { kind: 'ok', claims, clientId };
 }
