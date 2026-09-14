@@ -49,6 +49,8 @@ const EXPECTED_CHECKS: Record<string, string> = {
     "CHECK ((assignment = ANY (ARRAY['default'::text, 'optional'::text])))",
   'client_scopes.client_scopes_name_is_scope_token':
     "CHECK ((name ~ '^[\\x21\\x23-\\x5B\\x5D-\\x7E]+$'::text))",
+  'groups.groups_name_has_no_slash': "CHECK (((name !~ '/'::text) AND (name <> ''::text)))",
+  'groups.groups_path_is_absolute': "CHECK ((path ~~ '/%'::text))",
   'clients.clients_secret_matches_type':
     "CHECK ((((type = 'confidential'::text) AND (secret_hash IS NOT NULL)) OR ((type = 'public'::text) AND (secret_hash IS NULL))))",
   'clients.clients_type_check':

@@ -18,7 +18,9 @@ export type ErrorCode =
   | 'seed_conflict'
   | 'insert_returned_no_row'
   | 'role_not_found'
-  | 'role_composite_cycle';
+  | 'role_composite_cycle'
+  | 'group_not_found'
+  | 'group_reparent_cycle';
 
 export class OduduError extends Error {
   readonly code: ErrorCode;

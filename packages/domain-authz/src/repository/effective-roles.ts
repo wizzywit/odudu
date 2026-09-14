@@ -20,20 +20,33 @@ export const effectiveRoleRowSchema = z.object({
 });
 const effectiveRoleRowsSchema = z.array(effectiveRoleRowSchema);
 
-// The roles a subject actually holds: its direct assignments plus every
-// role reachable by following role_composites (a parent grants its
-// children, never the reverse). UNION, not UNION ALL: verified against
-// PostgreSQL 17 to terminate on a cyclic composite graph, because
-// duplicates are discarded and the frontier of genuinely new rows empties —
-// UNION ALL on the same cyclic data was cancelled by a statement timeout.
-// See docs/superpowers/p2a-spike-log.md.
+// The roles a subject actually holds: its direct assignments, every role
+// mapped to a group it belongs to or that group's ancestors (child ->
+// parent, so a group's roles reach its descendants, never its ancestors),
+// plus every role reachable from those via role_composites (parent grants
+// child, never the reverse). UNION, not UNION ALL: verified against
+// PostgreSQL 17 to terminate on a cyclic graph, where UNION ALL on the same
+// data was cancelled by a statement timeout — see
+// docs/superpowers/p2a-spike-log.md.
 export async function effectiveRoles(
   tx: RealmScopedDatabase,
   subjectId: string,
 ): Promise<readonly EffectiveRole[]> {
   const result = await tx.execute(sql`
-    WITH RECURSIVE seed_roles AS (
+    WITH RECURSIVE group_closure AS (
+      SELECT g.id, g.parent_id
+      FROM groups g
+      JOIN subject_groups sg ON sg.group_id = g.id
+      WHERE sg.subject_id = ${subjectId}
+      UNION
+      SELECT p.id, p.parent_id
+      FROM groups p
+      JOIN group_closure c ON p.id = c.parent_id
+    ),
+    seed_roles AS (
       SELECT role_id FROM subject_roles WHERE subject_id = ${subjectId}
+      UNION
+      SELECT gr.role_id FROM group_roles gr JOIN group_closure gc ON gc.id = gr.group_id
     ),
     role_closure AS (
       SELECT role_id FROM seed_roles
