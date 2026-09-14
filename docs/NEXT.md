@@ -63,6 +63,36 @@ the authorize, token, userinfo, jwks and discovery endpoints. The rest of
 this file is the record of how that happened; what follows is the part a
 newcomer to P2 needs before touching anything.
 
+**Nothing is ever deleted, and P2b now owns fixing that.** The four tables
+carrying `expires_at` — `sessions`, `authentication_sessions`,
+`authorization_codes`, `refresh_tokens` — enforce expiry at read time, so an
+expired row can never be redeemed, and **no repository contains a `DELETE`**.
+Every `/authorize` request leaves an `authentication_sessions` row behind
+holding `client_id`, `redirect_uri`, `scope`, `state`, `nonce` and
+`code_challenge`, whether the login completed or was abandoned; every refresh
+rotation leaves a `refresh_tokens` row, about 288 per session per day for a
+client refreshing every five minutes. It is P2b's because P2b owns the
+session idle and maximum lifespans, and a lifespan says when something stops
+working, not when it stops existing.
+
+**Do not write `DELETE … WHERE expires_at < now()`.** Replay detection reads
+the dead rows. `rotateRefreshToken`
+(`packages/protocol-oidc/src/usecase/refresh-rotation.ts`) tells reuse from an
+unknown token by reading the already-used row back through
+`refreshTokenRepository.byHash`; delete it and a replayed token returns
+`{ kind: 'unknown' }` instead of `{ kind: 'reused' }`, so the request is still
+refused with the same `invalid_grant` the client would have seen anyway and
+**family revocation silently never fires**. A consumed `authorization_codes`
+row is the same: revoking the grant on a replayed code depends on the row
+existing. Retention is bounded below by the **detection window — the life of
+the grant family — which is a different and much larger number than the token
+TTL.** Whatever reaper P2b writes needs a test that replays a consumed
+credential after a reaping pass and asserts the family was revoked; asserting
+the request was refused proves nothing, because the broken implementation
+refuses it too. **ADR 0021** has the decision, what the specifications do and
+do not require (they require nothing about retention — that was read, not
+recalled), and what Keycloak does instead.
+
 **P2 now owns logout, which the roadmap had never assigned to anyone.**
 RP-initiated logout (`end_session_endpoint`) belongs to the phase that makes
 the SSO session real: P1 writes a session cookie and never reads it, so an
