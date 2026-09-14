@@ -7,7 +7,6 @@ import {
   type DatabaseHandle,
   type RealmScopedDatabase,
 } from '@odudu/db';
-import { expectCrossRealmMethodProbe } from '@odudu/db/testing';
 import { roleRepository } from '@odudu/domain-authz';
 import { clientScopeRepository } from '@odudu/domain-realm';
 import { newId } from '@odudu/kernel';
@@ -69,27 +68,38 @@ describe('reachableRoleIds', () => {
     });
   });
 
+  // Not `expectCrossRealmMethodProbe`: that helper never gives realm B a
+  // `realms` row of its own (every existing probe only reads under realm
+  // B, never inserts), and this test needs realm B to hold a same-named
+  // `client_scopes` row so an empty result can only come from RLS hiding
+  // realm A's `client_scope_roles` mapping — not from 'reports:read'
+  // simply not existing in realm B.
   it('does not find another realm’s scope-to-role mapping', async () => {
-    await expectCrossRealmMethodProbe(app.db, {
-      seed: async (tx, realmId) => {
-        await seedRealm(tx, realmId);
-        const scope = await clientScopeRepository(tx).create({ realmId, name: 'reports:read' });
-        const role = await roleRepository(tx).create({ realmId, name: 'reports-reader' });
-        await roleRepository(tx).mapToClientScope(scope.id, role.id);
-        return { roleId: role.id };
-      },
-      verifySeeded: async (tx, seeded) => {
-        const found = await reachableRoleIds(tx, ['reports:read']);
-        expect(found).toEqual(new Set([seeded.roleId]));
-      },
-      // A foreign realm has no client_scopes row named 'reports:read' of
-      // its own, so this is the same "missing means absent" path a
-      // same-realm unknown scope name takes above — not a leak to prove
-      // separately from it.
-      attempt: async (tx) => reachableRoleIds(tx, ['reports:read']),
-      expectBlocked: (result) => {
-        expect(result).toEqual(new Set());
-      },
+    const realmA = newId();
+    const realmB = newId();
+
+    const roleAId = await withRealm(app.db, realmA, async (tx) => {
+      await seedRealm(tx, realmA);
+      const scope = await clientScopeRepository(tx).create({
+        realmId: realmA,
+        name: 'reports:read',
+      });
+      const role = await roleRepository(tx).create({ realmId: realmA, name: 'reports-reader' });
+      await roleRepository(tx).mapToClientScope(scope.id, role.id);
+      return role.id;
+    });
+
+    await withRealm(app.db, realmA, async (tx) => {
+      const found = await reachableRoleIds(tx, ['reports:read']);
+      expect(found).toEqual(new Set([roleAId]));
+    });
+
+    await withRealm(app.db, realmB, async (tx) => {
+      await seedRealm(tx, realmB);
+      await clientScopeRepository(tx).create({ realmId: realmB, name: 'reports:read' });
+
+      const found = await reachableRoleIds(tx, ['reports:read']);
+      expect(found).toEqual(new Set());
     });
   });
 });

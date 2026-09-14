@@ -134,6 +134,13 @@
       "when": 1789049381661,
       "tag": "0018_groups",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1789049381662,
+      "tag": "0019_client_scopes_include_in_access_token",
+      "breakpoints": true
     }
   ]
 }

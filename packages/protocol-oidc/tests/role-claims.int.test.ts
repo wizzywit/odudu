@@ -126,6 +126,18 @@ async function setFullScopeAllowed(realm: Realm): Promise<void> {
   );
 }
 
+async function setIncludeInAccessToken(
+  realm: Realm,
+  scopeName: string,
+  value: boolean,
+): Promise<void> {
+  await withRealm(app.db, realm.realmId, (tx) =>
+    tx.execute(
+      sql`update client_scopes set include_in_access_token = ${value} where realm_id = ${realm.realmId} and name = ${scopeName}`,
+    ),
+  );
+}
+
 interface TokenSet {
   accessToken: string;
   idToken: string | undefined;
@@ -224,6 +236,12 @@ describe('roles in an issued token', () => {
 
   it('withholds the roles claim entirely when nothing is mapped', async () => {
     const realm = await seedRealm('nothing-mapped');
+    // Two held roles, neither mapped to anything — not just the one role
+    // the previous test leaves unmapped, so an implementation that only
+    // drops a single excess role rather than intersecting the whole set
+    // still fails this one.
+    await giveSubjectRole(realm, 'admin');
+    await giveSubjectRole(realm, 'member');
 
     const { accessToken } = await completeCodeFlow(realm, 'openid roles');
     expect(decode(accessToken)).not.toHaveProperty('roles');
@@ -282,6 +300,42 @@ describe('roles in an issued token', () => {
     const { accessToken } = await completeCodeFlow(realm, 'openid roles');
     const payload = decode(accessToken);
     expect(payload.sub).toBe(realm.subjectId);
-    expect(payload.iss).toBeTruthy();
+    expect(payload.iss).toContain(realm.realmName);
+  });
+
+  it('reaches the ID token when the scope says so, not just when it is withheld', async () => {
+    const realm = await seedRealm('id-token-positive');
+
+    // `profile`'s `include_in_id_token` default is true (unlike `roles`),
+    // so its claim must actually land — the `roles`/`groups` tests above
+    // only prove the gate can withhold, never that it lets a claim through.
+    const { idToken } = await completeCodeFlow(realm, 'openid profile');
+    if (idToken === undefined) throw new Error('expected an id_token');
+    expect(decode(idToken).name).toBe(`alice-id-token-positive`);
+  });
+
+  it('withholds profile and email from the access token by default', async () => {
+    const realm = await seedRealm('access-token-pii-default');
+
+    const { accessToken } = await completeCodeFlow(realm, 'openid profile email');
+    const payload = decode(accessToken);
+    expect(payload).not.toHaveProperty('name');
+    expect(payload).not.toHaveProperty('email');
+    expect(payload).not.toHaveProperty('email_verified');
+  });
+
+  it('carries sub on the access token regardless of the openid scope’s access-token flag', async () => {
+    const realm = await seedRealm('access-token-sub-always');
+
+    const { accessToken } = await completeCodeFlow(realm, 'openid');
+    expect(decode(accessToken).sub).toBe(realm.subjectId);
+  });
+
+  it('lets profile reach the access token once a realm opts it in', async () => {
+    const realm = await seedRealm('access-token-pii-opt-in');
+    await setIncludeInAccessToken(realm, 'profile', true);
+
+    const { accessToken } = await completeCodeFlow(realm, 'openid profile');
+    expect(decode(accessToken).name).toBe('alice-access-token-pii-opt-in');
   });
 });

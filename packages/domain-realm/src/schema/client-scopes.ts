@@ -13,6 +13,12 @@ export const clientScopes = pgTable('client_scopes', {
   description: text('description'),
   includeInTokenScope: boolean('include_in_token_scope').notNull().default(true),
   includeInIdToken: boolean('include_in_id_token').notNull().default(true),
+  // Symmetric with includeInIdToken, and opposite by default: an access
+  // token goes to a resource server, not the browser, so it carries
+  // authorization claims (roles, groups) by default and identity claims
+  // (name, email) only once a realm opts a scope into it. Added in
+  // migration 0019, after include_in_id_token (0016) shipped without it.
+  includeInAccessToken: boolean('include_in_access_token').notNull().default(true),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }).enableRLS();
 
@@ -28,6 +34,7 @@ export interface ClientScopeRecord {
   description: string | null;
   includeInTokenScope: boolean;
   includeInIdToken: boolean;
+  includeInAccessToken: boolean;
   createdAt: Date;
 }
 

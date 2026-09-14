@@ -6,12 +6,13 @@ import { clientScopeRepository, type NewClientScope } from '#/repository/client-
 // answer for it (packages/protocol-oidc/src/service/claims.ts): `address`
 // and `phone` join this list in the change that registers their mappers,
 // not before, or `scopes_supported` would name scopes that add nothing to a
-// token. `roles` and `groups` carry `includeInIdToken: false` — a full role
-// list has no place in a token that reaches the browser.
+// token. `roles`/`groups` default `includeInIdToken` false and
+// `includeInAccessToken` true; `openid`/`profile`/`email` are the reverse —
+// identity data for the browser, not a resource server named in `aud`.
 const DEFAULT_SCOPES: readonly Omit<NewClientScope, 'realmId'>[] = [
-  { name: 'openid' },
-  { name: 'profile' },
-  { name: 'email' },
+  { name: 'openid', includeInAccessToken: false },
+  { name: 'profile', includeInAccessToken: false },
+  { name: 'email', includeInAccessToken: false },
   { name: 'roles', includeInIdToken: false },
   { name: 'groups', includeInIdToken: false },
 ];

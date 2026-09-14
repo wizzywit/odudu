@@ -77,10 +77,6 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
     const listPublishableKeys = (realmId: string) =>
       withRealm(deps.database.db, realmId, (tx) => signingKeyRepository(tx).listPublishable());
 
-    // Shared by /token and /userinfo: once each has resolved which client
-    // the request is for, this is the same lookup either way — an unknown
-    // or foreign client_id resolves to an empty set, so the caller withholds
-    // the header instead of treating it as an error.
     // /userinfo's own gate on the `roles` claim: which role ids the token's
     // granted scope reaches, and whether its client bypasses that
     // intersection — the same two facts token issuance reads from the same
@@ -94,6 +90,10 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
         };
       });
 
+    // Shared by /token and /userinfo: once each has resolved which client
+    // the request is for, this is the same lookup either way — an unknown
+    // or foreign client_id resolves to an empty set, so the caller withholds
+    // the header instead of treating it as an error.
     const resolveClientWebOrigins = (realmId: string, oauthClientId: string) =>
       withRealm(deps.database.db, realmId, async (tx) => {
         const client = await clientRepository(tx).byClientId(oauthClientId);

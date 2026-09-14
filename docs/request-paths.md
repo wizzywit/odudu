@@ -569,6 +569,14 @@ resource audiences the client is configured for, because a token that
 cannot be used at the issuer's own endpoints would be unusable for what
 OIDC promised the client.
 
+Requesting `profile` and `email` grants them (they are in `scope` above)
+without putting `name`, `email` or `email_verified` on this token: an
+access token goes to whatever's named in `aud`, not the browser, and
+`client_scopes.include_in_access_token` defaults to `false` for
+`openid`/`profile`/`email` for exactly that reason — the [`roles` section
+below](#roles-once-a-scope-reaches-it) shows the symmetric flag that admits
+`roles`/`groups` here by default instead.
+
 The ID token, decoded:
 
 ```json
@@ -653,9 +661,12 @@ The ID token issued alongside it carries no `roles`, though the same
 
 `client_scopes.include_in_id_token` is what decides that, and the `roles`
 and `groups` scopes ship with it off: an ID token reaches the browser, and a
-full role list has no place there. `/userinfo` reads the same gate as the
-access token, not the ID token's, so it returns the role the access token
-carries it presented:
+full role list has no place there. The access token has the symmetric
+`include_in_access_token` column, defaulting the other way: `true` for
+`roles`/`groups`, `false` for `openid`/`profile`/`email` — see [the access
+token in step 4](#4-token) for what that keeps off it. `/userinfo` reads
+the same role gate as the access token, not the ID token's, so it returns
+the role the access token carries it presented:
 
 ```bash
 curl -sS -H "Authorization: Bearer $ACCESS_TOKEN" \

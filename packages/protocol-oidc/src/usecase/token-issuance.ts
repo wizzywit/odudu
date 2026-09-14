@@ -12,7 +12,7 @@ import { clientOidcConfigRepository, type ClientOidcConfig } from '#/repository/
 import { authorizationCodeRepository } from '#/repository/codes';
 import { tokenGrantRepository, type TokenGrantRecord } from '#/repository/grants';
 import { refreshTokenRepository } from '#/repository/refresh';
-import { reachableRoleIds } from '#/repository/scope-role-reach';
+import { accessTokenEligibleScope, reachableRoleIds } from '#/repository/scope-role-reach';
 import { rotateRefreshToken } from '#/usecase/refresh-rotation';
 import { hashAuthorizationCode } from '#/service/authorization-code';
 import { evaluateAuthorizationCodeGrant } from '#/service/authorization-code-grant';
@@ -297,6 +297,12 @@ async function mintAccessToken(
     claimContext: ClaimContext;
     reachableRoleIds: ReadonlySet<string>;
     fullScopeAllowed: boolean;
+    // The subset of `scope` that `client_scopes.include_in_access_token`
+    // actually admits — not every granted scope, or an access token bound
+    // for a resource server named in `aud` would carry the end-user's
+    // profile and email by default (RFC 9068 §2.2 draws no line here; the
+    // realm's own scope definitions do).
+    accessTokenScope: string[];
   },
   key: SigningKeyRecord,
   now: Date,
@@ -315,7 +321,7 @@ async function mintAccessToken(
       input.fullScopeAllowed,
     ),
   };
-  const mapped = await deps.claimMappers.assemble(input.scope, narrowedContext);
+  const mapped = await deps.claimMappers.assemble(input.accessTokenScope, narrowedContext);
 
   const accessTokenClaims = withRegisteredClaimsWinning(mapped, {
     iss: deps.issuer,
@@ -357,6 +363,7 @@ async function issueAuthorizationCodeTokens(
   // ID token that follows it — see loadClaimContext's own doc comment.
   const claimContext = await deps.loadClaimContext(deps.realmId, code.subjectId);
   const reachable = await reachableRoleIds(tx, scope);
+  const accessTokenScope = await accessTokenEligibleScope(tx, scope);
 
   const { accessToken, audience, iat, exp } = await mintAccessToken(
     deps,
@@ -368,6 +375,7 @@ async function issueAuthorizationCodeTokens(
       claimContext,
       reachableRoleIds: reachable,
       fullScopeAllowed: client.fullScopeAllowed,
+      accessTokenScope,
     },
     key,
     now,
@@ -510,6 +518,7 @@ async function issueRefreshTokens(
   const key = await signingKeyRepository(tx).active();
   const claimContext = await deps.loadClaimContext(deps.realmId, grant.subjectId);
   const reachable = await reachableRoleIds(tx, scope);
+  const accessTokenScope = await accessTokenEligibleScope(tx, scope);
   const { accessToken } = await mintAccessToken(
     deps,
     {
@@ -520,6 +529,7 @@ async function issueRefreshTokens(
       claimContext,
       reachableRoleIds: reachable,
       fullScopeAllowed: client.fullScopeAllowed,
+      accessTokenScope,
     },
     key,
     now,
@@ -564,6 +574,7 @@ async function issueClientCredentialsTokens(
   const key = await signingKeyRepository(tx).active();
   const claimContext = await deps.loadClaimContext(deps.realmId, serviceSubjectId);
   const reachable = await reachableRoleIds(tx, scope);
+  const accessTokenScope = await accessTokenEligibleScope(tx, scope);
   const { accessToken, audience } = await mintAccessToken(
     deps,
     {
@@ -574,6 +585,7 @@ async function issueClientCredentialsTokens(
       claimContext,
       reachableRoleIds: reachable,
       fullScopeAllowed: client.fullScopeAllowed,
+      accessTokenScope,
     },
     key,
     now,
