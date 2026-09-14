@@ -67,7 +67,7 @@ export function registerLoginRoute(app: FastifyInstance, deps: LoginRouteDeps): 
     // No location header and no code: the assertion this state exists to
     // make true is that nothing was issued, not that the page says something.
     if (outcome.kind === 'unverified') {
-      return sendHtml(reply, 200, renderEmailUnverifiedPage());
+      return sendHtml(reply, 200, renderEmailUnverifiedPage(outcome.hasEmail));
     }
 
     const cookieName = sessionCookieName(request.params.realm, deps.tls);

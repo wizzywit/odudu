@@ -26,6 +26,44 @@ const kekBytes = z
     return decoded;
   });
 
+// Origin only — no path, query or fragment — because it is the base a
+// mailed link is built from (packages/account/src/usecase/register.ts);
+// concatenating a path onto something that already carries one produces a
+// link nobody asked for. Unset by default: a realm with verify_email and
+// registration_allowed both off never builds one, so nothing here forces a
+// value on every deployment. When a link does need building, the caller
+// fails closed on `undefined` rather than falling back to a request header
+// — see ADR-worthy note in registration.ts on why `Host` is untrusted.
+const publicBaseUrl = z
+  .string()
+  .min(1)
+  .optional()
+  .transform((value, ctx) => {
+    if (value === undefined) return undefined;
+    let parsed: URL;
+    try {
+      parsed = new URL(value);
+    } catch {
+      ctx.addIssue({ code: 'custom', message: 'ODUDU_PUBLIC_BASE_URL must be an absolute URL' });
+      return z.NEVER;
+    }
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'ODUDU_PUBLIC_BASE_URL must use http or https',
+      });
+      return z.NEVER;
+    }
+    if (parsed.pathname !== '/' || parsed.search !== '' || parsed.hash !== '') {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'ODUDU_PUBLIC_BASE_URL must be an origin only — no path, query or fragment',
+      });
+      return z.NEVER;
+    }
+    return `${parsed.protocol}//${parsed.host}`;
+  });
+
 const schema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   ODUDU_HTTP_HOST: z.string().min(1).default('0.0.0.0'),
@@ -56,6 +94,7 @@ const schema = z.object({
   ODUDU_SMTP_USERNAME: z.string().min(1).optional(),
   ODUDU_SMTP_PASSWORD: z.string().min(1).optional(),
   ODUDU_SMTP_STARTTLS: booleanEnvVar,
+  ODUDU_PUBLIC_BASE_URL: publicBaseUrl,
 });
 
 export type Config = Readonly<z.infer<typeof schema>>;

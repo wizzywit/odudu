@@ -78,6 +78,22 @@ no reader. See
 [the self-registration section of docs/request-paths.md](docs/request-paths.md#self-registration)
 for the walkthrough.
 
+A mailed verification link is built from `ODUDU_PUBLIC_BASE_URL`, never
+from the request that triggered it — a request's `Host` header is
+client-controlled, and trusting it would let an attacker choose where a
+link Odudu mails to someone else points. `ODUDU_PUBLIC_BASE_URL` must be an
+absolute `http`/`https` origin with no path; when it is unset, a realm with
+`verify_email` on refuses to register rather than guessing a base some
+other way (`compose.yaml` sets it for the local stack).
+
+**Operational trap:** turning `verify_email` on locks out every existing
+user with no email address on file — including one seeded without
+`--email` — since there is no address for them to verify and, for now, no
+way to add one after the fact. The login page tells them so rather than
+claiming a mail it never sent, but there is no recovery path yet; give
+every user an address before enabling `verify_email` on a realm that
+already has some.
+
 > ### → [docs/request-paths.md](docs/request-paths.md)
 >
 > **Every request this server answers, and every branch each one can take,

@@ -1,5 +1,6 @@
 import { withRealm, type DatabaseHandle, type RealmScopedDatabase } from '@odudu/db';
 import { renderVerifyEmail, type EmailSender } from '@odudu/email';
+import { OduduError } from '@odudu/kernel';
 import { actionTokenRepository } from '#/repository/action-tokens';
 import { VERIFY_EMAIL_TTL_SECONDS } from '#/usecase/verify-email';
 
@@ -19,7 +20,13 @@ export interface RegisterDeps {
   readonly realmId: string;
   readonly realmName: string;
   readonly realmDisplayName: string;
-  readonly issuerBase: string;
+  // The base a verification link is built from — operator configuration
+  // (ODUDU_PUBLIC_BASE_URL), never derived from the request that reached
+  // this usecase: see #/view/routes/registration.ts for why a request
+  // header cannot be trusted with the contents of a mail sent to a third
+  // party. Undefined when unset; register() refuses to send rather than
+  // building a link some other way.
+  readonly issuerBase: string | undefined;
   readonly verifyEmailEnabled: boolean;
   // Injected for the same reason verify-email.ts's getCurrentEmail and
   // markVerified are: @odudu/account depends on neither
@@ -34,18 +41,35 @@ export interface RegisterDeps {
   ) => Promise<CreateAccountResult>;
 }
 
-export type RegisterOutcome = { kind: 'created'; subjectId: string } | { kind: 'email_taken' };
+export type RegisterOutcome =
+  | { kind: 'created'; subjectId: string }
+  | { kind: 'email_taken' }
+  | { kind: 'username_taken' }
+  | { kind: 'invalid_email' }
+  // verify_email is on for this realm but no ODUDU_PUBLIC_BASE_URL is
+  // configured to build a verification link from — refused before any
+  // write, rather than falling back to something request-derived or
+  // creating an account nothing can ever verify.
+  | { kind: 'misconfigured' };
 
-// `users_email_unique` (packages/db/drizzle/0023_users_email_unique.sql) is
-// what actually refuses a second registration for an address already held
-// in the realm; this only recognizes that refusal after the fact. Recent
-// drizzle-orm wraps a driver failure in its own error and keeps the
-// underlying `postgres` error as `.cause`, which is where the constraint
-// name pg_get_constraintdef would report actually appears.
-function isDuplicateEmail(err: unknown): boolean {
-  if (!(err instanceof Error)) return false;
+type AccountCreationFailure = 'email_taken' | 'username_taken' | 'invalid_email';
+
+// `users_email_unique` (0023) and `users_username_unique` (0005) are what
+// actually refuse a duplicate; this only recognizes the refusal after the
+// fact. Recent drizzle-orm wraps a driver failure in its own error and
+// keeps the underlying `postgres` error as `.cause`, which is where the
+// constraint name pg_get_constraintdef would report actually appears.
+// `userRepository.create`'s own pre-flight (packages/domain-identity/src/repository/users.ts)
+// throws OduduError('invalid_email', …) before the row-level CHECK is even
+// reached, for the same malformed-address case.
+function classifyAccountCreationError(err: unknown): AccountCreationFailure | null {
+  if (err instanceof OduduError && err.code === 'invalid_email') return 'invalid_email';
+  if (!(err instanceof Error)) return null;
   const cause = err.cause;
-  return cause instanceof Error && cause.message.includes('users_email_unique');
+  if (!(cause instanceof Error)) return null;
+  if (cause.message.includes('users_email_unique')) return 'email_taken';
+  if (cause.message.includes('users_username_unique')) return 'username_taken';
+  return null;
 }
 
 // Creates the subject, the user row, the password credential and the
@@ -59,6 +83,10 @@ export async function register(
   deps: RegisterDeps,
   input: NewAccountInput,
 ): Promise<RegisterOutcome> {
+  if (deps.verifyEmailEnabled && deps.issuerBase === undefined) {
+    return { kind: 'misconfigured' };
+  }
+
   let created: { subjectId: string; token: string | null };
   try {
     created = await withRealm(deps.database.db, deps.realmId, async (tx) => {
@@ -76,11 +104,16 @@ export async function register(
       return { subjectId: account.subjectId, token };
     });
   } catch (err) {
-    if (isDuplicateEmail(err)) return { kind: 'email_taken' };
+    const failure = classifyAccountCreationError(err);
+    if (failure !== null) return { kind: failure };
     throw err;
   }
 
-  if (created.token !== null) {
+  // The earlier misconfigured check already guarantees issuerBase is
+  // defined whenever a token was actually issued; re-checking it here
+  // (rather than asserting past the type) is what lets that stay true by
+  // construction instead of by convention.
+  if (created.token !== null && deps.issuerBase !== undefined) {
     const link = `${deps.issuerBase}/realms/${deps.realmName}/login-actions/action-token?key=${encodeURIComponent(created.token)}`;
     await deps.sender.send(
       renderVerifyEmail({ to: input.email, link, realmDisplayName: deps.realmDisplayName }),

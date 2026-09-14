@@ -21,7 +21,7 @@ interface Harness {
   deps: LoginSubmissionDeps;
   advance: Mock;
   completeLogin: Mock;
-  isEmailVerified: Mock;
+  checkEmailVerification: Mock;
 }
 
 function harness(): Harness {
@@ -29,16 +29,16 @@ function harness(): Harness {
   const completeLogin = vi
     .fn()
     .mockResolvedValue({ kind: 'issued', sessionId: 'session-1', code: 'code-1' });
-  const isEmailVerified = vi.fn().mockResolvedValue(true);
+  const checkEmailVerification = vi.fn().mockResolvedValue({ verified: true, hasEmail: true });
   const deps: LoginSubmissionDeps = {
     findRealm: vi.fn().mockResolvedValue(REALM),
     advance,
     loadPendingRequest: vi.fn().mockResolvedValue(PENDING),
     resolveClientId: vi.fn().mockResolvedValue('client-uuid-1'),
-    isEmailVerified,
+    checkEmailVerification,
     completeLogin,
   };
-  return { deps, advance, completeLogin, isEmailVerified };
+  return { deps, advance, completeLogin, checkEmailVerification };
 }
 
 describe('handleLoginSubmission — the success path', () => {
@@ -74,9 +74,9 @@ describe('handleLoginSubmission — the success path', () => {
 
 describe('handleLoginSubmission — a realm that requires a verified address', () => {
   it('does not complete the login, and issues no code, when the address is not verified', async () => {
-    const { deps, completeLogin, isEmailVerified } = harness();
+    const { deps, completeLogin, checkEmailVerification } = harness();
     deps.findRealm = vi.fn().mockResolvedValue({ ...REALM, verifyEmail: true });
-    isEmailVerified.mockResolvedValue(false);
+    checkEmailVerification.mockResolvedValue({ verified: false, hasEmail: true });
 
     const outcome = await handleLoginSubmission(
       deps,
@@ -86,14 +86,38 @@ describe('handleLoginSubmission — a realm that requires a verified address', (
       { username: 'ada', password: 'x' },
     );
 
-    expect(outcome).toEqual({ kind: 'unverified', authSessionId: 'auth-session-1' });
+    expect(outcome).toEqual({
+      kind: 'unverified',
+      authSessionId: 'auth-session-1',
+      hasEmail: true,
+    });
     expect(completeLogin).not.toHaveBeenCalled();
   });
 
-  it('completes the login once the address is verified', async () => {
-    const { deps, isEmailVerified } = harness();
+  it('says so, distinctly, when the account has no address to verify at all', async () => {
+    const { deps, checkEmailVerification } = harness();
     deps.findRealm = vi.fn().mockResolvedValue({ ...REALM, verifyEmail: true });
-    isEmailVerified.mockResolvedValue(true);
+    checkEmailVerification.mockResolvedValue({ verified: false, hasEmail: false });
+
+    const outcome = await handleLoginSubmission(
+      deps,
+      'acme',
+      'https://idp.example',
+      'auth-session-1',
+      { username: 'ada', password: 'x' },
+    );
+
+    expect(outcome).toEqual({
+      kind: 'unverified',
+      authSessionId: 'auth-session-1',
+      hasEmail: false,
+    });
+  });
+
+  it('completes the login once the address is verified', async () => {
+    const { deps, checkEmailVerification } = harness();
+    deps.findRealm = vi.fn().mockResolvedValue({ ...REALM, verifyEmail: true });
+    checkEmailVerification.mockResolvedValue({ verified: true, hasEmail: true });
 
     const outcome = await handleLoginSubmission(
       deps,

@@ -97,6 +97,9 @@ const app = buildApp({
   kek: config.ODUDU_KEK,
   logger,
   sender: buildEmailSender(config, logger),
+  ...(config.ODUDU_PUBLIC_BASE_URL !== undefined
+    ? { publicBaseUrl: config.ODUDU_PUBLIC_BASE_URL }
+    : {}),
   trustProxy: config.ODUDU_TRUST_PROXY,
 });
 

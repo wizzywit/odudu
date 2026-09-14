@@ -126,4 +126,40 @@ describe('loadConfig', () => {
       expect((error as OduduError).message).toContain('ODUDU_SMTP_FROM');
     }
   });
+
+  it('leaves ODUDU_PUBLIC_BASE_URL unset by default', () => {
+    expect('ODUDU_PUBLIC_BASE_URL' in loadConfig(minimal)).toBe(false);
+  });
+
+  it('accepts an absolute http or https origin', () => {
+    expect(
+      loadConfig({ ...minimal, ODUDU_PUBLIC_BASE_URL: 'https://idp.example.test' })
+        .ODUDU_PUBLIC_BASE_URL,
+    ).toBe('https://idp.example.test');
+  });
+
+  it('normalizes a trailing slash off the origin', () => {
+    expect(
+      loadConfig({ ...minimal, ODUDU_PUBLIC_BASE_URL: 'http://localhost:3000/' })
+        .ODUDU_PUBLIC_BASE_URL,
+    ).toBe('http://localhost:3000');
+  });
+
+  it('rejects a value carrying a path, since it is an origin, not a URL', () => {
+    expect(() =>
+      loadConfig({ ...minimal, ODUDU_PUBLIC_BASE_URL: 'http://localhost:3000/realms/demo' }),
+    ).toThrow(OduduError);
+  });
+
+  it('rejects a non-http(s) scheme', () => {
+    expect(() => loadConfig({ ...minimal, ODUDU_PUBLIC_BASE_URL: 'ftp://localhost:3000' })).toThrow(
+      OduduError,
+    );
+  });
+
+  it('rejects a value that is not a URL at all', () => {
+    expect(() => loadConfig({ ...minimal, ODUDU_PUBLIC_BASE_URL: 'not a url' })).toThrow(
+      OduduError,
+    );
+  });
 });

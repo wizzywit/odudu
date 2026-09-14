@@ -51,6 +51,14 @@ export interface AppDeps {
    */
   readonly sender: EmailSender;
   /**
+   * The base a mailed verification link is built from — never derived from
+   * a request, since `Host` is client-controlled (see
+   * `packages/account/src/view/routes/registration.ts`). Undefined when
+   * `ODUDU_PUBLIC_BASE_URL` is unset; registration then refuses to send
+   * for any realm with `verify_email` on rather than guessing one.
+   */
+  readonly publicBaseUrl?: string;
+  /**
    * Whether to trust `X-Forwarded-*` headers when deriving `request.ip`.
    * Defaults to `false`: with no reverse proxy in front of the server,
    * those headers are client-controlled, and `request.ip` will later feed
@@ -130,6 +138,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     database: deps.database,
     sender: deps.sender,
     findRealm: (name) => realmSettingsRepository(deps.ownerDatabase.db).byName(name),
+    publicBaseUrl: deps.publicBaseUrl,
     createAccount,
   });
 

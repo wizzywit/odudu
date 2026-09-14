@@ -1,6 +1,6 @@
 import { type DatabaseHandle, type RealmScopedDatabase } from '@odudu/db';
 import { type EmailSender } from '@odudu/email';
-import { type FastifyInstance, type FastifyRequest } from 'fastify';
+import { type FastifyInstance } from 'fastify';
 import { type CreateAccountResult, type NewAccountInput, register } from '#/usecase/register';
 import {
   renderRegistrationFailedPage,
@@ -22,6 +22,14 @@ export interface RegistrationRouteDeps {
   readonly database: DatabaseHandle;
   readonly sender: EmailSender;
   readonly findRealm: (name: string) => Promise<RegistrationRealmLookup | null>;
+  // Operator configuration (ODUDU_PUBLIC_BASE_URL), never anything read off
+  // the request: `request.host` is the client-controlled Host header, and
+  // building a mailed link from it would let an attacker point a
+  // verification link at a host they control — the account-takeover
+  // primitive email verification exists to close. Undefined when unset; a
+  // realm with verify_email on then refuses to register rather than
+  // building a link some other way.
+  readonly publicBaseUrl: string | undefined;
   readonly createAccount: (
     tx: RealmScopedDatabase,
     realmId: string,
@@ -33,15 +41,12 @@ export interface RegistrationRouteDeps {
 // handler reads is meant to carry exactly one value, so a repeat is treated
 // as absent rather than silently picking one — the same rule
 // packages/protocol-oidc/src/view/routes/login.ts's firstString applies.
-function firstString(value: string | string[] | undefined): string | undefined {
-  return typeof value === 'string' ? value : undefined;
-}
-
-// Not the full canonicalization packages/protocol-oidc/src/view/issuer.ts
-// applies for the issuer identifier: a mailed link is only ever followed,
-// never compared for identity, so it needs to be reachable, not canonical.
-function issuerBaseFor(request: Pick<FastifyRequest, 'protocol' | 'host'>): string {
-  return `${request.protocol}://${request.host}`;
+// Unlike that one, an empty string is also treated as absent: every field
+// here is mandatory, not merely present-or-not, and a blank username would
+// otherwise create an account nobody could type back in.
+function firstNonEmptyString(value: string | string[] | undefined): string | undefined {
+  if (typeof value !== 'string' || value.length === 0) return undefined;
+  return value;
 }
 
 function realmIsOpenForRegistration(
@@ -77,9 +82,9 @@ export function registerRegistrationRoute(app: FastifyInstance, deps: Registrati
     }
 
     const body = request.body;
-    const username = firstString(body.username);
-    const email = firstString(body.email);
-    const password = firstString(body.password);
+    const username = firstNonEmptyString(body.username);
+    const email = firstNonEmptyString(body.email);
+    const password = firstNonEmptyString(body.password);
     if (username === undefined || email === undefined || password === undefined) {
       return sendVerificationHtml(
         reply,
@@ -95,7 +100,7 @@ export function registerRegistrationRoute(app: FastifyInstance, deps: Registrati
         realmId: realm.id,
         realmName: realm.name,
         realmDisplayName: realm.displayName ?? realm.name,
-        issuerBase: issuerBaseFor(request),
+        issuerBase: deps.publicBaseUrl,
         verifyEmailEnabled: realm.verifyEmail,
         createAccount: deps.createAccount,
       },
@@ -107,6 +112,31 @@ export function registerRegistrationRoute(app: FastifyInstance, deps: Registrati
         reply,
         400,
         renderRegistrationFailedPage('That email address is already registered.'),
+      );
+    }
+    if (outcome.kind === 'username_taken') {
+      return sendVerificationHtml(
+        reply,
+        400,
+        renderRegistrationFailedPage('That username is already taken.'),
+      );
+    }
+    if (outcome.kind === 'invalid_email') {
+      return sendVerificationHtml(
+        reply,
+        400,
+        renderRegistrationFailedPage('That is not an address the email claim may carry.'),
+      );
+    }
+    if (outcome.kind === 'misconfigured') {
+      request.log.error(
+        { realm: realm.name },
+        'registration refused: verify_email is on but ODUDU_PUBLIC_BASE_URL is unset',
+      );
+      return sendVerificationHtml(
+        reply,
+        500,
+        renderRegistrationFailedPage('Registration is temporarily unavailable. Try again later.'),
       );
     }
 

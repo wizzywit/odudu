@@ -1081,11 +1081,12 @@ curl -sS -o /dev/null -w '%{http_code}\n' \
 There is no seed flag or admin surface for the three account-lifecycle
 settings yet (the same gap [Address verification](#address-verification)
 notes), so this run flips them with `psql` against the compose stack's
-database, the same one `odudu seed` writes to:
+database, the same one `odudu seed` writes to — by name, since the realm id
+is generated and this document does not capture it:
 
 ```sql
 UPDATE realms SET registration_allowed = true, verify_email = true
-  WHERE id = '01a0a139-…';
+  WHERE name = 'register-demo';
 ```
 
 With both on, posting the form creates the account and, because
@@ -1122,10 +1123,43 @@ log instead of an inbox:
   "level": 30,
   "to": "ada@example.com",
   "subject": "Verify your register-demo account",
-  "text": "Confirm your email address for register-demo by visiting this link:\n\nhttp://localhost:3000/realms/register-demo/login-actions/action-token?key=Svg-O_YO2-17Ir9O1FmJn-keUGk0qYTuDUzwBS2zNpU\n\nIf you did not request this, you can ignore this message.",
+  "text": "Confirm your email address for register-demo by visiting this link:\n\nhttp://localhost:3000/realms/register-demo/login-actions/action-token?key=T-KtGmS4CxncUMHktuxL4EVHtBzBQ7fDqL6NzVz05BA\n\nIf you did not request this, you can ignore this message.",
   "msg": "captured email — no SMTP host configured"
 }
 ```
+
+That link's host, `localhost:3000`, comes from `ODUDU_PUBLIC_BASE_URL`
+(`compose.yaml` sets it to match the port published above) — never from the
+request that reached the registration endpoint. A request's `Host` header
+is client-controlled, and building a mailed link from it would let an
+attacker who registers someone else's address choose where that link
+points, capture the key when the victim (or a spam filter, or a link
+preview) follows it, and verify an address they do not control against an
+account they hold the password to. Posting the same form again with a
+forged `Host` proves the header is ignored:
+
+```bash
+curl -sS -X POST http://localhost:3000/realms/register-demo/login-actions/registration \
+  -H 'Host: evil.example' \
+  --data-urlencode 'username=grace' \
+  --data-urlencode 'email=grace@example.com' \
+  --data-urlencode 'password=correct-horse-battery'
+```
+
+```json
+{
+  "level": 30,
+  "to": "grace@example.com",
+  "subject": "Verify your register-demo account",
+  "text": "Confirm your email address for register-demo by visiting this link:\n\nhttp://localhost:3000/realms/register-demo/login-actions/action-token?key=PNY_QHSdYzzRHsHBUbRs2PtPZyo0JhIENMOAMdJ3q74\n\nIf you did not request this, you can ignore this message.",
+  "msg": "captured email — no SMTP host configured"
+}
+```
+
+Still `localhost:3000`, never `evil.example`. When `ODUDU_PUBLIC_BASE_URL`
+is unset and a realm's `verify_email` is on, registration refuses outright
+(500, logged as a misconfiguration) rather than falling back to the
+request in any way.
 
 **This is the property the whole account-lifecycle build exists for**: an
 unverified self-registered address must not be able to complete a login, and
@@ -1134,8 +1168,20 @@ Requesting `/authorize` and submitting the login form with the password just
 set answers 200, not the usual 302:
 
 ```bash
+AUTH_SESSION_ID=$(curl -sS --get \
+  --data-urlencode 'response_type=code' \
+  --data-urlencode 'client_id=register-spa' \
+  --data-urlencode 'redirect_uri=http://localhost:8080/callback' \
+  --data-urlencode 'scope=openid email' \
+  --data-urlencode 'state=xyz123' \
+  --data-urlencode 'nonce=abc123' \
+  --data-urlencode 'code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM' \
+  --data-urlencode 'code_challenge_method=S256' \
+  'http://localhost:3000/realms/register-demo/protocol/openid-connect/auth' \
+  | sed -n 's/.*name="auth_session_id" value="\([^"]*\)".*/\1/p')
+
 curl -sS -i -X POST http://localhost:3000/realms/register-demo/login-actions/authenticate \
-  --data-urlencode 'auth_session_id=<from the rendered login form>' \
+  --data-urlencode "auth_session_id=$AUTH_SESSION_ID" \
   --data-urlencode 'username=ada' \
   --data-urlencode 'password=correct-horse-battery'
 ```
@@ -1161,18 +1207,36 @@ completes:
 
 ```bash
 curl -sS -o /dev/null -w '%{http_code}\n' \
-  'http://localhost:3000/realms/register-demo/login-actions/action-token?key=Svg-O_YO2-17Ir9O1FmJn-keUGk0qYTuDUzwBS2zNpU'
-# 200
+  'http://localhost:3000/realms/register-demo/login-actions/action-token?key=T-KtGmS4CxncUMHktuxL4EVHtBzBQ7fDqL6NzVz05BA'
+```
+
+```
+200
+```
+
+```bash
+AUTH_SESSION_ID=$(curl -sS --get \
+  --data-urlencode 'response_type=code' \
+  --data-urlencode 'client_id=register-spa' \
+  --data-urlencode 'redirect_uri=http://localhost:8080/callback' \
+  --data-urlencode 'scope=openid email' \
+  --data-urlencode 'state=xyz123' \
+  --data-urlencode 'nonce=abc123' \
+  --data-urlencode 'code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM' \
+  --data-urlencode 'code_challenge_method=S256' \
+  'http://localhost:3000/realms/register-demo/protocol/openid-connect/auth' \
+  | sed -n 's/.*name="auth_session_id" value="\([^"]*\)".*/\1/p')
+
 curl -sS -i -X POST http://localhost:3000/realms/register-demo/login-actions/authenticate \
-  --data-urlencode 'auth_session_id=<from a fresh /authorize>' \
+  --data-urlencode "auth_session_id=$AUTH_SESSION_ID" \
   --data-urlencode 'username=ada' \
   --data-urlencode 'password=correct-horse-battery'
 ```
 
 ```
 HTTP/1.1 302 Found
-set-cookie: register-demo-session=01a0a139-…; HttpOnly; SameSite=Lax; Path=/
-location: http://localhost:8080/callback?code=uG-oRyMGCzcpOJZwtwOTTsE1QJPjeWQrp-MnTf-l1HY&state=xyz123&iss=http%3A%2F%2Flocalhost%3A3000%2Frealms%2Fregister-demo
+set-cookie: register-demo-session=01a0a14e-…; HttpOnly; SameSite=Lax; Path=/
+location: http://localhost:8080/callback?code=tGYl5seSh4jl2tU7-0s2eXNgYDVBDrSjT72wXB_X0FQ&state=xyz123&iss=http%3A%2F%2Flocalhost%3A3000%2Frealms%2Fregister-demo
 ```
 
 `users.email` is unique per realm, not globally — `email` alone would be a
@@ -1181,7 +1245,7 @@ this realm** is refused:
 
 ```bash
 curl -sS -X POST http://localhost:3000/realms/register-demo/login-actions/registration \
-  --data-urlencode 'username=grace' \
+  --data-urlencode 'username=carol' \
   --data-urlencode 'email=ada@example.com' \
   --data-urlencode 'password=another-password'
 ```
@@ -1199,7 +1263,9 @@ curl -sS -X POST http://localhost:3000/realms/register-demo/login-actions/regist
 
 (400; the same address remains free to register again in a different realm,
 since the uniqueness `packages/db/drizzle/0023_users_email_unique.sql` adds
-is `(realm_id, email)`, not `email` alone.)
+is `(realm_id, email)`, not `email` alone.) A duplicate **username** and a
+malformed address are both refused the same way — 400, with a message
+naming which — rather than an unhandled error.
 
 A realm with `verify_email` off skips the mail and the gate above entirely:
 the account created is usable at the next login, the same way a

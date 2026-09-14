@@ -58,8 +58,11 @@ export type LoginSubmissionOutcome =
   // The password was right, but the realm requires a verified address and
   // this one is not yet. Nothing is established and no code is issued; the
   // authentication session is left unconsumed so the same session can
-  // retry once the address is verified.
-  | { kind: 'unverified'; authSessionId: string }
+  // retry once the address is verified. `hasEmail` is false for an account
+  // with no address at all (every seeded-without-email account, once a
+  // realm turns verify_email on) — the rendered page must not tell that
+  // user mail was sent, since none was.
+  | { kind: 'unverified'; authSessionId: string; hasEmail: boolean }
   // Authentication succeeded, and the request is still answered with an
   // error at the client's redirect_uri: no SSO session is established and no
   // code is issued, so there is no cookie to set either.
@@ -99,8 +102,12 @@ export interface LoginSubmissionDeps {
   resolveClientId(realmId: string, oauthClientId: string): Promise<string | null>;
   // Read only when the realm's verify_email is on: the cost of an extra
   // lookup on every login is not worth paying for realms that never turn
-  // it on.
-  isEmailVerified(realmId: string, subjectId: string): Promise<boolean>;
+  // it on. `hasEmail` lets the unverified page tell a null-address account
+  // apart from an unverified one instead of claiming mail it never sent.
+  checkEmailVerification(
+    realmId: string,
+    subjectId: string,
+  ): Promise<{ verified: boolean; hasEmail: boolean }>;
   // Consumes the authentication session and, only if that succeeds,
   // establishes the SSO session and issues the authorization code — all in
   // the one transaction this name promises. See index.ts for the wiring
@@ -157,8 +164,11 @@ export async function handleLoginSubmission(
     return { kind: 'reject', authSessionId };
   }
 
-  if (realm.verifyEmail && !(await deps.isEmailVerified(realm.id, result.subjectId))) {
-    return { kind: 'unverified', authSessionId };
+  if (realm.verifyEmail) {
+    const status = await deps.checkEmailVerification(realm.id, result.subjectId);
+    if (!status.verified) {
+      return { kind: 'unverified', authSessionId, hasEmail: status.hasEmail };
+    }
   }
 
   // The only source of scope, redirect_uri, nonce, state and code_challenge
