@@ -1783,7 +1783,10 @@ session lifecycle. A citation of either half here means that half.
 
 - **No consent screen.** Every requested scope within `openid profile email`
   is granted without asking the user. There is no per-client scope allowlist
-  for interactive grants either. **P3**, the phase named for consent.
+  for interactive grants either. **P3**, the phase named for consent, and —
+  since 2026-09-14 — the phase whose exit criterion names it too: a screen a
+  user can refuse, the per-client scope allowlist that decides what it asks
+  for, and a recorded grant.
 - **No session reuse.** The SSO cookie is set at login and never read.
   `prompt=none` therefore always answers `login_required`, and `prompt=login`
   is what happens anyway, because authentication is unconditional. **P2b**,
@@ -1840,9 +1843,7 @@ session lifecycle. A citation of either half here means that half.
 - **No registration, password reset or account recovery.** All three wait on
   email, which is **P2a**: an unverified self-registered address is an
   account-takeover primitive, so address verification has to exist before
-  registration is useful. P2a's exit criterion names self-registration and
-  address verification; password reset is named in the roadmap's prose as
-  one more thing email blocks, and not in the criterion itself.
+  registration is useful. P2a's exit criterion names all three.
 - **No "remember me".** A persistent session is a session-lifespan setting,
   and lifespans are **P2b**'s; the feature itself is not named in the
   roadmap.
@@ -1870,8 +1871,9 @@ session lifecycle. A citation of either half here means that half.
   included. **Deliberately unplaced**, as above.
 - **No `resource` or `audience` request parameter.** A client's audiences
   are whatever its registration says. RFC 8707 resource indicators are
-  **P3**, where the deferred clause rows about audience configuration point;
-  P3's exit criterion does not name them, and it should.
+  **P3**, whose exit criterion names them alongside the per-client audience
+  configuration that makes `aud` derived rather than asserted — which is
+  where the deferred clause rows in `docs/protocols/rfc9068.md` point.
 
 **`/userinfo`**
 
@@ -1880,7 +1882,8 @@ session lifecycle. A citation of either half here means that half.
   the members of a JSON object unless a signed or encrypted response was
   requested during Client Registration", and no client can request one
   because there is no client registration to request it in. The clauses
-  arrive with the registration that carries them, at **P3**.
+  arrive with the registration that carries them, at **P3**, whose exit
+  criterion names signed and encrypted UserInfo responses for that reason.
 - **No `claims` request parameter.** A decision: §5.5 says "Support for the
   `claims` parameter is OPTIONAL", and the two ID Token clauses that depend
   on it are deferred to **P3** with the per-client machinery.
@@ -1891,10 +1894,12 @@ session lifecycle. A citation of either half here means that half.
 - **Four claims exist in total**: `sub`, `name`, `email`, `email_verified`,
   and `name` is the username because there is no separate display name yet.
   The standard claims beyond these four need a user profile — attributes,
-  their storage and their mapping — and **no phase in the roadmap names
-  one.** P2a brings roles, groups and client scopes; P4 brings
-  admin-configurable protocol mappers, which map attributes that would still
-  not exist. This is recorded as unplaced rather than left to look planned.
+  their storage and their mapping — which is **P2a**, whose exit criterion
+  names it beside roles, groups and client scopes. It went there rather than
+  to P4 because it changes the token contract, and because P4's
+  admin-configurable protocol mappers would otherwise be configuring
+  mappings over attributes that do not exist: P2a owns the attributes and
+  the claims they produce, P4 owns reconfiguring that mapping.
 
 **Endpoints that do not exist at all**
 
@@ -1932,12 +1937,20 @@ session lifecycle. A citation of either half here means that half.
   development, unacceptable anywhere else.
 - **One instance only.** Migrations run on boot from every process with no
   advisory lock, so replicas would race. **P11.**
+- **No published image, no release process, no secret store beyond the
+  process environment, and no backup or restore guidance.** **P12**,
+  Operational readiness, appended on 2026-09-14 because none of it had a
+  phase. Its position in the table is not a dependency: publishing an image
+  waits on nothing, and `README.md` says what can be pulled forward.
 - **Key rotation is not implemented.** A realm has one active signing key,
   created when it is seeded; the shape supports more than one, and the
-  operation that would create a second does not exist. The roadmap leaves
-  the rotation operation **unplaced on purpose** — its prose has said P3 and
-  P4 at different times — and asks whichever phase takes it to say so in its
-  exit criterion. Until one does, there is no date for this.
+  operation that would create a second does not exist. **P4**, whose exit
+  criterion now names promoting a new key and retiring the one it replaces
+  on the overlap window the design specification states. It landed there
+  rather than in P3 because no relying party's request triggers a rotation:
+  it is an operator action, and it needs the authenticated administrator,
+  the audit event and the surface to trigger it from that P4 is the phase
+  for.
 - **Nothing is ever deleted.** Every expired `sessions`,
   `authentication_sessions`, `authorization_codes` and `refresh_tokens` row
   is still on disk; expiry is enforced at read time, so none of them can be

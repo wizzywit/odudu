@@ -16,6 +16,18 @@ phase rather than a digit, and `pnpm trace` skips `deferred:` rows, so a
 mistake there would never surface. **An existing `deferred: P2` row means
 P2b** unless it concerns roles, groups, web origins or email.
 
+**A fourth joined P2a on 2026-09-14: the user profile.** Today a subject has
+four claims — `sub`, `name`, `email`, `email_verified` — and `name` is the
+username, because no display name exists. The standard OIDC claims need user
+attributes, their storage and their mapping, and that is the same identity
+model as roles and groups, changing the token contract the same way. It went
+here rather than to P4 because P4's admin-configurable protocol mappers
+would otherwise configure mappings over attributes that do not exist: P2a
+owns the attributes and the claims they produce, P4 owns reconfiguring the
+mapping. P2a's estimate moved from 70–100 to 90–130 hours with it, and its
+exit criterion names it. Scope it after roles — the claim machinery roles
+build is what carries it.
+
 **Start P2a with these three, in this order.** They were added on 2026-09-13
 after reading Keycloak's surface against the whole roadmap, and they come
 first because each changes work that follows rather than adding to it.
@@ -159,10 +171,12 @@ configuration behind real TLS.
 (`active` / `rotating` / `retired`) and `not_after` from migration 0003;
 JWKS publishes every non-retired key, signing selects the active one, and
 `signing_keys_one_active` permits exactly one active key. The _operation_
-that promotes and retires keys does not exist — the phase spec put it at
-"P3 or P4, whichever first has a caller". Nothing in P2 needs it, but a
-deployment running long enough to want a new key today has no supported way
-to get one.
+that promotes and retires keys does not exist. It is **P4**'s as of
+2026-09-14, and P4's exit criterion names it: no relying party's request
+triggers a rotation, so it needs the authenticated administrator, the audit
+event and the surface P4 builds, none of which P3 has. Nothing in P2 needs
+it, and nothing forbids an earlier CLI, but a deployment running long enough
+to want a new key today has no supported way to get one.
 
 **`user_credentials.type` is P2's to widen.** Migration 0005 constrains it
 to `CHECK (type IN ('password'))`, with `UNIQUE (subject_id, type)` beside
@@ -179,7 +193,9 @@ performed" is the shape of them, unreachable while `/authorize` starts a
 fresh authentication every time and never reads the SSO cookie it sets.
 Read them before scoping P2; they are its requirements, already written
 down. The other 36 are P3's (consent, dynamic registration, audience
-configuration, RFC 8707 `resource` indicators).
+configuration, RFC 8707 `resource` indicators) — all of which P3's exit
+criterion now names, along with consent and signed or encrypted UserInfo
+responses, none of which it named before 2026-09-14.
 
 **Known limitations carried into P1 are still carried**, at the end of this
 file — the `id_token_hint` audience, cookie namespacing, the single RLS
@@ -688,6 +704,14 @@ once one is in the field; and multi-replica deployment is blocked on
 migration locking and a shared session cache, both P11. The protocol surface
 itself is no longer among them — P1 shipped it, and `README.md` describes
 what it serves.
+
+**All of those now have a phase, as of 2026-09-14.** The first three became
+**P12**, Operational readiness, appended to the roadmap rather than folded
+into P11 — same audience, different work, and an exit criterion that can be
+failed is worth more than a wider one that cannot. Signing-key rotation went
+to P4. P12 sits last in the table and is not last in dependency order:
+publishing an image depends on no other phase and is the prerequisite for
+anybody deploying this at all, so it is the piece to pull forward first.
 
 The fully-local path (your own Postgres, no Docker) needs exactly one
 bootstrap statement — `CREATE USER odudu_svc` — because migration 0001
