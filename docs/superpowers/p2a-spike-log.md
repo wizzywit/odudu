@@ -31,3 +31,30 @@ database lookup allowed it, and returned no `access-control-allow-origin`
 header at all for the same origin against a different realm, so Task 3 can
 read the realm-wide origin union from PostgreSQL inside this delegator on
 every request instead of adding a bespoke `onRequest` hook.
+
+## URL.origin normalization
+
+Question: does `URL.origin` drop a scheme's default port (`443` for
+`https:`, `80` for `http:`) while keeping every other port, including on an
+IPv6 literal host?
+
+Command run:
+
+```
+node -e "for (const u of ['https://a.example:443','https://a.example','http://a.example:80','https://a.example:8443','http://[::1]:3000']) console.log(u, '->', new URL(u).origin)"
+```
+
+Verbatim output:
+
+```
+https://a.example:443 -> https://a.example
+https://a.example -> https://a.example
+http://a.example:80 -> http://a.example
+https://a.example:8443 -> https://a.example:8443
+http://[::1]:3000 -> http://[::1]:3000
+```
+
+Conclusion: `verified: node -e ... new URL(u).origin` — a scheme's default
+port is dropped, every other port (including on an IPv6 literal) is kept, so
+`normalizeOrigin` can build directly on `URL.origin` without its own port
+table.

@@ -24,6 +24,7 @@ export const clientOidcConfig = pgTable('client_oidc_config', {
   // covers, since this grant has no consent screen and no authorization
   // request to intersect against.
   clientCredentialsScopes: text('client_credentials_scopes').array().notNull().default([]),
+  webOrigins: text('web_origins').array().notNull().default([]),
 }).enableRLS();
 
 // Redirect URIs and grant types are OAuth vocabulary; they live here rather
@@ -39,4 +40,5 @@ export interface ClientOidcConfig {
   accessTokenTtlSeconds: number;
   refreshTokenTtlSeconds: number;
   clientCredentialsScopes: string[];
+  webOrigins: string[];
 }

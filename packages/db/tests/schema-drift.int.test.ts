@@ -43,6 +43,8 @@ const EXPECTED_CHECKS: Record<string, string> = {
     "CHECK (((cardinality(redirect_uris) >= 1) OR (grant_types = ARRAY['client_credentials'::text])))",
   'client_oidc_config.client_oidc_config_refresh_token_ttl_floor':
     'CHECK ((refresh_token_ttl_seconds >= 1))',
+  'client_oidc_config.client_oidc_config_web_origins_shape':
+    'CHECK (web_origins_are_valid(web_origins))',
   'clients.clients_secret_matches_type':
     "CHECK ((((type = 'confidential'::text) AND (secret_hash IS NOT NULL)) OR ((type = 'public'::text) AND (secret_hash IS NULL))))",
   'clients.clients_type_check':

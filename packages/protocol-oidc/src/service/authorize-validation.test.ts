@@ -31,6 +31,7 @@ const config: ClientOidcConfig = {
   accessTokenTtlSeconds: 300,
   refreshTokenTtlSeconds: 1_209_600,
   clientCredentialsScopes: [],
+  webOrigins: [],
 };
 
 const params: Record<string, string | undefined> = {
