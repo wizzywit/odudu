@@ -7,6 +7,7 @@ import {
   type DatabaseHandle,
   type RealmScopedDatabase,
 } from '@odudu/db';
+import { expectCrossRealmMethodProbe } from '@odudu/db/testing';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -97,14 +98,13 @@ async function causeMessage(promise: Promise<unknown>): Promise<string> {
 }
 
 describe('client scope names', () => {
-  it('refuses a name containing a space, which is the scope separator', async () => {
-    expect(await causeMessage(create({ name: 'read write' }))).toContain(
-      'client_scopes_name_is_scope_token',
-    );
-  });
-
-  it('refuses an empty name', async () => {
-    expect(await causeMessage(create({ name: '' }))).toContain('client_scopes_name_is_scope_token');
+  it.each([
+    ['a space, which is the scope separator', 'read write'],
+    ['empty', ''],
+    ['a double quote, one of the range exclusions', 'read"write'],
+    ['a backslash, one of the range exclusions', 'read\\write'],
+  ])('refuses a name containing %s', async (_label, name) => {
+    expect(await causeMessage(create({ name }))).toContain('client_scopes_name_is_scope_token');
   });
 
   it('accepts the OIDC vocabulary and a resource-server style scope', async () => {
@@ -124,6 +124,70 @@ describe('client scope names', () => {
       'client_scopes_name_unique',
     );
     await expect(create({ name: 'roles', realmId: realmB })).resolves.toBeDefined();
+  });
+});
+
+describe('allForRealm', () => {
+  it('returns every scope created in the realm', async () => {
+    const realmId = newId();
+    await withRealm(app.db, realmId, (tx) => seedRealm(tx, realmId));
+    await create({ name: 'openid', realmId });
+    await create({ name: 'reports:read', realmId });
+
+    const scopes = await withRealm(app.db, realmId, (tx) =>
+      clientScopeRepository(tx).allForRealm(),
+    );
+
+    expect(scopes.map((scope) => scope.name).sort()).toEqual(['openid', 'reports:read']);
+  });
+
+  it('does not return another realm’s scopes', async () => {
+    await expectCrossRealmMethodProbe(app.db, {
+      seed: async (tx, realmId) => {
+        await seedRealm(tx, realmId);
+        await clientScopeRepository(tx).create({ realmId, name: 'openid' });
+      },
+      verifySeeded: async (tx) => {
+        const scopes = await clientScopeRepository(tx).allForRealm();
+        expect(scopes.map((scope) => scope.name)).toContain('openid');
+      },
+      attempt: async (tx) => clientScopeRepository(tx).allForRealm(),
+      expectBlocked: (result) => {
+        expect(result).toEqual([]);
+      },
+    });
+  });
+});
+
+describe('byName', () => {
+  it('finds a scope created in the realm', async () => {
+    const realmId = newId();
+    await withRealm(app.db, realmId, (tx) => seedRealm(tx, realmId));
+    await create({ name: 'reports:read', realmId });
+
+    const found = await withRealm(app.db, realmId, (tx) =>
+      clientScopeRepository(tx).byName('reports:read'),
+    );
+
+    expect(found?.name).toBe('reports:read');
+  });
+
+  it('cannot find another realm’s scope by name', async () => {
+    await expectCrossRealmMethodProbe(app.db, {
+      seed: async (tx, realmId) => {
+        await seedRealm(tx, realmId);
+        await clientScopeRepository(tx).create({ realmId, name: 'reports:read' });
+        return 'reports:read';
+      },
+      verifySeeded: async (tx, name) => {
+        const found = await clientScopeRepository(tx).byName(name);
+        expect(found).not.toBeNull();
+      },
+      attempt: async (tx, name) => clientScopeRepository(tx).byName(name),
+      expectBlocked: (result) => {
+        expect(result).toBeNull();
+      },
+    });
   });
 });
 
