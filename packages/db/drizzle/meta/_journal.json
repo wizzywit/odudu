@@ -169,6 +169,13 @@
       "when": 1789049381666,
       "tag": "0023_users_email_unique",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1789049381667,
+      "tag": "0024_verified_phone_is_e164",
+      "breakpoints": true
     }
   ]
 }

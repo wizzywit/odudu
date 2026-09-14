@@ -231,6 +231,17 @@ describe('[OIDC-CORE-5.1.1-01] address mapper', () => {
     const claims = await standardClaimMappers().assemble(['openid', 'address'], ctxWith({}));
     expect(claims).not.toHaveProperty('address');
   });
+
+  it('returns formatted and individual fields together when both are stored', async () => {
+    const claims = await standardClaimMappers().assemble(
+      ['openid', 'address'],
+      ctxWith({ addressFormatted: '221B Baker Street, London', addressLocality: 'London' }),
+    );
+    expect(claims.address).toEqual({
+      formatted: '221B Baker Street, London',
+      locality: 'London',
+    });
+  });
 });
 
 describe('[OIDC-CORE-5.4-02] phone mapper', () => {

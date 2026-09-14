@@ -74,6 +74,8 @@ const EXPECTED_CHECKS: Record<string, string> = {
     "CHECK (((locale IS NULL) OR (locale ~ '^[A-Za-z]{2,3}(-[A-Za-z]{4})?(-([A-Za-z]{2}|[0-9]{3}))?$'::text)))",
   'users.users_profile_urls_are_http':
     "CHECK ((((profile IS NULL) OR (profile ~ '^https?://'::text)) AND ((picture IS NULL) OR (picture ~ '^https?://'::text)) AND ((website IS NULL) OR (website ~ '^https?://'::text))))",
+  'users.users_verified_phone_is_e164':
+    "CHECK (((NOT phone_number_verified) OR (phone_number ~ '^\\+[1-9][0-9]{1,14}(;ext=[0-9]+)?$'::text)))",
   'users.users_zoneinfo_shape':
     "CHECK (((zoneinfo IS NULL) OR (zoneinfo ~ '^[A-Za-z][A-Za-z0-9_+-]*(/[A-Za-z0-9_+-]+)*$'::text)))",
 };

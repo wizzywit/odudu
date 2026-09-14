@@ -124,6 +124,52 @@ describe('the database enforces what the claim promises', () => {
     }
   });
 
+  it('[OIDC-CORE-5.1-02] refuses a verified phone number that is not E.164', async () => {
+    const realmId = newId();
+    const subjectId = await withRealm(app.db, realmId, (tx) => seedUser(tx, realmId));
+
+    expect(
+      await causeMessage(
+        withRealm(app.db, realmId, (tx) =>
+          userRepository(tx).updateProfile(subjectId, {
+            phoneNumber: '(415) 555-2671',
+            phoneNumberVerified: true,
+          }),
+        ),
+      ),
+    ).toContain('users_verified_phone_is_e164');
+  });
+
+  it('[OIDC-CORE-5.1-03] refuses a verified phone number whose extension is not RFC 3966 digits', async () => {
+    const realmId = newId();
+    const subjectId = await withRealm(app.db, realmId, (tx) => seedUser(tx, realmId));
+
+    expect(
+      await causeMessage(
+        withRealm(app.db, realmId, (tx) =>
+          userRepository(tx).updateProfile(subjectId, {
+            phoneNumber: '+14155552671;ext=abc',
+            phoneNumberVerified: true,
+          }),
+        ),
+      ),
+    ).toContain('users_verified_phone_is_e164');
+  });
+
+  it('accepts a verified E.164 phone number with an RFC 3966 extension', async () => {
+    const realmId = newId();
+    const subjectId = await withRealm(app.db, realmId, (tx) => seedUser(tx, realmId));
+
+    await expect(
+      withRealm(app.db, realmId, (tx) =>
+        userRepository(tx).updateProfile(subjectId, {
+          phoneNumber: '+14155552671;ext=123',
+          phoneNumberVerified: true,
+        }),
+      ),
+    ).resolves.toBeDefined();
+  });
+
   it('refuses a profile URL that is not http or https', async () => {
     const realmId = newId();
     const subjectId = await withRealm(app.db, realmId, (tx) => seedUser(tx, realmId));

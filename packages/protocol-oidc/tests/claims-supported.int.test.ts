@@ -59,7 +59,7 @@ async function seedRealm(label: string): Promise<Realm> {
     await userRepository(tx).updateProfile(subject.id, {
       addressLocality: 'London',
       addressCountry: 'GB',
-      phoneNumber: '+1-201-555-0123',
+      phoneNumber: '+12015550123',
       phoneNumberVerified: true,
     });
 
@@ -195,7 +195,7 @@ describe('address and phone reach the ID token and /userinfo, once granted', () 
 
     expect(decode(idToken)).toMatchObject({
       address: { locality: 'London', country: 'GB' },
-      phone_number: '+1-201-555-0123',
+      phone_number: '+12015550123',
       phone_number_verified: true,
     });
   });
@@ -207,7 +207,7 @@ describe('address and phone reach the ID token and /userinfo, once granted', () 
 
     expect(await userinfo(realm, accessToken)).toMatchObject({
       address: { locality: 'London', country: 'GB' },
-      phone_number: '+1-201-555-0123',
+      phone_number: '+12015550123',
       phone_number_verified: true,
     });
   });
