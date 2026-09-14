@@ -841,6 +841,19 @@ The realm bootstrap that today creates a realm must now also create its seven sc
 
 `roles` and `groups` are off for the ID token deliberately: it reaches the browser, and a full role list there is size and disclosure a client cannot opt out of.
 
+**Amended during execution: seed only the three scopes whose claim mappers
+exist** — `openid`, `profile`, `email`. `standardClaimMappers()` registers
+`sub`, `profile` and `email` and nothing else, so seeding the other four would
+advertise in `scopes_supported` four promises about claims that no mapper
+produces — the same dishonesty `discovery.ts` already refuses in the other
+direction by holding `claims_supported` at `sub` until mappers existed. It
+would also un-skip `oidcc-scope-address`, `oidcc-scope-phone` and
+`oidcc-scope-all` in the conformance job, which would then fail. The remaining
+four rows above are created by the task that adds their mapper: `roles` and
+`groups` in Task 10, `address` and `phone` in Task 13. Defining them without
+assigning them is **not** an alternative — `scopes_supported` is built from
+`allForRealm()`, so a defined scope is an advertised one.
+
 - [ ] **Step 7: Run everything and commit**
 
 Run: `pnpm verify`
@@ -1750,6 +1763,14 @@ const groupsMapper: ClaimMapper<ClaimContext> = {
 
 Widen `ClaimContext` and register both in `standardClaimMappers()`.
 
+**In this same commit, add `roles` and `groups` to `REALM_DEFAULT_SCOPE_NAMES`**
+(`packages/domain-realm/src/usecase/provision-defaults.ts`) and to the default
+set `provisionClientDefaults` assigns. Task 4's seed was reduced to the three
+scopes whose mappers existed; a scope joins the realm vocabulary in the commit
+that makes it true, so that `scopes_supported` never advertises a promise
+nothing keeps. The discovery transcript in `docs/request-paths.md` changes with
+it and must be re-run, not edited.
+
 - [ ] **Step 4: Resolve in the usecase, not the mapper**
 
 `claims.ts` states that a mapper never runs a query: `service` is a leaf, and the usecase does the one lookup. Roles need a recursive CTE, so `userinfo.ts` and `token-issuance.ts` call `effectiveRoles` and `effectiveGroupPaths` **once** and pass the results in. Do not make the mapper query; the expensive work must happen once per issuance, not once per mapper.
@@ -2170,6 +2191,19 @@ Expected: FAIL — `profile` emits only `name`.
 - [ ] **Step 3: Implement the three mappers**
 
 `address` is a single JSON object claim (section 5.1.1), assembled from the six columns with absent components left out. The `profile` mapper keeps its username fallback for `name` — that is what holds P1's tested behaviour true for users who have no display name.
+
+**In this same commit, add `address` and `phone` to `REALM_DEFAULT_SCOPE_NAMES`**
+and to the default set `provisionClientDefaults` assigns, for the reason given
+in Task 4. These two are the last of the seven. Adding them un-skips
+`oidcc-scope-address`, `oidcc-scope-phone` and `oidcc-scope-all` in the
+conformance job — which is correct here, because the mappers that make them
+true land in this commit. **Expect that job to exercise them for the first
+time, and treat a failure there as this task's to fix**, not as pre-existing.
+
+Also emit `updated_at` (seconds since the epoch, from migration 0019's
+`profile_updated_at`) and `preferred_username` (falling back to
+`users.username` when the column is null), both named by section 5.4 and
+neither named elsewhere in this plan.
 
 - [ ] **Step 4: Write the honesty test**
 
