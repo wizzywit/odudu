@@ -1934,7 +1934,7 @@ git commit -m "Let a client see only the roles its scopes reach"
 
 **Files:**
 
-- Create: `packages/db/drizzle/0019_user_profile.sql`
+- Create: `packages/db/drizzle/0020_user_profile.sql`
 - Modify: `packages/db/drizzle/meta/_journal.json`
 - Modify: `packages/domain-identity/src/schema/users.ts`
 - Modify: `packages/domain-identity/src/repository/users.ts`
@@ -1955,7 +1955,7 @@ git commit -m "Let a client see only the roles its scopes reach"
 Constraints go **on the column the claim is emitted from**, which is migration 0012's precedent: validating in the repository alone left the rule enforced on no path that actually produces a claim.
 
 ```sql
--- packages/db/drizzle/0019_user_profile.sql
+-- packages/db/drizzle/0020_user_profile.sql
 ALTER TABLE users
   ADD COLUMN name                  text,
   ADD COLUMN given_name            text,
@@ -2002,7 +2002,7 @@ ALTER TABLE users ADD CONSTRAINT users_profile_urls_are_http
 
 **`phone_number` gets no constraint, deliberately.** Section 5.1 says E.164 is RECOMMENDED, not required; a CHECK enforcing it would refuse a conformant value, which is a bug dressed as rigour. Record that in the migration as a one-line comment, not as an essay.
 
-Append to `_journal.json`: `{ "idx": 19, "version": "7", "when": 1789049381662, "tag": "0019_user_profile", "breakpoints": true }`.
+Append to `_journal.json`: `{ "idx": 20, "version": "7", "when": 1789049381663, "tag": "0020_user_profile", "breakpoints": true }`.
 
 - [ ] **Step 2: Decide `users_lookup` explicitly**
 
@@ -2191,6 +2191,8 @@ Expected: FAIL — `profile` emits only `name`.
 - [ ] **Step 3: Implement the three mappers**
 
 `address` is a single JSON object claim (section 5.1.1), assembled from the six columns with absent components left out. The `profile` mapper keeps its username fallback for `name` — that is what holds P1's tested behaviour true for users who have no display name.
+
+**Migration 0019 was inserted during execution** — `client_scopes.include_in_access_token`, symmetric with `include_in_id_token`. Running the claim mapper registry on the access token, which Task 11 does to carry `roles` and `groups`, also moved `name`, `email` and `email_verified` there: an access token goes to the resource servers named in `aud`, which should not receive the end-user's address because the registry started running. The gate defaults true for `roles` and `groups` and false for `openid`, `profile` and `email`. Every migration from the user profile onward shifted by one.
 
 **In this same commit, add `address` and `phone` to `REALM_DEFAULT_SCOPE_NAMES`**
 and to the default set `provisionClientDefaults` assigns, for the reason given
@@ -2435,7 +2437,7 @@ git commit -m "Put one seam under every message this server will ever send"
 
 **Files:**
 
-- Create: `packages/db/drizzle/0020_action_tokens.sql`
+- Create: `packages/db/drizzle/0021_action_tokens.sql`
 - Modify: `packages/db/drizzle/meta/_journal.json`
 - Create: `packages/account/` (`package.json`, `tsconfig.json`, `src/index.ts`)
 - Create: `packages/account/src/schema/action-tokens.ts`
@@ -2453,7 +2455,7 @@ git commit -m "Put one seam under every message this server will ever send"
 - [ ] **Step 1: Write the migration**
 
 ```sql
--- packages/db/drizzle/0020_action_tokens.sql
+-- packages/db/drizzle/0021_action_tokens.sql
 CREATE TABLE action_tokens (
   id          uuid PRIMARY KEY,
   realm_id    uuid NOT NULL REFERENCES realms(id) ON DELETE CASCADE,
@@ -2479,7 +2481,7 @@ CREATE POLICY action_tokens_isolation ON action_tokens
   USING (realm_id = nullif(current_setting('app.realm_id', true), '')::uuid);
 ```
 
-Append to `_journal.json`: `{ "idx": 20, "version": "7", "when": 1789049381663, "tag": "0020_action_tokens", "breakpoints": true }`.
+Append to `_journal.json`: `{ "idx": 21, "version": "7", "when": 1789049381664, "tag": "0021_action_tokens", "breakpoints": true }`.
 
 - [ ] **Step 2: Write the failing integration test**
 
@@ -2596,7 +2598,7 @@ git commit -m "Mint an action token that can be spent once and is never thrown a
 
 **Files:**
 
-- Create: `packages/db/drizzle/0021_realm_account_settings.sql`
+- Create: `packages/db/drizzle/0022_realm_account_settings.sql`
 - Modify: `packages/db/drizzle/meta/_journal.json`
 - Create: `packages/account/src/usecase/verify-email.ts`
 - Create: `packages/account/src/view/routes/action-token.ts`
@@ -2616,7 +2618,7 @@ git commit -m "Mint an action token that can be spent once and is never thrown a
 - [ ] **Step 1: Write the migration**
 
 ```sql
--- packages/db/drizzle/0021_realm_account_settings.sql
+-- packages/db/drizzle/0022_realm_account_settings.sql
 -- All three default off: a realm does not acquire a public registration
 -- endpoint because it was upgraded.
 ALTER TABLE realms
@@ -2625,7 +2627,7 @@ ALTER TABLE realms
   ADD COLUMN reset_password_allowed boolean NOT NULL DEFAULT false;
 ```
 
-Append to `_journal.json`: `{ "idx": 21, "version": "7", "when": 1789049381664, "tag": "0021_realm_account_settings", "breakpoints": true }`.
+Append to `_journal.json`: `{ "idx": 22, "version": "7", "when": 1789049381665, "tag": "0022_realm_account_settings", "breakpoints": true }`.
 
 - [ ] **Step 2: Write the failing integration test**
 
@@ -2719,7 +2721,7 @@ git commit -m "Make email_verified a claim about something that happened"
 
 **Files:**
 
-- Create: `packages/db/drizzle/0022_users_email_unique.sql`
+- Create: `packages/db/drizzle/0023_users_email_unique.sql`
 - Modify: `packages/db/drizzle/meta/_journal.json`
 - Create: `packages/account/src/usecase/register.ts`
 - Create: `packages/account/src/view/routes/registration.ts`
@@ -2735,7 +2737,7 @@ git commit -m "Make email_verified a claim about something that happened"
 - [ ] **Step 1: Write the migration, knowing it can be rejected**
 
 ```sql
--- packages/db/drizzle/0022_users_email_unique.sql
+-- packages/db/drizzle/0023_users_email_unique.sql
 -- Self-registration makes "is this address already taken?" a live question
 -- for the first time. This index can fail on a database that already holds
 -- duplicates; that failure is correct and the operator resolves it before
@@ -2743,7 +2745,7 @@ git commit -m "Make email_verified a claim about something that happened"
 CREATE UNIQUE INDEX users_email_unique ON users (realm_id, email) WHERE email IS NOT NULL;
 ```
 
-Append to `_journal.json`: `{ "idx": 22, "version": "7", "when": 1789049381665, "tag": "0022_users_email_unique", "breakpoints": true }`.
+Append to `_journal.json`: `{ "idx": 23, "version": "7", "when": 1789049381666, "tag": "0023_users_email_unique", "breakpoints": true }`.
 
 - [ ] **Step 2: Write the failing integration test**
 
