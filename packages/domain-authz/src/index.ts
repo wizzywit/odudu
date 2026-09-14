@@ -7,3 +7,4 @@ export {
   type RoleRecord,
 } from '#/schema/roles';
 export { roleRepository, type NewRole } from '#/repository/roles';
+export { effectiveRoles, type EffectiveRole } from '#/repository/effective-roles';
