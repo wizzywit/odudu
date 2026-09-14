@@ -15,7 +15,11 @@ async function serverDiscoveryDocument(): Promise<Record<string, unknown>> {
   const document = await resolveDiscoveryDocument(
     {
       findRealm: () =>
-        Promise.resolve({ id: '01a096f4-0000-0000-0000-000000000000', enabled: true }),
+        Promise.resolve({
+          id: '01a096f4-0000-0000-0000-000000000000',
+          enabled: true,
+          verifyEmail: false,
+        }),
       claimNames: () => claimMappers.claimNames(),
       // What `seed realm` puts in a realm, so the document is checked against
       // the vocabulary a freshly seeded stack actually serves.

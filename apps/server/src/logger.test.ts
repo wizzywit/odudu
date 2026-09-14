@@ -1,4 +1,5 @@
 import { type DatabaseHandle } from '@odudu/db';
+import { capturingSender } from '@odudu/email';
 import { loadConfig, type Logger } from '@odudu/kernel';
 import { Writable } from 'node:stream';
 import { describe, expect, it } from 'vitest';
@@ -94,6 +95,7 @@ describe('createLogger', () => {
       ownerDatabase: database,
       kek: config.ODUDU_KEK,
       logger,
+      sender: capturingSender(),
     });
 
     await app.inject({
@@ -119,6 +121,7 @@ describe('createLogger', () => {
       ownerDatabase: database,
       kek: config.ODUDU_KEK,
       logger,
+      sender: capturingSender(),
     });
     app.get('/authorize-probe', () => ({ ok: true }));
 
@@ -145,6 +148,7 @@ describe('createLogger', () => {
       ownerDatabase: database,
       kek: config.ODUDU_KEK,
       logger,
+      sender: capturingSender(),
     });
     app.get('/set-cookie-probe', (_request, reply) => {
       reply.header('set-cookie', '__Host-alpha-session=super-secret-cookie-value');

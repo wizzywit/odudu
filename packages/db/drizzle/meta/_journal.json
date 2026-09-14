@@ -162,6 +162,13 @@
       "when": 1789049381665,
       "tag": "0022_realm_account_settings",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1789049381666,
+      "tag": "0023_users_email_unique",
+      "breakpoints": true
     }
   ]
 }

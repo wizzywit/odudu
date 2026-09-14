@@ -1,8 +1,21 @@
 import cookie from '@fastify/cookie';
 import formbody from '@fastify/formbody';
-import { realmSettingsRepository, registerActionTokenRoute } from '@odudu/account';
-import { type DatabaseHandle } from '@odudu/db';
-import { userRepository } from '@odudu/domain-identity';
+import {
+  realmSettingsRepository,
+  registerActionTokenRoute,
+  registerRegistrationRoute,
+  type CreateAccountResult,
+  type NewAccountInput,
+} from '@odudu/account';
+import { type DatabaseHandle, type RealmScopedDatabase } from '@odudu/db';
+import { roleRepository } from '@odudu/domain-authz';
+import {
+  credentialRepository,
+  hashPassword,
+  subjectRepository,
+  userRepository,
+} from '@odudu/domain-identity';
+import { type EmailSender } from '@odudu/email';
 import { newId } from '@odudu/kernel';
 import { oidcRoutes } from '@odudu/protocol-oidc';
 import Fastify, { type FastifyInstance, type RawServerDefault } from 'fastify';
@@ -30,12 +43,50 @@ export interface AppDeps {
   readonly kek: Uint8Array;
   readonly logger: PinoLogger;
   /**
+   * Where a mailed link goes: address verification triggered by
+   * self-registration. Required rather than defaulted for the same reason
+   * `kek` is — there is no safe placeholder that would not silently drop
+   * mail, and `main.ts` builds the real one from `ODUDU_SMTP_*` while a
+   * test builds a capturing or in-memory one.
+   */
+  readonly sender: EmailSender;
+  /**
    * Whether to trust `X-Forwarded-*` headers when deriving `request.ip`.
    * Defaults to `false`: with no reverse proxy in front of the server,
    * those headers are client-controlled, and `request.ip` will later feed
    * rate limiting, brute-force lockout, and audit records.
    */
   readonly trustProxy?: boolean;
+}
+
+// The composition-root half of self-registration: @odudu/account never
+// imports @odudu/domain-identity (subjects, users, credentials) or
+// @odudu/domain-authz (roles), so the actual writes are wired here, inside
+// the one transaction packages/account/src/usecase/register.ts already
+// opened around this call and the verify_email token issued alongside it.
+async function createAccount(
+  tx: RealmScopedDatabase,
+  realmId: string,
+  input: NewAccountInput,
+): Promise<CreateAccountResult> {
+  const subject = await subjectRepository(tx).create({ realmId, type: 'user' });
+  await userRepository(tx).create({
+    subjectId: subject.id,
+    realmId,
+    username: input.username,
+    email: input.email,
+  });
+  await credentialRepository(tx).create({
+    realmId,
+    subjectId: subject.id,
+    type: 'password',
+    secretData: await hashPassword(input.password),
+  });
+  const defaults = await roleRepository(tx).defaultsForRealm();
+  for (const role of defaults) {
+    await roleRepository(tx).assignToSubject(subject.id, role.id);
+  }
+  return { subjectId: subject.id };
 }
 
 export function buildApp(deps: AppDeps): FastifyInstance {
@@ -73,6 +124,13 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     markVerified: async (tx, subjectId) => {
       await userRepository(tx).markEmailVerified(subjectId);
     },
+  });
+
+  registerRegistrationRoute(app, {
+    database: deps.database,
+    sender: deps.sender,
+    findRealm: (name) => realmSettingsRepository(deps.ownerDatabase.db).byName(name),
+    createAccount,
   });
 
   return app;

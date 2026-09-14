@@ -144,6 +144,11 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
         withRealm(deps.database.db, realmId, (tx) => advance(tx, authSessionId, input, clock)),
       loadPendingRequest: (realmId, authSessionId) =>
         withRealm(deps.database.db, realmId, (tx) => loadPendingRequest(tx, authSessionId)),
+      isEmailVerified: (realmId, subjectId) =>
+        withRealm(deps.database.db, realmId, async (tx) => {
+          const user = await userRepository(tx).bySubjectId(subjectId);
+          return user?.emailVerified ?? false;
+        }),
       resolveClientId: (realmId, oauthClientId) =>
         withRealm(deps.database.db, realmId, async (tx) => {
           const client = await clientRepository(tx).byClientId(oauthClientId);

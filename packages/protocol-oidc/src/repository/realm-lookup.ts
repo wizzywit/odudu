@@ -4,6 +4,11 @@ import { eq } from 'drizzle-orm';
 export interface RealmLookup {
   id: string;
   enabled: boolean;
+  // Read here, not just in @odudu/account's realmSettingsRepository,
+  // because the login flow is what actually has to refuse to complete
+  // until an unverified self-registered address is verified — see
+  // #/usecase/login-submission.ts.
+  verifyEmail: boolean;
 }
 
 export interface NewRealm {
@@ -21,7 +26,7 @@ export function realmLookupRepository(db: Database) {
   return {
     async byName(name: string): Promise<RealmLookup | null> {
       const rows = await db
-        .select({ id: realms.id, enabled: realms.enabled })
+        .select({ id: realms.id, enabled: realms.enabled, verifyEmail: realms.verifyEmail })
         .from(realms)
         .where(eq(realms.name, name));
       return rows[0] ?? null;
@@ -35,7 +40,7 @@ export function realmLookupRepository(db: Database) {
       const rows = await db
         .insert(realms)
         .values({ id: input.id, name: input.name, displayName: input.displayName ?? null })
-        .returning({ id: realms.id, enabled: realms.enabled });
+        .returning({ id: realms.id, enabled: realms.enabled, verifyEmail: realms.verifyEmail });
       const row = rows[0];
       if (row === undefined) {
         throw new Error('insert into realms returned no row');

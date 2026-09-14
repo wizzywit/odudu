@@ -1,4 +1,5 @@
 import { type DatabaseHandle } from '@odudu/db';
+import { capturingSender } from '@odudu/email';
 import { loadConfig } from '@odudu/kernel';
 import { describe, expect, it } from 'vitest';
 import { buildApp } from '#/app';
@@ -22,6 +23,7 @@ function appWithIpProbe(trustProxy?: boolean) {
     ownerDatabase: database,
     kek: config.ODUDU_KEK,
     logger: createLogger(config),
+    sender: capturingSender(),
     ...(trustProxy === undefined ? {} : { trustProxy }),
   });
   app.get('/ip-probe', (request) => ({ ip: request.ip }));

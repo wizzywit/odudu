@@ -23,6 +23,20 @@ export function renderAuthorizeErrorPage(error: string, description: string): st
 </html>`;
 }
 
+// No auth_session_id here, unlike renderLoginForm below: this page has no
+// form to resubmit, since the next step happens in the user's inbox, not on
+// this page.
+export function renderEmailUnverifiedPage(): string {
+  return `<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Verify your email</title></head>
+<body>
+<h1>Can't sign in yet</h1>
+<p>You need to verify your email address before you can sign in. We sent a link to the address on this account — follow it, then sign in again.</p>
+</body>
+</html>`;
+}
+
 // The hidden field is the whole of this page's CSRF defence: authSessionId
 // is an unguessable id (newId()) that only a browser which actually loaded
 // this response — rendered same-origin, never carried in a URL an attacker

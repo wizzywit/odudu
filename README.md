@@ -57,16 +57,26 @@ flips it. A realm carries three settings for the account lifecycle this
 begins — `registration_allowed`, `verify_email` and `reset_password_allowed`
 — each defaulting off, so upgrading a realm never silently grants it public
 registration or mailed verification. There is no admin surface to change
-them yet, and no registration flow that reads `verify_email` to decide
-whether to send anything; today `odudu seed --send-verification-email` is
-the only way to trigger a send, standing in for the admin console's "Send
-verification email" action until one exists. Outgoing mail goes through
-`ODUDU_SMTP_HOST`, `ODUDU_SMTP_PORT` (default `587`), `ODUDU_SMTP_FROM`,
-`ODUDU_SMTP_USERNAME`, `ODUDU_SMTP_PASSWORD` and `ODUDU_SMTP_STARTTLS`; leave
-`ODUDU_SMTP_HOST` unset and the server logs every message instead of sending
-it, which is what the compose stack does. See
+them yet, so flipping one means an `UPDATE realms SET …` against the
+database directly. Outgoing mail goes through `ODUDU_SMTP_HOST`,
+`ODUDU_SMTP_PORT` (default `587`), `ODUDU_SMTP_FROM`, `ODUDU_SMTP_USERNAME`,
+`ODUDU_SMTP_PASSWORD` and `ODUDU_SMTP_STARTTLS`; leave `ODUDU_SMTP_HOST`
+unset and the server logs every message instead of sending it, which is what
+the compose stack does. See
 [the address verification section of docs/request-paths.md](docs/request-paths.md#address-verification)
-for the walkthrough, captured message included.
+for that walkthrough, captured message included.
+
+`registration_allowed` now has a reader: `GET`/`POST
+/realms/{realm}/login-actions/registration` lets a user create their own
+account — subject, user row, password credential and the realm's default
+roles, all in one transaction — instead of an administrator seeding one in.
+When the realm's `verify_email` is also on, a self-registered address
+cannot complete a login until it is verified: no authorization code is
+issued, which is the property that made verification ship before
+registration rather than alongside it. `reset_password_allowed` still has
+no reader. See
+[the self-registration section of docs/request-paths.md](docs/request-paths.md#self-registration)
+for the walkthrough.
 
 > ### → [docs/request-paths.md](docs/request-paths.md)
 >

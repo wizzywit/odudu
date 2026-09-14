@@ -55,6 +55,11 @@ export async function issueAuthorizationCode(
 export type LoginSubmissionOutcome =
   | { kind: 'unauthenticated' }
   | { kind: 'reject'; authSessionId: string }
+  // The password was right, but the realm requires a verified address and
+  // this one is not yet. Nothing is established and no code is issued; the
+  // authentication session is left unconsumed so the same session can
+  // retry once the address is verified.
+  | { kind: 'unverified'; authSessionId: string }
   // Authentication succeeded, and the request is still answered with an
   // error at the client's redirect_uri: no SSO session is established and no
   // code is issued, so there is no cookie to set either.
@@ -92,6 +97,10 @@ export interface LoginSubmissionDeps {
   ): Promise<AuthenticatorResult>;
   loadPendingRequest(realmId: string, authSessionId: string): Promise<PendingRequest | null>;
   resolveClientId(realmId: string, oauthClientId: string): Promise<string | null>;
+  // Read only when the realm's verify_email is on: the cost of an extra
+  // lookup on every login is not worth paying for realms that never turn
+  // it on.
+  isEmailVerified(realmId: string, subjectId: string): Promise<boolean>;
   // Consumes the authentication session and, only if that succeeds,
   // establishes the SSO session and issues the authorization code — all in
   // the one transaction this name promises. See index.ts for the wiring
@@ -146,6 +155,10 @@ export async function handleLoginSubmission(
   }
   if (result.kind !== 'success') {
     return { kind: 'reject', authSessionId };
+  }
+
+  if (realm.verifyEmail && !(await deps.isEmailVerified(realm.id, result.subjectId))) {
+    return { kind: 'unverified', authSessionId };
   }
 
   // The only source of scope, redirect_uri, nonce, state and code_challenge

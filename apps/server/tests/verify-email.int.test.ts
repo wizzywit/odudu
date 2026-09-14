@@ -76,6 +76,7 @@ function buildTestApp(): FastifyInstance {
     ownerDatabase: owner,
     kek: KEK,
     logger: createLogger(config),
+    sender: capturingSender(),
   });
 }
 

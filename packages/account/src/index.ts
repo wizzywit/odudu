@@ -21,3 +21,20 @@ export {
   renderVerificationSucceededPage,
   sendVerificationHtml,
 } from '#/view/verification-html';
+export {
+  register,
+  type CreateAccountResult,
+  type NewAccountInput,
+  type RegisterDeps,
+  type RegisterOutcome,
+} from '#/usecase/register';
+export {
+  registerRegistrationRoute,
+  type RegistrationRealmLookup,
+  type RegistrationRouteDeps,
+} from '#/view/routes/registration';
+export {
+  renderRegistrationForm,
+  renderRegistrationFailedPage,
+  renderRegistrationSucceededPage,
+} from '#/view/registration-html';

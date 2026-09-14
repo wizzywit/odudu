@@ -27,6 +27,8 @@ the URL and never by a header or a parameter.
 | `GET`  | `/realms/{realm}/protocol/openid-connect/auth`     | Authorization endpoint                              |
 | `POST` | `/realms/{realm}/protocol/openid-connect/auth`     | Authorization endpoint (form)                       |
 | `POST` | `/realms/{realm}/login-actions/authenticate`       | Login form submission                               |
+| `GET`  | `/realms/{realm}/login-actions/registration`       | Self-registration form                              |
+| `POST` | `/realms/{realm}/login-actions/registration`       | Self-registration submission                        |
 | `GET`  | `/realms/{realm}/login-actions/action-token`       | Redeem a mailed action token (address verification) |
 | `POST` | `/realms/{realm}/protocol/openid-connect/token`    | Token endpoint                                      |
 | `GET`  | `/realms/{realm}/protocol/openid-connect/userinfo` | UserInfo                                            |
@@ -1055,6 +1057,153 @@ Every `ada` token or UserInfo response captured **above** this section in
 this document was captured before this run — that is why they read `false`
 and this section's own capture reads `true`: the account whose Bootstrap
 this document shares was verified here, not earlier.
+
+## Self-registration
+
+`GET`/`POST /realms/{realm}/login-actions/registration` is the first way a
+user reaches a realm without an administrator seeding them in. It answers
+only when the realm's `registration_allowed` is on — off by default, like
+`verify_email` and `reset_password_allowed` — so a realm serves nothing at
+all here until an operator turns it on:
+
+```bash
+odudu seed \
+  --realm register-demo --client register-spa \
+  --redirect-uri http://localhost:8080/callback
+curl -sS -o /dev/null -w '%{http_code}\n' \
+  http://localhost:3000/realms/register-demo/login-actions/registration
+```
+
+```
+404
+```
+
+There is no seed flag or admin surface for the three account-lifecycle
+settings yet (the same gap [Address verification](#address-verification)
+notes), so this run flips them with `psql` against the compose stack's
+database, the same one `odudu seed` writes to:
+
+```sql
+UPDATE realms SET registration_allowed = true, verify_email = true
+  WHERE id = '01a0a139-…';
+```
+
+With both on, posting the form creates the account and, because
+`verify_email` is on, sends a mail instead of leaving the address usable
+right away:
+
+```bash
+curl -sS -X POST http://localhost:3000/realms/register-demo/login-actions/registration \
+  --data-urlencode 'username=ada' \
+  --data-urlencode 'email=ada@example.com' \
+  --data-urlencode 'password=correct-horse-battery'
+```
+
+```
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Account created</title></head>
+<body>
+<h1>Account created</h1>
+<p>Check your email for a link to verify your address before you can sign in.</p>
+</body>
+</html>
+```
+
+The subject, the `users` row, the password credential and the realm's
+default roles are all created in one transaction, and the `verify_email`
+token is issued inside that same transaction — the mail goes out only after
+it commits, the same ordering [Address verification](#address-verification)
+establishes. With `ODUDU_SMTP_HOST` unset, the link lands in the container's
+log instead of an inbox:
+
+```json
+{
+  "level": 30,
+  "to": "ada@example.com",
+  "subject": "Verify your register-demo account",
+  "text": "Confirm your email address for register-demo by visiting this link:\n\nhttp://localhost:3000/realms/register-demo/login-actions/action-token?key=Svg-O_YO2-17Ir9O1FmJn-keUGk0qYTuDUzwBS2zNpU\n\nIf you did not request this, you can ignore this message.",
+  "msg": "captured email — no SMTP host configured"
+}
+```
+
+**This is the property the whole account-lifecycle build exists for**: an
+unverified self-registered address must not be able to complete a login, and
+the assertion is that no code is issued, not that a page says something.
+Requesting `/authorize` and submitting the login form with the password just
+set answers 200, not the usual 302:
+
+```bash
+curl -sS -i -X POST http://localhost:3000/realms/register-demo/login-actions/authenticate \
+  --data-urlencode 'auth_session_id=<from the rendered login form>' \
+  --data-urlencode 'username=ada' \
+  --data-urlencode 'password=correct-horse-battery'
+```
+
+```
+HTTP/1.1 200 OK
+content-type: text/html
+
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Verify your email</title></head>
+<body>
+<h1>Can't sign in yet</h1>
+<p>You need to verify your email address before you can sign in. We sent a link to the address on this account — follow it, then sign in again.</p>
+</body>
+</html>
+```
+
+No `location` and no `set-cookie` header are on that response — nothing was
+established and nothing was issued, which is the part a passing status code
+alone could not prove. Following the mailed link, the same login now
+completes:
+
+```bash
+curl -sS -o /dev/null -w '%{http_code}\n' \
+  'http://localhost:3000/realms/register-demo/login-actions/action-token?key=Svg-O_YO2-17Ir9O1FmJn-keUGk0qYTuDUzwBS2zNpU'
+# 200
+curl -sS -i -X POST http://localhost:3000/realms/register-demo/login-actions/authenticate \
+  --data-urlencode 'auth_session_id=<from a fresh /authorize>' \
+  --data-urlencode 'username=ada' \
+  --data-urlencode 'password=correct-horse-battery'
+```
+
+```
+HTTP/1.1 302 Found
+set-cookie: register-demo-session=01a0a139-…; HttpOnly; SameSite=Lax; Path=/
+location: http://localhost:8080/callback?code=uG-oRyMGCzcpOJZwtwOTTsE1QJPjeWQrp-MnTf-l1HY&state=xyz123&iss=http%3A%2F%2Flocalhost%3A3000%2Frealms%2Fregister-demo
+```
+
+`users.email` is unique per realm, not globally — `email` alone would be a
+tenancy bug — so a second registration for an address already held **in
+this realm** is refused:
+
+```bash
+curl -sS -X POST http://localhost:3000/realms/register-demo/login-actions/registration \
+  --data-urlencode 'username=grace' \
+  --data-urlencode 'email=ada@example.com' \
+  --data-urlencode 'password=another-password'
+```
+
+```
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Can't create this account</title></head>
+<body>
+<h1>Can't create this account</h1>
+<p>That email address is already registered.</p>
+</body>
+</html>
+```
+
+(400; the same address remains free to register again in a different realm,
+since the uniqueness `packages/db/drizzle/0023_users_email_unique.sql` adds
+is `(realm_id, email)`, not `email` alone.)
+
+A realm with `verify_email` off skips the mail and the gate above entirely:
+the account created is usable at the next login, the same way a
+seeded user always has been.
 
 ## Path B: refresh rotation
 
@@ -2241,15 +2390,15 @@ session lifecycle. A citation of either half here means that half.
   exit criterion is password, TOTP and passkey login through the flow tree.
   The flow engine behind the single password step is already a step list for
   that reason, but there is one step in it.
-- **No registration, password reset or account recovery.** Address
-  verification — the prerequisite, since an unverified self-registered
-  address is an account-takeover primitive — now exists
-  (`GET /realms/{realm}/login-actions/action-token`, walked through in
-  [Address verification](#address-verification)), but nothing yet triggers
-  it except an operator running `odudu seed --send-verification-email`:
-  `realms.verify_email`, `registration_allowed` and `reset_password_allowed`
-  are columns with no reader. The three flows built on top are **P2a**'s;
-  its exit criterion names all three.
+- **No password reset or account recovery.** Address verification
+  (`GET /realms/{realm}/login-actions/action-token`,
+  [Address verification](#address-verification)) and self-registration
+  (`GET`/`POST /realms/{realm}/login-actions/registration`,
+  [Self-registration](#self-registration)) both exist now, and a realm with
+  `verify_email` on refuses to complete a login for a self-registered
+  address until it is verified — no authorization code, not just a page
+  saying so. `reset_password_allowed` is still a column with no reader; the
+  reset flow built on it is **P2a**'s, whose exit criterion names it.
 - **No "remember me".** A persistent session is a session-lifespan setting,
   and lifespans are **P2b**'s; the feature itself is not named in the
   roadmap.
