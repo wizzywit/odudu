@@ -1292,7 +1292,7 @@ case-sensitive.
 Forcing reauthentication is what happens anyway, because authentication is
 unconditional. Holding the session cookie from a completed sign-in, both
 still answer 200 with a fresh login form. That equality is a gap, not a
-feature, and it closes in P2 when session reuse arrives — at which point
+feature, and it closes in P2b when session reuse arrives — at which point
 `prompt=login` starts meaning something the absence of `prompt` does not.
 
 ### `id_token_hint`
@@ -1332,6 +1332,12 @@ malformed request rather than answered with the prompt's own
 `login_required`: `prompt=none` decides how to answer a request, and a
 request carrying a hint this server cannot read is not yet a request to
 answer that way.
+
+An access token this realm minted for the same user is refused too, and not
+by any of the rows above: it carries `typ: at+jwt` (RFC 9068 §2.1), and the
+hint check demands a JWT that is not an access token. `/userinfo` makes the
+mirror image of that check of the token presented to it, so neither token
+type can stand in for the other in either direction.
 
 The realm row is the point of the whole check. Both tokens are RS256, both
 have the shape of an ID token, and both were signed by this server — by a
@@ -1764,77 +1770,149 @@ like the wrong secret.
 
 ## What is not implemented
 
-Per endpoint, with the phase that brings it. Phases are section 11 of
-`docs/superpowers/specs/2026-09-10-odudu-design.md`.
+Every item below is in exactly one of three states, and says which:
+**planned**, with the phase that brings it; **a decision**, with the clause
+or the ADR that settles it; or **deliberately unplaced**, which the roadmap
+means rather than forgets. Phases are section 11 of
+`docs/superpowers/specs/2026-09-10-odudu-design.md`, where the second phase
+is two: **P2a** is the identity model — roles, groups, client scopes,
+per-client web origins, email — and **P2b** is credentials, MFA and the
+session lifecycle. A citation of either half here means that half.
 
 **`/authorize`**
 
 - **No consent screen.** Every requested scope within `openid profile email`
   is granted without asking the user. There is no per-client scope allowlist
-  for interactive grants either. **P3.**
+  for interactive grants either. **P3**, the phase named for consent.
 - **No session reuse.** The SSO cookie is set at login and never read.
   `prompt=none` therefore always answers `login_required`, and `prompt=login`
-  is what happens anyway, because authentication is unconditional. **P2.**
-- **No `max_age`, `acr_values`, `display`, `ui_locales`, `claims_locales` or
-  `login_hint` behaviour.** They are accepted and ignored — including
-  `max_age=0`, which a client would expect to force reauthentication, and
-  values none of them define, such as `display=unheard_of`. Every one of
-  those requests answers 200 with the ordinary login form. Accepting and
-  ignoring is what OIDC Core allows for these; `prompt` is deliberately not
-  treated the same way, because it is the one that changes whether the end
+  is what happens anyway, because authentication is unconditional. **P2b**,
+  whose exit criterion is an SSO session that is read as well as written.
+- **`max_age` is accepted and ignored**, including `max_age=0`, which a
+  client would expect to force reauthentication. This one is an obligation
+  rather than a latitude: OIDC Core §15.1 requires every OP to support
+  "enforcing a maximum authentication age via the `max_age` parameter",
+  with none of the minimum-level-of-support caveat the parameters below
+  carry. **P2b** — reauthentication needs a session that can be judged
+  stale, and that is the phase which builds one. The clause row in
+  `docs/protocols/oidc-core.md` is the same deferral.
+- **`display`, `ui_locales`, `claims_locales` and `login_hint` are accepted
+  and ignored**, including values none of them define, such as
+  `display=unheard_of`; every one of those requests answers 200 with the
+  ordinary login form. A decision, not a gap: OIDC Core §15.1 asks of
+  `display` that "the minimum level of support required for this parameter
+  is simply that its use must not result in an error", and says the same of
+  `ui_locales` and `claims_locales`. `login_hint` is OPTIONAL in §3.1.2.1
+  and prefills a form this server does not prefill. `prompt` is deliberately
+  not treated this way, because it is the one that changes whether the end
   user is asked anything at all.
-- **An access token from this realm is accepted as an `id_token_hint`.** The
-  check is signature, issuer and `sub` (OIDC Core §3.1.2.2), all of which an
-  access token this realm minted satisfies; nothing here inspects `typ`. The
-  hint only names a subject, so this admits no authority a real ID token for
-  the same subject would not — but it is laxer than the name of the
-  parameter suggests, and is recorded here rather than left to be
-  discovered.
-- **No request objects.** `request` and `request_uri` are refused explicitly
-  rather than dropped. Pushed authorization requests (PAR) are not
-  implemented either.
+- **`acr_values` is accepted and ignored.** §15.1 allows exactly that — "the
+  minimum level of support required for this parameter is simply to have its
+  use not result in an error" — so what happens today conforms. Acting on
+  it, and reporting the result back in `acr` and `amr`, is step-up
+  authentication, which the roadmap leaves **deliberately unplaced** beside
+  PAR and DPoP, to be scoped with the FAPI 2.0 decision ADR 0016 points at.
+- **No request objects.** `request` and `request_uri` are refused explicitly,
+  with `request_not_supported` and `request_uri_not_supported` — which is
+  what OIDC Core §6.1 asks of an OP that does not support them, having first
+  said "Support for the `request` parameter is OPTIONAL". Pushed
+  authorization requests (PAR, RFC 9126) are **deliberately unplaced** for
+  the same reason as DPoP: both are prerequisites of the FAPI 2.0 profiles
+  ADR 0016 identifies, so they are scoped with that decision rather than
+  scattered across phases.
 - **PKCE is mandatory with no exception** and no per-client opt-out. This is
   a decision, not a gap: ADR 0016. A relying party that cannot do PKCE
   cannot use Odudu.
-- Only `response_type=code` and `response_mode=query`.
+- **Only `response_type=code` and `response_mode=query`.** Also a decision.
+  OAuth 2.1 removes the implicit grant, so OIDC Core's Implicit (§3.2) and
+  Hybrid (§3.3) flows are out of scope by construction — the clause table in
+  `docs/protocols/oidc-core.md` records them as `n/a` for that reason — and
+  with no flow that returns a response in the fragment there is no second
+  `response_mode` to offer. `response_modes_supported` states `["query"]`
+  rather than being omitted so that the advertisement matches.
 
 **Login**
 
-- **Password only.** TOTP, passkeys and any second factor are **P2**. The
-  flow engine behind the single password step is already a step list for
+- **Password only.** TOTP, passkeys and any second factor are **P2b**, whose
+  exit criterion is password, TOTP and passkey login through the flow tree.
+  The flow engine behind the single password step is already a step list for
   that reason, but there is one step in it.
-- **No registration, password reset, account recovery or "remember me".**
-- **No rate limiting or lockout** on failed sign-ins.
+- **No registration, password reset or account recovery.** All three wait on
+  email, which is **P2a**: an unverified self-registered address is an
+  account-takeover primitive, so address verification has to exist before
+  registration is useful. P2a's exit criterion names self-registration and
+  address verification; password reset is named in the roadmap's prose as
+  one more thing email blocks, and not in the criterion itself.
+- **No "remember me".** A persistent session is a session-lifespan setting,
+  and lifespans are **P2b**'s; the feature itself is not named in the
+  roadmap.
+- **No rate limiting or lockout** on failed sign-ins. **P2b**, whose exit
+  criterion names password policies and brute-force protection.
 - **The sign-in and error pages are hardcoded HTML**, dependency-free with
   every interpolated value escaped. Theming is **P10**; the contract for it
-  is deliberately left undecided until **P2** adds enough pages for the real
-  variation to be visible.
+  is deliberately left undecided until there are enough pages for the real
+  variation to be visible, which means until **P2a** adds registration and
+  verification pages and **P2b** adds the second-factor steps.
 
 **`/token`**
 
 - **No token exchange (RFC 8693)**, and so none of the delegation the agent
   identity layer is built on. **P5.**
-- **No device grant, no CIBA** (CIBA is **P5**), no resource owner password
-  credentials (removed by OAuth 2.1 and not coming back).
-- **No `private_key_jwt` or mTLS client authentication**; no DPoP or other
-  sender-constrained tokens. **P3 and later.**
+- **No CIBA.** **P5**, whose exit criterion is CIBA approvals end to end.
+- **No device authorization grant.** **Deliberately unplaced**, with PAR,
+  DPoP and step-up authentication, for the FAPI 2.0 scoping ADR 0016 points
+  at.
+- **No resource owner password credentials.** A decision: the grant is
+  removed by OAuth 2.1, and it is not coming back.
+- **No `private_key_jwt` or mTLS client authentication.** **P3**, whose exit
+  criterion names both.
+- **No DPoP or other sender-constrained tokens**, mTLS-bound tokens
+  included. **Deliberately unplaced**, as above.
 - **No `resource` or `audience` request parameter.** A client's audiences
-  are whatever its registration says.
+  are whatever its registration says. RFC 8707 resource indicators are
+  **P3**, where the deferred clause rows about audience configuration point;
+  P3's exit criterion does not name them, and it should.
 
 **`/userinfo`**
 
-- **No signed or encrypted UserInfo responses.** JSON only.
-- **No `claims` request parameter**, no aggregated or distributed claims.
-- Four claims exist in total: `sub`, `name`, `email`, `email_verified`, and
-  `name` is the username because there is no separate display name yet.
+- **No signed or encrypted UserInfo responses. JSON only.** Not a
+  conformance gap: OIDC Core §5.3.2 requires the claims to be "returned as
+  the members of a JSON object unless a signed or encrypted response was
+  requested during Client Registration", and no client can request one
+  because there is no client registration to request it in. The clauses
+  arrive with the registration that carries them, at **P3**.
+- **No `claims` request parameter.** A decision: §5.5 says "Support for the
+  `claims` parameter is OPTIONAL", and the two ID Token clauses that depend
+  on it are deferred to **P3** with the per-client machinery.
+- **No aggregated or distributed claims.** A decision, and the specification
+  is explicit: §5.6.2 says "Normal Claims MUST be supported. Support for
+  Aggregated Claims and Distributed Claims is OPTIONAL." No phase is owed
+  one.
+- **Four claims exist in total**: `sub`, `name`, `email`, `email_verified`,
+  and `name` is the username because there is no separate display name yet.
+  The standard claims beyond these four need a user profile — attributes,
+  their storage and their mapping — and **no phase in the roadmap names
+  one.** P2a brings roles, groups and client scopes; P4 brings
+  admin-configurable protocol mappers, which map attributes that would still
+  not exist. This is recorded as unplaced rather than left to look planned.
 
 **Endpoints that do not exist at all**
 
-- **Token introspection (RFC 7662) and revocation (RFC 7009).** A resource
-  server validates access tokens locally against the JWKS; revoking a grant
-  does not invalidate an already-issued access token before its `exp`.
-- **RP-initiated logout, front-channel and back-channel logout.** There is
-  no way to end an SSO session other than waiting out its 12 hours.
+- **Token introspection (RFC 7662) and revocation (RFC 7009).** **P3**,
+  whose exit criterion names both. Until then a resource server validates
+  access tokens locally against the JWKS, and revoking a grant does not
+  invalidate an already-issued access token before its `exp`.
+- **RP-initiated logout (`end_session_endpoint`).** **P2b**, whose exit
+  criterion ends the SSO session with it. It lands there rather than
+  earlier because an endpoint that ends a session nothing consults would be
+  theatre.
+- **Front-channel and back-channel logout.** **P3**: both are addressed to a
+  client rather than to a browser, so both need per-client
+  `frontchannel_logout_uri` and `backchannel_logout_uri` registered, which
+  is client-registration metadata.
+- **No administrative way to end somebody else's session.** Listing a
+  subject's sessions and ending one is **P4**, with the rest of the admin
+  surface, because until there is an admin API there is nowhere to put it.
 - **Dynamic client registration (RFC 7591).** **P3.** Today the seed command
   is the only way to create a client.
 - **Any admin API.** **P4.** The seed command is the only administrative
@@ -1845,13 +1923,25 @@ Per endpoint, with the phase that brings it. Phases are section 11 of
 
 **Operational**
 
-- **TLS is terminated in front of this server, never by it.** The server
-  speaks plain HTTP, and with `NODE_ENV=production` refuses to boot until
-  `ODUDU_TLS=true` asserts that something in front of it is doing that job.
-  Consequently the issuer is `http://` on the local stack, and the session
-  cookie drops its `__Host-` prefix and `Secure` attribute — correct for
-  local development, unacceptable anywhere else.
+- **TLS is terminated in front of this server, never by it.** A deployment
+  decision rather than a gap, and one the server enforces: it speaks plain
+  HTTP, and with `NODE_ENV=production` refuses to boot until `ODUDU_TLS=true`
+  asserts that something in front of it is doing that job. Consequently the
+  issuer is `http://` on the local stack, and the session cookie drops its
+  `__Host-` prefix and `Secure` attribute (ADR 0020) — correct for local
+  development, unacceptable anywhere else.
 - **One instance only.** Migrations run on boot from every process with no
   advisory lock, so replicas would race. **P11.**
 - **Key rotation is not implemented.** A realm has one active signing key,
-  created when it is seeded.
+  created when it is seeded; the shape supports more than one, and the
+  operation that would create a second does not exist. The roadmap leaves
+  the rotation operation **unplaced on purpose** — its prose has said P3 and
+  P4 at different times — and asks whichever phase takes it to say so in its
+  exit criterion. Until one does, there is no date for this.
+- **Nothing is ever deleted.** Every expired `sessions`,
+  `authentication_sessions`, `authorization_codes` and `refresh_tokens` row
+  is still on disk; expiry is enforced at read time, so none of them can be
+  used. **P2b**, which owns the retention window because a lifespan says when
+  something stops working and not when it stops existing. ADR 0021 carries
+  why deleting on `expires_at` alone would silently disable refresh-token
+  reuse detection.
