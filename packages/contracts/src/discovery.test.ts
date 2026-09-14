@@ -2,10 +2,14 @@ import { describe, expect, it } from 'vitest';
 import { discoveryDocument } from '#/discovery';
 
 const CLAIMS_SUPPORTED = ['sub', 'name', 'email', 'email_verified'];
+// Stands in for a realm's scope vocabulary, which is what the caller reads
+// and hands over; this package has no list of its own to fall back to.
+const SCOPES_SUPPORTED = ['openid', 'profile', 'email'];
 
 const doc = discoveryDocument({
   issuer: 'https://idp.example/realms/acme',
   claimsSupported: CLAIMS_SUPPORTED,
+  scopesSupported: SCOPES_SUPPORTED,
 });
 
 describe('[OIDC-DISCOVERY-3-01] the discovery document', () => {
@@ -48,6 +52,7 @@ describe('[OIDC-DISCOVERY-3-01] the discovery document', () => {
     const trimmed = discoveryDocument({
       issuer: 'https://idp.example/realms/acme/',
       claimsSupported: CLAIMS_SUPPORTED,
+      scopesSupported: SCOPES_SUPPORTED,
     });
     expect(trimmed.issuer).toBe('https://idp.example/realms/acme');
   });
@@ -78,8 +83,8 @@ describe('[OIDC-DISCOVERY-3-01] the discovery document', () => {
     expect(doc.id_token_signing_alg_values_supported).toEqual(['RS256', 'ES256']);
   });
 
-  it('advertises openid, profile and email', () => {
-    expect([...doc.scopes_supported].sort()).toEqual(['email', 'openid', 'profile']);
+  it('advertises exactly the scopes_supported list it was given, never a hardcoded one', () => {
+    expect(doc.scopes_supported).toBe(SCOPES_SUPPORTED);
   });
 
   it('advertises exactly the claims_supported list it was given, never a hardcoded one', () => {
@@ -98,15 +103,18 @@ describe('[OIDC-DISCOVERY-4.2-01] a metadata claim with zero elements', () => {
   });
 
   // Every other list in the document is built here from a literal that is
-  // never empty; claims_supported is the one passed in, so it is the only
-  // member whose emptiness is reachable from outside this package.
-  it('is omitted rather than published empty when the supplied claim list is empty', () => {
-    const noClaims = discoveryDocument({
+  // never empty; claims_supported and scopes_supported are the two passed
+  // in, so their emptiness is the only kind reachable from outside.
+  it('is omitted rather than published empty when the supplied list is empty', () => {
+    const empty = discoveryDocument({
       issuer: 'https://idp.example/realms/acme',
       claimsSupported: [],
+      scopesSupported: [],
     });
-    expect(Object.keys(noClaims)).not.toContain('claims_supported');
-    expect(JSON.stringify(noClaims)).not.toContain('claims_supported');
+    for (const member of ['claims_supported', 'scopes_supported']) {
+      expect(Object.keys(empty)).not.toContain(member);
+      expect(JSON.stringify(empty)).not.toContain(member);
+    }
   });
 
   // Dynamic client registration is P3's work: the member is left out

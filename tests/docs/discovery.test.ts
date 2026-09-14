@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { REALM_DEFAULT_SCOPE_NAMES } from '../../packages/domain-realm/src/usecase/provision-defaults.js';
 import { standardClaimMappers } from '../../packages/protocol-oidc/src/service/claims.js';
 import { resolveDiscoveryDocument } from '../../packages/protocol-oidc/src/usecase/discovery.js';
 import { jsonAfter, loadDocument } from './markdown.js';
@@ -16,6 +17,9 @@ async function serverDiscoveryDocument(): Promise<Record<string, unknown>> {
       findRealm: () =>
         Promise.resolve({ id: '01a096f4-0000-0000-0000-000000000000', enabled: true }),
       claimNames: () => claimMappers.claimNames(),
+      // What `seed realm` puts in a realm, so the document is checked against
+      // the vocabulary a freshly seeded stack actually serves.
+      scopesForRealm: () => Promise.resolve(REALM_DEFAULT_SCOPE_NAMES),
     },
     REALM,
     ISSUER_BASE,

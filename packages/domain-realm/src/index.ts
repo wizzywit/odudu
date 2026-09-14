@@ -8,4 +8,8 @@ export {
   type ClientScopeRecord,
 } from '#/schema/client-scopes';
 export { clientScopeRepository, type NewClientScope } from '#/repository/client-scopes';
-export { provisionRealmDefaults } from '#/usecase/provision-realm-defaults';
+export {
+  provisionClientDefaults,
+  provisionRealmDefaults,
+  REALM_DEFAULT_SCOPE_NAMES,
+} from '#/usecase/provision-defaults';

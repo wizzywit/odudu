@@ -9,6 +9,7 @@ import {
 } from '@odudu/domain-identity';
 import {
   clientRepository,
+  provisionClientDefaults,
   provisionRealmDefaults,
   verifyClientSecret,
   type ClientRecord,
@@ -261,6 +262,10 @@ async function performSeed(
       secretHash,
       serviceSubjectId,
     });
+
+    // The realm's standard OIDC vocabulary, without which /authorize would
+    // refuse `openid` on this client's very first request.
+    await provisionClientDefaults(tx, client.id);
 
     await clientOidcConfigRepository(tx).create({
       clientId: client.id,

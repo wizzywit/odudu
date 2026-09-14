@@ -20,9 +20,9 @@ export const clientOidcConfig = pgTable('client_oidc_config', {
   accessTokenTtlSeconds: integer('access_token_ttl_seconds').notNull().default(300),
   refreshTokenTtlSeconds: integer('refresh_token_ttl_seconds').notNull().default(1_209_600),
   // The ceiling on what client_credentials may request — resource-server
-  // scopes (e.g. `reports:read`), not the OIDC vocabulary SUPPORTED_SCOPES
-  // covers, since this grant has no consent screen and no authorization
-  // request to intersect against.
+  // scopes (e.g. `reports:read`), not the OIDC vocabulary the realm's
+  // client_scopes carry, since this grant has no consent screen and no
+  // authorization request to intersect against.
   clientCredentialsScopes: text('client_credentials_scopes').array().notNull().default([]),
   webOrigins: text('web_origins').array().notNull().default([]),
 }).enableRLS();

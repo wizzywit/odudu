@@ -9,7 +9,7 @@ import {
   type RealmScopedDatabase,
 } from '@odudu/db';
 import { expectCrossRealmMethodProbe } from '@odudu/db/testing';
-import { clients, provisionRealmDefaults } from '@odudu/domain-realm';
+import { clients, provisionClientDefaults, provisionRealmDefaults } from '@odudu/domain-realm';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -59,6 +59,7 @@ async function seedRealmClientSubject(
     type: 'confidential',
     secretHash: 'hashed:secret',
   });
+  await provisionClientDefaults(tx, clientDbId);
   const subject = await subjectRepository(tx).create({ realmId, type: 'user' });
   return { clientDbId, subjectId: subject.id };
 }

@@ -9,7 +9,7 @@ import {
   type DatabaseHandle,
   type RealmScopedDatabase,
 } from '@odudu/db';
-import { clients, provisionRealmDefaults } from '@odudu/domain-realm';
+import { clients, provisionClientDefaults, provisionRealmDefaults } from '@odudu/domain-realm';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import formbody from '@fastify/formbody';
@@ -86,6 +86,7 @@ async function setupRealm(label: string, audiences: string[] = []): Promise<Real
       type: 'confidential',
       secretHash: await hashPassword('supersecret'),
     });
+    await provisionClientDefaults(tx, webAppDbId);
     await clientOidcConfigRepository(tx).create({
       clientId: webAppDbId,
       realmId,

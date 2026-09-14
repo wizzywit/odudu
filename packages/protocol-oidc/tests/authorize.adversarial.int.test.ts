@@ -15,7 +15,7 @@ import {
   type GeneratedSigningKey,
   type SigningKeyRecord,
 } from '@odudu/crypto';
-import { clients, provisionRealmDefaults } from '@odudu/domain-realm';
+import { clients, provisionClientDefaults, provisionRealmDefaults } from '@odudu/domain-realm';
 import { newId } from '@odudu/kernel';
 import { eq } from 'drizzle-orm';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
@@ -208,6 +208,7 @@ beforeAll(async () => {
       type: 'confidential',
       secretHash: 'hashed:secret',
     });
+    await provisionClientDefaults(tx, clientId);
     await clientOidcConfigRepository(tx).create({
       clientId,
       realmId,
@@ -253,6 +254,7 @@ beforeAll(async () => {
       type: 'confidential',
       secretHash: 'hashed:secret',
     });
+    await provisionClientDefaults(tx, markupClientId);
     await clientOidcConfigRepository(tx).create({
       clientId: markupClientId,
       realmId: markupRealmId,

@@ -11,7 +11,7 @@ import {
   type RealmScopedDatabase,
 } from '@odudu/db';
 import { expectRealmIsolation } from '@odudu/db/testing';
-import { clients, provisionRealmDefaults } from '@odudu/domain-realm';
+import { clients, provisionClientDefaults, provisionRealmDefaults } from '@odudu/domain-realm';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import formbody from '@fastify/formbody';
@@ -87,6 +87,7 @@ async function setupTokenRealm(): Promise<void> {
       type: 'confidential',
       secretHash: await hashPassword('supersecret'),
     });
+    await provisionClientDefaults(tx, webAppDbId);
     await clientOidcConfigRepository(tx).create({
       clientId: webAppDbId,
       realmId: REALM_ID,
@@ -108,6 +109,7 @@ async function setupTokenRealm(): Promise<void> {
       type: 'confidential',
       secretHash: await hashPassword('othersecret'),
     });
+    await provisionClientDefaults(tx, otherAppDbId);
     await clientOidcConfigRepository(tx).create({
       clientId: otherAppDbId,
       realmId: REALM_ID,
@@ -129,6 +131,7 @@ async function setupTokenRealm(): Promise<void> {
       type: 'public',
       secretHash: null,
     });
+    await provisionClientDefaults(tx, spaDbId);
     await clientOidcConfigRepository(tx).create({
       clientId: spaDbId,
       realmId: REALM_ID,
@@ -150,6 +153,7 @@ async function setupTokenRealm(): Promise<void> {
       type: 'confidential',
       secretHash: await hashPassword('postsecret'),
     });
+    await provisionClientDefaults(tx, postAppDbId);
     await clientOidcConfigRepository(tx).create({
       clientId: postAppDbId,
       realmId: REALM_ID,
@@ -171,6 +175,7 @@ async function setupTokenRealm(): Promise<void> {
       type: 'confidential',
       secretHash: await hashPassword('refreshsecret'),
     });
+    await provisionClientDefaults(tx, refreshAppDbId);
     await clientOidcConfigRepository(tx).create({
       clientId: refreshAppDbId,
       realmId: REALM_ID,
@@ -192,6 +197,7 @@ async function setupTokenRealm(): Promise<void> {
       type: 'confidential',
       secretHash: await hashPassword(ODD_SECRET),
     });
+    await provisionClientDefaults(tx, oddSecretAppDbId);
     await clientOidcConfigRepository(tx).create({
       clientId: oddSecretAppDbId,
       realmId: REALM_ID,
@@ -1565,6 +1571,7 @@ describe('realm isolation', () => {
           type: 'confidential',
           secretHash: 'hashed:secret',
         });
+        await provisionClientDefaults(tx, clientDbId);
         const subject = await subjectRepository(tx).create({ realmId, type: 'user' });
         await tx.insert(tokenGrants).values({
           id: newId(),

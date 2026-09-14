@@ -1,6 +1,5 @@
 export {
   discoveryDocument,
-  SUPPORTED_SCOPES,
   type DiscoveryDocument,
   type DiscoveryDocumentOptions,
 } from '#/discovery';

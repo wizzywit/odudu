@@ -7,7 +7,7 @@ import {
   type DatabaseHandle,
   type RealmScopedDatabase,
 } from '@odudu/db';
-import { clients, provisionRealmDefaults } from '@odudu/domain-realm';
+import { clients, provisionClientDefaults, provisionRealmDefaults } from '@odudu/domain-realm';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -57,6 +57,7 @@ async function seedRealmAndClient(
     secretHash: 'hashed:secret',
     enabled,
   });
+  await provisionClientDefaults(tx, clientId);
 }
 
 async function insertConfigWithWebOrigins(webOrigins: string[]): Promise<unknown> {
@@ -97,6 +98,7 @@ async function seedClientWithOrigins(
         secretHash: 'hashed:secret',
         enabled,
       });
+      await provisionClientDefaults(tx, clientId);
     } else {
       await seedRealmAndClient(tx, realmId, clientId, enabled);
     }

@@ -7,7 +7,7 @@ import {
   type DatabaseHandle,
 } from '@odudu/db';
 import { subjects, users } from '@odudu/domain-identity';
-import { clients } from '@odudu/domain-realm';
+import { clients, clientScopeRepository, REALM_DEFAULT_SCOPE_NAMES } from '@odudu/domain-realm';
 import { newId } from '@odudu/kernel';
 import { clientOidcConfigRepository } from '@odudu/protocol-oidc';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
@@ -110,6 +110,19 @@ async function seededEmail(realmId: string, username: string): Promise<string | 
   return row.email;
 }
 
+async function assignedScopes(realmId: string, oauthClientId: string): Promise<string[]> {
+  return withRealm(owner.db, realmId, async (tx) => {
+    const clientRows = await tx
+      .select()
+      .from(clients)
+      .where(and(eq(clients.realmId, realmId), eq(clients.clientId, oauthClientId)));
+    const clientRow = clientRows[0];
+    if (clientRow === undefined) throw new Error(`no client ${oauthClientId} in realm ${realmId}`);
+    const scopes = await clientScopeRepository(tx).forClient(clientRow.id);
+    return scopes.map((scope) => scope.name).sort();
+  });
+}
+
 function uniqueOptions(): SeedOptions {
   const suffix = newId();
   return {
@@ -130,6 +143,18 @@ describe('seed', () => {
 
     expect(result).toMatchObject({ created: true, realm: options.realm, clientId: 'web-app' });
     expect(await countSigningKeys(result.realmId)).toBe(1);
+  });
+
+  // /authorize refuses a scope the client is not assigned, so a seeded
+  // client that got none would refuse `openid` on its very first request.
+  it('assigns the realm vocabulary to the client it creates', async () => {
+    const options = uniqueOptions();
+
+    const result = await seed(options);
+
+    expect(await assignedScopes(result.realmId, result.clientId)).toEqual(
+      [...REALM_DEFAULT_SCOPE_NAMES].sort(),
+    );
   });
 
   it('is idempotent: running twice does not duplicate or fail', async () => {

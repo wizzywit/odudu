@@ -34,6 +34,22 @@ const config: ClientOidcConfig = {
   webOrigins: [],
 };
 
+// One list stands for both halves of the rule these tests exercise: the
+// scopes the realm defines, and the ones this client is assigned. Tests that
+// need the halves to differ build their own sets.
+const REALM_SCOPES = ['openid', 'profile', 'email'];
+const KNOWN = new Set(REALM_SCOPES);
+const ASSIGNED = new Set(REALM_SCOPES);
+
+function validate(
+  p: Record<string, string | undefined>,
+  c: ClientRecord | null,
+  cfg: ClientOidcConfig | null,
+  repeatedKey: string | null = null,
+): ReturnType<typeof validateAuthorizationRequest> {
+  return validateAuthorizationRequest(p, c, cfg, KNOWN, ASSIGNED, repeatedKey);
+}
+
 const params: Record<string, string | undefined> = {
   response_type: 'code',
   client_id: 'oauth-client-1',
@@ -58,11 +74,11 @@ describe('[RFC6749-4.1.2.1-01] failures before redirect_uri is trusted must not 
       client,
     ],
   ])('renders rather than redirects: %s', (_label, p, c) => {
-    expect(validateAuthorizationRequest(p, c, config).kind).toBe('render');
+    expect(validate(p, c, config).kind).toBe('render');
   });
 
   it('renders for an enabled, known client whose OIDC config row is missing', () => {
-    expect(validateAuthorizationRequest(params, client, null)).toMatchObject({
+    expect(validate(params, client, null)).toMatchObject({
       kind: 'render',
       error: 'invalid_client',
     });
@@ -71,7 +87,7 @@ describe('[RFC6749-4.1.2.1-01] failures before redirect_uri is trusted must not 
 
 describe('a repeated non-trust query parameter redirects with invalid_request', () => {
   it('redirects rather than proceeding to any other check', () => {
-    expect(validateAuthorizationRequest(params, client, config, 'state')).toMatchObject({
+    expect(validate(params, client, config, 'state')).toMatchObject({
       kind: 'redirect',
       redirectUri: params.redirect_uri,
       error: 'invalid_request',
@@ -80,7 +96,7 @@ describe('a repeated non-trust query parameter redirects with invalid_request', 
   });
 
   it('takes priority over an otherwise-valid request', () => {
-    const outcome = validateAuthorizationRequest(params, client, config, 'scope');
+    const outcome = validate(params, client, config, 'scope');
     expect(outcome).not.toMatchObject({ kind: 'ok' });
   });
 });
@@ -93,7 +109,7 @@ describe('[RFC6749-4.1.2.1-02] failures after redirect_uri is trusted redirect w
     ['missing challenge method', omit(params, 'code_challenge_method'), 'invalid_request'],
     ['unknown scope', { ...params, scope: 'openid wat' }, 'invalid_scope'],
   ])('redirects with %s', (_label, p, expected) => {
-    expect(validateAuthorizationRequest(p, client, config)).toMatchObject({
+    expect(validate(p, client, config)).toMatchObject({
       kind: 'redirect',
       error: expected,
       state: params.state,
@@ -105,32 +121,33 @@ describe('an unsupported response mode is refused, not silently changed', () => 
   it.each(['fragment', 'form_post', 'web_message', 'QUERY', 'query fragment'])(
     'renders rather than answering in the mode it does support: %s',
     (mode) => {
-      expect(
-        validateAuthorizationRequest({ ...params, response_mode: mode }, client, config),
-      ).toMatchObject({ kind: 'render' });
+      expect(validate({ ...params, response_mode: mode }, client, config)).toMatchObject({
+        kind: 'render',
+      });
     },
   );
 
   it('accepts the one mode Odudu answers in', () => {
-    expect(
-      validateAuthorizationRequest({ ...params, response_mode: 'query' }, client, config),
-    ).toMatchObject({ kind: 'ok' });
+    expect(validate({ ...params, response_mode: 'query' }, client, config)).toMatchObject({
+      kind: 'ok',
+    });
   });
 
   it('accepts a request naming no response mode at all', () => {
-    expect(validateAuthorizationRequest(params, client, config)).toMatchObject({ kind: 'ok' });
+    expect(validate(params, client, config)).toMatchObject({ kind: 'ok' });
   });
 
   it('accepts exactly what discovery advertises as response_modes_supported', () => {
     const advertised = discoveryDocument({
       issuer: 'https://idp.example',
       claimsSupported: [],
+      scopesSupported: REALM_SCOPES,
     }).response_modes_supported;
 
     for (const mode of advertised) {
-      expect(
-        validateAuthorizationRequest({ ...params, response_mode: mode }, client, config),
-      ).toMatchObject({ kind: 'ok' });
+      expect(validate({ ...params, response_mode: mode }, client, config)).toMatchObject({
+        kind: 'ok',
+      });
     }
     expect(advertised).not.toContain('fragment');
   });
@@ -139,11 +156,7 @@ describe('an unsupported response mode is refused, not silently changed', () => 
   // there is no response to deliver by a means the server does not have.
   it('renders for an unsupported mode even when nothing else about the request is valid', () => {
     expect(
-      validateAuthorizationRequest(
-        { ...params, response_mode: 'fragment', client_id: 'nope' },
-        null,
-        null,
-      ),
+      validate({ ...params, response_mode: 'fragment', client_id: 'nope' }, null, null),
     ).toMatchObject({ kind: 'render' });
   });
 });
@@ -154,11 +167,7 @@ describe('request objects are refused by name, not ignored', () => {
     ['request_uri', 'request_uri_not_supported'],
   ])('redirects with %s', (key, expected) => {
     expect(
-      validateAuthorizationRequest(
-        { ...params, [key]: 'https://app.example/req.jwt' },
-        client,
-        config,
-      ),
+      validate({ ...params, [key]: 'https://app.example/req.jwt' }, client, config),
     ).toMatchObject({ kind: 'redirect', error: expected, state: params.state });
   });
 });
@@ -172,47 +181,54 @@ describe('[RFC7636-4.2-01] the code challenge is checked for shape, not merely p
     ['base64 padding', `${'a'.repeat(42)}=`],
     ['a space', `${'a'.repeat(42)} `],
   ])('redirects with invalid_request for %s', (_label, challenge) => {
-    expect(
-      validateAuthorizationRequest({ ...params, code_challenge: challenge }, client, config),
-    ).toMatchObject({ kind: 'redirect', error: 'invalid_request' });
+    expect(validate({ ...params, code_challenge: challenge }, client, config)).toMatchObject({
+      kind: 'redirect',
+      error: 'invalid_request',
+    });
   });
 
   it.each([43, 128])('accepts a %s-character challenge from the unreserved set', (length) => {
     const challenge = `${'-._~'.repeat(8)}${'a'.repeat(length - 32)}`;
     expect(challenge).toHaveLength(length);
-    expect(
-      validateAuthorizationRequest({ ...params, code_challenge: challenge }, client, config),
-    ).toMatchObject({ kind: 'ok' });
+    expect(validate({ ...params, code_challenge: challenge }, client, config)).toMatchObject({
+      kind: 'ok',
+    });
   });
 });
 
 describe('scope acceptance', () => {
   it('accepts openid together with profile and email', () => {
-    const outcome = validateAuthorizationRequest(
-      { ...params, scope: 'openid profile email' },
-      client,
-      config,
-    );
+    const outcome = validate({ ...params, scope: 'openid profile email' }, client, config);
     expect(outcome).toMatchObject({ kind: 'ok' });
   });
 
   it('still rejects a scope token nothing recognizes', () => {
-    const outcome = validateAuthorizationRequest(
-      { ...params, scope: 'openid unknown-scope' },
-      client,
-      config,
-    );
+    const outcome = validate({ ...params, scope: 'openid unknown-scope' }, client, config);
     expect(outcome).toMatchObject({ kind: 'redirect', error: 'invalid_scope' });
   });
 
+  // Discovery and validation no longer share an import, so the only thing
+  // keeping the advertised list and the accepted one in agreement is that
+  // the caller reads the realm once and hands the same list to both. This
+  // is that arrangement, asserted.
   it('accepts exactly what discovery advertises as scopes_supported, and nothing beyond it', () => {
+    const realmScopes = ['openid', 'profile', 'email', 'reports:read'];
     const advertised = discoveryDocument({
       issuer: 'https://idp.example',
       claimsSupported: [],
+      scopesSupported: realmScopes,
     }).scopes_supported;
+    if (advertised === undefined) throw new Error('the document advertised no scopes');
+    const fromDiscovery = new Set(advertised);
 
     expect(
-      validateAuthorizationRequest({ ...params, scope: advertised.join(' ') }, client, config),
+      validateAuthorizationRequest(
+        { ...params, scope: advertised.join(' ') },
+        client,
+        config,
+        fromDiscovery,
+        fromDiscovery,
+      ),
     ).toMatchObject({ kind: 'ok' });
 
     expect(
@@ -220,14 +236,41 @@ describe('scope acceptance', () => {
         { ...params, scope: [...advertised, 'not-advertised'].join(' ') },
         client,
         config,
+        fromDiscovery,
+        fromDiscovery,
       ),
     ).toMatchObject({ kind: 'redirect', error: 'invalid_scope' });
+  });
+
+  // Two different refusals wear the same error code, and only one of them is
+  // about the realm's vocabulary: `reports:read` here is a scope the realm
+  // defines and this client has simply not been assigned.
+  it('rejects a scope the realm defines but the client is not assigned', () => {
+    const outcome = validateAuthorizationRequest(
+      { ...params, scope: 'openid reports:read' },
+      client,
+      config,
+      new Set([...REALM_SCOPES, 'reports:read']),
+      ASSIGNED,
+    );
+    expect(outcome).toMatchObject({ kind: 'redirect', error: 'invalid_scope' });
+  });
+
+  it('accepts that same scope once the client is assigned it', () => {
+    const outcome = validateAuthorizationRequest(
+      { ...params, scope: 'openid reports:read' },
+      client,
+      config,
+      new Set([...REALM_SCOPES, 'reports:read']),
+      new Set([...REALM_SCOPES, 'reports:read']),
+    );
+    expect(outcome).toMatchObject({ kind: 'ok' });
   });
 });
 
 describe('[RFC6749-3.3-03] an omitted scope resolves to the documented default', () => {
   it('parks openid, the one scope every realm supports, when the request names none', () => {
-    const outcome = validateAuthorizationRequest(omit(params, 'scope'), client, config);
+    const outcome = validate(omit(params, 'scope'), client, config);
     expect(outcome).toMatchObject({ kind: 'ok' });
     if (outcome.kind !== 'ok') throw new Error('expected ok');
     expect(outcome.request.scope).toBe('openid');
@@ -236,7 +279,7 @@ describe('[RFC6749-3.3-03] an omitted scope resolves to the documented default',
 
 describe('validateAuthorizationRequest — the success path', () => {
   it('parks the whole request, including a null state and nonce, when everything checks out', () => {
-    const outcome = validateAuthorizationRequest(omit(params, 'state'), client, config);
+    const outcome = validate(omit(params, 'state'), client, config);
     expect(outcome).toEqual({
       kind: 'ok',
       request: {
@@ -260,21 +303,13 @@ describe('validateAuthorizationRequest — the success path', () => {
 // that parse in the sequence.
 describe('prompt and id_token_hint reach the usecase through the validated outcome', () => {
   it('carries the parsed prompt values out', () => {
-    const outcome = validateAuthorizationRequest(
-      { ...params, prompt: 'login consent' },
-      client,
-      config,
-    );
+    const outcome = validate({ ...params, prompt: 'login consent' }, client, config);
     if (outcome.kind !== 'ok') throw new Error('expected the request to validate');
     expect([...outcome.prompts].sort()).toEqual(['consent', 'login']);
   });
 
   it('carries an id_token_hint out unread', () => {
-    const outcome = validateAuthorizationRequest(
-      { ...params, id_token_hint: 'not.a.jwt' },
-      client,
-      config,
-    );
+    const outcome = validate({ ...params, id_token_hint: 'not.a.jwt' }, client, config);
     if (outcome.kind !== 'ok') throw new Error('expected the request to validate');
     // Whether the hint is one this server issued is not decidable here: it
     // takes the realm's keys, which this layer has no way to reach.
@@ -284,7 +319,7 @@ describe('prompt and id_token_hint reach the usecase through the validated outco
   it.each(['none login', 'unheard_of', 'NONE'])(
     'redirects with invalid_request for prompt=%o rather than parking the request',
     (prompt) => {
-      expect(validateAuthorizationRequest({ ...params, prompt }, client, config)).toMatchObject({
+      expect(validate({ ...params, prompt }, client, config)).toMatchObject({
         kind: 'redirect',
         redirectUri: params.redirect_uri,
         error: 'invalid_request',
@@ -296,8 +331,6 @@ describe('prompt and id_token_hint reach the usecase through the validated outco
   it('renders rather than redirecting a malformed prompt when the client is unknown', () => {
     // The §4.1.2.1 boundary decides this, not the parameter: there is no
     // registered redirect_uri to carry the error to.
-    expect(validateAuthorizationRequest({ ...params, prompt: 'none login' }, null, null).kind).toBe(
-      'render',
-    );
+    expect(validate({ ...params, prompt: 'none login' }, null, null).kind).toBe('render');
   });
 });

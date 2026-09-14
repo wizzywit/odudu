@@ -1,8 +1,12 @@
 import { signJwt, signingKeyRepository, type SigningKeyRecord } from '@odudu/crypto';
-import { SUPPORTED_SCOPES } from '@odudu/contracts';
 import { withRealm, type DatabaseHandle, type RealmScopedDatabase } from '@odudu/db';
 import { subjectRepository } from '@odudu/domain-identity';
-import { clientRepository, verifyClientSecret, type ClientRecord } from '@odudu/domain-realm';
+import {
+  clientRepository,
+  clientScopeRepository,
+  verifyClientSecret,
+  type ClientRecord,
+} from '@odudu/domain-realm';
 import { type ClaimMapperRegistry, type Clock, newId } from '@odudu/kernel';
 import { clientOidcConfigRepository, type ClientOidcConfig } from '#/repository/client-oidc-config';
 import { authorizationCodeRepository } from '#/repository/codes';
@@ -313,10 +317,16 @@ async function issueAuthorizationCodeTokens(
 ): Promise<TokenResponse> {
   const code = await redeemAuthorizationCode(tx, deps, request, client);
 
-  // Stage 4: scope resolution. P1 has no consent screen and no per-client
-  // scope allowlist beyond what /authorize already accepted against
-  // SUPPORTED_SCOPES, so this mostly passes the stored scope through.
-  const scope = resolveScope(code.scope, [...SUPPORTED_SCOPES], null, null);
+  // Stage 4: scope resolution against the scopes this client is assigned
+  // now, not the ones it held when /authorize accepted the request — an
+  // assignment withdrawn in between narrows the tokens the code redeems.
+  const assigned = await clientScopeRepository(tx).forClient(client.id);
+  const scope = resolveScope(
+    code.scope,
+    assigned.map((clientScope) => clientScope.name),
+    null,
+    null,
+  );
   const now = deps.clock.now();
   const key = await signingKeyRepository(tx).active();
 

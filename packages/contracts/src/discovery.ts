@@ -14,11 +14,11 @@ export interface DiscoveryDocument {
   readonly grant_types_supported: readonly string[];
   readonly token_endpoint_auth_methods_supported: readonly string[];
   readonly authorization_response_iss_parameter_supported: boolean;
-  readonly scopes_supported: readonly string[];
-  // Optional because OIDC Discovery §4.2 requires a claim with zero
+  // Both optional because OIDC Discovery §4.2 requires a claim with zero
   // elements to be omitted rather than served as []; every other list here
-  // is built from a non-empty literal, so this is the only member that can
-  // be absent.
+  // is built from a non-empty literal, so these two — the ones supplied by
+  // the caller — are the only members that can be absent.
+  readonly scopes_supported?: readonly string[];
   readonly claims_supported?: readonly string[];
 }
 
@@ -30,12 +30,12 @@ export interface DiscoveryDocumentOptions {
   // rather than hardcoding it is what keeps this list from drifting away
   // from what `/userinfo` and ID token issuance actually produce.
   readonly claimsSupported: readonly string[];
+  // The scopes the realm this document describes defines. Passed in for the
+  // same reason claimsSupported is: a scope is realm data, and this package
+  // is a leaf that never reads a database. The caller hands the same list to
+  // /authorize's validation, so the two cannot drift apart.
+  readonly scopesSupported: readonly string[];
 }
-
-// The one list of scopes Odudu accepts, shared with authorize-validation.ts
-// so the two cannot drift apart — discovery advertises exactly what
-// /authorize will accept, never more, never less.
-export const SUPPORTED_SCOPES = ['openid', 'profile', 'email'] as const;
 
 // registration_endpoint is omitted entirely (not published empty or null):
 // dynamic client registration is P3's work (docs/protocols/oidc-discovery.md).
@@ -70,7 +70,7 @@ export function discoveryDocument(opts: DiscoveryDocumentOptions): DiscoveryDocu
     // method the token endpoint would actually reject.
     token_endpoint_auth_methods_supported: TOKEN_ENDPOINT_AUTH_METHODS_SUPPORTED,
     authorization_response_iss_parameter_supported: true,
-    scopes_supported: SUPPORTED_SCOPES,
+    ...(opts.scopesSupported.length > 0 ? { scopes_supported: opts.scopesSupported } : {}),
     ...(opts.claimsSupported.length > 0 ? { claims_supported: opts.claimsSupported } : {}),
   };
 }

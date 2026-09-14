@@ -341,7 +341,7 @@ curl -sS http://localhost:3000/realms/demo/.well-known/openid-configuration
   "grant_types_supported": ["authorization_code", "refresh_token", "client_credentials"],
   "token_endpoint_auth_methods_supported": ["client_secret_basic", "client_secret_post", "none"],
   "authorization_response_iss_parameter_supported": true,
-  "scopes_supported": ["openid", "profile", "email"],
+  "scopes_supported": ["address", "email", "groups", "openid", "phone", "profile", "roles"],
   "claims_supported": ["sub", "name", "email", "email_verified"]
 }
 ```
@@ -351,6 +351,15 @@ this document. `response_modes_supported` is stated rather than omitted
 because omitting it would default to `["query", "fragment"]` (OIDC Discovery
 §3) and promise a delivery mode `/authorize` refuses.
 `code_challenge_methods_supported` lists `S256` and never `plain`.
+
+`scopes_supported` is the realm's own scope vocabulary, read from the
+database rather than compiled in: these seven are what `odudu seed` gives a
+new realm, and a realm that is given another scope advertises it here the
+moment it exists. Being advertised is half of what `/authorize` needs,
+though — **a scope is granted only when the realm defines it _and_ the
+client is assigned it**, and either failure is `invalid_scope`. `odudu seed`
+assigns all seven to each client it creates, which is why the request below
+asks for three of them and is answered.
 
 The issuer is derived from the request, so it is `http://` on this
 plain-HTTP local stack. A deployment terminates TLS in front of the server
@@ -1276,7 +1285,8 @@ wrong in more ways than one.
 | No `code_challenge_method`             | `invalid_request`           | It is not defaulted to `plain`, which is what RFC 7636 §4.3 would have it default to         |
 | `code_challenge_method=plain`          | `invalid_request`           | Only `S256` is accepted; `plain` offers no protection against an intercepted code            |
 | `response_type=token`                  | `unsupported_response_type` | Only the code flow exists; implicit issuance is gone from OAuth 2.1                          |
-| Scope outside `openid profile email`   | `invalid_scope`             | The same list discovery advertises, imported rather than duplicated                          |
+| Scope the realm does not define        | `invalid_scope`             | `scopes_supported` is that same list, so discovery and this endpoint cannot disagree         |
+| Scope the client is not assigned       | `invalid_scope`             | Defined by the realm is not granted to every client; refused, never silently dropped         |
 | Repeated `state` (or any other repeat) | `invalid_request`           | Ambiguous, but a trustworthy redirect target exists by now, so the client can be told        |
 | `prompt=none`                          | `login_required`            | No session is ever reused, so no end user is ever already authenticated (OIDC Core §3.1.2.3) |
 | `prompt=none login`                    | `invalid_request`           | `none` with any other value is contradictory (OIDC Core §3.1.2.1)                            |
@@ -1943,12 +1953,12 @@ session lifecycle. A citation of either half here means that half.
 
 **`/authorize`**
 
-- **No consent screen.** Every requested scope within `openid profile email`
-  is granted without asking the user. There is no per-client scope allowlist
-  for interactive grants either. **P3**, the phase named for consent, and —
-  since 2026-09-14 — the phase whose exit criterion names it too: a screen a
-  user can refuse, the per-client scope allowlist that decides what it asks
-  for, and a recorded grant.
+- **No consent screen.** Every scope the realm defines and the client is
+  assigned is granted without asking the user. The allowlist exists — it is
+  the client's scope assignments — but nothing asks the user to approve what
+  it lets through. **P3**, the phase named for consent, and — since
+  2026-09-14 — the phase whose exit criterion names it too: a screen a user
+  can refuse, and a recorded grant.
 - **No session reuse.** The SSO cookie is set at login and never read.
   `prompt=none` therefore always answers `login_required`, and `prompt=login`
   is what happens anyway, because authentication is unconditional. **P2b**,

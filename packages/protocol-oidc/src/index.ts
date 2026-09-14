@@ -8,7 +8,7 @@ import {
 import { signingKeyRepository } from '@odudu/crypto';
 import { withRealm, type DatabaseHandle } from '@odudu/db';
 import { userRepository, verifyPassword } from '@odudu/domain-identity';
-import { clientRepository } from '@odudu/domain-realm';
+import { clientRepository, clientScopeRepository } from '@odudu/domain-realm';
 import { systemClock, type Clock } from '@odudu/kernel';
 import { type FastifyPluginAsync } from 'fastify';
 import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
@@ -44,10 +44,10 @@ export interface OidcRoutesDeps {
   clock?: Clock;
 }
 
-// The plugin apps/server registers. Discovery never queries the resolved
-// realm's own tenant data (constants plus the resolved issuer); JWKS reads
-// through signingKeyRepository once realm context is established for the
-// resolved realm id.
+// The plugin apps/server registers. Discovery and JWKS both read the
+// resolved realm's own tenant data — its scope vocabulary and its
+// publishable keys — once realm context is established for the resolved
+// realm id.
 export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
   return (app) => {
     const findRealm = (name: string) => realmLookupRepository(deps.ownerDatabase.db).byName(name);
@@ -85,17 +85,31 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
         return expandWebOrigins(config.webOrigins, config.redirectUris);
       });
 
-    registerDiscoveryRoute(app, { findRealm, claimNames: () => claimMappers.claimNames() });
+    // One definition, read by discovery for scopes_supported and by
+    // /authorize for what it will accept, so the advertised list and the
+    // accepted one cannot drift apart.
+    const scopesForRealm = (realmId: string): Promise<readonly string[]> =>
+      withRealm(deps.database.db, realmId, async (tx) =>
+        (await clientScopeRepository(tx).allForRealm()).map((scope) => scope.name),
+      );
+
+    registerDiscoveryRoute(app, {
+      findRealm,
+      claimNames: () => claimMappers.claimNames(),
+      scopesForRealm,
+    });
     registerJwksRoute(app, { findRealm, listPublishableKeys });
     registerAuthorizeRoute(app, {
       findRealm,
       listPublishableKeys,
+      scopesForRealm,
       resolveClient: (realmId, oauthClientId) =>
         withRealm(deps.database.db, realmId, async (tx): Promise<ResolvedClient> => {
           const client = await clientRepository(tx).byClientId(oauthClientId);
-          if (client === null) return { client: null, config: null };
+          if (client === null) return { client: null, config: null, scopes: [] };
           const config = await clientOidcConfigRepository(tx).byClientId(client.id);
-          return { client, config };
+          const assigned = await clientScopeRepository(tx).forClient(client.id);
+          return { client, config, scopes: assigned.map((scope) => scope.name) };
         }),
       startAuthentication: (realmId, request) =>
         withRealm(deps.database.db, realmId, (tx) =>

@@ -9,7 +9,7 @@ import {
   type DatabaseHandle,
   type RealmScopedDatabase,
 } from '@odudu/db';
-import { clients, provisionRealmDefaults } from '@odudu/domain-realm';
+import { clients, provisionClientDefaults, provisionRealmDefaults } from '@odudu/domain-realm';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import formbody from '@fastify/formbody';
@@ -70,6 +70,7 @@ async function seedRealm(label: string): Promise<RealmSetup> {
       type: 'confidential',
       secretHash: await hashPassword('supersecret'),
     });
+    await provisionClientDefaults(tx, clientDbId);
 
     const key = await generateSigningKey('RS256', KEK);
     await tx.insert(signingKeys).values({
