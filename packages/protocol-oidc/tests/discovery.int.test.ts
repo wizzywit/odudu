@@ -8,6 +8,7 @@ import {
   type DatabaseHandle,
   type RealmScopedDatabase,
 } from '@odudu/db';
+import { provisionRealmDefaults } from '@odudu/domain-realm';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import Fastify, { type FastifyInstance } from 'fastify';
@@ -32,6 +33,7 @@ async function seedRealm(
   opts: { name: string; enabled?: boolean },
 ): Promise<void> {
   await tx.insert(realms).values({ id, name: opts.name, enabled: opts.enabled ?? true });
+  await provisionRealmDefaults(tx, id);
 }
 
 beforeAll(async () => {

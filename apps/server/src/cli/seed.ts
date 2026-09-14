@@ -7,7 +7,12 @@ import {
   userRepository,
   verifyPassword,
 } from '@odudu/domain-identity';
-import { clientRepository, verifyClientSecret, type ClientRecord } from '@odudu/domain-realm';
+import {
+  clientRepository,
+  provisionRealmDefaults,
+  verifyClientSecret,
+  type ClientRecord,
+} from '@odudu/domain-realm';
 import { loadConfig, newId, OduduError } from '@odudu/kernel';
 import {
   clientOidcConfigRepository,
@@ -203,14 +208,19 @@ async function assertMatchesExisting(
   }
 }
 
-async function resolveRealmId(ownerDb: Database, realmName: string): Promise<string> {
+interface ResolvedRealm {
+  realmId: string;
+  created: boolean;
+}
+
+async function resolveRealmId(ownerDb: Database, realmName: string): Promise<ResolvedRealm> {
   const lookup = realmLookupRepository(ownerDb);
   const existing = await lookup.byName(realmName);
-  if (existing !== null) return existing.id;
+  if (existing !== null) return { realmId: existing.id, created: false };
 
   const realmId = newId();
   await lookup.create({ id: realmId, name: realmName });
-  return realmId;
+  return { realmId, created: true };
 }
 
 async function performSeed(
@@ -219,9 +229,13 @@ async function performSeed(
   kek: Uint8Array,
   opts: SeedOptions,
 ): Promise<SeedResult> {
-  const realmId = await resolveRealmId(ownerDb, opts.realm);
+  const { realmId, created: realmCreated } = await resolveRealmId(ownerDb, opts.realm);
 
   return withRealm(runtimeDb, realmId, async (tx) => {
+    if (realmCreated) {
+      await provisionRealmDefaults(tx, realmId);
+    }
+
     const existingClient = await clientRepository(tx).byClientId(opts.clientId);
     if (existingClient !== null) {
       await assertMatchesExisting(tx, existingClient, opts);

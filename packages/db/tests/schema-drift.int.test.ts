@@ -45,6 +45,10 @@ const EXPECTED_CHECKS: Record<string, string> = {
     'CHECK ((refresh_token_ttl_seconds >= 1))',
   'client_oidc_config.client_oidc_config_web_origins_shape':
     'CHECK (web_origins_are_valid(web_origins))',
+  'client_scope_assignments.client_scope_assignments_assignment_check':
+    "CHECK ((assignment = ANY (ARRAY['default'::text, 'optional'::text])))",
+  'client_scopes.client_scopes_name_is_scope_token':
+    "CHECK ((name ~ '^[\\x21\\x23-\\x5B\\x5D-\\x7E]+$'::text))",
   'clients.clients_secret_matches_type':
     "CHECK ((((type = 'confidential'::text) AND (secret_hash IS NOT NULL)) OR ((type = 'public'::text) AND (secret_hash IS NULL))))",
   'clients.clients_type_check':

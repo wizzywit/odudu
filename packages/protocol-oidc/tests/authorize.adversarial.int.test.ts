@@ -15,7 +15,7 @@ import {
   type GeneratedSigningKey,
   type SigningKeyRecord,
 } from '@odudu/crypto';
-import { clients } from '@odudu/domain-realm';
+import { clients, provisionRealmDefaults } from '@odudu/domain-realm';
 import { newId } from '@odudu/kernel';
 import { eq } from 'drizzle-orm';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
@@ -199,6 +199,7 @@ beforeAll(async () => {
   const clientId = newId();
   await withRealm(app.db, realmId, async (tx: RealmScopedDatabase) => {
     await tx.insert(realms).values({ id: realmId, name: REALM });
+    await provisionRealmDefaults(tx, realmId);
     await tx.insert(clients).values({
       id: clientId,
       realmId,
@@ -243,6 +244,7 @@ beforeAll(async () => {
   const markupRealmId = newId();
   await withRealm(app.db, markupRealmId, async (tx: RealmScopedDatabase) => {
     await tx.insert(realms).values({ id: markupRealmId, name: MARKUP_REALM });
+    await provisionRealmDefaults(tx, markupRealmId);
     await tx.insert(clients).values({
       id: markupClientId,
       realmId: markupRealmId,
