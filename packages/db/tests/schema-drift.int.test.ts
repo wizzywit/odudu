@@ -31,6 +31,8 @@ const UNDECLARED_TABLES = new Set(['__drizzle_migrations']);
 // migration that adds, drops or rewrites one visible — the expression is
 // pg_get_constraintdef's own rendering, so it is compared verbatim.
 const EXPECTED_CHECKS: Record<string, string> = {
+  'action_tokens.action_tokens_type_check':
+    "CHECK ((type = ANY (ARRAY['verify_email'::text, 'reset_password'::text])))",
   'authorization_codes.authorization_codes_method_check':
     "CHECK ((code_challenge_method = 'S256'::text))",
   'client_oidc_config.client_oidc_config_access_token_ttl_ceiling':
