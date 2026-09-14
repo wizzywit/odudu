@@ -179,6 +179,70 @@ describe('issue and consume', () => {
   });
 });
 
+describe('peek', () => {
+  it('reports a fresh token without consuming it', async () => {
+    const { token } = await issue({
+      subjectId: subject,
+      type: 'reset_password',
+      email: 'ada@example.test',
+      ttlSeconds: TEST_TTL_SECONDS,
+    });
+
+    const peeked = await withRealm(app.db, realmId, (tx) => actionTokenRepository(tx).peek(token));
+    expect(peeked).toMatchObject({ subjectId: subject, type: 'reset_password' });
+
+    // Still redeemable: peek must not have consumed it.
+    await expect(consume(token, 'reset_password')).resolves.toMatchObject({ subjectId: subject });
+  });
+
+  it('reports nothing for a consumed token', async () => {
+    const { token } = await issue({
+      subjectId: subject,
+      type: 'reset_password',
+      ttlSeconds: TEST_TTL_SECONDS,
+    });
+    await consume(token, 'reset_password');
+
+    const peeked = await withRealm(app.db, realmId, (tx) => actionTokenRepository(tx).peek(token));
+    expect(peeked).toBeNull();
+  });
+
+  it('reports nothing for an expired token', async () => {
+    const { token } = await issue({ subjectId: subject, type: 'reset_password', ttlSeconds: -1 });
+
+    const peeked = await withRealm(app.db, realmId, (tx) => actionTokenRepository(tx).peek(token));
+    expect(peeked).toBeNull();
+  });
+
+  it('cannot see a token minted in another realm', async () => {
+    await expectCrossRealmMethodProbe(app.db, {
+      seed: async (tx, seedRealmId) => {
+        await seedRealm(tx, seedRealmId);
+        const seededSubject = await insertSubject(tx, seedRealmId);
+        const { token } = await actionTokenRepository(tx).issue({
+          realmId: seedRealmId,
+          subjectId: seededSubject,
+          type: 'reset_password',
+          ttlSeconds: TEST_TTL_SECONDS,
+        });
+        return { token, subjectId: seededSubject };
+      },
+      verifySeeded: async (tx, seeded) => {
+        const found = await actionTokenRepository(tx).peek(seeded.token);
+        expect(found).toMatchObject({ subjectId: seeded.subjectId });
+      },
+      attempt: async (tx, seeded) => actionTokenRepository(tx).peek(seeded.token),
+      expectBlocked: (result) => {
+        expect(result).toBeNull();
+      },
+      verifyRealmAUnaffected: async (tx, seeded) => {
+        const found = await actionTokenRepository(tx).peek(seeded.token);
+        expect(found).toMatchObject({ subjectId: seeded.subjectId });
+      },
+    });
+  });
+});
+
 describe('realm isolation', () => {
   it('cannot consume a token minted in another realm, and leaves it unconsumed', async () => {
     await expectCrossRealmMethodProbe(app.db, {

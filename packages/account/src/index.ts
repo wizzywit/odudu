@@ -17,6 +17,32 @@ export {
   type ActionTokenRouteDeps,
 } from '#/view/routes/action-token';
 export {
+  peekActionToken,
+  type PeekActionTokenDeps,
+  type PeekActionTokenResult,
+} from '#/usecase/action-token';
+export {
+  requestPasswordReset,
+  completePasswordReset,
+  type RequestPasswordResetDeps,
+  type RequestPasswordResetOutcome,
+  type CompletePasswordResetDeps,
+  type CompletePasswordResetResult,
+} from '#/usecase/reset-password';
+export {
+  registerResetPasswordRoute,
+  type ResetPasswordRealmLookup,
+  type ResetPasswordRouteDeps,
+} from '#/view/routes/reset-password';
+export {
+  renderResetPasswordForm,
+  renderResetPasswordSucceededPage,
+  renderResetLinkFailedPage,
+  renderResetRequestForm,
+  renderResetRequestedPage,
+  renderResetRequestFailedPage,
+} from '#/view/reset-html';
+export {
   renderVerificationFailedPage,
   renderVerificationSucceededPage,
   sendVerificationHtml,

@@ -20,20 +20,23 @@ isolated in the database by PostgreSQL row-level security (ADR 0009). Every
 protocol endpoint lives under `/realms/{realm}/`, so the realm is chosen by
 the URL and never by a header or a parameter.
 
-| Method | Path                                               | What it is                                          |
-| ------ | -------------------------------------------------- | --------------------------------------------------- |
-| `GET`  | `/realms/{realm}/.well-known/openid-configuration` | Discovery document                                  |
-| `GET`  | `/realms/{realm}/protocol/openid-connect/certs`    | JWKS (public signing keys)                          |
-| `GET`  | `/realms/{realm}/protocol/openid-connect/auth`     | Authorization endpoint                              |
-| `POST` | `/realms/{realm}/protocol/openid-connect/auth`     | Authorization endpoint (form)                       |
-| `POST` | `/realms/{realm}/login-actions/authenticate`       | Login form submission                               |
-| `GET`  | `/realms/{realm}/login-actions/registration`       | Self-registration form                              |
-| `POST` | `/realms/{realm}/login-actions/registration`       | Self-registration submission                        |
-| `GET`  | `/realms/{realm}/login-actions/action-token`       | Redeem a mailed action token (address verification) |
-| `POST` | `/realms/{realm}/protocol/openid-connect/token`    | Token endpoint                                      |
-| `GET`  | `/realms/{realm}/protocol/openid-connect/userinfo` | UserInfo                                            |
-| `POST` | `/realms/{realm}/protocol/openid-connect/userinfo` | UserInfo (form)                                     |
-| `GET`  | `/health/live`, `/health/ready`                    | Liveness, readiness                                 |
+| Method | Path                                               | What it is                                                  |
+| ------ | -------------------------------------------------- | ----------------------------------------------------------- |
+| `GET`  | `/realms/{realm}/.well-known/openid-configuration` | Discovery document                                          |
+| `GET`  | `/realms/{realm}/protocol/openid-connect/certs`    | JWKS (public signing keys)                                  |
+| `GET`  | `/realms/{realm}/protocol/openid-connect/auth`     | Authorization endpoint                                      |
+| `POST` | `/realms/{realm}/protocol/openid-connect/auth`     | Authorization endpoint (form)                               |
+| `POST` | `/realms/{realm}/login-actions/authenticate`       | Login form submission                                       |
+| `GET`  | `/realms/{realm}/login-actions/registration`       | Self-registration form                                      |
+| `POST` | `/realms/{realm}/login-actions/registration`       | Self-registration submission                                |
+| `GET`  | `/realms/{realm}/login-actions/action-token`       | Redeem a mailed action token (verify email, reset password) |
+| `POST` | `/realms/{realm}/login-actions/action-token`       | Submit a new password against a reset-password token        |
+| `GET`  | `/realms/{realm}/login-actions/reset-password`     | Password reset request form                                 |
+| `POST` | `/realms/{realm}/login-actions/reset-password`     | Password reset request submission                           |
+| `POST` | `/realms/{realm}/protocol/openid-connect/token`    | Token endpoint                                              |
+| `GET`  | `/realms/{realm}/protocol/openid-connect/userinfo` | UserInfo                                                    |
+| `POST` | `/realms/{realm}/protocol/openid-connect/userinfo` | UserInfo (form)                                             |
+| `GET`  | `/health/live`, `/health/ready`                    | Liveness, readiness                                         |
 
 `/login-actions/authenticate` is deliberately outside the
 `/protocol/openid-connect/` namespace: that namespace is the OIDC wire
@@ -1270,6 +1273,206 @@ naming which — rather than an unhandled error.
 A realm with `verify_email` off skips the mail and the gate above entirely:
 the account created is usable at the next login, the same way a
 seeded user always has been.
+
+## Password reset
+
+`GET`/`POST /realms/{realm}/login-actions/reset-password` is the third
+account-lifecycle setting, `reset_password_allowed` — off by default, like
+`registration_allowed` and `verify_email` — so a realm serves nothing here
+until an operator turns it on:
+
+```bash
+odudu seed \
+  --realm reset-off-demo --client reset-off-spa \
+  --redirect-uri http://localhost:8080/callback
+curl -sS -o /dev/null -w '%{http_code}\n' \
+  http://localhost:3000/realms/reset-off-demo/login-actions/reset-password
+```
+
+```
+404
+```
+
+A separate realm has it on, and a user seeded to reset:
+
+```bash
+odudu seed \
+  --realm reset-demo --client reset-spa \
+  --redirect-uri http://localhost:8080/callback \
+  --user ada --password correct-horse-battery --email ada@example.com
+```
+
+```sql
+UPDATE realms SET reset_password_allowed = true WHERE name = 'reset-demo';
+```
+
+**This is the property the whole flow exists for**: the response to a
+request naming an address that has an account and one naming an address
+that does not must be indistinguishable — same status, same body — while
+mail goes out only for the one that exists. Requesting both proves it:
+
+```bash
+curl -sS -X POST http://localhost:3000/realms/reset-demo/login-actions/reset-password \
+  --data-urlencode 'email=ada@example.com'
+echo
+curl -sS -X POST http://localhost:3000/realms/reset-demo/login-actions/reset-password \
+  --data-urlencode 'email=nobody@example.com'
+```
+
+```
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Check your email</title></head>
+<body>
+<h1>Check your email</h1>
+<p>If that address has an account, we've sent a link to reset its password.</p>
+</body>
+</html>
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Check your email</title></head>
+<body>
+<h1>Check your email</h1>
+<p>If that address has an account, we've sent a link to reset its password.</p>
+</body>
+</html>
+```
+
+Identical, character for character — and only the first request produced
+mail. `ODUDU_SMTP_HOST` is unset, so the container's log carries it instead
+of an inbox, and it is there exactly once:
+
+```json
+{
+  "level": 30,
+  "to": "ada@example.com",
+  "subject": "Reset your reset-demo password",
+  "text": "Reset your password for reset-demo by visiting this link:\n\nhttp://localhost:3000/realms/reset-demo/login-actions/action-token?key=du3wPltq39ydyg4va1l5CAzoeBk5velzOUvHI6_x-gg\n\nIf you did not request this, you can ignore this message.",
+  "html": "<p>Reset your password for reset-demo by visiting <a href=\"…\">…</a>.</p><p>If you did not request this, you can ignore this message.</p>",
+  "msg": "captured email — no SMTP host configured"
+}
+```
+
+(Reduced to the fields that matter, the same way
+[Address verification](#address-verification) reduces its own capture; the
+key is shortened nowhere in this section because a reader needs the whole
+thing to follow the link.) The link's host is `ODUDU_PUBLIC_BASE_URL`, never
+the request's `Host` header — the same rule and the same reasoning
+[Self-registration](#self-registration) establishes for the verification
+link, and unset it refuses the request the same way: 500, logged as a
+misconfiguration, for every address alike, so a missing configuration never
+becomes a way to tell addresses apart either.
+
+`GET`ting the link does not reset anything by itself — a reset-password
+token needs a password to consume it with, unlike a verify-email link, so
+the same `/login-actions/action-token` endpoint answers with a form instead
+of completing an action:
+
+```bash
+curl -sS 'http://localhost:3000/realms/reset-demo/login-actions/action-token?key=du3wPltq39ydyg4va1l5CAzoeBk5velzOUvHI6_x-gg'
+```
+
+```
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Choose a new password</title></head>
+<body>
+<form method="post" action="/realms/reset-demo/login-actions/action-token">
+  <input type="hidden" name="key" value="du3wPltq39ydyg4va1l5CAzoeBk5velzOUvHI6_x-gg">
+  <label>New password <input type="password" name="password" autocomplete="new-password"></label>
+  <button type="submit">Reset password</button>
+</form>
+</body>
+</html>
+```
+
+Submitting it sets the password — whatever P2b later constrains about
+length, complexity or history is that phase's concern, not this one's:
+
+```bash
+curl -sS -X POST http://localhost:3000/realms/reset-demo/login-actions/action-token \
+  --data-urlencode 'key=du3wPltq39ydyg4va1l5CAzoeBk5velzOUvHI6_x-gg' \
+  --data-urlencode 'password=a brand new password'
+```
+
+```
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Password reset</title></head>
+<body>
+<h1>Your password has been reset</h1>
+<p>You can close this page and sign in with your new password.</p>
+</body>
+</html>
+```
+
+The old password no longer authenticates — `/login-actions/authenticate`
+answers 200, the login form again, not the 302 a successful attempt gets:
+
+```bash
+AUTH_SESSION_ID=$(curl -sS --get \
+  --data-urlencode 'response_type=code' \
+  --data-urlencode 'client_id=reset-spa' \
+  --data-urlencode 'redirect_uri=http://localhost:8080/callback' \
+  --data-urlencode 'scope=openid email' \
+  --data-urlencode 'state=xyz123' \
+  --data-urlencode 'nonce=abc123' \
+  --data-urlencode 'code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM' \
+  --data-urlencode 'code_challenge_method=S256' \
+  'http://localhost:3000/realms/reset-demo/protocol/openid-connect/auth' \
+  | sed -n 's/.*name="auth_session_id" value="\([^"]*\)".*/\1/p')
+
+curl -sS -i -X POST http://localhost:3000/realms/reset-demo/login-actions/authenticate \
+  --data-urlencode "auth_session_id=$AUTH_SESSION_ID" \
+  --data-urlencode 'username=ada' \
+  --data-urlencode 'password=correct-horse-battery'
+```
+
+```
+HTTP/1.1 200 OK
+content-type: text/html
+```
+
+The new one does, with a fresh authorization session (the one above is
+spent, the same way every login attempt consumes its `auth_session_id`):
+
+```bash
+AUTH_SESSION_ID=$(curl -sS --get \
+  --data-urlencode 'response_type=code' \
+  --data-urlencode 'client_id=reset-spa' \
+  --data-urlencode 'redirect_uri=http://localhost:8080/callback' \
+  --data-urlencode 'scope=openid email' \
+  --data-urlencode 'state=xyz123' \
+  --data-urlencode 'nonce=abc123' \
+  --data-urlencode 'code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM' \
+  --data-urlencode 'code_challenge_method=S256' \
+  'http://localhost:3000/realms/reset-demo/protocol/openid-connect/auth' \
+  | sed -n 's/.*name="auth_session_id" value="\([^"]*\)".*/\1/p')
+
+curl -sS -i -X POST http://localhost:3000/realms/reset-demo/login-actions/authenticate \
+  --data-urlencode "auth_session_id=$AUTH_SESSION_ID" \
+  --data-urlencode 'username=ada' \
+  --data-urlencode 'password=a brand new password'
+```
+
+```
+HTTP/1.1 302 Found
+set-cookie: reset-demo-session=01a0a16d-aa25-…; HttpOnly; SameSite=Lax; Path=/
+location: http://localhost:8080/callback?code=LVrexwjRA9kOrP_PBn2LJO6zykU1iVZ7-_REgvrCriw&state=xyz123&iss=http%3A%2F%2Flocalhost%3A3000%2Frealms%2Freset-demo
+```
+
+The same link a second time is refused — minted for one redemption, the
+same as a verify-email token, and `action_tokens.consumed_at` is now set:
+
+```bash
+curl -sS -o /dev/null -w '%{http_code}\n' -X POST http://localhost:3000/realms/reset-demo/login-actions/action-token \
+  --data-urlencode 'key=du3wPltq39ydyg4va1l5CAzoeBk5velzOUvHI6_x-gg' \
+  --data-urlencode 'password=another password'
+```
+
+```
+400
+```
 
 ## Path B: refresh rotation
 

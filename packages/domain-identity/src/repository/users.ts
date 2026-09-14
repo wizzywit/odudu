@@ -111,6 +111,16 @@ export function userRepository(tx: RealmScopedDatabase) {
       return row === undefined ? null : toUser(row);
     },
 
+    // Password reset's lookup: users_email_unique (0023) is (realm_id,
+    // email), so this is at most one row per realm. A user with no email
+    // on file simply never matches, the same way an unverified address
+    // does not gate this — reset and verification are independent actions.
+    async byEmail(email: string): Promise<UserRecord | null> {
+      const rows = await tx.select().from(users).where(eq(users.email, email));
+      const row = rows[0];
+      return row === undefined ? null : toUser(row);
+    },
+
     // The bootstrap seed command is the only caller today: a user profile
     // is created once its subject exists, never before.
     async create(input: NewUser): Promise<UserRecord> {

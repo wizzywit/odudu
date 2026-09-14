@@ -73,9 +73,18 @@ roles, all in one transaction — instead of an administrator seeding one in.
 When the realm's `verify_email` is also on, a self-registered address
 cannot complete a login until it is verified: no authorization code is
 issued, which is the property that made verification ship before
-registration rather than alongside it. `reset_password_allowed` still has
-no reader. See
+registration rather than alongside it. See
 [the self-registration section of docs/request-paths.md](docs/request-paths.md#self-registration)
+for the walkthrough.
+
+`reset_password_allowed` now has a reader too: `GET`/`POST
+/realms/{realm}/login-actions/reset-password` lets a user request a mailed
+link that sets a new password, and the `reset_password` branch of `GET`/`POST
+/realms/{realm}/login-actions/action-token` redeems it. The request answers
+identically whether or not the address has an account — same status, same
+body — and sends mail only for the one that does, so the endpoint cannot be
+used to enumerate who has registered. See
+[the password reset section of docs/request-paths.md](docs/request-paths.md#password-reset)
 for the walkthrough.
 
 A mailed verification link is built from `ODUDU_PUBLIC_BASE_URL`, never

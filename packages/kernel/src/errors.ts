@@ -21,7 +21,8 @@ export type ErrorCode =
   | 'role_composite_cycle'
   | 'group_not_found'
   | 'group_reparent_cycle'
-  | 'user_not_found';
+  | 'user_not_found'
+  | 'credential_not_found';
 
 export class OduduError extends Error {
   readonly code: ErrorCode;

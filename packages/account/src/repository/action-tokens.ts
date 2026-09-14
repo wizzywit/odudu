@@ -84,5 +84,28 @@ export function actionTokenRepository(tx: RealmScopedDatabase) {
       const row = rows[0];
       return row === undefined ? null : toRecord(row);
     },
+
+    // A read, never a write: the action-token route uses this to learn
+    // what kind of link a redeemer is holding — a reset-password link needs
+    // a form shown before anything is consumed, unlike a verify-email link,
+    // which consumes on the same GET. Not filtered by type, since the
+    // caller does not know the type yet; still excludes an already-consumed
+    // or expired row, so a peek never reports a link as usable when a
+    // redemption attempt would refuse it.
+    async peek(token: string): Promise<ActionTokenRecord | null> {
+      const hash = sha256Hex(token);
+      const rows = await tx
+        .select()
+        .from(actionTokens)
+        .where(
+          and(
+            eq(actionTokens.tokenHash, hash),
+            isNull(actionTokens.consumedAt),
+            gt(actionTokens.expiresAt, new Date()),
+          ),
+        );
+      const row = rows[0];
+      return row === undefined ? null : toRecord(row);
+    },
   };
 }

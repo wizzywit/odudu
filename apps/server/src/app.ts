@@ -4,6 +4,7 @@ import {
   realmSettingsRepository,
   registerActionTokenRoute,
   registerRegistrationRoute,
+  registerResetPasswordRoute,
   type CreateAccountResult,
   type NewAccountInput,
 } from '@odudu/account';
@@ -120,10 +121,11 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     oidcRoutes({ database: deps.database, ownerDatabase: deps.ownerDatabase, kek: deps.kek }),
   );
 
-  // getCurrentEmail and markVerified are the only points where @odudu/account
-  // reaches @odudu/domain-identity's users table — injected here, at the
-  // composition root, so @odudu/account itself stays free of that
-  // dependency (packages/account/src/usecase/verify-email.ts explains why).
+  // getCurrentEmail, markVerified and setPassword are the only points where
+  // @odudu/account reaches @odudu/domain-identity's users and credentials
+  // tables — injected here, at the composition root, so @odudu/account
+  // itself stays free of that dependency
+  // (packages/account/src/usecase/verify-email.ts explains why).
   registerActionTokenRoute(app, {
     database: deps.database,
     findRealm: (name) => realmSettingsRepository(deps.ownerDatabase.db).byName(name),
@@ -131,6 +133,9 @@ export function buildApp(deps: AppDeps): FastifyInstance {
       (await userRepository(tx).bySubjectId(subjectId))?.email ?? null,
     markVerified: async (tx, subjectId) => {
       await userRepository(tx).markEmailVerified(subjectId);
+    },
+    setPassword: async (tx, subjectId, password) => {
+      await credentialRepository(tx).setPassword(subjectId, await hashPassword(password));
     },
   });
 
@@ -140,6 +145,17 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     findRealm: (name) => realmSettingsRepository(deps.ownerDatabase.db).byName(name),
     publicBaseUrl: deps.publicBaseUrl,
     createAccount,
+  });
+
+  registerResetPasswordRoute(app, {
+    database: deps.database,
+    sender: deps.sender,
+    findRealm: (name) => realmSettingsRepository(deps.ownerDatabase.db).byName(name),
+    publicBaseUrl: deps.publicBaseUrl,
+    findByEmail: async (tx, email) => {
+      const user = await userRepository(tx).byEmail(email);
+      return user === null ? null : { subjectId: user.subjectId };
+    },
   });
 
   return app;

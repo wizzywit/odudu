@@ -65,6 +65,9 @@ function fakeUserStore() {
       if (user !== undefined) user.verified = true;
       return Promise.resolve();
     },
+    // Unused by any test in this file — verify_email tokens never reach the
+    // reset_password branch — but registerActionTokenRoute requires it.
+    setPassword: () => Promise.resolve(),
   };
 }
 
@@ -126,6 +129,7 @@ async function buildHttpApp(): Promise<FastifyInstance> {
     findRealm: (name) => realmSettingsRepository(owner.db).byName(name),
     getCurrentEmail: store.getCurrentEmail,
     markVerified: store.markVerified,
+    setPassword: store.setPassword,
   });
   await instance.ready();
   return instance;
