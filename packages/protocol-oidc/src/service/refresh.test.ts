@@ -14,6 +14,7 @@ const client: ClientRecord = {
   secretHash: 'hashed:secret',
   createdAt: new Date('2026-01-01T00:00:00.000Z'),
   serviceSubjectId: null,
+  fullScopeAllowed: false,
 };
 
 const subject: SubjectRecord = {

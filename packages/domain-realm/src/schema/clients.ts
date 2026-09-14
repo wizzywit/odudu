@@ -42,4 +42,5 @@ export interface ClientRecord {
   secretHash: string | null;
   createdAt: Date;
   serviceSubjectId: string | null;
+  fullScopeAllowed: boolean;
 }

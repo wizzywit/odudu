@@ -14,6 +14,7 @@ import { systemClock, type Clock } from '@odudu/kernel';
 import { type FastifyPluginAsync } from 'fastify';
 import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
 import { realmLookupRepository } from '#/repository/realm-lookup';
+import { reachableRoleIds } from '#/repository/scope-role-reach';
 import { standardClaimMappers } from '#/service/claims';
 import { expandWebOrigins } from '#/service/web-origin';
 import { issueAuthorizationCode } from '#/usecase/login-submission';
@@ -80,6 +81,19 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
     // the request is for, this is the same lookup either way — an unknown
     // or foreign client_id resolves to an empty set, so the caller withholds
     // the header instead of treating it as an error.
+    // /userinfo's own gate on the `roles` claim: which role ids the token's
+    // granted scope reaches, and whether its client bypasses that
+    // intersection — the same two facts token issuance reads from the same
+    // tables, so a role withheld from the token cannot resurface here.
+    const resolveRoleReach = (realmId: string, oauthClientId: string, scope: readonly string[]) =>
+      withRealm(deps.database.db, realmId, async (tx) => {
+        const client = await clientRepository(tx).byClientId(oauthClientId);
+        return {
+          reachableRoleIds: await reachableRoleIds(tx, scope),
+          fullScopeAllowed: client?.fullScopeAllowed ?? false,
+        };
+      });
+
     const resolveClientWebOrigins = (realmId: string, oauthClientId: string) =>
       withRealm(deps.database.db, realmId, async (tx) => {
         const client = await clientRepository(tx).byClientId(oauthClientId);
@@ -194,6 +208,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
           withRealm(deps.database.db, realmId, (tx) => signingKeyRepository(tx).listPublishable()),
         loadClaimContext,
         claimMappers,
+        resolveRoleReach,
         resolveClientWebOrigins,
       });
     });

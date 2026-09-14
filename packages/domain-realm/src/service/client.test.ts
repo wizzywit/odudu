@@ -14,6 +14,7 @@ const confidential = {
   secretHash: 'hashed:s3cret',
   createdAt: new Date(),
   serviceSubjectId: null,
+  fullScopeAllowed: false,
 };
 const publicClient = { ...confidential, type: 'public' as const, secretHash: null };
 

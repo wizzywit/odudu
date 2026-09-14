@@ -388,3 +388,40 @@ describe('mapToClientScope', () => {
     expect(mappings).toEqual([]);
   });
 });
+
+describe('idsForClientScopes', () => {
+  it('finds the role a client scope in the same realm is mapped to', async () => {
+    const realmId = newId();
+    await withRealm(app.db, realmId, (tx) => seedRealm(tx, realmId));
+    const role = await create({ name: 'member', realmId });
+    const clientScopeId = await withRealm(app.db, realmId, (tx) => insertClientScope(tx, realmId));
+    await withRealm(app.db, realmId, (tx) =>
+      roleRepository(tx).mapToClientScope(clientScopeId, role.id),
+    );
+
+    const found = await withRealm(app.db, realmId, (tx) =>
+      roleRepository(tx).idsForClientScopes([clientScopeId]),
+    );
+    expect(found).toEqual(new Set([role.id]));
+  });
+
+  it('does not find another realm’s mapping', async () => {
+    await expectCrossRealmMethodProbe(app.db, {
+      seed: async (tx, realmId) => {
+        await seedRealm(tx, realmId);
+        const role = await roleRepository(tx).create({ realmId, name: 'admin' });
+        const clientScopeId = await insertClientScope(tx, realmId);
+        await roleRepository(tx).mapToClientScope(clientScopeId, role.id);
+        return { roleId: role.id, clientScopeId };
+      },
+      verifySeeded: async (tx, seeded) => {
+        const found = await roleRepository(tx).idsForClientScopes([seeded.clientScopeId]);
+        expect(found).toEqual(new Set([seeded.roleId]));
+      },
+      attempt: async (tx, seeded) => roleRepository(tx).idsForClientScopes([seeded.clientScopeId]),
+      expectBlocked: (result) => {
+        expect(result).toEqual(new Set());
+      },
+    });
+  });
+});

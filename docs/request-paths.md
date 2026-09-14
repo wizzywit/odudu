@@ -598,6 +598,81 @@ JWKS, its `iss`, `aud`, `exp` and `nonce`; take `sub` as the user's
 identifier; keep the access token for API calls and the refresh token
 somewhere it can be used once.
 
+### `roles`, once a scope reaches it
+
+RFC 9068 §2.2.3.1 names `roles` as an access token claim, and Odudu adds it
+to the same registry that assembles the ID token and `/userinfo` — but only
+for the roles a granted scope actually reaches. There is no admin API or
+seed flag for a role yet, so the run behind this section created one with
+`psql` against the compose stack's database, the same one `odudu seed`
+writes to:
+
+```sql
+INSERT INTO roles (id, realm_id, client_id, name)
+  VALUES (gen_random_uuid(), '<realm_id>', NULL, 'reviewer') RETURNING id;
+INSERT INTO subject_roles (realm_id, subject_id, role_id)
+  VALUES ('<realm_id>', '<ada_subject_id>', '<role_id>');
+INSERT INTO client_scope_roles (realm_id, client_scope_id, role_id)
+  VALUES ('<realm_id>', '<roles_scope_id>', '<role_id>');
+```
+
+That gives `ada` a `reviewer` role, mapped to the `roles` scope
+`provisionRealmDefaults` already seeded for the realm. Requesting
+`scope=openid roles` instead of `scope=openid profile email` and redeeming
+the code through Path A's usual steps produces an access token that carries
+it:
+
+```json
+{
+  "sub": "01a0a076-7bb2-…",
+  "roles": ["reviewer"],
+  "iss": "http://localhost:3000/realms/demo",
+  "aud": ["http://localhost:3000/realms/demo"],
+  "client_id": "demo-spa",
+  "scope": "openid roles",
+  "iat": 1789398555,
+  "exp": 1789398855,
+  "jti": "01a0a077-1b48-…"
+}
+```
+
+The ID token issued alongside it carries no `roles`, though the same
+`reviewer` role reached the same scope:
+
+```json
+{
+  "iss": "http://localhost:3000/realms/demo",
+  "aud": "demo-spa",
+  "iat": 1789398555,
+  "exp": 1789398855,
+  "auth_time": 1789398555,
+  "nonce": "n-0S6_WzA2Mj",
+  "sub": "01a0a076-7bb2-…"
+}
+```
+
+`client_scopes.include_in_id_token` is what decides that, and the `roles`
+and `groups` scopes ship with it off: an ID token reaches the browser, and a
+full role list has no place there. `/userinfo` reads the same gate as the
+access token, not the ID token's, so it returns the role the access token
+carries it presented:
+
+```bash
+curl -sS -H "Authorization: Bearer $ACCESS_TOKEN" \
+  http://localhost:3000/realms/demo/protocol/openid-connect/userinfo
+```
+
+```json
+{ "sub": "01a0a076-7bb2-…", "roles": ["reviewer"] }
+```
+
+A role reaches a token only when it is mapped, this way, to a scope the
+client is assigned — a role held but never mapped to any scope is left out
+of the token entirely, and so is every role once `client_scope_roles` maps
+nothing at all. The one way around the intersection is
+`clients.full_scope_allowed`, which defaults to `false`: set it and a
+client's tokens carry every role the subject holds, unfiltered.
+
 ### 5. `/userinfo`
 
 ```bash

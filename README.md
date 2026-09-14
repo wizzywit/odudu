@@ -39,6 +39,11 @@ token exchange — P2a onwards. The roadmap's second phase is two: **P2a** is
 the identity model — roles, groups, client scopes, per-client web origins,
 email — and **P2b** is credentials, MFA and the session lifecycle.
 
+A role reaches a token only when it is mapped to a scope the client is
+assigned, because `clients.full_scope_allowed` is off by default — a client
+sees the realm's entire role vocabulary only once that is switched on for
+it.
+
 `/token` and `/userinfo` now enforce CORS from a client's own `web_origins`
 (a preflight from the realm's union of every client's, since it carries no
 client identity to check against one) — see

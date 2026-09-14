@@ -1,6 +1,6 @@
 import { type RealmScopedDatabase } from '@odudu/db';
 import { newId, OduduError } from '@odudu/kernel';
-import { and, eq, isNull, sql } from 'drizzle-orm';
+import { and, eq, inArray, isNull, sql } from 'drizzle-orm';
 import {
   clientScopeRoles,
   roleComposites,
@@ -124,6 +124,18 @@ export function roleRepository(tx: RealmScopedDatabase) {
     async defaultsForRealm(): Promise<RoleRecord[]> {
       const rows = await tx.select().from(roles).where(eq(roles.defaultForNewSubjects, true));
       return rows.map(toRecord);
+    },
+
+    // The role ids a set of client scopes reaches, read fresh per token
+    // issuance so a mapping edited between requests takes effect on the
+    // next one rather than the next login.
+    async idsForClientScopes(clientScopeIds: readonly string[]): Promise<Set<string>> {
+      if (clientScopeIds.length === 0) return new Set();
+      const rows = await tx
+        .select({ roleId: clientScopeRoles.roleId })
+        .from(clientScopeRoles)
+        .where(inArray(clientScopeRoles.clientScopeId, [...clientScopeIds]));
+      return new Set(rows.map((row) => row.roleId));
     },
   };
 }

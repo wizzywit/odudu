@@ -2,6 +2,7 @@ import { verifyJwt, type SigningKeyRecord } from '@odudu/crypto';
 import { type ClaimMapperRegistry } from '@odudu/kernel';
 import { presentedBearerToken } from '#/service/bearer-token';
 import { type ClaimContext } from '#/service/claims';
+import { narrowByScopeMappings } from '#/service/scope-mapping';
 import { type RealmLookup } from '#/repository/realm-lookup';
 
 export interface UserinfoDeps {
@@ -9,6 +10,14 @@ export interface UserinfoDeps {
   listPublishableKeys(realmId: string): Promise<SigningKeyRecord[]>;
   loadClaimContext(realmId: string, subjectId: string): Promise<ClaimContext>;
   claimMappers: ClaimMapperRegistry<ClaimContext>;
+  // The role set a granted scope reaches, and whether the token's client
+  // bypasses that intersection — the same gate token issuance applies, so
+  // a role withheld from a token cannot resurface here.
+  resolveRoleReach(
+    realmId: string,
+    oauthClientId: string,
+    scope: readonly string[],
+  ): Promise<{ reachableRoleIds: ReadonlySet<string>; fullScopeAllowed: boolean }>;
   // The real request's CORS decision is checked against this one client's
   // own expanded origins, resolved from the access token's `client_id`
   // claim rather than any credential the preflight could have carried.
@@ -80,6 +89,16 @@ export async function resolveUserinfo(
   }
 
   const ctx = await deps.loadClaimContext(realm.id, payload.sub);
-  const claims = await deps.claimMappers.assemble(scope, ctx);
+  // A token with no readable client_id reaches no role: the gate fails
+  // closed rather than falling back to the subject's full role set.
+  const { reachableRoleIds, fullScopeAllowed } =
+    clientId === undefined
+      ? { reachableRoleIds: new Set<string>(), fullScopeAllowed: false }
+      : await deps.resolveRoleReach(realm.id, clientId, scope);
+  const narrowedCtx: ClaimContext = {
+    ...ctx,
+    roles: narrowByScopeMappings(ctx.roles, reachableRoleIds, fullScopeAllowed),
+  };
+  const claims = await deps.claimMappers.assemble(scope, narrowedCtx);
   return { kind: 'ok', claims, clientId };
 }
