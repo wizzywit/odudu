@@ -1050,11 +1050,16 @@ is the reason to be a confidential client.
 truthfully — every ID token and UserInfo response above for `ada` carries
 `"email_verified": false`, and that is still real: nothing verifies an
 address until this section. `GET /realms/{realm}/login-actions/action-token?key=…`
-is the other half: consuming the link a verification email carries. There is
-no registration flow yet to trigger one on its own (`verify_email` on a
-realm has no reader), so `odudu seed --send-verification-email` stands in
-for the admin console's "Send verification email" action, against `ada`,
-seeded back in [Bootstrap](#bootstrap):
+is the other half: consuming the link a verification email carries.
+[Self-registration](#self-registration) below is one way to trigger that
+mail, for an address that does not exist yet; `odudu seed
+--send-verification-email` is the other, standing in for the admin
+console's "Send verification email" action against a user who already
+exists — `ada`, seeded back in [Bootstrap](#bootstrap). There is still no
+seed flag or admin surface to flip a realm's `verify_email` itself, only a
+direct `UPDATE realms SET verify_email = true …`, the same gap
+[Self-registration](#self-registration) hits for the other two
+account-lifecycle settings:
 
 ```bash
 odudu seed \
@@ -2762,20 +2767,30 @@ session lifecycle. A citation of either half here means that half.
   exit criterion is password, TOTP and passkey login through the flow tree.
   The flow engine behind the single password step is already a step list for
   that reason, but there is one step in it.
-- **No password reset or account recovery.** Address verification
-  (`GET /realms/{realm}/login-actions/action-token`,
-  [Address verification](#address-verification)) and self-registration
+- **Password reset exists; a timing oracle in it does not have a fix yet.**
+  Address verification (`GET /realms/{realm}/login-actions/action-token`,
+  [Address verification](#address-verification)), self-registration
   (`GET`/`POST /realms/{realm}/login-actions/registration`,
-  [Self-registration](#self-registration)) both exist now, and a realm with
-  `verify_email` on refuses to complete a login for a self-registered
-  address until it is verified — no authorization code, not just a page
-  saying so. `reset_password_allowed` is still a column with no reader; the
-  reset flow built on it is **P2a**'s, whose exit criterion names it.
+  [Self-registration](#self-registration)) and password reset
+  (`GET`/`POST /realms/{realm}/login-actions/reset-password`,
+  [Password reset](#password-reset)) all exist now, gated by their own
+  realm setting, each off by default. A realm with `verify_email` on
+  refuses to complete a login for a self-registered address until it is
+  verified — no authorization code, not just a page saying so. The reset
+  endpoint's remaining gap is [README.md](../README.md)'s stated
+  limitation: mailing an existing address is measurably slower than
+  answering for one that does not exist, closeable only by moving the send
+  off the request path, which this phase's design spec rejects.
 - **No "remember me".** A persistent session is a session-lifespan setting,
   and lifespans are **P2b**'s; the feature itself is not named in the
   roadmap.
-- **No rate limiting or lockout** on failed sign-ins. **P2b**, whose exit
-  criterion names password policies and brute-force protection.
+- **No rate limiting or lockout**, on failed sign-ins or anywhere else.
+  **P2b**, whose exit criterion names password policies and brute-force
+  protection. Self-registration widens what that leaves open: `POST
+/realms/{realm}/login-actions/registration` is unauthenticated and runs
+  one Argon2id hash per request with no maximum password length, so an
+  attacker who cannot yet guess a password can still spend the server's CPU
+  with no account at all.
 - **The sign-in and error pages are hardcoded HTML**, dependency-free with
   every interpolated value escaped. Theming is **P10**; the contract for it
   is deliberately left undecided until there are enough pages for the real
@@ -2818,15 +2833,15 @@ session lifecycle. A citation of either half here means that half.
   is explicit: §5.6.2 says "Normal Claims MUST be supported. Support for
   Aggregated Claims and Distributed Claims is OPTIONAL." No phase is owed
   one.
-- **Four claims exist in total**: `sub`, `name`, `email`, `email_verified`,
-  and `name` is the username because there is no separate display name yet.
-  The standard claims beyond these four need a user profile — attributes,
-  their storage and their mapping — which is **P2a**, whose exit criterion
-  names it beside roles, groups and client scopes. It went there rather than
-  to P4 because it changes the token contract, and because P4's
-  admin-configurable protocol mappers would otherwise be configuring
-  mappings over attributes that do not exist: P2a owns the attributes and
-  the claims they produce, P4 owns reconfiguring that mapping.
+- **No admin-configurable protocol mappers.** The claim registry
+  (`standardClaimMappers`, the 22 names in `claims_supported`) and the
+  role/group claims alongside it are fixed by the server, not by anything a
+  realm operator can add or change. Reconfiguring what a scope maps to —
+  Keycloak's protocol mapper concept — is **P4**'s, alongside the rest of
+  the admin surface. `entitlements`, in particular, is deliberately never
+  advertised: there is no notion of one in this identity model yet, and
+  `packages/protocol-oidc/tests/claims-supported.int.test.ts` fails the
+  build if it appears in a live discovery response.
 
 **Endpoints that do not exist at all**
 
@@ -2879,9 +2894,11 @@ session lifecycle. A citation of either half here means that half.
   the audit event and the surface to trigger it from that P4 is the phase
   for.
 - **Nothing is ever deleted.** Every expired `sessions`,
-  `authentication_sessions`, `authorization_codes` and `refresh_tokens` row
-  is still on disk; expiry is enforced at read time, so none of them can be
-  used. **P2b**, which owns the retention window because a lifespan says when
-  something stops working and not when it stops existing. ADR 0021 carries
-  why deleting on `expires_at` alone would silently disable refresh-token
-  reuse detection.
+  `authentication_sessions`, `authorization_codes`, `refresh_tokens` and
+  `action_tokens` row is still on disk; expiry (and, for `action_tokens`,
+  consumption) is enforced at read time, so none of them can be used. **P2b**,
+  which owns the retention window because a lifespan says when something
+  stops working and not when it stops existing. ADR 0021 carries why
+  deleting on `expires_at` alone would silently disable refresh-token reuse
+  detection — the same hazard applies to every table in this list, not only
+  the one the ADR was written against.

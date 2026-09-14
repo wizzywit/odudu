@@ -28,9 +28,10 @@ Conclusion: `verified: @fastify/cors 11.2.0 delegator resolves preflight
 asynchronously` — the async delegator function ran for both `OPTIONS`
 preflights, returned `https://app.example` for the realm whose simulated
 database lookup allowed it, and returned no `access-control-allow-origin`
-header at all for the same origin against a different realm, so Task 3 can
-read the realm-wide origin union from PostgreSQL inside this delegator on
-every request instead of adding a bespoke `onRequest` hook.
+header at all for the same origin against a different realm, so
+`packages/protocol-oidc/src/view/routes/cors.ts` can read the realm-wide
+origin union from PostgreSQL inside this delegator on every request instead
+of adding a bespoke `onRequest` hook.
 
 ## URL.origin normalization
 
@@ -144,8 +145,9 @@ returned exactly `a`, `b`, `c` well inside the timeout, and the identical
 query with `UNION ALL` ran the full 5s and was cancelled by PostgreSQL. The
 control confirms the fixture is a genuine cycle and that `UNION`'s
 duplicate elimination, not something incidental to the query shape, is
-what empties the frontier. Task 8's recursive CTE must use `UNION`, never
-`UNION ALL`, for effective-role closure.
+what empties the frontier. The recursive CTE in
+`packages/domain-authz/src/repository/effective-roles.ts` must use `UNION`,
+never `UNION ALL`, for effective-role closure.
 
 ## SMTP client through the production image
 
@@ -160,8 +162,9 @@ actually deliver a message from inside the built image, or does it hit a
 `@node-rs/argon2` in a later phase?
 
 Setup: added `nodemailer@7.0.9` and `@types/nodemailer@7.0.4` to
-`apps/server/package.json` (throwaway — removed after this spike, per Task
-15's ownership by `@odudu/email`), wrote `apps/server/src/smtp-probe.ts`
+`apps/server/package.json` (throwaway — removed after this spike, since
+`@odudu/email` is the package that owns the SMTP client), wrote
+`apps/server/src/smtp-probe.ts`
 per the brief, and temporarily added it as a second `tsup` entry point
 (also reverted) so the build stage would emit `dist/smtp-probe.js` for the
 probe command to import — the Dockerfile's own `pnpm --filter @odudu/server
@@ -207,7 +210,7 @@ the production image unmodified` — no `noExternal` carve-out was needed
 (unlike `@node-rs/argon2`, it ships no native binding), the build produced
 no warnings about dynamic `require` or unresolved specifiers, and the
 bundled code ran and delivered mail using only the `runtime` stage's
-`--prod` install. Task 15 should install exactly `nodemailer@7.0.9` (with
-`@types/nodemailer@7.0.4` as a dev dependency) into `@odudu/email`, with no
+`--prod` install. `@odudu/email` should install exactly `nodemailer@7.0.9`
+(with `@types/nodemailer@7.0.4` as a dev dependency), with no
 `tsup.config.ts` change required in that package beyond what a normal
 dependency already gets — `nodemailer` needs no entry in `nativeExternals`.

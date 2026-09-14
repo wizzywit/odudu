@@ -2,90 +2,123 @@
 
 ## Start here
 
-**P0 and P1 are complete. P2a is next and nothing has started on it —
-brainstorm its scope first, per `CLAUDE.md`.**
+**P0, P1 and P2a are complete. P2b is next — brainstorm its scope first,
+per `CLAUDE.md`.** P2a delivered the identity model: roles, groups, client
+scopes, per-client web origins, the user profile, email delivery and the
+account lifecycle built on it (self-registration, address verification,
+password reset). Everything below this point is what P2b needs and cannot
+derive from the code.
 
-**P2 is now two phases sharing a number.** It doubled when the identity
-model was found missing from the roadmap, and a phase nobody can finish is a
-phase nobody starts. **P2a** is the identity model — roles, groups, client
-scopes, per-client web origins, email. **P2b** is credentials, MFA and the
-session lifecycle, which is what P2 originally meant. Each gets its own
-spec, plan and exit criteria. They share a number because renumbering the
-roadmap's tail would rewrite roughly 150 `deferred:` rows whose intent is a
-phase rather than a digit, and `pnpm trace` skips `deferred:` rows, so a
-mistake there would never surface. **An existing `deferred: P2` row means
-P2b** unless it concerns roles, groups, web origins or email.
+**The token contract, as P2a leaves it.** `roles` and `groups` are sorted
+string arrays, emitted under the names the JWT registry (RFC 9068 §2.2.3.1)
+gives them; a client-scoped role is qualified `clientId:roleName`, never
+just `roleName`. `clients.full_scope_allowed` is **off by default** — a role
+reaches a token only when it is granted to the subject, mapped to a scope,
+and that scope is both assigned to the client and actually requested (or
+`full_scope_allowed` is switched on for that client, which bypasses the
+mapping entirely). Identity claims are gated **off the access token by
+default** by `client_scopes.include_in_access_token` — `roles`/`groups`
+default the other way, `true`, which is the one asymmetry worth
+remembering: an access token carries roles and groups unless told not to,
+and carries no profile claims unless told to. `include_in_id_token` gates
+`roles`/`groups` off the ID token the same way, unconditionally — a full
+role list has no place going to a browser. `/userinfo` reads the access
+token's gate, not the ID token's. See [docs/request-paths.md](request-paths.md#roles-once-a-scope-reaches-it)
+for the walkthrough — its "I created a role and it is not in my token"
+paragraph, and [README.md](../README.md)'s "Give ada a role" section, are
+the two places this order-of-checks is written down for a reader.
 
-**A fourth joined P2a on 2026-09-14: the user profile.** Today a subject has
-four claims — `sub`, `name`, `email`, `email_verified` — and `name` is the
-username, because no display name exists. The standard OIDC claims need user
-attributes, their storage and their mapping, and that is the same identity
-model as roles and groups, changing the token contract the same way. It went
-here rather than to P4 because P4's admin-configurable protocol mappers
-would otherwise configure mappings over attributes that do not exist: P2a
-owns the attributes and the claims they produce, P4 owns reconfiguring the
-mapping. P2a's estimate moved from 70–100 to 90–130 hours with it, and its
-exit criterion names it. Scope it after roles — the claim machinery roles
-build is what carries it.
+**`user_credentials.type` still needs widening, and P2b is the phase that
+needs it.** Migration 0005's `CHECK (type IN ('password'))`, with `UNIQUE
+(subject_id, type)` beside it, was not touched this phase. One row per type
+per subject is right for a password and wrong for a passkey, of which a
+user may enrol several; TOTP and passkeys both need the check widened by
+migration and the uniqueness rule reconsidered — dropped for passkeys,
+kept for password and TOTP — at the same time, not after.
 
-**Start P2a with these three, in this order.** They were added on 2026-09-13
-after reading Keycloak's surface against the whole roadmap, and they come
-first because each changes work that follows rather than adding to it.
-Section 11 of the design spec, under "What the roadmap did not name",
-carries the reasoning; the short version is here.
+**Reaping now covers five tables, not four, and ADR 0021's warning covers
+all five.** P2a added `action_tokens` (email verification and password
+reset links) alongside `sessions`, `authentication_sessions`,
+`authorization_codes` and `refresh_tokens` — all five carry `expires_at`
+(or, for `action_tokens`, `consumed_at`) with no `DELETE` anywhere in a
+repository. The dead rows are load-bearing: `action_tokens` needs its
+consumed and expired rows kept for the same reason a consumed
+`authorization_codes` row is kept, so that a replayed link can be told from
+one that never existed rather than silently treated as fresh. A reaper that
+deletes eagerly breaks replay and reuse detection on **any** of the five
+while leaving every test that only checks "was the request refused" green —
+see "Do not write `DELETE … WHERE expires_at < now()`" below, which now
+applies to `action_tokens` too.
 
-1. **Roles, groups and client scopes.** Realm and client roles, composite
-   roles, groups, default roles, scope mappings — and the claims that carry
-   them. Nothing in twelve phases named any of this, and P9's authorization
-   services sits on top of roles rather than supplying them. Odudu's only
-   authorization primitive today is a scope string. Do it first because it
-   **changes the token contract**: every later phase that reads a token
-   reads a different one afterwards. Expect a new clause table, because the
-   claim names are specified, and expect it to be most of the phase.
-2. **Per-client web origins.** There is no CORS handling in the server at
-   all. The public single-page client that `docs/request-paths.md` walks a
-   reader through cannot call `/token` or `/userinfo` from a browser — the
-   preflight fails. Small, self-contained, and it makes the documented flow
-   true from the user agent it was written for.
-3. **Email delivery, then the account lifecycle on top of it.** No SMTP, no
-   templates. Self-registration, password reset and address verification all
-   wait on this, and `email_verified` cannot be set honestly without it.
-   Build the delivery seam before the features that need it, or three
-   features each grow their own half of it. Self-registration is the point
-   of it: an unverified self-registered address is an account-takeover
-   primitive, so verification has to work before registration is worth
-   having.
+**A trap P2b will walk into: reading the SSO cookie at `/authorize`
+bypasses the email-verified login gate unless it re-checks it.** Today the
+cookie is written at login and never read (`/authorize` starts a fresh
+authentication every time), so the gate that refuses to complete a login
+for an unverified self-registered address only has one door to guard: the
+form POST. That gate lives in `login-submission.ts`, reached only through
+`POST /realms/{realm}/login-actions/authenticate`. The moment `/authorize`
+can complete a request from a cookie instead of a form submission, that
+check needs to run on the cookie path too, or an unverified user who
+happens to hold a live session cookie signs back in for free. Nothing
+today would catch this by accident — the form-POST tests exercise the form
+POST.
 
-**One thing to understand before scoping P2a: there are four ways a user
-gets into a realm**, and they are not alternatives. Self-registration
-(P2a), the admin API called by another application's backend as a service
-account (P4, and it needs P2a's roles to authorise it), just-in-time
-provisioning on first brokered login (P6), and SCIM inbound provisioning
-(P7). Today the seed CLI is the only one, which is why it can look as though
-an administrator must create every account by hand. Section 11 of the design
-spec, "How a user gets into a realm", has the detail and the traps.
+**Rate limiting was always P2b's, and P2a's registration endpoint widens
+what it needs to cover.** There is no rate limiting or lockout anywhere in
+the repository. `POST /realms/{realm}/login-actions/registration` is
+unauthenticated and performs one Argon2id hash at 19 MiB per request with
+no maximum password length; Fastify's 1 MB body limit is the only ceiling
+on the request itself. Before P2a this was "guess a password against an
+existing account"; now it is also "burn CPU with no account requirement at
+all" — a cheaper attack for the same missing control.
 
-That is P2a. **P2b** then takes what P2 always meant: the flow tree with
+**A stated limitation, not an accident: the password-reset request endpoint
+awaits the SMTP send before responding.** An existing address is therefore
+measurably slower to answer than an unknown one, even though the response
+body and status are identical — a timing oracle where the visible channel
+is closed. Closing it needs an outbox table and a background sender to take
+the send off the request path, which is the first background loop the
+codebase would have and a second table nothing deletes from; this phase's
+design spec rejected building one. [README.md](../README.md)'s "Known
+limitation" paragraph, right after the password-reset walkthrough, states
+it for a reader; this is the record that it was a judgment call, not an
+oversight, so P2b inherits a decision rather than a bug report.
+
+**New environment variables.** `ODUDU_PUBLIC_BASE_URL` — the origin every
+mailed link is built from, never from a request's `Host` header, which is
+client-controlled; sending fails closed (500, logged as a misconfiguration)
+when a realm needs to mail and this is unset. The `ODUDU_SMTP_*` set —
+`ODUDU_SMTP_HOST`, `ODUDU_SMTP_PORT` (default `587`), `ODUDU_SMTP_FROM`,
+`ODUDU_SMTP_USERNAME`, `ODUDU_SMTP_PASSWORD`, `ODUDU_SMTP_STARTTLS` — with
+`ODUDU_SMTP_HOST` unset, the server logs every message instead of sending
+it, which is what the compose stack does today.
+
+**Migrations now run to 0024.** `packages/db/drizzle/0023_users_email_unique.sql`
+is the realm-scoped `(realm_id, email)` uniqueness self-registration needs;
+0024 is the last one this phase added. Anything from P2b starts at 0025.
+
+That is P2a done. **P2b** takes what P2 always meant: the flow tree with
 TOTP and passkeys, password policies, brute-force protection (a clause row
 already records it as `deferred: P2`, and means this half), session idle and
 maximum lifespans, offline access, an SSO session that is **read** as well as
-written, and RP-initiated logout to end it. Odudu now serves the OAuth 2.1 / OpenID Connect core: the
-`authorization_code`, `refresh_token` and `client_credentials` grants, and
-the authorize, token, userinfo, jwks and discovery endpoints. The rest of
-this file is the record of how that happened; what follows is the part a
-newcomer to P2 needs before touching anything.
+written, and RP-initiated logout to end it. Odudu now serves the OAuth 2.1 /
+OpenID Connect core plus the full P2a identity model. The rest of this file
+is the record of how P0 and P1 happened; what follows below this point is
+kept for that history, not as current guidance.
 
-**Nothing is ever deleted, and P2b now owns fixing that.** The four tables
-carrying `expires_at` — `sessions`, `authentication_sessions`,
-`authorization_codes`, `refresh_tokens` — enforce expiry at read time, so an
-expired row can never be redeemed, and **no repository contains a `DELETE`**.
-Every `/authorize` request leaves an `authentication_sessions` row behind
-holding `client_id`, `redirect_uri`, `scope`, `state`, `nonce` and
-`code_challenge`, whether the login completed or was abandoned; every refresh
-rotation leaves a `refresh_tokens` row, about 288 per session per day for a
-client refreshing every five minutes. It is P2b's because P2b owns the
-session idle and maximum lifespans, and a lifespan says when something stops
-working, not when it stops existing.
+**Nothing is ever deleted, and P2b now owns fixing that — five tables, not
+four (see above).** The tables carrying `expires_at` or `consumed_at` —
+`sessions`, `authentication_sessions`, `authorization_codes`,
+`refresh_tokens`, `action_tokens` — enforce expiry (or consumption) at read
+time, so an expired or spent row can never be redeemed, and **no repository
+contains a `DELETE`**. Every `/authorize` request leaves an
+`authentication_sessions` row behind holding `client_id`, `redirect_uri`,
+`scope`, `state`, `nonce` and `code_challenge`, whether the login completed
+or was abandoned; every refresh rotation leaves a `refresh_tokens` row,
+about 288 per session per day for a client refreshing every five minutes;
+every mailed link leaves an `action_tokens` row. It is P2b's because P2b
+owns the session idle and maximum lifespans, and a lifespan says when
+something stops working, not when it stops existing.
 
 **Do not write `DELETE … WHERE expires_at < now()`.** Replay detection reads
 the dead rows. `rotateRefreshToken`
