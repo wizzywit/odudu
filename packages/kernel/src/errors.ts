@@ -16,6 +16,8 @@ export type ErrorCode =
   | 'invalid_email'
   | 'seed_invalid_options'
   | 'seed_conflict'
+  | 'seed_not_found'
+  | 'seed_unknown_command'
   | 'insert_returned_no_row'
   | 'role_not_found'
   | 'role_composite_cycle'

@@ -10,12 +10,14 @@ import {
 import { expectCrossRealmMethodProbe } from '@odudu/db/testing';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
+import { and, eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   clientScopeRepository,
   type ClientScopeAssignment,
   type ClientScopeRecord,
 } from '#/repository/client-scopes';
+import { clientScopeAssignments } from '#/schema/client-scopes';
 import { clients } from '#/schema/clients';
 
 let containerHandle: TestDatabase | undefined;
@@ -236,5 +238,76 @@ describe('assignment', () => {
       clientScopeRepository(tx).forClient(clientInRealmA),
     );
     expect(scopes).toEqual([]);
+  });
+});
+
+describe('assignOrUpdate', () => {
+  it('creates the assignment when none exists', async () => {
+    const realmId = newId();
+    const { clientId, scopeId } = await withRealm(app.db, realmId, async (tx) => {
+      await seedRealm(tx, realmId);
+      const clientId = await insertClient(tx, realmId);
+      const scope = await clientScopeRepository(tx).create({ realmId, name: 'roles' });
+      return { clientId, scopeId: scope.id };
+    });
+
+    await withRealm(app.db, realmId, (tx) =>
+      clientScopeRepository(tx).assignOrUpdate(clientId, scopeId, 'optional'),
+    );
+
+    const scopes = await withRealm(app.db, realmId, (tx) =>
+      clientScopeRepository(tx).forClient(clientId),
+    );
+    expect(scopes.map((scope) => scope.name)).toEqual(['roles']);
+  });
+
+  // Client creation assigns the realm's default vocabulary before an
+  // operator ever runs the seed CLI's assign-scope command, so the second
+  // call this method exists for always lands on a row `assign` already
+  // wrote — narrowing it is the point, not a collision to refuse.
+  it('narrows an existing assignment instead of colliding with it', async () => {
+    const realmId = newId();
+    const { clientId, scopeId } = await withRealm(app.db, realmId, async (tx) => {
+      await seedRealm(tx, realmId);
+      const clientId = await insertClient(tx, realmId);
+      const scope = await clientScopeRepository(tx).create({ realmId, name: 'roles' });
+      await clientScopeRepository(tx).assign(clientId, scope.id, 'default');
+      return { clientId, scopeId: scope.id };
+    });
+
+    await withRealm(app.db, realmId, (tx) =>
+      clientScopeRepository(tx).assignOrUpdate(clientId, scopeId, 'optional'),
+    );
+
+    const rows = await owner.db
+      .select({ assignment: clientScopeAssignments.assignment })
+      .from(clientScopeAssignments)
+      .where(
+        and(
+          eq(clientScopeAssignments.clientId, clientId),
+          eq(clientScopeAssignments.clientScopeId, scopeId),
+        ),
+      );
+    expect(rows[0]?.assignment).toBe('optional');
+  });
+
+  it('refuses a client from another realm', async () => {
+    const realmA = newId();
+    const realmB = newId();
+
+    const { clientId, scopeId } = await withRealm(app.db, realmA, async (tx) => {
+      await seedRealm(tx, realmA);
+      const clientId = await insertClient(tx, realmA);
+      const scope = await clientScopeRepository(tx).create({ realmId: realmA, name: 'roles' });
+      return { clientId, scopeId: scope.id };
+    });
+
+    await withRealm(app.db, realmB, (tx) => seedRealm(tx, realmB));
+
+    await expect(
+      withRealm(app.db, realmB, (tx) =>
+        clientScopeRepository(tx).assignOrUpdate(clientId, scopeId, 'optional'),
+      ),
+    ).rejects.toThrow(/unknown client/);
   });
 });

@@ -99,5 +99,33 @@ export function clientScopeRepository(tx: RealmScopedDatabase) {
         assignment,
       });
     },
+
+    // Provisioning a client's default scopes and an operator naming one
+    // explicitly both reach for the same pair, so the second call narrows
+    // or widens an existing assignment rather than colliding with it — the
+    // seed CLI's assign-scope depends on this to run after client creation
+    // has already assigned the realm's default vocabulary.
+    async assignOrUpdate(
+      clientId: string,
+      clientScopeId: string,
+      assignment: ClientScopeAssignment,
+    ): Promise<void> {
+      const clientRows = await tx
+        .select({ realmId: clients.realmId })
+        .from(clients)
+        .where(eq(clients.id, clientId));
+      const client = clientRows[0];
+      if (client === undefined) {
+        throw new Error(`cannot assign a scope to unknown client ${clientId}`);
+      }
+
+      await tx
+        .insert(clientScopeAssignments)
+        .values({ realmId: client.realmId, clientId, clientScopeId, assignment })
+        .onConflictDoUpdate({
+          target: [clientScopeAssignments.clientId, clientScopeAssignments.clientScopeId],
+          set: { assignment },
+        });
+    },
   };
 }

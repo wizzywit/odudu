@@ -653,37 +653,55 @@ somewhere it can be used once.
 
 RFC 9068 §2.2.3.1 names `roles` as an access token claim, and Odudu adds it
 to the same registry that assembles the ID token and `/userinfo` — but only
-for the roles a granted scope actually reaches. There is no admin API or
-seed flag for a role yet, so the run behind this section created one with
-`psql` against the compose stack's database, the same one `odudu seed`
-writes to:
+for the roles a granted scope actually reaches. `odudu seed` now has
+subcommands for the whole identity model this needs, run against the same
+realm and user the [Bootstrap](#bootstrap) section above already seeded:
 
-```sql
-INSERT INTO roles (id, realm_id, client_id, name)
-  VALUES (gen_random_uuid(), '<realm_id>', NULL, 'reviewer') RETURNING id;
-INSERT INTO subject_roles (realm_id, subject_id, role_id)
-  VALUES ('<realm_id>', '<ada_subject_id>', '<role_id>');
-INSERT INTO client_scope_roles (realm_id, client_scope_id, role_id)
-  VALUES ('<realm_id>', '<roles_scope_id>', '<role_id>');
+```bash
+odudu seed role --realm demo --name reviewer
 ```
-
-That gives `ada` a `reviewer` role, mapped to the `roles` scope
-`provisionRealmDefaults` already seeded for the realm. Requesting
-`scope=openid roles` instead of `scope=openid profile email` and redeeming
-the code through Path A's usual steps produces an access token that carries
-it:
 
 ```json
 {
-  "sub": "01a0a076-7bb2-…",
+  "command": "role",
+  "realm": "demo",
+  "realmId": "01a0a1a7-5917-7905-aed4-e278951d1acf",
+  "roleId": "01a0a1a7-7121-7bc5-945f-723c237be90f",
+  "name": "reviewer",
+  "clientId": null
+}
+```
+
+```bash
+odudu seed grant-role --realm demo --username ada --role reviewer
+odudu seed map-role --realm demo --scope roles --role reviewer
+```
+
+```json
+{ "command": "grant-role", "realm": "demo", "realmId": "01a0a1a7-5917-7905-aed4-e278951d1acf", "username": "ada", "role": "reviewer" }
+{ "command": "map-role", "realm": "demo", "realmId": "01a0a1a7-5917-7905-aed4-e278951d1acf", "scope": "roles", "role": "reviewer" }
+```
+
+That gives `ada` a `reviewer` role, mapped to the `roles` scope
+`provisionRealmDefaults` already seeded for the realm — `demo-spa` already
+carries `roles` among the default scopes `seed client` assigned it, so no
+`assign-scope` call is needed here; see [`assign-scope` and `default` versus
+`optional`](#assign-scope-and-default-versus-optional) below for when one
+is. Requesting `scope=openid roles` instead of `scope=openid profile email`
+and redeeming the code through Path A's usual steps produces an access
+token that carries it:
+
+```json
+{
   "roles": ["reviewer"],
   "iss": "http://localhost:3000/realms/demo",
+  "sub": "01a0a1a7-5d86-7e0c-9ebf-d30b0fc20cb4",
   "aud": ["http://localhost:3000/realms/demo"],
   "client_id": "demo-spa",
   "scope": "openid roles",
-  "iat": 1789398555,
-  "exp": 1789398855,
-  "jti": "01a0a077-1b48-…"
+  "iat": 1789418514,
+  "exp": 1789418814,
+  "jti": "01a0a1a7-a6bc-7deb-93ae-f0a671497b5a"
 }
 ```
 
@@ -694,11 +712,11 @@ The ID token issued alongside it carries no `roles`, though the same
 {
   "iss": "http://localhost:3000/realms/demo",
   "aud": "demo-spa",
-  "iat": 1789398555,
-  "exp": 1789398855,
-  "auth_time": 1789398555,
+  "iat": 1789418514,
+  "exp": 1789418814,
+  "auth_time": 1789418514,
   "nonce": "n-0S6_WzA2Mj",
-  "sub": "01a0a076-7bb2-…"
+  "sub": "01a0a1a7-5d86-7e0c-9ebf-d30b0fc20cb4"
 }
 ```
 
@@ -717,7 +735,7 @@ curl -sS -H "Authorization: Bearer $ACCESS_TOKEN" \
 ```
 
 ```json
-{ "sub": "01a0a076-7bb2-…", "roles": ["reviewer"] }
+{ "sub": "01a0a1a7-5d86-7e0c-9ebf-d30b0fc20cb4", "roles": ["reviewer"] }
 ```
 
 A role reaches a token only when it is mapped, this way, to a scope the
@@ -726,6 +744,67 @@ of the token entirely, and so is every role once `client_scope_roles` maps
 nothing at all. The one way around the intersection is
 `clients.full_scope_allowed`, which defaults to `false`: set it and a
 client's tokens carry every role the subject holds, unfiltered.
+
+### `assign-scope`, and `default` versus `optional`
+
+A client-scoped role — one qualified as `clientId:roleName` — needs the
+client it is scoped to seeded first, because `roles_client_fk`
+(`packages/db/drizzle/0017_roles.sql`) is a real foreign key: a role naming
+a client that does not exist cannot be inserted, let alone granted.
+
+```bash
+odudu seed client \
+  --realm demo --client-id reports-api --client-secret reports-api-secret \
+  --redirect-uri http://localhost:9000/cb
+odudu seed role --realm demo --name reader --client-id reports-api
+odudu seed grant-role --realm demo --username ada --role reports-api:reader
+odudu seed map-role --realm demo --scope roles --role reports-api:reader
+```
+
+```json
+{ "command": "client", "created": true, "realm": "demo", "realmId": "01a0a1a7-5917-7905-aed4-e278951d1acf", "clientId": "reports-api", "clientDbId": "01a0a1a8-5ef5-78ec-98b5-d4a76a9eb112" }
+{ "command": "role", "realm": "demo", "realmId": "01a0a1a7-5917-7905-aed4-e278951d1acf", "roleId": "01a0a1a8-6128-7224-bb1f-817f9d6a29fa", "name": "reader", "clientId": "reports-api" }
+{ "command": "grant-role", "realm": "demo", "realmId": "01a0a1a7-5917-7905-aed4-e278951d1acf", "username": "ada", "role": "reports-api:reader" }
+{ "command": "map-role", "realm": "demo", "realmId": "01a0a1a7-5917-7905-aed4-e278951d1acf", "scope": "roles", "role": "reports-api:reader" }
+```
+
+A token requested with `scope=openid roles` for `demo-spa` now carries
+`"roles": ["reports-api:reader", "reviewer"]` — the qualified name is
+exactly `clientId:roleName`, which is unambiguous only because
+`roles_name_has_no_colon` refuses a `:` inside a role name itself; naming a
+role with two colons (`a:b:c`) is refused by `grant-role`/`map-role` rather
+than guessed at, since the client half could not contain one either.
+
+`seed client` assigns every realm-default scope — `roles` and `groups`
+among them — to a client the moment it is created, with assignment kind
+`default`. `seed assign-scope` exists for the scope a realm defines
+_afterwards_ — a resource server's own `reports:read`, say — that a client
+needs added explicitly:
+
+```bash
+odudu seed scope --realm demo --name reports:read
+odudu seed assign-scope \
+  --realm demo --client-id demo-spa --scope reports:read --assignment optional
+```
+
+```json
+{ "command": "scope", "realm": "demo", "realmId": "01a0a1a7-5917-7905-aed4-e278951d1acf", "scopeId": "01a0a1a8-b176-71db-b143-86b395a7b439", "name": "reports:read" }
+{ "command": "assign-scope", "realm": "demo", "realmId": "01a0a1a7-5917-7905-aed4-e278951d1acf", "clientId": "demo-spa", "scope": "reports:read", "assignment": "optional" }
+```
+
+`assign-scope` is safe to run against a scope a client already carries — it
+narrows or widens the existing assignment rather than colliding with it,
+which matters because every realm-default scope is already assigned by the
+time a client exists to run it against.
+
+**"I created a role and it is not in my token."** Three things gate it,
+independently: the role must be granted to the subject (`grant-role`), the
+role must be mapped to a scope (`map-role`), and the client must be assigned
+that scope and the token request must actually include it (`scope=` at
+`/authorize`, or `clients.full_scope_allowed`). Missing any one of the
+three is indistinguishable from the outside — the claim is simply absent —
+so when it is missing, check the three in that order rather than guessing
+which one it was.
 
 ### 5. `/userinfo`
 

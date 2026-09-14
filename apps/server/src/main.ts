@@ -3,7 +3,7 @@ import { createDatabase } from '@odudu/db';
 import { loadConfig, ModuleRegistry, systemClock } from '@odudu/kernel';
 import closeWithGrace from 'close-with-grace';
 import { buildApp } from '#/app';
-import { type SeedOptions, seed } from '#/cli/seed';
+import { SEED_COMMANDS, seed, type SeedOptions } from '#/cli/seed';
 import {
   assertProductionAppDatabaseUrl,
   assertProductionTls,
@@ -67,8 +67,17 @@ function parseSeedOptions(argv: string[]): SeedOptions {
   };
 }
 
+// `seed role ...`, `seed grant-role ...` and the rest of the identity
+// model's subcommands are told apart from the older `seed --realm ...
+// --client ...` bootstrap form by their first token: a subcommand name
+// never starts with `--`, and the bootstrap form's first flag always does.
 if (process.argv[2] === 'seed') {
-  const result = await seed(parseSeedOptions(process.argv.slice(3)));
+  const rest = process.argv.slice(3);
+  const first = rest[0];
+  const result =
+    first !== undefined && (SEED_COMMANDS as readonly string[]).includes(first)
+      ? await seed(rest)
+      : await seed(parseSeedOptions(rest));
   console.log(JSON.stringify(result));
   process.exit(0);
 }

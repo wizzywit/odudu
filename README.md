@@ -340,6 +340,50 @@ curl -sS --data-urlencode 'grant_type=authorization_code' \
 
 (Token values truncated; they differ every run.)
 
+**Give ada a role.** `seed` has one subcommand per piece of the identity
+model — `role`, `group`, `scope`, `assign-scope`, `map-role`, `grant-role`
+and `join-group` — reachable the same way as `seed` itself (swap in the
+`docker compose exec` or `node --env-file=.env` prefix from above):
+
+```bash
+node --env-file=.env apps/server/src/main.ts seed role --realm demo --name reviewer
+node --env-file=.env apps/server/src/main.ts seed grant-role \
+  --realm demo --username ada --role reviewer
+node --env-file=.env apps/server/src/main.ts seed map-role \
+  --realm demo --scope roles --role reviewer
+```
+
+```json
+{ "command": "role", "realm": "demo", "realmId": "01a0a1a7-…", "roleId": "01a0a1a7-…", "name": "reviewer", "clientId": null }
+{ "command": "grant-role", "realm": "demo", "realmId": "01a0a1a7-…", "username": "ada", "role": "reviewer" }
+{ "command": "map-role", "realm": "demo", "realmId": "01a0a1a7-…", "scope": "roles", "role": "reviewer" }
+```
+
+Re-request a token with `scope=openid roles` instead of `scope=openid
+profile email` — swap that one value into the `/auth` call above — and the
+access token's payload carries it:
+
+```json
+{
+  "roles": ["reviewer"],
+  "iss": "http://localhost:3000/realms/demo",
+  "sub": "01a0a1a7-…",
+  "client_id": "demo-spa",
+  "scope": "openid roles"
+}
+```
+
+**"I created a role and it is not in my token."** Three things gate a role
+onto a token, independently: it must be granted to the subject
+(`grant-role`), mapped to a scope (`map-role`), and that scope must both be
+assigned to the client and actually requested (`scope=` at `/authorize`, or
+`clients.full_scope_allowed`). `seed client` already assigns every
+realm-default scope — `roles` and `groups` included — so the third
+condition is usually already met; `seed assign-scope` is for a scope added
+to the realm afterwards. [docs/request-paths.md](docs/request-paths.md#roles-once-a-scope-reaches-it)
+walks through all of it, including a client-scoped role qualified as
+`clientId:roleName`.
+
 **[docs/request-paths.md](docs/request-paths.md) takes it from there** — what
 each of those tokens is for, what `/userinfo` does with them, how a refresh
 rotates, and every way each request above can be refused, with the response
