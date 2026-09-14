@@ -45,7 +45,8 @@ const pathRowsSchema = z.array(pathRowSchema);
 
 // The groups a subject directly belongs to, not their ancestors — the
 // ancestor walk that turns this into inherited membership lives in
-// effectiveRoles' group_closure, not here.
+// effectiveRoles' group_closure, not here. Why that is the right claim
+// shape: docs/adr/0022-group-claims-carry-direct-memberships.md.
 export async function effectiveGroupPaths(
   tx: RealmScopedDatabase,
   subjectId: string,
@@ -62,8 +63,13 @@ export async function effectiveGroupPaths(
 // Descendants reachable from `startId` by following parent_id edges
 // downward (child -> parent points up, so this walks the reverse
 // direction). UNION, not UNION ALL: the same termination reasoning as
-// role_composites' closure — see docs/superpowers/p2a-spike-log.md.
-async function descendantsOf(tx: RealmScopedDatabase, startId: string): Promise<Set<string>> {
+// role_composites' closure — see docs/superpowers/p2a-spike-log.md. Exported
+// only for groups.int.test.ts's cyclic-parent_id termination probe; the
+// package's public surface (src/index.ts) does not re-export it.
+export async function descendantsOf(
+  tx: RealmScopedDatabase,
+  startId: string,
+): Promise<Set<string>> {
   const result = await tx.execute(sql`
     WITH RECURSIVE descendants(id) AS (
       SELECT id FROM groups WHERE parent_id = ${startId}

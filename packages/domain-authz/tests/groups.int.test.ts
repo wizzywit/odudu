@@ -12,7 +12,12 @@ import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { effectiveGroupPaths, groupRepository, type GroupRecord } from '#/repository/groups';
+import {
+  descendantsOf,
+  effectiveGroupPaths,
+  groupRepository,
+  type GroupRecord,
+} from '#/repository/groups';
 import { effectiveRoles } from '#/repository/effective-roles';
 import { roleRepository, type RoleRecord } from '#/repository/roles';
 
@@ -215,7 +220,11 @@ describe('group membership and roles', () => {
   it('finds no group from another realm', async () => {
     const realmA = await realmFixture();
     const realmB = await realmFixture();
-    await realmA.createGroup('engineering', null);
+    const group = await realmA.createGroup('engineering', null);
+    // Confirms `create` actually produced a visible row under realm A
+    // before trusting that realm B's null means isolation rather than a
+    // seed that silently no-opped.
+    expect(await realmA.byPath('/engineering')).toMatchObject({ id: group.id });
 
     expect(await realmB.byPath('/engineering')).toBeNull();
   });
@@ -243,4 +252,104 @@ describe('group membership and roles', () => {
       },
     });
   });
+});
+
+describe('cross-realm isolation of the writing methods', () => {
+  it('cannot create a group as a child of another realm’s group, and leaves that realm’s tree unchanged', async () => {
+    const realmA = await realmFixture();
+    const realmB = await realmFixture();
+    const parent = await realmA.createGroup('engineering', null);
+    expect(await realmA.byPath('/engineering')).toMatchObject({ id: parent.id });
+
+    await expect(
+      withRealm(app.db, realmB.realmId, (tx) =>
+        groupRepository(tx).create({
+          realmId: realmB.realmId,
+          name: 'platform',
+          parentId: parent.id,
+        }),
+      ),
+    ).rejects.toThrow(/no group with id/);
+
+    expect(await realmA.byPath('/engineering/platform')).toBeNull();
+  });
+
+  it('cannot add a subject to another realm’s group, and leaves that group’s membership unchanged', async () => {
+    const realmA = await realmFixture();
+    const realmB = await realmFixture();
+    const group = await realmA.createGroup('engineering', null);
+    const subjectA = await realmA.insertSubject();
+    await realmA.addToSubject(subjectA, group.id);
+    expect(await realmA.effectiveGroupPaths(subjectA)).toEqual(['/engineering']);
+
+    const subjectB = await realmB.insertSubject();
+    await expect(
+      withRealm(app.db, realmB.realmId, (tx) =>
+        groupRepository(tx).addToSubject(subjectB, group.id),
+      ),
+    ).rejects.toThrow(/no group with id/);
+
+    expect(await realmA.effectiveGroupPaths(subjectA)).toEqual(['/engineering']);
+    expect(await realmB.effectiveGroupPaths(subjectB)).toEqual([]);
+  });
+
+  it('cannot map another realm’s group to a role, and leaves that group’s roles unchanged', async () => {
+    const realmA = await realmFixture();
+    const realmB = await realmFixture();
+    const group = await realmA.createGroup('engineering', null);
+    const roleA = await realmA.createRole('deployer');
+    await realmA.mapRole(group.id, roleA.id);
+    const subjectA = await realmA.insertSubject();
+    await realmA.addToSubject(subjectA, group.id);
+    expect(await realmA.names(subjectA)).toEqual(['deployer']);
+
+    const roleB = await realmB.createRole('intruder');
+    await expect(
+      withRealm(app.db, realmB.realmId, (tx) => groupRepository(tx).mapRole(group.id, roleB.id)),
+    ).rejects.toThrow(/no group with id/);
+
+    expect(await realmA.names(subjectA)).toEqual(['deployer']);
+  });
+
+  it('cannot reparent another realm’s group, and leaves its path unchanged', async () => {
+    const realmA = await realmFixture();
+    const realmB = await realmFixture();
+    const engineering = await realmA.createGroup('engineering', null);
+    const sales = await realmA.createGroup('sales', null);
+    const platform = await realmA.createGroup('platform', engineering.id);
+    expect(await realmA.byPath('/engineering/platform')).toMatchObject({ id: platform.id });
+
+    await expect(
+      withRealm(app.db, realmB.realmId, (tx) =>
+        groupRepository(tx).reparent(platform.id, sales.id),
+      ),
+    ).rejects.toThrow(/no group with id/);
+
+    expect(await realmA.byPath('/engineering/platform')).toMatchObject({ id: platform.id });
+    expect(await realmA.byPath('/sales/platform')).toBeNull();
+  });
+});
+
+describe('a cyclic parent_id written behind the repository', () => {
+  it('does not hang effectiveRoles or descendantsOf', async () => {
+    const realm = await realmFixture();
+    const a = await realm.createGroup('a', null);
+    const b = await realm.createGroup('b', a.id);
+    // Bypasses groupRepository.reparent, which refuses this cycle before
+    // the SQL ever runs — writing it directly is what proves the query
+    // itself terminates rather than only the guard in front of it.
+    await withRealm(app.db, realm.realmId, (tx) =>
+      tx.execute(sql`update groups set parent_id = ${b.id} where id = ${a.id}`),
+    );
+
+    const role = await realm.createRole('deployer');
+    await realm.mapRole(a.id, role.id);
+    const subject = await realm.insertSubject();
+    await realm.addToSubject(subject, b.id);
+
+    await expect(realm.names(subject)).resolves.toEqual(['deployer']);
+
+    const reachable = await withRealm(app.db, realm.realmId, (tx) => descendantsOf(tx, a.id));
+    expect(reachable).toEqual(new Set([a.id, b.id]));
+  }, 10_000);
 });
