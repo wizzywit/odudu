@@ -146,11 +146,24 @@ export function userRepository(tx: RealmScopedDatabase) {
       return toUser(row);
     },
 
-    // RLS is the realm filter here, not a realm_id predicate on this query:
-    // an update targeting another realm's subject matches zero rows and
-    // returns nothing, which this method turns into a not-found error
-    // rather than a silent no-op.
+    // RLS, not a realm_id predicate, is what makes another realm's lookup
+    // or update match zero rows here; that becomes a not-found error rather
+    // than a silent no-op. profile_updated_at is the OIDC `updated_at`
+    // claim ("time the End-User's information was last updated"), so it is
+    // stamped only when a patched field actually differs from the row.
     async updateProfile(subjectId: string, patch: ProfileUpdate): Promise<UserRecord> {
+      const currentRows = await tx.select().from(users).where(eq(users.subjectId, subjectId));
+      const current = currentRows[0];
+      if (current === undefined) {
+        throw new OduduError('user_not_found', `user ${subjectId} not found`);
+      }
+
+      const patchedKeys = Object.keys(patch) as (keyof ProfileUpdate)[];
+      const changed = patchedKeys.some((key) => patch[key] !== current[key]);
+      if (!changed) {
+        return toUser(current);
+      }
+
       const rows = await tx
         .update(users)
         .set({ ...patch, profileUpdatedAt: new Date() })

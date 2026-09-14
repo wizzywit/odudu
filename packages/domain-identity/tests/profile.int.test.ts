@@ -11,7 +11,8 @@ import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { subjectRepository } from '#/repository/subjects';
-import { userRepository } from '#/repository/users';
+import { userRepository, type ProfileUpdate } from '#/repository/users';
+import { isValidBirthdate, isValidLocale, isValidZoneinfo } from '#/service/profile';
 
 let containerHandle: TestDatabase | undefined;
 let ownerHandle: DatabaseHandle | undefined;
@@ -210,5 +211,95 @@ describe('the database enforces what the claim promises', () => {
       userRepository(tx).bySubjectId(subjectInA),
     );
     expect(stillA?.nickname).toBeNull();
+  });
+
+  it('does not stamp profileUpdatedAt when the patch changes nothing', async () => {
+    const realmId = newId();
+    const subjectId = await withRealm(app.db, realmId, (tx) => seedUser(tx, realmId));
+
+    const first = await withRealm(app.db, realmId, (tx) =>
+      userRepository(tx).updateProfile(subjectId, { nickname: 'ally' }),
+    );
+    expect(first.profileUpdatedAt).toBeInstanceOf(Date);
+
+    const resubmitted = await withRealm(app.db, realmId, (tx) =>
+      userRepository(tx).updateProfile(subjectId, { nickname: 'ally' }),
+    );
+    expect(resubmitted.profileUpdatedAt).toEqual(first.profileUpdatedAt);
+  });
+});
+
+// One transaction per case: a CHECK violation aborts the transaction it
+// happens in, so an update attempted after one in the same transaction
+// fails for a reason unrelated to the value under test.
+async function acceptedByColumn(
+  realmId: string,
+  subjectId: string,
+  field: keyof ProfileUpdate,
+  value: string,
+): Promise<boolean> {
+  return withRealm(app.db, realmId, (tx) =>
+    userRepository(tx).updateProfile(subjectId, { [field]: value }),
+  ).then(
+    () => true,
+    () => false,
+  );
+}
+
+// Migration 0012's precedent (isEmailAddress vs. users_email_addr_spec,
+// held together by identity.int.test.ts's parity assertion): a predicate
+// and the CHECK it mirrors are two spellings of one rule, and only running
+// the same cases through both catches the day they drift.
+describe('SQL/TypeScript parity for the shape-constrained columns', () => {
+  it('users_birthdate_shape accepts exactly what isValidBirthdate accepts', async () => {
+    const cases = ['1990-01-31', '1990', '0000', '90-01-31', '1990-1-1', '31/01/1990', ''];
+    const realmId = newId();
+    const subjectId = await withRealm(app.db, realmId, (tx) => seedUser(tx, realmId));
+
+    const accepted: boolean[] = [];
+    for (const candidate of cases) {
+      accepted.push(await acceptedByColumn(realmId, subjectId, 'birthdate', candidate));
+    }
+
+    expect(Object.fromEntries(cases.map((c, i) => [c, accepted[i]]))).toEqual(
+      Object.fromEntries(cases.map((c) => [c, isValidBirthdate(c)])),
+    );
+  });
+
+  it('users_locale_shape accepts exactly what isValidLocale accepts', async () => {
+    const cases = ['en', 'en-US', 'zh-Hans-CN', 'en_US', 'english', ''];
+    const realmId = newId();
+    const subjectId = await withRealm(app.db, realmId, (tx) => seedUser(tx, realmId));
+
+    const accepted: boolean[] = [];
+    for (const candidate of cases) {
+      accepted.push(await acceptedByColumn(realmId, subjectId, 'locale', candidate));
+    }
+
+    expect(Object.fromEntries(cases.map((c, i) => [c, accepted[i]]))).toEqual(
+      Object.fromEntries(cases.map((c) => [c, isValidLocale(c)])),
+    );
+  });
+
+  it('users_zoneinfo_shape accepts exactly what isValidZoneinfo accepts', async () => {
+    const cases = [
+      'Europe/London',
+      'UTC',
+      'America/Argentina/Buenos_Aires',
+      'not a zone',
+      '/leading',
+      '',
+    ];
+    const realmId = newId();
+    const subjectId = await withRealm(app.db, realmId, (tx) => seedUser(tx, realmId));
+
+    const accepted: boolean[] = [];
+    for (const candidate of cases) {
+      accepted.push(await acceptedByColumn(realmId, subjectId, 'zoneinfo', candidate));
+    }
+
+    expect(Object.fromEntries(cases.map((c, i) => [c, accepted[i]]))).toEqual(
+      Object.fromEntries(cases.map((c) => [c, isValidZoneinfo(c)])),
+    );
   });
 });
