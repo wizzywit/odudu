@@ -146,3 +146,68 @@ control confirms the fixture is a genuine cycle and that `UNION`'s
 duplicate elimination, not something incidental to the query shape, is
 what empties the frontier. Task 8's recursive CTE must use `UNION`, never
 `UNION ALL`, for effective-role closure.
+
+## SMTP client through the production image
+
+Question: ADR 0002 fixes a single-container shape built by `infra/docker/Dockerfile`,
+whose `build` stage bundles the server with `tsup` (everything inlined except
+`@node-rs/argon2`, which `noExternal`/`external` carve out because a native
+`.node` binary cannot go into an ESM bundle) and whose `runtime` stage ships
+only that bundle plus a `--prod` `node_modules`. Does `nodemailer`, the
+candidate SMTP client for `@odudu/email`, survive being bundled that way and
+actually deliver a message from inside the built image, or does it hit a
+`require`/native-binding trap like the one already known to be waiting for
+`@node-rs/argon2` in a later phase?
+
+Setup: added `nodemailer@7.0.9` and `@types/nodemailer@7.0.4` to
+`apps/server/package.json` (throwaway — removed after this spike, per Task
+15's ownership by `@odudu/email`), wrote `apps/server/src/smtp-probe.ts`
+per the brief, and temporarily added it as a second `tsup` entry point
+(also reverted) so the build stage would emit `dist/smtp-probe.js` for the
+probe command to import — the Dockerfile's own `pnpm --filter @odudu/server
+build` only knows about `src/main.ts` otherwise.
+
+Commands run, in order:
+
+```
+docker run --rm -d --name smtp-sink -p 1025:1025 axllent/mailpit
+docker build -f infra/docker/Dockerfile -t odudu-smtp-spike .
+docker run --rm --network host odudu-smtp-spike node -e "import('./dist/smtp-probe.js').then(m => m.probe()).then(console.log)"
+docker exec smtp-sink wget -qO- http://127.0.0.1:8025/api/v1/messages
+```
+
+Verbatim build output for the entry actually exercised (tsup inside the
+`build` stage, `tsup 8.5.1`, target `node24`, ESM):
+
+```
+CLI Building entry: src/main.ts, src/smtp-probe.ts
+ESM Build start
+ESM dist/smtp-probe.js         413.33 KB
+ESM dist/smtp-probe.js.map     731.68 KB
+ESM dist/main.js               2.60 MB
+ESM dist/main.js.map           4.50 MB
+ESM ⚡️ Build success in 571ms
+```
+
+Verbatim probe output, run against the built image with no source code and
+no `devDependencies` present, only the `runtime` stage's `node_modules`:
+
+```
+<3a776203-335f-37a7-8569-b321deefb55f@example.test>
+```
+
+Verbatim Mailpit confirmation (same message id, correct envelope):
+
+```
+{"total":1,"unread":1,"count":1,"messages_count":1,"messages_unread":1,"start":0,"tags":[],"messages":[{"ID":"2RS6oiq5enjIHtOS2MSZQj","MessageID":"3a776203-335f-37a7-8569-b321deefb55f@example.test","Read":false,"From":{"Name":"","Address":"odudu@example.test"},"To":[{"Name":"","Address":"ada@example.test"}],"Cc":null,"Bcc":null,"ReplyTo":[],"Subject":"probe","Created":"2026-09-14T16:35:35.697Z","Username":"","Tags":[],"Size":472,"Attachments":0,"Snippet":"probe"}]}
+```
+
+Conclusion: `verified: nodemailer 7.0.9 survives the tsup ESM bundle and
+the production image unmodified` — no `noExternal` carve-out was needed
+(unlike `@node-rs/argon2`, it ships no native binding), the build produced
+no warnings about dynamic `require` or unresolved specifiers, and the
+bundled code ran and delivered mail using only the `runtime` stage's
+`--prod` install. Task 15 should install exactly `nodemailer@7.0.9` (with
+`@types/nodemailer@7.0.4` as a dev dependency) into `@odudu/email`, with no
+`tsup.config.ts` change required in that package beyond what a normal
+dependency already gets — `nodemailer` needs no entry in `nativeExternals`.
