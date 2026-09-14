@@ -4,8 +4,19 @@ import { standardClaimMappers, type ClaimContext } from '#/service/claims';
 const subjectId = 'subject-1';
 
 function ctx(user: ClaimContext['user']): ClaimContext {
-  return { subjectId, user };
+  return { subjectId, user, roles: [], groups: [] };
 }
+
+const roleGroupCtx: ClaimContext = {
+  subjectId: 'sub-1',
+  user: null,
+  roles: [
+    { roleId: 'r2', name: 'reader', clientKey: 'reports-api' },
+    { roleId: 'r1', name: 'admin', clientKey: null },
+    { roleId: 'r3', name: 'admin', clientKey: null },
+  ],
+  groups: ['/engineering/platform', '/engineering'],
+};
 
 describe('the standard OIDC claim mappers', () => {
   it('runs only mappers whose scopes were granted', async () => {
@@ -85,6 +96,53 @@ describe('the standard OIDC claim mappers', () => {
   it('advertises exactly the claim names the standard mappers can produce', () => {
     const registry = standardClaimMappers();
 
-    expect([...registry.claimNames()].sort()).toEqual(['email', 'email_verified', 'name', 'sub']);
+    expect([...registry.claimNames()].sort()).toEqual([
+      'email',
+      'email_verified',
+      'groups',
+      'name',
+      'roles',
+      'sub',
+    ]);
+  });
+});
+
+describe('roles claim', () => {
+  it('emits realm roles bare and client roles qualified', async () => {
+    const claims = await standardClaimMappers().assemble(['openid', 'roles'], roleGroupCtx);
+    expect(claims.roles).toEqual(['admin', 'reports-api:reader']);
+  });
+
+  it('sorts and de-duplicates, so a token is reproducible', async () => {
+    const claims = await standardClaimMappers().assemble(['openid', 'roles'], roleGroupCtx);
+    expect(claims.roles).toEqual([...new Set(claims.roles as string[])].sort());
+  });
+
+  it('emits nothing when the roles scope was not granted', async () => {
+    const claims = await standardClaimMappers().assemble(['openid'], roleGroupCtx);
+    expect(claims).not.toHaveProperty('roles');
+  });
+
+  it('omits the claim entirely rather than emitting an empty array', async () => {
+    const claims = await standardClaimMappers().assemble(['openid', 'roles'], {
+      ...roleGroupCtx,
+      roles: [],
+    });
+    expect(claims).not.toHaveProperty('roles');
+  });
+
+  it('never emits entitlements', async () => {
+    const claims = await standardClaimMappers().assemble(
+      ['openid', 'roles', 'groups'],
+      roleGroupCtx,
+    );
+    expect(claims).not.toHaveProperty('entitlements');
+  });
+});
+
+describe('groups claim', () => {
+  it('emits sorted paths as an array of strings', async () => {
+    const claims = await standardClaimMappers().assemble(['openid', 'groups'], roleGroupCtx);
+    expect(claims.groups).toEqual(['/engineering', '/engineering/platform']);
   });
 });

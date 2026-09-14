@@ -3,14 +3,17 @@ import { clientScopeRepository, type NewClientScope } from '#/repository/client-
 
 // A scope is a promise about claims, and discovery advertises every scope a
 // realm defines. So a scope is seeded here only once a claim mapper can
-// answer for it (packages/protocol-oidc/src/service/claims.ts): `address`,
-// `phone`, `roles` and `groups` join this list in the change that registers
-// their mappers, not before, or `scopes_supported` would name scopes that
-// add nothing to a token.
+// answer for it (packages/protocol-oidc/src/service/claims.ts): `address`
+// and `phone` join this list in the change that registers their mappers,
+// not before, or `scopes_supported` would name scopes that add nothing to a
+// token. `roles` and `groups` carry `includeInIdToken: false` — a full role
+// list has no place in a token that reaches the browser.
 const DEFAULT_SCOPES: readonly Omit<NewClientScope, 'realmId'>[] = [
   { name: 'openid' },
   { name: 'profile' },
   { name: 'email' },
+  { name: 'roles', includeInIdToken: false },
+  { name: 'groups', includeInIdToken: false },
 ];
 
 // Published so a document asserting what a freshly seeded realm advertises

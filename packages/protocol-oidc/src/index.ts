@@ -6,6 +6,7 @@ import {
   startAuthentication,
 } from '@odudu/authn-flows';
 import { signingKeyRepository } from '@odudu/crypto';
+import { effectiveGroupPaths, effectiveRoles } from '@odudu/domain-authz';
 import { withRealm, type DatabaseHandle } from '@odudu/db';
 import { userRepository, verifyPassword } from '@odudu/domain-identity';
 import { clientRepository, clientScopeRepository } from '@odudu/domain-realm';
@@ -57,10 +58,16 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
     // claims_supported), /userinfo, and token issuance's ID token claims —
     // so a mapper registered once reaches every consumer the same way.
     const claimMappers = standardClaimMappers();
+    // Roles need a recursive CTE (effectiveRoles), which a claim mapper must
+    // never run itself — resolved here, once per issuance, alongside the
+    // user row and the subject's direct group memberships, and handed to
+    // the mappers as data.
     const loadClaimContext = (realmId: string, subjectId: string) =>
       withRealm(deps.database.db, realmId, async (tx) => ({
         subjectId,
         user: await userRepository(tx).bySubjectId(subjectId),
+        roles: await effectiveRoles(tx, subjectId),
+        groups: await effectiveGroupPaths(tx, subjectId),
       }));
 
     // The keys /jwks publishes, and the ones an `id_token_hint` is checked

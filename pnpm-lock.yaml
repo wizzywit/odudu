@@ -357,6 +357,9 @@ importers:
       '@odudu/db':
         specifier: workspace:*
         version: link:../db
+      '@odudu/domain-authz':
+        specifier: workspace:*
+        version: link:../domain-authz
       '@odudu/domain-identity':
         specifier: workspace:*
         version: link:../domain-identity
