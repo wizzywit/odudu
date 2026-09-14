@@ -211,7 +211,7 @@ work.
 
 ```
 client_scopes (id, realm_id, name, description,
-               include_in_token_scope, include_in_id_token)
+               include_in_id_token)
   UNIQUE (realm_id, name), UNIQUE (realm_id, id)
   CHECK name is a valid RFC 6749 section 3.3 scope-token
 
@@ -220,10 +220,17 @@ client_scope_assignments (realm_id, client_id, client_scope_id, assignment)
   composite FKs on (realm_id, client_id) and (realm_id, client_scope_id)
 ```
 
-`include_in_token_scope` decides whether the scope's own name appears in the
-issued `scope` claim; a scope that exists only to carry claims need not
-advertise itself back to the client. `include_in_id_token` is section 3.4's
-gate.
+`include_in_id_token` is section 3.4's gate.
+
+Migration 0016 also shipped `include_in_token_scope`, meant to drop a
+scope's own name from the issued `scope` claim while still letting it carry
+claims. Migration 0025 removes it: `/userinfo` receives only an access
+token and reconstructs granted scope from that token's `scope` claim, so a
+client whose name is missing from the claim loses both the claims and the
+roles that scope would otherwise reach at `/userinfo`. Hiding a scope's
+name from the client and keeping it legible to the resource server are not
+independently choosable while the access token is the only thing carrying
+granted scope; the column asserted they were.
 
 `assignment` is stored and enforced (the CHECK above) but not yet
 **consumed**: `resolveScope` intersects a request's `scope` against every

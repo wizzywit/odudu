@@ -176,6 +176,13 @@
       "when": 1789049381667,
       "tag": "0024_verified_phone_is_e164",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1789049381668,
+      "tag": "0025_drop_include_in_token_scope",
+      "breakpoints": true
     }
   ]
 }

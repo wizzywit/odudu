@@ -12,7 +12,7 @@ import { clientScopeRepository } from '@odudu/domain-realm';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { reachableRoleIds, tokenScopeClaim } from '#/repository/scope-role-reach';
+import { reachableRoleIds } from '#/repository/scope-role-reach';
 
 let containerHandle: TestDatabase | undefined;
 let ownerHandle: DatabaseHandle | undefined;
@@ -100,46 +100,6 @@ describe('reachableRoleIds', () => {
 
       const found = await reachableRoleIds(tx, ['reports:read']);
       expect(found).toEqual(new Set());
-    });
-  });
-});
-
-describe('tokenScopeClaim', () => {
-  it('keeps a scope whose include_in_token_scope is on', async () => {
-    const realmId = newId();
-    await withRealm(app.db, realmId, async (tx) => {
-      await seedRealm(tx, realmId);
-      await clientScopeRepository(tx).create({ realmId, name: 'reports:read' });
-
-      expect(await tokenScopeClaim(tx, ['reports:read'])).toEqual(['reports:read']);
-    });
-  });
-
-  it('drops a scope whose include_in_token_scope is off', async () => {
-    const realmId = newId();
-    await withRealm(app.db, realmId, async (tx) => {
-      await seedRealm(tx, realmId);
-      await clientScopeRepository(tx).create({
-        realmId,
-        name: 'internal:carrier',
-        includeInTokenScope: false,
-      });
-
-      expect(await tokenScopeClaim(tx, ['internal:carrier'])).toEqual([]);
-    });
-  });
-
-  it('never drops openid, even when a caller asks it to', async () => {
-    const realmId = newId();
-    await withRealm(app.db, realmId, async (tx) => {
-      await seedRealm(tx, realmId);
-      await clientScopeRepository(tx).create({
-        realmId,
-        name: 'openid',
-        includeInTokenScope: false,
-      });
-
-      expect(await tokenScopeClaim(tx, ['openid'])).toEqual(['openid']);
     });
   });
 });

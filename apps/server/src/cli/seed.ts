@@ -917,7 +917,6 @@ async function runScopeCommand(
       realm: { type: 'string' },
       name: { type: 'string' },
       description: { type: 'string' },
-      'include-in-token-scope': { type: 'string' },
       'include-in-id-token': { type: 'string' },
       'include-in-access-token': { type: 'string' },
     },
@@ -930,10 +929,6 @@ async function runScopeCommand(
   const realmName = values.realm;
   const name = values.name;
   const description = values.description;
-  const includeInTokenScope = parseIncludeFlag(
-    values['include-in-token-scope'],
-    '--include-in-token-scope',
-  );
   const includeInIdToken = parseIncludeFlag(values['include-in-id-token'], '--include-in-id-token');
   const includeInAccessToken = parseIncludeFlag(
     values['include-in-access-token'],
@@ -955,7 +950,6 @@ async function runScopeCommand(
       realmId,
       name,
       ...(description !== undefined ? { description } : {}),
-      ...(includeInTokenScope !== undefined ? { includeInTokenScope } : {}),
       ...(includeInIdToken !== undefined ? { includeInIdToken } : {}),
       ...(includeInAccessToken !== undefined ? { includeInAccessToken } : {}),
     });

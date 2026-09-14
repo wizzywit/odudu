@@ -11,7 +11,6 @@ export const clientScopes = pgTable('client_scopes', {
     .references(() => realms.id, { onDelete: 'cascade' }),
   name: text('name').notNull(),
   description: text('description'),
-  includeInTokenScope: boolean('include_in_token_scope').notNull().default(true),
   includeInIdToken: boolean('include_in_id_token').notNull().default(true),
   // Symmetric with includeInIdToken, and the same default — the column's
   // own default is not what keeps authorization claims (roles, groups) off
@@ -33,7 +32,6 @@ export interface ClientScopeRecord {
   realmId: string;
   name: string;
   description: string | null;
-  includeInTokenScope: boolean;
   includeInIdToken: boolean;
   includeInAccessToken: boolean;
   createdAt: Date;

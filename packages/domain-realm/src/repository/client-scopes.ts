@@ -17,7 +17,6 @@ function toRecord(row: typeof clientScopes.$inferSelect): ClientScopeRecord {
     realmId: row.realmId,
     name: row.name,
     description: row.description,
-    includeInTokenScope: row.includeInTokenScope,
     includeInIdToken: row.includeInIdToken,
     includeInAccessToken: row.includeInAccessToken,
     createdAt: row.createdAt,
@@ -28,7 +27,6 @@ export interface NewClientScope {
   realmId: string;
   name: string;
   description?: string | null;
-  includeInTokenScope?: boolean;
   includeInIdToken?: boolean;
   includeInAccessToken?: boolean;
 }
@@ -63,7 +61,6 @@ export function clientScopeRepository(tx: RealmScopedDatabase) {
           realmId: input.realmId,
           name: input.name,
           description: input.description ?? null,
-          includeInTokenScope: input.includeInTokenScope ?? true,
           includeInIdToken: input.includeInIdToken ?? true,
           includeInAccessToken: input.includeInAccessToken ?? true,
         })
