@@ -3,16 +3,16 @@ import { clientScopeRepository, type NewClientScope } from '#/repository/client-
 
 // A scope is a promise about claims, and discovery advertises every scope a
 // realm defines. So a scope is seeded here only once a claim mapper can
-// answer for it (packages/protocol-oidc/src/service/claims.ts): `address`
-// and `phone` join this list in the change that registers their mappers,
-// not before, or `scopes_supported` would name scopes that add nothing to a
-// token. `roles`/`groups` default `includeInIdToken` false and
-// `includeInAccessToken` true; `openid`/`profile`/`email` are the reverse —
-// identity data for the browser, not a resource server named in `aud`.
+// answer for it (packages/protocol-oidc/src/service/claims.ts). `roles`/
+// `groups` default `includeInIdToken` false and `includeInAccessToken`
+// true; the other five are the reverse — identity data for the browser,
+// not a resource server named in `aud`.
 const DEFAULT_SCOPES: readonly Omit<NewClientScope, 'realmId'>[] = [
   { name: 'openid', includeInAccessToken: false },
   { name: 'profile', includeInAccessToken: false },
   { name: 'email', includeInAccessToken: false },
+  { name: 'address', includeInAccessToken: false },
+  { name: 'phone', includeInAccessToken: false },
   { name: 'roles', includeInIdToken: false },
   { name: 'groups', includeInIdToken: false },
 ];

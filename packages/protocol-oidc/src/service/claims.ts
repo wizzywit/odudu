@@ -24,14 +24,114 @@ const subMapper: ClaimMapper<ClaimContext> = {
   map: (ctx) => Promise.resolve({ sub: ctx.subjectId }),
 };
 
-// OIDC Core §5.4 names `name` among the `profile` scope's default claims;
-// Odudu carries no separate display name, so `name` is the username —
-// the one human-facing identifier the domain actually stores.
+type ClaimValue = string | number | boolean | null | undefined;
+
+// A claim with nothing behind it is left out rather than emitted as `null`
+// or `false` — every mapper below builds its result through this rather
+// than an object literal, so "nothing stored" and "omitted" stay the same
+// thing everywhere.
+function definedClaims(
+  entries: readonly (readonly [string, ClaimValue])[],
+): Record<string, string | number | boolean> {
+  const claims: Record<string, string | number | boolean> = {};
+  for (const [claimName, value] of entries) {
+    if (value !== null && value !== undefined) claims[claimName] = value;
+  }
+  return claims;
+}
+
+function epochSeconds(date: Date | null): number | null {
+  return date === null ? null : Math.floor(date.getTime() / 1000);
+}
+
+// OIDC Core §5.4's full `profile` scope claim list. `name` and
+// `preferred_username` fall back to `username` — the one human-facing
+// identifier every user row is guaranteed to carry — so a user who has
+// never set a display name still surfaces one instead of the claim
+// silently disappearing.
 const profileMapper: ClaimMapper<ClaimContext> = {
   name: 'profile',
   scopes: ['profile'],
-  claims: ['name'],
-  map: (ctx) => Promise.resolve(ctx.user === null ? {} : { name: ctx.user.username }),
+  claims: [
+    'name',
+    'given_name',
+    'family_name',
+    'middle_name',
+    'nickname',
+    'preferred_username',
+    'profile',
+    'picture',
+    'website',
+    'gender',
+    'birthdate',
+    'zoneinfo',
+    'locale',
+    'updated_at',
+  ],
+  map: (ctx) => {
+    const user = ctx.user;
+    if (user === null) return Promise.resolve({});
+    return Promise.resolve(
+      definedClaims([
+        ['name', user.name ?? user.username],
+        ['given_name', user.givenName],
+        ['family_name', user.familyName],
+        ['middle_name', user.middleName],
+        ['nickname', user.nickname],
+        ['preferred_username', user.preferredUsername ?? user.username],
+        ['profile', user.profile],
+        ['picture', user.picture],
+        ['website', user.website],
+        ['gender', user.gender],
+        ['birthdate', user.birthdate],
+        ['zoneinfo', user.zoneinfo],
+        ['locale', user.locale],
+        ['updated_at', epochSeconds(user.profileUpdatedAt)],
+      ]),
+    );
+  },
+};
+
+// OIDC Core §5.1.1: `address` is one JSON object, not six flat claims, and
+// the object itself is left out entirely — never emitted as `{}` — when no
+// component is stored.
+const addressMapper: ClaimMapper<ClaimContext> = {
+  name: 'address',
+  scopes: ['address'],
+  claims: ['address'],
+  map: (ctx) => {
+    const user = ctx.user;
+    if (user === null) return Promise.resolve({});
+    const address = definedClaims([
+      ['formatted', user.addressFormatted],
+      ['street_address', user.addressStreet],
+      ['locality', user.addressLocality],
+      ['region', user.addressRegion],
+      ['postal_code', user.addressPostalCode],
+      ['country', user.addressCountry],
+    ]);
+    return Promise.resolve(Object.keys(address).length === 0 ? {} : { address });
+  },
+};
+
+// Follows the `email` mapper's rule exactly: a missing phone number and an
+// unverified one are different things, so `phone_number` and
+// `phone_number_verified` leave together rather than asserting a false
+// verification status for a number that does not exist.
+const phoneMapper: ClaimMapper<ClaimContext> = {
+  name: 'phone',
+  scopes: ['phone'],
+  claims: ['phone_number', 'phone_number_verified'],
+  map: (ctx) => {
+    const user = ctx.user;
+    if (user?.phoneNumber === null || user?.phoneNumber === undefined) {
+      return Promise.resolve({});
+    }
+    return Promise.resolve({
+      phone_number: user.phoneNumber,
+      phone_number_verified: user.phoneNumberVerified,
+    });
+  },
 };
 
 // No email on file is not the same as an empty string: both `email` and
@@ -84,5 +184,7 @@ export function standardClaimMappers(): ClaimMapperRegistry<ClaimContext> {
     .register(profileMapper)
     .register(emailMapper)
     .register(rolesMapper)
-    .register(groupsMapper);
+    .register(groupsMapper)
+    .register(addressMapper)
+    .register(phoneMapper);
 }

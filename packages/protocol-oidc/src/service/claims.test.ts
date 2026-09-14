@@ -7,6 +7,12 @@ function ctx(user: ClaimContext['user']): ClaimContext {
   return { subjectId, user, roles: [], groups: [] };
 }
 
+// Builds a context straight from profile-field overrides, for tests that
+// only care about one mapper's inputs and outputs.
+function ctxWith(overrides: Partial<NonNullable<ClaimContext['user']>>): ClaimContext {
+  return ctx(testUser(overrides));
+}
+
 // Fills every OIDC Core §5.1 profile field with null so a fixture only
 // needs to state what the mapper under test actually reads.
 function testUser(
@@ -91,7 +97,13 @@ describe('the standard OIDC claim mappers', () => {
 
     const claims = await registry.assemble(['openid', 'profile', 'email'], ctx(user));
 
-    expect(Object.keys(claims).sort()).toEqual(['email', 'email_verified', 'name', 'sub']);
+    expect(Object.keys(claims).sort()).toEqual([
+      'email',
+      'email_verified',
+      'name',
+      'preferred_username',
+      'sub',
+    ]);
   });
 
   it('omits email and email_verified when the user has no email on file', async () => {
@@ -116,13 +128,130 @@ describe('the standard OIDC claim mappers', () => {
     const registry = standardClaimMappers();
 
     expect([...registry.claimNames()].sort()).toEqual([
+      'address',
+      'birthdate',
       'email',
       'email_verified',
+      'family_name',
+      'gender',
+      'given_name',
       'groups',
+      'locale',
+      'middle_name',
       'name',
+      'nickname',
+      'phone_number',
+      'phone_number_verified',
+      'picture',
+      'preferred_username',
+      'profile',
       'roles',
       'sub',
+      'updated_at',
+      'website',
+      'zoneinfo',
     ]);
+  });
+});
+
+describe('profile mapper', () => {
+  it('emits section 5.4 profile claims from stored attributes', async () => {
+    const claims = await standardClaimMappers().assemble(
+      ['openid', 'profile'],
+      ctxWith({
+        name: 'Ada Lovelace',
+        givenName: 'Ada',
+        familyName: 'Lovelace',
+        nickname: 'Ada',
+        locale: 'en-GB',
+        zoneinfo: 'Europe/London',
+      }),
+    );
+    expect(claims).toMatchObject({
+      name: 'Ada Lovelace',
+      given_name: 'Ada',
+      family_name: 'Lovelace',
+      nickname: 'Ada',
+      locale: 'en-GB',
+      zoneinfo: 'Europe/London',
+    });
+  });
+
+  it('falls back to the username when no display name is stored', async () => {
+    const claims = await standardClaimMappers().assemble(
+      ['openid', 'profile'],
+      ctxWith({ name: null, username: 'ada' }),
+    );
+    expect(claims.name).toBe('ada');
+  });
+
+  it('falls back to the username for preferred_username too', async () => {
+    const claims = await standardClaimMappers().assemble(
+      ['openid', 'profile'],
+      ctxWith({ preferredUsername: null, username: 'ada' }),
+    );
+    expect(claims.preferred_username).toBe('ada');
+  });
+
+  it('omits a claim with nothing behind it rather than emitting null', async () => {
+    const claims = await standardClaimMappers().assemble(
+      ['openid', 'profile'],
+      ctxWith({ name: 'Ada', givenName: null }),
+    );
+    expect(claims).not.toHaveProperty('given_name');
+  });
+
+  it('emits updated_at as seconds since the epoch', async () => {
+    const claims = await standardClaimMappers().assemble(
+      ['openid', 'profile'],
+      ctxWith({ profileUpdatedAt: new Date('2026-01-01T00:00:00Z') }),
+    );
+    expect(claims.updated_at).toBe(1_767_225_600);
+  });
+
+  it('omits updated_at when the profile has never been updated', async () => {
+    const claims = await standardClaimMappers().assemble(
+      ['openid', 'profile'],
+      ctxWith({ profileUpdatedAt: null }),
+    );
+    expect(claims).not.toHaveProperty('updated_at');
+  });
+});
+
+describe('address mapper', () => {
+  it('emits address as one JSON object, per section 5.1.1', async () => {
+    const claims = await standardClaimMappers().assemble(
+      ['openid', 'address'],
+      ctxWith({ addressLocality: 'London', addressCountry: 'GB' }),
+    );
+    expect(claims.address).toEqual({ locality: 'London', country: 'GB' });
+  });
+
+  it('omits address entirely when no component is stored', async () => {
+    const claims = await standardClaimMappers().assemble(['openid', 'address'], ctxWith({}));
+    expect(claims).not.toHaveProperty('address');
+  });
+});
+
+describe('phone mapper', () => {
+  it('emits phone_number and phone_number_verified together', async () => {
+    const claims = await standardClaimMappers().assemble(
+      ['openid', 'phone'],
+      ctxWith({ phoneNumber: '+1-201-555-0123', phoneNumberVerified: true }),
+    );
+    expect(claims).toMatchObject({
+      phone_number: '+1-201-555-0123',
+      phone_number_verified: true,
+    });
+  });
+
+  it('omits both phone claims together when no number is stored', async () => {
+    const claims = await standardClaimMappers().assemble(
+      ['openid', 'phone'],
+      ctxWith({ phoneNumber: null }),
+    );
+    expect(claims).not.toHaveProperty('phone_number');
+    expect(claims).not.toHaveProperty('phone_number_verified');
   });
 });
 
