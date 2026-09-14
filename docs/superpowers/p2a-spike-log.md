@@ -104,7 +104,7 @@ Verbatim output:
 CREATE TABLE
 INSERT 0 3
 SET
- role_id 
+ role_id
 ---------
  a
  b
