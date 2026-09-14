@@ -218,7 +218,7 @@ describe('profile mapper', () => {
   });
 });
 
-describe('address mapper', () => {
+describe('[OIDC-CORE-5.1.1-01] address mapper', () => {
   it('emits address as one JSON object, per section 5.1.1', async () => {
     const claims = await standardClaimMappers().assemble(
       ['openid', 'address'],
@@ -233,7 +233,7 @@ describe('address mapper', () => {
   });
 });
 
-describe('phone mapper', () => {
+describe('[OIDC-CORE-5.4-02] phone mapper', () => {
   it('emits phone_number and phone_number_verified together', async () => {
     const claims = await standardClaimMappers().assemble(
       ['openid', 'phone'],

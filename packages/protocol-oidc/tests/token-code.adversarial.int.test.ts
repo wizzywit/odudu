@@ -1549,6 +1549,11 @@ describe('what an issued access token is restricted to', () => {
     expect(decodePayload(await redeemedAccessToken({ scope: 'openid' })).scope).toBe('openid');
   });
 
+  it('[RFC9068-2.2.3-01] includes a scope claim because the authorization request named a scope', async () => {
+    const token = await redeemedAccessToken({ scope: 'openid profile' });
+    expect(decodePayload(token)).toHaveProperty('scope');
+  });
+
   it('[RFC6750-5.3-02] carries an aud restricted to the configured audiences and this issuer', async () => {
     const issuer = await discoveryIssuer();
     expect(decodePayload(await redeemedAccessToken()).aud).toEqual([AUDIENCE, issuer]);
