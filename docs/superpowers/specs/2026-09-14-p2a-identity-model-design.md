@@ -225,6 +225,19 @@ issued `scope` claim; a scope that exists only to carry claims need not
 advertise itself back to the client. `include_in_id_token` is section 3.4's
 gate.
 
+`assignment` is stored and enforced (the CHECK above) but not yet
+**consumed**: `resolveScope` intersects a request's `scope` against every
+scope `client_scope_assignments` names for that client, `default` and
+`optional` alike, so in P2a a scope reaches a token only when it is both
+assigned and explicitly requested, regardless of which kind it is assigned
+as. That is not Keycloak's behaviour, which the row above is easy to
+misread as matching: there, a `default` client scope is granted whether or
+not the client asks for it, and an `optional` one only when it does. Here
+the column is P3's consent screen reading material — "would this scope be
+pre-checked or opt-in" — not a second gate `resolveScope` already applies.
+A future consent implementer should not assume `default` currently does
+anything a request's own `scope` parameter does not already do.
+
 **No mapper table.** A mapper declares its own `scopes: ['roles']` in code, as
 `claims.ts` does today. This is what leaves P4's job — making mappers
 configurable — whole rather than half-done.

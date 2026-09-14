@@ -174,9 +174,18 @@ describe('the seed CLI, provisioning the identity model it now has', () => {
       '--email',
       'ada@example.test',
     ]);
+    // `roles` itself is a realm-default scope: `seed client` already
+    // assigned it to `app` via provisionClientDefaults, so mapping straight
+    // to it would leave assign-scope doing nothing a removed step would
+    // reveal. Mapping to a scope of the realm's own instead — created here,
+    // never among the defaults — is what makes assign-scope load-bearing:
+    // without it, `app-roles` never reaches `assigned`, resolveScope drops
+    // it from the granted set even though it was requested, and the role
+    // mapped only to it becomes unreachable.
+    await seed(['scope', '--realm', realmName, '--name', 'app-roles']);
     await seed(['role', '--realm', realmName, '--name', 'admin']);
     await seed(['grant-role', '--realm', realmName, '--username', 'ada', '--role', 'admin']);
-    await seed(['map-role', '--realm', realmName, '--scope', 'roles', '--role', 'admin']);
+    await seed(['map-role', '--realm', realmName, '--scope', 'app-roles', '--role', 'admin']);
     await seed([
       'assign-scope',
       '--realm',
@@ -184,14 +193,18 @@ describe('the seed CLI, provisioning the identity model it now has', () => {
       '--client-id',
       'app',
       '--scope',
-      'roles',
+      'app-roles',
       '--assignment',
       'optional',
     ]);
 
+    // `roles` still has to be requested too: the roles claim mapper only
+    // ever runs when the granted scope set contains the literal name
+    // `roles` (packages/kernel/src/registries/claim-mapper.ts), independent
+    // of which scope actually made a given role reachable.
     const { access_token } = await completeCodeFlow({
       clientId: 'app',
-      scope: 'openid roles',
+      scope: 'openid roles app-roles',
       realmName,
     });
     expect(decode(access_token).roles).toEqual(['admin']);
@@ -247,12 +260,16 @@ describe('the seed CLI, provisioning the identity model it now has', () => {
       '--role',
       'reports-api:reader',
     ]);
+    // A realm-default scope like `roles` is already assigned to `app` the
+    // moment `seed client` creates it, so mapping to one would never
+    // exercise assign-scope — a scope of the realm's own does.
+    await seed(['scope', '--realm', realmName, '--name', 'app-roles']);
     await seed([
       'map-role',
       '--realm',
       realmName,
       '--scope',
-      'roles',
+      'app-roles',
       '--role',
       'reports-api:reader',
     ]);
@@ -263,14 +280,14 @@ describe('the seed CLI, provisioning the identity model it now has', () => {
       '--client-id',
       'app',
       '--scope',
-      'roles',
+      'app-roles',
       '--assignment',
       'optional',
     ]);
 
     const { access_token } = await completeCodeFlow({
       clientId: 'app',
-      scope: 'openid roles',
+      scope: 'openid roles app-roles',
       realmName,
     });
     expect(decode(access_token).roles).toEqual(['reports-api:reader']);

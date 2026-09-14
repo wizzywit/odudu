@@ -309,5 +309,14 @@ describe('assignOrUpdate', () => {
         clientScopeRepository(tx).assignOrUpdate(clientId, scopeId, 'optional'),
       ),
     ).rejects.toThrow(/unknown client/);
+
+    // The rejection alone is consistent with RLS filtering the client out
+    // of realm B's view; reading it back under its own realm A confirms
+    // that is really what happened, not some other failure that happened
+    // to leave the assignment untouched too.
+    const scopesAfter = await withRealm(app.db, realmA, (tx) =>
+      clientScopeRepository(tx).forClient(clientId),
+    );
+    expect(scopesAfter).toEqual([]);
   });
 });

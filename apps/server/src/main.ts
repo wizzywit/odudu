@@ -1,9 +1,9 @@
-import { parseArgs } from 'node:util';
 import { createDatabase } from '@odudu/db';
 import { loadConfig, ModuleRegistry, systemClock } from '@odudu/kernel';
 import closeWithGrace from 'close-with-grace';
 import { buildApp } from '#/app';
-import { SEED_COMMANDS, seed, type SeedOptions } from '#/cli/seed';
+import { seed } from '#/cli/seed';
+import { resolveSeedInvocation } from '#/cli/seed-invocation';
 import {
   assertProductionAppDatabaseUrl,
   assertProductionTls,
@@ -14,70 +14,10 @@ import { createLogger } from '#/logger';
 import { databaseModule } from '#/modules/database';
 import { httpModule } from '#/modules/http';
 
-// --client-secret and --password land in process listings (ps) and shell
-// history, since both are plain command-line flags. Acceptable for a local
-// bootstrap tool run by an operator who already controls the machine, but
-// not something to carry over if this ever grows a networked or CI-invoked
-// mode.
-function parseSeedOptions(argv: string[]): SeedOptions {
-  const { values } = parseArgs({
-    args: argv,
-    options: {
-      realm: { type: 'string' },
-      client: { type: 'string' },
-      'client-secret': { type: 'string' },
-      'token-endpoint-auth-method': { type: 'string' },
-      'redirect-uri': { type: 'string', multiple: true },
-      user: { type: 'string' },
-      password: { type: 'string' },
-      email: { type: 'string' },
-      'send-verification-email': { type: 'boolean' },
-      'issuer-base': { type: 'string' },
-    },
-  });
-
-  if (values.realm === undefined || values.client === undefined) {
-    throw new Error('seed requires --realm and --client');
-  }
-
-  const authMethod = values['token-endpoint-auth-method'];
-  if (
-    authMethod !== undefined &&
-    authMethod !== 'client_secret_basic' &&
-    authMethod !== 'client_secret_post'
-  ) {
-    throw new Error(
-      '--token-endpoint-auth-method must be client_secret_basic or client_secret_post',
-    );
-  }
-
-  return {
-    realm: values.realm,
-    clientId: values.client,
-    redirectUris: values['redirect-uri'] ?? [],
-    ...(values['client-secret'] !== undefined ? { clientSecret: values['client-secret'] } : {}),
-    ...(authMethod !== undefined ? { tokenEndpointAuthMethod: authMethod } : {}),
-    ...(values.user !== undefined ? { username: values.user } : {}),
-    ...(values.password !== undefined ? { password: values.password } : {}),
-    ...(values.email !== undefined ? { email: values.email } : {}),
-    ...(values['send-verification-email'] !== undefined
-      ? { sendVerificationEmail: values['send-verification-email'] }
-      : {}),
-    ...(values['issuer-base'] !== undefined ? { issuerBase: values['issuer-base'] } : {}),
-  };
-}
-
-// `seed role ...`, `seed grant-role ...` and the rest of the identity
-// model's subcommands are told apart from the older `seed --realm ...
-// --client ...` bootstrap form by their first token: a subcommand name
-// never starts with `--`, and the bootstrap form's first flag always does.
 if (process.argv[2] === 'seed') {
-  const rest = process.argv.slice(3);
-  const first = rest[0];
+  const invocation = resolveSeedInvocation(process.argv.slice(3));
   const result =
-    first !== undefined && (SEED_COMMANDS as readonly string[]).includes(first)
-      ? await seed(rest)
-      : await seed(parseSeedOptions(rest));
+    invocation.kind === 'command' ? await seed(invocation.argv) : await seed(invocation.options);
   console.log(JSON.stringify(result));
   process.exit(0);
 }
