@@ -1,5 +1,6 @@
 import { type RealmScopedDatabase } from '@odudu/db';
 import { sql } from 'drizzle-orm';
+import { z } from 'zod';
 
 export interface EffectiveRole {
   readonly roleId: string;
@@ -7,11 +8,17 @@ export interface EffectiveRole {
   readonly clientKey: string | null;
 }
 
-interface EffectiveRoleRow {
-  role_id: string;
-  name: string;
-  client_key: string | null;
-}
+// tx.execute() returns driver rows as unknown structure; a hand-written
+// interface asserted onto them is a promise the compiler enforces but
+// nothing checks at runtime. Parsing narrows the actual shape instead of
+// assuming it — a renamed or retyped column fails loudly here rather than
+// flowing through as a malformed EffectiveRole.
+export const effectiveRoleRowSchema = z.object({
+  role_id: z.string(),
+  name: z.string(),
+  client_key: z.string().nullable(),
+});
+const effectiveRoleRowsSchema = z.array(effectiveRoleRowSchema);
 
 // The roles a subject actually holds: its direct assignments plus every
 // role reachable by following role_composites (a parent grants its
@@ -40,7 +47,7 @@ export async function effectiveRoles(
     JOIN roles r ON r.id = rc.role_id
     LEFT JOIN clients cl ON cl.id = r.client_id
   `);
-  const rows = result as unknown as readonly EffectiveRoleRow[];
+  const rows = effectiveRoleRowsSchema.parse(result);
 
   return rows.map((row) => ({
     roleId: row.role_id,
