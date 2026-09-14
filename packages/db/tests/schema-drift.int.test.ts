@@ -64,8 +64,16 @@ const EXPECTED_CHECKS: Record<string, string> = {
   'subjects.subjects_type_check':
     "CHECK ((type = ANY (ARRAY['user'::text, 'service'::text, 'agent_instance'::text])))",
   'user_credentials.user_credentials_type_check': "CHECK ((type = 'password'::text))",
+  'users.users_birthdate_shape':
+    "CHECK (((birthdate IS NULL) OR (birthdate ~ '^[0-9]{4}(-[0-9]{2}-[0-9]{2})?$'::text)))",
   'users.users_email_addr_spec':
     "CHECK (((email IS NULL) OR ((length(email) <= 254) AND ((strpos(email, '@'::text) - 1) <= 64) AND (email ~ '^[A-Za-z0-9!#$%&''*+/=?^_`{|}~-]+(\\.[A-Za-z0-9!#$%&''*+/=?^_`{|}~-]+)*@[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?(\\.[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?)+$'::text))))",
+  'users.users_locale_shape':
+    "CHECK (((locale IS NULL) OR (locale ~ '^[A-Za-z]{2,3}(-[A-Za-z]{4})?(-([A-Za-z]{2}|[0-9]{3}))?$'::text)))",
+  'users.users_profile_urls_are_http':
+    "CHECK ((((profile IS NULL) OR (profile ~ '^https?://'::text)) AND ((picture IS NULL) OR (picture ~ '^https?://'::text)) AND ((website IS NULL) OR (website ~ '^https?://'::text))))",
+  'users.users_zoneinfo_shape':
+    "CHECK (((zoneinfo IS NULL) OR (zoneinfo ~ '^[A-Za-z][A-Za-z0-9_+-]*(/[A-Za-z0-9_+-]+)*$'::text)))",
 };
 
 interface ColumnRow {

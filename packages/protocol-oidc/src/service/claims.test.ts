@@ -7,6 +7,43 @@ function ctx(user: ClaimContext['user']): ClaimContext {
   return { subjectId, user, roles: [], groups: [] };
 }
 
+// Fills every OIDC Core §5.1 profile field with null so a fixture only
+// needs to state what the mapper under test actually reads.
+function testUser(
+  overrides: Partial<NonNullable<ClaimContext['user']>>,
+): NonNullable<ClaimContext['user']> {
+  return {
+    subjectId,
+    realmId: 'realm-1',
+    username: 'alice',
+    email: null,
+    emailVerified: false,
+    name: null,
+    givenName: null,
+    familyName: null,
+    middleName: null,
+    nickname: null,
+    preferredUsername: null,
+    profile: null,
+    picture: null,
+    website: null,
+    gender: null,
+    birthdate: null,
+    zoneinfo: null,
+    locale: null,
+    phoneNumber: null,
+    phoneNumberVerified: false,
+    profileUpdatedAt: null,
+    addressFormatted: null,
+    addressStreet: null,
+    addressLocality: null,
+    addressRegion: null,
+    addressPostalCode: null,
+    addressCountry: null,
+    ...overrides,
+  };
+}
+
 const roleGroupCtx: ClaimContext = {
   subjectId: 'sub-1',
   user: null,
@@ -30,13 +67,7 @@ describe('the standard OIDC claim mappers', () => {
 
   it('runs the email mapper when the email scope is granted', async () => {
     const registry = standardClaimMappers();
-    const user: ClaimContext['user'] = {
-      subjectId,
-      realmId: 'realm-1',
-      username: 'alice',
-      email: 'alice@example.com',
-      emailVerified: true,
-    };
+    const user = testUser({ email: 'alice@example.com', emailVerified: true });
 
     expect(await registry.assemble(['openid', 'email'], ctx(user))).toHaveProperty('email');
   });
@@ -56,13 +87,7 @@ describe('the standard OIDC claim mappers', () => {
 
   it('lets a later mapper add claims without dropping an earlier one', async () => {
     const registry = standardClaimMappers();
-    const user: ClaimContext['user'] = {
-      subjectId,
-      realmId: 'realm-1',
-      username: 'alice',
-      email: 'alice@example.com',
-      emailVerified: true,
-    };
+    const user = testUser({ email: 'alice@example.com', emailVerified: true });
 
     const claims = await registry.assemble(['openid', 'profile', 'email'], ctx(user));
 
@@ -71,13 +96,7 @@ describe('the standard OIDC claim mappers', () => {
 
   it('omits email and email_verified when the user has no email on file', async () => {
     const registry = standardClaimMappers();
-    const user: ClaimContext['user'] = {
-      subjectId,
-      realmId: 'realm-1',
-      username: 'alice',
-      email: null,
-      emailVerified: false,
-    };
+    const user = testUser({});
 
     const claims = await registry.assemble(['openid', 'email'], ctx(user));
 

@@ -23,7 +23,56 @@ function toUser(row: typeof users.$inferSelect): UserRecord {
     username: row.username,
     email: row.email,
     emailVerified: row.emailVerified,
+    name: row.name,
+    givenName: row.givenName,
+    familyName: row.familyName,
+    middleName: row.middleName,
+    nickname: row.nickname,
+    preferredUsername: row.preferredUsername,
+    profile: row.profile,
+    picture: row.picture,
+    website: row.website,
+    gender: row.gender,
+    birthdate: row.birthdate,
+    zoneinfo: row.zoneinfo,
+    locale: row.locale,
+    phoneNumber: row.phoneNumber,
+    phoneNumberVerified: row.phoneNumberVerified,
+    profileUpdatedAt: row.profileUpdatedAt,
+    addressFormatted: row.addressFormatted,
+    addressStreet: row.addressStreet,
+    addressLocality: row.addressLocality,
+    addressRegion: row.addressRegion,
+    addressPostalCode: row.addressPostalCode,
+    addressCountry: row.addressCountry,
   };
+}
+
+// Every field a caller may set through updateProfile: every OIDC Core §5.1
+// claim column except the identity columns (subjectId, realmId, username)
+// and email, which create() and its own validation already own.
+export interface ProfileUpdate {
+  name?: string | null;
+  givenName?: string | null;
+  familyName?: string | null;
+  middleName?: string | null;
+  nickname?: string | null;
+  preferredUsername?: string | null;
+  profile?: string | null;
+  picture?: string | null;
+  website?: string | null;
+  gender?: string | null;
+  birthdate?: string | null;
+  zoneinfo?: string | null;
+  locale?: string | null;
+  phoneNumber?: string | null;
+  phoneNumberVerified?: boolean;
+  addressFormatted?: string | null;
+  addressStreet?: string | null;
+  addressLocality?: string | null;
+  addressRegion?: string | null;
+  addressPostalCode?: string | null;
+  addressCountry?: string | null;
 }
 
 export interface UserWithSubject {
@@ -93,6 +142,23 @@ export function userRepository(tx: RealmScopedDatabase) {
       const row = rows[0];
       if (row === undefined) {
         throw new OduduError('insert_returned_no_row', 'insert into users returned no row');
+      }
+      return toUser(row);
+    },
+
+    // RLS is the realm filter here, not a realm_id predicate on this query:
+    // an update targeting another realm's subject matches zero rows and
+    // returns nothing, which this method turns into a not-found error
+    // rather than a silent no-op.
+    async updateProfile(subjectId: string, patch: ProfileUpdate): Promise<UserRecord> {
+      const rows = await tx
+        .update(users)
+        .set({ ...patch, profileUpdatedAt: new Date() })
+        .where(eq(users.subjectId, subjectId))
+        .returning();
+      const row = rows[0];
+      if (row === undefined) {
+        throw new OduduError('user_not_found', `user ${subjectId} not found`);
       }
       return toUser(row);
     },
