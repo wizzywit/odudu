@@ -10,7 +10,7 @@ import {
 import { type EmailMessage, type EmailSender } from '@odudu/email';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
-import { sql } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { actionTokens } from '#/schema/action-tokens';
@@ -123,7 +123,7 @@ async function buildHttpApp(): Promise<FastifyInstance> {
   const instance = Fastify();
   registerActionTokenRoute(instance, {
     database: app,
-    findRealmId: async (name) => (await realmSettingsRepository(owner.db).byName(name))?.id ?? null,
+    findRealm: (name) => realmSettingsRepository(owner.db).byName(name),
     getCurrentEmail: store.getCurrentEmail,
     markVerified: store.markVerified,
   });
@@ -248,6 +248,19 @@ describe('address verification', () => {
 
     const res = await httpApp.inject({ method: 'GET', url: link });
     expect(res.statusCode).toBe(400);
+  });
+
+  it('refuses to redeem a link minted for a realm that has since been disabled', async () => {
+    await sendVerificationEmail(deps, { subjectId: subject, email: 'ada@example.test' });
+    const message = sender.sent[0];
+    if (message === undefined) throw new Error('no mail sent');
+    const link = extractLink(message);
+
+    await owner.db.update(realms).set({ enabled: false }).where(eq(realms.id, realmId));
+
+    const res = await httpApp.inject({ method: 'GET', url: link });
+    expect(res.statusCode).toBe(400);
+    expect(store.users.get(subject)?.verified).toBe(false);
   });
 
   it('rejects a request with no key', async () => {

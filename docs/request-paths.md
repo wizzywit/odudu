@@ -274,88 +274,6 @@ that is acceptable for a local bootstrap run by an operator who already
 controls the machine, and is not something to carry into CI. And the seeded
 values above are demonstration values in this document; choose your own.
 
-### Address verification
-
-`email_verified` is a stored claim, but until now nothing could set it
-truthfully. `GET /realms/{realm}/login-actions/action-token?key=…` is the
-other half: consuming the link a verification email carries. There is no
-registration flow yet to trigger one on its own (`verify_email` on a realm
-has no reader), so `odudu seed --send-verification-email` stands in for the
-admin console's "Send verification email" action, against `ada`, already
-seeded above:
-
-```bash
-odudu seed \
-  --realm demo --client demo-spa \
-  --redirect-uri http://localhost:8080/callback \
-  --user ada --password correct-horse-battery --email ada@example.com \
-  --send-verification-email
-```
-
-With `ODUDU_SMTP_HOST` unset — true of the compose stack and of every way
-this document runs the server — nothing is actually sent. `capturingSender`
-logs the message it would have sent instead, which is how a reader without
-a mail server gets the link:
-
-```json
-{
-  "level": 30,
-  "to": "ada@example.com",
-  "subject": "Verify your demo account",
-  "text": "Confirm your email address for demo by visiting this link:\n\nhttp://localhost:3000/realms/demo/login-actions/action-token?key=FZDLhOiE8AXyz6zzuGlRy4OkoK7ihPSIBoicxqaMWVM\n\nIf you did not request this, you can ignore this message.",
-  "html": "<p>Confirm your email address for demo by visiting <a href=\"…\">…</a>.</p><p>If you did not request this, you can ignore this message.</p>",
-  "msg": "captured email — no SMTP host configured"
-}
-```
-
-(One line of a larger pino JSON object, reduced to the fields that matter
-here; the key is shortened nowhere else in this document because a reader
-needs the whole thing to follow the link.)
-
-Following the link once verifies it:
-
-```bash
-curl -sS -o /dev/null -w '%{http_code}\n' \
-  'http://localhost:3000/realms/demo/login-actions/action-token?key=FZDLhOiE8AXyz6zzuGlRy4OkoK7ihPSIBoicxqaMWVM'
-```
-
-```
-200
-```
-
-and a fresh ID token for `ada` now carries `"email_verified": true` where it
-read `false` before — nothing else about the token changes, since email
-and its verification status are the only claims this touches:
-
-```json
-{ "email": "ada@example.com", "email_verified": true }
-```
-
-Following the same link again is refused — it was minted for one
-redemption, and `action_tokens.consumed_at` is now set:
-
-```bash
-curl -sS -o /dev/null -w '%{http_code}\n' \
-  'http://localhost:3000/realms/demo/login-actions/action-token?key=FZDLhOiE8AXyz6zzuGlRy4OkoK7ihPSIBoicxqaMWVM'
-```
-
-```
-400
-```
-
-The same 400 answers a key that never existed, one presented to the wrong
-realm, one past its 12-hour lifespan, or one whose address the user has
-since changed — consumption compares the token's stored `email` against the
-user's current one and refuses on any mismatch, so a verification cannot
-outlive the address it was proving. None of those four are told apart in
-the response: the page a browser lands on has no way to use the difference,
-and telling a prober "this exact key existed" is a smaller leak than it
-looks, but not one worth taking for free.
-
-`--send-verification-email` needs `--email`, and needs the named user to
-already exist — seeded in this same run or a previous one — or the command
-refuses with `seed_invalid_options` before touching the database.
-
 ### The shell variables the rest of this document uses
 
 Every command below is a real command, and several need a value produced by
@@ -1041,6 +959,102 @@ content-type: application/json; charset=utf-8
 difference that matters operationally — the secret is held by the server, so
 the access and refresh tokens never need to reach the browser at all. That
 is the reason to be a confidential client.
+
+### Address verification
+
+`email_verified` is a stored claim, but until now nothing could set it
+truthfully — every ID token and UserInfo response above for `ada` carries
+`"email_verified": false`, and that is still real: nothing verifies an
+address until this section. `GET /realms/{realm}/login-actions/action-token?key=…`
+is the other half: consuming the link a verification email carries. There is
+no registration flow yet to trigger one on its own (`verify_email` on a
+realm has no reader), so `odudu seed --send-verification-email` stands in
+for the admin console's "Send verification email" action, against `ada`,
+seeded back in [Bootstrap](#bootstrap):
+
+```bash
+odudu seed \
+  --realm demo --client demo-spa \
+  --redirect-uri http://localhost:8080/callback \
+  --user ada --password correct-horse-battery --email ada@example.com \
+  --send-verification-email
+```
+
+With `ODUDU_SMTP_HOST` unset — true of the compose stack and of every way
+this document runs the server — nothing is actually sent. `capturingSender`
+logs the message it would have sent instead, which is how a reader without
+a mail server gets the link:
+
+```json
+{
+  "level": 30,
+  "to": "ada@example.com",
+  "subject": "Verify your demo account",
+  "text": "Confirm your email address for demo by visiting this link:\n\nhttp://localhost:3000/realms/demo/login-actions/action-token?key=FZDLhOiE8AXyz6zzuGlRy4OkoK7ihPSIBoicxqaMWVM\n\nIf you did not request this, you can ignore this message.",
+  "html": "<p>Confirm your email address for demo by visiting <a href=\"…\">…</a>.</p><p>If you did not request this, you can ignore this message.</p>",
+  "msg": "captured email — no SMTP host configured"
+}
+```
+
+(One line of a larger pino JSON object, reduced to the fields that matter
+here; the key is shortened nowhere else in this document because a reader
+needs the whole thing to follow the link.)
+
+Before following it, `ada`'s ID token still reads the way every one earlier
+in this document does:
+
+```json
+{ "email": "ada@example.com", "email_verified": false }
+```
+
+Following the link once verifies it:
+
+```bash
+curl -sS -o /dev/null -w '%{http_code}\n' \
+  'http://localhost:3000/realms/demo/login-actions/action-token?key=FZDLhOiE8AXyz6zzuGlRy4OkoK7ihPSIBoicxqaMWVM'
+```
+
+```
+200
+```
+
+and a fresh ID token for `ada` now carries `"email_verified": true` —
+nothing else about the token changes, since email and its verification
+status are the only claims this touches:
+
+```json
+{ "email": "ada@example.com", "email_verified": true }
+```
+
+Following the same link again is refused — it was minted for one
+redemption, and `action_tokens.consumed_at` is now set:
+
+```bash
+curl -sS -o /dev/null -w '%{http_code}\n' \
+  'http://localhost:3000/realms/demo/login-actions/action-token?key=FZDLhOiE8AXyz6zzuGlRy4OkoK7ihPSIBoicxqaMWVM'
+```
+
+```
+400
+```
+
+The same 400 answers a key that never existed, one presented to the wrong
+realm, one past its 12-hour lifespan, or one whose address the user has
+since changed — consumption compares the token's stored `email` against the
+user's current one and refuses on any mismatch, so a verification cannot
+outlive the address it was proving. None of those four are told apart in
+the response: the page a browser lands on has no way to use the difference,
+and telling a prober "this exact key existed" is a smaller leak than it
+looks, but not one worth taking for free.
+
+`--send-verification-email` needs `--email`, and needs the named user to
+already exist — seeded in this same run or a previous one — or the command
+refuses with `seed_invalid_options` before touching the database.
+
+Every `ada` token or UserInfo response captured **above** this section in
+this document was captured before this run — that is why they read `false`
+and this section's own capture reads `true`: the account whose Bootstrap
+this document shares was verified here, not earlier.
 
 ## Path B: refresh rotation
 

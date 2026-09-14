@@ -1,3 +1,4 @@
+import { actionTokens } from '@odudu/account';
 import { signingKeys } from '@odudu/crypto';
 import {
   createDatabase,
@@ -344,5 +345,84 @@ describe('seed: service-account subject', () => {
     const result = await seed(publicOptions);
 
     expect(await serviceSubjectType(result.realmId, result.clientId)).toBeNull();
+  });
+});
+
+async function actionTokenCount(realmId: string): Promise<number> {
+  const rows = await owner.db.select().from(actionTokens).where(eq(actionTokens.realmId, realmId));
+  return rows.length;
+}
+
+describe('seed: --send-verification-email', () => {
+  it('reports the seeded user’s subject id', async () => {
+    const options = uniqueOptions();
+
+    const result = await seed(options);
+
+    expect(result.userSubjectId).toEqual(expect.any(String));
+  });
+
+  it('omits userSubjectId when no user was seeded', async () => {
+    const options = uniqueOptions();
+    const noUserOptions: SeedOptions = {
+      realm: options.realm,
+      clientId: options.clientId,
+      redirectUris: options.redirectUris,
+    };
+
+    const result = await seed(noUserOptions);
+
+    expect(result.userSubjectId).toBeUndefined();
+  });
+
+  // No ODUDU_SMTP_HOST is set anywhere in this file, so this exercises the
+  // capturing adapter — the point here is that a real action_tokens row was
+  // issued for the seeded user, not what happened to the rendered message.
+  it('issues a real action token for the seeded user', async () => {
+    const options = uniqueOptions();
+    const withEmail: SeedOptions = { ...options, email: 'ada@example.com' };
+
+    const result = await seed(withEmail);
+    expect(await actionTokenCount(result.realmId)).toBe(0);
+
+    await seed({ ...withEmail, sendVerificationEmail: true });
+
+    expect(await actionTokenCount(result.realmId)).toBe(1);
+  });
+
+  it('accepts an explicit --issuer-base and still issues the token', async () => {
+    const options = uniqueOptions();
+    const withEmail: SeedOptions = { ...options, email: 'ada@example.com' };
+
+    const result = await seed(withEmail);
+
+    await seed({
+      ...withEmail,
+      sendVerificationEmail: true,
+      issuerBase: 'https://idp.example.test',
+    });
+
+    expect(await actionTokenCount(result.realmId)).toBe(1);
+  });
+
+  it('refuses sendVerificationEmail for a username never seeded with this client', async () => {
+    const options = uniqueOptions();
+    const noUserOptions: SeedOptions = {
+      realm: options.realm,
+      clientId: options.clientId,
+      redirectUris: options.redirectUris,
+    };
+
+    await seed(noUserOptions);
+
+    await expect(
+      seed({
+        ...noUserOptions,
+        username: 'ghost',
+        password: 'pw',
+        email: 'ghost@example.com',
+        sendVerificationEmail: true,
+      }),
+    ).rejects.toThrow(/was not seeded with it/);
   });
 });

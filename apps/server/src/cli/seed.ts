@@ -1,4 +1,4 @@
-import { sendVerificationEmail } from '@odudu/account';
+import { realmSettingsRepository, sendVerificationEmail } from '@odudu/account';
 import { generateSigningKey, signingKeyRepository } from '@odudu/crypto';
 import { createDatabase, withRealm, type Database, type RealmScopedDatabase } from '@odudu/db';
 import {
@@ -391,13 +391,23 @@ export async function seed(opts: SeedOptions): Promise<SeedResult> {
           `sendVerificationEmail found no user named ${JSON.stringify(opts.username)} to send to`,
         );
       }
+      const logger = createLogger(config);
+      if (opts.issuerBase === undefined) {
+        logger.warn(
+          {},
+          'sendVerificationEmail: --issuer-base was not given; the mailed link points at ' +
+            `http://localhost:${String(config.ODUDU_HTTP_PORT)}, which is wrong for anything but ` +
+            'the local compose stack',
+        );
+      }
+      const realm = await realmSettingsRepository(owner.db).byName(opts.realm);
       await sendVerificationEmail(
         {
           database: runtime,
-          sender: buildEmailSender(config, createLogger(config)),
+          sender: buildEmailSender(config, logger),
           realmId: result.realmId,
           realmName: result.realm,
-          realmDisplayName: result.realm,
+          realmDisplayName: realm?.displayName ?? result.realm,
           issuerBase: opts.issuerBase ?? `http://localhost:${String(config.ODUDU_HTTP_PORT)}`,
         },
         { subjectId: result.userSubjectId, email: opts.email },

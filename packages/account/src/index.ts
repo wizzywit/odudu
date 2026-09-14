@@ -11,7 +11,11 @@ export {
   type CompleteEmailVerificationDeps,
   type CompleteEmailVerificationResult,
 } from '#/usecase/verify-email';
-export { registerActionTokenRoute, type ActionTokenRouteDeps } from '#/view/routes/action-token';
+export {
+  registerActionTokenRoute,
+  type ActionTokenRealmLookup,
+  type ActionTokenRouteDeps,
+} from '#/view/routes/action-token';
 export {
   renderVerificationFailedPage,
   renderVerificationSucceededPage,

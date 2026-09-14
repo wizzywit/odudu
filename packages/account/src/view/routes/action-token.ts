@@ -7,9 +7,14 @@ import {
   sendVerificationHtml,
 } from '#/view/verification-html';
 
+export interface ActionTokenRealmLookup {
+  readonly id: string;
+  readonly enabled: boolean;
+}
+
 export interface ActionTokenRouteDeps {
   readonly database: DatabaseHandle;
-  readonly findRealmId: (name: string) => Promise<string | null>;
+  readonly findRealm: (name: string) => Promise<ActionTokenRealmLookup | null>;
   readonly getCurrentEmail: (tx: RealmScopedDatabase, subjectId: string) => Promise<string | null>;
   readonly markVerified: (tx: RealmScopedDatabase, subjectId: string) => Promise<void>;
 }
@@ -29,16 +34,20 @@ export function registerActionTokenRoute(app: FastifyInstance, deps: ActionToken
     Querystring: Record<string, string | string[] | undefined>;
   }>('/realms/:realm/login-actions/action-token', async (request, reply) => {
     const key = firstString(request.query.key);
-    const realmId = key === undefined ? null : await deps.findRealmId(request.params.realm);
+    const realm = key === undefined ? null : await deps.findRealm(request.params.realm);
 
-    if (key === undefined || realmId === null) {
+    // A disabled realm refuses here the same way it refuses at /token,
+    // /userinfo, discovery and login: consuming a token is a write against
+    // that realm's users table, and disabling a realm is meant to stop all
+    // of those, not just the ones a client can see.
+    if (key === undefined || !realm?.enabled) {
       return sendVerificationHtml(reply, 400, renderVerificationFailedPage());
     }
 
     const result = await completeEmailVerification(
       {
         database: deps.database,
-        realmId,
+        realmId: realm.id,
         getCurrentEmail: deps.getCurrentEmail,
         markVerified: deps.markVerified,
       },

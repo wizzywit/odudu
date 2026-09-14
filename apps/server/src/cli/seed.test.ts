@@ -48,4 +48,17 @@ describe('seed option validation', () => {
       }),
     ).rejects.toThrow(/email/);
   });
+
+  it('refuses sendVerificationEmail with no address to send to', async () => {
+    await expect(
+      seed({
+        realm: 'acme',
+        clientId: 'web-app',
+        redirectUris: ['https://app.example/callback'],
+        username: 'ada',
+        password: 'pw',
+        sendVerificationEmail: true,
+      }),
+    ).rejects.toThrow(/sendVerificationEmail/);
+  });
 });

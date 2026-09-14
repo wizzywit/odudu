@@ -9,7 +9,6 @@ import {
   assertProductionTls,
   warnIfTlsDisabled,
 } from '#/config-guard';
-import { buildEmailSender } from '#/email';
 import { createLogger } from '#/logger';
 import { databaseModule } from '#/modules/database';
 import { httpModule } from '#/modules/http';
@@ -96,7 +95,6 @@ const app = buildApp({
   ownerDatabase: owner,
   kek: config.ODUDU_KEK,
   logger,
-  emailSender: buildEmailSender(config, logger),
   trustProxy: config.ODUDU_TRUST_PROXY,
 });
 

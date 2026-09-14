@@ -3,7 +3,6 @@ import formbody from '@fastify/formbody';
 import { realmSettingsRepository, registerActionTokenRoute } from '@odudu/account';
 import { type DatabaseHandle } from '@odudu/db';
 import { userRepository } from '@odudu/domain-identity';
-import { type EmailSender } from '@odudu/email';
 import { newId } from '@odudu/kernel';
 import { oidcRoutes } from '@odudu/protocol-oidc';
 import Fastify, { type FastifyInstance, type RawServerDefault } from 'fastify';
@@ -30,12 +29,6 @@ export interface AppDeps {
    */
   readonly kek: Uint8Array;
   readonly logger: PinoLogger;
-  /**
-   * Where `sendVerificationEmail` (and, later, password reset) hand off a
-   * rendered message — `main.ts`'s `buildEmailSender` picks `smtpSender`
-   * when `ODUDU_SMTP_HOST` is configured, `capturingSender` otherwise.
-   */
-  readonly emailSender: EmailSender;
   /**
    * Whether to trust `X-Forwarded-*` headers when deriving `request.ip`.
    * Defaults to `false`: with no reverse proxy in front of the server,
@@ -74,8 +67,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   // dependency (packages/account/src/usecase/verify-email.ts explains why).
   registerActionTokenRoute(app, {
     database: deps.database,
-    findRealmId: async (name) =>
-      (await realmSettingsRepository(deps.ownerDatabase.db).byName(name))?.id ?? null,
+    findRealm: (name) => realmSettingsRepository(deps.ownerDatabase.db).byName(name),
     getCurrentEmail: async (tx, subjectId) =>
       (await userRepository(tx).bySubjectId(subjectId))?.email ?? null,
     markVerified: async (tx, subjectId) => {
