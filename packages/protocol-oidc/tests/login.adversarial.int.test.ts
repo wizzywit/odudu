@@ -10,7 +10,7 @@ import {
   type RealmScopedDatabase,
 } from '@odudu/db';
 import { expectRealmIsolation } from '@odudu/db/testing';
-import { clients } from '@odudu/domain-realm';
+import { clients, provisionClientDefaults, provisionRealmDefaults } from '@odudu/domain-realm';
 import { FakeClock, newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import formbody from '@fastify/formbody';
@@ -83,6 +83,7 @@ async function setupLoginRealm(name: string): Promise<string> {
   const clientDbId = newId();
   await withRealm(app.db, realmId, async (tx: RealmScopedDatabase) => {
     await tx.insert(realms).values({ id: realmId, name });
+    await provisionRealmDefaults(tx, realmId);
     await tx.insert(clients).values({
       id: clientDbId,
       realmId,
@@ -91,6 +92,7 @@ async function setupLoginRealm(name: string): Promise<string> {
       type: 'confidential',
       secretHash: await hashPassword(CLIENT_SECRET),
     });
+    await provisionClientDefaults(tx, clientDbId);
     await clientOidcConfigRepository(tx).create({
       clientId: clientDbId,
       realmId,
@@ -618,6 +620,7 @@ describe('realm isolation', () => {
       seed: async (tx, realmId) => {
         const clientDbId = newId();
         await tx.insert(realms).values({ id: realmId, name: `probe-${realmId}` });
+        await provisionRealmDefaults(tx, realmId);
         await tx.insert(clients).values({
           id: clientDbId,
           realmId,
@@ -626,6 +629,7 @@ describe('realm isolation', () => {
           type: 'confidential',
           secretHash: 'hashed:secret',
         });
+        await provisionClientDefaults(tx, clientDbId);
         const subject = await subjectRepository(tx).create({ realmId, type: 'user' });
         await authorizationCodeRepository(tx).create({
           codeHash: hashAuthorizationCode(generateAuthorizationCode()),

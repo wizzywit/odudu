@@ -1,5 +1,4 @@
 import { type PendingRequest } from '@odudu/authn-flows';
-import { SUPPORTED_SCOPES } from '@odudu/contracts';
 import { type ClientRecord } from '@odudu/domain-realm';
 import { type ClientOidcConfig } from '#/schema/client-oidc-config';
 import { isWellFormedPkceString } from '#/service/pkce';
@@ -21,14 +20,6 @@ export type AuthorizeOutcome =
   | { kind: 'render'; error: string; description: string }
   | { kind: 'redirect'; redirectUri: string; error: string; state: string | null };
 
-// The same list discovery.ts advertises as scopes_supported, imported
-// rather than duplicated so the two cannot drift apart. profile and email
-// are accepted here so the claim mappers gated on them have a token to
-// attach claims to; claims_supported stays at just `sub` until those
-// mappers exist, since advertising a claim nothing yet returns would be
-// the same dishonesty in the other direction.
-const KNOWN_SCOPES = new Set<string>(SUPPORTED_SCOPES);
-
 // The only Response Mode Odudu answers in, and the default one for
 // `response_type=code` (OIDC Core §3.1.2.1). `fragment` and `form_post`
 // deliver the response by means this server does not implement, so a
@@ -38,9 +29,18 @@ const KNOWN_SCOPES = new Set<string>(SUPPORTED_SCOPES);
 // (OIDC Discovery §3) and promise what this rejects.
 const SUPPORTED_RESPONSE_MODE = 'query';
 
-function scopesAreKnown(scope: string | undefined): boolean {
+// A scope unknown to the realm and a scope the realm defines but this client
+// is not assigned are both invalid_scope: RFC 6749 §3.3 lets the server
+// refuse rather than silently narrow, and a client told nothing is a client
+// that believes it holds a scope it does not.
+function scopesAreGrantable(
+  scope: string | undefined,
+  knownToRealm: ReadonlySet<string>,
+  assignedToClient: ReadonlySet<string>,
+): boolean {
   const tokens = (scope ?? 'openid').split(' ').filter((token) => token.length > 0);
-  return tokens.length > 0 && tokens.every((token) => KNOWN_SCOPES.has(token));
+  if (tokens.length === 0) return false;
+  return tokens.every((token) => knownToRealm.has(token) && assignedToClient.has(token));
 }
 
 function toPendingRequest(
@@ -65,6 +65,11 @@ export function validateAuthorizationRequest(
   params: Record<string, string | undefined>,
   client: ClientRecord | null,
   config: ClientOidcConfig | null,
+  // The realm's own scope vocabulary, and the subset of it this client is
+  // assigned. Discovery advertises the first of these, from the same read,
+  // so what is advertised and what is accepted cannot drift apart.
+  knownScopes: ReadonlySet<string>,
+  clientScopes: ReadonlySet<string>,
   // Set when normalizeAuthorizeQuery collapsed a repeated query parameter
   // other than client_id/redirect_uri (those render before reaching here —
   // see query-normalization.ts). Checked immediately below the boundary,
@@ -122,7 +127,7 @@ export function validateAuthorizationRequest(
     return reject('invalid_request');
   }
   if (params.code_challenge_method !== 'S256') return reject('invalid_request');
-  if (!scopesAreKnown(params.scope)) return reject('invalid_scope');
+  if (!scopesAreGrantable(params.scope, knownScopes, clientScopes)) return reject('invalid_scope');
 
   // `prompt` is a request parameter like any other, so a malformed one is
   // refused here rather than acted on later: `none` alongside another value

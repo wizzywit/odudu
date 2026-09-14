@@ -39,6 +39,94 @@ token exchange — P2a onwards. The roadmap's second phase is two: **P2a** is
 the identity model — roles, groups, client scopes, per-client web origins,
 email — and **P2b** is credentials, MFA and the session lifecycle.
 
+A role reaches a token only when it is mapped to a scope the client is
+assigned, because `clients.full_scope_allowed` is off by default — a client
+sees the realm's entire role vocabulary only once that is switched on for
+it.
+
+`/token` and `/userinfo` now enforce CORS from a client's own `web_origins`
+(a preflight from the realm's union of every client's, since it carries no
+client identity to check against one) — see
+[the CORS section of docs/request-paths.md](docs/request-paths.md#cors-the-preflight-and-the-request-differ).
+The seed command has no flag for it yet, so setting one means updating
+`client_oidc_config.web_origins` directly until it grows one.
+
+`email_verified` is now a claim about something that happened: a mailed
+`GET /realms/{realm}/login-actions/action-token?key=…` link, redeemed once,
+flips it. A realm carries three settings for the account lifecycle this
+begins — `registration_allowed`, `verify_email` and `reset_password_allowed`
+— each defaulting off, so upgrading a realm never silently grants it public
+registration or mailed verification. There is no admin surface to change
+them yet, so flipping one means an `UPDATE realms SET …` against the
+database directly. Outgoing mail goes through `ODUDU_SMTP_HOST`,
+`ODUDU_SMTP_PORT` (default `587`), `ODUDU_SMTP_FROM`, `ODUDU_SMTP_USERNAME`,
+`ODUDU_SMTP_PASSWORD` and `ODUDU_SMTP_STARTTLS`; leave `ODUDU_SMTP_HOST`
+unset and the server logs every message instead of sending it, which is what
+the compose stack does. See
+[the address verification section of docs/request-paths.md](docs/request-paths.md#address-verification)
+for that walkthrough, captured message included.
+
+`registration_allowed` now has a reader: `GET`/`POST
+/realms/{realm}/login-actions/registration` lets a user create their own
+account — subject, user row, password credential and the realm's default
+roles, all in one transaction — instead of an administrator seeding one in.
+When the realm's `verify_email` is also on, a self-registered address
+cannot complete a login until it is verified: no authorization code is
+issued, which is the property that made verification ship before
+registration rather than alongside it. See
+[the self-registration section of docs/request-paths.md](docs/request-paths.md#self-registration)
+for the walkthrough.
+
+`reset_password_allowed` now has a reader too: `GET`/`POST
+/realms/{realm}/login-actions/reset-password` lets a user request a mailed
+link that sets a new password, and the `reset_password` branch of `GET`/`POST
+/realms/{realm}/login-actions/action-token` redeems it. The request answers
+identically whether or not the address has an account — same status, same
+body — and sends mail only for the one that does, so **this endpoint**
+cannot be used to enumerate who has registered; a send failure (a down or
+rate-limiting SMTP server) is absorbed and logged rather than surfaced, for
+the same reason. Completing one reset also retires every other outstanding
+reset-password link for the same subject, and turning
+`reset_password_allowed` off closes redemption as well as the request form.
+See [the password reset section of docs/request-paths.md](docs/request-paths.md#password-reset)
+for the walkthrough.
+
+**Known limitation:** the reset-request endpoint still has a timing
+oracle — mailing an address that exists takes an SMTP round trip longer
+than the single `SELECT` a nonexistent one costs, so a network observer can
+distinguish the two by response time even though the response body and
+status cannot. Closing it needs sending off the request path entirely (an
+outbox table and a background sender), which the phase's own design spec
+rejects: it would be the first background loop in the codebase and a second
+table nothing deletes from. Stated here rather than fixed, on the judgment
+that an honest limitation beats an accidental one.
+
+**Known limitation, realm-wide:** the reset endpoint's enumeration safety
+does not make the realm itself un-enumerable. With `registration_allowed`
+also on, the registration form (below) answers "that email address is
+already registered" with a 400 — a universal trade-off for a self-service
+registration form, and the one Keycloak makes too — so an address's
+presence in the realm is discoverable through that door even though the
+reset flow closes this one. Accepted, not fixed, for the same reason the
+timing oracle above is: honestly naming a trade-off beats implying a
+property the realm does not actually have.
+
+A mailed verification link is built from `ODUDU_PUBLIC_BASE_URL`, never
+from the request that triggered it — a request's `Host` header is
+client-controlled, and trusting it would let an attacker choose where a
+link Odudu mails to someone else points. `ODUDU_PUBLIC_BASE_URL` must be an
+absolute `http`/`https` origin with no path; when it is unset, a realm with
+`verify_email` on refuses to register rather than guessing a base some
+other way (`compose.yaml` sets it for the local stack).
+
+**Operational trap:** turning `verify_email` on locks out every existing
+user with no email address on file — including one seeded without
+`--email` — since there is no address for them to verify and, for now, no
+way to add one after the fact. The login page tells them so rather than
+claiming a mail it never sent, but there is no recovery path yet; give
+every user an address before enabling `verify_email` on a realm that
+already has some.
+
 > ### → [docs/request-paths.md](docs/request-paths.md)
 >
 > **Every request this server answers, and every branch each one can take,
@@ -189,7 +277,13 @@ node --env-file=.env apps/server/src/main.ts seed \
 Whichever of the two you run first answers:
 
 ```json
-{ "created": true, "realm": "demo", "realmId": "01a096f4-…", "clientId": "demo-spa" }
+{
+  "created": true,
+  "realm": "demo",
+  "realmId": "01a096f4-…",
+  "clientId": "demo-spa",
+  "userSubjectId": "01a096f4-…"
+}
 ```
 
 That realm now serves the protocol. The discovery document is the one
@@ -255,6 +349,51 @@ curl -sS --data-urlencode 'grant_type=authorization_code' \
 ```
 
 (Token values truncated; they differ every run.)
+
+**Give ada a role.** `seed` has one subcommand per piece of the identity
+model — `role`, `group`, `scope`, `assign-scope`, `map-role`, `grant-role`,
+`map-group-role` and `join-group` — reachable the same way as `seed` itself
+(swap in the `docker compose exec` or `node --env-file=.env` prefix from
+above):
+
+```bash
+node --env-file=.env apps/server/src/main.ts seed role --realm demo --name reviewer
+node --env-file=.env apps/server/src/main.ts seed grant-role \
+  --realm demo --username ada --role reviewer
+node --env-file=.env apps/server/src/main.ts seed map-role \
+  --realm demo --scope roles --role reviewer
+```
+
+```json
+{ "command": "role", "realm": "demo", "realmId": "01a0a1a7-…", "roleId": "01a0a1a7-…", "name": "reviewer", "clientId": null }
+{ "command": "grant-role", "realm": "demo", "realmId": "01a0a1a7-…", "username": "ada", "role": "reviewer" }
+{ "command": "map-role", "realm": "demo", "realmId": "01a0a1a7-…", "scope": "roles", "role": "reviewer" }
+```
+
+Re-request a token with `scope=openid roles` instead of `scope=openid
+profile email` — swap that one value into the `/auth` call above — and the
+access token's payload carries it:
+
+```json
+{
+  "roles": ["reviewer"],
+  "iss": "http://localhost:3000/realms/demo",
+  "sub": "01a0a1a7-…",
+  "client_id": "demo-spa",
+  "scope": "openid roles"
+}
+```
+
+**"I created a role and it is not in my token."** Three things gate a role
+onto a token, independently: it must be granted to the subject
+(`grant-role`), mapped to a scope (`map-role`), and that scope must both be
+assigned to the client and actually requested (`scope=` at `/authorize`, or
+`clients.full_scope_allowed`). `seed client` already assigns every
+realm-default scope — `roles` and `groups` included — so the third
+condition is usually already met; `seed assign-scope` is for a scope added
+to the realm afterwards. [docs/request-paths.md](docs/request-paths.md#roles-once-a-scope-reaches-it)
+walks through all of it, including a client-scoped role qualified as
+`clientId:roleName`.
 
 **[docs/request-paths.md](docs/request-paths.md) takes it from there** — what
 each of those tokens is for, what `/userinfo` does with them, how a refresh
@@ -340,19 +479,20 @@ A real deployment today looks like:
 Being straight about this, because "self-hostable" should mean something.
 Every row says where it stands, and every row has a phase:
 
-|                                                                    | Where it stands |
-| ------------------------------------------------------------------ | --------------- |
-| A consent screen, and dynamic client registration                  | P3              |
-| An admin API — seeding is the only administrative surface          | P4              |
-| Signing-key rotation — the shape exists, the operation does not    | P4              |
-| RP-initiated logout (`end_session_endpoint`)                       | P2b             |
-| Front-channel and back-channel logout                              | P3              |
-| Token introspection and revocation                                 | P3              |
-| Published images and a release process                             | P12             |
-| Secret management beyond environment variables                     | P12             |
-| Backup and restore guidance                                        | P12             |
-| Multi-replica support: migration locking, shared session cache, HA | P11             |
-| Helm chart or Kubernetes manifests                                 | P11             |
+|                                                                                                              | Where it stands |
+| ------------------------------------------------------------------------------------------------------------ | --------------- |
+| Self-service registration and password reset — address verification exists; the flows that trigger it do not | P2a             |
+| A consent screen, and dynamic client registration                                                            | P3              |
+| An admin API — seeding is the only administrative surface                                                    | P4              |
+| Signing-key rotation — the shape exists, the operation does not                                              | P4              |
+| RP-initiated logout (`end_session_endpoint`)                                                                 | P2b             |
+| Front-channel and back-channel logout                                                                        | P3              |
+| Token introspection and revocation                                                                           | P3              |
+| Published images and a release process                                                                       | P12             |
+| Secret management beyond environment variables                                                               | P12             |
+| Backup and restore guidance                                                                                  | P12             |
+| Multi-replica support: migration locking, shared session cache, HA                                           | P11             |
+| Helm chart or Kubernetes manifests                                                                           | P11             |
 
 The last three of those had no phase at all until 2026-09-14. They are
 operational rather than protocol work, and the roadmap — written outward

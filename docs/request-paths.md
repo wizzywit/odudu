@@ -20,17 +20,23 @@ isolated in the database by PostgreSQL row-level security (ADR 0009). Every
 protocol endpoint lives under `/realms/{realm}/`, so the realm is chosen by
 the URL and never by a header or a parameter.
 
-| Method | Path                                               | What it is                    |
-| ------ | -------------------------------------------------- | ----------------------------- |
-| `GET`  | `/realms/{realm}/.well-known/openid-configuration` | Discovery document            |
-| `GET`  | `/realms/{realm}/protocol/openid-connect/certs`    | JWKS (public signing keys)    |
-| `GET`  | `/realms/{realm}/protocol/openid-connect/auth`     | Authorization endpoint        |
-| `POST` | `/realms/{realm}/protocol/openid-connect/auth`     | Authorization endpoint (form) |
-| `POST` | `/realms/{realm}/login-actions/authenticate`       | Login form submission         |
-| `POST` | `/realms/{realm}/protocol/openid-connect/token`    | Token endpoint                |
-| `GET`  | `/realms/{realm}/protocol/openid-connect/userinfo` | UserInfo                      |
-| `POST` | `/realms/{realm}/protocol/openid-connect/userinfo` | UserInfo (form)               |
-| `GET`  | `/health/live`, `/health/ready`                    | Liveness, readiness           |
+| Method | Path                                               | What it is                                                  |
+| ------ | -------------------------------------------------- | ----------------------------------------------------------- |
+| `GET`  | `/realms/{realm}/.well-known/openid-configuration` | Discovery document                                          |
+| `GET`  | `/realms/{realm}/protocol/openid-connect/certs`    | JWKS (public signing keys)                                  |
+| `GET`  | `/realms/{realm}/protocol/openid-connect/auth`     | Authorization endpoint                                      |
+| `POST` | `/realms/{realm}/protocol/openid-connect/auth`     | Authorization endpoint (form)                               |
+| `POST` | `/realms/{realm}/login-actions/authenticate`       | Login form submission                                       |
+| `GET`  | `/realms/{realm}/login-actions/registration`       | Self-registration form                                      |
+| `POST` | `/realms/{realm}/login-actions/registration`       | Self-registration submission                                |
+| `GET`  | `/realms/{realm}/login-actions/action-token`       | Redeem a mailed action token (verify email, reset password) |
+| `POST` | `/realms/{realm}/login-actions/action-token`       | Submit a new password against a reset-password token        |
+| `GET`  | `/realms/{realm}/login-actions/reset-password`     | Password reset request form                                 |
+| `POST` | `/realms/{realm}/login-actions/reset-password`     | Password reset request submission                           |
+| `POST` | `/realms/{realm}/protocol/openid-connect/token`    | Token endpoint                                              |
+| `GET`  | `/realms/{realm}/protocol/openid-connect/userinfo` | UserInfo                                                    |
+| `POST` | `/realms/{realm}/protocol/openid-connect/userinfo` | UserInfo (form)                                             |
+| `GET`  | `/health/live`, `/health/ready`                    | Liveness, readiness                                         |
 
 `/login-actions/authenticate` is deliberately outside the
 `/protocol/openid-connect/` namespace: that namespace is the OIDC wire
@@ -167,10 +173,19 @@ odudu seed \
 ```
 
 ```json
-{ "created": true, "realm": "demo", "realmId": "01a09678-…", "clientId": "demo-spa" }
+{
+  "created": true,
+  "realm": "demo",
+  "realmId": "01a09678-…",
+  "clientId": "demo-spa",
+  "userSubjectId": "01a09678-…"
+}
 ```
 
-(`realmId` is a generated identifier; shortened here.)
+(`realmId` and `userSubjectId` are generated identifiers; shortened here.
+`userSubjectId` is present whenever `--user` names one, whether this run
+created it or found it already seeded — [Address verification](#address-verification)
+below is what it is for.)
 
 `--redirect-uri` may be repeated. It is matched by exact string comparison
 when a request arrives — no trailing-slash tolerance, no case folding, no
@@ -190,7 +205,13 @@ odudu seed \
 ```
 
 ```json
-{ "created": false, "realm": "demo", "realmId": "01a09678-…", "clientId": "demo-spa" }
+{
+  "created": false,
+  "realm": "demo",
+  "realmId": "01a09678-…",
+  "clientId": "demo-spa",
+  "userSubjectId": "01a09678-…"
+}
 ```
 
 while a re-run that disagrees with what is stored refuses rather than
@@ -341,8 +362,31 @@ curl -sS http://localhost:3000/realms/demo/.well-known/openid-configuration
   "grant_types_supported": ["authorization_code", "refresh_token", "client_credentials"],
   "token_endpoint_auth_methods_supported": ["client_secret_basic", "client_secret_post", "none"],
   "authorization_response_iss_parameter_supported": true,
-  "scopes_supported": ["openid", "profile", "email"],
-  "claims_supported": ["sub", "name", "email", "email_verified"]
+  "scopes_supported": ["address", "email", "groups", "openid", "phone", "profile", "roles"],
+  "claims_supported": [
+    "sub",
+    "name",
+    "given_name",
+    "family_name",
+    "middle_name",
+    "nickname",
+    "preferred_username",
+    "profile",
+    "picture",
+    "website",
+    "gender",
+    "birthdate",
+    "zoneinfo",
+    "locale",
+    "updated_at",
+    "email",
+    "email_verified",
+    "roles",
+    "groups",
+    "address",
+    "phone_number",
+    "phone_number_verified"
+  ]
 }
 ```
 
@@ -351,6 +395,20 @@ this document. `response_modes_supported` is stated rather than omitted
 because omitting it would default to `["query", "fragment"]` (OIDC Discovery
 §3) and promise a delivery mode `/authorize` refuses.
 `code_challenge_methods_supported` lists `S256` and never `plain`.
+
+`scopes_supported` is the realm's own scope vocabulary, read from the
+database rather than compiled in: these seven are what `odudu seed` gives a
+new realm, and a realm that is given another scope advertises it here the
+moment it exists. A scope is seeded only once a claim mapper can answer for
+it, so this list never promises claims nothing returns.
+
+Being advertised is only half of what `/authorize` needs, though — **a scope
+is granted only when the realm defines it _and_ the client is assigned it**,
+and either failure is `invalid_scope`. `odudu seed` assigns all seven to each
+client it creates. The walk-through below asks for three of them — `openid`,
+`profile` and `email` — which is why it is answered; `roles`, `groups`,
+`address` and `phone` reach a token the same way, added to a request's
+`scope` like any other.
 
 The issuer is derived from the request, so it is `http://` on this
 plain-HTTP local stack. A deployment terminates TLS in front of the server
@@ -553,6 +611,14 @@ resource audiences the client is configured for, because a token that
 cannot be used at the issuer's own endpoints would be unusable for what
 OIDC promised the client.
 
+Requesting `profile` and `email` grants them (they are in `scope` above)
+without putting `name`, `email` or `email_verified` on this token: an
+access token goes to whatever's named in `aud`, not the browser, and
+`client_scopes.include_in_access_token` defaults to `false` for
+`openid`/`profile`/`email` for exactly that reason — the [`roles` section
+below](#roles-once-a-scope-reaches-it) shows the symmetric flag that admits
+`roles`/`groups` here by default instead.
+
 The ID token, decoded:
 
 ```json
@@ -566,6 +632,7 @@ The ID token, decoded:
   "nonce": "n-0S6_WzA2Mj",
   "sub": "01a09678-07c1-…",
   "name": "ada",
+  "preferred_username": "ada",
   "email": "ada@example.com",
   "email_verified": false
 }
@@ -582,6 +649,217 @@ JWKS, its `iss`, `aud`, `exp` and `nonce`; take `sub` as the user's
 identifier; keep the access token for API calls and the refresh token
 somewhere it can be used once.
 
+### `roles`, once a scope reaches it
+
+RFC 9068 §2.2.3.1 names `roles` as an access token claim, and Odudu adds it
+to the same registry that assembles the ID token and `/userinfo` — but only
+for the roles a granted scope actually reaches. `odudu seed` now has
+subcommands for the whole identity model this needs, run against the same
+realm and user the [Bootstrap](#bootstrap) section above already seeded:
+
+```bash
+odudu seed role --realm demo --name reviewer
+```
+
+```json
+{
+  "command": "role",
+  "realm": "demo",
+  "realmId": "01a0a1a7-5917-7905-aed4-e278951d1acf",
+  "roleId": "01a0a1a7-7121-7bc5-945f-723c237be90f",
+  "name": "reviewer",
+  "clientId": null
+}
+```
+
+```bash
+odudu seed grant-role --realm demo --username ada --role reviewer
+odudu seed map-role --realm demo --scope roles --role reviewer
+```
+
+```json
+{ "command": "grant-role", "realm": "demo", "realmId": "01a0a1a7-5917-7905-aed4-e278951d1acf", "username": "ada", "role": "reviewer" }
+{ "command": "map-role", "realm": "demo", "realmId": "01a0a1a7-5917-7905-aed4-e278951d1acf", "scope": "roles", "role": "reviewer" }
+```
+
+That gives `ada` a `reviewer` role, mapped to the `roles` scope
+`provisionRealmDefaults` already seeded for the realm — `demo-spa` already
+carries `roles` among the default scopes `seed client` assigned it, so no
+`assign-scope` call is needed here; see [`assign-scope` and `default` versus
+`optional`](#assign-scope-and-default-versus-optional) below for when one
+is. Requesting `scope=openid roles` instead of `scope=openid profile email`
+and redeeming the code through Path A's usual steps produces an access
+token that carries it:
+
+```json
+{
+  "roles": ["reviewer"],
+  "iss": "http://localhost:3000/realms/demo",
+  "sub": "01a0a1a7-5d86-7e0c-9ebf-d30b0fc20cb4",
+  "aud": ["http://localhost:3000/realms/demo"],
+  "client_id": "demo-spa",
+  "scope": "openid roles",
+  "iat": 1789418514,
+  "exp": 1789418814,
+  "jti": "01a0a1a7-a6bc-7deb-93ae-f0a671497b5a"
+}
+```
+
+The ID token issued alongside it carries no `roles`, though the same
+`reviewer` role reached the same scope:
+
+```json
+{
+  "iss": "http://localhost:3000/realms/demo",
+  "aud": "demo-spa",
+  "iat": 1789418514,
+  "exp": 1789418814,
+  "auth_time": 1789418514,
+  "nonce": "n-0S6_WzA2Mj",
+  "sub": "01a0a1a7-5d86-7e0c-9ebf-d30b0fc20cb4"
+}
+```
+
+`client_scopes.include_in_id_token` is what decides that, and the `roles`
+and `groups` scopes ship with it off: an ID token reaches the browser, and a
+full role list has no place there. The access token has the symmetric
+`include_in_access_token` column, defaulting the other way: `true` for
+`roles`/`groups`, `false` for `openid`/`profile`/`email` — see [the access
+token in step 4](#4-token) for what that keeps off it. `/userinfo` reads
+the same role gate as the access token, not the ID token's, so it returns
+the role the access token carries it presented:
+
+```bash
+curl -sS -H "Authorization: Bearer $ACCESS_TOKEN" \
+  http://localhost:3000/realms/demo/protocol/openid-connect/userinfo
+```
+
+```json
+{ "sub": "01a0a1a7-5d86-7e0c-9ebf-d30b0fc20cb4", "roles": ["reviewer"] }
+```
+
+A role reaches a token only when it is mapped, this way, to a scope the
+client is assigned — a role held but never mapped to any scope is left out
+of the token entirely, and so is every role once `client_scope_roles` maps
+nothing at all. The one way around the intersection is
+`clients.full_scope_allowed`, which defaults to `false`: set it and a
+client's tokens carry every role the subject holds, unfiltered.
+
+### `assign-scope`, and `default` versus `optional`
+
+A client-scoped role — one qualified as `clientId:roleName` — needs the
+client it is scoped to seeded first, because `roles_client_fk`
+(`packages/db/drizzle/0017_roles.sql`) is a real foreign key: a role naming
+a client that does not exist cannot be inserted, let alone granted.
+
+```bash
+odudu seed client \
+  --realm demo --client-id reports-api --client-secret reports-api-secret \
+  --redirect-uri http://localhost:9000/cb
+odudu seed role --realm demo --name reader --client-id reports-api
+odudu seed grant-role --realm demo --username ada --role reports-api:reader
+odudu seed map-role --realm demo --scope roles --role reports-api:reader
+```
+
+```json
+{ "command": "client", "created": true, "realm": "demo", "realmId": "01a0a1a7-5917-7905-aed4-e278951d1acf", "clientId": "reports-api", "clientDbId": "01a0a1a8-5ef5-78ec-98b5-d4a76a9eb112" }
+{ "command": "role", "realm": "demo", "realmId": "01a0a1a7-5917-7905-aed4-e278951d1acf", "roleId": "01a0a1a8-6128-7224-bb1f-817f9d6a29fa", "name": "reader", "clientId": "reports-api" }
+{ "command": "grant-role", "realm": "demo", "realmId": "01a0a1a7-5917-7905-aed4-e278951d1acf", "username": "ada", "role": "reports-api:reader" }
+{ "command": "map-role", "realm": "demo", "realmId": "01a0a1a7-5917-7905-aed4-e278951d1acf", "scope": "roles", "role": "reports-api:reader" }
+```
+
+A token requested with `scope=openid roles` for `demo-spa` now carries
+`"roles": ["reports-api:reader", "reviewer"]` — the qualified name is
+exactly `clientId:roleName`, which is unambiguous only because
+`roles_name_has_no_colon` refuses a `:` inside a role name itself; naming a
+role with two colons (`a:b:c`) is refused by `grant-role`/`map-role` rather
+than guessed at, since the client half could not contain one either.
+
+`seed client` assigns every realm-default scope — `roles` and `groups`
+among them — to a client the moment it is created, with assignment kind
+`default`. `seed assign-scope` exists for the scope a realm defines
+_afterwards_ — a resource server's own `reports:read`, say — that a client
+needs added explicitly:
+
+```bash
+odudu seed scope --realm demo --name reports:read
+odudu seed assign-scope \
+  --realm demo --client-id demo-spa --scope reports:read --assignment optional
+```
+
+```json
+{ "command": "scope", "realm": "demo", "realmId": "01a0a1a7-5917-7905-aed4-e278951d1acf", "scopeId": "01a0a1a8-b176-71db-b143-86b395a7b439", "name": "reports:read" }
+{ "command": "assign-scope", "realm": "demo", "realmId": "01a0a1a7-5917-7905-aed4-e278951d1acf", "clientId": "demo-spa", "scope": "reports:read", "assignment": "optional" }
+```
+
+`assign-scope` is safe to run against a scope a client already carries — it
+narrows or widens the existing assignment rather than colliding with it,
+which matters because every realm-default scope is already assigned by the
+time a client exists to run it against.
+
+**"I created a role and it is not in my token."** Three things gate it,
+independently: the role must be granted to the subject (`grant-role`), the
+role must be mapped to a scope (`map-role`), and the client must be assigned
+that scope and the token request must actually include it (`scope=` at
+`/authorize`, or `clients.full_scope_allowed`). Missing any one of the
+three is indistinguishable from the outside — the claim is simply absent —
+so when it is missing, check the three in that order rather than guessing
+which one it was.
+
+### Groups, and role inheritance
+
+A role can also reach a token through a group rather than a direct grant.
+`seed map-group-role` is the only path from the CLI to that: it maps a role
+to a group the way `map-role` maps one to a client scope, and effective
+role resolution then walks a subject's groups and their ancestors, not just
+its direct assignments, in the same recursive CTE `groupRepository.mapRole`
+was built for.
+
+```bash
+odudu seed group --realm demo --name engineering
+odudu seed group --realm demo --name backend --parent /engineering
+odudu seed join-group --realm demo --username ada --group /engineering/backend
+odudu seed role --realm demo --name engineering-lead
+odudu seed map-group-role --realm demo --group /engineering --role engineering-lead
+odudu seed map-role --realm demo --scope roles --role engineering-lead
+```
+
+```json
+{ "command": "group", "realm": "demo", "realmId": "01a0a215-1fbe-7b78-b0cc-ecd3b246658d", "groupId": "01a0a215-56ff-70be-ab80-652eabc3a340", "path": "/engineering" }
+{ "command": "group", "realm": "demo", "realmId": "01a0a215-1fbe-7b78-b0cc-ecd3b246658d", "groupId": "01a0a215-5890-7110-b875-db31b1c6673c", "path": "/engineering/backend" }
+{ "command": "join-group", "realm": "demo", "realmId": "01a0a215-1fbe-7b78-b0cc-ecd3b246658d", "username": "ada", "group": "/engineering/backend" }
+{ "command": "role", "realm": "demo", "realmId": "01a0a215-1fbe-7b78-b0cc-ecd3b246658d", "roleId": "01a0a215-5b7b-7477-a72d-4237651a4f6e", "name": "engineering-lead", "clientId": null }
+{ "command": "map-group-role", "realm": "demo", "realmId": "01a0a215-1fbe-7b78-b0cc-ecd3b246658d", "group": "/engineering", "role": "engineering-lead" }
+{ "command": "map-role", "realm": "demo", "realmId": "01a0a215-1fbe-7b78-b0cc-ecd3b246658d", "scope": "roles", "role": "engineering-lead" }
+```
+
+`ada` is joined only to `/engineering/backend`, the _child_; the role is
+mapped only to `/engineering`, the _parent_. Requesting `scope=openid roles
+groups` and redeeming the code carries both `reviewer` (granted directly,
+[above](#roles-once-a-scope-reaches-it)) and `engineering-lead` (reached
+through the group) onto the same access token:
+
+```json
+{
+  "roles": ["engineering-lead", "reviewer"],
+  "groups": ["/engineering/backend"],
+  "iss": "http://localhost:3000/realms/demo",
+  "sub": "01a0a215-204a-75a9-b3b1-89bf08b1c76b",
+  "aud": ["http://localhost:3000/realms/demo"],
+  "client_id": "demo-spa",
+  "scope": "openid roles groups",
+  "iat": 1789425720,
+  "exp": 1789426020,
+  "jti": "01a0a215-9c86-77a3-b7ab-dad58b49da4e"
+}
+```
+
+`groups` carries only the paths a subject directly belongs to — `ada`'s
+own membership is `/engineering/backend`, not `/engineering` too — but
+`roles` carries what those memberships and their ancestors reach, which is
+why `engineering-lead` appears even though nothing ever joined `ada` to
+`/engineering` itself.
+
 ### 5. `/userinfo`
 
 ```bash
@@ -593,6 +871,7 @@ curl -sS -H "Authorization: Bearer $ACCESS_TOKEN" \
 {
   "sub": "01a09678-07c1-…",
   "name": "ada",
+  "preferred_username": "ada",
   "email": "ada@example.com",
   "email_verified": false
 }
@@ -732,6 +1011,7 @@ where they name the client:
   "nonce": "n-0S6_WzA2Mj",
   "sub": "01a09acc-6bd8-…",
   "name": "ada",
+  "preferred_username": "ada",
   "email": "ada@example.com",
   "email_verified": false
 }
@@ -817,6 +1097,544 @@ content-type: application/json; charset=utf-8
 difference that matters operationally — the secret is held by the server, so
 the access and refresh tokens never need to reach the browser at all. That
 is the reason to be a confidential client.
+
+### Address verification
+
+`email_verified` is a stored claim, but until now nothing could set it
+truthfully — every ID token and UserInfo response above for `ada` carries
+`"email_verified": false`, and that is still real: nothing verifies an
+address until this section. `GET /realms/{realm}/login-actions/action-token?key=…`
+is the other half: consuming the link a verification email carries.
+[Self-registration](#self-registration) below is one way to trigger that
+mail, for an address that does not exist yet; `odudu seed
+--send-verification-email` is the other, standing in for the admin
+console's "Send verification email" action against a user who already
+exists — `ada`, seeded back in [Bootstrap](#bootstrap). There is still no
+seed flag or admin surface to flip a realm's `verify_email` itself, only a
+direct `UPDATE realms SET verify_email = true …`, the same gap
+[Self-registration](#self-registration) hits for the other two
+account-lifecycle settings:
+
+```bash
+odudu seed \
+  --realm demo --client demo-spa \
+  --redirect-uri http://localhost:8080/callback \
+  --user ada --password correct-horse-battery --email ada@example.com \
+  --send-verification-email
+```
+
+With `ODUDU_SMTP_HOST` unset — true of the compose stack and of every way
+this document runs the server — nothing is actually sent. `capturingSender`
+logs the message it would have sent instead, which is how a reader without
+a mail server gets the link:
+
+```json
+{
+  "level": 30,
+  "to": "ada@example.com",
+  "subject": "Verify your demo account",
+  "text": "Confirm your email address for demo by visiting this link:\n\nhttp://localhost:3000/realms/demo/login-actions/action-token?key=FZDLhOiE8AXyz6zzuGlRy4OkoK7ihPSIBoicxqaMWVM\n\nIf you did not request this, you can ignore this message.",
+  "html": "<p>Confirm your email address for demo by visiting <a href=\"…\">…</a>.</p><p>If you did not request this, you can ignore this message.</p>",
+  "msg": "captured email — no SMTP host configured"
+}
+```
+
+(One line of a larger pino JSON object, reduced to the fields that matter
+here; the key is shortened nowhere else in this document because a reader
+needs the whole thing to follow the link.)
+
+Before following it, `ada`'s ID token still reads the way every one earlier
+in this document does:
+
+```json
+{ "email": "ada@example.com", "email_verified": false }
+```
+
+Following the link once verifies it:
+
+```bash
+curl -sS -o /dev/null -w '%{http_code}\n' \
+  'http://localhost:3000/realms/demo/login-actions/action-token?key=FZDLhOiE8AXyz6zzuGlRy4OkoK7ihPSIBoicxqaMWVM'
+```
+
+```
+200
+```
+
+and a fresh ID token for `ada` now carries `"email_verified": true` —
+nothing else about the token changes, since email and its verification
+status are the only claims this touches:
+
+```json
+{ "email": "ada@example.com", "email_verified": true }
+```
+
+Following the same link again is refused — it was minted for one
+redemption, and `action_tokens.consumed_at` is now set:
+
+```bash
+curl -sS -o /dev/null -w '%{http_code}\n' \
+  'http://localhost:3000/realms/demo/login-actions/action-token?key=FZDLhOiE8AXyz6zzuGlRy4OkoK7ihPSIBoicxqaMWVM'
+```
+
+```
+400
+```
+
+The same 400 answers a key that never existed, one presented to the wrong
+realm, one past its 12-hour lifespan, or one whose address the user has
+since changed — consumption compares the token's stored `email` against the
+user's current one and refuses on any mismatch, so a verification cannot
+outlive the address it was proving. None of those four are told apart in
+the response: the page a browser lands on has no way to use the difference,
+and telling a prober "this exact key existed" is a smaller leak than it
+looks, but not one worth taking for free.
+
+`--send-verification-email` needs `--email`, and needs the named user to
+already exist — seeded in this same run or a previous one — or the command
+refuses with `seed_invalid_options` before touching the database.
+
+Every `ada` token or UserInfo response captured **above** this section in
+this document was captured before this run — that is why they read `false`
+and this section's own capture reads `true`: the account whose Bootstrap
+this document shares was verified here, not earlier.
+
+## Self-registration
+
+`GET`/`POST /realms/{realm}/login-actions/registration` is the first way a
+user reaches a realm without an administrator seeding them in. It answers
+only when the realm's `registration_allowed` is on — off by default, like
+`verify_email` and `reset_password_allowed` — so a realm serves nothing at
+all here until an operator turns it on:
+
+```bash
+odudu seed \
+  --realm register-demo --client register-spa \
+  --redirect-uri http://localhost:8080/callback
+curl -sS -o /dev/null -w '%{http_code}\n' \
+  http://localhost:3000/realms/register-demo/login-actions/registration
+```
+
+```
+404
+```
+
+There is no seed flag or admin surface for the three account-lifecycle
+settings yet (the same gap [Address verification](#address-verification)
+notes), so this run flips them with `psql` against the compose stack's
+database, the same one `odudu seed` writes to — by name, since the realm id
+is generated and this document does not capture it:
+
+```sql
+UPDATE realms SET registration_allowed = true, verify_email = true
+  WHERE name = 'register-demo';
+```
+
+With both on, posting the form creates the account and, because
+`verify_email` is on, sends a mail instead of leaving the address usable
+right away:
+
+```bash
+curl -sS -X POST http://localhost:3000/realms/register-demo/login-actions/registration \
+  --data-urlencode 'username=ada' \
+  --data-urlencode 'email=ada@example.com' \
+  --data-urlencode 'password=correct-horse-battery'
+```
+
+```
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Account created</title></head>
+<body>
+<h1>Account created</h1>
+<p>Check your email for a link to verify your address before you can sign in.</p>
+</body>
+</html>
+```
+
+The subject, the `users` row, the password credential and the realm's
+default roles are all created in one transaction, and the `verify_email`
+token is issued inside that same transaction — the mail goes out only after
+it commits, the same ordering [Address verification](#address-verification)
+establishes. With `ODUDU_SMTP_HOST` unset, the link lands in the container's
+log instead of an inbox:
+
+```json
+{
+  "level": 30,
+  "to": "ada@example.com",
+  "subject": "Verify your register-demo account",
+  "text": "Confirm your email address for register-demo by visiting this link:\n\nhttp://localhost:3000/realms/register-demo/login-actions/action-token?key=T-KtGmS4CxncUMHktuxL4EVHtBzBQ7fDqL6NzVz05BA\n\nIf you did not request this, you can ignore this message.",
+  "msg": "captured email — no SMTP host configured"
+}
+```
+
+That link's host, `localhost:3000`, comes from `ODUDU_PUBLIC_BASE_URL`
+(`compose.yaml` sets it to match the port published above) — never from the
+request that reached the registration endpoint. A request's `Host` header
+is client-controlled, and building a mailed link from it would let an
+attacker who registers someone else's address choose where that link
+points, capture the key when the victim (or a spam filter, or a link
+preview) follows it, and verify an address they do not control against an
+account they hold the password to. Posting the same form again with a
+forged `Host` proves the header is ignored:
+
+```bash
+curl -sS -X POST http://localhost:3000/realms/register-demo/login-actions/registration \
+  -H 'Host: evil.example' \
+  --data-urlencode 'username=grace' \
+  --data-urlencode 'email=grace@example.com' \
+  --data-urlencode 'password=correct-horse-battery'
+```
+
+```json
+{
+  "level": 30,
+  "to": "grace@example.com",
+  "subject": "Verify your register-demo account",
+  "text": "Confirm your email address for register-demo by visiting this link:\n\nhttp://localhost:3000/realms/register-demo/login-actions/action-token?key=PNY_QHSdYzzRHsHBUbRs2PtPZyo0JhIENMOAMdJ3q74\n\nIf you did not request this, you can ignore this message.",
+  "msg": "captured email — no SMTP host configured"
+}
+```
+
+Still `localhost:3000`, never `evil.example`. When `ODUDU_PUBLIC_BASE_URL`
+is unset and a realm's `verify_email` is on, registration refuses outright
+(500, logged as a misconfiguration) rather than falling back to the
+request in any way.
+
+**This is the property the whole account-lifecycle build exists for**: an
+unverified self-registered address must not be able to complete a login, and
+the assertion is that no code is issued, not that a page says something.
+Requesting `/authorize` and submitting the login form with the password just
+set answers 200, not the usual 302:
+
+```bash
+AUTH_SESSION_ID=$(curl -sS --get \
+  --data-urlencode 'response_type=code' \
+  --data-urlencode 'client_id=register-spa' \
+  --data-urlencode 'redirect_uri=http://localhost:8080/callback' \
+  --data-urlencode 'scope=openid email' \
+  --data-urlencode 'state=xyz123' \
+  --data-urlencode 'nonce=abc123' \
+  --data-urlencode 'code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM' \
+  --data-urlencode 'code_challenge_method=S256' \
+  'http://localhost:3000/realms/register-demo/protocol/openid-connect/auth' \
+  | sed -n 's/.*name="auth_session_id" value="\([^"]*\)".*/\1/p')
+
+curl -sS -i -X POST http://localhost:3000/realms/register-demo/login-actions/authenticate \
+  --data-urlencode "auth_session_id=$AUTH_SESSION_ID" \
+  --data-urlencode 'username=ada' \
+  --data-urlencode 'password=correct-horse-battery'
+```
+
+```
+HTTP/1.1 200 OK
+content-type: text/html
+
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Verify your email</title></head>
+<body>
+<h1>Can't sign in yet</h1>
+<p>You need to verify your email address before you can sign in. We sent a link to the address on this account — follow it, then sign in again.</p>
+</body>
+</html>
+```
+
+No `location` and no `set-cookie` header are on that response — nothing was
+established and nothing was issued, which is the part a passing status code
+alone could not prove. Following the mailed link, the same login now
+completes:
+
+```bash
+curl -sS -o /dev/null -w '%{http_code}\n' \
+  'http://localhost:3000/realms/register-demo/login-actions/action-token?key=T-KtGmS4CxncUMHktuxL4EVHtBzBQ7fDqL6NzVz05BA'
+```
+
+```
+200
+```
+
+```bash
+AUTH_SESSION_ID=$(curl -sS --get \
+  --data-urlencode 'response_type=code' \
+  --data-urlencode 'client_id=register-spa' \
+  --data-urlencode 'redirect_uri=http://localhost:8080/callback' \
+  --data-urlencode 'scope=openid email' \
+  --data-urlencode 'state=xyz123' \
+  --data-urlencode 'nonce=abc123' \
+  --data-urlencode 'code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM' \
+  --data-urlencode 'code_challenge_method=S256' \
+  'http://localhost:3000/realms/register-demo/protocol/openid-connect/auth' \
+  | sed -n 's/.*name="auth_session_id" value="\([^"]*\)".*/\1/p')
+
+curl -sS -i -X POST http://localhost:3000/realms/register-demo/login-actions/authenticate \
+  --data-urlencode "auth_session_id=$AUTH_SESSION_ID" \
+  --data-urlencode 'username=ada' \
+  --data-urlencode 'password=correct-horse-battery'
+```
+
+```
+HTTP/1.1 302 Found
+set-cookie: register-demo-session=01a0a14e-…; HttpOnly; SameSite=Lax; Path=/
+location: http://localhost:8080/callback?code=tGYl5seSh4jl2tU7-0s2eXNgYDVBDrSjT72wXB_X0FQ&state=xyz123&iss=http%3A%2F%2Flocalhost%3A3000%2Frealms%2Fregister-demo
+```
+
+`users.email` is unique per realm, not globally — `email` alone would be a
+tenancy bug — so a second registration for an address already held **in
+this realm** is refused:
+
+```bash
+curl -sS -X POST http://localhost:3000/realms/register-demo/login-actions/registration \
+  --data-urlencode 'username=carol' \
+  --data-urlencode 'email=ada@example.com' \
+  --data-urlencode 'password=another-password'
+```
+
+```
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Can't create this account</title></head>
+<body>
+<h1>Can't create this account</h1>
+<p>That email address is already registered.</p>
+</body>
+</html>
+```
+
+(400; the same address remains free to register again in a different realm,
+since the uniqueness `packages/db/drizzle/0023_users_email_unique.sql` adds
+is `(realm_id, email)`, not `email` alone.) A duplicate **username** and a
+malformed address are both refused the same way — 400, with a message
+naming which — rather than an unhandled error.
+
+A realm with `verify_email` off skips the mail and the gate above entirely:
+the account created is usable at the next login, the same way a
+seeded user always has been.
+
+## Password reset
+
+`GET`/`POST /realms/{realm}/login-actions/reset-password` is the third
+account-lifecycle setting, `reset_password_allowed` — off by default, like
+`registration_allowed` and `verify_email` — so a realm serves nothing here
+until an operator turns it on:
+
+```bash
+odudu seed \
+  --realm reset-off-demo --client reset-off-spa \
+  --redirect-uri http://localhost:8080/callback
+curl -sS -o /dev/null -w '%{http_code}\n' \
+  http://localhost:3000/realms/reset-off-demo/login-actions/reset-password
+```
+
+```
+404
+```
+
+A separate realm has it on, and a user seeded to reset:
+
+```bash
+odudu seed \
+  --realm reset-demo --client reset-spa \
+  --redirect-uri http://localhost:8080/callback \
+  --user ada --password correct-horse-battery --email ada@example.com
+```
+
+There is still no seed flag or admin surface for this setting (the same gap
+[Address verification](#address-verification) and
+[Self-registration](#self-registration) note for the other two), so this
+run flips it with `psql` against the compose stack's database, the same one
+`odudu seed` writes to — by name, since the realm id is generated and this
+document does not capture it:
+
+```sql
+UPDATE realms SET reset_password_allowed = true WHERE name = 'reset-demo';
+```
+
+The token a request mints is valid for five minutes
+(`RESET_PASSWORD_TTL_SECONDS`, `packages/account/src/usecase/verify-email.ts`
+— Keycloak's own default for a password-reset action token, chosen because
+the window it opens is an account-takeover window). Run the rest of this
+section within that window, or the link expires and every `curl` past that
+point answers `400` for a different reason than the ones named here.
+
+**This is the property the whole flow exists for**: the response to a
+request naming an address that has an account and one naming an address
+that does not must be indistinguishable — same status, same body — while
+mail goes out only for the one that exists. Requesting both proves it:
+
+```bash
+curl -sS -X POST http://localhost:3000/realms/reset-demo/login-actions/reset-password \
+  --data-urlencode 'email=ada@example.com'
+echo
+curl -sS -X POST http://localhost:3000/realms/reset-demo/login-actions/reset-password \
+  --data-urlencode 'email=nobody@example.com'
+```
+
+```
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Check your email</title></head>
+<body>
+<h1>Check your email</h1>
+<p>If that address has an account, we've sent a link to reset its password.</p>
+</body>
+</html>
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Check your email</title></head>
+<body>
+<h1>Check your email</h1>
+<p>If that address has an account, we've sent a link to reset its password.</p>
+</body>
+</html>
+```
+
+Identical, character for character — and only the first request produced
+mail. `ODUDU_SMTP_HOST` is unset, so the container's log carries it instead
+of an inbox, and it is there exactly once:
+
+```json
+{
+  "level": 30,
+  "to": "ada@example.com",
+  "subject": "Reset your reset-demo password",
+  "text": "Reset your password for reset-demo by visiting this link:\n\nhttp://localhost:3000/realms/reset-demo/login-actions/action-token?key=NnBkF0L3rKPh1cuzEi8yMK-tzUnMHxKxk3Sfy-8USEk\n\nIf you did not request this, you can ignore this message.",
+  "html": "<p>Reset your password for reset-demo by visiting <a href=\"…\">…</a>.</p><p>If you did not request this, you can ignore this message.</p>",
+  "msg": "captured email — no SMTP host configured"
+}
+```
+
+(Reduced to the fields that matter, the same way
+[Address verification](#address-verification) reduces its own capture; the
+key is shortened nowhere in this section because a reader needs the whole
+thing to follow the link.) The link's host is `ODUDU_PUBLIC_BASE_URL`, never
+the request's `Host` header — the same rule and the same reasoning
+[Self-registration](#self-registration) establishes for the verification
+link, and unset it refuses the request the same way: 500, logged as a
+misconfiguration, for every address alike, so a missing configuration never
+becomes a way to tell addresses apart either.
+
+`GET`ting the link does not reset anything by itself — a reset-password
+token needs a password to consume it with, unlike a verify-email link, so
+the same `/login-actions/action-token` endpoint answers with a form instead
+of completing an action:
+
+```bash
+curl -sS 'http://localhost:3000/realms/reset-demo/login-actions/action-token?key=NnBkF0L3rKPh1cuzEi8yMK-tzUnMHxKxk3Sfy-8USEk'
+```
+
+```
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Choose a new password</title></head>
+<body>
+<form method="post" action="/realms/reset-demo/login-actions/action-token">
+  <input type="hidden" name="key" value="NnBkF0L3rKPh1cuzEi8yMK-tzUnMHxKxk3Sfy-8USEk">
+  <label>New password <input type="password" name="password" autocomplete="new-password"></label>
+  <button type="submit">Reset password</button>
+</form>
+</body>
+</html>
+```
+
+Submitting it sets the password — whatever P2b later constrains about
+length, complexity or history is that phase's concern, not this one's:
+
+```bash
+curl -sS -X POST http://localhost:3000/realms/reset-demo/login-actions/action-token \
+  --data-urlencode 'key=NnBkF0L3rKPh1cuzEi8yMK-tzUnMHxKxk3Sfy-8USEk' \
+  --data-urlencode 'password=a brand new password'
+```
+
+```
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Password reset</title></head>
+<body>
+<h1>Your password has been reset</h1>
+<p>You can close this page and sign in with your new password.</p>
+</body>
+</html>
+```
+
+The old password no longer authenticates — `/login-actions/authenticate`
+answers 200, the login form again, not the 302 a successful attempt gets:
+
+```bash
+AUTH_SESSION_ID=$(curl -sS --get \
+  --data-urlencode 'response_type=code' \
+  --data-urlencode 'client_id=reset-spa' \
+  --data-urlencode 'redirect_uri=http://localhost:8080/callback' \
+  --data-urlencode 'scope=openid email' \
+  --data-urlencode 'state=xyz123' \
+  --data-urlencode 'nonce=abc123' \
+  --data-urlencode 'code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM' \
+  --data-urlencode 'code_challenge_method=S256' \
+  'http://localhost:3000/realms/reset-demo/protocol/openid-connect/auth' \
+  | sed -n 's/.*name="auth_session_id" value="\([^"]*\)".*/\1/p')
+
+curl -sS -i -X POST http://localhost:3000/realms/reset-demo/login-actions/authenticate \
+  --data-urlencode "auth_session_id=$AUTH_SESSION_ID" \
+  --data-urlencode 'username=ada' \
+  --data-urlencode 'password=correct-horse-battery'
+```
+
+```
+HTTP/1.1 200 OK
+content-type: text/html
+```
+
+The new one does, with a fresh authorization session (the one above is
+spent, the same way every login attempt consumes its `auth_session_id`):
+
+```bash
+AUTH_SESSION_ID=$(curl -sS --get \
+  --data-urlencode 'response_type=code' \
+  --data-urlencode 'client_id=reset-spa' \
+  --data-urlencode 'redirect_uri=http://localhost:8080/callback' \
+  --data-urlencode 'scope=openid email' \
+  --data-urlencode 'state=xyz123' \
+  --data-urlencode 'nonce=abc123' \
+  --data-urlencode 'code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM' \
+  --data-urlencode 'code_challenge_method=S256' \
+  'http://localhost:3000/realms/reset-demo/protocol/openid-connect/auth' \
+  | sed -n 's/.*name="auth_session_id" value="\([^"]*\)".*/\1/p')
+
+curl -sS -i -X POST http://localhost:3000/realms/reset-demo/login-actions/authenticate \
+  --data-urlencode "auth_session_id=$AUTH_SESSION_ID" \
+  --data-urlencode 'username=ada' \
+  --data-urlencode 'password=a brand new password'
+```
+
+```
+HTTP/1.1 302 Found
+set-cookie: reset-demo-session=01a0a184-8d8c-…; HttpOnly; SameSite=Lax; Path=/
+location: http://localhost:8080/callback?code=GKAk-hPPPzrge0CYcPOL4VV-K7327epL7ce6UtqfCBw&state=xyz123&iss=http%3A%2F%2Flocalhost%3A3000%2Frealms%2Freset-demo
+```
+
+The same link a second time is refused — minted for one redemption, the
+same as a verify-email token, and `action_tokens.consumed_at` is now set:
+
+```bash
+curl -sS -o /dev/null -w '%{http_code}\n' -X POST http://localhost:3000/realms/reset-demo/login-actions/action-token \
+  --data-urlencode 'key=NnBkF0L3rKPh1cuzEi8yMK-tzUnMHxKxk3Sfy-8USEk' \
+  --data-urlencode 'password=another password'
+```
+
+```
+400
+```
+
+A completed reset also retires every other outstanding reset-password link
+for the same subject, not only the one just spent — a second mailed link
+from an earlier request the user forgot about, or one an attacker
+triggered, dies the moment the legitimate one is redeemed rather than
+staying valid for its own five minutes. And turning `reset_password_allowed`
+off closes redemption as well as the request form: an outstanding link
+minted while it was on answers `400` from `/login-actions/action-token`
+once it is off, the kill switch an operator reaches for during an incident
+covering both halves of the flow.
 
 ## Path B: refresh rotation
 
@@ -1043,6 +1861,168 @@ www-authenticate: Bearer realm="userinfo", error="insufficient_scope"
 **What the client does next:** call the API the token is for, and mint
 another when it expires. There is nothing to store.
 
+## CORS: the preflight and the request differ
+
+A browser single-page client is the reader `## Path A` above walks through,
+and until this section landed its preflight failed: `/token` and
+`/userinfo` sent no `Access-Control-Allow-Origin` at all, so the browser
+never let the page see the response. A preflight (`OPTIONS`) carries no
+client identity — no body, no `Authorization` header, only `Origin`,
+`Access-Control-Request-Method` and `Access-Control-Request-Headers` — so it
+is answered from the **realm's union** of every client's registered
+`web_origins`. The real request that follows is answered from **that one
+client's own** origins, resolved once the request names which client it is:
+`client_id` in the form body at `/token`, the `client_id` claim of the
+bearer token at `/userinfo`. An origin the preflight allowed because it
+belongs to a different client in the same realm is, correctly, withheld on
+the real request — no status code or body changes, the header is just
+absent, and the browser discards the response on its own.
+
+`/certs` and `/.well-known/openid-configuration` are unauthenticated public
+documents: every origin gets `Access-Control-Allow-Origin: *` and no `Vary`.
+`/authorize` and `/login-actions/*` are top-level navigations and get no
+CORS treatment of any kind — a header there would hand a script read access
+to the login page.
+
+The client-registration CLI has no flag for `web_origins` yet, so the two
+clients below were seeded normally and then given origins with one direct
+`UPDATE` against `client_oidc_config` — the commands after it are otherwise
+exactly what `## Path A` already used, against a second realm seeded for
+this section (`cors-demo`, with clients `demo-spa` at
+`https://demo-spa.example`, `other-app` at `https://other-app.example`, and
+`spa-with-user` — also at `https://demo-spa.example` — carrying the user
+that signs in below).
+
+A preflight for `/token`, from an origin that belongs to `other-app`, not to
+the client the real request below will name:
+
+```bash
+curl -sS -D - -o /dev/null -X OPTIONS \
+  http://localhost:3000/realms/cors-demo/protocol/openid-connect/token \
+  -H "Origin: https://other-app.example" \
+  -H "Access-Control-Request-Method: POST"
+```
+
+```
+HTTP/1.1 204 No Content
+vary: Origin
+access-control-allow-origin: https://other-app.example
+access-control-allow-methods: GET, POST, OPTIONS
+access-control-allow-headers: authorization, content-type
+access-control-max-age: 600
+content-length: 0
+```
+
+The real request, same origin, naming `demo-spa` instead — whose own
+origins do not include `other-app.example` — refused a bad refresh token
+exactly as it would with no `Origin` header at all, and the CORS header is
+simply absent from a response that is otherwise unchanged:
+
+```bash
+curl -sS -D - -o /dev/null -X POST \
+  http://localhost:3000/realms/cors-demo/protocol/openid-connect/token \
+  -H "Origin: https://other-app.example" \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  --data "grant_type=refresh_token&refresh_token=bogus&client_id=demo-spa"
+```
+
+```
+HTTP/1.1 400 Bad Request
+vary: Origin
+cache-control: no-store
+pragma: no-cache
+content-type: application/json; charset=utf-8
+```
+
+(`access-control-allow-origin` does not appear in that response at all —
+`vary: Origin` does, on every response from this endpoint, allowed or not,
+so a shared cache never serves one origin's answer to another.) The same
+request with `Origin: https://demo-spa.example` — `demo-spa`'s own origin —
+gets the header back, still a 400 for the same bogus refresh token:
+
+```
+HTTP/1.1 400 Bad Request
+vary: Origin
+access-control-allow-origin: https://demo-spa.example
+cache-control: no-store
+pragma: no-cache
+content-type: application/json; charset=utf-8
+```
+
+`/userinfo` takes the same split from the other side: the client comes from
+the access token's `client_id` claim rather than a body parameter. Signing
+in as `spa-with-user` and calling `/userinfo` with its own origin gets the
+header; with `other-app`'s origin, the same 200 with the same claims, and no
+header:
+
+```bash
+curl -sS -D - -o /dev/null \
+  http://localhost:3000/realms/cors-demo/protocol/openid-connect/userinfo \
+  -H "Authorization: Bearer $ACCESS_TOKEN" -H "Origin: https://demo-spa.example"
+curl -sS -D - -o /dev/null \
+  http://localhost:3000/realms/cors-demo/protocol/openid-connect/userinfo \
+  -H "Authorization: Bearer $ACCESS_TOKEN" -H "Origin: https://other-app.example"
+```
+
+```
+HTTP/1.1 200 OK
+vary: Origin
+access-control-allow-origin: https://demo-spa.example
+content-type: application/json; charset=utf-8
+```
+
+```
+HTTP/1.1 200 OK
+vary: Origin
+content-type: application/json; charset=utf-8
+```
+
+The two public documents, from an origin nothing registered:
+
+```bash
+curl -sS -D - -o /dev/null \
+  http://localhost:3000/realms/cors-demo/protocol/openid-connect/certs \
+  -H "Origin: https://anything.example"
+curl -sS -D - -o /dev/null \
+  http://localhost:3000/realms/cors-demo/.well-known/openid-configuration \
+  -H "Origin: https://anything.example"
+```
+
+```
+HTTP/1.1 200 OK
+access-control-allow-origin: *
+content-type: application/json; charset=utf-8
+```
+
+```
+HTTP/1.1 200 OK
+access-control-allow-origin: *
+content-type: application/json; charset=utf-8
+```
+
+(no `Vary` on either — a fixed wildcard has nothing to vary the response
+on). And `/authorize`, which gets nothing:
+
+```bash
+curl -sS -D - -o /dev/null -X OPTIONS \
+  http://localhost:3000/realms/cors-demo/protocol/openid-connect/auth \
+  -H "Origin: https://other-app.example" \
+  -H "Access-Control-Request-Method: GET"
+```
+
+```
+HTTP/1.1 404 Not Found
+vary: Origin
+content-type: application/json; charset=utf-8
+```
+
+No `access-control-allow-origin` — the browser gets nothing to read this
+response with. The `Vary: Origin` here is a side effect of `@fastify/cors`
+answering every unmatched `OPTIONS` request from one global fallback route
+regardless of which encapsulated scope registered it (`docs/superpowers/p2a-spike-log.md`
+records the mechanism); it is harmless — nothing downstream keys a cache
+entry on it — but it is not hidden here as something it is not.
+
 ## The branches
 
 ### `/authorize`: the render-versus-redirect boundary
@@ -1114,7 +2094,8 @@ wrong in more ways than one.
 | No `code_challenge_method`             | `invalid_request`           | It is not defaulted to `plain`, which is what RFC 7636 §4.3 would have it default to         |
 | `code_challenge_method=plain`          | `invalid_request`           | Only `S256` is accepted; `plain` offers no protection against an intercepted code            |
 | `response_type=token`                  | `unsupported_response_type` | Only the code flow exists; implicit issuance is gone from OAuth 2.1                          |
-| Scope outside `openid profile email`   | `invalid_scope`             | The same list discovery advertises, imported rather than duplicated                          |
+| Scope the realm does not define        | `invalid_scope`             | `scopes_supported` is that same list, so discovery and this endpoint cannot disagree         |
+| Scope the client is not assigned       | `invalid_scope`             | Defined by the realm is not granted to every client; refused, never silently dropped         |
 | Repeated `state` (or any other repeat) | `invalid_request`           | Ambiguous, but a trustworthy redirect target exists by now, so the client can be told        |
 | `prompt=none`                          | `login_required`            | No session is ever reused, so no end user is ever already authenticated (OIDC Core §3.1.2.3) |
 | `prompt=none login`                    | `invalid_request`           | `none` with any other value is contradictory (OIDC Core §3.1.2.1)                            |
@@ -1781,12 +2762,12 @@ session lifecycle. A citation of either half here means that half.
 
 **`/authorize`**
 
-- **No consent screen.** Every requested scope within `openid profile email`
-  is granted without asking the user. There is no per-client scope allowlist
-  for interactive grants either. **P3**, the phase named for consent, and —
-  since 2026-09-14 — the phase whose exit criterion names it too: a screen a
-  user can refuse, the per-client scope allowlist that decides what it asks
-  for, and a recorded grant.
+- **No consent screen.** Every scope the realm defines and the client is
+  assigned is granted without asking the user. The allowlist exists — it is
+  the client's scope assignments — but nothing asks the user to approve what
+  it lets through. **P3**, the phase named for consent, and — since
+  2026-09-14 — the phase whose exit criterion names it too: a screen a user
+  can refuse, and a recorded grant.
 - **No session reuse.** The SSO cookie is set at login and never read.
   `prompt=none` therefore always answers `login_required`, and `prompt=login`
   is what happens anyway, because authentication is unconditional. **P2b**,
@@ -1840,15 +2821,30 @@ session lifecycle. A citation of either half here means that half.
   exit criterion is password, TOTP and passkey login through the flow tree.
   The flow engine behind the single password step is already a step list for
   that reason, but there is one step in it.
-- **No registration, password reset or account recovery.** All three wait on
-  email, which is **P2a**: an unverified self-registered address is an
-  account-takeover primitive, so address verification has to exist before
-  registration is useful. P2a's exit criterion names all three.
+- **Password reset exists; a timing oracle in it does not have a fix yet.**
+  Address verification (`GET /realms/{realm}/login-actions/action-token`,
+  [Address verification](#address-verification)), self-registration
+  (`GET`/`POST /realms/{realm}/login-actions/registration`,
+  [Self-registration](#self-registration)) and password reset
+  (`GET`/`POST /realms/{realm}/login-actions/reset-password`,
+  [Password reset](#password-reset)) all exist now, gated by their own
+  realm setting, each off by default. A realm with `verify_email` on
+  refuses to complete a login for a self-registered address until it is
+  verified — no authorization code, not just a page saying so. The reset
+  endpoint's remaining gap is [README.md](../README.md)'s stated
+  limitation: mailing an existing address is measurably slower than
+  answering for one that does not exist, closeable only by moving the send
+  off the request path, which this phase's design spec rejects.
 - **No "remember me".** A persistent session is a session-lifespan setting,
   and lifespans are **P2b**'s; the feature itself is not named in the
   roadmap.
-- **No rate limiting or lockout** on failed sign-ins. **P2b**, whose exit
-  criterion names password policies and brute-force protection.
+- **No rate limiting or lockout**, on failed sign-ins or anywhere else.
+  **P2b**, whose exit criterion names password policies and brute-force
+  protection. Self-registration widens what that leaves open: `POST
+/realms/{realm}/login-actions/registration` is unauthenticated and runs
+  one Argon2id hash per request with no maximum password length, so an
+  attacker who cannot yet guess a password can still spend the server's CPU
+  with no account at all.
 - **The sign-in and error pages are hardcoded HTML**, dependency-free with
   every interpolated value escaped. Theming is **P10**; the contract for it
   is deliberately left undecided until there are enough pages for the real
@@ -1891,15 +2887,15 @@ session lifecycle. A citation of either half here means that half.
   is explicit: §5.6.2 says "Normal Claims MUST be supported. Support for
   Aggregated Claims and Distributed Claims is OPTIONAL." No phase is owed
   one.
-- **Four claims exist in total**: `sub`, `name`, `email`, `email_verified`,
-  and `name` is the username because there is no separate display name yet.
-  The standard claims beyond these four need a user profile — attributes,
-  their storage and their mapping — which is **P2a**, whose exit criterion
-  names it beside roles, groups and client scopes. It went there rather than
-  to P4 because it changes the token contract, and because P4's
-  admin-configurable protocol mappers would otherwise be configuring
-  mappings over attributes that do not exist: P2a owns the attributes and
-  the claims they produce, P4 owns reconfiguring that mapping.
+- **No admin-configurable protocol mappers.** The claim registry
+  (`standardClaimMappers`, the 22 names in `claims_supported`) and the
+  role/group claims alongside it are fixed by the server, not by anything a
+  realm operator can add or change. Reconfiguring what a scope maps to —
+  Keycloak's protocol mapper concept — is **P4**'s, alongside the rest of
+  the admin surface. `entitlements`, in particular, is deliberately never
+  advertised: there is no notion of one in this identity model yet, and
+  `packages/protocol-oidc/tests/claims-supported.int.test.ts` fails the
+  build if it appears in a live discovery response.
 
 **Endpoints that do not exist at all**
 
@@ -1952,9 +2948,11 @@ session lifecycle. A citation of either half here means that half.
   the audit event and the surface to trigger it from that P4 is the phase
   for.
 - **Nothing is ever deleted.** Every expired `sessions`,
-  `authentication_sessions`, `authorization_codes` and `refresh_tokens` row
-  is still on disk; expiry is enforced at read time, so none of them can be
-  used. **P2b**, which owns the retention window because a lifespan says when
-  something stops working and not when it stops existing. ADR 0021 carries
-  why deleting on `expires_at` alone would silently disable refresh-token
-  reuse detection.
+  `authentication_sessions`, `authorization_codes`, `refresh_tokens` and
+  `action_tokens` row is still on disk; expiry (and, for `action_tokens`,
+  consumption) is enforced at read time, so none of them can be used. **P2b**,
+  which owns the retention window because a lifespan says when something
+  stops working and not when it stops existing. ADR 0021 carries why
+  deleting on `expires_at` alone would silently disable refresh-token reuse
+  detection — the same hazard applies to every table in this list, not only
+  the one the ADR was written against.

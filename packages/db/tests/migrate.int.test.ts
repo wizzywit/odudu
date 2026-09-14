@@ -45,6 +45,9 @@ describe('migrations', () => {
       'enabled',
       'id',
       'name',
+      'registration_allowed',
+      'reset_password_allowed',
+      'verify_email',
     ]);
   });
 

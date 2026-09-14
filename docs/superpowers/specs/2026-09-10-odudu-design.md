@@ -752,6 +752,33 @@ JVM module using OpenSAML. Deciding roughly 600 hours early would be
 guessing. Kerberos is likewise deferred; it is the least-used Keycloak
 feature and Node's support is poor.
 
+### P2a closed against its own exit criterion, 2026-09-15
+
+The row's four clauses were checked one at a time against a running stack
+at phase close, not assumed from the code: realm and client roles,
+composite roles, groups and client scopes reach a token — verified through
+a live `authorization_code` exchange carrying `"roles":
+["reports-api:reader", "reviewer"]` and `"groups": ["/engineering"]`,
+qualified client-scoped names included; the user profile's attributes are
+stored and mapped — `claims_supported` carries all twenty-two standard
+claim names, up from the four the phase inherited; per-client web origins
+let a browser client complete the flow — the CORS preflight-versus-request
+split in `docs/request-paths.md` runs against a live realm; and email is
+delivered with self-registration, address verification and password reset
+all working end to end, each gated by its own realm setting, off by
+default. **Every clause the row names was delivered.**
+
+That is not the same as saying P2a leaves nothing for P2b to inherit.
+`docs/NEXT.md`'s "Start here" section records what P2b needs and the
+criterion never asked for: `user_credentials.type` still constrained to
+`password` alone, the SSO-cookie read `/authorize` does not yet do (and the
+login-verification gate that read will need to re-check), and the absence
+of any rate limit — a gap this phase's own self-registration endpoint
+widened by adding an unauthenticated Argon2id hash to what it protects.
+None of those were in the sentence that decides when P2a is finished, so
+their absence does not reopen the row; they are named here so a phase
+closing cleanly is not read as a phase closing completely.
+
 ## 12. Working protocol
 
 Development happens in bursts with gaps of weeks. The following is binding.

@@ -12,8 +12,10 @@ module.exports = {
       name: 'no-domain-to-protocol',
       severity: 'error',
       comment:
-        'Users do not know what OIDC is. This is what lets SAML arrive without touching identity.',
-      from: { path: '(^|/)packages/domain-[^/]+/' },
+        'Users do not know what OIDC is. This is what lets SAML arrive without touching identity. ' +
+        '@odudu/account carries the same restriction: registration, verification and reset are ' +
+        'account lifecycle, not OIDC.',
+      from: { path: '(^|/)packages/(?:domain-[^/]+|account|email)/' },
       to: { path: '(^|/)packages/protocol-[^/]+/' },
     },
     {

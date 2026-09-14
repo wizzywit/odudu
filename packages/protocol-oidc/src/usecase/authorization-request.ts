@@ -16,6 +16,10 @@ export type AuthorizationRequestOutcome =
 export interface ResolvedClient {
   client: ClientRecord | null;
   config: ClientOidcConfig | null;
+  // The names of the scopes assigned to this client. Empty for a client that
+  // could not be resolved, which is the same answer an unassigned client
+  // gives: neither can be granted anything.
+  scopes: readonly string[];
 }
 
 export interface AuthorizeUsecaseDeps {
@@ -28,6 +32,9 @@ export interface AuthorizeUsecaseDeps {
   // Scoped to the resolved realm by the caller composing this dependency
   // (index.ts), the same way listPublishableKeys is for the JWKS route.
   resolveClient(realmId: string, oauthClientId: string): Promise<ResolvedClient>;
+  // Shared with the discovery usecase, so a scope this endpoint accepts is
+  // one the discovery document advertises and vice versa.
+  scopesForRealm(realmId: string): Promise<readonly string[]>;
   startAuthentication(
     realmId: string,
     request: Extract<AuthorizeOutcome, { kind: 'ok' }>['request'],
@@ -52,8 +59,16 @@ export async function handleAuthorizationRequest(
   const { params, repeatedKey } = normalized;
 
   const realm = await deps.findRealm(realmName);
+  const noScopes: ReadonlySet<string> = new Set();
   if (!realm?.enabled) {
-    const outcome = validateAuthorizationRequest(params, null, null, repeatedKey);
+    const outcome = validateAuthorizationRequest(
+      params,
+      null,
+      null,
+      noScopes,
+      noScopes,
+      repeatedKey,
+    );
     if (outcome.kind === 'ok') {
       throw new Error(
         'unreachable: validateAuthorizationRequest cannot succeed with a null client',
@@ -65,13 +80,15 @@ export async function handleAuthorizationRequest(
   const oauthClientId = params.client_id;
   const resolved: ResolvedClient =
     oauthClientId === undefined
-      ? { client: null, config: null }
+      ? { client: null, config: null, scopes: [] }
       : await deps.resolveClient(realm.id, oauthClientId);
 
   const outcome = validateAuthorizationRequest(
     params,
     resolved.client,
     resolved.config,
+    new Set(await deps.scopesForRealm(realm.id)),
+    new Set(resolved.scopes),
     repeatedKey,
   );
   if (outcome.kind !== 'ok') return outcome;

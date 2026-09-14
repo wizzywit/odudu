@@ -1,0 +1,30 @@
+{
+  "name": "@odudu/account",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "imports": {
+    "#/*": "./src/*.ts"
+  },
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "main": "./src/index.ts",
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@odudu/db": "workspace:*",
+    "@odudu/email": "workspace:*",
+    "@odudu/kernel": "workspace:*",
+    "drizzle-orm": "0.45.2",
+    "fastify": "5.12.3"
+  },
+  "devDependencies": {
+    "@fastify/formbody": "9.0.0",
+    "@odudu/domain-authz": "workspace:*",
+    "@odudu/domain-identity": "workspace:*",
+    "@odudu/testkit": "workspace:*",
+    "vitest": "5.0.0"
+  }
+}

@@ -5,6 +5,9 @@ export function registerJwksRoute(app: FastifyInstance, deps: JwksUsecaseDeps): 
   app.get<{ Params: { realm: string } }>(
     '/realms/:realm/protocol/openid-connect/certs',
     async (request, reply) => {
+      // A public, unauthenticated document: every origin may read it, and
+      // with a fixed wildcard there is nothing to vary the response on.
+      reply.header('access-control-allow-origin', '*');
       const jwks = await resolveJwks(deps, request.params.realm);
       if (jwks === null) return reply.code(404).send();
       return jwks;

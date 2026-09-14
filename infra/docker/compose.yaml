@@ -41,6 +41,13 @@ services:
       ODUDU_APP_DATABASE_URL: postgres://odudu_svc:${ODUDU_SVC_PASSWORD:?see infra/docker/.env.example}@postgres:5432/${POSTGRES_DB:?see infra/docker/.env.example}
       ODUDU_LOG_LEVEL: info
       ODUDU_KEK: ${ODUDU_KEK:?see infra/docker/.env.example}
+      # No ODUDU_SMTP_HOST: this stack has no mail server, and @odudu/email
+      # selects its capturing adapter — which logs each message rather than
+      # delivering it — whenever one is unconfigured.
+      # Where a mailed verification link points. Never derived from a
+      # request's Host header (packages/account/src/view/routes/registration.ts) —
+      # published on 127.0.0.1:3000 below, so this is that same origin.
+      ODUDU_PUBLIC_BASE_URL: http://localhost:3000
     depends_on:
       postgres:
         condition: service_healthy

@@ -1,13 +1,18 @@
 import { signJwt, signingKeyRepository, type SigningKeyRecord } from '@odudu/crypto';
-import { SUPPORTED_SCOPES } from '@odudu/contracts';
 import { withRealm, type DatabaseHandle, type RealmScopedDatabase } from '@odudu/db';
 import { subjectRepository } from '@odudu/domain-identity';
-import { clientRepository, verifyClientSecret, type ClientRecord } from '@odudu/domain-realm';
+import {
+  clientRepository,
+  clientScopeRepository,
+  verifyClientSecret,
+  type ClientRecord,
+} from '@odudu/domain-realm';
 import { type ClaimMapperRegistry, type Clock, newId } from '@odudu/kernel';
 import { clientOidcConfigRepository, type ClientOidcConfig } from '#/repository/client-oidc-config';
 import { authorizationCodeRepository } from '#/repository/codes';
 import { tokenGrantRepository, type TokenGrantRecord } from '#/repository/grants';
 import { refreshTokenRepository } from '#/repository/refresh';
+import { accessTokenEligibleScope, reachableRoleIds } from '#/repository/scope-role-reach';
 import { rotateRefreshToken } from '#/usecase/refresh-rotation';
 import { hashAuthorizationCode } from '#/service/authorization-code';
 import { evaluateAuthorizationCodeGrant } from '#/service/authorization-code-grant';
@@ -23,6 +28,8 @@ import {
 } from '#/service/errors';
 import { evaluateRefreshGrant, generateRefreshToken, hashRefreshToken } from '#/service/refresh';
 import { resolveScope } from '#/service/scope';
+import { narrowByScopeMappings } from '#/service/scope-mapping';
+import { withRegisteredClaimsWinning } from '#/service/token-claims';
 
 export interface TokenIssuanceDeps {
   // Used only to run a step in its own, independently committed
@@ -280,7 +287,23 @@ async function redeemAuthorizationCode(
 // including this one, must find itself in `aud` or refuse the token).
 async function mintAccessToken(
   deps: TokenIssuanceDeps,
-  input: { subjectId: string; clientId: string; scope: string[]; config: ClientOidcConfig },
+  input: {
+    subjectId: string;
+    clientId: string;
+    scope: string[];
+    config: ClientOidcConfig;
+    // Resolved once per issuance by the caller — see loadClaimContext's own
+    // doc comment for why a claim mapper never resolves this itself.
+    claimContext: ClaimContext;
+    reachableRoleIds: ReadonlySet<string>;
+    fullScopeAllowed: boolean;
+    // The subset of `scope` that `client_scopes.include_in_access_token`
+    // actually admits — not every granted scope, or an access token bound
+    // for a resource server named in `aud` would carry the end-user's
+    // profile and email by default (RFC 9068 §2.2 draws no line here; the
+    // realm's own scope definitions do).
+    accessTokenScope: string[];
+  },
   key: SigningKeyRecord,
   now: Date,
 ): Promise<{ accessToken: string; audience: string[]; iat: number; exp: number }> {
@@ -290,7 +313,17 @@ async function mintAccessToken(
     ? input.config.audiences
     : [...input.config.audiences, deps.issuer];
 
-  const accessTokenClaims = {
+  const narrowedContext: ClaimContext = {
+    ...input.claimContext,
+    roles: narrowByScopeMappings(
+      input.claimContext.roles,
+      input.reachableRoleIds,
+      input.fullScopeAllowed,
+    ),
+  };
+  const mapped = await deps.claimMappers.assemble(input.accessTokenScope, narrowedContext);
+
+  const accessTokenClaims = withRegisteredClaimsWinning(mapped, {
     iss: deps.issuer,
     sub: input.subjectId,
     aud: audience,
@@ -299,7 +332,7 @@ async function mintAccessToken(
     iat,
     exp,
     jti: newId(),
-  };
+  });
   const accessToken = await signJwt(accessTokenClaims, { key, kek: deps.kek, typ: 'at+jwt' });
   return { accessToken, audience, iat, exp };
 }
@@ -313,16 +346,37 @@ async function issueAuthorizationCodeTokens(
 ): Promise<TokenResponse> {
   const code = await redeemAuthorizationCode(tx, deps, request, client);
 
-  // Stage 4: scope resolution. P1 has no consent screen and no per-client
-  // scope allowlist beyond what /authorize already accepted against
-  // SUPPORTED_SCOPES, so this mostly passes the stored scope through.
-  const scope = resolveScope(code.scope, [...SUPPORTED_SCOPES], null, null);
+  // Stage 4: scope resolution against the scopes this client is assigned
+  // now, not the ones it held when /authorize accepted the request — an
+  // assignment withdrawn in between narrows the tokens the code redeems.
+  const assigned = await clientScopeRepository(tx).forClient(client.id);
+  const scope = resolveScope(
+    code.scope,
+    assigned.map((clientScope) => clientScope.name),
+    null,
+    null,
+  );
   const now = deps.clock.now();
   const key = await signingKeyRepository(tx).active();
 
+  // Loaded once per issuance and shared by the access token below and the
+  // ID token that follows it — see loadClaimContext's own doc comment.
+  const claimContext = await deps.loadClaimContext(deps.realmId, code.subjectId);
+  const reachable = await reachableRoleIds(tx, scope);
+  const accessTokenScope = await accessTokenEligibleScope(tx, scope);
+
   const { accessToken, audience, iat, exp } = await mintAccessToken(
     deps,
-    { subjectId: code.subjectId, clientId: client.clientId, scope, config },
+    {
+      subjectId: code.subjectId,
+      clientId: client.clientId,
+      scope,
+      config,
+      claimContext,
+      reachableRoleIds: reachable,
+      fullScopeAllowed: client.fullScopeAllowed,
+      accessTokenScope,
+    },
     key,
     now,
   );
@@ -332,21 +386,34 @@ async function issueAuthorizationCodeTokens(
   // carry.
   let idToken: string | undefined;
   if (scope.includes('openid')) {
+    // A scope granted on the request reaches the ID token only if its own
+    // definition says so (`client_scopes.include_in_id_token`) — `roles`
+    // and `groups` ship with that off, since the ID token reaches the
+    // browser and a client cannot opt out of what lands there.
+    const idTokenScope = assigned
+      .filter((clientScope) => scope.includes(clientScope.name) && clientScope.includeInIdToken)
+      .map((clientScope) => clientScope.name);
+    const narrowedContext: ClaimContext = {
+      ...claimContext,
+      roles: narrowByScopeMappings(claimContext.roles, reachable, client.fullScopeAllowed),
+    };
     // The same claim mapper registry /userinfo assembles from — `sub`
     // arrives through it too, so there is exactly one place that decides
     // what a subject's `openid`/`profile`/`email` scopes produce, not one
     // for the ID token and a second for /userinfo.
-    const claimContext = await deps.loadClaimContext(deps.realmId, code.subjectId);
-    const userClaims = await deps.claimMappers.assemble(scope, claimContext);
-    const idTokenClaims = {
+    const userClaims = await deps.claimMappers.assemble(idTokenScope, narrowedContext);
+    // Guarded the same way the access token's assembly is, 83 lines above:
+    // a mapper's output can never overwrite the envelope, `sub` included —
+    // `subMapper` reaches its `sub` claim through the same registry.
+    const idTokenClaims = withRegisteredClaimsWinning(userClaims, {
       iss: deps.issuer,
+      sub: code.subjectId,
       aud: client.clientId,
       iat,
       exp,
       auth_time: Math.floor(code.authTime.getTime() / 1000),
       ...(code.nonce !== null ? { nonce: code.nonce } : {}),
-      ...userClaims,
-    };
+    });
     idToken = await signJwt(idTokenClaims, { key, kek: deps.kek });
   }
 
@@ -452,9 +519,21 @@ async function issueRefreshTokens(
 
   const scope = [...decision.scope];
   const key = await signingKeyRepository(tx).active();
+  const claimContext = await deps.loadClaimContext(deps.realmId, grant.subjectId);
+  const reachable = await reachableRoleIds(tx, scope);
+  const accessTokenScope = await accessTokenEligibleScope(tx, scope);
   const { accessToken } = await mintAccessToken(
     deps,
-    { subjectId: grant.subjectId, clientId: client.clientId, scope, config },
+    {
+      subjectId: grant.subjectId,
+      clientId: client.clientId,
+      scope,
+      config,
+      claimContext,
+      reachableRoleIds: reachable,
+      fullScopeAllowed: client.fullScopeAllowed,
+      accessTokenScope,
+    },
     key,
     now,
   );
@@ -496,9 +575,21 @@ async function issueClientCredentialsTokens(
   const scope = [...decision.scope];
   const now = deps.clock.now();
   const key = await signingKeyRepository(tx).active();
+  const claimContext = await deps.loadClaimContext(deps.realmId, serviceSubjectId);
+  const reachable = await reachableRoleIds(tx, scope);
+  const accessTokenScope = await accessTokenEligibleScope(tx, scope);
   const { accessToken, audience } = await mintAccessToken(
     deps,
-    { subjectId: serviceSubjectId, clientId: client.clientId, scope, config },
+    {
+      subjectId: serviceSubjectId,
+      clientId: client.clientId,
+      scope,
+      config,
+      claimContext,
+      reachableRoleIds: reachable,
+      fullScopeAllowed: client.fullScopeAllowed,
+      accessTokenScope,
+    },
     key,
     now,
   );

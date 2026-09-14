@@ -21,6 +21,11 @@ export const clients = pgTable('clients', {
   // Added in domain-identity's migration (0005), not here, because subjects
   // does not exist until that migration runs.
   serviceSubjectId: uuid('service_subject_id'),
+  // Bypasses the client-scope-to-role intersection: every role the subject
+  // holds, unfiltered, without a mapping. Added in domain-authz's migration
+  // (0017), not here, because there are no roles to intersect until that
+  // one runs.
+  fullScopeAllowed: boolean('full_scope_allowed').notNull().default(false),
 }).enableRLS();
 
 // Lives beside the table, not in the repository, so that `service` (which
@@ -38,4 +43,5 @@ export interface ClientRecord {
   secretHash: string | null;
   createdAt: Date;
   serviceSubjectId: string | null;
+  fullScopeAllowed: boolean;
 }

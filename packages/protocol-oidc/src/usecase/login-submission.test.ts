@@ -5,7 +5,7 @@ import {
   type LoginSubmissionDeps,
 } from '#/usecase/login-submission';
 
-const REALM = { id: 'realm-1', enabled: true };
+const REALM = { id: 'realm-1', enabled: true, verifyEmail: false };
 
 const PENDING = {
   clientId: 'oauth-client-1',
@@ -21,6 +21,7 @@ interface Harness {
   deps: LoginSubmissionDeps;
   advance: Mock;
   completeLogin: Mock;
+  checkEmailVerification: Mock;
 }
 
 function harness(): Harness {
@@ -28,14 +29,16 @@ function harness(): Harness {
   const completeLogin = vi
     .fn()
     .mockResolvedValue({ kind: 'issued', sessionId: 'session-1', code: 'code-1' });
+  const checkEmailVerification = vi.fn().mockResolvedValue({ verified: true, hasEmail: true });
   const deps: LoginSubmissionDeps = {
     findRealm: vi.fn().mockResolvedValue(REALM),
     advance,
     loadPendingRequest: vi.fn().mockResolvedValue(PENDING),
     resolveClientId: vi.fn().mockResolvedValue('client-uuid-1'),
+    checkEmailVerification,
     completeLogin,
   };
-  return { deps, advance, completeLogin };
+  return { deps, advance, completeLogin, checkEmailVerification };
 }
 
 describe('handleLoginSubmission — the success path', () => {
@@ -66,6 +69,65 @@ describe('handleLoginSubmission — the success path', () => {
       codeChallenge: PENDING.codeChallenge,
       codeChallengeMethod: PENDING.codeChallengeMethod,
     });
+  });
+});
+
+describe('handleLoginSubmission — a realm that requires a verified address', () => {
+  it('does not complete the login, and issues no code, when the address is not verified', async () => {
+    const { deps, completeLogin, checkEmailVerification } = harness();
+    deps.findRealm = vi.fn().mockResolvedValue({ ...REALM, verifyEmail: true });
+    checkEmailVerification.mockResolvedValue({ verified: false, hasEmail: true });
+
+    const outcome = await handleLoginSubmission(
+      deps,
+      'acme',
+      'https://idp.example',
+      'auth-session-1',
+      { username: 'ada', password: 'x' },
+    );
+
+    expect(outcome).toEqual({
+      kind: 'unverified',
+      authSessionId: 'auth-session-1',
+      hasEmail: true,
+    });
+    expect(completeLogin).not.toHaveBeenCalled();
+  });
+
+  it('says so, distinctly, when the account has no address to verify at all', async () => {
+    const { deps, checkEmailVerification } = harness();
+    deps.findRealm = vi.fn().mockResolvedValue({ ...REALM, verifyEmail: true });
+    checkEmailVerification.mockResolvedValue({ verified: false, hasEmail: false });
+
+    const outcome = await handleLoginSubmission(
+      deps,
+      'acme',
+      'https://idp.example',
+      'auth-session-1',
+      { username: 'ada', password: 'x' },
+    );
+
+    expect(outcome).toEqual({
+      kind: 'unverified',
+      authSessionId: 'auth-session-1',
+      hasEmail: false,
+    });
+  });
+
+  it('completes the login once the address is verified', async () => {
+    const { deps, checkEmailVerification } = harness();
+    deps.findRealm = vi.fn().mockResolvedValue({ ...REALM, verifyEmail: true });
+    checkEmailVerification.mockResolvedValue({ verified: true, hasEmail: true });
+
+    const outcome = await handleLoginSubmission(
+      deps,
+      'acme',
+      'https://idp.example',
+      'auth-session-1',
+      { username: 'ada', password: 'x' },
+    );
+
+    expect(outcome.kind).toBe('redirect');
   });
 });
 

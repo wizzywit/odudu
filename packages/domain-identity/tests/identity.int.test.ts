@@ -8,7 +8,7 @@ import {
   type RealmScopedDatabase,
 } from '@odudu/db';
 import { expectCrossRealmMethodProbe, expectRealmIsolation } from '@odudu/db/testing';
-import { newId } from '@odudu/kernel';
+import { newId, OduduError } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { credentialRepository } from '#/repository/credentials';
@@ -130,6 +130,51 @@ describe('userRepository', () => {
     expect(found?.user.username).toBe(username);
     expect(found?.subject.type).toBe('user');
     expect(found?.subject.realmId).toBe(realmId);
+  });
+
+  it('finds a user by email', async () => {
+    const realmId = newId();
+    const email = `ada-${newId()}@example.test`;
+
+    const subjectId = await withRealm(app.db, realmId, async (tx) => {
+      await seedRealm(tx, realmId);
+      const subject = await subjectRepository(tx).create({ realmId, type: 'user' });
+      await insertUserRow(tx, subject.id, realmId, { email });
+      return subject.id;
+    });
+
+    const found = await withRealm(app.db, realmId, async (tx) => userRepository(tx).byEmail(email));
+    expect(found?.subjectId).toBe(subjectId);
+  });
+
+  it('returns null when no user has that email', async () => {
+    const realmId = newId();
+
+    const found = await withRealm(app.db, realmId, async (tx) => {
+      await seedRealm(tx, realmId);
+      return userRepository(tx).byEmail('nobody@example.test');
+    });
+    expect(found).toBeNull();
+  });
+
+  it('cannot find a user by email under a different realm context', async () => {
+    await expectCrossRealmMethodProbe(app.db, {
+      seed: async (tx, realmId) => {
+        await seedRealm(tx, realmId);
+        const subject = await subjectRepository(tx).create({ realmId, type: 'user' });
+        const email = `ada-${newId()}@example.test`;
+        await insertUserRow(tx, subject.id, realmId, { email });
+        return email;
+      },
+      verifySeeded: async (tx, email) => {
+        const found = await userRepository(tx).byEmail(email);
+        expect(found).not.toBeNull();
+      },
+      attempt: async (tx, email) => userRepository(tx).byEmail(email),
+      expectBlocked: (result) => {
+        expect(result).toBeNull();
+      },
+    });
   });
 
   // OIDC Core §5.1: the `email` claim is emitted verbatim from this column.
@@ -482,6 +527,83 @@ describe('credentialRepository', () => {
       attempt: async (tx, subjectId) => credentialRepository(tx).passwordFor(subjectId),
       expectBlocked: (result) => {
         expect(result).toBeNull();
+      },
+    });
+  });
+
+  it('replaces the stored password', async () => {
+    const realmId = newId();
+
+    const subjectId = await withRealm(app.db, realmId, async (tx) => {
+      await seedRealm(tx, realmId);
+      const subject = await subjectRepository(tx).create({ realmId, type: 'user' });
+      await credentialRepository(tx).create({
+        realmId,
+        subjectId: subject.id,
+        type: 'password',
+        secretData: '$argon2id$old-hash',
+      });
+      return subject.id;
+    });
+
+    await withRealm(app.db, realmId, (tx) =>
+      credentialRepository(tx).setPassword(subjectId, '$argon2id$new-hash'),
+    );
+
+    const password = await withRealm(app.db, realmId, (tx) =>
+      credentialRepository(tx).passwordFor(subjectId),
+    );
+    expect(password).toBe('$argon2id$new-hash');
+  });
+
+  it('refuses to set a password with no existing credential row', async () => {
+    const realmId = newId();
+
+    const subjectId = await withRealm(app.db, realmId, async (tx) => {
+      await seedRealm(tx, realmId);
+      const subject = await subjectRepository(tx).create({ realmId, type: 'user' });
+      return subject.id;
+    });
+
+    const failure = withRealm(app.db, realmId, (tx) =>
+      credentialRepository(tx).setPassword(subjectId, '$argon2id$new-hash'),
+    );
+    await expect(failure).rejects.toThrow(OduduError);
+    await expect(failure).rejects.toMatchObject({ code: 'credential_not_found' });
+  });
+
+  it('cannot replace a password credential under a different realm context', async () => {
+    await expectCrossRealmMethodProbe(app.db, {
+      seed: async (tx, realmId) => {
+        await seedRealm(tx, realmId);
+        const subject = await subjectRepository(tx).create({ realmId, type: 'user' });
+        await tx.insert(userCredentials).values({
+          id: newId(),
+          realmId,
+          subjectId: subject.id,
+          type: 'password',
+          secretData: '$argon2id$fake-hash',
+        });
+        return subject.id;
+      },
+      verifySeeded: async (tx, subjectId) => {
+        const found = await credentialRepository(tx).passwordFor(subjectId);
+        expect(found).toBe('$argon2id$fake-hash');
+      },
+      attempt: async (tx, subjectId) => {
+        try {
+          await credentialRepository(tx).setPassword(subjectId, '$argon2id$attacker-hash');
+          return 'succeeded';
+        } catch {
+          return 'blocked';
+        }
+      },
+      expectBlocked: (result) => {
+        expect(result).toBe('blocked');
+      },
+      verifyRealmAUnaffected: async (tx, subjectId) => {
+        const password = await credentialRepository(tx).passwordFor(subjectId);
+        expect(password).toBe('$argon2id$fake-hash');
       },
     });
   });

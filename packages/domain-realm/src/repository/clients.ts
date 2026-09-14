@@ -16,6 +16,7 @@ function toRecord(row: typeof clients.$inferSelect): ClientRecord {
     secretHash: row.secretHash,
     createdAt: row.createdAt,
     serviceSubjectId: row.serviceSubjectId,
+    fullScopeAllowed: row.fullScopeAllowed,
   };
 }
 
@@ -27,6 +28,7 @@ export interface NewClient {
   secretHash: string | null;
   enabled?: boolean;
   serviceSubjectId?: string | null;
+  fullScopeAllowed?: boolean;
 }
 
 export function clientRepository(tx: RealmScopedDatabase) {
@@ -52,6 +54,7 @@ export function clientRepository(tx: RealmScopedDatabase) {
           secretHash: input.secretHash,
           enabled: input.enabled ?? true,
           serviceSubjectId: input.serviceSubjectId ?? null,
+          fullScopeAllowed: input.fullScopeAllowed ?? false,
         })
         .returning();
       const row = rows[0];

@@ -23,6 +23,26 @@ export function renderAuthorizeErrorPage(error: string, description: string): st
 </html>`;
 }
 
+// No auth_session_id here, unlike renderLoginForm below: this page has no
+// form to resubmit, since the next step happens in the user's inbox, not on
+// this page. `hasEmail` false means there is no address on file at all — a
+// realm turning verify_email on locks these accounts out with nothing they
+// can do about it, so the page says that rather than claiming a mail it
+// never sent.
+export function renderEmailUnverifiedPage(hasEmail: boolean): string {
+  const detail = hasEmail
+    ? 'We sent a link to the address on this account — follow it, then sign in again.'
+    : 'This account has no email address on file, so there is nothing to verify yet. Contact an administrator.';
+  return `<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Verify your email</title></head>
+<body>
+<h1>Can't sign in yet</h1>
+<p>You need to verify your email address before you can sign in. ${detail}</p>
+</body>
+</html>`;
+}
+
 // The hidden field is the whole of this page's CSRF defence: authSessionId
 // is an unguessable id (newId()) that only a browser which actually loaded
 // this response — rendered same-origin, never carried in a URL an attacker

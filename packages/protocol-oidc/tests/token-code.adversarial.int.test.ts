@@ -11,7 +11,7 @@ import {
   type RealmScopedDatabase,
 } from '@odudu/db';
 import { expectRealmIsolation } from '@odudu/db/testing';
-import { clients } from '@odudu/domain-realm';
+import { clients, provisionClientDefaults, provisionRealmDefaults } from '@odudu/domain-realm';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import formbody from '@fastify/formbody';
@@ -73,6 +73,7 @@ async function setupTokenRealm(): Promise<void> {
 
   await withRealm(app.db, REALM_ID, async (tx: RealmScopedDatabase) => {
     await tx.insert(realms).values({ id: REALM_ID, name: REALM });
+    await provisionRealmDefaults(tx, REALM_ID);
 
     const subject = await subjectRepository(tx).create({ realmId: REALM_ID, type: 'user' });
     subjectId = subject.id;
@@ -86,6 +87,7 @@ async function setupTokenRealm(): Promise<void> {
       type: 'confidential',
       secretHash: await hashPassword('supersecret'),
     });
+    await provisionClientDefaults(tx, webAppDbId);
     await clientOidcConfigRepository(tx).create({
       clientId: webAppDbId,
       realmId: REALM_ID,
@@ -107,6 +109,7 @@ async function setupTokenRealm(): Promise<void> {
       type: 'confidential',
       secretHash: await hashPassword('othersecret'),
     });
+    await provisionClientDefaults(tx, otherAppDbId);
     await clientOidcConfigRepository(tx).create({
       clientId: otherAppDbId,
       realmId: REALM_ID,
@@ -128,6 +131,7 @@ async function setupTokenRealm(): Promise<void> {
       type: 'public',
       secretHash: null,
     });
+    await provisionClientDefaults(tx, spaDbId);
     await clientOidcConfigRepository(tx).create({
       clientId: spaDbId,
       realmId: REALM_ID,
@@ -149,6 +153,7 @@ async function setupTokenRealm(): Promise<void> {
       type: 'confidential',
       secretHash: await hashPassword('postsecret'),
     });
+    await provisionClientDefaults(tx, postAppDbId);
     await clientOidcConfigRepository(tx).create({
       clientId: postAppDbId,
       realmId: REALM_ID,
@@ -170,6 +175,7 @@ async function setupTokenRealm(): Promise<void> {
       type: 'confidential',
       secretHash: await hashPassword('refreshsecret'),
     });
+    await provisionClientDefaults(tx, refreshAppDbId);
     await clientOidcConfigRepository(tx).create({
       clientId: refreshAppDbId,
       realmId: REALM_ID,
@@ -191,6 +197,7 @@ async function setupTokenRealm(): Promise<void> {
       type: 'confidential',
       secretHash: await hashPassword(ODD_SECRET),
     });
+    await provisionClientDefaults(tx, oddSecretAppDbId);
     await clientOidcConfigRepository(tx).create({
       clientId: oddSecretAppDbId,
       realmId: REALM_ID,
@@ -1542,6 +1549,11 @@ describe('what an issued access token is restricted to', () => {
     expect(decodePayload(await redeemedAccessToken({ scope: 'openid' })).scope).toBe('openid');
   });
 
+  it('[RFC9068-2.2.3-01] includes a scope claim because the authorization request named a scope', async () => {
+    const token = await redeemedAccessToken({ scope: 'openid profile' });
+    expect(decodePayload(token)).toHaveProperty('scope');
+  });
+
   it('[RFC6750-5.3-02] carries an aud restricted to the configured audiences and this issuer', async () => {
     const issuer = await discoveryIssuer();
     expect(decodePayload(await redeemedAccessToken()).aud).toEqual([AUDIENCE, issuer]);
@@ -1555,6 +1567,7 @@ describe('realm isolation', () => {
       seed: async (tx, realmId) => {
         const clientDbId = newId();
         await tx.insert(realms).values({ id: realmId, name: `probe-${realmId}` });
+        await provisionRealmDefaults(tx, realmId);
         await tx.insert(clients).values({
           id: clientDbId,
           realmId,
@@ -1563,6 +1576,7 @@ describe('realm isolation', () => {
           type: 'confidential',
           secretHash: 'hashed:secret',
         });
+        await provisionClientDefaults(tx, clientDbId);
         const subject = await subjectRepository(tx).create({ realmId, type: 'user' });
         await tx.insert(tokenGrants).values({
           id: newId(),

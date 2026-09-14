@@ -14,10 +14,12 @@
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
+    "@fastify/cors": "11.2.0",
     "@odudu/authn-flows": "workspace:*",
     "@odudu/contracts": "workspace:*",
     "@odudu/crypto": "workspace:*",
     "@odudu/db": "workspace:*",
+    "@odudu/domain-authz": "workspace:*",
     "@odudu/domain-identity": "workspace:*",
     "@odudu/domain-realm": "workspace:*",
     "@odudu/kernel": "workspace:*",

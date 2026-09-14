@@ -6,17 +6,21 @@ import {
   startAuthentication,
 } from '@odudu/authn-flows';
 import { signingKeyRepository } from '@odudu/crypto';
+import { effectiveGroupPaths, effectiveRoles } from '@odudu/domain-authz';
 import { withRealm, type DatabaseHandle } from '@odudu/db';
 import { userRepository, verifyPassword } from '@odudu/domain-identity';
-import { clientRepository } from '@odudu/domain-realm';
+import { clientRepository, clientScopeRepository } from '@odudu/domain-realm';
 import { systemClock, type Clock } from '@odudu/kernel';
 import { type FastifyPluginAsync } from 'fastify';
 import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
 import { realmLookupRepository } from '#/repository/realm-lookup';
+import { reachableRoleIds } from '#/repository/scope-role-reach';
 import { standardClaimMappers } from '#/service/claims';
+import { expandWebOrigins } from '#/service/web-origin';
 import { issueAuthorizationCode } from '#/usecase/login-submission';
 import { type ResolvedClient } from '#/usecase/authorization-request';
 import { registerAuthorizeRoute } from '#/view/routes/authorize';
+import { registerCors } from '#/view/routes/cors';
 import { registerDiscoveryRoute } from '#/view/routes/discovery';
 import { registerJwksRoute } from '#/view/routes/jwks';
 import { registerLoginRoute } from '#/view/routes/login';
@@ -42,10 +46,10 @@ export interface OidcRoutesDeps {
   clock?: Clock;
 }
 
-// The plugin apps/server registers. Discovery never queries the resolved
-// realm's own tenant data (constants plus the resolved issuer); JWKS reads
-// through signingKeyRepository once realm context is established for the
-// resolved realm id.
+// The plugin apps/server registers. Discovery and JWKS both read the
+// resolved realm's own tenant data — its scope vocabulary and its
+// publishable keys — once realm context is established for the resolved
+// realm id.
 export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
   return (app) => {
     const findRealm = (name: string) => realmLookupRepository(deps.ownerDatabase.db).byName(name);
@@ -55,10 +59,16 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
     // claims_supported), /userinfo, and token issuance's ID token claims —
     // so a mapper registered once reaches every consumer the same way.
     const claimMappers = standardClaimMappers();
+    // Roles need a recursive CTE (effectiveRoles), which a claim mapper must
+    // never run itself — resolved here, once per issuance, alongside the
+    // user row and the subject's direct group memberships, and handed to
+    // the mappers as data.
     const loadClaimContext = (realmId: string, subjectId: string) =>
       withRealm(deps.database.db, realmId, async (tx) => ({
         subjectId,
         user: await userRepository(tx).bySubjectId(subjectId),
+        roles: await effectiveRoles(tx, subjectId),
+        groups: await effectiveGroupPaths(tx, subjectId),
       }));
 
     // The keys /jwks publishes, and the ones an `id_token_hint` is checked
@@ -67,17 +77,60 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
     const listPublishableKeys = (realmId: string) =>
       withRealm(deps.database.db, realmId, (tx) => signingKeyRepository(tx).listPublishable());
 
-    registerDiscoveryRoute(app, { findRealm, claimNames: () => claimMappers.claimNames() });
+    // /userinfo's own gate on the `roles` claim: which role ids the token's
+    // granted scope reaches, and whether its client bypasses that
+    // intersection — the same two facts token issuance reads from the same
+    // tables, so a role withheld from the token cannot resurface here.
+    const resolveRoleReach = (realmId: string, oauthClientId: string, scope: readonly string[]) =>
+      withRealm(deps.database.db, realmId, async (tx) => {
+        const client = await clientRepository(tx).byClientId(oauthClientId);
+        return {
+          reachableRoleIds: await reachableRoleIds(tx, scope),
+          fullScopeAllowed: client?.fullScopeAllowed ?? false,
+        };
+      });
+
+    // Shared by /token and /userinfo: once each has resolved which client
+    // the request is for, this is the same lookup either way — an unknown
+    // or foreign client_id resolves to an empty set, so the caller withholds
+    // the header instead of treating it as an error.
+    const resolveClientWebOrigins = (realmId: string, oauthClientId: string) =>
+      withRealm(deps.database.db, realmId, async (tx) => {
+        const client = await clientRepository(tx).byClientId(oauthClientId);
+        // A disabled client's origin must stop working the same way a
+        // disabled client's tokens do — the CORS allowlist is not a second,
+        // forgotten door into a client that was disabled for a reason.
+        if (!client?.enabled) return new Set<string>();
+        const config = await clientOidcConfigRepository(tx).byClientId(client.id);
+        if (config === null) return new Set<string>();
+        return expandWebOrigins(config.webOrigins, config.redirectUris);
+      });
+
+    // One definition, read by discovery for scopes_supported and by
+    // /authorize for what it will accept, so the advertised list and the
+    // accepted one cannot drift apart.
+    const scopesForRealm = (realmId: string): Promise<readonly string[]> =>
+      withRealm(deps.database.db, realmId, async (tx) =>
+        (await clientScopeRepository(tx).allForRealm()).map((scope) => scope.name),
+      );
+
+    registerDiscoveryRoute(app, {
+      findRealm,
+      claimNames: () => claimMappers.claimNames(),
+      scopesForRealm,
+    });
     registerJwksRoute(app, { findRealm, listPublishableKeys });
     registerAuthorizeRoute(app, {
       findRealm,
       listPublishableKeys,
+      scopesForRealm,
       resolveClient: (realmId, oauthClientId) =>
         withRealm(deps.database.db, realmId, async (tx): Promise<ResolvedClient> => {
           const client = await clientRepository(tx).byClientId(oauthClientId);
-          if (client === null) return { client: null, config: null };
+          if (client === null) return { client: null, config: null, scopes: [] };
           const config = await clientOidcConfigRepository(tx).byClientId(client.id);
-          return { client, config };
+          const assigned = await clientScopeRepository(tx).forClient(client.id);
+          return { client, config, scopes: assigned.map((scope) => scope.name) };
         }),
       startAuthentication: (realmId, request) =>
         withRealm(deps.database.db, realmId, (tx) =>
@@ -91,6 +144,14 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
         withRealm(deps.database.db, realmId, (tx) => advance(tx, authSessionId, input, clock)),
       loadPendingRequest: (realmId, authSessionId) =>
         withRealm(deps.database.db, realmId, (tx) => loadPendingRequest(tx, authSessionId)),
+      checkEmailVerification: (realmId, subjectId) =>
+        withRealm(deps.database.db, realmId, async (tx) => {
+          const user = await userRepository(tx).bySubjectId(subjectId);
+          return {
+            verified: user?.emailVerified ?? false,
+            hasEmail: (user?.email ?? null) !== null,
+          };
+        }),
       resolveClientId: (realmId, oauthClientId) =>
         withRealm(deps.database.db, realmId, async (tx) => {
           const client = await clientRepository(tx).byClientId(oauthClientId);
@@ -125,21 +186,39 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
           return { kind: 'issued', sessionId, code };
         }),
     });
-    registerTokenRoute(app, {
-      database: deps.database,
-      findRealm,
-      kek: deps.kek,
-      clock,
-      verifyPassword,
-      claimMappers,
-      loadClaimContext,
-    });
-    registerUserinfoRoute(app, {
-      findRealm,
-      listPublishableKeys: (realmId) =>
-        withRealm(deps.database.db, realmId, (tx) => signingKeyRepository(tx).listPublishable()),
-      loadClaimContext,
-      claimMappers,
+    // Own encapsulation scope: `@fastify/cors`'s delegator-driven hook adds
+    // `Vary: Origin` to every response it sees, including a disallowed one
+    // (fetch spec — a shared cache must not serve one origin's answer to
+    // another) — registered on `app` directly, it would reach the two
+    // public documents, which must carry no Vary, and `/authorize` and the
+    // login-actions routes, which must carry no CORS treatment at all.
+    app.register((scope) => {
+      registerCors(scope, {
+        findRealm,
+        webOriginsForRealm: (realmId) =>
+          withRealm(deps.database.db, realmId, (tx) =>
+            clientOidcConfigRepository(tx).webOriginsForRealm(),
+          ),
+      });
+      registerTokenRoute(scope, {
+        database: deps.database,
+        findRealm,
+        kek: deps.kek,
+        clock,
+        verifyPassword,
+        claimMappers,
+        loadClaimContext,
+        resolveClientWebOrigins,
+      });
+      registerUserinfoRoute(scope, {
+        findRealm,
+        listPublishableKeys: (realmId) =>
+          withRealm(deps.database.db, realmId, (tx) => signingKeyRepository(tx).listPublishable()),
+        loadClaimContext,
+        claimMappers,
+        resolveRoleReach,
+        resolveClientWebOrigins,
+      });
     });
 
     return Promise.resolve();

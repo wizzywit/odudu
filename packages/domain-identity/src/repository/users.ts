@@ -23,7 +23,56 @@ function toUser(row: typeof users.$inferSelect): UserRecord {
     username: row.username,
     email: row.email,
     emailVerified: row.emailVerified,
+    name: row.name,
+    givenName: row.givenName,
+    familyName: row.familyName,
+    middleName: row.middleName,
+    nickname: row.nickname,
+    preferredUsername: row.preferredUsername,
+    profile: row.profile,
+    picture: row.picture,
+    website: row.website,
+    gender: row.gender,
+    birthdate: row.birthdate,
+    zoneinfo: row.zoneinfo,
+    locale: row.locale,
+    phoneNumber: row.phoneNumber,
+    phoneNumberVerified: row.phoneNumberVerified,
+    profileUpdatedAt: row.profileUpdatedAt,
+    addressFormatted: row.addressFormatted,
+    addressStreet: row.addressStreet,
+    addressLocality: row.addressLocality,
+    addressRegion: row.addressRegion,
+    addressPostalCode: row.addressPostalCode,
+    addressCountry: row.addressCountry,
   };
+}
+
+// Every field a caller may set through updateProfile: every OIDC Core §5.1
+// claim column except the identity columns (subjectId, realmId, username)
+// and email, which create() and its own validation already own.
+export interface ProfileUpdate {
+  name?: string | null;
+  givenName?: string | null;
+  familyName?: string | null;
+  middleName?: string | null;
+  nickname?: string | null;
+  preferredUsername?: string | null;
+  profile?: string | null;
+  picture?: string | null;
+  website?: string | null;
+  gender?: string | null;
+  birthdate?: string | null;
+  zoneinfo?: string | null;
+  locale?: string | null;
+  phoneNumber?: string | null;
+  phoneNumberVerified?: boolean;
+  addressFormatted?: string | null;
+  addressStreet?: string | null;
+  addressLocality?: string | null;
+  addressRegion?: string | null;
+  addressPostalCode?: string | null;
+  addressCountry?: string | null;
 }
 
 export interface UserWithSubject {
@@ -62,6 +111,16 @@ export function userRepository(tx: RealmScopedDatabase) {
       return row === undefined ? null : toUser(row);
     },
 
+    // Password reset's lookup: users_email_unique (0023) is (realm_id,
+    // email), so this is at most one row per realm. A user with no email
+    // on file simply never matches, the same way an unverified address
+    // does not gate this — reset and verification are independent actions.
+    async byEmail(email: string): Promise<UserRecord | null> {
+      const rows = await tx.select().from(users).where(eq(users.email, email));
+      const row = rows[0];
+      return row === undefined ? null : toUser(row);
+    },
+
     // The bootstrap seed command is the only caller today: a user profile
     // is created once its subject exists, never before.
     async create(input: NewUser): Promise<UserRecord> {
@@ -93,6 +152,53 @@ export function userRepository(tx: RealmScopedDatabase) {
       const row = rows[0];
       if (row === undefined) {
         throw new OduduError('insert_returned_no_row', 'insert into users returned no row');
+      }
+      return toUser(row);
+    },
+
+    // RLS, not a realm_id predicate, is what makes another realm's lookup
+    // or update match zero rows here; that becomes a not-found error rather
+    // than a silent no-op. profile_updated_at is the OIDC `updated_at`
+    // claim ("time the End-User's information was last updated"), so it is
+    // stamped only when a patched field actually differs from the row.
+    async updateProfile(subjectId: string, patch: ProfileUpdate): Promise<UserRecord> {
+      const currentRows = await tx.select().from(users).where(eq(users.subjectId, subjectId));
+      const current = currentRows[0];
+      if (current === undefined) {
+        throw new OduduError('user_not_found', `user ${subjectId} not found`);
+      }
+
+      const patchedKeys = Object.keys(patch) as (keyof ProfileUpdate)[];
+      const changed = patchedKeys.some((key) => patch[key] !== current[key]);
+      if (!changed) {
+        return toUser(current);
+      }
+
+      const rows = await tx
+        .update(users)
+        .set({ ...patch, profileUpdatedAt: new Date() })
+        .where(eq(users.subjectId, subjectId))
+        .returning();
+      const row = rows[0];
+      if (row === undefined) {
+        throw new OduduError('user_not_found', `user ${subjectId} not found`);
+      }
+      return toUser(row);
+    },
+
+    // Deliberately not folded into updateProfile: emailVerified is a claim
+    // about the current value of email, set only by consuming a matching
+    // verify_email action token (packages/account/src/usecase/verify-email.ts),
+    // never by a caller patching arbitrary profile fields.
+    async markEmailVerified(subjectId: string): Promise<UserRecord> {
+      const rows = await tx
+        .update(users)
+        .set({ emailVerified: true })
+        .where(eq(users.subjectId, subjectId))
+        .returning();
+      const row = rows[0];
+      if (row === undefined) {
+        throw new OduduError('user_not_found', `user ${subjectId} not found`);
       }
       return toUser(row);
     },

@@ -16,7 +16,7 @@ describe('resolveJwks', () => {
     let calledListKeys = false;
     const jwks = await resolveJwks(
       {
-        findRealm: () => Promise.resolve({ id: 'r1', enabled: false }),
+        findRealm: () => Promise.resolve({ id: 'r1', enabled: false, verifyEmail: false }),
         listPublishableKeys: () => {
           calledListKeys = true;
           return Promise.resolve([]);
@@ -31,7 +31,7 @@ describe('resolveJwks', () => {
   it('assembles the published set for an enabled realm', async () => {
     const jwks = await resolveJwks(
       {
-        findRealm: () => Promise.resolve({ id: 'r1', enabled: true }),
+        findRealm: () => Promise.resolve({ id: 'r1', enabled: true, verifyEmail: false }),
         listPublishableKeys: () => Promise.resolve([{ kid: 'a', alg: 'RS256', publicJwk }]),
       },
       'acme',

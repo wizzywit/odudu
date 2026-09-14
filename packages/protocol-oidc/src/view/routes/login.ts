@@ -1,7 +1,11 @@
 import { sessionCookieName } from '@odudu/authn-flows';
 import { type FastifyInstance } from 'fastify';
 import { handleLoginSubmission, type LoginSubmissionDeps } from '#/usecase/login-submission';
-import { renderAuthorizeErrorPage, renderLoginForm } from '#/view/authorize-html';
+import {
+  renderAuthorizeErrorPage,
+  renderEmailUnverifiedPage,
+  renderLoginForm,
+} from '#/view/authorize-html';
 import { sendHtml } from '#/view/html-response';
 import { issuerBaseFor } from '#/view/issuer';
 
@@ -58,6 +62,12 @@ export function registerLoginRoute(app: FastifyInstance, deps: LoginRouteDeps): 
 
     if (outcome.kind === 'reject') {
       return sendHtml(reply, 200, renderLoginForm(request.params.realm, outcome.authSessionId));
+    }
+
+    // No location header and no code: the assertion this state exists to
+    // make true is that nothing was issued, not that the page says something.
+    if (outcome.kind === 'unverified') {
+      return sendHtml(reply, 200, renderEmailUnverifiedPage(outcome.hasEmail));
     }
 
     const cookieName = sessionCookieName(request.params.realm, deps.tls);

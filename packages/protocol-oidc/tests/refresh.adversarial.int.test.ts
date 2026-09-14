@@ -10,7 +10,7 @@ import {
   type RealmScopedDatabase,
 } from '@odudu/db';
 import { expectRealmIsolation } from '@odudu/db/testing';
-import { clients } from '@odudu/domain-realm';
+import { clients, provisionClientDefaults, provisionRealmDefaults } from '@odudu/domain-realm';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import formbody from '@fastify/formbody';
@@ -63,6 +63,7 @@ async function setupRealm(): Promise<void> {
 
   await withRealm(app.db, REALM_ID, async (tx: RealmScopedDatabase) => {
     await tx.insert(realms).values({ id: REALM_ID, name: REALM });
+    await provisionRealmDefaults(tx, REALM_ID);
 
     const subject = await subjectRepository(tx).create({ realmId: REALM_ID, type: 'user' });
     subjectId = subject.id;
@@ -76,6 +77,7 @@ async function setupRealm(): Promise<void> {
       type: 'confidential',
       secretHash: await hashPassword('supersecret'),
     });
+    await provisionClientDefaults(tx, webAppDbId);
     await clientOidcConfigRepository(tx).create({
       clientId: webAppDbId,
       realmId: REALM_ID,
@@ -97,6 +99,7 @@ async function setupRealm(): Promise<void> {
       type: 'confidential',
       secretHash: await hashPassword('othersecret'),
     });
+    await provisionClientDefaults(tx, otherAppDbId);
     await clientOidcConfigRepository(tx).create({
       clientId: otherAppDbId,
       realmId: REALM_ID,
@@ -391,6 +394,7 @@ describe('realm isolation', () => {
       table: 'refresh_tokens',
       seed: async (tx, realmId) => {
         await tx.insert(realms).values({ id: realmId, name: `probe-${realmId}` });
+        await provisionRealmDefaults(tx, realmId);
         const clientDbId = newId();
         await tx.insert(clients).values({
           id: clientDbId,
@@ -400,6 +404,7 @@ describe('realm isolation', () => {
           type: 'confidential',
           secretHash: 'hashed:secret',
         });
+        await provisionClientDefaults(tx, clientDbId);
         const subject = await subjectRepository(tx).create({ realmId, type: 'user' });
         const grantRows = await tx
           .insert(tokenGrants)
@@ -430,6 +435,7 @@ describe('realm isolation', () => {
       seed: async (tx, realmId) => {
         const clientDbId = newId();
         await tx.insert(realms).values({ id: realmId, name: `probe-${realmId}` });
+        await provisionRealmDefaults(tx, realmId);
         await tx.insert(clients).values({
           id: clientDbId,
           realmId,
@@ -438,6 +444,7 @@ describe('realm isolation', () => {
           type: 'confidential',
           secretHash: 'hashed:secret',
         });
+        await provisionClientDefaults(tx, clientDbId);
         const subject = await subjectRepository(tx).create({ realmId, type: 'user' });
         await tx.insert(tokenGrants).values({
           id: newId(),
@@ -680,6 +687,7 @@ describe('[ODUDU-REFRESH-TTL-FLOOR-01] a refresh token TTL that expires on issue
           type: 'confidential',
           secretHash: 'hashed:secret',
         });
+        await provisionClientDefaults(tx, clientDbId);
         await clientOidcConfigRepository(tx).create({
           clientId: clientDbId,
           realmId: REALM_ID,

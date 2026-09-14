@@ -1,4 +1,5 @@
 import { type DatabaseHandle } from '@odudu/db';
+import { capturingSender } from '@odudu/email';
 import { loadConfig, type Logger } from '@odudu/kernel';
 import { Writable } from 'node:stream';
 import { describe, expect, it } from 'vitest';
@@ -89,7 +90,13 @@ describe('createLogger', () => {
       sql: (() => Promise.resolve([{ ok: 1 }])) as unknown as DatabaseHandle['sql'],
       close: () => Promise.resolve(),
     };
-    const app = buildApp({ database, ownerDatabase: database, kek: config.ODUDU_KEK, logger });
+    const app = buildApp({
+      database,
+      ownerDatabase: database,
+      kek: config.ODUDU_KEK,
+      logger,
+      sender: capturingSender(),
+    });
 
     await app.inject({
       method: 'GET',
@@ -109,7 +116,13 @@ describe('createLogger', () => {
       sql: (() => Promise.resolve([{ ok: 1 }])) as unknown as DatabaseHandle['sql'],
       close: () => Promise.resolve(),
     };
-    const app = buildApp({ database, ownerDatabase: database, kek: config.ODUDU_KEK, logger });
+    const app = buildApp({
+      database,
+      ownerDatabase: database,
+      kek: config.ODUDU_KEK,
+      logger,
+      sender: capturingSender(),
+    });
     app.get('/authorize-probe', () => ({ ok: true }));
 
     await app.inject({
@@ -130,7 +143,13 @@ describe('createLogger', () => {
       sql: (() => Promise.resolve([{ ok: 1 }])) as unknown as DatabaseHandle['sql'],
       close: () => Promise.resolve(),
     };
-    const app = buildApp({ database, ownerDatabase: database, kek: config.ODUDU_KEK, logger });
+    const app = buildApp({
+      database,
+      ownerDatabase: database,
+      kek: config.ODUDU_KEK,
+      logger,
+      sender: capturingSender(),
+    });
     app.get('/set-cookie-probe', (_request, reply) => {
       reply.header('set-cookie', '__Host-alpha-session=super-secret-cookie-value');
       return { ok: true };

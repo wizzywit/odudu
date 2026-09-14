@@ -21,6 +21,21 @@ describe('boundary rules', () => {
     expect((await violations('no-domain-to-protocol')).length).toBeGreaterThan(0);
   });
 
+  it('rejects @odudu/domain-authz importing a protocol package', async () => {
+    const found = await violations('no-domain-to-protocol');
+    expect(found.some((v) => v.from.includes('domain-authz'))).toBe(true);
+  });
+
+  it('rejects @odudu/account importing a protocol package', async () => {
+    const found = await violations('no-domain-to-protocol');
+    expect(found.some((v) => v.from.includes('/account/'))).toBe(true);
+  });
+
+  it('rejects @odudu/email importing a protocol package', async () => {
+    const found = await violations('no-domain-to-protocol');
+    expect(found.some((v) => v.from.includes('/email/'))).toBe(true);
+  });
+
   it('rejects a view importing an adapter', async () => {
     expect((await violations('no-view-to-adapter')).length).toBeGreaterThan(0);
   });
@@ -60,6 +75,19 @@ describe('boundary rules', () => {
     const output = await cruiseFixtures();
     const fromGoodService = output.summary.violations.filter((v) =>
       v.from.endsWith('domain-example/src/service/some-service.ts'),
+    );
+    expect(fromGoodService).toHaveLength(0);
+  });
+
+  it('rejects @odudu/email service importing its own adapter', async () => {
+    const found = await violations('service-is-a-leaf');
+    expect(found.some((v) => v.from.includes('email/src/service/bad-service.ts'))).toBe(true);
+  });
+
+  it('does not flag a clean service in @odudu/email with zero violations', async () => {
+    const output = await cruiseFixtures();
+    const fromGoodService = output.summary.violations.filter((v) =>
+      v.from.endsWith('email/src/service/some-service.ts'),
     );
     expect(fromGoodService).toHaveLength(0);
   });

@@ -9,7 +9,7 @@ import {
   type DatabaseHandle,
   type RealmScopedDatabase,
 } from '@odudu/db';
-import { clients } from '@odudu/domain-realm';
+import { clients, provisionClientDefaults, provisionRealmDefaults } from '@odudu/domain-realm';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import formbody from '@fastify/formbody';
@@ -42,6 +42,7 @@ async function setupRealm(): Promise<void> {
 
   await withRealm(app.db, REALM_ID, async (tx: RealmScopedDatabase) => {
     await tx.insert(realms).values({ id: REALM_ID, name: REALM });
+    await provisionRealmDefaults(tx, REALM_ID);
 
     const serviceSubject = await subjectRepository(tx).create({
       realmId: REALM_ID,
@@ -59,6 +60,7 @@ async function setupRealm(): Promise<void> {
       secretHash: await hashPassword('s3cret'),
       serviceSubjectId: batchJobServiceSubjectId,
     });
+    await provisionClientDefaults(tx, batchJobDbId);
     await clientOidcConfigRepository(tx).create({
       clientId: batchJobDbId,
       realmId: REALM_ID,
@@ -84,6 +86,7 @@ async function setupRealm(): Promise<void> {
       type: 'confidential',
       secretHash: await hashPassword('anothersecret'),
     });
+    await provisionClientDefaults(tx, unprovisionedDbId);
     await clientOidcConfigRepository(tx).create({
       clientId: unprovisionedDbId,
       realmId: REALM_ID,
@@ -110,6 +113,7 @@ async function setupRealm(): Promise<void> {
       secretHash: await hashPassword('p0stsecret'),
       serviceSubjectId: batchJobServiceSubjectId,
     });
+    await provisionClientDefaults(tx, postingJobDbId);
     await clientOidcConfigRepository(tx).create({
       clientId: postingJobDbId,
       realmId: REALM_ID,
@@ -131,6 +135,7 @@ async function setupRealm(): Promise<void> {
       type: 'public',
       secretHash: null,
     });
+    await provisionClientDefaults(tx, spaDbId);
     await clientOidcConfigRepository(tx).create({
       clientId: spaDbId,
       realmId: REALM_ID,

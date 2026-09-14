@@ -31,6 +31,8 @@ const UNDECLARED_TABLES = new Set(['__drizzle_migrations']);
 // migration that adds, drops or rewrites one visible — the expression is
 // pg_get_constraintdef's own rendering, so it is compared verbatim.
 const EXPECTED_CHECKS: Record<string, string> = {
+  'action_tokens.action_tokens_type_check':
+    "CHECK ((type = ANY (ARRAY['verify_email'::text, 'reset_password'::text])))",
   'authorization_codes.authorization_codes_method_check':
     "CHECK ((code_challenge_method = 'S256'::text))",
   'client_oidc_config.client_oidc_config_access_token_ttl_ceiling':
@@ -43,10 +45,20 @@ const EXPECTED_CHECKS: Record<string, string> = {
     "CHECK (((cardinality(redirect_uris) >= 1) OR (grant_types = ARRAY['client_credentials'::text])))",
   'client_oidc_config.client_oidc_config_refresh_token_ttl_floor':
     'CHECK ((refresh_token_ttl_seconds >= 1))',
+  'client_oidc_config.client_oidc_config_web_origins_shape':
+    'CHECK (web_origins_are_valid(web_origins))',
+  'client_scope_assignments.client_scope_assignments_assignment_check':
+    "CHECK ((assignment = ANY (ARRAY['default'::text, 'optional'::text])))",
+  'client_scopes.client_scopes_name_is_scope_token':
+    "CHECK ((name ~ '^[\\x21\\x23-\\x5B\\x5D-\\x7E]+$'::text))",
+  'groups.groups_name_has_no_slash': "CHECK (((name !~ '/'::text) AND (name <> ''::text)))",
+  'groups.groups_path_is_absolute': "CHECK ((path ~~ '/%'::text))",
   'clients.clients_secret_matches_type':
     "CHECK ((((type = 'confidential'::text) AND (secret_hash IS NOT NULL)) OR ((type = 'public'::text) AND (secret_hash IS NULL))))",
   'clients.clients_type_check':
     "CHECK ((type = ANY (ARRAY['public'::text, 'confidential'::text])))",
+  'role_composites.role_composites_not_self': 'CHECK ((parent_role_id <> child_role_id))',
+  'roles.roles_name_has_no_colon': "CHECK (((name !~ ':'::text) AND (name <> ''::text)))",
   'signing_keys.signing_keys_alg_check':
     "CHECK ((alg = ANY (ARRAY['RS256'::text, 'ES256'::text])))",
   'signing_keys.signing_keys_status_check':
@@ -54,8 +66,18 @@ const EXPECTED_CHECKS: Record<string, string> = {
   'subjects.subjects_type_check':
     "CHECK ((type = ANY (ARRAY['user'::text, 'service'::text, 'agent_instance'::text])))",
   'user_credentials.user_credentials_type_check': "CHECK ((type = 'password'::text))",
+  'users.users_birthdate_shape':
+    "CHECK (((birthdate IS NULL) OR (birthdate ~ '^[0-9]{4}(-[0-9]{2}-[0-9]{2})?$'::text)))",
   'users.users_email_addr_spec':
     "CHECK (((email IS NULL) OR ((length(email) <= 254) AND ((strpos(email, '@'::text) - 1) <= 64) AND (email ~ '^[A-Za-z0-9!#$%&''*+/=?^_`{|}~-]+(\\.[A-Za-z0-9!#$%&''*+/=?^_`{|}~-]+)*@[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?(\\.[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?)+$'::text))))",
+  'users.users_locale_shape':
+    "CHECK (((locale IS NULL) OR (locale ~ '^[A-Za-z]{2,3}(-[A-Za-z]{4})?(-([A-Za-z]{2}|[0-9]{3}))?$'::text)))",
+  'users.users_profile_urls_are_http':
+    "CHECK ((((profile IS NULL) OR (profile ~ '^https?://'::text)) AND ((picture IS NULL) OR (picture ~ '^https?://'::text)) AND ((website IS NULL) OR (website ~ '^https?://'::text))))",
+  'users.users_verified_phone_is_e164':
+    "CHECK (((NOT phone_number_verified) OR ((phone_number IS NOT NULL) AND (phone_number ~ '^\\+[1-9][0-9]{1,14}(;ext=[0-9]+)?$'::text))))",
+  'users.users_zoneinfo_shape':
+    "CHECK (((zoneinfo IS NULL) OR (zoneinfo ~ '^[A-Za-z][A-Za-z0-9_+-]*(/[A-Za-z0-9_+-]+)*$'::text)))",
 };
 
 interface ColumnRow {
