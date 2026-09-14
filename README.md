@@ -82,8 +82,8 @@ for the walkthrough.
 link that sets a new password, and the `reset_password` branch of `GET`/`POST
 /realms/{realm}/login-actions/action-token` redeems it. The request answers
 identically whether or not the address has an account — same status, same
-body — and sends mail only for the one that does, so the endpoint cannot be
-used to enumerate who has registered; a send failure (a down or
+body — and sends mail only for the one that does, so **this endpoint**
+cannot be used to enumerate who has registered; a send failure (a down or
 rate-limiting SMTP server) is absorbed and logged rather than surfaced, for
 the same reason. Completing one reset also retires every other outstanding
 reset-password link for the same subject, and turning
@@ -100,6 +100,16 @@ outbox table and a background sender), which the phase's own design spec
 rejects: it would be the first background loop in the codebase and a second
 table nothing deletes from. Stated here rather than fixed, on the judgment
 that an honest limitation beats an accidental one.
+
+**Known limitation, realm-wide:** the reset endpoint's enumeration safety
+does not make the realm itself un-enumerable. With `registration_allowed`
+also on, the registration form (below) answers "that email address is
+already registered" with a 400 — a universal trade-off for a self-service
+registration form, and the one Keycloak makes too — so an address's
+presence in the realm is discoverable through that door even though the
+reset flow closes this one. Accepted, not fixed, for the same reason the
+timing oracle above is: honestly naming a trade-off beats implying a
+property the realm does not actually have.
 
 A mailed verification link is built from `ODUDU_PUBLIC_BASE_URL`, never
 from the request that triggered it — a request's `Host` header is
@@ -341,9 +351,10 @@ curl -sS --data-urlencode 'grant_type=authorization_code' \
 (Token values truncated; they differ every run.)
 
 **Give ada a role.** `seed` has one subcommand per piece of the identity
-model — `role`, `group`, `scope`, `assign-scope`, `map-role`, `grant-role`
-and `join-group` — reachable the same way as `seed` itself (swap in the
-`docker compose exec` or `node --env-file=.env` prefix from above):
+model — `role`, `group`, `scope`, `assign-scope`, `map-role`, `grant-role`,
+`map-group-role` and `join-group` — reachable the same way as `seed` itself
+(swap in the `docker compose exec` or `node --env-file=.env` prefix from
+above):
 
 ```bash
 node --env-file=.env apps/server/src/main.ts seed role --realm demo --name reviewer

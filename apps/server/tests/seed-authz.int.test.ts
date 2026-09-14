@@ -348,6 +348,102 @@ describe('the seed CLI, provisioning the identity model it now has', () => {
     expect(decode(access_token).groups).toEqual(['/engineering/backend']);
   });
 
+  // groupRepository.mapRole is tested at repository level, ancestor
+  // inheritance included, but nothing before this closed the gap between
+  // that and a shipped CLI: `map-role` maps a role to a client scope,
+  // `grant-role` assigns one straight to a subject, and neither can create
+  // a group_roles row. This is the only path that can, and the only test
+  // that carries a role mapped to a *parent* group all the way to a token
+  // for a user joined only to its *child* — the inheritance a headline
+  // deliverable of this phase depends on.
+  it('carries a role mapped to a parent group into a token for a user joined to its child', async () => {
+    const realmName = `demo-${newId()}`;
+
+    await seed(['realm', '--name', realmName]);
+    await seed([
+      'client',
+      '--realm',
+      realmName,
+      '--client-id',
+      'app',
+      '--public',
+      '--redirect-uri',
+      REDIRECT_URI,
+    ]);
+    await seed(['user', '--realm', realmName, '--username', 'ada', '--password', 'p']);
+    await seed(['group', '--realm', realmName, '--name', 'engineering']);
+    await seed(['group', '--realm', realmName, '--name', 'backend', '--parent', '/engineering']);
+    await seed([
+      'join-group',
+      '--realm',
+      realmName,
+      '--username',
+      'ada',
+      '--group',
+      '/engineering/backend',
+    ]);
+
+    // A scope of the realm's own, not a default: mapping straight to
+    // `roles` would leave assign-scope doing nothing a removed step would
+    // reveal, the same reasoning the direct-assignment test above uses.
+    await seed(['scope', '--realm', realmName, '--name', 'app-roles']);
+    await seed(['role', '--realm', realmName, '--name', 'engineering-lead']);
+    await seed([
+      'map-group-role',
+      '--realm',
+      realmName,
+      '--group',
+      '/engineering',
+      '--role',
+      'engineering-lead',
+    ]);
+    await seed([
+      'map-role',
+      '--realm',
+      realmName,
+      '--scope',
+      'app-roles',
+      '--role',
+      'engineering-lead',
+    ]);
+    await seed([
+      'assign-scope',
+      '--realm',
+      realmName,
+      '--client-id',
+      'app',
+      '--scope',
+      'app-roles',
+      '--assignment',
+      'optional',
+    ]);
+
+    const { access_token } = await completeCodeFlow({
+      clientId: 'app',
+      scope: 'openid roles app-roles',
+      realmName,
+    });
+    expect(decode(access_token).roles).toEqual(['engineering-lead']);
+  });
+
+  it('refuses to map a role to a group that does not exist rather than creating one', async () => {
+    const realmName = `demo-${newId()}`;
+    await seed(['realm', '--name', realmName]);
+    await seed(['role', '--realm', realmName, '--name', 'admin']);
+
+    await expect(
+      seed([
+        'map-group-role',
+        '--realm',
+        realmName,
+        '--group',
+        '/no-such-group',
+        '--role',
+        'admin',
+      ]),
+    ).rejects.toThrow(/no group at path/);
+  });
+
   it('creates a client scope with the flags given, through the seed CLI', async () => {
     const realmName = `demo-${newId()}`;
     await seed(['realm', '--name', realmName]);

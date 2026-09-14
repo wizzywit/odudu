@@ -806,6 +806,60 @@ three is indistinguishable from the outside — the claim is simply absent —
 so when it is missing, check the three in that order rather than guessing
 which one it was.
 
+### Groups, and role inheritance
+
+A role can also reach a token through a group rather than a direct grant.
+`seed map-group-role` is the only path from the CLI to that: it maps a role
+to a group the way `map-role` maps one to a client scope, and effective
+role resolution then walks a subject's groups and their ancestors, not just
+its direct assignments, in the same recursive CTE `groupRepository.mapRole`
+was built for.
+
+```bash
+odudu seed group --realm demo --name engineering
+odudu seed group --realm demo --name backend --parent /engineering
+odudu seed join-group --realm demo --username ada --group /engineering/backend
+odudu seed role --realm demo --name engineering-lead
+odudu seed map-group-role --realm demo --group /engineering --role engineering-lead
+odudu seed map-role --realm demo --scope roles --role engineering-lead
+```
+
+```json
+{ "command": "group", "realm": "demo", "realmId": "01a0a215-1fbe-7b78-b0cc-ecd3b246658d", "groupId": "01a0a215-56ff-70be-ab80-652eabc3a340", "path": "/engineering" }
+{ "command": "group", "realm": "demo", "realmId": "01a0a215-1fbe-7b78-b0cc-ecd3b246658d", "groupId": "01a0a215-5890-7110-b875-db31b1c6673c", "path": "/engineering/backend" }
+{ "command": "join-group", "realm": "demo", "realmId": "01a0a215-1fbe-7b78-b0cc-ecd3b246658d", "username": "ada", "group": "/engineering/backend" }
+{ "command": "role", "realm": "demo", "realmId": "01a0a215-1fbe-7b78-b0cc-ecd3b246658d", "roleId": "01a0a215-5b7b-7477-a72d-4237651a4f6e", "name": "engineering-lead", "clientId": null }
+{ "command": "map-group-role", "realm": "demo", "realmId": "01a0a215-1fbe-7b78-b0cc-ecd3b246658d", "group": "/engineering", "role": "engineering-lead" }
+{ "command": "map-role", "realm": "demo", "realmId": "01a0a215-1fbe-7b78-b0cc-ecd3b246658d", "scope": "roles", "role": "engineering-lead" }
+```
+
+`ada` is joined only to `/engineering/backend`, the _child_; the role is
+mapped only to `/engineering`, the _parent_. Requesting `scope=openid roles
+groups` and redeeming the code carries both `reviewer` (granted directly,
+[above](#roles-once-a-scope-reaches-it)) and `engineering-lead` (reached
+through the group) onto the same access token:
+
+```json
+{
+  "roles": ["engineering-lead", "reviewer"],
+  "groups": ["/engineering/backend"],
+  "iss": "http://localhost:3000/realms/demo",
+  "sub": "01a0a215-204a-75a9-b3b1-89bf08b1c76b",
+  "aud": ["http://localhost:3000/realms/demo"],
+  "client_id": "demo-spa",
+  "scope": "openid roles groups",
+  "iat": 1789425720,
+  "exp": 1789426020,
+  "jti": "01a0a215-9c86-77a3-b7ab-dad58b49da4e"
+}
+```
+
+`groups` carries only the paths a subject directly belongs to — `ada`'s
+own membership is `/engineering/backend`, not `/engineering` too — but
+`roles` carries what those memberships and their ancestors reach, which is
+why `engineering-lead` appears even though nothing ever joined `ada` to
+`/engineering` itself.
+
 ### 5. `/userinfo`
 
 ```bash

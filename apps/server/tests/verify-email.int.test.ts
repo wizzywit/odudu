@@ -21,10 +21,8 @@ import { createLogger } from '#/logger';
 // construction, since @odudu/account never imports @odudu/domain-identity.
 // The composition that actually joins the two lives only in
 // apps/server/src/app.ts, and nothing exercised it: this builds the real
-// app, seeds a real user through the real seed command, redeems a real
-// mailed link against it, and reads emails_verified back off both the
-// users table and a decoded ID token from a real authorization-code flow —
-// the claim the whole task exists to make true.
+// app, seeds a real user, redeems a real mailed link, and reads
+// email_verified back off both the users table and a decoded ID token.
 
 let containerHandle: TestDatabase | undefined;
 let ownerHandle: DatabaseHandle | undefined;

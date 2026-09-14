@@ -38,3 +38,18 @@ export async function accessTokenEligibleScope(
   const scopes = await resolveClientScopes(tx, grantedScope);
   return scopes.filter((scope) => scope.includeInAccessToken).map((scope) => scope.name);
 }
+
+// What actually appears in the issued `scope` claim — narrower than the
+// granted scope set itself, which keeps gating mappers and narrowing roles
+// (both read the granted set directly, never this). A scope whose own
+// `include_in_token_scope` is false still contributed its claims; only its
+// name is left off the string a client reads back. `openid` is exempt: an
+// OIDC client checks for it, and no realm data should be able to hide it.
+export async function tokenScopeClaim(
+  tx: RealmScopedDatabase,
+  grantedScope: readonly string[],
+): Promise<string[]> {
+  const scopes = await resolveClientScopes(tx, grantedScope);
+  const includeByName = new Map(scopes.map((scope) => [scope.name, scope.includeInTokenScope]));
+  return grantedScope.filter((name) => name === 'openid' || includeByName.get(name) !== false);
+}

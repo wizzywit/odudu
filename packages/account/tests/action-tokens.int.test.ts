@@ -95,6 +95,21 @@ async function consume(token: string, type: ActionTokenType) {
   return withRealm(app.db, realmId, (tx) => actionTokenRepository(tx).consume(token, type));
 }
 
+// The driver only carries the fired policy's message on the query error's
+// `.cause.message`, not on the top-level message `.rejects.toThrow` reads —
+// see roles.int.test.ts's causeMessage in packages/domain-authz/tests.
+async function causeMessage(promise: Promise<unknown>): Promise<string> {
+  try {
+    await promise;
+  } catch (caught) {
+    expect(caught).toBeInstanceOf(Error);
+    const cause = (caught as Error).cause;
+    expect(cause).toBeInstanceOf(Error);
+    return (cause as Error).message;
+  }
+  expect.unreachable('expected the promise to reject');
+}
+
 describe('issue and consume', () => {
   it('returns the subject for a fresh token', async () => {
     const { token } = await issue({
@@ -383,5 +398,39 @@ describe('realm isolation', () => {
         expect(rows[0]?.consumedAt).toBeNull();
       },
     });
+  });
+
+  // `issue` takes realmId as a parameter the same way roleRepository.create
+  // and groupRepository.create do, and both of those are probed for exactly
+  // this: a caller connected under one realm cannot mint a row claiming
+  // another's id. This is also the only test that exercises
+  // action_tokens_isolation's WITH CHECK on an INSERT — every other probe in
+  // this file only ever reads under a foreign realm.
+  it('refuses to issue a token claiming another realm’s id, and leaves that realm untouched', async () => {
+    const realmA = newId();
+    const realmB = newId();
+    const subjectA = await withRealm(app.db, realmA, async (tx) => {
+      await seedRealm(tx, realmA);
+      return insertSubject(tx, realmA);
+    });
+    await withRealm(app.db, realmB, (tx) => seedRealm(tx, realmB));
+
+    expect(
+      await causeMessage(
+        withRealm(app.db, realmB, (tx) =>
+          actionTokenRepository(tx).issue({
+            realmId: realmA,
+            subjectId: subjectA,
+            type: 'verify_email',
+            ttlSeconds: TEST_TTL_SECONDS,
+          }),
+        ),
+      ),
+    ).toMatch(/row-level security/i);
+
+    const rows = await withRealm(app.db, realmA, (tx) =>
+      tx.select({ tokenHash: actionTokens.tokenHash }).from(actionTokens),
+    );
+    expect(rows).toHaveLength(0);
   });
 });

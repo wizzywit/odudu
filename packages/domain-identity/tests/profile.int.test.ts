@@ -156,6 +156,19 @@ describe('the database enforces what the claim promises', () => {
     ).toContain('users_verified_phone_is_e164');
   });
 
+  it('refuses a verified phone number that is null, the same clause a formatted one violates', async () => {
+    const realmId = newId();
+    const subjectId = await withRealm(app.db, realmId, (tx) => seedUser(tx, realmId));
+
+    expect(
+      await causeMessage(
+        withRealm(app.db, realmId, (tx) =>
+          userRepository(tx).updateProfile(subjectId, { phoneNumberVerified: true }),
+        ),
+      ),
+    ).toContain('users_verified_phone_is_e164');
+  });
+
   it('accepts a verified E.164 phone number with an RFC 3966 extension', async () => {
     const realmId = newId();
     const subjectId = await withRealm(app.db, realmId, (tx) => seedUser(tx, realmId));

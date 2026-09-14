@@ -1,6 +1,7 @@
 import { type RealmScopedDatabase } from '@odudu/db';
 import { newId, OduduError } from '@odudu/kernel';
 import { and, eq, inArray, isNull, sql } from 'drizzle-orm';
+import { z } from 'zod';
 import {
   clientScopeRoles,
   roleComposites,
@@ -40,9 +41,13 @@ async function realmOfRole(tx: RealmScopedDatabase, roleId: string): Promise<str
   return row.realmId;
 }
 
-interface ClosureRow {
-  role_id: string;
-}
+// tx.execute() returns driver rows as unknown structure; parsing narrows
+// the actual shape instead of asserting one onto it — the same idiom
+// effectiveRoles (#/repository/effective-roles.ts) uses for the same
+// reason: a renamed or retyped column fails loudly here rather than
+// flowing through as a malformed row.
+const closureRowSchema = z.object({ role_id: z.string() });
+const closureRowsSchema = z.array(closureRowSchema);
 
 // Descendants reachable from `startId` by following role_composites edges
 // (parent includes child) transitively. UNION, not UNION ALL: verified
@@ -60,7 +65,7 @@ async function closureFrom(tx: RealmScopedDatabase, startId: string): Promise<Se
     )
     SELECT role_id FROM closure
   `);
-  return new Set((result as unknown as ClosureRow[]).map((row) => row.role_id));
+  return new Set(closureRowsSchema.parse(result).map((row) => row.role_id));
 }
 
 export function roleRepository(tx: RealmScopedDatabase) {

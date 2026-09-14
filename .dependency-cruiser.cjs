@@ -15,7 +15,7 @@ module.exports = {
         'Users do not know what OIDC is. This is what lets SAML arrive without touching identity. ' +
         '@odudu/account carries the same restriction: registration, verification and reset are ' +
         'account lifecycle, not OIDC.',
-      from: { path: '(^|/)packages/(?:domain-[^/]+|account)/' },
+      from: { path: '(^|/)packages/(?:domain-[^/]+|account|email)/' },
       to: { path: '(^|/)packages/protocol-[^/]+/' },
     },
     {

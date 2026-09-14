@@ -502,6 +502,14 @@ export interface GrantRoleCommandResult {
   role: string;
 }
 
+export interface MapGroupRoleCommandResult {
+  command: 'map-group-role';
+  realm: string;
+  realmId: string;
+  group: string;
+  role: string;
+}
+
 export interface JoinGroupCommandResult {
   command: 'join-group';
   realm: string;
@@ -527,6 +535,7 @@ export type SeedCommandResult =
   | AssignScopeCommandResult
   | MapRoleCommandResult
   | GrantRoleCommandResult
+  | MapGroupRoleCommandResult
   | JoinGroupCommandResult
   | ProfileCommandResult;
 
@@ -1080,6 +1089,52 @@ async function runGrantRoleCommand(
   });
 }
 
+// The only path from the shipped CLI to a group_roles row: without it,
+// hierarchical role inheritance (groupRepository.mapRole, tested at
+// repository level with ancestor closure) has nothing to provision it —
+// grant-role assigns a role directly to a subject, map-role maps one to a
+// client scope, and neither reaches a group.
+async function runMapGroupRoleCommand(
+  ownerDb: Database,
+  runtimeDb: Database,
+  argv: readonly string[],
+): Promise<MapGroupRoleCommandResult> {
+  const { values } = parseArgs({
+    args: [...argv],
+    options: {
+      realm: { type: 'string' },
+      group: { type: 'string' },
+      role: { type: 'string' },
+    },
+  });
+
+  if (values.realm === undefined || values.group === undefined || values.role === undefined) {
+    throw new OduduError(
+      'seed_invalid_options',
+      'seed map-group-role requires --realm, --group and --role',
+    );
+  }
+
+  const realmName = values.realm;
+  const groupPath = values.group;
+  const roleName = values.role;
+
+  const realmId = await requireRealmId(ownerDb, realmName);
+
+  return withRealm(runtimeDb, realmId, async (tx) => {
+    const role = await requireRoleByQualifiedName(tx, roleName);
+    const groupId = await requireGroupIdByPath(tx, groupPath);
+    await groupRepository(tx).mapRole(groupId, role.id);
+    return {
+      command: 'map-group-role',
+      realm: realmName,
+      realmId,
+      group: groupPath,
+      role: roleName,
+    };
+  });
+}
+
 async function runJoinGroupCommand(
   ownerDb: Database,
   runtimeDb: Database,
@@ -1216,6 +1271,7 @@ export const SEED_COMMANDS = [
   'assign-scope',
   'map-role',
   'grant-role',
+  'map-group-role',
   'join-group',
   'profile',
 ] as const;
@@ -1261,6 +1317,8 @@ async function runSeedCommand(argv: readonly string[]): Promise<SeedCommandResul
         return await runMapRoleCommand(owner.db, runtime.db, rest);
       case 'grant-role':
         return await runGrantRoleCommand(owner.db, runtime.db, rest);
+      case 'map-group-role':
+        return await runMapGroupRoleCommand(owner.db, runtime.db, rest);
       case 'join-group':
         return await runJoinGroupCommand(owner.db, runtime.db, rest);
       case 'profile':

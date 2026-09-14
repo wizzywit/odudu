@@ -31,6 +31,11 @@ describe('boundary rules', () => {
     expect(found.some((v) => v.from.includes('/account/'))).toBe(true);
   });
 
+  it('rejects @odudu/email importing a protocol package', async () => {
+    const found = await violations('no-domain-to-protocol');
+    expect(found.some((v) => v.from.includes('/email/'))).toBe(true);
+  });
+
   it('rejects a view importing an adapter', async () => {
     expect((await violations('no-view-to-adapter')).length).toBeGreaterThan(0);
   });
