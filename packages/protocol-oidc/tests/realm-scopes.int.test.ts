@@ -122,6 +122,49 @@ afterAll(async () => {
   await containerHandle?.stop();
 });
 
+async function servedScopes(): Promise<string[]> {
+  const res = await http.inject({ url: `/realms/${REALM}/.well-known/openid-configuration` });
+  return res.json<{ scopes_supported: string[] }>().scopes_supported;
+}
+
+describe('[OIDC-DISCOVERY-3-01] the served discovery document', () => {
+  // §3 requires the server to support the `openid` scope value, and a realm's
+  // vocabulary is now the only thing that can make that true: if `openid`
+  // left the set provisionRealmDefaults seeds, this is what would notice.
+  it('lists openid for a realm provisioned with nothing but the defaults', async () => {
+    expect(await servedScopes()).toContain('openid');
+  });
+});
+
+// The list discovery advertises and the list /authorize validates against are
+// one closure in packages/protocol-oidc/src/index.ts. Asserted here through
+// the two routes rather than through a shared local value, because a shared
+// local value would agree with itself however the routes were wired.
+describe('what discovery advertises is what /authorize accepts', () => {
+  it('accepts every served scope this client is assigned', async () => {
+    const served = new Set(await servedScopes());
+    const assigned = await withRealm(app.db, realmId, async (tx) =>
+      (await clientScopeRepository(tx).forClient(clientRowId)).map((scope) => scope.name),
+    );
+    const grantable = assigned.filter((name) => served.has(name));
+    expect(grantable.length).toBeGreaterThan(1);
+
+    for (const name of grantable) {
+      const res = await authorizeWith(name);
+      expect(errorOf(res), `${name} is advertised and assigned but was refused`).toBeNull();
+      expect(res.statusCode).toBe(200);
+    }
+  });
+
+  it('refuses a name the served document does not carry', async () => {
+    const served = new Set(await servedScopes());
+    const absent = 'reports:never-advertised';
+    expect(served).not.toContain(absent);
+
+    expect(errorOf(await authorizeWith(`openid ${absent}`))).toBe('invalid_scope');
+  });
+});
+
 describe('scopes come from the realm', () => {
   it('advertises exactly the scopes the realm defines', async () => {
     await createScope('reports:advertised');

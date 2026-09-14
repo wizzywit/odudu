@@ -341,7 +341,7 @@ curl -sS http://localhost:3000/realms/demo/.well-known/openid-configuration
   "grant_types_supported": ["authorization_code", "refresh_token", "client_credentials"],
   "token_endpoint_auth_methods_supported": ["client_secret_basic", "client_secret_post", "none"],
   "authorization_response_iss_parameter_supported": true,
-  "scopes_supported": ["address", "email", "groups", "openid", "phone", "profile", "roles"],
+  "scopes_supported": ["email", "openid", "profile"],
   "claims_supported": ["sub", "name", "email", "email_verified"]
 }
 ```
@@ -353,13 +353,19 @@ because omitting it would default to `["query", "fragment"]` (OIDC Discovery
 `code_challenge_methods_supported` lists `S256` and never `plain`.
 
 `scopes_supported` is the realm's own scope vocabulary, read from the
-database rather than compiled in: these seven are what `odudu seed` gives a
+database rather than compiled in: these three are what `odudu seed` gives a
 new realm, and a realm that is given another scope advertises it here the
-moment it exists. Being advertised is half of what `/authorize` needs,
-though — **a scope is granted only when the realm defines it _and_ the
-client is assigned it**, and either failure is `invalid_scope`. `odudu seed`
-assigns all seven to each client it creates, which is why the request below
-asks for three of them and is answered.
+moment it exists. A scope is seeded only once a claim mapper can answer for
+it, so this list never promises claims nothing returns — `address`, `phone`,
+`roles` and `groups` are absent because their mappers do not exist yet, and
+`scope=openid address` is `invalid_scope` today rather than a scope that
+yields no address.
+
+Being advertised is only half of what `/authorize` needs, though — **a scope
+is granted only when the realm defines it _and_ the client is assigned it**,
+and either failure is `invalid_scope`. `odudu seed` assigns all three to
+each client it creates, which is why the request below asks for all of them
+and is answered.
 
 The issuer is derived from the request, so it is `http://` on this
 plain-HTTP local stack. A deployment terminates TLS in front of the server

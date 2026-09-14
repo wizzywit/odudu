@@ -1,18 +1,16 @@
 import { type RealmScopedDatabase } from '@odudu/db';
 import { clientScopeRepository, type NewClientScope } from '#/repository/client-scopes';
 
-// The OIDC vocabulary every realm needs to issue standard-shaped tokens.
-// `roles` and `groups` carry claims an access token or /userinfo response
-// may show, but not the ID token, which reaches the browser and cannot have
-// its disclosure limited by the client asking for less.
+// A scope is a promise about claims, and discovery advertises every scope a
+// realm defines. So a scope is seeded here only once a claim mapper can
+// answer for it (packages/protocol-oidc/src/service/claims.ts): `address`,
+// `phone`, `roles` and `groups` join this list in the change that registers
+// their mappers, not before, or `scopes_supported` would name scopes that
+// add nothing to a token.
 const DEFAULT_SCOPES: readonly Omit<NewClientScope, 'realmId'>[] = [
   { name: 'openid' },
   { name: 'profile' },
   { name: 'email' },
-  { name: 'address' },
-  { name: 'phone' },
-  { name: 'roles', includeInIdToken: false },
-  { name: 'groups', includeInIdToken: false },
 ];
 
 // Published so a document asserting what a freshly seeded realm advertises
