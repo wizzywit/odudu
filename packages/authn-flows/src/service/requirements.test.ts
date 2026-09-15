@@ -64,7 +64,7 @@ describe('nextStep', () => {
     expect(nextStep([], state())).toEqual({ kind: 'fail' });
   });
 
-  // Not settled by the brief: a disabled execution is skipped "as though
+  // Rule definition: a disabled execution is skipped "as though
   // absent", so two alternative runs separated only by one merge into a
   // single group, exactly as they would if the disabled entry had never
   // been in the list.

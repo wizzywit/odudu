@@ -276,7 +276,7 @@ interface RedeemOptions {
   bodySecret?: string;
   verifier?: string | null;
   redirectUri?: string;
-  // Finding 1: omits every way of identifying the client — no Authorization
+  // Adversarial case: omits every way of identifying the client — no Authorization
   // header, no client_id, no client_secret anywhere in the request.
   omitClientId?: boolean;
 }
