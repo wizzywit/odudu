@@ -10,8 +10,8 @@ describe('nextRequiredAction', () => {
     expect(nextRequiredAction(['configure-totp'])).toBe('configure-totp');
   });
 
-  // Decision #2's whole point: whichever order the two were added in, the
-  // same one always runs first.
+  // The fixed order's whole point: whichever order the two were added in,
+  // the same one always runs first.
   it('always runs update-password before configure-totp, regardless of input order', () => {
     expect(nextRequiredAction(['configure-totp', 'update-password'])).toBe('update-password');
     expect(nextRequiredAction(['update-password', 'configure-totp'])).toBe('update-password');

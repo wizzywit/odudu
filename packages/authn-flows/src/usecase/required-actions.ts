@@ -1,8 +1,7 @@
 import { type RequiredAction } from '#/schema/required-action';
 
-// Decision #2: two pending actions always run in the same sequence, and
-// password comes first so an expired password can never be used to enrol a
-// second factor.
+// Two pending actions always run in the same sequence, and password comes
+// first so an expired password can never be used to enrol a second factor.
 const REQUIRED_ACTION_ORDER: readonly RequiredAction[] = [
   'update-password',
   'configure-totp',

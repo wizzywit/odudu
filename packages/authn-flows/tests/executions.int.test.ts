@@ -78,10 +78,10 @@ describe('provisionBrowserFlow', () => {
 });
 
 describe('provisionRealm', () => {
-  // The claim decision #4 makes — a realm is never left half-provisioned —
-  // is only checked if something asserts both halves landed from the one
-  // call a real realm-creation site makes, not just that each function
-  // works in isolation.
+  // The claim that a realm is never left half-provisioned is only checked
+  // if something asserts both halves landed from the one call a real
+  // realm-creation site makes, not just that each function works in
+  // isolation.
   it('gives a realm both its scope vocabulary and its browser flow', async () => {
     const realmId = newId();
     await seedRealm(realmId);

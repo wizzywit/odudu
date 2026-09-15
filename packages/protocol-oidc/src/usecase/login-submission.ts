@@ -213,15 +213,6 @@ export async function handleLoginSubmission(
     return { kind: 'unverified', authSessionId, hasEmail: refusal.hasEmail };
   }
 
-  // A pending action blocks completion exactly as the unverified-address
-  // refusal above does: nothing is established and nothing is issued until
-  // it is done, and the authentication session is deliberately left
-  // unconsumed so the same parked request survives the detour.
-  const action = nextRequiredAction(await deps.pendingActions(realm.id, result.subjectId));
-  if (action !== null) {
-    return { kind: 'required_action', authSessionId, action };
-  }
-
   // The only source of scope, redirect_uri, nonce, state and code_challenge
   // — never the request body. Resubmitting a wider scope or a different
   // redirect_uri with the form changes nothing: this is what is bound to
@@ -244,6 +235,18 @@ export async function handleLoginSubmission(
       kind: 'error_redirect',
       location: errorRedirect(pending, realmName, issuerBase, 'login_required'),
     };
+  }
+
+  // Checked only once the request is known to be answerable for this
+  // subject: asking the wrong End-User to complete their own pending
+  // action for a request that was always going to end in login_required
+  // is the wrong order of operations, even though nothing would leak from
+  // it. Nothing is established and nothing is issued until the action is
+  // done, and the authentication session is deliberately left unconsumed
+  // so the same parked request survives the detour.
+  const action = nextRequiredAction(await deps.pendingActions(realm.id, result.subjectId));
+  if (action !== null) {
+    return { kind: 'required_action', authSessionId, action };
   }
 
   const clientId = await deps.resolveClientId(realm.id, pending.clientId);

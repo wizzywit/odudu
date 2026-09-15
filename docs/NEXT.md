@@ -448,22 +448,26 @@ three have no enrolment UI yet, the same gap `executor.ts` already has for
 
 `login-submission.ts`'s `handleLoginSubmission` gates on
 `nextRequiredAction(await deps.pendingActions(realm.id, result.subjectId))`
-right after the email-verified gate and before loading the pending request:
-a non-null action returns `{ kind: 'required_action', authSessionId,
-action }` with nothing established and no code issued, and — like the
-`unverified` outcome beside it — leaves the authentication session
-unconsumed so the same parked request resumes once the action is done.
-This is the second gate to leave a session alive, after the
-`id_token_hint`-mismatch redirect and the `unverified` refusal; all three
-now sit before `completeLogin` in the same function, none of them touch
+after the `id_token_hint` comparison and before `resolveClientId`/
+`completeLogin`: a non-null action returns `{ kind: 'required_action',
+authSessionId, action }` with nothing established and no code issued, and
+— like the `unverified` outcome and the `id_token_hint` mismatch before it
+— leaves the authentication session unconsumed so the same parked request
+resumes once the action is done. This is the **third** gate to leave a
+session alive, after the `id_token_hint`-mismatch redirect and the
+`unverified` refusal, and it runs last of the three deliberately: by the
+time it is reached, the request is already known to be answerable for this
+subject, so a subject who is never getting a positive answer (a wrong
+`id_token_hint`) is never asked to complete an action for a login that was
+always going to end in `login_required`. None of the three touch
 `executor.ts`'s `recordSatisfied` (which already only persists a factor
 when a further step of the _flow itself_ remains, not when the login as a
-whole is still blocked afterward), and the existing tests for the other two
-outcomes still pass unchanged because the new gate is checked, and returns
-null, before either of them is reached in the success path — it never has
-a code path where all three could interact in the same request.
-`login.ts`'s route renders `renderRequiredActionPage` for the new outcome,
-the same way it already does for `unverified`.
+whole is still blocked afterward). The existing `unverified` tests are
+unaffected because they run with the default harness `pendingActions` mock
+returning `[]`, not because of gate ordering — `unverified` is still
+checked first, ahead of both the `id_token_hint` comparison and the new
+gate. `login.ts`'s route renders `renderRequiredActionPage` for the new
+outcome, the same way it already does for `unverified`.
 
 **What this task does not build.** No route answers
 `POST /realms/{realm}/login-actions/required-action` yet — the page's form

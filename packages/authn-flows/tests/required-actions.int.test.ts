@@ -191,6 +191,41 @@ describe('requiredActionRepository', () => {
     });
   });
 
+  // Unlike pendingFor and complete, add supplies its own realm_id rather
+  // than being filtered by a row that already carries one — its isolation
+  // rests entirely on PostgreSQL reusing the policy's USING clause as the
+  // INSERT check, since no WITH CHECK is written. This is what proves that
+  // reuse actually happens, rather than assuming it from the policy's shape.
+  it('refuses to add a pending action under a realm context that does not match', async () => {
+    const realmA = newId();
+    const realmB = newId();
+
+    const subjectA = await withRealm(app.db, realmA, async (tx) => seedRealmAndUser(tx, realmA));
+    await withRealm(app.db, realmB, async (tx) => {
+      await tx.insert(realms).values({ id: realmB, name: `realm-${realmB}` });
+    });
+
+    let error: unknown;
+    try {
+      await withRealm(app.db, realmB, async (tx) =>
+        requiredActionRepository(tx).add(realmA, subjectA, 'configure-totp'),
+      );
+      expect.unreachable('expected the cross-realm insert to be rejected');
+    } catch (caught) {
+      error = caught;
+    }
+
+    expect(error).toBeInstanceOf(Error);
+    const cause = (error as Error).cause;
+    expect(cause).toBeInstanceOf(Error);
+    expect((cause as Error).message).toContain('row-level security policy');
+
+    const pendingUnderA = await withRealm(app.db, realmA, async (tx) =>
+      requiredActionRepository(tx).pendingFor(subjectA),
+    );
+    expect(pendingUnderA).toEqual([]);
+  });
+
   it("does not remove a foreign realm's pending action through complete", async () => {
     await expectCrossRealmMethodProbe(app.db, {
       seed: async (tx, realmId) => {

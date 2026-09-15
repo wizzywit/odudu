@@ -1,9 +1,9 @@
 import { pgTable, primaryKey, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 import { realms } from '@odudu/db';
 
-// The four actions decision #1 fixes. A realm-level requirement ("this realm
-// requires OTP") can only ever mean one of these being pending for a
-// subject — see #/usecase/required-actions.ts for the order they run in.
+// The four actions a realm-level requirement can name. "This realm requires
+// OTP" can only ever mean one of these being pending for a subject — see
+// #/usecase/required-actions.ts for the order they run in.
 export type RequiredAction =
   'update-password' | 'configure-totp' | 'configure-passkey' | 'generate-recovery-codes';
 
@@ -21,10 +21,3 @@ export const userRequiredActions = pgTable(
   },
   (table) => [primaryKey({ columns: [table.realmId, table.subjectId, table.action] })],
 ).enableRLS();
-
-export interface RequiredActionRecord {
-  realmId: string;
-  subjectId: string;
-  action: RequiredAction;
-  createdAt: Date;
-}
