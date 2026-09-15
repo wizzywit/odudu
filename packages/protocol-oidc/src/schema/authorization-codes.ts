@@ -25,6 +25,12 @@ export const authorizationCodes = pgTable('authorization_codes', {
   // (and without a foreign key; see the migration) until then.
   consumedAt: timestamp('consumed_at', { withTimezone: true }),
   grantId: uuid('grant_id'),
+  // The session the login that minted this code established, copied
+  // forward so the grant created on redemption can carry it too. Null for
+  // a code that will become an offline grant, and for any code that
+  // predates this column. No foreign key — see migration 0029: a code
+  // redeemed after its session has been reaped must still redeem.
+  sessionId: uuid('session_id'),
 }).enableRLS();
 
 // Every value the token endpoint must check the redemption against
@@ -45,4 +51,5 @@ export interface AuthorizationCodeRecord {
   expiresAt: Date;
   consumedAt: Date | null;
   grantId: string | null;
+  sessionId: string | null;
 }

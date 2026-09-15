@@ -33,6 +33,11 @@ export interface IssueAuthorizationCodeInput {
   // session must still expire 60s from now, not 60s from a login that may
   // have happened minutes or hours ago.
   now: Date;
+  // The SSO session this code's eventual grant is bound to — copied
+  // forward so `/token` can carry it onto `token_grants.session_id`
+  // without a lookup of its own. Null for an offline-scoped grant, which
+  // by definition has no session.
+  sessionId: string | null;
 }
 
 // Returns the raw code exactly once; only its hash is ever persisted.
@@ -53,6 +58,7 @@ export async function issueAuthorizationCode(
     codeChallengeMethod: input.codeChallengeMethod,
     authTime: input.authTime,
     expiresAt: new Date(input.now.getTime() + AUTHORIZATION_CODE_TTL_MS),
+    sessionId: input.sessionId,
   });
   return { code };
 }

@@ -50,4 +50,18 @@ describe('withRegisteredClaimsWinning', () => {
       nonce: 'the-real-nonce',
     });
   });
+
+  // `sid` is a property of the grant, sourced from `grant.sessionId`, never
+  // a claim a mapper is asked for — but nothing stops a misconfigured
+  // mapper from emitting one anyway, and the grant's own value must win.
+  it('keeps the grant-derived sid a mapper cannot displace', () => {
+    const mapped = { sid: 'attacker-controlled', name: 'Ada' };
+    const registered = { sub: 's', sid: 'the-real-session' };
+
+    expect(withRegisteredClaimsWinning(mapped, registered)).toEqual({
+      name: 'Ada',
+      sub: 's',
+      sid: 'the-real-session',
+    });
+  });
 });

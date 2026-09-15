@@ -192,6 +192,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
             codeChallengeMethod: input.codeChallengeMethod,
             authTime: input.authTime,
             now,
+            sessionId: input.sessionId,
           });
         }),
     });
@@ -241,6 +242,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
             codeChallengeMethod: input.codeChallengeMethod,
             authTime: now,
             now,
+            sessionId,
           });
           return { kind: 'issued', sessionId, code };
         }),

@@ -3,7 +3,7 @@
 ## Start here
 
 **P0, P1 and P2a are complete. P2b is brainstormed, specified and planned;
-Tasks 1 through 3 have landed and Task 4 is next.** Migration 0026 adds
+Tasks 1 through 4 have landed and Task 5 is next.** Migration 0026 adds
 `token_grants.session_id`, nullable: null means an offline grant, which
 nothing expires and no logout can end; a non-null value is the SSO session
 the grant was issued under, and `sessions` needed a `UNIQUE (realm_id, id)`
@@ -74,6 +74,30 @@ so nothing in this task gives that specific MUST a reachable branch.
 **Five `deferred: P2` rows remain, all P2b's to close** — `prompt=login`,
 two `acr` rows and `amr` in `oidc-core.md`, and RFC 6749 §2.3.1's
 brute-force MUST.
+
+**Task 4 found that `token_grants.session_id` was write-only: nothing in
+the real flow ever set it.** The grant is created at `/token`, from an
+`authorization_codes` row, and that table had no `session_id` — so the
+column Task 1 added was populated only by tests inserting directly through
+the repository. Migration 0029 adds `authorization_codes.session_id`
+(nullable, no foreign key: a code redeemed after its session is reaped
+must still redeem). `completeLogin` and `completeReuse`
+(`packages/protocol-oidc/src/index.ts`) now both pass the session id they
+already hold into `issueAuthorizationCode`
+(`packages/protocol-oidc/src/usecase/login-submission.ts`), it is carried
+on the code, and `token-issuance.ts` copies it onto the grant it creates
+and onto the refreshed grant's `sessionId` on every subsequent
+`refresh_token` redemption. With the session actually reaching the grant,
+`sid` (OpenID Connect Back-Channel Logout 1.0 §2.1) is now emitted in both
+the access token and the ID token whenever `grant.sessionId` is non-null,
+and omitted entirely otherwise — a property of the grant assembled
+straight into the envelope in `mintAccessToken` and the ID token claims,
+never through `ClaimMapperRegistry`, so a mapper cannot overwrite it
+(`withRegisteredClaimsWinning`, tested against exactly that). No grant is
+session-less yet except by this being the only way one is ever null:
+`offline_access` (Task 6) is what deliberately forces `sessionId: null`.
+`docs/protocols/oidc-backchannel.md` is a new file, one row, `sid`
+`covered`; the endpoint and Logout Token clauses are Task 28's.
 
 P2a delivered the identity model: roles, groups, client scopes, per-client
 web origins, the user profile, email delivery and the account lifecycle

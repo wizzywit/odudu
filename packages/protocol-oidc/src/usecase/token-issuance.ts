@@ -303,6 +303,8 @@ async function mintAccessToken(
     // profile and email by default (RFC 9068 §2.2 draws no line here; the
     // realm's own scope definitions do).
     accessTokenScope: string[];
+    // The grant's session, if it has one — see the `sid` comment below.
+    sessionId: string | null;
   },
   key: SigningKeyRecord,
   now: Date,
@@ -332,6 +334,11 @@ async function mintAccessToken(
     iat,
     exp,
     jti: newId(),
+    // OpenID Connect Back-Channel Logout 1.0 §2.1: an opaque identifier for
+    // the End-User's session at this OP. Emitted so a resource server's
+    // introspection, and later a logout addressed to a client, can both
+    // name the session; absent on an offline grant, which has none.
+    ...(input.sessionId !== null ? { sid: input.sessionId } : {}),
   });
   const accessToken = await signJwt(accessTokenClaims, { key, kek: deps.kek, typ: 'at+jwt' });
   return { accessToken, audience, iat, exp };
@@ -376,6 +383,7 @@ async function issueAuthorizationCodeTokens(
       reachableRoleIds: reachable,
       fullScopeAllowed: client.fullScopeAllowed,
       accessTokenScope,
+      sessionId: code.sessionId,
     },
     key,
     now,
@@ -413,18 +421,22 @@ async function issueAuthorizationCodeTokens(
       exp,
       auth_time: Math.floor(code.authTime.getTime() / 1000),
       ...(code.nonce !== null ? { nonce: code.nonce } : {}),
+      ...(code.sessionId !== null ? { sid: code.sessionId } : {}),
     });
     idToken = await signJwt(idTokenClaims, { key, kek: deps.kek });
   }
 
   // Persist the grant and bind the code's redemption to it — the anchor a
-  // future revocation call, or a refresh token, points back at.
+  // future revocation call, or a refresh token, points back at. The
+  // session travels from the code, which is where the login that minted it
+  // recorded one.
   const grant = await tokenGrantRepository(tx).create({
     realmId: deps.realmId,
     clientId: client.id,
     subjectId: code.subjectId,
     scope: scope.join(' '),
     audience,
+    sessionId: code.sessionId,
   });
   await authorizationCodeRepository(tx).attachGrant(code.codeHash, grant.id);
 
@@ -533,6 +545,7 @@ async function issueRefreshTokens(
       reachableRoleIds: reachable,
       fullScopeAllowed: client.fullScopeAllowed,
       accessTokenScope,
+      sessionId: grant.sessionId,
     },
     key,
     now,
@@ -589,6 +602,9 @@ async function issueClientCredentialsTokens(
       reachableRoleIds: reachable,
       fullScopeAllowed: client.fullScopeAllowed,
       accessTokenScope,
+      // client_credentials authenticates no End-User, so there is no
+      // session for a grant here to carry.
+      sessionId: null,
     },
     key,
     now,
