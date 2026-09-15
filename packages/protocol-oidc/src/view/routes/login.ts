@@ -1,4 +1,8 @@
-import { sessionCookieName, type AuthenticatorResult } from '@odudu/authn-flows';
+import {
+  renderRequiredActionPage,
+  sessionCookieName,
+  type AuthenticatorResult,
+} from '@odudu/authn-flows';
 import { type FastifyInstance } from 'fastify';
 import { handleLoginSubmission, type LoginSubmissionDeps } from '#/usecase/login-submission';
 import {
@@ -92,6 +96,16 @@ export function registerLoginRoute(app: FastifyInstance, deps: LoginRouteDeps): 
     // make true is that nothing was issued, not that the page says something.
     if (outcome.kind === 'unverified') {
       return sendHtml(reply, 200, renderEmailUnverifiedPage(outcome.hasEmail));
+    }
+
+    // Same reasoning as 'unverified': no location header and no code, since
+    // nothing was established or issued.
+    if (outcome.kind === 'required_action') {
+      return sendHtml(
+        reply,
+        200,
+        renderRequiredActionPage(request.params.realm, outcome.authSessionId, outcome.action),
+      );
     }
 
     const cookieName = sessionCookieName(request.params.realm, deps.tls);

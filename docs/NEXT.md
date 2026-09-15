@@ -3,7 +3,7 @@
 ## Start here
 
 **P0, P1 and P2a are complete. P2b is brainstormed, specified and planned;
-Tasks 1 through 13 have landed and Task 14 is next.** Migration 0031 adds
+Tasks 1 through 14 have landed and Task 15 is next.** Migration 0031 adds
 `authentication_executions`: one flat, ordered list per realm (`id`,
 `realm_id`, `index`, `authenticator`, `requirement`), `requirement`
 constrained to `required`/`alternative`/`conditional`/`disabled` and
@@ -422,6 +422,59 @@ image. Fixed to a password bearing no relation to the account. Any task
 that changes what a password may be should re-run `infra/docker/smoke.sh`
 and grep `infra/` for other seeded credentials, rather than rediscovering
 this per task.
+
+**Task 14 gives a realm-level requirement something to require against: a
+pending action that blocks a login, not just an offer.** Migration 0036
+(0035 was already `realm_password_policy`, per Task 13) adds
+`user_required_actions` (`realm_id`, `subject_id`, `action`, `created_at`,
+primary key on the first three, `action` constrained to the four decision
+#1 fixes: `update-password`, `configure-totp`, `configure-passkey`,
+`generate-recovery-codes`), RLS policy copied verbatim from
+`authentication_sessions`' (`app.realm_id`, `nullif(..., '')`, no `WITH
+CHECK`) rather than the brief's `current_setting`-named one, which a
+`withRealm`-set session would never match. `@odudu/authn-flows` gained
+`requiredActionRepository(tx)` (`pendingFor(subjectId)`,
+`add(realmId, subjectId, action)` — `realmId` explicit, the same way every
+other repository's insert in this codebase takes one, unlike the brief's
+signature, which had no way to supply a fresh row's `realm_id` —
+`complete(subjectId, action)`), `nextRequiredAction(pending)` (the fixed
+order: password first, so an expired password is never usable to enrol a
+second factor), and `renderRequiredActionPage(realm, authSessionId,
+action)` — a page shell in the same dependency-free, `escapeHtml`-everything
+style as `authorize-html.ts`, carrying the same hidden `auth_session_id`
+CSRF field, with real fields only for `update-password` today (the other
+three have no enrolment UI yet, the same gap `executor.ts` already has for
+`passkey`/`otp`).
+
+`login-submission.ts`'s `handleLoginSubmission` gates on
+`nextRequiredAction(await deps.pendingActions(realm.id, result.subjectId))`
+right after the email-verified gate and before loading the pending request:
+a non-null action returns `{ kind: 'required_action', authSessionId,
+action }` with nothing established and no code issued, and — like the
+`unverified` outcome beside it — leaves the authentication session
+unconsumed so the same parked request resumes once the action is done.
+This is the second gate to leave a session alive, after the
+`id_token_hint`-mismatch redirect and the `unverified` refusal; all three
+now sit before `completeLogin` in the same function, none of them touch
+`executor.ts`'s `recordSatisfied` (which already only persists a factor
+when a further step of the _flow itself_ remains, not when the login as a
+whole is still blocked afterward), and the existing tests for the other two
+outcomes still pass unchanged because the new gate is checked, and returns
+null, before either of them is reached in the success path — it never has
+a code path where all three could interact in the same request.
+`login.ts`'s route renders `renderRequiredActionPage` for the new outcome,
+the same way it already does for `unverified`.
+
+**What this task does not build.** No route answers
+`POST /realms/{realm}/login-actions/required-action` yet — the page's form
+posts there, but nothing is registered to receive it, so
+`apps/server/tests/password-policy.int.test.ts`'s
+`it.fails('refuses a weak password at the change-password required
+action', …)` still fails exactly as before (a 404 where it expects 400),
+for the same reason its comment gives: that writer does not exist yet.
+Nothing seeds `user_required_actions` in any live path either, so no
+existing realm's login behaviour changed — the mechanism exists; nothing
+yet turns it on.
 
 **Reaping now covers five tables, not four, and ADR 0021's warning covers
 all five.** P2a added `action_tokens` (email verification and password

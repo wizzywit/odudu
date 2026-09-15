@@ -5,6 +5,7 @@ import {
   initialChallenge,
   loadPendingRequest,
   pendingChallenge,
+  requiredActionRepository,
   sessionRepository,
   startAuthentication,
 } from '@odudu/authn-flows';
@@ -212,6 +213,10 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
       pendingChallenge: (realmId, authSessionId) =>
         withRealm(deps.database.db, realmId, (tx) => pendingChallenge(tx, authSessionId, clock)),
       checkEmailVerification,
+      pendingActions: (realmId, subjectId) =>
+        withRealm(deps.database.db, realmId, (tx) =>
+          requiredActionRepository(tx).pendingFor(subjectId),
+        ),
       resolveClientId: (realmId, oauthClientId) =>
         withRealm(deps.database.db, realmId, async (tx) => {
           const client = await clientRepository(tx).byClientId(oauthClientId);

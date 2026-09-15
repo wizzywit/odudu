@@ -81,6 +81,8 @@ const EXPECTED_CHECKS: Record<string, string> = {
     "CHECK ((type = ANY (ARRAY['user'::text, 'service'::text, 'agent_instance'::text])))",
   'user_credentials.user_credentials_type_check':
     "CHECK ((type = ANY (ARRAY['password'::text, 'totp'::text, 'webauthn'::text, 'recovery-code'::text, 'password-history'::text])))",
+  'user_required_actions.user_required_actions_action':
+    "CHECK ((action = ANY (ARRAY['configure-totp'::text, 'configure-passkey'::text, 'update-password'::text, 'generate-recovery-codes'::text])))",
   'users.users_birthdate_shape':
     "CHECK (((birthdate IS NULL) OR (birthdate ~ '^[0-9]{4}(-[0-9]{2}-[0-9]{2})?$'::text)))",
   'users.users_email_addr_spec':

@@ -28,6 +28,7 @@ interface Harness {
   advance: Mock;
   completeLogin: Mock;
   checkEmailVerification: Mock;
+  pendingActions: Mock;
 }
 
 function harness(): Harness {
@@ -38,15 +39,17 @@ function harness(): Harness {
     .fn()
     .mockResolvedValue({ kind: 'issued', sessionId: 'session-1', code: 'code-1' });
   const checkEmailVerification = vi.fn().mockResolvedValue({ verified: true, hasEmail: true });
+  const pendingActions = vi.fn().mockResolvedValue([]);
   const deps: LoginSubmissionDeps = {
     findRealm: vi.fn().mockResolvedValue(REALM),
     advance,
     loadPendingRequest: vi.fn().mockResolvedValue(PENDING),
     resolveClientId: vi.fn().mockResolvedValue('client-uuid-1'),
     checkEmailVerification,
+    pendingActions,
     completeLogin,
   };
-  return { deps, advance, completeLogin, checkEmailVerification };
+  return { deps, advance, completeLogin, checkEmailVerification, pendingActions };
 }
 
 describe('handleLoginSubmission — the success path', () => {
@@ -128,6 +131,62 @@ describe('handleLoginSubmission — a realm that requires a verified address', (
     const { deps, checkEmailVerification } = harness();
     deps.findRealm = vi.fn().mockResolvedValue({ ...REALM, verifyEmail: true });
     checkEmailVerification.mockResolvedValue({ verified: true, hasEmail: true });
+
+    const outcome = await handleLoginSubmission(
+      deps,
+      'acme',
+      'https://idp.example',
+      'auth-session-1',
+      { username: 'ada', password: 'x' },
+    );
+
+    expect(outcome.kind).toBe('redirect');
+  });
+});
+
+describe('handleLoginSubmission — a subject with a pending required action', () => {
+  it('does not complete the login, and issues no code, while an action is owed', async () => {
+    const { deps, completeLogin, pendingActions } = harness();
+    pendingActions.mockResolvedValue(['configure-totp']);
+
+    const outcome = await handleLoginSubmission(
+      deps,
+      'acme',
+      'https://idp.example',
+      'auth-session-1',
+      { username: 'ada', password: 'x' },
+    );
+
+    expect(outcome).toEqual({
+      kind: 'required_action',
+      authSessionId: 'auth-session-1',
+      action: 'configure-totp',
+    });
+    expect(completeLogin).not.toHaveBeenCalled();
+  });
+
+  it('runs update-password before configure-totp when both are owed', async () => {
+    const { deps, pendingActions } = harness();
+    pendingActions.mockResolvedValue(['configure-totp', 'update-password']);
+
+    const outcome = await handleLoginSubmission(
+      deps,
+      'acme',
+      'https://idp.example',
+      'auth-session-1',
+      { username: 'ada', password: 'x' },
+    );
+
+    expect(outcome).toEqual({
+      kind: 'required_action',
+      authSessionId: 'auth-session-1',
+      action: 'update-password',
+    });
+  });
+
+  it('completes the login once no action is owed', async () => {
+    const { deps, pendingActions } = harness();
+    pendingActions.mockResolvedValue([]);
 
     const outcome = await handleLoginSubmission(
       deps,
