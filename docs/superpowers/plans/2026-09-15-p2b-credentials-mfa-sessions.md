@@ -880,10 +880,20 @@ Then update `docs/NEXT.md`.
 
 ---
 
-### Task 4: The `sid` claim in access and ID tokens
+### Task 4: Carry the session into the grant, and emit `sid`
+
+**Scope corrected before implementation.** This task was written as "emit one claim from data that already exists". The data does not exist. `token_grants.session_id` is a column and `tokenGrantRepository.create` accepts it, but **nothing in the real flow ever supplies it**: the grant is created at `/token` from the `authorization_codes` row, and that table has no `session_id`, so the session id is dropped at login and gone by the time the grant exists. Both of this task's integration cases were unreachable, not only the offline one.
+
+Threading the session through is therefore this task's work rather than a side effect of offline access — `sid` is meaningless without it, and so is a logout that revokes a session's grants. Offline access then only has to choose null over the session, which is a one-line branch on top.
 
 **Files:**
 
+- Create: `packages/db/drizzle/0029_authorization_codes_session.sql`
+- Modify: `packages/db/drizzle/meta/_journal.json`
+- Modify: `packages/protocol-oidc/src/schema/authorization-codes.ts`
+- Modify: `packages/protocol-oidc/src/repository/codes.ts`
+- Modify: `packages/protocol-oidc/src/usecase/login-submission.ts`
+- Modify: `packages/protocol-oidc/src/index.ts`
 - Modify: `packages/protocol-oidc/src/usecase/token-issuance.ts`
 - Modify: `packages/protocol-oidc/src/service/token-claims.ts`
 - Create: `packages/protocol-oidc/tests/sid-claim.int.test.ts`
@@ -891,8 +901,25 @@ Then update `docs/NEXT.md`.
 
 **Interfaces:**
 
-- Consumes: `TokenGrantRecord.sessionId` (Task 1)
-- Produces: `sid` present in both tokens for a session-bound grant, absent for an offline one
+- Consumes: `TokenGrantRecord.sessionId`, and the session id that `completeLogin` and `completeReuse` both already hold
+- Produces:
+  - `authorization_codes.session_id`, nullable, carried from the login that minted the code to the grant redeemed from it
+  - `AuthorizationCodeRecord.sessionId: string | null` and `IssueAuthorizationCodeInput.sessionId`
+  - `tokenGrantRepository.create` actually receiving a `sessionId` on the `authorization_code` path
+  - `sid` present in both tokens for a session-bound grant, absent for an offline one
+
+- [ ] **Step 0: Write the migration that lets the session reach the grant**
+
+```sql
+-- packages/db/drizzle/0029_authorization_codes_session.sql
+-- A grant is created when a code is redeemed, so the session the login
+-- established has to travel on the code or it is lost in between. Nullable
+-- because a code issued for an offline grant belongs to no session, and
+-- because any code in flight when this ships has none.
+ALTER TABLE authorization_codes ADD COLUMN session_id uuid;
+```
+
+No foreign key: a code references a session only as a label to copy forward, and a code redeemed after its session was reaped must still redeem. Append the journal entry.
 
 - [ ] **Step 1: Write the failing integration test**
 
@@ -1183,7 +1210,7 @@ Add `{ name: 'offline_access', includeInAccessToken: false, includeInIdToken: fa
 
 - [ ] **Step 4: Issue the grant without a session**
 
-In `token-issuance.ts`, when the resolved scope contains `offline_access`, create the grant with `sessionId: null`; otherwise with the session the login established. The resolved scope is the authority — never the raw request.
+The session is already carried from the login onto the code and into the grant. So this step is the branch that overrides it: when the resolved scope contains `offline_access`, create the grant with `sessionId: null` whatever the code carries; otherwise pass the code's `session_id` through unchanged. The resolved scope is the authority — never the raw request.
 
 - [ ] **Step 5: Refuse a session-bound refresh whose session has died**
 
@@ -3361,19 +3388,20 @@ The spec's section 4 numbered its migrations 0026–0034 before the task order e
 | 0026      | 1    | `token_grants.session_id`                      |
 | 0027      | 2    | `sessions.last_active_at`                      |
 | 0028      | 2    | realm session lifespans                        |
-| 0029      | 5    | `client_oidc_config.post_logout_redirect_uris` |
-| 0030      | 7    | `authentication_executions`                    |
-| 0031      | 9    | `authentication_sessions.satisfied`            |
-| 0032      | 10   | `sessions.authenticators`                      |
-| 0033      | 12   | `user_credentials` widening                    |
-| 0034      | 13   | realm password policy                          |
-| 0035      | 14   | `user_required_actions`                        |
-| 0036      | 16   | `realms.otp_required`                          |
-| 0037      | 22   | `login_failures` and realm lockout settings    |
-| 0038      | 25   | retention indexes                              |
-| 0039      | 27   | `email_outbox`                                 |
+| 0029      | 4    | `authorization_codes.session_id`               |
+| 0030      | 5    | `client_oidc_config.post_logout_redirect_uris` |
+| 0031      | 7    | `authentication_executions`                    |
+| 0032      | 9    | `authentication_sessions.satisfied`            |
+| 0033      | 10   | `sessions.authenticators`                      |
+| 0034      | 12   | `user_credentials` widening                    |
+| 0035      | 13   | realm password policy                          |
+| 0036      | 14   | `user_required_actions`                        |
+| 0037      | 16   | `realms.otp_required`                          |
+| 0038      | 22   | `login_failures` and realm lockout settings    |
+| 0039      | 25   | retention indexes                              |
+| 0040      | 27   | `email_outbox`                                 |
 
-Fourteen migrations, not the nine section 4 sketched. The difference is three the spec folded into prose rather than numbering (`satisfied`, `authenticators`, `otp_required`) and two it did not foresee (the retention indexes, and splitting the session columns from the realm columns because they land in different tables). If a task runs out of order, the numbering follows what is already in `packages/db/drizzle/`, not this table.
+Fifteen migrations, not the nine section 4 sketched. The difference is three the spec folded into prose rather than numbering (`satisfied`, `authenticators`, `otp_required`) and three it did not foresee: the retention indexes, splitting the session columns from the realm columns because they land in different tables, and `authorization_codes.session_id` — without which the session a login establishes never reaches the grant redeemed from its code. If a task runs out of order, the numbering follows what is already in `packages/db/drizzle/`, not this table.
 
 ## Self-review notes
 
