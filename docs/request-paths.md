@@ -420,7 +420,7 @@ list never promises claims nothing returns.
 
 Being advertised is only half of what `/authorize` needs, though — **a scope
 is granted only when the realm defines it _and_ the client is assigned it**,
-and either failure is `invalid_scope`. `odudu seed` assigns all seven to each
+and either failure is `invalid_scope`. `odudu seed` assigns all eight to each
 client it creates. The walk-through below asks for three of them — `openid`,
 `profile` and `email` — which is why it is answered; `roles`, `groups`,
 `address` and `phone` reach a token the same way, added to a request's
@@ -1930,8 +1930,11 @@ alone, never about whether logout happened.
 ### Offline access
 
 `offline_access` is a scope, seeded into every realm alongside
-`openid`/`profile`/`email` and assigned to `demo-spa` the same way (it maps
-no claims — see [Discovery](#1-discovery) above). Requesting it produces a
+`openid`/`profile`/`email` and assigned to `demo-spa` too — the one scope
+here assigned `'optional'` rather than `'default'`, which changes nothing
+`/authorize` or `/token` do with it yet and is there for the consent screen
+a later phase adds (it maps no claims either way — see
+[Discovery](#1-discovery) above). Requesting it produces a
 grant with no session, which is what nothing here can expire and no logout
 can end (OpenID Connect Back-Channel Logout 1.0 §2.7's second sentence,
 [docs/protocols/oidc-backchannel.md](protocols/oidc-backchannel.md)). A
@@ -2053,6 +2056,8 @@ curl -sS -b cookies-offline.txt "http://localhost:3000/realms/demo/protocol/open
 </html>
 ```
 
+(`session_id` shortened, as elsewhere in this document.)
+
 ```bash
 curl -sS -b cookies-offline.txt -D - \
   --data-urlencode 'session_id=01a0a5e6-6047-7c21-b8f7-da4b5d908534' \
@@ -2115,15 +2120,19 @@ by its own idle timeout expiring underneath it —
 `packages/protocol-oidc/src/usecase/refresh-rotation.ts` checks the
 session's own liveness, not just the grant's `revoked_at`, for exactly that
 second case. An offline grant has neither: no session to end, and no idle
-window to outlive, so retention (see [What is not
-implemented](#what-is-not-implemented)) is the only thing that ever ages it
-out. A client is only handed this scope if the realm's operator assigned
-it — `demo-spa` has it because it is one of the scopes `odudu seed` assigns
-by default; a request for it from a client that was never assigned it, or
-one whose assignment was withdrawn before its code was redeemed, gets an
-ordinary session-bound grant back instead, narrowed the same way any other
-unassigned scope is (resolved at redemption, not at the `/authorize`
-request that preceded it).
+window to outlive, so it is bounded only by its own
+`refresh_token_ttl_seconds` and by retention (see [What is not
+implemented](#what-is-not-implemented)) — nothing about ending a session
+ages it out early. A client is only handed this scope if the realm's
+operator assigned it — `demo-spa` has it because `odudu seed` assigns every
+default scope, `offline_access` included, though `'optional'` rather than
+`'default'`; a request for it from a client whose assignment was withdrawn
+between `/authorize` accepting the request and the code being redeemed
+gets an ordinary session-bound grant back instead, since the resolved
+scope at redemption is the authority, not the request `/authorize` saw. A
+client never assigned the scope at all is refused outright, with
+`invalid_scope`, before a code is ever issued — the same rule any other
+unassigned scope gets (see [Discovery](#1-discovery) above).
 
 ## Path C: `client_credentials`
 

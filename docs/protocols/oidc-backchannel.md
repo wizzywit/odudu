@@ -12,11 +12,11 @@ ahead of the code.
 
 ## Clause table
 
-| Clause | Level  | Requirement                                                                                                                          | Test ID                    | Status  |
-| ------ | ------ | ------------------------------------------------------------------------------------------------------------------------------------ | -------------------------- | ------- |
-| 2.1    | MUST   | the OP includes a `sid` Claim in the ID Token, identifying the End-User's session, so a Logout Token can later name the same session | `OIDC-BACKCHANNEL-2.1-01`  | covered |
-| 2.7    | SHOULD | refresh tokens issued without the `offline_access` property to a session being logged out are revoked                                | `ODUDU-BACKCHANNEL-2.7-01` | covered |
-| 2.7    | SHOULD | refresh tokens issued with the `offline_access` property are not revoked when the session that issued them is logged out             | `ODUDU-BACKCHANNEL-2.7-02` | covered |
+| Clause | Level  | Requirement                                                                                                                          | Test ID                   | Status  |
+| ------ | ------ | ------------------------------------------------------------------------------------------------------------------------------------ | ------------------------- | ------- |
+| 2.1    | MUST   | the OP includes a `sid` Claim in the ID Token, identifying the End-User's session, so a Logout Token can later name the same session | `OIDC-BACKCHANNEL-2.1-01` | covered |
+| 2.7    | SHOULD | refresh tokens issued without the `offline_access` property to a session being logged out are revoked                                | `OIDC-BACKCHANNEL-2.7-01` | covered |
+| 2.7    | SHOULD | refresh tokens issued with the `offline_access` property are not revoked when the session that issued them is logged out             | `OIDC-BACKCHANNEL-2.7-02` | covered |
 
 ## Reading note
 

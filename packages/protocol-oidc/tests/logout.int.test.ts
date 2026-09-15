@@ -278,7 +278,7 @@ afterAll(async () => {
 });
 
 describe('GET the logout endpoint with a hint matching the session', () => {
-  it('[ODUDU-BACKCHANNEL-2.7-01] ends the session, revokes its grants, redirects, and leaves an offline grant alone', async () => {
+  it('[OIDC-BACKCHANNEL-2.7-01] ends the session, revokes its grants, redirects, and leaves an offline grant alone', async () => {
     const realmName = `logout-${newId()}`;
     const { realmId, clientDbId } = await setupRealm(realmName);
     const cookie = await signIn(realmName);

@@ -181,7 +181,7 @@ function locationHeader(res: LightMyRequestResponse): string {
 async function redeemCode(
   realmName: string,
   code: string,
-): Promise<{ access_token: string; refresh_token: string; scope: string }> {
+): Promise<{ access_token: string; id_token: string; refresh_token: string; scope: string }> {
   const form = new URLSearchParams({
     grant_type: 'authorization_code',
     code,
@@ -200,7 +200,12 @@ async function redeemCode(
   if (res.statusCode !== 200) {
     throw new Error(`expected /token to redeem the code, got ${String(res.statusCode)}`);
   }
-  return res.json<{ access_token: string; refresh_token: string; scope: string }>();
+  return res.json<{
+    access_token: string;
+    id_token: string;
+    refresh_token: string;
+    scope: string;
+  }>();
 }
 
 // Signs USERNAME/PASSWORD in against a fresh authorization request and
@@ -341,15 +346,27 @@ async function logoutViaConfirmation(realmName: string, cookie: string): Promise
   }
 }
 
-// No fake clock: `isSessionLive`'s idle check reads the database's own
-// `now()` (repository/sessions.ts), so a session is idled out by moving its
-// `last_active_at` into the past through the owner connection, the same way
+// No fake clock: `liveById` evaluates `isSessionLive` against whatever
+// `now` the caller hands it (the real system clock here, since this file
+// runs no `httpClocked` instance), so advancing time would mean actually
+// waiting out the realm's idle window. Moving `last_active_at` into the
+// past through the owner connection instead is instant, the same way
 // session-reuse.int.test.ts back-dates `created_at` for `max_age`.
 async function idleOutEverySession(realmId: string): Promise<void> {
   await owner.db
     .update(sessions)
     .set({ lastActiveAt: new Date(Date.now() - 100_000_000) })
     .where(eq(sessions.realmId, realmId));
+}
+
+async function lastActiveAtOf(sessionId: string): Promise<Date> {
+  const rows = await owner.db
+    .select({ lastActiveAt: sessions.lastActiveAt })
+    .from(sessions)
+    .where(eq(sessions.id, sessionId));
+  const row = rows[0];
+  if (row === undefined) throw new Error(`no session row for ${sessionId}`);
+  return row.lastActiveAt;
 }
 
 beforeAll(async () => {
@@ -390,7 +407,7 @@ describe('offline access', () => {
     expect(grants[0]?.sessionId).toBeNull();
   });
 
-  it('[ODUDU-BACKCHANNEL-2.7-02] leaves the offline grant refreshable after the session is logged out', async () => {
+  it('[OIDC-BACKCHANNEL-2.7-02] leaves the offline grant refreshable after the session is logged out', async () => {
     const realmName = `offline-logout-${newId()}`;
     await setupRealm(realmName, ['openid', 'offline_access']);
 
@@ -435,7 +452,31 @@ describe('offline access', () => {
     });
   });
 
-  it('does not issue an offline grant when the client was never assigned the scope', async () => {
+  it('touches the session on a successful session-bound refresh', async () => {
+    // §3.1's rule, and the reason a client refreshing every five minutes
+    // keeps a session alive rather than idling out from underneath it —
+    // untested, this line in refresh-rotation.ts could be deleted and the
+    // rest of the suite would stay green.
+    const realmName = `offline-touch-${newId()}`;
+    await setupRealm(realmName, ['openid']);
+    const { sessionId, refresh_token: refreshToken } = await completeFlow(realmName, 'openid');
+
+    // Back-dated so the two reads cannot tie on timer resolution alone,
+    // and still well inside the default idle window so the refresh itself
+    // succeeds.
+    await owner.db
+      .update(sessions)
+      .set({ lastActiveAt: new Date(Date.now() - 5_000) })
+      .where(eq(sessions.id, sessionId));
+    const before = await lastActiveAtOf(sessionId);
+
+    await refresh(realmName, refreshToken);
+
+    const after = await lastActiveAtOf(sessionId);
+    expect(after.getTime()).toBeGreaterThan(before.getTime());
+  });
+
+  it('does not issue an offline grant when the assignment is withdrawn before the code is redeemed', async () => {
     // Assigned when /authorize accepts the request, withdrawn before the
     // code is redeemed — resolveScope at redemption is what must refuse
     // it, not /authorize's own upfront check, which would refuse the whole
@@ -453,5 +494,30 @@ describe('offline access', () => {
     expect(grants).toHaveLength(1);
     expect(grants[0]?.scope).toBe('openid');
     expect(grants[0]?.sessionId).not.toBeNull();
+  });
+
+  // The hole `decideLogout`'s sid-only comparison (logout.ts) exists to
+  // close: a *current*, validly signed offline-grant ID token has no sid,
+  // so before this task it would have matched the current session by
+  // subject alone and skipped RP-Initiated Logout 1.0 §2's confirmation —
+  // exactly the case a stale-but-valid hint from the same user must not
+  // be able to exploit. logout.int.test.ts's own hints all carry a sid or
+  // a foreign subject, neither of which reaches this branch.
+  it('shows the confirmation page for a current offline-grant ID token naming the live session subject', async () => {
+    const realmName = `offline-hint-${newId()}`;
+    await setupRealm(realmName, ['openid', 'offline_access']);
+
+    const { cookie, code } = await signIn(realmName, 'openid offline_access');
+    const { id_token: idToken } = await redeemCode(realmName, code);
+
+    const query = new URLSearchParams({ id_token_hint: idToken });
+    const res = await http.inject({
+      url: `/realms/${realmName}/protocol/openid-connect/logout?${query.toString()}`,
+      headers: { cookie },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toContain('<title>Sign out?</title>');
+    expect(res.body).toContain('<form');
   });
 });
