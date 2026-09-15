@@ -2,8 +2,13 @@
 
 ## Start here
 
-**P0, P1 and P2a are complete. P2b is brainstormed and specified; the
-implementation plan is the next artefact, and no P2b code exists yet.** The
+**P0, P1 and P2a are complete. P2b is brainstormed, specified and planned;
+Task 1 of the plan is the next thing to run, and no P2b code exists yet.**
+The plan is
+[2026-09-15-p2b-credentials-mfa-sessions.md](superpowers/plans/2026-09-15-p2b-credentials-mfa-sessions.md)
+— 29 tasks, 211 steps, 95–125 h, three spike gates (Tasks 11, 17, 24), and
+fourteen migrations numbered 0026–0039 in the table at its end, which
+supersedes the spec's section 4 numbering. The
 phase spec is
 [2026-09-15-p2b-credentials-mfa-sessions-design.md](superpowers/specs/2026-09-15-p2b-credentials-mfa-sessions-design.md),
 on branch `p2b-credentials-mfa-sessions`. It settles nine design decisions
