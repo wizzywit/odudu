@@ -4,16 +4,15 @@ import { ESLint } from 'eslint';
 import { describe, expect, it } from 'vitest';
 
 // The `any` ban has two halves, and only the first is a lint rule.
-//
+
 // The rules below reject `any` however it arrives: written out, cast to, or
 // leaked from an untyped boundary like JSON.parse. That half is enforced by
-// typescript-eslint's strictTypeChecked preset, and the first block here is a
-// positive control proving each rule is actually live rather than silently
-// dropped by a preset change or a version bump.
-//
-// The second half is that an inline `eslint-disable` comment defeats any lint
-// rule, exits zero, and leaves no trace. A ban nobody can re-enable by hand is
-// the only kind that survives; the second block is what makes it one.
+// typescript-eslint's strictTypeChecked preset; the first block is a
+// positive control proving each rule is live, not silently dropped.
+
+// The second half is that an inline `eslint-disable` defeats any lint rule,
+// exits zero, and leaves no trace. A ban nobody can re-enable by hand is the
+// only kind that survives; the second block is what makes it one.
 
 const ANY_RULES = [
   '@typescript-eslint/no-explicit-any',

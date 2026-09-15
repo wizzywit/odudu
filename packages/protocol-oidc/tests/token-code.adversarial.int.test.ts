@@ -667,11 +667,10 @@ describe('client_secret_post (RFC 6749 §2.3.1)', () => {
 // `application/x-www-form-urlencoded` before the base64, which is what lets a
 // secret containing `:` — the separator itself — or `%` survive the round
 // trip. Bytes that are not a form-urlencoding hold no client identifier and
-// no secret to recover, so they are refused, and refused as the
-// `client_secret_basic` attempt they are: not dropped so that the body
-// parameters can be tried instead, and never as a 5xx. `decodeURIComponent`
-// raising `URIError` on `%` or `%zz` is the mechanism the endpoint has to
-// survive for that to hold.
+// no secret to recover, so they are refused as the `client_secret_basic`
+// attempt they are — not dropped so the body parameters get tried instead,
+// and never as a 5xx. `decodeURIComponent` raising `URIError` on `%` or
+// `%zz` is the mechanism the endpoint has to survive for that to hold.
 describe('Basic credentials that are not a form-urlencoding', () => {
   it('refuses a secret carrying an unencoded %', async () => {
     const { code } = await issueCode();
@@ -1339,14 +1338,14 @@ describe('[RFC7636-7.2-01] S256 is supported, and it is the transform actually a
 });
 
 // OIDC Core §2's REQUIRED claims, read off a token the Token Endpoint
-// actually returned rather than off `signJwt`'s arguments — the claim set is
-// assembled in `issueAuthorizationCodeTokens`
+// actually returned rather than off `signJwt`'s arguments — the claim set
+// is assembled in `issueAuthorizationCodeTokens`
 // (packages/protocol-oidc/src/usecase/token-issuance.ts), and a claim lost
 // between there and the wire is exactly what these rows are about.
-//
-// §2's `iss` row is deliberately absent: it asks for an https URL, and the
-// scheme is whatever the request arrived under. See the reading note
-// "`iss`: the half of §2 this process cannot assert".
+
+// §2's `iss` row is absent: it asks for an https URL, and the scheme is
+// whatever the request arrived under. See the reading note "`iss`: the
+// half of §2 this process cannot assert".
 describe('the claims OIDC Core §2 makes REQUIRED of an ID Token', () => {
   it('[OIDC-CORE-2-02] carries a sub no longer than 255 ASCII characters, unique to one subject and never reassigned', async () => {
     const sub = decodePayload(await redeemedIdToken()).sub;

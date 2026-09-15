@@ -13,12 +13,12 @@ import { MIGRATIONS_DIR, runMigrations } from '#/migrate';
 // generates and nothing checks. This file is the check. See
 // packages/db/README.md for why it is a test rather than `drizzle-kit
 // generate`.
-//
+const REPO_ROOT = fileURLToPath(new URL('../../..', import.meta.url));
+
 // Tables are found on disk rather than imported: @odudu/db sits underneath
 // every package that owns a table, so importing their schemas here would
 // invert the dependency. Discovery also means a table added in a package
 // this file has never heard of is covered the day it lands.
-const REPO_ROOT = fileURLToPath(new URL('../../..', import.meta.url));
 
 // Drizzle's migration bookkeeping table is created by the migrator itself
 // and declared by nobody.

@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest';
 // well-commented file and an over-commented one look identical to CI, so the
 // drift is only ever caught by a human reading a diff. This is the falsifiable
 // half — a ceiling on how much comment can sit in one uninterrupted run.
-//
+
 // The ceiling is deliberately generous. A comment carrying a clause reference,
 // an ordering constraint, a rejected alternative or a failure mode fits inside
 // it; what does not fit is an essay, and an essay's durable content belongs in
@@ -18,7 +18,15 @@ const MAX_BLOCK_WEIGHT = 8;
 // met by rewrapping the same essay into fewer, longer lines.
 const PRINT_WIDTH = 100;
 
-const SOURCE_TREES = ['packages/*/src/**/*.ts', 'apps/*/src/**/*.ts'];
+const SOURCE_TREES = [
+  'packages/*/src/**/*.ts',
+  'packages/*/tests/**/*.ts',
+  'apps/*/src/**/*.ts',
+  'apps/*/tests/**/*.ts',
+  'tools/*/src/**/*.ts',
+  'tests/**/*.ts',
+  '*.ts',
+];
 
 export interface CommentBlock {
   readonly line: number;
@@ -29,7 +37,7 @@ export interface CommentBlock {
 // line of code. Blank lines do not break it: splitting a 26-line essay into
 // three chunks separated by `//` or by nothing at all changes where the line
 // breaks are, not how much prose a reader has to get past.
-//
+
 // Only a line whose first non-space character opens a comment counts. A
 // trailing comment after code is short by construction and is not the drift
 // this measures, and a line that is nothing but a delimiter is syntax rather

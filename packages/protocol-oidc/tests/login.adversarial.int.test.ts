@@ -455,17 +455,15 @@ describe('[RFC6749-4.1.2-03] a granted authorization code expires shortly after 
   });
 });
 
-// OIDC Core §15.1 makes returning `auth_time` when it is requested mandatory
-// for every OP. The specification defines two ways to request it — `max_age`
-// (§3.1.2.1) and an Essential Claim in the `claims` parameter (§5.5) — and
-// Odudu honours neither as a request: it emits `auth_time` in every ID Token
-// it issues, so both requests are answered by a superset of what they asked
-// for. See the reading note "§15.1's `auth_time`, answered unconditionally".
-//
-// The value is checked against the stored `auth_time` of the code the login
-// actually issued, not merely for presence: a claim carrying the token's own
-// issuance time, or milliseconds, would be a different claim wearing the
-// right name.
+// OIDC Core §15.1 makes returning `auth_time` mandatory whenever requested —
+// via `max_age` (§3.1.2.1) or an Essential Claim in `claims` (§5.5). Odudu
+// honours neither as a request: it emits `auth_time` unconditionally, so
+// both are answered by a superset of what they asked for. See the reading
+// note "§15.1's `auth_time`, answered unconditionally".
+
+// The value is checked against the code's stored `auth_time`, not merely
+// for presence: the token's own issuance time, or milliseconds, would be a
+// different claim wearing the right name.
 describe('[OIDC-CORE-15.1-05] auth_time comes back whichever way a client asks for it', () => {
   const ESSENTIAL_AUTH_TIME = JSON.stringify({ id_token: { auth_time: { essential: true } } });
 

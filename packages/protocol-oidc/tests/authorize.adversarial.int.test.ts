@@ -1439,18 +1439,15 @@ describe('[RFC6749-10.14-01] a hostile state is returned encoded, never as marku
   });
 });
 
-// RFC 6749 §10.13, carried into OIDC Core §3.1.2.3: a sign-in page an
-// attacker can frame is a sign-in page an attacker can overlay, and the
-// end-user's click lands on whichever control the invisible frame has
-// positioned under the cursor. The countermeasure has to be on every page
-// the endpoint renders, not only the one with the form — an error page that
-// can be framed is a page an attacker can position and style to convince an
-// end-user of something.
-//
-// The set is enumerated rather than sampled: RENDERED_ERROR_CASES is every
-// way this endpoint answers with markup instead of a redirect, plus the
-// login form and the 415 the POST refuses an unsupported representation
-// with.
+// RFC 6749 §10.13, carried into OIDC Core §3.1.2.3: a page an attacker can
+// frame is a page an attacker can overlay, landing the end-user's click on
+// whatever control the invisible frame positions under the cursor. The
+// countermeasure covers every page the endpoint renders, not only the form
+// — a framed error page is just as exploitable.
+
+// RENDERED_ERROR_CASES enumerates every such page rather than sampling it:
+// the login form, every markup error response, and the 415 the POST gets
+// refused an unsupported representation with.
 describe('[OIDC-CORE-3.1.2.3-05] no page this endpoint renders can be framed', () => {
   function expectRefusesFraming(res: LightMyRequestResponse, what: string): void {
     expect(`${what}: ${String(res.headers['content-type'])}`).toContain('text/html');
