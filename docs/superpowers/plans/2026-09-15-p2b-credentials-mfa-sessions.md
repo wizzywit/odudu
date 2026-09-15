@@ -42,6 +42,7 @@ Everything in P0's, P1's and P2a's plans still binds. Repeated here because an i
 - Migrations are hand-authored SQL in `packages/db/drizzle/`, never generated, and each needs an entry appended to `packages/db/drizzle/meta/_journal.json` with the next `idx` and a `when` greater than the previous entry's. Every new tenant table needs `ENABLE` + `FORCE ROW LEVEL SECURITY` and a policy in the same migration.
 - **`pnpm trace` runs strict.** A new MUST that is not `covered` fails the build. A new `deferred:` or `n/a:` row must move the count in `tools/trace/silenced-musts.json` in the same diff.
 - **`README.md` and `docs/request-paths.md` are updated in the same commit as the code** that changes a request, response, branch, error code, endpoint, command or default. `tests/docs/` fails the build on drift — run it with `pnpm exec vitest run --project unit docs`, since it lives in the **unit** project despite the directory name — and every command in `docs/request-paths.md` has been run against a live stack with real output pasted back, never hand-aligned or annotated.
+- **The package dependency direction is `kernel ← contracts, crypto, db ← domain-* ← protocol-*, authn-flows, authz, agents, admin-api ← server`** (umbrella spec section 3). A `domain-*` package must never depend on `authn-flows`: the arrow runs the other way, and `authn-flows` already depends on `@odudu/domain-identity`. `dependency-cruiser`'s `no-domain-to-protocol` rule only forbids domain → `protocol-*`, so it does **not** catch this and `pnpm boundaries` stays clean while the architecture is inverted. If provisioning or any other cross-cutting call seems to need that edge, put the call in the composition root (`apps/server`) or in the `authn-flows` side, and say so in your report.
 - **A task's "Consumes" list is a claim that those things exist.** Check each one before starting, and report a missing one rather than building it silently: a task whose headline verb has no implementation anywhere is a missing increment in the plan, not a detail. This plan shipped two — a grant/session link nothing populated, and a session-ending method in a task named "end a session".
 - **A task's "Produces" list must name the functions where the security decision sits**, not only the pure helper beneath them. Logout's plan specified `decideLogout` and left the two handlers that own the transaction boundary and the CSRF check unspecified, so the most security-relevant composition in the task arrived unreviewed by the plan.
 - **A behaviour change falsifies prose somewhere other than the section you are editing.** `docs/request-paths.md` carries a list of what the server does _not_ do yet, and a task that removes a limitation has to delete its bullet as well as document the new behaviour. Two bullets survived four commits past the work that falsified them because the task that changed the behaviour updated only the section it had added. Grep the file for the capability you just built before you commit.
@@ -68,7 +69,7 @@ No new packages. Modified packages:
 
 | Path                        | Change                                                                                                                      |
 | --------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| `packages/db/drizzle/`      | migrations 0026–0034 and their journal entries                                                                              |
+| `packages/db/drizzle/`      | migrations 0026–0040 and their journal entries                                                                              |
 | `packages/db/src/schema/`   | `realms` gains session-lifespan, password-policy and lockout columns                                                        |
 | `packages/authn-flows/`     | the execution schema and repository, the requirement evaluator, the authenticator registry, required actions, lockout       |
 | `packages/domain-identity/` | widened credential store, per-type `secret_data` parsing, the password-policy service, `login_failures`                     |
@@ -1314,11 +1315,10 @@ ALTER TABLE authentication_executions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE authentication_executions FORCE ROW LEVEL SECURITY;
 
 CREATE POLICY authentication_executions_isolation ON authentication_executions
-  USING (realm_id = current_setting('odudu.realm_id', true)::uuid)
-  WITH CHECK (realm_id = current_setting('odudu.realm_id', true)::uuid);
+  USING (realm_id = nullif(current_setting('app.realm_id', true), '')::uuid);
 ```
 
-Copy the exact `current_setting` spelling from an existing migration rather than from this plan — `packages/db/drizzle/0006_sessions.sql` is the nearest model — so the policy matches what `withRealm` sets.
+**Copy the policy from `packages/db/drizzle/0006_sessions.sql` rather than from this plan.** The setting is `app.realm_id`, wrapped in `nullif(…, '')`, and there is no `WITH CHECK`; this plan got all three wrong in its first drafts. A policy that does not match what `withRealm` sets silently matches zero rows.
 
 Append the journal entry.
 
@@ -1494,7 +1494,7 @@ gh pr checks --watch
 - Modify: `packages/authn-flows/src/schema/authenticator.ts`
 - Modify: `packages/authn-flows/src/schema/authentication-sessions.ts`
 - Modify: `packages/authn-flows/src/repository/authentication-sessions.ts`
-- Create: `packages/db/drizzle/0031_authentication_sessions_progress.sql`
+- Create: `packages/db/drizzle/0032_authentication_sessions_progress.sql`
 - Modify: `packages/db/drizzle/meta/_journal.json`
 - Modify: `packages/protocol-oidc/src/view/authorize-html.ts`
 - Create: `packages/authn-flows/tests/multi-step.int.test.ts`
@@ -1511,7 +1511,7 @@ gh pr checks --watch
 - [ ] **Step 1: Write the migration for progress**
 
 ```sql
--- packages/db/drizzle/0031_authentication_sessions_progress.sql
+-- packages/db/drizzle/0032_authentication_sessions_progress.sql
 -- Which executions this authentication has already satisfied. A multi-step
 -- login has to resume rather than restart: a correct password followed by a
 -- wrong OTP code must not ask for the password again.
@@ -1569,7 +1569,7 @@ Then update `docs/NEXT.md`.
 
 - Modify: `packages/authn-flows/src/usecase/executor.ts`
 - Modify: `packages/authn-flows/src/schema/sessions.ts`
-- Create: `packages/db/drizzle/0032_sessions_authenticators.sql`
+- Create: `packages/db/drizzle/0033_sessions_authenticators.sql`
 - Modify: `packages/db/drizzle/meta/_journal.json`
 - Modify: `packages/protocol-oidc/src/usecase/token-issuance.ts`
 - Create: `packages/protocol-oidc/src/service/acr.ts`
@@ -1587,7 +1587,7 @@ Then update `docs/NEXT.md`.
 - [ ] **Step 1: Write the migration**
 
 ```sql
--- packages/db/drizzle/0032_sessions_authenticators.sql
+-- packages/db/drizzle/0033_sessions_authenticators.sql
 -- What actually authenticated this session, in the order it ran. `amr` and
 -- `acr` are statements about a specific login, so they are recorded when it
 -- happens rather than re-derived later from what the subject could have used.
@@ -1759,7 +1759,7 @@ gh pr checks --watch
 
 **Files:**
 
-- Create: `packages/db/drizzle/0033_user_credentials_types.sql`
+- Create: `packages/db/drizzle/0034_user_credentials_types.sql`
 - Modify: `packages/db/drizzle/meta/_journal.json`
 - Modify: `packages/domain-identity/src/schema/user-credentials.ts`
 - Modify: `packages/domain-identity/src/repository/credentials.ts`
@@ -1779,7 +1779,7 @@ gh pr checks --watch
 - [ ] **Step 1: Write the migration**
 
 ```sql
--- packages/db/drizzle/0033_user_credentials_types.sql
+-- packages/db/drizzle/0034_user_credentials_types.sql
 -- A password and a TOTP secret are one per subject; passkeys and recovery
 -- codes are many, which is why the old UNIQUE (subject_id, type) has to go
 -- rather than be widened. password-history rows are retired hashes kept for
@@ -1902,7 +1902,7 @@ Then update `docs/NEXT.md`, recording that `user_credentials.type` is no longer 
 
 **Files:**
 
-- Create: `packages/db/drizzle/0034_realm_password_policy.sql`
+- Create: `packages/db/drizzle/0035_realm_password_policy.sql`
 - Modify: `packages/db/drizzle/meta/_journal.json`
 - Modify: `packages/db/src/schema/realms.ts`
 - Create: `packages/domain-identity/src/service/password-policy.ts`
@@ -1923,7 +1923,7 @@ Then update `docs/NEXT.md`, recording that `user_credentials.type` is no longer 
 - [ ] **Step 1: Write the migration**
 
 ```sql
--- packages/db/drizzle/0034_realm_password_policy.sql
+-- packages/db/drizzle/0035_realm_password_policy.sql
 -- The weakest configuration this server is willing to call a policy: eight
 -- characters and no class requirements. Every bound is a constraint rather
 -- than a clamp, for the reason 0013 gives.
@@ -2072,7 +2072,7 @@ Then update `docs/NEXT.md` and `README.md` — the registration and reset sectio
 
 **Files:**
 
-- Create: `packages/db/drizzle/0035_user_required_actions.sql`
+- Create: `packages/db/drizzle/0036_user_required_actions.sql`
 - Modify: `packages/db/drizzle/meta/_journal.json`
 - Create: `packages/authn-flows/src/schema/required-action.ts`
 - Create: `packages/authn-flows/src/repository/required-actions.ts`
@@ -2094,7 +2094,7 @@ Then update `docs/NEXT.md` and `README.md` — the registration and reset sectio
 - [ ] **Step 1: Write the migration**
 
 ```sql
--- packages/db/drizzle/0035_user_required_actions.sql
+-- packages/db/drizzle/0036_user_required_actions.sql
 -- What a subject must do before a login completes. This is what makes a
 -- realm-level requirement expressible at all: without it, "this realm
 -- requires OTP" could only mean "OTP is offered to whoever already has one".
@@ -2116,11 +2116,10 @@ ALTER TABLE user_required_actions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE user_required_actions FORCE ROW LEVEL SECURITY;
 
 CREATE POLICY user_required_actions_isolation ON user_required_actions
-  USING (realm_id = current_setting('odudu.realm_id', true)::uuid)
-  WITH CHECK (realm_id = current_setting('odudu.realm_id', true)::uuid);
+  USING (realm_id = nullif(current_setting('app.realm_id', true), '')::uuid);
 ```
 
-Copy the `current_setting` spelling from an existing migration.
+**Copy the policy from `packages/db/drizzle/0006_sessions.sql` rather than from this plan** — `app.realm_id`, wrapped in `nullif(…, '')`, no `WITH CHECK`. A policy that does not match what `withRealm` sets matches zero rows without erroring.
 
 - [ ] **Step 2: Write the failing integration test — the gate is the assertion**
 
@@ -2307,7 +2306,7 @@ gh pr checks --watch
 - Create: `packages/authn-flows/src/view/totp-enrolment-html.ts`
 - Create: `packages/authn-flows/tests/totp-login.int.test.ts`
 - Modify: `packages/db/src/schema/realms.ts` — `otp_required`
-- Create: `packages/db/drizzle/0036_realm_otp_required.sql`
+- Create: `packages/db/drizzle/0037_realm_otp_required.sql`
 - Modify: `docs/request-paths.md`
 
 **Interfaces:**
@@ -2321,7 +2320,7 @@ gh pr checks --watch
 - [ ] **Step 1: Write the migration for the realm switch**
 
 ```sql
--- packages/db/drizzle/0036_realm_otp_required.sql
+-- packages/db/drizzle/0037_realm_otp_required.sql
 -- Off by default: a realm does not acquire a second factor because it was
 -- upgraded. On, every subject without a TOTP credential gets the
 -- configure-totp required action at their next login.
@@ -2695,7 +2694,7 @@ Then update `docs/NEXT.md`.
 
 **Files:**
 
-- Create: `packages/db/drizzle/0037_login_failures.sql`
+- Create: `packages/db/drizzle/0038_login_failures.sql`
 - Modify: `packages/db/drizzle/meta/_journal.json`
 - Modify: `packages/db/src/schema/realms.ts`
 - Create: `packages/domain-identity/src/schema/login-failures.ts`
@@ -2716,7 +2715,7 @@ Then update `docs/NEXT.md`.
 - [ ] **Step 1: Write the migration**
 
 ```sql
--- packages/db/drizzle/0037_login_failures.sql
+-- packages/db/drizzle/0038_login_failures.sql
 -- Keyed by subject, not by username: a lockout that followed a username
 -- would let an attacker lock an account out of existence by guessing at a
 -- name it no longer uses, and would miss an attacker arriving by email.
@@ -2736,8 +2735,7 @@ ALTER TABLE login_failures ENABLE ROW LEVEL SECURITY;
 ALTER TABLE login_failures FORCE ROW LEVEL SECURITY;
 
 CREATE POLICY login_failures_isolation ON login_failures
-  USING (realm_id = current_setting('odudu.realm_id', true)::uuid)
-  WITH CHECK (realm_id = current_setting('odudu.realm_id', true)::uuid);
+  USING (realm_id = nullif(current_setting('app.realm_id', true), '')::uuid);
 
 ALTER TABLE realms ADD COLUMN brute_force_max_failures integer NOT NULL DEFAULT 5;
 ALTER TABLE realms ADD COLUMN brute_force_lockout_seconds integer NOT NULL DEFAULT 60;
@@ -2980,7 +2978,7 @@ The headline test of the phase. **Read ADR 0021 before starting.**
 - Create: `apps/server/src/cli/reap.ts`
 - Create: `apps/server/src/cli/reap.test.ts`
 - Modify: `apps/server/src/main.ts`
-- Create: `packages/db/drizzle/0038_retention_indexes.sql`
+- Create: `packages/db/drizzle/0039_retention_indexes.sql`
 - Modify: `packages/db/drizzle/meta/_journal.json`
 - Create: `apps/server/tests/reap.int.test.ts`
 - Create: `apps/server/tests/reap-preserves-detection.int.test.ts`
@@ -2997,7 +2995,7 @@ The headline test of the phase. **Read ADR 0021 before starting.**
 - [ ] **Step 1: Write the migration for the indexes the pass needs**
 
 ```sql
--- packages/db/drizzle/0038_retention_indexes.sql
+-- packages/db/drizzle/0039_retention_indexes.sql
 -- A reaping pass scans by age. Without these it is a sequential scan over
 -- the largest tables in the schema, which is how a retention pass becomes
 -- the reason a deployment falls over at 3am.
@@ -3171,7 +3169,7 @@ Closes the limitation P2a recorded and P2b was amended to own.
 
 **Files:**
 
-- Create: `packages/db/drizzle/0039_email_outbox.sql`
+- Create: `packages/db/drizzle/0040_email_outbox.sql`
 - Modify: `packages/db/drizzle/meta/_journal.json`
 - Create: `packages/email/src/schema/outbox.ts`
 - Create: `packages/email/src/repository/outbox.ts`
@@ -3193,7 +3191,7 @@ Closes the limitation P2a recorded and P2b was amended to own.
 - [ ] **Step 1: Write the migration**
 
 ```sql
--- packages/db/drizzle/0039_email_outbox.sql
+-- packages/db/drizzle/0040_email_outbox.sql
 -- Mail leaves the request path entirely: the request enqueues and answers,
 -- and the sender runs on the scheduler. This is what closes the password
 -- reset timing oracle, where an address that existed was measurably slower
@@ -3216,8 +3214,7 @@ ALTER TABLE email_outbox ENABLE ROW LEVEL SECURITY;
 ALTER TABLE email_outbox FORCE ROW LEVEL SECURITY;
 
 CREATE POLICY email_outbox_isolation ON email_outbox
-  USING (realm_id = current_setting('odudu.realm_id', true)::uuid)
-  WITH CHECK (realm_id = current_setting('odudu.realm_id', true)::uuid);
+  USING (realm_id = nullif(current_setting('app.realm_id', true), '')::uuid);
 
 CREATE INDEX email_outbox_pending ON email_outbox (next_attempt_at) WHERE sent_at IS NULL;
 ```
