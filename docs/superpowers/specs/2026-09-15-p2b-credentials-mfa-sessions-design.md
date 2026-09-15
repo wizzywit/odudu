@@ -20,9 +20,9 @@ P4 adds the admin API; both read the session this phase makes real.
 In build order. Each numbered item is several increments; the order is a
 dependency order, not a preference.
 
-1. **The session lifecycle.** A `grants` table giving the refresh-token
-   family a home, `last_active_at` on `sessions`, realm-configured idle and
-   maximum lifespans, and the SSO cookie read at `/authorize`.
+1. **The session lifecycle.** `session_id` on the existing `token_grants`,
+   `last_active_at` on `sessions`, realm-configured idle and maximum
+   lifespans, and the SSO cookie read at `/authorize`.
 2. **RP-initiated logout and offline access.** `end_session_endpoint`, the
    per-client `post_logout_redirect_uris` it matches against, and
    `offline_access` producing a grant no session expiry or logout touches.
@@ -42,7 +42,8 @@ dependency order, not a preference.
 The session lifecycle leads for the reason web origins led in P2a, inverted:
 it is the item everything else touches. Eight clause rows recorded
 `deferred: P2` become reachable the moment a session can be read (section
-12), and items 2, 3 and 6 all read the `grants` table item 1 adds.
+12), and items 2, 3 and 6 all read the `token_grants.session_id` link item
+1 adds.
 
 ## 2. What P2b does not deliver
 
@@ -135,43 +136,59 @@ migration 0013's reasoning: a constraint is true of every writer there will
 ever be, including P4's admin API, whereas a clamp is true only of the code
 path that remembers to apply it.
 
-### 0026 — `grants`
+### 0026 — `token_grants` gains `session_id`
 
-The refresh-token family has a name in the code (`grantId`) and no home. It
-acquires one:
+**Corrected 2026-09-15, before the plan was written.** This section
+originally specified a new `grants` table, on the reading that the
+refresh-token family had a name in the code and no home. It has had a home
+since P1: `token_grants` (migration 0010) already carries `id`, `realm_id`,
+`client_id`, `subject_id`, `scope`, `audience`, `created_at` and
+`revoked_at`, `refresh-rotation.ts` already reads it through
+`tokenGrantRepository(tx).byId`, and reuse detection already revokes through
+it. Seven of the eight columns the earlier text asked for were already
+there. The claim came from `docs/NEXT.md`'s note that `refresh_tokens`
+carries only `grant_id` — true of that table, and not the question.
 
-| Column       | Notes                                                             |
-| ------------ | ----------------------------------------------------------------- |
-| `grant_id`   | primary key; what `refresh_tokens.grant_id` already carries       |
-| `realm_id`   | denormalized for isolation without a join, as `sessions` does     |
-| `subject_id` | composite FK to `subjects(realm_id, id)`                          |
-| `client_id`  | the client the grant was issued to                                |
-| `session_id` | **nullable — null means offline**; FK to `sessions`               |
-| `scope`      | the scope the grant was issued for                                |
-| `created_at` | when the family started, which is what dates the detection window |
-| `revoked_at` | set by logout, by reuse detection, and by nothing else            |
+So the migration is **one column**:
 
-`refresh_tokens` keeps only what is per-token: `token_hash`, `grant_id`,
-`issued_at`, `expires_at`, `used_at`, `replaced_by`. Three consequences
-follow, and each is the reason the table exists rather than four more
-columns on the token:
+```sql
+ALTER TABLE token_grants ADD COLUMN session_id uuid;
+ALTER TABLE token_grants ADD CONSTRAINT token_grants_session_fk
+  FOREIGN KEY (realm_id, session_id) REFERENCES sessions (realm_id, id)
+  ON DELETE SET NULL;
+CREATE INDEX token_grants_by_session ON token_grants (realm_id, session_id);
+```
 
-- **Logout is one statement.** `UPDATE grants SET revoked_at = now() WHERE
-session_id = $1` revokes every family belonging to a session, whatever
-  their rotation depth.
+`ON DELETE SET NULL` is deliberate and is the one subtlety: reaping a dead
+session must not turn a session-bound grant into an offline one. The reaper
+therefore never deletes a session that a live grant still references
+(section 8.2), and the clause is a backstop against a future writer, not the
+mechanism. The index is what makes logout one statement rather than a scan.
+
+The three properties the design rests on are unchanged, and two of them now
+cost nothing:
+
+- **Logout is one statement.** `UPDATE token_grants SET revoked_at = now()
+WHERE session_id = $1` revokes every family belonging to a session,
+  whatever its rotation depth, using the index above.
 - **Offline is the absence of a session**, not a boolean anybody can
   contradict. A grant with no `session_id` cannot be expired by a session
   lifespan or ended by a logout, because there is no session to read.
-- **The detection window is dated once.** Retention is bounded below by the
-  life of the family (ADR 0021); with `created_at` on the grant, that is a
-  column, not a `MIN` over the ~288 rotations a five-minute client leaves
-  behind each day.
+- **The detection window is dated once**, off `token_grants.created_at`,
+  which already exists — not a `MIN` over the ~288 rotations a five-minute
+  client leaves behind each day.
 
-Rotation's reads change with it: `refresh-rotation.ts` currently decides
-from the token row alone, and must now also refuse a grant whose
-`revoked_at` is set or whose session is no longer live. ADR 0019 already
-fixes the order — the grant is decided before the rotation — so this adds
-conditions to an existing decision point rather than moving it.
+Rotation's reads change least of all: `refresh-rotation.ts` already fetches
+the grant after a successful consume, and already throws on a missing one.
+It gains two conditions — a grant whose `revoked_at` is set, and a
+session-bound grant whose session is no longer live, are both refused. ADR
+0019 fixes the order, so this adds conditions to an existing decision point
+rather than moving it.
+
+**Consequence for section 15's risk list:** "the grants migration touches
+the refresh path" was ranked a top-three risk on the assumption that the
+path was being restructured. Adding a nullable column and two conditions is
+a much smaller change, and the risk drops accordingly.
 
 ### 0027 — `sessions` gains `last_active_at`
 
@@ -752,9 +769,11 @@ or a transcript shows. Where something cannot be run — a per-instance limit
 under a load balancer nobody here runs (section 9) — the document says it
 cannot, rather than showing output nobody produced.
 
-New ADRs: the flat flow model and what P4 must extend; the `grants` table
-replacing per-token family columns; the split brute-force authority and the
-per-instance limit it accepts. One amendment: ADR 0021, for the retention
+New ADRs: the flat flow model and what P4 must extend; the split
+brute-force authority and the per-instance limit it accepts. The grant
+family needs no ADR after all — `token_grants` already held it, and adding
+`session_id` to an existing table decides nothing a reader would need the
+alternatives for. One amendment: ADR 0021, for the retention
 window's numbers and its `grants`-dated derivation.
 
 ## 15. Shape and risk
@@ -770,10 +789,23 @@ The three risks worth naming:
   as section 5.2 assumes, the flow's first group degrades to a passkey
   second factor and the phase still closes — but that is a spec change, made
   visibly, not a quiet retreat during an increment.
-- **The `grants` migration touches the refresh path**, which is the busiest
-  code in the repository and the one carrying reuse detection. It lands
-  first, alone, with the replay tests green before anything else is built on
-  it.
+- **The `secret_data` conversion to `jsonb` is the one irreversible-feeling
+  migration**, and it rewrites every existing password row. It gets a spike
+  against a seeded database before the task depending on it, and the task
+  itself lands alone, with a login against a pre-existing password proven
+  after the migration rather than assumed.
+- **Reading `docs/NEXT.md` is not reading the code**, which this phase has
+  already demonstrated twice before writing a line: the `token_grants`
+  table that section 4's 0026 originally proposed to create already existed,
+  and logout's confirmation page is a MUST where the spec first called it a
+  SHOULD. Both were caught by looking; neither would have been caught by
+  review. Every task below that asserts what existing code does names the
+  file, so the assertion is checkable.
+- **The phase is long.** Seven items, each independently mergeable, each
+  ending green, with a draft pull request open from the first push and CI
+  green per increment. P1 ran nineteen increments with no pull request open
+  and a broken container build survived eight of them; the mechanism that
+  prevents a repeat is the pull request, not the intention.
 - **The phase is long.** Seven items, each independently mergeable, each
   ending green, with a draft pull request open from the first push and CI
   green per increment. P1 ran nineteen increments with no pull request open
