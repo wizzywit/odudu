@@ -68,7 +68,7 @@ describe('realm isolation', () => {
           await startAuthentication(tx, realmId, request);
         } else {
           const subject = await subjectRepository(tx).create({ realmId, type: 'user' });
-          await establishSession(tx, realmId, subject.id, 36_000);
+          await establishSession(tx, realmId, subject.id, 36_000, ['password']);
         }
       },
     });
@@ -105,7 +105,7 @@ describe('cross-realm resume is blocked', () => {
     const sessionId = await withRealm(app.db, realmA, async (tx) => {
       await seedRealm(tx, realmA);
       const subject = await subjectRepository(tx).create({ realmId: realmA, type: 'user' });
-      return (await establishSession(tx, realmA, subject.id, 36_000)).sessionId;
+      return (await establishSession(tx, realmA, subject.id, 36_000, ['password'])).sessionId;
     });
 
     await withRealm(app.db, realmB, async (tx) => seedRealm(tx, realmB));

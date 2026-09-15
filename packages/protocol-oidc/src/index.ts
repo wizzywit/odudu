@@ -232,6 +232,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
             input.realmId,
             input.subjectId,
             input.ssoSessionMaxSeconds,
+            input.authenticators,
             clock,
           );
           // authTime and now both derive from this single clock read, not a

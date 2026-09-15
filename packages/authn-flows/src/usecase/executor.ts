@@ -229,17 +229,26 @@ export async function pendingChallenge(
   return dispatched.result;
 }
 
+// What `advance` reports on success — unlike the per-authenticator
+// `AuthenticatorResult`, this names every authenticator the login actually
+// used, in the order it ran, because that is the record `establishSession`
+// needs to carry forward onto the session (see its own doc comment).
+export type AdvanceOutcome =
+  | { kind: 'success'; subjectId: string; authenticators: string[] }
+  | { kind: 'challenge'; form: string }
+  | { kind: 'failure'; reason: string };
+
 export async function advance(
   tx: RealmScopedDatabase,
   authSessionId: string,
   input: AdvanceInput,
   clock: Clock = systemClock,
-): Promise<AuthenticatorResult> {
+): Promise<AdvanceOutcome> {
   const context = await loadFlowContext(tx, authSessionId, clock);
   if (context === null) {
     return { kind: 'failure', reason: 'authentication_session_expired' };
   }
-  const { steps, satisfied, registry } = context;
+  const { record, steps, satisfied, registry } = context;
 
   const dispatched = await dispatchNext(registry, steps, satisfied, input);
   if (dispatched.kind !== 'ran') {
@@ -265,12 +274,21 @@ export async function advance(
 
   if (after.kind === 'ran') {
     await authenticationSessionRepository(tx).recordSatisfied(authSessionId, authenticator);
-    return after.result;
+    if (after.result.kind !== 'success') return after.result;
+    return {
+      kind: 'success',
+      subjectId: after.result.subjectId,
+      authenticators: [...record.satisfied, authenticator, after.authenticator],
+    };
   }
   if (after.kind === 'fail') {
     return { kind: 'failure', reason: NO_APPLICABLE_EXECUTION };
   }
-  return result;
+  return {
+    kind: 'success',
+    subjectId: result.subjectId,
+    authenticators: [...record.satisfied, authenticator],
+  };
 }
 
 // The gate that makes an authentication session single-use. The caller
@@ -291,6 +309,10 @@ export async function establishSession(
   realmId: string,
   subjectId: string,
   maxSeconds: number,
+  // What `advance` reported ran, in order — copied onto the session once,
+  // here, because a reused session's `amr`/`acr` must go on describing this
+  // login rather than being re-derived at every future token issuance.
+  authenticators: readonly string[],
   clock: Clock = systemClock,
 ): Promise<{ sessionId: string }> {
   // Always a fresh id, even for the same subject: reusing the pre-auth id
@@ -300,6 +322,7 @@ export async function establishSession(
     id,
     realmId,
     subjectId,
+    authenticators: [...authenticators],
     expiresAt: new Date(clock.now().getTime() + maxSeconds * 1000),
   });
   return { sessionId: id };

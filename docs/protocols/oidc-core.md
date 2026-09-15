@@ -116,8 +116,11 @@ about the unconditional case needs the flow-tree machinery. What needed
 flow tree semantics was _conditional_ reauthentication: deciding, from
 `max_age` or a requested `acr`, whether the current session is still
 fresh enough to skip a new login. `max_age` gets that decision in P2b
-(`usecase/session-reuse.ts`'s `decideReuse`); `acr` still doesn't, so its
-two rows (§2) stay `deferred: P2`.
+(`usecase/session-reuse.ts`'s `decideReuse`); a requested `acr_values`
+still does not feed into that decision — Odudu's `acr` states what
+authenticated a login, not a class a client can ask for and have checked
+against session state, which is the second half of §15.1's "at minimum"
+row (see its own reading note below).
 
 `/authorize` now reads the `__Host-<realm>-session` cookie
 (`AuthorizeUsecaseDeps.resolveSession`, resolved through
@@ -485,9 +488,11 @@ could satisfy (`zz-ZZ`, an acr no realm defines), because the row says _any_
 requested value.
 
 `acr_values` has a second half that is not this row: reporting in `acr`
-which authentication context was actually satisfied. That waits on P2's
-authentication-method modeling, and is tracked on §2's `acr` row rather
-than here.
+which authentication context was actually satisfied. Odudu now does that
+(`acrFor`, §2's `acr` rows) — what this row's "at minimum" still leaves
+undone is the other direction, checking a requested `acr_values` against
+what a session or a fresh login can offer, which `decideReuse` does for
+`max_age` but not yet for `acr`.
 
 ### TLS, and the six rows here this process cannot close
 
@@ -602,6 +607,52 @@ reuse specifically: a session established at one moment, reused two minutes
 later under a generous `max_age`, and an ID Token whose `auth_time` is the
 first moment, not the second.
 
+### `amr` and `acr`: what the registries actually say, and what this server emits
+
+Two registries govern these claims, and both were read directly rather than
+recalled, on 2026-09-15: the IANA "Authentication Method Reference Values"
+registry established by RFC 8176, and RFC 8176 §2 itself, which is the
+registry's own defining text. `pwd` is "password-based authentication";
+`otp` is "one-time password", scoped explicitly to RFC 4226 and RFC 6238 —
+an algorithmically generated code, checked once; `hwk` is proof-of-possession
+of a hardware-secured key; `user` is a user-presence test, "evidence that
+the end user is present and interacting with the device". `packages/protocol-oidc/src/service/acr.ts`'s
+`amrFor` maps `password` → `pwd`, `otp` → `otp`, and `passkey` → `hwk` +
+`user` — a WebAuthn assertion demonstrates both possession of the
+authenticator's key and the platform's own user-verification step, which is
+why major OIDC providers report passkeys the same way. A synced (software)
+passkey would more accurately be `swk`; Odudu's `passkey` authenticator has
+no runtime yet (`executor.ts`'s `unimplementedAuthenticator`), so which of
+the two is honest is a decision for whoever implements it, not this row.
+
+**`recovery-code` maps to nothing, deliberately.** A recovery code is a
+statically pre-generated, single-use value from a fixed list — not an
+algorithmic one-time password in the sense RFC 4226/6238 (and therefore
+`otp`) mean. Reporting it as `otp` would tell a relying party this login
+carried an OTP-generator factor when it did not. No other registered value
+fits it either (it is not knowledge the subject inherently knows, so `kba`
+is no better a fit), so `amrFor` omits it — the same rule that already
+governs any authenticator name the registry has nothing for: emit nothing
+rather than guess.
+
+**`acr`'s bare digits, and why the SHOULD stays open.** §2 asks that "an
+absolute URI or an RFC 6711 registered name SHOULD be used as the `acr`
+value." `acrFor` returns `'1'` or `'2'` — a realm-local factor count, not a
+URI and not a name RFC 6711 or IANA has ever registered. That is a real gap
+against the SHOULD's own wording, not a technicality: a client that reads
+`acr` expecting one of those two forms gets neither. It is left `gap`
+rather than forced to `covered`, because closing it honestly needs either
+minting realm-specific URIs for its context classes or adopting an existing
+RFC 6711 registration, and P2b did neither.
+
+That same bare-digits choice is what lets the adjacent MUST close instead.
+§2's next sentence is "registered names MUST NOT be used with a different
+meaning than the one they are registered with" — a constraint on a value
+that names a registration. Odudu's `acr` never does: `'1'` and `'2'` are
+not RFC 6711 names, so there is no registered meaning here to misuse. The
+MUST is a promise about what happens _if_ a registered name is used, and
+Odudu never uses one, so nothing in `acrFor`'s output can violate it.
+
 ## Requirements
 
 | Clause  | Level  | Requirement                                                                                                                                                                                                                                                                                    | Test ID                | Status                                                                                                                                                                                                                                                                                                                                |
@@ -619,10 +670,10 @@ first moment, not the second.
 | 2       | MUST   | when `nonce` was present in the Authentication Request, the authorization server includes a `nonce` claim in the ID Token with that same value                                                                                                                                                 | `OIDC-CORE-3.1.3.7-01` | covered                                                                                                                                                                                                                                                                                                                               |
 | 2       | SHOULD | the authorization server performs no other processing on `nonce` values used                                                                                                                                                                                                                   | —                      | gap                                                                                                                                                                                                                                                                                                                                   |
 | 2       | MUST   | when `nonce` is present in the ID Token, the client verifies it equals the value it sent in the Authentication Request                                                                                                                                                                         | —                      | n/a: client-side guidance; Odudu is the authorization server, not a client                                                                                                                                                                                                                                                            |
-| 2       | SHOULD | an absolute URI or an RFC 6711 registered name is used as the `acr` value                                                                                                                                                                                                                      | —                      | deferred: P2 — needs flow tree semantics                                                                                                                                                                                                                                                                                              |
-| 2       | MUST   | a registered `acr` name is not used with a different meaning than the one it is registered with                                                                                                                                                                                                | —                      | deferred: P2 — needs flow tree semantics                                                                                                                                                                                                                                                                                              |
+| 2       | SHOULD | an absolute URI or an RFC 6711 registered name is used as the `acr` value                                                                                                                                                                                                                      | —                      | gap                                                                                                                                                                                                                                                                                                                                   |
+| 2       | MUST   | a registered `acr` name is not used with a different meaning than the one it is registered with                                                                                                                                                                                                | `OIDC-CORE-2-09`       | covered                                                                                                                                                                                                                                                                                                                               |
 | 2       | SHOULD | authentications asserting `acr` level `0` are not used to authorize access to any resource of monetary value                                                                                                                                                                                   | —                      | n/a: guidance for whoever authorizes access on the strength of `acr`; Odudu emits the claim, it does not consume it                                                                                                                                                                                                                   |
-| 2       | SHOULD | values used in `amr` come from the IANA Authentication Method Reference Values registry                                                                                                                                                                                                        | —                      | deferred: P2 — needs flow tree semantics                                                                                                                                                                                                                                                                                              |
+| 2       | SHOULD | values used in `amr` come from the IANA Authentication Method Reference Values registry                                                                                                                                                                                                        | `OIDC-CORE-2-10`       | covered                                                                                                                                                                                                                                                                                                                               |
 | 2       | MUST   | when `azp` is present, it contains the OAuth 2.0 Client ID of the authorized party                                                                                                                                                                                                             | —                      | n/a: `azp` only arises with extensions beyond this specification; Odudu uses none in P1                                                                                                                                                                                                                                               |
 | 2       | MAY    | ID Tokens contain other claims beyond those listed                                                                                                                                                                                                                                             | —                      | gap                                                                                                                                                                                                                                                                                                                                   |
 | 2       | MUST   | claims that are not understood are ignored                                                                                                                                                                                                                                                     | —                      | n/a: client-side guidance; Odudu is the authorization server, not a client                                                                                                                                                                                                                                                            |

@@ -136,7 +136,7 @@ describe('[ODUDU-AUTHN-SESSION-FIXATION-01] session fixation', () => {
     });
 
     const { sessionId } = await withRealm(app.db, realmId, async (tx) =>
-      establishSession(tx, realmId, subjectId, 36_000),
+      establishSession(tx, realmId, subjectId, 36_000, ['password']),
     );
 
     expect(sessionId).not.toEqual(authSessionId);
@@ -152,10 +152,10 @@ describe('[ODUDU-AUTHN-SESSION-FIXATION-01] session fixation', () => {
     });
 
     const first = await withRealm(app.db, realmId, async (tx) =>
-      establishSession(tx, realmId, subjectId, 36_000),
+      establishSession(tx, realmId, subjectId, 36_000, ['password']),
     );
     const second = await withRealm(app.db, realmId, async (tx) =>
-      establishSession(tx, realmId, subjectId, 36_000),
+      establishSession(tx, realmId, subjectId, 36_000, ['password']),
     );
 
     expect(first.sessionId).not.toEqual(second.sessionId);

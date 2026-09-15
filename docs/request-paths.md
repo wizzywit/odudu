@@ -3283,12 +3283,19 @@ session lifecycle. A citation of either half here means that half.
   and prefills a form this server does not prefill. `prompt` is deliberately
   not treated this way, because it is the one that changes whether the end
   user is asked anything at all.
-- **`acr_values` is accepted and ignored.** §15.1 allows exactly that — "the
-  minimum level of support required for this parameter is simply to have its
-  use not result in an error" — so what happens today conforms. Acting on
-  it, and reporting the result back in `acr` and `amr`, is step-up
-  authentication, which the roadmap leaves **deliberately unplaced** beside
-  PAR and DPoP, to be scoped with the FAPI 2.0 decision ADR 0016 points at.
+- **`acr_values` is accepted and ignored on the request side.** §15.1 allows
+  exactly that — "the minimum level of support required for this parameter
+  is simply to have its use not result in an error" — so what happens today
+  conforms. Every ID token now carries `acr` and `amr` describing the login
+  that actually happened (`acrFor`/`amrFor`,
+  `packages/protocol-oidc/src/service/acr.ts`) — `amr` names the RFC 8176
+  values for the authenticators that ran (`pwd` for a password, nothing for
+  an authenticator the registry has no accurate entry for), and `acr` is
+  `'1'` for a single factor or `'2'` for two, including a passkey alone.
+  Checking a _requested_ `acr_values` against a session, or forcing
+  reauthentication to satisfy one, is step-up authentication, which the
+  roadmap leaves **deliberately unplaced** beside PAR and DPoP, to be scoped
+  with the FAPI 2.0 decision ADR 0016 points at.
 - **No request objects.** `request` and `request_uri` are refused explicitly,
   with `request_not_supported` and `request_uri_not_supported` — which is
   what OIDC Core §6.1 asks of an OP that does not support them, having first

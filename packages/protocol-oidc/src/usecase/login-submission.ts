@@ -1,8 +1,4 @@
-import {
-  type AdvanceInput,
-  type AuthenticatorResult,
-  type PendingRequest,
-} from '@odudu/authn-flows';
+import { type AdvanceInput, type AdvanceOutcome, type PendingRequest } from '@odudu/authn-flows';
 import { type RealmScopedDatabase } from '@odudu/db';
 import { authorizationCodeRepository } from '#/repository/codes';
 import { type RealmLookup } from '#/repository/realm-lookup';
@@ -97,6 +93,10 @@ export interface CompleteLoginInput {
   // The realm's configured SSO session ceiling, carried through so
   // completeLogin's establishSession call never needs a lookup of its own.
   ssoSessionMaxSeconds: number;
+  // What `advance` reported ran, in order — copied onto the session
+  // establishSession creates, so a later reuse of it states `amr`/`acr`
+  // about this login rather than a fresh clock read at token issuance.
+  authenticators: string[];
 }
 
 export type CompleteLoginOutcome =
@@ -122,11 +122,7 @@ export async function refusedForUnverifiedEmail(
 
 export interface LoginSubmissionDeps {
   findRealm(name: string): Promise<RealmLookup | null>;
-  advance(
-    realmId: string,
-    authSessionId: string,
-    input: AdvanceInput,
-  ): Promise<AuthenticatorResult>;
+  advance(realmId: string, authSessionId: string, input: AdvanceInput): Promise<AdvanceOutcome>;
   loadPendingRequest(realmId: string, authSessionId: string): Promise<PendingRequest | null>;
   resolveClientId(realmId: string, oauthClientId: string): Promise<string | null>;
   // Read only when the realm's verify_email is on: the cost of an extra
@@ -238,6 +234,7 @@ export async function handleLoginSubmission(
     codeChallenge: pending.codeChallenge,
     codeChallengeMethod: pending.codeChallengeMethod,
     ssoSessionMaxSeconds: realm.ssoSessionMaxSeconds,
+    authenticators: result.authenticators,
   });
 
   // A second submission of the same auth_session_id — a back-button press,

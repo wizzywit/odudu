@@ -31,7 +31,9 @@ interface Harness {
 }
 
 function harness(): Harness {
-  const advance = vi.fn().mockResolvedValue({ kind: 'success', subjectId: 'subject-1' });
+  const advance = vi
+    .fn()
+    .mockResolvedValue({ kind: 'success', subjectId: 'subject-1', authenticators: ['password'] });
   const completeLogin = vi
     .fn()
     .mockResolvedValue({ kind: 'issued', sessionId: 'session-1', code: 'code-1' });
@@ -75,6 +77,7 @@ describe('handleLoginSubmission — the success path', () => {
       codeChallenge: PENDING.codeChallenge,
       codeChallengeMethod: PENDING.codeChallengeMethod,
       ssoSessionMaxSeconds: REALM.ssoSessionMaxSeconds,
+      authenticators: ['password'],
     });
   });
 });

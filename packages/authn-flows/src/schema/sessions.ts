@@ -1,4 +1,4 @@
-import { pgTable, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 import { realms } from '@odudu/db';
 
 // realm_id is denormalized so this table's isolation policy needs no join to
@@ -13,6 +13,11 @@ export const sessions = pgTable('sessions', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
   lastActiveAt: timestamp('last_active_at', { withTimezone: true }).notNull().defaultNow(),
+  // What actually authenticated this login, in the order it ran — set once,
+  // at establishment, and never rewritten. `amr`/`acr` read this rather
+  // than the subject's enrolled credentials, so a login is described by
+  // what it used, not by what it could have used.
+  authenticators: text('authenticators').array().notNull().default([]),
 }).enableRLS();
 
 export interface SessionRecord {
@@ -22,4 +27,5 @@ export interface SessionRecord {
   createdAt: Date;
   expiresAt: Date;
   lastActiveAt: Date;
+  authenticators: string[];
 }

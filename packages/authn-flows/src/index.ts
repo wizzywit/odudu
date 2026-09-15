@@ -28,6 +28,7 @@ export {
   consumeAuthenticationSession,
   establishSession,
   type AdvanceInput,
+  type AdvanceOutcome,
 } from '#/usecase/executor';
 export {
   passwordStep,

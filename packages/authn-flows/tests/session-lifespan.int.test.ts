@@ -57,6 +57,7 @@ async function createSession(
     realmId,
     subjectId: subject.id,
     expiresAt: new Date(Date.now() + 36_000_000),
+    authenticators: [],
   });
   await sessionRepository(tx).touch(id, lastActiveAt);
   return id;

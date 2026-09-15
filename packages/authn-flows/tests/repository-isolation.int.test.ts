@@ -68,6 +68,7 @@ describe('sessionRepository', () => {
           realmId,
           subjectId: subject.id,
           expiresAt: new Date(Date.now() + 3_600_000),
+          authenticators: [],
         });
         return id;
       },
@@ -94,6 +95,7 @@ describe('sessionRepository', () => {
           realmId,
           subjectId: subject.id,
           expiresAt: originalExpiry,
+          authenticators: [],
         });
         return id;
       },

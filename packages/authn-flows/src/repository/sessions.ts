@@ -11,6 +11,7 @@ function toRecord(row: typeof sessions.$inferSelect): SessionRecord {
     createdAt: row.createdAt,
     expiresAt: row.expiresAt,
     lastActiveAt: row.lastActiveAt,
+    authenticators: row.authenticators,
   };
 }
 
@@ -19,6 +20,7 @@ export interface NewSession {
   realmId: string;
   subjectId: string;
   expiresAt: Date;
+  authenticators: string[];
 }
 
 // All persistence for an established SSO session. `byId` is what a later

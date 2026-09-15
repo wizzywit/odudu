@@ -3,7 +3,7 @@
 ## Start here
 
 **P0, P1 and P2a are complete. P2b is brainstormed, specified and planned;
-Tasks 1 through 9 have landed and Task 10 is next.** Migration 0031 adds
+Tasks 1 through 10 have landed and Task 11 is next.** Migration 0031 adds
 `authentication_executions`: one flat, ordered list per realm (`id`,
 `realm_id`, `index`, `authenticator`, `requirement`), `requirement`
 constrained to `required`/`alternative`/`conditional`/`disabled` and
@@ -106,6 +106,49 @@ behaviour (`ODUDU-AUTHN-SESSION-EXPIRY-UNCHANGED-01`). The full two-factor
 journey is now named in Task 16's own step list, which builds the OTP
 authenticator once Task 15 has built RFC 6238 underneath it.
 
+**Task 10 records which authenticators actually ran, and emits `amr`/`acr`
+from that record — never from what the subject could have used.** A
+completing factor is deliberately never persisted to
+`authentication_sessions.satisfied` (Task 9), so `advance()`'s success
+outcome now widens into `AdvanceOutcome`, which names every authenticator
+the login used, in order:
+`[...record.satisfied, authenticator]` for a login that finishes in one
+call, and `[...record.satisfied, authenticator, after.authenticator]` for
+the (currently unreachable, but type-correct) case where the very next
+dispatch also succeeds. Migration 0033 adds `sessions.authenticators`
+(`text[]`, default `{}`); `establishSession` takes it as a new parameter
+and `login-submission.ts`'s `CompleteLoginInput`/`handleLoginSubmission`
+carry it from `advance()`'s result through to the session
+`completeLogin` creates. A reused session (`completeReuse`) touches the
+_existing_ session rather than creating one, so its `authenticators` are
+whatever the original login recorded — nothing new to thread there.
+`token-issuance.ts` reads `sessions.authenticators` off `code.sessionId`
+(never the offline-nulled local `sessionId` used for `sid`) at the moment
+it assembles the ID token, the same "read the stored instant, don't
+recompute" rule `auth_time` already follows.
+
+`packages/protocol-oidc/src/service/acr.ts`'s `amrFor` and `acrFor` were
+checked against the IANA Authentication Method Reference Values registry
+and RFC 8176 §2 directly (2026-09-15), not recalled — see
+`docs/protocols/oidc-core.md`'s new reading note for what was read and why
+two of the brief's own proposed mappings needed correcting:
+**`recovery-code` maps to nothing**, because RFC 8176's `otp` is scoped to
+RFC 4226/6238's algorithmic one-time passwords, and a pre-generated,
+statically stored recovery code is not that — inventing the mapping would
+violate OIDC Core §2's rule that a registered name is not reused with a
+different meaning. `passkey` still maps to `hwk` + `user`, matching common
+practice for a hardware-backed WebAuthn assertion, with a caveat recorded
+for whoever gives `passkey` a runtime: a synced (software) passkey would
+be `swk`, not `hwk`. **`acr`'s SHOULD — an absolute URI or an RFC 6711
+name — was not closed.** `acrFor` returns this realm's own bare digit,
+which is neither, so that row moves to `gap`, not `covered`; the adjacent
+MUST ("a registered name is not used with a different meaning") closes
+instead, because it binds only a value that names a registration, and
+Odudu's digits never do. **As of Task 10, every `deferred: P2` row in
+`docs/protocols/oidc-core.md` and `rfc6749.md` is closed except RFC 6749
+§2.3.1's brute-force MUST** — the phase's traceability midpoint; that row
+alone is left for whichever task owns rate limiting.
+
 Migration 0026 adds
 `token_grants.session_id`, nullable: null means an offline grant, which
 nothing expires and no logout can end; a non-null value is the SSO session
@@ -174,9 +217,11 @@ not signed in for free. This closes three `deferred: P2` rows in
 `prompt=login` (it is mutually exclusive with `prompt=none` at parse time,
 so forcing reauthentication never lands on anything but `authenticate`),
 so nothing in this task gives that specific MUST a reachable branch.
-**Five `deferred: P2` rows remain, all P2b's to close** — `prompt=login`,
-two `acr` rows and `amr` in `oidc-core.md`, and RFC 6749 §2.3.1's
-brute-force MUST.
+**Five `deferred: P2` rows remained at this point, all P2b's to close** —
+`prompt=login`, two `acr` rows and `amr` in `oidc-core.md`, and RFC 6749
+§2.3.1's brute-force MUST. `prompt=login` closed with Task 9, above; Task
+10, below, closes `amr` and one `acr` row and moves the other to `gap`
+rather than forcing it — see that paragraph for why. Only §2.3.1 is left.
 
 **Task 4 found that `token_grants.session_id` was write-only: nothing in
 the real flow ever set it.** The grant is created at `/token`, from an

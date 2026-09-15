@@ -108,7 +108,7 @@ describe('[ODUDU-AUTHN-FLOW-ORDER-01] a realm dispatches its own ordered executi
     const result = await withRealm(app.db, realmId, (tx) =>
       advance(tx, authSessionId, { username: 'ada', password }),
     );
-    expect(result).toEqual({ kind: 'success', subjectId });
+    expect(result).toEqual({ kind: 'success', subjectId, authenticators: ['password'] });
   });
 
   it('persists nothing for a factor that finishes the login, so a retry re-runs it', async () => {
@@ -126,7 +126,7 @@ describe('[ODUDU-AUTHN-FLOW-ORDER-01] a realm dispatches its own ordered executi
     const first = await withRealm(app.db, realmId, (tx) =>
       advance(tx, authSessionId, { username: 'ada', password }),
     );
-    expect(first).toEqual({ kind: 'success', subjectId });
+    expect(first).toEqual({ kind: 'success', subjectId, authenticators: ['password'] });
 
     // Nothing was written: password was the login's last factor, and a
     // retry (an id_token_hint mismatch, an unverified email — both leave
@@ -140,7 +140,7 @@ describe('[ODUDU-AUTHN-FLOW-ORDER-01] a realm dispatches its own ordered executi
     const second = await withRealm(app.db, realmId, (tx) =>
       advance(tx, authSessionId, { username: 'ada', password }),
     );
-    expect(second).toEqual({ kind: 'success', subjectId });
+    expect(second).toEqual({ kind: 'success', subjectId, authenticators: ['password'] });
   });
 });
 

@@ -76,6 +76,7 @@ describe('a grant and the session it belongs to', () => {
         realmId,
         subjectId,
         expiresAt: new Date(Date.now() + 3_600_000),
+        authenticators: [],
       }),
     );
 
@@ -129,6 +130,7 @@ describe('a grant and the session it belongs to', () => {
         realmId: theirsRealmId,
         subjectId,
         expiresAt: new Date(Date.now() + 3_600_000),
+        authenticators: [],
       });
       await tokenGrantRepository(tx).create({
         realmId: theirsRealmId,
@@ -159,6 +161,7 @@ describe('a grant and the session it belongs to', () => {
         realmId,
         subjectId,
         expiresAt: new Date(Date.now() + 3_600_000),
+        authenticators: [],
       }),
     );
 
@@ -215,6 +218,7 @@ describe('a grant and the session it belongs to', () => {
         realmId: theirsRealmId,
         subjectId,
         expiresAt: new Date(Date.now() + 3_600_000),
+        authenticators: [],
       });
       await tokenGrantRepository(tx).create({
         realmId: theirsRealmId,

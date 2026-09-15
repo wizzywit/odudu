@@ -1,3 +1,4 @@
+import { sessionRepository } from '@odudu/authn-flows';
 import { signJwt, signingKeyRepository, type SigningKeyRecord } from '@odudu/crypto';
 import { withRealm, type DatabaseHandle, type RealmScopedDatabase } from '@odudu/db';
 import { subjectRepository } from '@odudu/domain-identity';
@@ -14,6 +15,7 @@ import { tokenGrantRepository, type TokenGrantRecord } from '#/repository/grants
 import { refreshTokenRepository } from '#/repository/refresh';
 import { accessTokenEligibleScope, reachableRoleIds } from '#/repository/scope-role-reach';
 import { rotateRefreshToken } from '#/usecase/refresh-rotation';
+import { acrFor, amrFor } from '#/service/acr';
 import { hashAuthorizationCode } from '#/service/authorization-code';
 import { evaluateAuthorizationCodeGrant } from '#/service/authorization-code-grant';
 import { type ClaimContext } from '#/service/claims';
@@ -422,6 +424,18 @@ async function issueAuthorizationCodeTokens(
     // what a subject's `openid`/`profile`/`email` scopes produce, not one
     // for the ID token and a second for /userinfo.
     const userClaims = await deps.claimMappers.assemble(idTokenScope, narrowedContext);
+    // What actually authenticated this login, read off the session the
+    // code's own login established (or, for a reused session, established
+    // originally) — never recomputed from what the subject could use now,
+    // the same reason `auth_time` above reads a stored instant rather than
+    // this call's own clock. `code.sessionId`, not the offline-nulled local
+    // `sessionId`, because `amr`/`acr` describe the authentication, not the
+    // grant's session binding.
+    const authenticators =
+      code.sessionId !== null
+        ? ((await sessionRepository(tx).byId(code.sessionId))?.authenticators ?? [])
+        : [];
+    const amr = amrFor(authenticators);
     // Guarded the same way the access token's assembly is, 83 lines above:
     // a mapper's output can never overwrite the envelope, `sub` included —
     // `subMapper` reaches its `sub` claim through the same registry.
@@ -434,6 +448,8 @@ async function issueAuthorizationCodeTokens(
       auth_time: Math.floor(code.authTime.getTime() / 1000),
       ...(code.nonce !== null ? { nonce: code.nonce } : {}),
       ...(sessionId !== null ? { sid: sessionId } : {}),
+      ...(amr.length > 0 ? { amr } : {}),
+      acr: acrFor(authenticators),
     });
     idToken = await signJwt(idTokenClaims, { key, kek: deps.kek });
   }
