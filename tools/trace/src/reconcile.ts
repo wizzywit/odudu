@@ -108,19 +108,15 @@ export interface SilencedMusts {
   na: number;
 }
 
-// `deferred:` and `n/a:` are the two statuses that say nothing per row, and
-// nothing is the right amount to say about any one of them: there are
-// hundreds, and a warning printed on every run for a row nobody will act on
-// is the furniture ADR 0017 warned against — it would bury the handful of
-// `accepted:` warnings that mode exists to make visible. What was wrong was
-// that silencing a *new* MUST that way also cost nothing.
-//
-// So the rows stay quiet and the counts do not. Each file's tally is
-// recorded, and a tally that no longer matches is reported — upwards,
-// because a MUST has been silenced and somebody should have to say so in a
-// reviewed diff; downwards, because a census that overstates what is
-// silenced is slack the next row can be silenced into for free. Per file,
-// so a rise in one table cannot be hidden by a fall in another.
+// `deferred:` and `n/a:` say nothing per row — with hundreds of rows, a
+// warning on every run is the furniture ADR 0017 warned against, burying
+// the `accepted:` warnings that mode exists to surface. Silencing a new
+// MUST that way used to cost nothing, which was the bug.
+
+// So rows stay quiet and counts do not: each file's tally is recorded, and
+// a mismatch is reported both ways — upward, because a MUST was silenced;
+// downward, because an overstated census is slack the next row can be
+// silenced into for free.
 function censusFindings(
   rows: Row[],
   census: Map<string, SilencedMusts>,
