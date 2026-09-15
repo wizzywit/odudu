@@ -552,7 +552,7 @@ describe('[OIDC-CORE-3.1.2.1-10] max_age decides whether a live session still co
   });
 });
 
-// C1: `issueAuthorizationCode`'s TTL used to be derived from `authTime`,
+// `issueAuthorizationCode`'s TTL used to be derived from `authTime`,
 // which is exactly right on the form path (authTime is `now` there) and
 // exactly wrong here — a session reused minutes after login got a code
 // already expired by the time it was issued. No fake clock: the session's
