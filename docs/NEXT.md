@@ -3,7 +3,7 @@
 ## Start here
 
 **P0, P1 and P2a are complete. P2b is brainstormed, specified and planned;
-Tasks 1 through 7 have landed and Task 8 is next.** Migration 0031 adds
+Tasks 1 through 8 have landed and Task 9 is next.** Migration 0031 adds
 `authentication_executions`: one flat, ordered list per realm (`id`,
 `realm_id`, `index`, `authenticator`, `requirement`), `requirement`
 constrained to `required`/`alternative`/`conditional`/`disabled` and
@@ -30,8 +30,23 @@ still calls `provisionRealmDefaults` directly, with a comment saying why.
 `provisionBrowserFlow` and `provisionRealmDefaults` both stay exported
 individually for a caller that wants only one half. Evaluating the flow into
 a decision, and rewiring `executor.ts`'s `STEPS` to read it, are Tasks 8 and
-9 — this task built only the table, the repository and the provisioning
-default. Migration 0026 adds
+9 — Task 7 built only the table, the repository and the provisioning
+default.
+
+**Task 8 is that decision, as a pure function.**
+`nextStep(executions, state)` (`packages/authn-flows/src/service/requirements.ts`)
+walks a flat, ordered list of `Step`s once and partitions it into groups: a
+run of adjacent `alternative` steps is one group, satisfied only when one of
+its members is actually satisfied; every other step is a group of its own,
+satisfied by its member being satisfied or simply inapplicable — `applicable`
+is a caller-supplied input, never computed here. `disabled` steps are
+dropped before grouping, so two alternative runs separated only by a
+disabled entry merge into one (a deliberate choice past what the nine
+brief-given cases pin down, covered by a tenth test). An empty flow, or one
+where every group runs out of applicable members, returns `{ kind: 'fail'
+}` rather than `{ kind: 'complete' }` — the case that stops a misconfigured
+realm from admitting anyone with no credential at all. `executor.ts`'s
+`STEPS` rewiring to call this is Task 9's, untouched here. Migration 0026 adds
 `token_grants.session_id`, nullable: null means an offline grant, which
 nothing expires and no logout can end; a non-null value is the SSO session
 the grant was issued under, and `sessions` needed a `UNIQUE (realm_id, id)`
