@@ -69,8 +69,8 @@ This ADR originally specified the mapping `"#/*": "./src/*"`. That mapping
 does not work under Node's native type stripping: `#/clock.js` resolves to
 `src/clock.js`, and the file on disk is `clock.ts`. Node does not rewrite the
 extension. Vitest's resolver does, which is why every test passed and nothing
-caught it until Task 8 first ran `node src/main.ts` directly — the exact
-command this ADR's rationale claimed would work.
+caught it until `apps/server/src/main.ts` was run directly with `node` — the
+exact command this ADR's rationale claimed would work.
 
 The mapping is therefore `"#/*.js": "./src/*.ts"`, which makes the extension
 rewrite part of the mapping itself. Verified empirically under both Node 24

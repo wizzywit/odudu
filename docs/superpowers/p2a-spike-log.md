@@ -67,7 +67,8 @@ use a recursive CTE over `role_composites`, whose only cycle guard is
 `CHECK (parent_role_id <> child_role_id)` — it refuses self-reference but
 not a longer cycle. Does `UNION` (duplicate-eliminating) terminate on a
 cyclic composite-role graph where `UNION ALL` does not? Verified against
-PostgreSQL 17 (the version the project runs; the brief's example command
+PostgreSQL 17 (the version the project runs;
+`docs/superpowers/plans/2026-09-14-p2a-identity-model.md`'s example command
 also names `postgres:17`), not asserted from documentation.
 
 Container:
@@ -164,11 +165,12 @@ actually deliver a message from inside the built image, or does it hit a
 Setup: added `nodemailer@7.0.9` and `@types/nodemailer@7.0.4` to
 `apps/server/package.json` (throwaway — removed after this spike, since
 `@odudu/email` is the package that owns the SMTP client), wrote
-`apps/server/src/smtp-probe.ts`
-per the brief, and temporarily added it as a second `tsup` entry point
-(also reverted) so the build stage would emit `dist/smtp-probe.js` for the
-probe command to import — the Dockerfile's own `pnpm --filter @odudu/server
-build` only knows about `src/main.ts` otherwise.
+`apps/server/src/smtp-probe.ts` to call `nodemailer`'s `createTransport`
+against the sink container below, and temporarily added it as a second
+`tsup` entry point (also reverted) so the build stage would emit
+`dist/smtp-probe.js` for the probe command to import — the Dockerfile's own
+`pnpm --filter @odudu/server build` only knows about `src/main.ts`
+otherwise.
 
 Commands run, in order:
 

@@ -22,6 +22,7 @@ still reports success. That failure mode is worse than a build break.
 ## Consequences
 
 - The TypeScript 7 native compiler's speed is unavailable for now.
-- Task 1 step 14 asserts the resolved version, so an accidental upgrade is
-  caught rather than silently degrading the lint.
+- `package.json` pins the exact version (`"typescript": "6.0.3"`, no caret),
+  and CI installs with `pnpm install --frozen-lockfile`, so an accidental
+  upgrade is caught rather than silently degrading the lint.
 - Revisit when typescript-eslint widens its peer range.

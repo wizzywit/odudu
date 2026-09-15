@@ -4,16 +4,18 @@
 
 ## Context
 
-Task 9 gave groups a path (`/engineering/platform`) and made role mappings
-inherit downward: a role mapped to `/engineering` reaches every subject in
-`/engineering` and every descendant group, including a subject whose only
-membership is `/engineering/platform`. `effectiveRoles` implements this
-with a `group_closure` CTE that walks child → parent before collecting
-`group_roles`.
+The `groups` migration (`packages/db/drizzle/0018_groups.sql`) gave groups
+a path (`/engineering/platform`), and role mappings inherit downward: a
+role mapped to `/engineering` reaches every subject in `/engineering` and
+every descendant group, including a subject whose only membership is
+`/engineering/platform`. `effectiveRoles`
+(`packages/domain-authz/src/repository/effective-roles.ts`) implements
+this with a `group_closure` CTE that walks child → parent before
+collecting `group_roles`.
 
-`effectiveGroupPaths(tx, subjectId)` is the separate, narrower query that a
-future groups claim mapper (Task 10) will read from: it returns the paths
-of the groups a subject **directly** belongs to. For a subject in
+`effectiveGroupPaths(tx, subjectId)` is the separate, narrower query that
+the `groups` claim mapper reads from: it returns the paths of the groups a
+subject **directly** belongs to. For a subject in
 `/engineering/platform`, it returns `['/engineering/platform']` only —
 `/engineering` does not appear, even though that subject's roles do include
 whatever `/engineering` grants.
@@ -36,11 +38,11 @@ lists only the groups the user is actually a member of; a member of a
 child group gets that child's path and nothing above it.
 
 That the same server still inherits _role_ mappings from ancestor groups
-(the behaviour Task 9's `group_closure` matches) while its `groups` claim
-does not walk ancestors is asserted by this ADR from Odudu's own design
-symmetry, not independently re-verified against Keycloak's role-resolution
-code in this pass — the direct-membership behaviour of the claim mapper
-itself is what was fetched and read.
+(the behaviour `effectiveRoles`' `group_closure` CTE matches) while its
+`groups` claim does not walk ancestors is asserted by this ADR from
+Odudu's own design symmetry, not independently re-verified against
+Keycloak's role-resolution code in this pass — the direct-membership
+behaviour of the claim mapper itself is what was fetched and read.
 
 ## Decision
 
@@ -70,7 +72,8 @@ ancestor group whose access they need — the claim will not do the tree walk
 for them. This trap is exactly why it is being written down here rather
 than left for the next integration to discover on its own.
 
-Task 10's claim mapper for `groups` should read `effectiveGroupPaths`
+The `groups` claim mapper (`groupsMapper` in
+`packages/protocol-oidc/src/service/claims.ts`) reads `effectiveGroupPaths`
 as-is; this ADR is what a reader reaches when they ask why it doesn't walk
 ancestors, or when a downstream RBAC rule silently under-matches.
 
