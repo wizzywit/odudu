@@ -214,3 +214,16 @@ bundled code ran and delivered mail using only the `runtime` stage's
 (with `@types/nodemailer@7.0.4` as a dev dependency), with no
 `tsup.config.ts` change required in that package beyond what a normal
 dependency already gets — `nodemailer` needs no entry in `nativeExternals`.
+
+This spike answered only whether the client survives bundling and delivers
+from the built image; it asked nothing about the version's advisory record,
+and 7.0.9 later turned out to carry ten open Dependabot advisories, two of
+them High (an `addressparser` denial-of-service and a `raw`-option bypass of
+`disableFileAccess`/`disableUrlAccess` enabling arbitrary file read and
+SSRF). `packages/email/package.json` now pins `nodemailer@9.1.1`, the
+version clearing all ten. The bundling and delivery finding above is
+unaffected: 9.1.1 needed no `tsup.config.ts` change and no
+`nativeExternals` entry either, so the tsup/runtime-stage conclusion holds
+for the pinned version. Choosing a dependency version needs an advisory
+check in addition to a bundling spike; this log entry no longer stands as
+that check for `nodemailer`.
