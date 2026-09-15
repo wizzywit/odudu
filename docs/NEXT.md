@@ -130,24 +130,57 @@ recompute" rule `auth_time` already follows.
 `packages/protocol-oidc/src/service/acr.ts`'s `amrFor` and `acrFor` were
 checked against the IANA Authentication Method Reference Values registry
 and RFC 8176 §2 directly (2026-09-15), not recalled — see
-`docs/protocols/oidc-core.md`'s new reading note for what was read and why
-two of the brief's own proposed mappings needed correcting:
-**`recovery-code` maps to nothing**, because RFC 8176's `otp` is scoped to
-RFC 4226/6238's algorithmic one-time passwords, and a pre-generated,
-statically stored recovery code is not that — inventing the mapping would
-violate OIDC Core §2's rule that a registered name is not reused with a
-different meaning. `passkey` still maps to `hwk` + `user`, matching common
-practice for a hardware-backed WebAuthn assertion, with a caveat recorded
-for whoever gives `passkey` a runtime: a synced (software) passkey would
-be `swk`, not `hwk`. **`acr`'s SHOULD — an absolute URI or an RFC 6711
-name — was not closed.** `acrFor` returns this realm's own bare digit,
-which is neither, so that row moves to `gap`, not `covered`; the adjacent
-MUST ("a registered name is not used with a different meaning") closes
-instead, because it binds only a value that names a registration, and
-Odudu's digits never do. **As of Task 10, every `deferred: P2` row in
-`docs/protocols/oidc-core.md` and `rfc6749.md` is closed except RFC 6749
-§2.3.1's brute-force MUST** — the phase's traceability midpoint; that row
-alone is left for whichever task owns rate limiting.
+`docs/protocols/oidc-core.md`'s new reading note for what was read.
+**`recovery-code` maps to nothing**, but the first version of this task
+gave the wrong reason: RFC 8176's `otp` entry says one-time-password
+specifications it applies to "include" RFC 4226/6238, and "include" is
+non-exhaustive, so the registry does not in fact scope `otp` to HOTP/TOTP
+alone — a confident claim about a registry that a fix round caught the
+same way this task caught the brief's own. The decision to omit
+`recovery-code` still stands, on the reason that actually holds: a
+statically stored, printed-or-saved recovery code carries a materially
+different assurance story from a generator-produced code, and reporting it
+as `otp` would mislead a relying party that reads the claim that way — a
+mislabelling that is unrecoverable once trusted, where an omission is not.
+The residual cost is recorded rather than hidden: once `recovery-code` has
+a runtime, `amr` for a recovery-code-only login is indistinguishable from
+one with no factors at all, while `acr` still counts it as one. `passkey`
+still maps to `hwk` + `user`, matching common practice for a
+hardware-backed WebAuthn assertion, with a caveat recorded for whoever
+gives `passkey` a runtime: a synced (software) passkey would be `swk`, not
+`hwk`.
+
+**`acr`'s SHOULD — an absolute URI or an RFC 6711 name — was not closed.**
+`acrFor` returns this realm's own bare digit, which is neither, so that
+row moves to `gap`, not `covered`; the adjacent MUST ("a registered name
+is not used with a different meaning") closes instead, because it binds
+only a value that names a registration, and Odudu's digits never do — a
+vacuous satisfaction the clause table's Requirement cell now says plainly,
+and `OIDC-CORE-2-09` asserts as a property over several inputs rather than
+four fixed pairs that would still pass if the vacuity broke. The `gap`
+ships a wire format the moment a client reads it, so if bare digits are
+the permanent answer rather than a placeholder, that decision is worth an
+ADR while it can still be made.
+
+`acrFor` returns `null` — omitted from the token, the same way `amr` omits
+an empty array — for an authenticator list with nothing in it, rather than
+asserting `'1'` about a login the record does not describe; a session
+recorded before migration 0033 existed, or one somehow established with no
+authenticators, no longer reports a single factor it cannot back up.
+`amr`/`acr`'s presence in `docs/request-paths.md`'s four decoded-ID-token
+transcripts was re-run against the compose stack rather than hand-edited
+in, and `tests/docs/id-token-claims.test.ts` now fails the build if a
+transcript carrying `auth_time` ever again lacks either claim. A dedicated
+integration test also exercises accumulation across a genuine two-factor
+login — `recordSatisfied(authSessionId, 'otp')` ahead of a password
+submission, through the real `establishSession` and issuance path — so a
+simplification of `advance()`'s authenticator list to `[authenticator]`
+alone, which every other test left green, now fails.
+
+**As of Task 10, every `deferred: P2` row in `docs/protocols/oidc-core.md`
+and `rfc6749.md` is closed except RFC 6749 §2.3.1's brute-force MUST** —
+the phase's traceability midpoint; that row alone is left for whichever
+task owns rate limiting.
 
 Migration 0026 adds
 `token_grants.session_id`, nullable: null means an offline grant, which

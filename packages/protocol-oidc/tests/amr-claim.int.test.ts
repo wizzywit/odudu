@@ -9,7 +9,7 @@ import {
   type DatabaseHandle,
   type RealmScopedDatabase,
 } from '@odudu/db';
-import { provisionRealm, sessions } from '@odudu/authn-flows';
+import { authenticationSessionRepository, provisionRealm, sessions } from '@odudu/authn-flows';
 import { clients, provisionClientDefaults } from '@odudu/domain-realm';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
@@ -41,7 +41,7 @@ const KEK = Buffer.alloc(32, 9);
 const VERIFIER = 'dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk';
 const CHALLENGE = 'E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM';
 
-async function setupRealm(name: string): Promise<void> {
+async function setupRealm(name: string): Promise<string> {
   const realmId = newId();
   const clientDbId = newId();
   await withRealm(app.db, realmId, async (tx: RealmScopedDatabase) => {
@@ -98,6 +98,7 @@ async function setupRealm(name: string): Promise<void> {
       privateJwkEncrypted: key.privateJwkEncrypted,
     });
   });
+  return realmId;
 }
 
 function authorizeUrl(realmName: string): string {
@@ -284,7 +285,7 @@ describe('amr and acr, from the executions that actually ran', () => {
     expect(jwtPayload(idToken).acr).toBe('2');
   });
 
-  it('a session recorded before this column existed carries no amr and acr "1"', async () => {
+  it('a session recorded before this column existed carries no amr and no acr', async () => {
     const realmName = `amr-claim-legacy-${newId()}`;
     await setupRealm(realmName);
 
@@ -294,6 +295,53 @@ describe('amr and acr, from the executions that actually ran', () => {
     const { idToken } = await reuseAndRedeem(realmName, cookie);
 
     expect(jwtPayload(idToken).amr).toBeUndefined();
-    expect(jwtPayload(idToken).acr).toBe('1');
+    expect(jwtPayload(idToken).acr).toBeUndefined();
+  });
+
+  // Seeds `satisfied` with `otp` directly (the same artifice the two tests
+  // above use for a factor with no runtime), then completes the login with
+  // a real password submission. `dispatchNext` ignores the unrecognised
+  // name; the resulting token can only report both factors if `advance()`
+  // actually prepends what was already satisfied, not just the factor
+  // that just ran.
+  it('a factor satisfied before this submission is still in the token amr/acr', async () => {
+    const realmName = `amr-claim-accumulation-${newId()}`;
+    const realmId = await setupRealm(realmName);
+
+    const authorize = await http.inject({ url: authorizeUrl(realmName) });
+    if (authorize.statusCode !== 200) {
+      throw new Error(
+        `expected /authorize to render the login form, got ${String(authorize.statusCode)}`,
+      );
+    }
+    const match = /name="auth_session_id" value="([^"]*)"/.exec(authorize.body);
+    const authSessionId = match?.[1];
+    if (authSessionId === undefined) {
+      throw new Error('auth_session_id not found in the login form');
+    }
+
+    await withRealm(app.db, realmId, (tx) =>
+      authenticationSessionRepository(tx).recordSatisfied(authSessionId, 'otp'),
+    );
+
+    const form = new URLSearchParams({
+      auth_session_id: authSessionId,
+      username: USERNAME,
+      password: PASSWORD,
+    });
+    const submitted = await http.inject({
+      method: 'POST',
+      url: `/realms/${realmName}/login-actions/authenticate`,
+      payload: form.toString(),
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    });
+    expect(submitted.statusCode).toBe(302);
+    const code = new URL(locationHeader(submitted)).searchParams.get('code');
+    if (code === null) throw new Error('expected a code on the login redirect');
+
+    const { id_token: idToken } = await redeemCode(realmName, code);
+
+    expect(jwtPayload(idToken).amr).toEqual(['otp', 'pwd']);
+    expect(jwtPayload(idToken).acr).toBe('2');
   });
 });

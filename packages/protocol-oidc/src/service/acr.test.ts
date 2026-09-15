@@ -16,14 +16,12 @@ describe('amrFor', () => {
     expect(amrFor(['password', 'something-local'])).toEqual(['pwd']);
   });
 
-  // RFC 8176 §2 ties `otp` to RFC 4226/6238 — an algorithmically generated
-  // one-time password, checked once and never reusable in the same way
-  // again. A recovery code is a pre-generated, statically stored value from
-  // a fixed list, not an OTP-algorithm output, so it has no accurate entry
-  // in the registry (see docs/protocols/oidc-core.md's reading note). The
-  // rule this holds is the brief's own: an unregistered meaning emits
-  // nothing rather than a guess.
-  it('emits nothing for a recovery code, which is not what RFC 8176 registers as otp', () => {
+  // The registry's own wording for `otp` does not rule this out, but
+  // reporting a stored, printed-or-saved recovery code as `otp` would
+  // still claim a generator-produced code — a stronger assurance than a
+  // recovery code supports (docs/protocols/oidc-core.md's reading note has
+  // the full argument). No other value fits either, so it emits nothing.
+  it('emits nothing for a recovery code, which otp would misrepresent', () => {
     expect(amrFor(['recovery-code'])).toEqual([]);
   });
 });
@@ -38,15 +36,20 @@ describe('acrFor', () => {
     expect(acrFor(['passkey'])).toBe('2');
   });
 
+  it('is null for an empty record — no authenticator to state a factor count about', () => {
+    expect(acrFor([])).toBeNull();
+  });
+
   // OIDC Core §2's acr MUST — "a registered name is not used with a
   // different meaning than the one it is registered with" — binds only a
-  // value that names an RFC 6711 registration. `acrFor` never emits one:
-  // its output is always this realm's own bare digit, so there is no
-  // registered name here for the MUST to be violated against.
-  it('[OIDC-CORE-2-09] never emits an RFC 6711 registered name', () => {
-    expect(acrFor([])).toBe('1');
-    expect(acrFor(['password'])).toBe('1');
-    expect(acrFor(['password', 'otp'])).toBe('2');
-    expect(acrFor(['passkey'])).toBe('2');
+  // value that names an RFC 6711 registration. This is vacuously satisfied
+  // rather than actively guarded: asserted over inputs including an
+  // authenticator name the mapping above knows nothing about, so a future
+  // change that starts naming a registered value here would fail it.
+  it('[OIDC-CORE-2-09] never emits an RFC 6711 registered name, over any input', () => {
+    for (const authenticators of [[], ['password'], ['passkey'], ['x', 'y', 'z']]) {
+      const acr = acrFor(authenticators);
+      expect(acr === null || /^[12]$/.test(acr)).toBe(true);
+    }
   });
 });

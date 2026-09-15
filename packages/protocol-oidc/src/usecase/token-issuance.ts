@@ -426,16 +426,18 @@ async function issueAuthorizationCodeTokens(
     const userClaims = await deps.claimMappers.assemble(idTokenScope, narrowedContext);
     // What actually authenticated this login, read off the session the
     // code's own login established (or, for a reused session, established
-    // originally) — never recomputed from what the subject could use now,
-    // the same reason `auth_time` above reads a stored instant rather than
-    // this call's own clock. `code.sessionId`, not the offline-nulled local
-    // `sessionId`, because `amr`/`acr` describe the authentication, not the
-    // grant's session binding.
+    // originally) — `amr`/`acr` state what ran, never what the subject
+    // could have used instead, the reason a subject who could use a
+    // passkey but signed in with a password must not get `hwk` in the
+    // token. `code.sessionId`, not the offline-nulled local `sessionId`,
+    // because `amr`/`acr` describe the authentication, not the grant's
+    // session binding.
     const authenticators =
       code.sessionId !== null
         ? ((await sessionRepository(tx).byId(code.sessionId))?.authenticators ?? [])
         : [];
     const amr = amrFor(authenticators);
+    const acr = acrFor(authenticators);
     // Guarded the same way the access token's assembly is, 83 lines above:
     // a mapper's output can never overwrite the envelope, `sub` included —
     // `subMapper` reaches its `sub` claim through the same registry.
@@ -449,7 +451,7 @@ async function issueAuthorizationCodeTokens(
       ...(code.nonce !== null ? { nonce: code.nonce } : {}),
       ...(sessionId !== null ? { sid: sessionId } : {}),
       ...(amr.length > 0 ? { amr } : {}),
-      acr: acrFor(authenticators),
+      ...(acr !== null ? { acr } : {}),
     });
     idToken = await signJwt(idTokenClaims, { key, kek: deps.kek });
   }

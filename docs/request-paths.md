@@ -608,16 +608,17 @@ authenticates as well, in the one way it is registered for.
 The access token, decoded:
 
 ```json
-{ "alg": "RS256", "kid": "01a09678-…", "typ": "at+jwt" }
+{ "alg": "RS256", "kid": "01a0a6cd-e3c9-…", "typ": "at+jwt" }
 {
   "iss": "http://localhost:3000/realms/demo",
-  "sub": "01a09678-07c1-…",
+  "sub": "01a0a6cd-e3cb-…",
   "aud": ["http://localhost:3000/realms/demo"],
   "client_id": "demo-spa",
   "scope": "openid profile email",
-  "iat": 1789230877,
-  "exp": 1789231177,
-  "jti": "01a09678-8ae6-…"
+  "iat": 1789504919,
+  "exp": 1789505219,
+  "jti": "01a0a6ce-17ac-…",
+  "sid": "01a0a6ce-1788-…"
 }
 ```
 
@@ -638,19 +639,22 @@ below](#roles-once-a-scope-reaches-it) shows the symmetric flag that admits
 The ID token, decoded:
 
 ```json
-{ "alg": "RS256", "kid": "01a09678-…" }
+{ "alg": "RS256", "kid": "01a0a6cd-e3c9-…" }
 {
   "iss": "http://localhost:3000/realms/demo",
   "aud": "demo-spa",
-  "iat": 1789230877,
-  "exp": 1789231177,
-  "auth_time": 1789230870,
+  "iat": 1789504919,
+  "exp": 1789505219,
+  "auth_time": 1789504919,
   "nonce": "n-0S6_WzA2Mj",
-  "sub": "01a09678-07c1-…",
+  "sid": "01a0a6ce-1788-…",
+  "sub": "01a0a6cd-e3cb-…",
   "name": "ada",
   "preferred_username": "ada",
   "email": "ada@example.com",
-  "email_verified": false
+  "email_verified": false,
+  "amr": ["pwd"],
+  "acr": "1"
 }
 ```
 
@@ -658,7 +662,9 @@ Its `aud` is the client, not the issuer: an ID token is a statement to the
 client about who signed in, and an access token is a credential for an API.
 `nonce` appears exactly when the request carried one, and the client must
 compare it to what it sent. An ID token is issued only when the granted
-scope includes `openid`.
+scope includes `openid`. `amr` and `acr` describe what actually
+authenticated this login — `pwd` (RFC 8176) and a single factor — never
+what the subject could have used instead.
 
 **What the client does next:** verify the ID token's signature against the
 JWKS, its `iss`, `aud`, `exp` and `nonce`; take `sub` as the user's
@@ -711,13 +717,14 @@ token that carries it:
 {
   "roles": ["reviewer"],
   "iss": "http://localhost:3000/realms/demo",
-  "sub": "01a0a1a7-5d86-7e0c-9ebf-d30b0fc20cb4",
+  "sub": "01a0a6cd-e3cb-…",
   "aud": ["http://localhost:3000/realms/demo"],
   "client_id": "demo-spa",
   "scope": "openid roles",
-  "iat": 1789418514,
-  "exp": 1789418814,
-  "jti": "01a0a1a7-a6bc-7deb-93ae-f0a671497b5a"
+  "iat": 1789505061,
+  "exp": 1789505361,
+  "jti": "01a0a6d0-445f-…",
+  "sid": "01a0a6d0-4425-…"
 }
 ```
 
@@ -728,11 +735,14 @@ The ID token issued alongside it carries no `roles`, though the same
 {
   "iss": "http://localhost:3000/realms/demo",
   "aud": "demo-spa",
-  "iat": 1789418514,
-  "exp": 1789418814,
-  "auth_time": 1789418514,
+  "iat": 1789505061,
+  "exp": 1789505361,
+  "auth_time": 1789505061,
   "nonce": "n-0S6_WzA2Mj",
-  "sub": "01a0a1a7-5d86-7e0c-9ebf-d30b0fc20cb4"
+  "sid": "01a0a6d0-4425-…",
+  "sub": "01a0a6cd-e3cb-…",
+  "amr": ["pwd"],
+  "acr": "1"
 }
 ```
 
@@ -751,7 +761,7 @@ curl -sS -H "Authorization: Bearer $ACCESS_TOKEN" \
 ```
 
 ```json
-{ "sub": "01a0a1a7-5d86-7e0c-9ebf-d30b0fc20cb4", "roles": ["reviewer"] }
+{ "sub": "01a0a6cd-e3cb-76de-badb-9191bba04d13", "roles": ["reviewer"] }
 ```
 
 A role reaches a token only when it is mapped, this way, to a scope the
@@ -1007,13 +1017,14 @@ where they name the client:
 ```json
 {
   "iss": "http://localhost:3000/realms/demo",
-  "sub": "01a09acc-6bd8-…",
+  "sub": "01a0a6cd-e3cb-…",
   "aud": ["http://localhost:3000/realms/demo"],
   "client_id": "demo-backend",
   "scope": "openid profile email",
-  "iat": 1789303513,
-  "exp": 1789303813,
-  "jti": "01a09acc-e390-…"
+  "iat": 1789505125,
+  "exp": 1789505425,
+  "jti": "01a0a6d1-3d61-…",
+  "sid": "01a0a6d1-3d1f-…"
 }
 ```
 
@@ -1021,15 +1032,18 @@ where they name the client:
 {
   "iss": "http://localhost:3000/realms/demo",
   "aud": "demo-backend",
-  "iat": 1789303513,
-  "exp": 1789303813,
-  "auth_time": 1789303513,
+  "iat": 1789505125,
+  "exp": 1789505425,
+  "auth_time": 1789505125,
   "nonce": "n-0S6_WzA2Mj",
-  "sub": "01a09acc-6bd8-…",
+  "sid": "01a0a6d1-3d1f-…",
+  "sub": "01a0a6cd-e3cb-…",
   "name": "ada",
   "preferred_username": "ada",
   "email": "ada@example.com",
-  "email_verified": false
+  "email_verified": false,
+  "amr": ["pwd"],
+  "acr": "1"
 }
 ```
 
@@ -2007,31 +2021,40 @@ OFFLINE_REFRESH_TOKEN=$(printf '%s' "$OFFLINE_TOKENS" | sed -n 's/.*"refresh_tok
 ```json
 {
   "iss": "http://localhost:3000/realms/demo",
-  "sub": "01a0a5e1-…",
+  "sub": "01a0a6cd-e3cb-…",
   "aud": ["http://localhost:3000/realms/demo"],
   "client_id": "demo-spa",
   "scope": "openid offline_access",
-  "iat": 1789489733,
-  "exp": 1789490033,
-  "jti": "01a0a5e6-…"
+  "iat": 1789505162,
+  "exp": 1789505462,
+  "jti": "01a0a6d1-cbc5-…"
 }
 ```
 
 No `sid` — every other access token in this document carries one
 ([docs/protocols/oidc-backchannel.md](protocols/oidc-backchannel.md) §2.1),
 and this is the one grant here with no session for it to name. The ID
-token, decoded, is missing it the same way:
+token, decoded, is missing it the same way, but still carries `amr` and
+`acr`:
 
 ```json
 {
-  "sub": "01a0a5e1-…",
+  "sub": "01a0a6cd-e3cb-…",
   "iss": "http://localhost:3000/realms/demo",
   "aud": "demo-spa",
-  "iat": 1789489733,
-  "exp": 1789490033,
-  "auth_time": 1789489733
+  "iat": 1789505162,
+  "exp": 1789505462,
+  "auth_time": 1789505162,
+  "amr": ["pwd"],
+  "acr": "1"
 }
 ```
+
+`amr`/`acr` read the session the login itself established
+(`code.sessionId`), not the grant's own, offline-nulled session binding —
+the two are different fields for exactly this reason: an `offline_access`
+grant has no session to end at logout, but it is still a statement about a
+login that really happened, with a real authentication behind it.
 
 Logging out the session that redeemed both codes ends it the same two-step
 way shown above: `GET` for the confirmation page, then the hidden

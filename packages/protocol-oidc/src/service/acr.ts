@@ -1,9 +1,10 @@
 // IANA Authentication Method Reference Values registry (RFC 8176 §2),
 // consulted 2026-09-15 — see docs/protocols/oidc-core.md's reading note for
-// what was checked and why `recovery-code` has no entry here. `passkey`
-// maps to both `hwk` (possession of the private key) and `user` (the
-// platform authenticator's own presence/verification step), matching how
-// WebAuthn assertions are commonly reported under this claim.
+// what was checked, including why `recovery-code` has no entry here even
+// though the registry's own wording does not rule it out. `passkey` maps
+// to both `hwk` (possession of the private key) and `user` (the platform
+// authenticator's own presence/verification step), matching how WebAuthn
+// assertions are commonly reported under this claim.
 const AMR_VALUES: Readonly<Record<string, readonly string[]>> = {
   password: ['pwd'],
   otp: ['otp'],
@@ -28,7 +29,13 @@ const FACTOR_COUNT: Readonly<Record<string, number>> = {
   passkey: 2,
 };
 
-export function acrFor(authenticators: readonly string[]): string {
+// null when there is nothing to say: a login this record does not describe
+// (an empty list — a session recorded before this column existed, or one
+// that somehow completed with none) asserts no factor count, the same
+// reason `amrFor` returns an empty array rather than a claim about an
+// authentication this record carries no evidence of.
+export function acrFor(authenticators: readonly string[]): string | null {
+  if (authenticators.length === 0) return null;
   const factors = authenticators.reduce((sum, name) => sum + (FACTOR_COUNT[name] ?? 1), 0);
   return factors >= 2 ? '2' : '1';
 }

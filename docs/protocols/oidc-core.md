@@ -613,8 +613,12 @@ Two registries govern these claims, and both were read directly rather than
 recalled, on 2026-09-15: the IANA "Authentication Method Reference Values"
 registry established by RFC 8176, and RFC 8176 §2 itself, which is the
 registry's own defining text. `pwd` is "password-based authentication";
-`otp` is "one-time password", scoped explicitly to RFC 4226 and RFC 6238 —
-an algorithmically generated code, checked once; `hwk` is proof-of-possession
+`otp` is "One-time password [RFC4949]. One-time password specifications
+that this authentication method applies to include [RFC4226] and
+[RFC6238]" — its primary reference is RFC 4949's general definition (a
+password valid for only one login), and "include" is explicitly
+non-exhaustive, so the entry does not scope `otp` to HOTP/TOTP alone, and a
+first version of this note claimed otherwise. `hwk` is proof-of-possession
 of a hardware-secured key; `user` is a user-presence test, "evidence that
 the end user is present and interacting with the device". `packages/protocol-oidc/src/service/acr.ts`'s
 `amrFor` maps `password` → `pwd`, `otp` → `otp`, and `passkey` → `hwk` +
@@ -625,15 +629,29 @@ passkey would more accurately be `swk`; Odudu's `passkey` authenticator has
 no runtime yet (`executor.ts`'s `unimplementedAuthenticator`), so which of
 the two is honest is a decision for whoever implements it, not this row.
 
-**`recovery-code` maps to nothing, deliberately.** A recovery code is a
-statically pre-generated, single-use value from a fixed list — not an
-algorithmic one-time password in the sense RFC 4226/6238 (and therefore
-`otp`) mean. Reporting it as `otp` would tell a relying party this login
-carried an OTP-generator factor when it did not. No other registered value
-fits it either (it is not knowledge the subject inherently knows, so `kba`
-is no better a fit), so `amrFor` omits it — the same rule that already
-governs any authenticator name the registry has nothing for: emit nothing
-rather than guess.
+**`recovery-code` maps to nothing, deliberately — but not because RFC 8176
+excludes it.** The registry's non-exhaustive "include" leaves room for a
+recovery code to be read as an `otp` in RFC 4949's broad sense. What
+argues against doing so is what the registry's possession/knowledge values
+are for: `hwk`/`swk`/`sc`/`kba` exist to let a relying party tell factors
+apart by what they actually rest on, and `otp` in ordinary use connotes a
+generator-produced code — freshly computed, short-lived, tied to a device
+or seed. A recovery code is none of that: a statically pre-generated,
+printed-or-saved value from a fixed list, with a materially different
+assurance story (compromise of a stored list versus compromise of a live
+generator). Reporting it as `otp` would mislead a relying party that reads
+the claim that way, and a mislabelling is unrecoverable once trusted, where
+an omission is not. No other registered value fits better either — it is
+not knowledge the subject inherently holds, so `kba` is no closer — so
+`amrFor` omits it: the same rule that already governs any authenticator
+name the registry has nothing accurate for.
+
+This has a cost worth recording rather than hiding: once `recovery-code`
+has a runtime, a login satisfied by a recovery code alone reports `amr: []`
+— indistinguishable from a login this same code would treat as having no
+factors at all — while `acrFor` still counts it as one satisfied factor
+(`'1'`). The two claims disagree about that login, and nothing here
+resolves it; it is deferred to whoever gives `recovery-code` a runtime.
 
 **`acr`'s bare digits, and why the SHOULD stays open.** §2 asks that "an
 absolute URI or an RFC 6711 registered name SHOULD be used as the `acr`
@@ -644,6 +662,13 @@ against the SHOULD's own wording, not a technicality: a client that reads
 rather than forced to `covered`, because closing it honestly needs either
 minting realm-specific URIs for its context classes or adopting an existing
 RFC 6711 registration, and P2b did neither.
+
+Leaving it `gap` ships a wire format regardless: the moment a relying
+party reads `"1"`/`"2"` off a real token, changing what `acr` names stops
+being a free choice — it is a breaking change for whoever already compares
+against those digits. If bare digits are meant to be the permanent answer
+rather than a placeholder, that is a decision worth an ADR while it can
+still be made rather than merely discovered later as what shipped.
 
 That same bare-digits choice is what lets the adjacent MUST close instead.
 §2's next sentence is "registered names MUST NOT be used with a different
@@ -671,7 +696,7 @@ Odudu never uses one, so nothing in `acrFor`'s output can violate it.
 | 2       | SHOULD | the authorization server performs no other processing on `nonce` values used                                                                                                                                                                                                                   | —                      | gap                                                                                                                                                                                                                                                                                                                                   |
 | 2       | MUST   | when `nonce` is present in the ID Token, the client verifies it equals the value it sent in the Authentication Request                                                                                                                                                                         | —                      | n/a: client-side guidance; Odudu is the authorization server, not a client                                                                                                                                                                                                                                                            |
 | 2       | SHOULD | an absolute URI or an RFC 6711 registered name is used as the `acr` value                                                                                                                                                                                                                      | —                      | gap                                                                                                                                                                                                                                                                                                                                   |
-| 2       | MUST   | a registered `acr` name is not used with a different meaning than the one it is registered with                                                                                                                                                                                                | `OIDC-CORE-2-09`       | covered                                                                                                                                                                                                                                                                                                                               |
+| 2       | MUST   | a registered `acr` name is not used with a different meaning than the one it is registered with (vacuously true here: `acrFor` never emits an RFC 6711 registered name, only this realm's own digit)                                                                                           | `OIDC-CORE-2-09`       | covered                                                                                                                                                                                                                                                                                                                               |
 | 2       | SHOULD | authentications asserting `acr` level `0` are not used to authorize access to any resource of monetary value                                                                                                                                                                                   | —                      | n/a: guidance for whoever authorizes access on the strength of `acr`; Odudu emits the claim, it does not consume it                                                                                                                                                                                                                   |
 | 2       | SHOULD | values used in `amr` come from the IANA Authentication Method Reference Values registry                                                                                                                                                                                                        | `OIDC-CORE-2-10`       | covered                                                                                                                                                                                                                                                                                                                               |
 | 2       | MUST   | when `azp` is present, it contains the OAuth 2.0 Client ID of the authorized party                                                                                                                                                                                                             | —                      | n/a: `azp` only arises with extensions beyond this specification; Odudu uses none in P1                                                                                                                                                                                                                                               |

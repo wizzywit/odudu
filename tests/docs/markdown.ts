@@ -33,7 +33,7 @@ export interface FencedBlock {
   readonly startLine: number;
 }
 
-function fencedBlocks(document: Document): FencedBlock[] {
+export function fencedBlocks(document: Document): FencedBlock[] {
   const blocks: FencedBlock[] = [];
   let open: { language: string; startLine: number; body: string[] } | null = null;
 
@@ -81,6 +81,51 @@ export function jsonAfter(document: Document, marker: string): Record<string, un
     );
   }
   return { ...parsed };
+}
+
+// A fence sometimes shows more than one JSON value — a JWT header on its
+// own line above the payload it belongs to, in this document's convention —
+// so a check reading "the JSON in this fence" needs every top-level object
+// in it, not just the one `JSON.parse` on the whole body would choke on.
+// Brace-counting is string-aware (a value like `"error":"invalid_client"}`
+// must not close early) but otherwise assumes the fence holds nothing but
+// JSON objects and surrounding whitespace, which is what this document uses
+// a `json` fence for.
+export function jsonObjectsIn(body: string): Record<string, unknown>[] {
+  const objects: Record<string, unknown>[] = [];
+  let depth = 0;
+  let start = -1;
+  let inString = false;
+  let escaped = false;
+
+  for (let i = 0; i < body.length; i++) {
+    const ch = body[i];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (ch === '\\') escaped = true;
+      else if (ch === '"') inString = false;
+      continue;
+    }
+    if (ch === '"') {
+      inString = true;
+      continue;
+    }
+    if (ch === '{') {
+      if (depth === 0) start = i;
+      depth++;
+    } else if (ch === '}') {
+      depth--;
+      if (depth === 0 && start !== -1) {
+        const parsed: unknown = JSON.parse(body.slice(start, i + 1));
+        if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
+          objects.push(parsed as Record<string, unknown>);
+        }
+        start = -1;
+      }
+    }
+  }
+
+  return objects;
 }
 
 export interface Table {

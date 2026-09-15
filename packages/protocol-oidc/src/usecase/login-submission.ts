@@ -95,7 +95,8 @@ export interface CompleteLoginInput {
   ssoSessionMaxSeconds: number;
   // What `advance` reported ran, in order — copied onto the session
   // establishSession creates, so a later reuse of it states `amr`/`acr`
-  // about this login rather than a fresh clock read at token issuance.
+  // about what this login actually used rather than what the subject
+  // could use by the time it is reused.
   authenticators: string[];
 }
 
