@@ -4,8 +4,9 @@ import { type CredentialSecret, type CredentialType } from '#/service/credential
 
 export { type CredentialType } from '#/service/credential-secret';
 
-// A typed row per credential, not a password_hash column on users, so P2's
-// TOTP and passkeys are inserts rather than a migration.
+// A typed row per credential, not a password_hash column on users. Multiple
+// credentials of different types per subject — password, TOTP, passkey,
+// recovery codes — would be impossible to express in fixed columns.
 export const userCredentials = pgTable('user_credentials', {
   id: uuid('id').primaryKey(),
   realmId: uuid('realm_id').notNull(),

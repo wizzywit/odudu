@@ -65,7 +65,7 @@ export function credentialRepository(tx: RealmScopedDatabase) {
       return row === undefined ? null : toRecord(row);
     },
 
-    // The bootstrap seed command and self-service enrollment are the callers:
+    // Called by the seed CLI and by `createAccount` in the registration route:
     // one credential row per call, typed by `input.type`, never a batch.
     async insert(input: NewCredential): Promise<void> {
       await tx.insert(userCredentials).values({
