@@ -212,6 +212,25 @@ describe('self-registration', () => {
     expect(await roleNamesFor(realmId, subjectId)).toEqual(['offline_access']);
   });
 
+  it('refuses a password that fails the realm policy, and creates nothing', async () => {
+    const { realmId, realmName } = await seedRealm(`realm-${newId()}`, {
+      registrationAllowed: true,
+    });
+
+    const res = await submitRegistration(realmName, {
+      username: 'ada',
+      email: 'ada@example.test',
+      password: 'short',
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.body).toContain('at least');
+    const notCreated = await withRealm(app.db, realmId, (tx) =>
+      userRepository(tx).byUsername('ada'),
+    );
+    expect(notCreated).toBeNull();
+  });
+
   it('refuses an address another user in the realm already holds', async () => {
     const { realmId, realmName } = await seedRealm(`realm-${newId()}`, {
       registrationAllowed: true,

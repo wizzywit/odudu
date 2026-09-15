@@ -382,7 +382,11 @@ a password is bound by it.** Migration 0035 (numbered past the brief's
 nine columns to `realms`: `password_min_length` (default 8, floored there
 by a `CHECK` so a realm cannot configure below it, ceiling 256),
 `password_require_digit`/`_uppercase`/`_lowercase`/`_special` (all off by
-default), `password_not_username`/`_not_email` (both on by default),
+default), `password_not_username`/`_not_email` (both on by default — `not_email`
+matches the local part of the address, not the whole string, so a
+candidate containing just the account-name half is refused the same as one
+containing the username, and a subject whose username equals its email's
+local part trips both rules at once, not either-or),
 `password_history_depth` (0–24) and `password_max_age_days` (0–3650) — the
 last two are columns with no reader yet; `update-password` is the task that
 gives them one. `@odudu/domain-identity` gained
@@ -408,7 +412,16 @@ reachable. Fixture fallout: 15 short passwords in
 `apps/server/tests/seed.int.test.ts`, and 5 more of `seed user`'s
 `--password p` in `apps/server/tests/seed-authz.int.test.ts` all needed a
 compliant password — none of them were testing password strength, so the
-fix is a literal, not a design change.
+fix is a literal, not a design change. `infra/docker/smoke.sh` carried the
+same problem as a committed credential rather than a test fixture: it
+seeded and logged in as `smoke`/`smoke@example.com` with password
+`smoke-password`, which the shipped default policy correctly refuses
+(`not-username`) — the `container` CI job, which builds the image and runs
+this script, is what caught it, since nothing in `pnpm verify` builds the
+image. Fixed to a password bearing no relation to the account. Any task
+that changes what a password may be should re-run `infra/docker/smoke.sh`
+and grep `infra/` for other seeded credentials, rather than rediscovering
+this per task.
 
 **Reaping now covers five tables, not four, and ADR 0021's warning covers
 all five.** P2a added `action_tokens` (email verification and password

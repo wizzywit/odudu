@@ -16,7 +16,7 @@ import { seed } from '#/cli/seed';
 import { createLogger } from '#/logger';
 
 // register.int.test.ts and reset-password.int.test.ts (packages/account)
-// each prove their own usecase refuses a weak password against a fake
+// each carry their own weak-password case against a fake
 // createAccount/setPassword. Neither can prove the *same* realm policy
 // binds every writer: the seed CLI and the change-password required
 // action are not @odudu/account's to reach — it depends on neither
@@ -222,6 +222,7 @@ describe('the realm password policy binds every writer', () => {
       });
 
       expect(res.statusCode).toBe(400);
+      expect(res.body).toContain('at least');
     } finally {
       await app.close();
     }

@@ -309,6 +309,9 @@ async function resolveRealmId(ownerDb: Database, realmName: string): Promise<Res
 // The seed CLI writes to the same password column every other writer does,
 // so it is bound by the same realm policy — there is no development
 // exemption for it (packages/db/drizzle/0035_realm_password_policy.sql).
+// Never called for a client secret (the two hashPassword(clientSecret)
+// call sites below): a client secret is not a user password, and rules
+// like not-username/not-email have no subject to check it against.
 function assertPasswordSatisfiesPolicy(
   policy: PasswordPolicy,
   username: string,

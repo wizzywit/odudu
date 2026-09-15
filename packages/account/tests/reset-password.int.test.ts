@@ -311,6 +311,29 @@ describe('password reset', () => {
     expect(await passwordWorksFor(realmId, 'ada', 'a new password')).toBe(true);
   });
 
+  it('refuses a password that fails the realm policy, without spending the link', async () => {
+    const { realmId, realmName } = await seedRealm(`realm-${newId()}`, {
+      resetPasswordAllowed: true,
+    });
+    await seedAda(realmId);
+
+    await requestReset(realmName, 'ada@example.test');
+    const message = sender.sent[0];
+    if (message === undefined) throw new Error('no mail sent');
+    const link = extractLink(message);
+
+    const rejected = await submitNewPassword(link, 'short');
+    expect(rejected.statusCode).toBe(400);
+    expect(rejected.body).toContain('at least');
+    expect(await passwordWorksFor(realmId, 'ada', 'correct horse battery')).toBe(true);
+
+    // The link is still the same unconsumed token: a compliant password on
+    // the very same link now succeeds.
+    const retried = await submitNewPassword(link, 'a compliant password');
+    expect(retried.statusCode).toBe(200);
+    expect(await passwordWorksFor(realmId, 'ada', 'a compliant password')).toBe(true);
+  });
+
   it('stops the old password working', async () => {
     const { realmId, realmName } = await seedRealm(`realm-${newId()}`, {
       resetPasswordAllowed: true,
