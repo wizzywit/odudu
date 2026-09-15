@@ -17,9 +17,11 @@ export const BROWSER_FLOW_DEFAULT: readonly DefaultExecution[] = [
   { authenticator: 'otp', requirement: 'conditional' },
 ];
 
-// Called once per realm, at the point the realm itself is created — beside
-// provisionRealmDefaults' client-scope seeding — so a realm is never left
-// without a flow to authenticate against.
+// Called once per realm, at the point the realm itself is created —
+// alongside provisionRealmDefaults (@odudu/domain-realm), never through it:
+// authn-flows depends on nothing above it, so the caller that stands up a
+// realm is the one that calls both. A realm is never left without a flow to
+// authenticate against only because every such caller does.
 export async function provisionBrowserFlow(
   tx: RealmScopedDatabase,
   realmId: string,

@@ -11,12 +11,21 @@ constrained to `required`/`alternative`/`conditional`/`disabled` and
 `executionRepository` (`forRealm`, ordered by `index`; `create`) and
 `provisionBrowserFlow`, which seeds `BROWSER_FLOW_DEFAULT` — `passkey` and
 `password` at `alternative`, `otp` at `conditional` — for every realm.
-`provisionRealmDefaults` (`@odudu/domain-realm`) now calls it beside the
-client-scope seeding, so a realm is never left without a flow; this is the
-first `@odudu/domain-realm` dependency on `@odudu/authn-flows`. Evaluating
-the flow into a decision, and rewiring `executor.ts`'s `STEPS` to read it,
-are Tasks 8 and 9 — this task built only the table, the repository and the
-provisioning default. Migration 0026 adds
+`@odudu/domain-realm` does not depend on `@odudu/authn-flows` — the umbrella
+spec fixes the direction the other way, `authn-flows` already depending on
+`@odudu/domain-identity` — so `provisionRealmDefaults` does not call
+`provisionBrowserFlow` itself; a `dependency-cruiser` rule
+(`no-domain-to-authn-flows`) now forbids that edge. Whatever stands up a
+realm calls both, side by side: the seed CLI's two realm-creation sites
+(`apps/server/src/cli/seed.ts`) do. A realm is never left without a flow
+only because every such caller does this — decision #4 of Task 7's brief,
+which does not (yet) reach the ~25 protocol-oidc and domain-realm test
+fixtures that also call `provisionRealmDefaults` to stand up a realm for
+unrelated tests; nothing reads `authentication_executions` yet, so those are
+unaffected, but a composition-root helper is worth considering once
+something does. Evaluating the flow into a decision, and rewiring
+`executor.ts`'s `STEPS` to read it, are Tasks 8 and 9 — this task built only
+the table, the repository and the provisioning default. Migration 0026 adds
 `token_grants.session_id`, nullable: null means an offline grant, which
 nothing expires and no logout can end; a non-null value is the SSO session
 the grant was issued under, and `sessions` needed a `UNIQUE (realm_id, id)`

@@ -1,5 +1,6 @@
 import { parseArgs } from 'node:util';
 import { realmSettingsRepository, sendVerificationEmail } from '@odudu/account';
+import { provisionBrowserFlow } from '@odudu/authn-flows';
 import { groupRepository, roleRepository } from '@odudu/domain-authz';
 import { generateSigningKey, signingKeyRepository } from '@odudu/crypto';
 import { createDatabase, withRealm, type Database, type RealmScopedDatabase } from '@odudu/db';
@@ -263,6 +264,7 @@ async function performSeed(
   return withRealm(runtimeDb, realmId, async (tx) => {
     if (realmCreated) {
       await provisionRealmDefaults(tx, realmId);
+      await provisionBrowserFlow(tx, realmId);
     }
 
     const existingClient = await clientRepository(tx).byClientId(opts.clientId);
@@ -636,6 +638,7 @@ async function runRealmCommand(
     // true because realm and client used to be seeded in the same call.
     await withRealm(runtimeDb, realmId, async (tx) => {
       await provisionRealmDefaults(tx, realmId);
+      await provisionBrowserFlow(tx, realmId);
       const generated = await generateSigningKey('RS256', kek);
       await signingKeyRepository(tx).create({
         id: newId(),
