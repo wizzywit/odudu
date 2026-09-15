@@ -151,9 +151,9 @@ export async function handleAuthorizationRequest(
 
   let hintSubject: string | null = null;
   if (outcome.idTokenHint !== null) {
-    const subject = await subjectOfIdTokenHint(deps, realm.id, issuer, outcome.idTokenHint);
-    if (subject === null) return reject('invalid_request');
-    hintSubject = subject;
+    const hint = await subjectOfIdTokenHint(deps, realm.id, issuer, outcome.idTokenHint);
+    if (hint === null) return reject('invalid_request');
+    hintSubject = hint.subject;
   }
 
   // OIDC Core §3.1.2.1/§3.1.2.3/§15.1: whether this request can be answered
@@ -223,9 +223,18 @@ export async function handleAuthorizationRequest(
   return { kind: 'started', authSessionId };
 }
 
+export interface IdTokenHintClaims {
+  subject: string;
+  // Back-Channel Logout §2.1's session identifier, when the hint carries
+  // one — absent from a hint minted before this phase started emitting it.
+  // Read by `#/usecase/logout.ts` to compare against the *session*, not
+  // just the subject (see decideLogout).
+  sid: string | null;
+}
+
 // OIDC Core §3.1.2.2: "the OP MUST validate that it was the issuer of the ID
 // Token" — a signature made by one of this realm's keys, over a payload whose
-// `iss` is this realm. Returns the subject it identifies, or null for a hint
+// `iss` is this realm. Returns the claims it carries, or null for a hint
 // this server cannot recognise as its own. `exp` is enforced by verifyJwt,
 // so a hint past its expiry is refused rather than accepted as §3.1.2.2's
 // SHOULD allows (see the reading note in docs/protocols/oidc-core.md).
@@ -236,7 +245,7 @@ export async function subjectOfIdTokenHint(
   realmId: string,
   issuer: string,
   hint: string,
-): Promise<string | null> {
+): Promise<IdTokenHintClaims | null> {
   const keys = await deps.listPublishableKeys(realmId);
   try {
     // An ID token's `aud` is the client it was issued to, so the OP reading
@@ -254,7 +263,11 @@ export async function subjectOfIdTokenHint(
       // of this check of the token presented to it.
       typ: { refused: 'at+jwt' },
     });
-    return typeof payload.sub === 'string' && payload.sub.length > 0 ? payload.sub : null;
+    if (typeof payload.sub !== 'string' || payload.sub.length === 0) return null;
+    return {
+      subject: payload.sub,
+      sid: typeof payload.sid === 'string' && payload.sid.length > 0 ? payload.sid : null,
+    };
   } catch {
     return null;
   }

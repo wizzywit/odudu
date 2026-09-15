@@ -1887,29 +1887,29 @@ curl -sS -b cookies2.txt \
   "http://localhost:3000/realms/demo/protocol/openid-connect/logout"
 ```
 
-```html
+```
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <title>Sign out?</title>
-  </head>
-  <body>
-    <h1>Sign out?</h1>
-    <p>Signing out ends this session for every application that uses it.</p>
-    <form method="post" action="/realms/demo/protocol/openid-connect/logout">
-      <input type="hidden" name="session_id" value="01a0a5a7-4d08-76ca-bf3c-04cf6191da53" />
-      <button type="submit">Sign out</button>
-    </form>
-  </body>
+<head><meta charset="utf-8"><title>Sign out?</title></head>
+<body>
+<h1>Sign out?</h1>
+<p>Signing out ends this session for every application that uses it.</p>
+<form method="post" action="/realms/demo/protocol/openid-connect/logout">
+  <input type="hidden" name="session_id" value="01a0a5a7-4d08-…">
+  <button type="submit">Sign out</button>
+</form>
+</body>
 </html>
 ```
 
-The `session_id` hidden field is this form's whole CSRF defence, the same
-role `auth_session_id` plays on the login form (ADR 0018): only a browser
-that actually loaded this page can post it back, and the confirmation
-handler checks it again against what the cookie itself resolves to before
-ending anything.
+(`session_id` shortened, as elsewhere in this document.) Unlike the login
+form's `auth_session_id`, this hidden field _is_ the session cookie's own
+value — echoed back rather than a distinct one-time token — and the POST
+handler checks it again against what the cookie itself still resolves to
+before ending anything: a double-submit-cookie defence, not a single-use
+one. Only a browser holding that `HttpOnly` cookie can supply a match,
+which is what stops a forged cross-site POST from ending a session it
+cannot read the id of.
 
 A `post_logout_redirect_uri` that is not an exact match to a registered
 value — a trailing slash, a query string, a different host — is refused,

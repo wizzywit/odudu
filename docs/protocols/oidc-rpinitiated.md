@@ -26,7 +26,16 @@ is not a weaker form of consent than no hint at all — it is a client (or an
 attacker holding a stale token) asserting an identity this request cannot
 verify without asking. `decideLogout`
 (`packages/protocol-oidc/src/usecase/logout.ts`) treats the two triggers as
-one condition: `hintSubject === null || hintSubject !== sessionSubject`.
+one condition — `input.session === null`, or the hint fails to match it.
+
+**"Belong to" is compared on the session, not the subject.** A hint's `sid`
+claim (Back-Channel Logout §2.1, carried by every ID Token this phase
+issues) is compared against the current session's own id whenever the hint
+carries one; only a hint minted before `sid` existed falls back to
+comparing subjects. The distinction matters for the same End-User signing
+in twice in one browser: a stale hint from their first, already-ended
+session names the right subject but the wrong session, and a subject-only
+comparison would have skipped confirmation for it.
 
 §3's "exactly match" is deliberately not URL-normalized. A trailing slash,
 a query string, or a case difference in the host all fail the match —
@@ -38,3 +47,10 @@ Nothing in §3 says a redirect the OP cannot validate should also keep the
 session alive, and treating an untrusted return URL as a reason not to log
 out would make the redirect check load-bearing for something it was never
 meant to guard.
+
+**§3 forbids redirecting to an unmatched URI; it says nothing against
+honouring a matched one with no session to end.** An RP that sends a user
+to logout after their session has already idled out would otherwise strand
+them on an OP page with no way back — so `decideLogout` still redirects
+when `post_logout_redirect_uri` exactly matches the client's own
+registration, even with no live session, which is what Keycloak does too.

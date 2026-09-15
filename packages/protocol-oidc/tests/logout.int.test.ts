@@ -124,12 +124,19 @@ async function issuerFor(realmName: string): Promise<string> {
   return res.json<{ issuer: string }>().issuer;
 }
 
-async function mintIdToken(realmName: string, sub: string): Promise<string> {
+async function mintIdToken(realmName: string, sub: string, sid?: string): Promise<string> {
   const key = signingKeyOf.get(realmName);
   if (key === undefined) throw new Error(`no signing key for ${realmName}`);
   const now = Math.floor(Date.now() / 1000);
   return signJwt(
-    { iss: await issuerFor(realmName), aud: CLIENT_ID, sub, iat: now, exp: now + 300 },
+    {
+      iss: await issuerFor(realmName),
+      aud: CLIENT_ID,
+      sub,
+      iat: now,
+      exp: now + 300,
+      ...(sid !== undefined ? { sid } : {}),
+    },
     { key, kek: KEK },
   );
 }
@@ -290,8 +297,8 @@ describe('GET the logout endpoint with a hint matching the session', () => {
     expect(redeemed.statusCode).toBe(200);
 
     // An offline grant for the same subject — no session — seeded directly,
-    // the way `offline_access` (Task 6) produces one, so this test does not
-    // depend on that task landing first.
+    // the way the `offline_access` scope will, so this test does not wait
+    // on it.
     const offlineGrant = await withRealm(app.db, realmId, (tx) =>
       tokenGrantRepository(tx).create({
         realmId,
@@ -317,6 +324,12 @@ describe('GET the logout endpoint with a hint matching the session', () => {
     const location = new URL(locationHeader(res));
     expect(location.origin + location.pathname).toBe(POST_LOGOUT_REDIRECT_URI);
     expect(location.searchParams.get('state')).toBe('logout-state');
+    expect(res.headers['cache-control']).toBe('no-store');
+    // The cookie is cleared on any outcome that actually ended a session —
+    // same name and attributes login sets it with, Max-Age=0 to delete it.
+    const clearedCookie = res.headers['set-cookie'];
+    expect(clearedCookie).toContain(`${realmName}-session=`);
+    expect(clearedCookie).toContain('Max-Age=0');
 
     const row = await sessionRowFor(sessionId);
     expect(row).toBeDefined();
@@ -355,8 +368,12 @@ describe('GET the logout endpoint with a hint matching the session', () => {
       headers: { cookie },
     });
     // No post_logout_redirect_uri requested: ends the session with nothing
-    // to redirect to, which is a 200 page rather than a 302.
+    // to redirect to, which is a 200 page rather than a 302 — and a
+    // distinct page from the redirect-refused one below: it must not claim
+    // a return address was refused when none was ever given.
     expect(logoutRes.statusCode).toBe(200);
+    expect(logoutRes.body).toContain('<title>Signed out</title>');
+    expect(logoutRes.body).toContain('You have been signed out.</p>');
 
     const refreshed = await refreshWith(realmName, refreshToken);
     expect(refreshed.statusCode).toBe(400);
@@ -381,7 +398,11 @@ describe('GET the logout endpoint with a hint matching the session', () => {
     });
 
     expect(res.statusCode).toBe(400);
-    expect(res.body).toContain('signed out');
+    // The ended-versus-not-ended pair pinned precisely: this page must say
+    // the session ended (unlike the CSRF-mismatch page below, which must
+    // not), and must not read like the plain logged-out page above.
+    expect(res.body).toContain('<title>Signed out</title>');
+    expect(res.body).toContain('the address given to return to afterward');
 
     const row = await sessionRowFor(sessionId);
     expect(row?.expiresAt.getTime()).toBeLessThanOrEqual(Date.now());
@@ -397,8 +418,10 @@ describe('[OIDC-RPINITIATED-2-01] the confirmation page is asked for on both tri
 
     const res = await http.inject({ url: logoutUrl(realmName), headers: { cookie } });
     expect(res.statusCode).toBe(200);
+    expect(res.body).toContain('<title>Sign out?</title>');
     expect(res.body).toContain('<form');
     expect(res.body).toContain(sessionId);
+    expect(res.headers['cache-control']).toBe('no-store');
 
     const stillLive = await withRealm(app.db, realmId, (tx) =>
       sessionRepository(tx).liveById(sessionId, 30 * 24 * 3600, new Date()),
@@ -440,10 +463,43 @@ describe('[OIDC-RPINITIATED-2-01] the confirmation page is asked for on both tri
       headers: { cookie },
     });
     expect(res.statusCode).toBe(200);
+    expect(res.body).toContain('<title>Sign out?</title>');
     expect(res.body).toContain('<form');
 
     const stillLive = await withRealm(app.db, realmId, (tx) =>
       sessionRepository(tx).liveById(sessionId, 30 * 24 * 3600, new Date()),
+    );
+    expect(stillLive).not.toBeNull();
+  });
+
+  it('when the hint carries a sid for a different, already-ended session', async () => {
+    // The previous task put `sid` in every ID token; a hint from an
+    // earlier session in the same browser, by the same subject, must not
+    // skip confirmation just because the subject still matches.
+    const realmName = `logout-stale-sid-${newId()}`;
+    const { realmId } = await setupRealm(realmName);
+    const firstCookie = await signIn(realmName);
+    const subjectId = await subjectIdOf(realmId, USERNAME);
+    const staleHint = await mintIdToken(realmName, subjectId, sessionIdFromCookie(firstCookie));
+
+    // End the first session, then sign in again — a second, distinct
+    // session for the same subject, in the same browser.
+    await withRealm(app.db, realmId, (tx) =>
+      sessionRepository(tx).end(sessionIdFromCookie(firstCookie), new Date()),
+    );
+    const secondCookie = await signIn(realmName);
+    const secondSessionId = sessionIdFromCookie(secondCookie);
+
+    const res = await http.inject({
+      url: logoutUrl(realmName, { id_token_hint: staleHint }),
+      headers: { cookie: secondCookie },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toContain('<title>Sign out?</title>');
+    expect(res.body).toContain('<form');
+
+    const stillLive = await withRealm(app.db, realmId, (tx) =>
+      sessionRepository(tx).liveById(secondSessionId, 30 * 24 * 3600, new Date()),
     );
     expect(stillLive).not.toBeNull();
   });
@@ -467,8 +523,89 @@ describe('GET the logout endpoint with a foreign realm session id', () => {
       headers: { cookie: `${realmBName}-session=${sessionIdA}` },
     });
     expect(res.statusCode).toBe(200);
+    expect(res.body).toContain('<title>Already signed out</title>');
 
     const row = await sessionRowFor(sessionIdA);
     expect(row?.expiresAt.getTime()).toBeGreaterThan(Date.now());
+  });
+});
+
+describe('the confirmation POST is a double-submit-cookie check', () => {
+  it("refuses a session_id that is not the cookie's own session, and leaves it live", async () => {
+    const realmName = `logout-csrf-${newId()}`;
+    const { realmId } = await setupRealm(realmName);
+    const cookie = await signIn(realmName);
+    const sessionId = sessionIdFromCookie(cookie);
+
+    // A syntactically plausible session id that is not the one the cookie
+    // resolves to — what a forged cross-site POST would have to guess,
+    // since it cannot read the HttpOnly cookie's own value.
+    const form = new URLSearchParams({ session_id: newId() });
+    const res = await http.inject({
+      method: 'POST',
+      url: `/realms/${realmName}/protocol/openid-connect/logout`,
+      payload: form.toString(),
+      headers: { 'content-type': 'application/x-www-form-urlencoded', cookie },
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.body).toContain("<title>Can't sign out</title>");
+    expect(res.headers['set-cookie']).toBeUndefined();
+
+    const stillLive = await withRealm(app.db, realmId, (tx) =>
+      sessionRepository(tx).liveById(sessionId, 30 * 24 * 3600, new Date()),
+    );
+    expect(stillLive).not.toBeNull();
+  });
+
+  it('refuses a POST with no session_id field at all', async () => {
+    const realmName = `logout-csrf-missing-${newId()}`;
+    await setupRealm(realmName);
+    const cookie = await signIn(realmName);
+
+    const res = await http.inject({
+      method: 'POST',
+      url: `/realms/${realmName}/protocol/openid-connect/logout`,
+      payload: '',
+      headers: { 'content-type': 'application/x-www-form-urlencoded', cookie },
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.body).toContain("<title>Can't sign out</title>");
+  });
+});
+
+describe('[ODUDU-LOGOUT-NOSESSION-REDIRECT-01] a matched redirect is honoured even with no session to end', () => {
+  it('redirects rather than showing the no-session page', async () => {
+    const realmName = `logout-nosession-${newId()}`;
+    await setupRealm(realmName);
+
+    const res = await http.inject({
+      url: logoutUrl(realmName, {
+        client_id: CLIENT_ID,
+        post_logout_redirect_uri: POST_LOGOUT_REDIRECT_URI,
+        state: 'no-session-state',
+      }),
+    });
+
+    expect(res.statusCode).toBe(302);
+    const location = new URL(locationHeader(res));
+    expect(location.origin + location.pathname).toBe(POST_LOGOUT_REDIRECT_URI);
+    expect(location.searchParams.get('state')).toBe('no-session-state');
+  });
+
+  it('still shows the no-session page when the requested uri is not registered', async () => {
+    const realmName = `logout-nosession-badredirect-${newId()}`;
+    await setupRealm(realmName);
+
+    const res = await http.inject({
+      url: logoutUrl(realmName, {
+        client_id: CLIENT_ID,
+        post_logout_redirect_uri: 'https://evil.example/after-logout',
+      }),
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toContain('<title>Already signed out</title>');
   });
 });

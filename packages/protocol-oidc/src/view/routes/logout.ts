@@ -40,9 +40,34 @@ function firstString(value: string | string[] | undefined): string | undefined {
   return typeof value === 'string' ? value : undefined;
 }
 
+// The attributes have to match login.ts's own `set-cookie` for a browser to
+// treat this as overwriting rather than a second, unrelated cookie —
+// `Max-Age=0` is what actually deletes it; the value is irrelevant once
+// that is set, but empty is clearest to a reader of a captured request.
+function clearedCookie(name: string, tls: boolean): string {
+  return [
+    `${name}=`,
+    'Max-Age=0',
+    'HttpOnly',
+    'SameSite=Lax',
+    'Path=/',
+    ...(tls ? ['Secure'] : []),
+  ].join('; ');
+}
+
+// Every page this route renders carries a live SSO session identifier
+// (the confirmation form's hidden `session_id`) or exists only because one
+// was just ended — neither belongs in a shared or history cache.
+function sendLogoutHtml(reply: FastifyReply, status: number, html: string): FastifyReply {
+  reply.header('cache-control', 'no-store');
+  return sendHtml(reply, status, html);
+}
+
 async function respondToOutcome(
   outcome: LogoutOutcome,
   realm: string,
+  cookieName: string,
+  tls: boolean,
   reply: FastifyReply,
 ): Promise<FastifyReply> {
   if (outcome.kind === 'not_found') {
@@ -50,14 +75,14 @@ async function respondToOutcome(
   }
 
   if (outcome.kind === 'unauthenticated') {
-    return sendHtml(reply, 400, renderLogoutUnauthenticatedPage());
+    return sendLogoutHtml(reply, 400, renderLogoutUnauthenticatedPage());
   }
 
   if (outcome.kind === 'confirm') {
     if (outcome.sessionId === null) {
-      return sendHtml(reply, 200, renderNoActiveSessionPage());
+      return sendLogoutHtml(reply, 200, renderNoActiveSessionPage());
     }
-    return sendHtml(
+    return sendLogoutHtml(
       reply,
       200,
       renderLogoutConfirmationPage(realm, outcome.sessionId, {
@@ -68,18 +93,27 @@ async function respondToOutcome(
     );
   }
 
+  // Both remaining outcomes end here having already ended a session — the
+  // `render` outcome always does (decideLogout only refuses a redirect on
+  // the branch that first confirmed a session), and `end` only when its own
+  // `sessionEnded` says so (decideLogout can also honour a matched redirect
+  // with no session to end at all).
+  const sessionEnded = outcome.kind === 'render' || outcome.sessionEnded;
+  if (sessionEnded) reply.header('set-cookie', clearedCookie(cookieName, tls));
+
   if (outcome.kind === 'render') {
-    return sendHtml(reply, 400, renderLogoutRedirectRefusedPage());
+    return sendLogoutHtml(reply, 400, renderLogoutRedirectRefusedPage());
   }
 
-  // `end`: RP-Initiated Logout §3's redirect, carrying state the same way
-  // RFC 9207 has /authorize carry iss on every response — this is not an
+  // RP-Initiated Logout §3's redirect, carrying state the same way RFC
+  // 9207 has /authorize carry iss on every response — this is not an
   // authorization response, so no `iss` parameter of its own applies here.
   if (outcome.redirectTo === null) {
-    return sendHtml(reply, 200, renderLoggedOutPage());
+    return sendLogoutHtml(reply, 200, renderLoggedOutPage());
   }
   const target = new URL(outcome.redirectTo);
   if (outcome.state !== null) target.searchParams.set('state', outcome.state);
+  reply.header('cache-control', 'no-store');
   return reply.code(302).header('location', target.toString()).send();
 }
 
@@ -88,11 +122,12 @@ export function registerLogoutRoute(app: FastifyInstance, deps: LogoutRouteDeps)
     Params: { realm: string };
     Querystring: Record<string, string | undefined>;
   }>(PATH, async (request, reply) => {
+    const cookieName = sessionCookieName(request.params.realm, deps.tls);
     const outcome = await handleLogoutRequest(
       deps,
       request.params.realm,
       realmIssuerFor(request, request.params.realm),
-      readCookie(request, sessionCookieName(request.params.realm, deps.tls)),
+      readCookie(request, cookieName),
       {
         idTokenHint: request.query.id_token_hint ?? null,
         clientId: request.query.client_id ?? null,
@@ -100,23 +135,24 @@ export function registerLogoutRoute(app: FastifyInstance, deps: LogoutRouteDeps)
         state: request.query.state ?? null,
       },
     );
-    return respondToOutcome(outcome, request.params.realm, reply);
+    return respondToOutcome(outcome, request.params.realm, cookieName, deps.tls, reply);
   });
 
   app.post<{
     Params: { realm: string };
     Body: Record<string, string | string[] | undefined>;
   }>(PATH, async (request, reply) => {
+    const cookieName = sessionCookieName(request.params.realm, deps.tls);
     const body = request.body;
     const confirmedSessionId = firstString(body.session_id);
     if (confirmedSessionId === undefined) {
-      return sendHtml(reply, 400, renderLogoutUnauthenticatedPage());
+      return sendLogoutHtml(reply, 400, renderLogoutUnauthenticatedPage());
     }
 
     const outcome = await handleLogoutConfirmation(
       deps,
       request.params.realm,
-      readCookie(request, sessionCookieName(request.params.realm, deps.tls)),
+      readCookie(request, cookieName),
       {
         confirmedSessionId,
         clientId: firstString(body.client_id) ?? null,
@@ -124,6 +160,6 @@ export function registerLogoutRoute(app: FastifyInstance, deps: LogoutRouteDeps)
         state: firstString(body.state) ?? null,
       },
     );
-    return respondToOutcome(outcome, request.params.realm, reply);
+    return respondToOutcome(outcome, request.params.realm, cookieName, deps.tls, reply);
   });
 }

@@ -2,9 +2,21 @@ import { type SigningKeyRecord } from '@odudu/crypto';
 import { type RealmLookup } from '#/repository/realm-lookup';
 import { subjectOfIdTokenHint } from '#/usecase/authorization-request';
 
+export interface LogoutSession {
+  id: string;
+  subjectId: string;
+}
+
 export interface LogoutInput {
   hintSubject: string | null;
-  sessionSubject: string | null;
+  // Back-Channel Logout §2.1's `sid`, read off the hint when it carries
+  // one. Governs the match alone when present — RP-Initiated Logout §2's
+  // "belong to the current OP session" is a session comparison, not a
+  // subject one, so a stale hint from the same End-User's earlier, already
+  // -ended session in this browser must not skip confirmation just because
+  // the subject still matches.
+  hintSid: string | null;
+  session: LogoutSession | null;
   requested: string | null;
   registered: readonly string[];
 }
@@ -14,26 +26,34 @@ export type LogoutDecision =
   | { kind: 'end'; redirectTo: string | null }
   | { kind: 'render'; error: string };
 
-// RP-Initiated Logout 1.0 §2's confirmation MUST fires on either trigger —
-// no hint at all, or a hint that does not name the session actually being
-// ended, not just a missing one. §3's redirect MUST is exact string
-// comparison against the client's registered values: no normalization, no
-// case folding, no trailing-slash tolerance.
-export function decideLogout(input: LogoutInput): LogoutDecision {
-  if (input.hintSubject === null || input.hintSubject !== input.sessionSubject) {
-    return { kind: 'confirm' };
-  }
-  if (input.requested === null) {
-    return { kind: 'end', redirectTo: null };
-  }
-  return input.registered.includes(input.requested)
-    ? { kind: 'end', redirectTo: input.requested }
+function decideRedirect(requested: string | null, registered: readonly string[]): LogoutDecision {
+  if (requested === null) return { kind: 'end', redirectTo: null };
+  return registered.includes(requested)
+    ? { kind: 'end', redirectTo: requested }
     : { kind: 'render', error: 'invalid_request' };
 }
 
-export interface ResolvedLogoutSession {
-  sessionId: string;
-  subjectId: string;
+// §2 and §3, both read in full in the reading note beside this file's own
+// clause table (docs/protocols/oidc-rpinitiated.md): confirmation fires on
+// either trigger, the redirect match is exact and unnormalized, and a
+// matched redirect is honoured even with no session to end.
+export function decideLogout(input: LogoutInput): LogoutDecision {
+  if (input.session === null) {
+    if (input.requested !== null && input.registered.includes(input.requested)) {
+      return { kind: 'end', redirectTo: input.requested };
+    }
+    return { kind: 'confirm' };
+  }
+
+  const belongsToSession =
+    input.hintSubject !== null &&
+    (input.hintSid !== null
+      ? input.hintSid === input.session.id
+      : input.hintSubject === input.session.subjectId);
+
+  if (!belongsToSession) return { kind: 'confirm' };
+
+  return decideRedirect(input.requested, input.registered);
 }
 
 export interface LogoutRequestParams {
@@ -57,10 +77,10 @@ export type LogoutOutcome =
       postLogoutRedirectUri: string | null;
       state: string | null;
     }
-  | { kind: 'end'; redirectTo: string | null; state: string | null }
-  // The session named by `sessionId` at the point this outcome was reached
-  // has already been ended — see handleLogoutRequest and
-  // handleLogoutConfirmation below.
+  // A session was ended, or there was none to end and the redirect alone
+  // was honoured (see decideLogout). `sessionEnded` tells the route whether
+  // there is a cookie to clear.
+  | { kind: 'end'; redirectTo: string | null; state: string | null; sessionEnded: boolean }
   | { kind: 'render'; error: string; state: string | null };
 
 export interface LogoutUsecaseDeps {
@@ -78,7 +98,7 @@ export interface LogoutUsecaseDeps {
   resolveSession(
     realm: RealmLookup,
     cookieValue: string | undefined,
-  ): Promise<ResolvedLogoutSession | null>;
+  ): Promise<LogoutSession | null>;
   // One transaction: ends the session row and revokes every grant whose
   // session_id is that session (Back-Channel Logout §2.7). Access tokens
   // are not touched — see README.md's logout section for why not.
@@ -110,16 +130,17 @@ export async function handleLogoutRequest(
   const realm = await deps.findRealm(realmName);
   if (!realm?.enabled) return { kind: 'not_found' };
 
-  const resolvedSession = await deps.resolveSession(realm, cookieValue);
-  const hintSubject =
+  const session = await deps.resolveSession(realm, cookieValue);
+  const hint =
     params.idTokenHint === null
       ? null
       : await subjectOfIdTokenHint(deps, realm.id, issuer, params.idTokenHint);
   const registered = await registeredUris(deps, realm.id, params.clientId);
 
   const decision = decideLogout({
-    hintSubject,
-    sessionSubject: resolvedSession?.subjectId ?? null,
+    hintSubject: hint?.subject ?? null,
+    hintSid: hint?.sid ?? null,
+    session,
     requested: params.postLogoutRedirectUri,
     registered,
   });
@@ -127,33 +148,38 @@ export async function handleLogoutRequest(
   if (decision.kind === 'confirm') {
     return {
       kind: 'confirm',
-      sessionId: resolvedSession?.sessionId ?? null,
+      sessionId: session?.id ?? null,
       clientId: params.clientId,
       postLogoutRedirectUri: params.postLogoutRedirectUri,
       state: params.state,
     };
   }
 
-  // decideLogout only reaches `end` or `render` when hintSubject matched
-  // sessionSubject, and a match is only possible when both are non-null —
-  // so a resolved session is guaranteed here.
-  if (resolvedSession === null) {
-    throw new Error('unreachable: decideLogout ended or refused logout with no resolved session');
+  // `end` or `render` with no session means decideLogout honoured a
+  // matched redirect with nothing to end (see its own comment) — there is
+  // no session row to touch.
+  if (session !== null) {
+    await deps.endSession(realm.id, session.id, deps.now());
   }
-  await deps.endSession(realm.id, resolvedSession.sessionId, deps.now());
 
   if (decision.kind === 'end') {
-    return { kind: 'end', redirectTo: decision.redirectTo, state: params.state };
+    return {
+      kind: 'end',
+      redirectTo: decision.redirectTo,
+      state: params.state,
+      sessionEnded: session !== null,
+    };
   }
   return { kind: 'render', error: decision.error, state: params.state };
 }
 
 export interface LogoutConfirmationParams {
-  // The value the confirmation form's hidden field carried — the same
-  // protection auth_session_id gives the login form (ADR 0018's reading
-  // note on rendered pages): only a browser that actually loaded the
-  // confirmation page holds this value, and it must still name the session
-  // the cookie itself resolves to.
+  // The value the confirmation form's hidden field carried — a
+  // double-submit cookie check, not a single-use token: it *is* the
+  // session cookie's own value, echoed back and compared against what the
+  // cookie itself still resolves to. Only a browser holding that
+  // HttpOnly cookie can supply a match, which is what stops a forged
+  // cross-site POST from ending it.
   confirmedSessionId: string;
   clientId: string | null;
   postLogoutRedirectUri: string | null;
@@ -173,23 +199,32 @@ export async function handleLogoutConfirmation(
   const realm = await deps.findRealm(realmName);
   if (!realm?.enabled) return { kind: 'not_found' };
 
-  const resolvedSession = await deps.resolveSession(realm, cookieValue);
-  if (resolvedSession?.sessionId !== params.confirmedSessionId) {
+  const session = await deps.resolveSession(realm, cookieValue);
+  if (session?.id !== params.confirmedSessionId) {
     return { kind: 'unauthenticated' };
   }
 
   const registered = await registeredUris(deps, realm.id, params.clientId);
+  // Forcing sid to the session's own id trivially satisfies decideLogout's
+  // match — consent was already given by posting this form, so only the
+  // redirect rule is still live.
   const decision = decideLogout({
-    hintSubject: resolvedSession.subjectId,
-    sessionSubject: resolvedSession.subjectId,
+    hintSubject: session.subjectId,
+    hintSid: session.id,
+    session,
     requested: params.postLogoutRedirectUri,
     registered,
   });
 
-  await deps.endSession(realm.id, resolvedSession.sessionId, deps.now());
+  await deps.endSession(realm.id, session.id, deps.now());
 
   if (decision.kind === 'end') {
-    return { kind: 'end', redirectTo: decision.redirectTo, state: params.state };
+    return {
+      kind: 'end',
+      redirectTo: decision.redirectTo,
+      state: params.state,
+      sessionEnded: true,
+    };
   }
   if (decision.kind === 'render') {
     return { kind: 'render', error: decision.error, state: params.state };

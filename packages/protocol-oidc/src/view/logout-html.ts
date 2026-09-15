@@ -22,13 +22,14 @@ export interface LogoutConfirmationFields {
   state: string | null;
 }
 
-// RP-Initiated Logout 1.0 §2's confirmation page. `sessionId` is the same
-// role auth_session_id plays on the login form (ADR 0018): an unguessable
-// value only a browser that actually loaded this response can echo back,
-// checked again on POST against what the cookie itself resolves to. Ending
+// RP-Initiated Logout 1.0 §2's confirmation page. Unlike the login form's
+// auth_session_id, `sessionId` here *is* the session cookie's own value,
+// echoed back rather than a distinct one-time token — the POST is checked
+// by comparing this field against what the cookie itself still resolves
+// to, a double-submit-cookie defence rather than a single-use one. Ending
 // a session on a bare GET would let an `<img>` tag on any page log the
 // End-User out of every realm they hold one in — this form is what keeps
-// that a POST, from this browser, with this browser's session.
+// that a POST, from this browser, with this browser's own cookie.
 export function renderLogoutConfirmationPage(
   realm: string,
   sessionId: string,

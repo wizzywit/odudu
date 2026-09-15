@@ -52,9 +52,9 @@ export function sessionRepository(tx: RealmScopedDatabase) {
     // Logout ends a session by moving its own ceiling to now, rather than
     // deleting the row or adding a second "ended" state: `isSessionLive`'s
     // exclusive `now >= expiresAt` check already treats that as dead from
-    // this instant, and reaping (docs/NEXT.md) is what removes the row
-    // later. Idempotent — ending an already-dead session only ever moves
-    // `expires_at` earlier or leaves it where it was.
+    // this instant, and the reaping pass a later increment adds removes the
+    // row itself. Idempotent — ending an already-dead session only ever
+    // moves `expires_at` earlier or leaves it where it was.
     async end(id: string, now: Date): Promise<void> {
       await tx.update(sessions).set({ expiresAt: now }).where(eq(sessions.id, id));
     },

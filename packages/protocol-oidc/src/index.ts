@@ -275,7 +275,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
             clock.now(),
           );
           if (record === null) return null;
-          return { sessionId: record.id, subjectId: record.subjectId };
+          return { id: record.id, subjectId: record.subjectId };
         });
       },
       // One transaction, per Back-Channel Logout §2.7: end the session, then

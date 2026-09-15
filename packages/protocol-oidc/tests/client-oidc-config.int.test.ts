@@ -235,4 +235,34 @@ describe('clientOidcConfigRepository', () => {
       },
     });
   });
+
+  it('cannot read post_logout_redirect_uris for a client under a different realm context', async () => {
+    await expectCrossRealmMethodProbe(app.db, {
+      seed: async (tx, realmId) => {
+        const clientId = newId();
+        await seedRealmAndClient(tx, realmId, clientId);
+        await clientOidcConfigRepository(tx).create({
+          clientId,
+          realmId,
+          redirectUris: ['https://app.example/callback'],
+          grantTypes: ['authorization_code'],
+          tokenEndpointAuthMethod: 'client_secret_basic',
+          audiences: [],
+          accessTokenTtlSeconds: 300,
+          refreshTokenTtlSeconds: 1_209_600,
+          postLogoutRedirectUris: ['https://app.example/after-logout'],
+        });
+        return clientId;
+      },
+      verifySeeded: async (tx, clientId) => {
+        const found = await clientOidcConfigRepository(tx).postLogoutRedirectUris(clientId);
+        expect(found).toEqual(['https://app.example/after-logout']);
+      },
+      attempt: async (tx, clientId) =>
+        clientOidcConfigRepository(tx).postLogoutRedirectUris(clientId),
+      expectBlocked: (result) => {
+        expect(result).toEqual([]);
+      },
+    });
+  });
 });
