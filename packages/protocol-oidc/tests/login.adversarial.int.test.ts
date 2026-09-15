@@ -724,6 +724,30 @@ describe('[OIDC-CORE-3.1.2.1-09] an id_token_hint names who the response is abou
     expect(await countAuthorizationCodes(realmName)).toBe(0);
     expect(res.headers['set-cookie']).toBeUndefined();
   });
+
+  it('lets the hinted end-user retry against the same parked request afterward', async () => {
+    const realmName = await setupLoginRealm(`acme-hint-retry-${newId()}`);
+    const hint = await mintIdToken(realmName, await subjectIdOf(realmName));
+    const authSessionId = await startAuthSession(http, realmName, { id_token_hint: hint });
+
+    // Somebody else signs in first, against the same parked request the
+    // hint names ada for — the session is left unconsumed specifically so
+    // this can happen (login-submission.ts's error_redirect branch).
+    const mismatch = await submitLogin({ ...OTHER_USER, realmName, csrf: authSessionId });
+    expect(mismatch.statusCode).toBe(302);
+    expect(new URL(locationHeader(mismatch)).searchParams.get('error')).toBe('login_required');
+    expect(await countAuthorizationCodes(realmName)).toBe(0);
+
+    // The end-user the hint actually names now signs in against the exact
+    // same auth_session_id, and it still works — the transcript
+    // docs/request-paths.md's "The login POST" section documents.
+    const retry = await submitLogin({ ...GOOD, realmName, csrf: authSessionId });
+    expect(retry.statusCode).toBe(302);
+    const location = new URL(locationHeader(retry));
+    expect(location.searchParams.get('code')).toBeTruthy();
+    expect(location.searchParams.get('error')).toBeNull();
+    expect(await countAuthorizationCodes(realmName)).toBe(1);
+  });
 });
 
 // OIDC Core §3.1.2.3: "the Authorization Server attempts to Authenticate the

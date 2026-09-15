@@ -110,6 +110,38 @@ describe('[ODUDU-AUTHN-FLOW-ORDER-01] a realm dispatches its own ordered executi
     );
     expect(result).toEqual({ kind: 'success', subjectId });
   });
+
+  it('persists nothing for a factor that finishes the login, so a retry re-runs it', async () => {
+    const realmId = newId();
+    const password = 'correct-horse-battery-staple';
+    const subjectId = await withRealm(app.db, realmId, (tx) =>
+      seedRealmAndUser(tx, realmId, 'ada', password),
+    );
+
+    const authSessionId = await withRealm(app.db, realmId, async (tx) => {
+      const { authSessionId: id } = await startAuthentication(tx, realmId, request);
+      return id;
+    });
+
+    const first = await withRealm(app.db, realmId, (tx) =>
+      advance(tx, authSessionId, { username: 'ada', password }),
+    );
+    expect(first).toEqual({ kind: 'success', subjectId });
+
+    // Nothing was written: password was the login's last factor, and a
+    // retry (an id_token_hint mismatch, an unverified email — both leave
+    // the session unconsumed downstream of this function) has to re-run it
+    // exactly as the first attempt did, not find it already satisfied.
+    const record = await withRealm(app.db, realmId, (tx) =>
+      authenticationSessionRepository(tx).byId(authSessionId),
+    );
+    expect(record?.satisfied).toEqual([]);
+
+    const second = await withRealm(app.db, realmId, (tx) =>
+      advance(tx, authSessionId, { username: 'ada', password }),
+    );
+    expect(second).toEqual({ kind: 'success', subjectId });
+  });
 });
 
 describe('[ODUDU-AUTHN-SATISFIED-PERSISTENCE-01] satisfied executions round-trip and stay realm-scoped', () => {

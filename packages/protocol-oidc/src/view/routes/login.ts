@@ -17,6 +17,11 @@ export interface LoginRouteDeps extends LoginSubmissionDeps {
   pendingChallenge(realmId: string, authSessionId: string): Promise<AuthenticatorResult>;
 }
 
+// pendingChallenge runs in its own transaction, separate from the advance()
+// call that produced the reject — a realm whose executions change in that
+// window (or a session that expires in it) can make pendingChallenge answer
+// something other than a challenge. 'password' is what to fall back to
+// today, since it is the only authenticator with a runtime.
 const FALLBACK_FORM = 'password';
 
 // @fastify/formbody parses a repeated field into an array; every field this

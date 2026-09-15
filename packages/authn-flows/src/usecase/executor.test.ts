@@ -201,9 +201,9 @@ describe('[ODUDU-AUTHN-NO-USER-ENUMERATION-01] the password step does not enumer
   });
 });
 
-// A property of `dispatchNext` itself, not of any particular authenticator —
-// proven against a fake registry so it does not depend on `password` (or,
-// later, `otp`) being the one that happens to be real yet (decision #3).
+// A satisfied factor is never asked for twice — a property of `dispatchNext`
+// itself, not of any particular authenticator, proven against a fake
+// registry so it does not depend on `password` being the one real one.
 describe('[ODUDU-AUTHN-RESUMPTION-01] a multi-step login resumes rather than restarts', () => {
   it('offers the second execution when the first is already satisfied', async () => {
     const steps: Step[] = [

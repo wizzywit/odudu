@@ -24,6 +24,13 @@ function locationHeader(res: LightMyRequestResponse): string {
   return location;
 }
 
+async function issuerFor(instance: FastifyInstance, realmName: string): Promise<string> {
+  const res = await instance.inject({
+    url: `/realms/${realmName}/.well-known/openid-configuration`,
+  });
+  return res.json<{ issuer: string }>().issuer;
+}
+
 let containerHandle: TestDatabase | undefined;
 let ownerHandle: DatabaseHandle | undefined;
 let appHandle: DatabaseHandle | undefined;
@@ -114,10 +121,12 @@ function authorizeUrl(realmName: string, overrides: Record<string, string> = {})
 }
 
 // OIDC Core §3.1.2.1: "with prompt=login ... an error (typically
-// login_required) is returned if reauthentication cannot be performed".
-// A realm whose flow has no applicable execution at all is that state —
-// nextStep (authn-flows) returns 'fail' for it, unconditionally, before any
-// credential is ever asked for.
+// login_required) is returned if reauthentication cannot be performed". A
+// realm whose flow has no applicable execution at all is that state —
+// nextStep (authn-flows) returns 'fail' for it, before any credential is
+// asked for. The check answers login_required for any request that would
+// otherwise start authentication, not only `prompt=login`: a flow with no
+// applicable execution can never authenticate anyone regardless of prompt.
 describe('[OIDC-CORE-3.1.2.1-11] prompt=login answers login_required for a flow with no applicable execution', () => {
   it('redirects to the redirect_uri with login_required, rendering nothing and parking nothing', async () => {
     const realmName = `unreachable-flow-${newId()}`;
@@ -130,6 +139,7 @@ describe('[OIDC-CORE-3.1.2.1-11] prompt=login answers login_required for a flow 
     expect(location.origin + location.pathname).toBe(REDIRECT_URI);
     expect(location.searchParams.get('error')).toBe('login_required');
     expect(location.searchParams.get('state')).toBe('abc123');
+    expect(location.searchParams.get('iss')).toBe(await issuerFor(http, realmName));
     expect(location.searchParams.get('code')).toBeNull();
     expect(res.headers['set-cookie']).toBeUndefined();
 

@@ -40,10 +40,10 @@ async function runPasswordStep(
 }
 
 // passkey and otp are registered so a flow row naming either resolves (see
-// isRegisteredAuthenticator) even though neither has a runtime yet — their
-// own tasks (RFC 6238 in packages/crypto, then the authenticator itself)
-// replace this. Reachable only if isApplicable is ever wrong about one of
-// them, which would itself be the bug to fix, not this function.
+// isRegisteredAuthenticator) even though neither has a runtime yet — a real
+// implementation replaces this once one exists. Reachable only if
+// isApplicable is ever wrong about one of them, which would itself be the
+// bug to fix, not this function.
 function unimplementedAuthenticator(name: string): Promise<AuthenticatorResult> {
   return Promise.reject(
     new Error(`authenticator '${name}' is registered but has no runtime implementation yet`),
@@ -74,7 +74,8 @@ export function isRegisteredAuthenticator(name: string): boolean {
 // keeps DUMMY_SUBJECT_ID meaningful. passkey and otp would need "does this
 // subject have a credential of this type", but domain-identity's
 // credential type (CredentialRecord, credentialRepository) is 'password'
-// only until their own tasks widen it, so there is no accessor to ask.
+// only, so there is no accessor to ask until a non-password credential
+// type exists.
 function isApplicable(authenticator: string): boolean {
   return authenticator === 'password';
 }
@@ -108,10 +109,10 @@ export type Dispatch =
   | { kind: 'fail' };
 
 // One decision-and-run, against whatever registry and satisfied set the
-// caller hands in. Exported so resumption — offering the next unsatisfied
-// execution rather than the first — can be proven as a property of this
-// dispatch against a fake registry, independent of which authenticators are
-// real (decision #3 in the task brief).
+// caller hands in. Exported so a satisfied factor is never asked for twice
+// — offering the next unsatisfied execution rather than the first — can be
+// proven as a property of this dispatch against a fake registry,
+// independent of which authenticators are real.
 export async function dispatchNext(
   registry: Record<string, AuthenticatorFn>,
   steps: readonly Step[],
@@ -241,18 +242,8 @@ export async function advance(
   const { steps, satisfied, registry } = context;
 
   const dispatched = await dispatchNext(registry, steps, satisfied, input);
-  if (dispatched.kind === 'fail') {
+  if (dispatched.kind !== 'ran') {
     return { kind: 'failure', reason: NO_APPLICABLE_EXECUTION };
-  }
-  if (dispatched.kind === 'complete') {
-    // Reachable only by resubmitting an authSessionId whose flow was
-    // already fully satisfied by an earlier call to this function — there
-    // is no fresh authenticator to run and no subject to succeed with, so
-    // this is treated the same way an already-used session is: the atomic
-    // consume downstream (consumeAuthenticationSession) is the actual
-    // single-use gate, and this is what stops a replay from reaching it a
-    // second time having skipped verification entirely.
-    return { kind: 'failure', reason: 'authentication_session_expired' };
   }
 
   const { authenticator, result } = dispatched;
@@ -260,16 +251,26 @@ export async function advance(
     return result;
   }
 
-  // A multi-step login resumes rather than restarts: this is the write
-  // that lets a later call see `authenticator` as already satisfied,
-  // instead of asking for it again.
-  await authenticationSessionRepository(tx).recordSatisfied(authSessionId, authenticator);
-  satisfied.add(authenticator);
+  // Whether this login is done, or a further factor remains, decided
+  // before anything is written: two outcomes downstream of this function
+  // (an id_token_hint naming a different subject, an unverified email)
+  // leave the session unconsumed on purpose so the same session can retry
+  // — and a retry has to re-run this authenticator exactly as the first
+  // attempt did, not find it already satisfied. Persisting is therefore
+  // only for a factor that has more work left after it, never for the one
+  // that finishes the login.
+  const updatedSatisfied = new Set(satisfied);
+  updatedSatisfied.add(authenticator);
+  const after = await dispatchNext(registry, steps, updatedSatisfied, {});
 
-  const after = await dispatchNext(registry, steps, satisfied, {});
-  if (after.kind === 'ran') return after.result;
-  if (after.kind === 'complete') return result;
-  return { kind: 'failure', reason: NO_APPLICABLE_EXECUTION };
+  if (after.kind === 'ran') {
+    await authenticationSessionRepository(tx).recordSatisfied(authSessionId, authenticator);
+    return after.result;
+  }
+  if (after.kind === 'fail') {
+    return { kind: 'failure', reason: NO_APPLICABLE_EXECUTION };
+  }
+  return result;
 }
 
 // The gate that makes an authentication session single-use. The caller

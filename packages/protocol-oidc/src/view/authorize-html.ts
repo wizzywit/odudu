@@ -44,8 +44,8 @@ export function renderEmailUnverifiedPage(hasEmail: boolean): string {
 }
 
 // `form` names the authenticator to render fields for (an authn-flows
-// registry key, e.g. 'password') — not a fixed enum, so a future
-// authenticator's own task adds a case here rather than a schema change.
+// registry key, e.g. 'password') — not a fixed enum, so a new authenticator
+// adds a case here rather than a schema change.
 function renderFormFields(form: string): string {
   if (form === 'password') {
     return `<label>Username <input type="text" name="username" autocomplete="username"></label>
