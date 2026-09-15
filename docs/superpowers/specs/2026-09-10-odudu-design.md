@@ -429,7 +429,7 @@ Implementation follows test-driven development.
 | P0  | Foundation                                                       | 20–30 h   | `pnpm verify` green in CI; server boots in a container; migration runner proven; ADRs committed; boundaries enforced                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | P1  | OAuth 2.1 / OIDC core                                            | 60–100 h  | OIDF Config OP plan passes; Basic OP runs reproducibly with every divergence confirmed as a recorded decision (ADR 0016); every in-scope MUST traced to a test                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | P2a | Identity model: roles, groups, client scopes, web origins, email | 90–130 h  | realm and client roles, composite roles, groups and client scopes emitted into tokens; a user profile beyond the username — attributes, their storage, and the standard OIDC claims mapped out of them; per-client web origins so a browser client completes the flow; email delivered, with self-registration, address verification and password reset on top of it                                                                                                                                                                                                                           |
-| P2b | Credentials, MFA and the session lifecycle                       | 80–110 h  | password, TOTP and passkey login through the flow tree; password policies and brute-force protection; an SSO session that is read as well as written, with idle and maximum lifespans, ended by RP-initiated logout; offline access; expired state reaped on a stated retention window, with a test that fails if reaping breaks code or refresh-token reuse detection; adversarial suite green                                                                                                                                                                                                |
+| P2b | Credentials, MFA and the session lifecycle                       | 95–130 h  | password, TOTP, passkey and recovery-code login through the flow tree; password policies and brute-force protection; an SSO session that is read as well as written, with idle and maximum lifespans, ended by RP-initiated logout; offline access; mail sent off the request path; expired state reaped on a stated retention window, with a test that fails if reaping breaks code or refresh-token reuse detection; adversarial suite green                                                                                                                                                 |
 | P3  | Realms, clients, consent, dynamic registration                   | 75–110 h  | OIDF Dynamic OP plan passes; a consent screen a user can refuse, with the per-client scope allowlist that decides what it asks for and a recorded grant it can be asked against again; RFC 8707 `resource` indicators, with the per-client audience configuration that makes `aud` derived rather than asserted; signed and encrypted UserInfo responses, selected by client registration; front-channel and back-channel logout against registered per-client logout URIs; token introspection and revocation; `private_key_jwt` and mTLS client authentication; cross-realm RLS probes green |
 | P4  | Admin API and consoles                                           | 135–200 h | full lifecycle manageable from the UI, including listing a subject's sessions and ending one, and promoting a new signing key and retiring the one it replaces on the overlap window §5 states, with JWKS proven to publish both for its duration; another application able to provision users through the admin API as a service account holding admin roles; an account console for self-service; audit events persisted and queryable; realm import and export; Playwright green; OpenAPI published                                                                                         |
 | P5  | Agent identity layer                                             | 80–120 h  | property-based attenuation tests pass; budgets atomic under concurrency; CIBA approvals end to end                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
@@ -441,9 +441,9 @@ Implementation follows test-driven development.
 | P11 | HA, clustering, performance                                      | 60–100 h  | three replicas behind a load balancer; documented p99                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | P12 | Operational readiness                                            | 40–70 h   | a versioned image published from a tagged release, with the release process written down; secrets sourced from somewhere other than the process environment, through the interface §5 already puts the key-encryption key behind; backup and restore guidance proven by restoring into an empty database and completing a login against the restore                                                                                                                                                                                                                                            |
 
-Total: roughly 1030–1570 hours.
+Total: roughly 1045–1590 hours.
 
-After P4, at roughly 460–680 hours, Odudu is usable behind real
+After P4, at roughly 475–700 hours, Odudu is usable behind real
 applications. Everything beyond is breadth, and each phase is independently
 valuable and independently abandonable.
 
@@ -778,6 +778,53 @@ widened by adding an unauthenticated Argon2id hash to what it protects.
 None of those were in the sentence that decides when P2a is finished, so
 their absence does not reopen the row; they are named here so a phase
 closing cleanly is not read as a phase closing completely.
+
+### P2b's scope, amended at its brainstorm, 2026-09-15
+
+`docs/superpowers/specs/2026-09-15-p2b-credentials-mfa-sessions-design.md`
+is the phase spec. Four amendments, appended rather than edited in place,
+because that is how this document corrects itself.
+
+**The email outbox is P2b's, and P2b's exit criterion says so.** P2a stated
+its password-reset endpoint awaits the SMTP send, making an existing address
+measurably slower to answer than an unknown one — a timing oracle whose
+visible channel is closed. P2a's spec rejected the outbox that would close
+it on the grounds that it needed the first background loop in the codebase.
+P2b builds that loop anyway, for reaping, so the outbox costs a table and a
+sender rather than new infrastructure. This is section 11's own retention
+argument applied a second time: the phase that builds the mechanism owns
+what depends on it. Until 2026-09-15 no phase owned this at all — it was
+recorded as a judgment call in `docs/NEXT.md` and nowhere in the roadmap.
+
+**Recovery codes are P2b's.** `docs/NEXT.md` named them among the credential
+types widening `user_credentials.type`, and no roadmap row carried them. A
+realm that enforces TOTP with no recovery path locks a user out permanently:
+administrative credential reset arrives with the admin API in P4, two phases
+later. The migration and the enrolment surface are being built in P2b
+regardless, so this is a fourth credential type rather than a mechanism.
+
+**Nested authentication subflows are P4's.** P2b ships a flat ordered list
+of executions per realm with `REQUIRED` / `ALTERNATIVE` / `CONDITIONAL` /
+`DISABLED` semantics, where consecutive alternatives form one group. Nesting
+is not built because nothing can author it: P4 owns the API and console that
+would. A flat flow is a valid single-level tree, so P4 extends the schema
+and existing rows migrate rather than convert.
+
+**`prompt=select_account` is P3's.** Its three clause rows in
+`docs/protocols/oidc-core.md` — §3.1.2.1's SHOULD and MUST, §3.1.2.6's MAY
+— read `deferred: P2` on the assumption that flow-tree semantics were what
+they needed. They are not: account selection needs several concurrent
+sessions per browser, which reshapes the single-session cookie read P2b
+invents. P3 already renders a user-choice page during `/authorize` for
+consent, which is the same surface. The rows move to `deferred: P3`.
+`pnpm trace` prints nothing for a `deferred:` row in either state, so the
+move is invisible to the build and was made deliberately, in a diff a
+reviewer sees, rather than discovered later by whoever wondered why P2b
+closed without them.
+
+**P2b's estimate rises to 95–130 h** from 80–110. The difference is the
+outbox and the recovery codes named above, not scope discovered inside the
+original sentence. The roadmap total moves with it.
 
 ## 12. Working protocol
 

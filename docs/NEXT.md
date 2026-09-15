@@ -2,12 +2,35 @@
 
 ## Start here
 
-**P0, P1 and P2a are complete. P2b is next — brainstorm its scope first,
-per `CLAUDE.md`.** P2a delivered the identity model: roles, groups, client
-scopes, per-client web origins, the user profile, email delivery and the
-account lifecycle built on it (self-registration, address verification,
-password reset). Everything below this point is what P2b needs and cannot
-derive from the code.
+**P0, P1 and P2a are complete. P2b is brainstormed and specified; the
+implementation plan is the next artefact, and no P2b code exists yet.** The
+phase spec is
+[2026-09-15-p2b-credentials-mfa-sessions-design.md](superpowers/specs/2026-09-15-p2b-credentials-mfa-sessions-design.md),
+on branch `p2b-credentials-mfa-sessions`. It settles nine design decisions
+against stated alternatives — a flat per-realm flow, `jsonb` credentials
+with a `lookup_key` index, a `grants` table for the refresh-token family,
+`last_active_at` beside `expires_at`, Postgres lockout with an in-process
+IP throttle, reaping as a command under a thin scheduler, required actions
+as the enrolment surface, passkeys as a first factor, and typed
+password-policy columns — and it settles logout's token handling by reading
+the specifications rather than reasoning about JWTs (section 7.2).
+
+**Four roadmap amendments landed with it**, in section 11 of the umbrella
+spec: the email outbox and recovery codes become P2b's (so P2b's exit
+criterion and estimate are amended — 95–130 h, not 80–110), nested
+authentication subflows become P4's, and `prompt=select_account` becomes
+P3's. That last one moved three `deferred: P2` clause rows in
+`docs/protocols/oidc-core.md` to `deferred: P3`; `pnpm trace` prints nothing
+for a `deferred:` row either way, so the move is invisible to the build and
+was made deliberately. **Eight `deferred: P2` rows remain, and all eight are
+P2b's to close** — seven in `oidc-core.md` (`auth_time`, two `acr`, `amr`,
+`prompt=login`, and two `max_age`) and RFC 6749 §2.3.1's brute-force MUST.
+
+P2a delivered the identity model: roles, groups, client scopes, per-client
+web origins, the user profile, email delivery and the account lifecycle
+built on it (self-registration, address verification, password reset).
+Everything below this point is what P2b needs and cannot derive from the
+code.
 
 **The token contract, as P2a leaves it.** `roles` and `groups` are sorted
 string arrays, emitted under the names the JWT registry (RFC 9068 §2.2.3.1)

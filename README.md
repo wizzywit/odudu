@@ -96,10 +96,15 @@ oracle — mailing an address that exists takes an SMTP round trip longer
 than the single `SELECT` a nonexistent one costs, so a network observer can
 distinguish the two by response time even though the response body and
 status cannot. Closing it needs sending off the request path entirely (an
-outbox table and a background sender), which the phase's own design spec
-rejects: it would be the first background loop in the codebase and a second
-table nothing deletes from. Stated here rather than fixed, on the judgment
-that an honest limitation beats an accidental one.
+outbox table and a background sender), which P2a's design spec rejected: it
+would have been the first background loop in the codebase and a second table
+nothing deletes from. Stated here rather than fixed, on the judgment that an
+honest limitation beats an accidental one.
+
+**P2b owns closing it**, as of 2026-09-15. P2b builds that background loop
+anyway, to reap expired state, so the outbox costs a table and a sender
+rather than new infrastructure; this paragraph goes away in the increment
+that lands it, and not before.
 
 **Known limitation, realm-wide:** the reset endpoint's enumeration safety
 does not make the realm itself un-enumerable. With `registration_allowed`
