@@ -51,17 +51,17 @@ than by a judgement call mid-increment. **Every row has an owner**; the one
 row without a phase has a reason instead, and that reason is a decision
 recorded in section 11 of the umbrella spec rather than an omission.
 
-| Not in P2b                                      | Owner | Why                                                                                                                                                                                                                                        |
-| ----------------------------------------------- | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Front-channel and back-channel logout           | P3    | Both are addressed to a client, not a browser: they need registered per-client logout URIs, and back-channel issues a logout token — a second token type with its own claim rules and its own clause table.                                |
-| RFC 7009 revocation, RFC 7662 introspection     | P3    | Placed there with the rest of the client-facing surface. This is why `end_session_endpoint` here revokes grants and no RP-facing revocation endpoint appears: the endpoint is P3's, the state it would revoke is this phase's.             |
-| `prompt=select_account`, multi-account browsers | P3    | Needs several concurrent sessions per browser, which reshapes the single-session read this phase invents. P3 already renders a user-choice page during `/authorize` for consent. Three clause rows move by amendment (sections 12 and 13). |
-| Nested subflows in the flow engine              | P4    | P4 owns the API and console that would author one. A flat flow is a valid single-level tree, so P4 extends the model rather than converting it (section 13).                                                                               |
-| Account-console credential management           | P4    | Enrolment here is a required action inside the login flow. Listing, renaming and deleting a credential at leisure is the self-service console, already placed in P4.                                                                       |
-| Administrative session termination              | P4    | P4's exit criterion names it. `sessions` gains `last_active_at` here partly so that list has something worth showing.                                                                                                                      |
-| Signing-key rotation                            | P4    | Settled 2026-09-14. Nothing in this phase needs it.                                                                                                                                                                                        |
-| Per-realm SMTP configuration                    | P4    | Unchanged from P2a: ADR 0015 puts credentials in the environment. The outbox changes _when_ mail is sent, not where the credentials come from.                                                                                             |
-| Step-up authentication driven by `acr`          | —     | Deliberately unplaced in section 11, grouped with DPoP and PAR to be scoped alongside the FAPI 2.0 decision ADR 0016 identifies. This phase _emits_ `acr` and `amr`; honouring a requested value per request is the unplaced part.         |
+| Not in P2b                                      | Owner | Why                                                                                                                                                                                                                                                                                                                                               |
+| ----------------------------------------------- | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Front-channel and back-channel logout           | P3    | Both are addressed to a client, not a browser: they need registered per-client logout URIs, and back-channel issues a logout token — a second token type with its own claim rules. Two pieces of that specification land here anyway, because this phase implements them: §2.7's refresh-token revocation rule and the `sid` claim (section 7.2). |
+| RFC 7009 revocation, RFC 7662 introspection     | P3    | Placed there with the rest of the client-facing surface. This is why `end_session_endpoint` here revokes grants and no RP-facing revocation endpoint appears: the endpoint is P3's, the state it would revoke is this phase's.                                                                                                                    |
+| `prompt=select_account`, multi-account browsers | P3    | Needs several concurrent sessions per browser, which reshapes the single-session read this phase invents. P3 already renders a user-choice page during `/authorize` for consent. Three clause rows move by amendment (sections 12 and 13).                                                                                                        |
+| Nested subflows in the flow engine              | P4    | P4 owns the API and console that would author one. A flat flow is a valid single-level tree, so P4 extends the model rather than converting it (section 13).                                                                                                                                                                                      |
+| Account-console credential management           | P4    | Enrolment here is a required action inside the login flow. Listing, renaming and deleting a credential at leisure is the self-service console, already placed in P4.                                                                                                                                                                              |
+| Administrative session termination              | P4    | P4's exit criterion names it. `sessions` gains `last_active_at` here partly so that list has something worth showing.                                                                                                                                                                                                                             |
+| Signing-key rotation                            | P4    | Settled 2026-09-14. Nothing in this phase needs it.                                                                                                                                                                                                                                                                                               |
+| Per-realm SMTP configuration                    | P4    | Unchanged from P2a: ADR 0015 puts credentials in the environment. The outbox changes _when_ mail is sent, not where the credentials come from.                                                                                                                                                                                                    |
+| Step-up authentication driven by `acr`          | —     | Deliberately unplaced in section 11, grouped with DPoP and PAR to be scoped alongside the FAPI 2.0 decision ADR 0016 identifies. This phase _emits_ `acr` and `amr`; honouring a requested value per request is the unplaced part.                                                                                                                |
 
 ## 3. The session, read
 
@@ -422,27 +422,77 @@ with an access token refused by `typ`.
 A `post_logout_redirect_uri` is matched against the client's registrations
 before any redirect, and an unmatched one is rendered, never redirected to.
 
-**A logout with no `id_token_hint` renders a confirmation page** — the
-specification's SHOULD, and the reason it is honoured rather than noted is
-that ending a session on a bare `GET` is CSRF-shaped: an `<img>` tag on any
-page would log the user out of every realm they hold a session in. The
-confirmation form carries the same single-use hidden field the login form
-uses as its CSRF defence.
+**The confirmation page is a MUST, and it has two triggers.** §2: "the OP
+MUST ask the End-User this question if an `id_token_hint` was not provided
+**or if the supplied ID Token does not belong to the current OP session**".
+Both cases, not just the missing hint — a hint naming somebody else's
+session does not authorise ending this one. The requirement also happens to
+close a CSRF hole: ending a session on a bare `GET` means an `<img>` tag on
+any page logs the user out. The confirmation form carries the same
+single-use hidden field the login form uses as its CSRF defence.
 
-### 7.2 What logout revokes, stated plainly
+§3's redirect rule is likewise a MUST — the OP "MUST NOT perform post-logout
+redirection if the `post_logout_redirect_uri` value supplied does not
+exactly match one of the previously registered `post_logout_redirect_uris`
+values" — which is why the registration column arrives in this phase
+(migration 0033) rather than with P3's client metadata.
 
-The session row, and every grant whose `session_id` is that session. It does
-**not** revoke access tokens, and the specification, the README and
-`docs/request-paths.md` will all say so in those words: Odudu's access
-tokens are self-contained `at+jwt` JWTs, so a resource server verifies a
-signature and an expiry and consults nothing. The window in which a logged
--out user's access token still works is exactly
-`client_oidc_config.access_token_ttl_seconds`, which migration 0013 already
-caps at one hour and documents as "the whole of the window in which a stolen
-token still works". Logout shortens nothing about it.
+### 7.2 What logout revokes, and why access tokens are not on the list
 
-Grants with a null `session_id` — offline grants — are untouched. That is
-the definition of offline access, not an exception to logout.
+The session row, and every grant whose `session_id` is that session.
+
+**The rule is normative and it is quotable**, which is worth stating because
+it is easy to assume the opposite. RP-Initiated Logout contains no
+normative language about tokens whatsoever; the requirement lives in
+Back-Channel Logout §2.7, and it is exactly this design:
+
+> Refresh tokens issued without the `offline_access` property to a session
+> being logged out SHOULD be revoked. Refresh tokens issued with the
+> `offline_access` property normally SHOULD NOT be revoked.
+
+So revoking the session's grants is the SHOULD, and leaving offline grants
+alone is the other half of the same sentence rather than an exception
+someone here invented. Neither that document nor RFC 9068 says anything
+about access tokens.
+
+**Access tokens are not revoked because they cannot be.** Odudu's are
+self-contained `at+jwt` JWTs: a resource server verifies a signature and an
+expiry and consults nothing, which is the property RFC 9068 §2.2.2 exists to
+provide — claims "resource servers can consume directly for authorization
+without any further round trips". A token nobody asks about cannot be told
+it is dead. The window in which a logged-out user's access token still works
+is therefore exactly `client_oidc_config.access_token_ttl_seconds`, capped
+at one hour by migration 0013 and already documented there as "the whole of
+the window in which a stolen token still works". Logout shortens nothing
+about it, and this is the incumbents' behaviour too, not a shortfall against
+them: Keycloak revokes at session level and its access tokens likewise
+remain valid to expiry.
+
+**What P2b does about it is emit `sid`.** Back-Channel Logout §2.1 defines
+the claim — an opaque identifier for the End-User's session at the OP — and
+access tokens and ID tokens both carry it from this phase. It costs nothing
+here, because the session it names is the thing this phase makes real, and
+it is the enabler for every mitigation that actually works:
+
+- **RFC 7662 introspection (P3)** can reflect revocation, because an
+  introspection response is a round trip and a round trip can consult
+  `grants.revoked_at`. A deployment that needs revocation inside the token's
+  lifetime uses introspection; that is the trade RFC 9068 leaves open, and
+  it is a client's choice, not the OP's.
+- **Back-channel logout (P3)** addresses a session by `sid`, which is why
+  the claim has to exist before that phase rather than reshaping the token
+  contract a second time. P2a's closing note is explicit that the token
+  contract every later phase reads should stop moving.
+
+Two alternatives were considered and rejected. A **denylist of live access
+token identifiers** checked at each resource server reintroduces the round
+trip introspection already provides, less well and without a standard.
+Keycloak's **not-before push** — a realm timestamp invalidating everything
+issued earlier — only reaches resource servers through adapters Odudu does
+not ship, so here it would be a column nothing consults.
+
+Grants with a null `session_id` — offline grants — are untouched, per §2.7's
+second sentence.
 
 ### 7.3 `offline_access`
 
@@ -616,7 +666,23 @@ and must be made deliberately, in a diff a reviewer sees.
 New clause tables under `docs/protocols/`: OpenID Connect RP-Initiated
 Logout 1.0, RFC 6238, and WebAuthn Level 2 — scoped to the ceremonies a
 relying party performs, not to a browser's obligations, which are not this
-server's to hold. Every MUST and SHOULD introduced gets a row, and
+server's to hold.
+
+**A fourth table, Back-Channel Logout 1.0, is created here despite the
+feature being P3's**, because §2.7's refresh-token rule (section 7.2) is
+behaviour this phase implements and §2.1's `sid` is a claim this phase
+emits. The alternative — implementing a normative SHOULD with no row, or
+citing a clause from a table that does not exist — is how a requirement
+becomes invisible. Its remaining rows are recorded `deferred: P3`, and the
+MUSTs that silences are added to `tools/trace/silenced-musts.json` in the
+same commit, which is the census that makes the silence visible in a diff.
+
+Three logout rows close here: RP-Initiated Logout §2's confirmation MUST,
+§3's exact-match MUST, and Back-Channel Logout §2.7's revocation SHOULD —
+each with a test id, and §2.7 needs two, since a session grant being revoked
+and an offline grant surviving are separate assertions.
+
+Every MUST and SHOULD introduced gets a row, and
 `silenced-musts.json` is raised in the same commit as any `deferred:` or
 `n/a:` row that silences one. `pnpm trace` runs strict: a MUST left `gap`
 fails the build.
