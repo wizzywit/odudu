@@ -27,6 +27,8 @@ Everything in P0's, P1's and P2a's plans still binds. Repeated here because an i
 - **Never reference the development process from a comment** — no "Task 12", no "Step 3", no plan slot numbers. Name the thing instead: not "read by Task 14's grant" but "read by the client_credentials grant".
 - **Commit messages contain no `Co-Authored-By` or tool-attribution trailers.** A repository hook rejects them; a commit that fails for this reason is re-committed with the trailer removed, not forced.
 - Test-driven: the failing test is written and observed failing before implementation.
+- **How to run tests.** No package declares a `test` script — each package's `package.json` has only `typecheck`. Vitest is configured at the root (`vitest.config.ts`) with two projects, `unit` and `integration`, selected by path: `{packages,apps}/*/src/**/*.test.ts` for unit, `{packages,apps}/*/tests/**/*.int.test.ts` for integration. So run one file or one name fragment with `pnpm exec vitest run --project integration <fragment-or-path>`, and the whole suite with `pnpm test` from the root. `pnpm --filter @odudu/<pkg> test` fails with `ERR_PNPM_RECURSIVE_RUN_NO_SCRIPT`.
+- **Run tests in the foreground and read the output yourself.** Do not background a test run and wait to be notified — that stalls the task with the work uncommitted.
 - Integration tests run against real PostgreSQL via Testcontainers, never a mock. They live in a package's `tests/` directory as `*.int.test.ts`. Unit tests sit beside the code as `*.test.ts`.
 - **Every repository method is probed with a foreign `realm_id`.** `packages/db/tests/rls-policy.int.test.ts` catches a table shipped without a policy; it does not catch a method that leaks, and that probe is written per task.
 - **`SET LOCAL`, never `SET`, for realm context.** Use `withRealm(db, realmId, fn)` from `@odudu/db`.
@@ -290,7 +292,7 @@ describe('a grant and the session it belongs to', () => {
 
 - [ ] **Step 4: Run it and watch it fail**
 
-Run: `pnpm --filter @odudu/protocol-oidc test:integration -- grant-session-link`
+Run: `pnpm exec vitest run --project integration grant-session-link`
 Expected: FAIL — `revokeForSession is not a function`, and `sessionId` is not accepted by `create`.
 
 - [ ] **Step 5: Widen the schema and the repository**
@@ -341,7 +343,7 @@ it('refuses to rotate a refresh token whose grant has been revoked', async () =>
 
 - [ ] **Step 7: Run it and watch it fail**
 
-Run: `pnpm --filter @odudu/protocol-oidc test:integration -- grants`
+Run: `pnpm exec vitest run --project integration grants`
 Expected: FAIL — the outcome is `rotated`, because rotation does not look at `revokedAt`.
 
 - [ ] **Step 8: Add the condition to rotation**
@@ -365,7 +367,7 @@ Then handle `'revoked'` where `RotationOutcome` is consumed in `packages/protoco
 
 - [ ] **Step 9: Run the package's whole suite**
 
-Run: `pnpm --filter @odudu/protocol-oidc test`
+Run: `pnpm test`
 Expected: PASS. A non-exhaustive switch over `RotationOutcome` is a typecheck error, which is the point of adding a variant rather than a boolean.
 
 - [ ] **Step 10: Open the draft pull request and push**
@@ -498,7 +500,7 @@ describe('isSessionLive', () => {
 
 - [ ] **Step 3: Run it and watch it fail**
 
-Run: `pnpm --filter @odudu/authn-flows test:unit -- session-liveness`
+Run: `pnpm exec vitest run --project unit session-liveness`
 Expected: FAIL — module not found.
 
 - [ ] **Step 4: Write the evaluator**
@@ -523,7 +525,7 @@ export function isSessionLive(
 
 - [ ] **Step 5: Run it and watch it pass**
 
-Run: `pnpm --filter @odudu/authn-flows test:unit -- session-liveness`
+Run: `pnpm exec vitest run --project unit session-liveness`
 Expected: PASS, four tests.
 
 - [ ] **Step 6: Write the failing integration test for `liveById` and `touch`**
@@ -599,7 +601,7 @@ Note what the third test asserts: a foreign `touch` is a no-op, not an error. RL
 
 - [ ] **Step 7: Run it and watch it fail**
 
-Run: `pnpm --filter @odudu/authn-flows test:integration -- session-lifespan`
+Run: `pnpm exec vitest run --project integration session-lifespan`
 Expected: FAIL — `touch` and `liveById` do not exist.
 
 - [ ] **Step 8: Widen the schema, the record and the repository**
@@ -639,12 +641,12 @@ Add `ssoSessionIdleSeconds` and `ssoSessionMaxSeconds` to `realms` in `packages/
 
 - [ ] **Step 10: Run the affected suites**
 
-Run: `pnpm --filter @odudu/authn-flows test && pnpm --filter @odudu/protocol-oidc test`
+Run: `pnpm test`
 Expected: PASS.
 
 - [ ] **Step 11: Check schema drift and RLS, then commit and push**
 
-Run: `pnpm --filter @odudu/db test:integration`
+Run: `pnpm exec vitest run --project integration`
 Expected: PASS — `schema-drift.int.test.ts` is what catches a typed view that disagrees with the migration.
 
 ```bash
@@ -753,7 +755,7 @@ describe('decideReuse', () => {
 
 - [ ] **Step 2: Run them and watch them fail**
 
-Run: `pnpm --filter @odudu/protocol-oidc test:unit -- session-reuse`
+Run: `pnpm exec vitest run --project unit session-reuse`
 Expected: FAIL — module not found.
 
 - [ ] **Step 3: Write the decision**
@@ -800,7 +802,7 @@ export function decideReuse(input: ReuseInput): ReuseDecision {
 
 - [ ] **Step 4: Run them and watch them pass**
 
-Run: `pnpm --filter @odudu/protocol-oidc test:unit -- session-reuse`
+Run: `pnpm exec vitest run --project unit session-reuse`
 Expected: PASS, nine tests.
 
 - [ ] **Step 5: Write the failing integration test, including the gate**
@@ -844,7 +846,7 @@ The route in `packages/protocol-oidc/src/view/routes/authorize.ts` reads the coo
 
 - [ ] **Step 8: Run the whole package suite**
 
-Run: `pnpm --filter @odudu/protocol-oidc test`
+Run: `pnpm test`
 Expected: PASS. Existing `prompt=none` tests will need their expectations updated where they asserted the unconditional refusal — check each one is being updated because the behaviour deliberately changed, not because it broke.
 
 - [ ] **Step 9: Close the clause rows**
@@ -916,7 +918,7 @@ The second case depends on Task 6 and may be written as a skipped test here and 
 
 - [ ] **Step 2: Run it and watch it fail**
 
-Run: `pnpm --filter @odudu/protocol-oidc test:integration -- sid-claim`
+Run: `pnpm exec vitest run --project integration sid-claim`
 Expected: FAIL — `sid` is undefined.
 
 - [ ] **Step 3: Emit it**
@@ -933,14 +935,14 @@ Expected: FAIL — `sid` is undefined.
 
 - [ ] **Step 4: Run it and watch it pass**
 
-Run: `pnpm --filter @odudu/protocol-oidc test:integration -- sid-claim`
+Run: `pnpm exec vitest run --project integration sid-claim`
 Expected: PASS (the offline case skipped until Task 6).
 
 - [ ] **Step 5: Check the registered-claims precedence rule still holds**
 
 `withRegisteredClaimsWinning` in `packages/protocol-oidc/src/service/token-claims.ts` exists so a mapper cannot overwrite an envelope claim. Add a unit test that a mapper emitting `sid` cannot displace the grant's value.
 
-Run: `pnpm --filter @odudu/protocol-oidc test:unit -- token-claims`
+Run: `pnpm exec vitest run --project unit token-claims`
 Expected: PASS.
 
 - [ ] **Step 6: Commit and push**
@@ -1062,7 +1064,7 @@ describe('decideLogout', () => {
 
 - [ ] **Step 3: Run them and watch them fail**
 
-Run: `pnpm --filter @odudu/protocol-oidc test:unit -- logout`
+Run: `pnpm exec vitest run --project unit logout`
 Expected: FAIL — module not found.
 
 - [ ] **Step 4: Write the decision and the page**
@@ -1085,7 +1087,7 @@ Add `end_session_endpoint` to `packages/protocol-oidc/src/usecase/discovery.ts` 
 
 - [ ] **Step 8: Run everything**
 
-Run: `pnpm --filter @odudu/protocol-oidc test && pnpm test:integration`
+Run: `pnpm test`
 Expected: PASS.
 
 - [ ] **Step 9: Document it, in the words the spec fixes**
@@ -1165,7 +1167,7 @@ The fourth case is the one that makes the third meaningful: if a session-bound r
 
 - [ ] **Step 2: Run them and watch them fail**
 
-Run: `pnpm --filter @odudu/protocol-oidc test:integration -- offline-access`
+Run: `pnpm exec vitest run --project integration offline-access`
 Expected: FAIL — `offline_access` is not a scope the realm defines, so `resolveScope` drops it.
 
 - [ ] **Step 3: Seed the scope**
@@ -1200,7 +1202,7 @@ Remove the skip from the second test in `sid-claim.int.test.ts` and confirm it p
 
 - [ ] **Step 7: Run everything**
 
-Run: `pnpm --filter @odudu/protocol-oidc test`
+Run: `pnpm test`
 Expected: PASS.
 
 - [ ] **Step 8: Close the scope row and document it**
@@ -1281,7 +1283,7 @@ Cases: a freshly provisioned realm has exactly the three default executions in i
 
 - [ ] **Step 3: Run it and watch it fail**
 
-Run: `pnpm --filter @odudu/authn-flows test:integration -- executions`
+Run: `pnpm exec vitest run --project integration executions`
 Expected: FAIL — table does not exist.
 
 - [ ] **Step 4: Write the schema, the record and the repository**
@@ -1306,7 +1308,7 @@ Call it from `provisionRealmDefaults`, beside the client-scope seeding, so a rea
 
 - [ ] **Step 6: Run it and watch it pass**
 
-Run: `pnpm --filter @odudu/authn-flows test:integration -- executions && pnpm --filter @odudu/db test:integration`
+Run: `pnpm exec vitest run --project integration executions && pnpm exec vitest run --project integration`
 Expected: PASS, including `rls-policy.int.test.ts` finding the new table has a policy.
 
 - [ ] **Step 7: Commit, push, wait**
@@ -1416,7 +1418,7 @@ The last two cases are the ones that stop a misconfigured realm from logging eve
 
 - [ ] **Step 2: Run them and watch them fail**
 
-Run: `pnpm --filter @odudu/authn-flows test:unit -- requirements`
+Run: `pnpm exec vitest run --project unit requirements`
 Expected: FAIL — module not found.
 
 - [ ] **Step 3: Write the evaluator**
@@ -1425,7 +1427,7 @@ Walk the list once, partitioning it into groups: a run of adjacent `alternative`
 
 - [ ] **Step 4: Run them and watch them pass**
 
-Run: `pnpm --filter @odudu/authn-flows test:unit -- requirements`
+Run: `pnpm exec vitest run --project unit requirements`
 Expected: PASS, nine tests.
 
 - [ ] **Step 5: Commit**
@@ -1478,7 +1480,7 @@ Cases: a password success on a realm whose subject has TOTP enrolled returns a `
 
 - [ ] **Step 3: Run it and watch it fail**
 
-Run: `pnpm --filter @odudu/authn-flows test:integration -- multi-step`
+Run: `pnpm exec vitest run --project integration multi-step`
 Expected: FAIL — `advance` runs `STEPS[0]` and nothing else.
 
 - [ ] **Step 4: Replace `STEPS` with the registry**
@@ -1493,7 +1495,7 @@ Delete the `STEPS` constant and the `StepName` type. `AUTHENTICATORS` becomes ke
 
 - [ ] **Step 6: Run the suites**
 
-Run: `pnpm --filter @odudu/authn-flows test && pnpm --filter @odudu/protocol-oidc test`
+Run: `pnpm test`
 Expected: PASS.
 
 - [ ] **Step 7: Commit, push, wait**
@@ -1580,7 +1582,7 @@ The third `amrFor` case is the clause row talking: §2's MUST is that a register
 
 - [ ] **Step 3: Run them and watch them fail**
 
-Run: `pnpm --filter @odudu/protocol-oidc test:unit -- acr`
+Run: `pnpm exec vitest run --project unit acr`
 Expected: FAIL — module not found.
 
 - [ ] **Step 4: Write the mapping**
@@ -1595,7 +1597,7 @@ Values come from the IANA Authentication Method Reference Values registry (RFC 8
 
 A password-only login yields `"amr": ["pwd"], "acr": "1"`; a password-plus-OTP login yields `["otp","pwd"]` and `"2"`; a passkey login yields `["hwk","user"]` and `"2"`.
 
-Run: `pnpm --filter @odudu/protocol-oidc test:integration -- amr-claim`
+Run: `pnpm exec vitest run --project integration amr-claim`
 Expected: PASS.
 
 - [ ] **Step 7: Close the three clause rows**
@@ -1809,7 +1811,7 @@ describe('parseCredentialSecret', () => {
 
 - [ ] **Step 3: Run them and watch them fail, then implement**
 
-Run: `pnpm --filter @odudu/domain-identity test:unit -- credential-secret`
+Run: `pnpm exec vitest run --project unit credential-secret`
 
 One Zod schema per type, a `parse` at the repository boundary, and `unknown` in and a narrowed union out. No `any`, no cast — a `jsonb` column is exactly the untyped boundary the ban exists for.
 
@@ -1821,7 +1823,7 @@ The first case is the one the spike exists for — assert the exact string, not 
 
 - [ ] **Step 5: Run it, implement the repository, run it again**
 
-Run: `pnpm --filter @odudu/domain-identity test:integration -- credential-types`
+Run: `pnpm exec vitest run --project integration credential-types`
 Expected: PASS.
 
 `setPassword`'s existing comment refers to `user_credentials_one_password` as a constraint that "would refuse anyway" — it is now a partial index with the same name, and the comment stays accurate only if it says so.
@@ -1966,7 +1968,7 @@ The grapheme-counting case is not pedantry: `'🔑'.length` is 2, so a naive min
 
 - [ ] **Step 3: Run them, implement, run them again**
 
-Run: `pnpm --filter @odudu/domain-identity test:unit -- password-policy`
+Run: `pnpm exec vitest run --project unit password-policy`
 
 Count with `[...candidate].length`. Return every violation. The service takes no `tx` and no clock — it is a leaf.
 
@@ -2076,7 +2078,7 @@ The first case is the one that matters. A required action that runs _after_ the 
 
 - [ ] **Step 3: Run it and watch it fail**
 
-Run: `pnpm --filter @odudu/authn-flows test:integration -- required-actions`
+Run: `pnpm exec vitest run --project integration required-actions`
 Expected: FAIL — table does not exist and the outcome variant does not exist.
 
 - [ ] **Step 4: Implement the repository, the ordering and the page shell**
@@ -2102,7 +2104,7 @@ if (action !== null) {
 
 - [ ] **Step 6: Run the suites, commit, push, wait**
 
-Run: `pnpm --filter @odudu/authn-flows test && pnpm --filter @odudu/protocol-oidc test`
+Run: `pnpm test`
 
 ```bash
 git add -A
@@ -2211,7 +2213,7 @@ The replay test is the one that earns the `lastStep` column: without it a code w
 
 - [ ] **Step 2: Run them and watch them fail**
 
-Run: `pnpm --filter @odudu/crypto test:unit -- totp`
+Run: `pnpm exec vitest run --project unit totp`
 Expected: FAIL — module not found.
 
 - [ ] **Step 3: Implement it over `node:crypto`**
@@ -2220,7 +2222,7 @@ Expected: FAIL — module not found.
 
 - [ ] **Step 4: Run them and watch them pass**
 
-Run: `pnpm --filter @odudu/crypto test:unit -- totp`
+Run: `pnpm exec vitest run --project unit totp`
 Expected: PASS. A vector that does not match is a bug in this code, not in the RFC — do not adjust an expected value.
 
 - [ ] **Step 5: Bring it under mutation testing**
@@ -2282,7 +2284,7 @@ The step follows `password.ts`'s contract exactly: no `tx`, no repository, verif
 
 - [ ] **Step 3: Run them, implement, run them again**
 
-Run: `pnpm --filter @odudu/authn-flows test:unit -- totp`
+Run: `pnpm exec vitest run --project unit totp`
 
 - [ ] **Step 4: Write the failing integration test for the whole journey**
 
@@ -2296,7 +2298,7 @@ The enrolment page renders the `otpauth://totp/...` URI **as text and as a QR co
 
 Add `otp` to `AUTHENTICATORS` in the executor with its applicability function.
 
-Run: `pnpm --filter @odudu/authn-flows test && pnpm --filter @odudu/protocol-oidc test`
+Run: `pnpm test`
 Expected: PASS.
 
 - [ ] **Step 7: Document and push**
@@ -2432,7 +2434,7 @@ A passkey registered against the wrong RP ID is unusable, and silently: the brow
 
 - [ ] **Step 2: Run it, implement, run it again**
 
-Run: `pnpm --filter @odudu/authn-flows test:unit -- webauthn`
+Run: `pnpm exec vitest run --project unit webauthn`
 
 The RP ID comes from `ODUDU_PUBLIC_BASE_URL` and from nowhere else — never `Host`, never `X-Forwarded-Host`, which are client-controlled. Boot fails when a realm can register a passkey and this is unset, the same way P2a's mailed links fail closed.
 
@@ -2444,7 +2446,7 @@ Cases: a subject with `configure-passkey` pending gets options carrying a challe
 
 Verification is the library's; storage is ours. The counter from the verified registration goes into `secret_data` as the baseline Task 19 compares against.
 
-Run: `pnpm --filter @odudu/authn-flows test`
+Run: `pnpm test`
 Expected: PASS.
 
 - [ ] **Step 5: Commit, push, wait**
@@ -2487,7 +2489,7 @@ The last two together are the whole point of storing the counter: refuse a clone
 
 - [ ] **Step 2: Run them and watch them fail, then implement**
 
-Run: `pnpm --filter @odudu/authn-flows test:unit -- passkey`
+Run: `pnpm exec vitest run --project unit passkey`
 
 - [ ] **Step 3: Write the failing integration test for the usernameless journey**
 
@@ -2548,7 +2550,7 @@ Cases: ten codes are generated; they are distinct; each has enough entropy to be
 
 - [ ] **Step 2: Run, implement, run**
 
-Run: `pnpm --filter @odudu/authn-flows test:unit -- recovery`
+Run: `pnpm exec vitest run --project unit recovery`
 
 Codes are hashed with the same Argon2id parameters as a password — `hashPassword` from `@odudu/domain-identity` — and stored one row per code.
 
@@ -2560,7 +2562,7 @@ Cases: a code works once; **the same code presented again is refused, and is ref
 
 Consumption marks `last_used_at` and sets a `usedAt` inside the secret, in the same transaction as the login's success.
 
-Run: `pnpm --filter @odudu/authn-flows test`
+Run: `pnpm test`
 Expected: PASS.
 
 - [ ] **Step 5: Offer them where they are needed**
@@ -2607,7 +2609,7 @@ Cases: `maxAgeDays` of 0 means never expires, whatever the age; a password young
 
 - [ ] **Step 2: Run, implement, run**
 
-Run: `pnpm --filter @odudu/domain-identity test:unit -- password-age`
+Run: `pnpm exec vitest run --project unit password-age`
 
 - [ ] **Step 3: Write the failing integration test**
 
@@ -2756,7 +2758,7 @@ describe('nextLockout', () => {
 
 - [ ] **Step 3: Run, implement, run**
 
-Run: `pnpm --filter @odudu/domain-identity test:unit -- lockout`
+Run: `pnpm exec vitest run --project unit lockout`
 
 - [ ] **Step 4: Write the failing integration test — indistinguishability is the assertion**
 
@@ -2819,7 +2821,7 @@ The last case is the one that stops a throttle being a memory-exhaustion vector 
 
 - [ ] **Step 2: Run, implement, run**
 
-Run: `pnpm --filter @odudu/server test:unit -- throttle`
+Run: `pnpm exec vitest run --project unit throttle`
 
 - [ ] **Step 3: Write the failing integration test**
 
@@ -2897,7 +2899,7 @@ A second block calling `pg_advisory_lock(43)` inside `withRealm`, then counting 
 
 - [ ] **Step 3: Run it and read the output**
 
-Run: `pnpm --filter @odudu/db test:integration -- advisory-lock-spike`
+Run: `pnpm exec vitest run --project integration advisory-lock-spike`
 
 The expected answer, to be confirmed rather than assumed: `pg_try_advisory_xact_lock` returns `true` the first time, `true` again in a _separate_ transaction (because the first released at commit), and leaves zero advisory locks behind; `pg_advisory_lock` leaves one behind. If so, the reaper uses the `xact` variant and takes it inside its own transaction.
 
@@ -2999,7 +3001,7 @@ describe('reaping does not break reuse detection', () => {
 
 - [ ] **Step 3: Run them and watch them fail**
 
-Run: `pnpm --filter @odudu/server test:integration -- reap-preserves-detection`
+Run: `pnpm exec vitest run --project integration reap-preserves-detection`
 Expected: FAIL — `reap` does not exist.
 
 - [ ] **Step 4: Write the retention rule**
@@ -3020,7 +3022,7 @@ Order matters: grants are considered before the tokens that reference them, and 
 
 - [ ] **Step 5: Run the detection tests and watch them pass**
 
-Run: `pnpm --filter @odudu/server test:integration -- reap-preserves-detection`
+Run: `pnpm exec vitest run --project integration reap-preserves-detection`
 Expected: PASS. If they pass with a naive `expires_at` delete, the tests are wrong, not the implementation — re-read Step 2's comment.
 
 - [ ] **Step 6: Write the ordinary reaping tests**
@@ -3082,7 +3084,7 @@ The fourth case is the one that matters for a background loop: a reaping pass th
 
 - [ ] **Step 2: Run, implement, run**
 
-Run: `pnpm --filter @odudu/server test:unit -- scheduler`
+Run: `pnpm exec vitest run --project unit scheduler`
 
 The loop holds no logic — interval, jitter, lock, call. That is the whole file.
 
@@ -3190,7 +3192,7 @@ it('answers a known and an unknown address in the same time', async () => {
 
 - [ ] **Step 3: Run it and watch it fail**
 
-Run: `pnpm --filter @odudu/account test:integration -- reset-timing`
+Run: `pnpm exec vitest run --project integration reset-timing`
 Expected: FAIL — the known address takes roughly two seconds longer, which is the oracle.
 
 - [ ] **Step 4: Write the outbox and the sender**
@@ -3288,7 +3290,7 @@ gh pr checks --watch
 
 Not the ones this phase added — **all** of them. A phase that changed the session, the flow and the token claims has changed responses in sections written three phases ago. Any command that cannot be run says so instead of showing output.
 
-Run: `pnpm --filter @odudu/server test:integration -- docs`
+Run: `pnpm exec vitest run --project integration docs`
 Expected: PASS. `tests/docs/` only checks the claims that can be checked mechanically; the rest is read.
 
 - [ ] **Step 2: Check the exit criterion clause by clause against a running stack**
