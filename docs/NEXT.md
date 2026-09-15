@@ -13,7 +13,7 @@ phase spec is
 [2026-09-15-p2b-credentials-mfa-sessions-design.md](superpowers/specs/2026-09-15-p2b-credentials-mfa-sessions-design.md),
 on branch `p2b-credentials-mfa-sessions`. It settles nine design decisions
 against stated alternatives — a flat per-realm flow, `jsonb` credentials
-with a `lookup_key` index, a `grants` table for the refresh-token family,
+with a `lookup_key` index, `session_id` on the existing `token_grants`,
 `last_active_at` beside `expires_at`, Postgres lockout with an in-process
 IP throttle, reaping as a command under a thin scheduler, required actions
 as the enrolment surface, passkeys as a first factor, and typed
@@ -121,9 +121,10 @@ when a realm needs to mail and this is unset. The `ODUDU_SMTP_*` set —
 `ODUDU_SMTP_HOST` unset, the server logs every message instead of sending
 it, which is what the compose stack does today.
 
-**Migrations now run to 0024.** `packages/db/drizzle/0023_users_email_unique.sql`
+**Migrations now run to 0025.** `packages/db/drizzle/0023_users_email_unique.sql`
 is the realm-scoped `(realm_id, email)` uniqueness self-registration needs;
-0024 is the last one this phase added. Anything from P2b starts at 0025.
+0025 is the last one this phase added. Anything from P2b starts at 0026,
+and the plan's own table numbers them through 0039.
 
 That is P2a done. **P2b** takes what P2 always meant: the flow tree with
 TOTP and passkeys, password policies, brute-force protection (a clause row
