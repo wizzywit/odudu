@@ -19,7 +19,13 @@ describe('resolveDiscoveryDocument', () => {
   it('returns null for a disabled realm', async () => {
     const doc = await resolveDiscoveryDocument(
       {
-        findRealm: () => Promise.resolve({ id: 'r1', enabled: false, verifyEmail: false }),
+        findRealm: () =>
+          Promise.resolve({
+            id: 'r1',
+            enabled: false,
+            verifyEmail: false,
+            ssoSessionMaxSeconds: 36_000,
+          }),
         claimNames,
         scopesForRealm,
       },
@@ -32,7 +38,13 @@ describe('resolveDiscoveryDocument', () => {
   it('builds the document under the resolved issuer for an enabled realm', async () => {
     const doc = await resolveDiscoveryDocument(
       {
-        findRealm: () => Promise.resolve({ id: 'r1', enabled: true, verifyEmail: false }),
+        findRealm: () =>
+          Promise.resolve({
+            id: 'r1',
+            enabled: true,
+            verifyEmail: false,
+            ssoSessionMaxSeconds: 36_000,
+          }),
         claimNames,
         scopesForRealm,
       },
@@ -45,7 +57,13 @@ describe('resolveDiscoveryDocument', () => {
   it('builds scopes_supported from the realm, in a stable order', async () => {
     const doc = await resolveDiscoveryDocument(
       {
-        findRealm: () => Promise.resolve({ id: 'r1', enabled: true, verifyEmail: false }),
+        findRealm: () =>
+          Promise.resolve({
+            id: 'r1',
+            enabled: true,
+            verifyEmail: false,
+            ssoSessionMaxSeconds: 36_000,
+          }),
         claimNames,
         scopesForRealm,
       },
@@ -58,7 +76,13 @@ describe('resolveDiscoveryDocument', () => {
   it('builds claims_supported from the claim mapper registry, not a literal', async () => {
     const doc = await resolveDiscoveryDocument(
       {
-        findRealm: () => Promise.resolve({ id: 'r1', enabled: true, verifyEmail: false }),
+        findRealm: () =>
+          Promise.resolve({
+            id: 'r1',
+            enabled: true,
+            verifyEmail: false,
+            ssoSessionMaxSeconds: 36_000,
+          }),
         claimNames,
         scopesForRealm,
       },

@@ -1,6 +1,7 @@
 import { eq } from 'drizzle-orm';
 import { type RealmScopedDatabase } from '@odudu/db';
 import { sessions, type SessionRecord } from '#/schema/sessions';
+import { isSessionLive } from '#/service/session-liveness';
 
 function toRecord(row: typeof sessions.$inferSelect): SessionRecord {
   return {
@@ -9,6 +10,7 @@ function toRecord(row: typeof sessions.$inferSelect): SessionRecord {
     subjectId: row.subjectId,
     createdAt: row.createdAt,
     expiresAt: row.expiresAt,
+    lastActiveAt: row.lastActiveAt,
   };
 }
 
@@ -32,6 +34,19 @@ export function sessionRepository(tx: RealmScopedDatabase) {
 
     async create(values: NewSession): Promise<void> {
       await tx.insert(sessions).values(values);
+    },
+
+    // The read every session consumer uses. `byId` still exists and still
+    // ignores liveness, because the reaper and a future session list need to
+    // see a dead row; nothing that authenticates should call it.
+    async liveById(id: string, idleSeconds: number, now: Date): Promise<SessionRecord | null> {
+      const record = await this.byId(id);
+      if (record === null) return null;
+      return isSessionLive(record, idleSeconds, now) ? record : null;
+    },
+
+    async touch(id: string, now: Date): Promise<void> {
+      await tx.update(sessions).set({ lastActiveAt: now }).where(eq(sessions.id, id));
     },
   };
 }

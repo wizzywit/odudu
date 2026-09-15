@@ -50,9 +50,6 @@ const AUTHENTICATORS: Record<
 };
 
 const AUTH_SESSION_TTL_MS = 30 * 60_000;
-// An SSO session outlives any one authentication: 12 hours covers a working
-// day without forcing a re-login mid-session.
-const SESSION_TTL_MS = 12 * 60 * 60_000;
 
 export async function startAuthentication(
   tx: RealmScopedDatabase,
@@ -120,6 +117,7 @@ export async function establishSession(
   tx: RealmScopedDatabase,
   realmId: string,
   subjectId: string,
+  maxSeconds: number,
   clock: Clock = systemClock,
 ): Promise<{ sessionId: string }> {
   // Always a fresh id, even for the same subject: reusing the pre-auth id
@@ -129,7 +127,7 @@ export async function establishSession(
     id,
     realmId,
     subjectId,
-    expiresAt: new Date(clock.now().getTime() + SESSION_TTL_MS),
+    expiresAt: new Date(clock.now().getTime() + maxSeconds * 1000),
   });
   return { sessionId: id };
 }

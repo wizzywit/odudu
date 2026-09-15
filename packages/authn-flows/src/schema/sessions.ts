@@ -12,6 +12,7 @@ export const sessions = pgTable('sessions', {
   subjectId: uuid('subject_id').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  lastActiveAt: timestamp('last_active_at', { withTimezone: true }).notNull().defaultNow(),
 }).enableRLS();
 
 export interface SessionRecord {
@@ -20,4 +21,5 @@ export interface SessionRecord {
   subjectId: string;
   createdAt: Date;
   expiresAt: Date;
+  lastActiveAt: Date;
 }

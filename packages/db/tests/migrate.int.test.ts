@@ -47,6 +47,8 @@ describe('migrations', () => {
       'name',
       'registration_allowed',
       'reset_password_allowed',
+      'sso_session_idle_seconds',
+      'sso_session_max_seconds',
       'verify_email',
     ]);
   });

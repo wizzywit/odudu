@@ -167,7 +167,13 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
           const consumed = await consumeAuthenticationSession(tx, input.authSessionId, clock);
           if (!consumed) return { kind: 'already_consumed' };
 
-          const { sessionId } = await establishSession(tx, input.realmId, input.subjectId, clock);
+          const { sessionId } = await establishSession(
+            tx,
+            input.realmId,
+            input.subjectId,
+            input.ssoSessionMaxSeconds,
+            clock,
+          );
           // authTime and expiresAt both derive from this single `now`, not a
           // fresh clock read inside issueAuthorizationCode — otherwise two
           // reads straddling a millisecond boundary could store a TTL

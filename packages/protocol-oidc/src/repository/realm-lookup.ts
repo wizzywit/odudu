@@ -9,6 +9,9 @@ export interface RealmLookup {
   // until an unverified self-registered address is verified — see
   // #/usecase/login-submission.ts.
   verifyEmail: boolean;
+  // The ceiling completeLogin passes to establishSession: the realm's own
+  // configured value, not a package-wide constant.
+  ssoSessionMaxSeconds: number;
 }
 
 export interface NewRealm {
@@ -26,7 +29,12 @@ export function realmLookupRepository(db: Database) {
   return {
     async byName(name: string): Promise<RealmLookup | null> {
       const rows = await db
-        .select({ id: realms.id, enabled: realms.enabled, verifyEmail: realms.verifyEmail })
+        .select({
+          id: realms.id,
+          enabled: realms.enabled,
+          verifyEmail: realms.verifyEmail,
+          ssoSessionMaxSeconds: realms.ssoSessionMaxSeconds,
+        })
         .from(realms)
         .where(eq(realms.name, name));
       return rows[0] ?? null;
@@ -40,7 +48,12 @@ export function realmLookupRepository(db: Database) {
       const rows = await db
         .insert(realms)
         .values({ id: input.id, name: input.name, displayName: input.displayName ?? null })
-        .returning({ id: realms.id, enabled: realms.enabled, verifyEmail: realms.verifyEmail });
+        .returning({
+          id: realms.id,
+          enabled: realms.enabled,
+          verifyEmail: realms.verifyEmail,
+          ssoSessionMaxSeconds: realms.ssoSessionMaxSeconds,
+        });
       const row = rows[0];
       if (row === undefined) {
         throw new Error('insert into realms returned no row');

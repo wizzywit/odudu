@@ -83,6 +83,9 @@ export interface CompleteLoginInput {
   nonce: string | null;
   codeChallenge: string;
   codeChallengeMethod: 'S256';
+  // The realm's configured SSO session ceiling, carried through so
+  // completeLogin's establishSession call never needs a lookup of its own.
+  ssoSessionMaxSeconds: number;
 }
 
 export type CompleteLoginOutcome =
@@ -210,6 +213,7 @@ export async function handleLoginSubmission(
     nonce: pending.nonce,
     codeChallenge: pending.codeChallenge,
     codeChallengeMethod: pending.codeChallengeMethod,
+    ssoSessionMaxSeconds: realm.ssoSessionMaxSeconds,
   });
 
   // A second submission of the same auth_session_id — a back-button press,
