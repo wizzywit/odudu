@@ -246,6 +246,13 @@
       "when": 1789049381677,
       "tag": "0034_user_credentials_types",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1789049381678,
+      "tag": "0035_realm_password_policy",
+      "breakpoints": true
     }
   ]
 }

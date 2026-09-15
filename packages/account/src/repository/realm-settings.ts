@@ -1,6 +1,30 @@
 import { realms, type Database } from '@odudu/db';
 import { eq } from 'drizzle-orm';
 
+// Duplicated rather than imported from @odudu/domain-identity: @odudu/account
+// depends on neither that package nor @odudu/domain-authz
+// (packages/account/src/usecase/register.ts explains why), and this shape is
+// exactly what packages/domain-identity/src/service/password-policy.ts's
+// evaluatePassword takes as its second argument. The two stay structurally
+// identical by convention, the same way RegistrationRealmLookup below
+// duplicates a subset of this file's own RealmSettings.
+export interface PasswordPolicy {
+  minLength: number;
+  requireDigit: boolean;
+  requireUppercase: boolean;
+  requireLowercase: boolean;
+  requireSpecial: boolean;
+  notUsername: boolean;
+  notEmail: boolean;
+  historyDepth: number;
+  maxAgeDays: number;
+}
+
+export interface PolicyViolation {
+  rule: string;
+  message: string;
+}
+
 export interface RealmSettings {
   id: string;
   name: string;
@@ -9,6 +33,7 @@ export interface RealmSettings {
   verifyEmail: boolean;
   registrationAllowed: boolean;
   resetPasswordAllowed: boolean;
+  passwordPolicy: PasswordPolicy;
 }
 
 // Resolving {realm} from a request path happens before any realm context
@@ -32,6 +57,17 @@ export function realmSettingsRepository(db: Database) {
             verifyEmail: row.verifyEmail,
             registrationAllowed: row.registrationAllowed,
             resetPasswordAllowed: row.resetPasswordAllowed,
+            passwordPolicy: {
+              minLength: row.passwordMinLength,
+              requireDigit: row.passwordRequireDigit,
+              requireUppercase: row.passwordRequireUppercase,
+              requireLowercase: row.passwordRequireLowercase,
+              requireSpecial: row.passwordRequireSpecial,
+              notUsername: row.passwordNotUsername,
+              notEmail: row.passwordNotEmail,
+              historyDepth: row.passwordHistoryDepth,
+              maxAgeDays: row.passwordMaxAgeDays,
+            },
           };
     },
   };

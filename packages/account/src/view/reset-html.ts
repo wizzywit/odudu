@@ -91,6 +91,23 @@ export function renderResetLinkFailedPage(): string {
 </html>`;
 }
 
+// Distinct from renderResetLinkFailedPage: the link itself is still good,
+// so a redeemer must be sent back to the same form rather than told to
+// request a new one. Every reason is listed, not just the first.
+export function renderResetPasswordWeakPage(messages: readonly string[]): string {
+  const items = messages.map((message) => `<li>${escapeHtml(message)}</li>`).join('\n');
+  return `<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Can't reset your password</title></head>
+<body>
+<h1>Can't reset your password</h1>
+<ul>
+${items}
+</ul>
+</body>
+</html>`;
+}
+
 // Distinct from renderResetLinkFailedPage: reached only when the key is
 // present and unexamined, so the link itself may be perfectly good — the
 // submission was just missing the one field that matters.

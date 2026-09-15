@@ -1438,6 +1438,74 @@ is `(realm_id, email)`, not `email` alone.) A duplicate **username** and a
 malformed address are both refused the same way — 400, with a message
 naming which — rather than an unhandled error.
 
+Every realm also carries a password policy, and registration is one of its
+writers. The default policy only floors the length at 8, so a short
+password is refused with every violation the candidate has, not just the
+first:
+
+```bash
+curl -sS -X POST http://localhost:3000/realms/register-demo/login-actions/registration \
+  --data-urlencode 'username=ada' \
+  --data-urlencode 'email=ada@example.com' \
+  --data-urlencode 'password=short'
+```
+
+```
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Can't create this account</title></head>
+<body>
+<h1>Can't create this account</h1>
+<ul>
+<li>Password must be at least 8 characters long.</li>
+</ul>
+</body>
+</html>
+```
+
+With `password_require_digit` and `password_require_uppercase` also turned
+on for the realm, the same short password now lists all three:
+
+```
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Can't create this account</title></head>
+<body>
+<h1>Can't create this account</h1>
+<ul>
+<li>Password must be at least 8 characters long.</li>
+<li>Password must contain a digit.</li>
+<li>Password must contain an uppercase letter.</li>
+</ul>
+</body>
+</html>
+```
+
+And `password_not_username` (on by default) refuses a password that simply
+contains the account's own username, case-insensitively:
+
+```bash
+curl -sS -X POST http://localhost:3000/realms/register-demo/login-actions/registration \
+  --data-urlencode 'username=ada' \
+  --data-urlencode 'email=ada@example.com' \
+  --data-urlencode 'password=myADApassword'
+```
+
+```
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Can't create this account</title></head>
+<body>
+<h1>Can't create this account</h1>
+<ul>
+<li>Password must not contain the username.</li>
+</ul>
+</body>
+</html>
+```
+
+400 in every case above; no subject, user row or credential is created.
+
 A realm with `verify_email` off skips the mail and the gate above entirely:
 the account created is usable at the next login, the same way a
 seeded user always has been.
@@ -1568,8 +1636,31 @@ curl -sS 'http://localhost:3000/realms/reset-demo/login-actions/action-token?key
 </html>
 ```
 
-Submitting it sets the password — whatever P2b later constrains about
-length, complexity or history is that phase's concern, not this one's:
+The same realm password policy that binds registration binds this
+submission too. A password that fails it is refused, and the link is left
+alone rather than spent — it is still the same unconsumed token, so trying
+again with a compliant password on the very same link works:
+
+```bash
+curl -sS -X POST http://localhost:3000/realms/reset-demo/login-actions/action-token \
+  --data-urlencode 'key=NnBkF0L3rKPh1cuzEi8yMK-tzUnMHxKxk3Sfy-8USEk' \
+  --data-urlencode 'password=weak'
+```
+
+```
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Can't reset your password</title></head>
+<body>
+<h1>Can't reset your password</h1>
+<ul>
+<li>Password must be at least 8 characters long.</li>
+</ul>
+</body>
+</html>
+```
+
+Submitting a compliant password on the same link sets it:
 
 ```bash
 curl -sS -X POST http://localhost:3000/realms/reset-demo/login-actions/action-token \

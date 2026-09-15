@@ -59,6 +59,12 @@ const EXPECTED_CHECKS: Record<string, string> = {
     "CHECK ((((type = 'confidential'::text) AND (secret_hash IS NOT NULL)) OR ((type = 'public'::text) AND (secret_hash IS NULL))))",
   'clients.clients_type_check':
     "CHECK ((type = ANY (ARRAY['public'::text, 'confidential'::text])))",
+  'realms.realms_password_history_bounds':
+    'CHECK (((password_history_depth >= 0) AND (password_history_depth <= 24)))',
+  'realms.realms_password_max_age_bounds':
+    'CHECK (((password_max_age_days >= 0) AND (password_max_age_days <= 3650)))',
+  'realms.realms_password_min_length_bounds':
+    'CHECK (((password_min_length >= 8) AND (password_min_length <= 256)))',
   'realms.realms_sso_idle_bounds':
     'CHECK (((sso_session_idle_seconds >= 60) AND (sso_session_idle_seconds <= 2592000)))',
   'realms.realms_sso_idle_within_max':

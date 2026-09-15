@@ -1,7 +1,14 @@
 import { withRealm, type DatabaseHandle, type RealmScopedDatabase } from '@odudu/db';
 import { renderResetPassword, type EmailSender } from '@odudu/email';
 import { actionTokenRepository } from '#/repository/action-tokens';
+import { type PasswordPolicy, type PolicyViolation } from '#/repository/realm-settings';
 import { RESET_PASSWORD_TTL_SECONDS } from '#/usecase/verify-email';
+
+// Re-exported so the view layer can reach these without importing the
+// repository directly (no-view-to-repository, .dependency-cruiser.cjs):
+// view → usecase is permitted, usecase → repository is where the type
+// actually lives.
+export type { PasswordPolicy, PolicyViolation };
 
 export interface RequestPasswordResetDeps {
   readonly database: DatabaseHandle;
@@ -91,24 +98,46 @@ export interface CompletePasswordResetDeps {
     subjectId: string,
     newPassword: string,
   ) => Promise<void>;
+  // The realm's own configured policy, and the username to check it
+  // against — injected for the reason setPassword is: @odudu/account never
+  // imports @odudu/domain-identity, where users.username lives.
+  readonly passwordPolicy: PasswordPolicy;
+  readonly evaluatePassword: (
+    candidate: string,
+    policy: PasswordPolicy,
+    subject: { username: string; email: string | null },
+  ) => PolicyViolation[];
+  readonly getUsername: (tx: RealmScopedDatabase, subjectId: string) => Promise<string>;
 }
 
-export type CompletePasswordResetResult = { kind: 'reset' } | { kind: 'invalid' };
+export type CompletePasswordResetResult =
+  | { kind: 'reset' }
+  | { kind: 'invalid' }
+  | { kind: 'invalid_password'; violations: PolicyViolation[] };
 
 // One transaction: consuming the token, setting the new password, and
 // retiring every other outstanding reset-password link for the same
-// subject all commit or roll back together, so a reader can never observe
-// a spent link with the old password still active, nor a sibling link
-// (a prior request, or one an attacker triggered) still redeemable after
-// the account has already been recovered. `consume`'s own type filter is
-// what refuses a verify_email token presented here — it simply matches no
-// row.
+// subject all commit or roll back together, so a reader never observes a
+// spent link with the old password still active, nor a sibling link still
+// redeemable after the account is recovered. The policy is checked against
+// a non-consuming `peek` first: a weak password must not burn a link the
+// redeemer could still use once they pick a compliant one.
 export async function completePasswordReset(
   deps: CompletePasswordResetDeps,
   key: string,
   newPassword: string,
 ): Promise<CompletePasswordResetResult> {
   return withRealm(deps.database.db, deps.realmId, async (tx) => {
+    const peeked = await actionTokenRepository(tx).peek(key);
+    if (peeked?.type !== 'reset_password') return { kind: 'invalid' };
+
+    const username = await deps.getUsername(tx, peeked.subjectId);
+    const violations = deps.evaluatePassword(newPassword, deps.passwordPolicy, {
+      username,
+      email: peeked.email,
+    });
+    if (violations.length > 0) return { kind: 'invalid_password', violations };
+
     const record = await actionTokenRepository(tx).consume(key, 'reset_password');
     if (record === null) return { kind: 'invalid' };
 

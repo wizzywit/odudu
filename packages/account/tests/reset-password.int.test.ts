@@ -9,6 +9,7 @@ import {
 } from '@odudu/db';
 import {
   credentialRepository,
+  evaluatePassword,
   hashPassword,
   subjectRepository,
   userRepository,
@@ -195,6 +196,12 @@ function buildHttpApp(): FastifyInstance {
     setPassword: async (tx, subjectId, password) => {
       await credentialRepository(tx).setPassword(subjectId, await hashPassword(password));
     },
+    getUsername: async (tx, subjectId) => {
+      const user = await userRepository(tx).bySubjectId(subjectId);
+      if (user === null) throw new Error(`no user found for subject ${subjectId}`);
+      return user.username;
+    },
+    evaluatePassword,
   });
   return instance;
 }

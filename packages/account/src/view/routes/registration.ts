@@ -1,7 +1,13 @@
 import { type DatabaseHandle, type RealmScopedDatabase } from '@odudu/db';
 import { type EmailSender } from '@odudu/email';
 import { type FastifyInstance } from 'fastify';
-import { type CreateAccountResult, type NewAccountInput, register } from '#/usecase/register';
+import {
+  register,
+  type CreateAccountResult,
+  type NewAccountInput,
+  type PasswordPolicy,
+  type PolicyViolation,
+} from '#/usecase/register';
 import {
   renderRegistrationFailedPage,
   renderRegistrationForm,
@@ -16,6 +22,7 @@ export interface RegistrationRealmLookup {
   readonly enabled: boolean;
   readonly registrationAllowed: boolean;
   readonly verifyEmail: boolean;
+  readonly passwordPolicy: PasswordPolicy;
 }
 
 export interface RegistrationRouteDeps {
@@ -35,6 +42,11 @@ export interface RegistrationRouteDeps {
     realmId: string,
     input: NewAccountInput,
   ) => Promise<CreateAccountResult>;
+  readonly evaluatePassword: (
+    candidate: string,
+    policy: PasswordPolicy,
+    subject: { username: string; email: string | null },
+  ) => PolicyViolation[];
 }
 
 // @fastify/formbody parses a repeated field into an array; every field this
@@ -89,7 +101,7 @@ export function registerRegistrationRoute(app: FastifyInstance, deps: Registrati
       return sendVerificationHtml(
         reply,
         400,
-        renderRegistrationFailedPage('Username, email and password are all required.'),
+        renderRegistrationFailedPage(['Username, email and password are all required.']),
       );
     }
 
@@ -103,29 +115,38 @@ export function registerRegistrationRoute(app: FastifyInstance, deps: Registrati
         issuerBase: deps.publicBaseUrl,
         verifyEmailEnabled: realm.verifyEmail,
         createAccount: deps.createAccount,
+        passwordPolicy: realm.passwordPolicy,
+        evaluatePassword: deps.evaluatePassword,
       },
       { username, email, password },
     );
 
+    if (outcome.kind === 'invalid_password') {
+      return sendVerificationHtml(
+        reply,
+        400,
+        renderRegistrationFailedPage(outcome.violations.map((v) => v.message)),
+      );
+    }
     if (outcome.kind === 'email_taken') {
       return sendVerificationHtml(
         reply,
         400,
-        renderRegistrationFailedPage('That email address is already registered.'),
+        renderRegistrationFailedPage(['That email address is already registered.']),
       );
     }
     if (outcome.kind === 'username_taken') {
       return sendVerificationHtml(
         reply,
         400,
-        renderRegistrationFailedPage('That username is already taken.'),
+        renderRegistrationFailedPage(['That username is already taken.']),
       );
     }
     if (outcome.kind === 'invalid_email') {
       return sendVerificationHtml(
         reply,
         400,
-        renderRegistrationFailedPage('That is not an address the email claim may carry.'),
+        renderRegistrationFailedPage(['That is not an address the email claim may carry.']),
       );
     }
     if (outcome.kind === 'misconfigured') {
@@ -136,7 +157,7 @@ export function registerRegistrationRoute(app: FastifyInstance, deps: Registrati
       return sendVerificationHtml(
         reply,
         500,
-        renderRegistrationFailedPage('Registration is temporarily unavailable. Try again later.'),
+        renderRegistrationFailedPage(['Registration is temporarily unavailable. Try again later.']),
       );
     }
 

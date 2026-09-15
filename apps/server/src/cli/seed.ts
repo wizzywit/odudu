@@ -3,13 +3,21 @@ import { realmSettingsRepository, sendVerificationEmail } from '@odudu/account';
 import { provisionRealm } from '@odudu/authn-flows';
 import { groupRepository, roleRepository } from '@odudu/domain-authz';
 import { generateSigningKey, signingKeyRepository } from '@odudu/crypto';
-import { createDatabase, withRealm, type Database, type RealmScopedDatabase } from '@odudu/db';
+import {
+  createDatabase,
+  realms,
+  withRealm,
+  type Database,
+  type RealmScopedDatabase,
+} from '@odudu/db';
 import {
   credentialRepository,
+  evaluatePassword,
   hashPassword,
   subjectRepository,
   userRepository,
   verifyPassword,
+  type PasswordPolicy,
   type ProfileUpdate,
 } from '@odudu/domain-identity';
 import {
@@ -26,6 +34,7 @@ import {
   realmLookupRepository,
   type ClientOidcConfig,
 } from '@odudu/protocol-oidc';
+import { eq } from 'drizzle-orm';
 import { buildEmailSender } from '#/email';
 import { createLogger } from '#/logger';
 
@@ -240,16 +249,81 @@ async function assertMatchesExisting(
 interface ResolvedRealm {
   realmId: string;
   created: boolean;
+  passwordPolicy: PasswordPolicy;
+}
+
+// Read straight off `realms` rather than through @odudu/protocol-oidc's
+// realmLookupRepository: that repository's RealmLookup is shared by every
+// OIDC usecase that resolves a realm (discovery, jwks, login), and widening
+// it here would force a password policy onto fakes that have nothing to do
+// with one. The seed CLI is the one caller in this file that writes a
+// password, so it is the one that needs this column set.
+async function passwordPolicyFor(ownerDb: Database, realmId: string): Promise<PasswordPolicy> {
+  const rows = await ownerDb
+    .select({
+      passwordMinLength: realms.passwordMinLength,
+      passwordRequireDigit: realms.passwordRequireDigit,
+      passwordRequireUppercase: realms.passwordRequireUppercase,
+      passwordRequireLowercase: realms.passwordRequireLowercase,
+      passwordRequireSpecial: realms.passwordRequireSpecial,
+      passwordNotUsername: realms.passwordNotUsername,
+      passwordNotEmail: realms.passwordNotEmail,
+      passwordHistoryDepth: realms.passwordHistoryDepth,
+      passwordMaxAgeDays: realms.passwordMaxAgeDays,
+    })
+    .from(realms)
+    .where(eq(realms.id, realmId));
+  const row = rows[0];
+  if (row === undefined) {
+    throw new OduduError('seed_not_found', `no realm with id ${JSON.stringify(realmId)}`);
+  }
+  return {
+    minLength: row.passwordMinLength,
+    requireDigit: row.passwordRequireDigit,
+    requireUppercase: row.passwordRequireUppercase,
+    requireLowercase: row.passwordRequireLowercase,
+    requireSpecial: row.passwordRequireSpecial,
+    notUsername: row.passwordNotUsername,
+    notEmail: row.passwordNotEmail,
+    historyDepth: row.passwordHistoryDepth,
+    maxAgeDays: row.passwordMaxAgeDays,
+  };
 }
 
 async function resolveRealmId(ownerDb: Database, realmName: string): Promise<ResolvedRealm> {
   const lookup = realmLookupRepository(ownerDb);
   const existing = await lookup.byName(realmName);
-  if (existing !== null) return { realmId: existing.id, created: false };
+  if (existing !== null) {
+    return {
+      realmId: existing.id,
+      created: false,
+      passwordPolicy: await passwordPolicyFor(ownerDb, existing.id),
+    };
+  }
 
   const realmId = newId();
   await lookup.create({ id: realmId, name: realmName });
-  return { realmId, created: true };
+  return { realmId, created: true, passwordPolicy: await passwordPolicyFor(ownerDb, realmId) };
+}
+
+// The seed CLI writes to the same password column every other writer does,
+// so it is bound by the same realm policy — there is no development
+// exemption for it (packages/db/drizzle/0035_realm_password_policy.sql).
+function assertPasswordSatisfiesPolicy(
+  policy: PasswordPolicy,
+  username: string,
+  email: string | undefined,
+  password: string,
+): void {
+  const violations = evaluatePassword(password, policy, { username, email: email ?? null });
+  if (violations.length > 0) {
+    throw new OduduError(
+      'seed_invalid_options',
+      `password does not satisfy the realm's password policy: ${violations
+        .map((v) => v.message)
+        .join(' ')}`,
+    );
+  }
 }
 
 async function performSeed(
@@ -258,7 +332,11 @@ async function performSeed(
   kek: Uint8Array,
   opts: SeedOptions,
 ): Promise<SeedResult> {
-  const { realmId, created: realmCreated } = await resolveRealmId(ownerDb, opts.realm);
+  const {
+    realmId,
+    created: realmCreated,
+    passwordPolicy,
+  } = await resolveRealmId(ownerDb, opts.realm);
 
   return withRealm(runtimeDb, realmId, async (tx) => {
     if (realmCreated) {
@@ -338,6 +416,7 @@ async function performSeed(
 
     let userSubjectId: string | undefined;
     if (opts.username !== undefined && opts.password !== undefined) {
+      assertPasswordSatisfiesPolicy(passwordPolicy, opts.username, opts.email, opts.password);
       const userSubject = await subjectRepository(tx).create({ realmId, type: 'user' });
       userSubjectId = userSubject.id;
       await userRepository(tx).create({
@@ -800,6 +879,12 @@ async function runUserCommand(
   const email = values.email;
 
   const realmId = await requireRealmId(ownerDb, realmName);
+  assertPasswordSatisfiesPolicy(
+    await passwordPolicyFor(ownerDb, realmId),
+    username,
+    email,
+    password,
+  );
 
   const userSubjectId = await withRealm(runtimeDb, realmId, async (tx) => {
     const existing = await userRepository(tx).byUsername(username);

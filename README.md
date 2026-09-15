@@ -91,6 +91,20 @@ reset-password link for the same subject, and turning
 See [the password reset section of docs/request-paths.md](docs/request-paths.md#password-reset)
 for the walkthrough.
 
+Every realm also carries a password policy — `password_min_length` (default
+`8`, floored there by a `CHECK`; a realm cannot configure its way below it),
+`password_require_digit`, `password_require_uppercase`,
+`password_require_lowercase` and `password_require_special` (all off by
+default), and `password_not_username`/`password_not_email` (both on by
+default, refusing a password that contains the account's own username or
+email address). `password_history_depth` and `password_max_age_days` are
+columns today with no reader yet — P2b's `update-password` task turns them
+into enforcement. The policy is read from the realm, never defaulted in
+code, and the same `evaluatePassword` call binds every writer of a
+password: registration, reset redemption, and the seed CLI's `--password`
+and `user` subcommand. A rejected password answers `400` with every
+violated rule listed at once, not just the first.
+
 **Known limitation:** the reset-request endpoint still has a timing
 oracle — mailing an address that exists takes an SMTP round trip longer
 than the single `SELECT` a nonexistent one costs, so a network observer can

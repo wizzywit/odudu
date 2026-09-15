@@ -3,7 +3,7 @@
 ## Start here
 
 **P0, P1 and P2a are complete. P2b is brainstormed, specified and planned;
-Tasks 1 through 10 have landed and Task 11 is next.** Migration 0031 adds
+Tasks 1 through 13 have landed and Task 14 is next.** Migration 0031 adds
 `authentication_executions`: one flat, ordered list per realm (`id`,
 `realm_id`, `index`, `authenticator`, `requirement`), `requirement`
 constrained to `required`/`alternative`/`conditional`/`disabled` and
@@ -375,6 +375,40 @@ cast) and `credentialRepository` gained `listFor`, `byLookupKey`, `insert`,
 signatures. Nothing yet writes a `totp`, `webauthn` or `password-history`
 row or reads `lookup_key` — that is TOTP, passkeys and password history's
 own tasks to build on top of this.
+
+**Task 13: every realm now carries a password policy, and every writer of
+a password is bound by it.** Migration 0035 (numbered past the brief's
+0034 — 0034 was already `user_credentials_types`, per Task 12 above) adds
+nine columns to `realms`: `password_min_length` (default 8, floored there
+by a `CHECK` so a realm cannot configure below it, ceiling 256),
+`password_require_digit`/`_uppercase`/`_lowercase`/`_special` (all off by
+default), `password_not_username`/`_not_email` (both on by default),
+`password_history_depth` (0–24) and `password_max_age_days` (0–3650) — the
+last two are columns with no reader yet; `update-password` is the task that
+gives them one. `@odudu/domain-identity` gained
+`evaluatePassword(candidate, policy, subject)`, a leaf service (no `tx`, no
+clock) that returns every violated rule, not just the first, and counts
+characters with `Array.from(candidate).length` rather than `.length` so an
+8-emoji password is not miscounted as 16 characters. Three of the four
+writers now call it: registration (`register.ts`), reset redemption
+(`completePasswordReset`, checked against a non-consuming `peek` so a weak
+password never burns the link), and both of the seed CLI's password-writing
+paths (`--user`/`--password` and `seed user`) — there is no development
+override for the seed CLI; it enforces the same policy every other writer
+does. The fourth writer, the change-password required action, does not
+exist until `update-password` lands; `apps/server/tests/password-policy.int.test.ts`
+carries its case as `it.fails` rather than a skip, so it stays visible
+until that task turns it into a plain `it`. That cross-cutting test lives
+under `apps/server/tests/`, not `packages/account/tests/` as the phase plan
+named it — `@odudu/account` depends on neither `@odudu/authn-flows` nor
+`apps/server`, so it cannot reach the seed CLI or the future required
+action itself; `apps/server` is the only place all four writers are
+reachable. Fixture fallout: 15 short passwords in
+`packages/account/tests/register.int.test.ts`, 5 in
+`apps/server/tests/seed.int.test.ts`, and 5 more of `seed user`'s
+`--password p` in `apps/server/tests/seed-authz.int.test.ts` all needed a
+compliant password — none of them were testing password strength, so the
+fix is a literal, not a design change.
 
 **Reaping now covers five tables, not four, and ADR 0021's warning covers
 all five.** P2a added `action_tokens` (email verification and password

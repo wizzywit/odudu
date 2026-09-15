@@ -7,6 +7,12 @@ export {
   type CredentialType,
 } from '#/schema/user-credentials';
 export { parseCredentialSecret, type CredentialSecret } from '#/service/credential-secret';
+export {
+  evaluatePassword,
+  type PasswordPolicy,
+  type PasswordSubject,
+  type PolicyViolation,
+} from '#/service/password-policy';
 export { subjectRepository, type NewSubject } from '#/repository/subjects';
 export {
   userRepository,

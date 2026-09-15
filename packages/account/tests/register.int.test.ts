@@ -10,6 +10,7 @@ import {
 import { effectiveRoles, roleRepository } from '@odudu/domain-authz';
 import {
   credentialRepository,
+  evaluatePassword,
   hashPassword,
   subjectRepository,
   userRepository,
@@ -148,6 +149,7 @@ function buildHttpApp(): FastifyInstance {
     findRealm: (name) => realmSettingsRepository(owner.db).byName(name),
     publicBaseUrl,
     createAccount,
+    evaluatePassword,
   });
   return instance;
 }
@@ -218,14 +220,14 @@ describe('self-registration', () => {
     const first = await submitRegistration(realmName, {
       username: 'ada',
       email: 'ada@example.test',
-      password: 'p',
+      password: 'correct horse battery',
     });
     expect(first.statusCode).toBe(201);
 
     const second = await submitRegistration(realmName, {
       username: 'grace',
       email: 'ada@example.test',
-      password: 'p',
+      password: 'correct horse battery',
     });
     expect(second.statusCode).toBe(400);
 
@@ -245,14 +247,14 @@ describe('self-registration', () => {
     const inA = await submitRegistration(realmA.realmName, {
       username: 'ada',
       email: 'ada@example.test',
-      password: 'p',
+      password: 'correct horse battery',
     });
     expect(inA.statusCode).toBe(201);
 
     const inB = await submitRegistration(realmB.realmName, {
       username: 'ada',
       email: 'ada@example.test',
-      password: 'p',
+      password: 'correct horse battery',
     });
     expect(inB.statusCode).toBe(201);
 
@@ -279,14 +281,14 @@ describe('self-registration', () => {
     await submitRegistration(withVerify.realmName, {
       username: 'ada',
       email: 'ada@example.test',
-      password: 'p',
+      password: 'correct horse battery',
     });
     expect(sender.sent).toHaveLength(1);
 
     await submitRegistration(withoutVerify.realmName, {
       username: 'grace',
       email: 'grace@example.test',
-      password: 'p',
+      password: 'correct horse battery',
     });
     expect(sender.sent).toHaveLength(1);
   });
@@ -309,7 +311,7 @@ describe('self-registration', () => {
     const res = await submitRegistration(realmName, {
       username: 'ada',
       email: 'ada@example.test',
-      password: 'p',
+      password: 'correct horse battery',
     });
     expect(res.statusCode).toBe(404);
   });
@@ -318,7 +320,7 @@ describe('self-registration', () => {
     const res = await submitRegistration('does-not-exist', {
       username: 'ada',
       email: 'ada@example.test',
-      password: 'p',
+      password: 'correct horse battery',
     });
     expect(res.statusCode).toBe(404);
   });
@@ -332,7 +334,7 @@ describe('self-registration', () => {
     const res = await submitRegistration(realmName, {
       username: 'ada',
       email: 'ada@example.test',
-      password: 'p',
+      password: 'correct horse battery',
     });
     expect(res.statusCode).toBe(404);
   });
@@ -345,7 +347,7 @@ describe('self-registration', () => {
     const res = await submitRegistration(realmName, {
       username: '',
       email: 'ada@example.test',
-      password: 'p',
+      password: 'correct horse battery',
     });
 
     expect(res.statusCode).toBe(400);
@@ -361,14 +363,14 @@ describe('self-registration', () => {
     const first = await submitRegistration(realmName, {
       username: 'ada',
       email: 'ada@example.test',
-      password: 'p',
+      password: 'correct horse battery',
     });
     expect(first.statusCode).toBe(201);
 
     const second = await submitRegistration(realmName, {
       username: 'ada',
       email: 'grace@example.test',
-      password: 'p',
+      password: 'correct horse battery',
     });
 
     expect(second.statusCode).toBe(400);
@@ -380,7 +382,7 @@ describe('self-registration', () => {
     const res = await submitRegistration(realmName, {
       username: 'ada',
       email: 'not-an-email',
-      password: 'p',
+      password: 'correct horse battery',
     });
 
     expect(res.statusCode).toBe(400);
@@ -405,13 +407,14 @@ describe('self-registration', () => {
       findRealm: (name) => realmSettingsRepository(owner.db).byName(name),
       publicBaseUrl: 'https://idp.example.test',
       createAccount,
+      evaluatePassword,
     });
     await instance.ready();
 
     const form = new URLSearchParams({
       username: 'ada',
       email: 'ada@example.test',
-      password: 'p',
+      password: 'correct horse battery',
     });
     const res = await instance.inject({
       method: 'POST',
@@ -437,7 +440,7 @@ describe('self-registration', () => {
     const res = await submitRegistration(realmName, {
       username: 'ada',
       email: 'ada@example.test',
-      password: 'p',
+      password: 'correct horse battery',
     });
 
     expect(res.statusCode).toBe(500);
