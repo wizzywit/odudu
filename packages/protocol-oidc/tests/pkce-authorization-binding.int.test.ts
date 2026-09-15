@@ -96,7 +96,7 @@ async function setupRealm(): Promise<void> {
       realmId: REALM_ID,
       subjectId: subject.id,
       type: 'password',
-      secretData: await hashPassword(PASSWORD),
+      secretData: { hash: await hashPassword(PASSWORD) },
     });
 
     const key = await generateSigningKey('RS256', KEK);

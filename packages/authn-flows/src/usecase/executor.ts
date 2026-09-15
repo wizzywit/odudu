@@ -72,10 +72,10 @@ export function isRegisteredAuthenticator(name: string): boolean {
 // password has no enrollment concept, so it is offered unconditionally —
 // the same decision whether the subject is real or not, which is what
 // keeps DUMMY_SUBJECT_ID meaningful. passkey and otp would need "does this
-// subject have a credential of this type", but domain-identity's
-// credential type (CredentialRecord, credentialRepository) is 'password'
-// only, so there is no accessor to ask until a non-password credential
-// type exists.
+// subject have a credential of this type" — domain-identity's
+// credentialRepository can answer that (listFor) now that user_credentials
+// holds more than password rows, but neither authenticator has a runtime
+// here yet (see unimplementedAuthenticator) to call it from.
 function isApplicable(authenticator: string): boolean {
   return authenticator === 'password';
 }

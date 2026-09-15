@@ -353,13 +353,28 @@ for the walkthrough — its "I created a role and it is not in my token"
 paragraph, and [README.md](../README.md)'s "Give ada a role" section, are
 the two places this order-of-checks is written down for a reader.
 
-**`user_credentials.type` still needs widening, and P2b is the phase that
-needs it.** Migration 0005's `CHECK (type IN ('password'))`, with `UNIQUE
-(subject_id, type)` beside it, was not touched this phase. One row per type
-per subject is right for a password and wrong for a passkey, of which a
-user may enrol several; TOTP and passkeys both need the check widened by
-migration and the uniqueness rule reconsidered — dropped for passkeys,
-kept for password and TOTP — at the same time, not after.
+**`user_credentials.type` is widened, as of Task 12.** Migration 0034
+rewrites `CHECK (type IN ('password'))` to admit `totp`, `webauthn`,
+`recovery-code` and `password-history`; drops `user_credentials_one_password`
+(migration 0005's actual name for `UNIQUE (subject_id, type)` — the brief's
+second constraint name, `user_credentials_subject_id_type_unique`, never
+existed); and replaces it with partial unique indexes scoped to `password`
+and `totp` alone, so a passkey or recovery code can have more than one row
+per subject while a password and a TOTP secret still cannot. `secret_data`
+is `jsonb` now, converted in place with
+`jsonb_build_object('hash', secret_data)` (Task 11's spike verified this is
+byte-identical and reversible for every PHC string shape tried, including
+one containing `"`, `\`, `{`, `}` or a raw newline). `label`, `last_used_at`
+and `lookup_key` are new columns; `lookup_key` carries a WebAuthn credential
+id and is unique per `(realm_id, lookup_key)`, which is what lets a
+passwordless assertion resolve its subject without scanning `jsonb` across
+a realm. `@odudu/domain-identity` gained `parseCredentialSecret` (a Zod
+schema per type, `unknown` in, a narrowed discriminated union out — no
+cast) and `credentialRepository` gained `listFor`, `byLookupKey`, `insert`,
+`markUsed` and `deleteOne`; `passwordFor` and `setPassword` keep their exact
+signatures. Nothing yet writes a `totp`, `webauthn` or `password-history`
+row or reads `lookup_key` — that is TOTP, passkeys and password history's
+own tasks to build on top of this.
 
 **Reaping now covers five tables, not four, and ADR 0021's warning covers
 all five.** P2a added `action_tokens` (email verification and password
@@ -536,13 +551,6 @@ triggers a rotation, so it needs the authenticated administrator, the audit
 event and the surface P4 builds, none of which P3 has. Nothing in P2 needs
 it, and nothing forbids an earlier CLI, but a deployment running long enough
 to want a new key today has no supported way to get one.
-
-**`user_credentials.type` is P2's to widen.** Migration 0005 constrains it
-to `CHECK (type IN ('password'))`, with `UNIQUE (subject_id, type)` beside
-it. Every second factor P2 adds — TOTP, a passkey, a recovery code — needs
-that check widened by migration, and the uniqueness rule reconsidered at the
-same time: one row per type per subject is right for a password and wrong
-for passkeys, of which a user may enrol several.
 
 **47 rows are `deferred:`, and 11 of them name P2**: ten in
 `docs/protocols/oidc-core.md` and one in `docs/protocols/rfc6749.md`. They

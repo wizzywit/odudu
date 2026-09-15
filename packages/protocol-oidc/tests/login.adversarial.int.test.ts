@@ -115,7 +115,7 @@ async function setupLoginRealm(name: string): Promise<string> {
         realmId,
         subjectId: subject.id,
         type: 'password',
-        secretData: await hashPassword(password),
+        secretData: { hash: await hashPassword(password) },
       });
     }
 

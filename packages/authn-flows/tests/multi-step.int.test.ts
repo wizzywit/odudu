@@ -69,7 +69,7 @@ async function seedRealmAndUser(
     realmId,
     subjectId: subject.id,
     type: 'password',
-    secretData: await hashPassword(password),
+    secretData: { hash: await hashPassword(password) },
   });
   return subject.id;
 }

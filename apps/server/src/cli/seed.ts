@@ -346,11 +346,11 @@ async function performSeed(
         username: opts.username,
         ...(opts.email !== undefined ? { email: opts.email } : {}),
       });
-      await credentialRepository(tx).create({
+      await credentialRepository(tx).insert({
         realmId,
         subjectId: userSubject.id,
         type: 'password',
-        secretData: await hashPassword(opts.password),
+        secret: { kind: 'password', hash: await hashPassword(opts.password) },
       });
     }
 
@@ -817,11 +817,11 @@ async function runUserCommand(
       username,
       ...(email !== undefined ? { email } : {}),
     });
-    await credentialRepository(tx).create({
+    await credentialRepository(tx).insert({
       realmId,
       subjectId: subject.id,
       type: 'password',
-      secretData: await hashPassword(password),
+      secret: { kind: 'password', hash: await hashPassword(password) },
     });
     return subject.id;
   });
