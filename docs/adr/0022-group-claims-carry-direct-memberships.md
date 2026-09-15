@@ -4,18 +4,16 @@
 
 ## Context
 
-The `groups` migration (`packages/db/drizzle/0018_groups.sql`) gave groups
-a path (`/engineering/platform`), and role mappings inherit downward: a
-role mapped to `/engineering` reaches every subject in `/engineering` and
-every descendant group, including a subject whose only membership is
-`/engineering/platform`. `effectiveRoles`
-(`packages/domain-authz/src/repository/effective-roles.ts`) implements
-this with a `group_closure` CTE that walks child → parent before
-collecting `group_roles`.
+Migration `0018_groups.sql` gave groups a `path` (`/engineering/platform`),
+and role mappings inherit downward: a role mapped to `/engineering` reaches
+every subject in `/engineering` and every descendant group, including a
+subject whose only membership is `/engineering/platform`. Effective-role
+resolution achieves this by walking `groups.parent_id` from child to
+ancestor before collecting the matching `group_roles` rows.
 
-`effectiveGroupPaths(tx, subjectId)` is the separate, narrower query that
-the `groups` claim mapper reads from: it returns the paths of the groups a
-subject **directly** belongs to. For a subject in
+Group membership for the claim is a separate, narrower question: the paths
+of the groups a subject **directly** belongs to, read from `subject_groups`
+without any ancestor walk. For a subject in
 `/engineering/platform`, it returns `['/engineering/platform']` only —
 `/engineering` does not appear, even though that subject's roles do include
 whatever `/engineering` grants.
@@ -38,7 +36,7 @@ lists only the groups the user is actually a member of; a member of a
 child group gets that child's path and nothing above it.
 
 That the same server still inherits _role_ mappings from ancestor groups
-(the behaviour `effectiveRoles`' `group_closure` CTE matches) while its
+(the behaviour Odudu's own ancestor walk matches) while its
 `groups` claim does not walk ancestors is asserted by this ADR from
 Odudu's own design symmetry, not independently re-verified against
 Keycloak's role-resolution code in this pass — the direct-membership
@@ -46,15 +44,15 @@ behaviour of the claim mapper itself is what was fetched and read.
 
 ## Decision
 
-**`effectiveGroupPaths` returns direct memberships only.** This matches
+**The `groups` claim carries direct memberships only.** This matches
 Keycloak's default `groups` claim mapper exactly, is the smaller and more
 predictable claim (its size is bounded by how many groups a subject was
 actually added to, not by tree depth), and does not require a consumer to
 already know the tree shape to interpret it.
 
 This is a decision about what the _claim_ contains, not about role
-inheritance, which is unaffected: `effectiveRoles` keeps walking ancestors
-for role resolution regardless of what `effectiveGroupPaths` reports.
+inheritance, which is unaffected: role resolution keeps walking ancestors
+regardless of what the claim reports.
 
 ## Consequences
 
@@ -72,10 +70,8 @@ ancestor group whose access they need — the claim will not do the tree walk
 for them. This trap is exactly why it is being written down here rather
 than left for the next integration to discover on its own.
 
-The `groups` claim mapper (`groupsMapper` in
-`packages/protocol-oidc/src/service/claims.ts`) reads `effectiveGroupPaths`
-as-is; this ADR is what a reader reaches when they ask why it doesn't walk
-ancestors, or when a downstream RBAC rule silently under-matches.
+This ADR is what a reader reaches when they ask why the claim does not
+walk ancestors, or when a downstream RBAC rule silently under-matches.
 
 ## Alternatives rejected
 
@@ -92,6 +88,6 @@ ancestors, or when a downstream RBAC rule silently under-matches.
   `groupsWithAncestors` or similar claim with the full closure. Solves the
   RBAC-prefix case for a consumer willing to opt into a nonstandard claim,
   but adds a second claim to specify, document and keep consistent with
-  `effectiveRoles`' own closure, for a problem an operator can already work
-  around with a prefix match. Nothing in this phase's brief calls for it;
-  worth reopening if a concrete downstream integration needs it.
+  the role closure, for a problem an operator can already work around with
+  a prefix match. No downstream consumer asks for it today; worth reopening
+  if a concrete integration needs it.
