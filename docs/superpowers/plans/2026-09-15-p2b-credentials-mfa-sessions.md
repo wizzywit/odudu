@@ -27,6 +27,7 @@ Everything in P0's, P1's and P2a's plans still binds. Repeated here because an i
 - **Never reference the development process from a comment** — no "Task 12", no "Step 3", no plan slot numbers. Name the thing instead: not "read by Task 14's grant" but "read by the client_credentials grant".
 - **Commit messages contain no `Co-Authored-By` or tool-attribution trailers.** A repository hook rejects them; a commit that fails for this reason is re-committed with the trailer removed, not forced.
 - Test-driven: the failing test is written and observed failing before implementation.
+- **The integration-test harness is the package's existing one, not the one this plan's skeletons sketch.** `@odudu/testkit` exports exactly `startTestDatabase`, `createAppRole` and `TestDatabase` — there is no `testDatabase()` and no `seedRealm()`, and any skeleton below that calls them is shorthand, not a real API. Copy the setup from the nearest existing `*.int.test.ts` in the package you are working in; `packages/authn-flows/tests/session-lifespan.int.test.ts` is the freshest exemplar (`startTestDatabase` + `createAppRole` + `createDatabase` + `runMigrations`, with a hand-rolled realm seed). For a foreign-`realm_id` probe use **`expectCrossRealmMethodProbe` from `@odudu/db/testing`** rather than hand-writing the assertion.
 - **How to run tests.** No package declares a `test` script — each package's `package.json` has only `typecheck`. Vitest is configured at the root (`vitest.config.ts`) with two projects, `unit` and `integration`, selected by path: `{packages,apps}/*/src/**/*.test.ts` for unit, `{packages,apps}/*/tests/**/*.int.test.ts` for integration. So run one file or one name fragment with `pnpm exec vitest run --project integration <fragment-or-path>`, and the whole suite with `pnpm test` from the root. `pnpm --filter @odudu/<pkg> test` fails with `ERR_PNPM_RECURSIVE_RUN_NO_SCRIPT`.
 - **Run tests in the foreground and read the output yourself.** Do not background a test run and wait to be notified — that stalls the task with the work uncommitted.
 - Integration tests run against real PostgreSQL via Testcontainers, never a mock. They live in a package's `tests/` directory as `*.int.test.ts`. Unit tests sit beside the code as `*.test.ts`.
@@ -206,7 +207,7 @@ import { withRealm } from '@odudu/db';
 import { sessionRepository } from '@odudu/authn-flows';
 import { tokenGrantRepository } from '@odudu/protocol-oidc';
 import { newId } from '@odudu/kernel';
-import { seedRealm, testDatabase } from '@odudu/testkit';
+// Setup shorthand — use the package's real harness (see Global Constraints).
 
 describe('a grant and the session it belongs to', () => {
   let db: Awaited<ReturnType<typeof testDatabase>>;
@@ -536,7 +537,7 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { withRealm } from '@odudu/db';
 import { newId } from '@odudu/kernel';
 import { sessionRepository } from '@odudu/authn-flows';
-import { seedRealm, testDatabase } from '@odudu/testkit';
+// Setup shorthand — use the package's real harness (see Global Constraints).
 
 describe('session lifespans', () => {
   let db: Awaited<ReturnType<typeof testDatabase>>;
@@ -2872,7 +2873,7 @@ Use the existing Testcontainers helper so it runs against the same Postgres vers
 import { beforeAll, expect, it } from 'vitest';
 import { sql } from 'drizzle-orm';
 import { withRealm } from '@odudu/db';
-import { seedRealm, testDatabase } from '@odudu/testkit';
+// Setup shorthand — use the package's real harness (see Global Constraints).
 
 it('reports how each advisory lock variant behaves inside withRealm', async () => {
   const db = await testDatabase();
