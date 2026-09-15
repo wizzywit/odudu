@@ -64,11 +64,16 @@ read, and touches the session. The email-verified gate
 (`refusedForUnverifiedEmail`, extracted from `handleLoginSubmission`) now
 guards this second door into completing a login the same way it guards the
 password form — an unverified account holding a live cookie is refused,
-not signed in for free. This closes four `deferred: P2` rows in
+not signed in for free. This closes three `deferred: P2` rows in
 `docs/protocols/oidc-core.md`: §2's `auth_time`-and-`max_age` row,
-§3.1.2.1's `prompt=login` and `max_age` MUSTs, and §15.1's `max_age` MUST.
-**Four `deferred: P2` rows remain, all P2b's to close** — two `acr` rows and
-`amr` in `oidc-core.md`, and RFC 6749 §2.3.1's brute-force MUST.
+§3.1.2.1's `max_age` MUST, and §15.1's `max_age` MUST. §3.1.2.1's
+`prompt=login` row stays `deferred: P2` — `decideReuse` never refuses under
+`prompt=login` (it is mutually exclusive with `prompt=none` at parse time,
+so forcing reauthentication never lands on anything but `authenticate`),
+so nothing in this task gives that specific MUST a reachable branch.
+**Five `deferred: P2` rows remain, all P2b's to close** — `prompt=login`,
+two `acr` rows and `amr` in `oidc-core.md`, and RFC 6749 §2.3.1's
+brute-force MUST.
 
 P2a delivered the identity model: roles, groups, client scopes, per-client
 web origins, the user profile, email delivery and the account lifecycle

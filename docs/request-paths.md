@@ -2418,13 +2418,16 @@ curl -sS \
   --data-urlencode 'client_id=demo-spa' \
   --data-urlencode "code_verifier=$VERIFIER" \
   "http://localhost:3000/realms/demo/protocol/openid-connect/token" \
-  | python3 -c "import sys,json,base64; t=json.load(sys.stdin)['id_token']; p=t.split('.')[1]; p+='='*(-len(p)%4); print(json.loads(base64.urlsafe_b64decode(p)))"
+  | python3 -c "import sys,json,base64; t=json.load(sys.stdin)['id_token']; p=t.split('.')[1]; p+='='*(-len(p)%4); c=json.loads(base64.urlsafe_b64decode(p)); print(c['auth_time'], c['iat'])"
 ```
 
 ```
-auth_time: 1789478841   (2026-09-15 13:27:21 UTC — the login at the top of this section)
-iat:       1789478878   (2026-09-15 13:27:58 UTC — this redemption, 37s later)
+1789478841 1789478878
 ```
+
+`auth_time` is `2026-09-15 13:27:21 UTC`, the login at the top of this
+section; `iat` is `2026-09-15 13:27:58 UTC`, this redemption, 37 seconds
+later.
 
 `auth_time` is the login's own moment, not the moment this token was
 minted 37 seconds later — the fact a client's own `max_age` check

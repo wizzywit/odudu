@@ -166,26 +166,26 @@ rows are now `deferred: P3`, `select_account`'s having moved there on
 several concurrent sessions per browser rather than flow tree semantics — so
 this server recognises them without yet obeying them.
 
-**The row §3.1.2.1 phrases for `prompt=login`'s failure was `deferred: P2`
-for exactly this reason.** In P1, "an error is returned if reauthentication
-cannot be performed" had no reachable branch: /authorize started a fresh
-authentication for every request that got that far, and a failed password
-attempt re-rendered the form rather than ending the authorization request.
-There was no state in which this server had to answer that error, so
-marking the row `covered` against the test that proves the form is shown
-would have been marking a requirement green with an adjacent assertion.
+**The row §3.1.2.1 phrases for `prompt=login`'s failure stays `deferred:
+P2`, and session reuse landing does not change that.** "An error is
+returned if reauthentication cannot be performed" still has no reachable
+branch: `decideReuse` never refuses under `prompt=login` — `prompts.has('none')`
+and `prompts.has('login')` cannot both be true (`parsePrompt` rejects the
+combination), so whenever `prompt=login` forces `mustReauthenticate`, the
+decision it forces is always `authenticate`, never `refuse`. Forcing the
+form is not itself a failure; the form can always be rendered, live
+session or none.
 
-Session reuse is what makes a state exist: `prompt=login` now has
-something to override — a live session that, absent the prompt, would have
-satisfied an `id_token_hint` through `reuse` — and overriding it can still
-end in the wrong End-User completing the forced reauthentication. That is
-`OIDC-CORE-3.1.2.1-11` (`packages/protocol-oidc/tests/session-reuse.int.test.ts`):
-a live session for the hinted End-User, `prompt=login` forcing a fresh
-form anyway, and a different End-User completing it — answered
-`login_required` with nothing issued, exactly as an unprompted hint
-mismatch already was (`OIDC-CORE-3.1.2.1-09`), except this time the
-session that would have avoided the whole form was real and `prompt=login`
-is what put it back in the way.
+A test combining `prompt=login` with an `id_token_hint` mismatch looks
+like it closes this row, and an earlier version of this task's work
+claimed it did — but presenting no session cookie to `/authorize` at all
+makes that test byte-for-byte the plain hint-mismatch case
+`OIDC-CORE-3.1.2.1-09` already covers: deleting the `prompt=login`
+parameter from it changes nothing it asserts. What would actually close
+this row is a request whose `prompt=login` overrides a session that would
+otherwise have been reused — a state a realm's flow tree can put a request
+into, once one exists, that this task's single-step executor cannot. It
+stays `deferred: P2` for that reason, not the P1 one.
 
 `id_token_hint` is a third case that looks like it needs session reuse and
 does not. Validating that Odudu issued the hint (§3.1.2.2) is signature and
@@ -628,7 +628,7 @@ first moment, not the second.
 | 3.1.2.1 | MAY    | `redirect_uri` uses an alternate (custom) scheme for a native application callback                                                                                                                                                                                                             | —                      | gap                                                                                                                                                                                                                                                                                                                                   |
 | 3.1.2.1 | MUST   | with `prompt=none`, an error is returned if the client lacks pre-configured consent for the requested claims                                                                                                                                                                                   | —                      | deferred: P3 — no consent screen exists yet                                                                                                                                                                                                                                                                                           |
 | 3.1.2.1 | SHOULD | with `prompt=login`, the end-user is prompted for reauthentication                                                                                                                                                                                                                             | `OIDC-CORE-3.1.2.3-03` | covered                                                                                                                                                                                                                                                                                                                               |
-| 3.1.2.1 | MUST   | with `prompt=login`, an error (typically `login_required`) is returned if reauthentication cannot be performed                                                                                                                                                                                 | `OIDC-CORE-3.1.2.1-11` | covered                                                                                                                                                                                                                                                                                                                               |
+| 3.1.2.1 | MUST   | with `prompt=login`, an error (typically `login_required`) is returned if reauthentication cannot be performed                                                                                                                                                                                 | —                      | deferred: P2 — no reachable branch until a realm's flow tree can put a request into a state with no applicable execution; the flow engine is what creates that state, and session reuse alone does not                                                                                                                                |
 | 3.1.2.1 | SHOULD | with `prompt=consent`, the end-user is prompted for consent before information is released                                                                                                                                                                                                     | —                      | deferred: P3 — no consent screen exists yet                                                                                                                                                                                                                                                                                           |
 | 3.1.2.1 | MUST   | with `prompt=consent`, an error (typically `consent_required`) is returned if consent cannot be obtained                                                                                                                                                                                       | —                      | deferred: P3 — no consent screen exists yet                                                                                                                                                                                                                                                                                           |
 | 3.1.2.1 | SHOULD | with `prompt=select_account`, the end-user is prompted to select among multiple accounts with sessions at the authorization server                                                                                                                                                             | —                      | deferred: P3 — needs several concurrent sessions per browser, not flow tree semantics; P3 owns the /authorize user-choice page                                                                                                                                                                                                        |

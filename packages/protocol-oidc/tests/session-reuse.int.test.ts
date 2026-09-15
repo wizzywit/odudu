@@ -312,7 +312,7 @@ afterAll(async () => {
   await containerHandle?.stop();
 });
 
-describe('[OIDC-CORE-3.1.2.3-01] a live session cookie completes an authorization request', () => {
+describe('a live session cookie completes an authorization request', () => {
   it('redirects to redirect_uri with code and iss, with no login page rendered', async () => {
     const realmId = newId();
     const realmName = `reuse-${realmId}`;
@@ -334,7 +334,7 @@ describe('[OIDC-CORE-3.1.2.3-01] a live session cookie completes an authorizatio
     expect(res.headers['content-type']).toBeUndefined();
   });
 
-  it('[OIDC-CORE-3.1.2.3-02] also succeeds under prompt=none, which is the point of prompt=none', async () => {
+  it('also succeeds under prompt=none, which is the point of prompt=none', async () => {
     const realmId = newId();
     const realmName = `reuse-none-${realmId}`;
     await setupRealm(realmName);
@@ -342,6 +342,67 @@ describe('[OIDC-CORE-3.1.2.3-01] a live session cookie completes an authorizatio
 
     const res = await http.inject({
       url: authorizeUrl(realmName, { prompt: 'none' }),
+      headers: { cookie },
+    });
+
+    expect(res.statusCode).toBe(302);
+    const location = new URL(locationHeader(res));
+    expect(location.searchParams.get('code')).toBeTruthy();
+    expect(location.searchParams.get('error')).toBeNull();
+  });
+
+  // OIDC Core §3.1.2.2: a live session must not let the wrong subject
+  // through. Deleting the reuse path's id_token_hint mismatch check
+  // (authorization-request.ts) would leave the suite green without these:
+  // nothing else redeems a reuse-issued code or checks whose it was.
+  it('redeems to the session subject, not the other seeded user', async () => {
+    const realmName = `reuse-subject-${newId()}`;
+    const realmId = await setupRealm(realmName);
+    const ada = await subjectIdOf(realmId, USERNAME);
+    const grace = await subjectIdOf(realmId, OTHER_USERNAME);
+    const cookie = await signIn(realmName);
+
+    const res = await http.inject({
+      url: authorizeUrl(realmName, { code_challenge: CHALLENGE }),
+      headers: { cookie },
+    });
+    const code = new URL(locationHeader(res)).searchParams.get('code');
+    if (code === null) throw new Error('expected a code on the reuse redirect');
+
+    const redeemed = await redeemCode(http, realmName, code);
+    expect(redeemed.statusCode).toBe(200);
+    const sub = jwtPayload(redeemed.json<{ id_token: string }>().id_token).sub;
+    expect(sub).toBe(ada);
+    expect(sub).not.toBe(grace);
+  });
+
+  it('refuses reuse when an id_token_hint names a different subject', async () => {
+    const realmName = `reuse-hint-mismatch-${newId()}`;
+    const realmId = await setupRealm(realmName);
+    const grace = await subjectIdOf(realmId, OTHER_USERNAME);
+    const cookie = await signIn(realmName); // a live session for ada
+
+    const hint = await mintIdToken(http, realmName, grace);
+    const res = await http.inject({
+      url: authorizeUrl(realmName, { id_token_hint: hint }),
+      headers: { cookie },
+    });
+
+    expect(res.statusCode).toBe(302);
+    const location = new URL(locationHeader(res));
+    expect(location.searchParams.get('error')).toBe('login_required');
+    expect(location.searchParams.get('code')).toBeNull();
+  });
+
+  it('reuses when an id_token_hint names the session subject itself', async () => {
+    const realmName = `reuse-hint-match-${newId()}`;
+    const realmId = await setupRealm(realmName);
+    const ada = await subjectIdOf(realmId, USERNAME);
+    const cookie = await signIn(realmName);
+
+    const hint = await mintIdToken(http, realmName, ada);
+    const res = await http.inject({
+      url: authorizeUrl(realmName, { id_token_hint: hint }),
       headers: { cookie },
     });
 
@@ -491,41 +552,36 @@ describe('[OIDC-CORE-3.1.2.1-10] max_age decides whether a live session still co
   });
 });
 
-// §3.1.2.1's MUST for `prompt=login`: an error is returned if
-// reauthentication cannot be performed. Before session reuse, prompt=login
-// forced nothing an absent prompt didn't already do (every request
-// authenticated fresh), so nothing could tell this clause apart from
-// §3.1.2.1-09's plain hint-mismatch case. Now a live session exists that
-// prompt=login has to override rather than merely tolerate: overriding a
-// session that would have satisfied the hint and then completing with the
-// wrong End-User is what "cannot be performed" is a fact about here.
-describe('[OIDC-CORE-3.1.2.1-11] prompt=login overrides a session the hint would have accepted', () => {
-  it('answers login_required when the wrong End-User reauthenticates under prompt=login', async () => {
-    const realmName = `reuse-login-hint-${newId()}`;
-    const realmId = await setupRealm(realmName);
-    const ada = await subjectIdOf(realmId, USERNAME);
-    // A live session for the hinted End-User (ada), which prompt=login
-    // below must override rather than reuse.
-    await signIn(realmName);
-    const hint = await mintIdToken(http, realmName, ada);
+// C1: `issueAuthorizationCode`'s TTL used to be derived from `authTime`,
+// which is exactly right on the form path (authTime is `now` there) and
+// exactly wrong here — a session reused minutes after login got a code
+// already expired by the time it was issued. No fake clock: the session's
+// own `created_at` is pushed into the past through the owner connection,
+// which is real database state, and only the running Postgres's own `now()`
+// decides whether the code redeems (repository/codes.ts's `expires_at >
+// now()`).
+describe("a reused session's code expires from its own issuance, not the session's login", () => {
+  it('redeems, and still carries the original auth_time, when reused minutes after login', async () => {
+    const realmName = `reuse-backdated-${newId()}`;
+    await setupRealm(realmName);
+    const cookie = await signIn(realmName, http, { code_challenge: CHALLENGE });
+    const sessionId = cookie.split('=')[1];
+    if (sessionId === undefined) throw new Error('expected a session id in the cookie');
 
-    const authSessionId = await startAuthSession(http, realmName, {
-      prompt: 'login',
-      id_token_hint: hint,
+    const backdated = new Date(Date.now() - 5 * 60_000);
+    await owner.db.update(sessions).set({ createdAt: backdated }).where(eq(sessions.id, sessionId));
+
+    const res = await http.inject({
+      url: authorizeUrl(realmName, { code_challenge: CHALLENGE, max_age: '3600' }),
+      headers: { cookie },
     });
-    // Grace, not ada, completes the reauthentication prompt=login forced.
-    const res = await submitCredentials(
-      http,
-      realmName,
-      authSessionId,
-      OTHER_USERNAME,
-      OTHER_PASSWORD,
-    );
-
     expect(res.statusCode).toBe(302);
-    const location = new URL(locationHeader(res));
-    expect(location.searchParams.get('error')).toBe('login_required');
-    expect(location.searchParams.get('code')).toBeNull();
-    expect(res.headers['set-cookie']).toBeUndefined();
+    const code = new URL(locationHeader(res)).searchParams.get('code');
+    if (code === null) throw new Error('expected a code on the reuse redirect');
+
+    const redeemed = await redeemCode(http, realmName, code);
+    expect(redeemed.statusCode).toBe(200);
+    const payload = jwtPayload(redeemed.json<{ id_token: string }>().id_token);
+    expect(payload.auth_time).toBe(Math.floor(backdated.getTime() / 1000));
   });
 });

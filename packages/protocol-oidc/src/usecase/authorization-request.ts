@@ -65,9 +65,13 @@ export interface AuthorizeUsecaseDeps {
   ): Promise<{ authSessionId: string }>;
   // The SSO session cookie's value, resolved to a live row (never trusted
   // for anything but that lookup) — sessionRepository(tx).liveById scoped
-  // to the realm's own idle window. Null for no cookie, an unknown id, or
-  // one that has idled out or hit its ceiling.
-  resolveSession(realmId: string, cookieValue: string | undefined): Promise<ReusableSession | null>;
+  // to the realm's own idle window, read off the already-resolved `realm`
+  // rather than a second lookup by id. Null for no cookie, an unknown id,
+  // or one that has idled out or hit its ceiling.
+  resolveSession(
+    realm: RealmLookup,
+    cookieValue: string | undefined,
+  ): Promise<ReusableSession | null>;
   // The same gate handleLoginSubmission enforces, shared so a cookie-borne
   // login cannot complete for a subject a password login would refuse.
   checkEmailVerification: LoginSubmissionDeps['checkEmailVerification'];
@@ -157,7 +161,7 @@ export async function handleAuthorizationRequest(
   // authentication, or — under `prompt=none` — must be refused because it
   // would otherwise do one of those. The two are decided together rather
   // than in sequence (docs/protocols/oidc-core.md's reading note has why).
-  const resolvedSession = await deps.resolveSession(realm.id, cookieValue);
+  const resolvedSession = await deps.resolveSession(realm, cookieValue);
   const decision = decideReuse({
     session: resolvedSession,
     prompts: outcome.prompts,

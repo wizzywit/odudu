@@ -45,25 +45,6 @@ export function realmLookupRepository(db: Database) {
       return rows[0] ?? null;
     },
 
-    // /authorize's session-reuse read (resolveSession) already knows the
-    // realm only by id, from the same request that resolved it by name a
-    // moment earlier — a second read on the owner connection, exactly like
-    // byName's, rather than threading the first result through as a bare
-    // dependency parameter.
-    async byId(id: string): Promise<RealmLookup | null> {
-      const rows = await db
-        .select({
-          id: realms.id,
-          enabled: realms.enabled,
-          verifyEmail: realms.verifyEmail,
-          ssoSessionMaxSeconds: realms.ssoSessionMaxSeconds,
-          ssoSessionIdleSeconds: realms.ssoSessionIdleSeconds,
-        })
-        .from(realms)
-        .where(eq(realms.id, id));
-      return rows[0] ?? null;
-    },
-
     // The bootstrap seed command creates the first realm through this same
     // owner-connection bypass: `byName` above already establishes that no
     // realm context can exist before a realm is resolved, and creating one

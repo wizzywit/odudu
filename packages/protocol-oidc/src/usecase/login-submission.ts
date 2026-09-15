@@ -23,14 +23,19 @@ export interface IssueAuthorizationCodeInput {
   nonce: string | null;
   codeChallenge: string;
   codeChallengeMethod: 'S256';
+  // The `auth_time` claim this code's eventual ID Token carries — when the
+  // End-User actually authenticated. On a fresh login this is the same
+  // instant as `now`; on a reused session it is the session's own original
+  // login, which can be arbitrarily far in the past.
   authTime: Date;
+  // The instant this code is issued, which is what its 60s TTL counts from.
+  // Deliberately separate from `authTime`: a code issued for a reused
+  // session must still expire 60s from now, not 60s from a login that may
+  // have happened minutes or hours ago.
+  now: Date;
 }
 
 // Returns the raw code exactly once; only its hash is ever persisted.
-// `expiresAt` is derived from `input.authTime`, not a fresh clock read, so
-// the TTL stored is exactly 60s by construction: both columns come from the
-// one `now` the caller captured, never two separate clock reads that could
-// straddle a millisecond boundary.
 export async function issueAuthorizationCode(
   tx: RealmScopedDatabase,
   input: IssueAuthorizationCodeInput,
@@ -47,7 +52,7 @@ export async function issueAuthorizationCode(
     codeChallenge: input.codeChallenge,
     codeChallengeMethod: input.codeChallengeMethod,
     authTime: input.authTime,
-    expiresAt: new Date(input.authTime.getTime() + AUTHORIZATION_CODE_TTL_MS),
+    expiresAt: new Date(input.now.getTime() + AUTHORIZATION_CODE_TTL_MS),
   });
   return { code };
 }

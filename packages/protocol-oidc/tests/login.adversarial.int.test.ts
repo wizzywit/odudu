@@ -650,10 +650,10 @@ describe('realm isolation', () => {
 // OIDC Core §3.1.2.3: "If this parameter [prompt] contains login, the
 // Authorization Server MUST reauthenticate the End-User even if the End-User
 // is already authenticated." §15.1 makes that behaviour mandatory to
-// implement. This server authenticates unconditionally — /authorize never
-// reads the session cookie — so the requirement is met by construction; what
-// these assertions hold is that a live session does not change the answer,
-// and that `login` is a value the endpoint accepts rather than refuses.
+// implement. /authorize now reads the session cookie (P2b) and would reuse
+// a live session by default; `prompt=login` is what forces the fresh form
+// below despite that cookie being presented, rather than the requirement
+// being met by construction the way it was before session reuse existed.
 describe('[OIDC-CORE-3.1.2.3-03] prompt=login authenticates again despite a live session', () => {
   it('renders a fresh login form for a request carrying the session cookie just set', async () => {
     const realmName = await setupLoginRealm(`acme-prompt-login-${newId()}`);

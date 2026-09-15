@@ -153,18 +153,15 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
           startAuthentication(tx, realmId, request, clock),
         ),
       now: () => clock.now(),
-      // The realm's own idle window, read on the owner connection the same
-      // way findRealm reads the rest of the realm row — the cookie names a
-      // session before any realm context to `SET LOCAL` into exists yet.
-      resolveSession: async (realmId, cookieValue) => {
+      // The realm's idle window comes from the `realm` the caller already
+      // resolved (its own `findRealm`), not a second lookup by id.
+      resolveSession: async (realm, cookieValue) => {
         // The cookie is trusted for nothing but this lookup, and a session
         // id is a UUID column — a value shaped like anything else names no
         // row rather than raising the invalid-input-syntax error Postgres
         // would give a raw comparison.
         if (cookieValue === undefined || !UUID_PATTERN.test(cookieValue)) return null;
-        const realm = await realmLookupRepository(deps.ownerDatabase.db).byId(realmId);
-        if (realm === null) return null;
-        return withRealm(deps.database.db, realmId, async (tx) => {
+        return withRealm(deps.database.db, realm.id, async (tx) => {
           const record = await sessionRepository(tx).liveById(
             cookieValue,
             realm.ssoSessionIdleSeconds,
@@ -180,7 +177,10 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
       // land in separate ones.
       completeReuse: (input) =>
         withRealm(deps.database.db, input.realmId, async (tx) => {
-          await sessionRepository(tx).touch(input.sessionId, clock.now());
+          const now = clock.now();
+          await sessionRepository(tx).touch(input.sessionId, now);
+          // `now`, not `input.authTime`: the code's 60s TTL counts from this
+          // issuance, however long ago the session's own login was.
           return issueAuthorizationCode(tx, {
             realmId: input.realmId,
             clientId: input.clientId,
@@ -191,6 +191,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
             codeChallenge: input.codeChallenge,
             codeChallengeMethod: input.codeChallengeMethod,
             authTime: input.authTime,
+            now,
           });
         }),
     });
@@ -224,10 +225,11 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
             input.ssoSessionMaxSeconds,
             clock,
           );
-          // authTime and expiresAt both derive from this single `now`, not a
-          // fresh clock read inside issueAuthorizationCode — otherwise two
-          // reads straddling a millisecond boundary could store a TTL
-          // slightly over 60s.
+          // authTime and now both derive from this single clock read, not a
+          // fresh one inside issueAuthorizationCode — otherwise two reads
+          // straddling a millisecond boundary could store a TTL slightly
+          // over 60s. On this path the two happen to be the same instant;
+          // completeReuse is where they diverge.
           const { code } = await issueAuthorizationCode(tx, {
             realmId: input.realmId,
             clientId: input.clientId,
@@ -238,6 +240,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
             codeChallenge: input.codeChallenge,
             codeChallengeMethod: input.codeChallengeMethod,
             authTime: now,
+            now,
           });
           return { kind: 'issued', sessionId, code };
         }),
