@@ -25,6 +25,10 @@ export const clientOidcConfig = pgTable('client_oidc_config', {
   // authorization request to intersect against.
   clientCredentialsScopes: text('client_credentials_scopes').array().notNull().default([]),
   webOrigins: text('web_origins').array().notNull().default([]),
+  // RP-Initiated Logout §3's exact-match list — see migration
+  // 0030_client_post_logout_redirect_uris.sql for why it lives here rather
+  // than with the rest of the client metadata.
+  postLogoutRedirectUris: text('post_logout_redirect_uris').array().notNull().default([]),
 }).enableRLS();
 
 // Redirect URIs and grant types are OAuth vocabulary; they live here rather
@@ -41,4 +45,5 @@ export interface ClientOidcConfig {
   refreshTokenTtlSeconds: number;
   clientCredentialsScopes: string[];
   webOrigins: string[];
+  postLogoutRedirectUris: string[];
 }

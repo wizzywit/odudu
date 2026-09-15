@@ -132,6 +132,27 @@ claiming a mail it never sent, but there is no recovery path yet; give
 every user an address before enabling `verify_email` on a realm that
 already has some.
 
+**A realm can now end a session.** `GET`/`POST
+/realms/{realm}/protocol/openid-connect/logout` implements OpenID Connect
+RP-Initiated Logout 1.0: it asks the End-User to confirm before ending
+anything unless an `id_token_hint` names the session actually being ended,
+and it redirects to `post_logout_redirect_uri` only when that value is an
+exact, unnormalized match against the client's own registered list —
+refusing the redirect never keeps the session alive, since the two are
+decided independently. **Logout revokes the session row and every grant
+tied to it — not access tokens.** Odudu's access tokens are self-contained
+`at+jwt` JWTs that a resource server verifies without a round trip to
+anywhere, so nothing exists to tell one it has been logged out; a
+logged-out user's access token keeps working until its own `exp`, at most
+`client_oidc_config.access_token_ttl_seconds` (capped at one hour) after it
+was issued. A grant issued with no session — `offline_access`, once that
+scope exists — is untouched by a logout, per Back-Channel Logout 1.0
+§2.7's second sentence. A deployment that needs revocation inside an
+access token's own lifetime is what RFC 7662 introspection is for, landing
+in P3. See [the logout section of
+docs/request-paths.md](docs/request-paths.md#rp-initiated-logout) for the
+walkthrough.
+
 > ### → [docs/request-paths.md](docs/request-paths.md)
 >
 > **Every request this server answers, and every branch each one can take,
@@ -308,7 +329,7 @@ curl -sS http://localhost:3000/realms/demo/.well-known/openid-configuration
 }
 ```
 
-(Five of the fifteen members it returns; the other ten, and what a client
+(Five of the sixteen members it returns; the other eleven, and what a client
 does with each, are in the guide.)
 
 And this signs ada in and comes back with tokens — the whole
@@ -490,7 +511,6 @@ Every row says where it stands, and every row has a phase:
 | A consent screen, and dynamic client registration                                                            | P3              |
 | An admin API — seeding is the only administrative surface                                                    | P4              |
 | Signing-key rotation — the shape exists, the operation does not                                              | P4              |
-| RP-initiated logout (`end_session_endpoint`)                                                                 | P2b             |
 | Front-channel and back-channel logout                                                                        | P3              |
 | Token introspection and revocation                                                                           | P3              |
 | Published images and a release process                                                                       | P12             |

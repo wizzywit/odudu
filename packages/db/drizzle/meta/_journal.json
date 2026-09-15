@@ -211,6 +211,13 @@
       "when": 1789049381672,
       "tag": "0029_authorization_codes_session",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1789049381673,
+      "tag": "0030_client_post_logout_redirect_uris",
+      "breakpoints": true
     }
   ]
 }

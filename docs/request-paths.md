@@ -36,6 +36,8 @@ the URL and never by a header or a parameter.
 | `POST` | `/realms/{realm}/protocol/openid-connect/token`    | Token endpoint                                              |
 | `GET`  | `/realms/{realm}/protocol/openid-connect/userinfo` | UserInfo                                                    |
 | `POST` | `/realms/{realm}/protocol/openid-connect/userinfo` | UserInfo (form)                                             |
+| `GET`  | `/realms/{realm}/protocol/openid-connect/logout`   | RP-initiated logout (`end_session_endpoint`)                |
+| `POST` | `/realms/{realm}/protocol/openid-connect/logout`   | RP-initiated logout, confirmation form submission           |
 | `GET`  | `/health/live`, `/health/ready`                    | Liveness, readiness                                         |
 
 `/login-actions/authenticate` is deliberately outside the
@@ -354,6 +356,7 @@ curl -sS http://localhost:3000/realms/demo/.well-known/openid-configuration
   "token_endpoint": "http://localhost:3000/realms/demo/protocol/openid-connect/token",
   "userinfo_endpoint": "http://localhost:3000/realms/demo/protocol/openid-connect/userinfo",
   "jwks_uri": "http://localhost:3000/realms/demo/protocol/openid-connect/certs",
+  "end_session_endpoint": "http://localhost:3000/realms/demo/protocol/openid-connect/logout",
   "response_types_supported": ["code"],
   "response_modes_supported": ["query"],
   "subject_types_supported": ["public"],
@@ -395,6 +398,8 @@ this document. `response_modes_supported` is stated rather than omitted
 because omitting it would default to `["query", "fragment"]` (OIDC Discovery
 §3) and promise a delivery mode `/authorize` refuses.
 `code_challenge_methods_supported` lists `S256` and never `plain`.
+`end_session_endpoint` is RP-Initiated Logout 1.0's own discovery member —
+see [RP-initiated logout](#rp-initiated-logout) below.
 
 `scopes_supported` is the realm's own scope vocabulary, read from the
 database rather than compiled in: these seven are what `odudu seed` gives a
@@ -1790,6 +1795,127 @@ A redemption that fails for any other reason — wrong verifier, wrong
 attempt is rolled back. Verified: after all three failures above, the
 correct redemption of the same code still returned 200.
 
+## RP-initiated logout
+
+`GET`/`POST /realms/{realm}/protocol/openid-connect/logout` implements
+[OpenID Connect RP-Initiated Logout
+1.0](protocols/oidc-rpinitiated.md). Ending a session revokes it and every
+grant whose `session_id` names it — not access tokens, which stay valid to
+their own `exp` regardless (see [What is not
+implemented](#what-is-not-implemented) and README.md's own logout section
+for why).
+
+A client registers its `post_logout_redirect_uri` values ahead of time —
+there is no seed flag for it yet, so this walkthrough sets one directly:
+
+```bash
+docker compose -f infra/docker/compose.yaml exec -T postgres \
+  psql -U odudu -d odudu -c "
+    UPDATE client_oidc_config
+    SET post_logout_redirect_uris = ARRAY['http://localhost:8080/logged-out']
+    FROM clients
+    WHERE clients.id = client_oidc_config.client_id AND clients.client_id = 'demo-spa';
+  "
+```
+
+Signing in exactly as [Path A](#path-a-authorization-code-with-pkce) does,
+then redeeming a reused-session code for an `id_token`, gives an
+`id_token_hint` naming this session:
+
+```bash
+CODE=$(curl -sS -b cookies.txt -D - -o /dev/null --get \
+  --data-urlencode 'response_type=code' \
+  --data-urlencode 'client_id=demo-spa' \
+  --data-urlencode 'redirect_uri=http://localhost:8080/callback' \
+  --data-urlencode 'scope=openid' \
+  --data-urlencode 'state=xyz-hint' \
+  --data-urlencode "code_challenge=$CHALLENGE" \
+  --data-urlencode 'code_challenge_method=S256' \
+  "http://localhost:3000/realms/demo/protocol/openid-connect/auth" \
+  | sed -n 's/.*[Ll]ocation: .*[?&]code=\([^&[:space:]]*\).*/\1/p' | tr -d '\r')
+
+TOKEN_RESPONSE=$(curl -sS \
+  --data-urlencode 'grant_type=authorization_code' \
+  --data-urlencode "code=$CODE" \
+  --data-urlencode 'redirect_uri=http://localhost:8080/callback' \
+  --data-urlencode 'client_id=demo-spa' \
+  --data-urlencode "code_verifier=$VERIFIER" \
+  "http://localhost:3000/realms/demo/protocol/openid-connect/token")
+
+ID_TOKEN=$(python3 -c "import json,sys; print(json.load(sys.stdin)['id_token'])" <<< "$TOKEN_RESPONSE")
+REFRESH_TOKEN=$(python3 -c "import json,sys; print(json.load(sys.stdin)['refresh_token'])" <<< "$TOKEN_RESPONSE")
+
+curl -sS -b cookies.txt -D - -o /dev/null \
+  --get \
+  --data-urlencode "id_token_hint=$ID_TOKEN" \
+  --data-urlencode 'client_id=demo-spa' \
+  --data-urlencode 'post_logout_redirect_uri=http://localhost:8080/logged-out' \
+  --data-urlencode 'state=xyz-bye' \
+  "http://localhost:3000/realms/demo/protocol/openid-connect/logout"
+```
+
+```
+HTTP/1.1 302 Found
+location: http://localhost:8080/logged-out?state=xyz-bye
+content-length: 0
+```
+
+The hint names the session the cookie itself belongs to (OIDC Core §3.1.2.2
+validates it — this realm's own keys, this realm's issuer, an access token
+refused by `typ`), so §2's confirmation is skipped and the exact-match
+`post_logout_redirect_uri` is honoured. The refresh token this session's
+grant issued is now refused:
+
+```bash
+curl -sS \
+  --data-urlencode 'grant_type=refresh_token' \
+  --data-urlencode "refresh_token=$REFRESH_TOKEN" \
+  --data-urlencode 'client_id=demo-spa' \
+  "http://localhost:3000/realms/demo/protocol/openid-connect/token"
+```
+
+```json
+{ "error": "invalid_grant" }
+```
+
+A second, separate sign-in with **no** `id_token_hint` gets the
+confirmation page §2 requires instead of an immediate redirect — nothing is
+ended by this `GET` alone:
+
+```bash
+curl -sS -b cookies2.txt \
+  "http://localhost:3000/realms/demo/protocol/openid-connect/logout"
+```
+
+```html
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Sign out?</title>
+  </head>
+  <body>
+    <h1>Sign out?</h1>
+    <p>Signing out ends this session for every application that uses it.</p>
+    <form method="post" action="/realms/demo/protocol/openid-connect/logout">
+      <input type="hidden" name="session_id" value="01a0a5a7-4d08-76ca-bf3c-04cf6191da53" />
+      <button type="submit">Sign out</button>
+    </form>
+  </body>
+</html>
+```
+
+The `session_id` hidden field is this form's whole CSRF defence, the same
+role `auth_session_id` plays on the login form (ADR 0018): only a browser
+that actually loaded this page can post it back, and the confirmation
+handler checks it again against what the cookie itself resolves to before
+ending anything.
+
+A `post_logout_redirect_uri` that is not an exact match to a registered
+value — a trailing slash, a query string, a different host — is refused,
+and the session still ends: §3's redirect rule is about the redirect
+alone, never about whether logout happened.
+
 ## Path C: `client_credentials`
 
 No user, no browser, no PKCE, no redirect. A confidential client
@@ -3062,12 +3188,9 @@ session lifecycle. A citation of either half here means that half.
 
 - **Token introspection (RFC 7662) and revocation (RFC 7009).** **P3**,
   whose exit criterion names both. Until then a resource server validates
-  access tokens locally against the JWKS, and revoking a grant does not
-  invalidate an already-issued access token before its `exp`.
-- **RP-initiated logout (`end_session_endpoint`).** **P2b**, whose exit
-  criterion ends the SSO session with it. It lands there rather than
-  earlier because an endpoint that ends a session nothing consults would be
-  theatre.
+  access tokens locally against the JWKS, and ending a session or revoking
+  a grant — including through [RP-initiated logout](#rp-initiated-logout) —
+  does not invalidate an already-issued access token before its `exp`.
 - **Front-channel and back-channel logout.** **P3**: both are addressed to a
   client rather than to a browser, so both need per-client
   `frontchannel_logout_uri` and `backchannel_logout_uri` registered, which

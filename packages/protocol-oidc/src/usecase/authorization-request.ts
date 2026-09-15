@@ -229,8 +229,10 @@ export async function handleAuthorizationRequest(
 // this server cannot recognise as its own. `exp` is enforced by verifyJwt,
 // so a hint past its expiry is refused rather than accepted as §3.1.2.2's
 // SHOULD allows (see the reading note in docs/protocols/oidc-core.md).
-async function subjectOfIdTokenHint(
-  deps: AuthorizeUsecaseDeps,
+// Exported for `#/usecase/logout.ts`, which validates its own hint the same
+// way rather than a second, looser check.
+export async function subjectOfIdTokenHint(
+  deps: Pick<AuthorizeUsecaseDeps, 'listPublishableKeys'>,
   realmId: string,
   issuer: string,
   hint: string,

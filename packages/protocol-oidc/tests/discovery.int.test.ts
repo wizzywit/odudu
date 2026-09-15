@@ -106,6 +106,15 @@ describe('[OIDC-DISCOVERY-4-01] the discovery document is served at the well-kno
   });
 });
 
+describe('[OIDC-RPINITIATED-4-01] end_session_endpoint is advertised', () => {
+  it("names this realm's logout endpoint", async () => {
+    const res = await http.inject({ url: '/realms/acme/.well-known/openid-configuration' });
+    expect(res.json<{ end_session_endpoint: string }>().end_session_endpoint).toBe(
+      'http://localhost/realms/acme/protocol/openid-connect/logout',
+    );
+  });
+});
+
 describe('[RFC7517-4-02] the published key set carries no private material', () => {
   it('never emits a private or symmetric member', async () => {
     const res = await http.inject({ url: '/realms/acme/protocol/openid-connect/certs' });

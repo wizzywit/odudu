@@ -3,7 +3,7 @@
 ## Start here
 
 **P0, P1 and P2a are complete. P2b is brainstormed, specified and planned;
-Tasks 1 through 4 have landed and Task 5 is next.** Migration 0026 adds
+Tasks 1 through 5 have landed and Task 6 is next.** Migration 0026 adds
 `token_grants.session_id`, nullable: null means an offline grant, which
 nothing expires and no logout can end; a non-null value is the SSO session
 the grant was issued under, and `sessions` needed a `UNIQUE (realm_id, id)`
@@ -98,6 +98,36 @@ session-less yet except by this being the only way one is ever null:
 `offline_access` (Task 6) is what deliberately forces `sessionId: null`.
 `docs/protocols/oidc-backchannel.md` is a new file, one row, `sid`
 `covered`; the endpoint and Logout Token clauses are Task 28's.
+
+**Task 5 makes the session endable.** Migration 0030 adds
+`client_oidc_config.post_logout_redirect_uris`, the exact-match allowlist
+OpenID Connect RP-Initiated Logout 1.0 §3 requires; migration numbering
+corrects the brief's own `0029` (Task 4 already took it for
+`authorization_codes.session_id`). `GET`/`POST
+/realms/{realm}/protocol/openid-connect/logout` is new
+(`packages/protocol-oidc/src/usecase/logout.ts`,
+`view/logout-html.ts`, `view/routes/logout.ts`), built around
+`decideLogout` — a pure function, hint subject, session subject, requested
+URI and registered list in, `confirm` / `end` / `render` out — reusing
+`subjectOfIdTokenHint` (now exported from `usecase/authorization-request.ts`)
+for the hint's own validation rather than a second, looser check.
+Confirmation fires on either of §2's two triggers (no hint, or a hint
+naming a different session), guarded by the same single-use-hidden-field
+pattern the login form uses (a double-submit against the session cookie,
+not a second table). A refused redirect (§3's exact-match MUST) still ends
+the session — the two are independent outcomes of one decision. Ending a
+session is `sessionRepository(tx).end` (new: moves `expires_at` to now,
+mirroring how `isSessionLive` already reads it, no new column or row
+state) followed by `tokenGrantRepository(tx).revokeForSession`, one
+`withRealm` transaction. Access tokens are untouched, and
+`docs/protocols/oidc-rpinitiated.md` and README.md's own logout section
+both say plainly why: they are self-contained `at+jwt` JWTs nothing
+consults, so nothing exists to tell one it has been logged out.
+`resolveDiscoveryDocument` now returns `end_session_endpoint`, defined in
+protocol-oidc rather than added to `@odudu/contracts`' `DiscoveryDocument`
+— it is RP-Initiated Logout's own extension member, not core OIDC
+Discovery, the way `client_oidc_config` already carries OAuth vocabulary
+`domain-realm`'s protocol-agnostic `ClientRecord` does not.
 
 P2a delivered the identity model: roles, groups, client scopes, per-client
 web origins, the user profile, email delivery and the account lifecycle

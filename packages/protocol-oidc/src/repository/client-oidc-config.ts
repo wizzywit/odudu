@@ -19,19 +19,21 @@ function toRecord(row: typeof clientOidcConfig.$inferSelect): ClientOidcConfig {
     refreshTokenTtlSeconds: row.refreshTokenTtlSeconds,
     clientCredentialsScopes: row.clientCredentialsScopes,
     webOrigins: row.webOrigins,
+    postLogoutRedirectUris: row.postLogoutRedirectUris,
   };
 }
 
-// `clientCredentialsScopes` and `webOrigins` default to none: every existing
-// caller that predates them creates a config without deciding on either, and
-// an empty allowlist is the safe default for a client no one has yet
-// configured for it.
+// `clientCredentialsScopes`, `webOrigins` and `postLogoutRedirectUris`
+// default to none: every existing caller that predates them creates a
+// config without deciding on any of the three, and an empty allowlist is
+// the safe default for a client no one has yet configured for it.
 export type NewClientOidcConfig = Omit<
   ClientOidcConfig,
-  'clientCredentialsScopes' | 'webOrigins'
+  'clientCredentialsScopes' | 'webOrigins' | 'postLogoutRedirectUris'
 > & {
   clientCredentialsScopes?: string[];
   webOrigins?: string[];
+  postLogoutRedirectUris?: string[];
 };
 
 export function clientOidcConfigRepository(tx: RealmScopedDatabase) {
@@ -62,6 +64,7 @@ export function clientOidcConfigRepository(tx: RealmScopedDatabase) {
           refreshTokenTtlSeconds: input.refreshTokenTtlSeconds,
           clientCredentialsScopes: input.clientCredentialsScopes ?? [],
           webOrigins: input.webOrigins ?? [],
+          postLogoutRedirectUris: input.postLogoutRedirectUris ?? [],
         })
         .returning();
       const row = rows[0];
@@ -69,6 +72,18 @@ export function clientOidcConfigRepository(tx: RealmScopedDatabase) {
         throw new Error('insert into client_oidc_config returned no row');
       }
       return toRecord(row);
+    },
+
+    // The exact-match list logout's confirmation and redirect decision reads
+    // — a narrow read of one column rather than the whole config, since the
+    // logout usecase (`#/usecase/logout.ts`) needs nothing else about the
+    // client.
+    async postLogoutRedirectUris(clientId: string): Promise<readonly string[]> {
+      const rows = await tx
+        .select({ postLogoutRedirectUris: clientOidcConfig.postLogoutRedirectUris })
+        .from(clientOidcConfig)
+        .where(eq(clientOidcConfig.clientId, clientId));
+      return rows[0]?.postLogoutRedirectUris ?? [];
     },
 
     // A CORS preflight carries no client identity, so the only allowlist

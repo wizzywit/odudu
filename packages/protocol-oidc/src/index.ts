@@ -14,6 +14,7 @@ import { clientRepository, clientScopeRepository } from '@odudu/domain-realm';
 import { systemClock, type Clock } from '@odudu/kernel';
 import { type FastifyPluginAsync } from 'fastify';
 import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
+import { tokenGrantRepository } from '#/repository/grants';
 import { realmLookupRepository } from '#/repository/realm-lookup';
 import { reachableRoleIds } from '#/repository/scope-role-reach';
 import { standardClaimMappers } from '#/service/claims';
@@ -25,6 +26,7 @@ import { registerCors } from '#/view/routes/cors';
 import { registerDiscoveryRoute } from '#/view/routes/discovery';
 import { registerJwksRoute } from '#/view/routes/jwks';
 import { registerLoginRoute } from '#/view/routes/login';
+import { registerLogoutRoute } from '#/view/routes/logout';
 import { registerTokenRoute } from '#/view/routes/token';
 import { registerUserinfoRoute } from '#/view/routes/userinfo';
 
@@ -245,6 +247,45 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
             sessionId,
           });
           return { kind: 'issued', sessionId, code };
+        }),
+    });
+    registerLogoutRoute(app, {
+      findRealm,
+      tls,
+      listPublishableKeys,
+      now: () => clock.now(),
+      // Resolved from the OAuth client_id to that client's own registered
+      // list — an unknown or unspecified client yields none, refusing any
+      // redirect rather than resolving one with no client to trust it
+      // against (RP-Initiated Logout 1.0 §3).
+      postLogoutRedirectUris: (realmId, oauthClientId) =>
+        withRealm(deps.database.db, realmId, async (tx) => {
+          const client = await clientRepository(tx).byClientId(oauthClientId);
+          if (client === null) return [];
+          return clientOidcConfigRepository(tx).postLogoutRedirectUris(client.id);
+        }),
+      // The same cookie-to-live-row resolution /authorize's resolveSession
+      // performs, minus the authTime that only completing a login needs.
+      resolveSession: async (realm, cookieValue) => {
+        if (cookieValue === undefined || !UUID_PATTERN.test(cookieValue)) return null;
+        return withRealm(deps.database.db, realm.id, async (tx) => {
+          const record = await sessionRepository(tx).liveById(
+            cookieValue,
+            realm.ssoSessionIdleSeconds,
+            clock.now(),
+          );
+          if (record === null) return null;
+          return { sessionId: record.id, subjectId: record.subjectId };
+        });
+      },
+      // One transaction, per Back-Channel Logout §2.7: end the session, then
+      // revoke every grant whose session_id is that session. A failure
+      // anywhere rolls both back — a session that ends with its grants
+      // still live would be logout not actually having happened.
+      endSession: (realmId, sessionId, now) =>
+        withRealm(deps.database.db, realmId, async (tx) => {
+          await sessionRepository(tx).end(sessionId, now);
+          await tokenGrantRepository(tx).revokeForSession(sessionId, now);
         }),
     });
     // Own encapsulation scope: `@fastify/cors`'s delegator-driven hook adds

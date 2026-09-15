@@ -81,6 +81,38 @@ describe('sessionRepository', () => {
       },
     });
   });
+
+  it('cannot end a session under a different realm context, and leaves it live', async () => {
+    const originalExpiry = new Date(Date.now() + 3_600_000);
+    await expectCrossRealmMethodProbe(app.db, {
+      seed: async (tx, realmId) => {
+        await seedRealm(tx, realmId);
+        const subject = await subjectRepository(tx).create({ realmId, type: 'user' });
+        const id = newId();
+        await sessionRepository(tx).create({
+          id,
+          realmId,
+          subjectId: subject.id,
+          expiresAt: originalExpiry,
+        });
+        return id;
+      },
+      verifySeeded: async (tx, id) => {
+        const found = await sessionRepository(tx).byId(id);
+        expect(found?.expiresAt).toEqual(originalExpiry);
+      },
+      attempt: async (tx, id) => sessionRepository(tx).end(id, new Date()),
+      expectBlocked: () => {
+        // `end` is an UPDATE affecting zero rows under a foreign realm
+        // context, not a thrown error or a returned value to assert on —
+        // `verifyRealmAUnaffected` is where the blocking actually shows.
+      },
+      verifyRealmAUnaffected: async (tx, id) => {
+        const found = await sessionRepository(tx).byId(id);
+        expect(found?.expiresAt).toEqual(originalExpiry);
+      },
+    });
+  });
 });
 
 describe('authenticationSessionRepository', () => {

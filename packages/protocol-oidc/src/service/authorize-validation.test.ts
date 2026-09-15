@@ -33,6 +33,7 @@ const config: ClientOidcConfig = {
   refreshTokenTtlSeconds: 1_209_600,
   clientCredentialsScopes: [],
   webOrigins: [],
+  postLogoutRedirectUris: [],
 };
 
 // One list stands for both halves of the rule these tests exercise: the
