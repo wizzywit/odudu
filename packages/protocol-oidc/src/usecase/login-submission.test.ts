@@ -5,7 +5,13 @@ import {
   type LoginSubmissionDeps,
 } from '#/usecase/login-submission';
 
-const REALM = { id: 'realm-1', enabled: true, verifyEmail: false, ssoSessionMaxSeconds: 36_000 };
+const REALM = {
+  id: 'realm-1',
+  enabled: true,
+  verifyEmail: false,
+  ssoSessionMaxSeconds: 36_000,
+  ssoSessionIdleSeconds: 1_800,
+};
 
 const PENDING = {
   clientId: 'oauth-client-1',

@@ -2240,23 +2240,12 @@ document.)
 
 Four things are worth separating there.
 
-**`none` is `login_required`, always.** Nothing reads the SSO cookie at
-`/authorize`, so no end user is ever already authenticated when the
-decision is made. The answer is therefore unconditional rather than
-session-dependent — which is still exactly the behaviour OIDC Core §3.1.2.3
-describes, arrived at without a session to reuse rather than in spite of
-one. Holding a live `demo-session` cookie changes nothing — add `-c
-cookies.txt` to the login POST in the bootstrap block to keep one, then:
-
-```bash
-curl -sS -b cookies.txt -o /dev/null -D - \
-  "http://localhost:3000/realms/demo/protocol/openid-connect/auth?$Q&prompt=none" \
-  | grep -i '^location'
-```
-
-```
-location: http://localhost:8080/callback?error=login_required&state=xyz-123&iss=…
-```
+**`none` is `login_required` for a request carrying no session.** The table
+above ran with no cookie, so nothing was there to be silently authenticated
+against — still exactly the behaviour OIDC Core §3.1.2.3 describes. A live
+`demo-session` cookie changes this row specifically; [Signing in again from
+an existing session](#signing-in-again-from-an-existing-session) below is
+what it changes to.
 
 **`none` with any other value is an error, not a decision.** §3.1.2.1 makes
 the values mutually exclusive. Answering `none login` as if it were a bare
@@ -2269,12 +2258,181 @@ server has never heard of is better told so than answered as though it had
 asked for nothing. `Login` is refused for the same reason: the values are
 case-sensitive.
 
-**`prompt=login` renders the form, and so does no `prompt` at all.**
-Forcing reauthentication is what happens anyway, because authentication is
-unconditional. Holding the session cookie from a completed sign-in, both
-still answer 200 with a fresh login form. That equality is a gap, not a
-feature, and it closes in P2b when session reuse arrives — at which point
-`prompt=login` starts meaning something the absence of `prompt` does not.
+**`prompt=login` renders the form, and so does no `prompt` at all — with no
+session.** The table above ran with no cookie, so both forced and
+unconditional authentication land on the same 200. They stop agreeing once
+a session exists to force past, in the same section below.
+
+### Signing in again from an existing session
+
+`/authorize` reads the `demo-session` cookie the login POST sets (P2b), so
+a second authorization request from the same browser can complete without
+the form — and `prompt` decides whether that is allowed to happen. This
+section runs one login, keeps the cookie, and sends it back three ways.
+
+The first `/authorize`, with a login exactly as [Path
+A](#path-a-authorization-code-with-pkce) runs it, keeping the cookie curl
+is handed:
+
+```bash
+VERIFIER=$(openssl rand -hex 32)
+CHALLENGE=$(printf '%s' "$VERIFIER" | openssl dgst -binary -sha256 \
+  | openssl base64 | tr '+/' '-_' | tr -d '=')
+AUTH_SESSION_ID=$(curl -sS --get \
+  --data-urlencode 'response_type=code' \
+  --data-urlencode 'client_id=demo-spa' \
+  --data-urlencode 'redirect_uri=http://localhost:8080/callback' \
+  --data-urlencode 'scope=openid profile email' \
+  --data-urlencode 'state=xyz-live' \
+  --data-urlencode "code_challenge=$CHALLENGE" \
+  --data-urlencode 'code_challenge_method=S256' \
+  "http://localhost:3000/realms/demo/protocol/openid-connect/auth" \
+  | sed -n 's/.*name="auth_session_id" value="\([^"]*\)".*/\1/p')
+
+curl -sS -c cookies.txt -o /dev/null \
+  --data-urlencode "auth_session_id=$AUTH_SESSION_ID" \
+  --data-urlencode 'username=ada' \
+  --data-urlencode 'password=correct-horse-battery' \
+  "http://localhost:3000/realms/demo/login-actions/authenticate"
+
+grep session cookies.txt
+```
+
+```
+#HttpOnly_localhost	FALSE	/	FALSE	0	demo-session	01a0a540-…
+```
+
+The second `/authorize`, the cookie attached, no `prompt` at all — a
+different `state`, the same `code_challenge` this session was never asked
+to prove twice:
+
+```bash
+curl -sS -b cookies.txt -D - -o /dev/null \
+  --get \
+  --data-urlencode 'response_type=code' \
+  --data-urlencode 'client_id=demo-spa' \
+  --data-urlencode 'redirect_uri=http://localhost:8080/callback' \
+  --data-urlencode 'scope=openid' \
+  --data-urlencode 'state=xyz-reuse' \
+  --data-urlencode "code_challenge=$CHALLENGE" \
+  --data-urlencode 'code_challenge_method=S256' \
+  "http://localhost:3000/realms/demo/protocol/openid-connect/auth" \
+  | grep -i '^location'
+```
+
+```
+location: http://localhost:8080/callback?code=I81jAkPQ…&state=xyz-reuse&iss=http%3A%2F%2Flocalhost%3A3000%2Frealms%2Fdemo
+```
+
+A 302 straight to `redirect_uri`, carrying a fresh `code` — no login form,
+no second `set-cookie`, because the session that got this request here
+already has one. `prompt=none` succeeds the same way, which is the entire
+point of asking for it:
+
+```bash
+curl -sS -b cookies.txt -D - -o /dev/null \
+  --get \
+  --data-urlencode 'response_type=code' \
+  --data-urlencode 'client_id=demo-spa' \
+  --data-urlencode 'redirect_uri=http://localhost:8080/callback' \
+  --data-urlencode 'scope=openid' \
+  --data-urlencode 'state=xyz-none' \
+  --data-urlencode "code_challenge=$CHALLENGE" \
+  --data-urlencode 'code_challenge_method=S256' \
+  --data-urlencode 'prompt=none' \
+  "http://localhost:3000/realms/demo/protocol/openid-connect/auth" \
+  | grep -i '^location'
+```
+
+```
+location: http://localhost:8080/callback?code=8VtxFh-h…&state=xyz-none&iss=http%3A%2F%2Flocalhost%3A3000%2Frealms%2Fdemo
+```
+
+`prompt=login`, the same live cookie attached, forces the form anyway:
+
+```bash
+curl -sS -b cookies.txt -D - -o /dev/null \
+  --get \
+  --data-urlencode 'response_type=code' \
+  --data-urlencode 'client_id=demo-spa' \
+  --data-urlencode 'redirect_uri=http://localhost:8080/callback' \
+  --data-urlencode 'scope=openid' \
+  --data-urlencode 'state=xyz-login' \
+  --data-urlencode "code_challenge=$CHALLENGE" \
+  --data-urlencode 'code_challenge_method=S256' \
+  --data-urlencode 'prompt=login' \
+  "http://localhost:3000/realms/demo/protocol/openid-connect/auth"
+```
+
+```
+HTTP/1.1 200 OK
+content-type: text/html
+```
+
+— the login form, `auth_session_id` and all, exactly as a request with no
+cookie at all gets. And a request with no cookie still gets
+`login_required` under `prompt=none`, unchanged from the row in the table
+above:
+
+```bash
+curl -sS -D - -o /dev/null \
+  --get \
+  --data-urlencode 'response_type=code' \
+  --data-urlencode 'client_id=demo-spa' \
+  --data-urlencode 'redirect_uri=http://localhost:8080/callback' \
+  --data-urlencode 'scope=openid' \
+  --data-urlencode 'state=xyz-000' \
+  --data-urlencode "code_challenge=$CHALLENGE" \
+  --data-urlencode 'code_challenge_method=S256' \
+  --data-urlencode 'prompt=none' \
+  "http://localhost:3000/realms/demo/protocol/openid-connect/auth" \
+  | grep -i '^location'
+```
+
+```
+location: http://localhost:8080/callback?error=login_required&state=xyz-000&iss=http%3A%2F%2Flocalhost%3A3000%2Frealms%2Fdemo
+```
+
+Redeeming a code the reuse redirect issued shows what carrying the session
+forward means for `auth_time`. One more reuse, waited out a little first,
+then redeemed with the same `$VERIFIER` the login above's `$CHALLENGE` was
+built from:
+
+```bash
+sleep 5
+CODE=$(curl -sS -b cookies.txt --get \
+  --data-urlencode 'response_type=code' \
+  --data-urlencode 'client_id=demo-spa' \
+  --data-urlencode 'redirect_uri=http://localhost:8080/callback' \
+  --data-urlencode 'scope=openid' \
+  --data-urlencode 'state=xyz-authtime' \
+  --data-urlencode "code_challenge=$CHALLENGE" \
+  --data-urlencode 'code_challenge_method=S256' \
+  "http://localhost:3000/realms/demo/protocol/openid-connect/auth" \
+  | sed -n 's/.*[Ll]ocation: .*[?&]code=\([^&[:space:]]*\).*/\1/p')
+
+curl -sS \
+  --data-urlencode 'grant_type=authorization_code' \
+  --data-urlencode "code=$CODE" \
+  --data-urlencode 'redirect_uri=http://localhost:8080/callback' \
+  --data-urlencode 'client_id=demo-spa' \
+  --data-urlencode "code_verifier=$VERIFIER" \
+  "http://localhost:3000/realms/demo/protocol/openid-connect/token" \
+  | python3 -c "import sys,json,base64; t=json.load(sys.stdin)['id_token']; p=t.split('.')[1]; p+='='*(-len(p)%4); print(json.loads(base64.urlsafe_b64decode(p)))"
+```
+
+```
+auth_time: 1789478841   (2026-09-15 13:27:21 UTC — the login at the top of this section)
+iat:       1789478878   (2026-09-15 13:27:58 UTC — this redemption, 37s later)
+```
+
+`auth_time` is the login's own moment, not the moment this token was
+minted 37 seconds later — the fact a client's own `max_age` check
+(§3.1.3.7) has to be able to rely on. A session past its realm's
+`sso_session_idle_seconds` or `sso_session_max_seconds`
+(`docs/NEXT.md`), or one for a subject a `verify_email` realm has not
+verified, is refused here exactly as `prompt=none` with no session at all
+is — a redirect carrying `login_required`, nothing issued, no page shown.
 
 ### `id_token_hint`
 

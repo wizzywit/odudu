@@ -94,6 +94,21 @@ export type CompleteLoginOutcome =
   // was established or issued.
   { kind: 'already_consumed' } | { kind: 'issued'; sessionId: string; code: string };
 
+// The gate is a property of completing a login, not of submitting a form.
+// A realm requiring a verified address refuses a cookie-borne login for an
+// unverified subject exactly as it refuses a password one; an unverified
+// account that happens to hold a live session would otherwise sign in
+// without ever passing the check.
+export async function refusedForUnverifiedEmail(
+  deps: Pick<LoginSubmissionDeps, 'checkEmailVerification'>,
+  realm: { id: string; verifyEmail: boolean },
+  subjectId: string,
+): Promise<{ hasEmail: boolean } | null> {
+  if (!realm.verifyEmail) return null;
+  const status = await deps.checkEmailVerification(realm.id, subjectId);
+  return status.verified ? null : { hasEmail: status.hasEmail };
+}
+
 export interface LoginSubmissionDeps {
   findRealm(name: string): Promise<RealmLookup | null>;
   advance(
@@ -167,11 +182,9 @@ export async function handleLoginSubmission(
     return { kind: 'reject', authSessionId };
   }
 
-  if (realm.verifyEmail) {
-    const status = await deps.checkEmailVerification(realm.id, result.subjectId);
-    if (!status.verified) {
-      return { kind: 'unverified', authSessionId, hasEmail: status.hasEmail };
-    }
+  const refusal = await refusedForUnverifiedEmail(deps, realm, result.subjectId);
+  if (refusal !== null) {
+    return { kind: 'unverified', authSessionId, hasEmail: refusal.hasEmail };
   }
 
   // The only source of scope, redirect_uri, nonce, state and code_challenge

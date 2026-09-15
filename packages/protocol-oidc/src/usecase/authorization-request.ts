@@ -7,11 +7,35 @@ import {
   type AuthorizeOutcome,
 } from '#/service/authorize-validation';
 import { normalizeAuthorizeQuery } from '#/service/query-normalization';
+import { refusedForUnverifiedEmail, type LoginSubmissionDeps } from '#/usecase/login-submission';
+import { decideReuse, type ResolvedSession } from '#/usecase/session-reuse';
 
 export type AuthorizationRequestOutcome =
   | { kind: 'render'; error: string; description: string }
   | { kind: 'redirect'; redirectUri: string; error: string; state: string | null }
-  | { kind: 'started'; authSessionId: string };
+  | { kind: 'started'; authSessionId: string }
+  // Session reuse: a code issued with no page ever rendered and no fresh
+  // authentication session started. Carries exactly what the form-POST
+  // success redirect carries, because the client cannot tell the two apart.
+  | { kind: 'reused'; code: string; redirectUri: string; state: string | null };
+
+// What resolving the SSO session cookie against a live row yields — the two
+// facts decideReuse needs (ResolvedSession) plus the row's own id, needed
+// only afterward, to touch it once reuse is decided.
+export type ReusableSession = ResolvedSession & { sessionId: string };
+
+export interface CompleteReuseInput {
+  realmId: string;
+  sessionId: string;
+  subjectId: string;
+  clientId: string;
+  redirectUri: string;
+  scope: string;
+  nonce: string | null;
+  codeChallenge: string;
+  codeChallengeMethod: 'S256';
+  authTime: Date;
+}
 
 export interface ResolvedClient {
   client: ClientRecord | null;
@@ -39,6 +63,19 @@ export interface AuthorizeUsecaseDeps {
     realmId: string,
     request: Extract<AuthorizeOutcome, { kind: 'ok' }>['request'],
   ): Promise<{ authSessionId: string }>;
+  // The SSO session cookie's value, resolved to a live row (never trusted
+  // for anything but that lookup) — sessionRepository(tx).liveById scoped
+  // to the realm's own idle window. Null for no cookie, an unknown id, or
+  // one that has idled out or hit its ceiling.
+  resolveSession(realmId: string, cookieValue: string | undefined): Promise<ReusableSession | null>;
+  // The same gate handleLoginSubmission enforces, shared so a cookie-borne
+  // login cannot complete for a subject a password login would refuse.
+  checkEmailVerification: LoginSubmissionDeps['checkEmailVerification'];
+  // Touches the reused session and issues the code atomically — the same
+  // issueAuthorizationCode the form path uses, wrapped with the touch in
+  // one transaction the way completeLogin wraps its own two writes.
+  completeReuse(input: CompleteReuseInput): Promise<{ code: string }>;
+  now(): Date;
 }
 
 // An unknown or disabled realm is indistinguishable from an unknown or
@@ -53,6 +90,10 @@ export async function handleAuthorizationRequest(
   // This realm's issuer identifier, as the discovery document states it: the
   // `iss` an id_token_hint has to carry to have come from here.
   issuer: string,
+  // The SSO session cookie's raw value, read by the route from the request
+  // header and trusted for nothing but the lookup resolveSession performs
+  // with it — no claim in it, no subject id from it.
+  cookieValue: string | undefined,
 ): Promise<AuthorizationRequestOutcome> {
   const normalized = normalizeAuthorizeQuery(rawParams);
   if (normalized.kind === 'render') return normalized;
@@ -111,14 +152,60 @@ export async function handleAuthorizationRequest(
     hintSubject = subject;
   }
 
-  // OIDC Core §3.1.2.3: with `prompt=none` the authorization server MUST NOT
-  // display any authentication or consent user interface, and MUST return an
-  // error if the End-User is not already authenticated. Nothing on this path
-  // reads the SSO session cookie — authentication always starts afresh — so
-  // no End-User is ever already authenticated here, and `login_required`
-  // (§3.1.2.6) is the whole of the behaviour rather than a shortcut through
-  // it. Session reuse would turn this into a decision; today it is a fact.
-  if (outcome.prompts.has('none')) return reject('login_required');
+  // OIDC Core §3.1.2.1/§3.1.2.3/§15.1: whether this request can be answered
+  // from the End-User's existing SSO session, has to start a fresh
+  // authentication, or — under `prompt=none` — must be refused because it
+  // would otherwise do one of those. The two are decided together rather
+  // than in sequence (docs/protocols/oidc-core.md's reading note has why).
+  const resolvedSession = await deps.resolveSession(realm.id, cookieValue);
+  const decision = decideReuse({
+    session: resolvedSession,
+    prompts: outcome.prompts,
+    maxAge: outcome.maxAge,
+    now: deps.now(),
+  });
+
+  if (decision.kind === 'refuse') return reject(decision.error);
+
+  if (decision.kind === 'reuse') {
+    if (resolvedSession === null) {
+      throw new Error('unreachable: decideReuse reused with no resolved session');
+    }
+    if (resolved.client === null) {
+      throw new Error('unreachable: validateAuthorizationRequest succeeded with a null client');
+    }
+
+    // The same rule the login form enforces once somebody actually signs
+    // in: the End-User a hint names is not the one who is about to be
+    // reused into this response.
+    if (hintSubject !== null && hintSubject !== decision.subjectId) {
+      return reject('login_required');
+    }
+
+    // The second door into the same decision handleLoginSubmission's
+    // password path guards — an unverified subject that happens to hold a
+    // live cookie must not sign in for free.
+    const refusal = await refusedForUnverifiedEmail(
+      deps,
+      { id: realm.id, verifyEmail: realm.verifyEmail },
+      decision.subjectId,
+    );
+    if (refusal !== null) return reject('login_required');
+
+    const { code } = await deps.completeReuse({
+      realmId: realm.id,
+      sessionId: resolvedSession.sessionId,
+      subjectId: decision.subjectId,
+      clientId: resolved.client.id,
+      redirectUri: request.redirectUri,
+      scope: request.scope,
+      nonce: request.nonce,
+      codeChallenge: request.codeChallenge,
+      codeChallengeMethod: request.codeChallengeMethod,
+      authTime: decision.authTime,
+    });
+    return { kind: 'reused', code, redirectUri: request.redirectUri, state: request.state };
+  }
 
   const { authSessionId } = await deps.startAuthentication(realm.id, {
     ...request,

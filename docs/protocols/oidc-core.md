@@ -103,28 +103,59 @@ specification's bar for it is narrow: do not reuse an existing session,
 and return an error (typically `login_required`) if reauthentication
 cannot be performed. A single-step login executor that unconditionally
 shows the login form — with no attempt to compare `max_age` or `acr`
-against session state — already satisfies that bar; nothing about the
-unconditional case needs the flow-tree machinery. What _does_ need flow
-tree semantics is _conditional_ reauthentication: deciding, from
+against session state — already satisfies half that bar in P1; nothing
+about the unconditional case needs the flow-tree machinery. What needed
+flow tree semantics was _conditional_ reauthentication: deciding, from
 `max_age` or a requested `acr`, whether the current session is still
-fresh enough to skip a new login. That distinction is why `max_age`-
-triggered reauthentication (§2's `auth_time` requirement, §3.1.2.1,
-§15.1) stays deferred to P2 while `prompt=login` is answered here.
+fresh enough to skip a new login. `max_age` gets that decision in P2b
+(`usecase/session-reuse.ts`'s `decideReuse`); `acr` still doesn't, so its
+two rows (§2) stay `deferred: P2`.
 
-The same argument covers `prompt=none`, and more cheaply. Its bar is: do
-not interact with the end-user, and return an error if the end-user is not
-already authenticated and cannot be silently authenticated (§3.1.2.3,
-§15.1). `handleAuthorizationRequest` calls `startAuthentication`
-unconditionally and never reads the `__Host-<realm>-session` cookie it
-later sets, so P1 can never silently authenticate anyone — which makes
-"always return `login_required`" a complete and conformant implementation
-of `prompt=none` for this server, reached with no session-reuse machinery
-at all. It is answered as a redirect, not a rendered page: `login_required`
-is an authorization error _response_ (§3.1.2.6), and the request that
-carries it has already had its `redirect_uri` matched against the client's
-registrations. Whoever builds session reuse in P2 turns this unconditional
-answer into a conditional one and must not weaken the rest of it: no page,
-no authentication session, no cookie.
+`/authorize` now reads the `__Host-<realm>-session` cookie
+(`AuthorizeUsecaseDeps.resolveSession`, resolved through
+`sessionRepository(tx).liveById` against the realm's own idle window) and
+turns "is there a session, and does it still satisfy this request" into one
+decision alongside `prompt` and `max_age`, rather than answering `prompt`
+in isolation while treating every request as unauthenticated. The decision
+table:
+
+| Live session? | `prompt=none` | `prompt=login` | `max_age` exceeded | Result                      |
+| ------------- | ------------- | -------------- | ------------------ | --------------------------- |
+| no            | —             | —              | —                  | authenticate                |
+| yes           | no            | no             | no                 | reuse                       |
+| yes           | no            | yes            | —                  | authenticate                |
+| yes           | no            | no             | yes                | authenticate                |
+| yes           | yes           | —              | —                  | refuse (would authenticate) |
+
+The last row is the load-bearing one: `prompt=none` never itself picks
+"authenticate" or "refuse" — it turns whatever the rest of the row would
+have done, once it lands on "authenticate", into a refusal instead
+(`decideReuse` checks the two together, not in sequence, precisely so
+`prompt=none` combined with an exceeded `max_age` refuses rather than
+racing to authenticate first). "Always return `login_required`" was a
+complete and conformant implementation of `prompt=none` in P1, reached
+with no session to reuse and no way to reuse one; it is no longer the
+whole of the behaviour, only what the first row above still says for a
+request with no session. A refusal keeps every constraint that answer
+already had: it is a redirect, not a rendered page (`login_required` is an
+authorization error _response_, §3.1.2.6, and the request has already had
+its `redirect_uri` matched against the client's registrations), and it
+starts no authentication session and writes no cookie. A `reuse` decision
+issues a code through the same `issueAuthorizationCode` the form path uses
+— `auth_time` on it is the session's own `created_at`, not a fresh clock
+read at reuse, so a client that later checks `auth_time` against `max_age`
+(§3.1.3.7) is checking something real — and touches the session
+(`sessionRepository(tx).touch`), because a reused session is a session
+being used.
+
+**The email-verified gate is a second door into the same decision, so it
+is checked on both.** `refusedForUnverifiedEmail`
+(`usecase/login-submission.ts`) is the check `handleLoginSubmission` always
+ran; `handleAuthorizationRequest` now calls it too, before any code is
+issued on the `reuse` branch, against the subject the session names — not
+a claim from the cookie, the row `resolveSession` read. An unverified
+account that happens to hold a live session must not sign back in for
+free just because this request found a second way to complete a login.
 
 `prompt` parsing (`service/prompt.ts`) refuses `none` alongside any other
 value, which §3.1.2.1 requires, and refuses a value outside the four the
@@ -135,17 +166,26 @@ rows are now `deferred: P3`, `select_account`'s having moved there on
 several concurrent sessions per browser rather than flow tree semantics — so
 this server recognises them without yet obeying them.
 
-**The row §3.1.2.1 phrases for `prompt=login`'s failure is `deferred: P2`.**
-"An error is returned if reauthentication cannot be performed" has no
-reachable branch here: /authorize starts a fresh authentication for every
-request that gets that far, and a failed password attempt re-renders the form
-rather than ending the authorization request. There is no state in which this
-server would have to answer that error, so there is nothing a test could
-observe, and marking the row `covered` against the test that proves the form
-is shown would be marking a requirement green with an adjacent assertion. It
-becomes real in P2, where a session can exist and reauthentication can be
-refused — which is what `deferred: P2` says, and is why it is recorded that
-way rather than as a `gap` indistinguishable from unfinished work.
+**The row §3.1.2.1 phrases for `prompt=login`'s failure was `deferred: P2`
+for exactly this reason.** In P1, "an error is returned if reauthentication
+cannot be performed" had no reachable branch: /authorize started a fresh
+authentication for every request that got that far, and a failed password
+attempt re-rendered the form rather than ending the authorization request.
+There was no state in which this server had to answer that error, so
+marking the row `covered` against the test that proves the form is shown
+would have been marking a requirement green with an adjacent assertion.
+
+Session reuse is what makes a state exist: `prompt=login` now has
+something to override — a live session that, absent the prompt, would have
+satisfied an `id_token_hint` through `reuse` — and overriding it can still
+end in the wrong End-User completing the forced reauthentication. That is
+`OIDC-CORE-3.1.2.1-11` (`packages/protocol-oidc/tests/session-reuse.int.test.ts`):
+a live session for the hinted End-User, `prompt=login` forcing a fresh
+form anyway, and a different End-User completing it — answered
+`login_required` with nothing issued, exactly as an unprompted hint
+mismatch already was (`OIDC-CORE-3.1.2.1-09`), except this time the
+session that would have avoided the whole form was real and `prompt=login`
+is what put it back in the way.
 
 `id_token_hint` is a third case that looks like it needs session reuse and
 does not. Validating that Odudu issued the hint (§3.1.2.2) is signature and
@@ -525,19 +565,27 @@ not exist until P3, and those rows are `deferred: P3` immediately below.
 
 §15.1 makes returning `auth_time` _when requested_ mandatory for every OP.
 The specification gives two ways to request it — `max_age` (§3.1.2.1) and an
-Essential Claim in the `claims` parameter (§5.5) — and Odudu honours neither
-_as a request_: both are parsed like any other parameter and ignored. What it
-does instead is emit `auth_time` in every ID Token it issues
+Essential Claim in the `claims` parameter (§5.5). Odudu emits `auth_time` in
+every ID Token it issues regardless
 (`packages/protocol-oidc/src/usecase/token-issuance.ts`), so a client that
-asks either way is answered, by a superset of what it asked for.
+asks either way is answered, by a superset of what it asked for — and since
+P2b, a request that carried `max_age` is one where the claim can no longer
+be confused with the token's own issuance time: `max_age` now decides
+whether the login it attaches to is a fresh one or a reused session
+(`usecase/session-reuse.ts`), and the code either way carries the real
+`auth_time` the decision read, not a clock reread at issuance.
 
-That is why this row is `covered` while §2's two `auth_time` rows stay
-deferred: those two are about `max_age` forcing reauthentication (P2) and
-about the `claims` parameter (P3), which are the request mechanisms, not the
-claim. `OIDC-CORE-15.1-05` sends each request form on a login that completes
-and checks the ID Token's `auth_time` against the `auth_time` stored on the
+That is why this row is `covered` alongside §2's `auth_time`-and-`max_age`
+row, both closed by the same mechanism; §2's `claims`-Essential-Claim row
+stays `deferred: P3`, since the `claims` parameter itself is still P3's.
+`OIDC-CORE-15.1-05` sends each request form on a login that completes and
+checks the ID Token's `auth_time` against the `auth_time` stored on the
 code that login issued — so a claim naming the token's own issuance time, or
 carrying milliseconds, is a failure rather than a presence.
+`OIDC-CORE-2-08` (`session-reuse.int.test.ts`) does the same check across a
+reuse specifically: a session established at one moment, reused two minutes
+later under a generous `max_age`, and an ID Token whose `auth_time` is the
+first moment, not the second.
 
 ## Requirements
 
@@ -550,7 +598,7 @@ carrying milliseconds, is a failure rather than a presence.
 | 2       | MUST   | `exp` is a REQUIRED claim: expiration time as a JSON number of seconds since the epoch                                                                                                                                                                                                         | `OIDC-CORE-2-03`       | covered                                                                                                                                                                                                                                                                                                                               |
 | 2       | MAY    | implementers allow a small clock-skew leeway around `exp`                                                                                                                                                                                                                                      | —                      | gap                                                                                                                                                                                                                                                                                                                                   |
 | 2       | MUST   | `iat` is a REQUIRED claim: the issuance time as a JSON number of seconds since the epoch                                                                                                                                                                                                       | `OIDC-CORE-2-04`       | covered                                                                                                                                                                                                                                                                                                                               |
-| 2       | MUST   | `auth_time` is present when the Authentication Request carried a `max_age` value                                                                                                                                                                                                               | —                      | deferred: P2 — max_age forcing reauthentication needs flow tree semantics                                                                                                                                                                                                                                                             |
+| 2       | MUST   | `auth_time` is present when the Authentication Request carried a `max_age` value                                                                                                                                                                                                               | `OIDC-CORE-2-08`       | covered                                                                                                                                                                                                                                                                                                                               |
 | 2       | MUST   | `auth_time` is present when requested as an Essential Claim via the `claims` parameter                                                                                                                                                                                                         | —                      | deferred: P3 — the `claims` request parameter is deferred to P3                                                                                                                                                                                                                                                                       |
 | 2       | MAY    | otherwise `auth_time`'s inclusion is OPTIONAL                                                                                                                                                                                                                                                  | —                      | gap                                                                                                                                                                                                                                                                                                                                   |
 | 2       | MUST   | when `nonce` was present in the Authentication Request, the authorization server includes a `nonce` claim in the ID Token with that same value                                                                                                                                                 | `OIDC-CORE-3.1.3.7-01` | covered                                                                                                                                                                                                                                                                                                                               |
@@ -580,14 +628,14 @@ carrying milliseconds, is a failure rather than a presence.
 | 3.1.2.1 | MAY    | `redirect_uri` uses an alternate (custom) scheme for a native application callback                                                                                                                                                                                                             | —                      | gap                                                                                                                                                                                                                                                                                                                                   |
 | 3.1.2.1 | MUST   | with `prompt=none`, an error is returned if the client lacks pre-configured consent for the requested claims                                                                                                                                                                                   | —                      | deferred: P3 — no consent screen exists yet                                                                                                                                                                                                                                                                                           |
 | 3.1.2.1 | SHOULD | with `prompt=login`, the end-user is prompted for reauthentication                                                                                                                                                                                                                             | `OIDC-CORE-3.1.2.3-03` | covered                                                                                                                                                                                                                                                                                                                               |
-| 3.1.2.1 | MUST   | with `prompt=login`, an error (typically `login_required`) is returned if reauthentication cannot be performed                                                                                                                                                                                 | —                      | deferred: P2 — reauthentication can only be refused once a session can be reused; see the reading note above                                                                                                                                                                                                                          |
+| 3.1.2.1 | MUST   | with `prompt=login`, an error (typically `login_required`) is returned if reauthentication cannot be performed                                                                                                                                                                                 | `OIDC-CORE-3.1.2.1-11` | covered                                                                                                                                                                                                                                                                                                                               |
 | 3.1.2.1 | SHOULD | with `prompt=consent`, the end-user is prompted for consent before information is released                                                                                                                                                                                                     | —                      | deferred: P3 — no consent screen exists yet                                                                                                                                                                                                                                                                                           |
 | 3.1.2.1 | MUST   | with `prompt=consent`, an error (typically `consent_required`) is returned if consent cannot be obtained                                                                                                                                                                                       | —                      | deferred: P3 — no consent screen exists yet                                                                                                                                                                                                                                                                                           |
 | 3.1.2.1 | SHOULD | with `prompt=select_account`, the end-user is prompted to select among multiple accounts with sessions at the authorization server                                                                                                                                                             | —                      | deferred: P3 — needs several concurrent sessions per browser, not flow tree semantics; P3 owns the /authorize user-choice page                                                                                                                                                                                                        |
 | 3.1.2.1 | MUST   | with `prompt=select_account`, an error (typically `account_selection_required`) is returned if account selection cannot be obtained                                                                                                                                                            | —                      | deferred: P3 — needs several concurrent sessions per browser, not flow tree semantics; P3 owns the /authorize user-choice page                                                                                                                                                                                                        |
 | 3.1.2.1 | MUST   | `prompt` containing `none` together with any other value results in an error                                                                                                                                                                                                                   | `OIDC-CORE-3.1.2.1-07` | covered                                                                                                                                                                                                                                                                                                                               |
 | 3.1.2.1 | MAY    | an unrecognized `prompt` value results in an error, or is ignored                                                                                                                                                                                                                              | `OIDC-CORE-3.1.2.1-08` | covered                                                                                                                                                                                                                                                                                                                               |
-| 3.1.2.1 | MUST   | when `max_age` is exceeded, the OP attempts to actively re-authenticate the end-user                                                                                                                                                                                                           | —                      | deferred: P2 — needs flow tree semantics                                                                                                                                                                                                                                                                                              |
+| 3.1.2.1 | MUST   | when `max_age` is exceeded, the OP attempts to actively re-authenticate the end-user                                                                                                                                                                                                           | `OIDC-CORE-3.1.2.1-10` | covered                                                                                                                                                                                                                                                                                                                               |
 | 3.1.2.1 | SHOULD | an error does not result from a `ui_locales` value the OP does not support                                                                                                                                                                                                                     | —                      | gap                                                                                                                                                                                                                                                                                                                                   |
 | 3.1.2.1 | MUST   | when `id_token_hint` is present, the OP returns a positive response if the identified end-user is logged in or becomes logged in as a result of the request, otherwise an error such as `login_required`                                                                                       | `OIDC-CORE-3.1.2.1-09` | covered                                                                                                                                                                                                                                                                                                                               |
 | 3.1.2.1 | MAY    | an `invalid_request` error is returned when `id_token_hint` is absent alongside `prompt=none`                                                                                                                                                                                                  | —                      | gap                                                                                                                                                                                                                                                                                                                                   |
@@ -711,7 +759,7 @@ carrying milliseconds, is a failure rather than a presence.
 | 15.1    | MUST   | the OP supports the `display` parameter, at minimum without erroring on any defined value                                                                                                                                                                                                      | `OIDC-CORE-15.1-01`    | covered                                                                                                                                                                                                                                                                                                                               |
 | 15.1    | MUST   | the OP supports `ui_locales` and `claims_locales`, at minimum without erroring on any requested value                                                                                                                                                                                          | `OIDC-CORE-15.1-02`    | covered                                                                                                                                                                                                                                                                                                                               |
 | 15.1    | MUST   | the OP supports returning `auth_time`, when requested                                                                                                                                                                                                                                          | `OIDC-CORE-15.1-05`    | covered                                                                                                                                                                                                                                                                                                                               |
-| 15.1    | MUST   | the OP supports enforcing `max_age`                                                                                                                                                                                                                                                            | —                      | deferred: P2 — needs flow tree semantics                                                                                                                                                                                                                                                                                              |
+| 15.1    | MUST   | the OP supports enforcing `max_age`                                                                                                                                                                                                                                                            | `OIDC-CORE-3.1.2.1-10` | covered                                                                                                                                                                                                                                                                                                                               |
 | 15.1    | MUST   | the OP supports the `acr_values` parameter, at minimum without erroring on any requested value                                                                                                                                                                                                 | `OIDC-CORE-15.1-03`    | covered                                                                                                                                                                                                                                                                                                                               |
 | 16.3    | SHOULD | the relying party validates the digital signature of a digitally signed token to verify it was issued by a legitimate OP                                                                                                                                                                       | —                      | n/a: client-side guidance; Odudu is the authorization server, not a client                                                                                                                                                                                                                                                            |
 | 16.4    | MUST   | access tokens are not exposed to unauthorized parties                                                                                                                                                                                                                                          | `OIDC-CORE-16.4-01`    | covered                                                                                                                                                                                                                                                                                                                               |

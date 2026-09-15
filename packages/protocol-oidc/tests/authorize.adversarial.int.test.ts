@@ -596,11 +596,10 @@ describe('[OIDC-CORE-3.1.2.1-01] POST at the authorization endpoint takes form e
 // OIDC Core §3.1.2.3: "If this parameter [prompt] contains none ... the
 // Authorization Server MUST NOT display any authentication or consent user
 // interface", and "MUST return an error if an End-User is not already
-// authenticated". Nothing in this server reads the session cookie at
-// /authorize, so no End-User is ever already authenticated at this point and
-// the error is unconditional — which is the behaviour §3.1.2.1 describes,
-// arrived at without a session to reuse rather than in spite of one.
-describe('prompt=none never authenticates and never shows a page', () => {
+// authenticated". These requests carry no session cookie, so no End-User is
+// already authenticated here and the error is unconditional for them; what a
+// live cookie does instead is `session-reuse.int.test.ts`'s territory.
+describe('prompt=none with no session never authenticates and never shows a page', () => {
   it('[OIDC-CORE-3.1.2.3-01] redirects with login_required rather than rendering anything', async () => {
     const res = await http.inject({ url: authorizeUrl({ prompt: 'none', state: 'xyz 123' }) });
 

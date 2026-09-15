@@ -3,7 +3,7 @@
 ## Start here
 
 **P0, P1 and P2a are complete. P2b is brainstormed, specified and planned;
-Tasks 1 and 2 have landed and Task 3 is next.** Migration 0026 adds
+Tasks 1 through 3 have landed and Task 4 is next.** Migration 0026 adds
 `token_grants.session_id`, nullable: null means an offline grant, which
 nothing expires and no logout can end; a non-null value is the SSO session
 the grant was issued under, and `sessions` needed a `UNIQUE (realm_id, id)`
@@ -47,9 +47,28 @@ authentication subflows become P4's, and `prompt=select_account` becomes
 P3's. That last one moved three `deferred: P2` clause rows in
 `docs/protocols/oidc-core.md` to `deferred: P3`; `pnpm trace` prints nothing
 for a `deferred:` row either way, so the move is invisible to the build and
-was made deliberately. **Eight `deferred: P2` rows remain, and all eight are
-P2b's to close** — seven in `oidc-core.md` (`auth_time`, two `acr`, `amr`,
-`prompt=login`, and two `max_age`) and RFC 6749 §2.3.1's brute-force MUST.
+was made deliberately.
+
+**Task 3 makes the SSO session load-bearing.** `/authorize` reads the
+`__Host-<realm>-session` cookie P1 wrote and never read, resolves it
+through `sessionRepository(tx).liveById` scoped to the realm's own idle
+window, and decides — alongside `prompt` and a newly-parsed `max_age` — to
+reuse the session, start a fresh authentication, or refuse under
+`prompt=none`, all in one function (`decideReuse`,
+`packages/protocol-oidc/src/usecase/session-reuse.ts`). A refusal is still
+a redirect below the §4.1.2.1 boundary, starts no authentication session,
+and writes no cookie, exactly as the unconditional P1 answer did. A reuse
+issues a code through the same `issueAuthorizationCode` the login form
+uses, carrying the session's own `auth_time` rather than a fresh clock
+read, and touches the session. The email-verified gate
+(`refusedForUnverifiedEmail`, extracted from `handleLoginSubmission`) now
+guards this second door into completing a login the same way it guards the
+password form — an unverified account holding a live cookie is refused,
+not signed in for free. This closes four `deferred: P2` rows in
+`docs/protocols/oidc-core.md`: §2's `auth_time`-and-`max_age` row,
+§3.1.2.1's `prompt=login` and `max_age` MUSTs, and §15.1's `max_age` MUST.
+**Four `deferred: P2` rows remain, all P2b's to close** — two `acr` rows and
+`amr` in `oidc-core.md`, and RFC 6749 §2.3.1's brute-force MUST.
 
 P2a delivered the identity model: roles, groups, client scopes, per-client
 web origins, the user profile, email delivery and the account lifecycle

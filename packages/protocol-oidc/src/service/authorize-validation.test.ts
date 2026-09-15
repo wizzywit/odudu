@@ -294,6 +294,7 @@ describe('validateAuthorizationRequest — the success path', () => {
       },
       prompts: new Set(),
       idTokenHint: null,
+      maxAge: null,
     });
   });
 });
@@ -334,4 +335,28 @@ describe('prompt and id_token_hint reach the usecase through the validated outco
     // registered redirect_uri to carry the error to.
     expect(validate({ ...params, prompt: 'none login' }, null, null).kind).toBe('render');
   });
+
+  it('carries a well-formed max_age out as a number', () => {
+    const outcome = validate({ ...params, max_age: '3600' }, client, config);
+    if (outcome.kind !== 'ok') throw new Error('expected the request to validate');
+    expect(outcome.maxAge).toBe(3600);
+  });
+
+  it('carries max_age=0 out as zero, not as absent', () => {
+    const outcome = validate({ ...params, max_age: '0' }, client, config);
+    if (outcome.kind !== 'ok') throw new Error('expected the request to validate');
+    expect(outcome.maxAge).toBe(0);
+  });
+
+  it.each(['-1', '1.5', 'abc', ' 1', '1 ', '+1', 'Infinity'])(
+    'redirects with invalid_request for max_age=%o',
+    (maxAge) => {
+      expect(validate({ ...params, max_age: maxAge }, client, config)).toMatchObject({
+        kind: 'redirect',
+        redirectUri: params.redirect_uri,
+        error: 'invalid_request',
+        state: params.state,
+      });
+    },
+  );
 });

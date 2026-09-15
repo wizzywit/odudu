@@ -12,6 +12,10 @@ export interface RealmLookup {
   // The ceiling completeLogin passes to establishSession: the realm's own
   // configured value, not a package-wide constant.
   ssoSessionMaxSeconds: number;
+  // The idle window resolveSession checks a cookie's session against
+  // (sessionRepository(tx).liveById) — the realm's own configured value,
+  // mirroring ssoSessionMaxSeconds.
+  ssoSessionIdleSeconds: number;
 }
 
 export interface NewRealm {
@@ -34,9 +38,29 @@ export function realmLookupRepository(db: Database) {
           enabled: realms.enabled,
           verifyEmail: realms.verifyEmail,
           ssoSessionMaxSeconds: realms.ssoSessionMaxSeconds,
+          ssoSessionIdleSeconds: realms.ssoSessionIdleSeconds,
         })
         .from(realms)
         .where(eq(realms.name, name));
+      return rows[0] ?? null;
+    },
+
+    // /authorize's session-reuse read (resolveSession) already knows the
+    // realm only by id, from the same request that resolved it by name a
+    // moment earlier — a second read on the owner connection, exactly like
+    // byName's, rather than threading the first result through as a bare
+    // dependency parameter.
+    async byId(id: string): Promise<RealmLookup | null> {
+      const rows = await db
+        .select({
+          id: realms.id,
+          enabled: realms.enabled,
+          verifyEmail: realms.verifyEmail,
+          ssoSessionMaxSeconds: realms.ssoSessionMaxSeconds,
+          ssoSessionIdleSeconds: realms.ssoSessionIdleSeconds,
+        })
+        .from(realms)
+        .where(eq(realms.id, id));
       return rows[0] ?? null;
     },
 
@@ -53,6 +77,7 @@ export function realmLookupRepository(db: Database) {
           enabled: realms.enabled,
           verifyEmail: realms.verifyEmail,
           ssoSessionMaxSeconds: realms.ssoSessionMaxSeconds,
+          ssoSessionIdleSeconds: realms.ssoSessionIdleSeconds,
         });
       const row = rows[0];
       if (row === undefined) {

@@ -726,12 +726,13 @@ describe('[OIDC-CORE-3.1.2.1-09] an id_token_hint names who the response is abou
 });
 
 // OIDC Core §3.1.2.3: "the Authorization Server attempts to Authenticate the
-// End-User" when the End-User is not already authenticated. Odudu never
-// reads the SSO session cookie at /authorize, so no End-User ever is — which
-// makes the obligation unconditional, and makes its two halves observable:
-// the request is answered with an authentication interface rather than a
-// grant, and nothing is granted until credentials have actually been
-// verified.
+// End-User" when the End-User is not already authenticated. A request
+// carrying no SSO session cookie at all is never already authenticated, so
+// the obligation is unconditional for it — and makes its two halves
+// observable: the request is answered with an authentication interface
+// rather than a grant, and nothing is granted until credentials have
+// actually been verified. What a *live* cookie now does instead is
+// `packages/protocol-oidc/tests/session-reuse.int.test.ts`'s territory.
 describe('[OIDC-CORE-3.1.2.3-04] an unauthenticated request is answered by authenticating', () => {
   it('serves the login form and grants nothing to a request carrying no session', async () => {
     const realmName = await setupLoginRealm(`acme-authn-fresh-${newId()}`);
@@ -756,26 +757,6 @@ describe('[OIDC-CORE-3.1.2.3-04] an unauthenticated request is answered by authe
     const right = await submitLogin({ ...GOOD, realmName });
     expect(right.statusCode).toBe(302);
     expect(new URL(locationHeader(right)).searchParams.get('code')).toBeTruthy();
-    expect(await countAuthorizationCodes(realmName)).toBe(1);
-  });
-
-  // "Not already authenticated" is the only state this server recognises: a
-  // request arriving with a live SSO session is authenticated again rather
-  // than answered from it, so a stolen cookie cannot stand in for a login.
-  it('authenticates again rather than answering from a session already established', async () => {
-    const realmName = await setupLoginRealm(`acme-authn-session-${newId()}`);
-    const loggedIn = await submitLogin({ ...GOOD, realmName });
-    const cookie = loggedIn.headers['set-cookie'];
-    if (typeof cookie !== 'string') throw new Error('expected a session cookie to be set');
-
-    const res = await http.inject({
-      url: authorizeUrl(realmName),
-      headers: { cookie: cookie.split(';')[0] ?? '' },
-    });
-
-    expect(res.statusCode).toBe(200);
-    expect(res.body).toContain('name="auth_session_id"');
-    expect(res.headers.location).toBeUndefined();
     expect(await countAuthorizationCodes(realmName)).toBe(1);
   });
 });
@@ -877,13 +858,15 @@ describe('[OIDC-CORE-16.4-01] an access token reaches nothing but the token resp
     if (accessToken === undefined) throw new Error('expected an access token');
 
     // The same End-User, the same client, a fresh journey, carrying the SSO
-    // session the first one established: the login form and the redirect it
-    // leads to are both searched for the token that already exists.
-    const form = await http.inject({
+    // session the first one established: the reuse redirect this now
+    // produces, and the redirect a fresh submission leads to, are both
+    // searched for the token that already exists.
+    const reused = await http.inject({
       url: authorizeUrl(realmName),
       ...(issued.cookie !== undefined ? { headers: { cookie: issued.cookie } } : {}),
     });
-    expect(form.body).not.toContain(accessToken);
+    expect(reused.body).not.toContain(accessToken);
+    expect(String(reused.headers.location)).not.toContain(accessToken);
 
     const next = await submitLogin({ ...GOOD, realmName });
     expect(locationHeader(next)).not.toContain(accessToken);
