@@ -14,6 +14,9 @@ import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { tokenGrantRepository, type TokenGrantRecord } from '#/repository/grants';
+import { refreshTokenRepository } from '#/repository/refresh';
+import { generateRefreshToken, hashRefreshToken } from '#/service/refresh';
+import { rotateRefreshToken } from '#/usecase/refresh-rotation';
 
 let containerHandle: TestDatabase | undefined;
 let ownerHandle: DatabaseHandle | undefined;
@@ -75,6 +78,21 @@ async function createGrant(tx: RealmScopedDatabase, realmId: string): Promise<To
   });
 }
 
+async function issueRefreshToken(
+  tx: RealmScopedDatabase,
+  realmId: string,
+): Promise<{ grant: TokenGrantRecord; token: string }> {
+  const grant = await createGrant(tx, realmId);
+  const token = generateRefreshToken();
+  await refreshTokenRepository(tx).create({
+    tokenHash: hashRefreshToken(token),
+    realmId,
+    grantId: grant.id,
+    expiresAt: new Date(Date.now() + 1_209_600_000),
+  });
+  return { grant, token };
+}
+
 describe('tokenGrantRepository', () => {
   it('creates and finds a grant by id', async () => {
     const realmId = newId();
@@ -132,5 +150,19 @@ describe('tokenGrantRepository', () => {
         expect(found?.revokedAt).toBeNull();
       },
     });
+  });
+
+  it('refuses to rotate a refresh token whose grant has been revoked', async () => {
+    const realmId = newId();
+    const { grant, token } = await withRealm(app.db, realmId, (tx) =>
+      issueRefreshToken(tx, realmId),
+    );
+
+    await withRealm(app.db, realmId, (tx) => tokenGrantRepository(tx).revoke(grant.id, new Date()));
+
+    const outcome = await withRealm(app.db, realmId, (tx) =>
+      rotateRefreshToken(tx, hashRefreshToken(token), new Date(), 600),
+    );
+    expect(outcome.kind).toBe('revoked');
   });
 });

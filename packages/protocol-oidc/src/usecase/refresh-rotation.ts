@@ -6,6 +6,7 @@ import { generateRefreshToken, hashRefreshToken } from '#/service/refresh';
 export type RotationOutcome =
   | { readonly kind: 'rotated'; readonly grant: TokenGrantRecord; readonly next: string }
   | { readonly kind: 'reused'; readonly revokedFamily: string }
+  | { readonly kind: 'revoked' }
   | { readonly kind: 'unknown' };
 
 // The single entry point for redeeming a refresh token. `consume` is one
@@ -38,6 +39,12 @@ export async function rotateRefreshToken(
   const grant = await tokenGrantRepository(tx).byId(consumed.grantId);
   if (grant === null) {
     throw new Error(`refresh token ${presentedHash} references a nonexistent grant`);
+  }
+  // A revoked family issues nothing further. The presented token was
+  // consumed above and stays consumed: a logout or a detected reuse ends
+  // the family, and rotating one more token out of it would undo that.
+  if (grant.revokedAt !== null) {
+    return { kind: 'revoked' };
   }
 
   const next = generateRefreshToken();
