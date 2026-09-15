@@ -254,8 +254,8 @@ describe('the sid claim', () => {
   });
 
   // Offline grants (`offline_access`, no session) do not exist yet — the
-  // next task in the plan is what lets a grant actually be created with a
-  // null session id from a live request. Unskip this once it lands.
+  // `offline_access` scope is what allows a grant to be created with no
+  // session. Unskip this once it exists.
   it.skip('omits sid entirely for an offline grant, which has no session', () => {
     throw new Error('depends on offline_access — not yet implemented');
   });
