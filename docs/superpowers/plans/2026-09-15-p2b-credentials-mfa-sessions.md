@@ -1520,13 +1520,22 @@ ALTER TABLE authentication_sessions
   ADD COLUMN satisfied text[] NOT NULL DEFAULT '{}';
 ```
 
-- [ ] **Step 2: Write the failing integration test**
+- [ ] **Step 2: Write the failing tests**
 
-Cases: a password success on a realm whose subject has TOTP enrolled returns a `challenge` for the OTP form rather than a success; the satisfied list then contains `password`; a wrong OTP code leaves `password` satisfied and re-challenges OTP only; a correct OTP code returns success; and an expired authentication session still returns `authentication_session_expired` unchanged.
+**Corrected before implementation.** This step originally described a TOTP journey — a password success re-challenging for an OTP form, a wrong code re-challenging OTP alone, a correct code succeeding. None of it is reachable here: there is no OTP authenticator and no non-password credential type until the TOTP tasks later in the phase, so `otp` is inapplicable for every subject and the default flow completes after one password step. The plan asserted a test that its own sequencing makes impossible.
 
-- [ ] **Step 3: Run it and watch it fail**
+What this task proves instead, split by what each layer can honestly show:
 
-Run: `pnpm exec vitest run --project integration multi-step`
+- **Resumption, as a unit test of the executor against a fake registry.** Two executions, the first satisfied, and `advance` must offer the second rather than the first. That is decision #3 — a correct password followed by a wrong second factor must not ask for the password again — and it is a property of the engine, not of any authenticator.
+- **Persistence, as an integration test.** `satisfied` round-trips: recording an authenticator puts it in the column, reading it back returns it, and a foreign `realm_id` sees nothing.
+- **Ordering, as an integration test.** A realm's executions drive the dispatch: a provisioned realm completes after `password`, and `passkey`/`otp` being inapplicable is asserted rather than assumed.
+- **Unchanged behaviour.** An expired authentication session still returns `authentication_session_expired`.
+
+The end-to-end multi-factor journey — password, then a real OTP challenge, then success — belongs to the task that builds the TOTP authenticator, and is named in its step list.
+
+- [ ] **Step 3: Run them and watch them fail**
+
+Run: `pnpm exec vitest run --project unit executor` and `pnpm exec vitest run --project integration multi-step`
 Expected: FAIL — `advance` runs `STEPS[0]` and nothing else.
 
 - [ ] **Step 4: Replace `STEPS` with the registry**
@@ -2341,6 +2350,8 @@ Run: `pnpm exec vitest run --project unit totp`
 - [ ] **Step 4: Write the failing integration test for the whole journey**
 
 Cases: a realm with `otp_required` on and a subject with no TOTP credential gets `configure-totp` and cannot complete a login until enrolled; enrolment stores a `totp` credential and the same login then completes; a subsequent login asks for a code after the password; the same code cannot be used twice; and a subject who enrolled while the realm did not require OTP is still asked for a code.
+
+**This task also owes the end-to-end multi-factor journey the flow-engine task could not write**, because no OTP authenticator existed then: a password success returning an OTP `challenge` rather than a success, a wrong code leaving `password` satisfied and re-challenging OTP alone, and a correct code completing the login. The engine's resumption is already unit-tested; this is the first point at which it can be shown through two real factors end to end.
 
 - [ ] **Step 5: Implement enrolment**
 
