@@ -36,7 +36,7 @@ Everything in P0's, P1's and P2a's plans still binds. Repeated here because an i
 - **`pnpm trace` runs strict.** A new MUST that is not `covered` fails the build. A new `deferred:` or `n/a:` row must move the count in `tools/trace/silenced-musts.json` in the same diff.
 - **`README.md` and `docs/request-paths.md` are updated in the same commit as the code** that changes a request, response, branch, error code, endpoint, command or default. `tests/docs/` fails the build on drift, and every command in `docs/request-paths.md` has been run against a live stack with real output pasted back.
 - **`docs/NEXT.md` is updated at the end of every task**, not at phase close.
-- Every task ends with **CI green on a pushed commit with the draft pull request open**. The draft PR opens in Task 1 and stays open for the phase.
+- Every task ends with **CI green on a pushed commit with the draft pull request open**. The draft PR opens in Task 1 and stays open for the phase. **No exceptions, including the three spikes and the unit-test-only tasks**: a commit CI has not seen is a commit whose state nobody has verified, and a branch with unpushed commits makes "green on the last push" a claim about something other than the current tree. A task is not finished until `gh pr checks --watch` has reported pass on its own pushed commit.
 
 ### P2b-specific constraints
 
@@ -1427,6 +1427,8 @@ Expected: PASS, nine tests.
 ```bash
 git add -A
 git commit -m "Decide the next authentication step from a flat list of requirements"
+git push
+gh pr checks --watch
 ```
 
 ---
@@ -1685,6 +1687,8 @@ docker rm -f jsonb-spike && rm -rf /tmp/jsonb-spike
 ```bash
 git add docs/superpowers/p2b-spike-log.md
 git commit -m "Establish how secret_data converts to jsonb without mangling a PHC string"
+git push
+gh pr checks --watch
 ```
 
 ---
@@ -2227,6 +2231,8 @@ Expected: no surviving mutants in `totp.ts`. A surviving mutant in the truncatio
 ```bash
 git add -A
 git commit -m "Implement RFC 6238 TOTP against the specification's own vectors"
+git push
+gh pr checks --watch
 ```
 
 ---
@@ -2367,6 +2373,8 @@ Append to `docs/superpowers/p2b-spike-log.md` under `## @simplewebauthn/server: 
 rm -rf /tmp/webauthn-spike
 git add docs/superpowers/p2b-spike-log.md
 git commit -m "Establish the WebAuthn library's surface and whether a usernameless assertion resolves"
+git push
+gh pr checks --watch
 ```
 
 ---
@@ -2897,6 +2905,8 @@ Append to `docs/superpowers/p2b-spike-log.md` under `## Advisory locks inside wi
 rm packages/db/tests/advisory-lock-spike.int.test.ts
 git add -A
 git commit -m "Establish which advisory lock variant is safe inside a pooled realm transaction"
+git push
+gh pr checks --watch
 ```
 
 ---
@@ -3299,6 +3309,12 @@ The spec already carries two corrections made during planning — the `token_gra
 
 Run: `pnpm verify`
 Expected: green — format, typecheck, lint, boundaries, build, test, trace.
+
+```bash
+git add -A
+git commit -m "Close P2b: the phase-wide documentation pass"
+git push
+```
 
 Run: `gh pr checks --watch`
 Expected: `verify`, `container`, `conformance` and `commit-messages` all pass.
