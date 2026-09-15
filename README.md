@@ -96,8 +96,10 @@ Every realm also carries a password policy — `password_min_length` (default
 `password_require_digit`, `password_require_uppercase`,
 `password_require_lowercase` and `password_require_special` (all off by
 default), and `password_not_username`/`password_not_email` (both on by
-default, refusing a password that contains the account's own username or
-email address). `password_history_depth` and `password_max_age_days` are
+default, refusing a password that contains the account's own username, or
+the local part of its email address — matched independently, so a
+password containing both is refused for both). `password_history_depth`
+and `password_max_age_days` are
 columns today with no reader yet — P2b's `update-password` task turns them
 into enforcement. The policy is read from the realm, never defaulted in
 code, and the same `evaluatePassword` call binds every writer of a

@@ -13,6 +13,9 @@ const base: PasswordPolicy = {
   maxAgeDays: 0,
 };
 const ada = { username: 'ada', email: 'ada@example.com' };
+// A username and an email local part that differ, so a test can isolate
+// which rule fired instead of always tripping both at once.
+const distinct = { username: 'ada', email: 'grace@example.com' };
 
 describe('evaluatePassword', () => {
   it('accepts a password that satisfies the policy', () => {
@@ -37,15 +40,23 @@ describe('evaluatePassword', () => {
   });
 
   it('refuses a password containing the username, case-insensitively', () => {
-    expect(evaluatePassword('myADApassword', base, ada).map((v) => v.rule)).toEqual([
+    expect(evaluatePassword('myADApassword', base, distinct).map((v) => v.rule)).toEqual([
       'not-username',
     ]);
   });
 
-  it('refuses a password containing the local part of the email address', () => {
-    expect(evaluatePassword('ada@example.com!', base, ada).map((v) => v.rule)).toContain(
+  it('refuses a password containing the local part of the email address, case-insensitively', () => {
+    expect(evaluatePassword('myGRACEpassword', base, distinct).map((v) => v.rule)).toEqual([
       'not-email',
-    );
+    ]);
+  });
+
+  it('trips both rules when the username equals the email local part', () => {
+    expect(
+      evaluatePassword('myADApassword', base, ada)
+        .map((v) => v.rule)
+        .sort(),
+    ).toEqual(['not-email', 'not-username']);
   });
 
   it('counts characters, not UTF-16 code units', () => {

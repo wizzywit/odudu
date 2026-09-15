@@ -74,11 +74,15 @@ export function evaluatePassword(
     violations.push({ rule: 'not-username', message: 'Password must not contain the username.' });
   }
 
+  // Matches the local part, not the whole address: a candidate containing
+  // just the account name half of the email is exactly as weak as one
+  // containing the username, whether or not the two happen to be equal.
+  const emailLocalPart = subject.email?.split('@')[0] ?? '';
   if (
     policy.notEmail &&
     subject.email !== null &&
-    subject.email.length > 0 &&
-    candidate.toLowerCase().includes(subject.email.toLowerCase())
+    emailLocalPart.length > 0 &&
+    candidate.toLowerCase().includes(emailLocalPart.toLowerCase())
   ) {
     violations.push({
       rule: 'not-email',

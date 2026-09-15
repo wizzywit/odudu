@@ -1481,8 +1481,10 @@ on for the realm, the same short password now lists all three:
 </html>
 ```
 
-And `password_not_username` (on by default) refuses a password that simply
-contains the account's own username, case-insensitively:
+`password_not_username` and `password_not_email` (both on by default)
+refuse a password containing the account's own username, or the local part
+of its email address, case-insensitively — matched independently, so a
+password tripping both lists both:
 
 ```bash
 curl -sS -X POST http://localhost:3000/realms/register-demo/login-actions/registration \
@@ -1499,6 +1501,31 @@ curl -sS -X POST http://localhost:3000/realms/register-demo/login-actions/regist
 <h1>Can't create this account</h1>
 <ul>
 <li>Password must not contain the username.</li>
+<li>Password must not contain the email address.</li>
+</ul>
+</body>
+</html>
+```
+
+A username and an email local part that differ show each rule on its own —
+here `carol`'s password contains no part of her own username, but does
+contain the local part of the email address given for the account:
+
+```bash
+curl -sS -X POST http://localhost:3000/realms/register-demo/login-actions/registration \
+  --data-urlencode 'username=carol' \
+  --data-urlencode 'email=ada@example.com' \
+  --data-urlencode 'password=myADApassword'
+```
+
+```
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Can't create this account</title></head>
+<body>
+<h1>Can't create this account</h1>
+<ul>
+<li>Password must not contain the email address.</li>
 </ul>
 </body>
 </html>
