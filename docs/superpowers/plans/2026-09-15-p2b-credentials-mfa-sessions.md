@@ -27,6 +27,8 @@ Everything in P0's, P1's and P2a's plans still binds. Repeated here because an i
 - **Never reference the development process from a comment** — no "Task 12", no "Step 3", no plan slot numbers. Name the thing instead: not "read by Task 14's grant" but "read by the client_credentials grant".
 - **Commit messages contain no `Co-Authored-By` or tool-attribution trailers.** A repository hook rejects them; a commit that fails for this reason is re-committed with the trailer removed, not forced.
 - Test-driven: the failing test is written and observed failing before implementation.
+- **"Reuse the existing function" carries that function's preconditions, and they are load-bearing.** Where a task says to reuse something rather than duplicate it, read what the existing function assumes and check the new caller still satisfies it. This plan already shipped one Critical defect that way: `issueAuthorizationCode` derived a code's `expires_at` from `authTime` because on the form path `authTime` _is_ `now`, and the session-reuse caller passes a past `authTime`, so a reused login issued a code that had already expired. The P0 rule about `verified:` versus `assumption:` applies to first-party code too — a claim that an existing function is safe under a new caller is an assumption, not a fact, and its precondition belongs in the task text.
+- **An injected clock cannot move the database's clock.** Anything enforced in SQL against `now()` — authorization-code expiry, session expiry, lockout windows — is untestable with a fake clock, and a test that advances one and passes has proved nothing. Back-date the row through the owner connection instead.
 - **The integration-test harness is the package's existing one, not the one this plan's skeletons sketch.** `@odudu/testkit` exports exactly `startTestDatabase`, `createAppRole` and `TestDatabase` — there is no `testDatabase()` and no `seedRealm()`, and any skeleton below that calls them is shorthand, not a real API. Copy the setup from the nearest existing `*.int.test.ts` in the package you are working in; `packages/authn-flows/tests/session-lifespan.int.test.ts` is the freshest exemplar (`startTestDatabase` + `createAppRole` + `createDatabase` + `runMigrations`, with a hand-rolled realm seed). For a foreign-`realm_id` probe use **`expectCrossRealmMethodProbe` from `@odudu/db/testing`** rather than hand-writing the assertion.
 - **How to run tests.** No package declares a `test` script — each package's `package.json` has only `typecheck`. Vitest is configured at the root (`vitest.config.ts`) with two projects, `unit` and `integration`, selected by path: `{packages,apps}/*/src/**/*.test.ts` for unit, `{packages,apps}/*/tests/**/*.int.test.ts` for integration. So run one file or one name fragment with `pnpm exec vitest run --project integration <fragment-or-path>`, and the whole suite with `pnpm test` from the root. `pnpm --filter @odudu/<pkg> test` fails with `ERR_PNPM_RECURSIVE_RUN_NO_SCRIPT`.
 - **Run tests in the foreground and read the output yourself.** Do not background a test run and wait to be notified — that stalls the task with the work uncommitted.
@@ -682,7 +684,7 @@ The behaviour change a relying party can observe, and the task that closes four 
 - Consumes: `sessionRepository(tx).liveById` and `.touch` (Task 2); `sessionCookieName(realm, tls)` from `@odudu/authn-flows`; `handleAuthorizationRequest` and its `AuthorizeUsecaseDeps`
 - Produces:
   - `decideReuse(input: ReuseInput): ReuseDecision` where `ReuseDecision` is `{ kind: 'reuse'; subjectId: string; authTime: Date } | { kind: 'authenticate' } | { kind: 'refuse'; error: string }`
-  - `AuthorizeUsecaseDeps.resolveSession(realmId: string, cookieValue: string | undefined): Promise<ResolvedSession | null>`
+  - `AuthorizeUsecaseDeps.resolveSession(realm: RealmLookup, cookieValue: string | undefined): Promise<ResolvedSession | null>` — takes the resolved realm, not its id: the caller already holds the `RealmLookup` including `ssoSessionIdleSeconds`, so passing the id alone forces a second realm read on the RLS-bypassing owner connection for every request carrying a cookie. Guard a non-UUID cookie value before it reaches the query, or a garbage cookie is a 500 rather than "no session".
   - `AuthorizationRequestOutcome` gains `{ kind: 'reused'; code: string; redirectUri: string; state: string | null }`
 
 - [ ] **Step 1: Write the failing unit tests for the decision**
@@ -852,7 +854,11 @@ Expected: PASS. Existing `prompt=none` tests will need their expectations update
 
 - [ ] **Step 9: Close the clause rows**
 
-In `docs/protocols/oidc-core.md`, move §2's `auth_time` MUST, §3.1.2.1's `prompt=login` MUST, §3.1.2.1's `max_age` MUST and §15.1's `max_age` MUST from `deferred: P2` to `covered` with the test ids from this task. Then rewrite the reading note that says "always return `login_required`" is the whole of `prompt=none` — it is now a decision, and the note should say what replaced it.
+In `docs/protocols/oidc-core.md`, move **three** rows from `deferred: P2` to `covered` with the test ids from this task: §2's `auth_time` MUST, §3.1.2.1's `max_age` MUST, and §15.1's `max_age` MUST.
+
+**§3.1.2.1's `prompt=login` MUST is not closable here** and stays `deferred: P2`. "An error is returned if reauthentication cannot be performed" still has no reachable branch: this server can always render a login form, and a hint mismatch after a forced reauthentication is the `id_token_hint` rule, already held by its own row. The state where reauthentication genuinely cannot be performed arrives with the flow engine, where a realm's flow can have no applicable execution at all.
+
+Every test id must name a test that actually exercises its clause. A test that establishes a session and then never presents it to `/authorize` is not exercising session reuse, whatever its fixture does. Give the reuse tests their own ids rather than reusing ids already carried by tests asserting the opposite outcome — `pnpm trace` requires all carriers of an id to pass, so a shared id lets a deleted test hide behind a surviving one that proves something different. Then rewrite the reading note that says "always return `login_required`" is the whole of `prompt=none` — it is now a decision, and the note should say what replaced it.
 
 Run: `pnpm test && pnpm trace`
 Expected: `pnpm trace` exits 0 with four fewer `deferred` and four more `covered`.
@@ -1494,12 +1500,19 @@ Delete the `STEPS` constant and the `StepName` type. `AUTHENTICATORS` becomes ke
 
 `form: 'password'` becomes `form: string`, and `authorize-html.ts` renders the form the challenge names. The hidden `auth_session_id` field — the login form's whole CSRF defence — is on every form, not just the password one.
 
-- [ ] **Step 6: Run the suites**
+- [ ] **Step 6: Close §3.1.2.1's `prompt=login` MUST, which now has a reachable branch**
+
+A realm whose flow has no applicable execution is the state in which reauthentication cannot be performed: `nextStep` returns `fail` for it. Under `prompt=login` that must be answered `login_required` at the `redirect_uri` — not a rendered page, and nothing persisted. Write that test, move `OIDC-CORE-3.1.2.1-11` from `deferred: P2` to `covered` against it, and drop the `oidc-core.md` count in `tools/trace/silenced-musts.json` by one.
+
+Run: `pnpm trace`
+Expected: exit 0, one fewer `deferred`, one more `covered`.
+
+- [ ] **Step 7: Run the suites**
 
 Run: `pnpm test`
 Expected: PASS.
 
-- [ ] **Step 7: Commit, push, wait**
+- [ ] **Step 8: Commit, push, wait**
 
 ```bash
 git add -A
