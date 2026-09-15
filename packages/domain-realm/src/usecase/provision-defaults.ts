@@ -1,3 +1,4 @@
+import { provisionBrowserFlow } from '@odudu/authn-flows';
 import { type RealmScopedDatabase } from '@odudu/db';
 import {
   clientScopeRepository,
@@ -58,6 +59,7 @@ export async function provisionRealmDefaults(
   for (const { scope } of DEFAULT_SCOPES) {
     await repository.create({ realmId, ...scope });
   }
+  await provisionBrowserFlow(tx, realmId);
 }
 
 // A scope reaches a token only when the realm defines it *and* the client is

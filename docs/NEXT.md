@@ -3,7 +3,20 @@
 ## Start here
 
 **P0, P1 and P2a are complete. P2b is brainstormed, specified and planned;
-Tasks 1 through 6 have landed and Task 7 is next.** Migration 0026 adds
+Tasks 1 through 7 have landed and Task 8 is next.** Migration 0031 adds
+`authentication_executions`: one flat, ordered list per realm (`id`,
+`realm_id`, `index`, `authenticator`, `requirement`), `requirement`
+constrained to `required`/`alternative`/`conditional`/`disabled` and
+`(realm_id, index)` unique. `@odudu/authn-flows` gained
+`executionRepository` (`forRealm`, ordered by `index`; `create`) and
+`provisionBrowserFlow`, which seeds `BROWSER_FLOW_DEFAULT` — `passkey` and
+`password` at `alternative`, `otp` at `conditional` — for every realm.
+`provisionRealmDefaults` (`@odudu/domain-realm`) now calls it beside the
+client-scope seeding, so a realm is never left without a flow; this is the
+first `@odudu/domain-realm` dependency on `@odudu/authn-flows`. Evaluating
+the flow into a decision, and rewiring `executor.ts`'s `STEPS` to read it,
+are Tasks 8 and 9 — this task built only the table, the repository and the
+provisioning default. Migration 0026 adds
 `token_grants.session_id`, nullable: null means an offline grant, which
 nothing expires and no logout can end; a non-null value is the SSO session
 the grant was issued under, and `sessions` needed a `UNIQUE (realm_id, id)`

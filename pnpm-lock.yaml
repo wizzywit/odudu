@@ -357,6 +357,9 @@ importers:
 
   packages/domain-realm:
     dependencies:
+      '@odudu/authn-flows':
+        specifier: workspace:*
+        version: link:../authn-flows
       '@odudu/db':
         specifier: workspace:*
         version: link:../db

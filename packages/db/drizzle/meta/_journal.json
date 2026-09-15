@@ -218,6 +218,13 @@
       "when": 1789049381673,
       "tag": "0030_client_post_logout_redirect_uris",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1789049381674,
+      "tag": "0031_authentication_executions",
+      "breakpoints": true
     }
   ]
 }

@@ -41,3 +41,10 @@ export {
 } from '#/schema/authentication-sessions';
 export { sessions, type SessionRecord } from '#/schema/sessions';
 export { type AuthenticatorResult } from '#/schema/authenticator';
+export { executionRepository, type NewAuthenticationExecution } from '#/repository/executions';
+export {
+  authenticationExecutions,
+  type AuthenticationExecutionRecord,
+  type Requirement,
+} from '#/schema/execution';
+export { provisionBrowserFlow, BROWSER_FLOW_DEFAULT } from '#/usecase/provision-flow';

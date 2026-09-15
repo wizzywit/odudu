@@ -14,6 +14,7 @@
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
+    "@odudu/authn-flows": "workspace:*",
     "@odudu/db": "workspace:*",
     "@odudu/kernel": "workspace:*",
     "drizzle-orm": "0.45.2"
