@@ -14,36 +14,38 @@ export type NextStep =
   { kind: 'run'; authenticator: string } | { kind: 'complete' } | { kind: 'fail' };
 
 interface Group {
+  kind: 'alternative' | 'single';
   members: Step[];
 }
 
-// A run of adjacent `alternative` steps forms one group; every other step is
-// a group of its own. `disabled` steps are dropped before grouping, so
-// removing one never merges the alternatives that sat on either side of it.
+// A disabled step is treated as absent, not merely skipped: it is filtered
+// out before grouping runs, so two alternative runs it separated become one
+// run, exactly as they would if the disabled step had never been listed.
 function groupSteps(steps: readonly Step[]): Group[] {
   const groups: Group[] = [];
   for (const s of steps) {
     if (s.requirement === 'disabled') continue;
     const last = groups.at(-1);
-    const lastIsAlternative =
-      last !== undefined && last.members.at(-1)?.requirement === 'alternative';
-    if (s.requirement === 'alternative' && last !== undefined && lastIsAlternative) {
+    if (s.requirement === 'alternative' && last?.kind === 'alternative') {
       last.members.push(s);
     } else {
-      groups.push({ members: [s] });
+      groups.push({
+        kind: s.requirement === 'alternative' ? 'alternative' : 'single',
+        members: [s],
+      });
     }
   }
   return groups;
 }
 
-// An alternative run of more than one member needs an actual satisfied
-// member — being merely inapplicable does not stand in for "someone else
-// covered it". A group of one is satisfied by its member's success or by
-// that member simply not applying to this subject.
+// An alternative run — one member or several — is satisfied only by an
+// actual satisfied member; inapplicability never stands in for "someone
+// else covered it". A non-alternative group of one is satisfied by its
+// member's success or by that member simply not applying to this subject.
 function isGroupSatisfied(group: Group, state: FlowState): boolean {
   const anySatisfied = group.members.some((m) => state.satisfied.has(m.authenticator));
   if (anySatisfied) return true;
-  if (group.members.length === 1) {
+  if (group.kind === 'single') {
     const [only] = group.members;
     return only !== undefined && !only.applicable;
   }

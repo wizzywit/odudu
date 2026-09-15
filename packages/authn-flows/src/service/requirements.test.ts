@@ -76,4 +76,23 @@ describe('nextStep', () => {
     ];
     expect(nextStep(spanned, state('password'))).toEqual({ kind: 'complete' });
   });
+
+  // A lone `alternative` (no adjacent `alternative` neighbour) is still an
+  // alternative run of one, not a non-alternative singleton — it must not
+  // be satisfied by mere inapplicability the way a `required` or
+  // `conditional` singleton is.
+  it('fails a lone inapplicable alternative rather than completing it', () => {
+    const lone = [step('otp', 'alternative', false)];
+    expect(nextStep(lone, state())).toEqual({ kind: 'fail' });
+  });
+
+  it('runs a lone applicable alternative', () => {
+    const lone = [step('otp', 'alternative')];
+    expect(nextStep(lone, state())).toEqual({ kind: 'run', authenticator: 'otp' });
+  });
+
+  it('does not let an inapplicable lone alternative satisfy the flow when a required step remains', () => {
+    const shape = [step('otp', 'alternative', false), step('password', 'required')];
+    expect(nextStep(shape, state())).toEqual({ kind: 'fail' });
+  });
 });
