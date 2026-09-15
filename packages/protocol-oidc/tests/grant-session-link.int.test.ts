@@ -145,4 +145,90 @@ describe('a grant and the session it belongs to', () => {
     );
     expect(revoked).toBe(0);
   });
+
+  it('finds every grant of one session and not an offline grant for the same subject', async () => {
+    const realmId = newId();
+    const sessionId = newId();
+
+    const { clientDbId, subjectId } = await withRealm(app.db, realmId, (tx) =>
+      seedRealmClientSubject(tx, realmId),
+    );
+    await withRealm(app.db, realmId, (tx) =>
+      sessionRepository(tx).create({
+        id: sessionId,
+        realmId,
+        subjectId,
+        expiresAt: new Date(Date.now() + 3_600_000),
+      }),
+    );
+
+    const [first, second] = await withRealm(app.db, realmId, async (tx) => {
+      const repository = tokenGrantRepository(tx);
+      return [
+        await repository.create({
+          realmId,
+          clientId: clientDbId,
+          subjectId,
+          scope: 'openid',
+          audience: [],
+          sessionId,
+        }),
+        await repository.create({
+          realmId,
+          clientId: clientDbId,
+          subjectId,
+          scope: 'profile',
+          audience: [],
+          sessionId,
+        }),
+      ];
+    });
+    await withRealm(app.db, realmId, (tx) =>
+      tokenGrantRepository(tx).create({
+        realmId,
+        clientId: clientDbId,
+        subjectId,
+        scope: 'openid offline_access',
+        audience: [],
+        sessionId: null,
+      }),
+    );
+
+    const found = await withRealm(app.db, realmId, (tx) =>
+      tokenGrantRepository(tx).bySession(sessionId),
+    );
+    expect(found.map((grant) => grant.id).sort()).toEqual([first.id, second.id].sort());
+  });
+
+  it('cannot find a foreign realm’s session grants', async () => {
+    const theirsRealmId = newId();
+    const mineRealmId = newId();
+    const sessionId = newId();
+
+    await withRealm(app.db, mineRealmId, (tx) => seedRealmClientSubject(tx, mineRealmId));
+    const { clientDbId, subjectId } = await withRealm(app.db, theirsRealmId, (tx) =>
+      seedRealmClientSubject(tx, theirsRealmId),
+    );
+    await withRealm(app.db, theirsRealmId, async (tx) => {
+      await sessionRepository(tx).create({
+        id: sessionId,
+        realmId: theirsRealmId,
+        subjectId,
+        expiresAt: new Date(Date.now() + 3_600_000),
+      });
+      await tokenGrantRepository(tx).create({
+        realmId: theirsRealmId,
+        clientId: clientDbId,
+        subjectId,
+        scope: 'openid',
+        audience: [],
+        sessionId,
+      });
+    });
+
+    const found = await withRealm(app.db, mineRealmId, (tx) =>
+      tokenGrantRepository(tx).bySession(sessionId),
+    );
+    expect(found).toEqual([]);
+  });
 });

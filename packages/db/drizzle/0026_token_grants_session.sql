@@ -10,10 +10,11 @@ ALTER TABLE token_grants ADD COLUMN session_id uuid;
 -- already gives token_grants.
 ALTER TABLE sessions ADD CONSTRAINT sessions_realm_id_unique UNIQUE (realm_id, id);
 
--- ON DELETE SET NULL is a backstop, not the mechanism. Reaping a session a
--- live grant still references would otherwise silently promote a
--- session-bound grant to an offline one, so the reaper refuses to; see
--- apps/server/src/cli/reap.ts.
+-- ON DELETE SET NULL is a backstop, not the mechanism. Deleting a session
+-- a live grant still references would otherwise silently promote a
+-- session-bound grant to an offline one; whatever reaps sessions must
+-- refuse to delete one a live grant still points at, rather than rely on
+-- this clause to catch it.
 ALTER TABLE token_grants ADD CONSTRAINT token_grants_session_fk
   FOREIGN KEY (realm_id, session_id) REFERENCES sessions (realm_id, id)
   ON DELETE SET NULL;

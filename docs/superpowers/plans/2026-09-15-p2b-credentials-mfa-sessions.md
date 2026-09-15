@@ -158,7 +158,7 @@ This task lands alone and is pushed alone. It changes the refresh path, which is
   - `TokenGrantRecord.sessionId: string | null`
   - `NewTokenGrant.sessionId?: string | null`
   - `tokenGrantRepository(tx).revokeForSession(sessionId: string, revokedAt: Date): Promise<number>` — returns how many grants it revoked
-  - `tokenGrantRepository(tx).bySession(sessionId: string): Promise<TokenGrantRecord[]>`
+  - `tokenGrantRepository(tx).bySession(sessionId: string): Promise<TokenGrantRecord[]>` — read by the retention pass, which refuses to delete a session a live grant still references. Like every repository method here it needs a happy-path test **and** a foreign-`realm_id` probe, even though its first caller arrives much later.
   - `RotationOutcome` gains `{ readonly kind: 'revoked' }`
 
 - [ ] **Step 1: Write the migration**
@@ -171,10 +171,16 @@ This task lands alone and is pushed alone. It changes the refresh path, which is
 -- session's grants in one statement rather than a scan.
 ALTER TABLE token_grants ADD COLUMN session_id uuid;
 
--- ON DELETE SET NULL is a backstop, not the mechanism. Reaping a session a
--- live grant still references would otherwise silently promote a
--- session-bound grant to an offline one, so the reaper refuses to; see
--- apps/server/src/cli/reap.ts.
+-- sessions has no unique constraint on (realm_id, id): its primary key is on
+-- id alone, unlike subjects, clients and token_grants. A composite foreign
+-- key needs one on exactly the referenced columns, so it is added here,
+-- copying the idiom those tables already use.
+ALTER TABLE sessions ADD CONSTRAINT sessions_realm_id_unique UNIQUE (realm_id, id);
+
+-- ON DELETE SET NULL is a backstop against a future writer, not the
+-- mechanism. Deleting a session a live grant still references would
+-- otherwise silently promote a session-bound grant to an offline one, which
+-- the retention pass is required to refuse outright.
 ALTER TABLE token_grants ADD CONSTRAINT token_grants_session_fk
   FOREIGN KEY (realm_id, session_id) REFERENCES sessions (realm_id, id)
   ON DELETE SET NULL;
