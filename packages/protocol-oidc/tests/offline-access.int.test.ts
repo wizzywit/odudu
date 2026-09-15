@@ -281,6 +281,19 @@ async function grantsForSubject(
   );
 }
 
+// Thrown rather than returned so the tests can assert with
+// `.rejects.toMatchObject({ error: ... })` — `error` is a real property of
+// the thrown value, not just folded into the message, so that assertion
+// reads the token endpoint's own error code, not a string it was baked into.
+class TokenEndpointError extends Error {
+  readonly error: string;
+
+  constructor(body: { error: string }) {
+    super(`token endpoint refused: ${JSON.stringify(body)}`);
+    this.error = body.error;
+  }
+}
+
 async function refresh(
   realmName: string,
   refreshToken: string,
@@ -296,7 +309,7 @@ async function refresh(
     },
   });
   if (res.statusCode !== 200) {
-    throw res.json<{ error: string }>();
+    throw new TokenEndpointError(res.json<{ error: string }>());
   }
   return res.json<{ token_type: string; access_token: string }>();
 }
