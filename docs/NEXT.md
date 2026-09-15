@@ -3,7 +3,7 @@
 ## Start here
 
 **P0, P1 and P2a are complete. P2b is brainstormed, specified and planned;
-Tasks 1 through 8 have landed and Task 9 is next.** Migration 0031 adds
+Tasks 1 through 9 have landed and Task 10 is next.** Migration 0031 adds
 `authentication_executions`: one flat, ordered list per realm (`id`,
 `realm_id`, `index`, `authenticator`, `requirement`), `requirement`
 constrained to `required`/`alternative`/`conditional`/`disabled` and
@@ -46,7 +46,67 @@ brief-given cases pin down, covered by a tenth test). An empty flow, or one
 where every group runs out of applicable members, returns `{ kind: 'fail'
 }` rather than `{ kind: 'complete' }` — the case that stops a misconfigured
 realm from admitting anyone with no credential at all. `executor.ts`'s
-`STEPS` rewiring to call this is Task 9's, untouched here. Migration 0026 adds
+`STEPS` rewiring to call this is Task 9's, untouched here.
+
+**Task 9 is that rewiring, and it lands the registry `advance()` was always
+going to need.** Migration 0032 adds `authentication_sessions.satisfied`
+(`text[]`, default `{}`): the authenticator names this authentication has
+already run through, so a multi-step login resumes rather than restarts — a
+correct password followed by a wrong second factor never asks for the
+password again. `executor.ts` deletes `STEPS`/`StepName` entirely.
+`AUTHENTICATORS` is now `Record<string, AuthenticatorFn>` keyed by the
+`authenticator` column, holding `password` (real), and `passkey`/`otp`
+(registered but throwing if ever actually invoked — never reachable, since
+`isApplicable` hardcodes both false: neither has a credential type to
+enrol into yet, so there is nothing to look up). `isRegisteredAuthenticator`
+lets `provisionBrowserFlow` (`usecase/provision-flow.ts`) reject an unknown
+authenticator name in `BROWSER_FLOW_DEFAULT` at provisioning time rather
+than at login. The dispatch itself is `dispatchNext(registry, steps,
+satisfied, input)` — one decide-and-run against `nextStep`, exported so
+resumption is provable as a unit test against a fake registry
+(`ODUDU-AUTHN-RESUMPTION-01`) rather than tied to `password` being the one
+real authenticator. `advance()` still takes exactly the arguments it always
+has; a caller cannot tell the registry exists. `initialChallenge(tx,
+realmId)` answers what a realm's flow would ask for first, with no session
+yet — used both to render the right form at `/authorize` and to detect a
+flow with no applicable execution at all before a session is ever started.
+`pendingChallenge(tx, authSessionId)` answers the same question for a live
+session, letting the login route re-render the right form after a rejected
+attempt without `login-submission.ts` learning anything about
+requirements — that file is unmodified, on purpose, per the task brief.
+`AuthenticatorResult`'s `challenge` widens to `form: string`;
+`authorize-html.ts`'s `renderLoginForm` takes the form name and dispatches
+its fields on it (only `'password'` renders real fields today), and the
+hidden `auth_session_id` CSRF field is emitted once, on every form, not
+duplicated per case.
+
+**Closes `OIDC-CORE-3.1.2.1-11`.** `docs/protocols/oidc-core.md`'s
+`prompt=login` MUST — "an error is returned if reauthentication cannot be
+performed" — was `deferred: P2` because no realm could ever reach a state
+with no applicable execution. Task 9 is what creates that state:
+`handleAuthorizationRequest` calls `initialChallenge` before starting an
+authentication session, and a `'failure'` answer (no applicable execution)
+is reported as `login_required` at the client's `redirect_uri` — a
+redirect, nothing rendered, nothing parked — the same way session reuse's
+own refusal is. `tools/trace/silenced-musts.json`'s `oidc-core.md.deferred`
+drops from 13 to 12.
+
+**A correction the brief needed before this task could start.** Its
+original Step 2 described an end-to-end TOTP journey (password success
+re-challenging for OTP, a wrong OTP code re-challenging OTP alone, a
+correct one completing) that nothing in the tree can produce yet — there is
+no OTP authenticator and no non-`password` credential type until the TOTP
+tasks. What Task 9 proves instead, each at the layer that can honestly show
+it: resumption as a unit test against a fake registry
+(`ODUDU-AUTHN-RESUMPTION-01`), `satisfied` persistence as an integration
+test including a foreign-`realm_id` probe (`ODUDU-AUTHN-SATISFIED-PERSISTENCE-01`),
+realm-ordered dispatch asserting — not assuming — that `passkey`/`otp` are
+inapplicable today (`ODUDU-AUTHN-FLOW-ORDER-01`), and unchanged expiry
+behaviour (`ODUDU-AUTHN-SESSION-EXPIRY-UNCHANGED-01`). The full two-factor
+journey is now named in Task 16's own step list, which builds the OTP
+authenticator once Task 15 has built RFC 6238 underneath it.
+
+Migration 0026 adds
 `token_grants.session_id`, nullable: null means an offline grant, which
 nothing expires and no logout can end; a non-null value is the SSO session
 the grant was issued under, and `sessions` needed a `UNIQUE (realm_id, id)`

@@ -23,6 +23,8 @@ export {
   startAuthentication,
   loadPendingRequest,
   advance,
+  initialChallenge,
+  pendingChallenge,
   consumeAuthenticationSession,
   establishSession,
   type AdvanceInput,

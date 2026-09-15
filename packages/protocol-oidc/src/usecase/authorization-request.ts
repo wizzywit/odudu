@@ -1,3 +1,4 @@
+import { type AuthenticatorResult } from '@odudu/authn-flows';
 import { AUDIENCE_UNCHECKED, verifyJwt, type SigningKeyRecord } from '@odudu/crypto';
 import { type ClientRecord } from '@odudu/domain-realm';
 import { type ClientOidcConfig } from '#/schema/client-oidc-config';
@@ -13,7 +14,10 @@ import { decideReuse, type ResolvedSession } from '#/usecase/session-reuse';
 export type AuthorizationRequestOutcome =
   | { kind: 'render'; error: string; description: string }
   | { kind: 'redirect'; redirectUri: string; error: string; state: string | null }
-  | { kind: 'started'; authSessionId: string }
+  // `form` names what the rendered login page should ask for first —
+  // whatever the realm's flow would offer nobody has submitted anything
+  // yet (authn-flows' initialChallenge).
+  | { kind: 'started'; authSessionId: string; form: string }
   // Session reuse: a code issued with no page ever rendered and no fresh
   // authentication session started. Carries exactly what the form-POST
   // success redirect carries, because the client cannot tell the two apart.
@@ -63,6 +67,11 @@ export interface AuthorizeUsecaseDeps {
     realmId: string,
     request: Extract<AuthorizeOutcome, { kind: 'ok' }>['request'],
   ): Promise<{ authSessionId: string }>;
+  // What the realm's flow would ask for first, decided before any
+  // authentication session exists — also the honest way to notice a flow
+  // with no applicable execution at all: OIDC Core §3.1.2.1's `prompt=login`
+  // MUST, "an error is returned if reauthentication cannot be performed".
+  initialChallenge(realmId: string): Promise<AuthenticatorResult>;
   // The SSO session cookie's value, resolved to a live row (never trusted
   // for anything but that lookup) — sessionRepository(tx).liveById scoped
   // to the realm's own idle window, read off the already-resolved `realm`
@@ -211,6 +220,19 @@ export async function handleAuthorizationRequest(
     return { kind: 'reused', code, redirectUri: request.redirectUri, state: request.state };
   }
 
+  // A realm whose flow has no applicable execution at all cannot
+  // authenticate anyone — the state OIDC Core §3.1.2.1 means by
+  // "reauthentication cannot be performed" under `prompt=login`. Checked
+  // before a session is started: nothing is parked and nothing rendered
+  // for a login that could never succeed.
+  const initial = await deps.initialChallenge(realm.id);
+  if (initial.kind !== 'challenge') {
+    if (initial.kind === 'success') {
+      throw new Error('unreachable: initialChallenge succeeded with no input submitted');
+    }
+    return reject('login_required');
+  }
+
   const { authSessionId } = await deps.startAuthentication(realm.id, {
     ...request,
     // `prompt=login` needs nothing parked: authentication is unconditional
@@ -220,7 +242,7 @@ export async function handleAuthorizationRequest(
     // which is the login submission, so it travels with the parked request.
     ...(hintSubject !== null ? { idTokenHintSubject: hintSubject } : {}),
   });
-  return { kind: 'started', authSessionId };
+  return { kind: 'started', authSessionId, form: initial.form };
 }
 
 export interface IdTokenHintClaims {

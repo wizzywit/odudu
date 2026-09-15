@@ -2,6 +2,7 @@ import { type RealmScopedDatabase } from '@odudu/db';
 import { provisionRealmDefaults } from '@odudu/domain-realm';
 import { executionRepository } from '#/repository/executions';
 import { type Requirement } from '#/schema/execution';
+import { isRegisteredAuthenticator } from '#/usecase/executor';
 
 interface DefaultExecution {
   authenticator: string;
@@ -28,6 +29,11 @@ export async function provisionBrowserFlow(
 ): Promise<void> {
   const repository = executionRepository(tx);
   for (const [index, execution] of BROWSER_FLOW_DEFAULT.entries()) {
+    // An unresolvable authenticator name has to fail here, not the first
+    // time somebody tries to log in against the row it produces.
+    if (!isRegisteredAuthenticator(execution.authenticator)) {
+      throw new Error(`unregistered authenticator '${execution.authenticator}' in browser flow`);
+    }
     await repository.create({ realmId, index, ...execution });
   }
 }

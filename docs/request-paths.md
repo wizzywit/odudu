@@ -3312,8 +3312,15 @@ session lifecycle. A citation of either half here means that half.
 
 - **Password only.** TOTP, passkeys and any second factor are **P2b**, whose
   exit criterion is password, TOTP and passkey login through the flow tree.
-  The flow engine behind the single password step is already a step list for
-  that reason, but there is one step in it.
+  The executor now runs a realm's own ordered `authentication_executions`
+  (REQUIRED/ALTERNATIVE/CONDITIONAL/DISABLED) through a registry keyed by
+  authenticator name, and a login resumes across steps rather than
+  restarting — a satisfied authenticator is never asked for twice, even
+  across a rejected attempt at whatever comes after it. Every realm's flow
+  still completes in one step today: `password` is the only authenticator
+  with a runtime, so `passkey` and `otp` — both already seeded as
+  executions by `provisionRealm` — are inapplicable for every subject until
+  their own tasks give them one.
 - **Password reset exists; a timing oracle in it does not have a fix yet.**
   Address verification (`GET /realms/{realm}/login-actions/action-token`,
   [Address verification](#address-verification)), self-registration

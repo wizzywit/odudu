@@ -5,5 +5,8 @@
 // repository (dependency-cruiser's service-is-a-leaf rule).
 export type AuthenticatorResult =
   | { kind: 'success'; subjectId: string }
-  | { kind: 'challenge'; form: 'password' }
+  // `form` names the authenticator whose fields the caller should render —
+  // a registry key (#/usecase/executor's AUTHENTICATORS), not a fixed enum,
+  // so a new authenticator needs no change here to be challengeable.
+  | { kind: 'challenge'; form: string }
   | { kind: 'failure'; reason: string };

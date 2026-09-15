@@ -1,4 +1,4 @@
-import { sessionCookieName } from '@odudu/authn-flows';
+import { sessionCookieName, type AuthenticatorResult } from '@odudu/authn-flows';
 import { type FastifyInstance } from 'fastify';
 import { handleLoginSubmission, type LoginSubmissionDeps } from '#/usecase/login-submission';
 import {
@@ -11,7 +11,13 @@ import { issuerBaseFor } from '#/view/issuer';
 
 export interface LoginRouteDeps extends LoginSubmissionDeps {
   tls: boolean;
+  // What to render on a rejected attempt — asked directly rather than
+  // threaded through LoginSubmissionOutcome, so handleLoginSubmission stays
+  // as unaware of the flow's requirements as its own tests assume.
+  pendingChallenge(realmId: string, authSessionId: string): Promise<AuthenticatorResult>;
 }
+
+const FALLBACK_FORM = 'password';
 
 // @fastify/formbody parses a repeated field into an array; every field this
 // handler reads is meant to carry exactly one value, so a repeat is treated
@@ -61,7 +67,20 @@ export function registerLoginRoute(app: FastifyInstance, deps: LoginRouteDeps): 
     }
 
     if (outcome.kind === 'reject') {
-      return sendHtml(reply, 200, renderLoginForm(request.params.realm, outcome.authSessionId));
+      // The realm was already resolved once, inside handleLoginSubmission,
+      // to produce this very outcome — resolved again here rather than
+      // threading its id back out through LoginSubmissionOutcome, which
+      // would leak flow-engine concerns into a type login-submission's own
+      // tests assert the shape of.
+      const realm = await deps.findRealm(request.params.realm);
+      const pending =
+        realm === null ? null : await deps.pendingChallenge(realm.id, outcome.authSessionId);
+      const form = pending?.kind === 'challenge' ? pending.form : FALLBACK_FORM;
+      return sendHtml(
+        reply,
+        200,
+        renderLoginForm(request.params.realm, outcome.authSessionId, form),
+      );
     }
 
     // No location header and no code: the assertion this state exists to

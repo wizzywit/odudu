@@ -2,18 +2,15 @@ import { type RealmScopedDatabase } from '@odudu/db';
 import { credentialRepository, userRepository } from '@odudu/domain-identity';
 import { newId, systemClock, type Clock } from '@odudu/kernel';
 import { authenticationSessionRepository } from '#/repository/authentication-sessions';
+import { executionRepository } from '#/repository/executions';
 import { sessionRepository } from '#/repository/sessions';
-import { type PendingRequest } from '#/schema/authentication-sessions';
+import {
+  type AuthenticationSessionRecord,
+  type PendingRequest,
+} from '#/schema/authentication-sessions';
 import { type AuthenticatorResult } from '#/schema/authenticator';
+import { nextStep, type Step } from '#/service/requirements';
 import { passwordStep, type PasswordVerification } from '#/service/authenticators/password';
-
-type StepName = 'password';
-
-// P1 registers exactly one authenticator behind one linear step. Keeping
-// this a list, dispatched through a lookup rather than inlined, is the whole
-// point: P2 replaces it with a tree of REQUIRED/ALTERNATIVE/CONDITIONAL/
-// DISABLED requirements without changing what a caller of `advance` sees.
-const STEPS: readonly StepName[] = ['password'];
 
 // Never assigned to a real subject (subject ids come from `newId()`), so a
 // lookup against it always misses — which is the point: it lets the
@@ -42,12 +39,95 @@ async function runPasswordStep(
   return passwordStep(input, await passwordVerificationFor(tx, input.username));
 }
 
-const AUTHENTICATORS: Record<
-  StepName,
-  (tx: RealmScopedDatabase, input: AdvanceInput) => Promise<AuthenticatorResult>
-> = {
+// passkey and otp are registered so a flow row naming either resolves (see
+// isRegisteredAuthenticator) even though neither has a runtime yet — their
+// own tasks (RFC 6238 in packages/crypto, then the authenticator itself)
+// replace this. Reachable only if isApplicable is ever wrong about one of
+// them, which would itself be the bug to fix, not this function.
+function unimplementedAuthenticator(name: string): Promise<AuthenticatorResult> {
+  return Promise.reject(
+    new Error(`authenticator '${name}' is registered but has no runtime implementation yet`),
+  );
+}
+
+type RealmAuthenticatorFn = (
+  tx: RealmScopedDatabase,
+  input: AdvanceInput,
+) => Promise<AuthenticatorResult>;
+
+const AUTHENTICATORS: Record<string, RealmAuthenticatorFn> = {
   password: runPasswordStep,
+  passkey: () => unimplementedAuthenticator('passkey'),
+  otp: () => unimplementedAuthenticator('otp'),
 };
+
+// The registry is what can tell an unresolvable authenticator name apart
+// from one that simply has not run yet — checked when a flow is
+// provisioned (see provision-flow.ts), so a typo in a row surfaces at
+// startup rather than the first time somebody tries to log in against it.
+export function isRegisteredAuthenticator(name: string): boolean {
+  return Object.hasOwn(AUTHENTICATORS, name);
+}
+
+// password has no enrollment concept, so it is offered unconditionally —
+// the same decision whether the subject is real or not, which is what
+// keeps DUMMY_SUBJECT_ID meaningful. passkey and otp would need "does this
+// subject have a credential of this type", but domain-identity's
+// credential type (CredentialRecord, credentialRepository) is 'password'
+// only until their own tasks widen it, so there is no accessor to ask.
+function isApplicable(authenticator: string): boolean {
+  return authenticator === 'password';
+}
+
+async function loadSteps(tx: RealmScopedDatabase, realmId: string): Promise<Step[]> {
+  const executions = await executionRepository(tx).forRealm(realmId);
+  return executions.map((execution) => ({
+    authenticator: execution.authenticator,
+    requirement: execution.requirement,
+    applicable: isApplicable(execution.authenticator),
+  }));
+}
+
+function bindRegistry(tx: RealmScopedDatabase): Record<string, AuthenticatorFn> {
+  const bound: Record<string, AuthenticatorFn> = {};
+  for (const [name, fn] of Object.entries(AUTHENTICATORS)) {
+    bound[name] = (input) => fn(tx, input);
+  }
+  return bound;
+}
+
+// The seam a unit test dispatches through with a fake registry: no `tx`,
+// because by the time a name reaches here the caller has already bound one
+// (or, in a test, has nothing to bind — a fake authenticator ignores its
+// input the same way a real one reads it).
+export type AuthenticatorFn = (input: AdvanceInput) => Promise<AuthenticatorResult>;
+
+export type Dispatch =
+  | { kind: 'ran'; authenticator: string; result: AuthenticatorResult }
+  | { kind: 'complete' }
+  | { kind: 'fail' };
+
+// One decision-and-run, against whatever registry and satisfied set the
+// caller hands in. Exported so resumption — offering the next unsatisfied
+// execution rather than the first — can be proven as a property of this
+// dispatch against a fake registry, independent of which authenticators are
+// real (decision #3 in the task brief).
+export async function dispatchNext(
+  registry: Record<string, AuthenticatorFn>,
+  steps: readonly Step[],
+  satisfied: ReadonlySet<string>,
+  input: AdvanceInput,
+): Promise<Dispatch> {
+  const decision = nextStep(steps, { satisfied });
+  if (decision.kind === 'fail') return { kind: 'fail' };
+  if (decision.kind === 'complete') return { kind: 'complete' };
+
+  const run = registry[decision.authenticator];
+  if (run === undefined) {
+    throw new Error(`authenticator '${decision.authenticator}' is not registered`);
+  }
+  return { kind: 'ran', authenticator: decision.authenticator, result: await run(input) };
+}
 
 const AUTH_SESSION_TTL_MS = 30 * 60_000;
 
@@ -80,24 +160,116 @@ export interface AdvanceInput {
   password?: string;
 }
 
+interface FlowContext {
+  record: AuthenticationSessionRecord;
+  steps: Step[];
+  satisfied: Set<string>;
+  registry: Record<string, AuthenticatorFn>;
+}
+
+async function loadFlowContext(
+  tx: RealmScopedDatabase,
+  authSessionId: string,
+  clock: Clock,
+): Promise<FlowContext | null> {
+  const record = await authenticationSessionRepository(tx).byId(authSessionId);
+  if (record === null || record.expiresAt.getTime() <= clock.now().getTime()) {
+    return null;
+  }
+  return {
+    record,
+    steps: await loadSteps(tx, record.realmId),
+    satisfied: new Set(record.satisfied),
+    registry: bindRegistry(tx),
+  };
+}
+
+// A realm whose flow cannot authenticate anyone right now — no rows at
+// all, or every row inapplicable to every subject — reports the same
+// reason whether that is discovered before a session exists (initialChallenge)
+// or mid-session (advance): there is nothing a caller can submit that would
+// change the answer.
+const NO_APPLICABLE_EXECUTION = 'no_applicable_execution';
+
+// What /authorize renders before any authentication session exists: the
+// first thing this realm's flow would ask for, with nothing submitted yet.
+// A 'failure' here means the flow has no reachable execution at all — the
+// state OIDC Core §3.1.2.1 calls "reauthentication cannot be performed".
+export async function initialChallenge(
+  tx: RealmScopedDatabase,
+  realmId: string,
+): Promise<AuthenticatorResult> {
+  const steps = await loadSteps(tx, realmId);
+  const registry = bindRegistry(tx);
+  const dispatched = await dispatchNext(registry, steps, new Set(), {});
+  if (dispatched.kind !== 'ran') {
+    return { kind: 'failure', reason: NO_APPLICABLE_EXECUTION };
+  }
+  return dispatched.result;
+}
+
+// What a live authentication session is currently waiting on, with nothing
+// freshly submitted — used to re-render the right form after a rejected
+// attempt, without the caller (the login route) knowing anything about
+// requirements or the registry.
+export async function pendingChallenge(
+  tx: RealmScopedDatabase,
+  authSessionId: string,
+  clock: Clock = systemClock,
+): Promise<AuthenticatorResult> {
+  const context = await loadFlowContext(tx, authSessionId, clock);
+  if (context === null) {
+    return { kind: 'failure', reason: 'authentication_session_expired' };
+  }
+  const dispatched = await dispatchNext(context.registry, context.steps, context.satisfied, {});
+  if (dispatched.kind !== 'ran') {
+    return { kind: 'failure', reason: NO_APPLICABLE_EXECUTION };
+  }
+  return dispatched.result;
+}
+
 export async function advance(
   tx: RealmScopedDatabase,
   authSessionId: string,
   input: AdvanceInput,
   clock: Clock = systemClock,
 ): Promise<AuthenticatorResult> {
-  const record = await authenticationSessionRepository(tx).byId(authSessionId);
-  if (record === null || record.expiresAt.getTime() <= clock.now().getTime()) {
+  const context = await loadFlowContext(tx, authSessionId, clock);
+  if (context === null) {
+    return { kind: 'failure', reason: 'authentication_session_expired' };
+  }
+  const { steps, satisfied, registry } = context;
+
+  const dispatched = await dispatchNext(registry, steps, satisfied, input);
+  if (dispatched.kind === 'fail') {
+    return { kind: 'failure', reason: NO_APPLICABLE_EXECUTION };
+  }
+  if (dispatched.kind === 'complete') {
+    // Reachable only by resubmitting an authSessionId whose flow was
+    // already fully satisfied by an earlier call to this function — there
+    // is no fresh authenticator to run and no subject to succeed with, so
+    // this is treated the same way an already-used session is: the atomic
+    // consume downstream (consumeAuthenticationSession) is the actual
+    // single-use gate, and this is what stops a replay from reaching it a
+    // second time having skipped verification entirely.
     return { kind: 'failure', reason: 'authentication_session_expired' };
   }
 
-  // Exactly one step exists in P1; the lookup still goes through the list so
-  // a second step (P2) is an addition here, not a rewrite of `advance`.
-  const step = STEPS[0];
-  if (step === undefined) {
-    throw new Error('no authentication steps registered');
+  const { authenticator, result } = dispatched;
+  if (result.kind !== 'success') {
+    return result;
   }
-  return AUTHENTICATORS[step](tx, input);
+
+  // A multi-step login resumes rather than restarts: this is the write
+  // that lets a later call see `authenticator` as already satisfied,
+  // instead of asking for it again.
+  await authenticationSessionRepository(tx).recordSatisfied(authSessionId, authenticator);
+  satisfied.add(authenticator);
+
+  const after = await dispatchNext(registry, steps, satisfied, {});
+  if (after.kind === 'ran') return after.result;
+  if (after.kind === 'complete') return result;
+  return { kind: 'failure', reason: NO_APPLICABLE_EXECUTION };
 }
 
 // The gate that makes an authentication session single-use. The caller

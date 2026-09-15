@@ -2,7 +2,9 @@ import {
   advance,
   consumeAuthenticationSession,
   establishSession,
+  initialChallenge,
   loadPendingRequest,
+  pendingChallenge,
   sessionRepository,
   startAuthentication,
 } from '@odudu/authn-flows';
@@ -154,6 +156,8 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
         withRealm(deps.database.db, realmId, (tx) =>
           startAuthentication(tx, realmId, request, clock),
         ),
+      initialChallenge: (realmId) =>
+        withRealm(deps.database.db, realmId, (tx) => initialChallenge(tx, realmId)),
       now: () => clock.now(),
       // The realm's idle window comes from the `realm` the caller already
       // resolved (its own `findRealm`), not a second lookup by id.
@@ -205,6 +209,8 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
         withRealm(deps.database.db, realmId, (tx) => advance(tx, authSessionId, input, clock)),
       loadPendingRequest: (realmId, authSessionId) =>
         withRealm(deps.database.db, realmId, (tx) => loadPendingRequest(tx, authSessionId)),
+      pendingChallenge: (realmId, authSessionId) =>
+        withRealm(deps.database.db, realmId, (tx) => pendingChallenge(tx, authSessionId, clock)),
       checkEmailVerification,
       resolveClientId: (realmId, oauthClientId) =>
         withRealm(deps.database.db, realmId, async (tx) => {

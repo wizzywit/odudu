@@ -225,6 +225,13 @@
       "when": 1789049381674,
       "tag": "0031_authentication_executions",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1789049381675,
+      "tag": "0032_authentication_sessions_progress",
+      "breakpoints": true
     }
   ]
 }

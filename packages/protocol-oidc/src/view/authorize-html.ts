@@ -43,13 +43,29 @@ export function renderEmailUnverifiedPage(hasEmail: boolean): string {
 </html>`;
 }
 
+// `form` names the authenticator to render fields for (an authn-flows
+// registry key, e.g. 'password') — not a fixed enum, so a future
+// authenticator's own task adds a case here rather than a schema change.
+function renderFormFields(form: string): string {
+  if (form === 'password') {
+    return `<label>Username <input type="text" name="username" autocomplete="username"></label>
+  <label>Password <input type="password" name="password" autocomplete="current-password"></label>`;
+  }
+  // Unreachable today: initialChallenge/pendingChallenge (authn-flows) only
+  // ever name an authenticator this server can actually dispatch to, and
+  // 'password' is the only one with a runtime yet.
+  return `<p>Unsupported sign-in step: ${escapeHtml(form)}</p>`;
+}
+
 // The hidden field is the whole of this page's CSRF defence: authSessionId
 // is an unguessable id (newId()) that only a browser which actually loaded
 // this response — rendered same-origin, never carried in a URL an attacker
 // could read or replay — can submit back. POST /realms/{realm}/login-actions/authenticate
 // treats a submission whose auth_session_id does not name a live authentication
-// session as unauthenticated, exactly as it would treat a missing token.
-export function renderLoginForm(realm: string, authSessionId: string): string {
+// session as unauthenticated, exactly as it would treat a missing token. It is
+// on every form this function renders, not just the password one, since it is
+// what CSRF-protects the whole endpoint rather than any one authenticator.
+export function renderLoginForm(realm: string, authSessionId: string, form: string): string {
   const action = `/realms/${escapeHtml(realm)}/login-actions/authenticate`;
   return `<!doctype html>
 <html lang="en">
@@ -57,8 +73,7 @@ export function renderLoginForm(realm: string, authSessionId: string): string {
 <body>
 <form method="post" action="${action}">
   <input type="hidden" name="auth_session_id" value="${escapeHtml(authSessionId)}">
-  <label>Username <input type="text" name="username" autocomplete="username"></label>
-  <label>Password <input type="password" name="password" autocomplete="current-password"></label>
+  ${renderFormFields(form)}
   <button type="submit">Sign in</button>
 </form>
 </body>

@@ -74,7 +74,7 @@ async function respondToAuthorizationRequest(
     return reply.code(302).header('location', target.toString()).send();
   }
 
-  return sendHtml(reply, 200, renderLoginForm(realm, outcome.authSessionId));
+  return sendHtml(reply, 200, renderLoginForm(realm, outcome.authSessionId, outcome.form));
 }
 
 export function registerAuthorizeRoute(app: FastifyInstance, deps: AuthorizeRouteDeps): void {
