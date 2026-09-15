@@ -3,7 +3,7 @@
 ## Start here
 
 **P0, P1 and P2a are complete. P2b is brainstormed, specified and planned;
-Task 1 has landed and Task 2 is next.** Migration 0026 adds
+Tasks 1 and 2 have landed and Task 3 is next.** Migration 0026 adds
 `token_grants.session_id`, nullable: null means an offline grant, which
 nothing expires and no logout can end; a non-null value is the SSO session
 the grant was issued under, and `sessions` needed a `UNIQUE (realm_id, id)`
@@ -11,7 +11,20 @@ it did not have before this so the composite foreign key could exist.
 `tokenGrantRepository` gained `revokeForSession` and `bySession`, and
 `rotateRefreshToken` refuses to rotate a revoked grant's refresh token
 (`RotationOutcome`'s `'revoked'` case), answered with the same
-`invalid_grant` a reused or unknown token gets. The plan is
+`invalid_grant` a reused or unknown token gets.
+
+**Migrations 0027 and 0028 give a session two clocks.** `sessions` gained
+`last_active_at`, touched on every use; `expires_at` stays the hard
+ceiling, `created_at` plus the realm's maximum lifespan. `realms` gained
+`sso_session_idle_seconds` (default 1800) and `sso_session_max_seconds`
+(default 36000), each bounded to `[60, 2592000]` by a `CHECK`, plus a third
+`CHECK` refusing an idle timeout longer than the ceiling. `isSessionLive`
+(`packages/authn-flows/src/service/session-liveness.ts`) treats both
+boundaries as exclusive; `sessionRepository(tx).liveById` is the read
+anything that authenticates should use, `byId` stays liveness-blind for the
+reaper and a future session list, and `establishSession` now takes the
+ceiling as a `maxSeconds` parameter instead of a fixed 12-hour constant. The
+plan is
 [2026-09-15-p2b-credentials-mfa-sessions.md](superpowers/plans/2026-09-15-p2b-credentials-mfa-sessions.md)
 — 29 tasks, 211 steps, 95–125 h, three spike gates (Tasks 11, 17, 24), and
 fourteen migrations numbered 0026–0039 in the table at its end, which
