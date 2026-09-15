@@ -42,6 +42,10 @@ export interface TokenIssuanceDeps {
   issuer: string;
   kek: Uint8Array;
   clock: Clock;
+  // The realm's own idle window — the same one /authorize's resolveSession
+  // checks a session cookie against — so a session-bound refresh dies
+  // exactly when the session it is bound to would (refresh-rotation.ts).
+  idleSeconds: number;
   verifyPassword: (hash: string, secret: string) => Promise<boolean>;
   // Shared with /userinfo: the ID token's claims beyond the envelope
   // (`iss`/`aud`/`iat`/`exp`/`nonce`/`auth_time`) come from the same
@@ -372,6 +376,14 @@ async function issueAuthorizationCodeTokens(
   const reachable = await reachableRoleIds(tx, scope);
   const accessTokenScope = await accessTokenEligibleScope(tx, scope);
 
+  // `offline_access` asks for a grant no session bounds (OpenID Connect
+  // Back-Channel Logout 1.0 §2.7): whatever session the code carries is
+  // dropped for this grant, its access token and its ID token alike. The
+  // *resolved* scope decides this, never the raw request — a client
+  // without the scope assigned gets it stripped by resolveScope above, and
+  // sees an ordinary session-bound grant.
+  const sessionId = scope.includes('offline_access') ? null : code.sessionId;
+
   const { accessToken, audience, iat, exp } = await mintAccessToken(
     deps,
     {
@@ -383,7 +395,7 @@ async function issueAuthorizationCodeTokens(
       reachableRoleIds: reachable,
       fullScopeAllowed: client.fullScopeAllowed,
       accessTokenScope,
-      sessionId: code.sessionId,
+      sessionId,
     },
     key,
     now,
@@ -421,7 +433,7 @@ async function issueAuthorizationCodeTokens(
       exp,
       auth_time: Math.floor(code.authTime.getTime() / 1000),
       ...(code.nonce !== null ? { nonce: code.nonce } : {}),
-      ...(code.sessionId !== null ? { sid: code.sessionId } : {}),
+      ...(sessionId !== null ? { sid: sessionId } : {}),
     });
     idToken = await signJwt(idTokenClaims, { key, kek: deps.kek });
   }
@@ -429,14 +441,14 @@ async function issueAuthorizationCodeTokens(
   // Persist the grant and bind the code's redemption to it — the anchor a
   // future revocation call, or a refresh token, points back at. The
   // session travels from the code, which is where the login that minted it
-  // recorded one.
+  // recorded one, unless the resolved scope asked for an offline grant.
   const grant = await tokenGrantRepository(tx).create({
     realmId: deps.realmId,
     clientId: client.id,
     subjectId: code.subjectId,
     scope: scope.join(' '),
     audience,
-    sessionId: code.sessionId,
+    sessionId,
   });
   await authorizationCodeRepository(tx).attachGrant(code.codeHash, grant.id);
 
@@ -516,7 +528,13 @@ async function issueRefreshTokens(
   await evaluatePresentedRefreshToken(tx, request, client, presentedHash);
 
   const outcome = await withRealm(deps.database.db, deps.realmId, (rotationTx) =>
-    rotateRefreshToken(rotationTx, presentedHash, now, config.refreshTokenTtlSeconds),
+    rotateRefreshToken(
+      rotationTx,
+      presentedHash,
+      now,
+      config.refreshTokenTtlSeconds,
+      deps.idleSeconds,
+    ),
   );
   if (outcome.kind !== 'rotated') throw invalidGrant();
 

@@ -29,7 +29,12 @@ describe('decideLogout', () => {
     ).toEqual({ kind: 'confirm' });
   });
 
-  it('ends without confirmation when a sid-less hint matches the session by subject', () => {
+  it('confirms a sid-less hint even when its subject matches the session', () => {
+    // A `sid` is what every current token carries (Back-Channel Logout
+    // §2.1) — an `offline_access` grant's ID token is the one current
+    // exception, since it has no session to name. Treating a missing `sid`
+    // as a match-by-subject would let a stale-but-valid offline ID token
+    // for this same user skip the confirmation §2 makes mandatory.
     expect(
       decideLogout({
         hintSubject: 'u1',
@@ -38,7 +43,7 @@ describe('decideLogout', () => {
         requested: null,
         registered,
       }),
-    ).toEqual({ kind: 'end', redirectTo: null });
+    ).toEqual({ kind: 'confirm' });
   });
 
   it('ends without confirmation when the hint carries a sid matching this session', () => {

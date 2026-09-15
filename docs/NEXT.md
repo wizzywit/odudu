@@ -3,7 +3,7 @@
 ## Start here
 
 **P0, P1 and P2a are complete. P2b is brainstormed, specified and planned;
-Tasks 1 through 5 have landed and Task 6 is next.** Migration 0026 adds
+Tasks 1 through 6 have landed and Task 7 is next.** Migration 0026 adds
 `token_grants.session_id`, nullable: null means an offline grant, which
 nothing expires and no logout can end; a non-null value is the SSO session
 the grant was issued under, and `sessions` needed a `UNIQUE (realm_id, id)`
@@ -113,10 +113,13 @@ session (or none) and the requested URI and registered list in, `confirm` /
 `usecase/authorization-request.ts`, and returning `sid` alongside the
 subject) for the hint's own validation. §2's "belong to the current OP
 session" is compared on `sid` when the hint carries one — Back-Channel
-Logout §2.1 put it in every token this phase issues — and falls back to the
-subject only for a hint minted before `sid` existed, so a stale hint from
+Logout §2.1 put it in every token this phase issues — so a stale hint from
 the same End-User's own, already-ended earlier session no longer skips
-confirmation just because the subject still matches. With no live session
+confirmation just because the subject still matches. (Task 6 below removes
+the subject-only fallback this paragraph originally described for a
+`sid`-less hint — every session-backed token has carried `sid` since this
+task, so the only current hint that ever lacks one is an offline grant's,
+which must not skip confirmation either.) With no live session
 at all, an exactly-registered `post_logout_redirect_uri` is still honoured
 (§3 forbids redirecting to an _unmatched_ URI, not honouring a matched one
 when there is nothing to end — Keycloak does the same) rather than always

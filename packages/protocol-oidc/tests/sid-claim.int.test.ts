@@ -98,12 +98,12 @@ async function setupRealm(name: string): Promise<void> {
   });
 }
 
-function authorizeUrl(realmName: string): string {
+function authorizeUrl(realmName: string, scope = 'openid'): string {
   const params = new URLSearchParams({
     response_type: 'code',
     client_id: CLIENT_ID,
     redirect_uri: REDIRECT_URI,
-    scope: 'openid',
+    scope,
     state: 'xyz',
     code_challenge: CHALLENGE,
     code_challenge_method: 'S256',
@@ -159,8 +159,9 @@ async function redeemCode(
 // against.
 async function completeAuthorizationCodeFlow(
   realmName: string,
+  scope = 'openid',
 ): Promise<{ accessToken: string; idToken: string; refreshToken: string; sessionId: string }> {
-  const authorize = await http.inject({ url: authorizeUrl(realmName) });
+  const authorize = await http.inject({ url: authorizeUrl(realmName, scope) });
   if (authorize.statusCode !== 200) {
     throw new Error(
       `expected /authorize to render the login form, got ${String(authorize.statusCode)}`,
@@ -253,11 +254,17 @@ describe('the sid claim', () => {
     expect(jwtPayload(idToken).sid).toBe(sessionId);
   });
 
-  // Offline grants (`offline_access`, no session) do not exist yet — the
-  // `offline_access` scope is what allows a grant to be created with no
-  // session. Unskip this once it exists.
-  it.skip('omits sid entirely for an offline grant, which has no session', () => {
-    throw new Error('depends on offline_access — not yet implemented');
+  it('omits sid entirely for an offline grant, which has no session', async () => {
+    const realmName = `sid-claim-offline-${newId()}`;
+    await setupRealm(realmName);
+
+    const { accessToken, idToken } = await completeAuthorizationCodeFlow(
+      realmName,
+      'openid offline_access',
+    );
+
+    expect(jwtPayload(accessToken).sid).toBeUndefined();
+    expect(jwtPayload(idToken).sid).toBeUndefined();
   });
 
   it('keeps sid stable across a refresh', async () => {

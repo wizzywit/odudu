@@ -365,7 +365,16 @@ curl -sS http://localhost:3000/realms/demo/.well-known/openid-configuration
   "grant_types_supported": ["authorization_code", "refresh_token", "client_credentials"],
   "token_endpoint_auth_methods_supported": ["client_secret_basic", "client_secret_post", "none"],
   "authorization_response_iss_parameter_supported": true,
-  "scopes_supported": ["address", "email", "groups", "openid", "phone", "profile", "roles"],
+  "scopes_supported": [
+    "address",
+    "email",
+    "groups",
+    "offline_access",
+    "openid",
+    "phone",
+    "profile",
+    "roles"
+  ],
   "claims_supported": [
     "sub",
     "name",
@@ -402,10 +411,12 @@ because omitting it would default to `["query", "fragment"]` (OIDC Discovery
 see [RP-initiated logout](#rp-initiated-logout) below.
 
 `scopes_supported` is the realm's own scope vocabulary, read from the
-database rather than compiled in: these seven are what `odudu seed` gives a
+database rather than compiled in: these eight are what `odudu seed` gives a
 new realm, and a realm that is given another scope advertises it here the
 moment it exists. A scope is seeded only once a claim mapper can answer for
-it, so this list never promises claims nothing returns.
+it, or — `offline_access`'s own exception — once it asks for a grant shape
+rather than for data (see [offline access](#offline-access) below), so this
+list never promises claims nothing returns.
 
 Being advertised is only half of what `/authorize` needs, though — **a scope
 is granted only when the realm defines it _and_ the client is assigned it**,
@@ -1915,6 +1926,204 @@ A `post_logout_redirect_uri` that is not an exact match to a registered
 value — a trailing slash, a query string, a different host — is refused,
 and the session still ends: §3's redirect rule is about the redirect
 alone, never about whether logout happened.
+
+### Offline access
+
+`offline_access` is a scope, seeded into every realm alongside
+`openid`/`profile`/`email` and assigned to `demo-spa` the same way (it maps
+no claims — see [Discovery](#1-discovery) above). Requesting it produces a
+grant with no session, which is what nothing here can expire and no logout
+can end (OpenID Connect Back-Channel Logout 1.0 §2.7's second sentence,
+[docs/protocols/oidc-backchannel.md](protocols/oidc-backchannel.md)). A
+fresh login, keeping its cookie, redeems one code for a plain
+`scope=openid` grant and then reuses the same live session — no new
+login — to redeem a second code for `scope=openid offline_access`:
+
+```bash
+VERIFIER=$(openssl rand -hex 32)
+CHALLENGE=$(printf '%s' "$VERIFIER" | openssl dgst -binary -sha256 \
+  | openssl base64 | tr '+/' '-_' | tr -d '=')
+
+AUTH_SESSION_ID=$(curl -sS --get \
+  --data-urlencode 'response_type=code' \
+  --data-urlencode 'client_id=demo-spa' \
+  --data-urlencode 'redirect_uri=http://localhost:8080/callback' \
+  --data-urlencode 'scope=openid' \
+  --data-urlencode 'state=xyz-bound' \
+  --data-urlencode "code_challenge=$CHALLENGE" \
+  --data-urlencode 'code_challenge_method=S256' \
+  "$BASE/auth" | sed -n 's/.*name="auth_session_id" value="\([^"]*\)".*/\1/p')
+
+CODE=$(curl -sS -c cookies-offline.txt -D - -o /dev/null \
+  --data-urlencode "auth_session_id=$AUTH_SESSION_ID" \
+  --data-urlencode 'username=ada' \
+  --data-urlencode 'password=correct-horse-battery' \
+  "$LOGIN" | sed -n 's/.*[?&]code=\([^&[:space:]]*\).*/\1/p' | tr -d '\r')
+
+BOUND_TOKENS=$(curl -sS \
+  --data-urlencode 'grant_type=authorization_code' \
+  --data-urlencode "code=$CODE" \
+  --data-urlencode 'redirect_uri=http://localhost:8080/callback' \
+  --data-urlencode 'client_id=demo-spa' \
+  --data-urlencode "code_verifier=$VERIFIER" "$BASE/token")
+BOUND_REFRESH_TOKEN=$(printf '%s' "$BOUND_TOKENS" | sed -n 's/.*"refresh_token":"\([^"]*\)".*/\1/p')
+
+OFFLINE_CODE=$(curl -sS -b cookies-offline.txt -D - -o /dev/null --get \
+  --data-urlencode 'response_type=code' \
+  --data-urlencode 'client_id=demo-spa' \
+  --data-urlencode 'redirect_uri=http://localhost:8080/callback' \
+  --data-urlencode 'scope=openid offline_access' \
+  --data-urlencode 'state=xyz-offline' \
+  --data-urlencode "code_challenge=$CHALLENGE" \
+  --data-urlencode 'code_challenge_method=S256' \
+  "$BASE/auth" \
+  | sed -n 's/.*[Ll]ocation: .*[?&]code=\([^&[:space:]]*\).*/\1/p' | tr -d '\r')
+
+OFFLINE_TOKENS=$(curl -sS \
+  --data-urlencode 'grant_type=authorization_code' \
+  --data-urlencode "code=$OFFLINE_CODE" \
+  --data-urlencode 'redirect_uri=http://localhost:8080/callback' \
+  --data-urlencode 'client_id=demo-spa' \
+  --data-urlencode "code_verifier=$VERIFIER" "$BASE/token")
+OFFLINE_REFRESH_TOKEN=$(printf '%s' "$OFFLINE_TOKENS" | sed -n 's/.*"refresh_token":"\([^"]*\)".*/\1/p')
+```
+
+```json
+{
+  "access_token": "eyJhbGciOiJSUzI1NiIs…",
+  "id_token": "eyJhbGciOiJSUzI1NiIs…",
+  "refresh_token": "KES5eAgSveeI4Q3mnSv…",
+  "token_type": "Bearer",
+  "expires_in": 300,
+  "scope": "openid offline_access"
+}
+```
+
+(All three token values truncated.) The access token, decoded:
+
+```json
+{
+  "iss": "http://localhost:3000/realms/demo",
+  "sub": "01a0a5e1-…",
+  "aud": ["http://localhost:3000/realms/demo"],
+  "client_id": "demo-spa",
+  "scope": "openid offline_access",
+  "iat": 1789489733,
+  "exp": 1789490033,
+  "jti": "01a0a5e6-…"
+}
+```
+
+No `sid` — every other access token in this document carries one
+([docs/protocols/oidc-backchannel.md](protocols/oidc-backchannel.md) §2.1),
+and this is the one grant here with no session for it to name. The ID
+token, decoded, is missing it the same way:
+
+```json
+{
+  "sub": "01a0a5e1-…",
+  "iss": "http://localhost:3000/realms/demo",
+  "aud": "demo-spa",
+  "iat": 1789489733,
+  "exp": 1789490033,
+  "auth_time": 1789489733
+}
+```
+
+Logging out the session that redeemed both codes ends it the same two-step
+way shown above: `GET` for the confirmation page, then the hidden
+`session_id` posted back to confirm.
+
+```bash
+curl -sS -b cookies-offline.txt "http://localhost:3000/realms/demo/protocol/openid-connect/logout"
+```
+
+```
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Sign out?</title></head>
+<body>
+<h1>Sign out?</h1>
+<p>Signing out ends this session for every application that uses it.</p>
+<form method="post" action="/realms/demo/protocol/openid-connect/logout">
+  <input type="hidden" name="session_id" value="01a0a5e6-6047-…">
+  <button type="submit">Sign out</button>
+</form>
+</body>
+</html>
+```
+
+```bash
+curl -sS -b cookies-offline.txt -D - \
+  --data-urlencode 'session_id=01a0a5e6-6047-7c21-b8f7-da4b5d908534' \
+  "http://localhost:3000/realms/demo/protocol/openid-connect/logout"
+```
+
+```
+HTTP/1.1 200 OK
+set-cookie: demo-session=; Max-Age=0; HttpOnly; SameSite=Lax; Path=/
+cache-control: no-store
+
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Signed out</title></head>
+<body>
+<h1>Signed out</h1>
+<p>You have been signed out.</p>
+</body>
+</html>
+```
+
+The session-bound refresh token is revoked with it:
+
+```bash
+curl -sS \
+  --data-urlencode 'grant_type=refresh_token' \
+  --data-urlencode "refresh_token=$BOUND_REFRESH_TOKEN" \
+  --data-urlencode 'client_id=demo-spa' \
+  "$BASE/token"
+```
+
+```json
+{ "error": "invalid_grant" }
+```
+
+The offline one is not — nothing about ending the session touched a grant
+with none:
+
+```bash
+curl -sS \
+  --data-urlencode 'grant_type=refresh_token' \
+  --data-urlencode "refresh_token=$OFFLINE_REFRESH_TOKEN" \
+  --data-urlencode 'client_id=demo-spa' \
+  "$BASE/token"
+```
+
+```json
+{
+  "access_token": "eyJhbGciOiJSUzI1NiIs…",
+  "refresh_token": "eycMYvzBLhLjl1zbcQ8…",
+  "token_type": "Bearer",
+  "expires_in": 300,
+  "scope": "openid offline_access"
+}
+```
+
+(Both token values truncated.) A session-bound refresh token dies the
+moment its session does, whether that session was ended by this logout or
+by its own idle timeout expiring underneath it —
+`packages/protocol-oidc/src/usecase/refresh-rotation.ts` checks the
+session's own liveness, not just the grant's `revoked_at`, for exactly that
+second case. An offline grant has neither: no session to end, and no idle
+window to outlive, so retention (see [What is not
+implemented](#what-is-not-implemented)) is the only thing that ever ages it
+out. A client is only handed this scope if the realm's operator assigned
+it — `demo-spa` has it because it is one of the scopes `odudu seed` assigns
+by default; a request for it from a client that was never assigned it, or
+one whose assignment was withdrawn before its code was redeemed, gets an
+ordinary session-bound grant back instead, narrowed the same way any other
+unassigned scope is (resolved at redemption, not at the `/authorize`
+request that preceded it).
 
 ## Path C: `client_credentials`
 

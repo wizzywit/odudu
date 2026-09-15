@@ -29,13 +29,21 @@ verify without asking. `decideLogout`
 one condition — `input.session === null`, or the hint fails to match it.
 
 **"Belong to" is compared on the session, not the subject.** A hint's `sid`
-claim (Back-Channel Logout §2.1, carried by every ID Token this phase
-issues) is compared against the current session's own id whenever the hint
-carries one; only a hint minted before `sid` existed falls back to
-comparing subjects. The distinction matters for the same End-User signing
-in twice in one browser: a stale hint from their first, already-ended
-session names the right subject but the wrong session, and a subject-only
-comparison would have skipped confirmation for it.
+claim (Back-Channel Logout §2.1) is compared against the current session's
+own id, and a hint with no `sid` is treated as a mismatch rather than
+falling back to comparing subjects. `decideLogout` never had a legitimate
+case to fall back for: every ID Token a session-backed login mints carries
+`sid`, and the one current token that does not is an `offline_access`
+grant's — which has no session to name, precisely the case a fallback must
+not wave through. (An earlier version of this comparison did fall back to
+subjects, reasoning that no current token would ever lack a `sid`; adding
+`offline_access` falsified that the moment it shipped, since a grant with
+no session mints an ID Token with no `sid` too — see
+`docs/protocols/oidc-backchannel.md` §2.7.) The distinction matters for the
+same End-User signing in twice in one browser: a stale hint from their
+first, already-ended session names the right subject but the wrong
+session, and a subject-only comparison would have skipped confirmation for
+it.
 
 §3's "exactly match" is deliberately not URL-normalized. A trailing slash,
 a query string, or a case difference in the host all fail the match —

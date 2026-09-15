@@ -9,10 +9,18 @@ considerations (§16). The Implicit Flow (§3.2) and Hybrid Flow (§3.3) are
 `docs/superpowers/specs/2026-09-11-p1-oauth-oidc-core-design.md` §1)
 support only `response_type=code`. Self-Issued OpenID Provider (§7),
 Subject Identifier Types (§8), Client Authentication (§9, tracked instead
-under RFC 6749), Signatures and Encryption (§10), Offline Access (§11),
-Refresh Tokens (§12), Serializations (§13) and String Operations (§14) are
-out of this table's scope entirely — not because they are unimportant, but
-because they sit outside the four regions this task was scoped to read.
+under RFC 6749), Signatures and Encryption (§10), Refresh Tokens (§12),
+Serializations (§13) and String Operations (§14) are out of this table's
+scope entirely — not because they are unimportant, but because they sit
+outside the four regions this task was scoped to read. Offline Access
+(§11) is tracked elsewhere for the same reason Client Authentication is:
+this section only points a client at requesting `offline_access` and a
+refresh token, and leaves what the OP does with either as this
+specification's business elsewhere. What Odudu actually does — a grant
+with no session, and what a logout owes it — is normative through OpenID
+Connect Back-Channel Logout 1.0 §2.7, not this section, so
+`docs/protocols/oidc-backchannel.md` carries that clause table row and the
+reading note explaining what a null `session_id` buys it.
 
 ## Reading notes
 

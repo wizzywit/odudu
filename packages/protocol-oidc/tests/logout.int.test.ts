@@ -278,13 +278,13 @@ afterAll(async () => {
 });
 
 describe('GET the logout endpoint with a hint matching the session', () => {
-  it('ends the session, revokes its grants, redirects, and leaves an offline grant alone', async () => {
+  it('[ODUDU-BACKCHANNEL-2.7-01] ends the session, revokes its grants, redirects, and leaves an offline grant alone', async () => {
     const realmName = `logout-${newId()}`;
     const { realmId, clientDbId } = await setupRealm(realmName);
     const cookie = await signIn(realmName);
     const sessionId = sessionIdFromCookie(cookie);
     const subjectId = await subjectIdOf(realmId, USERNAME);
-    const hint = await mintIdToken(realmName, subjectId);
+    const hint = await mintIdToken(realmName, subjectId, sessionId);
 
     // A real session-bound grant, from the same reused-session redirect the
     // second test in this file redeems — so "every grant of this session
@@ -352,7 +352,7 @@ describe('GET the logout endpoint with a hint matching the session', () => {
     const { realmId } = await setupRealm(realmName);
     const cookie = await signIn(realmName);
     const subjectId = await subjectIdOf(realmId, USERNAME);
-    const hint = await mintIdToken(realmName, subjectId);
+    const hint = await mintIdToken(realmName, subjectId, sessionIdFromCookie(cookie));
 
     const authorized = await http.inject({ url: authorizeUrl(realmName), headers: { cookie } });
     expect(authorized.statusCode).toBe(302);
@@ -386,7 +386,7 @@ describe('GET the logout endpoint with a hint matching the session', () => {
     const cookie = await signIn(realmName);
     const sessionId = sessionIdFromCookie(cookie);
     const subjectId = await subjectIdOf(realmId, USERNAME);
-    const hint = await mintIdToken(realmName, subjectId);
+    const hint = await mintIdToken(realmName, subjectId, sessionId);
 
     const res = await http.inject({
       url: logoutUrl(realmName, {

@@ -379,8 +379,8 @@ describe('atomic refresh rotation', () => {
     const now = new Date();
 
     const results = await Promise.allSettled([
-      withRealm(app.db, REALM_ID, (tx) => rotateRefreshToken(tx, hash, now, 1_209_600)),
-      withRealm(app.db, REALM_ID, (tx) => rotateRefreshToken(tx, hash, now, 1_209_600)),
+      withRealm(app.db, REALM_ID, (tx) => rotateRefreshToken(tx, hash, now, 1_209_600, 1_800)),
+      withRealm(app.db, REALM_ID, (tx) => rotateRefreshToken(tx, hash, now, 1_209_600, 1_800)),
     ]);
 
     const rotated = results.filter((r) => r.status === 'fulfilled' && r.value.kind === 'rotated');

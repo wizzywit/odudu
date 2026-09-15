@@ -145,9 +145,9 @@ tied to it — not access tokens.** Odudu's access tokens are self-contained
 anywhere, so nothing exists to tell one it has been logged out; a
 logged-out user's access token keeps working until its own `exp`, at most
 `client_oidc_config.access_token_ttl_seconds` (capped at one hour) after it
-was issued. A grant issued with no session — `offline_access`, once that
-scope exists — is untouched by a logout, per Back-Channel Logout 1.0
-§2.7's second sentence. A deployment that needs revocation inside an
+was issued. A grant issued with no session — `offline_access` — is
+untouched by a logout, per Back-Channel Logout 1.0 §2.7's second sentence.
+A deployment that needs revocation inside an
 access token's own lifetime is what RFC 7662 introspection is for, landing
 in P3. See [the logout section of
 docs/request-paths.md](docs/request-paths.md#rp-initiated-logout) for the

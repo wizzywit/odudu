@@ -10,11 +10,10 @@ export interface LogoutSession {
 export interface LogoutInput {
   hintSubject: string | null;
   // Back-Channel Logout §2.1's `sid`, read off the hint when it carries
-  // one. Governs the match alone when present — RP-Initiated Logout §2's
-  // "belong to the current OP session" is a session comparison, not a
-  // subject one, so a stale hint from the same End-User's earlier, already
-  // -ended session in this browser must not skip confirmation just because
-  // the subject still matches.
+  // one. A hint with no `sid` is a mismatch, never a fallback to comparing
+  // subjects (docs/protocols/oidc-rpinitiated.md's reading note has why:
+  // the one current token that lacks `sid` is an `offline_access` grant's,
+  // which has no session to name).
   hintSid: string | null;
   session: LogoutSession | null;
   requested: string | null;
@@ -46,10 +45,7 @@ export function decideLogout(input: LogoutInput): LogoutDecision {
   }
 
   const belongsToSession =
-    input.hintSubject !== null &&
-    (input.hintSid !== null
-      ? input.hintSid === input.session.id
-      : input.hintSubject === input.session.subjectId);
+    input.hintSubject !== null && input.hintSid !== null && input.hintSid === input.session.id;
 
   if (!belongsToSession) return { kind: 'confirm' };
 

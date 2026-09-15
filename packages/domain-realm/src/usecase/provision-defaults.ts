@@ -6,7 +6,9 @@ import { clientScopeRepository, type NewClientScope } from '#/repository/client-
 // answer for it (packages/protocol-oidc/src/service/claims.ts). `roles`/
 // `groups` default `includeInIdToken` false and `includeInAccessToken`
 // true; the other five are the reverse — identity data for the browser,
-// not a resource server named in `aud`.
+// not a resource server named in `aud`. `offline_access` is the exception:
+// it maps no claims, because it asks for a grant shape, not data — see
+// docs/protocols/oidc-backchannel.md §2.7.
 const DEFAULT_SCOPES: readonly Omit<NewClientScope, 'realmId'>[] = [
   { name: 'openid', includeInAccessToken: false },
   { name: 'profile', includeInAccessToken: false },
@@ -15,6 +17,7 @@ const DEFAULT_SCOPES: readonly Omit<NewClientScope, 'realmId'>[] = [
   { name: 'phone', includeInAccessToken: false },
   { name: 'roles', includeInIdToken: false },
   { name: 'groups', includeInIdToken: false },
+  { name: 'offline_access', includeInAccessToken: false, includeInIdToken: false },
 ];
 
 // Published so a document asserting what a freshly seeded realm advertises

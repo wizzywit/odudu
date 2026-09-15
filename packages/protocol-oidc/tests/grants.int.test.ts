@@ -161,7 +161,7 @@ describe('tokenGrantRepository', () => {
     await withRealm(app.db, realmId, (tx) => tokenGrantRepository(tx).revoke(grant.id, new Date()));
 
     const outcome = await withRealm(app.db, realmId, (tx) =>
-      rotateRefreshToken(tx, hashRefreshToken(token), new Date(), 600),
+      rotateRefreshToken(tx, hashRefreshToken(token), new Date(), 600, 1_800),
     );
     expect(outcome.kind).toBe('revoked');
   });
