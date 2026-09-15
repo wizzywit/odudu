@@ -1211,6 +1211,12 @@ Expected: FAIL — `offline_access` is not a scope the realm defines, so `resolv
 
 Add `{ name: 'offline_access', includeInAccessToken: false, includeInIdToken: false }` to `DEFAULT_SCOPES`. It maps no claims — it is a request for a grant shape, not for data — so no claim mapper is registered for it, and the comment above `DEFAULT_SCOPES` (which says a scope is seeded only once a mapper can answer for it) needs one added sentence saying why this one is the exception.
 
+- [ ] **Step 4a: Close the logout hole this scope opens**
+
+`decideLogout` compares a hint's `sid` to the current session's id and falls back to comparing subjects when the hint carries no `sid`. That fallback is currently unreachable for any token this server mints, because every ID token from a session-backed code carries one. **An offline grant has no session, so its ID token carries no `sid`** — which makes the weaker check reachable again for a _current_ token, and a logout confirmation skippable with a stale-but-valid offline ID token from the same user.
+
+Close it in this task, not later: either refuse a `sid`-less hint outright in a realm that issues sessions, or treat one as a mismatch so the confirmation page always shows. Add the case to `decideLogout`'s unit tests and to the reading note in `docs/protocols/oidc-rpinitiated.md`, which currently states what "belong to" is compared on and would otherwise become wrong the moment this scope ships.
+
 - [ ] **Step 4: Issue the grant without a session**
 
 The session is already carried from the login onto the code and into the grant. So this step is the branch that overrides it: when the resolved scope contains `offline_access`, create the grant with `sessionId: null` whatever the code carries; otherwise pass the code's `session_id` through unchanged. The resolved scope is the authority — never the raw request.
