@@ -8,7 +8,8 @@ import {
   type RealmScopedDatabase,
 } from '@odudu/db';
 import { expectCrossRealmMethodProbe } from '@odudu/db/testing';
-import { clients, provisionClientDefaults, provisionRealmDefaults } from '@odudu/domain-realm';
+import { provisionRealm } from '@odudu/authn-flows';
+import { clients, provisionClientDefaults } from '@odudu/domain-realm';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -45,7 +46,7 @@ afterAll(async () => {
 
 async function issueRefreshToken(tx: RealmScopedDatabase, realmId: string): Promise<string> {
   await tx.insert(realms).values({ id: realmId, name: `realm-${realmId}` });
-  await provisionRealmDefaults(tx, realmId);
+  await provisionRealm(tx, realmId);
   const clientDbId = newId();
   await tx.insert(clients).values({
     id: clientDbId,

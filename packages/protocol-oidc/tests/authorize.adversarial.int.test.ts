@@ -7,7 +7,7 @@ import {
   type DatabaseHandle,
   type RealmScopedDatabase,
 } from '@odudu/db';
-import { authenticationSessions } from '@odudu/authn-flows';
+import { authenticationSessions, provisionRealm } from '@odudu/authn-flows';
 import {
   generateSigningKey,
   signingKeys,
@@ -15,7 +15,7 @@ import {
   type GeneratedSigningKey,
   type SigningKeyRecord,
 } from '@odudu/crypto';
-import { clients, provisionClientDefaults, provisionRealmDefaults } from '@odudu/domain-realm';
+import { clients, provisionClientDefaults } from '@odudu/domain-realm';
 import { newId } from '@odudu/kernel';
 import { eq } from 'drizzle-orm';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
@@ -199,7 +199,7 @@ beforeAll(async () => {
   const clientId = newId();
   await withRealm(app.db, realmId, async (tx: RealmScopedDatabase) => {
     await tx.insert(realms).values({ id: realmId, name: REALM });
-    await provisionRealmDefaults(tx, realmId);
+    await provisionRealm(tx, realmId);
     await tx.insert(clients).values({
       id: clientId,
       realmId,
@@ -245,7 +245,7 @@ beforeAll(async () => {
   const markupRealmId = newId();
   await withRealm(app.db, markupRealmId, async (tx: RealmScopedDatabase) => {
     await tx.insert(realms).values({ id: markupRealmId, name: MARKUP_REALM });
-    await provisionRealmDefaults(tx, markupRealmId);
+    await provisionRealm(tx, markupRealmId);
     await tx.insert(clients).values({
       id: markupClientId,
       realmId: markupRealmId,

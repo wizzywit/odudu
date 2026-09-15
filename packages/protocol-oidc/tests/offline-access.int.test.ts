@@ -9,13 +9,8 @@ import {
   type DatabaseHandle,
   type RealmScopedDatabase,
 } from '@odudu/db';
-import { sessions } from '@odudu/authn-flows';
-import {
-  clientScopeAssignments,
-  clientScopeRepository,
-  clients,
-  provisionRealmDefaults,
-} from '@odudu/domain-realm';
+import { sessions, provisionRealm } from '@odudu/authn-flows';
+import { clientScopeAssignments, clientScopeRepository, clients } from '@odudu/domain-realm';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import formbody from '@fastify/formbody';
@@ -88,7 +83,7 @@ async function setupRealm(
   let subjectId = '';
   await withRealm(app.db, realmId, async (tx) => {
     await tx.insert(realms).values({ id: realmId, name });
-    await provisionRealmDefaults(tx, realmId);
+    await provisionRealm(tx, realmId);
     await tx.insert(clients).values({
       id: clientDbId,
       realmId,

@@ -64,6 +64,11 @@ describe('a newly provisioned client', () => {
 
     const assignmentByName = await withRealm(app.db, realmId, async (tx) => {
       await tx.insert(realms).values({ id: realmId, name: `realm-${realmId}` });
+      // Not provisionRealm: domain-realm sits underneath authn-flows in the
+      // dependency graph (authn-flows depends on it, never the reverse), so
+      // a test in this package cannot reach the combined entry point. This
+      // realm intentionally has no flow — only the scope vocabulary this
+      // test is about.
       await provisionRealmDefaults(tx, realmId);
       await tx.insert(clients).values({
         id: clientDbId,

@@ -7,12 +7,17 @@ import {
   type DatabaseHandle,
 } from '@odudu/db';
 import { expectCrossRealmMethodProbe } from '@odudu/db/testing';
+import { clientScopeRepository, REALM_DEFAULT_SCOPE_NAMES } from '@odudu/domain-realm';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { executionRepository } from '#/repository/executions';
 import { type Requirement } from '#/schema/execution';
-import { BROWSER_FLOW_DEFAULT, provisionBrowserFlow } from '#/usecase/provision-flow';
+import {
+  BROWSER_FLOW_DEFAULT,
+  provisionBrowserFlow,
+  provisionRealm,
+} from '#/usecase/provision-flow';
 
 let containerHandle: TestDatabase | undefined;
 let ownerHandle: DatabaseHandle | undefined;
@@ -67,6 +72,30 @@ describe('provisionBrowserFlow', () => {
         authenticator: execution.authenticator,
         requirement: execution.requirement,
       })),
+    );
+    expect(executions.map((execution) => execution.index)).toEqual([0, 1, 2]);
+  });
+});
+
+describe('provisionRealm', () => {
+  // The claim decision #4 makes — a realm is never left half-provisioned —
+  // is only checked if something asserts both halves landed from the one
+  // call a real realm-creation site makes, not just that each function
+  // works in isolation.
+  it('gives a realm both its scope vocabulary and its browser flow', async () => {
+    const realmId = newId();
+    await seedRealm(realmId);
+
+    const [scopeNames, executions] = await withRealm(app.db, realmId, async (tx) => {
+      await provisionRealm(tx, realmId);
+      const scopes = await clientScopeRepository(tx).allForRealm();
+      const flow = await executionRepository(tx).forRealm(realmId);
+      return [scopes.map((scope) => scope.name), flow] as const;
+    });
+
+    expect(scopeNames.sort()).toEqual([...REALM_DEFAULT_SCOPE_NAMES].sort());
+    expect(executions.map((execution) => execution.authenticator)).toEqual(
+      BROWSER_FLOW_DEFAULT.map((execution) => execution.authenticator),
     );
     expect(executions.map((execution) => execution.index)).toEqual([0, 1, 2]);
   });

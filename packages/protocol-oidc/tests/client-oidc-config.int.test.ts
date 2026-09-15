@@ -8,7 +8,8 @@ import {
   type RealmScopedDatabase,
 } from '@odudu/db';
 import { expectCrossRealmMethodProbe, expectRealmIsolation } from '@odudu/db/testing';
-import { clients, provisionClientDefaults, provisionRealmDefaults } from '@odudu/domain-realm';
+import { provisionRealm } from '@odudu/authn-flows';
+import { clients, provisionClientDefaults } from '@odudu/domain-realm';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -47,7 +48,7 @@ async function seedRealmAndClient(
   clientId: string,
 ): Promise<void> {
   await tx.insert(realms).values({ id: realmId, name: `realm-${realmId}` });
-  await provisionRealmDefaults(tx, realmId);
+  await provisionRealm(tx, realmId);
   await tx.insert(clients).values({
     id: clientId,
     realmId,
@@ -94,7 +95,7 @@ describe('clientOidcConfigRepository', () => {
 
     await withRealm(app.db, realmId, async (tx) => {
       await tx.insert(realms).values({ id: realmId, name: `realm-${realmId}` });
-      await provisionRealmDefaults(tx, realmId);
+      await provisionRealm(tx, realmId);
     });
 
     const found = await withRealm(app.db, realmId, async (tx) =>

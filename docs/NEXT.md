@@ -12,20 +12,26 @@ constrained to `required`/`alternative`/`conditional`/`disabled` and
 `provisionBrowserFlow`, which seeds `BROWSER_FLOW_DEFAULT` — `passkey` and
 `password` at `alternative`, `otp` at `conditional` — for every realm.
 `@odudu/domain-realm` does not depend on `@odudu/authn-flows` — the umbrella
-spec fixes the direction the other way, `authn-flows` already depending on
-`@odudu/domain-identity` — so `provisionRealmDefaults` does not call
-`provisionBrowserFlow` itself; a `dependency-cruiser` rule
-(`no-domain-to-authn-flows`) now forbids that edge. Whatever stands up a
-realm calls both, side by side: the seed CLI's two realm-creation sites
-(`apps/server/src/cli/seed.ts`) do. A realm is never left without a flow
-only because every such caller does this — decision #4 of Task 7's brief,
-which does not (yet) reach the ~25 protocol-oidc and domain-realm test
-fixtures that also call `provisionRealmDefaults` to stand up a realm for
-unrelated tests; nothing reads `authentication_executions` yet, so those are
-unaffected, but a composition-root helper is worth considering once
-something does. Evaluating the flow into a decision, and rewiring
-`executor.ts`'s `STEPS` to read it, are Tasks 8 and 9 — this task built only
-the table, the repository and the provisioning default. Migration 0026 adds
+spec fixes the direction the other way — so `provisionRealmDefaults` does not
+call `provisionBrowserFlow` itself; a `dependency-cruiser` rule
+(`no-domain-to-authn-flows`) forbids that edge, alongside `no-circular`,
+which would also catch it (`authn-flows` now depends on `@odudu/domain-realm`
+too, so the edge would close a cycle, not just point the wrong way).
+`@odudu/authn-flows` exports `provisionRealm(tx, realmId)`, which calls
+`provisionRealmDefaults` and then `provisionBrowserFlow` — the one function
+a realm-creation site should call so the two cannot drift apart. The seed
+CLI's two realm-creation sites (`apps/server/src/cli/seed.ts`) call it; so do
+all but one of the ~25 protocol-oidc and domain-realm test fixtures that
+stand up a realm, mechanically migrated from calling `provisionRealmDefaults`
+directly. The one exception is `domain-realm`'s own
+`provision-defaults.int.test.ts`, which cannot reach `provisionRealm` —
+`domain-realm` sits underneath `authn-flows` in the dependency graph — and
+still calls `provisionRealmDefaults` directly, with a comment saying why.
+`provisionBrowserFlow` and `provisionRealmDefaults` both stay exported
+individually for a caller that wants only one half. Evaluating the flow into
+a decision, and rewiring `executor.ts`'s `STEPS` to read it, are Tasks 8 and
+9 — this task built only the table, the repository and the provisioning
+default. Migration 0026 adds
 `token_grants.session_id`, nullable: null means an offline grant, which
 nothing expires and no logout can end; a non-null value is the SSO session
 the grant was issued under, and `sessions` needed a `UNIQUE (realm_id, id)`

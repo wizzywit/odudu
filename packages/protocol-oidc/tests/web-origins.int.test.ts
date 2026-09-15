@@ -7,7 +7,8 @@ import {
   type DatabaseHandle,
   type RealmScopedDatabase,
 } from '@odudu/db';
-import { clients, provisionClientDefaults, provisionRealmDefaults } from '@odudu/domain-realm';
+import { provisionRealm } from '@odudu/authn-flows';
+import { clients, provisionClientDefaults } from '@odudu/domain-realm';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -47,7 +48,7 @@ async function seedRealmAndClient(
   enabled = true,
 ): Promise<void> {
   await tx.insert(realms).values({ id: realmId, name: `realm-${realmId}` });
-  await provisionRealmDefaults(tx, realmId);
+  await provisionRealm(tx, realmId);
   await tx.insert(clients).values({
     id: clientId,
     realmId,

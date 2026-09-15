@@ -243,6 +243,9 @@ importers:
       '@odudu/domain-identity':
         specifier: workspace:*
         version: link:../domain-identity
+      '@odudu/domain-realm':
+        specifier: workspace:*
+        version: link:../domain-realm
       '@odudu/kernel':
         specifier: workspace:*
         version: link:../kernel

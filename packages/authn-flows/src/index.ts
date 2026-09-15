@@ -47,4 +47,8 @@ export {
   type AuthenticationExecutionRecord,
   type Requirement,
 } from '#/schema/execution';
-export { provisionBrowserFlow, BROWSER_FLOW_DEFAULT } from '#/usecase/provision-flow';
+export {
+  provisionBrowserFlow,
+  provisionRealm,
+  BROWSER_FLOW_DEFAULT,
+} from '#/usecase/provision-flow';

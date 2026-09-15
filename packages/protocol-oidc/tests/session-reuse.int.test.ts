@@ -9,14 +9,14 @@ import {
   type DatabaseHandle,
   type RealmScopedDatabase,
 } from '@odudu/db';
-import { clients, provisionClientDefaults, provisionRealmDefaults } from '@odudu/domain-realm';
+import { clients, provisionClientDefaults } from '@odudu/domain-realm';
 import { FakeClock, newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import formbody from '@fastify/formbody';
 import { and, eq } from 'drizzle-orm';
 import Fastify, { type FastifyInstance, type LightMyRequestResponse } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { sessions } from '@odudu/authn-flows';
+import { sessions, provisionRealm } from '@odudu/authn-flows';
 import { oidcRoutes } from '#/index';
 import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
 
@@ -64,7 +64,7 @@ async function setupRealm(name: string): Promise<string> {
   const clientDbId = newId();
   await withRealm(app.db, realmId, async (tx: RealmScopedDatabase) => {
     await tx.insert(realms).values({ id: realmId, name });
-    await provisionRealmDefaults(tx, realmId);
+    await provisionRealm(tx, realmId);
     await tx.insert(clients).values({
       id: clientDbId,
       realmId,

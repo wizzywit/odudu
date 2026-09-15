@@ -1,4 +1,5 @@
 import { type RealmScopedDatabase } from '@odudu/db';
+import { provisionRealmDefaults } from '@odudu/domain-realm';
 import { executionRepository } from '#/repository/executions';
 import { type Requirement } from '#/schema/execution';
 
@@ -17,11 +18,10 @@ export const BROWSER_FLOW_DEFAULT: readonly DefaultExecution[] = [
   { authenticator: 'otp', requirement: 'conditional' },
 ];
 
-// Called once per realm, at the point the realm itself is created —
-// alongside provisionRealmDefaults (@odudu/domain-realm), never through it:
-// authn-flows depends on nothing above it, so the caller that stands up a
-// realm is the one that calls both. A realm is never left without a flow to
-// authenticate against only because every such caller does.
+// Seeds the browser flow alone. Exported so a caller that wants only the
+// scope vocabulary, or that cannot depend on this package (domain-realm
+// itself, underneath it), can still reach for provisionRealmDefaults
+// without carrying a flow it does not want.
 export async function provisionBrowserFlow(
   tx: RealmScopedDatabase,
   realmId: string,
@@ -30,4 +30,15 @@ export async function provisionBrowserFlow(
   for (const [index, execution] of BROWSER_FLOW_DEFAULT.entries()) {
     await repository.create({ realmId, index, ...execution });
   }
+}
+
+// A realm is not usable until it has both a scope vocabulary and a flow to
+// authenticate against — provisionRealmDefaults (@odudu/domain-realm) gives
+// the first, provisionBrowserFlow the second. This is the one function that
+// calls both, so a realm-creation site cannot drift into calling only one of
+// them; every caller standing up a real realm should reach for this rather
+// than the two pieces separately.
+export async function provisionRealm(tx: RealmScopedDatabase, realmId: string): Promise<void> {
+  await provisionRealmDefaults(tx, realmId);
+  await provisionBrowserFlow(tx, realmId);
 }

@@ -11,7 +11,8 @@ import {
   type RealmScopedDatabase,
 } from '@odudu/db';
 import { expectRealmIsolation } from '@odudu/db/testing';
-import { clients, provisionClientDefaults, provisionRealmDefaults } from '@odudu/domain-realm';
+import { provisionRealm } from '@odudu/authn-flows';
+import { clients, provisionClientDefaults } from '@odudu/domain-realm';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import formbody from '@fastify/formbody';
@@ -73,7 +74,7 @@ async function setupTokenRealm(): Promise<void> {
 
   await withRealm(app.db, REALM_ID, async (tx: RealmScopedDatabase) => {
     await tx.insert(realms).values({ id: REALM_ID, name: REALM });
-    await provisionRealmDefaults(tx, REALM_ID);
+    await provisionRealm(tx, REALM_ID);
 
     const subject = await subjectRepository(tx).create({ realmId: REALM_ID, type: 'user' });
     subjectId = subject.id;
@@ -1566,7 +1567,7 @@ describe('realm isolation', () => {
       seed: async (tx, realmId) => {
         const clientDbId = newId();
         await tx.insert(realms).values({ id: realmId, name: `probe-${realmId}` });
-        await provisionRealmDefaults(tx, realmId);
+        await provisionRealm(tx, realmId);
         await tx.insert(clients).values({
           id: clientDbId,
           realmId,

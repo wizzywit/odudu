@@ -10,7 +10,8 @@ import {
   type RealmScopedDatabase,
 } from '@odudu/db';
 import { expectRealmIsolation } from '@odudu/db/testing';
-import { clients, provisionClientDefaults, provisionRealmDefaults } from '@odudu/domain-realm';
+import { provisionRealm } from '@odudu/authn-flows';
+import { clients, provisionClientDefaults } from '@odudu/domain-realm';
 import { FakeClock, newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import formbody from '@fastify/formbody';
@@ -83,7 +84,7 @@ async function setupLoginRealm(name: string): Promise<string> {
   const clientDbId = newId();
   await withRealm(app.db, realmId, async (tx: RealmScopedDatabase) => {
     await tx.insert(realms).values({ id: realmId, name });
-    await provisionRealmDefaults(tx, realmId);
+    await provisionRealm(tx, realmId);
     await tx.insert(clients).values({
       id: clientDbId,
       realmId,
@@ -618,7 +619,7 @@ describe('realm isolation', () => {
       seed: async (tx, realmId) => {
         const clientDbId = newId();
         await tx.insert(realms).values({ id: realmId, name: `probe-${realmId}` });
-        await provisionRealmDefaults(tx, realmId);
+        await provisionRealm(tx, realmId);
         await tx.insert(clients).values({
           id: clientDbId,
           realmId,

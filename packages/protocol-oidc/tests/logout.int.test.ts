@@ -9,8 +9,8 @@ import {
   type DatabaseHandle,
   type RealmScopedDatabase,
 } from '@odudu/db';
-import { sessionRepository, sessions } from '@odudu/authn-flows';
-import { clients, provisionClientDefaults, provisionRealmDefaults } from '@odudu/domain-realm';
+import { sessionRepository, sessions, provisionRealm } from '@odudu/authn-flows';
+import { clients, provisionClientDefaults } from '@odudu/domain-realm';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import formbody from '@fastify/formbody';
@@ -49,7 +49,7 @@ async function setupRealm(name: string): Promise<{ realmId: string; clientDbId: 
   const clientDbId = newId();
   await withRealm(app.db, realmId, async (tx: RealmScopedDatabase) => {
     await tx.insert(realms).values({ id: realmId, name });
-    await provisionRealmDefaults(tx, realmId);
+    await provisionRealm(tx, realmId);
     await tx.insert(clients).values({
       id: clientDbId,
       realmId,
