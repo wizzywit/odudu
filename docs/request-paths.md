@@ -3055,18 +3055,6 @@ session lifecycle. A citation of either half here means that half.
   it lets through. **P3**, the phase named for consent, and — since
   2026-09-14 — the phase whose exit criterion names it too: a screen a user
   can refuse, and a recorded grant.
-- **No session reuse.** The SSO cookie is set at login and never read.
-  `prompt=none` therefore always answers `login_required`, and `prompt=login`
-  is what happens anyway, because authentication is unconditional. **P2b**,
-  whose exit criterion is an SSO session that is read as well as written.
-- **`max_age` is accepted and ignored**, including `max_age=0`, which a
-  client would expect to force reauthentication. This one is an obligation
-  rather than a latitude: OIDC Core §15.1 requires every OP to support
-  "enforcing a maximum authentication age via the `max_age` parameter",
-  with none of the minimum-level-of-support caveat the parameters below
-  carry. **P2b** — reauthentication needs a session that can be judged
-  stale, and that is the phase which builds one. The clause row in
-  `docs/protocols/oidc-core.md` is the same deferral.
 - **`display`, `ui_locales`, `claims_locales` and `login_hint` are accepted
   and ignored**, including values none of them define, such as
   `display=unheard_of`; every one of those requests answers 200 with the
