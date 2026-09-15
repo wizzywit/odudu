@@ -3,8 +3,15 @@
 ## Start here
 
 **P0, P1 and P2a are complete. P2b is brainstormed, specified and planned;
-Task 1 of the plan is the next thing to run, and no P2b code exists yet.**
-The plan is
+Task 1 has landed and Task 2 is next.** Migration 0026 adds
+`token_grants.session_id`, nullable: null means an offline grant, which
+nothing expires and no logout can end; a non-null value is the SSO session
+the grant was issued under, and `sessions` needed a `UNIQUE (realm_id, id)`
+it did not have before this so the composite foreign key could exist.
+`tokenGrantRepository` gained `revokeForSession` and `bySession`, and
+`rotateRefreshToken` refuses to rotate a revoked grant's refresh token
+(`RotationOutcome`'s `'revoked'` case), answered with the same
+`invalid_grant` a reused or unknown token gets. The plan is
 [2026-09-15-p2b-credentials-mfa-sessions.md](superpowers/plans/2026-09-15-p2b-credentials-mfa-sessions.md)
 — 29 tasks, 211 steps, 95–125 h, three spike gates (Tasks 11, 17, 24), and
 fourteen migrations numbered 0026–0039 in the table at its end, which
@@ -121,10 +128,10 @@ when a realm needs to mail and this is unset. The `ODUDU_SMTP_*` set —
 `ODUDU_SMTP_HOST` unset, the server logs every message instead of sending
 it, which is what the compose stack does today.
 
-**Migrations now run to 0025.** `packages/db/drizzle/0023_users_email_unique.sql`
+**Migrations now run to 0026.** `packages/db/drizzle/0023_users_email_unique.sql`
 is the realm-scoped `(realm_id, email)` uniqueness self-registration needs;
-0025 is the last one this phase added. Anything from P2b starts at 0026,
-and the plan's own table numbers them through 0039.
+0025 is the last one P2a added. 0026 (`token_grants_session`) is P2b's
+first, and the plan's own table numbers the rest through 0039.
 
 That is P2a done. **P2b** takes what P2 always meant: the flow tree with
 TOTP and passkeys, password policies, brute-force protection (a clause row
