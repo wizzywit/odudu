@@ -6,6 +6,12 @@ export interface DiscoveryDocument {
   readonly token_endpoint: string;
   readonly userinfo_endpoint: string;
   readonly jwks_uri: string;
+  // OpenID Connect RP-Initiated Logout 1.0 §4's own discovery member —
+  // OPTIONAL there, but Odudu always serves the endpoint once a realm is
+  // provisioned, the same way `authorization_response_iss_parameter_supported`
+  // (RFC 9207) and `code_challenge_methods_supported` (RFC 7636) are
+  // extension members this document already always states.
+  readonly end_session_endpoint: string;
   readonly response_types_supported: readonly string[];
   readonly response_modes_supported: readonly string[];
   readonly subject_types_supported: readonly string[];
@@ -52,6 +58,7 @@ export function discoveryDocument(opts: DiscoveryDocumentOptions): DiscoveryDocu
     token_endpoint: `${issuer}/protocol/openid-connect/token`,
     userinfo_endpoint: `${issuer}/protocol/openid-connect/userinfo`,
     jwks_uri: `${issuer}/protocol/openid-connect/certs`,
+    end_session_endpoint: `${issuer}/protocol/openid-connect/logout`,
     // Fixed, not configurable: OAuth 2.1 drops implicit and hybrid, PKCE is
     // mandatory with S256 only, and P1 implements exactly these three grant
     // types. A client that reads discovery and trusts it cannot be offered a

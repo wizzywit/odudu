@@ -36,6 +36,8 @@ the URL and never by a header or a parameter.
 | `POST` | `/realms/{realm}/protocol/openid-connect/token`    | Token endpoint                                              |
 | `GET`  | `/realms/{realm}/protocol/openid-connect/userinfo` | UserInfo                                                    |
 | `POST` | `/realms/{realm}/protocol/openid-connect/userinfo` | UserInfo (form)                                             |
+| `GET`  | `/realms/{realm}/protocol/openid-connect/logout`   | RP-initiated logout (`end_session_endpoint`)                |
+| `POST` | `/realms/{realm}/protocol/openid-connect/logout`   | RP-initiated logout, confirmation form submission           |
 | `GET`  | `/health/live`, `/health/ready`                    | Liveness, readiness                                         |
 
 `/login-actions/authenticate` is deliberately outside the
@@ -354,6 +356,7 @@ curl -sS http://localhost:3000/realms/demo/.well-known/openid-configuration
   "token_endpoint": "http://localhost:3000/realms/demo/protocol/openid-connect/token",
   "userinfo_endpoint": "http://localhost:3000/realms/demo/protocol/openid-connect/userinfo",
   "jwks_uri": "http://localhost:3000/realms/demo/protocol/openid-connect/certs",
+  "end_session_endpoint": "http://localhost:3000/realms/demo/protocol/openid-connect/logout",
   "response_types_supported": ["code"],
   "response_modes_supported": ["query"],
   "subject_types_supported": ["public"],
@@ -362,7 +365,16 @@ curl -sS http://localhost:3000/realms/demo/.well-known/openid-configuration
   "grant_types_supported": ["authorization_code", "refresh_token", "client_credentials"],
   "token_endpoint_auth_methods_supported": ["client_secret_basic", "client_secret_post", "none"],
   "authorization_response_iss_parameter_supported": true,
-  "scopes_supported": ["address", "email", "groups", "openid", "phone", "profile", "roles"],
+  "scopes_supported": [
+    "address",
+    "email",
+    "groups",
+    "offline_access",
+    "openid",
+    "phone",
+    "profile",
+    "roles"
+  ],
   "claims_supported": [
     "sub",
     "name",
@@ -395,16 +407,20 @@ this document. `response_modes_supported` is stated rather than omitted
 because omitting it would default to `["query", "fragment"]` (OIDC Discovery
 §3) and promise a delivery mode `/authorize` refuses.
 `code_challenge_methods_supported` lists `S256` and never `plain`.
+`end_session_endpoint` is RP-Initiated Logout 1.0's own discovery member —
+see [RP-initiated logout](#rp-initiated-logout) below.
 
 `scopes_supported` is the realm's own scope vocabulary, read from the
-database rather than compiled in: these seven are what `odudu seed` gives a
+database rather than compiled in: these eight are what `odudu seed` gives a
 new realm, and a realm that is given another scope advertises it here the
 moment it exists. A scope is seeded only once a claim mapper can answer for
-it, so this list never promises claims nothing returns.
+it, or — `offline_access`'s own exception — once it asks for a grant shape
+rather than for data (see [offline access](#offline-access) below), so this
+list never promises claims nothing returns.
 
 Being advertised is only half of what `/authorize` needs, though — **a scope
 is granted only when the realm defines it _and_ the client is assigned it**,
-and either failure is `invalid_scope`. `odudu seed` assigns all seven to each
+and either failure is `invalid_scope`. `odudu seed` assigns all eight to each
 client it creates. The walk-through below asks for three of them — `openid`,
 `profile` and `email` — which is why it is answered; `roles`, `groups`,
 `address` and `phone` reach a token the same way, added to a request's
@@ -592,16 +608,17 @@ authenticates as well, in the one way it is registered for.
 The access token, decoded:
 
 ```json
-{ "alg": "RS256", "kid": "01a09678-…", "typ": "at+jwt" }
+{ "alg": "RS256", "kid": "01a0a6cd-e3c9-…", "typ": "at+jwt" }
 {
   "iss": "http://localhost:3000/realms/demo",
-  "sub": "01a09678-07c1-…",
+  "sub": "01a0a6cd-e3cb-…",
   "aud": ["http://localhost:3000/realms/demo"],
   "client_id": "demo-spa",
   "scope": "openid profile email",
-  "iat": 1789230877,
-  "exp": 1789231177,
-  "jti": "01a09678-8ae6-…"
+  "iat": 1789504919,
+  "exp": 1789505219,
+  "jti": "01a0a6ce-17ac-…",
+  "sid": "01a0a6ce-1788-…"
 }
 ```
 
@@ -622,19 +639,22 @@ below](#roles-once-a-scope-reaches-it) shows the symmetric flag that admits
 The ID token, decoded:
 
 ```json
-{ "alg": "RS256", "kid": "01a09678-…" }
+{ "alg": "RS256", "kid": "01a0a6cd-e3c9-…" }
 {
   "iss": "http://localhost:3000/realms/demo",
   "aud": "demo-spa",
-  "iat": 1789230877,
-  "exp": 1789231177,
-  "auth_time": 1789230870,
+  "iat": 1789504919,
+  "exp": 1789505219,
+  "auth_time": 1789504919,
   "nonce": "n-0S6_WzA2Mj",
-  "sub": "01a09678-07c1-…",
+  "sid": "01a0a6ce-1788-…",
+  "sub": "01a0a6cd-e3cb-…",
   "name": "ada",
   "preferred_username": "ada",
   "email": "ada@example.com",
-  "email_verified": false
+  "email_verified": false,
+  "amr": ["pwd"],
+  "acr": "1"
 }
 ```
 
@@ -642,7 +662,9 @@ Its `aud` is the client, not the issuer: an ID token is a statement to the
 client about who signed in, and an access token is a credential for an API.
 `nonce` appears exactly when the request carried one, and the client must
 compare it to what it sent. An ID token is issued only when the granted
-scope includes `openid`.
+scope includes `openid`. `amr` and `acr` describe what actually
+authenticated this login — `pwd` (RFC 8176) and a single factor — never
+what the subject could have used instead.
 
 **What the client does next:** verify the ID token's signature against the
 JWKS, its `iss`, `aud`, `exp` and `nonce`; take `sub` as the user's
@@ -695,13 +717,14 @@ token that carries it:
 {
   "roles": ["reviewer"],
   "iss": "http://localhost:3000/realms/demo",
-  "sub": "01a0a1a7-5d86-7e0c-9ebf-d30b0fc20cb4",
+  "sub": "01a0a6cd-e3cb-…",
   "aud": ["http://localhost:3000/realms/demo"],
   "client_id": "demo-spa",
   "scope": "openid roles",
-  "iat": 1789418514,
-  "exp": 1789418814,
-  "jti": "01a0a1a7-a6bc-7deb-93ae-f0a671497b5a"
+  "iat": 1789505061,
+  "exp": 1789505361,
+  "jti": "01a0a6d0-445f-…",
+  "sid": "01a0a6d0-4425-…"
 }
 ```
 
@@ -712,11 +735,14 @@ The ID token issued alongside it carries no `roles`, though the same
 {
   "iss": "http://localhost:3000/realms/demo",
   "aud": "demo-spa",
-  "iat": 1789418514,
-  "exp": 1789418814,
-  "auth_time": 1789418514,
+  "iat": 1789505061,
+  "exp": 1789505361,
+  "auth_time": 1789505061,
   "nonce": "n-0S6_WzA2Mj",
-  "sub": "01a0a1a7-5d86-7e0c-9ebf-d30b0fc20cb4"
+  "sid": "01a0a6d0-4425-…",
+  "sub": "01a0a6cd-e3cb-…",
+  "amr": ["pwd"],
+  "acr": "1"
 }
 ```
 
@@ -735,7 +761,7 @@ curl -sS -H "Authorization: Bearer $ACCESS_TOKEN" \
 ```
 
 ```json
-{ "sub": "01a0a1a7-5d86-7e0c-9ebf-d30b0fc20cb4", "roles": ["reviewer"] }
+{ "sub": "01a0a6cd-e3cb-76de-badb-9191bba04d13", "roles": ["reviewer"] }
 ```
 
 A role reaches a token only when it is mapped, this way, to a scope the
@@ -991,13 +1017,14 @@ where they name the client:
 ```json
 {
   "iss": "http://localhost:3000/realms/demo",
-  "sub": "01a09acc-6bd8-…",
+  "sub": "01a0a6cd-e3cb-…",
   "aud": ["http://localhost:3000/realms/demo"],
   "client_id": "demo-backend",
   "scope": "openid profile email",
-  "iat": 1789303513,
-  "exp": 1789303813,
-  "jti": "01a09acc-e390-…"
+  "iat": 1789505125,
+  "exp": 1789505425,
+  "jti": "01a0a6d1-3d61-…",
+  "sid": "01a0a6d1-3d1f-…"
 }
 ```
 
@@ -1005,15 +1032,18 @@ where they name the client:
 {
   "iss": "http://localhost:3000/realms/demo",
   "aud": "demo-backend",
-  "iat": 1789303513,
-  "exp": 1789303813,
-  "auth_time": 1789303513,
+  "iat": 1789505125,
+  "exp": 1789505425,
+  "auth_time": 1789505125,
   "nonce": "n-0S6_WzA2Mj",
-  "sub": "01a09acc-6bd8-…",
+  "sid": "01a0a6d1-3d1f-…",
+  "sub": "01a0a6cd-e3cb-…",
   "name": "ada",
   "preferred_username": "ada",
   "email": "ada@example.com",
-  "email_verified": false
+  "email_verified": false,
+  "amr": ["pwd"],
+  "acr": "1"
 }
 ```
 
@@ -1408,6 +1438,101 @@ is `(realm_id, email)`, not `email` alone.) A duplicate **username** and a
 malformed address are both refused the same way — 400, with a message
 naming which — rather than an unhandled error.
 
+Every realm also carries a password policy, and registration is one of its
+writers. The default policy only floors the length at 8, so a short
+password is refused with every violation the candidate has, not just the
+first:
+
+```bash
+curl -sS -X POST http://localhost:3000/realms/register-demo/login-actions/registration \
+  --data-urlencode 'username=ada' \
+  --data-urlencode 'email=ada@example.com' \
+  --data-urlencode 'password=short'
+```
+
+```
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Can't create this account</title></head>
+<body>
+<h1>Can't create this account</h1>
+<ul>
+<li>Password must be at least 8 characters long.</li>
+</ul>
+</body>
+</html>
+```
+
+With `password_require_digit` and `password_require_uppercase` also turned
+on for the realm, the same short password now lists all three:
+
+```
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Can't create this account</title></head>
+<body>
+<h1>Can't create this account</h1>
+<ul>
+<li>Password must be at least 8 characters long.</li>
+<li>Password must contain a digit.</li>
+<li>Password must contain an uppercase letter.</li>
+</ul>
+</body>
+</html>
+```
+
+`password_not_username` and `password_not_email` (both on by default)
+refuse a password containing the account's own username, or the local part
+of its email address, case-insensitively — matched independently, so a
+password tripping both lists both:
+
+```bash
+curl -sS -X POST http://localhost:3000/realms/register-demo/login-actions/registration \
+  --data-urlencode 'username=ada' \
+  --data-urlencode 'email=ada@example.com' \
+  --data-urlencode 'password=myADApassword'
+```
+
+```
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Can't create this account</title></head>
+<body>
+<h1>Can't create this account</h1>
+<ul>
+<li>Password must not contain the username.</li>
+<li>Password must not contain the email address.</li>
+</ul>
+</body>
+</html>
+```
+
+A username and an email local part that differ show each rule on its own —
+here `carol`'s password contains no part of her own username, but does
+contain the local part of the email address given for the account:
+
+```bash
+curl -sS -X POST http://localhost:3000/realms/register-demo/login-actions/registration \
+  --data-urlencode 'username=carol' \
+  --data-urlencode 'email=ada@example.com' \
+  --data-urlencode 'password=myADApassword'
+```
+
+```
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Can't create this account</title></head>
+<body>
+<h1>Can't create this account</h1>
+<ul>
+<li>Password must not contain the email address.</li>
+</ul>
+</body>
+</html>
+```
+
+400 in every case above; no subject, user row or credential is created.
+
 A realm with `verify_email` off skips the mail and the gate above entirely:
 the account created is usable at the next login, the same way a
 seeded user always has been.
@@ -1538,8 +1663,31 @@ curl -sS 'http://localhost:3000/realms/reset-demo/login-actions/action-token?key
 </html>
 ```
 
-Submitting it sets the password — whatever P2b later constrains about
-length, complexity or history is that phase's concern, not this one's:
+The same realm password policy that binds registration binds this
+submission too. A password that fails it is refused, and the link is left
+alone rather than spent — it is still the same unconsumed token, so trying
+again with a compliant password on the very same link works:
+
+```bash
+curl -sS -X POST http://localhost:3000/realms/reset-demo/login-actions/action-token \
+  --data-urlencode 'key=NnBkF0L3rKPh1cuzEi8yMK-tzUnMHxKxk3Sfy-8USEk' \
+  --data-urlencode 'password=weak'
+```
+
+```
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Can't reset your password</title></head>
+<body>
+<h1>Can't reset your password</h1>
+<ul>
+<li>Password must be at least 8 characters long.</li>
+</ul>
+</body>
+</html>
+```
+
+Submitting a compliant password on the same link sets it:
 
 ```bash
 curl -sS -X POST http://localhost:3000/realms/reset-demo/login-actions/action-token \
@@ -1789,6 +1937,343 @@ A redemption that fails for any other reason — wrong verifier, wrong
 `redirect_uri`, wrong client — leaves the code usable, because the whole
 attempt is rolled back. Verified: after all three failures above, the
 correct redemption of the same code still returned 200.
+
+## RP-initiated logout
+
+`GET`/`POST /realms/{realm}/protocol/openid-connect/logout` implements
+[OpenID Connect RP-Initiated Logout
+1.0](protocols/oidc-rpinitiated.md). Ending a session revokes it and every
+grant whose `session_id` names it — not access tokens, which stay valid to
+their own `exp` regardless (see [What is not
+implemented](#what-is-not-implemented) and README.md's own logout section
+for why).
+
+A client registers its `post_logout_redirect_uri` values ahead of time —
+there is no seed flag for it yet, so this walkthrough sets one directly:
+
+```bash
+docker compose -f infra/docker/compose.yaml exec -T postgres \
+  psql -U odudu -d odudu -c "
+    UPDATE client_oidc_config
+    SET post_logout_redirect_uris = ARRAY['http://localhost:8080/logged-out']
+    FROM clients
+    WHERE clients.id = client_oidc_config.client_id AND clients.client_id = 'demo-spa';
+  "
+```
+
+Signing in exactly as [Path A](#path-a-authorization-code-with-pkce) does,
+then redeeming a reused-session code for an `id_token`, gives an
+`id_token_hint` naming this session:
+
+```bash
+CODE=$(curl -sS -b cookies.txt -D - -o /dev/null --get \
+  --data-urlencode 'response_type=code' \
+  --data-urlencode 'client_id=demo-spa' \
+  --data-urlencode 'redirect_uri=http://localhost:8080/callback' \
+  --data-urlencode 'scope=openid' \
+  --data-urlencode 'state=xyz-hint' \
+  --data-urlencode "code_challenge=$CHALLENGE" \
+  --data-urlencode 'code_challenge_method=S256' \
+  "http://localhost:3000/realms/demo/protocol/openid-connect/auth" \
+  | sed -n 's/.*[Ll]ocation: .*[?&]code=\([^&[:space:]]*\).*/\1/p' | tr -d '\r')
+
+TOKEN_RESPONSE=$(curl -sS \
+  --data-urlencode 'grant_type=authorization_code' \
+  --data-urlencode "code=$CODE" \
+  --data-urlencode 'redirect_uri=http://localhost:8080/callback' \
+  --data-urlencode 'client_id=demo-spa' \
+  --data-urlencode "code_verifier=$VERIFIER" \
+  "http://localhost:3000/realms/demo/protocol/openid-connect/token")
+
+ID_TOKEN=$(python3 -c "import json,sys; print(json.load(sys.stdin)['id_token'])" <<< "$TOKEN_RESPONSE")
+REFRESH_TOKEN=$(python3 -c "import json,sys; print(json.load(sys.stdin)['refresh_token'])" <<< "$TOKEN_RESPONSE")
+
+curl -sS -b cookies.txt -D - -o /dev/null \
+  --get \
+  --data-urlencode "id_token_hint=$ID_TOKEN" \
+  --data-urlencode 'client_id=demo-spa' \
+  --data-urlencode 'post_logout_redirect_uri=http://localhost:8080/logged-out' \
+  --data-urlencode 'state=xyz-bye' \
+  "http://localhost:3000/realms/demo/protocol/openid-connect/logout"
+```
+
+```
+HTTP/1.1 302 Found
+location: http://localhost:8080/logged-out?state=xyz-bye
+content-length: 0
+```
+
+The hint names the session the cookie itself belongs to (OIDC Core §3.1.2.2
+validates it — this realm's own keys, this realm's issuer, an access token
+refused by `typ`), so §2's confirmation is skipped and the exact-match
+`post_logout_redirect_uri` is honoured. The refresh token this session's
+grant issued is now refused:
+
+```bash
+curl -sS \
+  --data-urlencode 'grant_type=refresh_token' \
+  --data-urlencode "refresh_token=$REFRESH_TOKEN" \
+  --data-urlencode 'client_id=demo-spa' \
+  "http://localhost:3000/realms/demo/protocol/openid-connect/token"
+```
+
+```json
+{ "error": "invalid_grant" }
+```
+
+A second, separate sign-in with **no** `id_token_hint` gets the
+confirmation page §2 requires instead of an immediate redirect — nothing is
+ended by this `GET` alone:
+
+```bash
+curl -sS -b cookies2.txt \
+  "http://localhost:3000/realms/demo/protocol/openid-connect/logout"
+```
+
+```
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Sign out?</title></head>
+<body>
+<h1>Sign out?</h1>
+<p>Signing out ends this session for every application that uses it.</p>
+<form method="post" action="/realms/demo/protocol/openid-connect/logout">
+  <input type="hidden" name="session_id" value="01a0a5a7-4d08-…">
+  <button type="submit">Sign out</button>
+</form>
+</body>
+</html>
+```
+
+(`session_id` shortened, as elsewhere in this document.) Unlike the login
+form's `auth_session_id`, this hidden field _is_ the session cookie's own
+value — echoed back rather than a distinct one-time token — and the POST
+handler checks it again against what the cookie itself still resolves to
+before ending anything: a double-submit-cookie defence, not a single-use
+one. Only a browser holding that `HttpOnly` cookie can supply a match,
+which is what stops a forged cross-site POST from ending a session it
+cannot read the id of.
+
+A `post_logout_redirect_uri` that is not an exact match to a registered
+value — a trailing slash, a query string, a different host — is refused,
+and the session still ends: §3's redirect rule is about the redirect
+alone, never about whether logout happened.
+
+### Offline access
+
+`offline_access` is a scope, seeded into every realm alongside
+`openid`/`profile`/`email` and assigned to `demo-spa` too — the one scope
+here assigned `'optional'` rather than `'default'`, which changes nothing
+`/authorize` or `/token` do with it yet and is there for the consent screen
+a later phase adds (it maps no claims either way — see
+[Discovery](#1-discovery) above). Requesting it produces a
+grant with no session, which is what nothing here can expire and no logout
+can end (OpenID Connect Back-Channel Logout 1.0 §2.7's second sentence,
+[docs/protocols/oidc-backchannel.md](protocols/oidc-backchannel.md)). A
+fresh login, keeping its cookie, redeems one code for a plain
+`scope=openid` grant and then reuses the same live session — no new
+login — to redeem a second code for `scope=openid offline_access`:
+
+```bash
+VERIFIER=$(openssl rand -hex 32)
+CHALLENGE=$(printf '%s' "$VERIFIER" | openssl dgst -binary -sha256 \
+  | openssl base64 | tr '+/' '-_' | tr -d '=')
+
+AUTH_SESSION_ID=$(curl -sS --get \
+  --data-urlencode 'response_type=code' \
+  --data-urlencode 'client_id=demo-spa' \
+  --data-urlencode 'redirect_uri=http://localhost:8080/callback' \
+  --data-urlencode 'scope=openid' \
+  --data-urlencode 'state=xyz-bound' \
+  --data-urlencode "code_challenge=$CHALLENGE" \
+  --data-urlencode 'code_challenge_method=S256' \
+  "$BASE/auth" | sed -n 's/.*name="auth_session_id" value="\([^"]*\)".*/\1/p')
+
+CODE=$(curl -sS -c cookies-offline.txt -D - -o /dev/null \
+  --data-urlencode "auth_session_id=$AUTH_SESSION_ID" \
+  --data-urlencode 'username=ada' \
+  --data-urlencode 'password=correct-horse-battery' \
+  "$LOGIN" | sed -n 's/.*[?&]code=\([^&[:space:]]*\).*/\1/p' | tr -d '\r')
+
+BOUND_TOKENS=$(curl -sS \
+  --data-urlencode 'grant_type=authorization_code' \
+  --data-urlencode "code=$CODE" \
+  --data-urlencode 'redirect_uri=http://localhost:8080/callback' \
+  --data-urlencode 'client_id=demo-spa' \
+  --data-urlencode "code_verifier=$VERIFIER" "$BASE/token")
+BOUND_REFRESH_TOKEN=$(printf '%s' "$BOUND_TOKENS" | sed -n 's/.*"refresh_token":"\([^"]*\)".*/\1/p')
+
+OFFLINE_CODE=$(curl -sS -b cookies-offline.txt -D - -o /dev/null --get \
+  --data-urlencode 'response_type=code' \
+  --data-urlencode 'client_id=demo-spa' \
+  --data-urlencode 'redirect_uri=http://localhost:8080/callback' \
+  --data-urlencode 'scope=openid offline_access' \
+  --data-urlencode 'state=xyz-offline' \
+  --data-urlencode "code_challenge=$CHALLENGE" \
+  --data-urlencode 'code_challenge_method=S256' \
+  "$BASE/auth" \
+  | sed -n 's/.*[Ll]ocation: .*[?&]code=\([^&[:space:]]*\).*/\1/p' | tr -d '\r')
+
+OFFLINE_TOKENS=$(curl -sS \
+  --data-urlencode 'grant_type=authorization_code' \
+  --data-urlencode "code=$OFFLINE_CODE" \
+  --data-urlencode 'redirect_uri=http://localhost:8080/callback' \
+  --data-urlencode 'client_id=demo-spa' \
+  --data-urlencode "code_verifier=$VERIFIER" "$BASE/token")
+OFFLINE_REFRESH_TOKEN=$(printf '%s' "$OFFLINE_TOKENS" | sed -n 's/.*"refresh_token":"\([^"]*\)".*/\1/p')
+```
+
+```json
+{
+  "access_token": "eyJhbGciOiJSUzI1NiIs…",
+  "id_token": "eyJhbGciOiJSUzI1NiIs…",
+  "refresh_token": "KES5eAgSveeI4Q3mnSv…",
+  "token_type": "Bearer",
+  "expires_in": 300,
+  "scope": "openid offline_access"
+}
+```
+
+(All three token values truncated.) The access token, decoded:
+
+```json
+{
+  "iss": "http://localhost:3000/realms/demo",
+  "sub": "01a0a6cd-e3cb-…",
+  "aud": ["http://localhost:3000/realms/demo"],
+  "client_id": "demo-spa",
+  "scope": "openid offline_access",
+  "iat": 1789505162,
+  "exp": 1789505462,
+  "jti": "01a0a6d1-cbc5-…"
+}
+```
+
+No `sid` — every other access token in this document carries one
+([docs/protocols/oidc-backchannel.md](protocols/oidc-backchannel.md) §2.1),
+and this is the one grant here with no session for it to name. The ID
+token, decoded, is missing it the same way, but still carries `amr` and
+`acr`:
+
+```json
+{
+  "sub": "01a0a6cd-e3cb-…",
+  "iss": "http://localhost:3000/realms/demo",
+  "aud": "demo-spa",
+  "iat": 1789505162,
+  "exp": 1789505462,
+  "auth_time": 1789505162,
+  "amr": ["pwd"],
+  "acr": "1"
+}
+```
+
+`amr`/`acr` read the session the login itself established
+(`code.sessionId`), not the grant's own, offline-nulled session binding —
+the two are different fields for exactly this reason: an `offline_access`
+grant has no session to end at logout, but it is still a statement about a
+login that really happened, with a real authentication behind it.
+
+Logging out the session that redeemed both codes ends it the same two-step
+way shown above: `GET` for the confirmation page, then the hidden
+`session_id` posted back to confirm.
+
+```bash
+curl -sS -b cookies-offline.txt "http://localhost:3000/realms/demo/protocol/openid-connect/logout"
+```
+
+```
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Sign out?</title></head>
+<body>
+<h1>Sign out?</h1>
+<p>Signing out ends this session for every application that uses it.</p>
+<form method="post" action="/realms/demo/protocol/openid-connect/logout">
+  <input type="hidden" name="session_id" value="01a0a5e6-6047-…">
+  <button type="submit">Sign out</button>
+</form>
+</body>
+</html>
+```
+
+(`session_id` shortened, as elsewhere in this document.)
+
+```bash
+curl -sS -b cookies-offline.txt -D - \
+  --data-urlencode 'session_id=01a0a5e6-6047-7c21-b8f7-da4b5d908534' \
+  "http://localhost:3000/realms/demo/protocol/openid-connect/logout"
+```
+
+```
+HTTP/1.1 200 OK
+set-cookie: demo-session=; Max-Age=0; HttpOnly; SameSite=Lax; Path=/
+cache-control: no-store
+
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Signed out</title></head>
+<body>
+<h1>Signed out</h1>
+<p>You have been signed out.</p>
+</body>
+</html>
+```
+
+The session-bound refresh token is revoked with it:
+
+```bash
+curl -sS \
+  --data-urlencode 'grant_type=refresh_token' \
+  --data-urlencode "refresh_token=$BOUND_REFRESH_TOKEN" \
+  --data-urlencode 'client_id=demo-spa' \
+  "$BASE/token"
+```
+
+```json
+{ "error": "invalid_grant" }
+```
+
+The offline one is not — nothing about ending the session touched a grant
+with none:
+
+```bash
+curl -sS \
+  --data-urlencode 'grant_type=refresh_token' \
+  --data-urlencode "refresh_token=$OFFLINE_REFRESH_TOKEN" \
+  --data-urlencode 'client_id=demo-spa' \
+  "$BASE/token"
+```
+
+```json
+{
+  "access_token": "eyJhbGciOiJSUzI1NiIs…",
+  "refresh_token": "eycMYvzBLhLjl1zbcQ8…",
+  "token_type": "Bearer",
+  "expires_in": 300,
+  "scope": "openid offline_access"
+}
+```
+
+(Both token values truncated.) A session-bound refresh token dies the
+moment its session does, whether that session was ended by this logout or
+by its own idle timeout expiring underneath it —
+`packages/protocol-oidc/src/usecase/refresh-rotation.ts` checks the
+session's own liveness, not just the grant's `revoked_at`, for exactly that
+second case. An offline grant has neither: no session to end, and no idle
+window to outlive, so it is bounded only by its own
+`refresh_token_ttl_seconds` and by retention (see [What is not
+implemented](#what-is-not-implemented)) — nothing about ending a session
+ages it out early. A client is only handed this scope if the realm's
+operator assigned it — `demo-spa` has it because `odudu seed` assigns every
+default scope, `offline_access` included, though `'optional'` rather than
+`'default'`; a request for it from a client whose assignment was withdrawn
+between `/authorize` accepting the request and the code being redeemed
+gets an ordinary session-bound grant back instead, since the resolved
+scope at redemption is the authority, not the request `/authorize` saw. A
+client never assigned the scope at all is refused outright, with
+`invalid_scope`, before a code is ever issued — the same rule any other
+unassigned scope gets (see [Discovery](#1-discovery) above).
 
 ## Path C: `client_credentials`
 
@@ -2240,23 +2725,12 @@ document.)
 
 Four things are worth separating there.
 
-**`none` is `login_required`, always.** Nothing reads the SSO cookie at
-`/authorize`, so no end user is ever already authenticated when the
-decision is made. The answer is therefore unconditional rather than
-session-dependent — which is still exactly the behaviour OIDC Core §3.1.2.3
-describes, arrived at without a session to reuse rather than in spite of
-one. Holding a live `demo-session` cookie changes nothing — add `-c
-cookies.txt` to the login POST in the bootstrap block to keep one, then:
-
-```bash
-curl -sS -b cookies.txt -o /dev/null -D - \
-  "http://localhost:3000/realms/demo/protocol/openid-connect/auth?$Q&prompt=none" \
-  | grep -i '^location'
-```
-
-```
-location: http://localhost:8080/callback?error=login_required&state=xyz-123&iss=…
-```
+**`none` is `login_required` for a request carrying no session.** The table
+above ran with no cookie, so nothing was there to be silently authenticated
+against — still exactly the behaviour OIDC Core §3.1.2.3 describes. A live
+`demo-session` cookie changes this row specifically; [Signing in again from
+an existing session](#signing-in-again-from-an-existing-session) below is
+what it changes to.
 
 **`none` with any other value is an error, not a decision.** §3.1.2.1 makes
 the values mutually exclusive. Answering `none login` as if it were a bare
@@ -2269,12 +2743,184 @@ server has never heard of is better told so than answered as though it had
 asked for nothing. `Login` is refused for the same reason: the values are
 case-sensitive.
 
-**`prompt=login` renders the form, and so does no `prompt` at all.**
-Forcing reauthentication is what happens anyway, because authentication is
-unconditional. Holding the session cookie from a completed sign-in, both
-still answer 200 with a fresh login form. That equality is a gap, not a
-feature, and it closes in P2b when session reuse arrives — at which point
-`prompt=login` starts meaning something the absence of `prompt` does not.
+**`prompt=login` renders the form, and so does no `prompt` at all — with no
+session.** The table above ran with no cookie, so both forced and
+unconditional authentication land on the same 200. They stop agreeing once
+a session exists to force past, in the same section below.
+
+### Signing in again from an existing session
+
+`/authorize` reads the `demo-session` cookie the login POST sets (P2b), so
+a second authorization request from the same browser can complete without
+the form — and `prompt` decides whether that is allowed to happen. This
+section runs one login, keeps the cookie, and sends it back three ways.
+
+The first `/authorize`, with a login exactly as [Path
+A](#path-a-authorization-code-with-pkce) runs it, keeping the cookie curl
+is handed:
+
+```bash
+VERIFIER=$(openssl rand -hex 32)
+CHALLENGE=$(printf '%s' "$VERIFIER" | openssl dgst -binary -sha256 \
+  | openssl base64 | tr '+/' '-_' | tr -d '=')
+AUTH_SESSION_ID=$(curl -sS --get \
+  --data-urlencode 'response_type=code' \
+  --data-urlencode 'client_id=demo-spa' \
+  --data-urlencode 'redirect_uri=http://localhost:8080/callback' \
+  --data-urlencode 'scope=openid profile email' \
+  --data-urlencode 'state=xyz-live' \
+  --data-urlencode "code_challenge=$CHALLENGE" \
+  --data-urlencode 'code_challenge_method=S256' \
+  "http://localhost:3000/realms/demo/protocol/openid-connect/auth" \
+  | sed -n 's/.*name="auth_session_id" value="\([^"]*\)".*/\1/p')
+
+curl -sS -c cookies.txt -o /dev/null \
+  --data-urlencode "auth_session_id=$AUTH_SESSION_ID" \
+  --data-urlencode 'username=ada' \
+  --data-urlencode 'password=correct-horse-battery' \
+  "http://localhost:3000/realms/demo/login-actions/authenticate"
+
+grep session cookies.txt
+```
+
+```
+#HttpOnly_localhost	FALSE	/	FALSE	0	demo-session	01a0a540-…
+```
+
+The second `/authorize`, the cookie attached, no `prompt` at all — a
+different `state`, the same `code_challenge` this session was never asked
+to prove twice:
+
+```bash
+curl -sS -b cookies.txt -D - -o /dev/null \
+  --get \
+  --data-urlencode 'response_type=code' \
+  --data-urlencode 'client_id=demo-spa' \
+  --data-urlencode 'redirect_uri=http://localhost:8080/callback' \
+  --data-urlencode 'scope=openid' \
+  --data-urlencode 'state=xyz-reuse' \
+  --data-urlencode "code_challenge=$CHALLENGE" \
+  --data-urlencode 'code_challenge_method=S256' \
+  "http://localhost:3000/realms/demo/protocol/openid-connect/auth" \
+  | grep -i '^location'
+```
+
+```
+location: http://localhost:8080/callback?code=I81jAkPQ…&state=xyz-reuse&iss=http%3A%2F%2Flocalhost%3A3000%2Frealms%2Fdemo
+```
+
+A 302 straight to `redirect_uri`, carrying a fresh `code` — no login form,
+no second `set-cookie`, because the session that got this request here
+already has one. `prompt=none` succeeds the same way, which is the entire
+point of asking for it:
+
+```bash
+curl -sS -b cookies.txt -D - -o /dev/null \
+  --get \
+  --data-urlencode 'response_type=code' \
+  --data-urlencode 'client_id=demo-spa' \
+  --data-urlencode 'redirect_uri=http://localhost:8080/callback' \
+  --data-urlencode 'scope=openid' \
+  --data-urlencode 'state=xyz-none' \
+  --data-urlencode "code_challenge=$CHALLENGE" \
+  --data-urlencode 'code_challenge_method=S256' \
+  --data-urlencode 'prompt=none' \
+  "http://localhost:3000/realms/demo/protocol/openid-connect/auth" \
+  | grep -i '^location'
+```
+
+```
+location: http://localhost:8080/callback?code=8VtxFh-h…&state=xyz-none&iss=http%3A%2F%2Flocalhost%3A3000%2Frealms%2Fdemo
+```
+
+`prompt=login`, the same live cookie attached, forces the form anyway:
+
+```bash
+curl -sS -b cookies.txt -D - -o /dev/null \
+  --get \
+  --data-urlencode 'response_type=code' \
+  --data-urlencode 'client_id=demo-spa' \
+  --data-urlencode 'redirect_uri=http://localhost:8080/callback' \
+  --data-urlencode 'scope=openid' \
+  --data-urlencode 'state=xyz-login' \
+  --data-urlencode "code_challenge=$CHALLENGE" \
+  --data-urlencode 'code_challenge_method=S256' \
+  --data-urlencode 'prompt=login' \
+  "http://localhost:3000/realms/demo/protocol/openid-connect/auth"
+```
+
+```
+HTTP/1.1 200 OK
+content-type: text/html
+```
+
+— the login form, `auth_session_id` and all, exactly as a request with no
+cookie at all gets. And a request with no cookie still gets
+`login_required` under `prompt=none`, unchanged from the row in the table
+above:
+
+```bash
+curl -sS -D - -o /dev/null \
+  --get \
+  --data-urlencode 'response_type=code' \
+  --data-urlencode 'client_id=demo-spa' \
+  --data-urlencode 'redirect_uri=http://localhost:8080/callback' \
+  --data-urlencode 'scope=openid' \
+  --data-urlencode 'state=xyz-000' \
+  --data-urlencode "code_challenge=$CHALLENGE" \
+  --data-urlencode 'code_challenge_method=S256' \
+  --data-urlencode 'prompt=none' \
+  "http://localhost:3000/realms/demo/protocol/openid-connect/auth" \
+  | grep -i '^location'
+```
+
+```
+location: http://localhost:8080/callback?error=login_required&state=xyz-000&iss=http%3A%2F%2Flocalhost%3A3000%2Frealms%2Fdemo
+```
+
+Redeeming a code the reuse redirect issued shows what carrying the session
+forward means for `auth_time`. One more reuse, waited out a little first,
+then redeemed with the same `$VERIFIER` the login above's `$CHALLENGE` was
+built from:
+
+```bash
+sleep 5
+CODE=$(curl -sS -b cookies.txt --get \
+  --data-urlencode 'response_type=code' \
+  --data-urlencode 'client_id=demo-spa' \
+  --data-urlencode 'redirect_uri=http://localhost:8080/callback' \
+  --data-urlencode 'scope=openid' \
+  --data-urlencode 'state=xyz-authtime' \
+  --data-urlencode "code_challenge=$CHALLENGE" \
+  --data-urlencode 'code_challenge_method=S256' \
+  "http://localhost:3000/realms/demo/protocol/openid-connect/auth" \
+  | sed -n 's/.*[Ll]ocation: .*[?&]code=\([^&[:space:]]*\).*/\1/p')
+
+curl -sS \
+  --data-urlencode 'grant_type=authorization_code' \
+  --data-urlencode "code=$CODE" \
+  --data-urlencode 'redirect_uri=http://localhost:8080/callback' \
+  --data-urlencode 'client_id=demo-spa' \
+  --data-urlencode "code_verifier=$VERIFIER" \
+  "http://localhost:3000/realms/demo/protocol/openid-connect/token" \
+  | python3 -c "import sys,json,base64; t=json.load(sys.stdin)['id_token']; p=t.split('.')[1]; p+='='*(-len(p)%4); c=json.loads(base64.urlsafe_b64decode(p)); print(c['auth_time'], c['iat'])"
+```
+
+```
+1789478841 1789478878
+```
+
+`auth_time` is `2026-09-15 13:27:21 UTC`, the login at the top of this
+section; `iat` is `2026-09-15 13:27:58 UTC`, this redemption, 37 seconds
+later.
+
+`auth_time` is the login's own moment, not the moment this token was
+minted 37 seconds later — the fact a client's own `max_age` check
+(§3.1.3.7) has to be able to rely on. A session past its realm's
+`sso_session_idle_seconds` or `sso_session_max_seconds`
+(`docs/NEXT.md`), or one for a subject a `verify_email` realm has not
+verified, is refused here exactly as `prompt=none` with no session at all
+is — a redirect carrying `login_required`, nothing issued, no page shown.
 
 ### `id_token_hint`
 
@@ -2768,18 +3414,6 @@ session lifecycle. A citation of either half here means that half.
   it lets through. **P3**, the phase named for consent, and — since
   2026-09-14 — the phase whose exit criterion names it too: a screen a user
   can refuse, and a recorded grant.
-- **No session reuse.** The SSO cookie is set at login and never read.
-  `prompt=none` therefore always answers `login_required`, and `prompt=login`
-  is what happens anyway, because authentication is unconditional. **P2b**,
-  whose exit criterion is an SSO session that is read as well as written.
-- **`max_age` is accepted and ignored**, including `max_age=0`, which a
-  client would expect to force reauthentication. This one is an obligation
-  rather than a latitude: OIDC Core §15.1 requires every OP to support
-  "enforcing a maximum authentication age via the `max_age` parameter",
-  with none of the minimum-level-of-support caveat the parameters below
-  carry. **P2b** — reauthentication needs a session that can be judged
-  stale, and that is the phase which builds one. The clause row in
-  `docs/protocols/oidc-core.md` is the same deferral.
 - **`display`, `ui_locales`, `claims_locales` and `login_hint` are accepted
   and ignored**, including values none of them define, such as
   `display=unheard_of`; every one of those requests answers 200 with the
@@ -2790,12 +3424,19 @@ session lifecycle. A citation of either half here means that half.
   and prefills a form this server does not prefill. `prompt` is deliberately
   not treated this way, because it is the one that changes whether the end
   user is asked anything at all.
-- **`acr_values` is accepted and ignored.** §15.1 allows exactly that — "the
-  minimum level of support required for this parameter is simply to have its
-  use not result in an error" — so what happens today conforms. Acting on
-  it, and reporting the result back in `acr` and `amr`, is step-up
-  authentication, which the roadmap leaves **deliberately unplaced** beside
-  PAR and DPoP, to be scoped with the FAPI 2.0 decision ADR 0016 points at.
+- **`acr_values` is accepted and ignored on the request side.** §15.1 allows
+  exactly that — "the minimum level of support required for this parameter
+  is simply to have its use not result in an error" — so what happens today
+  conforms. Every ID token now carries `acr` and `amr` describing the login
+  that actually happened (`acrFor`/`amrFor`,
+  `packages/protocol-oidc/src/service/acr.ts`) — `amr` names the RFC 8176
+  values for the authenticators that ran (`pwd` for a password, nothing for
+  an authenticator the registry has no accurate entry for), and `acr` is
+  `'1'` for a single factor or `'2'` for two, including a passkey alone.
+  Checking a _requested_ `acr_values` against a session, or forcing
+  reauthentication to satisfy one, is step-up authentication, which the
+  roadmap leaves **deliberately unplaced** beside PAR and DPoP, to be scoped
+  with the FAPI 2.0 decision ADR 0016 points at.
 - **No request objects.** `request` and `request_uri` are refused explicitly,
   with `request_not_supported` and `request_uri_not_supported` — which is
   what OIDC Core §6.1 asks of an OP that does not support them, having first
@@ -2819,8 +3460,15 @@ session lifecycle. A citation of either half here means that half.
 
 - **Password only.** TOTP, passkeys and any second factor are **P2b**, whose
   exit criterion is password, TOTP and passkey login through the flow tree.
-  The flow engine behind the single password step is already a step list for
-  that reason, but there is one step in it.
+  The executor now runs a realm's own ordered `authentication_executions`
+  (REQUIRED/ALTERNATIVE/CONDITIONAL/DISABLED) through a registry keyed by
+  authenticator name, and a login resumes across steps rather than
+  restarting — a satisfied authenticator is never asked for twice, even
+  across a rejected attempt at whatever comes after it. Every realm's flow
+  still completes in one step today: `password` is the only authenticator
+  with a runtime, so `passkey` and `otp` — both already seeded as
+  executions by `provisionRealm` — are inapplicable for every subject until
+  their own tasks give them one.
 - **Password reset exists; a timing oracle in it does not have a fix yet.**
   Address verification (`GET /realms/{realm}/login-actions/action-token`,
   [Address verification](#address-verification)), self-registration
@@ -2901,12 +3549,9 @@ session lifecycle. A citation of either half here means that half.
 
 - **Token introspection (RFC 7662) and revocation (RFC 7009).** **P3**,
   whose exit criterion names both. Until then a resource server validates
-  access tokens locally against the JWKS, and revoking a grant does not
-  invalidate an already-issued access token before its `exp`.
-- **RP-initiated logout (`end_session_endpoint`).** **P2b**, whose exit
-  criterion ends the SSO session with it. It lands there rather than
-  earlier because an endpoint that ends a session nothing consults would be
-  theatre.
+  access tokens locally against the JWKS, and ending a session or revoking
+  a grant — including through [RP-initiated logout](#rp-initiated-logout) —
+  does not invalidate an already-issued access token before its `exp`.
 - **Front-channel and back-channel logout.** **P3**: both are addressed to a
   client rather than to a browser, so both need per-client
   `frontchannel_logout_uri` and `backchannel_logout_uri` registered, which

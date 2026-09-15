@@ -183,6 +183,83 @@
       "when": 1789049381668,
       "tag": "0025_drop_include_in_token_scope",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1789049381669,
+      "tag": "0026_token_grants_session",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1789049381670,
+      "tag": "0027_sessions_last_active",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1789049381671,
+      "tag": "0028_realm_session_lifespans",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1789049381672,
+      "tag": "0029_authorization_codes_session",
+      "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1789049381673,
+      "tag": "0030_client_post_logout_redirect_uris",
+      "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1789049381674,
+      "tag": "0031_authentication_executions",
+      "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1789049381675,
+      "tag": "0032_authentication_sessions_progress",
+      "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1789049381676,
+      "tag": "0033_sessions_authenticators",
+      "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1789049381677,
+      "tag": "0034_user_credentials_types",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1789049381678,
+      "tag": "0035_realm_password_policy",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1789049381679,
+      "tag": "0036_user_required_actions",
+      "breakpoints": true
     }
   ]
 }

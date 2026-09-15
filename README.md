@@ -91,15 +91,36 @@ reset-password link for the same subject, and turning
 See [the password reset section of docs/request-paths.md](docs/request-paths.md#password-reset)
 for the walkthrough.
 
+Every realm also carries a password policy — `password_min_length` (default
+`8`, floored there by a `CHECK`; a realm cannot configure its way below it),
+`password_require_digit`, `password_require_uppercase`,
+`password_require_lowercase` and `password_require_special` (all off by
+default), and `password_not_username`/`password_not_email` (both on by
+default, refusing a password that contains the account's own username, or
+the local part of its email address — matched independently, so a
+password containing both is refused for both). `password_history_depth`
+and `password_max_age_days` are
+columns today with no reader yet — P2b's `update-password` task turns them
+into enforcement. The policy is read from the realm, never defaulted in
+code, and the same `evaluatePassword` call binds every writer of a
+password: registration, reset redemption, and the seed CLI's `--password`
+and `user` subcommand. A rejected password answers `400` with every
+violated rule listed at once, not just the first.
+
 **Known limitation:** the reset-request endpoint still has a timing
 oracle — mailing an address that exists takes an SMTP round trip longer
 than the single `SELECT` a nonexistent one costs, so a network observer can
 distinguish the two by response time even though the response body and
 status cannot. Closing it needs sending off the request path entirely (an
-outbox table and a background sender), which the phase's own design spec
-rejects: it would be the first background loop in the codebase and a second
-table nothing deletes from. Stated here rather than fixed, on the judgment
-that an honest limitation beats an accidental one.
+outbox table and a background sender), which P2a's design spec rejected: it
+would have been the first background loop in the codebase and a second table
+nothing deletes from. Stated here rather than fixed, on the judgment that an
+honest limitation beats an accidental one.
+
+**P2b owns closing it**, as of 2026-09-15. P2b builds that background loop
+anyway, to reap expired state, so the outbox costs a table and a sender
+rather than new infrastructure; this paragraph goes away in the increment
+that lands it, and not before.
 
 **Known limitation, realm-wide:** the reset endpoint's enumeration safety
 does not make the realm itself un-enumerable. With `registration_allowed`
@@ -126,6 +147,27 @@ way to add one after the fact. The login page tells them so rather than
 claiming a mail it never sent, but there is no recovery path yet; give
 every user an address before enabling `verify_email` on a realm that
 already has some.
+
+**A realm can now end a session.** `GET`/`POST
+/realms/{realm}/protocol/openid-connect/logout` implements OpenID Connect
+RP-Initiated Logout 1.0: it asks the End-User to confirm before ending
+anything unless an `id_token_hint` names the session actually being ended,
+and it redirects to `post_logout_redirect_uri` only when that value is an
+exact, unnormalized match against the client's own registered list —
+refusing the redirect never keeps the session alive, since the two are
+decided independently. **Logout revokes the session row and every grant
+tied to it — not access tokens.** Odudu's access tokens are self-contained
+`at+jwt` JWTs that a resource server verifies without a round trip to
+anywhere, so nothing exists to tell one it has been logged out; a
+logged-out user's access token keeps working until its own `exp`, at most
+`client_oidc_config.access_token_ttl_seconds` (capped at one hour) after it
+was issued. A grant issued with no session — `offline_access` — is
+untouched by a logout, per Back-Channel Logout 1.0 §2.7's second sentence.
+A deployment that needs revocation inside an
+access token's own lifetime is what RFC 7662 introspection is for, landing
+in P3. See [the logout section of
+docs/request-paths.md](docs/request-paths.md#rp-initiated-logout) for the
+walkthrough.
 
 > ### → [docs/request-paths.md](docs/request-paths.md)
 >
@@ -303,7 +345,7 @@ curl -sS http://localhost:3000/realms/demo/.well-known/openid-configuration
 }
 ```
 
-(Five of the fifteen members it returns; the other ten, and what a client
+(Five of the sixteen members it returns; the other eleven, and what a client
 does with each, are in the guide.)
 
 And this signs ada in and comes back with tokens — the whole
@@ -485,7 +527,6 @@ Every row says where it stands, and every row has a phase:
 | A consent screen, and dynamic client registration                                                            | P3              |
 | An admin API — seeding is the only administrative surface                                                    | P4              |
 | Signing-key rotation — the shape exists, the operation does not                                              | P4              |
-| RP-initiated logout (`end_session_endpoint`)                                                                 | P2b             |
 | Front-channel and back-channel logout                                                                        | P3              |
 | Token introspection and revocation                                                                           | P3              |
 | Published images and a release process                                                                       | P12             |

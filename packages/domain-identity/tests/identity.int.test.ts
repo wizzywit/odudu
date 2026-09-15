@@ -478,7 +478,7 @@ describe('credentialRepository', () => {
         realmId,
         subjectId: subject.id,
         type: 'password',
-        secretData: '$argon2id$fake-hash',
+        secretData: { hash: '$argon2id$fake-hash' },
       });
       return subject.id;
     });
@@ -516,7 +516,7 @@ describe('credentialRepository', () => {
           realmId,
           subjectId: subject.id,
           type: 'password',
-          secretData: '$argon2id$fake-hash',
+          secretData: { hash: '$argon2id$fake-hash' },
         });
         return subject.id;
       },
@@ -537,11 +537,11 @@ describe('credentialRepository', () => {
     const subjectId = await withRealm(app.db, realmId, async (tx) => {
       await seedRealm(tx, realmId);
       const subject = await subjectRepository(tx).create({ realmId, type: 'user' });
-      await credentialRepository(tx).create({
+      await credentialRepository(tx).insert({
         realmId,
         subjectId: subject.id,
         type: 'password',
-        secretData: '$argon2id$old-hash',
+        secret: { kind: 'password', hash: '$argon2id$old-hash' },
       });
       return subject.id;
     });
@@ -582,7 +582,7 @@ describe('credentialRepository', () => {
           realmId,
           subjectId: subject.id,
           type: 'password',
-          secretData: '$argon2id$fake-hash',
+          secretData: { hash: '$argon2id$fake-hash' },
         });
         return subject.id;
       },
@@ -624,7 +624,7 @@ describe('realm isolation', () => {
             realmId,
             subjectId,
             type: 'password',
-            secretData: '$argon2id$fake-hash',
+            secretData: { hash: '$argon2id$fake-hash' },
           });
         }
       },

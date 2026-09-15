@@ -70,6 +70,7 @@ describe('[OIDC-DISCOVERY-3-01] the discovery document', () => {
       doc.token_endpoint,
       doc.userinfo_endpoint,
       doc.jwks_uri,
+      doc.end_session_endpoint,
     ]) {
       expect(url.startsWith(`${doc.issuer}/`)).toBe(true);
     }

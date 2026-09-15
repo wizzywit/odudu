@@ -1,7 +1,9 @@
 import {
+  nextRequiredAction,
   type AdvanceInput,
-  type AuthenticatorResult,
+  type AdvanceOutcome,
   type PendingRequest,
+  type RequiredAction,
 } from '@odudu/authn-flows';
 import { type RealmScopedDatabase } from '@odudu/db';
 import { authorizationCodeRepository } from '#/repository/codes';
@@ -23,14 +25,24 @@ export interface IssueAuthorizationCodeInput {
   nonce: string | null;
   codeChallenge: string;
   codeChallengeMethod: 'S256';
+  // The `auth_time` claim this code's eventual ID Token carries — when the
+  // End-User actually authenticated. On a fresh login this is the same
+  // instant as `now`; on a reused session it is the session's own original
+  // login, which can be arbitrarily far in the past.
   authTime: Date;
+  // The instant this code is issued, which is what its 60s TTL counts from.
+  // Deliberately separate from `authTime`: a code issued for a reused
+  // session must still expire 60s from now, not 60s from a login that may
+  // have happened minutes or hours ago.
+  now: Date;
+  // The SSO session this code's eventual grant is bound to — copied
+  // forward so `/token` can carry it onto `token_grants.session_id`
+  // without a lookup of its own. Null for an offline-scoped grant, which
+  // by definition has no session.
+  sessionId: string | null;
 }
 
 // Returns the raw code exactly once; only its hash is ever persisted.
-// `expiresAt` is derived from `input.authTime`, not a fresh clock read, so
-// the TTL stored is exactly 60s by construction: both columns come from the
-// one `now` the caller captured, never two separate clock reads that could
-// straddle a millisecond boundary.
 export async function issueAuthorizationCode(
   tx: RealmScopedDatabase,
   input: IssueAuthorizationCodeInput,
@@ -47,7 +59,8 @@ export async function issueAuthorizationCode(
     codeChallenge: input.codeChallenge,
     codeChallengeMethod: input.codeChallengeMethod,
     authTime: input.authTime,
-    expiresAt: new Date(input.authTime.getTime() + AUTHORIZATION_CODE_TTL_MS),
+    expiresAt: new Date(input.now.getTime() + AUTHORIZATION_CODE_TTL_MS),
+    sessionId: input.sessionId,
   });
   return { code };
 }
@@ -63,6 +76,13 @@ export type LoginSubmissionOutcome =
   // realm turns verify_email on) — the rendered page must not tell that
   // user mail was sent, since none was.
   | { kind: 'unverified'; authSessionId: string; hasEmail: boolean }
+  // Authentication succeeded, but a required action is still owed. Nothing
+  // is established and no code is issued, for the same reason as
+  // 'unverified' above; the authentication session is left unconsumed so
+  // the same session resumes once the action is complete. See
+  // #/usecase/executor.ts's comment above recordSatisfied for why this has
+  // to be decided before completeLogin, never after.
+  | { kind: 'required_action'; authSessionId: string; action: RequiredAction }
   // Authentication succeeded, and the request is still answered with an
   // error at the client's redirect_uri: no SSO session is established and no
   // code is issued, so there is no cookie to set either.
@@ -83,6 +103,14 @@ export interface CompleteLoginInput {
   nonce: string | null;
   codeChallenge: string;
   codeChallengeMethod: 'S256';
+  // The realm's configured SSO session ceiling, carried through so
+  // completeLogin's establishSession call never needs a lookup of its own.
+  ssoSessionMaxSeconds: number;
+  // What `advance` reported ran, in order — copied onto the session
+  // establishSession creates, so a later reuse of it states `amr`/`acr`
+  // about what this login actually used rather than what the subject
+  // could use by the time it is reused.
+  authenticators: string[];
 }
 
 export type CompleteLoginOutcome =
@@ -91,13 +119,24 @@ export type CompleteLoginOutcome =
   // was established or issued.
   { kind: 'already_consumed' } | { kind: 'issued'; sessionId: string; code: string };
 
+// The gate is a property of completing a login, not of submitting a form.
+// A realm requiring a verified address refuses a cookie-borne login for an
+// unverified subject exactly as it refuses a password one; an unverified
+// account that happens to hold a live session would otherwise sign in
+// without ever passing the check.
+export async function refusedForUnverifiedEmail(
+  deps: Pick<LoginSubmissionDeps, 'checkEmailVerification'>,
+  realm: { id: string; verifyEmail: boolean },
+  subjectId: string,
+): Promise<{ hasEmail: boolean } | null> {
+  if (!realm.verifyEmail) return null;
+  const status = await deps.checkEmailVerification(realm.id, subjectId);
+  return status.verified ? null : { hasEmail: status.hasEmail };
+}
+
 export interface LoginSubmissionDeps {
   findRealm(name: string): Promise<RealmLookup | null>;
-  advance(
-    realmId: string,
-    authSessionId: string,
-    input: AdvanceInput,
-  ): Promise<AuthenticatorResult>;
+  advance(realmId: string, authSessionId: string, input: AdvanceInput): Promise<AdvanceOutcome>;
   loadPendingRequest(realmId: string, authSessionId: string): Promise<PendingRequest | null>;
   resolveClientId(realmId: string, oauthClientId: string): Promise<string | null>;
   // Read only when the realm's verify_email is on: the cost of an extra
@@ -108,6 +147,11 @@ export interface LoginSubmissionDeps {
     realmId: string,
     subjectId: string,
   ): Promise<{ verified: boolean; hasEmail: boolean }>;
+  // Every action this subject still owes, read fresh on every submission —
+  // an action completed by a separate request (the eventual
+  // login-actions/required-action route) has to be seen the next time this
+  // same auth_session_id is resubmitted, not cached from an earlier attempt.
+  pendingActions(realmId: string, subjectId: string): Promise<readonly RequiredAction[]>;
   // Consumes the authentication session and, only if that succeeds,
   // establishes the SSO session and issues the authorization code — all in
   // the one transaction this name promises. See index.ts for the wiring
@@ -164,11 +208,18 @@ export async function handleLoginSubmission(
     return { kind: 'reject', authSessionId };
   }
 
-  if (realm.verifyEmail) {
-    const status = await deps.checkEmailVerification(realm.id, result.subjectId);
-    if (!status.verified) {
-      return { kind: 'unverified', authSessionId, hasEmail: status.hasEmail };
-    }
+  const refusal = await refusedForUnverifiedEmail(deps, realm, result.subjectId);
+  if (refusal !== null) {
+    return { kind: 'unverified', authSessionId, hasEmail: refusal.hasEmail };
+  }
+
+  // A pending action blocks completion exactly as the unverified-address
+  // refusal above does: nothing is established and nothing is issued until
+  // it is done, and the authentication session is deliberately left
+  // unconsumed so the same parked request survives the detour.
+  const action = nextRequiredAction(await deps.pendingActions(realm.id, result.subjectId));
+  if (action !== null) {
+    return { kind: 'required_action', authSessionId, action };
   }
 
   // The only source of scope, redirect_uri, nonce, state and code_challenge
@@ -210,6 +261,8 @@ export async function handleLoginSubmission(
     nonce: pending.nonce,
     codeChallenge: pending.codeChallenge,
     codeChallengeMethod: pending.codeChallengeMethod,
+    ssoSessionMaxSeconds: realm.ssoSessionMaxSeconds,
+    authenticators: result.authenticators,
   });
 
   // A second submission of the same auth_session_id — a back-button press,

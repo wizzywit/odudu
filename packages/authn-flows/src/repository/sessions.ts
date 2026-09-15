@@ -1,6 +1,7 @@
 import { eq } from 'drizzle-orm';
 import { type RealmScopedDatabase } from '@odudu/db';
 import { sessions, type SessionRecord } from '#/schema/sessions';
+import { isSessionLive } from '#/service/session-liveness';
 
 function toRecord(row: typeof sessions.$inferSelect): SessionRecord {
   return {
@@ -9,6 +10,8 @@ function toRecord(row: typeof sessions.$inferSelect): SessionRecord {
     subjectId: row.subjectId,
     createdAt: row.createdAt,
     expiresAt: row.expiresAt,
+    lastActiveAt: row.lastActiveAt,
+    authenticators: row.authenticators,
   };
 }
 
@@ -17,6 +20,7 @@ export interface NewSession {
   realmId: string;
   subjectId: string;
   expiresAt: Date;
+  authenticators: string[];
 }
 
 // All persistence for an established SSO session. `byId` is what a later
@@ -32,6 +36,29 @@ export function sessionRepository(tx: RealmScopedDatabase) {
 
     async create(values: NewSession): Promise<void> {
       await tx.insert(sessions).values(values);
+    },
+
+    // The read every session consumer uses. `byId` still exists and still
+    // ignores liveness, because the reaper and a future session list need to
+    // see a dead row; nothing that authenticates should call it.
+    async liveById(id: string, idleSeconds: number, now: Date): Promise<SessionRecord | null> {
+      const record = await this.byId(id);
+      if (record === null) return null;
+      return isSessionLive(record, idleSeconds, now) ? record : null;
+    },
+
+    async touch(id: string, now: Date): Promise<void> {
+      await tx.update(sessions).set({ lastActiveAt: now }).where(eq(sessions.id, id));
+    },
+
+    // Logout ends a session by moving its own ceiling to now, rather than
+    // deleting the row or adding a second "ended" state: `isSessionLive`'s
+    // exclusive `now >= expiresAt` check already treats that as dead from
+    // this instant, and the reaping pass a later increment adds removes the
+    // row itself. Idempotent — ending an already-dead session only ever
+    // moves `expires_at` earlier or leaves it where it was.
+    async end(id: string, now: Date): Promise<void> {
+      await tx.update(sessions).set({ expiresAt: now }).where(eq(sessions.id, id));
     },
   };
 }

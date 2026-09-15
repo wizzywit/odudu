@@ -15,6 +15,7 @@ function toRecord(row: typeof tokenGrants.$inferSelect): TokenGrantRecord {
     audience: row.audience,
     createdAt: row.createdAt,
     revokedAt: row.revokedAt,
+    sessionId: row.sessionId,
   };
 }
 
@@ -24,6 +25,7 @@ export interface NewTokenGrant {
   subjectId: string;
   scope: string;
   audience: string[];
+  sessionId?: string | null;
 }
 
 export function tokenGrantRepository(tx: RealmScopedDatabase) {
@@ -38,6 +40,7 @@ export function tokenGrantRepository(tx: RealmScopedDatabase) {
           subjectId: input.subjectId,
           scope: input.scope,
           audience: input.audience,
+          sessionId: input.sessionId ?? null,
         })
         .returning();
       const row = rows[0];
@@ -59,6 +62,24 @@ export function tokenGrantRepository(tx: RealmScopedDatabase) {
       const rows = await tx.select().from(tokenGrants).where(eq(tokenGrants.id, id));
       const row = rows[0];
       return row === undefined ? null : toRecord(row);
+    },
+
+    // Logout's whole write. Returns the number revoked so a caller can tell
+    // "ended a session that had grants" from "ended one that had none"
+    // without a second query; an already-revoked grant is matched again and
+    // simply re-stamped, which keeps this idempotent.
+    async revokeForSession(sessionId: string, revokedAt: Date): Promise<number> {
+      const rows = await tx
+        .update(tokenGrants)
+        .set({ revokedAt })
+        .where(eq(tokenGrants.sessionId, sessionId))
+        .returning({ id: tokenGrants.id });
+      return rows.length;
+    },
+
+    async bySession(sessionId: string): Promise<TokenGrantRecord[]> {
+      const rows = await tx.select().from(tokenGrants).where(eq(tokenGrants.sessionId, sessionId));
+      return rows.map(toRecord);
     },
   };
 }

@@ -68,6 +68,7 @@ function fakeUserStore() {
     // Unused by any test in this file — verify_email tokens never reach the
     // reset_password branch — but registerActionTokenRoute requires it.
     setPassword: () => Promise.resolve(),
+    getUsername: () => Promise.resolve(''),
   };
 }
 
@@ -130,6 +131,9 @@ async function buildHttpApp(): Promise<FastifyInstance> {
     getCurrentEmail: store.getCurrentEmail,
     markVerified: store.markVerified,
     setPassword: store.setPassword,
+    getUsername: store.getUsername,
+    // Unused by any test in this file, for the same reason setPassword is.
+    evaluatePassword: () => [],
   });
   await instance.ready();
   return instance;

@@ -2,7 +2,14 @@ import { withRealm, type DatabaseHandle, type RealmScopedDatabase } from '@odudu
 import { renderVerifyEmail, type EmailSender } from '@odudu/email';
 import { OduduError } from '@odudu/kernel';
 import { actionTokenRepository } from '#/repository/action-tokens';
+import { type PasswordPolicy, type PolicyViolation } from '#/repository/realm-settings';
 import { VERIFY_EMAIL_TTL_SECONDS } from '#/usecase/verify-email';
+
+// Re-exported so the view layer can reach these without importing the
+// repository directly (no-view-to-repository, .dependency-cruiser.cjs):
+// view → usecase is permitted, usecase → repository is where the type
+// actually lives.
+export type { PasswordPolicy, PolicyViolation };
 
 export interface NewAccountInput {
   readonly username: string;
@@ -39,6 +46,16 @@ export interface RegisterDeps {
     realmId: string,
     input: NewAccountInput,
   ) => Promise<CreateAccountResult>;
+  // The realm's own configured policy, and the leaf function that checks a
+  // candidate against it (packages/domain-identity/src/service/password-policy.ts).
+  // Injected for the same reason createAccount is: @odudu/account never
+  // imports @odudu/domain-identity.
+  readonly passwordPolicy: PasswordPolicy;
+  readonly evaluatePassword: (
+    candidate: string,
+    policy: PasswordPolicy,
+    subject: { username: string; email: string | null },
+  ) => PolicyViolation[];
 }
 
 export type RegisterOutcome =
@@ -46,6 +63,9 @@ export type RegisterOutcome =
   | { kind: 'email_taken' }
   | { kind: 'username_taken' }
   | { kind: 'invalid_email' }
+  // The realm's password policy — read from the realm, never defaulted
+  // here — refused the candidate before any write was attempted.
+  | { kind: 'invalid_password'; violations: PolicyViolation[] }
   // verify_email is on for this realm but no ODUDU_PUBLIC_BASE_URL is
   // configured to build a verification link from — refused before any
   // write, rather than falling back to something request-derived or
@@ -85,6 +105,14 @@ export async function register(
 ): Promise<RegisterOutcome> {
   if (deps.verifyEmailEnabled && deps.issuerBase === undefined) {
     return { kind: 'misconfigured' };
+  }
+
+  const violations = deps.evaluatePassword(input.password, deps.passwordPolicy, {
+    username: input.username,
+    email: input.email,
+  });
+  if (violations.length > 0) {
+    return { kind: 'invalid_password', violations };
   }
 
   let created: { subjectId: string; token: string | null };

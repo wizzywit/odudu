@@ -12,6 +12,7 @@ import { type DatabaseHandle, type RealmScopedDatabase } from '@odudu/db';
 import { roleRepository } from '@odudu/domain-authz';
 import {
   credentialRepository,
+  evaluatePassword,
   hashPassword,
   subjectRepository,
   userRepository,
@@ -85,11 +86,11 @@ async function createAccount(
     username: input.username,
     email: input.email,
   });
-  await credentialRepository(tx).create({
+  await credentialRepository(tx).insert({
     realmId,
     subjectId: subject.id,
     type: 'password',
-    secretData: await hashPassword(input.password),
+    secret: { kind: 'password', hash: await hashPassword(input.password) },
   });
   const defaults = await roleRepository(tx).defaultsForRealm();
   for (const role of defaults) {
@@ -137,6 +138,12 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     setPassword: async (tx, subjectId, password) => {
       await credentialRepository(tx).setPassword(subjectId, await hashPassword(password));
     },
+    getUsername: async (tx, subjectId) => {
+      const user = await userRepository(tx).bySubjectId(subjectId);
+      if (user === null) throw new Error(`no user found for subject ${subjectId}`);
+      return user.username;
+    },
+    evaluatePassword,
   });
 
   registerRegistrationRoute(app, {
@@ -145,6 +152,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     findRealm: (name) => realmSettingsRepository(deps.ownerDatabase.db).byName(name),
     publicBaseUrl: deps.publicBaseUrl,
     createAccount,
+    evaluatePassword,
   });
 
   registerResetPasswordRoute(app, {

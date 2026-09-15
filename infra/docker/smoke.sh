@@ -85,7 +85,7 @@ set -o pipefail
 
 docker compose exec -T odudu node dist/main.js seed \
   --realm smoke --client smoke-app --client-secret smoke-secret \
-  --redirect-uri http://localhost:3000/cb --user smoke --password smoke-password \
+  --redirect-uri http://localhost:3000/cb --user smoke --password correct-horse-battery \
   --email smoke@example.com
 
 VERIFIER=$(openssl rand -hex 32)
@@ -124,7 +124,7 @@ LOGIN_HEADERS="$(mktemp)"
 curl -sS -f -D "$LOGIN_HEADERS" -o /dev/null \
   --data-urlencode "auth_session_id=$AUTH_SESSION_ID" \
   --data-urlencode 'username=smoke' \
-  --data-urlencode 'password=smoke-password' \
+  --data-urlencode 'password=correct-horse-battery' \
   'http://localhost:3000/realms/smoke/login-actions/authenticate'
 
 CODE=$(grep -i '^location:' "$LOGIN_HEADERS" | sed -n 's/.*[?&]code=\([^&[:space:]]*\).*/\1/p' | tr -d '\r\n')

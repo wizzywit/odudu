@@ -2,12 +2,337 @@
 
 ## Start here
 
-**P0, P1 and P2a are complete. P2b is next — brainstorm its scope first,
-per `CLAUDE.md`.** P2a delivered the identity model: roles, groups, client
-scopes, per-client web origins, the user profile, email delivery and the
-account lifecycle built on it (self-registration, address verification,
-password reset). Everything below this point is what P2b needs and cannot
-derive from the code.
+**P0, P1 and P2a are complete. P2b is brainstormed, specified and planned;
+Tasks 1 through 14 have landed and Task 15 is next.** Migration 0031 adds
+`authentication_executions`: one flat, ordered list per realm (`id`,
+`realm_id`, `index`, `authenticator`, `requirement`), `requirement`
+constrained to `required`/`alternative`/`conditional`/`disabled` and
+`(realm_id, index)` unique. `@odudu/authn-flows` gained
+`executionRepository` (`forRealm`, ordered by `index`; `create`) and
+`provisionBrowserFlow`, which seeds `BROWSER_FLOW_DEFAULT` — `passkey` and
+`password` at `alternative`, `otp` at `conditional` — for every realm.
+`@odudu/domain-realm` does not depend on `@odudu/authn-flows` — the umbrella
+spec fixes the direction the other way — so `provisionRealmDefaults` does not
+call `provisionBrowserFlow` itself; a `dependency-cruiser` rule
+(`no-domain-to-authn-flows`) forbids that edge, alongside `no-circular`,
+which would also catch it (`authn-flows` now depends on `@odudu/domain-realm`
+too, so the edge would close a cycle, not just point the wrong way).
+`@odudu/authn-flows` exports `provisionRealm(tx, realmId)`, which calls
+`provisionRealmDefaults` and then `provisionBrowserFlow` — the one function
+a realm-creation site should call so the two cannot drift apart. The seed
+CLI's two realm-creation sites (`apps/server/src/cli/seed.ts`) call it; so do
+all but one of the ~25 protocol-oidc and domain-realm test fixtures that
+stand up a realm, mechanically migrated from calling `provisionRealmDefaults`
+directly. The one exception is `domain-realm`'s own
+`provision-defaults.int.test.ts`, which cannot reach `provisionRealm` —
+`domain-realm` sits underneath `authn-flows` in the dependency graph — and
+still calls `provisionRealmDefaults` directly, with a comment saying why.
+`provisionBrowserFlow` and `provisionRealmDefaults` both stay exported
+individually for a caller that wants only one half. Evaluating the flow into
+a decision, and rewiring `executor.ts`'s `STEPS` to read it, are Tasks 8 and
+9 — Task 7 built only the table, the repository and the provisioning
+default.
+
+**Task 8 is that decision, as a pure function.**
+`nextStep(executions, state)` (`packages/authn-flows/src/service/requirements.ts`)
+walks a flat, ordered list of `Step`s once and partitions it into groups: a
+run of adjacent `alternative` steps is one group, satisfied only when one of
+its members is actually satisfied; every other step is a group of its own,
+satisfied by its member being satisfied or simply inapplicable — `applicable`
+is a caller-supplied input, never computed here. `disabled` steps are
+dropped before grouping, so two alternative runs separated only by a
+disabled entry merge into one (a deliberate choice past what the nine
+brief-given cases pin down, covered by a tenth test). An empty flow, or one
+where every group runs out of applicable members, returns `{ kind: 'fail'
+}` rather than `{ kind: 'complete' }` — the case that stops a misconfigured
+realm from admitting anyone with no credential at all. `executor.ts`'s
+`STEPS` rewiring to call this is Task 9's, untouched here.
+
+**Task 9 is that rewiring, and it lands the registry `advance()` was always
+going to need.** Migration 0032 adds `authentication_sessions.satisfied`
+(`text[]`, default `{}`): the authenticator names this authentication has
+already run through, so a multi-step login resumes rather than restarts — a
+correct password followed by a wrong second factor never asks for the
+password again. `executor.ts` deletes `STEPS`/`StepName` entirely.
+`AUTHENTICATORS` is now `Record<string, AuthenticatorFn>` keyed by the
+`authenticator` column, holding `password` (real), and `passkey`/`otp`
+(registered but throwing if ever actually invoked — never reachable, since
+`isApplicable` hardcodes both false: neither has a credential type to
+enrol into yet, so there is nothing to look up). `isRegisteredAuthenticator`
+lets `provisionBrowserFlow` (`usecase/provision-flow.ts`) reject an unknown
+authenticator name in `BROWSER_FLOW_DEFAULT` at provisioning time rather
+than at login. The dispatch itself is `dispatchNext(registry, steps,
+satisfied, input)` — one decide-and-run against `nextStep`, exported so
+resumption is provable as a unit test against a fake registry
+(`ODUDU-AUTHN-RESUMPTION-01`) rather than tied to `password` being the one
+real authenticator. `advance()` still takes exactly the arguments it always
+has; a caller cannot tell the registry exists. `initialChallenge(tx,
+realmId)` answers what a realm's flow would ask for first, with no session
+yet — used both to render the right form at `/authorize` and to detect a
+flow with no applicable execution at all before a session is ever started.
+`pendingChallenge(tx, authSessionId)` answers the same question for a live
+session, letting the login route re-render the right form after a rejected
+attempt without `login-submission.ts` learning anything about
+requirements — that file is unmodified, on purpose, per the task brief.
+`AuthenticatorResult`'s `challenge` widens to `form: string`;
+`authorize-html.ts`'s `renderLoginForm` takes the form name and dispatches
+its fields on it (only `'password'` renders real fields today), and the
+hidden `auth_session_id` CSRF field is emitted once, on every form, not
+duplicated per case.
+
+**Closes `OIDC-CORE-3.1.2.1-11`.** `docs/protocols/oidc-core.md`'s
+`prompt=login` MUST — "an error is returned if reauthentication cannot be
+performed" — was `deferred: P2` because no realm could ever reach a state
+with no applicable execution. Task 9 is what creates that state:
+`handleAuthorizationRequest` calls `initialChallenge` before starting an
+authentication session, and a `'failure'` answer (no applicable execution)
+is reported as `login_required` at the client's `redirect_uri` — a
+redirect, nothing rendered, nothing parked — the same way session reuse's
+own refusal is. `tools/trace/silenced-musts.json`'s `oidc-core.md.deferred`
+drops from 13 to 12.
+
+**A correction the brief needed before this task could start.** Its
+original Step 2 described an end-to-end TOTP journey (password success
+re-challenging for OTP, a wrong OTP code re-challenging OTP alone, a
+correct one completing) that nothing in the tree can produce yet — there is
+no OTP authenticator and no non-`password` credential type until the TOTP
+tasks. What Task 9 proves instead, each at the layer that can honestly show
+it: resumption as a unit test against a fake registry
+(`ODUDU-AUTHN-RESUMPTION-01`), `satisfied` persistence as an integration
+test including a foreign-`realm_id` probe (`ODUDU-AUTHN-SATISFIED-PERSISTENCE-01`),
+realm-ordered dispatch asserting — not assuming — that `passkey`/`otp` are
+inapplicable today (`ODUDU-AUTHN-FLOW-ORDER-01`), and unchanged expiry
+behaviour (`ODUDU-AUTHN-SESSION-EXPIRY-UNCHANGED-01`). The full two-factor
+journey is now named in Task 16's own step list, which builds the OTP
+authenticator once Task 15 has built RFC 6238 underneath it.
+
+**Task 10 records which authenticators actually ran, and emits `amr`/`acr`
+from that record — never from what the subject could have used.** A
+completing factor is deliberately never persisted to
+`authentication_sessions.satisfied` (Task 9), so `advance()`'s success
+outcome now widens into `AdvanceOutcome`, which names every authenticator
+the login used, in order:
+`[...record.satisfied, authenticator]` for a login that finishes in one
+call, and `[...record.satisfied, authenticator, after.authenticator]` for
+the (currently unreachable, but type-correct) case where the very next
+dispatch also succeeds. Migration 0033 adds `sessions.authenticators`
+(`text[]`, default `{}`); `establishSession` takes it as a new parameter
+and `login-submission.ts`'s `CompleteLoginInput`/`handleLoginSubmission`
+carry it from `advance()`'s result through to the session
+`completeLogin` creates. A reused session (`completeReuse`) touches the
+_existing_ session rather than creating one, so its `authenticators` are
+whatever the original login recorded — nothing new to thread there.
+`token-issuance.ts` reads `sessions.authenticators` off `code.sessionId`
+(never the offline-nulled local `sessionId` used for `sid`) at the moment
+it assembles the ID token, the same "read the stored instant, don't
+recompute" rule `auth_time` already follows.
+
+`packages/protocol-oidc/src/service/acr.ts`'s `amrFor` and `acrFor` were
+checked against the IANA Authentication Method Reference Values registry
+and RFC 8176 §2 directly (2026-09-15), not recalled — see
+`docs/protocols/oidc-core.md`'s new reading note for what was read.
+**`recovery-code` maps to nothing**, but the first version of this task
+gave the wrong reason: RFC 8176's `otp` entry says one-time-password
+specifications it applies to "include" RFC 4226/6238, and "include" is
+non-exhaustive, so the registry does not in fact scope `otp` to HOTP/TOTP
+alone — a confident claim about a registry that a fix round caught the
+same way this task caught the brief's own. The decision to omit
+`recovery-code` still stands, on the reason that actually holds: a
+statically stored, printed-or-saved recovery code carries a materially
+different assurance story from a generator-produced code, and reporting it
+as `otp` would mislead a relying party that reads the claim that way — a
+mislabelling that is unrecoverable once trusted, where an omission is not.
+The residual cost is recorded rather than hidden: once `recovery-code` has
+a runtime, `amr` for a recovery-code-only login is indistinguishable from
+one with no factors at all, while `acr` still counts it as one. `passkey`
+still maps to `hwk` + `user`, matching common practice for a
+hardware-backed WebAuthn assertion, with a caveat recorded for whoever
+gives `passkey` a runtime: a synced (software) passkey would be `swk`, not
+`hwk`.
+
+**`acr`'s SHOULD — an absolute URI or an RFC 6711 name — was not closed.**
+`acrFor` returns this realm's own bare digit, which is neither, so that
+row moves to `gap`, not `covered`; the adjacent MUST ("a registered name
+is not used with a different meaning") closes instead, because it binds
+only a value that names a registration, and Odudu's digits never do — a
+vacuous satisfaction the clause table's Requirement cell now says plainly,
+and `OIDC-CORE-2-09` asserts as a property over several inputs rather than
+four fixed pairs that would still pass if the vacuity broke. The `gap`
+ships a wire format the moment a client reads it, so if bare digits are
+the permanent answer rather than a placeholder, that decision is worth an
+ADR while it can still be made.
+
+`acrFor` returns `null` — omitted from the token, the same way `amr` omits
+an empty array — for an authenticator list with nothing in it, rather than
+asserting `'1'` about a login the record does not describe; a session
+recorded before migration 0033 existed, or one somehow established with no
+authenticators, no longer reports a single factor it cannot back up.
+`amr`/`acr`'s presence in `docs/request-paths.md`'s four decoded-ID-token
+transcripts was re-run against the compose stack rather than hand-edited
+in, and `tests/docs/id-token-claims.test.ts` now fails the build if a
+transcript carrying `auth_time` ever again lacks either claim. A dedicated
+integration test also exercises accumulation across a genuine two-factor
+login — `recordSatisfied(authSessionId, 'otp')` ahead of a password
+submission, through the real `establishSession` and issuance path — so a
+simplification of `advance()`'s authenticator list to `[authenticator]`
+alone, which every other test left green, now fails.
+
+**As of Task 10, every `deferred: P2` row in `docs/protocols/oidc-core.md`
+and `rfc6749.md` is closed except RFC 6749 §2.3.1's brute-force MUST** —
+the phase's traceability midpoint; that row alone is left for whichever
+task owns rate limiting.
+
+Migration 0026 adds
+`token_grants.session_id`, nullable: null means an offline grant, which
+nothing expires and no logout can end; a non-null value is the SSO session
+the grant was issued under, and `sessions` needed a `UNIQUE (realm_id, id)`
+it did not have before this so the composite foreign key could exist.
+`tokenGrantRepository` gained `revokeForSession` and `bySession`, and
+`rotateRefreshToken` refuses to rotate a revoked grant's refresh token
+(`RotationOutcome`'s `'revoked'` case), answered with the same
+`invalid_grant` a reused or unknown token gets.
+
+**Migrations 0027 and 0028 give a session two clocks.** `sessions` gained
+`last_active_at`, touched on every use; `expires_at` stays the hard
+ceiling, `created_at` plus the realm's maximum lifespan. `realms` gained
+`sso_session_idle_seconds` (default 1800) and `sso_session_max_seconds`
+(default 36000), each bounded to `[60, 2592000]` by a `CHECK`, plus a third
+`CHECK` refusing an idle timeout longer than the ceiling. `isSessionLive`
+(`packages/authn-flows/src/service/session-liveness.ts`) treats both
+boundaries as exclusive; `sessionRepository(tx).liveById` is the read
+anything that authenticates should use, `byId` stays liveness-blind for the
+reaper and a future session list, and `establishSession` now takes the
+ceiling as a `maxSeconds` parameter instead of a fixed 12-hour constant. The
+plan is
+[2026-09-15-p2b-credentials-mfa-sessions.md](superpowers/plans/2026-09-15-p2b-credentials-mfa-sessions.md)
+— 29 tasks, 211 steps, 95–125 h, three spike gates (Tasks 11, 17, 24), and
+fourteen migrations numbered 0026–0039 in the table at its end, which
+supersedes the spec's section 4 numbering. The
+phase spec is
+[2026-09-15-p2b-credentials-mfa-sessions-design.md](superpowers/specs/2026-09-15-p2b-credentials-mfa-sessions-design.md),
+on branch `p2b-credentials-mfa-sessions`. It settles nine design decisions
+against stated alternatives — a flat per-realm flow, `jsonb` credentials
+with a `lookup_key` index, `session_id` on the existing `token_grants`,
+`last_active_at` beside `expires_at`, Postgres lockout with an in-process
+IP throttle, reaping as a command under a thin scheduler, required actions
+as the enrolment surface, passkeys as a first factor, and typed
+password-policy columns — and it settles logout's token handling by reading
+the specifications rather than reasoning about JWTs (section 7.2).
+
+**Four roadmap amendments landed with it**, in section 11 of the umbrella
+spec: the email outbox and recovery codes become P2b's (so P2b's exit
+criterion and estimate are amended — 95–130 h, not 80–110), nested
+authentication subflows become P4's, and `prompt=select_account` becomes
+P3's. That last one moved three `deferred: P2` clause rows in
+`docs/protocols/oidc-core.md` to `deferred: P3`; `pnpm trace` prints nothing
+for a `deferred:` row either way, so the move is invisible to the build and
+was made deliberately.
+
+**Task 3 makes the SSO session load-bearing.** `/authorize` reads the
+`__Host-<realm>-session` cookie P1 wrote and never read, resolves it
+through `sessionRepository(tx).liveById` scoped to the realm's own idle
+window, and decides — alongside `prompt` and a newly-parsed `max_age` — to
+reuse the session, start a fresh authentication, or refuse under
+`prompt=none`, all in one function (`decideReuse`,
+`packages/protocol-oidc/src/usecase/session-reuse.ts`). A refusal is still
+a redirect below the §4.1.2.1 boundary, starts no authentication session,
+and writes no cookie, exactly as the unconditional P1 answer did. A reuse
+issues a code through the same `issueAuthorizationCode` the login form
+uses, carrying the session's own `auth_time` rather than a fresh clock
+read, and touches the session. The email-verified gate
+(`refusedForUnverifiedEmail`, extracted from `handleLoginSubmission`) now
+guards this second door into completing a login the same way it guards the
+password form — an unverified account holding a live cookie is refused,
+not signed in for free. This closes three `deferred: P2` rows in
+`docs/protocols/oidc-core.md`: §2's `auth_time`-and-`max_age` row,
+§3.1.2.1's `max_age` MUST, and §15.1's `max_age` MUST. §3.1.2.1's
+`prompt=login` row stays `deferred: P2` — `decideReuse` never refuses under
+`prompt=login` (it is mutually exclusive with `prompt=none` at parse time,
+so forcing reauthentication never lands on anything but `authenticate`),
+so nothing in this task gives that specific MUST a reachable branch.
+**Five `deferred: P2` rows remained at this point, all P2b's to close** —
+`prompt=login`, two `acr` rows and `amr` in `oidc-core.md`, and RFC 6749
+§2.3.1's brute-force MUST. `prompt=login` closed with Task 9, above; Task
+10, below, closes `amr` and one `acr` row and moves the other to `gap`
+rather than forcing it — see that paragraph for why. Only §2.3.1 is left.
+
+**Task 4 found that `token_grants.session_id` was write-only: nothing in
+the real flow ever set it.** The grant is created at `/token`, from an
+`authorization_codes` row, and that table had no `session_id` — so the
+column Task 1 added was populated only by tests inserting directly through
+the repository. Migration 0029 adds `authorization_codes.session_id`
+(nullable, no foreign key: a code redeemed after its session is reaped
+must still redeem). `completeLogin` and `completeReuse`
+(`packages/protocol-oidc/src/index.ts`) now both pass the session id they
+already hold into `issueAuthorizationCode`
+(`packages/protocol-oidc/src/usecase/login-submission.ts`), it is carried
+on the code, and `token-issuance.ts` copies it onto the grant it creates
+and onto the refreshed grant's `sessionId` on every subsequent
+`refresh_token` redemption. With the session actually reaching the grant,
+`sid` (OpenID Connect Back-Channel Logout 1.0 §2.1) is now emitted in both
+the access token and the ID token whenever `grant.sessionId` is non-null,
+and omitted entirely otherwise — a property of the grant assembled
+straight into the envelope in `mintAccessToken` and the ID token claims,
+never through `ClaimMapperRegistry`, so a mapper cannot overwrite it
+(`withRegisteredClaimsWinning`, tested against exactly that). No grant is
+session-less yet except by this being the only way one is ever null:
+`offline_access` (Task 6) is what deliberately forces `sessionId: null`.
+`docs/protocols/oidc-backchannel.md` is a new file, one row, `sid`
+`covered`; the endpoint and Logout Token clauses are Task 28's.
+
+**Task 5 makes the session endable.** Migration 0030 adds
+`client_oidc_config.post_logout_redirect_uris`, the exact-match allowlist
+OpenID Connect RP-Initiated Logout 1.0 §3 requires; migration numbering
+corrects the brief's own `0029` (Task 4 already took it for
+`authorization_codes.session_id`). `GET`/`POST
+/realms/{realm}/protocol/openid-connect/logout` is new
+(`packages/protocol-oidc/src/usecase/logout.ts`,
+`view/logout-html.ts`, `view/routes/logout.ts`), built around
+`decideLogout` — a pure function, hint subject, hint `sid`, the current
+session (or none) and the requested URI and registered list in, `confirm` /
+`end` / `render` out — reusing `subjectOfIdTokenHint` (now exported from
+`usecase/authorization-request.ts`, and returning `sid` alongside the
+subject) for the hint's own validation. §2's "belong to the current OP
+session" is compared on `sid` when the hint carries one — Back-Channel
+Logout §2.1 put it in every token this phase issues — so a stale hint from
+the same End-User's own, already-ended earlier session no longer skips
+confirmation just because the subject still matches. (Task 6 below removes
+the subject-only fallback this paragraph originally described for a
+`sid`-less hint — every session-backed token has carried `sid` since this
+task, so the only current hint that ever lacks one is an offline grant's,
+which must not skip confirmation either.) With no live session
+at all, an exactly-registered `post_logout_redirect_uri` is still honoured
+(§3 forbids redirecting to an _unmatched_ URI, not honouring a matched one
+when there is nothing to end — Keycloak does the same) rather than always
+rendering the "already signed out" page. A refused redirect on a real
+session (§3's exact-match MUST) still ends it — the two are independent
+outcomes of one decision. Ending a session is `sessionRepository(tx).end`
+(new: moves `expires_at` to now, mirroring how `isSessionLive` already
+reads it, no new column or row state) followed by
+`tokenGrantRepository(tx).revokeForSession`, one `withRealm` transaction.
+Access tokens are untouched, and `docs/protocols/oidc-rpinitiated.md` and
+README.md's own logout section both say plainly why: they are
+self-contained `at+jwt` JWTs nothing consults, so nothing exists to tell
+one it has been logged out. The confirmation form's `session_id` hidden
+field _is_ the session cookie's own value, echoed back and compared
+against what the cookie still resolves to on POST — a double-submit-cookie
+defence, not a single-use token the way login's `auth_session_id` is (the
+two write-ups calling it "the same" were wrong and are fixed). Every page
+this route renders carries `Cache-Control: no-store`, and every outcome
+that actually ends a session clears the cookie (`Max-Age=0`, same
+attributes login sets it with). `end_session_endpoint` moved into
+`@odudu/contracts`' `discoveryDocument()` itself rather than staying a
+protocol-oidc-only extension type — `authorization_response_iss_parameter_supported`
+(RFC 9207) and `code_challenge_methods_supported` (RFC 7636) already live
+there as extension members, so contracts already isn't purely "core OIDC
+Discovery", and a document type that omitted a member the server always
+serves was the actual defect.
+
+P2a delivered the identity model: roles, groups, client scopes, per-client
+web origins, the user profile, email delivery and the account lifecycle
+built on it (self-registration, address verification, password reset).
+Everything below this point is what P2b needs and cannot derive from the
+code.
 
 **The token contract, as P2a leaves it.** `roles` and `groups` are sorted
 string arrays, emitted under the names the JWT registry (RFC 9068 §2.2.3.1)
@@ -28,13 +353,128 @@ for the walkthrough — its "I created a role and it is not in my token"
 paragraph, and [README.md](../README.md)'s "Give ada a role" section, are
 the two places this order-of-checks is written down for a reader.
 
-**`user_credentials.type` still needs widening, and P2b is the phase that
-needs it.** Migration 0005's `CHECK (type IN ('password'))`, with `UNIQUE
-(subject_id, type)` beside it, was not touched this phase. One row per type
-per subject is right for a password and wrong for a passkey, of which a
-user may enrol several; TOTP and passkeys both need the check widened by
-migration and the uniqueness rule reconsidered — dropped for passkeys,
-kept for password and TOTP — at the same time, not after.
+**`user_credentials.type` is widened, as of Task 12.** Migration 0034
+rewrites `CHECK (type IN ('password'))` to admit `totp`, `webauthn`,
+`recovery-code` and `password-history`; drops `user_credentials_one_password`
+(migration 0005's actual name for `UNIQUE (subject_id, type)` — the brief's
+second constraint name, `user_credentials_subject_id_type_unique`, never
+existed); and replaces it with partial unique indexes scoped to `password`
+and `totp` alone, so a passkey or recovery code can have more than one row
+per subject while a password and a TOTP secret still cannot. `secret_data`
+is `jsonb` now, converted in place with
+`jsonb_build_object('hash', secret_data)` (Task 11's spike verified this is
+byte-identical and reversible for every PHC string shape tried, including
+one containing `"`, `\`, `{`, `}` or a raw newline). `label`, `last_used_at`
+and `lookup_key` are new columns; `lookup_key` carries a WebAuthn credential
+id and is unique per `(realm_id, lookup_key)`, which is what lets a
+passwordless assertion resolve its subject without scanning `jsonb` across
+a realm. `@odudu/domain-identity` gained `parseCredentialSecret` (a Zod
+schema per type, `unknown` in, a narrowed discriminated union out — no
+cast) and `credentialRepository` gained `listFor`, `byLookupKey`, `insert`,
+`markUsed` and `deleteOne`; `passwordFor` and `setPassword` keep their exact
+signatures. Nothing yet writes a `totp`, `webauthn` or `password-history`
+row or reads `lookup_key` — that is TOTP, passkeys and password history's
+own tasks to build on top of this.
+
+**Task 13: every realm now carries a password policy, and every writer of
+a password is bound by it.** Migration 0035 (numbered past the brief's
+0034 — 0034 was already `user_credentials_types`, per Task 12 above) adds
+nine columns to `realms`: `password_min_length` (default 8, floored there
+by a `CHECK` so a realm cannot configure below it, ceiling 256),
+`password_require_digit`/`_uppercase`/`_lowercase`/`_special` (all off by
+default), `password_not_username`/`_not_email` (both on by default — `not_email`
+matches the local part of the address, not the whole string, so a
+candidate containing just the account-name half is refused the same as one
+containing the username, and a subject whose username equals its email's
+local part trips both rules at once, not either-or),
+`password_history_depth` (0–24) and `password_max_age_days` (0–3650) — the
+last two are columns with no reader yet; `update-password` is the task that
+gives them one. `@odudu/domain-identity` gained
+`evaluatePassword(candidate, policy, subject)`, a leaf service (no `tx`, no
+clock) that returns every violated rule, not just the first, and counts
+characters with `Array.from(candidate).length` rather than `.length` so an
+8-emoji password is not miscounted as 16 characters. Three of the four
+writers now call it: registration (`register.ts`), reset redemption
+(`completePasswordReset`, checked against a non-consuming `peek` so a weak
+password never burns the link), and both of the seed CLI's password-writing
+paths (`--user`/`--password` and `seed user`) — there is no development
+override for the seed CLI; it enforces the same policy every other writer
+does. The fourth writer, the change-password required action, does not
+exist until `update-password` lands; `apps/server/tests/password-policy.int.test.ts`
+carries its case as `it.fails` rather than a skip, so it stays visible
+until that task turns it into a plain `it`. That cross-cutting test lives
+under `apps/server/tests/`, not `packages/account/tests/` as the phase plan
+named it — `@odudu/account` depends on neither `@odudu/authn-flows` nor
+`apps/server`, so it cannot reach the seed CLI or the future required
+action itself; `apps/server` is the only place all four writers are
+reachable. Fixture fallout: 15 short passwords in
+`packages/account/tests/register.int.test.ts`, 5 in
+`apps/server/tests/seed.int.test.ts`, and 5 more of `seed user`'s
+`--password p` in `apps/server/tests/seed-authz.int.test.ts` all needed a
+compliant password — none of them were testing password strength, so the
+fix is a literal, not a design change. `infra/docker/smoke.sh` carried the
+same problem as a committed credential rather than a test fixture: it
+seeded and logged in as `smoke`/`smoke@example.com` with password
+`smoke-password`, which the shipped default policy correctly refuses
+(`not-username`) — the `container` CI job, which builds the image and runs
+this script, is what caught it, since nothing in `pnpm verify` builds the
+image. Fixed to a password bearing no relation to the account. Any task
+that changes what a password may be should re-run `infra/docker/smoke.sh`
+and grep `infra/` for other seeded credentials, rather than rediscovering
+this per task.
+
+**Task 14 gives a realm-level requirement something to require against: a
+pending action that blocks a login, not just an offer.** Migration 0036
+(0035 was already `realm_password_policy`, per Task 13) adds
+`user_required_actions` (`realm_id`, `subject_id`, `action`, `created_at`,
+primary key on the first three, `action` constrained to the four decision
+#1 fixes: `update-password`, `configure-totp`, `configure-passkey`,
+`generate-recovery-codes`), RLS policy copied verbatim from
+`authentication_sessions`' (`app.realm_id`, `nullif(..., '')`, no `WITH
+CHECK`) rather than the brief's `current_setting`-named one, which a
+`withRealm`-set session would never match. `@odudu/authn-flows` gained
+`requiredActionRepository(tx)` (`pendingFor(subjectId)`,
+`add(realmId, subjectId, action)` — `realmId` explicit, the same way every
+other repository's insert in this codebase takes one, unlike the brief's
+signature, which had no way to supply a fresh row's `realm_id` —
+`complete(subjectId, action)`), `nextRequiredAction(pending)` (the fixed
+order: password first, so an expired password is never usable to enrol a
+second factor), and `renderRequiredActionPage(realm, authSessionId,
+action)` — a page shell in the same dependency-free, `escapeHtml`-everything
+style as `authorize-html.ts`, carrying the same hidden `auth_session_id`
+CSRF field, with real fields only for `update-password` today (the other
+three have no enrolment UI yet, the same gap `executor.ts` already has for
+`passkey`/`otp`).
+
+`login-submission.ts`'s `handleLoginSubmission` gates on
+`nextRequiredAction(await deps.pendingActions(realm.id, result.subjectId))`
+right after the email-verified gate and before loading the pending request:
+a non-null action returns `{ kind: 'required_action', authSessionId,
+action }` with nothing established and no code issued, and — like the
+`unverified` outcome beside it — leaves the authentication session
+unconsumed so the same parked request resumes once the action is done.
+This is the second gate to leave a session alive, after the
+`id_token_hint`-mismatch redirect and the `unverified` refusal; all three
+now sit before `completeLogin` in the same function, none of them touch
+`executor.ts`'s `recordSatisfied` (which already only persists a factor
+when a further step of the _flow itself_ remains, not when the login as a
+whole is still blocked afterward), and the existing tests for the other two
+outcomes still pass unchanged because the new gate is checked, and returns
+null, before either of them is reached in the success path — it never has
+a code path where all three could interact in the same request.
+`login.ts`'s route renders `renderRequiredActionPage` for the new outcome,
+the same way it already does for `unverified`.
+
+**What this task does not build.** No route answers
+`POST /realms/{realm}/login-actions/required-action` yet — the page's form
+posts there, but nothing is registered to receive it, so
+`apps/server/tests/password-policy.int.test.ts`'s
+`it.fails('refuses a weak password at the change-password required
+action', …)` still fails exactly as before (a 404 where it expects 400),
+for the same reason its comment gives: that writer does not exist yet.
+Nothing seeds `user_required_actions` in any live path either, so no
+existing realm's login behaviour changed — the mechanism exists; nothing
+yet turns it on.
 
 **Reaping now covers five tables, not four, and ADR 0021's warning covers
 all five.** P2a added `action_tokens` (email verification and password
@@ -93,9 +533,10 @@ when a realm needs to mail and this is unset. The `ODUDU_SMTP_*` set —
 `ODUDU_SMTP_HOST` unset, the server logs every message instead of sending
 it, which is what the compose stack does today.
 
-**Migrations now run to 0024.** `packages/db/drizzle/0023_users_email_unique.sql`
+**Migrations now run to 0026.** `packages/db/drizzle/0023_users_email_unique.sql`
 is the realm-scoped `(realm_id, email)` uniqueness self-registration needs;
-0024 is the last one this phase added. Anything from P2b starts at 0025.
+0025 is the last one P2a added. 0026 (`token_grants_session`) is P2b's
+first, and the plan's own table numbers the rest through 0039.
 
 That is P2a done. **P2b** takes what P2 always meant: the flow tree with
 TOTP and passkeys, password policies, brute-force protection (a clause row
@@ -210,13 +651,6 @@ triggers a rotation, so it needs the authenticated administrator, the audit
 event and the surface P4 builds, none of which P3 has. Nothing in P2 needs
 it, and nothing forbids an earlier CLI, but a deployment running long enough
 to want a new key today has no supported way to get one.
-
-**`user_credentials.type` is P2's to widen.** Migration 0005 constrains it
-to `CHECK (type IN ('password'))`, with `UNIQUE (subject_id, type)` beside
-it. Every second factor P2 adds — TOTP, a passkey, a recovery code — needs
-that check widened by migration, and the uniqueness rule reconsidered at the
-same time: one row per type per subject is right for a password and wrong
-for passkeys, of which a user may enrol several.
 
 **47 rows are `deferred:`, and 11 of them name P2**: ten in
 `docs/protocols/oidc-core.md` and one in `docs/protocols/rfc6749.md`. They

@@ -23,9 +23,12 @@ export {
   startAuthentication,
   loadPendingRequest,
   advance,
+  initialChallenge,
+  pendingChallenge,
   consumeAuthenticationSession,
   establishSession,
   type AdvanceInput,
+  type AdvanceOutcome,
 } from '#/usecase/executor';
 export {
   passwordStep,
@@ -41,3 +44,22 @@ export {
 } from '#/schema/authentication-sessions';
 export { sessions, type SessionRecord } from '#/schema/sessions';
 export { type AuthenticatorResult } from '#/schema/authenticator';
+export { executionRepository, type NewAuthenticationExecution } from '#/repository/executions';
+export {
+  authenticationExecutions,
+  type AuthenticationExecutionRecord,
+  type Requirement,
+} from '#/schema/execution';
+export {
+  provisionBrowserFlow,
+  provisionRealm,
+  BROWSER_FLOW_DEFAULT,
+} from '#/usecase/provision-flow';
+export { nextRequiredAction } from '#/usecase/required-actions';
+export { requiredActionRepository } from '#/repository/required-actions';
+export {
+  userRequiredActions,
+  type RequiredAction,
+  type RequiredActionRecord,
+} from '#/schema/required-action';
+export { renderRequiredActionPage } from '#/view/required-action-html';

@@ -24,6 +24,7 @@ interface RawAuthorizationCodeRow {
   expires_at: string;
   consumed_at: string | null;
   grant_id: string | null;
+  session_id: string | null;
 }
 
 function toRecord(row: RawAuthorizationCodeRow): AuthorizationCodeRecord {
@@ -42,6 +43,7 @@ function toRecord(row: RawAuthorizationCodeRow): AuthorizationCodeRecord {
     expiresAt: new Date(row.expires_at),
     consumedAt: row.consumed_at === null ? null : new Date(row.consumed_at),
     grantId: row.grant_id,
+    sessionId: row.session_id,
   };
 }
 
@@ -57,6 +59,7 @@ export interface NewAuthorizationCode {
   codeChallengeMethod: 'S256';
   authTime: Date;
   expiresAt: Date;
+  sessionId?: string | null;
 }
 
 export function authorizationCodeRepository(tx: RealmScopedDatabase) {
@@ -64,6 +67,7 @@ export function authorizationCodeRepository(tx: RealmScopedDatabase) {
     async create(input: NewAuthorizationCode): Promise<void> {
       await tx.insert(authorizationCodes).values({
         ...input,
+        sessionId: input.sessionId ?? null,
         consumedAt: null,
         grantId: null,
       });

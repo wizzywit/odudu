@@ -132,7 +132,7 @@ function uniqueOptions(): SeedOptions {
     clientSecret: 's3cret',
     redirectUris: ['https://app.example/callback'],
     username: 'ada',
-    password: 'pw',
+    password: 'correct-horse-battery',
   };
 }
 
@@ -174,7 +174,7 @@ describe('seed', () => {
       clientId: options.clientId,
       redirectUris: options.redirectUris,
       username: 'ada',
-      password: 'pw',
+      password: 'correct-horse-battery',
     };
 
     const result = await seed(publicOptions);
@@ -213,7 +213,9 @@ describe('seed', () => {
 
     await seed(options);
 
-    await expect(seed({ ...options, username: 'grace', password: 'pw' })).rejects.toThrow(/grace/);
+    await expect(
+      seed({ ...options, username: 'grace', password: 'correct-horse-battery' }),
+    ).rejects.toThrow(/grace/);
   });
 
   // Every `email` claim a demo or an end-to-end run has ever seen was put
@@ -339,7 +341,7 @@ describe('seed: service-account subject', () => {
       clientId: options.clientId,
       redirectUris: options.redirectUris,
       username: 'ada',
-      password: 'pw',
+      password: 'correct-horse-battery',
     };
 
     const result = await seed(publicOptions);
@@ -419,7 +421,7 @@ describe('seed: --send-verification-email', () => {
       seed({
         ...noUserOptions,
         username: 'ghost',
-        password: 'pw',
+        password: 'correct-horse-battery',
         email: 'ghost@example.com',
         sendVerificationEmail: true,
       }),

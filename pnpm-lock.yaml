@@ -243,6 +243,9 @@ importers:
       '@odudu/domain-identity':
         specifier: workspace:*
         version: link:../domain-identity
+      '@odudu/domain-realm':
+        specifier: workspace:*
+        version: link:../domain-realm
       '@odudu/kernel':
         specifier: workspace:*
         version: link:../kernel
@@ -347,6 +350,9 @@ importers:
       drizzle-orm:
         specifier: 0.45.2
         version: 0.45.2(postgres@3.4.9)
+      zod:
+        specifier: 4.6.1
+        version: 4.6.1
     devDependencies:
       '@odudu/testkit':
         specifier: workspace:*

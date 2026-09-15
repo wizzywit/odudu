@@ -1,4 +1,5 @@
-import { type FastifyInstance, type FastifyReply } from 'fastify';
+import { sessionCookieName } from '@odudu/authn-flows';
+import { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
 import { FORM_MEDIA_TYPE } from '#/service/media-type';
 import {
   handleAuthorizationRequest,
@@ -11,6 +12,26 @@ import { namesUnsupportedRepresentation } from '#/view/media-type';
 
 const PATH = '/realms/:realm/protocol/openid-connect/auth';
 
+export interface AuthorizeRouteDeps extends AuthorizeUsecaseDeps {
+  tls: boolean;
+}
+
+// The cookie is read here and nowhere else on this path: the usecase
+// receives a bare string and never the request, so it cannot reach for any
+// other header no matter what a future change to it might try. A `Cookie`
+// header this server cannot parse a named value out of is the same as no
+// cookie — a malformed header names no live session either way.
+function readCookie(request: FastifyRequest, name: string): string | undefined {
+  const header = request.headers.cookie;
+  if (typeof header !== 'string') return undefined;
+  for (const part of header.split(';')) {
+    const separator = part.indexOf('=');
+    if (separator === -1) continue;
+    if (part.slice(0, separator).trim() === name) return part.slice(separator + 1).trim();
+  }
+  return undefined;
+}
+
 // OIDC Core §3.1.2 requires both methods; they differ only in where the
 // parameters come from, and share everything after, so they cannot drift
 // out of agreement — down to a POST naming no representation answering
@@ -18,13 +39,14 @@ const PATH = '/realms/:realm/protocol/openid-connect/auth';
 // `unknown` because that is the truth: they are whatever a body parser
 // produced, and normalizeAuthorizeQuery turns them back into strings.
 async function respondToAuthorizationRequest(
-  deps: AuthorizeUsecaseDeps,
+  deps: AuthorizeRouteDeps,
   realm: string,
   params: unknown,
   issuer: string,
+  cookieValue: string | undefined,
   reply: FastifyReply,
 ): Promise<FastifyReply> {
-  const outcome = await handleAuthorizationRequest(deps, realm, params, issuer);
+  const outcome = await handleAuthorizationRequest(deps, realm, params, issuer, cookieValue);
 
   if (outcome.kind === 'render') {
     return sendHtml(reply, 400, renderAuthorizeErrorPage(outcome.error, outcome.description));
@@ -41,16 +63,28 @@ async function respondToAuthorizationRequest(
     return reply.code(302).header('location', target.toString()).send();
   }
 
-  return sendHtml(reply, 200, renderLoginForm(realm, outcome.authSessionId));
+  // A reused session: the same success shape the login POST redirects to,
+  // with no set-cookie header — the session that got this request here
+  // already has one.
+  if (outcome.kind === 'reused') {
+    const target = new URL(outcome.redirectUri);
+    target.searchParams.set('code', outcome.code);
+    if (outcome.state !== null) target.searchParams.set('state', outcome.state);
+    target.searchParams.set('iss', issuer);
+    return reply.code(302).header('location', target.toString()).send();
+  }
+
+  return sendHtml(reply, 200, renderLoginForm(realm, outcome.authSessionId, outcome.form));
 }
 
-export function registerAuthorizeRoute(app: FastifyInstance, deps: AuthorizeUsecaseDeps): void {
+export function registerAuthorizeRoute(app: FastifyInstance, deps: AuthorizeRouteDeps): void {
   app.get<{ Params: { realm: string } }>(PATH, (request, reply) =>
     respondToAuthorizationRequest(
       deps,
       request.params.realm,
       request.query,
       realmIssuerFor(request, request.params.realm),
+      readCookie(request, sessionCookieName(request.params.realm, deps.tls)),
       reply,
     ),
   );
@@ -84,6 +118,7 @@ export function registerAuthorizeRoute(app: FastifyInstance, deps: AuthorizeUsec
         request.params.realm,
         request.body,
         realmIssuerFor(request, request.params.realm),
+        readCookie(request, sessionCookieName(request.params.realm, deps.tls)),
         reply,
       ),
   );

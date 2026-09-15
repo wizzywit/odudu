@@ -1,13 +1,18 @@
 import { type DatabaseHandle, type RealmScopedDatabase } from '@odudu/db';
 import { type FastifyInstance } from 'fastify';
 import { peekActionToken } from '#/usecase/action-token';
-import { completePasswordReset } from '#/usecase/reset-password';
+import {
+  completePasswordReset,
+  type PasswordPolicy,
+  type PolicyViolation,
+} from '#/usecase/reset-password';
 import { completeEmailVerification } from '#/usecase/verify-email';
 import {
   renderResetLinkFailedPage,
   renderResetPasswordForm,
   renderResetPasswordRequiredPage,
   renderResetPasswordSucceededPage,
+  renderResetPasswordWeakPage,
 } from '#/view/reset-html';
 import {
   renderVerificationFailedPage,
@@ -24,6 +29,7 @@ export interface ActionTokenRealmLookup {
   // one is gated on realm.enabled alone, the same as before this flag
   // existed.
   readonly resetPasswordAllowed: boolean;
+  readonly passwordPolicy: PasswordPolicy;
 }
 
 export interface ActionTokenRouteDeps {
@@ -39,6 +45,12 @@ export interface ActionTokenRouteDeps {
     subjectId: string,
     newPassword: string,
   ) => Promise<void>;
+  readonly getUsername: (tx: RealmScopedDatabase, subjectId: string) => Promise<string>;
+  readonly evaluatePassword: (
+    candidate: string,
+    policy: PasswordPolicy,
+    subject: { username: string; email: string | null },
+  ) => PolicyViolation[];
 }
 
 // @fastify/formbody parses a repeated query or body field into an array; a
@@ -127,11 +139,25 @@ export function registerActionTokenRoute(app: FastifyInstance, deps: ActionToken
     }
 
     const result = await completePasswordReset(
-      { database: deps.database, realmId: realm.id, setPassword: deps.setPassword },
+      {
+        database: deps.database,
+        realmId: realm.id,
+        setPassword: deps.setPassword,
+        passwordPolicy: realm.passwordPolicy,
+        evaluatePassword: deps.evaluatePassword,
+        getUsername: deps.getUsername,
+      },
       key,
       password,
     );
 
+    if (result.kind === 'invalid_password') {
+      return sendVerificationHtml(
+        reply,
+        400,
+        renderResetPasswordWeakPage(result.violations.map((v) => v.message)),
+      );
+    }
     if (result.kind === 'invalid') {
       return sendVerificationHtml(reply, 400, renderResetLinkFailedPage());
     }

@@ -8,7 +8,8 @@ import {
   type DatabaseHandle,
   type RealmScopedDatabase,
 } from '@odudu/db';
-import { clients, provisionClientDefaults, provisionRealmDefaults } from '@odudu/domain-realm';
+import { provisionRealm } from '@odudu/authn-flows';
+import { clients, provisionClientDefaults } from '@odudu/domain-realm';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import formbody from '@fastify/formbody';
@@ -108,7 +109,7 @@ beforeAll(async () => {
   REALM_ID = newId();
   await withRealm(app.db, REALM_ID, async (tx) => {
     await tx.insert(realms).values({ id: REALM_ID, name: REALM });
-    await provisionRealmDefaults(tx, REALM_ID);
+    await provisionRealm(tx, REALM_ID);
     const key = await generateSigningKey('RS256', KEK);
     await tx.insert(signingKeys).values({
       id: newId(),

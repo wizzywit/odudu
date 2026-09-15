@@ -2,7 +2,11 @@ import {
   advance,
   consumeAuthenticationSession,
   establishSession,
+  initialChallenge,
   loadPendingRequest,
+  pendingChallenge,
+  requiredActionRepository,
+  sessionRepository,
   startAuthentication,
 } from '@odudu/authn-flows';
 import { signingKeyRepository } from '@odudu/crypto';
@@ -13,6 +17,7 @@ import { clientRepository, clientScopeRepository } from '@odudu/domain-realm';
 import { systemClock, type Clock } from '@odudu/kernel';
 import { type FastifyPluginAsync } from 'fastify';
 import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
+import { tokenGrantRepository } from '#/repository/grants';
 import { realmLookupRepository } from '#/repository/realm-lookup';
 import { reachableRoleIds } from '#/repository/scope-role-reach';
 import { standardClaimMappers } from '#/service/claims';
@@ -24,8 +29,11 @@ import { registerCors } from '#/view/routes/cors';
 import { registerDiscoveryRoute } from '#/view/routes/discovery';
 import { registerJwksRoute } from '#/view/routes/jwks';
 import { registerLoginRoute } from '#/view/routes/login';
+import { registerLogoutRoute } from '#/view/routes/logout';
 import { registerTokenRoute } from '#/view/routes/token';
 import { registerUserinfoRoute } from '#/view/routes/userinfo';
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export interface OidcRoutesDeps {
   database: DatabaseHandle;
@@ -114,6 +122,18 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
         (await clientScopeRepository(tx).allForRealm()).map((scope) => scope.name),
       );
 
+    // The one definition of "is this subject's address verified", read by
+    // both doors into completing a login: the password form and, since
+    // this task, a reused SSO session cookie.
+    const checkEmailVerification = (realmId: string, subjectId: string) =>
+      withRealm(deps.database.db, realmId, async (tx) => {
+        const user = await userRepository(tx).bySubjectId(subjectId);
+        return {
+          verified: user?.emailVerified ?? false,
+          hasEmail: (user?.email ?? null) !== null,
+        };
+      });
+
     registerDiscoveryRoute(app, {
       findRealm,
       claimNames: () => claimMappers.claimNames(),
@@ -122,6 +142,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
     registerJwksRoute(app, { findRealm, listPublishableKeys });
     registerAuthorizeRoute(app, {
       findRealm,
+      tls,
       listPublishableKeys,
       scopesForRealm,
       resolveClient: (realmId, oauthClientId) =>
@@ -136,6 +157,51 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
         withRealm(deps.database.db, realmId, (tx) =>
           startAuthentication(tx, realmId, request, clock),
         ),
+      initialChallenge: (realmId) =>
+        withRealm(deps.database.db, realmId, (tx) => initialChallenge(tx, realmId)),
+      now: () => clock.now(),
+      // The realm's idle window comes from the `realm` the caller already
+      // resolved (its own `findRealm`), not a second lookup by id.
+      resolveSession: async (realm, cookieValue) => {
+        // The cookie is trusted for nothing but this lookup, and a session
+        // id is a UUID column — a value shaped like anything else names no
+        // row rather than raising the invalid-input-syntax error Postgres
+        // would give a raw comparison.
+        if (cookieValue === undefined || !UUID_PATTERN.test(cookieValue)) return null;
+        return withRealm(deps.database.db, realm.id, async (tx) => {
+          const record = await sessionRepository(tx).liveById(
+            cookieValue,
+            realm.ssoSessionIdleSeconds,
+            clock.now(),
+          );
+          if (record === null) return null;
+          return { sessionId: record.id, subjectId: record.subjectId, authTime: record.createdAt };
+        });
+      },
+      checkEmailVerification,
+      // Touch and issue in one transaction: a reused session is a session
+      // being used, and there is no reason for the two writes this makes to
+      // land in separate ones.
+      completeReuse: (input) =>
+        withRealm(deps.database.db, input.realmId, async (tx) => {
+          const now = clock.now();
+          await sessionRepository(tx).touch(input.sessionId, now);
+          // `now`, not `input.authTime`: the code's 60s TTL counts from this
+          // issuance, however long ago the session's own login was.
+          return issueAuthorizationCode(tx, {
+            realmId: input.realmId,
+            clientId: input.clientId,
+            subjectId: input.subjectId,
+            redirectUri: input.redirectUri,
+            scope: input.scope,
+            nonce: input.nonce,
+            codeChallenge: input.codeChallenge,
+            codeChallengeMethod: input.codeChallengeMethod,
+            authTime: input.authTime,
+            now,
+            sessionId: input.sessionId,
+          });
+        }),
     });
     registerLoginRoute(app, {
       findRealm,
@@ -144,14 +210,13 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
         withRealm(deps.database.db, realmId, (tx) => advance(tx, authSessionId, input, clock)),
       loadPendingRequest: (realmId, authSessionId) =>
         withRealm(deps.database.db, realmId, (tx) => loadPendingRequest(tx, authSessionId)),
-      checkEmailVerification: (realmId, subjectId) =>
-        withRealm(deps.database.db, realmId, async (tx) => {
-          const user = await userRepository(tx).bySubjectId(subjectId);
-          return {
-            verified: user?.emailVerified ?? false,
-            hasEmail: (user?.email ?? null) !== null,
-          };
-        }),
+      pendingChallenge: (realmId, authSessionId) =>
+        withRealm(deps.database.db, realmId, (tx) => pendingChallenge(tx, authSessionId, clock)),
+      checkEmailVerification,
+      pendingActions: (realmId, subjectId) =>
+        withRealm(deps.database.db, realmId, (tx) =>
+          requiredActionRepository(tx).pendingFor(subjectId),
+        ),
       resolveClientId: (realmId, oauthClientId) =>
         withRealm(deps.database.db, realmId, async (tx) => {
           const client = await clientRepository(tx).byClientId(oauthClientId);
@@ -167,11 +232,19 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
           const consumed = await consumeAuthenticationSession(tx, input.authSessionId, clock);
           if (!consumed) return { kind: 'already_consumed' };
 
-          const { sessionId } = await establishSession(tx, input.realmId, input.subjectId, clock);
-          // authTime and expiresAt both derive from this single `now`, not a
-          // fresh clock read inside issueAuthorizationCode — otherwise two
-          // reads straddling a millisecond boundary could store a TTL
-          // slightly over 60s.
+          const { sessionId } = await establishSession(
+            tx,
+            input.realmId,
+            input.subjectId,
+            input.ssoSessionMaxSeconds,
+            input.authenticators,
+            clock,
+          );
+          // authTime and now both derive from this single clock read, not a
+          // fresh one inside issueAuthorizationCode — otherwise two reads
+          // straddling a millisecond boundary could store a TTL slightly
+          // over 60s. On this path the two happen to be the same instant;
+          // completeReuse is where they diverge.
           const { code } = await issueAuthorizationCode(tx, {
             realmId: input.realmId,
             clientId: input.clientId,
@@ -182,8 +255,49 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
             codeChallenge: input.codeChallenge,
             codeChallengeMethod: input.codeChallengeMethod,
             authTime: now,
+            now,
+            sessionId,
           });
           return { kind: 'issued', sessionId, code };
+        }),
+    });
+    registerLogoutRoute(app, {
+      findRealm,
+      tls,
+      listPublishableKeys,
+      now: () => clock.now(),
+      // Resolved from the OAuth client_id to that client's own registered
+      // list — an unknown or unspecified client yields none, refusing any
+      // redirect rather than resolving one with no client to trust it
+      // against (RP-Initiated Logout 1.0 §3).
+      postLogoutRedirectUris: (realmId, oauthClientId) =>
+        withRealm(deps.database.db, realmId, async (tx) => {
+          const client = await clientRepository(tx).byClientId(oauthClientId);
+          if (client === null) return [];
+          return clientOidcConfigRepository(tx).postLogoutRedirectUris(client.id);
+        }),
+      // The same cookie-to-live-row resolution /authorize's resolveSession
+      // performs, minus the authTime that only completing a login needs.
+      resolveSession: async (realm, cookieValue) => {
+        if (cookieValue === undefined || !UUID_PATTERN.test(cookieValue)) return null;
+        return withRealm(deps.database.db, realm.id, async (tx) => {
+          const record = await sessionRepository(tx).liveById(
+            cookieValue,
+            realm.ssoSessionIdleSeconds,
+            clock.now(),
+          );
+          if (record === null) return null;
+          return { id: record.id, subjectId: record.subjectId };
+        });
+      },
+      // One transaction, per Back-Channel Logout §2.7: end the session, then
+      // revoke every grant whose session_id is that session. A failure
+      // anywhere rolls both back — a session that ends with its grants
+      // still live would be logout not actually having happened.
+      endSession: (realmId, sessionId, now) =>
+        withRealm(deps.database.db, realmId, async (tx) => {
+          await sessionRepository(tx).end(sessionId, now);
+          await tokenGrantRepository(tx).revokeForSession(sessionId, now);
         }),
     });
     // Own encapsulation scope: `@fastify/cors`'s delegator-driven hook adds

@@ -9,6 +9,7 @@ import {
 } from '@odudu/db';
 import {
   credentialRepository,
+  evaluatePassword,
   hashPassword,
   subjectRepository,
   userRepository,
@@ -112,11 +113,11 @@ async function createAccount(
     username: input.username,
     email: input.email,
   });
-  await credentialRepository(tx).create({
+  await credentialRepository(tx).insert({
     realmId,
     subjectId: subject.id,
     type: 'password',
-    secretData: await hashPassword(input.password),
+    secret: { kind: 'password', hash: await hashPassword(input.password) },
   });
   return { subjectId: subject.id };
 }
@@ -195,6 +196,12 @@ function buildHttpApp(): FastifyInstance {
     setPassword: async (tx, subjectId, password) => {
       await credentialRepository(tx).setPassword(subjectId, await hashPassword(password));
     },
+    getUsername: async (tx, subjectId) => {
+      const user = await userRepository(tx).bySubjectId(subjectId);
+      if (user === null) throw new Error(`no user found for subject ${subjectId}`);
+      return user.username;
+    },
+    evaluatePassword,
   });
   return instance;
 }
@@ -302,6 +309,29 @@ describe('password reset', () => {
     expect(submitted.statusCode).toBe(200);
 
     expect(await passwordWorksFor(realmId, 'ada', 'a new password')).toBe(true);
+  });
+
+  it('refuses a password that fails the realm policy, without spending the link', async () => {
+    const { realmId, realmName } = await seedRealm(`realm-${newId()}`, {
+      resetPasswordAllowed: true,
+    });
+    await seedAda(realmId);
+
+    await requestReset(realmName, 'ada@example.test');
+    const message = sender.sent[0];
+    if (message === undefined) throw new Error('no mail sent');
+    const link = extractLink(message);
+
+    const rejected = await submitNewPassword(link, 'short');
+    expect(rejected.statusCode).toBe(400);
+    expect(rejected.body).toContain('at least');
+    expect(await passwordWorksFor(realmId, 'ada', 'correct horse battery')).toBe(true);
+
+    // The link is still the same unconsumed token: a compliant password on
+    // the very same link now succeeds.
+    const retried = await submitNewPassword(link, 'a compliant password');
+    expect(retried.statusCode).toBe(200);
+    expect(await passwordWorksFor(realmId, 'ada', 'a compliant password')).toBe(true);
   });
 
   it('stops the old password working', async () => {

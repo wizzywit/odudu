@@ -13,11 +13,16 @@ import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/test
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   advance,
+  dispatchNext,
   establishSession,
+  isRegisteredAuthenticator,
   loadPendingRequest,
   startAuthentication,
+  type AuthenticatorFn,
 } from '#/usecase/executor';
+import { provisionBrowserFlow } from '#/usecase/provision-flow';
 import { type PendingRequest } from '#/schema/authentication-sessions';
+import { type Step } from '#/service/requirements';
 
 let containerHandle: TestDatabase | undefined;
 let ownerHandle: DatabaseHandle | undefined;
@@ -63,6 +68,7 @@ async function seedRealmAndUser(
   password: string,
 ): Promise<string> {
   await tx.insert(realms).values({ id: realmId, name: `realm-${realmId}` });
+  await provisionBrowserFlow(tx, realmId);
   const subject = await subjectRepository(tx).create({ realmId, type: 'user' });
   await tx.insert(users).values({ subjectId: subject.id, realmId, username });
   await tx.insert(userCredentials).values({
@@ -70,7 +76,7 @@ async function seedRealmAndUser(
     realmId,
     subjectId: subject.id,
     type: 'password',
-    secretData: await hashPassword(password),
+    secretData: { hash: await hashPassword(password) },
   });
   return subject.id;
 }
@@ -130,7 +136,7 @@ describe('[ODUDU-AUTHN-SESSION-FIXATION-01] session fixation', () => {
     });
 
     const { sessionId } = await withRealm(app.db, realmId, async (tx) =>
-      establishSession(tx, realmId, subjectId),
+      establishSession(tx, realmId, subjectId, 36_000, ['password']),
     );
 
     expect(sessionId).not.toEqual(authSessionId);
@@ -146,10 +152,10 @@ describe('[ODUDU-AUTHN-SESSION-FIXATION-01] session fixation', () => {
     });
 
     const first = await withRealm(app.db, realmId, async (tx) =>
-      establishSession(tx, realmId, subjectId),
+      establishSession(tx, realmId, subjectId, 36_000, ['password']),
     );
     const second = await withRealm(app.db, realmId, async (tx) =>
-      establishSession(tx, realmId, subjectId),
+      establishSession(tx, realmId, subjectId, 36_000, ['password']),
     );
 
     expect(first.sessionId).not.toEqual(second.sessionId);
@@ -192,5 +198,77 @@ describe('[ODUDU-AUTHN-NO-USER-ENUMERATION-01] the password step does not enumer
       advance(tx, goodSessionId, { username: 'ada', password: 'correct-horse-battery-staple' }),
     );
     expect(good.kind).toBe('success');
+  });
+});
+
+// A satisfied factor is never asked for twice — a property of `dispatchNext`
+// itself, not of any particular authenticator, proven against a fake
+// registry so it does not depend on `password` being the one real one.
+describe('[ODUDU-AUTHN-RESUMPTION-01] a multi-step login resumes rather than restarts', () => {
+  it('offers the second execution when the first is already satisfied', async () => {
+    const steps: Step[] = [
+      { authenticator: 'first', requirement: 'required', applicable: true },
+      { authenticator: 'second', requirement: 'required', applicable: true },
+    ];
+    let firstCalled = false;
+    const registry: Record<string, AuthenticatorFn> = {
+      first: () => {
+        firstCalled = true;
+        return Promise.resolve({ kind: 'challenge', form: 'first' });
+      },
+      second: () => Promise.resolve({ kind: 'challenge', form: 'second' }),
+    };
+
+    const dispatched = await dispatchNext(registry, steps, new Set(['first']), {});
+
+    expect(dispatched).toEqual({
+      kind: 'ran',
+      authenticator: 'second',
+      result: { kind: 'challenge', form: 'second' },
+    });
+    expect(firstCalled).toBe(false);
+  });
+
+  it('offers the first execution of a fresh flow', async () => {
+    const steps: Step[] = [
+      { authenticator: 'first', requirement: 'required', applicable: true },
+      { authenticator: 'second', requirement: 'required', applicable: true },
+    ];
+    const registry: Record<string, AuthenticatorFn> = {
+      first: () => Promise.resolve({ kind: 'challenge', form: 'first' }),
+      second: () => Promise.resolve({ kind: 'challenge', form: 'second' }),
+    };
+
+    const dispatched = await dispatchNext(registry, steps, new Set(), {});
+
+    expect(dispatched.kind).toBe('ran');
+    expect(dispatched).toMatchObject({ authenticator: 'first' });
+  });
+
+  it('reports completion once every execution is satisfied', async () => {
+    const steps: Step[] = [{ authenticator: 'first', requirement: 'required', applicable: true }];
+    const registry: Record<string, AuthenticatorFn> = {
+      first: () => Promise.resolve({ kind: 'challenge', form: 'first' }),
+    };
+
+    expect(await dispatchNext(registry, steps, new Set(['first']), {})).toEqual({
+      kind: 'complete',
+    });
+  });
+
+  it('reports failure for a flow with no applicable execution', async () => {
+    expect(await dispatchNext({}, [], new Set(), {})).toEqual({ kind: 'fail' });
+  });
+});
+
+describe('isRegisteredAuthenticator', () => {
+  it('recognizes every authenticator the browser flow default seeds', () => {
+    expect(isRegisteredAuthenticator('password')).toBe(true);
+    expect(isRegisteredAuthenticator('passkey')).toBe(true);
+    expect(isRegisteredAuthenticator('otp')).toBe(true);
+  });
+
+  it('rejects a name nothing registers', () => {
+    expect(isRegisteredAuthenticator('bogus')).toBe(false);
   });
 });

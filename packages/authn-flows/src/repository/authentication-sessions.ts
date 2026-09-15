@@ -1,4 +1,4 @@
-import { and, eq, isNull } from 'drizzle-orm';
+import { and, eq, isNull, sql } from 'drizzle-orm';
 import { type RealmScopedDatabase } from '@odudu/db';
 import {
   authenticationSessions,
@@ -14,6 +14,7 @@ function toRecord(row: typeof authenticationSessions.$inferSelect): Authenticati
     createdAt: row.createdAt,
     expiresAt: row.expiresAt,
     consumedAt: row.consumedAt,
+    satisfied: row.satisfied,
   };
 }
 
@@ -55,6 +56,21 @@ export function authenticationSessionRepository(tx: RealmScopedDatabase) {
         .where(and(eq(authenticationSessions.id, id), isNull(authenticationSessions.consumedAt)))
         .returning({ id: authenticationSessions.id });
       return rows.length > 0;
+    },
+
+    // Appends unconditionally rather than checking membership first: the
+    // executor only ever calls this once per authenticator per session (a
+    // satisfied one is never re-run — see `nextStep`), so a duplicate would
+    // signal a bug upstream, not something this write needs to guard
+    // against. Readers treat `satisfied` as a set (`Set` membership), so an
+    // accidental duplicate would be harmless even so.
+    async recordSatisfied(id: string, authenticator: string): Promise<void> {
+      await tx
+        .update(authenticationSessions)
+        .set({
+          satisfied: sql`array_append(${authenticationSessions.satisfied}, ${authenticator})`,
+        })
+        .where(eq(authenticationSessions.id, id));
     },
   };
 }

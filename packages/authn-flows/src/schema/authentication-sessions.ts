@@ -1,4 +1,4 @@
-import { jsonb, pgTable, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { jsonb, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 import { realms } from '@odudu/db';
 
 // Policies are written as hand-authored SQL in packages/db/drizzle/, never
@@ -16,6 +16,10 @@ export const authenticationSessions = pgTable('authentication_sessions', {
   // so a session that has already driven one successful login cannot drive
   // a second, even from two requests racing on the same id.
   consumedAt: timestamp('consumed_at', { withTimezone: true }),
+  // Authenticator names this authentication has already satisfied — what
+  // lets a multi-step login resume rather than restart (a correct password
+  // followed by a wrong second factor must not ask for the password again).
+  satisfied: text('satisfied').array().notNull().default([]),
 }).enableRLS();
 
 // The bytes validated at /authorize are the bytes bound to the code later
@@ -42,4 +46,5 @@ export interface AuthenticationSessionRecord {
   createdAt: Date;
   expiresAt: Date;
   consumedAt: Date | null;
+  satisfied: string[];
 }
