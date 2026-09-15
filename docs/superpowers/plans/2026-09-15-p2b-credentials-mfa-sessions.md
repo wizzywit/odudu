@@ -39,7 +39,8 @@ Everything in P0's, P1's and P2a's plans still binds. Repeated here because an i
 - Layer imports follow ADR 0010: `view` → own model and `shared/view`; `usecase` → repository, service, view models; `repository` → adapter, service; `adapter` → transport, service; `service` → nothing.
 - Migrations are hand-authored SQL in `packages/db/drizzle/`, never generated, and each needs an entry appended to `packages/db/drizzle/meta/_journal.json` with the next `idx` and a `when` greater than the previous entry's. Every new tenant table needs `ENABLE` + `FORCE ROW LEVEL SECURITY` and a policy in the same migration.
 - **`pnpm trace` runs strict.** A new MUST that is not `covered` fails the build. A new `deferred:` or `n/a:` row must move the count in `tools/trace/silenced-musts.json` in the same diff.
-- **`README.md` and `docs/request-paths.md` are updated in the same commit as the code** that changes a request, response, branch, error code, endpoint, command or default. `tests/docs/` fails the build on drift, and every command in `docs/request-paths.md` has been run against a live stack with real output pasted back.
+- **`README.md` and `docs/request-paths.md` are updated in the same commit as the code** that changes a request, response, branch, error code, endpoint, command or default. `tests/docs/` fails the build on drift — run it with `pnpm exec vitest run --project unit docs`, since it lives in the **unit** project despite the directory name — and every command in `docs/request-paths.md` has been run against a live stack with real output pasted back, never hand-aligned or annotated.
+- **A behaviour change falsifies prose somewhere other than the section you are editing.** `docs/request-paths.md` carries a list of what the server does _not_ do yet, and a task that removes a limitation has to delete its bullet as well as document the new behaviour. Two bullets survived four commits past the work that falsified them because the task that changed the behaviour updated only the section it had added. Grep the file for the capability you just built before you commit.
 - **`docs/NEXT.md` is updated at the end of every task**, not at phase close.
 - Every task ends with **CI green on a pushed commit with the draft pull request open**. The draft PR opens in Task 1 and stays open for the phase. **No exceptions, including the three spikes and the unit-test-only tasks**: a commit CI has not seen is a commit whose state nobody has verified, and a branch with unpushed commits makes "green on the last push" a claim about something other than the current tree. A task is not finished until `gh pr checks --watch` has reported pass on its own pushed commit.
 
@@ -3331,8 +3332,8 @@ gh pr checks --watch
 
 Not the ones this phase added — **all** of them. A phase that changed the session, the flow and the token claims has changed responses in sections written three phases ago. Any command that cannot be run says so instead of showing output.
 
-Run: `pnpm exec vitest run --project integration docs`
-Expected: PASS. `tests/docs/` only checks the claims that can be checked mechanically; the rest is read.
+Run: `pnpm exec vitest run --project unit docs`
+Expected: PASS. `tests/docs/` lives in the **unit** project, not integration — `vitest.config.ts` includes `tests/**/*.test.ts` under `unit`, and only `*.int.test.ts` under `integration`, so asking the integration project for it reports "No test files found" rather than failing. It checks only the claims that can be checked mechanically; the rest is read.
 
 - [ ] **Step 2: Check the exit criterion clause by clause against a running stack**
 
