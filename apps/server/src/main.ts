@@ -6,6 +6,7 @@ import { seed } from '#/cli/seed';
 import { resolveSeedInvocation } from '#/cli/seed-invocation';
 import {
   assertProductionAppDatabaseUrl,
+  assertProductionPasskeyRelyingParty,
   assertProductionTls,
   warnIfTlsDisabled,
 } from '#/config-guard';
@@ -27,6 +28,7 @@ const logger = createLogger(config);
 
 assertProductionAppDatabaseUrl(config);
 assertProductionTls(config);
+assertProductionPasskeyRelyingParty(config);
 warnIfTlsDisabled(config, (message) => {
   logger.warn({}, message);
 });

@@ -1,4 +1,8 @@
-import { type RequiredAction, type TotpEnrolmentOutcome } from '@odudu/authn-flows';
+import {
+  type PasskeyEnrolmentOutcome,
+  type RequiredAction,
+  type TotpEnrolmentOutcome,
+} from '@odudu/authn-flows';
 import { type RealmLookup } from '#/repository/realm-lookup';
 
 export type RequiredActionOutcome =
@@ -11,18 +15,29 @@ export type RequiredActionOutcome =
   // permission to finish the login that asked for it, never permission to
   // attach a credential nobody asked for.
   | { kind: 'not_owed'; action: string }
-  // An owed action with no submission to satisfy it. configure-passkey and
-  // generate-recovery-codes are here until they have one.
+  // An owed action with no submission to satisfy it: generate-recovery-codes
+  // always, and configure-passkey on a deployment with no
+  // ODUDU_PUBLIC_BASE_URL to derive a relying party from.
   | { kind: 'unsupported'; action: string }
   // The action is done and the parked login is waiting; the caller resumes it.
   | { kind: 'completed'; authSessionId: string }
-  | { kind: 'rejected'; authSessionId: string; subjectId: string; reason: string };
+  | {
+      kind: 'rejected';
+      authSessionId: string;
+      subjectId: string;
+      action: RequiredAction;
+      reason: string;
+    };
 
 export interface RequiredActionSubmission {
   authSessionId: string | undefined;
   action: string | undefined;
   secret: string | undefined;
   code: string | undefined;
+  // The JSON navigator.credentials.create() produced, as the passkey page's
+  // hidden field carried it back, and the name the user gave it.
+  credential: string | undefined;
+  label: string | undefined;
 }
 
 export interface RequiredActionSubmissionDeps {
@@ -41,6 +56,29 @@ export interface RequiredActionSubmissionDeps {
     secret: string;
     code: string;
   }): Promise<TotpEnrolmentOutcome>;
+  // Absent when no relying party can be derived — see relyingPartyId in
+  // @odudu/authn-flows. A passkey enrolled against a guessed RP ID is
+  // unusable and silently so, so the action is reported unsupported rather
+  // than attempted.
+  completePasskeyEnrolment?(input: {
+    realmId: string;
+    subjectId: string;
+    authSessionId: string;
+    response: unknown;
+    label?: string;
+  }): Promise<PasskeyEnrolmentOutcome>;
+}
+
+// What the browser posts is a string; whether it is JSON at all is the
+// enrolment's business, so an unparseable field arrives as the `undefined`
+// that every other malformed response also produces.
+function parseJson(value: string | undefined): unknown {
+  if (value === undefined) return undefined;
+  try {
+    return JSON.parse(value);
+  } catch {
+    return undefined;
+  }
 }
 
 export async function handleRequiredActionSubmission(
@@ -70,6 +108,10 @@ export async function handleRequiredActionSubmission(
     return { kind: 'not_owed', action: action ?? '' };
   }
 
+  if (action === 'configure-passkey') {
+    return completePasskey(deps, realm.id, subjectId, authSessionId, submission);
+  }
+
   if (action !== 'configure-totp') {
     return { kind: 'unsupported', action };
   }
@@ -91,6 +133,37 @@ export async function handleRequiredActionSubmission(
     kind: 'rejected',
     authSessionId,
     subjectId,
+    action: 'configure-totp',
     reason: 'That code did not match. Try the next one your app shows.',
+  };
+}
+
+// Both refusals the enrolment can report read the same to whoever is at the
+// browser: the ceremony has to be run again, and the retry gets a fresh
+// challenge because the page it is rendered on issues one.
+async function completePasskey(
+  deps: RequiredActionSubmissionDeps,
+  realmId: string,
+  subjectId: string,
+  authSessionId: string,
+  submission: RequiredActionSubmission,
+): Promise<RequiredActionOutcome> {
+  const enrol = deps.completePasskeyEnrolment?.bind(deps);
+  if (enrol === undefined) return { kind: 'unsupported', action: 'configure-passkey' };
+
+  const outcome = await enrol({
+    realmId,
+    subjectId,
+    authSessionId,
+    response: parseJson(submission.credential),
+    ...(submission.label === undefined ? {} : { label: submission.label }),
+  });
+  if (outcome.kind === 'enrolled') return { kind: 'completed', authSessionId };
+  return {
+    kind: 'rejected',
+    authSessionId,
+    subjectId,
+    action: 'configure-passkey',
+    reason: 'That passkey could not be added. Try again.',
   };
 }

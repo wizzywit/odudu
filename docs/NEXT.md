@@ -3,7 +3,39 @@
 ## Start here
 
 **P0, P1 and P2a are complete. P2b is brainstormed, specified and planned;
-Tasks 1 through 16 have landed and Task 17 is next.**
+Tasks 1 through 18 have landed and Task 19 is next.**
+
+**Task 18 enrols a passkey.** `@simplewebauthn/server` is pinned at
+`14.0.2` (the version `docs/superpowers/p2b-spike-log.md` resolved and
+probed; the package ships no `dist/`, its declarations are under `esm/`).
+Migration 0039 adds `authentication_sessions.webauthn_challenge`, and
+`authenticationSessionRepository` gained `setWebauthnChallenge` and
+`claimWebauthnChallenge` — the latter one statement that reads and clears
+the column, self-joined so `RETURNING` hands back the pre-update value, so
+a replayed response finds nothing to match rather than the same challenge
+twice. `src/service/webauthn.ts` is a leaf over the library:
+`relyingPartyId`/`relyingPartyOrigin` derive the relying party from
+`ODUDU_PUBLIC_BASE_URL` and throw rather than defaulting,
+`passkeyRegistrationOptions` issues the options (user handle = subject id,
+`excludeCredentials` = the subject's existing credential ids), and
+`verifyPasskeyRegistration` turns the library's thrown refusals into a
+rejection. `beginPasskeyEnrolment`/`completePasskeyEnrolment` store nothing
+until the attestation verifies; the credential's `lookup_key` is the
+credential id and `secret_data` carries the COSE public key (base64url),
+the authenticator's signature counter at registration — the baseline clone
+detection compares against — and its transports. `configure-passkey` goes
+through the required-action route's existing authorization check
+(`pendingFor`), and is cleared only on success.
+`assertProductionPasskeyRelyingParty` refuses production boot without a
+base URL a relying party id can be derived from; outside production the
+action reports itself unsupported rather than binding a credential to a
+guessed domain. The enrolment page calls `navigator.credentials.create()`
+— which is why `docs/request-paths.md`'s passkey section states its flow
+and its refusals instead of showing output nobody produced, and points at
+`packages/authn-flows/tests/passkey-enrolment.int.test.ts`, which drives
+the whole ceremony against real PostgreSQL with a software authenticator
+emitting `none`-format attestations. **Passkey login is Task 19's**: no
+`passkey` authenticator runtime exists yet.
 
 **Task 16 makes TOTP a real second factor and lets a subject enrol one.**
 Migration 0037 adds `realms.otp_required` (default false) and 0038 adds

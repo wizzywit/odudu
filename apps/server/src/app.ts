@@ -53,11 +53,13 @@ export interface AppDeps {
    */
   readonly sender: EmailSender;
   /**
-   * The base a mailed verification link is built from — never derived from
-   * a request, since `Host` is client-controlled (see
+   * The base a mailed verification link is built from, and the only source
+   * of the WebAuthn relying party id — never derived from a request, since
+   * `Host` is client-controlled (see
    * `packages/account/src/view/routes/registration.ts`). Undefined when
    * `ODUDU_PUBLIC_BASE_URL` is unset; registration then refuses to send
-   * for any realm with `verify_email` on rather than guessing one.
+   * for any realm with `verify_email` on rather than guessing one, and
+   * passkey enrolment reports itself unsupported for the same reason.
    */
   readonly publicBaseUrl?: string;
   /**
@@ -119,7 +121,12 @@ export function buildApp(deps: AppDeps): FastifyInstance {
 
   registerHealth(app, deps);
   app.register(
-    oidcRoutes({ database: deps.database, ownerDatabase: deps.ownerDatabase, kek: deps.kek }),
+    oidcRoutes({
+      database: deps.database,
+      ownerDatabase: deps.ownerDatabase,
+      kek: deps.kek,
+      ...(deps.publicBaseUrl === undefined ? {} : { publicBaseUrl: deps.publicBaseUrl }),
+    }),
   );
 
   // getCurrentEmail, markVerified and setPassword are the only points where

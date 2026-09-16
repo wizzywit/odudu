@@ -1,8 +1,10 @@
 import {
+  renderPasskeyEnrolmentPage,
   renderRequiredActionPage,
   renderTotpEnrolmentPage,
   sessionCookieName,
   type AuthenticatorResult,
+  type PasskeyEnrolmentOffer,
   type TotpEnrolmentOffer,
 } from '@odudu/authn-flows';
 import { type FastifyInstance } from 'fastify';
@@ -28,6 +30,16 @@ export interface LoginRouteDeps extends LoginSubmissionDeps {
     realmId: string,
     subjectId: string,
   ): Promise<TotpEnrolmentOffer>;
+  // The creation options a configure-passkey page hands the browser, and
+  // the challenge it parks on this attempt. Absent when no relying party
+  // can be derived, in which case the page that names the action without a
+  // form to satisfy it is the honest answer.
+  beginPasskeyEnrolment?(
+    realmName: string,
+    realmId: string,
+    subjectId: string,
+    authSessionId: string,
+  ): Promise<PasskeyEnrolmentOffer>;
 }
 
 // pendingChallenge runs in its own transaction, separate from the advance()
@@ -113,6 +125,23 @@ export function registerLoginRoute(app: FastifyInstance, deps: LoginRouteDeps): 
     // nothing was established or issued.
     if (outcome.kind === 'required_action') {
       const realmName = request.params.realm;
+      const beginPasskey = deps.beginPasskeyEnrolment?.bind(deps);
+      if (outcome.action === 'configure-passkey' && beginPasskey !== undefined) {
+        const realm = await deps.findRealm(realmName);
+        if (realm !== null) {
+          const offer = await beginPasskey(
+            realmName,
+            realm.id,
+            outcome.subjectId,
+            outcome.authSessionId,
+          );
+          return sendHtml(
+            reply,
+            200,
+            renderPasskeyEnrolmentPage(realmName, outcome.authSessionId, offer),
+          );
+        }
+      }
       if (outcome.action !== 'configure-totp') {
         return sendHtml(
           reply,

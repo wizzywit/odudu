@@ -108,6 +108,20 @@ means an `UPDATE realms SET …` like the account-lifecycle settings above.
 See [the TOTP section of docs/request-paths.md](docs/request-paths.md#two-factor-authentication-with-totp)
 for the walkthrough.
 
+**A subject can also enrol a passkey.** A pending `configure-passkey`
+required action renders a page that calls `navigator.credentials.create()`
+and posts the result back to `POST
+/realms/{realm}/login-actions/required-action?action=configure-passkey`.
+Registration is verified by `@simplewebauthn/server` and the credential is
+written only after that — its `lookup_key` is the credential id, and
+`secret_data` carries the COSE public key, the authenticator's signature
+counter at registration, and its transports. The challenge lives on the
+authentication session, not in the page: it is cleared by the same
+statement that reads it, so replaying a response finds nothing to match.
+A subject with a passkey can enrol a second one, on a different
+authenticator. **Signing in with a passkey is not built yet** — enrolment
+stores the credential a later phase authenticates against.
+
 Every realm also carries a password policy — `password_min_length` (default
 `8`, floored there by a `CHECK`; a realm cannot configure its way below it),
 `password_require_digit`, `password_require_uppercase`,
@@ -156,6 +170,16 @@ link Odudu mails to someone else points. `ODUDU_PUBLIC_BASE_URL` must be an
 absolute `http`/`https` origin with no path; when it is unset, a realm with
 `verify_email` on refuses to register rather than guessing a base some
 other way (`compose.yaml` sets it for the local stack).
+
+The same value is the only source of the **WebAuthn relying party id** a
+passkey is registered against — its host, without the port. A passkey is
+bound to that id, and a browser silently never offers one whose id does not
+match the page it is on, so a value taken from `Host` or `X-Forwarded-Host`
+would let a request decide what a credential is for. **With
+`NODE_ENV=production` the server refuses to boot until
+`ODUDU_PUBLIC_BASE_URL` is set**, since `configure-passkey` is reachable in
+every realm; outside production the variable stays optional and passkey
+enrolment reports itself unavailable instead.
 
 **Operational trap:** turning `verify_email` on locks out every existing
 user with no email address on file — including one seeded without
@@ -530,7 +554,11 @@ A real deployment today looks like:
    rather than assumed. Set `ODUDU_TRUST_PROXY=true` only behind a proxy
    that overwrites `X-Forwarded-*`, or `request.ip` becomes
    client-controlled.
-5. Run one instance. Migrations run on boot from every process and take no
+5. Set `ODUDU_PUBLIC_BASE_URL` to the origin users reach the server on.
+   **With `NODE_ENV=production` the server refuses to boot without it** — it
+   is the base of every mailed link and the WebAuthn relying party id every
+   passkey is bound to, and neither may come from a request header.
+6. Run one instance. Migrations run on boot from every process and take no
    advisory lock, so concurrent replicas would race.
 
 ### What is not built yet

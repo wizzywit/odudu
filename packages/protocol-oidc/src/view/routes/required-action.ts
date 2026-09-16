@@ -1,6 +1,9 @@
 import {
+  renderPasskeyEnrolmentPage,
+  renderRequiredActionPage,
   renderTotpEnrolmentPage,
   type AuthenticatorResult,
+  type PasskeyEnrolmentOffer,
   type TotpEnrolmentOffer,
 } from '@odudu/authn-flows';
 import { type FastifyInstance } from 'fastify';
@@ -19,6 +22,15 @@ export interface RequiredActionRouteDeps extends RequiredActionSubmissionDeps {
     realmId: string,
     subjectId: string,
   ): Promise<TotpEnrolmentOffer>;
+  // Fresh creation options, and a fresh challenge parked on the attempt, for
+  // a retry after a refused ceremony. Absent on a deployment with no
+  // relying party to name.
+  beginPasskeyEnrolment?(
+    realmName: string,
+    realmId: string,
+    subjectId: string,
+    authSessionId: string,
+  ): Promise<PasskeyEnrolmentOffer>;
   // What the parked login is waiting for now that the action is done —
   // the same call the login route makes to re-render after a rejection.
   pendingChallenge(realmId: string, authSessionId: string): Promise<AuthenticatorResult>;
@@ -48,6 +60,8 @@ export function registerRequiredActionRoute(
       action: request.query.action,
       secret: firstString(body.secret),
       code: firstString(body.code),
+      credential: firstString(body.credential),
+      label: firstString(body.label),
     });
 
     if (outcome.kind === 'unauthenticated') {
@@ -93,6 +107,24 @@ export function registerRequiredActionRoute(
       const pending = await deps.pendingChallenge(realm.id, outcome.authSessionId);
       const form = pending.kind === 'challenge' ? pending.form : FALLBACK_FORM;
       return sendHtml(reply, 200, renderLoginForm(realmName, outcome.authSessionId, form));
+    }
+
+    if (outcome.action === 'configure-passkey') {
+      const begin = deps.beginPasskeyEnrolment?.bind(deps);
+      if (begin === undefined) {
+        return sendHtml(
+          reply,
+          200,
+          renderRequiredActionPage(realmName, outcome.authSessionId, outcome.action),
+        );
+      }
+      // A retry needs its own challenge: the refused one is already gone.
+      const passkey = await begin(realmName, realm.id, outcome.subjectId, outcome.authSessionId);
+      return sendHtml(
+        reply,
+        200,
+        renderPasskeyEnrolmentPage(realmName, outcome.authSessionId, passkey, outcome.reason),
+      );
     }
 
     const offer = await deps.beginTotpEnrolment(realmName, realm.id, outcome.subjectId);

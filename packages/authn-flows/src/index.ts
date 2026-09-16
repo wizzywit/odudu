@@ -49,6 +49,20 @@ export {
   type TotpEnrolmentOutcome,
 } from '#/usecase/totp-enrolment';
 export { renderTotpEnrolmentPage, type TotpEnrolmentOffer } from '#/view/totp-enrolment-html';
+export {
+  beginPasskeyEnrolment,
+  completePasskeyEnrolment,
+  type PasskeyEnrolmentOutcome,
+} from '#/usecase/passkey-enrolment';
+export {
+  relyingPartyId,
+  relyingPartyOrigin,
+  type PasskeyRegistrationOffer,
+} from '#/service/webauthn';
+export {
+  renderPasskeyEnrolmentPage,
+  type PasskeyEnrolmentOffer,
+} from '#/view/passkey-enrolment-html';
 export { authenticationSessionRepository } from '#/repository/authentication-sessions';
 export { sessionRepository } from '#/repository/sessions';
 export {

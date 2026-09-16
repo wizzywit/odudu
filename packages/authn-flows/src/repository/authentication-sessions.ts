@@ -1,4 +1,5 @@
 import { and, eq, isNull, sql } from 'drizzle-orm';
+import { z } from 'zod';
 import { type RealmScopedDatabase } from '@odudu/db';
 import {
   authenticationSessions,
@@ -16,8 +17,14 @@ function toRecord(row: typeof authenticationSessions.$inferSelect): Authenticati
     consumedAt: row.consumedAt,
     satisfied: row.satisfied,
     subjectId: row.subjectId,
+    webauthnChallenge: row.webauthnChallenge,
   };
 }
+
+// tx.execute() hands back driver rows of unknown shape; parsing is what
+// makes a renamed column fail here rather than flow on as a null challenge
+// that would look like an expired ceremony.
+const claimedChallengeRows = z.array(z.object({ challenge: z.string() }));
 
 export interface NewAuthenticationSession {
   id: string;
@@ -86,15 +93,46 @@ export function authenticationSessionRepository(tx: RealmScopedDatabase) {
         .where(eq(authenticationSessions.id, id));
     },
 
+    // Issued with the registration or assertion options it belongs to, and
+    // overwriting whatever a previous, abandoned ceremony left: only the
+    // most recently offered challenge can be answered.
+    async setWebauthnChallenge(id: string, challenge: string): Promise<void> {
+      await tx
+        .update(authenticationSessions)
+        .set({ webauthnChallenge: challenge })
+        .where(eq(authenticationSessions.id, id));
+    },
+
+    // Reads the challenge and clears it in one statement: a response is
+    // verified against a challenge that no longer exists by the time the
+    // verification runs, so replaying it finds null and is refused before
+    // any signature is checked. The self-join is what lets RETURNING hand
+    // back the pre-update value — RETURNING alone reports the new one,
+    // which is always null here.
+    async claimWebauthnChallenge(id: string): Promise<string | null> {
+      const result = await tx.execute(sql`
+        UPDATE authentication_sessions AS s
+        SET webauthn_challenge = NULL
+        FROM authentication_sessions AS prior
+        WHERE prior.id = s.id
+          AND s.id = ${id}
+          AND s.webauthn_challenge IS NOT NULL
+        RETURNING prior.webauthn_challenge AS challenge
+      `);
+      const rows = claimedChallengeRows.parse(result);
+      return rows[0]?.challenge ?? null;
+    },
+
     // Puts the attempt back to how it started, for the one refusal whose
     // remedy is a different person signing in against the same parked
     // request: an `id_token_hint` naming somebody else (OIDC Core §3.1.2.1).
-    // Both columns go together — a satisfied factor with no subject is the
-    // state the subject binding exists to rule out.
+    // The columns go together — a satisfied factor with no subject is the
+    // state the subject binding exists to rule out, and a challenge offered
+    // to the previous person is not one the next may answer.
     async resetProgress(id: string): Promise<void> {
       await tx
         .update(authenticationSessions)
-        .set({ satisfied: [], subjectId: null })
+        .set({ satisfied: [], subjectId: null, webauthnChallenge: null })
         .where(eq(authenticationSessions.id, id));
     },
   };

@@ -19,8 +19,10 @@
     "@odudu/domain-identity": "workspace:*",
     "@odudu/domain-realm": "workspace:*",
     "@odudu/kernel": "workspace:*",
+    "@simplewebauthn/server": "14.0.2",
     "drizzle-orm": "0.45.2",
-    "qrcode-generator": "2.0.4"
+    "qrcode-generator": "2.0.4",
+    "zod": "4.6.1"
   },
   "devDependencies": {
     "@odudu/testkit": "workspace:*",

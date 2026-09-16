@@ -1,7 +1,9 @@
 import {
   advance,
   authenticationSessionRepository,
+  beginPasskeyEnrolment,
   beginTotpEnrolment,
+  completePasskeyEnrolment,
   completeTotpEnrolment,
   consumeAuthenticationSession,
   establishSession,
@@ -57,6 +59,12 @@ export interface OidcRoutesDeps {
   // session started by /authorize and the one read back by the login
   // handler agree on "now". Defaults to the real clock.
   clock?: Clock;
+  // Where this deployment is published, and the only thing a WebAuthn
+  // relying party id is derived from — never a request header, which the
+  // client controls. Undefined when ODUDU_PUBLIC_BASE_URL is unset, and
+  // passkey enrolment then reports itself unsupported rather than binding
+  // credentials to a guessed domain.
+  publicBaseUrl?: string;
 }
 
 // The plugin apps/server registers. Discovery and JWKS both read the
@@ -214,6 +222,45 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
     const startTotpEnrolment = (realmName: string, realmId: string, subjectId: string) =>
       withRealm(deps.database.db, realmId, (tx) => beginTotpEnrolment(tx, realmName, subjectId));
 
+    // Both halves of passkey enrolment exist only where a relying party can
+    // be derived; where it cannot, the routes have nothing to call and say
+    // so, rather than naming a domain nobody configured.
+    const publicBaseUrl = deps.publicBaseUrl;
+    const passkeyEnrolment =
+      publicBaseUrl === undefined
+        ? {}
+        : {
+            beginPasskeyEnrolment: (
+              realmName: string,
+              realmId: string,
+              subjectId: string,
+              authSessionId: string,
+            ) =>
+              withRealm(deps.database.db, realmId, (tx) =>
+                beginPasskeyEnrolment(tx, {
+                  realmName,
+                  publicBaseUrl,
+                  authSessionId,
+                  subjectId,
+                }),
+              ),
+          };
+    const passkeySubmission =
+      publicBaseUrl === undefined
+        ? {}
+        : {
+            completePasskeyEnrolment: (input: {
+              realmId: string;
+              subjectId: string;
+              authSessionId: string;
+              response: unknown;
+              label?: string;
+            }) =>
+              withRealm(deps.database.db, input.realmId, (tx) =>
+                completePasskeyEnrolment(tx, { ...input, publicBaseUrl }),
+              ),
+          };
+
     const pendingChallengeFor = (realmId: string, authSessionId: string) =>
       withRealm(deps.database.db, realmId, (tx) => pendingChallenge(tx, authSessionId, clock));
 
@@ -228,6 +275,8 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
     registerRequiredActionRoute(app, {
       findRealm,
       beginTotpEnrolment: startTotpEnrolment,
+      ...passkeyEnrolment,
+      ...passkeySubmission,
       pendingChallenge: pendingChallengeFor,
       pendingActions,
       boundSubject: (realmId, authSessionId) =>
@@ -243,6 +292,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
       findRealm,
       tls,
       beginTotpEnrolment: startTotpEnrolment,
+      ...passkeyEnrolment,
       resetAuthenticationProgress: (realmId, authSessionId) =>
         withRealm(deps.database.db, realmId, (tx) =>
           resetAuthenticationProgress(tx, authSessionId),

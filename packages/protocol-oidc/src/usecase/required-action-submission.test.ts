@@ -17,6 +17,8 @@ const SUBMISSION = {
   action: 'configure-totp',
   secret: 'GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ',
   code: '123456',
+  credential: undefined,
+  label: undefined,
 };
 
 interface Harness {
@@ -25,6 +27,7 @@ interface Harness {
   boundSubject: Mock;
   pendingActions: Mock;
   completeTotpEnrolment: Mock;
+  completePasskeyEnrolment: Mock;
 }
 
 function harness(): Harness {
@@ -32,12 +35,22 @@ function harness(): Harness {
   const boundSubject = vi.fn().mockResolvedValue('subject-1');
   const pendingActions = vi.fn().mockResolvedValue(['configure-totp']);
   const completeTotpEnrolment = vi.fn().mockResolvedValue({ kind: 'enrolled' });
+  const completePasskeyEnrolment = vi
+    .fn()
+    .mockResolvedValue({ kind: 'enrolled', credentialId: 'credential-1' });
   return {
-    deps: { findRealm, boundSubject, pendingActions, completeTotpEnrolment },
+    deps: {
+      findRealm,
+      boundSubject,
+      pendingActions,
+      completeTotpEnrolment,
+      completePasskeyEnrolment,
+    },
     findRealm,
     boundSubject,
     pendingActions,
     completeTotpEnrolment,
+    completePasskeyEnrolment,
   };
 }
 
@@ -110,15 +123,36 @@ describe('handleRequiredActionSubmission — who is allowed to act', () => {
 
   it('refuses an owed action this route has no submission for', async () => {
     const { deps, pendingActions, completeTotpEnrolment } = harness();
-    pendingActions.mockResolvedValue(['configure-passkey']);
+    pendingActions.mockResolvedValue(['generate-recovery-codes']);
 
     const outcome = await handleRequiredActionSubmission(deps, 'acme', {
+      ...SUBMISSION,
+      action: 'generate-recovery-codes',
+    });
+
+    expect(outcome).toEqual({ kind: 'unsupported', action: 'generate-recovery-codes' });
+    expect(completeTotpEnrolment).not.toHaveBeenCalled();
+  });
+
+  // No ODUDU_PUBLIC_BASE_URL, so no relying party id, so nothing to
+  // register a passkey against: the deployment has no enrolment to offer
+  // rather than one bound to a guessed domain.
+  it('refuses a passkey enrolment on a deployment with no relying party', async () => {
+    const { deps, pendingActions } = harness();
+    pendingActions.mockResolvedValue(['configure-passkey']);
+    const withoutPasskeys: RequiredActionSubmissionDeps = {
+      findRealm: (name) => deps.findRealm(name),
+      boundSubject: (realmId, authSessionId) => deps.boundSubject(realmId, authSessionId),
+      pendingActions: (realmId, subjectId) => deps.pendingActions(realmId, subjectId),
+      completeTotpEnrolment: (input) => deps.completeTotpEnrolment(input),
+    };
+
+    const outcome = await handleRequiredActionSubmission(withoutPasskeys, 'acme', {
       ...SUBMISSION,
       action: 'configure-passkey',
     });
 
     expect(outcome).toEqual({ kind: 'unsupported', action: 'configure-passkey' });
-    expect(completeTotpEnrolment).not.toHaveBeenCalled();
   });
 });
 
@@ -147,6 +181,7 @@ describe('handleRequiredActionSubmission — enrolling the owed factor', () => {
       kind: 'rejected',
       authSessionId: 'auth-session-1',
       subjectId: 'subject-1',
+      action: 'configure-totp',
     });
   });
 
@@ -159,5 +194,69 @@ describe('handleRequiredActionSubmission — enrolling the owed factor', () => {
     const outcome = await handleRequiredActionSubmission(deps, 'acme', SUBMISSION);
 
     expect(outcome).toEqual({ kind: 'completed', authSessionId: 'auth-session-1' });
+  });
+});
+
+describe('handleRequiredActionSubmission — enrolling a passkey', () => {
+  it('hands the response on as parsed JSON, with the attempt it belongs to', async () => {
+    const { deps, completePasskeyEnrolment, pendingActions } = harness();
+    pendingActions.mockResolvedValue(['configure-passkey']);
+
+    const outcome = await handleRequiredActionSubmission(deps, 'acme', {
+      ...SUBMISSION,
+      action: 'configure-passkey',
+      credential: '{"id":"abc"}',
+      label: 'Yubikey',
+    });
+
+    expect(outcome).toEqual({ kind: 'completed', authSessionId: 'auth-session-1' });
+    expect(completePasskeyEnrolment).toHaveBeenCalledWith({
+      realmId: 'realm-1',
+      subjectId: 'subject-1',
+      authSessionId: 'auth-session-1',
+      response: { id: 'abc' },
+      label: 'Yubikey',
+    });
+  });
+
+  // A field that is not JSON at all is the same kind of nothing as a
+  // missing one: the enrolment decides, and it has no response to verify.
+  it('passes undefined on for a credential field that is not JSON', async () => {
+    const { deps, completePasskeyEnrolment, pendingActions } = harness();
+    pendingActions.mockResolvedValue(['configure-passkey']);
+    completePasskeyEnrolment.mockResolvedValue({
+      kind: 'rejected',
+      reason: 'invalid_response',
+    });
+
+    const outcome = await handleRequiredActionSubmission(deps, 'acme', {
+      ...SUBMISSION,
+      action: 'configure-passkey',
+      credential: 'not-json',
+    });
+
+    expect(completePasskeyEnrolment).toHaveBeenCalledWith(
+      expect.objectContaining({ response: undefined }),
+    );
+    expect(outcome).toMatchObject({ kind: 'rejected', action: 'configure-passkey' });
+  });
+
+  it('reports a spent challenge back to the same attempt', async () => {
+    const { deps, completePasskeyEnrolment, pendingActions } = harness();
+    pendingActions.mockResolvedValue(['configure-passkey']);
+    completePasskeyEnrolment.mockResolvedValue({ kind: 'rejected', reason: 'no_challenge' });
+
+    const outcome = await handleRequiredActionSubmission(deps, 'acme', {
+      ...SUBMISSION,
+      action: 'configure-passkey',
+      credential: '{}',
+    });
+
+    expect(outcome).toMatchObject({
+      kind: 'rejected',
+      authSessionId: 'auth-session-1',
+      subjectId: 'subject-1',
+      action: 'configure-passkey',
+    });
   });
 });

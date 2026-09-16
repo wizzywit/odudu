@@ -25,6 +25,12 @@ export const authenticationSessions = pgTable('authentication_sessions', {
   // later factor is then looked up for this subject and has to answer with
   // it, so a second factor cannot hand the login to anybody else.
   subjectId: uuid('subject_id'),
+  // The challenge a WebAuthn ceremony in progress must be answered with.
+  // Server-side because a challenge the response carries proves nothing;
+  // single-column because one attempt runs one ceremony at a time. Read and
+  // cleared by one statement (claimWebauthnChallenge), which is what makes a
+  // replayed response find nothing rather than the same challenge twice.
+  webauthnChallenge: text('webauthn_challenge'),
 }).enableRLS();
 
 // The bytes validated at /authorize are the bytes bound to the code later
@@ -53,4 +59,5 @@ export interface AuthenticationSessionRecord {
   consumedAt: Date | null;
   satisfied: string[];
   subjectId: string | null;
+  webauthnChallenge: string | null;
 }
