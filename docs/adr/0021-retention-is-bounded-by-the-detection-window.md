@@ -344,11 +344,14 @@ context, and none of them carries a `realm_id` predicate of its own: the
 policy is the scoping, and an integration case asserts that a pass over one
 realm leaves another realm's eligible rows untouched.
 
-The privilege the enumeration needs is asserted rather than assumed — the
-pass asks `pg_roles` whether the connected role is `SUPERUSER` or
-`BYPASSRLS` and refuses if it is not, because `realms` carries `FORCE ROW
-LEVEL SECURITY` and a role without the exemption reads zero realms and would
-reap none of them without a word. An enumeration that then comes back empty
+Both halves of that are asserted rather than assumed, against `pg_roles`:
+the listing role must be `SUPERUSER` or hold `BYPASSRLS`, because `realms`
+carries `FORCE ROW LEVEL SECURITY` and a role without the escape reads zero
+realms and would reap none of them without a word — and the serving role
+must be **neither**, because a serving role that escapes the policy runs
+every `DELETE` unscoped while `app.realm_id` is bound, which is this
+section's claim failing by configuration rather than by code. Both refuse
+rather than warn. An enumeration that then comes back empty
 is reported as "no realm was enumerated" and not as a pass that found
 nothing to do.
 

@@ -3401,11 +3401,10 @@ odudu reap
 
 Both refresh tokens of the family, the code that produced it, the grant
 itself, the authentication session the login consumed, and the SSO session.
-The counts are
-the pass's own: `refresh_tokens` reports 2 rather than 0 because the pass
-deletes them itself rather than leaving them to the `ON DELETE CASCADE`
-from `token_grants`, and the SSO session goes only after the last grant
-referencing it — a session with a live grant is refused outright, because
+The counts are the pass's own: `refresh_tokens` reports 2 rather than 0
+because the pass deletes them itself rather than leaving them to the
+`ON DELETE CASCADE` from `token_grants`, and the SSO session goes only after
+the last grant referencing it — a session with a live grant is refused outright, because
 nulling `token_grants.session_id` would promote a session-bound grant to an
 offline one.
 
@@ -3418,6 +3417,53 @@ odudu reap
 ```
 {"ran":true,"deleted":{"refresh_tokens":0,"authorization_codes":0,"token_grants":0,"authentication_sessions":0,"action_tokens":0,"login_failures":0,"sessions":0}}
 ```
+
+### When the pass refuses, or finds nothing to look at
+
+Three answers are not a report of rows, and each says which it is. Before
+any realm exists there is nothing to enumerate, and the pass says so rather
+than reporting a clean sweep of zeros — captured on a stack that had been
+migrated and not yet seeded, so it is the one command in this document that
+answers differently once [Bootstrap](#bootstrap) has been followed:
+
+```bash
+odudu reap
+```
+
+```
+{"ran":false,"reason":"no realm was enumerated"}
+```
+
+That is an outcome, not an error: it exits 0, the way a lost lock does.
+`reap` also **refuses to run at all** in two configurations, exiting
+non-zero, because in both the row-level-security policy that scopes its
+deletes would be inert:
+
+- The variable is unset, and it answers
+  `reap requires ODUDU_APP_DATABASE_URL: its deletes run under the realm policy, which the owner role the migrations use escapes`.
+  The server's own boot guard demands it only in production; this command
+  demands it always, because there is no deployment where reaping with the
+  policy switched off is the intention.
+- The serving connection's role is a `SUPERUSER` or holds `BYPASSRLS`, so the
+  policy does not apply to it. Pointing `ODUDU_APP_DATABASE_URL` at the owner
+  is the way to reach it:
+
+```bash
+docker compose exec -e ODUDU_APP_DATABASE_URL=postgres://odudu:odudu@postgres:5432/odudu \
+  -T odudu node dist/main.js reap
+```
+
+```
+reap deletes under the realm policy, so its serving connection must be subject to it; ODUDU_APP_DATABASE_URL names a SUPERUSER or BYPASSRLS role
+```
+
+And symmetrically, `reap must list realms on a connection that bypasses
+row-level security; ODUDU_DATABASE_URL names a role that is neither
+SUPERUSER nor BYPASSRLS` — the realms to visit are read on the owner
+connection, `realms` carries `FORCE ROW LEVEL SECURITY`, and a listing role
+without the escape reads none of them. Checked against `pg_roles` rather
+than guessed at from an empty result, which is the same fact arriving too
+late to act on.
 
 Nothing schedules this yet — it is a command an operator or a cron entry
 runs. It is safe to run from more than one place at once: the pass takes a

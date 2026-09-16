@@ -213,7 +213,7 @@ const RETENTION_RULES: Record<TableName, RetentionRule> = {
   // between this NOT EXISTS and the commit would still fire it; nothing
   // does, because the row is already past its expires_at plus the grace and
   // `sessionRepository.liveById` refuses to issue anything on a session
-  // that dead.
+  // that is that far dead.
   sessions: {
     after: ['token_grants'],
     statement: (now, policy) => sql`
@@ -303,20 +303,40 @@ interface BypassRow extends Record<string, unknown> {
   bypasses: boolean;
 }
 
-// `realms` carries FORCE ROW LEVEL SECURITY, which removes the owner's own
-// exemption, so a role that is neither SUPERUSER nor BYPASSRLS reads zero
-// realms here and the pass would visit none of them without a word. Asked
-// of Postgres rather than inferred from an empty result, and fails closed:
-// an enumeration nothing can vouch for is worse than no pass at all.
-async function assertEnumerationIsTrustworthy(ownerDatabase: DatabaseHandle): Promise<void> {
-  const rows = await ownerDatabase.db.execute<BypassRow>(
+// Whether this connection's role escapes row-level security outright.
+// Asked of Postgres rather than inferred from a query that came back empty,
+// which is the same fact arriving too late to act on. A role with
+// BYPASSRLS and not SUPERUSER is the one combination no test here
+// exercises; it rests on documented semantics, and the disjunction can only
+// err towards accepting a role that then reads nothing, which the caller
+// reports rather than swallows.
+async function bypassesRowLevelSecurity(handle: DatabaseHandle): Promise<boolean> {
+  const rows = await handle.db.execute<BypassRow>(
     sql`SELECT rolsuper OR rolbypassrls AS bypasses FROM pg_roles WHERE rolname = current_user`,
   );
-  if (rows[0]?.bypasses !== true) {
+  return rows[0]?.bypasses === true;
+}
+
+// Both halves of ADR 0021's claim that the policy is the scoping, checked
+// rather than hoped for. `realms` carries FORCE ROW LEVEL SECURITY, which
+// removes even the owner's implicit exemption, so a listing role without
+// the escape reads zero realms and the pass visits none of them; and a
+// serving role *with* the escape runs every DELETE unscoped while
+// `app.realm_id` is bound, which is one unfiltered pass per realm and no
+// error to say so. Both fail closed.
+async function assertRolesAreRight(deps: ReapDeps): Promise<void> {
+  if (!(await bypassesRowLevelSecurity(deps.ownerDatabase))) {
     throw new OduduError(
       'reap_cannot_enumerate_realms',
       'reap must list realms on a connection that bypasses row-level security; ' +
         'ODUDU_DATABASE_URL names a role that is neither SUPERUSER nor BYPASSRLS',
+    );
+  }
+  if (await bypassesRowLevelSecurity(deps.database)) {
+    throw new OduduError(
+      'reap_serving_role_bypasses_rls',
+      'reap deletes under the realm policy, so its serving connection must be subject to it; ' +
+        'ODUDU_APP_DATABASE_URL names a SUPERUSER or BYPASSRLS role',
     );
   }
 }
@@ -332,7 +352,7 @@ export async function reap(
   policy: RetentionPolicy,
 ): Promise<ReapOutcome> {
   assertReapOrder();
-  await assertEnumerationIsTrustworthy(deps.ownerDatabase);
+  await assertRolesAreRight(deps);
 
   const rows = await deps.ownerDatabase.db
     .select({ id: realms.id })

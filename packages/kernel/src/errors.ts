@@ -27,7 +27,8 @@ export type ErrorCode =
   | 'credential_not_found'
   | 'realm_not_found'
   | 'reap_cannot_enumerate_realms'
-  | 'reap_requires_app_database_url';
+  | 'reap_requires_app_database_url'
+  | 'reap_serving_role_bypasses_rls';
 
 export class OduduError extends Error {
   readonly code: ErrorCode;

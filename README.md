@@ -673,6 +673,15 @@ implementation is wrong are in
 has a pass with work to do. Running it from two places at once is safe: the
 pass takes a Postgres advisory lock and a second invocation skips the tick.
 
+It answers three things that are not a report of rows, and
+[says which each is](docs/request-paths.md#when-the-pass-refuses-or-finds-nothing-to-look-at):
+`{"ran":false,"reason":"no realm was enumerated"}` on a database nobody has
+seeded yet, and — exiting non-zero — a refusal to run at all when
+`ODUDU_APP_DATABASE_URL` is unset or names a role that escapes row-level
+security, since either way the policy that scopes its deletes would not
+apply. It refuses rather than warning: a retention pass whose isolation is
+inert is no better than one that never ran.
+
 **[docs/request-paths.md](docs/request-paths.md) takes it from there** — what
 each of those tokens is for, what `/userinfo` does with them, how a refresh
 rotates, and every way each request above can be refused, with the response

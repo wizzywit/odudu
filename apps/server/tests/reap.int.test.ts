@@ -25,6 +25,7 @@ let appHandle: DatabaseHandle | undefined;
 let container: TestDatabase;
 let owner: DatabaseHandle;
 let appDb: DatabaseHandle;
+let appUrl: string;
 
 // Every row below is placed relative to this instant and the pass is given
 // the same one, so nothing here depends on how long the container took to
@@ -212,7 +213,7 @@ beforeAll(async () => {
   owner = ownerHandle;
   await runMigrations(owner.db, MIGRATIONS_DIR);
 
-  const appUrl = await createAppRole(container.adminUrl);
+  appUrl = await createAppRole(container.adminUrl);
   appHandle = createDatabase(appUrl, { max: 5 });
   appDb = appHandle;
 }, 120_000);
@@ -402,19 +403,42 @@ describe('odudu reap', () => {
     );
   });
 
+  // The other half of the same property. The container's owner is a
+  // superuser, so handing it in as the serving connection is exactly the
+  // configuration an operator reaches by pointing ODUDU_APP_DATABASE_URL at
+  // the owner: every DELETE unscoped, with app.realm_id bound and nothing
+  // enforcing it.
+  it('refuses to delete on a connection that escapes the realm policy', async () => {
+    await expect(reap({ database: owner, ownerDatabase: owner }, NOW, POLICY)).rejects.toThrow(
+      /must be subject to it/u,
+    );
+  });
+
   it('says it enumerated nothing rather than reporting a clean pass', async () => {
     const name = `reap_empty_${Date.now().toString(36)}`;
     await owner.sql.unsafe(`CREATE DATABASE ${name}`);
-    const url = new URL(container.adminUrl);
-    url.pathname = `/${name}`;
-    const empty = createDatabase(url.toString(), { max: 1 });
+
+    const ownerUrl = new URL(container.adminUrl);
+    ownerUrl.pathname = `/${name}`;
+    const emptyOwner = createDatabase(ownerUrl.toString(), { max: 1 });
+    // odudu_svc is a cluster-level role and already holds odudu_app, so the
+    // migrations run below are all this fresh database needs for it to
+    // connect under the policy.
+    const servingUrl = new URL(appUrl);
+    servingUrl.pathname = `/${name}`;
+    const emptyServing = createDatabase(servingUrl.toString(), { max: 1 });
 
     try {
-      await runMigrations(empty.db, MIGRATIONS_DIR);
-      const outcome = await reap({ database: empty, ownerDatabase: empty }, NOW, POLICY);
+      await runMigrations(emptyOwner.db, MIGRATIONS_DIR);
+      const outcome = await reap(
+        { database: emptyServing, ownerDatabase: emptyOwner },
+        NOW,
+        POLICY,
+      );
       expect(outcome).toEqual({ ran: false, reason: 'no realm was enumerated' });
     } finally {
-      await empty.close();
+      await emptyServing.close();
+      await emptyOwner.close();
     }
   }, 120_000);
 
