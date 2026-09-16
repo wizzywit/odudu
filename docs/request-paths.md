@@ -1633,7 +1633,7 @@ docker compose -f infra/docker/compose.yaml exec -T postgres \
 ```
 
 ```
-{"created":true,"realm":"otp-demo","realmId":"01a0aa35-…","clientId":"otp-spa","userSubjectId":"01a0aa35-…"}
+{"created":true,"realm":"otp-demo","realmId":"01a0aa5f-…","clientId":"otp-spa","userSubjectId":"01a0aa5f-…"}
 UPDATE 1
 ```
 
@@ -1648,7 +1648,7 @@ which account a code belongs to is not knowable until then.
 curl -sS 'http://localhost:3000/realms/otp-demo/protocol/openid-connect/auth?response_type=code&client_id=otp-spa&redirect_uri=http%3A%2F%2Flocalhost%3A8080%2Fcallback&scope=openid&state=xyz&code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM&code_challenge_method=S256'
 ```
 
-The `auth_session_id` in that form — `01a0aa35-2449-7a7d-9cdb-2a4fbcf3b479`
+The `auth_session_id` in that form — `01a0aa5f-492a-7add-8de4-70c3a6428ce4`
 in this run — is what every request below carries. Posting the correct
 password answers 200 with an enrolment page rather than 302 with a code:
 the password was accepted, and the pending action is what stops the login
@@ -1656,7 +1656,7 @@ from completing (no `set-cookie`, no `code`).
 
 ```bash
 curl -sS -X POST http://localhost:3000/realms/otp-demo/login-actions/authenticate \
-  --data-urlencode 'auth_session_id=01a0aa35-2449-7a7d-9cdb-2a4fbcf3b479' \
+  --data-urlencode 'auth_session_id=01a0aa5f-492a-7add-8de4-70c3a6428ce4' \
   --data-urlencode 'username=ada' \
   --data-urlencode 'password=correct-horse-battery'
 ```
@@ -1674,16 +1674,16 @@ curl -sS -X POST http://localhost:3000/realms/otp-demo/login-actions/authenticat
     <svg …>…</svg>
     <p>
       <code
-        >otpauth://totp/otp-demo:ada?secret=GFV3AUL43JAOVJNSWIWURHID47L4Y6TR&amp;issuer=otp-demo&amp;algorithm=SHA1&amp;digits=6&amp;period=30</code
+        >otpauth://totp/otp-demo:ada?secret=DX6K3RSVH6GE5EN4R25CIAOPBZP5JPI7&amp;issuer=otp-demo&amp;algorithm=SHA1&amp;digits=6&amp;period=30</code
       >
     </p>
-    <p>Key: <code>GFV3AUL43JAOVJNSWIWURHID47L4Y6TR</code></p>
+    <p>Key: <code>DX6K3RSVH6GE5EN4R25CIAOPBZP5JPI7</code></p>
     <form
       method="post"
       action="/realms/otp-demo/login-actions/required-action?action=configure-totp"
     >
-      <input type="hidden" name="auth_session_id" value="01a0aa35-2449-7a7d-9cdb-2a4fbcf3b479" />
-      <input type="hidden" name="secret" value="GFV3AUL43JAOVJNSWIWURHID47L4Y6TR" />
+      <input type="hidden" name="auth_session_id" value="01a0aa5f-492a-7add-8de4-70c3a6428ce4" />
+      <input type="hidden" name="secret" value="DX6K3RSVH6GE5EN4R25CIAOPBZP5JPI7" />
       <label
         >Code from your app
         <input type="text" name="code" inputmode="numeric" autocomplete="one-time-code"
@@ -1709,9 +1709,9 @@ that offers a secret. An abandoned enrolment leaves no row behind at all.
 ```bash
 curl -sS -X POST \
   'http://localhost:3000/realms/otp-demo/login-actions/required-action?action=configure-totp' \
-  --data-urlencode 'auth_session_id=01a0aa35-2449-7a7d-9cdb-2a4fbcf3b479' \
-  --data-urlencode 'secret=GFV3AUL43JAOVJNSWIWURHID47L4Y6TR' \
-  --data-urlencode 'code=008708'
+  --data-urlencode 'auth_session_id=01a0aa5f-492a-7add-8de4-70c3a6428ce4' \
+  --data-urlencode 'secret=DX6K3RSVH6GE5EN4R25CIAOPBZP5JPI7' \
+  --data-urlencode 'code=828217'
 ```
 
 ```html
@@ -1723,7 +1723,7 @@ curl -sS -X POST \
   </head>
   <body>
     <form method="post" action="/realms/otp-demo/login-actions/authenticate">
-      <input type="hidden" name="auth_session_id" value="01a0aa35-2449-7a7d-9cdb-2a4fbcf3b479" />
+      <input type="hidden" name="auth_session_id" value="01a0aa5f-492a-7add-8de4-70c3a6428ce4" />
       <label>Username <input type="text" name="username" autocomplete="username" /></label>
       <label
         >Password <input type="password" name="password" autocomplete="current-password"
@@ -1731,7 +1731,7 @@ curl -sS -X POST \
       <button type="submit">Sign in</button>
     </form>
     <form method="post" action="/realms/otp-demo/login-actions/authenticate" id="passkey-form">
-      <input type="hidden" name="auth_session_id" value="01a0aa35-2449-7a7d-9cdb-2a4fbcf3b479" />
+      <input type="hidden" name="auth_session_id" value="01a0aa5f-492a-7add-8de4-70c3a6428ce4" />
       <input type="hidden" name="assertion" id="passkey-assertion" />
       <button type="submit" id="passkey-submit">Sign in with a passkey</button>
     </form>
@@ -1742,7 +1742,7 @@ curl -sS -X POST \
         authenticator. Use your username and password above.
       </p></noscript
     >
-    <script nonce="gRKqCdaXjJeDhf3lSeDtrg==">
+    <script nonce="4zofDWD0IY9CfayYQ5h7jA==">
       const form = document.getElementById('passkey-form');
       const field = document.getElementById('passkey-assertion');
       const failure = document.getElementById('passkey-error');
@@ -1794,19 +1794,19 @@ than a phone:
 ```bash
 node --input-type=module -e "
 import { totpCode, totpCounter } from './packages/crypto/src/service/totp.ts';
-console.log(totpCode('GFV3AUL43JAOVJNSWIWURHID47L4Y6TR', totpCounter(new Date())));
+console.log(totpCode('DX6K3RSVH6GE5EN4R25CIAOPBZP5JPI7', totpCounter(new Date())));
 "
 ```
 
 ```
-008708
+828217
 ```
 
 ### The same password now answers with a code form
 
 ```bash
 curl -sS -X POST http://localhost:3000/realms/otp-demo/login-actions/authenticate \
-  --data-urlencode 'auth_session_id=01a0aa35-2449-7a7d-9cdb-2a4fbcf3b479' \
+  --data-urlencode 'auth_session_id=01a0aa5f-492a-7add-8de4-70c3a6428ce4' \
   --data-urlencode 'username=ada' \
   --data-urlencode 'password=correct-horse-battery'
 ```
@@ -1820,7 +1820,7 @@ curl -sS -X POST http://localhost:3000/realms/otp-demo/login-actions/authenticat
   </head>
   <body>
     <form method="post" action="/realms/otp-demo/login-actions/authenticate">
-      <input type="hidden" name="auth_session_id" value="01a0aa35-2449-7a7d-9cdb-2a4fbcf3b479" />
+      <input type="hidden" name="auth_session_id" value="01a0aa5f-492a-7add-8de4-70c3a6428ce4" />
       <label
         >Code from your app
         <input type="text" name="code" inputmode="numeric" autocomplete="one-time-code"
@@ -1851,8 +1851,8 @@ answers with the same form again:
 ```bash
 curl -sS -o /dev/null -w '%{http_code}\n' -X POST \
   http://localhost:3000/realms/otp-demo/login-actions/authenticate \
-  --data-urlencode 'auth_session_id=01a0aa35-2449-7a7d-9cdb-2a4fbcf3b479' \
-  --data-urlencode 'code=008708'
+  --data-urlencode 'auth_session_id=01a0aa5f-492a-7add-8de4-70c3a6428ce4' \
+  --data-urlencode 'code=828217'
 ```
 
 ```
@@ -1867,8 +1867,8 @@ factor owed a recovery path for it:
 
 ```bash
 curl -sS -i -X POST http://localhost:3000/realms/otp-demo/login-actions/authenticate \
-  --data-urlencode 'auth_session_id=01a0aa35-2449-7a7d-9cdb-2a4fbcf3b479' \
-  --data-urlencode 'code=274217'
+  --data-urlencode 'auth_session_id=01a0aa5f-492a-7add-8de4-70c3a6428ce4' \
+  --data-urlencode 'code=819253'
 ```
 
 ```
@@ -1886,14 +1886,14 @@ again — and the next code finishes it:
 
 ```bash
 curl -sS -i -X POST http://localhost:3000/realms/otp-demo/login-actions/authenticate \
-  --data-urlencode 'auth_session_id=01a0aa35-2449-7a7d-9cdb-2a4fbcf3b479' \
-  --data-urlencode 'code=370241'
+  --data-urlencode 'auth_session_id=01a0aa5f-492a-7add-8de4-70c3a6428ce4' \
+  --data-urlencode 'code=583624'
 ```
 
 ```
 HTTP/1.1 302 Found
-set-cookie: otp-demo-session=01a0aa36-4290-72c0-8d67-f9dd528fbef7; HttpOnly; SameSite=Lax; Path=/
-location: http://localhost:8080/callback?code=nHn7T_IQy7G7VZMbSpTQw1uJ3502TmSEUDXS4Fsyjww&state=xyz&iss=http%3A%2F%2Flocalhost%3A3000%2Frealms%2Fotp-demo
+set-cookie: otp-demo-session=01a0aa5f-e4a2-75c1-b4e4-7389006a16bc; HttpOnly; SameSite=Lax; Path=/
+location: http://localhost:8080/callback?code=hUDwZT5XQ-eC9r5fRlzvMYoEFbQOwhH-hxYCxccGmpA&state=xyz&iss=http%3A%2F%2Flocalhost%3A3000%2Frealms%2Fotp-demo
 ```
 
 ### What two factors do to the ID token
@@ -1901,7 +1901,7 @@ location: http://localhost:8080/callback?code=nHn7T_IQy7G7VZMbSpTQw1uJ3502TmSEUD
 ```bash
 curl -sS -X POST http://localhost:3000/realms/otp-demo/protocol/openid-connect/token \
   -d grant_type=authorization_code \
-  -d code=nHn7T_IQy7G7VZMbSpTQw1uJ3502TmSEUDXS4Fsyjww \
+  -d code=hUDwZT5XQ-eC9r5fRlzvMYoEFbQOwhH-hxYCxccGmpA \
   -d client_id=otp-spa \
   --data-urlencode 'redirect_uri=http://localhost:8080/callback' \
   -d code_verifier=dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk
@@ -1912,13 +1912,13 @@ base64url segments):
 
 ```json
 {
-  "sub": "01a0aa35-232d-7902-84a5-aea088b447a9",
+  "sub": "01a0aa5f-20c1-7306-a7b6-678e56fdd55e",
   "iss": "http://localhost:3000/realms/otp-demo",
   "aud": "otp-spa",
-  "iat": 1789562086,
-  "exp": 1789562386,
-  "auth_time": 1789562077,
-  "sid": "01a0aa36-4290-72c0-8d67-f9dd528fbef7",
+  "iat": 1789564814,
+  "exp": 1789565114,
+  "auth_time": 1789564806,
+  "sid": "01a0aa5f-e4a2-75c1-b4e4-7389006a16bc",
   "amr": ["otp", "pwd"],
   "acr": "2"
 }
@@ -1947,8 +1947,8 @@ continuing the same `otp-demo` realm and the same `auth_session_id`.
 
 ```bash
 curl -sS -X POST http://localhost:3000/realms/otp-demo/login-actions/authenticate \
-  --data-urlencode 'auth_session_id=01a0aa35-2449-7a7d-9cdb-2a4fbcf3b479' \
-  --data-urlencode 'code=274217'
+  --data-urlencode 'auth_session_id=01a0aa5f-492a-7add-8de4-70c3a6428ce4' \
+  --data-urlencode 'code=819253'
 ```
 
 ```html
@@ -1966,22 +1966,22 @@ curl -sS -X POST http://localhost:3000/realms/otp-demo/login-actions/authenticat
       manager before you continue — nobody, including an administrator, can show them to you again.
     </p>
     <ol>
-      <li><code>XZB27-QRJS3</code></li>
-      <li><code>MQC58-EQHMC</code></li>
-      <li><code>PHF63-AADTM</code></li>
-      <li><code>0Q079-T0GMD</code></li>
-      <li><code>FQN9A-ABDGV</code></li>
-      <li><code>ETKE9-DFE2X</code></li>
-      <li><code>2CCKE-TNQNW</code></li>
-      <li><code>PMMRZ-XJEYF</code></li>
-      <li><code>TPPCV-CAW88</code></li>
-      <li><code>RQ7PY-HWH0W</code></li>
+      <li><code>Y7WTX-FFD8Q</code></li>
+      <li><code>Q0XB8-RR7K1</code></li>
+      <li><code>QWC24-MGAV5</code></li>
+      <li><code>ASGBV-H5NTD</code></li>
+      <li><code>Q02FB-K4A0Y</code></li>
+      <li><code>A10FE-2MEDR</code></li>
+      <li><code>928SN-ZEZ30</code></li>
+      <li><code>S2PZZ-MAC56</code></li>
+      <li><code>979GM-V1RXQ</code></li>
+      <li><code>JP7DJ-TJN8Q</code></li>
     </ol>
     <form
       method="post"
       action="/realms/otp-demo/login-actions/required-action?action=generate-recovery-codes"
     >
-      <input type="hidden" name="auth_session_id" value="01a0aa35-2449-7a7d-9cdb-2a4fbcf3b479" />
+      <input type="hidden" name="auth_session_id" value="01a0aa5f-492a-7add-8de4-70c3a6428ce4" />
       <button type="submit">I have saved these codes</button>
     </form>
   </body>
@@ -2021,13 +2021,23 @@ Reloading the page is therefore not a way to see them twice: the render is a
 it just displayed. Whatever was on the screen the first time is gone either
 way.
 
+That reload is not free, and the cost is worth naming: each one is ten
+Argon2id hashes (about 40 ms, run together), a delete and ten inserts, and it
+is repeatable for as long as the action is owed by anybody holding a valid
+password for the account. It is bounded — a password gets past the first
+factor, and acknowledging the page ends it — but it is a heavier multiplier
+than verification's, and the same missing rate limit covers both
+([what is not implemented](#what-is-not-implemented)). Re-serving the same
+set instead would cost less and be worse: a second render of a live secret
+is the one thing this page must not do.
+
 The acknowledgement carries no code back — only the session id. It says the
 page was read, and it is what completes the action:
 
 ```bash
 curl -sS -X POST \
   'http://localhost:3000/realms/otp-demo/login-actions/required-action?action=generate-recovery-codes' \
-  --data-urlencode 'auth_session_id=01a0aa35-2449-7a7d-9cdb-2a4fbcf3b479'
+  --data-urlencode 'auth_session_id=01a0aa5f-492a-7add-8de4-70c3a6428ce4'
 ```
 
 ```html
@@ -2039,7 +2049,7 @@ curl -sS -X POST \
   </head>
   <body>
     <form method="post" action="/realms/otp-demo/login-actions/authenticate">
-      <input type="hidden" name="auth_session_id" value="01a0aa35-2449-7a7d-9cdb-2a4fbcf3b479" />
+      <input type="hidden" name="auth_session_id" value="01a0aa5f-492a-7add-8de4-70c3a6428ce4" />
       <label
         >Code from your app
         <input type="text" name="code" inputmode="numeric" autocomplete="one-time-code"
@@ -2060,19 +2070,66 @@ had a second factor after it and therefore was.
 
 ### Signing in with one, in place of the second factor
 
-A fresh attempt, and this time the authenticator is gone. The password step
-runs as always; the second factor is answered with a code off the list.
+A fresh attempt, and this time the authenticator is gone. The request is
+parked and the password form rendered exactly as
+[Path A](#path-a-authorization-code-with-pkce) shows, for a new
+`auth_session_id`:
+
+```bash
+curl -sS 'http://localhost:3000/realms/otp-demo/protocol/openid-connect/auth?response_type=code&client_id=otp-spa&redirect_uri=http%3A%2F%2Flocalhost%3A8080%2Fcallback&scope=openid&state=xyz&code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM&code_challenge_method=S256' \
+  | sed -n 's/.*name="auth_session_id" value="\([^"]*\)".*/\1/p' | head -1
+```
+
+```
+01a0aa60-2db3-7991-a103-d6d48dbe3a20
+```
+
+The password step runs as always, and answers with the code form — the same
+two fields, because nothing about this submission says the authenticator is
+gone:
+
+```bash
+curl -sS -X POST http://localhost:3000/realms/otp-demo/login-actions/authenticate \
+  --data-urlencode 'auth_session_id=01a0aa60-2db3-7991-a103-d6d48dbe3a20' \
+  --data-urlencode 'username=ada' \
+  --data-urlencode 'password=correct-horse-battery'
+```
+
+```html
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Sign in</title>
+  </head>
+  <body>
+    <form method="post" action="/realms/otp-demo/login-actions/authenticate">
+      <input type="hidden" name="auth_session_id" value="01a0aa60-2db3-7991-a103-d6d48dbe3a20" />
+      <label
+        >Code from your app
+        <input type="text" name="code" inputmode="numeric" autocomplete="one-time-code"
+      /></label>
+      <label
+        >Or a recovery code <input type="text" name="recovery_code" autocomplete="off"
+      /></label>
+      <button type="submit">Sign in</button>
+    </form>
+  </body>
+</html>
+```
+
+The second field is what gets filled:
 
 ```bash
 curl -sS -i -X POST http://localhost:3000/realms/otp-demo/login-actions/authenticate \
-  --data-urlencode 'auth_session_id=01a0aa36-92bf-70de-90a6-67793526205f' \
-  --data-urlencode 'recovery_code=XZB27-QRJS3'
+  --data-urlencode 'auth_session_id=01a0aa60-2db3-7991-a103-d6d48dbe3a20' \
+  --data-urlencode 'recovery_code=Y7WTX-FFD8Q'
 ```
 
 ```
 HTTP/1.1 302 Found
-set-cookie: otp-demo-session=01a0aa36-932d-7548-82b2-dd3fbe855fad; HttpOnly; SameSite=Lax; Path=/
-location: http://localhost:8080/callback?code=wl13yKDWvmou5urFlD7qUmmTtZfMxixw5Bh5jVO_BEI&state=xyz&iss=http%3A%2F%2Flocalhost%3A3000%2Frealms%2Fotp-demo
+set-cookie: otp-demo-session=01a0aa60-2e24-70b6-b4c2-fe0535323ac7; HttpOnly; SameSite=Lax; Path=/
+location: http://localhost:8080/callback?code=-CWSzFjrwYeQMUOUSv8B-qJ-r0PMpYoAJ3kaJ47vyjc&state=xyz&iss=http%3A%2F%2Flocalhost%3A3000%2Frealms%2Fotp-demo
 ```
 
 The same success a password-and-code login gets: a session cookie and a code
@@ -2085,13 +2142,13 @@ The ID token says less about this login than the two-factor one above:
 
 ```json
 {
-  "sub": "01a0aa35-232d-7902-84a5-aea088b447a9",
+  "sub": "01a0aa5f-20c1-7306-a7b6-678e56fdd55e",
   "iss": "http://localhost:3000/realms/otp-demo",
   "aud": "otp-spa",
-  "iat": 1789562104,
-  "exp": 1789562404,
-  "auth_time": 1789562098,
-  "sid": "01a0aa36-932d-7548-82b2-dd3fbe855fad",
+  "iat": 1789564832,
+  "exp": 1789565132,
+  "auth_time": 1789564825,
+  "sid": "01a0aa60-2e24-70b6-b4c2-fe0535323ac7",
   "amr": ["pwd"],
   "acr": "2"
 }
@@ -2107,10 +2164,30 @@ mislabelling is not.
 
 ### The same code again is refused _as_ a used code
 
+A third attempt, opened the same way as the one above — a `/authorize` that
+parks the request, then the password, which answers 200 with the code form.
+Both were run; only the session id differs from the two responses just
+shown, so they are not repeated here.
+
+```bash
+curl -sS -o /dev/null -w '%{http_code}\n' -X POST \
+  http://localhost:3000/realms/otp-demo/login-actions/authenticate \
+  --data-urlencode 'auth_session_id=01a0aa60-6898-7f2e-ac45-120b4d04f30e' \
+  --data-urlencode 'username=ada' \
+  --data-urlencode 'password=correct-horse-battery'
+```
+
+```
+200
+```
+
+Then the code that already signed somebody in — typed in lower case with a
+space where the hyphen was:
+
 ```bash
 curl -sS -X POST http://localhost:3000/realms/otp-demo/login-actions/authenticate \
-  --data-urlencode 'auth_session_id=01a0aa36-d2f4-737c-ae37-71643124497d' \
-  --data-urlencode 'recovery_code=xzb27 qrjs3'
+  --data-urlencode 'auth_session_id=01a0aa60-6898-7f2e-ac45-120b4d04f30e' \
+  --data-urlencode 'recovery_code=y7wtx ffd8q'
 ```
 
 ```html
@@ -2125,7 +2202,7 @@ curl -sS -X POST http://localhost:3000/realms/otp-demo/login-actions/authenticat
       <strong>You have already used that recovery code. Try another one from your list.</strong>
     </p>
     <form method="post" action="/realms/otp-demo/login-actions/authenticate">
-      <input type="hidden" name="auth_session_id" value="01a0aa36-d2f4-737c-ae37-71643124497d" />
+      <input type="hidden" name="auth_session_id" value="01a0aa60-6898-7f2e-ac45-120b4d04f30e" />
       <label
         >Code from your app
         <input type="text" name="code" inputmode="numeric" autocomplete="one-time-code"
@@ -2147,7 +2224,7 @@ which a wrong code does not:
 
 ```bash
 curl -sS -X POST http://localhost:3000/realms/otp-demo/login-actions/authenticate \
-  --data-urlencode 'auth_session_id=01a0aa36-d2f4-737c-ae37-71643124497d' \
+  --data-urlencode 'auth_session_id=01a0aa60-6898-7f2e-ac45-120b4d04f30e' \
   --data-urlencode 'recovery_code=ZZZZZ-ZZZZZ'
 ```
 
@@ -2160,7 +2237,7 @@ curl -sS -X POST http://localhost:3000/realms/otp-demo/login-actions/authenticat
   </head>
   <body>
     <form method="post" action="/realms/otp-demo/login-actions/authenticate">
-      <input type="hidden" name="auth_session_id" value="01a0aa36-d2f4-737c-ae37-71643124497d" />
+      <input type="hidden" name="auth_session_id" value="01a0aa60-6898-7f2e-ac45-120b4d04f30e" />
       <label
         >Code from your app
         <input type="text" name="code" inputmode="numeric" autocomplete="one-time-code"
@@ -4335,7 +4412,12 @@ session lifecycle. A citation of either half here means that half.
   What is not there yet: no way for a subject to ask for a fresh set outside
   the required action — self-service credential management is **P2b**'s
   account console, and until it exists a spent list is replaced by an
-  operator deleting the rows so the action is owed again.
+  operator deleting the rows so the action is owed again. And **no rate
+  limit on re-issuing**: while the action is owed, each login submission
+  with a valid password renders the page again, which costs ten Argon2id
+  hashes and eleven row writes. Bounded by holding the password and by
+  acknowledging the page, but a heavier multiplier than the verification one
+  above; **P2b**'s brute-force work is where both are answered.
 - **Password reset exists; a timing oracle in it does not have a fix yet.**
   Address verification (`GET /realms/{realm}/login-actions/action-token`,
   [Address verification](#address-verification)), self-registration

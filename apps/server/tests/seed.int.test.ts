@@ -45,8 +45,9 @@ afterAll(async () => {
   await containerHandle?.stop();
 });
 
-// Every helper below scopes by realmId: the owner connection bypasses RLS
-// entirely, and each test seeds its own realm, so an unscoped count would
+// Every helper below scopes by realmId: this container's owner is a
+// superuser and so escapes RLS even under FORCE, and each test seeds its own
+// realm, so an unscoped count would
 // pick up every realm this file has already seeded rather than just the
 // one under test.
 async function countClients(realmId: string): Promise<number> {

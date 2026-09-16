@@ -338,10 +338,12 @@ describe('a recovery code stands in for the second factor, once', () => {
 });
 
 describe('one code, one login', () => {
-  // Two overlapping transactions, each past its own password step, both
-  // presenting the same code: the UPDATE's own predicate on usedAt is the
-  // decision, so the second serializes on the row and finds nothing to
-  // update. A read-then-write pair would let both through.
+  // Both transactions are open and inside advance() before either reaches
+  // the UPDATE, rather than overlapping because argon2 happens to be slow:
+  // the barrier makes "genuinely concurrent" a property of the test. The
+  // UPDATE's own predicate on usedAt is then the decision, so the second
+  // serializes on the row and finds nothing to update — a read-then-write
+  // pair would let both through.
   it('accepts a code once when two concurrent submissions present it', async () => {
     const clock = clockAt();
     const account = await seedAccountWithCodes(clock);
@@ -351,10 +353,28 @@ describe('one code, one login', () => {
       signInWithPassword(account.realmId, clock),
       signInWithPassword(account.realmId, clock),
     ]);
+
+    let arrived = 0;
+    let bothOpen: () => void = () => undefined;
+    const barrier = new Promise<void>((resolve) => {
+      bothOpen = resolve;
+    });
+    const arrive = async (): Promise<void> => {
+      arrived += 1;
+      if (arrived === sessions.length) bothOpen();
+      await barrier;
+    };
+
     const outcomes = await Promise.all(
-      sessions.map((authSessionId) => present(account.realmId, authSessionId, code, clock)),
+      sessions.map((authSessionId) =>
+        withRealm(app.db, account.realmId, async (tx) => {
+          await arrive();
+          return advance(tx, authSessionId, { recoveryCode: code }, clock);
+        }),
+      ),
     );
 
+    expect(arrived).toBe(2);
     expect(outcomes.filter((outcome) => outcome.kind === 'success')).toHaveLength(1);
     expect(outcomes.filter((outcome) => outcome.kind === 'failure')).toEqual([
       { kind: 'failure', reason: 'invalid_credentials' },
@@ -562,8 +582,7 @@ describe('credentialRepository — the recovery-code writes', () => {
           await credentialRepository(tx).listFor(seeded.subjectId, 'recovery-code'),
         ).toHaveLength(RECOVERY_CODE_COUNT);
       },
-      attempt: async (tx, seeded) =>
-        credentialRepository(tx).deleteFor(seeded.subjectId, 'recovery-code'),
+      attempt: async (tx, seeded) => credentialRepository(tx).deleteRecoveryCodes(seeded.subjectId),
       expectBlocked: (result) => {
         expect(result).toBe(0);
       },

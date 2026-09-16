@@ -2,18 +2,21 @@ import { relyingPartyId, warnIfCookieFallbackActive } from '@odudu/authn-flows';
 import { type Config, OduduError } from '@odudu/kernel';
 
 /**
- * `ODUDU_DATABASE_URL` (the owner role) bypasses row-level security — see
- * ADR 0009. It exists to run migrations, not to serve traffic. Refusing to
- * boot in production without `ODUDU_APP_DATABASE_URL` keeps the RLS-bypassing
- * role from ever becoming the documented, load-bearing path.
+ * `ODUDU_DATABASE_URL` is the owner role, which can switch row-level
+ * security off on its own tables and escapes it outright where it is a
+ * superuser — FORCE ROW LEVEL SECURITY (ADR 0009) removes the plain owner's
+ * exemption but nothing can take ownership away. It exists to run
+ * migrations, not to serve traffic, and refusing to boot in production
+ * without `ODUDU_APP_DATABASE_URL` keeps it from becoming the documented,
+ * load-bearing path.
  */
 export function assertProductionAppDatabaseUrl(config: Config): void {
   if (config.NODE_ENV === 'production' && !config.ODUDU_APP_DATABASE_URL) {
     throw new OduduError(
       'config_invalid',
       'ODUDU_APP_DATABASE_URL is required when NODE_ENV=production. ODUDU_DATABASE_URL (the ' +
-        'owner role, which bypasses row-level security) is for running migrations only — never ' +
-        'for serving traffic.',
+        'owner role, which can switch row-level security off) is for running migrations only — ' +
+        'never for serving traffic.',
     );
   }
 }

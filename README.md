@@ -117,7 +117,8 @@ invalidate a list they have saved. The page that renders the codes is the
 only place they are ever shown: each is Argon2id-hashed with the same
 parameters as a password, one credential row per code, so no later page and
 no administrator can print them again, and reloading that page issues a
-fresh ten and retires the set it just displayed. They are ten characters
+fresh ten and retires the set it just displayed — at ten Argon2id hashes and
+eleven row writes per reload, which nothing rate-limits yet. They are ten characters
 from Crockford's 32-character base32 alphabet — 2^50 each, printed as
 `XXXXX-XXXXX` — and the alphabet's excluded letters (`I`, `L`, `O`) are
 folded onto the digits they resemble, so a code read off paper works either
@@ -346,8 +347,31 @@ CREATE USER odudu_svc LOGIN PASSWORD 'choose-one';
 
 The owner role in `ODUDU_DATABASE_URL` must be able to `CREATE ROLE` —
 migrations create `odudu_app` and grant `odudu_svc` membership in it, which
-is what puts the serving connection under row-level security. Point both URLs
-at your own port (5432 by default, not 5442) and start the server:
+is what puts the serving connection under row-level security.
+
+**It must also be `SUPERUSER` or `BYPASSRLS`, and that is a real
+constraint, not a convenience.** Every tenant table carries `FORCE ROW LEVEL
+SECURITY`, which removes the _owner's_ exemption — owning a table stops
+being enough to read it. The owner connection has exactly one job at
+request time: resolving `{realm}` from the path, which happens before any
+realm id exists to `SET LOCAL app.realm_id` into (ADR 0009's amendment of
+2026-09-13). Under a plain owner that read returns zero rows and **every
+request answers "unknown realm"**, whatever is in the database.
+`packages/authn-flows/tests/migrate-backfill.int.test.ts` asserts exactly
+that, against a container, so the requirement is recorded rather than
+folklore. A least-privilege owner is what this deployment shape wants and
+cannot have yet; closing it means resolving a realm without the bypass.
+
+The same property is what a **migration** that reads or writes across realms
+has to be written for: under a role without the exemption it sees nothing,
+writes nothing, and raises no error doing it.
+`0040_recovery_code_execution.sql` is the worked example — it lifts `FORCE`
+for its one statement rather than assuming the privilege — and the suite
+above runs the whole migration set as a non-exempt owner so a migration that
+only works for a superuser fails in CI.
+
+Point both URLs at your own port (5432 by default, not 5442) and start the
+server:
 
 ```bash
 pnpm --filter @odudu/server dev
@@ -589,11 +613,15 @@ A real deployment today looks like:
 1. Build the image from `infra/docker/Dockerfile`. It is multi-stage, runs as
    a non-root user, and carries a `HEALTHCHECK` against `/health/ready`.
 2. Provide a PostgreSQL 17 you operate, with two roles: an owner that can
-   `CREATE ROLE` and own the schema, and a restricted login role for serving.
+   `CREATE ROLE`, own the schema and bypass row-level security (see
+   [Running it](#running-it) for why the last of those is not optional yet),
+   and a restricted login role for serving.
 3. Set `ODUDU_DATABASE_URL` (owner, used for migrations) and
    `ODUDU_APP_DATABASE_URL` (restricted, used to serve). **The server refuses
-   to boot with `NODE_ENV=production` if the second is unset** — serving as
-   the owner would bypass row-level security, so that failure is deliberate.
+   to boot with `NODE_ENV=production` if the second is unset** — the owner can
+   switch row-level security off on its own tables, and escapes it outright
+   where it is a superuser (as the compose stack's owner is), so that failure
+   is deliberate.
 4. Terminate TLS in front of it. The server speaks plain HTTP. **With
    `NODE_ENV=production` it refuses to boot until `ODUDU_TLS=true` says
    something in front of it is doing that** — every credential it issues

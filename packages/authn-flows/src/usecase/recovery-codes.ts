@@ -25,7 +25,7 @@ export async function beginRecoveryCodes(
   // Regenerating replaces the set rather than adding to it: the old ten
   // stop working the moment these are shown, which is the only honest
   // reading of a page that says "these are your codes".
-  const replaced = await repository.deleteFor(input.subjectId, 'recovery-code');
+  const replaced = await repository.deleteRecoveryCodes(input.subjectId);
   for (const hash of hashes) {
     await repository.insert({
       realmId: input.realmId,

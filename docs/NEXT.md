@@ -22,17 +22,36 @@ what lets a replay be refused _as spent_: safe only because a recovery code
 is a second factor, so the attempt is already bound to the subject being
 told about their own credential. `BROWSER_FLOW_DEFAULT` gained a fourth
 step, `recovery-code` conditional at index 3, applicable only to a
-submission carrying a code — the same shape as the passkey step, and the
-reason the OTP step stands down for the rest of such an attempt rather than
-asking for a code from the authenticator that was lost; migration
-0040 appends the row to realms provisioned earlier. Completing either
+submission carrying a code — the same shape as the passkey step. The OTP
+step stands down for the rest of such an attempt rather than asking for a
+code from the authenticator that was lost, but **only where the recovery
+step actually runs**: the realm's flow carries the row and the subject holds
+codes. Standing down on the field alone left both conditional groups
+satisfied by inapplicability (`isGroupSatisfied`) and completed a
+two-factor login on the password, which every subject who enrolled TOTP
+before this task was exposed to. Migration 0040 appends the row to realms
+provisioned earlier, and **lifts `FORCE ROW LEVEL SECURITY` for its one
+statement**: FORCE removes the owner's exemption, so under a schema owner
+that is not `SUPERUSER` or `BYPASSRLS` a cross-realm write sees nothing,
+writes nothing and raises nothing.
+`packages/authn-flows/tests/migrate-backfill.int.test.ts` runs the whole
+migration set as exactly that role. **It also records a pre-existing
+requirement nothing had stated: the owner role must be RLS-exempt**, because
+`realmLookupRepository.byName` reads `realms` on the owner connection with
+no realm context (ADR 0009's amendment), so under a plain owner no realm
+resolves at all. README.md said the opposite in three places — that serving
+as the owner bypasses RLS — and now says what FORCE actually makes true. Completing either
 `configure-totp` or `configure-passkey` now adds `generate-recovery-codes`
 to a subject who holds no codes, and the page that renders them is the only
 place they exist in plaintext: a reload re-enters `beginRecoveryCodes` and
 replaces the set it just displayed. **What this leaves open: a subject
-cannot ask for a fresh set outside the required action.** Self-service
-credential management is the account console, so until then an operator
-deletes the rows to make the action owed again. And `renderLoginForm` now
+cannot ask for a fresh set outside the required action**, and while the
+action is owed, every login submission carrying a valid password re-renders
+the page — ten Argon2id hashes and eleven row writes apiece, bounded by
+holding the password and by acknowledging the page, but a heavier multiplier
+than verification's. Self-service credential management is the account
+console, so until then an operator deletes the rows to make the action owed
+again; the rate limit is the brute-force increment's. And `renderLoginForm` now
 takes an optional error string, used by exactly one refusal — a spent
 recovery code; a wrong password still says nothing, so the form has a
 message channel that only one branch fills.

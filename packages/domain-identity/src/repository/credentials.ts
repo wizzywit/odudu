@@ -170,12 +170,17 @@ export function credentialRepository(tx: RealmScopedDatabase) {
     },
 
     // Regenerating a set of recovery codes replaces it: the old ten stop
-    // working the moment the new ten are shown, spent or not. Returns how
-    // many rows went, so a caller can tell a replacement from a first issue.
-    async deleteFor(subjectId: string, type: CredentialType): Promise<number> {
+    // working the moment the new ten are shown, spent or not. Named for the
+    // one type it deletes rather than taking a CredentialType: nothing needs
+    // to delete a subject's password or passkey in bulk, and a parameter
+    // that would is one typo away from doing it. Returns how many rows went,
+    // so a caller can tell a replacement from a first issue.
+    async deleteRecoveryCodes(subjectId: string): Promise<number> {
       const rows = await tx
         .delete(userCredentials)
-        .where(and(eq(userCredentials.subjectId, subjectId), eq(userCredentials.type, type)))
+        .where(
+          and(eq(userCredentials.subjectId, subjectId), eq(userCredentials.type, 'recovery-code')),
+        )
         .returning({ id: userCredentials.id });
       return rows.length;
     },

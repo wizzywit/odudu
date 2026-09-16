@@ -39,7 +39,11 @@ const runtime = config.ODUDU_APP_DATABASE_URL
   : owner;
 
 if (runtime === owner) {
-  logger.warn({}, 'ODUDU_APP_DATABASE_URL is unset; serving as the owner role bypasses RLS');
+  logger.warn(
+    {},
+    'ODUDU_APP_DATABASE_URL is unset; serving as the owner role, which can switch ' +
+      'row-level security off and escapes it outright where that role is a superuser',
+  );
 }
 
 const app = buildApp({
