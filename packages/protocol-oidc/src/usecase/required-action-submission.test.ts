@@ -342,6 +342,24 @@ describe('handleRequiredActionSubmission — changing an owed password', () => {
     });
   });
 
+  // The compare-and-swap found the password already moved, so the candidate
+  // this form carried was never stored. Reporting 'completed' would tell the
+  // person at the browser their password is one it is not.
+  it('does not claim a password was set when another transaction set one first', async () => {
+    const { deps, pendingActions, completeUpdatePassword } = harness();
+    pendingActions.mockResolvedValue(['update-password']);
+    completeUpdatePassword.mockResolvedValue({ kind: 'superseded' });
+
+    const outcome = await handleRequiredActionSubmission(deps, 'acme', {
+      ...SUBMISSION,
+      action: 'update-password',
+      password: 'correct horse battery staple',
+    });
+
+    expect(outcome).toMatchObject({ kind: 'password_rejected', authSessionId: AUTH_SESSION_ID });
+    expect(outcome).not.toMatchObject({ kind: 'completed' });
+  });
+
   // A form submitted with the field empty is judged, not special-cased: the
   // realm's own minimum length is what refuses it, and the page it comes
   // back to says so.

@@ -51,6 +51,15 @@ export interface ActionTokenRouteDeps {
     policy: PasswordPolicy,
     subject: { username: string; email: string | null },
   ) => PolicyViolation[];
+  // Both injected for the same reason setPassword is — see
+  // completePasswordReset in #/usecase/reset-password.ts, which explains
+  // what each one closes.
+  readonly unchangedPasswordViolations: (
+    tx: RealmScopedDatabase,
+    subjectId: string,
+    candidate: string,
+  ) => Promise<PolicyViolation[]>;
+  readonly clearPasswordUpdateAction: (tx: RealmScopedDatabase, subjectId: string) => Promise<void>;
 }
 
 // @fastify/formbody parses a repeated query or body field into an array; a
@@ -146,6 +155,8 @@ export function registerActionTokenRoute(app: FastifyInstance, deps: ActionToken
         passwordPolicy: realm.passwordPolicy,
         evaluatePassword: deps.evaluatePassword,
         getUsername: deps.getUsername,
+        unchangedPasswordViolations: deps.unchangedPasswordViolations,
+        clearPasswordUpdateAction: deps.clearPasswordUpdateAction,
       },
       key,
       password,

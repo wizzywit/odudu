@@ -13,7 +13,10 @@ per-subject partial unique indexes. `passwordExpired(credential,
 maxAgeDays, now)` is a leaf service in `@odudu/domain-identity`; a maximum
 of zero is the feature off, not an immediate expiry.
 `recordPasswordExpiryIfOwed` runs in `advance`, beside
-`recordOtpEnrolmentIfOwed` and for the same reason: **an expired password
+`recordOtpEnrolmentIfOwed` and for the same reason, and takes the maximum
+age as a parameter rather than reading `realms` again — `otpRequired` and
+`passwordMaxAgeDays` are one `flowSettings` read now, carried on
+`FlowFacts`, so a login costs no more realm reads than before: **an expired password
 still authenticates**, and the required-action gate — which sits downstream
 of a success — is what blocks the login from completing. Refusing the
 factor instead would have been a deadlock, the shape Task 17's
@@ -22,7 +25,11 @@ applicability table nearly shipped. `credentialRepository` gained
 `rotatePassword(subjectId, { from, to }, historyDepth)`, a compare-and-swap
 on the outgoing hash rather than the brief's `(subjectId, newHash, depth)`
 returning `void`: the predicate is the decision, so two rotations racing
-one observed state archive one hash, not two. `rotatePassword` and
+one observed state archive one hash, not two. A `false` return is reported
+as `superseded`, not as success — the action is satisfied either way, but
+the password in force is then the one the other transaction set, and
+telling the person at the form otherwise would leave them with a password
+they never chose. `rotatePassword` and
 `setPassword` both now move `created_at` with the hash — one row holds a
 subject's password for the life of the account, so it dates the password
 and not the row, and left alone a rotation would leave the new password
@@ -45,14 +52,26 @@ parked login shows and the re-render a refused candidate returns to, at
 `it` and drives the whole journey — `/authorize`, the login POST, then the
 required-action POST — because nothing shorter reaches the fourth writer:
 the route refuses a submission whose session names nobody, and the gate
-refuses an action the bound subject never owed. **What this leaves open:
-reset redemption still keeps no history**, so the password it displaces can
-be set again later; wiring it in means threading the depth and the stored
-hashes into `@odudu/account`, which depends on neither the required-action
-machinery nor `apps/server`. And expiry compares a `created_at` the
-database wrote with an instant the application's clock reports, so the two
-clocks must agree to within far less than a day — which they do, but
-nothing asserts it.
+refuses an action the bound subject never owed. Moving `created_at` on every password write is necessary, and was also a
+hole: reset redemption reaches `setPassword` having evaluated only the
+candidate-decidable rules, so an aged-out password could be **set straight
+back** through a mailed link and the clock would restart —
+`password_max_age_days` evadable through a supported flow by anybody with
+mailbox access. A necessary fix opening a hole elsewhere is the easiest
+defect shape to miss, because every individual change is right; the lesson
+is to enumerate the other readers of a value before moving it. Closed
+narrowly: reset redemption now refuses **the password in force**, which
+needs only `passwordFor` and no threading of the depth or the stored
+history into `@odudu/account`. It also clears an `update-password` the
+subject owed, so a reset is not followed by a demand for a third password.
+Both are injected at the composition root beside `setPassword`, for the
+reason that one is. **What this leaves open: reset redemption still
+consults no history**, so a password retired more than one change ago can
+be restored through a reset and its age starts again — README.md and
+`docs/request-paths.md` both say so rather than stating the guarantee
+unqualified. And expiry compares a `created_at` the database wrote with an
+instant the application's clock reports, so the two clocks must agree to
+within far less than a day — which they do, but nothing asserts it.
 
 **Task 20 issues single-use recovery codes.** Ten per subject, each ten
 characters from Crockford's base32 alphabet (2^50 apiece, printed

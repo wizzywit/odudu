@@ -108,6 +108,20 @@ export interface CompletePasswordResetDeps {
     subject: { username: string; email: string | null },
   ) => PolicyViolation[];
   readonly getUsername: (tx: RealmScopedDatabase, subjectId: string) => Promise<string>;
+  // The one policy rule no candidate decides on its own: whether it is the
+  // password already in force. Injected as the violations to report rather
+  // than as a predicate, for the reason setPassword is — the stored hash,
+  // the verifier and the message all live in @odudu/domain-identity.
+  readonly unchangedPasswordViolations: (
+    tx: RealmScopedDatabase,
+    subjectId: string,
+    candidate: string,
+  ) => Promise<PolicyViolation[]>;
+  // A subject who owed update-password has satisfied it by redeeming this
+  // link, and must not be asked for a third password on their next login.
+  // Injected because user_required_actions belongs to @odudu/authn-flows,
+  // which @odudu/account does not depend on either.
+  readonly clearPasswordUpdateAction: (tx: RealmScopedDatabase, subjectId: string) => Promise<void>;
 }
 
 export type CompletePasswordResetResult =
@@ -138,10 +152,18 @@ export async function completePasswordReset(
     });
     if (violations.length > 0) return { kind: 'invalid_password', violations };
 
+    // Before the link is spent, for the same reason the rules above are:
+    // setting the password already in force restarts the realm's
+    // password_max_age_days on it, which would make an expired password
+    // evadable by anybody who can read the account's mail.
+    const unchanged = await deps.unchangedPasswordViolations(tx, peeked.subjectId, newPassword);
+    if (unchanged.length > 0) return { kind: 'invalid_password', violations: unchanged };
+
     const record = await actionTokenRepository(tx).consume(key, 'reset_password');
     if (record === null) return { kind: 'invalid' };
 
     await deps.setPassword(tx, record.subjectId, newPassword);
+    await deps.clearPasswordUpdateAction(tx, record.subjectId);
     await actionTokenRepository(tx).invalidateOutstanding(record.subjectId, 'reset_password');
     return { kind: 'reset' };
   });

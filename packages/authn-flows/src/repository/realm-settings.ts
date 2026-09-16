@@ -3,34 +3,44 @@ import { type PasswordPolicy } from '@odudu/domain-identity';
 import { OduduError } from '@odudu/kernel';
 import { eq } from 'drizzle-orm';
 
+// What one `advance` needs from the realm row: whether it demands a second
+// factor, and how long it lets a password stand.
+export interface FlowSettings {
+  otpRequired: boolean;
+  passwordMaxAgeDays: number;
+}
+
 // The realm switches the flow engine reads. `realms` filters on `id` rather
 // than a `realm_id` column, so a realm other than the transaction's own is
 // invisible here for the same reason its sessions are.
 export function realmSettingsRepository(tx: RealmScopedDatabase) {
   return {
-    // Raises rather than defaulting when the row is not there. Every caller
-    // passes the id of the realm its own transaction is already scoped to,
-    // so an empty result means the realm was deleted mid-request or realm
-    // context does not match — and a default would have to be `false`, the
-    // value that switches a second factor off for everybody in the realm
-    // that asked for one.
-    async otpRequired(realmId: string): Promise<boolean> {
+    // One read for both switches, not two: whether a second factor applies
+    // and whether a password has aged out are decided within one `advance`,
+    // and a column apiece would be a second full trip to `realms` for it.
+    // Raises rather than defaulting on a missing row — an empty result means
+    // the realm was deleted mid-request or realm context does not match, and
+    // the defaults would be the values that switch a second factor off for
+    // everybody in the realm that asked for one, and switch expiry off too.
+    async flowSettings(realmId: string): Promise<FlowSettings> {
       const rows = await tx
-        .select({ otpRequired: realms.otpRequired })
+        .select({
+          otpRequired: realms.otpRequired,
+          passwordMaxAgeDays: realms.passwordMaxAgeDays,
+        })
         .from(realms)
         .where(eq(realms.id, realmId));
       const row = rows[0];
       if (row === undefined) {
         throw new OduduError('realm_not_found', `no realm with id ${realmId} in this context`);
       }
-      return row.otpRequired;
+      return row;
     },
 
-    // Read on its own rather than folded into otpRequired: that one answers
-    // an applicability question asked before anybody is identified, and this
-    // one only ever runs for a subject a factor has just bound. Raises on a
-    // missing row for the reason above — a default of zero would switch
-    // expiry off for the realm that asked for it.
+    // The whole policy, read only where a password is being written — the
+    // change-password action. Raises on a missing row for the reason above:
+    // a default of zero for the depth would accept a password the realm
+    // remembers, and a default minimum length would accept a weak one.
     async passwordPolicy(realmId: string): Promise<PasswordPolicy> {
       const rows = await tx
         .select({

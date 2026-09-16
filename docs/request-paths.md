@@ -2616,6 +2616,50 @@ curl -sS -X POST http://localhost:3000/realms/reset-demo/login-actions/action-to
 </html>
 ```
 
+A candidate that satisfies every rule above and is **the password already
+in force** is refused too, by the one rule no candidate decides on its own.
+Every writer of a password resets the realm's `password_max_age_days` clock
+on it — which is what stops an expired password being owed forever — so
+without this, anybody who can read the account's mail could clear an
+expiry without ever changing a password:
+
+```bash
+curl -sS -i -X POST http://localhost:3000/realms/reset2-demo/login-actions/action-token \
+  --data-urlencode 'key=-1TjjIsV5S88pdO7TquzWplbcirrq-al_JyRDnKV8Hk' \
+  --data-urlencode 'password=correct-horse-battery'
+```
+
+```
+HTTP/1.1 400 Bad Request
+```
+
+```html
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Can't reset your password</title>
+  </head>
+  <body>
+    <h1>Can't reset your password</h1>
+    <ul>
+      <li>Password must not be one you have used before.</li>
+    </ul>
+  </body>
+</html>
+```
+
+(a different realm in that one run, `reset2-demo`, because the link above
+had already been spent by the time this check was added; everything else
+about it is the same flow.)
+
+This is **only** the password in force, not the realm's
+`password_history_depth`: reset redemption keeps no history and reads none,
+so a password retired more than one change ago can be restored through a
+reset and its age starts again. [Password expiry, and changing a
+password](#password-expiry-and-changing-a-password) is where history is
+read and written.
+
 Submitting a compliant password on the same link sets it:
 
 ```bash
@@ -2876,6 +2920,12 @@ HTTP/1.1 302 Found
 set-cookie: expiry-demo-session=01a0aa95-f881-7b2e-9842-7e4dedaba4bf; HttpOnly; SameSite=Lax; Path=/
 location: http://localhost:8080/callback?code=YieGWpH5S4OHoQYyzScj0imaliD2ewgiP_0xuLyfNBc&state=xyz&iss=http%3A%2F%2Flocalhost%3A3000%2Frealms%2Fexpiry-demo
 ```
+
+Reset redemption shares only half of this. It refuses the password in
+force — otherwise a mailed link would restart the clock on an expired
+password without changing it — but it consults no history, so a password
+retired more than one change ago can be restored that way. Only this action
+reads history, and only this action writes any.
 
 A retired hash is never a login's input. The password credential read at
 authentication filters on `type = 'password'`, so the row above answers

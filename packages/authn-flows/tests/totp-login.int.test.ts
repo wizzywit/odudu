@@ -499,25 +499,64 @@ describe('an attempt answers for one subject and no other', () => {
 });
 
 describe('realmSettingsRepository', () => {
-  it("cannot read a foreign realm's otp_required, and refuses rather than defaulting", async () => {
+  it("cannot read a foreign realm's flow settings, and refuses rather than defaulting", async () => {
     await expectCrossRealmMethodProbe(app.db, {
       seed: async (tx, realmId) => {
         await seedRealm(tx, realmId, true);
+        await tx.update(realms).set({ passwordMaxAgeDays: 90 }).where(eq(realms.id, realmId));
         return realmId;
       },
       verifySeeded: async (tx, realmId) => {
-        expect(await realmSettingsRepository(tx).otpRequired(realmId)).toBe(true);
+        expect(await realmSettingsRepository(tx).flowSettings(realmId)).toEqual({
+          otpRequired: true,
+          passwordMaxAgeDays: 90,
+        });
       },
       attempt: async (tx, realmId) => {
         try {
-          return await realmSettingsRepository(tx).otpRequired(realmId);
+          return await realmSettingsRepository(tx).flowSettings(realmId);
         } catch (caught) {
           return caught instanceof OduduError ? caught.code : 'unexpected';
         }
       },
-      // Not `false`: a realm that requires a second factor and a realm whose
-      // row this context cannot see are different things, and returning the
-      // switch's off value for the second would silently drop the factor.
+      // Not the off values: a realm that requires a second factor and a
+      // realm whose row this context cannot see are different things, and
+      // answering `false`/`0` for the second would silently drop the factor
+      // and switch expiry off.
+      expectBlocked: (result) => {
+        expect(result).toBe('realm_not_found');
+      },
+    });
+  });
+
+  // The same proof for the policy the change-password action writes against.
+  // Fails closed for a harder reason than the switches above: a default
+  // depth of zero would accept a password the realm remembers, and a
+  // default minimum length would accept a weak one.
+  it("cannot read a foreign realm's password policy, and refuses rather than defaulting", async () => {
+    await expectCrossRealmMethodProbe(app.db, {
+      seed: async (tx, realmId) => {
+        await seedRealm(tx, realmId, false);
+        await tx
+          .update(realms)
+          .set({ passwordMinLength: 16, passwordHistoryDepth: 3, passwordMaxAgeDays: 90 })
+          .where(eq(realms.id, realmId));
+        return realmId;
+      },
+      verifySeeded: async (tx, realmId) => {
+        expect(await realmSettingsRepository(tx).passwordPolicy(realmId)).toMatchObject({
+          minLength: 16,
+          historyDepth: 3,
+          maxAgeDays: 90,
+        });
+      },
+      attempt: async (tx, realmId) => {
+        try {
+          return await realmSettingsRepository(tx).passwordPolicy(realmId);
+        } catch (caught) {
+          return caught instanceof OduduError ? caught.code : 'unexpected';
+        }
+      },
       expectBlocked: (result) => {
         expect(result).toBe('realm_not_found');
       },

@@ -238,6 +238,8 @@ interface FlowFacts {
   hasTotp: boolean;
   hasRecoveryCodes: boolean;
   otpRequired: boolean;
+  // Zero where the realm does not age passwords out, which is the default.
+  passwordMaxAgeDays: number;
   satisfied: ReadonlySet<string>;
   assertionOffered: boolean;
   recoveryCodeOffered: boolean;
@@ -255,7 +257,7 @@ async function flowFacts(
   realmId: string,
   request: FactsRequest,
 ): Promise<FlowFacts> {
-  const otpRequired = await realmSettingsRepository(tx).otpRequired(realmId);
+  const settings = await realmSettingsRepository(tx).flowSettings(realmId);
   const { subjectId } = request;
   const hasTotp = subjectId !== null && (await storedTotpFor(tx, subjectId)) !== null;
   // Only when this submission carries a code: the recovery step is
@@ -267,7 +269,8 @@ async function flowFacts(
   return {
     hasTotp,
     hasRecoveryCodes,
-    otpRequired,
+    otpRequired: settings.otpRequired,
+    passwordMaxAgeDays: settings.passwordMaxAgeDays,
     satisfied: request.satisfied,
     assertionOffered: request.assertionOffered,
     recoveryCodeOffered: request.recoveryCodeOffered,
@@ -671,7 +674,7 @@ export async function advance(
   // gate reads what is owed, which is the whole of what keeps an aged-out
   // password from being a lockout: the login still authenticates, and only
   // its completion waits for the change.
-  await recordPasswordExpiryIfOwed(tx, record.realmId, subjectId, clock);
+  await recordPasswordExpiryIfOwed(tx, record.realmId, subjectId, facts.passwordMaxAgeDays, clock);
 
   // Whether this login is done, or a further factor remains, decided
   // before `satisfied` is written: two outcomes downstream of this function

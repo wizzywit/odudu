@@ -150,6 +150,19 @@ export async function handleRequiredActionSubmission(
       password: submission.password ?? '',
     });
     if (changed.kind === 'updated') return { kind: 'completed', authSessionId };
+    // The action is done, but the password in force is not the one this form
+    // carried — saying so is the only honest answer, and the remedy is to
+    // sign in with whichever password actually landed.
+    if (changed.kind === 'superseded') {
+      return {
+        kind: 'password_rejected',
+        authSessionId,
+        violations: [
+          'Your password was changed somewhere else before this form was submitted. ' +
+            'Sign in again with the password you set there.',
+        ],
+      };
+    }
     return { kind: 'password_rejected', authSessionId, violations: changed.violations };
   }
 

@@ -17,7 +17,12 @@ export type UpdatePasswordOutcome =
   // Every message the realm's policy produced for this candidate, for the
   // page to list at once: a form that reports one rule at a time takes as
   // many attempts as there are rules.
-  | { kind: 'rejected'; violations: readonly string[] };
+  | { kind: 'rejected'; violations: readonly string[] }
+  // Some other transaction set a password for this subject first, so the
+  // candidate this submission carried was never stored. Distinct from
+  // 'updated' because the person at the form would otherwise be told their
+  // password is one it is not.
+  | { kind: 'superseded' };
 
 export interface UpdatePassword {
   realmId: string;
@@ -100,17 +105,17 @@ export async function completeUpdatePassword(
     return { kind: 'rejected', violations: [REUSED_PASSWORD.message] };
   }
 
-  // A false return is the compare-and-swap finding the password already
-  // moved — a second tab, a resubmitted form — which means some other
-  // transaction set one. Either way a change landed, so the action is
-  // completed rather than left owed to a subject who has nothing to do.
-  await credentialRepository(tx).rotatePassword(
+  const rotated = await credentialRepository(tx).rotatePassword(
     input.subjectId,
     { from: state.current, to: await hashPassword(input.password) },
     policy.historyDepth,
   );
+  // A password change landed either way, so the action is satisfied and is
+  // completed rather than left owed to a subject with nothing left to do.
+  // Which password is in force is the part the caller has to be told apart:
+  // on a false return it is the one the other transaction set.
   await requiredActionRepository(tx).complete(input.subjectId, 'update-password');
-  return { kind: 'updated' };
+  return rotated ? { kind: 'updated' } : { kind: 'superseded' };
 }
 
 // A realm that ages passwords out has to say so somewhere the login can act
@@ -121,9 +126,11 @@ export async function recordPasswordExpiryIfOwed(
   tx: RealmScopedDatabase,
   realmId: string,
   subjectId: string,
+  // Handed in from the realm read the flow's own applicability decisions
+  // already made (flowSettings), rather than read again here.
+  maxAgeDays: number,
   clock: Clock = systemClock,
 ): Promise<void> {
-  const { maxAgeDays } = await realmSettingsRepository(tx).passwordPolicy(realmId);
   if (maxAgeDays === 0) return;
   const [credential] = await credentialRepository(tx).listFor(subjectId, 'password');
   if (credential === undefined || !passwordExpired(credential, maxAgeDays, clock.now())) return;

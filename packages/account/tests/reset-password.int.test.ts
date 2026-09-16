@@ -11,6 +11,7 @@ import {
   credentialRepository,
   evaluatePassword,
   hashPassword,
+  REUSED_PASSWORD,
   subjectRepository,
   userRepository,
   verifyPassword,
@@ -202,6 +203,15 @@ function buildHttpApp(): FastifyInstance {
       return user.username;
     },
     evaluatePassword,
+    unchangedPasswordViolations: async (tx, subjectId, candidate) => {
+      const current = await credentialRepository(tx).passwordFor(subjectId);
+      if (current === null) return [];
+      return (await verifyPassword(current, candidate)) ? [REUSED_PASSWORD] : [];
+    },
+    // No required action exists in this package's tests: user_required_actions
+    // belongs to @odudu/authn-flows, which @odudu/account does not depend on.
+    // apps/server/tests/reset-password.int.test.ts holds the real wiring.
+    clearPasswordUpdateAction: () => Promise.resolve(),
   });
   return instance;
 }

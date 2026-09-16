@@ -85,9 +85,11 @@ identically whether or not the address has an account — same status, same
 body — and sends mail only for the one that does, so **this endpoint**
 cannot be used to enumerate who has registered; a send failure (a down or
 rate-limiting SMTP server) is absorbed and logged rather than surfaced, for
-the same reason. Completing one reset also retires every other outstanding
-reset-password link for the same subject, and turning
-`reset_password_allowed` off closes redemption as well as the request form.
+the same reason. A redemption that sets the password already in force is
+refused, for the reason the password-policy section below gives. Completing
+one reset also retires every other outstanding reset-password link for the
+same subject, and turning `reset_password_allowed` off closes redemption as
+well as the request form.
 See [the password reset section of docs/request-paths.md](docs/request-paths.md#password-reset)
 for the walkthrough.
 
@@ -191,8 +193,19 @@ and rotation retires the displaced hash as a `password-history` credential.
 Those rows are never a login's input, and the ones past the depth are
 deleted — the one place anything in this codebase deletes a credential
 rather than marking it (ADR 0021), because no decision can read them.
-`password_history_depth` is not consulted by reset redemption, which
-evaluates the rest of the policy but keeps no history of its own.
+
+**What the two settings guarantee, exactly.** Every writer of a password
+resets the clock on it, which is what stops an expired password being owed
+forever — and also what makes the guarantee narrower than
+`password_max_age_days` alone suggests, because a reset link is a password
+write. So reset redemption refuses a candidate matching **the password
+currently in force**, which closes the evasion of setting the same password
+straight back. It does **not** consult `password_history_depth`: a password
+retired more than one change ago can be restored through a reset, and its
+age then starts again. Only the change-password action reads history and
+only it writes any. Closing that would mean threading the depth and the
+stored hashes into `@odudu/account`, which depends on neither the
+required-action machinery nor `apps/server`.
 
 **Known limitation:** the reset-request endpoint still has a timing
 oracle — mailing an address that exists takes an SMTP round trip longer

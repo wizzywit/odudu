@@ -10,12 +10,15 @@ import {
 } from '@odudu/account';
 import { type DatabaseHandle, type RealmScopedDatabase } from '@odudu/db';
 import { roleRepository } from '@odudu/domain-authz';
+import { requiredActionRepository } from '@odudu/authn-flows';
 import {
   credentialRepository,
   evaluatePassword,
   hashPassword,
+  REUSED_PASSWORD,
   subjectRepository,
   userRepository,
+  verifyPassword,
 } from '@odudu/domain-identity';
 import { type EmailSender } from '@odudu/email';
 import { newId } from '@odudu/kernel';
@@ -151,6 +154,15 @@ export function buildApp(deps: AppDeps): FastifyInstance {
       return user.username;
     },
     evaluatePassword,
+    // A subject with no password credential at all has nothing to leave
+    // unchanged, so there is nothing to refuse.
+    unchangedPasswordViolations: async (tx, subjectId, candidate) => {
+      const current = await credentialRepository(tx).passwordFor(subjectId);
+      if (current === null) return [];
+      return (await verifyPassword(current, candidate)) ? [REUSED_PASSWORD] : [];
+    },
+    clearPasswordUpdateAction: (tx, subjectId) =>
+      requiredActionRepository(tx).complete(subjectId, 'update-password'),
   });
 
   registerRegistrationRoute(app, {

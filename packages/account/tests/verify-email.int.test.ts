@@ -134,6 +134,8 @@ async function buildHttpApp(): Promise<FastifyInstance> {
     getUsername: store.getUsername,
     // Unused by any test in this file, for the same reason setPassword is.
     evaluatePassword: () => [],
+    unchangedPasswordViolations: () => Promise.resolve([]),
+    clearPasswordUpdateAction: () => Promise.resolve(),
   });
   await instance.ready();
   return instance;
