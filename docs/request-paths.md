@@ -27,7 +27,7 @@ the URL and never by a header or a parameter.
 | `GET`  | `/realms/{realm}/protocol/openid-connect/auth`     | Authorization endpoint                                      |
 | `POST` | `/realms/{realm}/protocol/openid-connect/auth`     | Authorization endpoint (form)                               |
 | `POST` | `/realms/{realm}/login-actions/authenticate`       | Login form submission                                       |
-| `POST` | `/realms/{realm}/login-actions/required-action`    | Complete a pending required action (TOTP enrolment)         |
+| `POST` | `/realms/{realm}/login-actions/required-action`    | Complete a pending required action (enrolment, password)    |
 | `POST` | `/realms/{realm}/login-actions/passkey-challenge`  | Request options for a usernameless passkey assertion        |
 | `GET`  | `/realms/{realm}/login-actions/registration`       | Self-registration form                                      |
 | `POST` | `/realms/{realm}/login-actions/registration`       | Self-registration submission                                |
@@ -2712,6 +2712,193 @@ off closes redemption as well as the request form: an outstanding link
 minted while it was on answers `400` from `/login-actions/action-token`
 once it is off, the kill switch an operator reaches for during an incident
 covering both halves of the flow.
+
+## Password expiry, and changing a password
+
+A realm's `password_max_age_days` ages a password out. An expired password
+is **not** refused: the login authenticates exactly as it always did, and
+the `update-password` required action is what stops it from completing —
+the gate that could rescue a refused login sits downstream of a success, so
+refusing the factor would lock out precisely the accounts the policy exists
+to move along.
+
+There is no seed flag for the password policy yet (the same gap
+[Self-registration](#self-registration) notes), so this run sets the two
+columns with `psql`. The second statement has no alternative: nothing can
+make a password ninety days old in less than ninety days.
+
+```bash
+odudu seed \
+  --realm expiry-demo --client expiry-spa \
+  --redirect-uri http://localhost:8080/callback \
+  --user ada --password correct-horse-battery --email ada@example.com
+docker compose -f infra/docker/compose.yaml exec -T postgres \
+  psql -U odudu -d odudu -c \
+  "UPDATE realms SET password_max_age_days = 90, password_history_depth = 2
+     WHERE name = 'expiry-demo';"
+docker compose -f infra/docker/compose.yaml exec -T postgres \
+  psql -U odudu -d odudu -c \
+  "UPDATE user_credentials SET created_at = now() - interval '100 days'
+     WHERE type = 'password'
+       AND realm_id = (SELECT id FROM realms WHERE name = 'expiry-demo');"
+```
+
+```
+{"created":true,"realm":"expiry-demo","realmId":"01a0aa95-…","clientId":"expiry-spa","userSubjectId":"01a0aa95-…"}
+UPDATE 1
+UPDATE 1
+```
+
+`/authorize` parks the request and renders the ordinary password form; the
+`auth_session_id` in it — `01a0aa95-a6b4-7403-917e-0ecbd5566e86` in this
+run — is what every request below carries. The correct password answers
+`200` with a change-password form rather than `302` with a code: it was
+accepted, and the pending action is what holds the login (no `set-cookie`,
+no `code`).
+
+```bash
+curl -sS -X POST http://localhost:3000/realms/expiry-demo/login-actions/authenticate \
+  --data-urlencode 'auth_session_id=01a0aa95-a6b4-7403-917e-0ecbd5566e86' \
+  --data-urlencode 'username=ada' \
+  --data-urlencode 'password=correct-horse-battery'
+```
+
+```html
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Change your password</title>
+  </head>
+  <body>
+    <h1>Change your password</h1>
+    <p>This account needs a new password before you can continue.</p>
+    <form
+      method="post"
+      action="/realms/expiry-demo/login-actions/required-action?action=update-password"
+    >
+      <input type="hidden" name="auth_session_id" value="01a0aa95-a6b4-7403-917e-0ecbd5566e86" />
+      <label
+        >New password <input type="password" name="password" autocomplete="new-password"
+      /></label>
+      <button type="submit">Update password</button>
+    </form>
+  </body>
+</html>
+```
+
+The candidate is judged by the realm's own policy, the same
+`evaluatePassword` call registration, reset redemption and the seed CLI are
+bound by — `400`, with every rule it broke:
+
+```bash
+curl -sS -X POST \
+  'http://localhost:3000/realms/expiry-demo/login-actions/required-action?action=update-password' \
+  --data-urlencode 'auth_session_id=01a0aa95-a6b4-7403-917e-0ecbd5566e86' \
+  --data-urlencode 'password=short'
+```
+
+```html
+<h1>Change your password</h1>
+<p>This account needs a new password before you can continue.</p>
+<ul>
+  <li>Password must be at least 8 characters long.</li>
+</ul>
+```
+
+Above a `password_history_depth` of zero, a realm also remembers that many
+retired passwords and refuses the one in force. This is the only rule that
+cannot be decided from the candidate alone — it is up to
+`password_history_depth` Argon2id verifications against stored hashes — and
+it is reported as a policy violation like the rest:
+
+```bash
+curl -sS -X POST \
+  'http://localhost:3000/realms/expiry-demo/login-actions/required-action?action=update-password' \
+  --data-urlencode 'auth_session_id=01a0aa95-a6b4-7403-917e-0ecbd5566e86' \
+  --data-urlencode 'password=correct-horse-battery'
+```
+
+```html
+<h1>Change your password</h1>
+<p>This account needs a new password before you can continue.</p>
+<ul>
+  <li>Password must not be one you have used before.</li>
+</ul>
+```
+
+(both refusals re-render the whole form, elided to its top here; the hidden
+`auth_session_id` comes back with it, so the same parked login survives a
+wrong answer.)
+
+A candidate that satisfies the policy replaces the password, retires the
+one it displaces as a `password-history` credential, and completes the
+action — which sends the browser back to the login form, because nothing
+was persisted for the factor that authenticated the parked attempt and it
+has to run again:
+
+```bash
+curl -sS -o /dev/null -w '%{http_code}\n' -X POST \
+  'http://localhost:3000/realms/expiry-demo/login-actions/required-action?action=update-password' \
+  --data-urlencode 'auth_session_id=01a0aa95-a6b4-7403-917e-0ecbd5566e86' \
+  --data-urlencode 'password=a-brand-new-passphrase'
+docker compose -f infra/docker/compose.yaml exec -T postgres \
+  psql -U odudu -d odudu -c \
+  "SELECT type, created_at FROM user_credentials
+     WHERE realm_id = (SELECT id FROM realms WHERE name = 'expiry-demo')
+     ORDER BY type;"
+```
+
+```
+200
+       type       |          created_at
+------------------+-------------------------------
+ password         | 2026-09-16 14:19:09.694232+00
+ password-history | 2026-09-16 14:19:09.694232+00
+(2 rows)
+```
+
+`created_at` moved with the hash. One row holds a subject's password for
+the life of the account, so it dates the password rather than the row —
+left alone, the new password would still be a hundred days old and the
+action would be owed again on the very next login. The same session now
+completes:
+
+```bash
+curl -sS -D - -o /dev/null -X POST http://localhost:3000/realms/expiry-demo/login-actions/authenticate \
+  --data-urlencode 'auth_session_id=01a0aa95-a6b4-7403-917e-0ecbd5566e86' \
+  --data-urlencode 'username=ada' \
+  --data-urlencode 'password=a-brand-new-passphrase'
+```
+
+```
+HTTP/1.1 302 Found
+set-cookie: expiry-demo-session=01a0aa95-f881-7b2e-9842-7e4dedaba4bf; HttpOnly; SameSite=Lax; Path=/
+location: http://localhost:8080/callback?code=YieGWpH5S4OHoQYyzScj0imaliD2ewgiP_0xuLyfNBc&state=xyz&iss=http%3A%2F%2Flocalhost%3A3000%2Frealms%2Fexpiry-demo
+```
+
+A retired hash is never a login's input. The password credential read at
+authentication filters on `type = 'password'`, so the row above answers
+nothing but a reuse check — the old password is simply wrong now, against a
+fresh authentication session:
+
+```bash
+curl -sS -D - -o /dev/null -X POST http://localhost:3000/realms/expiry-demo/login-actions/authenticate \
+  --data-urlencode 'auth_session_id=01a0aa96-23f2-793d-901e-10a35c97c847' \
+  --data-urlencode 'username=ada' \
+  --data-urlencode 'password=correct-horse-battery'
+```
+
+```
+HTTP/1.1 200 OK
+```
+
+No `set-cookie` and no `location`: the login form again, exactly as any
+wrong password renders it. History rows past the realm's depth are deleted
+outright rather than kept and marked, which is the one exception to
+[ADR 0021](adr/0021-retention-is-bounded-by-the-detection-window.md)'s default in this codebase —
+a retired password nothing will ever compare against is a stored hash that
+answers no decision.
 
 ## Path B: refresh rotation
 

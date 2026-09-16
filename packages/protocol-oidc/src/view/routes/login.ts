@@ -3,6 +3,7 @@ import {
   renderRecoveryCodesPage,
   renderRequiredActionPage,
   renderTotpEnrolmentPage,
+  renderUpdatePasswordPage,
   sessionCookieName,
   type AuthenticatorResult,
   type PasskeyAuthenticationOffer,
@@ -231,22 +232,17 @@ export function registerLoginRoute(app: FastifyInstance, deps: LoginRouteDeps): 
           );
         }
       }
+      if (outcome.action === 'update-password') {
+        return sendHtml(reply, 200, renderUpdatePasswordPage(realmName, outcome.authSessionId));
+      }
       if (outcome.action !== 'configure-totp') {
-        return sendHtml(
-          reply,
-          200,
-          renderRequiredActionPage(realmName, outcome.authSessionId, outcome.action),
-        );
+        return sendHtml(reply, 200, renderRequiredActionPage(outcome.action));
       }
       // The realm was already resolved inside handleLoginSubmission, for the
       // same reason the 'reject' branch above resolves it again.
       const realm = await deps.findRealm(realmName);
       if (realm === null) {
-        return sendHtml(
-          reply,
-          200,
-          renderRequiredActionPage(realmName, outcome.authSessionId, outcome.action),
-        );
+        return sendHtml(reply, 200, renderRequiredActionPage(outcome.action));
       }
       const offer = await deps.beginTotpEnrolment(realmName, realm.id, outcome.subjectId);
       return sendHtml(reply, 200, renderTotpEnrolmentPage(realmName, outcome.authSessionId, offer));

@@ -6,6 +6,7 @@ import { executionRepository } from '#/repository/executions';
 import { realmSettingsRepository } from '#/repository/realm-settings';
 import { requiredActionRepository } from '#/repository/required-actions';
 import { sessionRepository } from '#/repository/sessions';
+import { recordPasswordExpiryIfOwed } from '#/usecase/update-password';
 import {
   type AuthenticationSessionRecord,
   type PendingRequest,
@@ -666,6 +667,11 @@ export async function advance(
     recoveryCodeOffered: recoveryCodeOffered(input),
   });
   await recordOtpEnrolmentIfOwed(tx, record.realmId, subjectId, facts);
+  // Collected after the factor succeeded and before the required-action
+  // gate reads what is owed, which is the whole of what keeps an aged-out
+  // password from being a lockout: the login still authenticates, and only
+  // its completion waits for the change.
+  await recordPasswordExpiryIfOwed(tx, record.realmId, subjectId, clock);
 
   // Whether this login is done, or a further factor remains, decided
   // before `satisfied` is written: two outcomes downstream of this function

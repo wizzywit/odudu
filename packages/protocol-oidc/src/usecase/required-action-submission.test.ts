@@ -24,6 +24,7 @@ const SUBMISSION = {
   code: '123456',
   credential: undefined,
   label: undefined,
+  password: undefined,
 };
 
 interface Harness {
@@ -34,6 +35,7 @@ interface Harness {
   completeTotpEnrolment: Mock;
   completePasskeyEnrolment: Mock;
   completeRecoveryCodes: Mock;
+  completeUpdatePassword: Mock;
 }
 
 function harness(): Harness {
@@ -45,6 +47,7 @@ function harness(): Harness {
     .fn()
     .mockResolvedValue({ kind: 'enrolled', credentialId: 'credential-1' });
   const completeRecoveryCodes = vi.fn().mockResolvedValue({ kind: 'acknowledged' });
+  const completeUpdatePassword = vi.fn().mockResolvedValue({ kind: 'updated' });
   return {
     deps: {
       findRealm,
@@ -53,6 +56,7 @@ function harness(): Harness {
       completeTotpEnrolment,
       completePasskeyEnrolment,
       completeRecoveryCodes,
+      completeUpdatePassword,
     },
     findRealm,
     boundSubject,
@@ -60,6 +64,7 @@ function harness(): Harness {
     completeTotpEnrolment,
     completePasskeyEnrolment,
     completeRecoveryCodes,
+    completeUpdatePassword,
   };
 }
 
@@ -157,17 +162,21 @@ describe('handleRequiredActionSubmission — who is allowed to act', () => {
     expect(outcome).toEqual({ kind: 'not_owed', action: '' });
   });
 
-  it('refuses an owed action this route has no submission for', async () => {
-    const { deps, pendingActions, completeTotpEnrolment } = harness();
-    pendingActions.mockResolvedValue(['update-password']);
+  // The gate is the whole of this route's authorization, and it applies to
+  // a password exactly as it applies to an enrolment: a bound subject who
+  // was never asked to change their password does not get to set one here.
+  it('changes nothing for a subject who owes no update-password', async () => {
+    const { deps, pendingActions, completeUpdatePassword } = harness();
+    pendingActions.mockResolvedValue(['configure-totp']);
 
     const outcome = await handleRequiredActionSubmission(deps, 'acme', {
       ...SUBMISSION,
       action: 'update-password',
+      password: 'correct horse battery staple',
     });
 
-    expect(outcome).toEqual({ kind: 'unsupported', action: 'update-password' });
-    expect(completeTotpEnrolment).not.toHaveBeenCalled();
+    expect(outcome).toEqual({ kind: 'not_owed', action: 'update-password' });
+    expect(completeUpdatePassword).not.toHaveBeenCalled();
   });
 
   // The acknowledgement carries no credential of its own, so the gate is
@@ -234,6 +243,7 @@ describe('handleRequiredActionSubmission — who is allowed to act', () => {
       pendingActions: (realmId, subjectId) => deps.pendingActions(realmId, subjectId),
       completeTotpEnrolment: (input) => deps.completeTotpEnrolment(input),
       completeRecoveryCodes: (input) => deps.completeRecoveryCodes(input),
+      completeUpdatePassword: (input) => deps.completeUpdatePassword(input),
     };
 
     const outcome = await handleRequiredActionSubmission(withoutPasskeys, 'acme', {
@@ -283,6 +293,72 @@ describe('handleRequiredActionSubmission — enrolling the owed factor', () => {
     const outcome = await handleRequiredActionSubmission(deps, 'acme', SUBMISSION);
 
     expect(outcome).toEqual({ kind: 'completed', authSessionId: AUTH_SESSION_ID });
+  });
+});
+
+describe('handleRequiredActionSubmission — changing an owed password', () => {
+  it('writes the candidate for the bound subject, never one the form names', async () => {
+    const { deps, pendingActions, completeUpdatePassword } = harness();
+    pendingActions.mockResolvedValue(['update-password']);
+
+    const outcome = await handleRequiredActionSubmission(deps, 'acme', {
+      ...SUBMISSION,
+      action: 'update-password',
+      password: 'correct horse battery staple',
+    });
+
+    expect(outcome).toEqual({ kind: 'completed', authSessionId: AUTH_SESSION_ID });
+    expect(completeUpdatePassword).toHaveBeenCalledWith({
+      realmId: 'realm-1',
+      subjectId: 'subject-1',
+      password: 'correct horse battery staple',
+    });
+  });
+
+  it('carries every rule the realm policy reported back to the same attempt', async () => {
+    const { deps, pendingActions, completeUpdatePassword } = harness();
+    pendingActions.mockResolvedValue(['update-password']);
+    completeUpdatePassword.mockResolvedValue({
+      kind: 'rejected',
+      violations: [
+        'Password must be at least 8 characters long.',
+        'Password must contain a digit.',
+      ],
+    });
+
+    const outcome = await handleRequiredActionSubmission(deps, 'acme', {
+      ...SUBMISSION,
+      action: 'update-password',
+      password: 'weak',
+    });
+
+    expect(outcome).toEqual({
+      kind: 'password_rejected',
+      authSessionId: AUTH_SESSION_ID,
+      violations: [
+        'Password must be at least 8 characters long.',
+        'Password must contain a digit.',
+      ],
+    });
+  });
+
+  // A form submitted with the field empty is judged, not special-cased: the
+  // realm's own minimum length is what refuses it, and the page it comes
+  // back to says so.
+  it('judges a missing password field against the policy rather than accepting it', async () => {
+    const { deps, pendingActions, completeUpdatePassword } = harness();
+    pendingActions.mockResolvedValue(['update-password']);
+
+    await handleRequiredActionSubmission(deps, 'acme', {
+      ...SUBMISSION,
+      action: 'update-password',
+    });
+
+    expect(completeUpdatePassword).toHaveBeenCalledWith({
+      realmId: 'realm-1',
+      subjectId: 'subject-1',
+      password: '',
+    });
   });
 });
 

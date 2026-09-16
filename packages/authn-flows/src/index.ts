@@ -72,6 +72,12 @@ export {
   type RecoveryCodesOutcome,
 } from '#/usecase/recovery-codes';
 export { renderRecoveryCodesPage, type RecoveryCodesOffer } from '#/view/recovery-codes-html';
+export { renderUpdatePasswordPage } from '#/view/update-password-html';
+export {
+  completeUpdatePassword,
+  recordPasswordExpiryIfOwed,
+  type UpdatePasswordOutcome,
+} from '#/usecase/update-password';
 export { renderTotpEnrolmentPage, type TotpEnrolmentOffer } from '#/view/totp-enrolment-html';
 export {
   beginPasskeyEnrolment,

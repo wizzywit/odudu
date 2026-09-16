@@ -173,14 +173,26 @@ Every realm also carries a password policy — `password_min_length` (default
 default), and `password_not_username`/`password_not_email` (both on by
 default, refusing a password that contains the account's own username, or
 the local part of its email address — matched independently, so a
-password containing both is refused for both). `password_history_depth`
-and `password_max_age_days` are
-columns today with no reader yet — P2b's `update-password` task turns them
-into enforcement. The policy is read from the realm, never defaulted in
-code, and the same `evaluatePassword` call binds every writer of a
-password: registration, reset redemption, and the seed CLI's `--password`
-and `user` subcommand. A rejected password answers `400` with every
-violated rule listed at once, not just the first.
+password containing both is refused for both). The policy is read from the
+realm, never defaulted in code, and the same `evaluatePassword` call binds
+every writer of a password: registration, reset redemption, the seed CLI's
+`--password` and `user` subcommand, and the change-password required
+action. A rejected password answers `400` with every violated rule listed
+at once, not just the first.
+
+`password_max_age_days` (default `0`, the feature off) ages a password out.
+An expired password is **not** refused: the login authenticates as it
+always did and the `update-password` required action blocks it from
+completing, so a realm that turns this on moves accounts along rather than
+locking them out. `password_history_depth` (default `0`, also off) is how
+many retired passwords a realm remembers; above zero, the change-password
+action refuses a candidate matching any of them or the password in force,
+and rotation retires the displaced hash as a `password-history` credential.
+Those rows are never a login's input, and the ones past the depth are
+deleted — the one place anything in this codebase deletes a credential
+rather than marking it (ADR 0021), because no decision can read them.
+`password_history_depth` is not consulted by reset redemption, which
+evaluates the rest of the policy but keeps no history of its own.
 
 **Known limitation:** the reset-request endpoint still has a timing
 oracle — mailing an address that exists takes an SMTP round trip longer

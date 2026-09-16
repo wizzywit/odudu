@@ -607,6 +607,130 @@ describe('credentialRepository', () => {
       },
     });
   });
+
+  it('retires the displaced hash and keeps only the depth asked for', async () => {
+    const realmId = newId();
+    const subjectId = await withRealm(app.db, realmId, async (tx) => {
+      await seedRealm(tx, realmId);
+      const subject = await subjectRepository(tx).create({ realmId, type: 'user' });
+      await credentialRepository(tx).insert({
+        realmId,
+        subjectId: subject.id,
+        type: 'password',
+        secret: { kind: 'password', hash: '$argon2id$one' },
+      });
+      return subject.id;
+    });
+
+    for (const [from, to] of [
+      ['$argon2id$one', '$argon2id$two'],
+      ['$argon2id$two', '$argon2id$three'],
+      ['$argon2id$three', '$argon2id$four'],
+    ] as const) {
+      const rotated = await withRealm(app.db, realmId, (tx) =>
+        credentialRepository(tx).rotatePassword(subjectId, { from, to }, 2),
+      );
+      expect(rotated).toBe(true);
+    }
+
+    const state = await withRealm(app.db, realmId, async (tx) => ({
+      current: await credentialRepository(tx).passwordFor(subjectId),
+      history: await credentialRepository(tx).passwordHistory(subjectId),
+    }));
+    expect(state.current).toBe('$argon2id$four');
+    expect(state.history).toEqual(['$argon2id$three', '$argon2id$two']);
+  });
+
+  // The write is the decision, not a record of one: a rotation against a
+  // hash that is no longer in force archives nothing and reports it.
+  it('refuses a rotation whose outgoing hash has already been replaced', async () => {
+    const realmId = newId();
+    const subjectId = await withRealm(app.db, realmId, async (tx) => {
+      await seedRealm(tx, realmId);
+      const subject = await subjectRepository(tx).create({ realmId, type: 'user' });
+      await credentialRepository(tx).insert({
+        realmId,
+        subjectId: subject.id,
+        type: 'password',
+        secret: { kind: 'password', hash: '$argon2id$one' },
+      });
+      return subject.id;
+    });
+
+    const stale = await withRealm(app.db, realmId, (tx) =>
+      credentialRepository(tx).rotatePassword(
+        subjectId,
+        { from: '$argon2id$never-was', to: '$argon2id$two' },
+        4,
+      ),
+    );
+
+    expect(stale).toBe(false);
+    const after = await withRealm(app.db, realmId, async (tx) => ({
+      current: await credentialRepository(tx).passwordFor(subjectId),
+      history: await credentialRepository(tx).passwordHistory(subjectId),
+    }));
+    expect(after).toEqual({ current: '$argon2id$one', history: [] });
+  });
+
+  it('reads no password history under a different realm context', async () => {
+    await expectCrossRealmMethodProbe(app.db, {
+      seed: async (tx, realmId) => {
+        await seedRealm(tx, realmId);
+        const subject = await subjectRepository(tx).create({ realmId, type: 'user' });
+        await tx.insert(userCredentials).values({
+          id: newId(),
+          realmId,
+          subjectId: subject.id,
+          type: 'password-history',
+          secretData: { hash: '$argon2id$retired' },
+        });
+        return subject.id;
+      },
+      verifySeeded: async (tx, subjectId) => {
+        expect(await credentialRepository(tx).passwordHistory(subjectId)).toEqual([
+          '$argon2id$retired',
+        ]);
+      },
+      attempt: async (tx, subjectId) => credentialRepository(tx).passwordHistory(subjectId),
+      expectBlocked: (result) => {
+        expect(result).toEqual([]);
+      },
+    });
+  });
+
+  it('cannot rotate a password under a different realm context', async () => {
+    await expectCrossRealmMethodProbe(app.db, {
+      seed: async (tx, realmId) => {
+        await seedRealm(tx, realmId);
+        const subject = await subjectRepository(tx).create({ realmId, type: 'user' });
+        await tx.insert(userCredentials).values({
+          id: newId(),
+          realmId,
+          subjectId: subject.id,
+          type: 'password',
+          secretData: { hash: '$argon2id$fake-hash' },
+        });
+        return subject.id;
+      },
+      verifySeeded: async (tx, subjectId) => {
+        expect(await credentialRepository(tx).passwordFor(subjectId)).toBe('$argon2id$fake-hash');
+      },
+      attempt: async (tx, subjectId) =>
+        credentialRepository(tx).rotatePassword(
+          subjectId,
+          { from: '$argon2id$fake-hash', to: '$argon2id$attacker-hash' },
+          4,
+        ),
+      expectBlocked: (result) => {
+        expect(result).toBe(false);
+      },
+      verifyRealmAUnaffected: async (tx, subjectId) => {
+        expect(await credentialRepository(tx).passwordFor(subjectId)).toBe('$argon2id$fake-hash');
+        expect(await credentialRepository(tx).passwordHistory(subjectId)).toEqual([]);
+      },
+    });
+  });
 });
 
 describe('realm isolation', () => {

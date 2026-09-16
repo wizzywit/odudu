@@ -9,10 +9,12 @@ export {
 export { parseCredentialSecret, type CredentialSecret } from '#/service/credential-secret';
 export {
   evaluatePassword,
+  REUSED_PASSWORD,
   type PasswordPolicy,
   type PasswordSubject,
   type PolicyViolation,
 } from '#/service/password-policy';
+export { passwordExpired } from '#/service/password-age';
 export { subjectRepository, type NewSubject } from '#/repository/subjects';
 export {
   userRepository,

@@ -3,6 +3,7 @@ import {
   renderRecoveryCodesPage,
   renderRequiredActionPage,
   renderTotpEnrolmentPage,
+  renderUpdatePasswordPage,
   type AuthenticatorResult,
   type PasskeyEnrolmentOffer,
   type RecoveryCodesOffer,
@@ -69,6 +70,7 @@ export function registerRequiredActionRoute(
       action: request.query.action,
       secret: firstString(body.secret),
       code: firstString(body.code),
+      password: firstString(body.password),
       credential: firstString(body.credential),
       label: firstString(body.label),
     });
@@ -103,6 +105,17 @@ export function registerRequiredActionRoute(
       );
     }
 
+    // Back to the same form with every rule it broke, and 400 for the same
+    // reason registration and reset redemption answer one: the submission
+    // was refused, so a 200 would tell a client the password had changed.
+    if (outcome.kind === 'password_rejected') {
+      return sendHtml(
+        reply,
+        400,
+        renderUpdatePasswordPage(realmName, outcome.authSessionId, outcome.violations),
+      );
+    }
+
     const realm = await deps.findRealm(realmName);
     if (realm === null) {
       return sendHtml(reply, 400, renderAuthorizeErrorPage('invalid_request', 'Unknown realm.'));
@@ -134,11 +147,7 @@ export function registerRequiredActionRoute(
     if (outcome.action === 'configure-passkey') {
       const begin = deps.beginPasskeyEnrolment?.bind(deps);
       if (begin === undefined) {
-        return sendHtml(
-          reply,
-          200,
-          renderRequiredActionPage(realmName, outcome.authSessionId, outcome.action),
-        );
+        return sendHtml(reply, 200, renderRequiredActionPage(outcome.action));
       }
       // A retry needs its own challenge: the refused one is already gone.
       const passkey = await begin(realmName, realm.id, outcome.subjectId, outcome.authSessionId);

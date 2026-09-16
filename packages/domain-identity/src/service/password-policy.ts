@@ -20,6 +20,16 @@ export interface PasswordSubject {
   email: string | null;
 }
 
+// The one rule evaluatePassword cannot decide: whether the candidate is a
+// password this subject has already had. That answer lives in stored
+// Argon2id hashes, so it is verified where a transaction is in hand and
+// reported with this — a rule of the realm's policy either way, named here
+// alongside the rest so a page renders one list.
+export const REUSED_PASSWORD: PolicyViolation = {
+  rule: 'not-reused',
+  message: 'Password must not be one you have used before.',
+};
+
 const SPECIAL_CHARACTER = /[^A-Za-z0-9]/u;
 
 // Every violation is collected, not just the first: a form that rejects one

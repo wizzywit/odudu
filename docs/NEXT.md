@@ -3,7 +3,56 @@
 ## Start here
 
 **P0, P1 and P2a are complete. P2b is brainstormed, specified and planned;
-Tasks 1 through 20 have landed and Task 21 is next.**
+Tasks 1 through 21 have landed and Task 22 is next.**
+
+**Task 21 gives `password_history_depth` and `password_max_age_days` a
+reader, and the change-password required action a route.** No migration was
+needed: 0035 added both columns and 0034 already allowed the
+`password-history` credential type and deliberately left it out of the
+per-subject partial unique indexes. `passwordExpired(credential,
+maxAgeDays, now)` is a leaf service in `@odudu/domain-identity`; a maximum
+of zero is the feature off, not an immediate expiry.
+`recordPasswordExpiryIfOwed` runs in `advance`, beside
+`recordOtpEnrolmentIfOwed` and for the same reason: **an expired password
+still authenticates**, and the required-action gate — which sits downstream
+of a success — is what blocks the login from completing. Refusing the
+factor instead would have been a deadlock, the shape Task 17's
+applicability table nearly shipped. `credentialRepository` gained
+`passwordHistory(subjectId)` (retired hashes, newest first) and
+`rotatePassword(subjectId, { from, to }, historyDepth)`, a compare-and-swap
+on the outgoing hash rather than the brief's `(subjectId, newHash, depth)`
+returning `void`: the predicate is the decision, so two rotations racing
+one observed state archive one hash, not two. `rotatePassword` and
+`setPassword` both now move `created_at` with the hash — one row holds a
+subject's password for the life of the account, so it dates the password
+and not the row, and left alone a rotation would leave the new password
+already expired and the action owed forever. Trimming history past the
+depth is the one `DELETE` in this phase that is right, and the comment at
+it says why against ADR 0021's default: a row past the depth is not
+something any decision can read. `passwordHistoryShape` needed no widening
+— it was already `{ hash }`, unlike `recoveryCodeShape` in Task 20.
+`completeUpdatePassword` evaluates the realm policy first and only then
+verifies reuse, sequentially and short-circuiting: at a depth of 24 that is
+up to 25 Argon2id verifications, and awaiting them together would hold the
+whole default libuv pool for as long as the slowest — affordable here only
+because the path requires a subject a factor has already bound. Reuse is
+reported as a policy violation (`REUSED_PASSWORD`, beside
+`evaluatePassword`), so the page renders one list. `update-password` got a
+page of its own, `renderUpdatePasswordPage`, which is both the form a
+parked login shows and the re-render a refused candidate returns to, at
+`400` like registration and reset redemption.
+`apps/server/tests/password-policy.int.test.ts`'s fourth case is a plain
+`it` and drives the whole journey — `/authorize`, the login POST, then the
+required-action POST — because nothing shorter reaches the fourth writer:
+the route refuses a submission whose session names nobody, and the gate
+refuses an action the bound subject never owed. **What this leaves open:
+reset redemption still keeps no history**, so the password it displaces can
+be set again later; wiring it in means threading the depth and the stored
+hashes into `@odudu/account`, which depends on neither the required-action
+machinery nor `apps/server`. And expiry compares a `created_at` the
+database wrote with an instant the application's clock reports, so the two
+clocks must agree to within far less than a day — which they do, but
+nothing asserts it.
 
 **Task 20 issues single-use recovery codes.** Ten per subject, each ten
 characters from Crockford's base32 alphabet (2^50 apiece, printed
@@ -584,22 +633,21 @@ matches the local part of the address, not the whole string, so a
 candidate containing just the account-name half is refused the same as one
 containing the username, and a subject whose username equals its email's
 local part trips both rules at once, not either-or),
-`password_history_depth` (0–24) and `password_max_age_days` (0–3650) — the
-last two are columns with no reader yet; `update-password` is the task that
-gives them one. `@odudu/domain-identity` gained
+`password_history_depth` (0–24) and `password_max_age_days` (0–3650) —
+Task 21 gave the last two a reader. `@odudu/domain-identity` gained
 `evaluatePassword(candidate, policy, subject)`, a leaf service (no `tx`, no
 clock) that returns every violated rule, not just the first, and counts
 characters with `Array.from(candidate).length` rather than `.length` so an
 8-emoji password is not miscounted as 16 characters. Three of the four
-writers now call it: registration (`register.ts`), reset redemption
+writers called it as of that task: registration (`register.ts`), reset redemption
 (`completePasswordReset`, checked against a non-consuming `peek` so a weak
 password never burns the link), and both of the seed CLI's password-writing
 paths (`--user`/`--password` and `seed user`) — there is no development
 override for the seed CLI; it enforces the same policy every other writer
-does. The fourth writer, the change-password required action, does not
-exist until `update-password` lands; `apps/server/tests/password-policy.int.test.ts`
-carries its case as `it.fails` rather than a skip, so it stays visible
-until that task turns it into a plain `it`. That cross-cutting test lives
+does. The fourth writer, the change-password required action, did not exist
+until Task 21, and `apps/server/tests/password-policy.int.test.ts` carried
+its case as `it.fails` rather than a skip until then. That cross-cutting
+test lives
 under `apps/server/tests/`, not `packages/account/tests/` as the phase plan
 named it — `@odudu/account` depends on neither `@odudu/authn-flows` nor
 `apps/server`, so it cannot reach the seed CLI or the future required
@@ -639,9 +687,10 @@ order: password first, so an expired password is never usable to enrol a
 second factor), and `renderRequiredActionPage(realm, authSessionId,
 action)` — a page shell in the same dependency-free, `escapeHtml`-everything
 style as `authorize-html.ts`, carrying the same hidden `auth_session_id`
-CSRF field, with real fields only for `update-password` today (the other
-three have no enrolment UI yet, the same gap `executor.ts` already has for
-`passkey`/`otp`).
+CSRF field. Every action has since been given a page of its own, and this
+one is now `renderRequiredActionPage(action)` — what is left of it is the
+deployment that cannot offer an action at all (no relying party id, and so
+no passkey to enrol), which is why it carries no form.
 
 `login-submission.ts`'s `handleLoginSubmission` gates on
 `nextRequiredAction(await deps.pendingActions(realm.id, result.subjectId))`
@@ -666,16 +715,13 @@ checked first, ahead of both the `id_token_hint` comparison and the new
 gate. `login.ts`'s route renders `renderRequiredActionPage` for the new
 outcome, the same way it already does for `unverified`.
 
-**What this task does not build.** No route answers
-`POST /realms/{realm}/login-actions/required-action` yet — the page's form
-posts there, but nothing is registered to receive it, so
-`apps/server/tests/password-policy.int.test.ts`'s
-`it.fails('refuses a weak password at the change-password required
-action', …)` still fails exactly as before (a 404 where it expects 400),
-for the same reason its comment gives: that writer does not exist yet.
-Nothing seeds `user_required_actions` in any live path either, so no
-existing realm's login behaviour changed — the mechanism exists; nothing
-yet turns it on.
+**What this task did not build.** It registered no route for
+`POST /realms/{realm}/login-actions/required-action` — the page's form
+posted there with nothing to receive it — and nothing seeded
+`user_required_actions` in any live path, so no existing realm's login
+behaviour changed. Tasks 17 through 21 closed both halves: the route, and
+the paths (a realm requiring OTP, and an expired password) that owe an
+action in the first place.
 
 **Reaping now covers five tables, not four, and ADR 0021's warning covers
 all five.** P2a added `action_tokens` (email verification and password

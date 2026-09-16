@@ -3,6 +3,7 @@ import {
   type RecoveryCodesOutcome,
   type RequiredAction,
   type TotpEnrolmentOutcome,
+  type UpdatePasswordOutcome,
 } from '@odudu/authn-flows';
 import { isUuid } from '@odudu/kernel';
 import { type RealmLookup } from '#/repository/realm-lookup';
@@ -22,6 +23,10 @@ export type RequiredActionOutcome =
   | { kind: 'unsupported'; action: string }
   // The action is done and the parked login is waiting; the caller resumes it.
   | { kind: 'completed'; authSessionId: string }
+  // The candidate password did not satisfy the realm's policy. Every rule
+  // it broke is carried, not just the first, so the form it goes back to
+  // can list them at once.
+  | { kind: 'password_rejected'; authSessionId: string; violations: readonly string[] }
   | {
       kind: 'rejected';
       authSessionId: string;
@@ -35,6 +40,9 @@ export interface RequiredActionSubmission {
   action: string | undefined;
   secret: string | undefined;
   code: string | undefined;
+  // The candidate for the update-password action. Judged against the
+  // realm's policy where it is written, never here.
+  password: string | undefined;
   // The JSON navigator.credentials.create() produced, as the passkey page's
   // hidden field carried it back, and the name the user gave it.
   credential: string | undefined;
@@ -64,6 +72,14 @@ export interface RequiredActionSubmissionDeps {
     realmId: string;
     subjectId: string;
   }): Promise<RecoveryCodesOutcome>;
+  // The fourth writer of a password in a realm, bound by the same policy as
+  // registration, reset redemption and the seed CLI — and the only one that
+  // refuses a password the subject has had before.
+  completeUpdatePassword(input: {
+    realmId: string;
+    subjectId: string;
+    password: string;
+  }): Promise<UpdatePasswordOutcome>;
   // Absent when no relying party can be derived — see relyingPartyId in
   // @odudu/authn-flows. A passkey enrolled against a guessed RP ID is
   // unusable and silently so, so the action is reported unsupported rather
@@ -125,6 +141,16 @@ export async function handleRequiredActionSubmission(
 
   if (action === 'generate-recovery-codes') {
     return acknowledgeRecoveryCodes(deps, realm.id, subjectId, authSessionId);
+  }
+
+  if (action === 'update-password') {
+    const changed = await deps.completeUpdatePassword({
+      realmId: realm.id,
+      subjectId,
+      password: submission.password ?? '',
+    });
+    if (changed.kind === 'updated') return { kind: 'completed', authSessionId };
+    return { kind: 'password_rejected', authSessionId, violations: changed.violations };
   }
 
   if (action !== 'configure-totp') {

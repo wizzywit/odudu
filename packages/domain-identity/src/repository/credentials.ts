@@ -1,6 +1,6 @@
 import { type RealmScopedDatabase } from '@odudu/db';
 import { newId, OduduError } from '@odudu/kernel';
-import { and, eq, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 import {
   userCredentials,
   type CredentialRecord,
@@ -33,6 +33,40 @@ function toRecord(row: typeof userCredentials.$inferSelect): CredentialRecord {
     lookupKey: row.lookupKey,
     createdAt: row.createdAt,
   };
+}
+
+// The one place in this package where deleting a row is right. ADR 0021
+// keeps a spent credential because a decision still reads it — a replayed
+// recovery code is refused *as* a spent one. A retired password past the
+// realm's history depth is the opposite: no reuse check will ever compare
+// against it again, so the row is a stored password hash that answers
+// nothing, and keeping it is only exposure.
+async function trimPasswordHistory(
+  tx: RealmScopedDatabase,
+  subjectId: string,
+  historyDepth: number,
+): Promise<void> {
+  const beyondDepth = tx
+    .select({ id: userCredentials.id })
+    .from(userCredentials)
+    .where(
+      and(eq(userCredentials.subjectId, subjectId), eq(userCredentials.type, 'password-history')),
+    )
+    // created_at alone ties for two rows retired in one transaction, where
+    // now() does not advance; the id breaks it so the set kept is the same
+    // one on every run.
+    .orderBy(desc(userCredentials.createdAt), desc(userCredentials.id))
+    .offset(historyDepth);
+
+  await tx
+    .delete(userCredentials)
+    .where(
+      and(
+        eq(userCredentials.subjectId, subjectId),
+        eq(userCredentials.type, 'password-history'),
+        inArray(userCredentials.id, beyondDepth),
+      ),
+    );
 }
 
 export function credentialRepository(tx: RealmScopedDatabase) {
@@ -203,7 +237,13 @@ export function credentialRepository(tx: RealmScopedDatabase) {
     async setPassword(subjectId: string, hash: string): Promise<void> {
       const rows = await tx
         .update(userCredentials)
-        .set({ secretData: serializeCredentialSecret({ kind: 'password', hash }) })
+        // created_at dates the password, not the row — see rotatePassword.
+        // A redeemed reset is a new password, so the realm's maximum age
+        // counts from here and not from the one it replaced.
+        .set({
+          secretData: serializeCredentialSecret({ kind: 'password', hash }),
+          createdAt: sql`now()`,
+        })
         .where(and(eq(userCredentials.subjectId, subjectId), eq(userCredentials.type, 'password')))
         .returning();
       const row = rows[0];
@@ -213,6 +253,67 @@ export function credentialRepository(tx: RealmScopedDatabase) {
           `no password credential for subject ${subjectId}`,
         );
       }
+    },
+
+    // The retired hashes a reuse check reads, newest first. Never a login's
+    // input: passwordFor filters `type = 'password'`, so a row here cannot
+    // authenticate anybody however many of them there are.
+    async passwordHistory(subjectId: string): Promise<string[]> {
+      const rows = await tx
+        .select({ secretData: userCredentials.secretData })
+        .from(userCredentials)
+        .where(
+          and(
+            eq(userCredentials.subjectId, subjectId),
+            eq(userCredentials.type, 'password-history'),
+          ),
+        )
+        .orderBy(desc(userCredentials.createdAt), desc(userCredentials.id));
+      return rows.map((row) => parseCredentialSecret('password-history', row.secretData).hash);
+    },
+
+    // Replaces the password in force and retires the one it displaces, so a
+    // later change can be told from a reuse of it. A compare-and-swap on the
+    // outgoing hash for the reason recordTotpUse is one: two rotations that
+    // both read `from` serialize on the row, and the second matches nothing
+    // rather than archiving a hash that is no longer in force. A false
+    // return is that race, not a missing credential.
+    async rotatePassword(
+      subjectId: string,
+      change: { from: string; to: string },
+      historyDepth: number,
+    ): Promise<boolean> {
+      const rows = await tx
+        .update(userCredentials)
+        // created_at moves with the hash: one row holds a subject's password
+        // for the life of the account (user_credentials_one_password, 0034),
+        // so it dates the password in force rather than the row, and
+        // passwordExpired reads it. Left alone, a rotation would leave the
+        // new password already expired and the action owed forever.
+        .set({
+          secretData: serializeCredentialSecret({ kind: 'password', hash: change.to }),
+          createdAt: sql`now()`,
+        })
+        .where(
+          and(
+            eq(userCredentials.subjectId, subjectId),
+            eq(userCredentials.type, 'password'),
+            sql`${userCredentials.secretData}->>'hash' = ${change.from}`,
+          ),
+        )
+        .returning({ realmId: userCredentials.realmId });
+      const row = rows[0];
+      if (row === undefined) return false;
+
+      await tx.insert(userCredentials).values({
+        id: newId(),
+        realmId: row.realmId,
+        subjectId,
+        type: 'password-history',
+        secretData: serializeCredentialSecret({ kind: 'password-history', hash: change.from }),
+      });
+      await trimPasswordHistory(tx, subjectId, historyDepth);
+      return true;
     },
   };
 }

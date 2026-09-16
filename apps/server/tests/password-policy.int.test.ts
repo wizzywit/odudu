@@ -8,7 +8,8 @@ import {
 import { capturingSender, type EmailMessage } from '@odudu/email';
 import { loadConfig, newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
-import { eq } from 'drizzle-orm';
+import { userCredentials } from '@odudu/domain-identity';
+import { and, eq, sql } from 'drizzle-orm';
 import { type FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { buildApp } from '#/app';
@@ -26,6 +27,7 @@ import { createLogger } from '#/logger';
 const PUBLIC_BASE_URL = 'https://idp.example.test';
 const REDIRECT_URI = 'https://app.example/callback';
 const WEAK_PASSWORD = 'weak';
+const STRONG_PASSWORD = 'correct horse battery staple';
 
 let containerHandle: TestDatabase | undefined;
 let ownerHandle: DatabaseHandle | undefined;
@@ -81,9 +83,57 @@ function buildTestApp(): FastifyInstance {
 
 async function setRealmSettings(
   realmId: string,
-  settings: { registrationAllowed?: boolean; resetPasswordAllowed?: boolean },
+  settings: {
+    registrationAllowed?: boolean;
+    resetPasswordAllowed?: boolean;
+    passwordMaxAgeDays?: number;
+  },
 ): Promise<void> {
   await owner.db.update(realms).set(settings).where(eq(realms.id, realmId));
+}
+
+// created_at is written by the database's own now(), so standing a password
+// in the past is the only way to make the realm's maximum age bite.
+async function agePassword(realmId: string, days: number): Promise<void> {
+  await owner.db
+    .update(userCredentials)
+    .set({ createdAt: sql`now() - ${`${String(days)} days`}::interval` })
+    .where(and(eq(userCredentials.realmId, realmId), eq(userCredentials.type, 'password')));
+}
+
+async function formPost(
+  app: FastifyInstance,
+  url: string,
+  fields: Record<string, string>,
+): Promise<{ statusCode: number; body: string }> {
+  return app.inject({
+    method: 'POST',
+    url,
+    payload: new URLSearchParams(fields).toString(),
+    headers: { 'content-type': 'application/x-www-form-urlencoded' },
+  });
+}
+
+// The login form /authorize renders carries the id of the authentication
+// session the required-action route will not act without.
+async function startAuthSession(app: FastifyInstance, realmName: string): Promise<string> {
+  const params = new URLSearchParams({
+    response_type: 'code',
+    client_id: 'policy-spa',
+    redirect_uri: REDIRECT_URI,
+    scope: 'openid',
+    state: 'xyz',
+    code_challenge: 'E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM',
+    code_challenge_method: 'S256',
+  });
+  const authorize = await app.inject({
+    url: `/realms/${realmName}/protocol/openid-connect/auth?${params.toString()}`,
+  });
+  expect(authorize.statusCode).toBe(200);
+  const match = /name="auth_session_id" value="([^"]*)"/.exec(authorize.body);
+  const authSessionId = match?.[1];
+  if (authSessionId === undefined) throw new Error('auth_session_id not found in the login form');
+  return authSessionId;
 }
 
 function extractLink(message: EmailMessage): string {
@@ -132,7 +182,7 @@ describe('the realm password policy binds every writer', () => {
       clientId: 'policy-spa',
       redirectUris: [REDIRECT_URI],
       username: 'ada',
-      password: 'correct horse battery staple',
+      password: STRONG_PASSWORD,
       email: 'ada@example.test',
     });
     await setRealmSettings(seeded.realmId, { resetPasswordAllowed: true });
@@ -193,36 +243,50 @@ describe('the realm password policy binds every writer', () => {
     ).rejects.toThrow(/password does not satisfy the realm's password policy/);
   });
 
-  // The change-password required action — the fourth writer of a password —
-  // does not exist yet. `it.fails` keeps this visibly failing rather than
-  // silently skipped until a later change wires a real route here and
-  // turns it into a plain `it`.
-  it.fails('refuses a weak password at the change-password required action', async () => {
+  // The fourth writer, reached the only way it can be: the action has to be
+  // owed, and the authentication session has to be bound to the subject who
+  // owes it. Nothing shorter than a real login gets here — the route refuses
+  // a submission whose session names nobody, and the gate refuses an action
+  // the bound subject was never asked for.
+  it('refuses a weak password at the change-password required action', async () => {
     const realmName = `policy-change-${newId()}`;
     const seeded = await seed({
       realm: realmName,
       clientId: 'policy-spa',
       redirectUris: [REDIRECT_URI],
       username: 'ada',
-      password: 'correct horse battery staple',
+      password: STRONG_PASSWORD,
       email: 'ada@example.test',
     });
-    await setRealmSettings(seeded.realmId, { registrationAllowed: true });
+    // A maximum age of one day against a password stood a week in the past:
+    // what makes update-password owed, and the login that discovers it still
+    // authenticates — the action blocks its completion, not the password.
+    await setRealmSettings(seeded.realmId, { passwordMaxAgeDays: 1 });
+    await agePassword(seeded.realmId, 7);
 
     const app = buildTestApp();
     await app.ready();
     try {
-      // Refuses (404) today: nothing has registered this route yet.
-      const form = new URLSearchParams({ password: WEAK_PASSWORD });
-      const res = await app.inject({
-        method: 'POST',
-        url: `/realms/${realmName}/login-actions/required-action?action=update-password`,
-        payload: form.toString(),
-        headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      const authSessionId = await startAuthSession(app, realmName);
+      const login = await formPost(app, `/realms/${realmName}/login-actions/authenticate`, {
+        auth_session_id: authSessionId,
+        username: 'ada',
+        password: STRONG_PASSWORD,
       });
+      expect(login.statusCode).toBe(200);
+      expect(login.body).toContain('Change your password');
+
+      const res = await formPost(
+        app,
+        `/realms/${realmName}/login-actions/required-action?action=update-password`,
+        { auth_session_id: authSessionId, password: WEAK_PASSWORD },
+      );
 
       expect(res.statusCode).toBe(400);
       expect(res.body).toContain('at least');
+      // Back to the same form, so the refusal is the policy's and not the
+      // route losing the attempt.
+      expect(res.body).toContain('Change your password');
     } finally {
       await app.close();
     }

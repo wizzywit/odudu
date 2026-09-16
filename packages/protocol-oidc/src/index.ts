@@ -8,6 +8,7 @@ import {
   completePasskeyEnrolment,
   completeRecoveryCodes,
   completeTotpEnrolment,
+  completeUpdatePassword,
   consumeAuthenticationSession,
   establishSession,
   initialChallenge,
@@ -314,6 +315,8 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
       beginRecoveryCodes: startRecoveryCodes,
       completeRecoveryCodes: (input) =>
         withRealm(deps.database.db, input.realmId, (tx) => completeRecoveryCodes(tx, input)),
+      completeUpdatePassword: (input) =>
+        withRealm(deps.database.db, input.realmId, (tx) => completeUpdatePassword(tx, input)),
     });
     registerLoginRoute(app, {
       findRealm,
