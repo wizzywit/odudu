@@ -127,6 +127,38 @@ that call to `allowForKnownSafeCalls` in `eslint.config.js` with a comment
 saying why it is safe. `fastify`'s `register` is there for exactly that
 reason.
 
+## Background work
+
+Anything that runs on a schedule is **a command first and a timer second**.
+The work is a usecase with no timer anywhere in it, taking its `now` as an
+argument, and it is exposed as a command an operator can run. The loop is a
+separate thin file that holds no logic of its own: an interval, its jitter,
+a call, a `catch` that logs, and a `stop` that awaits the pass already in
+flight. Nothing else belongs in it.
+
+That split is what makes the work testable without a clock and the loop
+testable without a database, and it is what lets a deployment schedule the
+command externally instead — which is a supported configuration, never a
+fallback. `odudu reap` and `apps/server/src/scheduler.ts` are the pair to
+copy; ADR 0024 has the reasoning.
+
+**A loop that dies is worse than a loop that never started.** Nothing
+fails, nothing alerts, and the table grows until somebody notices months
+later. So a pass that throws is logged and the loop reschedules, and the
+test that establishes this asserts a **later** run — not that the error was
+logged. "The run fired" says nothing about whether the loop is still alive.
+
+**Decide at boot what cannot change per tick.** A loop whose first act each
+hour is to rediscover a missing environment variable is a loop that logs
+the same error forever. Refuse to start, name the variable and name the
+switch that turns the schedule off.
+
+**Test a loop with fake timers, never by waiting.** `vi.useFakeTimers()`
+and `await vi.advanceTimersByTimeAsync(ms)`; a jitter band is asserted by
+injecting the draw, not by timing ticks.
+`apps/server/src/scheduler.test.ts` is the example. A suite that sleeps is
+slow when it passes and flaky when it does not.
+
 ## Layering
 
 Five functional layers, in the consoles and on the server alike:

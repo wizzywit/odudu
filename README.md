@@ -289,10 +289,11 @@ would have been the first background loop in the codebase and a second table
 nothing deletes from. Stated here rather than fixed, on the judgment that an
 honest limitation beats an accidental one.
 
-**P2b owns closing it**, as of 2026-09-15. P2b builds that background loop
-anyway, to reap expired state, so the outbox costs a table and a sender
-rather than new infrastructure; this paragraph goes away in the increment
-that lands it, and not before.
+**P2b owns closing it**, as of 2026-09-15. The background loop now exists —
+it reaps expired state (`apps/server/src/scheduler.ts`,
+[ADR 0024](docs/adr/0024-a-scheduled-pass-is-a-command-first.md)) — so the
+outbox costs a table and a sender rather than new infrastructure; this
+paragraph goes away in the increment that lands it, and not before.
 
 **Known limitation, realm-wide:** the reset endpoint's enumeration safety
 does not make the realm itself un-enumerable. With `registration_allowed`
@@ -646,11 +647,16 @@ to the realm afterwards. [docs/request-paths.md](docs/request-paths.md#roles-onc
 walks through all of it, including a client-scoped role qualified as
 `clientId:roleName`.
 
-**Nothing deletes anything until you run the retention pass.** Every login
-writes an `authentication_sessions` row, every redemption an
-`authorization_codes` row, and every refresh rotation a `refresh_tokens`
-row; no repository in the codebase issues a `DELETE`. `reap` is the command
-that does, and it is not scheduled — an operator or a cron entry runs it:
+**One pass deletes everything that expires.** Every login writes an
+`authentication_sessions` row, every redemption an `authorization_codes`
+row, and every refresh rotation a `refresh_tokens` row; no repository in the
+codebase issues a `DELETE`. `reap` is the pass that does, and the server
+runs it itself every `ODUDU_REAP_INTERVAL_SECONDS` (default `3600`) plus up
+to a tenth of that as jitter. `ODUDU_REAP_ENABLED=false` turns the schedule
+off for a deployment that would rather run the same pass as a cron entry or
+a Kubernetes CronJob, which is the other supported arrangement
+([ADR 0024](docs/adr/0024-a-scheduled-pass-is-a-command-first.md)) — and
+the command is the same one:
 
 ```bash
 node --env-file=.env apps/server/src/main.ts reap
@@ -670,8 +676,17 @@ leaving every client-visible response identical. The windows, the
 implementation is wrong are in
 [ADR 0021](docs/adr/0021-retention-is-bounded-by-the-detection-window.md);
 [docs/request-paths.md](docs/request-paths.md#retention-what-odudu-reap-removes)
-has a pass with work to do. Running it from two places at once is safe: the
-pass takes a Postgres advisory lock and a second invocation skips the tick.
+has a pass with work to do. Running it from two places at once is safe —
+replicas on their own schedules included: the pass takes a Postgres
+advisory lock and whoever loses the tick skips it rather than duplicating
+the work.
+
+**Without `ODUDU_APP_DATABASE_URL` nothing is reaped, on a schedule or
+otherwise.** The pass deletes under the row-level-security policy that the
+owner role the migrations use escapes, so it refuses rather than running
+unscoped. Outside production — where the server refuses to boot without
+that variable at all — the schedule declines to start and logs one warning
+naming it, rather than failing the same way every hour.
 
 It answers three things that are not a report of rows, and
 [says which each is](docs/request-paths.md#when-the-pass-refuses-or-finds-nothing-to-look-at):
@@ -772,17 +787,19 @@ A real deployment today looks like:
    advisory lock, so concurrent replicas would race — and the per-origin
    throttle is a window in one process's memory, so replicas would each
    allow the full budget.
-7. Schedule `node dist/main.js reap`. Nothing in the server runs it, and
-   without it `authentication_sessions`, `authorization_codes` and
+7. **Leave the retention schedule on.** The server reaps hourly by
+   default; without it `authentication_sessions`, `authorization_codes` and
    `refresh_tokens` grow without bound and login metadata is kept for no
-   stated period. Fifteen minutes is a reasonable interval; the pass takes
-   a Postgres advisory lock, so more than one scheduler cannot duplicate
-   the work. **It holds one transaction for the whole tick** — every realm,
-   every table — which is what makes one lock and one report cover the lot,
-   and what to watch if a deployment ever has many realms and very large
-   tables. It also requires `ODUDU_APP_DATABASE_URL` and refuses to start
-   without it, because its deletes are scoped by the row-level-security
-   policy that the owner role escapes.
+   stated period. Set `ODUDU_REAP_INTERVAL_SECONDS` to shorten it, or
+   `ODUDU_REAP_ENABLED=false` and schedule `node dist/main.js reap` as a
+   cron entry or a CronJob instead — one or the other, and doing both is
+   harmless, since the pass takes a Postgres advisory lock and whoever
+   loses a tick skips it. **It holds one transaction for the whole tick** —
+   every realm, every table — which is what makes one lock and one report
+   cover the lot, and what to watch if a deployment ever has many realms
+   and very large tables. Either way it requires `ODUDU_APP_DATABASE_URL`,
+   because its deletes are scoped by the row-level-security policy that the
+   owner role escapes.
 
 ### What is not built yet
 

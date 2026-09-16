@@ -9,6 +9,14 @@ const booleanEnvVar = z
   .optional()
   .transform((value) => value === 'true');
 
+// The mirror of the above, for a switch that is on unless an operator turns
+// it off. Absent means on, so a deployment that says nothing about
+// retention still gets it.
+const enabledEnvVar = z
+  .enum(['true', 'false'])
+  .optional()
+  .transform((value) => value !== 'false');
+
 // Decoded and length-checked here, at the config boundary, so every later
 // consumer can assume 32 raw bytes rather than re-validating a base64 string.
 const kekBytes = z
@@ -123,6 +131,12 @@ const schema = z.object({
     .max(31_536_000)
     .default(604_800),
   ODUDU_RETENTION_SESSION_SECONDS: z.coerce.number().int().min(60).max(31_536_000).default(86_400),
+  // How often the server runs that pass itself, and whether it runs it at
+  // all. `false` is for a deployment that schedules `odudu reap` as a cron
+  // entry or a Kubernetes CronJob instead — a documented alternative, and
+  // the reason this is a switch rather than a fact.
+  ODUDU_REAP_ENABLED: enabledEnvVar,
+  ODUDU_REAP_INTERVAL_SECONDS: z.coerce.number().int().min(60).max(86_400).default(3600),
   ODUDU_LOG_LEVEL: z
     .enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent'])
     .default('info'),

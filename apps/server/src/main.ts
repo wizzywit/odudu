@@ -15,6 +15,7 @@ import { buildEmailSender } from '#/email';
 import { createLogger } from '#/logger';
 import { databaseModule } from '#/modules/database';
 import { httpModule } from '#/modules/http';
+import { reapModule } from '#/modules/reap';
 
 if (process.argv[2] === 'reap') {
   try {
@@ -75,6 +76,7 @@ const app = buildApp({
 
 const registry = new ModuleRegistry()
   .register(databaseModule(owner, runtime))
+  .register(reapModule({ database: runtime, ownerDatabase: owner }))
   .register(httpModule(app));
 
 closeWithGrace({ delay: 10_000 }, async ({ err }) => {

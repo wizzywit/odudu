@@ -3443,7 +3443,11 @@ deletes would be inert:
   `reap requires ODUDU_APP_DATABASE_URL: its deletes run under the realm policy, which the owner role the migrations use escapes`.
   The server's own boot guard demands it only in production; this command
   demands it always, because there is no deployment where reaping with the
-  policy switched off is the intention.
+  policy switched off is the intention. The schedule inside the server is
+  the one place that does not refuse per attempt: outside production it
+  declines to start at all, warning
+  `not reaping: ODUDU_APP_DATABASE_URL is unset` once, rather than throwing
+  this every hour for the life of the process.
 - The serving connection's role is a `SUPERUSER` or holds `BYPASSRLS`, so the
   policy does not apply to it. Pointing `ODUDU_APP_DATABASE_URL` at the owner
   is the way to reach it:
@@ -3465,11 +3469,18 @@ without the escape reads none of them. Checked against `pg_roles` rather
 than guessed at from an empty result, which is the same fact arriving too
 late to act on.
 
-Nothing schedules this yet — it is a command an operator or a cron entry
-runs. It is safe to run from more than one place at once: the pass takes a
-Postgres advisory lock for the whole tick, and an invocation that finds it
-held does nothing rather than duplicating the work. Holding the same key
-from a psql session is enough to see it:
+The server also runs this pass itself, every `ODUDU_REAP_INTERVAL_SECONDS`
+(default `3600`) plus up to a tenth of that as jitter, which is why the
+counts above are reproducible only if the backdating and the command follow
+each other inside one interval. `ODUDU_REAP_ENABLED=false` switches the
+schedule off for a deployment that runs the command on its own timetable
+([ADR 0024](adr/0024-a-scheduled-pass-is-a-command-first.md)).
+
+Running it from more than one place at once is safe, whether the other
+place is a cron entry or another replica's own schedule: the pass takes a
+Postgres advisory lock for the whole tick, and whoever finds it held does
+nothing rather than duplicating the work. Holding the same key from a psql
+session is enough to see it:
 
 ```bash
 docker compose exec -T postgres psql -U odudu -d odudu -q -c \

@@ -82,6 +82,33 @@ describe('loadConfig', () => {
     expect(() => loadConfig({ ...minimal, ODUDU_THROTTLE_LIMIT: '0' })).toThrow(/THROTTLE_LIMIT/u);
   });
 
+  it('schedules the retention pass hourly by default', () => {
+    const config = loadConfig(minimal);
+    expect(config.ODUDU_REAP_ENABLED).toBe(true);
+    expect(config.ODUDU_REAP_INTERVAL_SECONDS).toBe(3600);
+  });
+
+  // The one variable in this file whose absence means "on". An operator
+  // scheduling `odudu reap` externally has to be able to say so, and a
+  // deployment that says nothing must still reap.
+  it('turns the retention schedule off only on the literal string false', () => {
+    expect(loadConfig({ ...minimal, ODUDU_REAP_ENABLED: 'false' }).ODUDU_REAP_ENABLED).toBe(false);
+    expect(loadConfig({ ...minimal, ODUDU_REAP_ENABLED: 'true' }).ODUDU_REAP_ENABLED).toBe(true);
+    expect(() => loadConfig({ ...minimal, ODUDU_REAP_ENABLED: 'no' })).toThrow(/REAP_ENABLED/u);
+  });
+
+  it('reads a shortened retention interval out of the environment', () => {
+    expect(
+      loadConfig({ ...minimal, ODUDU_REAP_INTERVAL_SECONDS: '900' }).ODUDU_REAP_INTERVAL_SECONDS,
+    ).toBe(900);
+  });
+
+  it('refuses a retention interval of zero rather than reading it as off', () => {
+    expect(() => loadConfig({ ...minimal, ODUDU_REAP_INTERVAL_SECONDS: '0' })).toThrow(
+      /REAP_INTERVAL_SECONDS/u,
+    );
+  });
+
   it('decodes ODUDU_KEK from base64 to exactly 32 bytes', () => {
     const config = loadConfig(minimal);
     expect(config.ODUDU_KEK).toBeInstanceOf(Uint8Array);

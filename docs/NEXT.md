@@ -3,7 +3,7 @@
 ## Start here
 
 **P0, P1 and P2a are complete. P2b is brainstormed, specified and planned;
-Tasks 1 through 25 have landed and Task 26 is next.**
+Tasks 1 through 26 have landed.**
 
 **`odudu reap` exists, and retention is now arithmetic rather than a
 warning.** `apps/server/src/cli/reap.ts` deletes what no decision can still
@@ -46,10 +46,19 @@ role must not, and a serving role that escapes it is the same property
 failing for a configuration reason instead of a code one. An empty realm
 list is reported as "no realm was enumerated" rather than as a clean pass.
 
-**Still unscheduled.** Nothing in the server runs `reap`; Task 26's thin
-scheduler is what will. Until then it is a cron entry, and README's
-Deploying list says so — including that the pass holds one transaction for
-the whole tick.
+**Now scheduled, and that is the codebase's first background loop.**
+`apps/server/src/scheduler.ts` is an interval, its jitter, a call, a
+`catch` that logs and a `stop` that awaits the pass in flight — no lock of
+its own, because `withEachRealmExclusive` already takes one and a second
+key would break the guarantee rather than strengthen it.
+`apps/server/src/modules/reap.ts` wires it behind the `database` module, at
+`ODUDU_REAP_INTERVAL_SECONDS` (3600) plus a tenth as jitter, with
+`ODUDU_REAP_ENABLED=false` for a deployment that runs the command
+externally. Without `ODUDU_APP_DATABASE_URL` the schedule **declines to
+start** and logs once, rather than throwing `reap_requires_app_database_url`
+every hour forever; production still refuses to boot. ADR 0024 and
+CLAUDE.md's "Background work" carry the convention, which the next
+scheduled pass follows.
 
 **The per-origin throttle lands, and brute-force authority is now split on
 purpose.** `slidingWindow` (`apps/server/src/throttle.ts`) is a window per
