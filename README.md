@@ -238,8 +238,10 @@ after five consecutive failures, wherever they arrive) is the one in
 Postgres — and it is the reasoning in ADR 0023. **It cannot be demonstrated
 here**: there is no load balancer in this repository and no second replica
 to put behind one, so this paragraph is a statement rather than a
-transcript. Running more than one instance is refused today anyway, for an
-unrelated reason ([Deploying](#deploying)). And the key is `request.ip`, so
+transcript. Running more than one instance is **unsupported**, for an
+unrelated reason ([Deploying](#deploying)) — but nothing refuses it: that
+is an instruction, not a boot check, so a deployment that runs replicas
+anyway gets N times the budget and no warning. And the key is `request.ip`, so
 behind a proxy the proxy must **overwrite** `X-Forwarded-For` rather than
 append to it; a proxy that appends leaves the key client-controlled and the
 throttle decorative.

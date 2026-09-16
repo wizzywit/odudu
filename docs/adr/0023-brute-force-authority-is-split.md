@@ -98,10 +98,24 @@ because it exists to bound work rather than to shape passwords.
   protected.
 - **It cannot be demonstrated here.** There is no load balancer in this
   repository and no second replica to put behind one, so `README.md` states
-  the limitation rather than showing a transcript nobody produced. Running
-  more than one instance is already refused elsewhere for a different
-  reason — migrations take no advisory lock (`README.md`, "Deploying") — so
-  nothing ships today that this bites.
+  the limitation rather than showing a transcript nobody produced.
+- **Nothing stops a deployment running replicas anyway, so the exposure is
+  real rather than theoretical.** "Run one instance" is an instruction in
+  `README.md`'s "Deploying" and nowhere else: no boot path refuses a second
+  process, and the reason it is given — migrations take no advisory lock —
+  is a race an operator may never observe. An operator who scales out gets
+  N times the budget, silently. Writing that down is the whole mitigation
+  available today; a limit that held across instances is P11's, with the
+  shared session cache and the migration lock.
+- **A flood from more genuinely distinct addresses than the ceiling holds
+  is bounded loosely.** Past `MAX_THROTTLE_KEYS` the coldest key is
+  dropped, so a botnet of a hundred thousand real addresses — no header
+  spoofing needed — sees its earliest keys forgotten and re-budgeted every
+  ten thousand or so insertions. Accepted, because eviction is fail-open
+  only: it forgets hits and never invents them, so no volume of keys can
+  make the throttle refuse an address that has not spent its budget. A
+  bound that instead refused on eviction would turn the ceiling into a
+  denial-of-service lever pointed at legitimate traffic.
 - **The budget is shared across the three routes**, not one per route. An
   origin gets a CPU allowance, and whether it spends it on logins or on
   registrations is not the throttle's business.

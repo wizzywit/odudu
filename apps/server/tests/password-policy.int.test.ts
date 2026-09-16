@@ -292,8 +292,10 @@ describe('the realm password policy binds every writer', () => {
 // "No maximum" and "an Argon2id verification per attempt" are one defect
 // stated twice, and the login form is the reader that proves it needs
 // answering at the read: that route verifies rather than evaluates. All
-// four form readers and the seed CLI are here, so adding a sixth without
-// the cap turns this suite red.
+// four form readers and the seed CLI are exercised here; what stops a new
+// reader arriving without the cap is
+// tests/lint/password-read-through-kernel.test.ts, since a new route adds
+// no case to this file.
 describe('a password over the maximum is refused wherever one is read', () => {
   const overlong = 'a'.repeat(MAX_PASSWORD_LENGTH + 1);
 

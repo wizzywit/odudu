@@ -26,7 +26,8 @@ export type PasswordField =
 
 /**
  * Every route that reads a password out of a form body reads it through
- * here, so a fifth reader cannot skip the maximum. A repeated field is
+ * here, and `tests/lint/password-read-through-kernel.test.ts` fails the
+ * build on one that does not. A repeated field is
  * `absent` — `@fastify/formbody` parses one into an array, and a password
  * arrives once. An empty value is `present`: whether a blank field is an
  * attempt differs between the routes.

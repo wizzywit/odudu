@@ -70,8 +70,15 @@ export function registerRequiredActionRoute(
     const candidate = readPasswordField(body.password);
 
     // Back to the same form with the rule it broke, as a refused candidate
-    // is — but decided here, before the submission reaches the hash.
-    if (candidate.kind === 'too_long' && authSessionId !== undefined) {
+    // is — but decided here, before the submission reaches the hash. Only
+    // for the action that reads a password: a field the submitted action
+    // never looks at is ignored, not answered with another action's page,
+    // and an attempt naming no session has nothing to re-render.
+    if (
+      candidate.kind === 'too_long' &&
+      request.query.action === 'update-password' &&
+      authSessionId !== undefined
+    ) {
       return sendHtml(
         reply,
         400,

@@ -2969,17 +2969,16 @@ close. So a locked account is refused with the response a wrong password
 gets. Below, eight submissions against one parked request: five wrong
 passwords, a sixth after the lockout has begun, the _right_ password, and a
 username nobody holds. The hash is of the whole response — status line,
-headers and body — with three per-response values normalised out: `date`,
-`x-request-id`, and the CSP script nonce the login page mints for its
-passkey button (which appears both in the header and in the markup).
+headers and body — with four per-response values normalised out: `date`,
+`x-request-id`, the CSP script nonce the login page mints for its passkey
+button (which appears both in the header and in the markup), and the
+`auth_session_id` the re-rendered form carries, so the digest is the same
+value for any parked request rather than one nobody else can reproduce.
 
 `$SID` is the `auth_session_id` the rendered form carries, taken from the
 `/authorize` response the way [the login POST](#3-the-login-post) does.
 
-Two things about reproducing it. The digest is of a response that carries
-`$SID` in a hidden field, so a fresh parked request gives a different
-value: what is asserted is that all eight agree, not the particular
-thirty-two characters below. And eight submissions in a minute from one
+One thing about reproducing it: eight submissions in a minute from one
 address is past the [per-origin throttle](#the-per-origin-throttle) below,
 so the runs in this section were captured against a stack started with
 `ODUDU_THROTTLE_LIMIT=1000 docker compose up -d` — at the default of ten,
@@ -2993,7 +2992,8 @@ post() {
     'http://localhost:3000/realms/demo/login-actions/authenticate' >/dev/null
   cat /tmp/h.txt /tmp/b.txt | tr -d '\r' \
     | grep -iv '^date:' | grep -iv '^x-request-id:' \
-    | sed 's/nonce-[A-Za-z0-9+/=]*/nonce-NONCE/; s/nonce="[^"]*"/nonce="NONCE"/' \
+    | sed 's/nonce-[A-Za-z0-9+/=]*/nonce-NONCE/; s/nonce="[^"]*"/nonce="NONCE"/
+           s/auth_session_id" value="[^"]*"/auth_session_id" value="SID"/g' \
     | shasum -a 256 | cut -c1-32
 }
 
@@ -3003,19 +3003,20 @@ echo "8  unknown username  $(post nobody wrong-password)"
 ```
 
 ```
-1  wrong password    633a4e935220333a309cfb615157ef0b
-2  wrong password    633a4e935220333a309cfb615157ef0b
-3  wrong password    633a4e935220333a309cfb615157ef0b
-4  wrong password    633a4e935220333a309cfb615157ef0b
-5  wrong password    633a4e935220333a309cfb615157ef0b
-6  wrong password    633a4e935220333a309cfb615157ef0b
-7  right password    633a4e935220333a309cfb615157ef0b
-8  unknown username  633a4e935220333a309cfb615157ef0b
+1  wrong password    e90eba8ff7fcad29b7543b3c005a0090
+2  wrong password    e90eba8ff7fcad29b7543b3c005a0090
+3  wrong password    e90eba8ff7fcad29b7543b3c005a0090
+4  wrong password    e90eba8ff7fcad29b7543b3c005a0090
+5  wrong password    e90eba8ff7fcad29b7543b3c005a0090
+6  wrong password    e90eba8ff7fcad29b7543b3c005a0090
+7  right password    e90eba8ff7fcad29b7543b3c005a0090
+8  unknown username  e90eba8ff7fcad29b7543b3c005a0090
 ```
 
-Those three normalised values vary between any two responses, including two
-identical wrong passwords, so none of them distinguishes an account that
-exists from one that does not, or a locked account from a wrong password.
+The four normalised values vary between responses — `date`, the request id
+and the nonce between any two, the session id between any two parked
+requests — so none of them distinguishes an account that exists from one
+that does not, or a locked account from a wrong password.
 The counter is keyed by **subject**, never by the submitted name — a name
 the account no longer answers to would otherwise lock it out, and one it
 answers to by email would miss it — which is why the eighth submission above
@@ -3029,11 +3030,11 @@ docker compose exec -T postgres psql -U odudu -d odudu -x -c \
 
 ```
 -[ RECORD 1 ]----+-------------------------------------
-subject_id       | 01a0ab3d-b13f-7221-802e-2874387ed1aa
+subject_id       | 01a0ab5e-1342-725c-8f08-2db63f48bdc6
 failure_count    | 7
-first_failure_at | 2026-09-16 17:23:09.789+00
-last_failure_at  | 2026-09-16 17:23:10.336+00
-locked_until     | 2026-09-16 17:27:10.336+00
+first_failure_at | 2026-09-16 17:59:09.291+00
+last_failure_at  | 2026-09-16 17:59:09.811+00
+locked_until     | 2026-09-16 18:03:09.811+00
 ```
 
 One row for `ada`, none for the username nobody holds — and seven failures,
@@ -3078,8 +3079,8 @@ attempt 5: 200
 status 200, location ''
 --- the same password, 125 seconds later ---
 HTTP/1.1 302 Found
-set-cookie: demo-session=01a0ab41-1962-7c10-957d-f475b20fdf14; HttpOnly; SameSite=Lax; Path=/
-location: http://localhost:8080/callback?code=UdwMrB58G5XGVhWxXl27eTwXQjhXLvMAe-VTLws-Esg&state=xyz-123&iss=http%3A%2F%2Flocalhost%3A3000%2Frealms%2Fdemo
+set-cookie: demo-session=01a0ab61-709d-7a9f-8b11-5bb069160ebd; HttpOnly; SameSite=Lax; Path=/
+location: http://localhost:8080/callback?code=KlK-gtOvpWtR5bdoqBZhuHrcznBSU1UJSLYLInB9MSY&state=xyz-123&iss=http%3A%2F%2Flocalhost%3A3000%2Frealms%2Fdemo
 ```
 
 (`sid` is the `/authorize` request above with the hidden field read out of
@@ -3166,7 +3167,7 @@ done
 ```
 --- the sign-in submission shares the same budget ---
 HTTP/1.1 429 Too Many Requests
-retry-after: 50
+retry-after: 60
 ```
 
 ```
@@ -3178,10 +3179,11 @@ token request 2: 400
 token request 3: 400
 ```
 
-`retry-after: 50` rather than `60` because the window slides: ten seconds of
-the first request's minute had already passed. The three `400`s are
-`invalid_grant` on a code that never existed — an OAuth refusal, which is
-the point.
+`retry-after` is what is left of the oldest counted request's minute,
+rounded up to a second — `60` after a burst this fast, and lower after a
+slower one, since the window slides rather than resetting. The three `400`s
+are `invalid_grant` on a code that never existed — an OAuth refusal, which
+is the point.
 
 **A `429` is the throttle and nothing else.** A lockout refusal is `200`
 with the sign-in form, byte-identical to a wrong password, so the two
