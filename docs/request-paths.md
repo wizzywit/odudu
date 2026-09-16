@@ -2621,7 +2621,11 @@ in force** is refused too, by the one rule no candidate decides on its own.
 Every writer of a password resets the realm's `password_max_age_days` clock
 on it — which is what stops an expired password being owed forever — so
 without this, anybody who can read the account's mail could clear an
-expiry without ever changing a password:
+expiry without ever changing a password.
+
+This one check ran against a second realm, `reset2-demo`, because the link
+above had already been spent by the time it was added; everything else about
+the flow is identical.
 
 ```bash
 curl -sS -i -X POST http://localhost:3000/realms/reset2-demo/login-actions/action-token \
@@ -2633,25 +2637,9 @@ curl -sS -i -X POST http://localhost:3000/realms/reset2-demo/login-actions/actio
 HTTP/1.1 400 Bad Request
 ```
 
-```html
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <title>Can't reset your password</title>
-  </head>
-  <body>
-    <h1>Can't reset your password</h1>
-    <ul>
-      <li>Password must not be one you have used before.</li>
-    </ul>
-  </body>
-</html>
 ```
-
-(a different realm in that one run, `reset2-demo`, because the link above
-had already been spent by the time this check was added; everything else
-about it is the same flow.)
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Can't reset your password</title></head><body><h1>Can't reset your password</h1><ul><li>Password must not be one you have used before.</li></ul></body></html>
+```
 
 This is **only** the password in force, not the realm's
 `password_history_depth`: reset redemption keeps no history and reads none,
@@ -2660,7 +2648,7 @@ reset and its age starts again. [Password expiry, and changing a
 password](#password-expiry-and-changing-a-password) is where history is
 read and written.
 
-Submitting a compliant password on the same link sets it:
+Submitting a compliant password on the `reset-demo` link above sets it:
 
 ```bash
 curl -sS -X POST http://localhost:3000/realms/reset-demo/login-actions/action-token \
