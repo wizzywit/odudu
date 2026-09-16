@@ -290,3 +290,316 @@ docker rm -f jsonb-spike && rm -rf /tmp/jsonb-spike
   `jsonb_build_object` around brace characters and control characters
   specifically, since none of its three rows exercised an unescaped `{` or a
   raw newline; both were added here and both passed.
+
+---
+
+## @simplewebauthn/server: API surface and usernameless assertions
+
+**Questions:** (1) is `@simplewebauthn/server`'s API at the version we'd pin
+the API its documentation describes? (2) can a discoverable-credential
+assertion be completed with no username — `generateAuthenticationOptions`
+called with no `allowCredentials`, and the verified assertion identifying
+the credential well enough to resolve a subject from `lookup_key` alone?
+
+**Answer to (1): yes**, with one packaging detail the brief's own probe
+command got wrong. **Answer to (2): yes**, but with a load-bearing
+qualification: `verifyAuthenticationResponse` requires the credential
+record as an *input*, so subject resolution must happen from the raw
+assertion **before** verification, not from anything the verified result
+hands back. Both the credential ID and a user handle are available on the
+raw response for that purpose.
+
+### Setup
+
+Probe built outside the repository, in
+`/private/tmp/claude-202959266/-Users-wep-WebstormProjects-odudu/964a2d87-083e-4182-b760-d540f5e5eb4f/scratchpad/webauthn-spike/`
+(the brief names `/tmp/webauthn-spike`; this session used its own scratchpad
+directory for the same throwaway purpose), deleted after this run.
+
+```bash
+mkdir -p webauthn-spike && cd webauthn-spike
+npm init -y >/dev/null
+npm i @simplewebauthn/server
+node -e "console.log(require('./package.json').dependencies)"
+```
+
+Output:
+
+```
+added 25 packages, and audited 26 packages in 4s
+found 0 vulnerabilities
+{ '@simplewebauthn/server': '^14.0.2' }
+```
+
+`package.json` records a caret range; the installed version is resolved
+explicitly:
+
+```bash
+node -e "console.log(require('./node_modules/@simplewebauthn/server/package.json').version)"
+```
+
+Output: `14.0.2`
+
+**`14.0.2` is the version Task 18 pins.**
+
+### Step 2: API surface actually exported
+
+```bash
+node --input-type=module -e "
+import * as s from '@simplewebauthn/server';
+console.log(Object.keys(s).sort().join('\n'));
+"
+```
+
+Output (an `ExperimentalWarning` about the Web Crypto API and ML-DSA-44
+trimmed — Node's own warning about its WebCrypto implementation, unrelated
+to this library):
+
+```
+BaseMetadataService
+MetadataService
+PQCNotSupportedError
+SettingsService
+SimpleWebAuthnError
+defaultSupportedAlgorithmIDs
+generateAuthenticationOptions
+generateRegistrationOptions
+verifyAuthenticationResponse
+verifyRegistrationResponse
+```
+
+All four functions the brief expected are present and exported exactly as
+named: `generateRegistrationOptions`, `verifyRegistrationResponse`,
+`generateAuthenticationOptions`, `verifyAuthenticationResponse`. Nothing
+documented is missing. The extra exports (`MetadataService`,
+`SettingsService`, `SimpleWebAuthnError`, `PQCNotSupportedError`,
+`defaultSupportedAlgorithmIDs`) are FIDO metadata-service and error-type
+surface not needed for this design.
+
+One thing the brief's own Step 4 command got wrong, caught only by running
+it: it assumes `node_modules/@simplewebauthn/server/dist/index.d.ts`. That
+path does not exist in `14.0.2` — there is no `dist/` directory at all. The
+package ships parallel `esm/` and `script/` trees instead:
+
+```bash
+node -e "const p=require('./node_modules/@simplewebauthn/server/package.json'); console.log(JSON.stringify({main:p.main, module:p.module, exports:p.exports},null,2))"
+```
+
+Output:
+
+```json
+{
+  "main": "./script/index.js",
+  "module": "./esm/index.js",
+  "exports": {
+    ".": {
+      "import": "./esm/index.js",
+      "require": "./script/index.js"
+    },
+    "./helpers": {
+      "import": "./esm/helpers/index.js",
+      "require": "./script/helpers/index.js"
+    }
+  }
+}
+```
+
+Declarations live at `esm/index.d.ts` and `esm/authentication/*.d.ts` (and
+mirrored under `script/`), not `dist/index.d.ts`. This is exactly the shape
+of drift the P0 rule exists to catch: the brief's plan-level claim about a
+file path was reasonable and wrong, and only running the command surfaced
+it.
+
+### Step 3: usernameless option shape
+
+```bash
+node --input-type=module -e "
+import { generateAuthenticationOptions } from '@simplewebauthn/server';
+const options = await generateAuthenticationOptions({ rpID: 'localhost' });
+console.log(JSON.stringify(options, null, 2));
+"
+```
+
+Output (the same Node WebCrypto `ExperimentalWarning` trimmed):
+
+```json
+{
+  "rpId": "localhost",
+  "challenge": "wdicJ55xIo6rNhpRDBnU5ZlS3P-tAzATzb9GkrHqkZQ",
+  "timeout": 60000,
+  "userVerification": "preferred"
+}
+```
+
+The call succeeds with no `allowCredentials` argument, and the returned
+options **omit the key entirely** rather than returning it empty — the
+strongest form of the brief's "yes" criterion. This is what tells a browser
+to offer every discoverable credential it holds rather than restricting the
+prompt to a known list.
+
+### Step 4: what `verifyAuthenticationResponse` requires and returns
+
+Read from the declaration file directly (`esm/authentication/verifyAuthenticationResponse.d.ts`
+— see the packaging note above for why this path, not `dist/index.d.ts`):
+
+```bash
+cat node_modules/@simplewebauthn/server/esm/authentication/verifyAuthenticationResponse.d.ts
+```
+
+Relevant excerpt, verbatim:
+
+```typescript
+export declare function verifyAuthenticationResponse(options: {
+    response: AuthenticationResponseJSON;
+    expectedChallenge: string | ((challenge: string) => boolean | Promise<boolean>);
+    expectedOrigin: string | string[];
+    expectedRPID: string | string[];
+    credential: WebAuthnCredential;
+    expectedType?: string | string[];
+    expectedTopOrigin?: string | string[];
+    requireUserVerification?: boolean;
+    advancedFIDOConfig?: {
+        userVerification?: UserVerificationRequirement;
+    };
+}): Promise<VerifiedAuthenticationResponse>;
+
+export type VerifiedAuthenticationResponse = {
+    verified: boolean;
+    authenticationInfo: {
+        credentialID: Base64URLString;
+        newCounter: number;
+        userVerified: boolean;
+        credentialDeviceType: CredentialDeviceType;
+        credentialBackedUp: boolean;
+        origin: string;
+        rpID: string;
+        authenticatorExtensionResults?: AuthenticationExtensionsAuthenticatorOutputs;
+    };
+};
+```
+
+`credential` is **not optional** — `WebAuthnCredential` has no `?` and is
+listed alongside the other required fields. Its own shape, from the same
+`types/index.d.ts`:
+
+```typescript
+export type WebAuthnCredential = {
+    id: Base64URLString;
+    publicKey: Uint8Array_;
+    counter: number;
+    transports?: string[];
+};
+```
+
+So the function demands the caller supply the stored credential record
+(public key and last-known counter) up front. There is no lookup-by-ID
+performed inside the library — **subject and credential resolution must
+happen before this call, from the raw assertion**, not from anything
+`verifyAuthenticationResponse` returns.
+
+The raw assertion the browser sends, before verification, is
+`AuthenticationResponseJSON` (`esm/types/index.d.ts`):
+
+```typescript
+export interface AuthenticationResponseJSON {
+    id: Base64URLString;
+    rawId: Base64URLString;
+    response: AuthenticatorAssertionResponseJSON;
+    authenticatorAttachment?: AuthenticatorAttachment;
+    clientExtensionResults: AuthenticationExtensionsClientOutputs;
+    type: PublicKeyCredentialType;
+}
+
+export interface AuthenticatorAssertionResponseJSON {
+    clientDataJSON: Base64URLString;
+    authenticatorData: Base64URLString;
+    signature: Base64URLString;
+    userHandle?: Base64URLString;
+}
+```
+
+and `Base64URLString` is a plain alias, confirmed in the same file:
+
+```bash
+grep -n "^export type Base64URLString" node_modules/@simplewebauthn/server/esm/types/dom.d.ts
+```
+
+Output: `export type Base64URLString = string;`
+
+So **two independent fields on the raw, pre-verification response can
+resolve a subject**:
+
+- `response.id` (and identically, `response.rawId`) — the credential ID, a
+  base64url-encoded **string**. This is the natural key to look up
+  `lookup_key` against.
+- `response.response.userHandle` — an **optional** base64url-encoded
+  string, present only when the authenticator returns one. This is the
+  user-handle path WebAuthn defines as the alternative resolution
+  mechanism for discoverable credentials.
+
+Once resolved, the caller passes the matching `WebAuthnCredential` (id,
+stored public key, stored counter) into `verifyAuthenticationResponse`, and
+only then finds out whether the signature actually verifies.
+
+On success, `authenticationInfo` hands back both fields Task 19 needs:
+`credentialID` (`Base64URLString`, i.e. the same base64url string) to
+confirm/re-key which credential authenticated, and `newCounter` (`number`)
+to compare against the stored counter and detect a cloned authenticator.
+
+### Teardown
+
+```bash
+rm -rf webauthn-spike
+```
+
+### Findings for Task 18/19
+
+**Conclusion 1 (API surface — executed, `Object.keys` output above):**
+**Yes**, `@simplewebauthn/server@14.0.2`'s exported API matches its
+documentation — all four functions the docs describe
+(`generateRegistrationOptions`, `verifyRegistrationResponse`,
+`generateAuthenticationOptions`, `verifyAuthenticationResponse`) are present
+under those exact names, nothing documented is missing. The one drift
+found was packaging, not API: the library ships declarations under
+`esm/`/`script/`, not `dist/`, which is a detail for how Task 18 points its
+editor/IDE at the types, not a behavioural surprise.
+
+**Conclusion 2 (usernameless assertion — executed for the options call,
+read from `.d.ts` declarations for the verify call's contract):** **Yes,
+a discoverable-credential, usernameless first-factor assertion is
+supportable**, but not by treating "call verify and see what comes back"
+as the resolution point. `generateAuthenticationOptions({ rpID })` with no
+`allowCredentials` succeeds and omits the key from its output (executed,
+Step 3) — the browser side of usernameless is confirmed live. On the
+verify side (read from types, not executed — no browser ceremony was run
+against this probe), `verifyAuthenticationResponse` **requires** a
+`WebAuthnCredential` as input, so **subject resolution must happen before
+verification**, from the raw `AuthenticationResponseJSON`: `id`/`rawId`
+(a base64url string) is always present and is the primary lookup key
+against `lookup_key`; `response.userHandle` (also a base64url string) is
+present only when the authenticator supplies one and is the fallback/second
+path WebAuthn defines for the same resolution. Post-verification,
+`authenticationInfo.credentialID` and `authenticationInfo.newCounter` are
+both returned, confirming Task 19 can update the stored counter after the
+fact for clone detection.
+
+**No spec change needed.** Section 5.2's usernameless first-factor design
+is executable as specified — Task 19's implementation shape is: resolve
+`lookup_key` from `response.id` (or `response.response.userHandle` as a
+fallback) *before* calling `verifyAuthenticationResponse`, supply the
+resolved `WebAuthnCredential` to it, then persist `newCounter` from the
+result against that same credential row.
+
+**Evidence boundary.** What is executed, not merely read: the resolved
+version; the full list of live exports; the live, no-argument
+`generateAuthenticationOptions` call and its output showing `allowCredentials`
+absent. What is read from `.d.ts` declarations, not executed — no browser
+WebAuthn ceremony was run, so nothing here proves an actual authenticator's
+JSON payload matches these shapes at runtime, only that the library's own
+compiled type contract requires and returns them: the mandatory `credential`
+parameter on `verifyAuthenticationResponse`, the `AuthenticationResponseJSON`/
+`AuthenticatorAssertionResponseJSON` field shapes (`id`, `rawId`,
+`userHandle`, all `Base64URLString` = `string`), and the `VerifiedAuthenticationResponse`
+result shape (`credentialID`, `newCounter`). A real ceremony — Task 19's own
+integration test — is the point at which this becomes executed evidence
+rather than declared contract.
