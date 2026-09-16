@@ -16,10 +16,10 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { authenticationExecutions } from '#/schema/execution';
 
 // Every other suite migrates as the container's superuser, which is exempt
-// from row-level security whatever FORCE says. README.md's instructions
-// produce a schema owner with CREATE ROLE and nothing more, and FORCE ROW
-// LEVEL SECURITY removes the owner's exemption — so a migration that reads
-// or writes across realms would see nothing, write nothing and raise
+// from row-level security whatever FORCE says. This one migrates as a bare
+// schema owner instead, because FORCE removes the owner's exemption — so a
+// migration that reads or writes across realms would see nothing, write
+// nothing and raise
 // nothing under the role a real deployment actually uses. This suite runs
 // the migrations under that role, in a database it owns, so a backfill that
 // only works for a superuser fails here.
@@ -67,8 +67,9 @@ beforeAll(async () => {
 
   adminHandle = createDatabase(container.adminUrl, { max: 1 });
   const admin = adminHandle;
-  // CREATE ROLE and nothing else: the privilege README.md asks for, so a
-  // migration needing SUPERUSER or BYPASSRLS cannot pass here.
+  // CREATE ROLE and nothing else. Serving needs more than this (README.md
+  // requires SUPERUSER or BYPASSRLS), but a migration must not: one that
+  // depends on the exemption cannot pass here.
   await admin.sql.unsafe(`CREATE ROLE ${OWNER} LOGIN PASSWORD '${OWNER}' CREATEROLE`);
   await admin.sql.unsafe(`CREATE DATABASE ${OWNER} OWNER ${OWNER}`);
   const [role] = await admin.sql<{ rolsuper: boolean; rolbypassrls: boolean }[]>`

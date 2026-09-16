@@ -69,12 +69,24 @@ name.
 
 The realm lookup (`packages/protocol-oidc/src/repository/realm-lookup.ts`)
 therefore takes the owner connection (`AppDeps.ownerDatabase`), already used
-for migrations and bootstrap and already understood here to bypass RLS, not
-the RLS-scoped serving connection. The bypass is kept as narrow as the gap
-it fills: the query selects only `id` and `enabled`, which discloses nothing
-about a realm beyond what any client learns one realm at a time by fetching
-its discovery document. Realm creation by the seed command runs on the same
-connection for the same reason — it is the other side of the same gap.
+for migrations and bootstrap, not the RLS-scoped serving connection. The
+query selects `id`, `enabled`, `verify_email` and the two SSO session
+lifespans — realm settings a client learns one realm at a time anyway by
+fetching its discovery document or completing a login. Realm creation by the
+seed command runs on the same connection for the same reason: it is the
+other side of the same gap, and the policy carries no separate `WITH CHECK`,
+so it gates the insert too.
+
+**The owner connection does not bypass RLS by virtue of owning the tables.**
+`FORCE` binds the owner as well, so this gap is closed only by the owner
+role being `SUPERUSER` or `BYPASSRLS` — a deployment requirement, recorded
+in `README.md`, and not a property of ownership. An owner without it
+resolves no realm and the server answers every request with an unknown
+realm; it cannot seed one either. Two narrower ways to close the gap remain
+open: a `SECURITY DEFINER` resolver owned by an exempt role, or a policy
+permitting an unscoped read of the columns above. Either would let the owner
+be least-privilege, and either is a change to this decision rather than to
+its implementation.
 
 The decision is unchanged: every request-serving query still runs RLS-scoped
 under `SET LOCAL`. This records the one lookup that structurally cannot, and
