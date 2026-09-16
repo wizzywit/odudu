@@ -7,6 +7,7 @@ import {
   type SigningKeyRecord,
 } from '@odudu/crypto';
 import {
+  credentialRepository,
   hashPassword,
   subjectRepository,
   userCredentials,
@@ -228,12 +229,11 @@ async function enrolTotp(realmId: string): Promise<string> {
   await withRealm(app.db, realmId, async (tx) => {
     const found = await userRepository(tx).byUsername(USERNAME);
     if (found === null) throw new Error('expected the seeded user');
-    await tx.insert(userCredentials).values({
-      id: newId(),
+    await credentialRepository(tx).insert({
       realmId,
       subjectId: found.subject.id,
       type: 'totp',
-      secretData: { secret, digits: 6, lastStep: 0 },
+      secret: { kind: 'totp', secret, digits: 6, lastStep: 0 },
     });
   });
   return secret;

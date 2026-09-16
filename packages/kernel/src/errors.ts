@@ -24,7 +24,8 @@ export type ErrorCode =
   | 'group_not_found'
   | 'group_reparent_cycle'
   | 'user_not_found'
-  | 'credential_not_found';
+  | 'credential_not_found'
+  | 'realm_not_found';
 
 export class OduduError extends Error {
   readonly code: ErrorCode;

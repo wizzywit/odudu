@@ -1549,7 +1549,12 @@ subject with no TOTP credential is given the `configure-totp` required
 action at their next login, and the login does not complete until they have
 enrolled.
 
-There is no seed flag for it yet (the same gap
+Every command and response below was executed against the compose stack.
+The HTML bodies are line-wrapped for readability, as every other HTML
+transcript in this document is — the markup is the server's, the line
+breaks between and inside its tags are not.
+
+There is no seed flag for `otp_required` yet (the same gap
 [Self-registration](#self-registration) notes), so this run turns it on with
 `psql`:
 

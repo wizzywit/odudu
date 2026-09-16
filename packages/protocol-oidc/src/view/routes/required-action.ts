@@ -61,6 +61,14 @@ export function registerRequiredActionRoute(
       );
     }
 
+    if (outcome.kind === 'not_owed') {
+      return sendHtml(
+        reply,
+        400,
+        renderAuthorizeErrorPage('invalid_request', 'This account has no such pending action.'),
+      );
+    }
+
     if (outcome.kind === 'unsupported') {
       return sendHtml(
         reply,

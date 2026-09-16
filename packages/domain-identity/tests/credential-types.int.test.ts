@@ -372,9 +372,10 @@ describe('credentialRepository — widened credential types', () => {
       return { subjectId: subject, credentialId: stored.id };
     });
 
-    await withRealm(app.db, realmId, (tx) =>
+    const spent = await withRealm(app.db, realmId, (tx) =>
       credentialRepository(tx).recordTotpUse(credentialId, 58_612_800, usedAt),
     );
+    expect(spent).toBe(true);
 
     const [after] = await withRealm(app.db, realmId, (tx) =>
       credentialRepository(tx).listFor(subjectId, 'totp'),
@@ -406,22 +407,69 @@ describe('credentialRepository — widened credential types', () => {
         const [found] = await credentialRepository(tx).listFor(seeded.subjectId, 'totp');
         expect(found?.secret).toMatchObject({ lastStep: 7 });
       },
-      attempt: async (tx, seeded) => {
-        try {
-          await credentialRepository(tx).recordTotpUse(seeded.id, 99, new Date());
-          return 'succeeded';
-        } catch {
-          return 'blocked';
-        }
-      },
+      attempt: async (tx, seeded) =>
+        credentialRepository(tx).recordTotpUse(seeded.id, 99, new Date()),
       expectBlocked: (result) => {
-        expect(result).toBe('blocked');
+        // RLS filters the row out of the UPDATE's own WHERE, so nothing is
+        // updated and the call reports the step as unspent.
+        expect(result).toBe(false);
       },
       verifyRealmAUnaffected: async (tx, seeded) => {
         const [found] = await credentialRepository(tx).listFor(seeded.subjectId, 'totp');
         expect(found?.secret).toMatchObject({ lastStep: 7 });
       },
     });
+  });
+
+  // RFC 6238 §5.2: a code that already validated must not validate again.
+  // The predicate on the stored step is what makes the write the decision
+  // rather than a record of one — two transactions that both accepted the
+  // same code serialize on the row, and only the first finds a lastStep
+  // below the step it is spending.
+  it('spends a time step exactly once when two transactions race for it', async () => {
+    const realmId = newId();
+    const { credentialId } = await withRealm(app.db, realmId, async (tx) => {
+      const subject = await seedSubject(tx, realmId);
+      await credentialRepository(tx).insert({
+        realmId,
+        subjectId: subject,
+        type: 'totp',
+        secret: { kind: 'totp', secret: 'JBSWY3DPEHPK3PXP', digits: 6, lastStep: 0 },
+      });
+      const [stored] = await credentialRepository(tx).listFor(subject, 'totp');
+      if (stored === undefined) throw new Error('expected the seeded credential back');
+      return { credentialId: stored.id };
+    });
+
+    const spend = () =>
+      withRealm(app.db, realmId, (tx) =>
+        credentialRepository(tx).recordTotpUse(credentialId, 58_612_801, new Date()),
+      );
+    const [first, second] = await Promise.all([spend(), spend()]);
+
+    expect([first, second].filter(Boolean)).toHaveLength(1);
+  });
+
+  it('refuses a step it has already spent', async () => {
+    const realmId = newId();
+    const credentialId = await withRealm(app.db, realmId, async (tx) => {
+      const subject = await seedSubject(tx, realmId);
+      await credentialRepository(tx).insert({
+        realmId,
+        subjectId: subject,
+        type: 'totp',
+        secret: { kind: 'totp', secret: 'JBSWY3DPEHPK3PXP', digits: 6, lastStep: 58_612_802 },
+      });
+      const [stored] = await credentialRepository(tx).listFor(subject, 'totp');
+      if (stored === undefined) throw new Error('expected the seeded credential back');
+      return stored.id;
+    });
+
+    const again = await withRealm(app.db, realmId, (tx) =>
+      credentialRepository(tx).recordTotpUse(credentialId, 58_612_802, new Date()),
+    );
+
+    expect(again).toBe(false);
   });
 
   it('refuses to insert a credential whose declared realm does not match the transaction realm', async () => {

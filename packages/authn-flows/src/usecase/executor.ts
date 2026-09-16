@@ -72,13 +72,20 @@ async function runOtpStep(
     now: context.now,
   });
 
+  if (outcome.kind !== 'success' || stored === null) return outcome;
+
   // RFC 6238 §5.2's other half (docs/protocols/rfc6238.md): verifyTotp
-  // refuses a step at or below the credential's lastStep, and only this
-  // write makes the step that just validated one of those.
-  if (outcome.kind === 'success' && stored !== null) {
-    await credentialRepository(tx).recordTotpUse(stored.id, outcome.step, context.now);
-  }
-  return outcome;
+  // refuses a step at or below the credential's lastStep, and this write is
+  // what makes the step that just validated one of those. It can refuse —
+  // a concurrent submission of the same code spends the step first — and
+  // then the code this call accepted was the second use of it.
+  const spent = await credentialRepository(tx).recordTotpUse(stored.id, outcome.step, context.now);
+  // Written before `advance`'s subject-binding guard runs, which is safe
+  // only because this step resolves its secret from the bound subject and
+  // therefore cannot answer for anybody else. A factor that identifies its
+  // own subject — a passkey assertion — must not spend anything until that
+  // guard has passed.
+  return spent ? outcome : { kind: 'failure', reason: 'invalid_credentials' };
 }
 
 // passkey is registered so a flow row naming it resolves (see
@@ -162,18 +169,24 @@ function enrolmentOwed(facts: FlowFacts): boolean {
   return otpApplies(facts) && !facts.hasTotp;
 }
 
+// Returns the facts alongside the steps rather than making the caller ask
+// for them again: deciding what a subject owes reads exactly what deciding
+// which step runs read, so it is the same two queries either way.
 async function loadSteps(
   tx: RealmScopedDatabase,
   realmId: string,
   subjectId: string | null,
-): Promise<Step[]> {
+): Promise<{ steps: Step[]; facts: FlowFacts }> {
   const executions = await executionRepository(tx).forRealm(realmId);
   const facts = await flowFacts(tx, realmId, subjectId);
-  return executions.map((execution) => ({
-    authenticator: execution.authenticator,
-    requirement: execution.requirement,
-    applicable: isApplicable(execution.authenticator, facts),
-  }));
+  return {
+    facts,
+    steps: executions.map((execution) => ({
+      authenticator: execution.authenticator,
+      requirement: execution.requirement,
+      applicable: isApplicable(execution.authenticator, facts),
+    })),
+  };
 }
 
 function bindRegistry(
@@ -270,7 +283,7 @@ async function loadFlowContext(
   }
   return {
     record,
-    steps: await loadSteps(tx, record.realmId, record.subjectId),
+    steps: (await loadSteps(tx, record.realmId, record.subjectId)).steps,
     satisfied: new Set(record.satisfied),
     registry: bindRegistry(tx, { subjectId: record.subjectId, now: clock.now() }),
   };
@@ -295,8 +308,9 @@ async function recordOtpEnrolmentIfOwed(
   tx: RealmScopedDatabase,
   realmId: string,
   subjectId: string,
+  facts: FlowFacts,
 ): Promise<void> {
-  if (!enrolmentOwed(await flowFacts(tx, realmId, subjectId))) return;
+  if (!enrolmentOwed(facts)) return;
   await requiredActionRepository(tx).add(realmId, subjectId, 'configure-totp');
 }
 
@@ -312,7 +326,7 @@ export async function initialChallenge(
   // No subject yet, so no second factor can be applicable: which account a
   // code belongs to is not something /authorize could know before anybody
   // has said who they are.
-  const steps = await loadSteps(tx, realmId, null);
+  const { steps } = await loadSteps(tx, realmId, null);
   const registry = bindRegistry(tx, { subjectId: null, now: clock.now() });
   const dispatched = await dispatchNext(registry, steps, new Set(), {});
   if (dispatched.kind !== 'ran') {
@@ -385,8 +399,8 @@ export async function advance(
   // Everything after this point is decided for this subject, so the flow is
   // re-read for them: until the first factor succeeded, nothing here knew
   // whether a second one applies at all.
-  const stepsForSubject = await loadSteps(tx, record.realmId, subjectId);
-  await recordOtpEnrolmentIfOwed(tx, record.realmId, subjectId);
+  const { steps: stepsForSubject, facts } = await loadSteps(tx, record.realmId, subjectId);
+  await recordOtpEnrolmentIfOwed(tx, record.realmId, subjectId, facts);
 
   // Whether this login is done, or a further factor remains, decided
   // before `satisfied` is written: two outcomes downstream of this function

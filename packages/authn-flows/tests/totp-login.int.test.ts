@@ -16,11 +16,12 @@ import {
   userCredentials,
   users,
 } from '@odudu/domain-identity';
-import { FakeClock, newId } from '@odudu/kernel';
+import { FakeClock, newId, OduduError } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { authenticationSessionRepository } from '#/repository/authentication-sessions';
+import { realmSettingsRepository } from '#/repository/realm-settings';
 import { requiredActionRepository } from '#/repository/required-actions';
 import { authenticationSessions, type PendingRequest } from '#/schema/authentication-sessions';
 import {
@@ -369,6 +370,40 @@ describe('a factor with work left after it is written down, and one that finishe
   });
 });
 
+describe('one code, one login', () => {
+  it('accepts a code once when two submissions of it race', async () => {
+    const realmId = newId();
+    const clock = clockAt();
+    const subjectId = await withRealm(app.db, realmId, async (tx) => {
+      await seedRealm(tx, realmId, false);
+      return seedUser(tx, realmId, 'ada');
+    });
+    const { secret } = await enrol(realmId, subjectId, clock);
+    clock.advance(31_000);
+    const code = totpCode(secret, totpCounter(clock.now()));
+
+    // Two attempts, each past its own password step, so the only thing they
+    // contend for is the credential's time step.
+    const sessions = await Promise.all([start(realmId, clock), start(realmId, clock)]);
+    for (const authSessionId of sessions) {
+      await withRealm(app.db, realmId, (tx) =>
+        advance(tx, authSessionId, { username: 'ada', password: PASSWORD }, clock),
+      );
+    }
+
+    const outcomes = await Promise.all(
+      sessions.map((authSessionId) =>
+        withRealm(app.db, realmId, (tx) => advance(tx, authSessionId, { code }, clock)),
+      ),
+    );
+
+    expect(outcomes.filter((outcome) => outcome.kind === 'success')).toHaveLength(1);
+    expect(outcomes.filter((outcome) => outcome.kind === 'failure')).toEqual([
+      { kind: 'failure', reason: 'invalid_credentials' },
+    ]);
+  });
+});
+
 describe('an attempt answers for one subject and no other', () => {
   it("does not complete ada's login with bob's username and bob's code", async () => {
     const realmId = newId();
@@ -458,6 +493,33 @@ describe('an attempt answers for one subject and no other', () => {
       advance(tx, authSessionId, { username: 'bob', password: PASSWORD }, clock),
     );
     expect(bobsLogin).toEqual({ kind: 'success', subjectId: bob, authenticators: ['password'] });
+  });
+});
+
+describe('realmSettingsRepository', () => {
+  it("cannot read a foreign realm's otp_required, and refuses rather than defaulting", async () => {
+    await expectCrossRealmMethodProbe(app.db, {
+      seed: async (tx, realmId) => {
+        await seedRealm(tx, realmId, true);
+        return realmId;
+      },
+      verifySeeded: async (tx, realmId) => {
+        expect(await realmSettingsRepository(tx).otpRequired(realmId)).toBe(true);
+      },
+      attempt: async (tx, realmId) => {
+        try {
+          return await realmSettingsRepository(tx).otpRequired(realmId);
+        } catch (caught) {
+          return caught instanceof OduduError ? caught.code : 'unexpected';
+        }
+      },
+      // Not `false`: a realm that requires a second factor and a realm whose
+      // row this context cannot see are different things, and returning the
+      // switch's off value for the second would silently drop the factor.
+      expectBlocked: (result) => {
+        expect(result).toBe('realm_not_found');
+      },
+    });
   });
 });
 

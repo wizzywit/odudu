@@ -92,22 +92,28 @@ export function credentialRepository(tx: RealmScopedDatabase) {
     },
 
     // RFC 6238 §5.2 forbids a second acceptance of an OTP that already
-    // validated, and `lastStep` is what carries that refusal to the next
-    // verification. Written in the same statement as `last_used_at` so a
-    // code can never count as used without also being spent.
-    async recordTotpUse(id: string, step: number, at: Date): Promise<void> {
+    // validated. The predicate on the stored step makes this the decision
+    // rather than a record of one: two transactions that both read the same
+    // pre-use `lastStep` serialize here, and the second re-checks the row
+    // the first committed and matches nothing. Returns whether this call is
+    // the one that spent the step — false is a verification failure, not a
+    // missing credential, and the caller must refuse the code it accepted.
+    async recordTotpUse(id: string, step: number, at: Date): Promise<boolean> {
       const rows = await tx
         .update(userCredentials)
         .set({
           secretData: sql`jsonb_set(${userCredentials.secretData}, '{lastStep}', to_jsonb(${step}::bigint))`,
           lastUsedAt: at,
         })
-        .where(and(eq(userCredentials.id, id), eq(userCredentials.type, 'totp')))
+        .where(
+          and(
+            eq(userCredentials.id, id),
+            eq(userCredentials.type, 'totp'),
+            sql`coalesce((${userCredentials.secretData}->>'lastStep')::bigint, -1) < ${step}`,
+          ),
+        )
         .returning();
-      const row = rows[0];
-      if (row === undefined) {
-        throw new OduduError('credential_not_found', `no totp credential with id ${id}`);
-      }
+      return rows.length > 0;
     },
 
     async deleteOne(id: string): Promise<void> {

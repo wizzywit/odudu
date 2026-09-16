@@ -153,9 +153,11 @@ export interface LoginSubmissionDeps {
     subjectId: string,
   ): Promise<{ verified: boolean; hasEmail: boolean }>;
   // Every action this subject still owes, read fresh on every submission —
-  // an action completed by a separate request (the eventual
-  // login-actions/required-action route) has to be seen the next time this
-  // same auth_session_id is resubmitted, not cached from an earlier attempt.
+  // an action completed by a separate request to
+  // login-actions/required-action has to be seen the next time this same
+  // auth_session_id is resubmitted, not cached from an earlier attempt.
+  // That route reads the same set, and refuses to act on an action it does
+  // not find there.
   pendingActions(realmId: string, subjectId: string): Promise<readonly RequiredAction[]>;
   // Unbinds the authentication session from the subject who just
   // authenticated and forgets the factors they satisfied — see the

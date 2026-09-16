@@ -1,4 +1,4 @@
-import { type TotpEnrolmentOutcome } from '@odudu/authn-flows';
+import { type RequiredAction, type TotpEnrolmentOutcome } from '@odudu/authn-flows';
 import { type RealmLookup } from '#/repository/realm-lookup';
 
 export type RequiredActionOutcome =
@@ -6,7 +6,12 @@ export type RequiredActionOutcome =
   // yet. Treated exactly as the login form treats a missing auth_session_id:
   // there is nobody to act for, so there is nothing to do.
   | { kind: 'unauthenticated' }
-  // A pending action with no submission to satisfy it. configure-passkey and
+  // The subject does not owe the action this submission claims to satisfy.
+  // This is the whole of the endpoint's authorization: passing a factor is
+  // permission to finish the login that asked for it, never permission to
+  // attach a credential nobody asked for.
+  | { kind: 'not_owed'; action: string }
+  // An owed action with no submission to satisfy it. configure-passkey and
   // generate-recovery-codes are here until they have one.
   | { kind: 'unsupported'; action: string }
   // The action is done and the parked login is waiting; the caller resumes it.
@@ -26,6 +31,10 @@ export interface RequiredActionSubmissionDeps {
   // carries no credentials of its own, so that binding is the whole of what
   // says whose account is being changed.
   boundSubject(realmId: string, authSessionId: string): Promise<string | null>;
+  // Read fresh on every submission, never cached from the login that
+  // rendered the page: an action completed in another tab has to be gone
+  // by the time this one is submitted.
+  pendingActions(realmId: string, subjectId: string): Promise<readonly RequiredAction[]>;
   completeTotpEnrolment(input: {
     realmId: string;
     subjectId: string;
@@ -50,8 +59,19 @@ export async function handleRequiredActionSubmission(
   const subjectId = await deps.boundSubject(realm.id, authSessionId);
   if (subjectId === null) return { kind: 'unauthenticated' };
 
+  // The gate, before any action-specific handling and for every action this
+  // route accepts. A bound subject is somebody who passed a factor, which is
+  // not the same thing as somebody a realm asked to enrol one: without this,
+  // a stolen password buys an attacker a TOTP credential on the account,
+  // which then applies to every future login and outlives the password reset
+  // that would otherwise have ended the compromise.
+  const owed = await deps.pendingActions(realm.id, subjectId);
+  if (action === undefined || !owed.some((pending) => pending === action)) {
+    return { kind: 'not_owed', action: action ?? '' };
+  }
+
   if (action !== 'configure-totp') {
-    return { kind: 'unsupported', action: action ?? '' };
+    return { kind: 'unsupported', action };
   }
 
   const outcome = await deps.completeTotpEnrolment({

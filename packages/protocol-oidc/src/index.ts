@@ -217,10 +217,19 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
     const pendingChallengeFor = (realmId: string, authSessionId: string) =>
       withRealm(deps.database.db, realmId, (tx) => pendingChallenge(tx, authSessionId, clock));
 
+    // One definition for both readers: the login gate that discovers an
+    // action is owed, and the required-action route that will not act on
+    // one that is not.
+    const pendingActions = (realmId: string, subjectId: string) =>
+      withRealm(deps.database.db, realmId, (tx) =>
+        requiredActionRepository(tx).pendingFor(subjectId),
+      );
+
     registerRequiredActionRoute(app, {
       findRealm,
       beginTotpEnrolment: startTotpEnrolment,
       pendingChallenge: pendingChallengeFor,
+      pendingActions,
       boundSubject: (realmId, authSessionId) =>
         withRealm(deps.database.db, realmId, async (tx) => {
           const record = await authenticationSessionRepository(tx).byId(authSessionId);
@@ -244,10 +253,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
         withRealm(deps.database.db, realmId, (tx) => loadPendingRequest(tx, authSessionId)),
       pendingChallenge: pendingChallengeFor,
       checkEmailVerification,
-      pendingActions: (realmId, subjectId) =>
-        withRealm(deps.database.db, realmId, (tx) =>
-          requiredActionRepository(tx).pendingFor(subjectId),
-        ),
+      pendingActions,
       resolveClientId: (realmId, oauthClientId) =>
         withRealm(deps.database.db, realmId, async (tx) => {
           const client = await clientRepository(tx).byClientId(oauthClientId);
