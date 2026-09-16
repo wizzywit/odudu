@@ -553,9 +553,10 @@ password — a passkey is an alternative to a first factor, not to a code
 asked for after one, so the code form further down carries no script and no
 `script-src` with it.
 
-The script is inline because only a script can reach an authenticator, so
-this is the one page whose policy is not `default-src 'none'` alone
-(ADR 0018's amendment):
+The script is inline because only a script can reach an authenticator. This
+page and the passkey enrolment page are the two whose policy is not
+`default-src 'none'` alone (ADR 0018's amendment); this one also carries
+`connect-src 'self'`, since its script fetches the challenge:
 
 ```
 content-security-policy: default-src 'none'; frame-ancestors 'none'; form-action 'self'; base-uri 'none'; script-src 'nonce-Q2tArwm1PPmjG9DGWoq76g=='; connect-src 'self'

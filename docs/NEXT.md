@@ -39,12 +39,15 @@ success variant grew an optional `commit`, run by `advance` **after** the
 subject-mismatch guard — a factor that names its own subject must not move
 any state until the attempt is known to be that subject's.
 `POST /realms/{realm}/login-actions/passkey-challenge` issues the options
-and parks the challenge per press. **`sendHtml` now takes a script nonce**:
+and parks the challenge per press. **A rendered page now carries its own script**:
 `default-src 'none'` was silently blocking the enrolment page's inline
-script as well, so no WebAuthn page could ever have worked in a browser —
-a nonced `script-src` plus `connect-src 'self'` is added only for the pages
-that need it, and `packages/protocol-oidc/tests/passkey-enrolment.int.test.ts`
-pins the header's nonce to the element's.
+script as well, so no WebAuthn page could ever have worked in a browser.
+A renderer returns a `RenderedPage` whose `script` names the nonce it
+rendered, and `sendHtml` derives the policy from that one value — no call
+site can name a nonce the markup does not carry. `script-src` is added
+only for a page that renders a script, and `connect-src 'self'` only where
+that script fetches; `packages/protocol-oidc/tests/passkey-enrolment.int.test.ts`
+pins the header's nonce to the element's on both scripted pages.
 
 **Task 18 enrols a passkey.** `@simplewebauthn/server` is pinned at
 `14.0.2` (the version `docs/superpowers/p2b-spike-log.md` resolved and
