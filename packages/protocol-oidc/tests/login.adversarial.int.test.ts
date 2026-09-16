@@ -79,6 +79,12 @@ async function buildHttp(deps: {
   return instance;
 }
 
+// One realm per call, which every test here relies on for a reason worth
+// naming: a realm ships with the account lockout on (five consecutive wrong
+// passwords, `brute_force_max_failures`), so a suite that submits more than
+// four against a *shared* realm starts failing somewhere that looks
+// unrelated. Share a realm here and raise that column on it, or keep taking
+// a fresh one.
 async function setupLoginRealm(name: string): Promise<string> {
   const realmId = newId();
   const clientDbId = newId();

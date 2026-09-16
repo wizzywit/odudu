@@ -17,7 +17,11 @@ export {
 export { passwordExpired } from '#/service/password-age';
 export { isLockedOut, nextLockout, type LockoutPolicy, type LockoutState } from '#/service/lockout';
 export { loginFailures } from '#/schema/login-failures';
-export { loginFailureRepository, type LoginFailureRecord } from '#/repository/login-failures';
+export {
+  loginFailureRepository,
+  type LoginFailureRecord,
+  type RecordFailureOutcome,
+} from '#/repository/login-failures';
 export { subjectRepository, type NewSubject } from '#/repository/subjects';
 export {
   userRepository,

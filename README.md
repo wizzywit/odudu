@@ -202,9 +202,12 @@ Argon2id verification a wrong password pays for, so neither the page nor the
 timing distinguishes a locked account from a wrong password or from a
 username nobody holds. An attempt made during a lockout still counts, which
 is what keeps those costs equal — and means retrying extends the wait. A
-correct password accepted by an unlocked account deletes the row. What this
-does not cover: attempts by origin rather than by account, and client
-authentication at `/token`, where the secret's entropy is the only bound.
+correct password accepted by an unlocked account deletes the row — which,
+with waiting the window out, is the whole of how a lockout ends: there is no
+operator unlock and no admin surface to clear one, since there is no admin
+API yet. What this does not cover: attempts by origin rather than by
+account, and client authentication at `/token`, where the secret's entropy
+is the only bound.
 See [the brute-force section of docs/request-paths.md](docs/request-paths.md#brute-force-lockout)
 for the walkthrough.
 

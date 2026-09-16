@@ -27,6 +27,12 @@ a zero-row result means a concurrent attempt committed a failure from the
 same number, so it re-reads and re-applies rather than overwriting it with
 the same count. Four concurrent wrong passwords reach `failure_count = 4`;
 removing that one predicate takes it to 2, which is what the test is for.
+Exhausting the five retries means **this** attempt was not counted — the
+others were — so it is reported as `contended` rather than folded into the
+`no_subject` an unknown username gets: one is ordinary and the other is
+contention worth knowing about. Six concurrent writers each end `recorded`,
+which the count alone could not have shown.
+
 The row is inserted **from an RLS-scoped `SELECT` on `subjects`** rather
 than from a realm id the caller passes, which is what lets the login path
 key every read and write on `DUMMY_SUBJECT_ID` for an unknown username: the
@@ -36,13 +42,31 @@ median 21.2 ms for a known username against 21.4 ms for an unknown one, and
 24.0 ms locked against 23.9 ms unlocked.
 
 The refusal is `invalid_credentials`, which `handleLoginSubmission` turns
-into the same reasonless `reject` a wrong password produces — normalising
-`date`, `x-request-id` and the login page's CSP script nonce (all three of
-which differ between two identical wrong passwords), eight submissions
-hash identically in `docs/request-paths.md`. **An attempt during a lockout
-still counts**, which is what keeps a locked account the same statements as
-an unlocked one; the cost is that retrying extends the wait, which the
-transcript states.
+into the same reasonless `reject` a wrong password produces, so there is no
+second branch and no second page to keep in step. In process, the whole
+response is compared for equality with `date` the only exclusion — status
+code, body, and every header including `content-length`, the CSP header and
+the absence of `location` and `set-cookie`. Against the container, where
+`apps/server` stamps an `x-request-id` and the login page mints a CSP script
+nonce for its passkey button, those two are normalised out as well: both
+differ between two identical wrong passwords, so neither can distinguish
+anything. Eight submissions hash identically in `docs/request-paths.md`.
+**An attempt during a lockout still counts**, which is what keeps a locked
+account the same statements as an unlocked one; the cost is that retrying
+extends the wait, which the transcript states.
+
+**The reaper owes `login_failures`.** A row is removed only by a successful
+login, and a broken quiet period rewrites it rather than removing it, so the
+row an abandoned attack leaves behind stays forever — and it carries no
+`expires_at` or `consumed_at`, so the five tables named further down this
+file do not describe it. Its retention window is its own, and has two
+bounds rather than one: a row is dead once `last_failure_at` is older than
+the realm's `brute_force_failure_reset_seconds`, because from that point the
+arithmetic restarts from one whether the row exists or not — **and** once
+`locked_until` has passed, which is not implied by the first, since nothing
+stops a realm setting `brute_force_max_lockout_seconds` longer than its
+reset window. Deleting a row before both **unlocks an account**, so the
+window is per realm and per row, never a global age.
 
 **The clause row was split rather than moved.** RFC 6749 §2.3.1's MUST
 covers "any endpoint using password authentication", and the row's own

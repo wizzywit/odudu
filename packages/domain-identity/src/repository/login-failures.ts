@@ -31,11 +31,23 @@ interface RawOutcomeRow {
 }
 
 // How many times a lost compare-and-swap is re-read and re-applied. A loss
-// means a concurrent attempt committed a failure from the same observed
-// count, so the counter has moved either way and no attempt is free; the
-// retry is what makes both attempts *count*, rather than one overwriting
-// the other with the same number.
+// means a concurrent attempt committed a failure from the count this one
+// read, so the retry is what makes *this* attempt count too instead of
+// replacing that one with the same number. Exhausting the bound means this
+// attempt did not move the counter at all — reported as `contended`, and
+// bounded rather than harmless: the winners still increment, so the lockout
+// still trips, and writers serialize on the row, so five consecutive losses
+// take parallelism well past what a counter at this scale sees.
 const CAS_ATTEMPTS = 5;
+
+/**
+ * The three ends of one `recordFailure`. `contended` is distinguished from
+ * `no_subject` because they are opposite things: no subject is the ordinary
+ * answer for a username nobody holds, and contention is an attempt that was
+ * not counted, which is worth knowing about.
+ */
+export type RecordFailureOutcome =
+  { kind: 'recorded'; state: LoginFailureRecord } | { kind: 'no_subject' } | { kind: 'contended' };
 
 export function loginFailureRepository(tx: RealmScopedDatabase) {
   async function forSubject(subjectId: string): Promise<LoginFailureRecord> {
@@ -56,18 +68,17 @@ export function loginFailureRepository(tx: RealmScopedDatabase) {
 
     /**
      * Counts one failed attempt and locks the account at the realm's
-     * threshold. Returns the state written, or null when this realm holds no
-     * such subject — which the login path relies on: it hands a placeholder
-     * id for an unknown username so both cost the same, and the row is
-     * inserted from an RLS-scoped read of `subjects` rather than from a realm
-     * id passed in, so an id no subject holds writes nothing and violates no
-     * foreign key there would be no safe place to catch.
+     * threshold. `no_subject` is a state the login path relies on: it hands a
+     * placeholder id for an unknown username so both cost the same, and the
+     * row is inserted from an RLS-scoped read of `subjects` rather than from a
+     * realm id passed in, so an id no subject holds writes nothing and
+     * violates no foreign key there would be no safe place to catch.
      */
     async recordFailure(
       subjectId: string,
       policy: LockoutPolicy,
       now: Date,
-    ): Promise<LoginFailureRecord | null> {
+    ): Promise<RecordFailureOutcome> {
       for (let attempt = 0; attempt < CAS_ATTEMPTS; attempt++) {
         const observed = await forSubject(subjectId);
         const next = nextLockout(observed, policy, now);
@@ -105,17 +116,20 @@ export function loginFailureRepository(tx: RealmScopedDatabase) {
                  (SELECT count(*) FROM written)::int AS written_rows
         `);
         const row = (result as unknown as RawOutcomeRow[])[0];
-        if (row === undefined || row.target_rows === 0) return null;
+        if (row === undefined || row.target_rows === 0) return { kind: 'no_subject' };
         if (row.written_rows > 0) {
           return {
-            failureCount: next.failureCount,
-            firstFailureAt,
-            lastFailureAt: now,
-            lockedUntil: next.lockedUntil,
+            kind: 'recorded',
+            state: {
+              failureCount: next.failureCount,
+              firstFailureAt,
+              lastFailureAt: now,
+              lockedUntil: next.lockedUntil,
+            },
           };
         }
       }
-      return null;
+      return { kind: 'contended' };
     },
 
     // What a correct password does to the run of failures before it: ends

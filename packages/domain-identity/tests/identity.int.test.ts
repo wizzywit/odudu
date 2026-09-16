@@ -753,6 +753,32 @@ describe('loginFailureRepository', () => {
     return subject.id;
   }
 
+  // The retry behind the compare-and-swap, from the inside: every one of six
+  // concurrent writers has to end `recorded`, not merely leave the count at
+  // six. A writer that gave up would be an attempt nobody counted, and the
+  // count alone cannot tell that apart from a writer that won.
+  it('records every concurrent failure rather than giving one of them up', async () => {
+    const realmId = newId();
+    const subjectId = await withRealm(app.db, realmId, async (tx) => {
+      await seedRealm(tx, realmId);
+      const subject = await subjectRepository(tx).create({ realmId, type: 'user' });
+      return subject.id;
+    });
+
+    const outcomes = await Promise.all(
+      Array.from({ length: 6 }, () =>
+        withRealm(app.db, realmId, (tx) =>
+          loginFailureRepository(tx).recordFailure(subjectId, { ...POLICY, maxFailures: 20 }, AT),
+        ),
+      ),
+    );
+
+    expect(outcomes.map((outcome) => outcome.kind)).toEqual(Array(6).fill('recorded'));
+    expect(
+      await withRealm(app.db, realmId, (tx) => loginFailureRepository(tx).forSubject(subjectId)),
+    ).toMatchObject({ failureCount: 6 });
+  });
+
   it('reads no failure count under a different realm context', async () => {
     await expectCrossRealmMethodProbe(app.db, {
       seed: seedFailures,
@@ -777,14 +803,17 @@ describe('loginFailureRepository', () => {
       verifySeeded: async (tx, subjectId) => {
         expect(await loginFailureRepository(tx).recordFailure(subjectId, POLICY, AT)).toMatchObject(
           {
-            failureCount: 3,
+            kind: 'recorded',
+            state: { failureCount: 3 },
           },
         );
       },
       attempt: async (tx, subjectId) =>
         loginFailureRepository(tx).recordFailure(subjectId, POLICY, AT),
+      // Not `contended`: the write found no subject to write against, which
+      // is a policy that filtered the row rather than a lost race.
       expectBlocked: (result) => {
-        expect(result).toBeNull();
+        expect(result).toEqual({ kind: 'no_subject' });
       },
       // A cross-realm write that locked somebody out would be a denial of
       // service on an account in a realm the caller cannot even read.
