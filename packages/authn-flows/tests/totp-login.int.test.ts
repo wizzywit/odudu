@@ -510,6 +510,12 @@ describe('realmSettingsRepository', () => {
         expect(await realmSettingsRepository(tx).flowSettings(realmId)).toEqual({
           otpRequired: true,
           passwordMaxAgeDays: 90,
+          lockout: {
+            maxFailures: 5,
+            lockoutSeconds: 60,
+            maxLockoutSeconds: 900,
+            failureResetSeconds: 43_200,
+          },
         });
       },
       attempt: async (tx, realmId) => {

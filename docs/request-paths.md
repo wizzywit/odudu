@@ -2026,7 +2026,8 @@ Argon2id hashes (about 40 ms, run together), a delete and ten inserts, and it
 is repeatable for as long as the action is owed by anybody holding a valid
 password for the account. It is bounded — a password gets past the first
 factor, and acknowledging the page ends it — but it is a heavier multiplier
-than verification's, and the same missing rate limit covers both
+than verification's, and the per-account lockout does not reach it: that
+counts failures, and this path needs a password that works
 ([what is not implemented](#what-is-not-implemented)). Re-serving the same
 set instead would cost less and be worse: a second render of a live secret
 is the one thing this page must not do.
@@ -2937,6 +2938,152 @@ outright rather than kept and marked, which is the one exception to
 [ADR 0021](adr/0021-retention-is-bounded-by-the-detection-window.md)'s default in this codebase —
 a retired password nothing will ever compare against is a stored hash that
 answers no decision.
+
+## Brute-force lockout
+
+Five consecutive wrong passwords lock an account, and the realm ships that
+way: the four columns behind it are on in every realm, unlike every other
+credential setting on this page.
+
+```bash
+docker compose exec -T postgres psql -U odudu -d odudu -c \
+  "select brute_force_max_failures, brute_force_lockout_seconds,
+          brute_force_max_lockout_seconds, brute_force_failure_reset_seconds
+     from realms where name = 'demo';"
+```
+
+```
+ brute_force_max_failures | brute_force_lockout_seconds | brute_force_max_lockout_seconds | brute_force_failure_reset_seconds
+--------------------------+-----------------------------+---------------------------------+-----------------------------------
+                        5 |                          60 |                             900 |                             43200
+```
+
+The fifth failure locks for a minute, and each failure after that for twice
+as long, up to fifteen minutes; twelve hours with no failure forgets the run
+and counting starts again from one.
+
+**The refusal says nothing.** A page reading "account locked" would confirm
+both that the account exists and that somebody is attacking it — a worse
+oracle than the username enumeration the rest of this document works to
+close. So a locked account is refused with the response a wrong password
+gets. Below, eight submissions against one parked request: five wrong
+passwords, a sixth after the lockout has begun, the _right_ password, and a
+username nobody holds. The hash is of the whole response — status line,
+headers and body — with three per-response values normalised out: `date`,
+`x-request-id`, and the CSP script nonce the login page mints for its
+passkey button (which appears both in the header and in the markup).
+
+`$SID` is the `auth_session_id` the rendered form carries, taken from the
+`/authorize` response the way [the login POST](#3-the-login-post) does.
+
+```bash
+post() {
+  curl -sS -D /tmp/h.txt -o /tmp/b.txt \
+    --data-urlencode "auth_session_id=$SID" \
+    --data-urlencode "username=$1" --data-urlencode "password=$2" \
+    'http://localhost:3000/realms/demo/login-actions/authenticate' >/dev/null
+  cat /tmp/h.txt /tmp/b.txt | tr -d '\r' \
+    | grep -iv '^date:' | grep -iv '^x-request-id:' \
+    | sed 's/nonce-[A-Za-z0-9+/=]*/nonce-NONCE/; s/nonce="[^"]*"/nonce="NONCE"/' \
+    | shasum -a 256 | cut -c1-32
+}
+
+for n in 1 2 3 4 5 6; do echo "$n  wrong password    $(post ada wrong-password)"; done
+echo "7  right password    $(post ada correct-horse-battery)"
+echo "8  unknown username  $(post nobody wrong-password)"
+```
+
+```
+1  wrong password    cd79a67fcc4f8e1226e424692ee0270c
+2  wrong password    cd79a67fcc4f8e1226e424692ee0270c
+3  wrong password    cd79a67fcc4f8e1226e424692ee0270c
+4  wrong password    cd79a67fcc4f8e1226e424692ee0270c
+5  wrong password    cd79a67fcc4f8e1226e424692ee0270c
+6  wrong password    cd79a67fcc4f8e1226e424692ee0270c
+7  right password    cd79a67fcc4f8e1226e424692ee0270c
+8  unknown username  cd79a67fcc4f8e1226e424692ee0270c
+```
+
+Those three normalised values vary between any two responses, including two
+identical wrong passwords, so none of them distinguishes an account that
+exists from one that does not, or a locked account from a wrong password.
+The counter is keyed by **subject**, never by the submitted name — a name
+the account no longer answers to would otherwise lock it out, and one it
+answers to by email would miss it — which is why the eighth submission above
+recorded nothing at all:
+
+```bash
+docker compose exec -T postgres psql -U odudu -d odudu -x -c \
+  "select subject_id, failure_count, first_failure_at, last_failure_at, locked_until
+     from login_failures;"
+```
+
+```
+-[ RECORD 1 ]----+-------------------------------------
+subject_id       | 01a0aae1-8e7f-73e1-9796-d7baf90dd2cf
+failure_count    | 7
+first_failure_at | 2026-09-16 15:42:43.693+00
+last_failure_at  | 2026-09-16 15:42:44.517+00
+locked_until     | 2026-09-16 15:46:44.517+00
+```
+
+One row for `ada`, none for the username nobody holds — and seven failures,
+not eight. `locked_until` is four minutes past the last of them, because the
+count reached seven: a minute at five, two at six, four at seven.
+
+**An attempt made during a lockout is still an attempt**, which is what
+keeps a locked account the same cost as an unlocked one — the same read and
+the same write, so nothing can be learned from how quickly the refusal comes
+back. It also means retrying extends the wait. Five wrong passwords, then
+the right one refused, then the same right password once the second lockout
+has run out:
+
+```bash
+LOGIN='http://localhost:3000/realms/demo/login-actions/authenticate'
+for n in 1 2 3 4 5; do
+  curl -sS -o /dev/null -w "attempt $n: %{http_code}\n" \
+    --data-urlencode "auth_session_id=$SID" \
+    --data-urlencode 'username=ada' --data-urlencode 'password=wrong-password' "$LOGIN"
+done
+echo '--- the right password, while locked ---'
+curl -sS -o /dev/null -w "status %{http_code}, location '%{redirect_url}'\n" \
+  --data-urlencode "auth_session_id=$SID" \
+  --data-urlencode 'username=ada' --data-urlencode 'password=correct-horse-battery' "$LOGIN"
+sleep 125
+echo '--- the same password, 125 seconds later ---'
+# A fresh parked request, because the one above has been re-rendered five
+# times and this is the submission that completes it.
+curl -sS -D - -o /dev/null \
+  --data-urlencode "auth_session_id=$(sid)" \
+  --data-urlencode 'username=ada' --data-urlencode 'password=correct-horse-battery' "$LOGIN" \
+  | tr -d '\r' | grep -iE '^(HTTP|location|set-cookie)'
+```
+
+```
+attempt 1: 200
+attempt 2: 200
+attempt 3: 200
+attempt 4: 200
+attempt 5: 200
+--- the right password, while locked ---
+status 200, location ''
+--- the same password, 125 seconds later ---
+HTTP/1.1 302 Found
+set-cookie: demo-session=01a0aae5-d380-7a5a-9962-81113b964437; HttpOnly; SameSite=Lax; Path=/
+location: http://localhost:8080/callback?code=fK5JEywvUMKYYwKhZlOe8SnmRU_gdwUwLwS-RoYSX8k&state=xyz-123&iss=http%3A%2F%2Flocalhost%3A3000%2Frealms%2Fdemo
+```
+
+(`sid` is the `/authorize` request above with the hidden field read out of
+the page it renders. The wait is 125 seconds rather than 60 because the
+refused right password counted as the sixth failure and re-locked for two
+minutes.)
+
+A correct password accepted by an **unlocked** account deletes the row, so a
+run of failures ends when the account is signed into rather than decaying.
+Nothing here bounds an attacker working through many accounts at one
+password apiece, and nothing bounds attempts by origin: that is the per-IP
+throttle, and [what is not implemented](#what-is-not-implemented) says where
+it stands.
 
 ## Path B: refresh rotation
 
@@ -4193,14 +4340,15 @@ client is told.
 
 ### The login POST
 
-| Request                                      | Answer                                         | Why                                                                                                                                                              |
-| -------------------------------------------- | ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Wrong password                               | 200, the sign-in form again, same session id   | The session is live and can be retried; nothing is consumed                                                                                                      |
-| Unknown username                             | 200, the sign-in form again                    | Indistinguishable from a wrong password, and the credential query is still issued so the timing matches                                                          |
-| No `auth_session_id`                         | 400, "This sign-in attempt is no longer valid" | That field is the form's CSRF defence; a submission without it is not a submission from the form                                                                 |
-| Unknown or expired `auth_session_id`         | 400, same page                                 | Folded together deliberately: neither names a live parked request                                                                                                |
-| A second submit of a consumed session        | 400, same page                                 | The atomic consume is what stops a back-button press minting a second session and a second code                                                                  |
-| Right password, wrong `id_token_hint`ed user | 302 `error=login_required` to the client       | A positive response is for the end user the hint identifies. The session is left unconsumed, so the right user can still sign in against the same parked request |
+| Request                                      | Answer                                         | Why                                                                                                                                                                                      |
+| -------------------------------------------- | ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Wrong password                               | 200, the sign-in form again, same session id   | The session is live and can be retried; nothing is consumed                                                                                                                              |
+| Unknown username                             | 200, the sign-in form again                    | Indistinguishable from a wrong password, and the credential query is still issued so the timing matches                                                                                  |
+| Any password, while the account is locked    | 200, the sign-in form again                    | Byte-identical to a wrong password, and reached after the same verification, so neither the page nor the timing says the account is locked ([Brute-force lockout](#brute-force-lockout)) |
+| No `auth_session_id`                         | 400, "This sign-in attempt is no longer valid" | That field is the form's CSRF defence; a submission without it is not a submission from the form                                                                                         |
+| Unknown or expired `auth_session_id`         | 400, same page                                 | Folded together deliberately: neither names a live parked request                                                                                                                        |
+| A second submit of a consumed session        | 400, same page                                 | The atomic consume is what stops a back-button press minting a second session and a second code                                                                                          |
+| Right password, wrong `id_token_hint`ed user | 302 `error=login_required` to the client       | A positive response is for the end user the hint identifies. The session is left unconsumed, so the right user can still sign in against the same parked request                         |
 
 The last one, both halves, run against one parked request:
 
@@ -4642,7 +4790,8 @@ session lifecycle. A citation of either half here means that half.
   with a valid password renders the page again, which costs ten Argon2id
   hashes and eleven row writes. Bounded by holding the password and by
   acknowledging the page, but a heavier multiplier than the verification one
-  above; **P2b**'s brute-force work is where both are answered.
+  above; the per-account lockout counts failures and so reaches neither, and
+  the per-IP throttle is where both are answered.
 - **Password reset exists; a timing oracle in it does not have a fix yet.**
   Address verification (`GET /realms/{realm}/login-actions/action-token`,
   [Address verification](#address-verification)), self-registration
@@ -4660,13 +4809,20 @@ session lifecycle. A citation of either half here means that half.
 - **No "remember me".** A persistent session is a session-lifespan setting,
   and lifespans are **P2b**'s; the feature itself is not named in the
   roadmap.
-- **No rate limiting or lockout**, on failed sign-ins or anywhere else.
-  **P2b**, whose exit criterion names password policies and brute-force
-  protection. Self-registration widens what that leaves open: `POST
-/realms/{realm}/login-actions/registration` is unauthenticated and runs
-  one Argon2id hash per request with no maximum password length, so an
-  attacker who cannot yet guess a password can still spend the server's CPU
-  with no account at all.
+- **Failed sign-ins are locked out per account; nothing else is rate
+  limited.** Five consecutive wrong passwords lock an account for a growing
+  window, on by default in every realm
+  ([Brute-force lockout](#brute-force-lockout)). What that does not cover:
+  attempts by origin rather than by account, so one password tried against
+  a thousand accounts is unbounded, and so is `POST
+/realms/{realm}/login-actions/registration`, which is unauthenticated and
+  runs one Argon2id hash per request with no maximum password length — an
+  attacker who cannot guess a password can still spend the server's CPU with
+  no account at all. Both are the per-IP throttle's, **P2b**'s remaining
+  brute-force work. Client authentication at `/token` is bounded by neither:
+  the lockout is keyed by subject and a client is not one, and RFC 6749
+  §2.3.1's row for that half is `deferred: P3` in
+  [docs/protocols/rfc6749.md](protocols/rfc6749.md).
 - **The sign-in and error pages are hardcoded HTML**, dependency-free with
   every interpolated value escaped. Theming is **P10**; the contract for it
   is deliberately left undecided until there are enough pages for the real

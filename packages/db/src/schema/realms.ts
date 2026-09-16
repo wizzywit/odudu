@@ -43,4 +43,15 @@ export const realms = pgTable('realms', {
   // whoever has enrolled one; on makes a subject without one owe the
   // configure-totp required action at their next login.
   otpRequired: boolean('otp_required').notNull().default(false),
+  // The per-account lockout RFC 6749 §2.3.1 demands
+  // (packages/db/drizzle/0041_login_failures.sql), and the only switch this
+  // phase adds that ships on: a MUST that defaults off is not held. The
+  // arithmetic these four feed is
+  // packages/domain-identity/src/service/lockout.ts.
+  bruteForceMaxFailures: integer('brute_force_max_failures').notNull().default(5),
+  bruteForceLockoutSeconds: integer('brute_force_lockout_seconds').notNull().default(60),
+  bruteForceMaxLockoutSeconds: integer('brute_force_max_lockout_seconds').notNull().default(900),
+  bruteForceFailureResetSeconds: integer('brute_force_failure_reset_seconds')
+    .notNull()
+    .default(43_200),
 }).enableRLS();

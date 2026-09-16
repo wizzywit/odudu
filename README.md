@@ -120,7 +120,8 @@ only place they are ever shown: each is Argon2id-hashed with the same
 parameters as a password, one credential row per code, so no later page and
 no administrator can print them again, and reloading that page issues a
 fresh ten and retires the set it just displayed — at ten Argon2id hashes and
-eleven row writes per reload, which nothing rate-limits yet. They are ten characters
+eleven row writes per reload, which nothing rate-limits: the per-account
+lockout counts failures, and this path takes a password that works. They are ten characters
 from Crockford's 32-character base32 alphabet — 2^50 each, printed as
 `XXXXX-XXXXX` — and the alphabet's excluded letters (`I`, `L`, `O`) are
 folded onto the digits they resemble, so a code read off paper works either
@@ -181,6 +182,31 @@ every writer of a password: registration, reset redemption, the seed CLI's
 `--password` and `user` subcommand, and the change-password required
 action. A rejected password answers `400` with every violated rule listed
 at once, not just the first.
+
+**Five consecutive wrong passwords lock an account**, and this is the one
+credential setting that ships on: RFC 6749 §2.3.1's brute-force protection is
+a MUST, and a MUST that defaults off is not held. `brute_force_max_failures`
+(default `5`) is the threshold, `brute_force_lockout_seconds` (default `60`)
+the first wait, doubling per further failure up to
+`brute_force_max_lockout_seconds` (default `900`), and
+`brute_force_failure_reset_seconds` (default `43200`) is how long an account
+must go unattacked for counting to start again from one. The counter is a row
+per subject (`login_failures`), so it survives a restart and holds across
+replicas, and it is keyed by **subject** rather than by the name submitted —
+a lockout following a username could be aimed at a name the account no longer
+answers to, and would miss an attacker arriving by email.
+
+A locked account is refused with the response a wrong password gets: same
+status, same page, same headers, and the refusal is decided _after_ the
+Argon2id verification a wrong password pays for, so neither the page nor the
+timing distinguishes a locked account from a wrong password or from a
+username nobody holds. An attempt made during a lockout still counts, which
+is what keeps those costs equal — and means retrying extends the wait. A
+correct password accepted by an unlocked account deletes the row. What this
+does not cover: attempts by origin rather than by account, and client
+authentication at `/token`, where the secret's entropy is the only bound.
+See [the brute-force section of docs/request-paths.md](docs/request-paths.md#brute-force-lockout)
+for the walkthrough.
 
 `password_max_age_days` (default `0`, the feature off) ages a password out.
 An expired password is **not** refused: the login authenticates as it

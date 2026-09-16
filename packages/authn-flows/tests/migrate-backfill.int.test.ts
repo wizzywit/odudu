@@ -11,7 +11,7 @@ import {
 } from '@odudu/db';
 import { newId } from '@odudu/kernel';
 import { startTestDatabase, type TestDatabase } from '@odudu/testkit';
-import { asc, eq } from 'drizzle-orm';
+import { asc, eq, sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { authenticationExecutions } from '#/schema/execution';
 
@@ -97,7 +97,14 @@ describe('the recovery-code backfill, run by a schema owner that is not a superu
 
     await runMigrations(owned.db, await migrationsThrough(BEFORE_THE_BACKFILL));
     await withRealm(owned.db, realmId, async (tx) => {
-      await tx.insert(realms).values({ id: realmId, name: `realm-${realmId}` });
+      // Raw, and named down to the two columns this schema is old enough to
+      // have: `realms`' typed view describes the head of the migration set,
+      // so `tx.insert(realms)` names every column a later migration adds
+      // and cannot write to the partially-migrated database this suite is
+      // about.
+      await tx.execute(
+        sql`insert into realms (id, name) values (${realmId}, ${`realm-${realmId}`})`,
+      );
       for (const [index, authenticator] of ['passkey', 'password', 'otp'].entries()) {
         await tx.insert(authenticationExecutions).values({
           id: newId(),

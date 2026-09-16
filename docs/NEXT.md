@@ -3,7 +3,58 @@
 ## Start here
 
 **P0, P1 and P2a are complete. P2b is brainstormed, specified and planned;
-Tasks 1 through 21 have landed and Task 22 is next.**
+Tasks 1 through 22 have landed and Task 23 is next.**
+
+**Brute-force lockout lands, and closes the last `deferred: P2` clause row
+by splitting it.** Migration 0041 adds `login_failures` — one row per
+subject, keyed `(realm_id, subject_id)` with a composite foreign key onto
+`subjects (realm_id, id)`, RLS enabled and forced with its own policy — and
+four `realms` columns bounded by `realms_brute_force_bounds`:
+`brute_force_max_failures` (5), `brute_force_lockout_seconds` (60),
+`brute_force_max_lockout_seconds` (900) and
+`brute_force_failure_reset_seconds` (43200). **On by default, alone among
+this phase's realm switches**, because RFC 6749 §2.3.1 is a MUST and a MUST
+that ships off is not held. `nextLockout` in `@odudu/domain-identity` is the
+whole of the arithmetic; `isLockedOut` is the read side, with the exclusive
+boundary every other expiry here uses. A missing row reads as nobody's
+failure and nobody locked — the only answer that does not refuse every
+first login in the realm — but `flowSettings` still raises rather than
+defaulting on a missing realm row, so a policy is never invented.
+
+`loginFailureRepository.recordFailure` is a compare-and-swap with a bounded
+re-read: the count it observed is the `ON CONFLICT DO UPDATE`'s `WHERE`, and
+a zero-row result means a concurrent attempt committed a failure from the
+same number, so it re-reads and re-applies rather than overwriting it with
+the same count. Four concurrent wrong passwords reach `failure_count = 4`;
+removing that one predicate takes it to 2, which is what the test is for.
+The row is inserted **from an RLS-scoped `SELECT` on `subjects`** rather
+than from a realm id the caller passes, which is what lets the login path
+key every read and write on `DUMMY_SUBJECT_ID` for an unknown username: the
+statement runs identically, writes nothing, and violates no foreign key
+there would be no safe place to catch. Measured over 40 attempts apiece,
+median 21.2 ms for a known username against 21.4 ms for an unknown one, and
+24.0 ms locked against 23.9 ms unlocked.
+
+The refusal is `invalid_credentials`, which `handleLoginSubmission` turns
+into the same reasonless `reject` a wrong password produces — normalising
+`date`, `x-request-id` and the login page's CSP script nonce (all three of
+which differ between two identical wrong passwords), eight submissions
+hash identically in `docs/request-paths.md`. **An attempt during a lockout
+still counts**, which is what keeps a locked account the same statements as
+an unlocked one; the cost is that retrying extends the wait, which the
+transcript states.
+
+**The clause row was split rather than moved.** RFC 6749 §2.3.1's MUST
+covers "any endpoint using password authentication", and the row's own
+evidence named `/token`'s client secrets. The end-user half is now
+`covered` by `RFC6749-2.3.1-03`; the client-authentication half is a second
+row, `deferred: P3`, with a reading note explaining the split. **That filing
+is new**: nothing had scoped a rate limit on `client_secret` attempts, and
+P3 was chosen because its exit criterion already reworks client
+authentication (`private_key_jwt`, mTLS). Section 11 of the umbrella spec
+was not amended for it, so a P3 planner should read the row. `rfc6749.md`
+has **zero `deferred: P2` rows**, and its silenced-MUST census is unchanged
+at nine because one deferred MUST replaced another.
 
 **Task 21 gives `password_history_depth` and `password_max_age_days` a
 reader, and the change-password required action a route.** No migration was

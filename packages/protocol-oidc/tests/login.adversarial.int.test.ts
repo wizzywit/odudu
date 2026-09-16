@@ -973,3 +973,93 @@ describe('[OIDC-CORE-3.1.2.3-05] no page the login handler renders can be framed
     expectRefusesFraming(res, 'the error page');
   });
 });
+
+// RFC 6749 §2.3.1's brute-force protection, from the outside. The property
+// worth testing is not that a locked account is refused — it is that the
+// refusal tells the submitter nothing: an implementation that rendered
+// "account locked" would pass a test asserting only the refusal, and would
+// be a worse oracle than the username enumeration the rest of this file
+// works to close, because it confirms both that the account exists and that
+// somebody is attacking it.
+describe('[RFC6749-2.3.1-03] a locked account is refused in bytes nothing can be read from', () => {
+  // Fastify stamps every response with the instant it was sent, which is
+  // the one header that cannot match and the one that carries nothing: it
+  // is on the successful responses too and reflects the clock rather than
+  // the account.
+  function comparable(res: LightMyRequestResponse): unknown {
+    const headers = Object.fromEntries(
+      Object.entries(res.headers).filter(([name]) => name.toLowerCase() !== 'date'),
+    );
+    return { statusCode: res.statusCode, headers, body: res.body };
+  }
+
+  // One parked request for every attempt in a case, the way a browser
+  // retrying a rejected form does: the id is in the page, so comparing
+  // responses from two different sessions would compare two different forms.
+  async function attemptsAgainstOneSession(
+    realmName: string,
+  ): Promise<(credentials: { username: string; password: string }) => Promise<unknown>> {
+    const csrf = await startAuthSession(http, realmName);
+    return async (credentials) =>
+      comparable(await submitLogin({ ...credentials, realmName, csrf }));
+  }
+
+  // Five, and not a number this realm was configured with: the default is
+  // the whole point — a MUST that ships switched off is not held.
+  it('locks after the default five failures and answers as a wrong password does', async () => {
+    const realmName = await setupLoginRealm(`acme-lockout-${newId()}`);
+    const attempt = await attemptsAgainstOneSession(realmName);
+
+    const wrongPassword = await attempt({ username: USERNAME, password: 'wrong' });
+    for (let i = 0; i < 4; i++) await attempt({ username: USERNAME, password: 'wrong' });
+
+    expect(await attempt({ username: USERNAME, password: 'wrong' })).toEqual(wrongPassword);
+    expect(await attempt(GOOD)).toEqual(wrongPassword);
+  });
+
+  // The account exists and is locked; the username does not exist at all.
+  // Both are refused with the same bytes as a plain wrong password, so the
+  // three states the server distinguishes internally are one state on the
+  // wire.
+  it('answers an unknown username with those same bytes, locked or not', async () => {
+    const realmName = await setupLoginRealm(`acme-lockout-unknown-${newId()}`);
+    const attempt = await attemptsAgainstOneSession(realmName);
+
+    const wrongPassword = await attempt({ username: USERNAME, password: 'wrong' });
+    expect(await attempt({ username: 'nobody-here', password: 'wrong' })).toEqual(wrongPassword);
+
+    for (let i = 0; i < 4; i++) await attempt({ username: USERNAME, password: 'wrong' });
+
+    expect(await attempt({ username: USERNAME, password: 'wrong' })).toEqual(wrongPassword);
+    expect(await attempt({ username: 'nobody-here', password: 'wrong' })).toEqual(wrongPassword);
+  });
+
+  // Nothing is issued, which is the half a page comparison cannot see: a
+  // locked account must not reach the redirect, the cookie or the code.
+  it('issues nothing for the right password while the account is locked', async () => {
+    const realmName = await setupLoginRealm(`acme-lockout-issues-${newId()}`);
+    const attempt = await attemptsAgainstOneSession(realmName);
+    for (let i = 0; i < 5; i++) await attempt({ username: USERNAME, password: 'wrong' });
+
+    const res = await submitLogin({ ...GOOD, realmName });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.headers.location).toBeUndefined();
+    expect(res.headers['set-cookie']).toBeUndefined();
+    expect(await countAuthorizationCodes(realmName)).toBe(0);
+  });
+
+  // A lockout is one account's, not the realm's: an attacker who can lock
+  // out the account they are guessing at must not be able to lock out
+  // everybody else by doing it.
+  it('leaves every other account in the realm signable-into', async () => {
+    const realmName = await setupLoginRealm(`acme-lockout-neighbour-${newId()}`);
+    const attempt = await attemptsAgainstOneSession(realmName);
+    for (let i = 0; i < 6; i++) await attempt({ username: USERNAME, password: 'wrong' });
+
+    const res = await submitLogin({ ...OTHER_USER, realmName });
+
+    expect(res.statusCode).toBe(302);
+    expect(new URL(locationHeader(res)).searchParams.get('code')).not.toBeNull();
+  });
+});

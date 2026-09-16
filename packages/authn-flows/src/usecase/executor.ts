@@ -1,5 +1,11 @@
 import { type RealmScopedDatabase } from '@odudu/db';
-import { credentialRepository, userRepository } from '@odudu/domain-identity';
+import {
+  credentialRepository,
+  isLockedOut,
+  loginFailureRepository,
+  userRepository,
+  type LockoutPolicy,
+} from '@odudu/domain-identity';
 import { newId, systemClock, type Clock } from '@odudu/kernel';
 import { authenticationSessionRepository } from '#/repository/authentication-sessions';
 import { executionRepository } from '#/repository/executions';
@@ -31,29 +37,67 @@ import { assertedCredentialId } from '#/service/webauthn';
 
 // Never assigned to a real subject (subject ids come from `newId()`), so a
 // lookup against it always misses — which is the point: it lets the
-// unknown-user path issue the exact same credential query as the
-// wrong-password path, rather than skipping it.
+// unknown-user path issue the exact same credential query, lockout read and
+// failure write as the wrong-password path, rather than skipping any of
+// them. The write is keyed through an RLS-scoped read of `subjects`, so an
+// id no subject holds stores nothing and violates no foreign key (see
+// loginFailureRepository).
 const DUMMY_SUBJECT_ID = '00000000-0000-0000-0000-000000000000';
 
-async function passwordVerificationFor(
-  tx: RealmScopedDatabase,
-  username: string,
-): Promise<PasswordVerification> {
-  const found = await userRepository(tx).byUsername(username);
-  const storedHash = await credentialRepository(tx).passwordFor(
-    found === null ? DUMMY_SUBJECT_ID : found.subject.id,
-  );
-  return { subjectId: found === null ? null : found.subject.id, storedHash };
+interface PasswordAttempt {
+  verification: PasswordVerification;
+  // Whatever the username resolved to, or the placeholder above — what the
+  // credential lookup, the lockout read and the failure write are all keyed
+  // on, so the same four statements run whether the account exists or not.
+  keyedOn: string;
+  onRecord: { lockedUntil: Date | null };
 }
 
+async function passwordAttemptFor(
+  tx: RealmScopedDatabase,
+  username: string,
+): Promise<PasswordAttempt> {
+  const found = await userRepository(tx).byUsername(username);
+  const keyedOn = found === null ? DUMMY_SUBJECT_ID : found.subject.id;
+  const storedHash = await credentialRepository(tx).passwordFor(keyedOn);
+  const onRecord = await loginFailureRepository(tx).forSubject(keyedOn);
+  return {
+    verification: { subjectId: found === null ? null : found.subject.id, storedHash },
+    keyedOn,
+    onRecord,
+  };
+}
+
+// RFC 6749 §2.3.1's brute-force protection. Three things make the refusal
+// worth nothing to whoever provoked it: it is the failure a wrong password
+// returns, byte for byte, because a page saying "locked" would confirm both
+// that the account exists and that somebody is attacking it; it is decided
+// after the verification a wrong password pays for, so it cannot be told
+// apart by how fast it answers; and the attempt still counts, so a locked
+// account costs the same statements as an unlocked one.
 async function runPasswordStep(
   tx: RealmScopedDatabase,
   input: AdvanceInput,
+  context: StepContext,
 ): Promise<AuthenticatorResult> {
   if (input.username === undefined || input.password === undefined) {
     return passwordStep(input, { subjectId: null, storedHash: null });
   }
-  return passwordStep(input, await passwordVerificationFor(tx, input.username));
+  const attempt = await passwordAttemptFor(tx, input.username);
+  const outcome = await passwordStep(input, attempt.verification);
+  const failures = loginFailureRepository(tx);
+
+  if (outcome.kind === 'success' && !isLockedOut(attempt.onRecord, context.now)) {
+    // A correct password ends the run of failures before it. Never for a
+    // locked account: the lockout is what refuses this attempt, and
+    // clearing the counter would let whoever holds the password shorten
+    // their own lockout by spending it.
+    await failures.clear(attempt.keyedOn);
+    return outcome;
+  }
+
+  await failures.recordFailure(attempt.keyedOn, context.lockout, context.now);
+  return { kind: 'failure', reason: 'invalid_credentials' };
 }
 
 interface StoredTotp {
@@ -207,6 +251,9 @@ interface StepContext {
   authSessionId: string | null;
   now: Date;
   publicBaseUrl: string | null;
+  // The realm's own brute-force numbers, read alongside every other switch
+  // one `advance` needs (see realmSettingsRepository.flowSettings).
+  lockout: LockoutPolicy;
 }
 
 type RealmAuthenticatorFn = (
@@ -240,6 +287,7 @@ interface FlowFacts {
   otpRequired: boolean;
   // Zero where the realm does not age passwords out, which is the default.
   passwordMaxAgeDays: number;
+  lockout: LockoutPolicy;
   satisfied: ReadonlySet<string>;
   assertionOffered: boolean;
   recoveryCodeOffered: boolean;
@@ -271,6 +319,7 @@ async function flowFacts(
     hasRecoveryCodes,
     otpRequired: settings.otpRequired,
     passwordMaxAgeDays: settings.passwordMaxAgeDays,
+    lockout: settings.lockout,
     satisfied: request.satisfied,
     assertionOffered: request.assertionOffered,
     recoveryCodeOffered: request.recoveryCodeOffered,
@@ -482,22 +531,22 @@ async function loadFlowContext(
     return null;
   }
   const satisfied = new Set(record.satisfied);
+  const loaded = await loadSteps(tx, record.realmId, {
+    subjectId: record.subjectId,
+    satisfied,
+    assertionOffered: assertionOffered(input),
+    recoveryCodeOffered: recoveryCodeOffered(input),
+  });
   return {
     record,
-    steps: (
-      await loadSteps(tx, record.realmId, {
-        subjectId: record.subjectId,
-        satisfied,
-        assertionOffered: assertionOffered(input),
-        recoveryCodeOffered: recoveryCodeOffered(input),
-      })
-    ).steps,
+    steps: loaded.steps,
     satisfied,
     registry: bindRegistry(tx, {
       subjectId: record.subjectId,
       authSessionId,
       now: clock.now(),
       publicBaseUrl: options.publicBaseUrl ?? null,
+      lockout: loaded.facts.lockout,
     }),
   };
 }
@@ -540,7 +589,7 @@ export async function initialChallenge(
   // code belongs to is not something /authorize could know before anybody
   // has said who they are. No assertion either — there is no attempt yet
   // for a challenge to have been offered against.
-  const { steps } = await loadSteps(tx, realmId, {
+  const { steps, facts } = await loadSteps(tx, realmId, {
     subjectId: null,
     satisfied: new Set(),
     assertionOffered: false,
@@ -551,6 +600,7 @@ export async function initialChallenge(
     authSessionId: null,
     now: clock.now(),
     publicBaseUrl: null,
+    lockout: facts.lockout,
   });
   const dispatched = await dispatchNext(registry, steps, new Set(), {});
   if (dispatched.kind !== 'ran') {
@@ -689,6 +739,7 @@ export async function advance(
     authSessionId,
     now: clock.now(),
     publicBaseUrl: options.publicBaseUrl ?? null,
+    lockout: facts.lockout,
   });
   const after = await dispatchNext(forSubject, stepsForSubject, updatedSatisfied, {});
 

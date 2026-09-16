@@ -12,6 +12,7 @@ import { newId, OduduError } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { credentialRepository } from '#/repository/credentials';
+import { loginFailureRepository } from '#/repository/login-failures';
 import { subjectRepository } from '#/repository/subjects';
 import { userRepository } from '#/repository/users';
 import { isEmailAddress } from '#/service/email';
@@ -733,25 +734,124 @@ describe('credentialRepository', () => {
   });
 });
 
-describe('realm isolation', () => {
-  it.each(['subjects', 'users', 'user_credentials'])('isolates %s by realm', async (table) => {
-    await expectRealmIsolation(app.db, {
-      table,
-      seed: async (tx, realmId) => {
-        await seedRealm(tx, realmId);
-        const subjectId = await insertSubject(tx, realmId);
-        if (table === 'users') {
-          await insertUserRow(tx, subjectId, realmId);
-        } else if (table === 'user_credentials') {
-          await tx.insert(userCredentials).values({
-            id: newId(),
-            realmId,
-            subjectId,
-            type: 'password',
-            secretData: { hash: '$argon2id$fake-hash' },
-          });
-        }
+describe('loginFailureRepository', () => {
+  const POLICY = {
+    maxFailures: 3,
+    lockoutSeconds: 60,
+    maxLockoutSeconds: 240,
+    failureResetSeconds: 3600,
+  };
+  const AT = new Date('2026-09-15T12:00:00Z');
+
+  // Seeded through the repository's own write rather than an insert, so the
+  // probe fails if `recordFailure` ever stops being able to create the row.
+  async function seedFailures(tx: RealmScopedDatabase, realmId: string): Promise<string> {
+    await seedRealm(tx, realmId);
+    const subject = await subjectRepository(tx).create({ realmId, type: 'user' });
+    await loginFailureRepository(tx).recordFailure(subject.id, POLICY, AT);
+    await loginFailureRepository(tx).recordFailure(subject.id, POLICY, AT);
+    return subject.id;
+  }
+
+  it('reads no failure count under a different realm context', async () => {
+    await expectCrossRealmMethodProbe(app.db, {
+      seed: seedFailures,
+      // The blocked read answers the same zeros a subject who has never
+      // failed does, so the seeded read has to prove a non-zero count —
+      // otherwise the probe holds whether the policy filters or not.
+      verifySeeded: async (tx, subjectId) => {
+        expect(await loginFailureRepository(tx).forSubject(subjectId)).toMatchObject({
+          failureCount: 2,
+        });
+      },
+      attempt: async (tx, subjectId) => loginFailureRepository(tx).forSubject(subjectId),
+      expectBlocked: (result) => {
+        expect(result).toMatchObject({ failureCount: 0, lockedUntil: null });
       },
     });
   });
+
+  it('cannot record a failure against another realm’s subject', async () => {
+    await expectCrossRealmMethodProbe(app.db, {
+      seed: seedFailures,
+      verifySeeded: async (tx, subjectId) => {
+        expect(await loginFailureRepository(tx).recordFailure(subjectId, POLICY, AT)).toMatchObject(
+          {
+            failureCount: 3,
+          },
+        );
+      },
+      attempt: async (tx, subjectId) =>
+        loginFailureRepository(tx).recordFailure(subjectId, POLICY, AT),
+      expectBlocked: (result) => {
+        expect(result).toBeNull();
+      },
+      // A cross-realm write that locked somebody out would be a denial of
+      // service on an account in a realm the caller cannot even read.
+      verifyRealmAUnaffected: async (tx, subjectId) => {
+        expect(await loginFailureRepository(tx).forSubject(subjectId)).toMatchObject({
+          failureCount: 3,
+        });
+      },
+    });
+  });
+
+  it('cannot clear another realm’s failure count', async () => {
+    await expectCrossRealmMethodProbe(app.db, {
+      seed: seedFailures,
+      verifySeeded: async (tx, subjectId) => {
+        expect(await loginFailureRepository(tx).forSubject(subjectId)).toMatchObject({
+          failureCount: 2,
+        });
+      },
+      attempt: async (tx, subjectId) => loginFailureRepository(tx).clear(subjectId),
+      expectBlocked: (result) => {
+        expect(result).toBe(false);
+      },
+      // The one that matters most: clearing across realms would let anybody
+      // with a realm of their own unlock an account in somebody else's.
+      verifyRealmAUnaffected: async (tx, subjectId) => {
+        expect(await loginFailureRepository(tx).forSubject(subjectId)).toMatchObject({
+          failureCount: 2,
+        });
+      },
+    });
+  });
+});
+
+describe('realm isolation', () => {
+  it.each(['subjects', 'users', 'user_credentials', 'login_failures'])(
+    'isolates %s by realm',
+    async (table) => {
+      await expectRealmIsolation(app.db, {
+        table,
+        seed: async (tx, realmId) => {
+          await seedRealm(tx, realmId);
+          const subjectId = await insertSubject(tx, realmId);
+          if (table === 'users') {
+            await insertUserRow(tx, subjectId, realmId);
+          } else if (table === 'user_credentials') {
+            await tx.insert(userCredentials).values({
+              id: newId(),
+              realmId,
+              subjectId,
+              type: 'password',
+              secretData: { hash: '$argon2id$fake-hash' },
+            });
+          } else if (table === 'login_failures') {
+            await loginFailureRepository(tx).recordFailure(
+              subjectId,
+              {
+                maxFailures: 3,
+                lockoutSeconds: 60,
+                maxLockoutSeconds: 240,
+                failureResetSeconds: 3600,
+              },
+              new Date('2026-09-15T12:00:00Z'),
+            );
+          }
+        },
+      });
+    },
+  );
 });
