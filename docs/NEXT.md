@@ -52,7 +52,8 @@ row, `deferred: P3`, with a reading note explaining the split. **That filing
 is new**: nothing had scoped a rate limit on `client_secret` attempts, and
 P3 was chosen because its exit criterion already reworks client
 authentication (`private_key_jwt`, mTLS). Section 11 of the umbrella spec
-was not amended for it, so a P3 planner should read the row. `rfc6749.md`
+now names it in P3's criterion, so it is scheduled rather than only
+recorded. `rfc6749.md`
 has **zero `deferred: P2` rows**, and its silenced-MUST census is unchanged
 at nine because one deferred MUST replaced another.
 
