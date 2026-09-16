@@ -79,7 +79,12 @@ The three answers, in the same order as the questions:
 - **A pass that throws is logged and the loop reschedules.** The next tick
   runs on time. Ending the loop over one failed pass would stop reaping for
   the life of the process, and nothing would report it; an hourly error in
-  the log is a fault somebody can see.
+  the log is a fault somebody can see. Rescheduling happens in a `finally`,
+  so a logger that throws while reporting the failure cannot do what the
+  failure itself cannot, and the tick's promise carries a terminal `catch`
+  — an unhandled rejection is one of `close-with-grace`'s default
+  `errorEvents`, so without it a failed log line could take the whole
+  process down.
 - **The schedule declines to start rather than failing every tick.**
   Without `ODUDU_APP_DATABASE_URL` the module logs one warning naming that
   variable and `ODUDU_REAP_ENABLED=false`, and starts no timer. Production
@@ -93,13 +98,27 @@ The three answers, in the same order as the questions:
   behaviour change for anybody who was relying on rows staying put;
   `ODUDU_REAP_ENABLED=false` is the documented way back, and it is the
   setting for a deployment that schedules the command externally.
+- **The first pass after an upgrade may be very large, and it is one
+  transaction.** A deployment that never scheduled `reap` has a backlog,
+  and the pass holds a single transaction across every realm and every
+  table — which is what makes one lock and one report cover the lot, and
+  what makes the backlog arrive as one long-running statement sequence
+  rather than in batches. Compounding it: `closeWithGrace({ delay: 10_000 })`
+  in `apps/server/src/main.ts` bounds shutdown at ten seconds, so a
+  restart-heavy deployment can abandon that first pass part-way every time
+  and never get through it. Nothing here chunks the work; the way out is
+  `odudu reap` run once by hand against an idle window before turning the
+  schedule on, or a shorter `ODUDU_REAP_INTERVAL_SECONDS` while the backlog
+  drains.
 - **Retention is still a single-flight property, not a single-instance
   one.** Replicas may all schedule it. One wins each tick.
-- **`stop()` awaits the pass in flight.** An abandoned pass would be
-  harmless — the transaction rolls back and the advisory lock releases on
-  rollback as well as on commit — but a process that exits with its own
-  database work outstanding turns every shutdown into a log entry nobody
-  can tell from a fault.
+- **`stop()` awaits the pass in flight, within the shutdown grace and no
+  longer.** `closeWithGrace({ delay: 10_000 })` bounds the whole shutdown,
+  so a pass still running after ten seconds is abandoned regardless — the
+  await removes the noise from an ordinary shutdown, it does not promise
+  the pass completes. Abandoning one is harmless in itself: the transaction
+  rolls back and the advisory lock releases on rollback as well as on
+  commit.
 - **The interval is per process, measured from boot.** There is no shared
   record of when the last pass ran, so a deployment that restarts more
   often than the interval reaps more often than the interval — harmlessly,

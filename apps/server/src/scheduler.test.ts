@@ -146,6 +146,50 @@ describe('the scheduled pass', () => {
     await scheduler.stop();
   });
 
+  // The path the case above cannot reach: the pass fails *and* reporting it
+  // fails. The loop must survive both, and the tick must not reject — an
+  // unhandled rejection is an `errorEvents` entry for close-with-grace
+  // (`apps/server/src/main.ts`), which would take the whole process down
+  // over a log line.
+  it('is still running after reporting a failed pass throws', async () => {
+    const unusable: Logger = {
+      debug: () => undefined,
+      info: () => undefined,
+      warn: () => undefined,
+      error: () => {
+        throw new Error('the logger cannot serialise this');
+      },
+      child: () => unusable,
+    };
+    const rejections: unknown[] = [];
+    const onRejection = (reason: unknown): void => {
+      rejections.push(reason);
+    };
+    process.on('unhandledRejection', onRejection);
+
+    const runs: number[] = [];
+    const scheduler = startScheduler({
+      intervalMs: INTERVAL,
+      jitterMs: 0,
+      random: () => 0,
+      log: unusable,
+      run: () => {
+        runs.push(runs.length);
+        return Promise.reject(new Error('every pass fails'));
+      },
+    });
+
+    try {
+      await vi.advanceTimersByTimeAsync(INTERVAL * 3);
+      await scheduler.stop();
+    } finally {
+      process.off('unhandledRejection', onRejection);
+    }
+
+    expect(runs).toHaveLength(3);
+    expect(rejections).toEqual([]);
+  });
+
   it('runs nothing further once stopped', async () => {
     const runs: number[] = [];
     const scheduler = startScheduler({

@@ -40,7 +40,12 @@ export function startScheduler(options: SchedulerOptions): Scheduler {
     if (stopped) return;
     timer = setTimeout(
       () => {
-        inFlight = tick();
+        // The terminal catch is the loop's last line of defence, not a
+        // dropped error: the only way past the `catch` below is the logger
+        // itself failing, and nothing is left to report that with. Without
+        // it the rejection is unhandled, which `close-with-grace` is wired
+        // to treat as a reason to shut the whole process down.
+        inFlight = tick().catch(() => undefined);
       },
       nextDelayMs(options.intervalMs, options.jitterMs, random()),
     );
@@ -54,8 +59,11 @@ export function startScheduler(options: SchedulerOptions): Scheduler {
       // that did not happen; ending the loop over it would stop reaping
       // for the life of the process, and nothing would report that.
       options.log.error({ err }, 'the scheduled pass failed; the next one runs on schedule');
+    } finally {
+      // In a `finally`, so a logger that throws while reporting a failed
+      // pass cannot do what the failed pass itself cannot: end the loop.
+      schedule();
     }
-    schedule();
   }
 
   schedule();

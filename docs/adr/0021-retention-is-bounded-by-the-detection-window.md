@@ -363,3 +363,19 @@ migration lands, its name joins `TableName`, which does not compile until
 a place for it. Until then, a standing integration case fails the build for
 any table carrying a lifecycle timestamp — `sent_at` and `failed_at`
 included — that has neither a rule nor a stated reason for having none.
+
+## Amendment, 2026-09-16 — the server does run it
+
+One consequence above says "the reaper is a background writer, which the
+server does not have today". That is no longer true. The server schedules
+the pass itself, hourly by default, and
+[ADR 0024](0024-a-scheduled-pass-is-a-command-first.md) carries the shape:
+the pass stays exactly what this ADR describes — a command, taking its
+`now` as an argument — and the loop that calls it holds no logic and takes
+no lock of its own, because `withEachRealmExclusive` already holds the one
+this document's amendment named. `ODUDU_REAP_ENABLED=false` returns a
+deployment to the external cron entry this ADR assumed.
+
+Nothing in the decision or in the windows changes. What changes is that a
+deployment which schedules nothing is no longer a deployment that retains
+everything for ever.

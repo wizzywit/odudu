@@ -151,7 +151,10 @@ logged. "The run fired" says nothing about whether the loop is still alive.
 **Decide at boot what cannot change per tick.** A loop whose first act each
 hour is to rediscover a missing environment variable is a loop that logs
 the same error forever. Refuse to start, name the variable and name the
-switch that turns the schedule off.
+switch that turns the schedule off. Where a precondition can only be
+checked by asking the database, a persistent per-tick error is the accepted
+cost of keeping the loop logic-free — ADR 0024 records the one instance and
+why, so read a breach in existing code against that before fixing it.
 
 **Test a loop with fake timers, never by waiting.** `vi.useFakeTimers()`
 and `await vi.advanceTimersByTimeAsync(ms)`; a jitter band is asserted by

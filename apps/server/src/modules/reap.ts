@@ -1,6 +1,12 @@
 import { type DatabaseHandle } from '@odudu/db';
 import { type Config, type OduduModule } from '@odudu/kernel';
-import { reap, retentionPolicyFromConfig } from '#/cli/reap';
+import {
+  reap,
+  retentionPolicyFromConfig,
+  type ReapDeps,
+  type ReapOutcome,
+  type RetentionPolicy,
+} from '#/cli/reap';
 import { startScheduler, type Scheduler } from '#/scheduler';
 
 /**
@@ -38,7 +44,14 @@ export interface ReapModuleDeps {
   readonly ownerDatabase: DatabaseHandle;
 }
 
-export function reapModule(deps: ReapModuleDeps): OduduModule {
+/**
+ * The pass the schedule drives. Defaulted rather than injected in
+ * `main.ts`, the way `assertReapOrder`'s order is, so a test can drive one
+ * tick of the wiring without a database and production has one answer.
+ */
+export type ReapPass = (deps: ReapDeps, now: Date, policy: RetentionPolicy) => Promise<ReapOutcome>;
+
+export function reapModule(deps: ReapModuleDeps, pass: ReapPass = reap): OduduModule {
   let scheduler: Scheduler | undefined;
 
   return {
@@ -71,7 +84,7 @@ export function reapModule(deps: ReapModuleDeps): OduduModule {
         jitterMs: decision.jitterMs,
         log,
         run: async () => {
-          const outcome = await reap(deps, ctx.clock.now(), retentionPolicyFromConfig(ctx.config));
+          const outcome = await pass(deps, ctx.clock.now(), retentionPolicyFromConfig(ctx.config));
           if (outcome.ran) log.info({ deleted: outcome.deleted }, 'retention pass complete');
           else log.info({ reason: outcome.reason }, 'retention pass skipped');
         },
