@@ -1,5 +1,6 @@
 import { type DatabaseHandle, type RealmScopedDatabase } from '@odudu/db';
 import { type EmailSender } from '@odudu/email';
+import { PASSWORD_TOO_LONG, readPasswordField } from '@odudu/kernel';
 import { type FastifyInstance } from 'fastify';
 import {
   register,
@@ -96,7 +97,18 @@ export function registerRegistrationRoute(app: FastifyInstance, deps: Registrati
     const body = request.body;
     const username = firstNonEmptyString(body.username);
     const email = firstNonEmptyString(body.email);
-    const password = firstNonEmptyString(body.password);
+    const candidate = readPasswordField(body.password);
+    if (candidate.kind === 'too_long') {
+      return sendVerificationHtml(
+        reply,
+        400,
+        renderRegistrationFailedPage([PASSWORD_TOO_LONG.message]),
+      );
+    }
+    const password =
+      candidate.kind === 'present' && candidate.password.length > 0
+        ? candidate.password
+        : undefined;
     if (username === undefined || email === undefined || password === undefined) {
       return sendVerificationHtml(
         reply,

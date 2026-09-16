@@ -1,4 +1,5 @@
 import { type DatabaseHandle, type RealmScopedDatabase } from '@odudu/db';
+import { PASSWORD_TOO_LONG, readPasswordField } from '@odudu/kernel';
 import { type FastifyInstance } from 'fastify';
 import { peekActionToken } from '#/usecase/action-token';
 import {
@@ -132,12 +133,27 @@ export function registerActionTokenRoute(app: FastifyInstance, deps: ActionToken
   }>('/realms/:realm/login-actions/action-token', async (request, reply) => {
     const body = request.body;
     const key = firstNonEmptyString(body.key);
-    const password = firstNonEmptyString(body.password);
+    const candidate = readPasswordField(body.password);
     const realm = key === undefined ? null : await deps.findRealm(request.params.realm);
 
     if (key === undefined || !realm?.enabled || !realm.resetPasswordAllowed) {
       return sendVerificationHtml(reply, 400, renderResetLinkFailedPage());
     }
+
+    // Listed as a rule of the policy, because to the person typing it that
+    // is what it is — but decided here rather than in evaluatePassword, so
+    // the length is bounded before anything hashes it.
+    if (candidate.kind === 'too_long') {
+      return sendVerificationHtml(
+        reply,
+        400,
+        renderResetPasswordWeakPage([PASSWORD_TOO_LONG.message]),
+      );
+    }
+    const password =
+      candidate.kind === 'present' && candidate.password.length > 0
+        ? candidate.password
+        : undefined;
 
     // Distinct from the link being unusable: the key is present and has
     // not been checked yet, so telling the redeemer their link "can't be

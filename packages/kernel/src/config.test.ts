@@ -62,6 +62,26 @@ describe('loadConfig', () => {
     expect(loadConfig({ ...minimal, ODUDU_TRUST_PROXY: 'false' }).ODUDU_TRUST_PROXY).toBe(false);
   });
 
+  it('defaults the throttle to ten requests a minute', () => {
+    const config = loadConfig(minimal);
+    expect(config.ODUDU_THROTTLE_LIMIT).toBe(10);
+    expect(config.ODUDU_THROTTLE_WINDOW_SECONDS).toBe(60);
+  });
+
+  it('reads a raised throttle out of the environment', () => {
+    const config = loadConfig({
+      ...minimal,
+      ODUDU_THROTTLE_LIMIT: '500',
+      ODUDU_THROTTLE_WINDOW_SECONDS: '30',
+    });
+    expect(config.ODUDU_THROTTLE_LIMIT).toBe(500);
+    expect(config.ODUDU_THROTTLE_WINDOW_SECONDS).toBe(30);
+  });
+
+  it('refuses a throttle limit of zero rather than reading it as off', () => {
+    expect(() => loadConfig({ ...minimal, ODUDU_THROTTLE_LIMIT: '0' })).toThrow(/THROTTLE_LIMIT/u);
+  });
+
   it('decodes ODUDU_KEK from base64 to exactly 32 bytes', () => {
     const config = loadConfig(minimal);
     expect(config.ODUDU_KEK).toBeInstanceOf(Uint8Array);

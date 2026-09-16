@@ -1,3 +1,4 @@
+import { MAX_PASSWORD_LENGTH } from '@odudu/kernel';
 import { describe, expect, it } from 'vitest';
 import { evaluatePassword, type PasswordPolicy } from '#/service/password-policy';
 
@@ -37,6 +38,16 @@ describe('evaluatePassword', () => {
       'require-special',
       'require-uppercase',
     ]);
+  });
+
+  // The maximum is not a realm setting, so a realm cannot configure its way
+  // past it; readPasswordField refuses the same length at every form read,
+  // and this is what binds the writers that read no form.
+  it('refuses a password longer than the maximum, whatever the realm says', () => {
+    expect(evaluatePassword('a'.repeat(MAX_PASSWORD_LENGTH), base, ada)).toEqual([]);
+    expect(
+      evaluatePassword('a'.repeat(MAX_PASSWORD_LENGTH + 1), base, ada).map((v) => v.rule),
+    ).toEqual(['max-length']);
   });
 
   it('refuses a password containing the username, case-insensitively', () => {

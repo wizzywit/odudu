@@ -2976,6 +2976,15 @@ passkey button (which appears both in the header and in the markup).
 `$SID` is the `auth_session_id` the rendered form carries, taken from the
 `/authorize` response the way [the login POST](#3-the-login-post) does.
 
+Two things about reproducing it. The digest is of a response that carries
+`$SID` in a hidden field, so a fresh parked request gives a different
+value: what is asserted is that all eight agree, not the particular
+thirty-two characters below. And eight submissions in a minute from one
+address is past the [per-origin throttle](#the-per-origin-throttle) below,
+so the runs in this section were captured against a stack started with
+`ODUDU_THROTTLE_LIMIT=1000 docker compose up -d` — at the default of ten,
+the later submissions answer `429` and never reach the lockout at all.
+
 ```bash
 post() {
   curl -sS -D /tmp/h.txt -o /tmp/b.txt \
@@ -2994,14 +3003,14 @@ echo "8  unknown username  $(post nobody wrong-password)"
 ```
 
 ```
-1  wrong password    cd79a67fcc4f8e1226e424692ee0270c
-2  wrong password    cd79a67fcc4f8e1226e424692ee0270c
-3  wrong password    cd79a67fcc4f8e1226e424692ee0270c
-4  wrong password    cd79a67fcc4f8e1226e424692ee0270c
-5  wrong password    cd79a67fcc4f8e1226e424692ee0270c
-6  wrong password    cd79a67fcc4f8e1226e424692ee0270c
-7  right password    cd79a67fcc4f8e1226e424692ee0270c
-8  unknown username  cd79a67fcc4f8e1226e424692ee0270c
+1  wrong password    633a4e935220333a309cfb615157ef0b
+2  wrong password    633a4e935220333a309cfb615157ef0b
+3  wrong password    633a4e935220333a309cfb615157ef0b
+4  wrong password    633a4e935220333a309cfb615157ef0b
+5  wrong password    633a4e935220333a309cfb615157ef0b
+6  wrong password    633a4e935220333a309cfb615157ef0b
+7  right password    633a4e935220333a309cfb615157ef0b
+8  unknown username  633a4e935220333a309cfb615157ef0b
 ```
 
 Those three normalised values vary between any two responses, including two
@@ -3020,11 +3029,11 @@ docker compose exec -T postgres psql -U odudu -d odudu -x -c \
 
 ```
 -[ RECORD 1 ]----+-------------------------------------
-subject_id       | 01a0aae1-8e7f-73e1-9796-d7baf90dd2cf
+subject_id       | 01a0ab3d-b13f-7221-802e-2874387ed1aa
 failure_count    | 7
-first_failure_at | 2026-09-16 15:42:43.693+00
-last_failure_at  | 2026-09-16 15:42:44.517+00
-locked_until     | 2026-09-16 15:46:44.517+00
+first_failure_at | 2026-09-16 17:23:09.789+00
+last_failure_at  | 2026-09-16 17:23:10.336+00
+locked_until     | 2026-09-16 17:27:10.336+00
 ```
 
 One row for `ada`, none for the username nobody holds — and seven failures,
@@ -3069,8 +3078,8 @@ attempt 5: 200
 status 200, location ''
 --- the same password, 125 seconds later ---
 HTTP/1.1 302 Found
-set-cookie: demo-session=01a0aae5-d380-7a5a-9962-81113b964437; HttpOnly; SameSite=Lax; Path=/
-location: http://localhost:8080/callback?code=fK5JEywvUMKYYwKhZlOe8SnmRU_gdwUwLwS-RoYSX8k&state=xyz-123&iss=http%3A%2F%2Flocalhost%3A3000%2Frealms%2Fdemo
+set-cookie: demo-session=01a0ab41-1962-7c10-957d-f475b20fdf14; HttpOnly; SameSite=Lax; Path=/
+location: http://localhost:8080/callback?code=UdwMrB58G5XGVhWxXl27eTwXQjhXLvMAe-VTLws-Esg&state=xyz-123&iss=http%3A%2F%2Flocalhost%3A3000%2Frealms%2Fdemo
 ```
 
 (`sid` is the `/authorize` request above with the hidden field read out of
@@ -3080,10 +3089,115 @@ minutes.)
 
 A correct password accepted by an **unlocked** account deletes the row, so a
 run of failures ends when the account is signed into rather than decaying.
-Nothing here bounds an attacker working through many accounts at one
-password apiece, and nothing bounds attempts by origin: that is the per-IP
-throttle, and [what is not implemented](#what-is-not-implemented) says where
-it stands.
+What none of this bounds is an attacker working through many accounts at one
+password apiece — every counter stays at one — which is what the throttle
+below is for.
+
+### The per-origin throttle
+
+Three unauthenticated submissions each cost real work: the sign-in POST runs
+an Argon2id verification, registration runs an Argon2id **hash**, and the
+reset request does a lookup and a mail send. They share one budget per
+client address — `ODUDU_THROTTLE_LIMIT` (default `10`) requests per
+`ODUDU_THROTTLE_WINDOW_SECONDS` (default `60`) — and nothing else on this
+page is throttled. ADR 0023 is why it is a window in this process's memory
+rather than a row.
+
+```bash
+RESET='http://localhost:3000/realms/demo/login-actions/reset-password'
+for n in $(seq 1 10); do
+  curl -sS -o /dev/null -w "request $n: %{http_code}\n" \
+    --data-urlencode 'email=ada@example.test' "$RESET"
+done
+echo '--- the eleventh, from the same address ---'
+curl -sS -D - -o /dev/null --data-urlencode 'email=ada@example.test' "$RESET" \
+  | tr -d '\r' | grep -iE '^(HTTP|retry-after|content-length)'
+echo '--- an address this realm has never seen, still throttled ---'
+curl -sS -D - -o /dev/null --data-urlencode 'email=nobody@example.test' "$RESET" \
+  | tr -d '\r' | grep -iE '^(HTTP|retry-after|content-length)'
+```
+
+```
+request 1: 200
+request 2: 200
+request 3: 200
+request 4: 200
+request 5: 200
+request 6: 200
+request 7: 200
+request 8: 200
+request 9: 200
+request 10: 200
+--- the eleventh, from the same address ---
+HTTP/1.1 429 Too Many Requests
+retry-after: 60
+content-length: 0
+--- an address this realm has never seen, still throttled ---
+HTTP/1.1 429 Too Many Requests
+retry-after: 60
+content-length: 0
+```
+
+Empty body, and the same one either way: the refusal is decided before the
+body is parsed or any account looked up, so it cannot say whether the
+address was one this realm knows. The budget is shared across the three
+routes rather than one per route, the rendered forms are not throttled, and
+neither is `/token`:
+
+```bash
+echo '--- the sign-in submission shares the same budget ---'
+curl -sS -D - -o /dev/null \
+  --data-urlencode 'username=ada' --data-urlencode 'password=correct-horse-battery' \
+  'http://localhost:3000/realms/demo/login-actions/authenticate' \
+  | tr -d '\r' | grep -iE '^(HTTP|retry-after)'
+echo '--- the form it submits to is not throttled ---'
+curl -sS -o /dev/null -w "GET the reset form: %{http_code}\n" \
+  'http://localhost:3000/realms/demo/login-actions/reset-password'
+echo '--- and /token is not ---'
+for n in 1 2 3; do
+  curl -sS -o /dev/null -w "token request $n: %{http_code}\n" \
+    --data-urlencode 'grant_type=authorization_code' --data-urlencode 'code=nope' \
+    --data-urlencode 'redirect_uri=http://localhost:8080/callback' \
+    --data-urlencode 'client_id=demo-spa' --data-urlencode 'code_verifier=x' \
+    'http://localhost:3000/realms/demo/protocol/openid-connect/token'
+done
+```
+
+```
+--- the sign-in submission shares the same budget ---
+HTTP/1.1 429 Too Many Requests
+retry-after: 50
+```
+
+```
+--- the form it submits to is not throttled ---
+GET the reset form: 200
+--- and /token is not ---
+token request 1: 400
+token request 2: 400
+token request 3: 400
+```
+
+`retry-after: 50` rather than `60` because the window slides: ten seconds of
+the first request's minute had already passed. The three `400`s are
+`invalid_grant` on a code that never existed — an OAuth refusal, which is
+the point.
+
+**A `429` is the throttle and nothing else.** A lockout refusal is `200`
+with the sign-in form, byte-identical to a wrong password, so the two
+mechanisms are never confusable from a response — and a burst of wrong
+passwords big enough to lock an account is also big enough to exhaust the
+budget, which is why the transcripts above this section were captured with
+`ODUDU_THROTTLE_LIMIT` raised.
+
+Two limits this cannot show. The window lives in one process's memory, so
+**it is per instance**: N replicas behind a load balancer would each allow
+the full budget, and there is no load balancer and no second replica in this
+repository to demonstrate that against — so this is a statement, not a
+transcript. And the key is `request.ip`, which with `ODUDU_TRUST_PROXY=true`
+comes from `X-Forwarded-For`: a proxy that appends rather than overwrites
+that header leaves the key client-controlled. Both are in
+[README.md](../README.md) as deployment requirements.
 
 ## Path B: refresh rotation
 
@@ -4345,6 +4459,8 @@ client is told.
 | Wrong password                               | 200, the sign-in form again, same session id   | The session is live and can be retried; nothing is consumed                                                                                                                              |
 | Unknown username                             | 200, the sign-in form again                    | Indistinguishable from a wrong password, and the credential query is still issued so the timing matches                                                                                  |
 | Any password, while the account is locked    | 200, the sign-in form again                    | Byte-identical to a wrong password, and reached after the same verification, so neither the page nor the timing says the account is locked ([Brute-force lockout](#brute-force-lockout)) |
+| A password over 256 characters               | 400, "Password must be at most 256 characters" | Refused at the read, before the Argon2id verification, so it costs nothing and counts no failure against the account                                                                     |
+| Any submission over the per-origin budget    | 429, `Retry-After`, empty body                 | Decided before the body is parsed, so it is the same refusal whatever was submitted ([The per-origin throttle](#the-per-origin-throttle))                                                |
 | No `auth_session_id`                         | 400, "This sign-in attempt is no longer valid" | That field is the form's CSRF defence; a submission without it is not a submission from the form                                                                                         |
 | Unknown or expired `auth_session_id`         | 400, same page                                 | Folded together deliberately: neither names a live parked request                                                                                                                        |
 | A second submit of a consumed session        | 400, same page                                 | The atomic consume is what stops a back-button press minting a second session and a second code                                                                                          |
@@ -4790,8 +4906,10 @@ session lifecycle. A citation of either half here means that half.
   with a valid password renders the page again, which costs ten Argon2id
   hashes and eleven row writes. Bounded by holding the password and by
   acknowledging the page, but a heavier multiplier than the verification one
-  above; the per-account lockout counts failures and so reaches neither, and
-  the per-IP throttle is where both are answered.
+  above; the per-account lockout counts failures and so reaches neither,
+  and the per-origin throttle is what bounds both — ten submissions a
+  minute per client address, which is a budget on the multiplier rather
+  than a fix for it.
 - **Password reset exists; a timing oracle in it does not have a fix yet.**
   Address verification (`GET /realms/{realm}/login-actions/action-token`,
   [Address verification](#address-verification)), self-registration
@@ -4809,19 +4927,26 @@ session lifecycle. A citation of either half here means that half.
 - **No "remember me".** A persistent session is a session-lifespan setting,
   and lifespans are **P2b**'s; the feature itself is not named in the
   roadmap.
-- **Failed sign-ins are locked out per account; nothing else is rate
-  limited.** Five consecutive wrong passwords lock an account for a growing
-  window, on by default in every realm
-  ([Brute-force lockout](#brute-force-lockout)). What that does not cover:
-  attempts by origin rather than by account, so one password tried against
-  a thousand accounts is unbounded, and so is `POST
-/realms/{realm}/login-actions/registration`, which is unauthenticated and
-  runs one Argon2id hash per request with no maximum password length — an
-  attacker who cannot guess a password can still spend the server's CPU with
-  no account at all. Both are the per-IP throttle's, **P2b**'s remaining
-  brute-force work. Client authentication at `/token` is bounded by neither:
-  the lockout is keyed by subject and a client is not one, and RFC 6749
-  §2.3.1's row for that half is `deferred: P3` in
+- **Failed sign-ins are locked out per account, and the unauthenticated
+  routes that cost CPU are throttled per origin; `/token` is neither.**
+  Five consecutive wrong passwords lock an account for a growing window, on
+  by default in every realm
+  ([Brute-force lockout](#brute-force-lockout)). What that cannot see —
+  one password tried against a thousand accounts, where every counter stays
+  at one, and `POST /realms/{realm}/login-actions/registration`, which is
+  unauthenticated and runs an Argon2id hash per request for an attacker
+  with no account at all — is bounded by the per-origin throttle instead:
+  ten requests a minute per client address across the sign-in submission,
+  registration and the reset request, answering `429`. Passwords now carry
+  a 256-character maximum, refused where the form is read, so no single
+  request can be made arbitrarily expensive. The throttle is a window in
+  one process's memory, so it is per instance; [README.md](../README.md)
+  states that limitation, which cannot be shown here because this
+  repository has no second replica to show it against. Client
+  authentication at `/token` is bounded by neither: the lockout is keyed by
+  subject and a client is not one, the throttle's key is one address for
+  every request a server-side client makes, and RFC 6749 §2.3.1's row for
+  that half is `deferred: P3` in
   [docs/protocols/rfc6749.md](protocols/rfc6749.md).
 - **The sign-in and error pages are hardcoded HTML**, dependency-free with
   every interpolated value escaped. Theming is **P10**; the contract for it

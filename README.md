@@ -176,7 +176,15 @@ Every realm also carries a password policy — `password_min_length` (default
 default), and `password_not_username`/`password_not_email` (both on by
 default, refusing a password that contains the account's own username, or
 the local part of its email address — matched independently, so a
-password containing both is refused for both). The policy is read from the
+password containing both is refused for both). A password is also capped at
+**256 characters**, which is the one rule no realm configures: it exists to
+bound work rather than to shape passwords, and 256 is double the length
+ASVS 2.1.2 says a server may start refusing, so no passphrase anybody would
+type reaches it. An over-long password is refused, never truncated, and it
+is refused where the form is read — including at the sign-in form, which
+verifies a password rather than evaluating it against the policy, and so is
+the one route where "no maximum" would mean an Argon2id verification for
+input of any length (ADR 0023). The policy is read from the
 realm, never defaulted in code, and the same `evaluatePassword` call binds
 every writer of a password: registration, reset redemption, the seed CLI's
 `--password` and `user` subcommand, and the change-password required
@@ -205,11 +213,44 @@ is what keeps those costs equal — and means retrying extends the wait. A
 correct password accepted by an unlocked account deletes the row — which,
 with waiting the window out, is the whole of how a lockout ends: there is no
 operator unlock and no admin surface to clear one, since there is no admin
-API yet. What this does not cover: attempts by origin rather than by
-account, and client authentication at `/token`, where the secret's entropy
-is the only bound.
+API yet.
 See [the brute-force section of docs/request-paths.md](docs/request-paths.md#brute-force-lockout)
 for the walkthrough.
+
+**What the lockout cannot see is answered by a per-origin throttle.** One
+password tried against a thousand accounts leaves every counter at one, and
+registration needs no account at all, so the three unauthenticated routes
+that each cost an Argon2id hash or a mail send — the sign-in submission,
+registration and the reset request — share a budget per client address:
+`ODUDU_THROTTLE_LIMIT` (default `10`) requests per
+`ODUDU_THROTTLE_WINDOW_SECONDS` (default `60`). Over budget answers `429`
+with `Retry-After` and an empty body, decided before the body is parsed or
+any account looked up, so a refusal cannot say whether the address or the
+account existed. There is no value that switches it off; a deployment
+putting many users behind one address raises the limit.
+
+Two limitations, stated because neither is visible from the outside.
+**The throttle is per instance**: it is a window in the process's memory, so
+N replicas behind a load balancer admit up to N times the budget. That is
+the accepted shape rather than an oversight — the throttle protects this
+process's CPU, while the property that must hold globally (an account locks
+after five consecutive failures, wherever they arrive) is the one in
+Postgres — and it is the reasoning in ADR 0023. **It cannot be demonstrated
+here**: there is no load balancer in this repository and no second replica
+to put behind one, so this paragraph is a statement rather than a
+transcript. Running more than one instance is refused today anyway, for an
+unrelated reason ([Deploying](#deploying)). And the key is `request.ip`, so
+behind a proxy the proxy must **overwrite** `X-Forwarded-For` rather than
+append to it; a proxy that appends leaves the key client-controlled and the
+throttle decorative.
+
+`/token` is deliberately outside it, so the protection RFC 6749 §2.3.1 asks
+for around a client's password is still unanswered: the lockout is keyed by
+subject and a client is not one, and a budget per address is one address for
+every
+request a server-side client will ever make. A limit keyed by client is
+`deferred: P3` in [docs/protocols/rfc6749.md](docs/protocols/rfc6749.md),
+where client authentication is reworked.
 
 `password_max_age_days` (default `0`, the feature off) ages a password out.
 An expired password is **not** refused: the login authenticates as it
@@ -682,13 +723,17 @@ A real deployment today looks like:
    travels as plaintext over the connection, so the assertion is demanded
    rather than assumed. Set `ODUDU_TRUST_PROXY=true` only behind a proxy
    that overwrites `X-Forwarded-*`, or `request.ip` becomes
-   client-controlled.
+   client-controlled — and with it the key the per-origin throttle counts
+   on, which a spoofed `X-Forwarded-For` then bypasses a header at a time.
+   Appending is not enough: the value must be replaced.
 5. Set `ODUDU_PUBLIC_BASE_URL` to the origin users reach the server on.
    **With `NODE_ENV=production` the server refuses to boot without it** — it
    is the base of every mailed link and the WebAuthn relying party id every
    passkey is bound to, and neither may come from a request header.
 6. Run one instance. Migrations run on boot from every process and take no
-   advisory lock, so concurrent replicas would race.
+   advisory lock, so concurrent replicas would race — and the per-origin
+   throttle is a window in one process's memory, so replicas would each
+   allow the full budget.
 
 ### What is not built yet
 

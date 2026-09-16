@@ -79,6 +79,12 @@ const schema = z.object({
   // and by apps/server's boot guard, which refuses to serve production
   // traffic while it is off.
   ODUDU_TLS: booleanEnvVar,
+  // The per-origin request budget on the unauthenticated routes that cost
+  // an Argon2id hash or a mail send (ADR 0023). Raise it for a deployment
+  // that puts many users behind one address, or for a test suite driving
+  // logins in bulk, as infra/conformance/compose.yaml does.
+  ODUDU_THROTTLE_LIMIT: z.coerce.number().int().min(1).max(1_000_000).default(10),
+  ODUDU_THROTTLE_WINDOW_SECONDS: z.coerce.number().int().min(1).max(86_400).default(60),
   ODUDU_LOG_LEVEL: z
     .enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent'])
     .default('info'),

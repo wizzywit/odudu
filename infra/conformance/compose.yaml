@@ -45,6 +45,11 @@ services:
       # relying party id to derive. Change proxy/nginx.conf's server_name
       # and this has to change with it — they name the same host.
       ODUDU_PUBLIC_BASE_URL: https://odudu
+      # The whole suite arrives from one address — proxy's — so the default
+      # per-origin budget of ten login submissions a minute would refuse
+      # test modules rather than protect anything. Raised, not switched
+      # off: there is no off (see ADR 0023).
+      ODUDU_THROTTLE_LIMIT: '100000'
     depends_on:
       postgres:
         condition: service_healthy

@@ -6,7 +6,7 @@ import {
   type DatabaseHandle,
 } from '@odudu/db';
 import { capturingSender, type EmailMessage } from '@odudu/email';
-import { loadConfig, newId } from '@odudu/kernel';
+import { loadConfig, MAX_PASSWORD_LENGTH, newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import { userCredentials } from '@odudu/domain-identity';
 import { and, eq, sql } from 'drizzle-orm';
@@ -101,11 +101,7 @@ async function agePassword(realmId: string, days: number): Promise<void> {
     .where(and(eq(userCredentials.realmId, realmId), eq(userCredentials.type, 'password')));
 }
 
-async function formPost(
-  app: FastifyInstance,
-  url: string,
-  fields: Record<string, string>,
-): Promise<{ statusCode: number; body: string }> {
+async function formPost(app: FastifyInstance, url: string, fields: Record<string, string>) {
   return app.inject({
     method: 'POST',
     url,
@@ -290,5 +286,172 @@ describe('the realm password policy binds every writer', () => {
     } finally {
       await app.close();
     }
+  });
+});
+
+// "No maximum" and "an Argon2id verification per attempt" are one defect
+// stated twice, and the login form is the reader that proves it needs
+// answering at the read: that route verifies rather than evaluates. All
+// four form readers and the seed CLI are here, so adding a sixth without
+// the cap turns this suite red.
+describe('a password over the maximum is refused wherever one is read', () => {
+  const overlong = 'a'.repeat(MAX_PASSWORD_LENGTH + 1);
+
+  it('refuses it at registration', async () => {
+    const realmName = `policy-max-reg-${newId()}`;
+    const seeded = await seed({
+      realm: realmName,
+      clientId: 'policy-spa',
+      redirectUris: [REDIRECT_URI],
+    });
+    await setRealmSettings(seeded.realmId, { registrationAllowed: true });
+
+    const app = buildTestApp();
+    await app.ready();
+    try {
+      const res = await formPost(app, `/realms/${realmName}/login-actions/registration`, {
+        username: 'ada',
+        email: 'ada@example.test',
+        password: overlong,
+      });
+
+      expect(res.statusCode).toBe(400);
+      expect(res.body).toContain('at most');
+    } finally {
+      await app.close();
+    }
+  });
+
+  it('refuses it at reset redemption', async () => {
+    const realmName = `policy-max-reset-${newId()}`;
+    const seeded = await seed({
+      realm: realmName,
+      clientId: 'policy-spa',
+      redirectUris: [REDIRECT_URI],
+      username: 'ada',
+      password: STRONG_PASSWORD,
+      email: 'ada@example.test',
+    });
+    await setRealmSettings(seeded.realmId, { resetPasswordAllowed: true });
+
+    const sender = capturingSender();
+    const app = buildApp({
+      database: appDb,
+      ownerDatabase: owner,
+      kek: KEK,
+      logger: createLogger(loadConfig({ ...process.env, ODUDU_LOG_LEVEL: 'silent' })),
+      sender,
+      publicBaseUrl: PUBLIC_BASE_URL,
+    });
+    await app.ready();
+    try {
+      const requested = await formPost(app, `/realms/${realmName}/login-actions/reset-password`, {
+        email: 'ada@example.test',
+      });
+      expect(requested.statusCode).toBe(200);
+
+      const message = sender.sent[0];
+      if (message === undefined) throw new Error('no reset mail sent');
+      const link = extractLink(message);
+      const key = new URL(link).searchParams.get('key');
+      if (key === null) throw new Error(`no key in ${link}`);
+
+      const res = await formPost(app, new URL(link).pathname, { key, password: overlong });
+
+      expect(res.statusCode).toBe(400);
+      expect(res.body).toContain('at most');
+    } finally {
+      await app.close();
+    }
+  });
+
+  it('refuses it at the login form, without verifying it', async () => {
+    const realmName = `policy-max-login-${newId()}`;
+    await seed({
+      realm: realmName,
+      clientId: 'policy-spa',
+      redirectUris: [REDIRECT_URI],
+      username: 'ada',
+      password: STRONG_PASSWORD,
+      email: 'ada@example.test',
+    });
+
+    const app = buildTestApp();
+    await app.ready();
+    try {
+      const authSessionId = await startAuthSession(app, realmName);
+      const res = await formPost(app, `/realms/${realmName}/login-actions/authenticate`, {
+        auth_session_id: authSessionId,
+        username: 'ada',
+        password: overlong,
+      });
+
+      expect(res.statusCode).toBe(400);
+      expect(res.body).toContain('at most');
+
+      // The attempt never reached the credential, so it never counted
+      // against the account either: the correct password still signs in.
+      const signedIn = await formPost(app, `/realms/${realmName}/login-actions/authenticate`, {
+        auth_session_id: await startAuthSession(app, realmName),
+        username: 'ada',
+        password: STRONG_PASSWORD,
+      });
+      expect(signedIn.headers.location).toContain('code=');
+    } finally {
+      await app.close();
+    }
+  });
+
+  it('refuses it at the change-password required action', async () => {
+    const realmName = `policy-max-change-${newId()}`;
+    const seeded = await seed({
+      realm: realmName,
+      clientId: 'policy-spa',
+      redirectUris: [REDIRECT_URI],
+      username: 'ada',
+      password: STRONG_PASSWORD,
+      email: 'ada@example.test',
+    });
+    await setRealmSettings(seeded.realmId, { passwordMaxAgeDays: 1 });
+    await agePassword(seeded.realmId, 7);
+
+    const app = buildTestApp();
+    await app.ready();
+    try {
+      const authSessionId = await startAuthSession(app, realmName);
+      const login = await formPost(app, `/realms/${realmName}/login-actions/authenticate`, {
+        auth_session_id: authSessionId,
+        username: 'ada',
+        password: STRONG_PASSWORD,
+      });
+      expect(login.body).toContain('Change your password');
+
+      const res = await formPost(
+        app,
+        `/realms/${realmName}/login-actions/required-action?action=update-password`,
+        { auth_session_id: authSessionId, password: overlong },
+      );
+
+      expect(res.statusCode).toBe(400);
+      expect(res.body).toContain('at most');
+      expect(res.body).toContain('Change your password');
+    } finally {
+      await app.close();
+    }
+  });
+
+  // The writer that reads no form. A password the CLI accepted and the
+  // login form refused would be one nobody could ever sign in with.
+  it('refuses it from the seed CLI', async () => {
+    await expect(
+      seed({
+        realm: `policy-max-seed-${newId()}`,
+        clientId: 'policy-spa',
+        redirectUris: [REDIRECT_URI],
+        username: 'ada',
+        password: overlong,
+        email: 'ada@example.test',
+      }),
+    ).rejects.toThrow(/password does not satisfy the realm's password policy/);
   });
 });

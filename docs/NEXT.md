@@ -3,7 +3,74 @@
 ## Start here
 
 **P0, P1 and P2a are complete. P2b is brainstormed, specified and planned;
-Tasks 1 through 22 have landed and Task 23 is next.**
+Tasks 1 through 23 have landed and Task 24 is next.**
+
+**The per-origin throttle lands, and brute-force authority is now split on
+purpose.** `slidingWindow` (`apps/server/src/throttle.ts`) is a window per
+key in this process's memory; an `onRequest` hook in
+`apps/server/src/app.ts` applies it, keyed on `request.ip`, to exactly
+three routes — the sign-in submission, registration and the reset request —
+at `ODUDU_THROTTLE_LIMIT` (10) per `ODUDU_THROTTLE_WINDOW_SECONDS` (60),
+shared across all three rather than one budget each. Over budget answers
+`429` with `Retry-After` and an empty body. **`onRequest`, not the plan's
+`preHandler`**: both precede the Argon2id cost, and this one also precedes
+the body parse, with nothing in the decision needing a body. It is also
+what keeps the refusal from being an oracle — nothing has looked an account
+up when it fires, so the refusal cannot vary with whether the address was
+one the realm knows, which the integration suite asserts by comparing a
+known address's `429` against an unknown one's byte for byte.
+
+**A refused request is not recorded**, so retrying does not extend the
+wait — the opposite of an attempt during an account lockout, deliberately:
+that mechanism protects a credential and this one issues a budget. The key
+map is bounded at `MAX_THROTTLE_KEYS` (10 000) and evicts the
+**least-recently-seen** key: eviction by insertion order would throw away
+the attacker being throttled, since that key was inserted first, and hand
+back a fresh budget at every ceiling. A key whose requests have all aged
+out is dropped without waiting for the ceiling, one per call. The ceiling
+is asserted by `size()` after thirty thousand distinct keys, because a
+limiter keyed on caller-chosen input is a memory-exhaustion vector of its
+own unless the eviction is real.
+
+**The maximum password length went where the brief did not say.** The plan
+named `packages/contracts/src/`, which holds no password field and is not a
+dependency of `@odudu/account`. Passwords are read from form bodies at four
+sites, and the tempting home — `evaluatePassword`, which already owns
+`minLength` — would have missed the one that matters: the login POST
+_verifies_ rather than evaluating, so a bound stated only there leaves
+every attempt on the attacker-controlled route paying an Argon2id
+verification for input of any length. So `readPasswordField`
+(`packages/kernel/src/password-field.ts`) caps it at 256 code points at
+every read, and `evaluatePassword` carries the same rule as well — the seed
+CLI reads no form, and a password it accepted but the login form refused
+would be one nobody could sign in with. Over-long input is refused, never
+truncated. Not a realm setting: it bounds work rather than shaping
+passwords, and ASVS 2.1.2 permits denial above 128, so 256 refuses no
+passphrase anybody types.
+
+**Two limitations are stated because they cannot be shown.** The window is
+per instance, so N replicas admit N times the budget — accepted, because
+the throttle protects this process's CPU while the property that must hold
+globally is the lockout's, in Postgres; there is no load balancer in this
+repository to demonstrate it against. And the key is `request.ip`, so with
+`ODUDU_TRUST_PROXY=true` a proxy that _appends_ to `X-Forwarded-For` rather
+than overwriting it leaves the key client-controlled and the throttle
+decorative. `infra/conformance/proxy/nginx.conf` now sets
+`X-Forwarded-For $remote_addr` — it had set every other `X-Forwarded-*`
+header and passed this one through — and the conformance stack raises
+`ODUDU_THROTTLE_LIMIT`, since the whole OIDF suite arrives from the proxy's
+single address. ADR 0023 holds the reasoning and the rejected alternative
+(both halves in Postgres, at the cost of a write on every request to a
+throttled route, exactly when the database can least absorb it).
+
+**Two transcripts in `docs/request-paths.md` were re-run rather than
+re-worded.** The lockout's bursts are fifteen submissions in a minute from
+one address, which the new default refuses, so that section now says it was
+captured with `ODUDU_THROTTLE_LIMIT=1000` and the stack passes the variable
+through. Re-running also exposed a claim that had never been reproducible:
+the eight-submission digest covers a response carrying `auth_session_id`,
+so it differs per parked request — the property is that all eight agree,
+which the document now says.
 
 **Brute-force lockout lands, and closes the last `deferred: P2` clause row
 by splitting it.** Migration 0041 adds `login_failures` — one row per

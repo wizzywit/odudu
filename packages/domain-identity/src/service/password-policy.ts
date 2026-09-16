@@ -1,3 +1,5 @@
+import { MAX_PASSWORD_LENGTH, PASSWORD_TOO_LONG } from '@odudu/kernel';
+
 export interface PasswordPolicy {
   minLength: number;
   requireDigit: boolean;
@@ -52,6 +54,15 @@ export function evaluatePassword(
       rule: 'min-length',
       message: `Password must be at least ${String(policy.minLength)} characters long.`,
     });
+  }
+
+  // Not a realm setting: the maximum exists to bound work, not to shape
+  // passwords, so no realm configures it. Stated here as well as at every
+  // form read (readPasswordField in @odudu/kernel) because the seed CLI is
+  // a writer that reads no form, and a password it accepted but the login
+  // form refused would be one nobody could sign in with.
+  if (length > MAX_PASSWORD_LENGTH) {
+    violations.push({ rule: PASSWORD_TOO_LONG.rule, message: PASSWORD_TOO_LONG.message });
   }
 
   if (policy.requireDigit && !/\d/u.test(candidate)) {

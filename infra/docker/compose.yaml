@@ -49,6 +49,11 @@ services:
       # (packages/account/src/view/routes/registration.ts) — published on
       # 127.0.0.1:3000 below, so this is that same origin.
       ODUDU_PUBLIC_BASE_URL: http://localhost:3000
+      # The per-origin request budget on the sign-in, registration and
+      # reset-request submissions (ADR 0023). Passed through so a session
+      # driving more of them than a person would — a burst captured for
+      # docs/request-paths.md, say — can raise it without editing this file.
+      ODUDU_THROTTLE_LIMIT: ${ODUDU_THROTTLE_LIMIT:-10}
     depends_on:
       postgres:
         condition: service_healthy

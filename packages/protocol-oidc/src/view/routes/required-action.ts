@@ -9,6 +9,7 @@ import {
   type RecoveryCodesOffer,
   type TotpEnrolmentOffer,
 } from '@odudu/authn-flows';
+import { PASSWORD_TOO_LONG, readPasswordField } from '@odudu/kernel';
 import { type FastifyInstance } from 'fastify';
 import {
   handleRequiredActionSubmission,
@@ -65,12 +66,25 @@ export function registerRequiredActionRoute(
   }>('/realms/:realm/login-actions/required-action', async (request, reply) => {
     const body = request.body;
     const realmName = request.params.realm;
+    const authSessionId = firstString(body.auth_session_id);
+    const candidate = readPasswordField(body.password);
+
+    // Back to the same form with the rule it broke, as a refused candidate
+    // is — but decided here, before the submission reaches the hash.
+    if (candidate.kind === 'too_long' && authSessionId !== undefined) {
+      return sendHtml(
+        reply,
+        400,
+        renderUpdatePasswordPage(realmName, authSessionId, [PASSWORD_TOO_LONG.message]),
+      );
+    }
+
     const outcome = await handleRequiredActionSubmission(deps, realmName, {
-      authSessionId: firstString(body.auth_session_id),
+      authSessionId,
       action: request.query.action,
       secret: firstString(body.secret),
       code: firstString(body.code),
-      password: firstString(body.password),
+      password: candidate.kind === 'present' ? candidate.password : undefined,
       credential: firstString(body.credential),
       label: firstString(body.label),
     });

@@ -27,6 +27,7 @@ import Fastify, { type FastifyInstance, type RawServerDefault } from 'fastify';
 import { type IncomingMessage, type ServerResponse } from 'node:http';
 import { type Logger as PinoLogger } from 'pino';
 import { registerHealth } from '#/health';
+import { slidingWindow } from '#/throttle';
 
 export interface AppDeps {
   readonly database: DatabaseHandle;
@@ -72,7 +73,33 @@ export interface AppDeps {
    * rate limiting, brute-force lockout, and audit records.
    */
   readonly trustProxy?: boolean;
+  /**
+   * The per-origin request budget on the three unauthenticated routes that
+   * each cost an Argon2id hash or a mail send. Defaults to
+   * `DEFAULT_THROTTLE`; `main.ts` passes what `ODUDU_THROTTLE_*` says.
+   */
+  readonly throttle?: ThrottleSettings;
 }
+
+export interface ThrottleSettings {
+  readonly limit: number;
+  readonly windowSeconds: number;
+}
+
+export const DEFAULT_THROTTLE: ThrottleSettings = { limit: 10, windowSeconds: 60 };
+
+/**
+ * The throttled routes, by the pattern Fastify matched rather than by the
+ * path as it arrived, so a realm name cannot be spelled to miss the set.
+ * Deliberately not `/token`: it is client-authenticated and hot, and RFC
+ * 6749 §2.3.1's client half is `deferred: P3` in
+ * `docs/protocols/rfc6749.md`, where a limit keyed by client belongs.
+ */
+const THROTTLED_POSTS: ReadonlySet<string> = new Set([
+  '/realms/:realm/login-actions/authenticate',
+  '/realms/:realm/login-actions/registration',
+  '/realms/:realm/login-actions/reset-password',
+]);
 
 // The composition-root half of self-registration: @odudu/account never
 // imports @odudu/domain-identity (subjects, users, credentials) or
@@ -114,6 +141,25 @@ export function buildApp(deps: AppDeps): FastifyInstance {
 
   app.addHook('onRequest', async (request, reply) => {
     reply.header('x-request-id', request.id);
+  });
+
+  const throttle = slidingWindow({
+    ...(deps.throttle ?? DEFAULT_THROTTLE),
+    now: () => new Date(),
+  });
+
+  // At onRequest, so a refusal costs neither the body parse nor anything
+  // that touches the database. It is also what keeps the refusal from
+  // being an oracle: nothing here has looked an account up, so a throttled
+  // request cannot answer differently for an account that exists.
+  app.addHook('onRequest', async (request, reply) => {
+    if (request.method !== 'POST') return;
+    const route = request.routeOptions.url;
+    if (route === undefined || !THROTTLED_POSTS.has(route)) return;
+    const decision = throttle.check(request.ip);
+    if (decision.allowed) return;
+    reply.header('retry-after', String(decision.retryAfterSeconds));
+    return reply.code(429).send();
   });
 
   // Registered here rather than by a route: the token endpoint needs

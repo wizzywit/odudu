@@ -11,7 +11,7 @@ import {
   type RecoveryCodesOffer,
   type TotpEnrolmentOffer,
 } from '@odudu/authn-flows';
-import { isUuid } from '@odudu/kernel';
+import { isUuid, PASSWORD_TOO_LONG, readPasswordField } from '@odudu/kernel';
 import { type FastifyInstance } from 'fastify';
 import { handleLoginSubmission, type LoginSubmissionDeps } from '#/usecase/login-submission';
 import {
@@ -127,7 +127,18 @@ export function registerLoginRoute(app: FastifyInstance, deps: LoginRouteDeps): 
     const body = request.body;
     const authSessionId = firstString(body.auth_session_id);
     const username = firstString(body.username);
-    const password = firstString(body.password);
+    const candidate = readPasswordField(body.password);
+    // Refused before handleLoginSubmission, which is where the Argon2id
+    // verification is: this is the one password route that verifies rather
+    // than evaluates, so nothing downstream would bound the length.
+    if (candidate.kind === 'too_long') {
+      return sendHtml(
+        reply,
+        400,
+        renderAuthorizeErrorPage('invalid_request', PASSWORD_TOO_LONG.message),
+      );
+    }
+    const password = candidate.kind === 'present' ? candidate.password : undefined;
     const code = firstString(body.code);
     const recoveryCode = firstString(body.recovery_code);
     const assertion = firstString(body.assertion);

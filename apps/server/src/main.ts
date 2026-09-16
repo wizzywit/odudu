@@ -56,6 +56,10 @@ const app = buildApp({
     ? { publicBaseUrl: config.ODUDU_PUBLIC_BASE_URL }
     : {}),
   trustProxy: config.ODUDU_TRUST_PROXY,
+  throttle: {
+    limit: config.ODUDU_THROTTLE_LIMIT,
+    windowSeconds: config.ODUDU_THROTTLE_WINDOW_SECONDS,
+  },
 });
 
 const registry = new ModuleRegistry()
