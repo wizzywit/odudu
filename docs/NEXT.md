@@ -3,7 +3,48 @@
 ## Start here
 
 **P0, P1 and P2a are complete. P2b is brainstormed, specified and planned;
-Tasks 1 through 14 have landed and Task 15 is next.** Migration 0031 adds
+Tasks 1 through 15 have landed and Task 16 is next.**
+
+**Task 15 is RFC 6238 TOTP, built rather than installed.**
+`@odudu/crypto/src/service/totp.ts` implements `generateTotpSecret`,
+`totpCounter`, `totpCode` and `verifyTotp` directly over `node:crypto` —
+`createHmac`, a big-endian 8-byte counter (`Buffer.writeBigUInt64BE`, with
+`BigInt.asUintN(64, …)` so a negative step, which arises only in this
+package's own tests, still encodes rather than throwing), RFC 4226 §5.3
+dynamic truncation, and a from-scratch base32 codec (no padding, matching
+what an `otpauth://` URI carries). `verifyTotp` fixes six digits and SHA-1
+internally rather than taking them as parameters, refuses a code of the
+wrong length before any HMAC runs, compares with `crypto.timingSafeEqual`,
+accepts a ±1 time-step window, and refuses a step at or below the caller's
+`lastStep` — the replay guard `lastStep` exists for, since without it a
+code would keep validating for its whole 30-to-90-second window. Every
+vector in `packages/crypto/src/service/totp.test.ts` is RFC 6238 Appendix
+B's own (SHA-1, SHA-256 and SHA-512, fetched and read directly on
+2026-09-16, not recalled) plus RFC 4226 Appendix D's ten HOTP vectors,
+added because appendix B's six fixed timestamps don't exercise every digest
+byte the truncation touches. **The task brief's `SEED_SHA256` test constant
+was wrong** — the 20-byte SHA-1 secret doubled to 40 bytes, base32-encoded,
+rather than the RFC's actual 32-byte secret, which extends the seed by
+continuing the cyclic digit string `1234567890` rather than by
+zero-padding (Appendix A's reference implementation shows this in the
+`seed32`/`seed64` string literals; Appendix B's own prose never restates
+the rule). `docs/protocols/rfc6238.md`'s reading notes carry the full
+correction and what was actually read; `tools/trace/silenced-musts.json`
+gained `rfc6238.md: { deferred: 0, na: 5 }`. Stryker's reported score for
+`totp.ts` (6.25%, unchanged by adding ten more real vectors) is the same
+`@stryker-mutator/vitest-runner` targeted-test-selection defect already
+documented for `sign.ts`/`jwks.ts` in `stryker.config.json`, confirmed by
+applying every reported-Survived mutant to the file by hand and running
+`vitest run totp` directly — all but two failed the suite, and those two
+are equivalent mutants (a symmetric ±1-step window makes
+`currentStep - offset` produce the same three steps as `currentStep +
+offset`; `Buffer.from` falls back to `utf8` for an unrecognised encoding,
+indistinguishable from the original on this ASCII-only input). No credential
+row is written yet — Task 16 is the OTP authenticator that calls this
+package and gives the two-factor login journey Task 9's own note pointed
+at somewhere to land.
+
+Migration 0031 adds
 `authentication_executions`: one flat, ordered list per realm (`id`,
 `realm_id`, `index`, `authenticator`, `requirement`), `requirement`
 constrained to `required`/`alternative`/`conditional`/`disabled` and

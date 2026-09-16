@@ -15,3 +15,10 @@ export {
   type ExpectedAudience,
   type ExpectedTyp,
 } from '#/service/sign';
+export {
+  generateTotpSecret,
+  totpCode,
+  totpCounter,
+  verifyTotp,
+  type TotpAlgorithm,
+} from '#/service/totp';
