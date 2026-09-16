@@ -3355,6 +3355,90 @@ A redemption that fails for any other reason — wrong verifier, wrong
 attempt is rolled back. Verified: after all three failures above, the
 correct redemption of the same code still returned 200.
 
+## Retention: what `odudu reap` removes
+
+Everything above leaves rows behind, and nothing in any repository deletes
+one. `odudu reap` is the pass that does, on a stated window per table
+([ADR 0021](adr/0021-retention-is-bounded-by-the-detection-window.md)).
+Run against the stack this document has been driving — one login, one code
+redeemed, one refresh rotated — it removes nothing at all:
+
+```bash
+odudu reap
+```
+
+```
+{"ran":true,"deleted":{"refresh_tokens":0,"authorization_codes":0,"token_grants":0,"authentication_sessions":0,"action_tokens":0,"login_failures":0,"sessions":0}}
+```
+
+Those zeros are the point. By this stage the database holds a consumed
+authorization code, a used refresh token and an expired authentication
+session — every one of them past its own `expires_at`, and every one of
+them still required. The consumed code is what the replay two sections up
+revoked a grant through; the used refresh token is what told reuse from an
+unknown token. A pass keyed on expiry would have taken all three and left
+both replays answering `invalid_grant` with nothing revoked behind them.
+
+What makes a row deletable is the **grant family** being past retention,
+which is seven days for a session-bound family and thirty for an offline
+one. Backdating the stack by forty days is the fastest way to see a pass
+with work to do:
+
+```bash
+docker compose exec -T postgres psql -U odudu -d odudu -q -c "
+UPDATE authentication_sessions SET created_at = created_at - interval '40 days', expires_at = expires_at - interval '40 days', consumed_at = consumed_at - interval '40 days';
+UPDATE authorization_codes SET auth_time = auth_time - interval '40 days', expires_at = expires_at - interval '40 days', consumed_at = consumed_at - interval '40 days';
+UPDATE token_grants SET created_at = created_at - interval '40 days';
+UPDATE refresh_tokens SET issued_at = issued_at - interval '40 days', expires_at = expires_at - interval '40 days', used_at = used_at - interval '40 days';
+UPDATE sessions SET created_at = created_at - interval '40 days', expires_at = expires_at - interval '40 days', last_active_at = last_active_at - interval '40 days';
+"
+odudu reap
+```
+
+```
+{"ran":true,"deleted":{"refresh_tokens":2,"authorization_codes":1,"token_grants":1,"authentication_sessions":2,"action_tokens":0,"login_failures":0,"sessions":1}}
+```
+
+Both refresh tokens of the family, the code that produced it, the grant
+itself, both authentication sessions and the SSO session. The counts are
+the pass's own: `refresh_tokens` reports 2 rather than 0 because the pass
+deletes them itself rather than leaving them to the `ON DELETE CASCADE`
+from `token_grants`, and the SSO session goes only after the last grant
+referencing it — a session with a live grant is refused outright, because
+nulling `token_grants.session_id` would promote a session-bound grant to an
+offline one.
+
+A second run has nothing left:
+
+```bash
+odudu reap
+```
+
+```
+{"ran":true,"deleted":{"refresh_tokens":0,"authorization_codes":0,"token_grants":0,"authentication_sessions":0,"action_tokens":0,"login_failures":0,"sessions":0}}
+```
+
+Nothing schedules this yet — it is a command an operator or a cron entry
+runs. It is safe to run from more than one place at once: the pass takes a
+Postgres advisory lock for the whole tick, and an invocation that finds it
+held does nothing rather than duplicating the work. Holding the same key
+from a psql session is enough to see it:
+
+```bash
+docker compose exec -T postgres psql -U odudu -d odudu -q -c \
+  'begin; select pg_advisory_xact_lock(20260915); select pg_sleep(12); commit;' &
+sleep 3
+odudu reap
+```
+
+```
+{"ran":false,"reason":"another instance holds the retention lock"}
+```
+
+A skipped pass is reported as a skipped pass, not as a report of zeros: a
+scheduled job that conflated the two would claim success for work nobody
+did.
+
 ## RP-initiated logout
 
 `GET`/`POST /realms/{realm}/protocol/openid-connect/logout` implements

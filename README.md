@@ -646,6 +646,33 @@ to the realm afterwards. [docs/request-paths.md](docs/request-paths.md#roles-onc
 walks through all of it, including a client-scoped role qualified as
 `clientId:roleName`.
 
+**Nothing deletes anything until you run the retention pass.** Every login
+writes an `authentication_sessions` row, every redemption an
+`authorization_codes` row, and every refresh rotation a `refresh_tokens`
+row; no repository in the codebase issues a `DELETE`. `reap` is the command
+that does, and it is not scheduled — an operator or a cron entry runs it:
+
+```bash
+node --env-file=.env apps/server/src/main.ts reap
+```
+
+```
+{"ran":true,"deleted":{"refresh_tokens":0,"authorization_codes":0,"token_grants":0,"authentication_sessions":0,"action_tokens":0,"login_failures":0,"sessions":0}}
+```
+
+Those zeros on a freshly used stack are the design, not a bug. A row is
+retained until no detection can still need it — for a code or a refresh
+token, the life of the **grant family**, which is far longer than the
+credential's own expiry — because deleting it earlier would break
+refresh-token reuse detection and authorization-code revocation while
+leaving every client-visible response identical. The windows, the
+`ODUDU_RETENTION_*` variables that set them, and why the obvious
+implementation is wrong are in
+[ADR 0021](docs/adr/0021-retention-is-bounded-by-the-detection-window.md);
+[docs/request-paths.md](docs/request-paths.md#retention-what-odudu-reap-removes)
+has a pass with work to do. Running it from two places at once is safe: the
+pass takes a Postgres advisory lock and a second invocation skips the tick.
+
 **[docs/request-paths.md](docs/request-paths.md) takes it from there** — what
 each of those tokens is for, what `/userinfo` does with them, how a refresh
 rotates, and every way each request above can be refused, with the response
@@ -736,6 +763,12 @@ A real deployment today looks like:
    advisory lock, so concurrent replicas would race — and the per-origin
    throttle is a window in one process's memory, so replicas would each
    allow the full budget.
+7. Schedule `node dist/main.js reap`. Nothing in the server runs it, and
+   without it `authentication_sessions`, `authorization_codes` and
+   `refresh_tokens` grow without bound and login metadata is kept for no
+   stated period. Fifteen minutes is a reasonable interval; the pass takes
+   a Postgres advisory lock, so more than one scheduler cannot duplicate
+   the work.
 
 ### What is not built yet
 

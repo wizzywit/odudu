@@ -2,6 +2,7 @@ import { createDatabase } from '@odudu/db';
 import { loadConfig, ModuleRegistry, systemClock } from '@odudu/kernel';
 import closeWithGrace from 'close-with-grace';
 import { buildApp } from '#/app';
+import { reapCommand } from '#/cli/reap';
 import { seed } from '#/cli/seed';
 import { resolveSeedInvocation } from '#/cli/seed-invocation';
 import {
@@ -14,6 +15,16 @@ import { buildEmailSender } from '#/email';
 import { createLogger } from '#/logger';
 import { databaseModule } from '#/modules/database';
 import { httpModule } from '#/modules/http';
+
+if (process.argv[2] === 'reap') {
+  try {
+    console.log(JSON.stringify(await reapCommand()));
+    process.exit(0);
+  } catch (err) {
+    console.error(err instanceof Error ? err.message : String(err));
+    process.exit(1);
+  }
+}
 
 if (process.argv[2] === 'seed') {
   const invocation = resolveSeedInvocation(process.argv.slice(3));

@@ -3,7 +3,40 @@
 ## Start here
 
 **P0, P1 and P2a are complete. P2b is brainstormed, specified and planned;
-Tasks 1 through 23 have landed and Task 24 is next.**
+Tasks 1 through 25 have landed and Task 26 is next.**
+
+**`odudu reap` exists, and retention is now arithmetic rather than a
+warning.** `apps/server/src/cli/reap.ts` deletes what no decision can still
+read, in every realm, in one transaction holding
+`pg_try_advisory_xact_lock`; `node dist/main.js reap` prints a per-table
+report and a skipped pass says so rather than reporting zeros. Six
+`ODUDU_RETENTION_*` windows, all defaulted; **`refresh_tokens` has none and
+cannot be given one**, because a refresh token is retained for the life of
+its grant family, and `login_failures` has none because its bounds are the
+realm's own. ADR 0021's amendment of 2026-09-16 carries the numbers, the
+`token_grants.created_at` derivation and the ordering.
+
+**Three things in that pass are correctness rather than tidiness.** The
+rows referencing a grant are deleted **before** the grant, because
+`refresh_tokens` cascades from it and a cascade deletes rows the report
+never counts. Sessions are deleted **last**, and only when no grant
+references them at all — the `ON DELETE SET NULL` on
+`token_grants.session_id` is never reached, since nulling it promotes a
+session-bound grant to an offline one. And a family with a still-usable
+refresh token is not deleted however old it is, so an offline window is a
+floor on retention and never a ceiling on the credential.
+
+**`login_failures` needed both bounds, and the second is the one that
+matters.** A pass keyed on the quiet period alone deletes the row holding a
+lock in any realm whose `brute_force_max_lockout_seconds` outlasts its
+`brute_force_failure_reset_seconds` — which `realms_brute_force_bounds`
+permits, because it relates neither to the other. The integration case pins
+the pathological realm, not a default one: against defaults the broken
+condition passes.
+
+**Still unscheduled.** Nothing in the server runs `reap`; Task 26's thin
+scheduler is what will. Until then it is a cron entry, and README's
+Deploying list says so.
 
 **The per-origin throttle lands, and brute-force authority is now split on
 purpose.** `slidingWindow` (`apps/server/src/throttle.ts`) is a window per

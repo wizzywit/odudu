@@ -85,6 +85,44 @@ const schema = z.object({
   // logins in bulk, as infra/conformance/compose.yaml does.
   ODUDU_THROTTLE_LIMIT: z.coerce.number().int().min(1).max(1_000_000).default(10),
   ODUDU_THROTTLE_WINDOW_SECONDS: z.coerce.number().int().min(1).max(86_400).default(60),
+  // How long `odudu reap` keeps a row after nothing can still read it
+  // (ADR 0021). These are retention windows, not lifespans: a credential's
+  // own expiry is enforced at read time and is always the shorter of the
+  // two. A window too short for the detection that reads the row is not
+  // expressible — the pass floors each one by the life of the grant family
+  // or session it belongs to — so these raise retention, never lower it
+  // below what reuse detection needs.
+  ODUDU_RETENTION_GRANT_SECONDS: z.coerce.number().int().min(60).max(31_536_000).default(604_800),
+  ODUDU_RETENTION_OFFLINE_GRANT_SECONDS: z.coerce
+    .number()
+    .int()
+    .min(60)
+    .max(31_536_000)
+    .default(2_592_000),
+  // Only a code that never produced a grant is reaped by its own age; one
+  // that did is reaped with the family it produced.
+  ODUDU_RETENTION_AUTHORIZATION_CODE_SECONDS: z.coerce
+    .number()
+    .int()
+    .min(60)
+    .max(31_536_000)
+    .default(3600),
+  // Where nearly all the volume is, and the only one of these tables whose
+  // rows no revocation reads back: a replayed consumed row is refused and
+  // nothing follows from it.
+  ODUDU_RETENTION_AUTHENTICATION_SESSION_SECONDS: z.coerce
+    .number()
+    .int()
+    .min(60)
+    .max(31_536_000)
+    .default(3600),
+  ODUDU_RETENTION_ACTION_TOKEN_SECONDS: z.coerce
+    .number()
+    .int()
+    .min(60)
+    .max(31_536_000)
+    .default(604_800),
+  ODUDU_RETENTION_SESSION_SECONDS: z.coerce.number().int().min(60).max(31_536_000).default(86_400),
   ODUDU_LOG_LEVEL: z
     .enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent'])
     .default('info'),
