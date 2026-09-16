@@ -34,9 +34,20 @@ permits, because it relates neither to the other. The integration case pins
 the pathological realm, not a default one: against defaults the broken
 condition passes.
 
+**The command refuses to reap on the owner connection.** `reap` requires
+`ODUDU_APP_DATABASE_URL` in every environment, not only production: the boot
+guard that demands it is never reached by a CLI branch, and the owner must
+bypass row-level security for the realm enumeration, so falling back to it
+would run every delete with the policy switched off — N unscoped passes for
+N realms, and ADR 0021's "the policy is the scoping" made false in the
+document that says it. The enumeration privilege is asked of `pg_roles`
+rather than assumed, and an empty realm list is reported as "no realm was
+enumerated" rather than as a clean pass.
+
 **Still unscheduled.** Nothing in the server runs `reap`; Task 26's thin
 scheduler is what will. Until then it is a cron entry, and README's
-Deploying list says so.
+Deploying list says so — including that the pass holds one transaction for
+the whole tick.
 
 **The per-origin throttle lands, and brute-force authority is now split on
 purpose.** `slidingWindow` (`apps/server/src/throttle.ts`) is a window per

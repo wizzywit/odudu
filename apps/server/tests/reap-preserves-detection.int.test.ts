@@ -196,11 +196,14 @@ function reapEverythingEligible(): Promise<ReapOutcome> {
   return reap({ database: appDb, ownerDatabase: owner }, now, retentionPolicyFromConfig(config));
 }
 
+// Ordered, and the caller asserts there is exactly one: a flow that grew a
+// second grant would otherwise have this pick between them arbitrarily.
 async function grantsOf(realm: string): Promise<{ id: string; revoked: boolean }[]> {
   const rows = await owner.db.execute<{ id: string; revoked: boolean }>(sql`
     SELECT g.id, g.revoked_at IS NOT NULL AS revoked
       FROM token_grants g JOIN realms r ON r.id = g.realm_id
      WHERE r.name = ${realm}
+     ORDER BY g.created_at, g.id
   `);
   return [...rows];
 }
@@ -237,8 +240,9 @@ describe('reaping does not break reuse detection', () => {
     expect(replay.statusCode).toBe(400);
     expect(replay.json<{ error: string }>().error).toBe('invalid_grant');
 
-    const [grant] = await grantsOf(realm);
-    expect(grant?.revoked).toBe(true);
+    const grants = await grantsOf(realm);
+    expect(grants).toHaveLength(1);
+    expect(grants[0]?.revoked).toBe(true);
 
     // The replacement must be dead too, which is what "revokes the family"
     // means and what a bare refusal would not have achieved.
@@ -264,7 +268,8 @@ describe('reaping does not break reuse detection', () => {
     expect(replay.statusCode).toBe(400);
     expect(replay.json<{ error: string }>().error).toBe('invalid_grant');
 
-    const [grant] = await grantsOf(realm);
-    expect(grant?.revoked).toBe(true);
+    const grants = await grantsOf(realm);
+    expect(grants).toHaveLength(1);
+    expect(grants[0]?.revoked).toBe(true);
   });
 });

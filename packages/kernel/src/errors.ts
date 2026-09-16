@@ -25,7 +25,9 @@ export type ErrorCode =
   | 'group_reparent_cycle'
   | 'user_not_found'
   | 'credential_not_found'
-  | 'realm_not_found';
+  | 'realm_not_found'
+  | 'reap_cannot_enumerate_realms'
+  | 'reap_requires_app_database_url';
 
 export class OduduError extends Error {
   readonly code: ErrorCode;

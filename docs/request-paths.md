@@ -3396,11 +3396,12 @@ odudu reap
 ```
 
 ```
-{"ran":true,"deleted":{"refresh_tokens":2,"authorization_codes":1,"token_grants":1,"authentication_sessions":2,"action_tokens":0,"login_failures":0,"sessions":1}}
+{"ran":true,"deleted":{"refresh_tokens":2,"authorization_codes":1,"token_grants":1,"authentication_sessions":1,"action_tokens":0,"login_failures":0,"sessions":1}}
 ```
 
 Both refresh tokens of the family, the code that produced it, the grant
-itself, both authentication sessions and the SSO session. The counts are
+itself, the authentication session the login consumed, and the SSO session.
+The counts are
 the pass's own: `refresh_tokens` reports 2 rather than 0 because the pass
 deletes them itself rather than leaving them to the `ON DELETE CASCADE`
 from `token_grants`, and the SSO session goes only after the last grant

@@ -272,6 +272,13 @@ constraints that already exist:
 ON DELETE CASCADE` (`packages/db/drizzle/0011_refresh_tokens.sql`).
   Deleting the grant first therefore deletes its tokens without the pass
   counting them, and reports zero for a table it had just emptied.
+- `authorization_codes.grant_id` carries **no** foreign key, so nothing
+  removes the row when its grant goes and an `EXISTS` against the departed
+  grant is false for good. A code is therefore deletable once its own window
+  has passed **and** its family is either absent, past retention, or was
+  never created — the middle case is reachable on a legal configuration,
+  since the code window accepts up to a year while the grant window defaults
+  to a week.
 - `sessions` is deletable only once **no** `token_grants` row references it
   — not merely no live one. The `ON DELETE SET NULL` on
   `token_grants.session_id` (`0026_token_grants_session.sql`) is a backstop
@@ -321,6 +328,12 @@ Advisory locks are not realm-scoped and structurally cannot be, so one key
 means one instance reaps every realm. That is what is wanted here; per-realm
 reaping would need a deliberate per-realm key and nothing asks for one.
 
+The pass refuses to run on the owner connection at all: `reap` requires
+`ODUDU_APP_DATABASE_URL` in every environment, not only production, because
+the owner must bypass row-level security for the enumeration below to work,
+and a retention job that quietly ran with the policy switched off would be N
+unscoped passes for N realms rather than the property this section claims.
+
 Listing the realms to visit is the one read the pass makes on the owner
 connection. `realms_isolation` scopes that table by `app.realm_id`, and the
 realm ids are what a realm context would have to be built from, so the list
@@ -330,6 +343,14 @@ a request path. Every `DELETE` runs on the serving connection under a realm
 context, and none of them carries a `realm_id` predicate of its own: the
 policy is the scoping, and an integration case asserts that a pass over one
 realm leaves another realm's eligible rows untouched.
+
+The privilege the enumeration needs is asserted rather than assumed — the
+pass asks `pg_roles` whether the connected role is `SUPERUSER` or
+`BYPASSRLS` and refuses if it is not, because `realms` carries `FORCE ROW
+LEVEL SECURITY` and a role without the exemption reads zero realms and would
+reap none of them without a word. An enumeration that then comes back empty
+is reported as "no realm was enumerated" and not as a pass that found
+nothing to do.
 
 ### `email_outbox`
 

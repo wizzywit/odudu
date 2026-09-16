@@ -768,7 +768,12 @@ A real deployment today looks like:
    `refresh_tokens` grow without bound and login metadata is kept for no
    stated period. Fifteen minutes is a reasonable interval; the pass takes
    a Postgres advisory lock, so more than one scheduler cannot duplicate
-   the work.
+   the work. **It holds one transaction for the whole tick** — every realm,
+   every table — which is what makes one lock and one report cover the lot,
+   and what to watch if a deployment ever has many realms and very large
+   tables. It also requires `ODUDU_APP_DATABASE_URL` and refuses to start
+   without it, because its deletes are scoped by the row-level-security
+   policy that the owner role escapes.
 
 ### What is not built yet
 

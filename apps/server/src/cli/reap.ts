@@ -5,7 +5,7 @@ import {
   type DatabaseHandle,
   type RealmScopedDatabase,
 } from '@odudu/db';
-import { loadConfig, type Config } from '@odudu/kernel';
+import { loadConfig, OduduError, type Config } from '@odudu/kernel';
 import { sql, type SQL } from 'drizzle-orm';
 
 /**
@@ -27,13 +27,16 @@ export type TableName =
 export type ReapReport = Record<TableName, number>;
 
 /**
- * Ran, or found another instance holding the retention lock. Kept as two
- * shapes rather than a report of zeros: "deleted nothing" and "did not
- * look" are different answers, and a scheduled job that conflates them
- * reports success for work nobody did.
+ * Why a pass did nothing. Distinct from a report of zeros, at both levels:
+ * "deleted nothing", "another instance is deleting instead of me" and "found
+ * nothing to look at" are three different facts, and a scheduled job that
+ * conflates them reports success for work nobody did.
  */
+export type ReapSkipReason =
+  'another instance holds the retention lock' | 'no realm was enumerated';
+
 export type ReapOutcome =
-  | { readonly ran: false; readonly reason: 'another instance holds the retention lock' }
+  | { readonly ran: false; readonly reason: ReapSkipReason }
   | { readonly ran: true; readonly deleted: ReapReport };
 
 /**
@@ -120,6 +123,11 @@ const RETENTION_RULES: Record<TableName, RetentionRule> = {
   // A code that produced a grant goes with the family, never on its own
   // expiry: the consumed row is what RFC 6749 §4.1.2's revocation on replay
   // is reached through. One that produced none has no family to wait for.
+  //
+  // The third disjunct is the one that is easy to omit. `grant_id` carries no
+  // foreign key, so nothing removes this row when its grant goes, and an
+  // `EXISTS` against a grant that no longer exists is false forever — a code
+  // retained for good, in the table ADR 0021 exists to bound.
   authorization_codes: {
     after: [],
     statement: (now, policy) => sql`
@@ -128,6 +136,9 @@ const RETENTION_RULES: Record<TableName, RetentionRule> = {
              - make_interval(secs => ${policy.authorizationCodeSeconds}::integer)
          AND (
            c.grant_id IS NULL
+           OR NOT EXISTS (
+             SELECT 1 FROM token_grants gone
+              WHERE gone.realm_id = c.realm_id AND gone.id = c.grant_id)
            OR EXISTS (
              SELECT 1 FROM token_grants g
                JOIN realms r ON r.id = g.realm_id
@@ -198,7 +209,11 @@ const RETENTION_RULES: Record<TableName, RetentionRule> = {
   // Last, and only once nothing points at it. The ON DELETE SET NULL on
   // token_grants.session_id is a backstop this must never reach: nulling a
   // session-bound grant's session would promote it to an offline one, which
-  // is a privilege change wearing a cleanup's clothes.
+  // is a privilege change wearing a cleanup's clothes. A grant inserted
+  // between this NOT EXISTS and the commit would still fire it; nothing
+  // does, because the row is already past its expires_at plus the grace and
+  // `sessionRepository.liveById` refuses to issue anything on a session
+  // that dead.
   sessions: {
     after: ['token_grants'],
     statement: (now, policy) => sql`
@@ -284,6 +299,28 @@ export interface ReapDeps {
   readonly ownerDatabase: DatabaseHandle;
 }
 
+interface BypassRow extends Record<string, unknown> {
+  bypasses: boolean;
+}
+
+// `realms` carries FORCE ROW LEVEL SECURITY, which removes the owner's own
+// exemption, so a role that is neither SUPERUSER nor BYPASSRLS reads zero
+// realms here and the pass would visit none of them without a word. Asked
+// of Postgres rather than inferred from an empty result, and fails closed:
+// an enumeration nothing can vouch for is worse than no pass at all.
+async function assertEnumerationIsTrustworthy(ownerDatabase: DatabaseHandle): Promise<void> {
+  const rows = await ownerDatabase.db.execute<BypassRow>(
+    sql`SELECT rolsuper OR rolbypassrls AS bypasses FROM pg_roles WHERE rolname = current_user`,
+  );
+  if (rows[0]?.bypasses !== true) {
+    throw new OduduError(
+      'reap_cannot_enumerate_realms',
+      'reap must list realms on a connection that bypasses row-level security; ' +
+        'ODUDU_DATABASE_URL names a role that is neither SUPERUSER nor BYPASSRLS',
+    );
+  }
+}
+
 /**
  * Deletes what no decision can still read, in every realm, under one
  * advisory lock. Every window is measured against `now` rather than the
@@ -295,12 +332,19 @@ export async function reap(
   policy: RetentionPolicy,
 ): Promise<ReapOutcome> {
   assertReapOrder();
+  await assertEnumerationIsTrustworthy(deps.ownerDatabase);
 
   const rows = await deps.ownerDatabase.db
     .select({ id: realms.id })
     .from(realms)
     .orderBy(realms.id);
   const realmIds = rows.map((row) => row.id);
+  // Trustworthy, after the check above: an empty list means an empty
+  // database and not a filtered read. Still said out loud, because a report
+  // of zeros for a database nobody has seeded reads as a healthy pass.
+  if (realmIds.length === 0) {
+    return { ran: false, reason: 'no realm was enumerated' };
+  }
 
   const pass = await withEachRealmExclusive(deps.database.db, REAP_LOCK_KEY, realmIds, (tx) =>
     reapRealm(tx, now, policy),
@@ -321,10 +365,24 @@ export async function reap(
 // operator at a shell — can invoke it as a one-shot process.
 export async function reapCommand(): Promise<ReapOutcome> {
   const config = loadConfig();
+  const appUrl = config.ODUDU_APP_DATABASE_URL;
+  // Demanded in every environment, not only production, and unlike the
+  // boot guard this command never reaches: the owner has to bypass
+  // row-level security for the realm enumeration to work at all, so
+  // falling back to it would run every DELETE with the policy switched
+  // off — one unscoped pass per realm, and ADR 0021's claim that the
+  // policy is the scoping made false. A job that refuses to start is the
+  // better failure.
+  if (appUrl === undefined) {
+    throw new OduduError(
+      'reap_requires_app_database_url',
+      'reap requires ODUDU_APP_DATABASE_URL: its deletes run under the realm policy, ' +
+        'which the owner role the migrations use escapes',
+    );
+  }
+
   const owner = createDatabase(config.ODUDU_DATABASE_URL);
-  const runtime = config.ODUDU_APP_DATABASE_URL
-    ? createDatabase(config.ODUDU_APP_DATABASE_URL)
-    : owner;
+  const runtime = createDatabase(appUrl);
 
   try {
     return await reap(
@@ -333,7 +391,7 @@ export async function reapCommand(): Promise<ReapOutcome> {
       retentionPolicyFromConfig(config),
     );
   } finally {
-    if (runtime !== owner) await runtime.close();
+    await runtime.close();
     await owner.close();
   }
 }

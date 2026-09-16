@@ -188,8 +188,15 @@ async function counts(realmId: string): Promise<Record<TableName, number>> {
   return result;
 }
 
-function runPass(now: Date = NOW): Promise<ReapOutcome> {
-  return reap({ database: appDb, ownerDatabase: owner }, now, POLICY);
+function runPass(now: Date = NOW, policy: RetentionPolicy = POLICY): Promise<ReapOutcome> {
+  return reap({ database: appDb, ownerDatabase: owner }, now, policy);
+}
+
+async function codeExists(realmId: string): Promise<boolean> {
+  const rows = await owner.db.execute<{ n: string }>(sql`
+    SELECT count(*) AS n FROM authorization_codes WHERE code_hash = ${`code-stale-${realmId}`}
+  `);
+  return rows[0]?.n === '1';
 }
 
 function ran(outcome: ReapOutcome): Record<TableName, number> {
@@ -365,6 +372,51 @@ describe('odudu reap', () => {
     release();
     await blocking;
   });
+
+  // authorization_codes.grant_id carries no foreign key, so nothing removes
+  // the row when its grant goes and an EXISTS against the departed grant is
+  // false for good. Reachable on a legal configuration: the code window
+  // accepts up to a year while the grant window defaults to a week, so the
+  // family can be reaped first and the code left holding on to its own age.
+  it('reaps a consumed code whose grant was already removed', async () => {
+    const patient: RetentionPolicy = { ...POLICY, authorizationCodeSeconds: 400 * 24 * 60 * 60 };
+    const fixture = await seedFixture();
+
+    await runPass(NOW, patient);
+    expect(await countRows(fixture.realmId, 'token_grants')).toBe(1);
+    expect(await codeExists(fixture.realmId)).toBe(true);
+
+    // Its own window has elapsed too now, and the family it named is long
+    // gone: nothing can read this row, which is the whole test of whether it
+    // may be deleted.
+    await runPass(new Date(NOW.getTime() + 500 * DAY), patient);
+    expect(await codeExists(fixture.realmId)).toBe(false);
+  });
+
+  // The enumeration is the one read on the owner connection, and `realms`
+  // carries FORCE ROW LEVEL SECURITY: a role without the exemption reads no
+  // realms and would reap none of them silently.
+  it('refuses to run on a connection that cannot enumerate realms', async () => {
+    await expect(reap({ database: appDb, ownerDatabase: appDb }, NOW, POLICY)).rejects.toThrow(
+      /bypasses row-level security/u,
+    );
+  });
+
+  it('says it enumerated nothing rather than reporting a clean pass', async () => {
+    const name = `reap_empty_${Date.now().toString(36)}`;
+    await owner.sql.unsafe(`CREATE DATABASE ${name}`);
+    const url = new URL(container.adminUrl);
+    url.pathname = `/${name}`;
+    const empty = createDatabase(url.toString(), { max: 1 });
+
+    try {
+      await runMigrations(empty.db, MIGRATIONS_DIR);
+      const outcome = await reap({ database: empty, ownerDatabase: empty }, NOW, POLICY);
+      expect(outcome).toEqual({ ran: false, reason: 'no realm was enumerated' });
+    } finally {
+      await empty.close();
+    }
+  }, 120_000);
 
   // A table that carries a lifecycle timestamp either has a retention rule
   // or is named here with a reason. `email_outbox` will arrive carrying

@@ -1,6 +1,12 @@
 import { loadConfig } from '@odudu/kernel';
-import { describe, expect, it } from 'vitest';
-import { assertReapOrder, REAP_ORDER, retentionPolicyFromConfig, type TableName } from '#/cli/reap';
+import { afterEach, describe, expect, it } from 'vitest';
+import {
+  assertReapOrder,
+  reapCommand,
+  REAP_ORDER,
+  retentionPolicyFromConfig,
+  type TableName,
+} from '#/cli/reap';
 
 const MINIMAL = {
   ODUDU_DATABASE_URL: 'postgres://localhost:5432/odudu',
@@ -76,5 +82,24 @@ describe('the retention windows', () => {
     expect(() => loadConfig({ ...MINIMAL, ODUDU_RETENTION_SESSION_SECONDS: '30' })).toThrow(
       /RETENTION_SESSION_SECONDS/u,
     );
+  });
+});
+
+describe('the connection the command reaps on', () => {
+  afterEach(() => {
+    delete process.env.ODUDU_DATABASE_URL;
+    delete process.env.ODUDU_APP_DATABASE_URL;
+    delete process.env.ODUDU_KEK;
+  });
+
+  // Demanded in every environment, not only production. The owner has to
+  // bypass row-level security for the realm enumeration to work at all, so a
+  // fallback to it would run every DELETE with the policy switched off — one
+  // unscoped pass per realm, and no error to say so.
+  it('refuses to reap without a serving connection to reap on', async () => {
+    process.env.ODUDU_DATABASE_URL = MINIMAL.ODUDU_DATABASE_URL;
+    process.env.ODUDU_KEK = MINIMAL.ODUDU_KEK;
+
+    await expect(reapCommand()).rejects.toThrow(/ODUDU_APP_DATABASE_URL/u);
   });
 });
