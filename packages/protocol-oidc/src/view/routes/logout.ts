@@ -4,6 +4,7 @@ import {
   handleLogoutConfirmation,
   handleLogoutRequest,
   type LogoutOutcome,
+  type LogoutRequestParams,
   type LogoutUsecaseDeps,
 } from '#/usecase/logout';
 import {
@@ -117,26 +118,46 @@ async function respondToOutcome(
   return reply.code(302).header('location', target.toString()).send();
 }
 
+// §2 defines these four for the logout request itself, and requires both
+// HTTP methods at the endpoint: a `GET` serializes them into the query
+// string, a `POST` into a form body. Read through one function so the two
+// methods cannot drift into answering the same request differently.
+function logoutRequestParams(
+  source: Record<string, string | string[] | undefined>,
+): LogoutRequestParams {
+  return {
+    idTokenHint: firstString(source.id_token_hint) ?? null,
+    clientId: firstString(source.client_id) ?? null,
+    postLogoutRedirectUri: firstString(source.post_logout_redirect_uri) ?? null,
+    state: firstString(source.state) ?? null,
+  };
+}
+
+async function respondToLogoutRequest(
+  deps: LogoutRouteDeps,
+  request: FastifyRequest<{ Params: { realm: string } }>,
+  reply: FastifyReply,
+  params: LogoutRequestParams,
+): Promise<FastifyReply> {
+  const realm = request.params.realm;
+  const cookieName = sessionCookieName(realm, deps.tls);
+  const outcome = await handleLogoutRequest(
+    deps,
+    realm,
+    realmIssuerFor(request, realm),
+    readCookie(request, cookieName),
+    params,
+  );
+  return respondToOutcome(outcome, realm, cookieName, deps.tls, reply);
+}
+
 export function registerLogoutRoute(app: FastifyInstance, deps: LogoutRouteDeps): void {
   app.get<{
     Params: { realm: string };
     Querystring: Record<string, string | undefined>;
-  }>(PATH, async (request, reply) => {
-    const cookieName = sessionCookieName(request.params.realm, deps.tls);
-    const outcome = await handleLogoutRequest(
-      deps,
-      request.params.realm,
-      realmIssuerFor(request, request.params.realm),
-      readCookie(request, cookieName),
-      {
-        idTokenHint: request.query.id_token_hint ?? null,
-        clientId: request.query.client_id ?? null,
-        postLogoutRedirectUri: request.query.post_logout_redirect_uri ?? null,
-        state: request.query.state ?? null,
-      },
-    );
-    return respondToOutcome(outcome, request.params.realm, cookieName, deps.tls, reply);
-  });
+  }>(PATH, async (request, reply) =>
+    respondToLogoutRequest(deps, request, reply, logoutRequestParams(request.query)),
+  );
 
   app.post<{
     Params: { realm: string };
@@ -145,8 +166,12 @@ export function registerLogoutRoute(app: FastifyInstance, deps: LogoutRouteDeps)
     const cookieName = sessionCookieName(request.params.realm, deps.tls);
     const body = request.body;
     const confirmedSessionId = firstString(body.session_id);
+    // No `session_id` is not a malformed confirmation: it is a logout
+    // request an RP Form-Serialized into a body rather than a query string,
+    // which §2 requires the endpoint to answer exactly as it answers `GET`.
+    // The field is the confirmation form's own, and only the form sends it.
     if (confirmedSessionId === undefined) {
-      return sendLogoutHtml(reply, 400, renderLogoutUnauthenticatedPage());
+      return respondToLogoutRequest(deps, request, reply, logoutRequestParams(body));
     }
 
     const outcome = await handleLogoutConfirmation(

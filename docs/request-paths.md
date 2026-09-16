@@ -39,7 +39,7 @@ the URL and never by a header or a parameter.
 | `GET`  | `/realms/{realm}/protocol/openid-connect/userinfo` | UserInfo                                                    |
 | `POST` | `/realms/{realm}/protocol/openid-connect/userinfo` | UserInfo (form)                                             |
 | `GET`  | `/realms/{realm}/protocol/openid-connect/logout`   | RP-initiated logout (`end_session_endpoint`)                |
-| `POST` | `/realms/{realm}/protocol/openid-connect/logout`   | RP-initiated logout, confirmation form submission           |
+| `POST` | `/realms/{realm}/protocol/openid-connect/logout`   | RP-initiated logout (form-serialized), confirmation form    |
 | `GET`  | `/health/live`, `/health/ready`                    | Liveness, readiness                                         |
 
 `/login-actions/authenticate` is deliberately outside the
@@ -3763,6 +3763,107 @@ A `post_logout_redirect_uri` that is not an exact match to a registered
 value — a trailing slash, a query string, a different host — is refused,
 and the session still ends: §3's redirect rule is about the redirect
 alone, never about whether logout happened.
+
+### The same request over `POST`
+
+§2 requires both methods at this endpoint, so an RP may serialize the
+request parameters into a form body instead of a query string. It is the
+same request and gets the same answer — a fresh sign-in, then:
+
+```bash
+curl -sS -b cookies.txt -D - -o /dev/null -X POST \
+  --data-urlencode "id_token_hint=$ID_TOKEN" \
+  --data-urlencode 'client_id=demo-spa' \
+  --data-urlencode 'post_logout_redirect_uri=http://localhost:8080/logged-out' \
+  --data-urlencode 'state=xyz-bye' \
+  "http://localhost:3000/realms/demo/protocol/openid-connect/logout"
+```
+
+```
+HTTP/1.1 302 Found
+set-cookie: demo-session=; Max-Age=0; HttpOnly; SameSite=Lax; Path=/
+cache-control: no-store
+location: http://localhost:8080/logged-out?state=xyz-bye
+content-length: 0
+```
+
+(`x-request-id`, `Date` and the keep-alive headers are omitted, as
+elsewhere in this document.) The session is gone, so the refresh token its
+grant issued is refused exactly as after the `GET`:
+
+```bash
+curl -sS \
+  --data-urlencode 'grant_type=refresh_token' \
+  --data-urlencode "refresh_token=$REFRESH_TOKEN" \
+  --data-urlencode 'client_id=demo-spa' \
+  "http://localhost:3000/realms/demo/protocol/openid-connect/token"
+```
+
+```json
+{ "error": "invalid_grant" }
+```
+
+Two messages therefore arrive at the same `POST`: this one, and the
+confirmation form above submitting back. The form's hidden `session_id` is
+what tells them apart, so a body carrying it is a confirmation and a body
+without it is a logout request. A forged cross-site POST cannot guess that
+value, so it is read as a request — which, with no hint, is answered by the
+confirmation page and ends nothing.
+
+### A `client_id` that disagrees with the hint
+
+§2 requires the OP to verify a `client_id` sent alongside an
+`id_token_hint` against the client the hint was issued to. `demo-post` is
+seeded above and has been given the same `post_logout_redirect_uri` as
+`demo-spa`, so nothing but that comparison stands between this request and
+a redirect — the hint's own `aud` is `demo-spa`:
+
+```bash
+curl -sS -b cookies.txt -X POST \
+  --data-urlencode "id_token_hint=$ID_TOKEN" \
+  --data-urlencode 'client_id=demo-post' \
+  --data-urlencode 'post_logout_redirect_uri=http://localhost:8080/logged-out' \
+  "http://localhost:3000/realms/demo/protocol/openid-connect/logout"
+```
+
+```
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Sign out?</title></head>
+<body>
+<h1>Sign out?</h1>
+<p>Signing out ends this session for every application that uses it.</p>
+<form method="post" action="/realms/demo/protocol/openid-connect/logout">
+  <input type="hidden" name="session_id" value="01a0ac83-428e-…">
+  <input type="hidden" name="client_id" value="demo-post">
+  <button type="submit">Sign out</button>
+</form>
+</body>
+</html>
+```
+
+(`session_id` shortened.) Nothing was ended, and the form carries no
+`post_logout_redirect_uri` at all: §4 says information that failed to
+validate is not used, so the hint and the redirect it would have
+authorised are dropped together. The identical request with
+`client_id=demo-spa` — the client the hint names — ends the session and
+redirects:
+
+```bash
+curl -sS -b cookies.txt -D - -o /dev/null -X POST \
+  --data-urlencode "id_token_hint=$ID_TOKEN" \
+  --data-urlencode 'client_id=demo-spa' \
+  --data-urlencode 'post_logout_redirect_uri=http://localhost:8080/logged-out' \
+  "http://localhost:3000/realms/demo/protocol/openid-connect/logout"
+```
+
+```
+HTTP/1.1 302 Found
+set-cookie: demo-session=; Max-Age=0; HttpOnly; SameSite=Lax; Path=/
+cache-control: no-store
+location: http://localhost:8080/logged-out
+content-length: 0
+```
 
 ### Offline access
 

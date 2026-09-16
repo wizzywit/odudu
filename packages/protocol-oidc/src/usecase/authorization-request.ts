@@ -252,6 +252,17 @@ export interface IdTokenHintClaims {
   // Read by `#/usecase/logout.ts` to compare against the *session*, not
   // just the subject (see decideLogout).
   sid: string | null;
+  // The clients this hint was issued to, as its `aud` names them. Not an
+  // audience this server has to be in — nothing here checks it against a
+  // principal — but the value RP-Initiated Logout §2 has the OP compare a
+  // `client_id` parameter against.
+  audiences: readonly string[];
+}
+
+function audiencesOf(claim: unknown): readonly string[] {
+  if (typeof claim === 'string') return [claim];
+  if (!Array.isArray(claim)) return [];
+  return claim.filter((value): value is string => typeof value === 'string');
 }
 
 // OIDC Core §3.1.2.2: "the OP MUST validate that it was the issuer of the ID
@@ -289,6 +300,7 @@ export async function subjectOfIdTokenHint(
     return {
       subject: payload.sub,
       sid: typeof payload.sid === 'string' && payload.sid.length > 0 ? payload.sid : null,
+      audiences: audiencesOf(payload.aud),
     };
   } catch {
     return null;

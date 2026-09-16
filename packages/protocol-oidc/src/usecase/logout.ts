@@ -133,11 +133,20 @@ export async function handleLogoutRequest(
       : await subjectOfIdTokenHint(deps, realm.id, issuer, params.idTokenHint);
   const registered = await registeredUris(deps, realm.id, params.clientId);
 
+  // §2: "When both `client_id` and `id_token_hint` are present, the OP MUST
+  // verify that the Client Identifier matches the one used when issuing the
+  // ID Token." A pair that disagrees is an error detected in the request, so
+  // §4 applies to it: neither half is used, and the redirect the hint would
+  // otherwise have authorised is dropped with it.
+  const disagreeing =
+    params.clientId !== null && hint !== null && !hint.audiences.includes(params.clientId);
+  const requested = disagreeing ? null : params.postLogoutRedirectUri;
+
   const decision = decideLogout({
-    hintSubject: hint?.subject ?? null,
-    hintSid: hint?.sid ?? null,
+    hintSubject: disagreeing ? null : (hint?.subject ?? null),
+    hintSid: disagreeing ? null : (hint?.sid ?? null),
     session,
-    requested: params.postLogoutRedirectUri,
+    requested,
     registered,
   });
 
@@ -146,7 +155,7 @@ export async function handleLogoutRequest(
       kind: 'confirm',
       sessionId: session?.id ?? null,
       clientId: params.clientId,
-      postLogoutRedirectUri: params.postLogoutRedirectUri,
+      postLogoutRedirectUri: requested,
       state: params.state,
     };
   }

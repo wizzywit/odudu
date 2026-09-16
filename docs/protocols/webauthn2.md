@@ -20,6 +20,19 @@ checks has a row here. §13 and §14 are security and privacy
 considerations, advisory rather than normative, and §12 is the extension
 framework Odudu requests no extensions from.
 
+**Two kinds of `n/a` sit in this table, and they do not mean the same
+thing.** A clause a browser or an authenticator performs is not Odudu's
+obligation at all. A clause `@simplewebauthn/server` performs _is_ Odudu's
+obligation, discharged by a dependency this repository chose and pinned —
+delegated, not inapplicable. The reason both wear the same status is that
+the tool has no third one and `jose.md` set the precedent; the reason the
+distinction has to be written down is that **the library rows are the list
+of what to re-check when that pin moves.** A minor version that stops
+rejecting a `webauthn.get` type, or starts accepting a clear User Present
+flag, breaks a clause Odudu is answerable for and no test here would
+notice, because no test here asserts the library's own behaviour. The
+version is named in every one of those rows for that reason.
+
 Inside §7 the split follows `docs/protocols/jose.md`'s: where a step is a
 decision Odudu makes — the RP ID and origin it expects, the challenge it
 offered, whether user verification is demanded, what a counter that failed

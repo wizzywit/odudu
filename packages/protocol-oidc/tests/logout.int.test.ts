@@ -124,14 +124,21 @@ async function issuerFor(realmName: string): Promise<string> {
   return res.json<{ issuer: string }>().issuer;
 }
 
-async function mintIdToken(realmName: string, sub: string, sid?: string): Promise<string> {
+async function mintIdToken(
+  realmName: string,
+  sub: string,
+  sid?: string,
+  // The client the hint was issued to. Overridden only where the point of
+  // the test is a `client_id` parameter that disagrees with it (§2).
+  aud: string = CLIENT_ID,
+): Promise<string> {
   const key = signingKeyOf.get(realmName);
   if (key === undefined) throw new Error(`no signing key for ${realmName}`);
   const now = Math.floor(Date.now() / 1000);
   return signJwt(
     {
       iss: await issuerFor(realmName),
-      aud: CLIENT_ID,
+      aud,
       sub,
       iat: now,
       exp: now + 300,
@@ -505,6 +512,167 @@ describe('[OIDC-RPINITIATED-2-01] the confirmation page is asked for on both tri
   });
 });
 
+// §2 requires both methods at the Logout Endpoint: a `GET` serializes the
+// request parameters into the query string, a `POST` into a form body.
+// One helper, so every property below is asserted for both.
+async function requestLogout(
+  method: 'GET' | 'POST',
+  realmName: string,
+  params: Record<string, string>,
+  cookie: string,
+): Promise<LightMyRequestResponse> {
+  if (method === 'GET') {
+    return http.inject({ url: logoutUrl(realmName, params), headers: { cookie } });
+  }
+  return http.inject({
+    method: 'POST',
+    url: `/realms/${realmName}/protocol/openid-connect/logout`,
+    payload: new URLSearchParams(params).toString(),
+    headers: { 'content-type': 'application/x-www-form-urlencoded', cookie },
+  });
+}
+
+describe.each(['GET', 'POST'] as const)(
+  '[OIDC-RPINITIATED-2-03] a logout request over %s',
+  (method) => {
+    it('ends the session and redirects, on a hint that matches it', async () => {
+      const realmName = `logout-${method.toLowerCase()}-ends-${newId()}`;
+      const { realmId } = await setupRealm(realmName);
+      const cookie = await signIn(realmName);
+      const sessionId = sessionIdFromCookie(cookie);
+      const subjectId = await subjectIdOf(realmId, USERNAME);
+      const hint = await mintIdToken(realmName, subjectId, sessionId);
+
+      const res = await requestLogout(
+        method,
+        realmName,
+        {
+          id_token_hint: hint,
+          client_id: CLIENT_ID,
+          post_logout_redirect_uri: POST_LOGOUT_REDIRECT_URI,
+          state: 'carried',
+        },
+        cookie,
+      );
+
+      expect(res.statusCode).toBe(302);
+      expect(res.headers.location).toBe(`${POST_LOGOUT_REDIRECT_URI}?state=carried`);
+      expect(String(res.headers['set-cookie'])).toContain('Max-Age=0');
+      const row = await sessionRowFor(sessionId);
+      expect(row?.expiresAt.getTime()).toBeLessThanOrEqual(Date.now());
+    });
+
+    it('asks for confirmation with no hint at all, ending nothing', async () => {
+      const realmName = `logout-${method.toLowerCase()}-confirm-${newId()}`;
+      const { realmId } = await setupRealm(realmName);
+      const cookie = await signIn(realmName);
+      const sessionId = sessionIdFromCookie(cookie);
+
+      const res = await requestLogout(method, realmName, {}, cookie);
+
+      expect(res.statusCode).toBe(200);
+      expect(res.body).toContain('<title>Sign out?</title>');
+      const stillLive = await withRealm(app.db, realmId, (tx) =>
+        sessionRepository(tx).liveById(sessionId, 30 * 24 * 3600, new Date()),
+      );
+      expect(stillLive).not.toBeNull();
+    });
+
+    it('asks for confirmation when the hint names another session', async () => {
+      const realmName = `logout-${method.toLowerCase()}-mismatch-${newId()}`;
+      const { realmId } = await setupRealm(realmName);
+      const cookie = await signIn(realmName);
+      const sessionId = sessionIdFromCookie(cookie);
+      const hint = await mintIdToken(realmName, newId(), newId());
+
+      const res = await requestLogout(method, realmName, { id_token_hint: hint }, cookie);
+
+      expect(res.statusCode).toBe(200);
+      expect(res.body).toContain('<title>Sign out?</title>');
+      const stillLive = await withRealm(app.db, realmId, (tx) =>
+        sessionRepository(tx).liveById(sessionId, 30 * 24 * 3600, new Date()),
+      );
+      expect(stillLive).not.toBeNull();
+    });
+
+    it('refuses a redirect that does not match exactly, having ended the session', async () => {
+      const realmName = `logout-${method.toLowerCase()}-badredirect-${newId()}`;
+      const { realmId } = await setupRealm(realmName);
+      const cookie = await signIn(realmName);
+      const sessionId = sessionIdFromCookie(cookie);
+      const subjectId = await subjectIdOf(realmId, USERNAME);
+      const hint = await mintIdToken(realmName, subjectId, sessionId);
+
+      const res = await requestLogout(
+        method,
+        realmName,
+        {
+          id_token_hint: hint,
+          client_id: CLIENT_ID,
+          // The registered value with a trailing slash: §3's match is not
+          // URL-normalized, so this is a different address.
+          post_logout_redirect_uri: `${POST_LOGOUT_REDIRECT_URI}/`,
+        },
+        cookie,
+      );
+
+      expect(res.statusCode).toBe(400);
+      expect(res.body).toContain('<title>Signed out</title>');
+      const row = await sessionRowFor(sessionId);
+      expect(row?.expiresAt.getTime()).toBeLessThanOrEqual(Date.now());
+    });
+  },
+);
+
+describe('[OIDC-RPINITIATED-2-04] a client_id that disagrees with the hint', () => {
+  it('is an error in the request: nothing is ended and no redirect is offered', async () => {
+    const realmName = `logout-audmismatch-${newId()}`;
+    const { realmId } = await setupRealm(realmName);
+    const cookie = await signIn(realmName);
+    const sessionId = sessionIdFromCookie(cookie);
+    const subjectId = await subjectIdOf(realmId, USERNAME);
+
+    // The same session, named by `sid`, in a hint issued to a different
+    // client than the `client_id` beside it. Everything else about this
+    // request is the one the parity tests above end a session on.
+    const foreignAud = await mintIdToken(realmName, subjectId, sessionId, 'another-client');
+    const refused = await http.inject({
+      url: logoutUrl(realmName, {
+        id_token_hint: foreignAud,
+        client_id: CLIENT_ID,
+        post_logout_redirect_uri: POST_LOGOUT_REDIRECT_URI,
+      }),
+      headers: { cookie },
+    });
+
+    expect(refused.statusCode).toBe(200);
+    expect(refused.body).toContain('<title>Sign out?</title>');
+    // §4: the information that failed to validate is not used, so the
+    // redirect the hint would have authorised is not carried into the form
+    // the End-User is about to post back either.
+    expect(refused.body).not.toContain(POST_LOGOUT_REDIRECT_URI);
+    const stillLive = await withRealm(app.db, realmId, (tx) =>
+      sessionRepository(tx).liveById(sessionId, 30 * 24 * 3600, new Date()),
+    );
+    expect(stillLive).not.toBeNull();
+
+    // The contrast, on the same session: the identical request with a hint
+    // issued to the `client_id` it names ends the session and redirects.
+    const agreeing = await mintIdToken(realmName, subjectId, sessionId);
+    const honoured = await http.inject({
+      url: logoutUrl(realmName, {
+        id_token_hint: agreeing,
+        client_id: CLIENT_ID,
+        post_logout_redirect_uri: POST_LOGOUT_REDIRECT_URI,
+      }),
+      headers: { cookie },
+    });
+
+    expect(honoured.statusCode).toBe(302);
+    expect(honoured.headers.location).toBe(POST_LOGOUT_REDIRECT_URI);
+  });
+});
+
 describe('a hint another issuer signed is no hint at all', () => {
   it('[OIDC-RPINITIATED-2-02] asks for confirmation and ends nothing', async () => {
     const issuingRealm = `logout-otheriss-a-${newId()}`;
@@ -591,10 +759,17 @@ describe('the confirmation POST is a double-submit-cookie check', () => {
     expect(stillLive).not.toBeNull();
   });
 
-  it('refuses a POST with no session_id field at all', async () => {
+  // A body with no `session_id` is not a broken confirmation — since §2
+  // requires `POST` at this endpoint, it is a logout request an RP
+  // serialized into a form body, and it is answered like one: the
+  // confirmation page, with nothing ended. The CSRF property is unchanged,
+  // and this is what pins it: a forged cross-site POST cannot carry the
+  // field, so it cannot end anything without the End-User saying so here.
+  it('reads a POST with no session_id as a logout request, ending nothing', async () => {
     const realmName = `logout-csrf-missing-${newId()}`;
-    await setupRealm(realmName);
+    const { realmId } = await setupRealm(realmName);
     const cookie = await signIn(realmName);
+    const sessionId = sessionIdFromCookie(cookie);
 
     const res = await http.inject({
       method: 'POST',
@@ -603,8 +778,13 @@ describe('the confirmation POST is a double-submit-cookie check', () => {
       headers: { 'content-type': 'application/x-www-form-urlencoded', cookie },
     });
 
-    expect(res.statusCode).toBe(400);
-    expect(res.body).toContain("<title>Can't sign out</title>");
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toContain('<title>Sign out?</title>');
+
+    const stillLive = await withRealm(app.db, realmId, (tx) =>
+      sessionRepository(tx).liveById(sessionId, 30 * 24 * 3600, new Date()),
+    );
+    expect(stillLive).not.toBeNull();
   });
 });
 

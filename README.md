@@ -335,9 +335,12 @@ already has some.
 
 **A realm can now end a session.** `GET`/`POST
 /realms/{realm}/protocol/openid-connect/logout` implements OpenID Connect
-RP-Initiated Logout 1.0: it asks the End-User to confirm before ending
-anything unless an `id_token_hint` names the session actually being ended,
-and it redirects to `post_logout_redirect_uri` only when that value is an
+RP-Initiated Logout 1.0 over both methods §2 requires, the parameters
+arriving in the query string or a form body: it asks the End-User to
+confirm before ending anything unless an `id_token_hint` names the session
+actually being ended — and a `client_id` sent beside a hint has to name the
+client that hint was issued to, or neither is used — and it redirects to
+`post_logout_redirect_uri` only when that value is an
 exact, unnormalized match against the client's own registered list —
 refusing the redirect never keeps the session alive, since the two are
 decided independently. **Logout revokes the session row and every grant
