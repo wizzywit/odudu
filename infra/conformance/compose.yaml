@@ -38,6 +38,13 @@ services:
       # README.md's answer to whether a Config OP plan accepts http://.
       ODUDU_TLS: 'true'
       ODUDU_TRUST_PROXY: 'true'
+      # The origin the suite actually reaches this server on: proxy's
+      # `server_name odudu` on 443, so no port. Required because this stack
+      # runs the image's NODE_ENV=production, where the boot guard in
+      # apps/server/src/config-guard.ts refuses to serve without a WebAuthn
+      # relying party id to derive. Change proxy/nginx.conf's server_name
+      # and this has to change with it — they name the same host.
+      ODUDU_PUBLIC_BASE_URL: https://odudu
     depends_on:
       postgres:
         condition: service_healthy
