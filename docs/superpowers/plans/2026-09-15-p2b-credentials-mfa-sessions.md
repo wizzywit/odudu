@@ -78,7 +78,7 @@ No new packages. Modified packages:
 
 | Path                        | Change                                                                                                                      |
 | --------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| `packages/db/drizzle/`      | migrations 0026–0041 and their journal entries                                                                              |
+| `packages/db/drizzle/`      | migrations 0026–0042 and their journal entries                                                                              |
 | `packages/db/src/schema/`   | `realms` gains session-lifespan, password-policy and lockout columns                                                        |
 | `packages/authn-flows/`     | the execution schema and repository, the requirement evaluator, the authenticator registry, required actions, lockout       |
 | `packages/domain-identity/` | widened credential store, per-type `secret_data` parsing, the password-policy service, `login_failures`                     |
@@ -2491,6 +2491,9 @@ gh pr checks --watch
 **Files:**
 
 - Modify: `packages/authn-flows/package.json` — the pinned dependency
+- Create: `packages/db/drizzle/0039_authentication_sessions_webauthn_challenge.sql`
+- Modify: `packages/db/drizzle/meta/_journal.json`
+- Modify: `packages/authn-flows/src/schema/authentication-sessions.ts`
 - Create: `packages/authn-flows/src/service/webauthn.ts`
 - Create: `packages/authn-flows/src/service/webauthn.test.ts`
 - Create: `packages/authn-flows/src/usecase/passkey-enrolment.ts`
@@ -2505,6 +2508,23 @@ gh pr checks --watch
   - `relyingPartyId(publicBaseUrl: string): string` — the host, never a request header
   - `beginPasskeyEnrolment(input): Promise<{ options: PublicKeyCredentialCreationOptionsJSON; challenge: string }>`
   - `completePasskeyEnrolment(input): Promise<{ lookupKey: string; secret: WebauthnSecret; label: string }>`
+
+- [ ] **Step 0: Write the migration that gives the challenge somewhere to live**
+
+The challenge is stored against the authentication session, not the browser,
+and `authentication_sessions` has no column for it.
+
+```sql
+-- packages/db/drizzle/0039_authentication_sessions_webauthn_challenge.sql
+-- The challenge issued for a WebAuthn ceremony, held server-side so the
+-- browser cannot choose what it will later be asked to have signed. Null
+-- whenever no ceremony is in flight; cleared when one completes, so a
+-- replayed response finds nothing to match against.
+ALTER TABLE authentication_sessions ADD COLUMN webauthn_challenge text;
+```
+
+Journal entry as usual. `authentication_sessions` already has RLS and a policy
+from migration 0032 — adding a column restates neither.
 
 - [ ] **Step 1: Write the failing unit test for the RP ID**
 
@@ -2736,11 +2756,11 @@ Then update `docs/NEXT.md`.
 
 ---
 
-### Task 22: Brute force — migration 0039, lockout, and indistinguishable refusals
+### Task 22: Brute force — migration 0040, lockout, and indistinguishable refusals
 
 **Files:**
 
-- Create: `packages/db/drizzle/0039_login_failures.sql`
+- Create: `packages/db/drizzle/0040_login_failures.sql`
 - Modify: `packages/db/drizzle/meta/_journal.json`
 - Modify: `packages/db/src/schema/realms.ts`
 - Create: `packages/domain-identity/src/schema/login-failures.ts`
@@ -2761,7 +2781,7 @@ Then update `docs/NEXT.md`.
 - [ ] **Step 1: Write the migration**
 
 ```sql
--- packages/db/drizzle/0039_login_failures.sql
+-- packages/db/drizzle/0040_login_failures.sql
 -- Keyed by subject, not by username: a lockout that followed a username
 -- would let an attacker lock an account out of existence by guessing at a
 -- name it no longer uses, and would miss an attacker arriving by email.
@@ -3024,7 +3044,7 @@ The headline test of the phase. **Read ADR 0021 before starting.**
 - Create: `apps/server/src/cli/reap.ts`
 - Create: `apps/server/src/cli/reap.test.ts`
 - Modify: `apps/server/src/main.ts`
-- Create: `packages/db/drizzle/0040_retention_indexes.sql`
+- Create: `packages/db/drizzle/0041_retention_indexes.sql`
 - Modify: `packages/db/drizzle/meta/_journal.json`
 - Create: `apps/server/tests/reap.int.test.ts`
 - Create: `apps/server/tests/reap-preserves-detection.int.test.ts`
@@ -3041,7 +3061,7 @@ The headline test of the phase. **Read ADR 0021 before starting.**
 - [ ] **Step 1: Write the migration for the indexes the pass needs**
 
 ```sql
--- packages/db/drizzle/0040_retention_indexes.sql
+-- packages/db/drizzle/0041_retention_indexes.sql
 -- A reaping pass scans by age. Without these it is a sequential scan over
 -- the largest tables in the schema, which is how a retention pass becomes
 -- the reason a deployment falls over at 3am.
@@ -3215,7 +3235,7 @@ Closes the limitation P2a recorded and P2b was amended to own.
 
 **Files:**
 
-- Create: `packages/db/drizzle/0041_email_outbox.sql`
+- Create: `packages/db/drizzle/0042_email_outbox.sql`
 - Modify: `packages/db/drizzle/meta/_journal.json`
 - Create: `packages/email/src/schema/outbox.ts`
 - Create: `packages/email/src/repository/outbox.ts`
@@ -3237,7 +3257,7 @@ Closes the limitation P2a recorded and P2b was amended to own.
 - [ ] **Step 1: Write the migration**
 
 ```sql
--- packages/db/drizzle/0041_email_outbox.sql
+-- packages/db/drizzle/0042_email_outbox.sql
 -- Mail leaves the request path entirely: the request enqueues and answers,
 -- and the sender runs on the scheduler. This is what closes the password
 -- reset timing oracle, where an address that existed was measurably slower
@@ -3451,11 +3471,24 @@ The spec's section 4 numbered its migrations 0026–0034 before the task order e
 | 0035      | 13   | realm password policy                          |
 | 0036      | 14   | `user_required_actions`                        |
 | 0037      | 16   | `realms.otp_required`                          |
-| 0038      | 22   | `login_failures` and realm lockout settings    |
-| 0039      | 25   | retention indexes                              |
-| 0040      | 27   | `email_outbox`                                 |
+| 0038      | 16   | `authentication_sessions.subject_id`           |
+| 0039      | 18   | `authentication_sessions.webauthn_challenge`   |
+| 0040      | 22   | `login_failures` and realm lockout settings    |
+| 0041      | 25   | retention indexes                              |
+| 0042      | 27   | `email_outbox`                                 |
 
-Fifteen migrations, not the nine section 4 sketched. The difference is three the spec folded into prose rather than numbering (`satisfied`, `authenticators`, `otp_required`) and three it did not foresee: the retention indexes, splitting the session columns from the realm columns because they land in different tables, and `authorization_codes.session_id` — without which the session a login establishes never reaches the grant redeemed from its code. If a task runs out of order, the numbering follows what is already in `packages/db/drizzle/`, not this table.
+Seventeen migrations, not the nine section 4 sketched. The difference is
+three the spec folded into prose rather than numbering (`satisfied`,
+`authenticators`, `otp_required`), three it did not foresee (the retention
+indexes, splitting the session columns from the realm columns because they
+land in different tables, and `authorization_codes.session_id` — without
+which the session a login establishes never reaches the grant redeemed from
+its code), and two found during execution: binding an in-progress login to
+its subject, and giving a WebAuthn challenge somewhere server-side to live.
+Both of those are state a task needed and no numbered migration provided,
+which is the shape to expect from the remaining tasks too. If a task runs
+out of order, the numbering follows what is already in
+`packages/db/drizzle/`, not this table.
 
 ## Self-review notes
 
