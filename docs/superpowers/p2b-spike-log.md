@@ -583,6 +583,8 @@ path WebAuthn defines for the same resolution. Post-verification,
 both returned, confirming Task 19 can update the stored counter after the
 fact for clone detection.
 
+---
+
 **No spec change needed.** Section 5.2's usernameless first-factor design
 is executable as specified — Task 19's implementation shape is: resolve
 `lookup_key` from `response.id` (or `response.response.userHandle` as a
@@ -603,3 +605,357 @@ parameter on `verifyAuthenticationResponse`, the `AuthenticationResponseJSON`/
 result shape (`credentialID`, `newCounter`). A real ceremony — Task 19's own
 integration test — is the point at which this becomes executed evidence
 rather than declared contract.
+
+---
+
+## Advisory locks inside `withRealm`
+
+**Question:** which Postgres advisory lock variant is safe for the scheduled
+reaper to take inside the transaction `withRealm` opens on a pooled
+connection — `pg_advisory_lock` (session-scoped) or
+`pg_try_advisory_xact_lock` (transaction-scoped) — and does
+`set_config(..., true)`, the bindable `SET LOCAL` `withRealm` uses for realm
+context, interact with either one?
+
+**Answer: `pg_try_advisory_xact_lock`.** It releases at commit, releases at
+rollback, and genuinely excludes a second concurrent transaction while the
+first is still open — all three properties confirmed by execution, not
+assumed. `pg_advisory_lock` leaks past `withRealm` exactly as predicted: it
+is still held on the pooled connection after the transaction returns. No
+interaction with `set_config(..., true)`/realm context was observed in any
+of these tests — the lock behaved identically whether the two contending
+transactions ran under the same realm or different realms.
+
+### Setup
+
+Probe written as a throwaway integration test, `packages/db/tests/advisory-lock-spike.int.test.ts`,
+using this repository's real harness (`startTestDatabase` and
+`createAppRole` from `@odudu/testkit`), following `packages/db/tests/tx.int.test.ts`'s
+shape — the brief's own `testDatabase()`/`seedRealm(db)` shorthand does not
+exist in this repository.
+
+```ts
+import { newId } from '@odudu/kernel';
+import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
+import { sql } from 'drizzle-orm';
+import { afterAll, beforeAll, expect, it } from 'vitest';
+import { createDatabase, type DatabaseHandle } from '#/client';
+import { MIGRATIONS_DIR, runMigrations } from '#/migrate';
+import { realms } from '#/schema/index';
+import { withRealm } from '#/tx';
+
+let containerHandle: TestDatabase | undefined;
+let ownerHandle: DatabaseHandle | undefined;
+let appHandle: DatabaseHandle | undefined;
+
+let container: TestDatabase;
+let owner: DatabaseHandle;
+let app: DatabaseHandle;
+let appUrl: string;
+
+const REALM_A = newId();
+const REALM_B = newId();
+
+beforeAll(async () => {
+  containerHandle = await startTestDatabase();
+  container = containerHandle;
+
+  ownerHandle = createDatabase(container.adminUrl);
+  owner = ownerHandle;
+  await runMigrations(owner.db, MIGRATIONS_DIR);
+
+  await owner.db.insert(realms).values([
+    { id: REALM_A, name: 'alpha' },
+    { id: REALM_B, name: 'bravo' },
+  ]);
+
+  appUrl = await createAppRole(container.adminUrl);
+  appHandle = createDatabase(appUrl, { max: 5 });
+  app = appHandle;
+}, 120_000);
+
+afterAll(async () => {
+  await appHandle?.close();
+  await ownerHandle?.close();
+  await containerHandle?.stop();
+});
+
+it('0: discover how a single-bigint advisory lock key is encoded in pg_locks', async () => {
+  const result = await withRealm(app.db, REALM_A, async (tx) => {
+    await tx.execute(sql`select pg_try_advisory_xact_lock(42::bigint) as got`);
+    return tx.execute(
+      sql`select locktype, classid, objid, objsubid from pg_locks where locktype = 'advisory'`,
+    );
+  });
+  console.log('ENCODING PROBE:', JSON.stringify(result));
+  expect(true).toBe(true);
+});
+
+it('1: xact lock releases at commit, so a later separate transaction can take it again', async () => {
+  const taken = await withRealm(app.db, REALM_A, async (tx) =>
+    tx.execute(sql`select pg_try_advisory_xact_lock(42::bigint) as got`),
+  );
+  const again = await withRealm(app.db, REALM_A, async (tx) =>
+    tx.execute(sql`select pg_try_advisory_xact_lock(42::bigint) as got`),
+  );
+  const heldAfter = await withRealm(app.db, REALM_A, async (tx) =>
+    tx.execute(
+      sql`select count(*) as n from pg_locks where locktype = 'advisory' and classid = 0 and objid = 42`,
+    ),
+  );
+  console.log('XACT COMMIT-RELEASE:', JSON.stringify({ taken, again, heldAfter }));
+  expect(true).toBe(true);
+});
+
+it('2: xact lock excludes a concurrent second transaction while the first is still open', async () => {
+  let signalAcquired!: () => void;
+  const acquired = new Promise<void>((resolve) => {
+    signalAcquired = resolve;
+  });
+  let releaseFirst!: () => void;
+  const held = new Promise<void>((resolve) => {
+    releaseFirst = resolve;
+  });
+  let firstGot: unknown;
+
+  const firstPromise = withRealm(app.db, REALM_A, async (tx) => {
+    const result = await tx.execute(sql`select pg_try_advisory_xact_lock(4242::bigint) as got`);
+    firstGot = result[0]?.got;
+    signalAcquired();
+    await held;
+  });
+
+  await acquired;
+
+  // Distinct realm on purpose: the lock is a session/backend-level Postgres
+  // primitive, not scoped by app.realm_id, so a different realm context must
+  // not let this second transaction through.
+  const secondResult = await withRealm(app.db, REALM_B, async (tx) =>
+    tx.execute(sql`select pg_try_advisory_xact_lock(4242::bigint) as got`),
+  );
+
+  releaseFirst();
+  await firstPromise;
+
+  const afterBothDone = await withRealm(app.db, REALM_A, async (tx) =>
+    tx.execute(sql`select pg_try_advisory_xact_lock(4242::bigint) as got`),
+  );
+
+  console.log(
+    'XACT MUTUAL EXCLUSION:',
+    JSON.stringify({
+      firstGot,
+      secondGot: secondResult[0]?.got,
+      afterBothDone: afterBothDone[0]?.got,
+    }),
+  );
+  expect(true).toBe(true);
+});
+
+it('3: xact lock is released on rollback, not just on commit', async () => {
+  await expect(
+    withRealm(app.db, REALM_A, async (tx) => {
+      const result = await tx.execute(sql`select pg_try_advisory_xact_lock(4343::bigint) as got`);
+      console.log('ROLLBACK PROBE, lock acquired before throw:', JSON.stringify(result));
+      throw new Error('force rollback');
+    }),
+  ).rejects.toThrow('force rollback');
+
+  const afterRollback = await withRealm(app.db, REALM_A, async (tx) =>
+    tx.execute(sql`select pg_try_advisory_xact_lock(4343::bigint) as got`),
+  );
+  console.log(
+    'AFTER ROLLBACK, re-acquire from a fresh transaction:',
+    JSON.stringify(afterRollback),
+  );
+  expect(true).toBe(true);
+});
+
+it('4: session-scoped lock leaks past withRealm, and is cleaned up by closing the handle', async () => {
+  // Dedicated max:1 pool: guarantees every query below runs on the exact
+  // same physical backend connection, both while taking the lock inside
+  // withRealm and while closing it afterward.
+  const dedicated = createDatabase(appUrl, { max: 1 });
+
+  try {
+    const taken = await withRealm(dedicated.db, REALM_A, async (tx) =>
+      tx.execute(sql`select pg_advisory_lock(43::bigint) as got`),
+    );
+
+    const heldAfterTx = await withRealm(app.db, REALM_A, async (tx) =>
+      tx.execute(
+        sql`select count(*) as n from pg_locks where locktype = 'advisory' and classid = 0 and objid = 43`,
+      ),
+    );
+
+    console.log(
+      'SESSION LOCK LEAK:',
+      JSON.stringify({ taken, heldAfterWithRealmReturned: heldAfterTx }),
+    );
+
+    expect(Number(heldAfterTx[0]?.n)).toBe(1);
+  } finally {
+    // Closing the handle ends the backend session, which releases every
+    // session-scoped advisory lock it held — the explicit cleanup this
+    // probe needs so it does not poison the rest of this file's assertions.
+    await dedicated.close();
+  }
+
+  const heldAfterClose = await withRealm(app.db, REALM_A, async (tx) =>
+    tx.execute(
+      sql`select count(*) as n from pg_locks where locktype = 'advisory' and classid = 0 and objid = 43`,
+    ),
+  );
+  console.log('SESSION LOCK AFTER HANDLE CLOSE:', JSON.stringify(heldAfterClose));
+  expect(Number(heldAfterClose[0]?.n)).toBe(0);
+});
+```
+
+One thing the brief's own sketch got wrong, caught only by running it: a raw
+`tx.execute(sql\`...\`)` on this repository's Drizzle/`postgres-js` stack
+returns the driver's row array directly (`result[0].got`), not a
+`{ rows: [...] }`wrapper — the same shape already documented in`packages/protocol-oidc/src/repository/refresh.ts`'s `RawRefreshTokenRow`comment. The brief's snippet reads`taken.rows`; the first run against a
+real container produced `undefined`for every such access (masked in three
+of the five tests because their assertions were the trivial`expect(true).toBe(true)`,
+but fatal in the two tests with real assertions — one hung for the full
+120s timeout because the crash happened before a synchronization signal
+fired, the other threw `TypeError: Cannot read properties of undefined`).
+Fixed by reading `result[0]` directly; the output below is from the
+corrected version.
+
+Run: `pnpm exec vitest run --project integration advisory-lock-spike --reporter=verbose`
+
+Output (verbatim; the two Node `ExperimentalWarning` lines about the Web
+Crypto API, unrelated to this probe, are trimmed):
+
+```
+stdout | packages/db/tests/advisory-lock-spike.int.test.ts > 0: discover how a single-bigint advisory lock key is encoded in pg_locks
+ENCODING PROBE: [{"locktype":"advisory","classid":0,"objid":42,"objsubid":1}]
+stdout | packages/db/tests/advisory-lock-spike.int.test.ts > 1: xact lock releases at commit, so a later separate transaction can take it again
+XACT COMMIT-RELEASE: {"taken":[{"got":true}],"again":[{"got":true}],"heldAfter":[{"n":"0"}]}
+stdout | packages/db/tests/advisory-lock-spike.int.test.ts > 2: xact lock excludes a concurrent second transaction while the first is still open
+XACT MUTUAL EXCLUSION: {"firstGot":true,"secondGot":false,"afterBothDone":true}
+stdout | packages/db/tests/advisory-lock-spike.int.test.ts > 3: xact lock is released on rollback, not just on commit
+ROLLBACK PROBE, lock acquired before throw: [{"got":true}]
+stdout | packages/db/tests/advisory-lock-spike.int.test.ts > 3: xact lock is released on rollback, not just on commit
+AFTER ROLLBACK, re-acquire from a fresh transaction: [{"got":true}]
+stdout | packages/db/tests/advisory-lock-spike.int.test.ts > 4: session-scoped lock leaks past withRealm, and is cleaned up by closing the handle
+SESSION LOCK LEAK: {"taken":[{"got":""}],"heldAfterWithRealmReturned":[{"n":"1"}]}
+stdout | packages/db/tests/advisory-lock-spike.int.test.ts > 4: session-scoped lock leaks past withRealm, and is cleaned up by closing the handle
+SESSION LOCK AFTER HANDLE CLOSE: [{"n":"0"}]
+✓ |integration| packages/db/tests/advisory-lock-spike.int.test.ts > 0: discover how a single-bigint advisory lock key is encoded in pg_locks 14ms
+✓ |integration| packages/db/tests/advisory-lock-spike.int.test.ts > 1: xact lock releases at commit, so a later separate transaction can take it again 6ms
+✓ |integration| packages/db/tests/advisory-lock-spike.int.test.ts > 2: xact lock excludes a concurrent second transaction while the first is still open 17ms
+✓ |integration| packages/db/tests/advisory-lock-spike.int.test.ts > 3: xact lock is released on rollback, not just on commit 4ms
+✓ |integration| packages/db/tests/advisory-lock-spike.int.test.ts > 4: session-scoped lock leaks past withRealm, and is cleaned up by closing the handle 18ms
+
+ Test Files  1 passed (1)
+      Tests  5 passed (5)
+   Start at  20:24:25
+   Duration  3.59s (tests 78%, import 20%, transform 2%)
+```
+
+### Reading the output
+
+- **Encoding (test 0):** for the single-`bigint`-argument form,
+  `pg_try_advisory_xact_lock(42::bigint)` shows up in `pg_locks` as
+  `classid = 0, objid = 42, objsubid = 1` — the 64-bit key is split with the
+  high 32 bits in `classid` (zero here, since 42 fits in 32 bits) and the
+  low 32 bits in `objid`. This is what makes `... where classid = 0 and
+objid = <key>` in tests 1 and 4 a filter on the exact lock this probe
+  took, not merely `locktype = 'advisory'` (which, per the brief's
+  ruling, is cluster-wide across every backend and would also count any
+  other advisory lock anything else in the process happened to be holding).
+- **Commit-release (test 1):** `taken` is `true`; `again`, taken in a wholly
+  separate, later `withRealm` transaction, is also `true` — the first
+  transaction's lock was gone by the time the second one ran, because it
+  committed. `heldAfter` is `0` rows, confirming nothing was left in
+  `pg_locks` for that key once both transactions had returned. This is the
+  brief's own Step 3 property, confirmed exactly as expected — release at
+  commit.
+- **Mutual exclusion while both are open (test 2):** this is the property
+  the brief's own probe did not test. Two concurrent `withRealm` calls, on
+  two different pooled connections (the pool's `max: 5` makes this
+  possible), contend for the same key: `firstGot: true` (first transaction
+  acquires it and holds the transaction open), `secondGot: false` (a
+  _second, still-open_ transaction, deliberately run under the _other_
+  realm, fails to acquire it while the first has not yet committed), then
+  `afterBothDone: true` (once the first is released, a third attempt
+  succeeds again). This is real mutual exclusion, not merely
+  release-at-commit — the two are different properties and both are now
+  confirmed by execution.
+- **`set_config(..., true)`/realm-context interaction:** test 2 deliberately
+  ran the first transaction under `REALM_A` and the contending second
+  transaction under `REALM_B`. The lock still excluded the second
+  transaction (`secondGot: false`) despite the two transactions having
+  different `app.realm_id` values bound via `set_config(..., true)`. **No
+  interaction between realm context and the advisory lock was observed** —
+  the lock is a backend/session-level Postgres primitive with no awareness
+  of `app.realm_id` at all, exactly as expected, and this is the specific
+  case that was checked for it.
+- **Rollback (test 3):** the lock is acquired (`got: true`) immediately
+  before the transaction body throws; `withRealm`'s wrapping
+  `db.transaction(...)` rolls back on that throw. A wholly new,
+  later transaction then re-acquires the same key and also gets `true`
+  immediately — proving the lock was released by the rollback, not left
+  held until the connection eventually died. A reaper that throws partway
+  through its work will not wedge the lock.
+- **Session-scoped leak (test 4):** `pg_advisory_lock(43::bigint)` inside
+  `withRealm` on a dedicated `max: 1` pool, then, from a _different_ pooled
+  connection (`app.db`), counting `pg_locks` for that exact key —
+  `heldAfterWithRealmReturned: 1` — confirms the lock is still held after
+  the transaction that took it has already committed and returned control.
+  This is the leak: on a pooled connection, that lock is now sitting on a
+  backend connection the pool will eventually hand to some unrelated piece
+  of code, which would then be running under a lock it never asked for and
+  has no way to know about. `pg_locks` being cluster-wide (per the brief's
+  ruling) is exactly what makes this observable from `app.db` at all,
+  rather than only from the connection that took the lock.
+- **Explicit leak cleanup:** the dedicated pool's `close()` is called in a
+  `finally` block immediately after the leak measurement, ending that
+  backend session and releasing the session-scoped lock with it —
+  confirmed by `SESSION LOCK AFTER HANDLE CLOSE: [{"n":"0"}]`. This is the
+  measurement instrument being cleaned up, not the fix under test: it
+  proves the file's own later assertions (there are none after test 4 here,
+  but the pattern is the one to reuse) are not contaminated by this
+  probe's own leaked lock. `pg_advisory_unlock_all()` on the same
+  connection would have worked identically; closing the handle was chosen
+  here because the dedicated pool had no other purpose.
+
+**Evidence boundary.** Everything above is executed evidence from a real
+`postgres:17-alpine` container via Testcontainers — the encoding, the
+commit-release, the concurrent mutual exclusion, the rollback-release, the
+session-scoped leak, and its cleanup are all read from the logged output of
+this run, not inferred from documentation. Nothing in this entry rests on
+reasoning alone.
+
+### Teardown
+
+```bash
+rm packages/db/tests/advisory-lock-spike.int.test.ts
+```
+
+### Findings for the reaper
+
+- **The reaper must call `pg_try_advisory_xact_lock(<key>)`**, taken
+  _inside_ its own `withRealm`-opened (or otherwise pooled) transaction —
+  never `pg_advisory_lock`/`pg_advisory_unlock`, whose release depends on
+  something other than transaction end and which this spike confirmed
+  leaks onto the pooled connection for whoever the pool hands it to next.
+- Taking the lock inside the same transaction the reaper's deletes run in
+  is safe and sufficient: the lock is held for exactly the transaction's
+  lifetime and is released automatically whether that transaction commits
+  (test 1) or rolls back (test 3) — no explicit unlock call is needed or
+  available for the `xact` variant.
+- Two concurrent instances each opening their own transaction and calling
+  `pg_try_advisory_xact_lock` with the same key get real mutual exclusion
+  (test 2): the loser gets `false` back immediately and should skip its
+  reap pass for that tick rather than retrying, since the winner is known
+  to be running the same work concurrently.
+- `set_config(..., true)`/`app.realm_id` context has no bearing on this
+  lock in either direction — confirmed by deliberately mismatching realms
+  between the two contending transactions in test 2 and seeing no change in
+  behavior. The reaper's lock key does not need to (and structurally
+  cannot, since advisory locks aren't realm-scoped) vary by realm to stay
+  correct; if per-realm reaping is ever wanted, that has to be a different
+  key per realm chosen deliberately, not something the lock gives for free.
