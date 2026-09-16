@@ -3,7 +3,39 @@
 ## Start here
 
 **P0, P1 and P2a are complete. P2b is brainstormed, specified and planned;
-Tasks 1 through 18 have landed and Task 19 is next.**
+Tasks 1 through 19 have landed and Task 20 is next.**
+
+**Task 19 makes a passkey a usernameless first factor.** `src/service/webauthn.ts`
+gained the assertion half: `passkeyAuthenticationOptions` (no
+`allowCredentials`, `userVerification: 'required'`),
+`parseAuthenticationResponse`, `assertedCredentialId`, and
+`verifyPasskeyAssertion` — which passes `requireUserVerification: true`
+explicitly, as the registration half does. `src/service/authenticators/passkey.ts`
+is the leaf step: **resolution happens before verification**, because
+`verifyAuthenticationResponse` takes the stored credential as an input, and
+the only thing available that early is the raw response's own `id` — which
+is what enrolment stored as `lookup_key`. The counter rule is
+`newCounter > stored`, except that `0` against a stored `0` is accepted
+(WebAuthn §6.1.1 permits an authenticator that never counts);
+`credentialRepository.advanceWebauthnCounter` is the compare-and-swap that
+enforces the same rule under concurrency, `recordTotpUse`'s shape.
+`otpApplicable` grew a third input, the satisfied set, and returns false
+once `passkey` is in it: a verified passkey is two factors, which is also
+what `FACTOR_COUNT` counts it as, so `otp_required` is a floor, not a tax.
+`passkey` shares an ALTERNATIVE group with `password` and a group offers one
+form at a time, so the passkey step is applicable to a submission that
+actually carries an assertion; with nothing submitted the group falls
+through to `password`, whose page carries the button. `AuthenticatorResult`'s
+success variant grew an optional `commit`, run by `advance` **after** the
+subject-mismatch guard — a factor that names its own subject must not move
+any state until the attempt is known to be that subject's.
+`POST /realms/{realm}/login-actions/passkey-challenge` issues the options
+and parks the challenge per press. **`sendHtml` now takes a script nonce**:
+`default-src 'none'` was silently blocking the enrolment page's inline
+script as well, so no WebAuthn page could ever have worked in a browser —
+a nonced `script-src` plus `connect-src 'self'` is added only for the pages
+that need it, and `packages/protocol-oidc/tests/passkey-enrolment.int.test.ts`
+pins the header's nonce to the element's.
 
 **Task 18 enrols a passkey.** `@simplewebauthn/server` is pinned at
 `14.0.2` (the version `docs/superpowers/p2b-spike-log.md` resolved and
@@ -34,8 +66,7 @@ guessed domain. The enrolment page calls `navigator.credentials.create()`
 and its refusals instead of showing output nobody produced, and points at
 `packages/authn-flows/tests/passkey-enrolment.int.test.ts`, which drives
 the whole ceremony against real PostgreSQL with a software authenticator
-emitting `none`-format attestations. **Passkey login is Task 19's**: no
-`passkey` authenticator runtime exists yet.
+emitting `none`-format attestations. Passkey login is Task 19's, above.
 
 **Task 16 makes TOTP a real second factor and lets a subject enrol one.**
 Migration 0037 adds `realms.otp_required` (default false) and 0038 adds

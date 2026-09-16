@@ -472,6 +472,119 @@ describe('credentialRepository — widened credential types', () => {
     expect(again).toBe(false);
   });
 
+  async function seedPasskey(
+    tx: RealmScopedDatabase,
+    realmId: string,
+    counter: number,
+  ): Promise<{ subjectId: string; id: string; lookupKey: string }> {
+    const subject = await seedSubject(tx, realmId);
+    const lookupKey = `credential-${newId()}`;
+    await credentialRepository(tx).insert({
+      realmId,
+      subjectId: subject,
+      type: 'webauthn',
+      lookupKey,
+      secret: { kind: 'webauthn', publicKey: 'cG9zc2libHk', counter, transports: ['internal'] },
+    });
+    const [stored] = await credentialRepository(tx).listFor(subject, 'webauthn');
+    if (stored === undefined) throw new Error('expected the seeded credential back');
+    return { subjectId: subject, id: stored.id, lookupKey };
+  }
+
+  function counterOf(realmId: string, subjectId: string): Promise<number | undefined> {
+    return withRealm(app.db, realmId, async (tx) => {
+      const [found] = await credentialRepository(tx).listFor(subjectId, 'webauthn');
+      return found?.secret.kind === 'webauthn' ? found.secret.counter : undefined;
+    });
+  }
+
+  it('advances a webauthn counter, leaving the public key alone', async () => {
+    const realmId = newId();
+    const usedAt = new Date('2026-09-16T12:00:00.000Z');
+    const seeded = await withRealm(app.db, realmId, (tx) => seedPasskey(tx, realmId, 3));
+
+    const advanced = await withRealm(app.db, realmId, (tx) =>
+      credentialRepository(tx).advanceWebauthnCounter(seeded.id, 4, usedAt),
+    );
+
+    expect(advanced).toBe(true);
+    const [after] = await withRealm(app.db, realmId, (tx) =>
+      credentialRepository(tx).listFor(seeded.subjectId, 'webauthn'),
+    );
+    expect(after?.secret).toEqual({
+      kind: 'webauthn',
+      publicKey: 'cG9zc2libHk',
+      counter: 4,
+      transports: ['internal'],
+    });
+    expect(after?.lastUsedAt).toEqual(usedAt);
+  });
+
+  // WebAuthn §6.1.1: a counter that did not move means two authenticators
+  // are answering for one credential.
+  it('refuses a counter that did not increase', async () => {
+    const realmId = newId();
+    const seeded = await withRealm(app.db, realmId, (tx) => seedPasskey(tx, realmId, 5));
+
+    const same = await withRealm(app.db, realmId, (tx) =>
+      credentialRepository(tx).advanceWebauthnCounter(seeded.id, 5, new Date()),
+    );
+    const backwards = await withRealm(app.db, realmId, (tx) =>
+      credentialRepository(tx).advanceWebauthnCounter(seeded.id, 4, new Date()),
+    );
+
+    expect([same, backwards]).toEqual([false, false]);
+    expect(await counterOf(realmId, seeded.subjectId)).toBe(5);
+  });
+
+  // The exception §6.1.1 allows: an authenticator that never counts reports
+  // zero forever, and refusing it refuses a conformant device.
+  it('accepts zero from a credential whose counter is already zero', async () => {
+    const realmId = newId();
+    const seeded = await withRealm(app.db, realmId, (tx) => seedPasskey(tx, realmId, 0));
+
+    const advanced = await withRealm(app.db, realmId, (tx) =>
+      credentialRepository(tx).advanceWebauthnCounter(seeded.id, 0, new Date()),
+    );
+
+    expect(advanced).toBe(true);
+    expect(await counterOf(realmId, seeded.subjectId)).toBe(0);
+  });
+
+  it('advances a webauthn counter exactly once when two assertions race for it', async () => {
+    const realmId = newId();
+    const seeded = await withRealm(app.db, realmId, (tx) => seedPasskey(tx, realmId, 1));
+
+    const advance = () =>
+      withRealm(app.db, realmId, (tx) =>
+        credentialRepository(tx).advanceWebauthnCounter(seeded.id, 2, new Date()),
+      );
+    const [first, second] = await Promise.all([advance(), advance()]);
+
+    expect([first, second].filter(Boolean)).toHaveLength(1);
+  });
+
+  it('cannot advance a webauthn counter under a different realm context', async () => {
+    await expectCrossRealmMethodProbe(app.db, {
+      seed: async (tx, realmId) => seedPasskey(tx, realmId, 2),
+      verifySeeded: async (tx, seeded) => {
+        const [found] = await credentialRepository(tx).listFor(seeded.subjectId, 'webauthn');
+        expect(found?.secret).toMatchObject({ counter: 2 });
+      },
+      attempt: async (tx, seeded) =>
+        credentialRepository(tx).advanceWebauthnCounter(seeded.id, 99, new Date()),
+      expectBlocked: (result) => {
+        // RLS filters the row out of the UPDATE's own WHERE, so nothing is
+        // updated and the call reports the counter as unadvanced.
+        expect(result).toBe(false);
+      },
+      verifyRealmAUnaffected: async (tx, seeded) => {
+        const [found] = await credentialRepository(tx).listFor(seeded.subjectId, 'webauthn');
+        expect(found?.secret).toMatchObject({ counter: 2 });
+      },
+    });
+  });
+
   it('refuses to insert a credential whose declared realm does not match the transaction realm', async () => {
     const realmA = newId();
     const realmB = newId();

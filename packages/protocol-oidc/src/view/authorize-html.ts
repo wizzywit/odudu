@@ -56,10 +56,58 @@ function renderFormFields(form: string): string {
   if (form === 'otp') {
     return `<label>Code from your app <input type="text" name="code" inputmode="numeric" autocomplete="one-time-code"></label>`;
   }
-  // Unreachable today: initialChallenge/pendingChallenge (authn-flows) only
-  // ever name an authenticator this server can actually dispatch to, and
-  // 'password' and 'otp' are the ones with a runtime.
+  // Unreachable today: the two authenticators with fields to render are
+  // the two above, and a passkey has none — it is offered by
+  // renderPasskeyOption below rather than as a set of inputs.
   return `<p>Unsupported sign-in step: ${escapeHtml(form)}</p>`;
+}
+
+// navigator.credentials.get() is the only way to produce an assertion, so
+// the passkey half of this page cannot be a plain form: the script asks the
+// server for options, asks the authenticator, then posts what it returns.
+// No username anywhere in it — the options name no credentials, so the
+// browser offers every discoverable one it holds and the account is
+// whichever one answers. The challenge is issued per click rather than with
+// the page, so a form left open overnight still gets a live one.
+function renderPasskeyOption(realm: string, authSessionId: string, nonce: string): string {
+  const escaped = escapeHtml(realm);
+  return `
+<form method="post" action="/realms/${escaped}/login-actions/authenticate" id="passkey-form">
+  <input type="hidden" name="auth_session_id" value="${escapeHtml(authSessionId)}">
+  <input type="hidden" name="assertion" id="passkey-assertion">
+  <button type="submit" id="passkey-submit">Sign in with a passkey</button>
+</form>
+<p id="passkey-error" hidden></p>
+<script nonce="${escapeHtml(nonce)}">
+const form = document.getElementById('passkey-form');
+const field = document.getElementById('passkey-assertion');
+const failure = document.getElementById('passkey-error');
+const fromBase64Url = (value) =>
+  Uint8Array.from(atob(value.replace(/-/g, '+').replace(/_/g, '/')), (c) => c.charCodeAt(0));
+form.addEventListener('submit', async (event) => {
+  if (field.value !== '') return;
+  event.preventDefault();
+  failure.hidden = true;
+  try {
+    const offered = await fetch('/realms/${escaped}/login-actions/passkey-challenge', {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ auth_session_id: form.auth_session_id.value }),
+    });
+    if (!offered.ok) throw new Error('this server is not offering passkeys');
+    const options = await offered.json();
+    const assertion = await navigator.credentials.get({
+      publicKey: { ...options, challenge: fromBase64Url(options.challenge) },
+    });
+    field.value = JSON.stringify(assertion.toJSON());
+    form.submit();
+  } catch (caught) {
+    failure.textContent =
+      'Your device did not finish signing in — ' + (caught && caught.message ? caught.message : 'the request was cancelled') + '. You can try again.';
+    failure.hidden = false;
+  }
+});
+</script>`;
 }
 
 // The hidden field is the whole of this page's CSRF defence: authSessionId
@@ -70,8 +118,22 @@ function renderFormFields(form: string): string {
 // session as unauthenticated, exactly as it would treat a missing token. It is
 // on every form this function renders, not just the password one, since it is
 // what CSRF-protects the whole endpoint rather than any one authenticator.
-export function renderLoginForm(realm: string, authSessionId: string, form: string): string {
+export function renderLoginForm(
+  realm: string,
+  authSessionId: string,
+  form: string,
+  // Non-null offers a passkey, with the nonce its script needs (see
+  // sendHtml): the relying party id comes from ODUDU_PUBLIC_BASE_URL and
+  // nowhere else, so without that there is nothing behind the button.
+  passkeyNonce: string | null = null,
+): string {
   const action = `/realms/${escapeHtml(realm)}/login-actions/authenticate`;
+  // Beside the password and nowhere else: a passkey is an alternative to
+  // the first factor, not to a code asked for after one.
+  const passkey =
+    passkeyNonce !== null && form === 'password'
+      ? renderPasskeyOption(realm, authSessionId, passkeyNonce)
+      : '';
   return `<!doctype html>
 <html lang="en">
 <head><meta charset="utf-8"><title>Sign in</title></head>
@@ -80,7 +142,7 @@ export function renderLoginForm(realm: string, authSessionId: string, form: stri
   <input type="hidden" name="auth_session_id" value="${escapeHtml(authSessionId)}">
   ${renderFormFields(form)}
   <button type="submit">Sign in</button>
-</form>
+</form>${passkey}
 </body>
 </html>`;
 }

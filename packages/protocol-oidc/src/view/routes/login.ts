@@ -4,6 +4,7 @@ import {
   renderTotpEnrolmentPage,
   sessionCookieName,
   type AuthenticatorResult,
+  type PasskeyAuthenticationOffer,
   type PasskeyEnrolmentOffer,
   type TotpEnrolmentOffer,
 } from '@odudu/authn-flows';
@@ -14,11 +15,15 @@ import {
   renderEmailUnverifiedPage,
   renderLoginForm,
 } from '#/view/authorize-html';
-import { sendHtml } from '#/view/html-response';
+import { scriptNonce, sendHtml } from '#/view/html-response';
 import { issuerBaseFor } from '#/view/issuer';
 
 export interface LoginRouteDeps extends LoginSubmissionDeps {
   tls: boolean;
+  // Whether this deployment can offer a passkey login at all — see
+  // renderLoginForm. Absent, the page offers only the password, and
+  // beginPasskeyAuthentication below is absent with it.
+  passkeyLogin?: boolean;
   // What to render on a rejected attempt — asked directly rather than
   // threaded through LoginSubmissionOutcome, so handleLoginSubmission stays
   // as unaware of the flow's requirements as its own tests assume.
@@ -40,6 +45,12 @@ export interface LoginRouteDeps extends LoginSubmissionDeps {
     subjectId: string,
     authSessionId: string,
   ): Promise<PasskeyEnrolmentOffer>;
+  // The request options the passkey button asks for, and the challenge it
+  // parks on this attempt. Absent for the same reason the enrolment half is.
+  beginPasskeyAuthentication?(
+    realmId: string,
+    authSessionId: string,
+  ): Promise<PasskeyAuthenticationOffer>;
 }
 
 // pendingChallenge runs in its own transaction, separate from the advance()
@@ -56,10 +67,43 @@ function firstString(value: string | string[] | undefined): string | undefined {
   return typeof value === 'string' ? value : undefined;
 }
 
+// What the browser posts is a string; whether it is JSON at all is the
+// authenticator's business, so an unparseable field arrives as the `null`
+// that every other malformed assertion also produces.
+function parseAssertion(value: string): unknown {
+  try {
+    return JSON.parse(value);
+  } catch {
+    return null;
+  }
+}
+
 // Deliberately not under /protocol/openid-connect/: that namespace is the
 // OIDC wire protocol, and this is Odudu's own login UI, which no
 // specification describes and no client library calls.
 export function registerLoginRoute(app: FastifyInstance, deps: LoginRouteDeps): void {
+  // Its own endpoint rather than options rendered into the login page: the
+  // challenge is issued when the button is pressed, so a page left open
+  // does not hand a stale one to an authenticator, and a rejected attempt
+  // needs no fresh render to try a passkey again.
+  const beginPasskeyAuthentication = deps.beginPasskeyAuthentication?.bind(deps);
+  app.post<{ Params: { realm: string }; Body: Record<string, string | string[] | undefined> }>(
+    '/realms/:realm/login-actions/passkey-challenge',
+    async (request, reply) => {
+      const authSessionId = firstString(request.body.auth_session_id);
+      const realm = await deps.findRealm(request.params.realm);
+      if (
+        beginPasskeyAuthentication === undefined ||
+        authSessionId === undefined ||
+        realm === null
+      ) {
+        return reply.code(400).send({ error: 'invalid_request' });
+      }
+      const offer = await beginPasskeyAuthentication(realm.id, authSessionId);
+      return reply.code(200).send(offer.options);
+    },
+  );
+
   app.post<{
     Params: { realm: string };
     Body: Record<string, string | string[] | undefined>;
@@ -69,6 +113,7 @@ export function registerLoginRoute(app: FastifyInstance, deps: LoginRouteDeps): 
     const username = firstString(body.username);
     const password = firstString(body.password);
     const code = firstString(body.code);
+    const assertion = firstString(body.assertion);
 
     const outcome = await handleLoginSubmission(
       deps,
@@ -79,6 +124,7 @@ export function registerLoginRoute(app: FastifyInstance, deps: LoginRouteDeps): 
         ...(username !== undefined ? { username } : {}),
         ...(password !== undefined ? { password } : {}),
         ...(code !== undefined ? { code } : {}),
+        ...(assertion === undefined ? {} : { assertion: parseAssertion(assertion) }),
       },
     );
 
@@ -108,10 +154,12 @@ export function registerLoginRoute(app: FastifyInstance, deps: LoginRouteDeps): 
       const pending =
         realm === null ? null : await deps.pendingChallenge(realm.id, outcome.authSessionId);
       const form = pending?.kind === 'challenge' ? pending.form : FALLBACK_FORM;
+      const nonce = deps.passkeyLogin === true ? scriptNonce() : null;
       return sendHtml(
         reply,
         200,
-        renderLoginForm(request.params.realm, outcome.authSessionId, form),
+        renderLoginForm(request.params.realm, outcome.authSessionId, form, nonce),
+        nonce ?? undefined,
       );
     }
 
@@ -135,10 +183,12 @@ export function registerLoginRoute(app: FastifyInstance, deps: LoginRouteDeps): 
             outcome.subjectId,
             outcome.authSessionId,
           );
+          const nonce = scriptNonce();
           return sendHtml(
             reply,
             200,
-            renderPasskeyEnrolmentPage(realmName, outcome.authSessionId, offer),
+            renderPasskeyEnrolmentPage(realmName, outcome.authSessionId, offer, undefined, nonce),
+            nonce,
           );
         }
       }

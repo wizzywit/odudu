@@ -1,8 +1,13 @@
 import {
+  generateAuthenticationOptions,
   generateRegistrationOptions,
+  verifyAuthenticationResponse,
   verifyRegistrationResponse,
+  type AuthenticationResponseJSON,
   type PublicKeyCredentialCreationOptionsJSON,
+  type PublicKeyCredentialRequestOptionsJSON,
   type RegistrationResponseJSON,
+  type VerifiedAuthenticationResponse,
   type VerifiedRegistrationResponse,
 } from '@simplewebauthn/server';
 import { z } from 'zod';
@@ -183,4 +188,115 @@ export async function verifyPasskeyRegistration(
     counter: credential.counter,
     transports: credential.transports ?? [],
   };
+}
+
+export interface PasskeyAuthenticationOffer {
+  options: PublicKeyCredentialRequestOptionsJSON;
+  // The same value as options.challenge, named separately for the same
+  // reason PasskeyRegistrationOffer names it: this is what the server
+  // stores, and the options are what the browser gets.
+  challenge: string;
+}
+
+// No allowCredentials, which is what tells a browser to offer every
+// discoverable credential it holds rather than a list the server had to
+// know a username to build — the whole of "sign in with a passkey, type
+// nothing". userVerification is stated rather than inherited from the
+// library's 'preferred' default, and matches what enrolment demanded:
+// a passkey counts as two factors only where the authenticator verified
+// whoever held it.
+export async function passkeyAuthenticationOptions(
+  publicBaseUrl: string,
+): Promise<PasskeyAuthenticationOffer> {
+  const options = await generateAuthenticationOptions({
+    rpID: relyingPartyId(publicBaseUrl),
+    userVerification: 'required',
+  });
+  return { options, challenge: options.challenge };
+}
+
+// The same treatment parseRegistrationResponse gives the other half of the
+// ceremony: JSON from outside arrives as `unknown` and is narrowed, and
+// only the fields the verification reads are kept.
+const authenticationResponseShape = z.object({
+  id: z.string().min(1),
+  rawId: z.string().min(1),
+  type: z.literal('public-key'),
+  response: z.object({
+    clientDataJSON: z.string().min(1),
+    authenticatorData: z.string().min(1),
+    signature: z.string().min(1),
+    userHandle: z.string().optional(),
+  }),
+});
+
+export function parseAuthenticationResponse(value: unknown): AuthenticationResponseJSON | null {
+  const parsed = authenticationResponseShape.safeParse(value);
+  if (!parsed.success) return null;
+  const { id, rawId, response } = parsed.data;
+  return {
+    id,
+    rawId,
+    type: 'public-key',
+    clientExtensionResults: {},
+    response: {
+      clientDataJSON: response.clientDataJSON,
+      authenticatorData: response.authenticatorData,
+      signature: response.signature,
+      ...(response.userHandle === undefined ? {} : { userHandle: response.userHandle }),
+    },
+  };
+}
+
+// verifyAuthenticationResponse takes the stored credential as an input, so
+// whose credential this is has to be settled before any signature is
+// checked — and the only thing available that early is the raw response's
+// own id. That is the value enrolment stored as `lookup_key`, which is what
+// makes a realm-scoped read of it the resolution step.
+export function assertedCredentialId(value: unknown): string | null {
+  return parseAuthenticationResponse(value)?.id ?? null;
+}
+
+export interface PasskeyAssertionVerification {
+  publicBaseUrl: string;
+  expectedChallenge: string;
+  response: AuthenticationResponseJSON;
+  // The credential row this assertion named, as enrolment stored it.
+  credential: { id: string; publicKey: string; counter: number; transports: string[] };
+}
+
+export type PasskeyAssertionOutcome =
+  { kind: 'verified'; credentialId: string; counter: number } | { kind: 'rejected' };
+
+export async function verifyPasskeyAssertion(
+  input: PasskeyAssertionVerification,
+): Promise<PasskeyAssertionOutcome> {
+  let verification: VerifiedAuthenticationResponse;
+  try {
+    verification = await verifyAuthenticationResponse({
+      response: input.response,
+      expectedChallenge: input.expectedChallenge,
+      expectedOrigin: relyingPartyOrigin(input.publicBaseUrl),
+      expectedRPID: relyingPartyId(input.publicBaseUrl),
+      credential: {
+        id: input.credential.id,
+        publicKey: new Uint8Array(Buffer.from(input.credential.publicKey, 'base64url')),
+        counter: input.credential.counter,
+        transports: input.credential.transports,
+      },
+      // Stated rather than inherited, exactly as verifyPasskeyRegistration
+      // states it: the two halves of one ceremony must not be able to drift
+      // into asking for user verification and then accepting its absence.
+      requireUserVerification: true,
+    });
+  } catch {
+    // Every refusal the library makes by throwing — a challenge that does
+    // not match, an origin that does not, a signature that does not check —
+    // is a failed sign-in, not a server fault.
+    return { kind: 'rejected' };
+  }
+  if (!verification.verified) return { kind: 'rejected' };
+
+  const { credentialID, newCounter } = verification.authenticationInfo;
+  return { kind: 'verified', credentialId: credentialID, counter: newCounter };
 }

@@ -2,7 +2,7 @@ import { readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import Fastify from 'fastify';
 import { describe, expect, it } from 'vitest';
-import { sendHtml } from '#/view/html-response';
+import { scriptNonce, sendHtml } from '#/view/html-response';
 
 const VIEW_DIR = import.meta.dirname;
 const HTML_MEDIA_TYPE = ['text', 'html'].join('/');
@@ -21,9 +21,9 @@ async function sourcesUnder(dir: string): Promise<{ path: string; text: string }
   return found;
 }
 
-async function headersOf(status: number): Promise<Record<string, string>> {
+async function headersOf(status: number, nonce?: string): Promise<Record<string, string>> {
   const app = Fastify();
-  app.get('/page', (_request, reply) => sendHtml(reply, status, '<!doctype html><p>hello'));
+  app.get('/page', (_request, reply) => sendHtml(reply, status, '<!doctype html><p>hello', nonce));
   const res = await app.inject({ url: '/page' });
   expect(res.statusCode).toBe(status);
   const headers: Record<string, string> = {};
@@ -54,6 +54,25 @@ describe('[ODUDU-VIEW-HTML-01] an HTML response cannot leave without its framing
       expect(headers['x-frame-options']).toBe('DENY');
       expect(headers['content-type']).toContain(HTML_MEDIA_TYPE);
     }
+  });
+
+  // A WebAuthn ceremony can only happen in a script, and `default-src
+  // 'none'` blocks an inline one without saying so — the page just looks
+  // broken. The nonce is what licenses that one script and nothing else.
+  it('licenses a nonced script, and the one request it makes, only when asked', async () => {
+    const withScript = (await headersOf(200, 'Zm9vYmFyMTIzNA=='))['content-security-policy'] ?? '';
+    expect(withScript).toContain("script-src 'nonce-Zm9vYmFyMTIzNA=='");
+    expect(withScript).toContain("connect-src 'self'");
+    expect(withScript).not.toContain("'unsafe-inline'");
+
+    const plain = (await headersOf(200))['content-security-policy'] ?? '';
+    expect(plain).not.toContain('script-src');
+    expect(plain).not.toContain('connect-src');
+  });
+
+  it('issues a different nonce every time, so one page cannot license another', () => {
+    expect(scriptNonce()).not.toBe(scriptNonce());
+    expect(Buffer.from(scriptNonce(), 'base64')).toHaveLength(16);
   });
 
   // The headers above are worth nothing if the next page to be added sets

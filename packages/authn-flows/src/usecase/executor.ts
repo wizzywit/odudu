@@ -13,7 +13,9 @@ import {
 import { type AuthenticatorResult } from '#/schema/authenticator';
 import { nextStep, type Step } from '#/service/requirements';
 import { passwordStep, type PasswordVerification } from '#/service/authenticators/password';
+import { passkeyStep, type WebauthnSecret } from '#/service/authenticators/passkey';
 import { otpApplicable, totpStep, type TotpSecret } from '#/service/authenticators/totp';
+import { assertedCredentialId } from '#/service/webauthn';
 
 // Never assigned to a real subject (subject ids come from `newId()`), so a
 // lookup against it always misses — which is the point: it lets the
@@ -88,23 +90,74 @@ async function runOtpStep(
   return spent ? outcome : { kind: 'failure', reason: 'invalid_credentials' };
 }
 
-// passkey is registered so a flow row naming it resolves (see
-// isRegisteredAuthenticator) even though it has no runtime yet — a real
-// implementation replaces this once one exists. Reachable only if
-// isApplicable is ever wrong about it, which would itself be the bug to
-// fix, not this function.
-function unimplementedAuthenticator(name: string): Promise<AuthenticatorResult> {
-  return Promise.reject(
-    new Error(`authenticator '${name}' is registered but has no runtime implementation yet`),
-  );
+// The assertion names its own credential, so resolution runs before any
+// signature is checked — verifyAuthenticationResponse takes the stored
+// credential as an input, and there is nothing else this early to look it
+// up by. byLookupKey is realm-scoped by RLS, so a credential id from
+// another realm resolves to nothing rather than to somebody else's subject.
+async function passkeyCredentialFor(
+  tx: RealmScopedDatabase,
+  assertion: unknown,
+): Promise<{ id: string; subjectId: string; secret: WebauthnSecret } | null> {
+  const credentialId = assertedCredentialId(assertion);
+  if (credentialId === null) return null;
+  const record = await credentialRepository(tx).byLookupKey(credentialId);
+  if (record?.type !== 'webauthn' || record.secret.kind !== 'webauthn') return null;
+  return { id: record.id, subjectId: record.subjectId, secret: record.secret };
+}
+
+async function runPasskeyStep(
+  tx: RealmScopedDatabase,
+  input: AdvanceInput,
+  context: StepContext,
+): Promise<AuthenticatorResult> {
+  if (input.assertion === undefined) {
+    return passkeyStep(input, {
+      credential: null,
+      expectedChallenge: null,
+      publicBaseUrl: context.publicBaseUrl,
+    });
+  }
+
+  const credential = await passkeyCredentialFor(tx, input.assertion);
+  // Reading and clearing the challenge is a single statement whose whole
+  // point is that a replay finds nothing (see claimWebauthnChallenge): it
+  // must not be undone by anything this transaction does afterwards, so
+  // nothing here catches a database error around it.
+  const expectedChallenge =
+    context.authSessionId === null
+      ? null
+      : await authenticationSessionRepository(tx).claimWebauthnChallenge(context.authSessionId);
+  const outcome = await passkeyStep(input, {
+    credential,
+    expectedChallenge,
+    publicBaseUrl: context.publicBaseUrl,
+  });
+  if (outcome.kind !== 'success') return outcome;
+
+  // Deferred rather than written here: unlike the OTP step, a passkey names
+  // the subject instead of being handed one, so the counter must not move
+  // until `advance` has confirmed this assertion answers for the subject the
+  // attempt is already bound to.
+  const { credentialId, counter } = outcome;
+  return {
+    kind: 'success',
+    subjectId: outcome.subjectId,
+    commit: () =>
+      credentialRepository(tx).advanceWebauthnCounter(credentialId, counter, context.now),
+  };
 }
 
 // What the caller already knows about the attempt before any authenticator
-// runs: whose it is (null until a factor has said), and the instant the
-// caller's clock reports.
+// runs: whose it is (null until a factor has said), which attempt it is,
+// the instant the caller's clock reports, and where this deployment is
+// published (null where no relying party can be derived, which is the one
+// state a passkey cannot be asserted from).
 interface StepContext {
   subjectId: string | null;
+  authSessionId: string | null;
   now: Date;
+  publicBaseUrl: string | null;
 }
 
 type RealmAuthenticatorFn = (
@@ -115,7 +168,7 @@ type RealmAuthenticatorFn = (
 
 const AUTHENTICATORS: Record<string, RealmAuthenticatorFn> = {
   password: runPasswordStep,
-  passkey: () => unimplementedAuthenticator('passkey'),
+  passkey: runPasskeyStep,
   otp: runOtpStep,
 };
 
@@ -129,33 +182,58 @@ export function isRegisteredAuthenticator(name: string): boolean {
 
 // What the flow's applicability decisions are made against: the subject the
 // attempt is bound to (nothing is known about anybody before the first
-// factor succeeds) and the realm's own switches.
+// factor succeeds), the realm's own switches, what the attempt has already
+// satisfied, and whether this submission carries a passkey assertion.
 interface FlowFacts {
   hasTotp: boolean;
   otpRequired: boolean;
+  satisfied: ReadonlySet<string>;
+  assertionOffered: boolean;
+}
+
+interface FactsRequest {
+  subjectId: string | null;
+  satisfied: ReadonlySet<string>;
+  assertionOffered: boolean;
 }
 
 async function flowFacts(
   tx: RealmScopedDatabase,
   realmId: string,
-  subjectId: string | null,
+  request: FactsRequest,
 ): Promise<FlowFacts> {
   const otpRequired = await realmSettingsRepository(tx).otpRequired(realmId);
-  const hasTotp = subjectId !== null && (await storedTotpFor(tx, subjectId)) !== null;
-  return { hasTotp, otpRequired };
+  const hasTotp =
+    request.subjectId !== null && (await storedTotpFor(tx, request.subjectId)) !== null;
+  return {
+    hasTotp,
+    otpRequired,
+    satisfied: request.satisfied,
+    assertionOffered: request.assertionOffered,
+  };
 }
 
 function otpApplies(facts: FlowFacts): boolean {
-  return otpApplicable({ hasTotp: facts.hasTotp }, { otpRequired: facts.otpRequired });
+  return otpApplicable(
+    { hasTotp: facts.hasTotp },
+    { otpRequired: facts.otpRequired },
+    facts.satisfied,
+  );
 }
 
 // password has no enrollment concept, so it is offered unconditionally —
 // the same decision whether the subject is real or not, which is what
 // keeps DUMMY_SUBJECT_ID meaningful. otp runs only for a subject who has a
 // credential to answer it with; otpApplies' other case is enrolmentOwed
-// below, not a step. passkey has no runtime yet.
+// below, not a step.
 function isApplicable(authenticator: string, facts: FlowFacts): boolean {
   if (authenticator === 'password') return true;
+  // passkey shares an ALTERNATIVE group with password, and a group offers
+  // one form at a time, so an always-applicable usernameless passkey would
+  // take the group and password would never be reachable. With nothing
+  // submitted the group falls through to password, whose page is what
+  // offers the passkey button in the first place.
+  if (authenticator === 'passkey') return facts.assertionOffered;
   if (authenticator !== 'otp') return false;
   return otpApplies(facts) && facts.hasTotp;
 }
@@ -175,10 +253,10 @@ function enrolmentOwed(facts: FlowFacts): boolean {
 async function loadSteps(
   tx: RealmScopedDatabase,
   realmId: string,
-  subjectId: string | null,
+  request: FactsRequest,
 ): Promise<{ steps: Step[]; facts: FlowFacts }> {
   const executions = await executionRepository(tx).forRealm(realmId);
-  const facts = await flowFacts(tx, realmId, subjectId);
+  const facts = await flowFacts(tx, realmId, request);
   return {
     facts,
     steps: executions.map((execution) => ({
@@ -263,6 +341,16 @@ export interface AdvanceInput {
   username?: string;
   password?: string;
   code?: string;
+  // The JSON navigator.credentials.get() produced, as it arrived.
+  assertion?: unknown;
+}
+
+// What the attempt needs from the deployment rather than from the
+// submission. `publicBaseUrl` is the only source of a WebAuthn relying
+// party id (see service/webauthn.ts); absent, a passkey cannot be asserted
+// and nothing else changes.
+export interface AdvanceOptions {
+  publicBaseUrl?: string;
 }
 
 interface FlowContext {
@@ -276,16 +364,30 @@ async function loadFlowContext(
   tx: RealmScopedDatabase,
   authSessionId: string,
   clock: Clock,
+  input: AdvanceInput,
+  options: AdvanceOptions,
 ): Promise<FlowContext | null> {
   const record = await authenticationSessionRepository(tx).byId(authSessionId);
   if (record === null || record.expiresAt.getTime() <= clock.now().getTime()) {
     return null;
   }
+  const satisfied = new Set(record.satisfied);
   return {
     record,
-    steps: (await loadSteps(tx, record.realmId, record.subjectId)).steps,
-    satisfied: new Set(record.satisfied),
-    registry: bindRegistry(tx, { subjectId: record.subjectId, now: clock.now() }),
+    steps: (
+      await loadSteps(tx, record.realmId, {
+        subjectId: record.subjectId,
+        satisfied,
+        assertionOffered: input.assertion !== undefined,
+      })
+    ).steps,
+    satisfied,
+    registry: bindRegistry(tx, {
+      subjectId: record.subjectId,
+      authSessionId,
+      now: clock.now(),
+      publicBaseUrl: options.publicBaseUrl ?? null,
+    }),
   };
 }
 
@@ -325,9 +427,19 @@ export async function initialChallenge(
 ): Promise<AuthenticatorResult> {
   // No subject yet, so no second factor can be applicable: which account a
   // code belongs to is not something /authorize could know before anybody
-  // has said who they are.
-  const { steps } = await loadSteps(tx, realmId, null);
-  const registry = bindRegistry(tx, { subjectId: null, now: clock.now() });
+  // has said who they are. No assertion either — there is no attempt yet
+  // for a challenge to have been offered against.
+  const { steps } = await loadSteps(tx, realmId, {
+    subjectId: null,
+    satisfied: new Set(),
+    assertionOffered: false,
+  });
+  const registry = bindRegistry(tx, {
+    subjectId: null,
+    authSessionId: null,
+    now: clock.now(),
+    publicBaseUrl: null,
+  });
   const dispatched = await dispatchNext(registry, steps, new Set(), {});
   if (dispatched.kind !== 'ran') {
     return { kind: 'failure', reason: NO_APPLICABLE_EXECUTION };
@@ -344,7 +456,7 @@ export async function pendingChallenge(
   authSessionId: string,
   clock: Clock = systemClock,
 ): Promise<AuthenticatorResult> {
-  const context = await loadFlowContext(tx, authSessionId, clock);
+  const context = await loadFlowContext(tx, authSessionId, clock, {}, {});
   if (context === null) {
     return { kind: 'failure', reason: 'authentication_session_expired' };
   }
@@ -369,8 +481,9 @@ export async function advance(
   authSessionId: string,
   input: AdvanceInput,
   clock: Clock = systemClock,
+  options: AdvanceOptions = {},
 ): Promise<AdvanceOutcome> {
-  const context = await loadFlowContext(tx, authSessionId, clock);
+  const context = await loadFlowContext(tx, authSessionId, clock, input, options);
   if (context === null) {
     return { kind: 'failure', reason: 'authentication_session_expired' };
   }
@@ -393,13 +506,32 @@ export async function advance(
   if (record.subjectId !== null && record.subjectId !== result.subjectId) {
     return { kind: 'failure', reason: SUBJECT_MISMATCH };
   }
+
+  // Whatever the factor deferred until it was clear the attempt is this
+  // subject's — a passkey's signature counter, which moves only once the
+  // guard above has passed. A refusal here is a factor that verified but
+  // whose state had already moved on (a replayed assertion racing the one
+  // that spent the same counter), so the login is refused with it.
+  if (result.commit !== undefined && !(await result.commit())) {
+    return { kind: 'failure', reason: 'invalid_credentials' };
+  }
+
   const subjectId = result.subjectId;
   await authenticationSessionRepository(tx).bindSubject(authSessionId, subjectId);
 
   // Everything after this point is decided for this subject, so the flow is
   // re-read for them: until the first factor succeeded, nothing here knew
-  // whether a second one applies at all.
-  const { steps: stepsForSubject, facts } = await loadSteps(tx, record.realmId, subjectId);
+  // whether a second one applies at all. The authenticator that just
+  // succeeded counts as satisfied for that re-read — a passkey is two
+  // factors, and whether a conditional OTP step still applies depends on
+  // having seen it.
+  const updatedSatisfied = new Set(satisfied);
+  updatedSatisfied.add(authenticator);
+  const { steps: stepsForSubject, facts } = await loadSteps(tx, record.realmId, {
+    subjectId,
+    satisfied: updatedSatisfied,
+    assertionOffered: input.assertion !== undefined,
+  });
   await recordOtpEnrolmentIfOwed(tx, record.realmId, subjectId, facts);
 
   // Whether this login is done, or a further factor remains, decided
@@ -410,9 +542,12 @@ export async function advance(
   // attempt did, not find it already satisfied. Persisting is therefore
   // only for a factor that has more work left after it, never for the one
   // that finishes the login.
-  const updatedSatisfied = new Set(satisfied);
-  updatedSatisfied.add(authenticator);
-  const forSubject = bindRegistry(tx, { subjectId, now: clock.now() });
+  const forSubject = bindRegistry(tx, {
+    subjectId,
+    authSessionId,
+    now: clock.now(),
+    publicBaseUrl: options.publicBaseUrl ?? null,
+  });
   const after = await dispatchNext(forSubject, stepsForSubject, updatedSatisfied, {});
 
   if (after.kind === 'ran') {

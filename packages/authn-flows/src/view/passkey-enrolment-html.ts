@@ -47,6 +47,11 @@ export function renderPasskeyEnrolmentPage(
   authSessionId: string,
   offer: PasskeyEnrolmentOffer,
   error?: string,
+  // The nonce the page's own Content-Security-Policy names, without which
+  // `default-src 'none'` blocks the script silently and the page looks
+  // broken rather than refused. Empty renders no nonce attribute, which is
+  // what a caller serving this page under no policy at all wants.
+  scriptNonce = '',
 ): string {
   const target = `/realms/${escapeHtml(realm)}/login-actions/required-action?action=configure-passkey`;
   const message = error === undefined ? '' : `<p><strong>${escapeHtml(error)}</strong></p>\n`;
@@ -64,7 +69,7 @@ ${message}<p>Your device will ask you to confirm. Nothing is stored until it doe
 </form>
 <p id="passkey-error" hidden></p>
 <noscript><p>Adding a passkey needs JavaScript, because only the browser can talk to your authenticator.</p></noscript>
-<script>
+<script${scriptNonce === '' ? '' : ` nonce="${escapeHtml(scriptNonce)}"`}>
 const options = ${jsonForScript(offer.options)};
 const form = document.getElementById('passkey-form');
 const field = document.getElementById('passkey-credential');

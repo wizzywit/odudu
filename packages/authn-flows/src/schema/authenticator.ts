@@ -4,7 +4,11 @@
 // repository file importing it never counts as service depending on
 // repository (dependency-cruiser's service-is-a-leaf rule).
 export type AuthenticatorResult =
-  | { kind: 'success'; subjectId: string }
+  // `commit` is state a factor verified but must not write yet: a factor
+  // that names its own subject cannot move anything until the caller has
+  // confirmed the attempt is that subject's (see `advance`). It returns
+  // whether the write landed, and false refuses the login.
+  | { kind: 'success'; subjectId: string; commit?: () => Promise<boolean> }
   // `form` names the authenticator whose fields the caller should render —
   // a registry key (#/usecase/executor's AUTHENTICATORS), not a fixed enum,
   // so a new authenticator needs no change here to be challengeable.

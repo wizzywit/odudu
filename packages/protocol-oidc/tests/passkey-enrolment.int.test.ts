@@ -19,8 +19,10 @@ import { clients, provisionClientDefaults } from '@odudu/domain-realm';
 import { newId } from '@odudu/kernel';
 import {
   createAppRole,
+  softwareAuthenticator,
   softwareRegistrationResponse,
   startTestDatabase,
+  type SoftwareAuthenticator,
   type TestDatabase,
 } from '@odudu/testkit';
 import formbody from '@fastify/formbody';
@@ -279,6 +281,30 @@ describe('enrolling a passkey over HTTP', () => {
   // for it, never permission to attach an authenticator to the account: a
   // stolen password would otherwise buy a passkey that outlives the
   // password reset ending the compromise.
+  // Only a script can reach an authenticator, and `default-src 'none'`
+  // blocks an inline one with no message at all — the page renders and the
+  // button does nothing. The nonce in the header has to be the nonce on the
+  // element, or this page cannot work in a browser.
+  it('serves the page with a policy that licenses its own script and no other', async () => {
+    const realmName = `passkey-csp-${newId()}`;
+    const realmId = await setupRealm(realmName);
+    const subjectId = await subjectIdOf(realmId);
+    await oweAPasskey(realmId, subjectId);
+    const authSessionId = await startAuthSession(realmName);
+
+    const owed = await login(realmName, {
+      auth_session_id: authSessionId,
+      username: USERNAME,
+      password: PASSWORD,
+    });
+
+    const policy = String(owed.headers['content-security-policy']);
+    const nonce = /<script nonce="([^"]+)">/u.exec(owed.body)?.[1];
+    expect(nonce).toBeDefined();
+    expect(policy).toContain(`script-src 'nonce-${String(nonce)}'`);
+    expect(policy).not.toContain("'unsafe-inline'");
+  });
+
   it('refuses to enrol anything for a subject who owes no action', async () => {
     const realmName = `passkey-unasked-${newId()}`;
     const realmId = await setupRealm(realmName);
@@ -371,6 +397,88 @@ describe('enrolling a passkey over HTTP', () => {
 
     expect(replay.statusCode).toBe(400);
     expect(await storedPasskeys(realmId, subjectId)).toHaveLength(1);
+  });
+});
+
+// One authenticator carried across both ceremonies, so the assertion below
+// is checked against the public key the enrolment above really stored.
+async function enrolAPasskey(
+  realmName: string,
+  realmId: string,
+  subjectId: string,
+): Promise<SoftwareAuthenticator> {
+  const authenticator = softwareAuthenticator();
+  await oweAPasskey(realmId, subjectId);
+  const authSessionId = await startAuthSession(realmName);
+  const owed = await login(realmName, {
+    auth_session_id: authSessionId,
+    username: USERNAME,
+    password: PASSWORD,
+  });
+  const enrolled = await enrolmentPost(realmName, {
+    auth_session_id: authSessionId,
+    credential: JSON.stringify(
+      authenticator.registration({
+        challenge: offeredChallenge(owed.body),
+        rpId: RP_ID,
+        origin: PUBLIC_BASE_URL,
+        signCount: 1,
+      }),
+    ),
+  });
+  expect(enrolled.statusCode).toBe(200);
+  expect(await storedPasskeys(realmId, subjectId)).toHaveLength(1);
+  return authenticator;
+}
+
+describe('signing in with a passkey over HTTP', () => {
+  it('takes no username at all: options, an assertion, a code', async () => {
+    const realmName = `passkey-login-${newId()}`;
+    const realmId = await setupRealm(realmName);
+    const subjectId = await subjectIdOf(realmId);
+    const authenticator = await enrolAPasskey(realmName, realmId, subjectId);
+
+    // A fresh attempt. The login page offers the button beside the
+    // password, and the button asks for options rather than carrying them.
+    const authSessionId = await startAuthSession(realmName);
+    const offered = await post(`/realms/${realmName}/login-actions/passkey-challenge`, {
+      auth_session_id: authSessionId,
+    });
+    expect(offered.statusCode).toBe(200);
+    const options: unknown = offered.json();
+    const challenge = offeredChallenge(JSON.stringify(options));
+    expect(JSON.stringify(options)).not.toContain('allowCredentials');
+
+    const signedIn = await login(realmName, {
+      auth_session_id: authSessionId,
+      assertion: JSON.stringify(
+        authenticator.assertion({
+          challenge,
+          rpId: RP_ID,
+          origin: PUBLIC_BASE_URL,
+          signCount: 2,
+        }),
+      ),
+    });
+
+    // No username was sent, and the response is the same success a password
+    // login gets: a session cookie and a code on the redirect.
+    expect(signedIn.statusCode).toBe(302);
+    expect(String(signedIn.headers['set-cookie'])).toContain(`${realmName}-session=`);
+    expect(String(signedIn.headers.location)).toContain('code=');
+    const stored = await storedPasskeys(realmId, subjectId);
+    expect(stored[0]?.secret).toMatchObject({ counter: 2 });
+  });
+
+  it('offers the button on the login page, with no username field of its own', async () => {
+    const realmName = `passkey-button-${newId()}`;
+    await setupRealm(realmName);
+
+    const page = await http.inject({ url: authorizeUrl(realmName) });
+
+    expect(page.body).toContain('Sign in with a passkey');
+    expect(page.body).toContain('navigator.credentials.get');
+    expect(page.body).toContain('login-actions/passkey-challenge');
   });
 });
 

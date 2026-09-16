@@ -28,6 +28,7 @@ the URL and never by a header or a parameter.
 | `POST` | `/realms/{realm}/protocol/openid-connect/auth`     | Authorization endpoint (form)                               |
 | `POST` | `/realms/{realm}/login-actions/authenticate`       | Login form submission                                       |
 | `POST` | `/realms/{realm}/login-actions/required-action`    | Complete a pending required action (TOTP enrolment)         |
+| `POST` | `/realms/{realm}/login-actions/passkey-challenge`  | Request options for a usernameless passkey assertion        |
 | `GET`  | `/realms/{realm}/login-actions/registration`       | Self-registration form                                      |
 | `POST` | `/realms/{realm}/login-actions/registration`       | Self-registration submission                                |
 | `GET`  | `/realms/{realm}/login-actions/action-token`       | Redeem a mailed action token (verify email, reset password) |
@@ -488,7 +489,7 @@ curl -sS -D - --get \
 ```
 HTTP/1.1 200 OK
 content-type: text/html
-content-length: 508
+content-length: 2202
 
 <!doctype html>
 <html lang="en">
@@ -500,11 +501,55 @@ content-length: 508
   <label>Password <input type="password" name="password" autocomplete="current-password"></label>
   <button type="submit">Sign in</button>
 </form>
+<form method="post" action="/realms/demo/login-actions/authenticate" id="passkey-form">
+  <input type="hidden" name="auth_session_id" value="01a09678-5455-…">
+  <input type="hidden" name="assertion" id="passkey-assertion">
+  <button type="submit" id="passkey-submit">Sign in with a passkey</button>
+</form>
+<p id="passkey-error" hidden></p>
+<script nonce="gHWd47mjR58INKh6h3LFuA==">
+const form = document.getElementById('passkey-form');
+const field = document.getElementById('passkey-assertion');
+const failure = document.getElementById('passkey-error');
+const fromBase64Url = (value) =>
+  Uint8Array.from(atob(value.replace(/-/g, '+').replace(/_/g, '/')), (c) => c.charCodeAt(0));
+form.addEventListener('submit', async (event) => {
+  if (field.value !== '') return;
+  event.preventDefault();
+  failure.hidden = true;
+  try {
+    const offered = await fetch('/realms/demo/login-actions/passkey-challenge', {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ auth_session_id: form.auth_session_id.value }),
+    });
+    if (!offered.ok) throw new Error('this server is not offering passkeys');
+    const options = await offered.json();
+    const assertion = await navigator.credentials.get({
+      publicKey: { ...options, challenge: fromBase64Url(options.challenge) },
+    });
+    field.value = JSON.stringify(assertion.toJSON());
+    form.submit();
+  } catch (caught) {
+    failure.textContent =
+      'Your device did not finish signing in — ' + (caught && caught.message ? caught.message : 'the request was cancelled') + '. You can try again.';
+    failure.hidden = false;
+  }
+});
+</script>
 </body>
 </html>
 ```
 
-(`auth_session_id` and the `x-request-id` and `Date` headers differ per run.)
+(`auth_session_id`, the script's `nonce`, and the `x-request-id` and `Date`
+headers differ per run.)
+
+The second form is the passkey one, and it has no username field of its
+own: see [Signing in with a passkey](#signing-in-with-a-passkey-and-no-username).
+The script is inline because only a script can reach an authenticator, and
+the response's `Content-Security-Policy` names that one `nonce` and nothing
+else — no `unsafe-inline`, so an injected script on this page still runs
+nowhere. This form appears only where `ODUDU_PUBLIC_BASE_URL` is set.
 
 **What the client does next:** nothing. The user-agent is now on Odudu's own
 page. The client waits at its redirect URI.
@@ -1569,7 +1614,7 @@ docker compose -f infra/docker/compose.yaml exec -T postgres \
 ```
 
 ```
-{"created":true,"realm":"otp-demo","realmId":"01a0a7c0-…","clientId":"otp-spa","userSubjectId":"01a0a7c0-…"}
+{"created":true,"realm":"otp-demo","realmId":"01a0a996-…","clientId":"otp-spa","userSubjectId":"01a0a996-…"}
 UPDATE 1
 ```
 
@@ -1584,7 +1629,7 @@ which account a code belongs to is not knowable until then.
 curl -sS 'http://localhost:3000/realms/otp-demo/protocol/openid-connect/auth?response_type=code&client_id=otp-spa&redirect_uri=http%3A%2F%2Flocalhost%3A8080%2Fcallback&scope=openid&state=xyz&code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM&code_challenge_method=S256'
 ```
 
-The `auth_session_id` in that form — `01a0a7c0-bc80-7671-9a41-3aa5a8477c97`
+The `auth_session_id` in that form — `01a0a998-8326-7900-8fa6-dd06b842b269`
 in this run — is what every request below carries. Posting the correct
 password answers 200 with an enrolment page rather than 302 with a code:
 the password was accepted, and the pending action is what stops the login
@@ -1592,7 +1637,7 @@ from completing (no `set-cookie`, no `code`).
 
 ```bash
 curl -sS -X POST http://localhost:3000/realms/otp-demo/login-actions/authenticate \
-  --data-urlencode 'auth_session_id=01a0a7c0-bc80-7671-9a41-3aa5a8477c97' \
+  --data-urlencode 'auth_session_id=01a0a998-8326-7900-8fa6-dd06b842b269' \
   --data-urlencode 'username=ada' \
   --data-urlencode 'password=correct-horse-battery'
 ```
@@ -1610,16 +1655,16 @@ curl -sS -X POST http://localhost:3000/realms/otp-demo/login-actions/authenticat
     <svg …>…</svg>
     <p>
       <code
-        >otpauth://totp/otp-demo:ada?secret=ZVOPG3D7E34NZLZMDCSQXXYLWDQMCYOQ&amp;issuer=otp-demo&amp;algorithm=SHA1&amp;digits=6&amp;period=30</code
+        >otpauth://totp/otp-demo:ada?secret=I5SEMRG3LEX2G4WFYZSPCKWZ4DV6M2TR&amp;issuer=otp-demo&amp;algorithm=SHA1&amp;digits=6&amp;period=30</code
       >
     </p>
-    <p>Key: <code>ZVOPG3D7E34NZLZMDCSQXXYLWDQMCYOQ</code></p>
+    <p>Key: <code>I5SEMRG3LEX2G4WFYZSPCKWZ4DV6M2TR</code></p>
     <form
       method="post"
       action="/realms/otp-demo/login-actions/required-action?action=configure-totp"
     >
-      <input type="hidden" name="auth_session_id" value="01a0a7c0-bc80-7671-9a41-3aa5a8477c97" />
-      <input type="hidden" name="secret" value="ZVOPG3D7E34NZLZMDCSQXXYLWDQMCYOQ" />
+      <input type="hidden" name="auth_session_id" value="01a0a998-8326-7900-8fa6-dd06b842b269" />
+      <input type="hidden" name="secret" value="I5SEMRG3LEX2G4WFYZSPCKWZ4DV6M2TR" />
       <label
         >Code from your app
         <input type="text" name="code" inputmode="numeric" autocomplete="one-time-code"
@@ -1645,9 +1690,9 @@ that offers a secret. An abandoned enrolment leaves no row behind at all.
 ```bash
 curl -sS -X POST \
   'http://localhost:3000/realms/otp-demo/login-actions/required-action?action=configure-totp' \
-  --data-urlencode 'auth_session_id=01a0a7c0-bc80-7671-9a41-3aa5a8477c97' \
-  --data-urlencode 'secret=ZVOPG3D7E34NZLZMDCSQXXYLWDQMCYOQ' \
-  --data-urlencode 'code=124343'
+  --data-urlencode 'auth_session_id=01a0a998-8326-7900-8fa6-dd06b842b269' \
+  --data-urlencode 'secret=I5SEMRG3LEX2G4WFYZSPCKWZ4DV6M2TR' \
+  --data-urlencode 'code=077026'
 ```
 
 ```html
@@ -1659,19 +1704,60 @@ curl -sS -X POST \
   </head>
   <body>
     <form method="post" action="/realms/otp-demo/login-actions/authenticate">
-      <input type="hidden" name="auth_session_id" value="01a0a7c0-bc80-7671-9a41-3aa5a8477c97" />
+      <input type="hidden" name="auth_session_id" value="01a0a998-8326-7900-8fa6-dd06b842b269" />
       <label>Username <input type="text" name="username" autocomplete="username" /></label>
       <label
         >Password <input type="password" name="password" autocomplete="current-password"
       /></label>
       <button type="submit">Sign in</button>
     </form>
+    <form method="post" action="/realms/otp-demo/login-actions/authenticate" id="passkey-form">
+      <input type="hidden" name="auth_session_id" value="01a0a998-8326-7900-8fa6-dd06b842b269" />
+      <input type="hidden" name="assertion" id="passkey-assertion" />
+      <button type="submit" id="passkey-submit">Sign in with a passkey</button>
+    </form>
+    <p id="passkey-error" hidden></p>
+    <script nonce="22Sg9TLEnW03/9AL9AnCHA==">
+      const form = document.getElementById('passkey-form');
+      const field = document.getElementById('passkey-assertion');
+      const failure = document.getElementById('passkey-error');
+      const fromBase64Url = (value) =>
+        Uint8Array.from(atob(value.replace(/-/g, '+').replace(/_/g, '/')), (c) => c.charCodeAt(0));
+      form.addEventListener('submit', async (event) => {
+        if (field.value !== '') return;
+        event.preventDefault();
+        failure.hidden = true;
+        try {
+          const offered = await fetch('/realms/otp-demo/login-actions/passkey-challenge', {
+            method: 'POST',
+            headers: { 'content-type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({ auth_session_id: form.auth_session_id.value }),
+          });
+          if (!offered.ok) throw new Error('this server is not offering passkeys');
+          const options = await offered.json();
+          const assertion = await navigator.credentials.get({
+            publicKey: { ...options, challenge: fromBase64Url(options.challenge) },
+          });
+          field.value = JSON.stringify(assertion.toJSON());
+          form.submit();
+        } catch (caught) {
+          failure.textContent =
+            'Your device did not finish signing in — ' +
+            (caught && caught.message ? caught.message : 'the request was cancelled') +
+            '. You can try again.';
+          failure.hidden = false;
+        }
+      });
+    </script>
   </body>
 </html>
 ```
 
 The parked request survives the detour — same `auth_session_id` — and the
-login form comes back. The password is asked for again because nothing was
+login form comes back, passkey button and all
+([Signing in with a passkey](#signing-in-with-a-passkey-and-no-username));
+the `nonce` differs per run. The password is asked for again because nothing
+was
 written down for it: a factor that finishes a login is deliberately not
 recorded, so that a login refused after authentication (an `id_token_hint`
 naming somebody else, an unverified address) cannot be retried with the
@@ -1683,19 +1769,19 @@ than a phone:
 ```bash
 node --input-type=module -e "
 import { totpCode, totpCounter } from './packages/crypto/src/service/totp.ts';
-console.log(totpCode('ZVOPG3D7E34NZLZMDCSQXXYLWDQMCYOQ', totpCounter(new Date())));
+console.log(totpCode('I5SEMRG3LEX2G4WFYZSPCKWZ4DV6M2TR', totpCounter(new Date())));
 "
 ```
 
 ```
-124343
+077026
 ```
 
 ### The same password now answers with a code form
 
 ```bash
 curl -sS -X POST http://localhost:3000/realms/otp-demo/login-actions/authenticate \
-  --data-urlencode 'auth_session_id=01a0a7c0-bc80-7671-9a41-3aa5a8477c97' \
+  --data-urlencode 'auth_session_id=01a0a998-8326-7900-8fa6-dd06b842b269' \
   --data-urlencode 'username=ada' \
   --data-urlencode 'password=correct-horse-battery'
 ```
@@ -1709,7 +1795,7 @@ curl -sS -X POST http://localhost:3000/realms/otp-demo/login-actions/authenticat
   </head>
   <body>
     <form method="post" action="/realms/otp-demo/login-actions/authenticate">
-      <input type="hidden" name="auth_session_id" value="01a0a7c0-bc80-7671-9a41-3aa5a8477c97" />
+      <input type="hidden" name="auth_session_id" value="01a0a998-8326-7900-8fa6-dd06b842b269" />
       <label
         >Code from your app
         <input type="text" name="code" inputmode="numeric" autocomplete="one-time-code"
@@ -1732,8 +1818,8 @@ answers with the same form again:
 ```bash
 curl -sS -o /dev/null -w '%{http_code}\n' -X POST \
   http://localhost:3000/realms/otp-demo/login-actions/authenticate \
-  --data-urlencode 'auth_session_id=01a0a7c0-bc80-7671-9a41-3aa5a8477c97' \
-  --data-urlencode 'code=124343'
+  --data-urlencode 'auth_session_id=01a0a998-8326-7900-8fa6-dd06b842b269' \
+  --data-urlencode 'code=077026'
 ```
 
 ```
@@ -1746,14 +1832,14 @@ code spent that step when it created the credential. The next one works:
 
 ```bash
 curl -sS -i -X POST http://localhost:3000/realms/otp-demo/login-actions/authenticate \
-  --data-urlencode 'auth_session_id=01a0a7c0-bc80-7671-9a41-3aa5a8477c97' \
-  --data-urlencode 'code=033455'
+  --data-urlencode 'auth_session_id=01a0a998-8326-7900-8fa6-dd06b842b269' \
+  --data-urlencode 'code=454353'
 ```
 
 ```
 HTTP/1.1 302 Found
-set-cookie: otp-demo-session=01a0a7c1-c3fa-7ef6-b961-fddffc1cb317; HttpOnly; SameSite=Lax; Path=/
-location: http://localhost:8080/callback?code=rMHzhb5xIyl95qrX_WLc0__Ch0WdBYe3cT6yrgKFGhg&state=xyz&iss=http%3A%2F%2Flocalhost%3A3000%2Frealms%2Fotp-demo
+set-cookie: otp-demo-session=01a0a999-2113-7960-8b78-8aaff2c4252b; HttpOnly; SameSite=Lax; Path=/
+location: http://localhost:8080/callback?code=SHSqSWTm8WQvXxkm09E3tPF4Vrsz4PsoJDf-1mlFjXc&state=xyz&iss=http%3A%2F%2Flocalhost%3A3000%2Frealms%2Fotp-demo
 ```
 
 ### What two factors do to the ID token
@@ -1761,7 +1847,7 @@ location: http://localhost:8080/callback?code=rMHzhb5xIyl95qrX_WLc0__Ch0WdBYe3cT
 ```bash
 curl -sS -X POST http://localhost:3000/realms/otp-demo/protocol/openid-connect/token \
   -d grant_type=authorization_code \
-  -d code=rMHzhb5xIyl95qrX_WLc0__Ch0WdBYe3cT6yrgKFGhg \
+  -d code=SHSqSWTm8WQvXxkm09E3tPF4Vrsz4PsoJDf-1mlFjXc \
   -d client_id=otp-spa \
   --data-urlencode 'redirect_uri=http://localhost:8080/callback' \
   -d code_verifier=dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk
@@ -1772,13 +1858,13 @@ base64url segments):
 
 ```json
 {
-  "sub": "01a0a7c0-6f2c-7a48-80a1-6e5021c5075e",
+  "sub": "01a0a996-c78b-75bf-843a-256c17566fcd",
   "iss": "http://localhost:3000/realms/otp-demo",
   "aud": "otp-spa",
-  "iat": 1789520899,
-  "exp": 1789521199,
-  "auth_time": 1789520888,
-  "sid": "01a0a7c1-c3fa-7ef6-b961-fddffc1cb317",
+  "iat": 1789551788,
+  "exp": 1789552088,
+  "auth_time": 1789551780,
+  "sid": "01a0a999-2113-7960-8b78-8aaff2c4252b",
   "amr": ["otp", "pwd"],
   "acr": "2"
 }
@@ -1798,8 +1884,8 @@ bound to, the same way the `configure-totp` submission above enrols a TOTP
 one. Nothing yet asks for the action on its own — there is no realm switch
 for passkeys, the way `otp_required` exists for TOTP — so it becomes pending
 only when something adds it (today: a row in `user_required_actions`).
-Signing in _with_ a passkey is not built; this enrols the credential a later
-phase will authenticate against.
+Signing in _with_ the credential this enrols is
+[Signing in with a passkey](#signing-in-with-a-passkey-and-no-username).
 
 **No transcript here was executed, and this document does not show output
 for it.** Every other command in this file was run against a running stack;
@@ -1831,6 +1917,10 @@ What the flow is, stated rather than shown:
    holds the COSE public key, the authenticator's signature counter at
    registration, and its transports. The `configure-passkey` action is
    cleared last, so a refused ceremony leaves it owed.
+5. The page's script is inline, because only a script can reach an
+   authenticator. The response's `Content-Security-Policy` names a
+   per-response `nonce` and that script carries it — not `unsafe-inline`, so
+   an injected script on this page still runs nowhere.
 
 Refused, each for its own reason:
 
@@ -1846,6 +1936,87 @@ Refused, each for its own reason:
   reports the action as one that cannot be completed rather than binding a
   credential to a guessed domain. With `NODE_ENV=production` the server
   refuses to boot in that state.
+
+## Signing in with a passkey, and no username
+
+An enrolled passkey is a first factor on its own. The login page offers it
+beside the password fields, and pressing it asks for nothing typed:
+
+```html
+<form method="post" action="/realms/demo/login-actions/authenticate" id="passkey-form">
+  <input type="hidden" name="auth_session_id" value="01a09678-5455-…" />
+  <input type="hidden" name="assertion" id="passkey-assertion" />
+  <button type="submit" id="passkey-submit">Sign in with a passkey</button>
+</form>
+```
+
+That button is on the `/authorize` response shown in
+[`/authorize`](#2-authorize) — it is part of the same page
+as the username and password, so a realm offers both and the person chooses.
+It is rendered only where `ODUDU_PUBLIC_BASE_URL` is set; without it there
+is no relying party id and nothing behind the button, so there is no button.
+
+**No transcript here was executed, and this document does not show output
+for it.** The same limit applies as to
+[Enrolling a passkey](#enrolling-a-passkey), for the same reason: only
+`navigator.credentials.get()` inside a browser, talking to an authenticator,
+can produce an assertion — `curl` cannot sign one, and inventing a response
+body would make this section a claim dressed as evidence. What is verified
+instead is `packages/authn-flows/tests/passkey-login.int.test.ts`, which
+drives the whole journey against real PostgreSQL with a software
+authenticator producing real ES256 assertions, and checks each step and each
+refusal below. The steps are that test's steps, and the server-side
+behaviour is what it asserts.
+
+What the flow is, stated rather than shown:
+
+1. The page posts `auth_session_id` to `POST
+/realms/{realm}/login-actions/passkey-challenge` and gets request options
+   back as JSON. They carry a challenge and **no `allowCredentials`**, which
+   is what tells the browser to offer every discoverable credential it holds
+   rather than a list the server would have needed a username to build.
+2. **The challenge is on the authentication session, not in the page.** It
+   is issued per press rather than with the page, so a form left open
+   overnight still gets a live one, and a rejected attempt can try again
+   with no re-render.
+3. The page posts the assertion JSON back to
+   `/realms/{realm}/login-actions/authenticate` in an `assertion` field,
+   with the same `auth_session_id` — the same endpoint the password uses.
+4. **Who is signing in comes from the assertion, before anything is
+   verified.** The credential id it carries is what enrolment stored as
+   `lookup_key`, and reading that back is realm-scoped by RLS, so a
+   credential from another realm resolves to nothing rather than to somebody
+   else's subject. Resolution has to come first because verification needs
+   the stored public key and counter as inputs.
+5. The server reads and clears the challenge in one statement, then verifies
+   the assertion against it — origin, relying party id, signature, and the
+   authenticator's user-verified flag, which is required rather than
+   preferred.
+6. The signature counter must have advanced past the stored one, or the
+   credential is answering from two places at once. The write is a
+   compare-and-swap, so two assertions replaying one counter value cannot
+   both pass, and it happens only after the login is confirmed to be for the
+   subject this attempt is already bound to.
+7. The session records `passkey` alone, and the ID token says `amr: ["hwk",
+"user"]`, `acr: "2"`. **A realm with `otp_required` on does not ask for a
+   code after a passkey, and does not make the subject enrol one either** —
+   enrolment demands a discoverable credential with user verification, so an
+   assertion is possession of a key plus a check of who held it. That is two
+   factors, and `otp_required` is a floor rather than a tax.
+
+Refused, each for its own reason:
+
+- An assertion whose counter did not increase. One that reports zero from a
+  credential whose stored counter is also zero **is** accepted: WebAuthn
+  §6.1.1 permits an authenticator that never counts, and refusing it would
+  refuse a conformant device rather than catch a clone.
+- An assertion replayed after a successful login — the challenge it answered
+  was cleared by the statement that read it, so there is nothing left to
+  verify against.
+- An assertion for a credential enrolled in another realm.
+- An assertion the authenticator did not verify anybody for.
+- An assertion whose credential id names nothing in this realm, which
+  answers exactly as a wrong password does: `invalid_credentials`.
 
 ## Password reset
 
@@ -3768,20 +3939,20 @@ session lifecycle. A citation of either half here means that half.
 
 **Login**
 
-- **Password and TOTP; a passkey can be enrolled but not signed in with.**
-  The remaining second-factor work is **P2b**'s, whose exit criterion is
-  password, TOTP and passkey login through the flow tree.
-  The executor now runs a realm's own ordered `authentication_executions`
+- **Password, TOTP and passkey all sign somebody in.**
+  The executor runs a realm's own ordered `authentication_executions`
   (REQUIRED/ALTERNATIVE/CONDITIONAL/DISABLED) through a registry keyed by
   authenticator name, and a login resumes across steps rather than
   restarting — a satisfied authenticator is never asked for twice, even
-  across a rejected attempt at whatever comes after it. Every realm's flow
-  `otp` now has a runtime and runs for any subject holding a TOTP
-  credential ([Two-factor authentication with TOTP](#two-factor-authentication-with-totp)).
-  `passkey`, also seeded as an execution by `provisionRealm`, does not: a
-  passkey can be enrolled ([Enrolling a passkey](#enrolling-a-passkey)) but
-  the authenticator that would assert one is inapplicable for every subject
-  until its own task gives it a runtime.
+  across a rejected attempt at whatever comes after it. `otp` runs for any
+  subject holding a TOTP credential
+  ([Two-factor authentication with TOTP](#two-factor-authentication-with-totp)),
+  and `passkey` signs a subject in with no username at all
+  ([Signing in with a passkey](#signing-in-with-a-passkey-and-no-username)).
+  `passkey` and `password` share an ALTERNATIVE group and a group offers one
+  form at a time, so the passkey step is applicable to a submission that
+  actually carries an assertion; with nothing submitted the group falls
+  through to the password, whose page is what offers the passkey button.
 - **Password reset exists; a timing oracle in it does not have a fix yet.**
   Address verification (`GET /realms/{realm}/login-actions/action-token`,
   [Address verification](#address-verification)), self-registration

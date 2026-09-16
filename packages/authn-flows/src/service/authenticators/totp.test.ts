@@ -76,16 +76,32 @@ describe('totpStep', () => {
 });
 
 describe('otpApplicable', () => {
+  const NOTHING_SATISFIED: ReadonlySet<string> = new Set();
+  const AFTER_A_PASSKEY: ReadonlySet<string> = new Set(['passkey']);
+
   it('applies to a subject who has enrolled, whether or not the realm requires it', () => {
-    expect(otpApplicable({ hasTotp: true }, { otpRequired: true })).toBe(true);
-    expect(otpApplicable({ hasTotp: true }, { otpRequired: false })).toBe(true);
+    expect(otpApplicable({ hasTotp: true }, { otpRequired: true }, NOTHING_SATISFIED)).toBe(true);
+    expect(otpApplicable({ hasTotp: true }, { otpRequired: false }, NOTHING_SATISFIED)).toBe(true);
   });
 
   it('applies to a subject who has not enrolled when the realm requires it', () => {
-    expect(otpApplicable({ hasTotp: false }, { otpRequired: true })).toBe(true);
+    expect(otpApplicable({ hasTotp: false }, { otpRequired: true }, NOTHING_SATISFIED)).toBe(true);
   });
 
   it('does not apply to a subject who has not enrolled in a realm that does not require it', () => {
-    expect(otpApplicable({ hasTotp: false }, { otpRequired: false })).toBe(false);
+    expect(otpApplicable({ hasTotp: false }, { otpRequired: false }, NOTHING_SATISFIED)).toBe(
+      false,
+    );
+  });
+
+  it('does not apply after a passkey, which is already two factors', () => {
+    expect(otpApplicable({ hasTotp: true }, { otpRequired: true }, AFTER_A_PASSKEY)).toBe(false);
+    expect(otpApplicable({ hasTotp: false }, { otpRequired: true }, AFTER_A_PASSKEY)).toBe(false);
+  });
+
+  it('still applies after a password, which is one', () => {
+    expect(otpApplicable({ hasTotp: true }, { otpRequired: false }, new Set(['password']))).toBe(
+      true,
+    );
   });
 });

@@ -88,6 +88,13 @@ export function isTotpSecretShape(candidate: string): boolean {
 export function otpApplicable(
   subject: { hasTotp: boolean },
   realm: { otpRequired: boolean },
+  satisfied: ReadonlySet<string>,
 ): boolean {
+  // Never after a passkey. Enrolment demands a discoverable credential with
+  // user verification, so an assertion is possession of the key and the
+  // authenticator's own check of whoever held it — two factors, which is
+  // what FACTOR_COUNT (protocol-oidc's service/acr.ts) also counts it as.
+  // A realm's otp_required is a floor, not a tax.
+  if (satisfied.has('passkey')) return false;
   return subject.hasTotp || realm.otpRequired;
 }

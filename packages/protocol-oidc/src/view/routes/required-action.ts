@@ -12,9 +12,12 @@ import {
   type RequiredActionSubmissionDeps,
 } from '#/usecase/required-action-submission';
 import { renderAuthorizeErrorPage, renderLoginForm } from '#/view/authorize-html';
-import { sendHtml } from '#/view/html-response';
+import { scriptNonce, sendHtml } from '#/view/html-response';
 
 export interface RequiredActionRouteDeps extends RequiredActionSubmissionDeps {
+  // Whether this deployment can offer a passkey login at all — see
+  // renderLoginForm in #/view/authorize-html.
+  passkeyLogin?: boolean;
   // A fresh secret and the otpauth:// URI for it, for the subject the
   // authentication session is bound to.
   beginTotpEnrolment(
@@ -106,7 +109,13 @@ export function registerRequiredActionRoute(
     if (outcome.kind === 'completed') {
       const pending = await deps.pendingChallenge(realm.id, outcome.authSessionId);
       const form = pending.kind === 'challenge' ? pending.form : FALLBACK_FORM;
-      return sendHtml(reply, 200, renderLoginForm(realmName, outcome.authSessionId, form));
+      const nonce = deps.passkeyLogin === true ? scriptNonce() : null;
+      return sendHtml(
+        reply,
+        200,
+        renderLoginForm(realmName, outcome.authSessionId, form, nonce),
+        nonce ?? undefined,
+      );
     }
 
     if (outcome.action === 'configure-passkey') {
@@ -120,10 +129,18 @@ export function registerRequiredActionRoute(
       }
       // A retry needs its own challenge: the refused one is already gone.
       const passkey = await begin(realmName, realm.id, outcome.subjectId, outcome.authSessionId);
+      const enrolmentNonce = scriptNonce();
       return sendHtml(
         reply,
         200,
-        renderPasskeyEnrolmentPage(realmName, outcome.authSessionId, passkey, outcome.reason),
+        renderPasskeyEnrolmentPage(
+          realmName,
+          outcome.authSessionId,
+          passkey,
+          outcome.reason,
+          enrolmentNonce,
+        ),
+        enrolmentNonce,
       );
     }
 

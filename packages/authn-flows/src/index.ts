@@ -29,6 +29,7 @@ export {
   establishSession,
   resetAuthenticationProgress,
   type AdvanceInput,
+  type AdvanceOptions,
   type AdvanceOutcome,
 } from '#/usecase/executor';
 export {
@@ -36,6 +37,13 @@ export {
   type PasswordInput,
   type PasswordVerification,
 } from '#/service/authenticators/password';
+export {
+  counterAdvanced,
+  passkeyStep,
+  type PasskeyInput,
+  type PasskeyVerification,
+  type WebauthnSecret,
+} from '#/service/authenticators/passkey';
 export {
   otpApplicable,
   totpStep,
@@ -55,8 +63,13 @@ export {
   type PasskeyEnrolmentOutcome,
 } from '#/usecase/passkey-enrolment';
 export {
+  beginPasskeyAuthentication,
+  type BeginPasskeyAuthentication,
+} from '#/usecase/passkey-authentication';
+export {
   relyingPartyId,
   relyingPartyOrigin,
+  type PasskeyAuthenticationOffer,
   type PasskeyRegistrationOffer,
 } from '#/service/webauthn';
 export {

@@ -116,6 +116,33 @@ export function credentialRepository(tx: RealmScopedDatabase) {
       return rows.length > 0;
     },
 
+    // WebAuthn §6.1.1's clone check, as a compare-and-swap for the same
+    // reason recordTotpUse is one: the predicate on the stored counter is
+    // the decision, so two assertions replaying one counter value serialize
+    // on the row and the second finds nothing to update. The zero case is
+    // the exception §6.1.1 allows — an authenticator that never counts
+    // reports zero forever, and refusing it refuses a conformant device.
+    // Returns whether this call advanced it; false is an authentication
+    // failure, not a missing credential.
+    async advanceWebauthnCounter(id: string, counter: number, at: Date): Promise<boolean> {
+      const stored = sql`coalesce((${userCredentials.secretData}->>'counter')::bigint, -1)`;
+      const rows = await tx
+        .update(userCredentials)
+        .set({
+          secretData: sql`jsonb_set(${userCredentials.secretData}, '{counter}', to_jsonb(${counter}::bigint))`,
+          lastUsedAt: at,
+        })
+        .where(
+          and(
+            eq(userCredentials.id, id),
+            eq(userCredentials.type, 'webauthn'),
+            sql`(${stored} < ${counter} OR (${counter} = 0 AND ${stored} = 0))`,
+          ),
+        )
+        .returning();
+      return rows.length > 0;
+    },
+
     async deleteOne(id: string): Promise<void> {
       const rows = await tx.delete(userCredentials).where(eq(userCredentials.id, id)).returning();
       const row = rows[0];

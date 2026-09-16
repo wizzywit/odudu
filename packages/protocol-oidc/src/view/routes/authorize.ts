@@ -6,7 +6,7 @@ import {
   type AuthorizeUsecaseDeps,
 } from '#/usecase/authorization-request';
 import { renderAuthorizeErrorPage, renderLoginForm } from '#/view/authorize-html';
-import { sendHtml } from '#/view/html-response';
+import { scriptNonce, sendHtml } from '#/view/html-response';
 import { realmIssuerFor } from '#/view/issuer';
 import { namesUnsupportedRepresentation } from '#/view/media-type';
 
@@ -14,6 +14,9 @@ const PATH = '/realms/:realm/protocol/openid-connect/auth';
 
 export interface AuthorizeRouteDeps extends AuthorizeUsecaseDeps {
   tls: boolean;
+  // Whether this deployment can offer a passkey login at all — see
+  // renderLoginForm in #/view/authorize-html.
+  passkeyLogin?: boolean;
 }
 
 // The cookie is read here and nowhere else on this path: the usecase
@@ -74,7 +77,13 @@ async function respondToAuthorizationRequest(
     return reply.code(302).header('location', target.toString()).send();
   }
 
-  return sendHtml(reply, 200, renderLoginForm(realm, outcome.authSessionId, outcome.form));
+  const nonce = deps.passkeyLogin === true ? scriptNonce() : null;
+  return sendHtml(
+    reply,
+    200,
+    renderLoginForm(realm, outcome.authSessionId, outcome.form, nonce),
+    nonce ?? undefined,
+  );
 }
 
 export function registerAuthorizeRoute(app: FastifyInstance, deps: AuthorizeRouteDeps): void {

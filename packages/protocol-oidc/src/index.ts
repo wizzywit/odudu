@@ -1,6 +1,7 @@
 import {
   advance,
   authenticationSessionRepository,
+  beginPasskeyAuthentication,
   beginPasskeyEnrolment,
   beginTotpEnrolment,
   completePasskeyEnrolment,
@@ -136,8 +137,8 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
       );
 
     // The one definition of "is this subject's address verified", read by
-    // both doors into completing a login: the password form and, since
-    // this task, a reused SSO session cookie.
+    // both doors into completing a login: the password form and a reused
+    // SSO session cookie.
     const checkEmailVerification = (realmId: string, subjectId: string) =>
       withRealm(deps.database.db, realmId, async (tx) => {
         const user = await userRepository(tx).bySubjectId(subjectId);
@@ -146,6 +147,11 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
           hasEmail: (user?.email ?? null) !== null,
         };
       });
+
+    // Whether the login page offers a passkey button at all: the relying
+    // party id comes from ODUDU_PUBLIC_BASE_URL and nowhere else, so
+    // without it there is nothing behind one.
+    const passkeyLogin = { passkeyLogin: deps.publicBaseUrl !== undefined };
 
     registerDiscoveryRoute(app, {
       findRealm,
@@ -156,6 +162,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
     registerAuthorizeRoute(app, {
       findRealm,
       tls,
+      ...passkeyLogin,
       listPublishableKeys,
       scopesForRealm,
       resolveClient: (realmId, oauthClientId) =>
@@ -245,6 +252,17 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
                 }),
               ),
           };
+    // The endpoint the passkey button calls for its options.
+    const passkeyAssertion =
+      publicBaseUrl === undefined
+        ? {}
+        : {
+            beginPasskeyAuthentication: (realmId: string, authSessionId: string) =>
+              withRealm(deps.database.db, realmId, (tx) =>
+                beginPasskeyAuthentication(tx, { publicBaseUrl, authSessionId }),
+              ),
+          };
+
     const passkeySubmission =
       publicBaseUrl === undefined
         ? {}
@@ -274,6 +292,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
 
     registerRequiredActionRoute(app, {
       findRealm,
+      ...passkeyLogin,
       beginTotpEnrolment: startTotpEnrolment,
       ...passkeyEnrolment,
       ...passkeySubmission,
@@ -291,6 +310,8 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
     registerLoginRoute(app, {
       findRealm,
       tls,
+      ...passkeyLogin,
+      ...passkeyAssertion,
       beginTotpEnrolment: startTotpEnrolment,
       ...passkeyEnrolment,
       resetAuthenticationProgress: (realmId, authSessionId) =>
@@ -298,7 +319,11 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
           resetAuthenticationProgress(tx, authSessionId),
         ),
       advance: (realmId, authSessionId, input) =>
-        withRealm(deps.database.db, realmId, (tx) => advance(tx, authSessionId, input, clock)),
+        withRealm(deps.database.db, realmId, (tx) =>
+          advance(tx, authSessionId, input, clock, {
+            ...(publicBaseUrl === undefined ? {} : { publicBaseUrl }),
+          }),
+        ),
       loadPendingRequest: (realmId, authSessionId) =>
         withRealm(deps.database.db, realmId, (tx) => loadPendingRequest(tx, authSessionId)),
       pendingChallenge: pendingChallengeFor,

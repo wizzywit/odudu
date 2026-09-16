@@ -1,2 +1,8 @@
 export { createAppRole, startTestDatabase, type TestDatabase } from '#/postgres';
-export { softwareRegistrationResponse, type SoftwareRegistration } from '#/webauthn';
+export {
+  softwareAuthenticator,
+  softwareRegistrationResponse,
+  type SoftwareAssertion,
+  type SoftwareAuthenticator,
+  type SoftwareRegistration,
+} from '#/webauthn';

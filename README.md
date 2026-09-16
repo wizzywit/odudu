@@ -119,8 +119,23 @@ counter at registration, and its transports. The challenge lives on the
 authentication session, not in the page: it is cleared by the same
 statement that reads it, so replaying a response finds nothing to match.
 A subject with a passkey can enrol a second one, on a different
-authenticator. **Signing in with a passkey is not built yet** — enrolment
-stores the credential a later phase authenticates against.
+authenticator.
+
+**A passkey then signs that subject in with no username at all.** The login
+page offers a "Sign in with a passkey" button beside the password fields; it
+asks `POST /realms/{realm}/login-actions/passkey-challenge` for request
+options — which name no credentials, so the browser offers every
+discoverable passkey it holds — calls `navigator.credentials.get()`, and
+posts the assertion back to the same login endpoint in an `assertion` field.
+Who is signing in comes from the assertion: the credential id it carries is
+the `lookup_key` a realm-scoped read resolves to a subject, and that read
+happens before any signature is checked, because verification needs the
+stored public key as an input. The authenticator's signature counter must
+have advanced, or the credential looks cloned and the login is refused —
+except for an authenticator that reports zero and always has, which
+WebAuthn §6.1.1 permits. A passkey counts as **two** factors (`amr:
+["hwk", "user"]`, `acr: "2"`), since enrolment demands user verification, so
+a realm with `otp_required` on does not ask for a code on top of one.
 
 Every realm also carries a password policy — `password_min_length` (default
 `8`, floored there by a `CHECK`; a realm cannot configure its way below it),
@@ -181,8 +196,9 @@ party ids are domains and `https://127.0.0.1:3000` would enrol credentials
 no browser can ever offer back. **With
 `NODE_ENV=production` the server refuses to boot until
 `ODUDU_PUBLIC_BASE_URL` is set**, since `configure-passkey` is reachable in
-every realm; outside production the variable stays optional and passkey
-enrolment reports itself unavailable instead.
+every realm; outside production the variable stays optional, and without it
+passkey enrolment reports itself unavailable and the login page offers no
+passkey button, because there would be nothing behind one.
 
 **Operational trap:** turning `verify_email` on locks out every existing
 user with no email address on file — including one seeded without
