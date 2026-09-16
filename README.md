@@ -175,7 +175,10 @@ The same value is the only source of the **WebAuthn relying party id** a
 passkey is registered against — its host, without the port. A passkey is
 bound to that id, and a browser silently never offers one whose id does not
 match the page it is on, so a value taken from `Host` or `X-Forwarded-Host`
-would let a request decide what a credential is for. **With
+would let a request decide what a credential is for. That host must be a
+domain: an address literal is refused at boot, because WebAuthn relying
+party ids are domains and `https://127.0.0.1:3000` would enrol credentials
+no browser can ever offer back. **With
 `NODE_ENV=production` the server refuses to boot until
 `ODUDU_PUBLIC_BASE_URL` is set**, since `configure-passkey` is reachable in
 every realm; outside production the variable stays optional and passkey
