@@ -34,7 +34,7 @@ security, and a container CI builds and boots on every pull request and on
 every merge to `main` — a branch push with no pull request open runs
 nothing, by design (`.github/workflows/verify.yml`).
 
-There is still no consent screen, no admin API, no second factor, and no
+There is still no consent screen, no admin API and no
 token exchange — P2a onwards. The roadmap's second phase is two: **P2a** is
 the identity model — roles, groups, client scopes, per-client web origins,
 email — and **P2b** is credentials, MFA and the session lifecycle.
@@ -89,6 +89,23 @@ the same reason. Completing one reset also retires every other outstanding
 reset-password link for the same subject, and turning
 `reset_password_allowed` off closes redemption as well as the request form.
 See [the password reset section of docs/request-paths.md](docs/request-paths.md#password-reset)
+for the walkthrough.
+
+A realm's `otp_required` turns TOTP into a real second factor. It defaults
+off, and off does not mean nobody is asked: a subject who has enrolled a
+TOTP credential is always asked for a code after their password, in any
+realm. What the switch adds is everybody else — a subject with no credential
+is given the `configure-totp` required action at their next login, and
+`POST /realms/{realm}/login-actions/required-action?action=configure-totp`
+enrols one. The enrolment page renders the `otpauth://` URI as text and as a
+QR code, and the credential is written only by a submission that proves a
+correct code, never by the page that offers a secret. The algorithm is
+RFC 6238 as `@odudu/crypto` implements it — six digits, SHA-1, a 30-second
+step, a ±1-step window and a stored last-accepted step, so a code cannot be
+used twice. A two-factor login's ID token carries `amr: ["otp", "pwd"]` and
+`acr: "2"`. There is no seed flag for `otp_required` yet, so turning it on
+means an `UPDATE realms SET …` like the account-lifecycle settings above.
+See [the TOTP section of docs/request-paths.md](docs/request-paths.md#two-factor-authentication-with-totp)
 for the walkthrough.
 
 Every realm also carries a password policy — `password_min_length` (default

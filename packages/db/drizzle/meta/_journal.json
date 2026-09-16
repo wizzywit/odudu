@@ -260,6 +260,20 @@
       "when": 1789049381679,
       "tag": "0036_user_required_actions",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1789049381680,
+      "tag": "0037_realm_otp_required",
+      "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1789049381681,
+      "tag": "0038_authentication_sessions_subject",
+      "breakpoints": true
     }
   ]
 }

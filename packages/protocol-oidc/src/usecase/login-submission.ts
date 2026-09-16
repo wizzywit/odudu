@@ -82,7 +82,12 @@ export type LoginSubmissionOutcome =
   // the same session resumes once the action is complete. See
   // #/usecase/executor.ts's comment above recordSatisfied for why this has
   // to be decided before completeLogin, never after.
-  | { kind: 'required_action'; authSessionId: string; action: RequiredAction }
+  | {
+      kind: 'required_action';
+      authSessionId: string;
+      subjectId: string;
+      action: RequiredAction;
+    }
   // Authentication succeeded, and the request is still answered with an
   // error at the client's redirect_uri: no SSO session is established and no
   // code is issued, so there is no cookie to set either.
@@ -152,6 +157,10 @@ export interface LoginSubmissionDeps {
   // login-actions/required-action route) has to be seen the next time this
   // same auth_session_id is resubmitted, not cached from an earlier attempt.
   pendingActions(realmId: string, subjectId: string): Promise<readonly RequiredAction[]>;
+  // Unbinds the authentication session from the subject who just
+  // authenticated and forgets the factors they satisfied — see the
+  // id_token_hint branch below, its only caller.
+  resetAuthenticationProgress(realmId: string, authSessionId: string): Promise<void>;
   // Consumes the authentication session and, only if that succeeds,
   // establishes the SSO session and issues the authorization code — all in
   // the one transaction this name promises. See index.ts for the wiring
@@ -231,6 +240,11 @@ export async function handleLoginSubmission(
   // End-User can still sign in against the same parked request.
   const hintSubject = pending.idTokenHintSubject;
   if (hintSubject !== undefined && hintSubject !== result.subjectId) {
+    // The one refusal whose remedy is a *different* person signing in. The
+    // attempt is bound to the subject who just authenticated, and every
+    // factor they satisfied is recorded against them, so the right End-User
+    // could not sign in against this parked request until both are cleared.
+    await deps.resetAuthenticationProgress(realm.id, authSessionId);
     return {
       kind: 'error_redirect',
       location: errorRedirect(pending, realmName, issuerBase, 'login_required'),
@@ -246,7 +260,7 @@ export async function handleLoginSubmission(
   // so the same parked request survives the detour.
   const action = nextRequiredAction(await deps.pendingActions(realm.id, result.subjectId));
   if (action !== null) {
-    return { kind: 'required_action', authSessionId, action };
+    return { kind: 'required_action', authSessionId, subjectId: result.subjectId, action };
   }
 
   const clientId = await deps.resolveClientId(realm.id, pending.clientId);

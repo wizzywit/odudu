@@ -1,11 +1,15 @@
 import {
   advance,
+  authenticationSessionRepository,
+  beginTotpEnrolment,
+  completeTotpEnrolment,
   consumeAuthenticationSession,
   establishSession,
   initialChallenge,
   loadPendingRequest,
   pendingChallenge,
   requiredActionRepository,
+  resetAuthenticationProgress,
   sessionRepository,
   startAuthentication,
 } from '@odudu/authn-flows';
@@ -29,6 +33,7 @@ import { registerCors } from '#/view/routes/cors';
 import { registerDiscoveryRoute } from '#/view/routes/discovery';
 import { registerJwksRoute } from '#/view/routes/jwks';
 import { registerLoginRoute } from '#/view/routes/login';
+import { registerRequiredActionRoute } from '#/view/routes/required-action';
 import { registerLogoutRoute } from '#/view/routes/logout';
 import { registerTokenRoute } from '#/view/routes/token';
 import { registerUserinfoRoute } from '#/view/routes/userinfo';
@@ -203,15 +208,41 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
           });
         }),
     });
+    // One definition for both doors onto the enrolment page: the login
+    // submission that discovers the action is owed, and the enrolment
+    // submission that has to re-render it after a wrong code.
+    const startTotpEnrolment = (realmName: string, realmId: string, subjectId: string) =>
+      withRealm(deps.database.db, realmId, (tx) => beginTotpEnrolment(tx, realmName, subjectId));
+
+    const pendingChallengeFor = (realmId: string, authSessionId: string) =>
+      withRealm(deps.database.db, realmId, (tx) => pendingChallenge(tx, authSessionId, clock));
+
+    registerRequiredActionRoute(app, {
+      findRealm,
+      beginTotpEnrolment: startTotpEnrolment,
+      pendingChallenge: pendingChallengeFor,
+      boundSubject: (realmId, authSessionId) =>
+        withRealm(deps.database.db, realmId, async (tx) => {
+          const record = await authenticationSessionRepository(tx).byId(authSessionId);
+          if (record === null || record.expiresAt.getTime() <= clock.now().getTime()) return null;
+          return record.subjectId;
+        }),
+      completeTotpEnrolment: (input) =>
+        withRealm(deps.database.db, input.realmId, (tx) => completeTotpEnrolment(tx, input, clock)),
+    });
     registerLoginRoute(app, {
       findRealm,
       tls,
+      beginTotpEnrolment: startTotpEnrolment,
+      resetAuthenticationProgress: (realmId, authSessionId) =>
+        withRealm(deps.database.db, realmId, (tx) =>
+          resetAuthenticationProgress(tx, authSessionId),
+        ),
       advance: (realmId, authSessionId, input) =>
         withRealm(deps.database.db, realmId, (tx) => advance(tx, authSessionId, input, clock)),
       loadPendingRequest: (realmId, authSessionId) =>
         withRealm(deps.database.db, realmId, (tx) => loadPendingRequest(tx, authSessionId)),
-      pendingChallenge: (realmId, authSessionId) =>
-        withRealm(deps.database.db, realmId, (tx) => pendingChallenge(tx, authSessionId, clock)),
+      pendingChallenge: pendingChallengeFor,
       checkEmailVerification,
       pendingActions: (realmId, subjectId) =>
         withRealm(deps.database.db, realmId, (tx) =>

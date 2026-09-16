@@ -27,6 +27,7 @@ the URL and never by a header or a parameter.
 | `GET`  | `/realms/{realm}/protocol/openid-connect/auth`     | Authorization endpoint                                      |
 | `POST` | `/realms/{realm}/protocol/openid-connect/auth`     | Authorization endpoint (form)                               |
 | `POST` | `/realms/{realm}/login-actions/authenticate`       | Login form submission                                       |
+| `POST` | `/realms/{realm}/login-actions/required-action`    | Complete a pending required action (TOTP enrolment)         |
 | `GET`  | `/realms/{realm}/login-actions/registration`       | Self-registration form                                      |
 | `POST` | `/realms/{realm}/login-actions/registration`       | Self-registration submission                                |
 | `GET`  | `/realms/{realm}/login-actions/action-token`       | Redeem a mailed action token (verify email, reset password) |
@@ -1536,6 +1537,253 @@ curl -sS -X POST http://localhost:3000/realms/register-demo/login-actions/regist
 A realm with `verify_email` off skips the mail and the gate above entirely:
 the account created is usable at the next login, the same way a
 seeded user always has been.
+
+## Two-factor authentication with TOTP
+
+A realm's `otp_required` decides whether every subject in it is expected to
+hold a second factor. It is off by default, like the three account-lifecycle
+settings above: a realm does not acquire a second factor because it was
+upgraded. Off does not mean "no second factor" — a subject who has enrolled
+one is always asked for it. What `otp_required` adds is everybody else: a
+subject with no TOTP credential is given the `configure-totp` required
+action at their next login, and the login does not complete until they have
+enrolled.
+
+There is no seed flag for it yet (the same gap
+[Self-registration](#self-registration) notes), so this run turns it on with
+`psql`:
+
+```bash
+odudu seed \
+  --realm otp-demo --client otp-spa \
+  --redirect-uri http://localhost:8080/callback \
+  --user ada --password correct-horse-battery
+docker compose -f infra/docker/compose.yaml exec -T postgres \
+  psql -U odudu -d odudu -c \
+  "UPDATE realms SET otp_required = true WHERE name = 'otp-demo';"
+```
+
+```
+{"created":true,"realm":"otp-demo","realmId":"01a0a7c0-…","clientId":"otp-spa","userSubjectId":"01a0a7c0-…"}
+UPDATE 1
+```
+
+### The password is right, and the login still does not finish
+
+`/authorize` parks the request and renders the same password form
+[Path A](#path-a-authorization-code-with-pkce) shows — nothing about a
+second factor is decided before somebody has said who they are, because
+which account a code belongs to is not knowable until then.
+
+```bash
+curl -sS 'http://localhost:3000/realms/otp-demo/protocol/openid-connect/auth?response_type=code&client_id=otp-spa&redirect_uri=http%3A%2F%2Flocalhost%3A8080%2Fcallback&scope=openid&state=xyz&code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM&code_challenge_method=S256'
+```
+
+The `auth_session_id` in that form — `01a0a7c0-bc80-7671-9a41-3aa5a8477c97`
+in this run — is what every request below carries. Posting the correct
+password answers 200 with an enrolment page rather than 302 with a code:
+the password was accepted, and the pending action is what stops the login
+from completing (no `set-cookie`, no `code`).
+
+```bash
+curl -sS -X POST http://localhost:3000/realms/otp-demo/login-actions/authenticate \
+  --data-urlencode 'auth_session_id=01a0a7c0-bc80-7671-9a41-3aa5a8477c97' \
+  --data-urlencode 'username=ada' \
+  --data-urlencode 'password=correct-horse-battery'
+```
+
+```html
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Set up your authenticator</title>
+  </head>
+  <body>
+    <h1>Set up your authenticator</h1>
+    <p>Scan this with your authenticator app, or enter the key by hand.</p>
+    <svg …>…</svg>
+    <p>
+      <code
+        >otpauth://totp/otp-demo:ada?secret=ZVOPG3D7E34NZLZMDCSQXXYLWDQMCYOQ&amp;issuer=otp-demo&amp;algorithm=SHA1&amp;digits=6&amp;period=30</code
+      >
+    </p>
+    <p>Key: <code>ZVOPG3D7E34NZLZMDCSQXXYLWDQMCYOQ</code></p>
+    <form
+      method="post"
+      action="/realms/otp-demo/login-actions/required-action?action=configure-totp"
+    >
+      <input type="hidden" name="auth_session_id" value="01a0a7c0-bc80-7671-9a41-3aa5a8477c97" />
+      <input type="hidden" name="secret" value="ZVOPG3D7E34NZLZMDCSQXXYLWDQMCYOQ" />
+      <label
+        >Code from your app
+        <input type="text" name="code" inputmode="numeric" autocomplete="one-time-code"
+      /></label>
+      <button type="submit">Confirm</button>
+    </form>
+  </body>
+</html>
+```
+
+(the QR image is a 28 KB inline `<svg>`, elided here; it encodes the same
+`otpauth://` URI printed underneath it, so an app with a camera and an app
+without reach the same secret.)
+
+The secret travels in a hidden field and **nothing is stored yet**. A
+credential written before its first correct code would lock the account out
+of its own second factor if the app never actually scanned it, so the
+credential is created by the submission that proves a code, not by the page
+that offers a secret. An abandoned enrolment leaves no row behind at all.
+
+### Confirming the secret enrols it
+
+```bash
+curl -sS -X POST \
+  'http://localhost:3000/realms/otp-demo/login-actions/required-action?action=configure-totp' \
+  --data-urlencode 'auth_session_id=01a0a7c0-bc80-7671-9a41-3aa5a8477c97' \
+  --data-urlencode 'secret=ZVOPG3D7E34NZLZMDCSQXXYLWDQMCYOQ' \
+  --data-urlencode 'code=124343'
+```
+
+```html
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Sign in</title>
+  </head>
+  <body>
+    <form method="post" action="/realms/otp-demo/login-actions/authenticate">
+      <input type="hidden" name="auth_session_id" value="01a0a7c0-bc80-7671-9a41-3aa5a8477c97" />
+      <label>Username <input type="text" name="username" autocomplete="username" /></label>
+      <label
+        >Password <input type="password" name="password" autocomplete="current-password"
+      /></label>
+      <button type="submit">Sign in</button>
+    </form>
+  </body>
+</html>
+```
+
+The parked request survives the detour — same `auth_session_id` — and the
+login form comes back. The password is asked for again because nothing was
+written down for it: a factor that finishes a login is deliberately not
+recorded, so that a login refused after authentication (an `id_token_hint`
+naming somebody else, an unverified address) cannot be retried with the
+factor already ticked off.
+
+This run generated its codes with the algorithm's own implementation rather
+than a phone:
+
+```bash
+node --input-type=module -e "
+import { totpCode, totpCounter } from './packages/crypto/src/service/totp.ts';
+console.log(totpCode('ZVOPG3D7E34NZLZMDCSQXXYLWDQMCYOQ', totpCounter(new Date())));
+"
+```
+
+```
+124343
+```
+
+### The same password now answers with a code form
+
+```bash
+curl -sS -X POST http://localhost:3000/realms/otp-demo/login-actions/authenticate \
+  --data-urlencode 'auth_session_id=01a0a7c0-bc80-7671-9a41-3aa5a8477c97' \
+  --data-urlencode 'username=ada' \
+  --data-urlencode 'password=correct-horse-battery'
+```
+
+```html
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Sign in</title>
+  </head>
+  <body>
+    <form method="post" action="/realms/otp-demo/login-actions/authenticate">
+      <input type="hidden" name="auth_session_id" value="01a0a7c0-bc80-7671-9a41-3aa5a8477c97" />
+      <label
+        >Code from your app
+        <input type="text" name="code" inputmode="numeric" autocomplete="one-time-code"
+      /></label>
+      <button type="submit">Sign in</button>
+    </form>
+  </body>
+</html>
+```
+
+There is no username field on it. Which account the code is checked against
+comes from the authentication session, which the password step bound to
+ada; a code says which secret produced it, never who is signing in, so a
+form that named the account would let a second factor answer for somebody
+who never passed the first one.
+
+Submitting the code that confirmed the enrolment does **not** work — it
+answers with the same form again:
+
+```bash
+curl -sS -o /dev/null -w '%{http_code}\n' -X POST \
+  http://localhost:3000/realms/otp-demo/login-actions/authenticate \
+  --data-urlencode 'auth_session_id=01a0a7c0-bc80-7671-9a41-3aa5a8477c97' \
+  --data-urlencode 'code=124343'
+```
+
+```
+200
+```
+
+RFC 6238 §5.2: a verifier must not accept an OTP twice. The credential
+stores the time step of the last code it accepted, and the enrolment's own
+code spent that step when it created the credential. The next one works:
+
+```bash
+curl -sS -i -X POST http://localhost:3000/realms/otp-demo/login-actions/authenticate \
+  --data-urlencode 'auth_session_id=01a0a7c0-bc80-7671-9a41-3aa5a8477c97' \
+  --data-urlencode 'code=033455'
+```
+
+```
+HTTP/1.1 302 Found
+set-cookie: otp-demo-session=01a0a7c1-c3fa-7ef6-b961-fddffc1cb317; HttpOnly; SameSite=Lax; Path=/
+location: http://localhost:8080/callback?code=rMHzhb5xIyl95qrX_WLc0__Ch0WdBYe3cT6yrgKFGhg&state=xyz&iss=http%3A%2F%2Flocalhost%3A3000%2Frealms%2Fotp-demo
+```
+
+### What two factors do to the ID token
+
+```bash
+curl -sS -X POST http://localhost:3000/realms/otp-demo/protocol/openid-connect/token \
+  -d grant_type=authorization_code \
+  -d code=rMHzhb5xIyl95qrX_WLc0__Ch0WdBYe3cT6yrgKFGhg \
+  -d client_id=otp-spa \
+  --data-urlencode 'redirect_uri=http://localhost:8080/callback' \
+  -d code_verifier=dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk
+```
+
+The ID token's payload (decoded; `id_token` itself is the usual three
+base64url segments):
+
+```json
+{
+  "sub": "01a0a7c0-6f2c-7a48-80a1-6e5021c5075e",
+  "iss": "http://localhost:3000/realms/otp-demo",
+  "aud": "otp-spa",
+  "iat": 1789520899,
+  "exp": 1789521199,
+  "auth_time": 1789520888,
+  "sid": "01a0a7c1-c3fa-7ef6-b961-fddffc1cb317",
+  "amr": ["otp", "pwd"],
+  "acr": "2"
+}
+```
+
+`amr` names both factors, in RFC 8176's registry spellings rather than this
+server's internal authenticator names, and `acr` is `"2"` — a statement
+about this login, recorded on the session when it was established, not
+re-derived at issuance from what the subject happens to have enrolled by
+then.
 
 ## Password reset
 

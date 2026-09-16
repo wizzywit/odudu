@@ -1,5 +1,18 @@
-import { generateSigningKey, signingKeys, type SigningKeyRecord } from '@odudu/crypto';
-import { hashPassword, subjectRepository, userCredentials, users } from '@odudu/domain-identity';
+import {
+  generateSigningKey,
+  generateTotpSecret,
+  signingKeys,
+  totpCode,
+  totpCounter,
+  type SigningKeyRecord,
+} from '@odudu/crypto';
+import {
+  hashPassword,
+  subjectRepository,
+  userCredentials,
+  userRepository,
+  users,
+} from '@odudu/domain-identity';
 import {
   createDatabase,
   MIGRATIONS_DIR,
@@ -207,6 +220,50 @@ async function reuseAndRedeem(realmName: string, cookie: string): Promise<{ idTo
   return { idToken };
 }
 
+// A TOTP credential for the realm's one user, written as a fixture rather
+// than enrolled through the form: what this suite is about is what the
+// resulting token says, not how the secret got there.
+async function enrolTotp(realmId: string): Promise<string> {
+  const secret = generateTotpSecret();
+  await withRealm(app.db, realmId, async (tx) => {
+    const found = await userRepository(tx).byUsername(USERNAME);
+    if (found === null) throw new Error('expected the seeded user');
+    await tx.insert(userCredentials).values({
+      id: newId(),
+      realmId,
+      subjectId: found.subject.id,
+      type: 'totp',
+      secretData: { secret, digits: 6, lastStep: 0 },
+    });
+  });
+  return secret;
+}
+
+async function startAuthSession(realmName: string): Promise<string> {
+  const authorize = await http.inject({ url: authorizeUrl(realmName) });
+  if (authorize.statusCode !== 200) {
+    throw new Error(
+      `expected /authorize to render the login form, got ${String(authorize.statusCode)}`,
+    );
+  }
+  const match = /name="auth_session_id" value="([^"]*)"/.exec(authorize.body);
+  const authSessionId = match?.[1];
+  if (authSessionId === undefined) throw new Error('auth_session_id not found in the login form');
+  return authSessionId;
+}
+
+function submit(
+  realmName: string,
+  fields: Record<string, string>,
+): Promise<LightMyRequestResponse> {
+  return http.inject({
+    method: 'POST',
+    url: `/realms/${realmName}/login-actions/authenticate`,
+    payload: new URLSearchParams(fields).toString(),
+    headers: { 'content-type': 'application/x-www-form-urlencoded' },
+  });
+}
+
 async function setSessionAuthenticators(
   sessionId: string,
   authenticators: string[],
@@ -251,27 +308,44 @@ describe('amr and acr, from the executions that actually ran', () => {
     expect(jwtPayload(idToken).acr).toBe('1');
   });
 
-  // passkey and otp have no runtime yet (executor.ts's AUTHENTICATORS), so
-  // a two-factor and a passkey login are driven the way the session they
-  // would have produced actually reaches token issuance: by writing
-  // `sessions.authenticators` directly, the same column establishSession
-  // would have populated, and reusing that session rather than logging in
-  // again. This exercises exactly the claim under test — that amr/acr come
-  // from the persisted session record, not from anything computed fresh at
-  // issuance.
+  // Two real factors, through the real issuance path: a password
+  // submission that answers with the code form rather than a redirect, and
+  // a second submission that carries the code. Nothing about the resulting
+  // session is written by the test — `amr` can only name both factors if
+  // the flow engine accumulated them and establishSession carried them.
   it('a password-plus-otp login carries amr: ["otp","pwd"] and acr: "2"', async () => {
     const realmName = `amr-claim-mfa-${newId()}`;
-    await setupRealm(realmName);
+    const realmId = await setupRealm(realmName);
+    const secret = await enrolTotp(realmId);
 
-    const { cookie, sessionId } = await signInAndRedeem(realmName);
-    await setSessionAuthenticators(sessionId, ['password', 'otp']);
+    const authSessionId = await startAuthSession(realmName);
+    const challenged = await submit(realmName, {
+      auth_session_id: authSessionId,
+      username: USERNAME,
+      password: PASSWORD,
+    });
+    expect(challenged.statusCode).toBe(200);
+    expect(challenged.body).toContain('name="code"');
 
-    const { idToken } = await reuseAndRedeem(realmName, cookie);
+    const completed = await submit(realmName, {
+      auth_session_id: authSessionId,
+      code: totpCode(secret, totpCounter(new Date())),
+    });
+    expect(completed.statusCode).toBe(302);
+    const code = new URL(locationHeader(completed)).searchParams.get('code');
+    if (code === null) throw new Error('expected a code on the login redirect');
+
+    const { id_token: idToken } = await redeemCode(realmName, code);
 
     expect(jwtPayload(idToken).amr).toEqual(['otp', 'pwd']);
     expect(jwtPayload(idToken).acr).toBe('2');
   });
 
+  // passkey has no runtime yet (executor.ts's AUTHENTICATORS), so this
+  // login is driven the way the session it would have produced actually
+  // reaches token issuance: by writing `sessions.authenticators` directly,
+  // the same column establishSession would have populated, and reusing that
+  // session rather than logging in again.
   it('a passkey login carries amr: ["hwk","user"] and acr: "2"', async () => {
     const realmName = `amr-claim-passkey-${newId()}`;
     await setupRealm(realmName);

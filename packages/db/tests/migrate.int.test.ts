@@ -45,6 +45,7 @@ describe('migrations', () => {
       'enabled',
       'id',
       'name',
+      'otp_required',
       'password_history_depth',
       'password_max_age_days',
       'password_min_length',

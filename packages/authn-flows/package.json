@@ -14,11 +14,13 @@
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
+    "@odudu/crypto": "workspace:*",
     "@odudu/db": "workspace:*",
     "@odudu/domain-identity": "workspace:*",
     "@odudu/domain-realm": "workspace:*",
     "@odudu/kernel": "workspace:*",
-    "drizzle-orm": "0.45.2"
+    "drizzle-orm": "0.45.2",
+    "qrcode-generator": "2.0.4"
   },
   "devDependencies": {
     "@odudu/testkit": "workspace:*",

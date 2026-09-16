@@ -15,6 +15,7 @@ function toRecord(row: typeof authenticationSessions.$inferSelect): Authenticati
     expiresAt: row.expiresAt,
     consumedAt: row.consumedAt,
     satisfied: row.satisfied,
+    subjectId: row.subjectId,
   };
 }
 
@@ -70,6 +71,30 @@ export function authenticationSessionRepository(tx: RealmScopedDatabase) {
         .set({
           satisfied: sql`array_append(${authenticationSessions.satisfied}, ${authenticator})`,
         })
+        .where(eq(authenticationSessions.id, id));
+    },
+
+    // Written on every factor that succeeds, including the one that
+    // finishes the login — unlike `satisfied`, a bound subject lets no
+    // factor be skipped on a retry, it only fixes who the retry has to be.
+    // It is also what gives a required-action submission, which carries no
+    // credentials of its own, somebody to act for.
+    async bindSubject(id: string, subjectId: string): Promise<void> {
+      await tx
+        .update(authenticationSessions)
+        .set({ subjectId })
+        .where(eq(authenticationSessions.id, id));
+    },
+
+    // Puts the attempt back to how it started, for the one refusal whose
+    // remedy is a different person signing in against the same parked
+    // request: an `id_token_hint` naming somebody else (OIDC Core §3.1.2.1).
+    // Both columns go together — a satisfied factor with no subject is the
+    // state the subject binding exists to rule out.
+    async resetProgress(id: string): Promise<void> {
+      await tx
+        .update(authenticationSessions)
+        .set({ satisfied: [], subjectId: null })
         .where(eq(authenticationSessions.id, id));
     },
   };

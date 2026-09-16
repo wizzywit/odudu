@@ -51,9 +51,14 @@ function renderFormFields(form: string): string {
     return `<label>Username <input type="text" name="username" autocomplete="username"></label>
   <label>Password <input type="password" name="password" autocomplete="current-password"></label>`;
   }
+  // No username: which account the code is checked against comes from the
+  // authentication session the hidden field names, never from this form.
+  if (form === 'otp') {
+    return `<label>Code from your app <input type="text" name="code" inputmode="numeric" autocomplete="one-time-code"></label>`;
+  }
   // Unreachable today: initialChallenge/pendingChallenge (authn-flows) only
   // ever name an authenticator this server can actually dispatch to, and
-  // 'password' is the only one with a runtime yet.
+  // 'password' and 'otp' are the ones with a runtime.
   return `<p>Unsupported sign-in step: ${escapeHtml(form)}</p>`;
 }
 

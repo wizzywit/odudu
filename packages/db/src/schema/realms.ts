@@ -38,4 +38,9 @@ export const realms = pgTable('realms', {
   passwordNotEmail: boolean('password_not_email').notNull().default(true),
   passwordHistoryDepth: integer('password_history_depth').notNull().default(0),
   passwordMaxAgeDays: integer('password_max_age_days').notNull().default(0),
+  // Whether a second factor is expected of every subject in this realm
+  // (packages/db/drizzle/0037_realm_otp_required.sql). Off leaves TOTP to
+  // whoever has enrolled one; on makes a subject without one owe the
+  // configure-totp required action at their next login.
+  otpRequired: boolean('otp_required').notNull().default(false),
 }).enableRLS();

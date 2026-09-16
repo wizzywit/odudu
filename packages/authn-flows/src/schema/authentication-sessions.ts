@@ -20,6 +20,11 @@ export const authenticationSessions = pgTable('authentication_sessions', {
   // lets a multi-step login resume rather than restart (a correct password
   // followed by a wrong second factor must not ask for the password again).
   satisfied: text('satisfied').array().notNull().default([]),
+  // Whose attempt this is, written the moment a factor identifies someone
+  // (packages/db/drizzle/0038_authentication_sessions_subject.sql). Every
+  // later factor is then looked up for this subject and has to answer with
+  // it, so a second factor cannot hand the login to anybody else.
+  subjectId: uuid('subject_id'),
 }).enableRLS();
 
 // The bytes validated at /authorize are the bytes bound to the code later
@@ -47,4 +52,5 @@ export interface AuthenticationSessionRecord {
   expiresAt: Date;
   consumedAt: Date | null;
   satisfied: string[];
+  subjectId: string | null;
 }

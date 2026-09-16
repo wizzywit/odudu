@@ -355,6 +355,75 @@ describe('credentialRepository — widened credential types', () => {
     });
   });
 
+  it('spends a time step on a totp credential without disturbing its secret', async () => {
+    const realmId = newId();
+    const usedAt = new Date('2026-09-16T12:00:00.000Z');
+
+    const { subjectId, credentialId } = await withRealm(app.db, realmId, async (tx) => {
+      const subject = await seedSubject(tx, realmId);
+      await credentialRepository(tx).insert({
+        realmId,
+        subjectId: subject,
+        type: 'totp',
+        secret: { kind: 'totp', secret: 'JBSWY3DPEHPK3PXP', digits: 6, lastStep: 0 },
+      });
+      const [stored] = await credentialRepository(tx).listFor(subject, 'totp');
+      if (stored === undefined) throw new Error('expected the seeded credential back');
+      return { subjectId: subject, credentialId: stored.id };
+    });
+
+    await withRealm(app.db, realmId, (tx) =>
+      credentialRepository(tx).recordTotpUse(credentialId, 58_612_800, usedAt),
+    );
+
+    const [after] = await withRealm(app.db, realmId, (tx) =>
+      credentialRepository(tx).listFor(subjectId, 'totp'),
+    );
+    expect(after?.secret).toEqual({
+      kind: 'totp',
+      secret: 'JBSWY3DPEHPK3PXP',
+      digits: 6,
+      lastStep: 58_612_800,
+    });
+    expect(after?.lastUsedAt).toEqual(usedAt);
+  });
+
+  it('cannot spend a time step under a different realm context', async () => {
+    await expectCrossRealmMethodProbe(app.db, {
+      seed: async (tx, realmId) => {
+        const subject = await seedSubject(tx, realmId);
+        await credentialRepository(tx).insert({
+          realmId,
+          subjectId: subject,
+          type: 'totp',
+          secret: { kind: 'totp', secret: 'JBSWY3DPEHPK3PXP', digits: 6, lastStep: 7 },
+        });
+        const [stored] = await credentialRepository(tx).listFor(subject, 'totp');
+        if (stored === undefined) throw new Error('expected the seeded credential back');
+        return { subjectId: subject, id: stored.id };
+      },
+      verifySeeded: async (tx, seeded) => {
+        const [found] = await credentialRepository(tx).listFor(seeded.subjectId, 'totp');
+        expect(found?.secret).toMatchObject({ lastStep: 7 });
+      },
+      attempt: async (tx, seeded) => {
+        try {
+          await credentialRepository(tx).recordTotpUse(seeded.id, 99, new Date());
+          return 'succeeded';
+        } catch {
+          return 'blocked';
+        }
+      },
+      expectBlocked: (result) => {
+        expect(result).toBe('blocked');
+      },
+      verifyRealmAUnaffected: async (tx, seeded) => {
+        const [found] = await credentialRepository(tx).listFor(seeded.subjectId, 'totp');
+        expect(found?.secret).toMatchObject({ lastStep: 7 });
+      },
+    });
+  });
+
   it('refuses to insert a credential whose declared realm does not match the transaction realm', async () => {
     const realmA = newId();
     const realmB = newId();

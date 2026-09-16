@@ -1,6 +1,6 @@
 import { type RealmScopedDatabase } from '@odudu/db';
 import { newId, OduduError } from '@odudu/kernel';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import {
   userCredentials,
   type CredentialRecord,
@@ -88,6 +88,25 @@ export function credentialRepository(tx: RealmScopedDatabase) {
       const row = rows[0];
       if (row === undefined) {
         throw new OduduError('credential_not_found', `no credential with id ${id}`);
+      }
+    },
+
+    // RFC 6238 §5.2 forbids a second acceptance of an OTP that already
+    // validated, and `lastStep` is what carries that refusal to the next
+    // verification. Written in the same statement as `last_used_at` so a
+    // code can never count as used without also being spent.
+    async recordTotpUse(id: string, step: number, at: Date): Promise<void> {
+      const rows = await tx
+        .update(userCredentials)
+        .set({
+          secretData: sql`jsonb_set(${userCredentials.secretData}, '{lastStep}', to_jsonb(${step}::bigint))`,
+          lastUsedAt: at,
+        })
+        .where(and(eq(userCredentials.id, id), eq(userCredentials.type, 'totp')))
+        .returning();
+      const row = rows[0];
+      if (row === undefined) {
+        throw new OduduError('credential_not_found', `no totp credential with id ${id}`);
       }
     },
 

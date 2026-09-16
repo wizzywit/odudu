@@ -1,7 +1,9 @@
 import {
   renderRequiredActionPage,
+  renderTotpEnrolmentPage,
   sessionCookieName,
   type AuthenticatorResult,
+  type TotpEnrolmentOffer,
 } from '@odudu/authn-flows';
 import { type FastifyInstance } from 'fastify';
 import { handleLoginSubmission, type LoginSubmissionDeps } from '#/usecase/login-submission';
@@ -19,13 +21,20 @@ export interface LoginRouteDeps extends LoginSubmissionDeps {
   // threaded through LoginSubmissionOutcome, so handleLoginSubmission stays
   // as unaware of the flow's requirements as its own tests assume.
   pendingChallenge(realmId: string, authSessionId: string): Promise<AuthenticatorResult>;
+  // The secret a configure-totp page shows. Asked for only when that action
+  // is the one owed, so a login with nothing pending pays nothing for it.
+  beginTotpEnrolment(
+    realmName: string,
+    realmId: string,
+    subjectId: string,
+  ): Promise<TotpEnrolmentOffer>;
 }
 
 // pendingChallenge runs in its own transaction, separate from the advance()
 // call that produced the reject — a realm whose executions change in that
 // window (or a session that expires in it) can make pendingChallenge answer
-// something other than a challenge. 'password' is what to fall back to
-// today, since it is the only authenticator with a runtime.
+// something other than a challenge. 'password' is what to fall back to,
+// since it is the step every flow this server provisions starts with.
 const FALLBACK_FORM = 'password';
 
 // @fastify/formbody parses a repeated field into an array; every field this
@@ -47,6 +56,7 @@ export function registerLoginRoute(app: FastifyInstance, deps: LoginRouteDeps): 
     const authSessionId = firstString(body.auth_session_id);
     const username = firstString(body.username);
     const password = firstString(body.password);
+    const code = firstString(body.code);
 
     const outcome = await handleLoginSubmission(
       deps,
@@ -56,6 +66,7 @@ export function registerLoginRoute(app: FastifyInstance, deps: LoginRouteDeps): 
       {
         ...(username !== undefined ? { username } : {}),
         ...(password !== undefined ? { password } : {}),
+        ...(code !== undefined ? { code } : {}),
       },
     );
 
@@ -101,11 +112,26 @@ export function registerLoginRoute(app: FastifyInstance, deps: LoginRouteDeps): 
     // Same reasoning as 'unverified': no location header and no code, since
     // nothing was established or issued.
     if (outcome.kind === 'required_action') {
-      return sendHtml(
-        reply,
-        200,
-        renderRequiredActionPage(request.params.realm, outcome.authSessionId, outcome.action),
-      );
+      const realmName = request.params.realm;
+      if (outcome.action !== 'configure-totp') {
+        return sendHtml(
+          reply,
+          200,
+          renderRequiredActionPage(realmName, outcome.authSessionId, outcome.action),
+        );
+      }
+      // The realm was already resolved inside handleLoginSubmission, for the
+      // same reason the 'reject' branch above resolves it again.
+      const realm = await deps.findRealm(realmName);
+      if (realm === null) {
+        return sendHtml(
+          reply,
+          200,
+          renderRequiredActionPage(realmName, outcome.authSessionId, outcome.action),
+        );
+      }
+      const offer = await deps.beginTotpEnrolment(realmName, realm.id, outcome.subjectId);
+      return sendHtml(reply, 200, renderTotpEnrolmentPage(realmName, outcome.authSessionId, offer));
     }
 
     const cookieName = sessionCookieName(request.params.realm, deps.tls);

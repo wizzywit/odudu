@@ -27,6 +27,7 @@ export {
   pendingChallenge,
   consumeAuthenticationSession,
   establishSession,
+  resetAuthenticationProgress,
   type AdvanceInput,
   type AdvanceOutcome,
 } from '#/usecase/executor';
@@ -35,6 +36,19 @@ export {
   type PasswordInput,
   type PasswordVerification,
 } from '#/service/authenticators/password';
+export {
+  otpApplicable,
+  totpStep,
+  type TotpInput,
+  type TotpSecret,
+  type TotpVerification,
+} from '#/service/authenticators/totp';
+export {
+  beginTotpEnrolment,
+  completeTotpEnrolment,
+  type TotpEnrolmentOutcome,
+} from '#/usecase/totp-enrolment';
+export { renderTotpEnrolmentPage, type TotpEnrolmentOffer } from '#/view/totp-enrolment-html';
 export { authenticationSessionRepository } from '#/repository/authentication-sessions';
 export { sessionRepository } from '#/repository/sessions';
 export {

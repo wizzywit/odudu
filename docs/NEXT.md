@@ -3,7 +3,37 @@
 ## Start here
 
 **P0, P1 and P2a are complete. P2b is brainstormed, specified and planned;
-Tasks 1 through 15 have landed and Task 16 is next.**
+Tasks 1 through 16 have landed and Task 17 is next.**
+
+**Task 16 makes TOTP a real second factor and lets a subject enrol one.**
+Migration 0037 adds `realms.otp_required` (default false) and 0038 adds
+`authentication_sessions.subject_id` (nullable, FK to `subjects (realm_id,
+id)`). `@odudu/authn-flows` gained `totpStep`/`otpApplicable`
+(`src/service/authenticators/totp.ts`, a leaf in `password.ts`'s shape),
+`beginTotpEnrolment`/`completeTotpEnrolment`, and
+`renderTotpEnrolmentPage`, which draws the `otpauth://` URI as text and as
+a QR code (`qrcode-generator` 2.0.4, exact, zero dependencies, confined to
+the view layer). `executor.ts` registers `otp` for real: applicability is
+now per-subject and per-realm, `AdvanceInput` carries `code`, and every
+successful factor binds `subject_id` so a later factor cannot answer for
+somebody else — a mismatch fails with `subject_mismatch`. The OTP step
+looks its secret up by the bound subject, never by anything the form
+submits. `credentialRepository.recordTotpUse` stores the accepted time
+step as the credential's `lastStep`, which is the half of RFC 6238 §5.2's
+no-replay rule `verifyTotp` leaves to its caller.
+
+A realm that requires OTP from a subject with no credential cannot express
+that as a step — asking for a code nobody can produce parks the login, and
+the required-action gate sits downstream of a successful authentication —
+so `advance` records the `configure-totp` required action instead, and
+`POST /realms/{realm}/login-actions/required-action` (new, in
+`protocol-oidc`) completes it. The secret round-trips in a hidden field and
+the credential is written only by a submission that verifies a code.
+`id_token_hint` naming a different subject now also clears the attempt's
+`satisfied` and `subject_id` (`resetAuthenticationProgress`), without which
+the binding would have stranded that refusal's documented retry path.
+`docs/request-paths.md` gained a live TOTP walkthrough — real enrolment,
+real replay refusal, real `amr: ["otp","pwd"]` / `acr: "2"`.
 
 **Task 15 is RFC 6238 TOTP, built rather than installed.**
 `@odudu/crypto/src/service/totp.ts` implements `generateTotpSecret`,

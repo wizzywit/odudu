@@ -29,6 +29,7 @@ interface Harness {
   completeLogin: Mock;
   checkEmailVerification: Mock;
   pendingActions: Mock;
+  resetAuthenticationProgress: Mock;
 }
 
 function harness(): Harness {
@@ -40,6 +41,7 @@ function harness(): Harness {
     .mockResolvedValue({ kind: 'issued', sessionId: 'session-1', code: 'code-1' });
   const checkEmailVerification = vi.fn().mockResolvedValue({ verified: true, hasEmail: true });
   const pendingActions = vi.fn().mockResolvedValue([]);
+  const resetAuthenticationProgress = vi.fn().mockResolvedValue(undefined);
   const deps: LoginSubmissionDeps = {
     findRealm: vi.fn().mockResolvedValue(REALM),
     advance,
@@ -47,9 +49,17 @@ function harness(): Harness {
     resolveClientId: vi.fn().mockResolvedValue('client-uuid-1'),
     checkEmailVerification,
     pendingActions,
+    resetAuthenticationProgress,
     completeLogin,
   };
-  return { deps, advance, completeLogin, checkEmailVerification, pendingActions };
+  return {
+    deps,
+    advance,
+    completeLogin,
+    checkEmailVerification,
+    pendingActions,
+    resetAuthenticationProgress,
+  };
 }
 
 describe('handleLoginSubmission — the success path', () => {
@@ -160,6 +170,7 @@ describe('handleLoginSubmission — a subject with a pending required action', (
     expect(outcome).toEqual({
       kind: 'required_action',
       authSessionId: 'auth-session-1',
+      subjectId: 'subject-1',
       action: 'configure-totp',
     });
     expect(completeLogin).not.toHaveBeenCalled();
@@ -180,6 +191,7 @@ describe('handleLoginSubmission — a subject with a pending required action', (
     expect(outcome).toEqual({
       kind: 'required_action',
       authSessionId: 'auth-session-1',
+      subjectId: 'subject-1',
       action: 'update-password',
     });
   });
@@ -265,5 +277,44 @@ describe('handleLoginSubmission — a failed attempt must not consume the sessio
 
     expect(outcome).toEqual({ kind: 'reject', authSessionId: 'auth-session-1' });
     expect(completeLogin).not.toHaveBeenCalled();
+  });
+});
+
+describe('handleLoginSubmission — a hint naming somebody other than who signed in', () => {
+  it('unbinds the attempt so the hinted end-user can sign in against the same request', async () => {
+    const { deps, completeLogin, resetAuthenticationProgress } = harness();
+    deps.loadPendingRequest = vi
+      .fn()
+      .mockResolvedValue({ ...PENDING, idTokenHintSubject: 'someone-else' });
+
+    const outcome = await handleLoginSubmission(
+      deps,
+      'acme',
+      'https://idp.example',
+      'auth-session-1',
+      { username: 'ada', password: 'x' },
+    );
+
+    expect(outcome.kind).toBe('error_redirect');
+    expect(resetAuthenticationProgress).toHaveBeenCalledWith('realm-1', 'auth-session-1');
+    expect(completeLogin).not.toHaveBeenCalled();
+  });
+
+  it('leaves the attempt bound when the hint names the subject who signed in', async () => {
+    const { deps, resetAuthenticationProgress } = harness();
+    deps.loadPendingRequest = vi
+      .fn()
+      .mockResolvedValue({ ...PENDING, idTokenHintSubject: 'subject-1' });
+
+    const outcome = await handleLoginSubmission(
+      deps,
+      'acme',
+      'https://idp.example',
+      'auth-session-1',
+      { username: 'ada', password: 'x' },
+    );
+
+    expect(outcome.kind).toBe('redirect');
+    expect(resetAuthenticationProgress).not.toHaveBeenCalled();
   });
 });
