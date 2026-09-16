@@ -78,7 +78,7 @@ No new packages. Modified packages:
 
 | Path                        | Change                                                                                                                      |
 | --------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| `packages/db/drizzle/`      | migrations 0026–0040 and their journal entries                                                                              |
+| `packages/db/drizzle/`      | migrations 0026–0041 and their journal entries                                                                              |
 | `packages/db/src/schema/`   | `realms` gains session-lifespan, password-policy and lockout columns                                                        |
 | `packages/authn-flows/`     | the execution schema and repository, the requirement evaluator, the authenticator registry, required actions, lockout       |
 | `packages/domain-identity/` | widened credential store, per-type `secret_data` parsing, the password-policy service, `login_failures`                     |
@@ -2325,6 +2325,8 @@ gh pr checks --watch
 - Create: `packages/authn-flows/tests/totp-login.int.test.ts`
 - Modify: `packages/db/src/schema/realms.ts` — `otp_required`
 - Create: `packages/db/drizzle/0037_realm_otp_required.sql`
+- Create: `packages/db/drizzle/0038_authentication_sessions_subject.sql`
+- Modify: `packages/db/drizzle/meta/_journal.json`
 - Modify: `docs/request-paths.md`
 
 **Interfaces:**
@@ -2344,6 +2346,22 @@ gh pr checks --watch
 -- configure-totp required action at their next login.
 ALTER TABLE realms ADD COLUMN otp_required boolean NOT NULL DEFAULT false;
 ```
+
+```sql
+-- packages/db/drizzle/0038_authentication_sessions_subject.sql
+-- Binds an in-progress login to the subject its first factor authenticated.
+-- Null until a factor succeeds: a session that has only ever rendered a
+-- challenge has no subject yet. Once set, every later factor in the same
+-- session must resolve to this subject or the login is refused, so a second
+-- factor completed by somebody else cannot finish a login somebody else
+-- started.
+ALTER TABLE authentication_sessions ADD COLUMN subject_id uuid;
+```
+
+Both migrations need a journal entry, each with the next `idx` and a `when`
+greater than the previous entry's. `authentication_sessions` already has RLS
+and a policy from migration 0032 — adding a column to an existing tenant
+table does not need either restated.
 
 - [ ] **Step 2: Write the failing unit tests for the step and its applicability**
 
@@ -2718,11 +2736,11 @@ Then update `docs/NEXT.md`.
 
 ---
 
-### Task 22: Brute force — migration 0037, lockout, and indistinguishable refusals
+### Task 22: Brute force — migration 0039, lockout, and indistinguishable refusals
 
 **Files:**
 
-- Create: `packages/db/drizzle/0038_login_failures.sql`
+- Create: `packages/db/drizzle/0039_login_failures.sql`
 - Modify: `packages/db/drizzle/meta/_journal.json`
 - Modify: `packages/db/src/schema/realms.ts`
 - Create: `packages/domain-identity/src/schema/login-failures.ts`
@@ -2743,7 +2761,7 @@ Then update `docs/NEXT.md`.
 - [ ] **Step 1: Write the migration**
 
 ```sql
--- packages/db/drizzle/0038_login_failures.sql
+-- packages/db/drizzle/0039_login_failures.sql
 -- Keyed by subject, not by username: a lockout that followed a username
 -- would let an attacker lock an account out of existence by guessing at a
 -- name it no longer uses, and would miss an attacker arriving by email.
@@ -3006,7 +3024,7 @@ The headline test of the phase. **Read ADR 0021 before starting.**
 - Create: `apps/server/src/cli/reap.ts`
 - Create: `apps/server/src/cli/reap.test.ts`
 - Modify: `apps/server/src/main.ts`
-- Create: `packages/db/drizzle/0039_retention_indexes.sql`
+- Create: `packages/db/drizzle/0040_retention_indexes.sql`
 - Modify: `packages/db/drizzle/meta/_journal.json`
 - Create: `apps/server/tests/reap.int.test.ts`
 - Create: `apps/server/tests/reap-preserves-detection.int.test.ts`
@@ -3023,7 +3041,7 @@ The headline test of the phase. **Read ADR 0021 before starting.**
 - [ ] **Step 1: Write the migration for the indexes the pass needs**
 
 ```sql
--- packages/db/drizzle/0039_retention_indexes.sql
+-- packages/db/drizzle/0040_retention_indexes.sql
 -- A reaping pass scans by age. Without these it is a sequential scan over
 -- the largest tables in the schema, which is how a retention pass becomes
 -- the reason a deployment falls over at 3am.
@@ -3197,7 +3215,7 @@ Closes the limitation P2a recorded and P2b was amended to own.
 
 **Files:**
 
-- Create: `packages/db/drizzle/0040_email_outbox.sql`
+- Create: `packages/db/drizzle/0041_email_outbox.sql`
 - Modify: `packages/db/drizzle/meta/_journal.json`
 - Create: `packages/email/src/schema/outbox.ts`
 - Create: `packages/email/src/repository/outbox.ts`
@@ -3219,7 +3237,7 @@ Closes the limitation P2a recorded and P2b was amended to own.
 - [ ] **Step 1: Write the migration**
 
 ```sql
--- packages/db/drizzle/0040_email_outbox.sql
+-- packages/db/drizzle/0041_email_outbox.sql
 -- Mail leaves the request path entirely: the request enqueues and answers,
 -- and the sender runs on the scheduler. This is what closes the password
 -- reset timing oracle, where an address that existed was measurably slower
