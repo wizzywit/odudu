@@ -24,6 +24,16 @@ describe('relyingPartyId', () => {
   it('refuses a scheme that could never be a WebAuthn origin', () => {
     expect(() => relyingPartyId('ftp://id.example.com')).toThrow();
   });
+
+  // An RP ID is compared as a domain, so a browser can never match a
+  // credential against an address literal — a passkey registered against
+  // one is unusable from the moment it exists, which is exactly what the
+  // boot guard is there to prevent.
+  it('refuses an address literal, IPv4 or IPv6', () => {
+    expect(() => relyingPartyId('http://127.0.0.1:3000')).toThrow(/address/);
+    expect(() => relyingPartyId('https://10.0.0.7')).toThrow(/address/);
+    expect(() => relyingPartyId('http://[::1]:3000')).toThrow(/address/);
+  });
 });
 
 describe('relyingPartyOrigin', () => {
@@ -53,6 +63,26 @@ describe('passkeyRegistrationOptions', () => {
     expect(offer.options.challenge).toBe(offer.challenge);
     expect(offer.challenge.length).toBeGreaterThan(0);
     expect(offer.options.user.name).toBe('ada');
+  });
+
+  // Required, not the library's "preferred" defaults. A passkey stands
+  // alone as a factor that counts as two, which holds only if the
+  // authenticator verified the person; and a credential that is not
+  // discoverable cannot answer an assertion naming no username. Neither
+  // can be fixed after the credential exists.
+  it('requires user verification and a discoverable credential', async () => {
+    const offer = await passkeyRegistrationOptions({
+      publicBaseUrl: 'https://id.example.com',
+      realmName: 'demo',
+      username: 'ada',
+      userHandle: '11111111-1111-1111-1111-111111111111',
+      existingCredentialIds: [],
+    });
+
+    expect(offer.options.authenticatorSelection).toMatchObject({
+      residentKey: 'required',
+      userVerification: 'required',
+    });
   });
 
   // Without this, a second enrolment on the same authenticator either

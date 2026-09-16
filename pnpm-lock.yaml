@@ -471,6 +471,9 @@ importers:
 
   packages/testkit:
     dependencies:
+      '@simplewebauthn/server':
+        specifier: 14.0.2
+        version: 14.0.2
       '@testcontainers/postgresql':
         specifier: 12.1.0
         version: 12.1.0(supports-color@7.2.0)

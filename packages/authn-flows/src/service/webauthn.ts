@@ -3,6 +3,7 @@ import {
   verifyRegistrationResponse,
   type PublicKeyCredentialCreationOptionsJSON,
   type RegistrationResponseJSON,
+  type VerifiedRegistrationResponse,
 } from '@simplewebauthn/server';
 import { z } from 'zod';
 
@@ -27,8 +28,25 @@ function publicOrigin(publicBaseUrl: string): URL {
   return parsed;
 }
 
+// An RP ID is a domain, and WebAuthn §5.1.3's same-origin check compares
+// it as one: a browser can never match a credential's RP ID against an
+// address literal, so a passkey registered against one is unusable from
+// the moment it is created. `[…]` is how URL renders an IPv6 host, and a
+// host of only digits and dots is an IPv4 one — no registrable domain
+// looks like either.
+function isAddressLiteral(hostname: string): boolean {
+  return hostname.startsWith('[') || /^[0-9.]+$/.test(hostname);
+}
+
 export function relyingPartyId(publicBaseUrl: string): string {
-  return publicOrigin(publicBaseUrl).hostname;
+  const hostname = publicOrigin(publicBaseUrl).hostname;
+  if (isAddressLiteral(hostname)) {
+    throw new Error(
+      `ODUDU_PUBLIC_BASE_URL must name a domain, not an address: "${hostname}" can never be a ` +
+        'WebAuthn relying party id',
+    );
+  }
+  return hostname;
 }
 
 // What clientDataJSON has to name, port included — unlike the RP ID, which
@@ -67,6 +85,15 @@ export async function passkeyRegistrationOptions(
     // A subject who already has a passkey enrols a second one on a
     // different authenticator, not a duplicate on the same one.
     excludeCredentials: request.existingCredentialIds.map((id) => ({ id })),
+    // Both required rather than the library's "preferred" defaults, and
+    // both for a property of what this credential is for. A passkey stands
+    // alone as a factor that counts as two, which is only true if the
+    // authenticator actually verified the person holding it — unverified,
+    // it is one factor wearing two factors' authority. And a credential
+    // that is not discoverable cannot answer an assertion that names no
+    // username, which is the only way a passkey is offered as a first
+    // factor. Neither can be retrofitted: both are fixed at creation.
+    authenticatorSelection: { residentKey: 'required', userVerification: 'required' },
   });
   return { options, challenge: options.challenge };
 }
@@ -127,13 +154,18 @@ export type PasskeyRegistrationOutcome =
 export async function verifyPasskeyRegistration(
   input: PasskeyRegistrationVerification,
 ): Promise<PasskeyRegistrationOutcome> {
-  let verification;
+  let verification: VerifiedRegistrationResponse;
   try {
     verification = await verifyRegistrationResponse({
       response: input.response,
       expectedChallenge: input.expectedChallenge,
       expectedOrigin: relyingPartyOrigin(input.publicBaseUrl),
       expectedRPID: relyingPartyId(input.publicBaseUrl),
+      // Stated rather than inherited, and it is the same requirement the
+      // options ask the authenticator for: a response whose user-verified
+      // flag is clear is refused here, so the two sides cannot drift into
+      // asking for verification and then accepting its absence.
+      requireUserVerification: true,
     });
   } catch {
     // Every refusal the library makes by throwing — a challenge that does

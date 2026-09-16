@@ -54,12 +54,24 @@ export interface CompletePasskeyEnrolment {
 
 export type PasskeyEnrolmentOutcome =
   | { kind: 'enrolled'; credentialId: string }
-  // No challenge was outstanding for this attempt: either none was ever
-  // offered, or a previous response already spent the one that was. A
-  // replay lands here, before any signature is looked at.
-  | { kind: 'rejected'; reason: 'no_challenge' | 'invalid_response' };
+  // no_challenge: none was outstanding for this attempt — either none was
+  // ever offered, or a previous response already spent the one that was,
+  // which is where a replay lands, before any signature is looked at.
+  // already_enrolled: this realm already holds that credential id.
+  | { kind: 'rejected'; reason: 'no_challenge' | 'invalid_response' | 'already_enrolled' };
 
 const DEFAULT_LABEL = 'Passkey';
+
+// Long enough to name an authenticator, short enough that the column is
+// not a place to put arbitrary text. Truncated rather than refused: a
+// label is what the list of a subject's passkeys reads like, and nothing
+// decides anything by it.
+const LABEL_MAX_LENGTH = 64;
+
+function boundedLabel(label: string | undefined): string {
+  if (label === undefined || label.length === 0) return DEFAULT_LABEL;
+  return label.slice(0, LABEL_MAX_LENGTH);
+}
 
 export async function completePasskeyEnrolment(
   tx: RealmScopedDatabase,
@@ -80,18 +92,26 @@ export async function completePasskeyEnrolment(
   });
   if (verified.kind === 'rejected') return { kind: 'rejected', reason: 'invalid_response' };
 
+  // user_credentials_lookup_key (migration 0034) is unique per realm and
+  // remains the actual guarantee. This read only turns the case
+  // excludeCredentials is expected to prevent into a refusal rather than a
+  // constraint violation surfacing as a server fault; two subjects racing
+  // to claim one credential id still fail at the index, which is the right
+  // place for something that cannot legitimately happen.
+  const claimed = await credentialRepository(tx).byLookupKey(verified.credentialId);
+  if (claimed !== null) return { kind: 'rejected', reason: 'already_enrolled' };
+
   // Nothing is stored until the library has verified the attestation: a
   // credential written ahead of that is one the subject may not hold, and
   // once a realm requires a passkey it is what stands between them and
   // their account. The counter is the authenticator's own use count at
   // registration, kept as the baseline an assertion must exceed.
-  const label = input.label === undefined || input.label.length === 0 ? DEFAULT_LABEL : input.label;
   await credentialRepository(tx).insert({
     realmId: input.realmId,
     subjectId: input.subjectId,
     type: 'webauthn',
     lookupKey: verified.credentialId,
-    label,
+    label: boundedLabel(input.label),
     secret: {
       kind: 'webauthn',
       publicKey: verified.publicKey,

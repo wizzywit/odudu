@@ -1,4 +1,4 @@
-import { createHash, generateKeyPairSync, randomBytes } from 'node:crypto';
+import { randomBytes } from 'node:crypto';
 import {
   createDatabase,
   MIGRATIONS_DIR,
@@ -17,8 +17,12 @@ import {
   users,
 } from '@odudu/domain-identity';
 import { newId } from '@odudu/kernel';
-import { isoCBOR } from '@simplewebauthn/server/helpers';
-import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
+import {
+  createAppRole,
+  softwareRegistrationResponse,
+  startTestDatabase,
+  type TestDatabase,
+} from '@odudu/testkit';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { authenticationSessionRepository } from '#/repository/authentication-sessions';
 import { requiredActionRepository } from '#/repository/required-actions';
@@ -68,75 +72,21 @@ const request: PendingRequest = {
   codeChallengeMethod: 'S256',
 };
 
-// A software authenticator, in place of the browser and hardware a real
-// ceremony needs. It produces the one attestation format that carries no
-// statement to check ("none", WebAuthn §8.7), so what the library verifies
-// here is everything except an attestation certificate chain: the client
-// data's type, challenge and origin, the RP ID hash, the user-presence and
-// user-verification flags, and the COSE public key it extracts.
+// The software authenticator lives in @odudu/testkit so this suite and
+// the route-level one in @odudu/protocol-oidc drive the same attestation.
 function registrationResponse(input: {
   challenge: string;
   rpId?: string;
   origin?: string;
   signCount?: number;
+  userVerified?: boolean;
+  credentialId?: Buffer;
 }): unknown {
-  const { publicKey } = generateKeyPairSync('ec', { namedCurve: 'P-256' });
-  const jwk = publicKey.export({ format: 'jwk' });
-  const cosePublicKey = isoCBOR.encode(
-    new Map<number, number | Uint8Array>([
-      [1, 2],
-      [3, -7],
-      [-1, 1],
-      [-2, Buffer.from(String(jwk.x), 'base64url')],
-      [-3, Buffer.from(String(jwk.y), 'base64url')],
-    ]),
-  );
-
-  const credentialId = randomBytes(32);
-  const signCount = Buffer.alloc(4);
-  signCount.writeUInt32BE(input.signCount ?? 0);
-  const credentialIdLength = Buffer.alloc(2);
-  credentialIdLength.writeUInt16BE(credentialId.length);
-  const authData = Buffer.concat([
-    createHash('sha256')
-      .update(input.rpId ?? RP_ID)
-      .digest(),
-    // User present, user verified, attested credential data included.
-    Buffer.from([0x01 | 0x04 | 0x40]),
-    signCount,
-    Buffer.alloc(16),
-    credentialIdLength,
-    credentialId,
-    Buffer.from(cosePublicKey),
-  ]);
-
-  const attestationObject = isoCBOR.encode(
-    new Map<string, string | Map<never, never> | Uint8Array>([
-      ['fmt', 'none'],
-      ['attStmt', new Map<never, never>()],
-      ['authData', new Uint8Array(authData)],
-    ]),
-  );
-  const clientDataJSON = Buffer.from(
-    JSON.stringify({
-      type: 'webauthn.create',
-      challenge: input.challenge,
-      origin: input.origin ?? PUBLIC_BASE_URL,
-      crossOrigin: false,
-    }),
-  );
-
-  return {
-    id: credentialId.toString('base64url'),
-    rawId: credentialId.toString('base64url'),
-    response: {
-      clientDataJSON: clientDataJSON.toString('base64url'),
-      attestationObject: Buffer.from(attestationObject).toString('base64url'),
-      transports: ['internal'],
-    },
-    clientExtensionResults: {},
-    type: 'public-key',
-  };
+  return softwareRegistrationResponse({
+    rpId: input.rpId ?? RP_ID,
+    origin: input.origin ?? PUBLIC_BASE_URL,
+    ...input,
+  });
 }
 
 async function seedRealm(tx: RealmScopedDatabase, realmId: string): Promise<void> {
@@ -388,6 +338,70 @@ describe('a response is answerable once', () => {
         credentialRepository(tx).listFor(subjectId, 'webauthn'),
       ),
     ).toEqual([]);
+  });
+
+  // The options ask for userVerification: 'required', and the verification
+  // requires it too. An authenticator that would have honoured 'preferred'
+  // by skipping its PIN is refused at the ceremony rather than enrolled as
+  // a credential that looks like two factors and is one.
+  it('refuses a response whose authenticator verified nobody', async () => {
+    const realmId = newId();
+    const { subjectId, authSessionId } = await seedSubjectOwingAPasskey(realmId);
+    const offer = await begin(realmId, authSessionId, subjectId);
+    expect(offer.options.authenticatorSelection?.userVerification).toBe('required');
+    expect(offer.options.authenticatorSelection?.residentKey).toBe('required');
+
+    const outcome = await complete(realmId, {
+      subjectId,
+      authSessionId,
+      response: registrationResponse({
+        challenge: offer.options.challenge,
+        userVerified: false,
+      }),
+    });
+
+    expect(outcome).toEqual({ kind: 'rejected', reason: 'invalid_response' });
+    expect(
+      await withRealm(app.db, realmId, (tx) =>
+        credentialRepository(tx).listFor(subjectId, 'webauthn'),
+      ),
+    ).toEqual([]);
+  });
+
+  // The same credential id twice in one realm is what
+  // user_credentials_lookup_key forbids; excludeCredentials is what stops
+  // a compliant browser producing it. Reaching the write anyway is a
+  // refusal, not a server fault.
+  it('refuses a credential id the realm already holds', async () => {
+    const realmId = newId();
+    const { subjectId, authSessionId } = await seedSubjectOwingAPasskey(realmId);
+    const first = await begin(realmId, authSessionId, subjectId);
+    const storedCredentialId = randomBytes(32);
+    const response = registrationResponse({
+      challenge: first.options.challenge,
+      credentialId: storedCredentialId,
+    });
+    expect((await complete(realmId, { subjectId, authSessionId, response })).kind).toBe('enrolled');
+
+    // A fresh challenge, so the replay guard is not what refuses this —
+    // the response is re-signed against the new one, carrying the same
+    // credential id the first ceremony stored.
+    const second = await begin(realmId, authSessionId, subjectId);
+    const outcome = await complete(realmId, {
+      subjectId,
+      authSessionId,
+      response: registrationResponse({
+        challenge: second.options.challenge,
+        credentialId: storedCredentialId,
+      }),
+    });
+
+    expect(outcome).toEqual({ kind: 'rejected', reason: 'already_enrolled' });
+    expect(
+      await withRealm(app.db, realmId, (tx) =>
+        credentialRepository(tx).listFor(subjectId, 'webauthn'),
+      ),
+    ).toHaveLength(1);
   });
 
   it('refuses a response produced against a different relying party', async () => {

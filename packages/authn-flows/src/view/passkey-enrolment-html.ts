@@ -1,5 +1,11 @@
 import { type PublicKeyCredentialCreationOptionsJSON } from '@simplewebauthn/server';
 
+// Matches LABEL_MAX_LENGTH in #/usecase/passkey-enrolment.ts, which
+// truncates anything longer: the attribute is a courtesy to whoever is
+// typing, not the bound itself, since nothing stops a submission that
+// never rendered this page.
+const LABEL_MAX_LENGTH = 64;
+
 // What an enrolment page has to hand the browser: the creation options the
 // server issued, which name the relying party and carry the challenge.
 export interface PasskeyEnrolmentOffer {
@@ -53,32 +59,45 @@ ${message}<p>Your device will ask you to confirm. Nothing is stored until it doe
 <form method="post" action="${target}" id="passkey-form">
   <input type="hidden" name="auth_session_id" value="${escapeHtml(authSessionId)}">
   <input type="hidden" name="credential" id="passkey-credential">
-  <label>Name this passkey <input type="text" name="label" placeholder="Passkey"></label>
+  <label>Name this passkey <input type="text" name="label" placeholder="Passkey" maxlength="${String(LABEL_MAX_LENGTH)}"></label>
   <button type="submit" id="passkey-submit">Add passkey</button>
 </form>
+<p id="passkey-error" hidden></p>
 <noscript><p>Adding a passkey needs JavaScript, because only the browser can talk to your authenticator.</p></noscript>
 <script>
 const options = ${jsonForScript(offer.options)};
 const form = document.getElementById('passkey-form');
 const field = document.getElementById('passkey-credential');
+const failure = document.getElementById('passkey-error');
 const fromBase64Url = (value) =>
   Uint8Array.from(atob(value.replace(/-/g, '+').replace(/_/g, '/')), (c) => c.charCodeAt(0));
 form.addEventListener('submit', async (event) => {
   if (field.value !== '') return;
   event.preventDefault();
-  const credential = await navigator.credentials.create({
-    publicKey: {
-      ...options,
-      challenge: fromBase64Url(options.challenge),
-      user: { ...options.user, id: fromBase64Url(options.user.id) },
-      excludeCredentials: (options.excludeCredentials ?? []).map((c) => ({
-        ...c,
-        id: fromBase64Url(c.id),
-      })),
-    },
-  });
-  field.value = JSON.stringify(credential.toJSON());
-  form.submit();
+  failure.hidden = true;
+  try {
+    const credential = await navigator.credentials.create({
+      publicKey: {
+        ...options,
+        challenge: fromBase64Url(options.challenge),
+        user: { ...options.user, id: fromBase64Url(options.user.id) },
+        excludeCredentials: (options.excludeCredentials ?? []).map((c) => ({
+          ...c,
+          id: fromBase64Url(c.id),
+        })),
+      },
+    });
+    field.value = JSON.stringify(credential.toJSON());
+    form.submit();
+  } catch (caught) {
+    // Cancelling the operating system's prompt rejects the promise, and so
+    // does an authenticator that will not meet what the options require.
+    // Without this the page simply stops, looking broken rather than
+    // waiting for another go.
+    failure.textContent =
+      'Your device did not finish adding the passkey — ' + (caught && caught.message ? caught.message : 'the request was cancelled') + '. You can try again.';
+    failure.hidden = false;
+  }
 });
 </script>
 </body>
