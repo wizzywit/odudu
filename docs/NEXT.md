@@ -3,7 +3,39 @@
 ## Start here
 
 **P0, P1 and P2a are complete. P2b is brainstormed, specified and planned;
-Tasks 1 through 19 have landed and Task 20 is next.**
+Tasks 1 through 20 have landed and Task 21 is next.**
+
+**Task 20 issues single-use recovery codes.** Ten per subject, each ten
+characters from Crockford's base32 alphabet (2^50 apiece, printed
+`XXXXX-XXXXX`, with `I`/`L`/`O` folded onto the digits on the way in), each
+Argon2id-hashed with the password parameters into its own `recovery-code`
+credential row — migration 0034's `CHECK` already allowed the type, so no
+migration was needed for it. `recoveryCodeShape` in
+`packages/domain-identity/src/service/credential-secret.ts` gained an
+optional `usedAt`, without which every read of a spent code would have
+thrown on a `strictObject`. `credentialRepository.spendRecoveryCode` is the
+compare-and-swap — `usedAt` set only where none is set — and the step
+returns it as `AuthenticatorResult`'s `commit`, so a code is spent after
+`advance`'s subject-binding guard and inside the transaction that succeeds
+the login. The row is kept and marked, never deleted (ADR 0021), which is
+what lets a replay be refused _as spent_: safe only because a recovery code
+is a second factor, so the attempt is already bound to the subject being
+told about their own credential. `BROWSER_FLOW_DEFAULT` gained a fourth
+step, `recovery-code` conditional at index 3, applicable only to a
+submission carrying a code — the same shape as the passkey step, and the
+reason the OTP step stands down for the rest of such an attempt rather than
+asking for a code from the authenticator that was lost; migration
+0040 appends the row to realms provisioned earlier. Completing either
+`configure-totp` or `configure-passkey` now adds `generate-recovery-codes`
+to a subject who holds no codes, and the page that renders them is the only
+place they exist in plaintext: a reload re-enters `beginRecoveryCodes` and
+replaces the set it just displayed. **What this leaves open: a subject
+cannot ask for a fresh set outside the required action.** Self-service
+credential management is the account console, so until then an operator
+deletes the rows to make the action owed again. And `renderLoginForm` now
+takes an optional error string, used by exactly one refusal — a spent
+recovery code; a wrong password still says nothing, so the form has a
+message channel that only one branch fills.
 
 **Task 19 makes a passkey a usernameless first factor.** `src/service/webauthn.ts`
 gained the assertion half: `passkeyAuthenticationOptions` (no

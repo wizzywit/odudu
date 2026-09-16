@@ -1633,7 +1633,7 @@ docker compose -f infra/docker/compose.yaml exec -T postgres \
 ```
 
 ```
-{"created":true,"realm":"otp-demo","realmId":"01a0a9d2-…","clientId":"otp-spa","userSubjectId":"01a0a9d2-…"}
+{"created":true,"realm":"otp-demo","realmId":"01a0aa35-…","clientId":"otp-spa","userSubjectId":"01a0aa35-…"}
 UPDATE 1
 ```
 
@@ -1648,7 +1648,7 @@ which account a code belongs to is not knowable until then.
 curl -sS 'http://localhost:3000/realms/otp-demo/protocol/openid-connect/auth?response_type=code&client_id=otp-spa&redirect_uri=http%3A%2F%2Flocalhost%3A8080%2Fcallback&scope=openid&state=xyz&code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM&code_challenge_method=S256'
 ```
 
-The `auth_session_id` in that form — `01a0a9d2-f8d6-7eb7-9051-de0376e92785`
+The `auth_session_id` in that form — `01a0aa35-2449-7a7d-9cdb-2a4fbcf3b479`
 in this run — is what every request below carries. Posting the correct
 password answers 200 with an enrolment page rather than 302 with a code:
 the password was accepted, and the pending action is what stops the login
@@ -1656,7 +1656,7 @@ from completing (no `set-cookie`, no `code`).
 
 ```bash
 curl -sS -X POST http://localhost:3000/realms/otp-demo/login-actions/authenticate \
-  --data-urlencode 'auth_session_id=01a0a9d2-f8d6-7eb7-9051-de0376e92785' \
+  --data-urlencode 'auth_session_id=01a0aa35-2449-7a7d-9cdb-2a4fbcf3b479' \
   --data-urlencode 'username=ada' \
   --data-urlencode 'password=correct-horse-battery'
 ```
@@ -1674,16 +1674,16 @@ curl -sS -X POST http://localhost:3000/realms/otp-demo/login-actions/authenticat
     <svg …>…</svg>
     <p>
       <code
-        >otpauth://totp/otp-demo:ada?secret=OSBVKWMXQVPZMYIBFDQ667ICIHGOTILG&amp;issuer=otp-demo&amp;algorithm=SHA1&amp;digits=6&amp;period=30</code
+        >otpauth://totp/otp-demo:ada?secret=GFV3AUL43JAOVJNSWIWURHID47L4Y6TR&amp;issuer=otp-demo&amp;algorithm=SHA1&amp;digits=6&amp;period=30</code
       >
     </p>
-    <p>Key: <code>OSBVKWMXQVPZMYIBFDQ667ICIHGOTILG</code></p>
+    <p>Key: <code>GFV3AUL43JAOVJNSWIWURHID47L4Y6TR</code></p>
     <form
       method="post"
       action="/realms/otp-demo/login-actions/required-action?action=configure-totp"
     >
-      <input type="hidden" name="auth_session_id" value="01a0a9d2-f8d6-7eb7-9051-de0376e92785" />
-      <input type="hidden" name="secret" value="OSBVKWMXQVPZMYIBFDQ667ICIHGOTILG" />
+      <input type="hidden" name="auth_session_id" value="01a0aa35-2449-7a7d-9cdb-2a4fbcf3b479" />
+      <input type="hidden" name="secret" value="GFV3AUL43JAOVJNSWIWURHID47L4Y6TR" />
       <label
         >Code from your app
         <input type="text" name="code" inputmode="numeric" autocomplete="one-time-code"
@@ -1709,9 +1709,9 @@ that offers a secret. An abandoned enrolment leaves no row behind at all.
 ```bash
 curl -sS -X POST \
   'http://localhost:3000/realms/otp-demo/login-actions/required-action?action=configure-totp' \
-  --data-urlencode 'auth_session_id=01a0a9d2-f8d6-7eb7-9051-de0376e92785' \
-  --data-urlencode 'secret=OSBVKWMXQVPZMYIBFDQ667ICIHGOTILG' \
-  --data-urlencode 'code=016701'
+  --data-urlencode 'auth_session_id=01a0aa35-2449-7a7d-9cdb-2a4fbcf3b479' \
+  --data-urlencode 'secret=GFV3AUL43JAOVJNSWIWURHID47L4Y6TR' \
+  --data-urlencode 'code=008708'
 ```
 
 ```html
@@ -1723,7 +1723,7 @@ curl -sS -X POST \
   </head>
   <body>
     <form method="post" action="/realms/otp-demo/login-actions/authenticate">
-      <input type="hidden" name="auth_session_id" value="01a0a9d2-f8d6-7eb7-9051-de0376e92785" />
+      <input type="hidden" name="auth_session_id" value="01a0aa35-2449-7a7d-9cdb-2a4fbcf3b479" />
       <label>Username <input type="text" name="username" autocomplete="username" /></label>
       <label
         >Password <input type="password" name="password" autocomplete="current-password"
@@ -1731,7 +1731,7 @@ curl -sS -X POST \
       <button type="submit">Sign in</button>
     </form>
     <form method="post" action="/realms/otp-demo/login-actions/authenticate" id="passkey-form">
-      <input type="hidden" name="auth_session_id" value="01a0a9d2-f8d6-7eb7-9051-de0376e92785" />
+      <input type="hidden" name="auth_session_id" value="01a0aa35-2449-7a7d-9cdb-2a4fbcf3b479" />
       <input type="hidden" name="assertion" id="passkey-assertion" />
       <button type="submit" id="passkey-submit">Sign in with a passkey</button>
     </form>
@@ -1742,7 +1742,7 @@ curl -sS -X POST \
         authenticator. Use your username and password above.
       </p></noscript
     >
-    <script nonce="Oz31+gTtkNouLVjZ106a+Q==">
+    <script nonce="gRKqCdaXjJeDhf3lSeDtrg==">
       const form = document.getElementById('passkey-form');
       const field = document.getElementById('passkey-assertion');
       const failure = document.getElementById('passkey-error');
@@ -1794,19 +1794,19 @@ than a phone:
 ```bash
 node --input-type=module -e "
 import { totpCode, totpCounter } from './packages/crypto/src/service/totp.ts';
-console.log(totpCode('OSBVKWMXQVPZMYIBFDQ667ICIHGOTILG', totpCounter(new Date())));
+console.log(totpCode('GFV3AUL43JAOVJNSWIWURHID47L4Y6TR', totpCounter(new Date())));
 "
 ```
 
 ```
-016701
+008708
 ```
 
 ### The same password now answers with a code form
 
 ```bash
 curl -sS -X POST http://localhost:3000/realms/otp-demo/login-actions/authenticate \
-  --data-urlencode 'auth_session_id=01a0a9d2-f8d6-7eb7-9051-de0376e92785' \
+  --data-urlencode 'auth_session_id=01a0aa35-2449-7a7d-9cdb-2a4fbcf3b479' \
   --data-urlencode 'username=ada' \
   --data-urlencode 'password=correct-horse-battery'
 ```
@@ -1820,16 +1820,24 @@ curl -sS -X POST http://localhost:3000/realms/otp-demo/login-actions/authenticat
   </head>
   <body>
     <form method="post" action="/realms/otp-demo/login-actions/authenticate">
-      <input type="hidden" name="auth_session_id" value="01a0a9d2-f8d6-7eb7-9051-de0376e92785" />
+      <input type="hidden" name="auth_session_id" value="01a0aa35-2449-7a7d-9cdb-2a4fbcf3b479" />
       <label
         >Code from your app
         <input type="text" name="code" inputmode="numeric" autocomplete="one-time-code"
+      /></label>
+      <label
+        >Or a recovery code <input type="text" name="recovery_code" autocomplete="off"
       /></label>
       <button type="submit">Sign in</button>
     </form>
   </body>
 </html>
 ```
+
+The second field is the way back in for somebody whose authenticator is
+gone — [Recovery codes](#recovery-codes) below. It is beside the app's code
+rather than behind a page of its own, because anybody reaching for it has
+already lost what the first field asks for.
 
 There is no username field on it. Which account the code is checked against
 comes from the authentication session, which the password step bound to
@@ -1843,8 +1851,8 @@ answers with the same form again:
 ```bash
 curl -sS -o /dev/null -w '%{http_code}\n' -X POST \
   http://localhost:3000/realms/otp-demo/login-actions/authenticate \
-  --data-urlencode 'auth_session_id=01a0a9d2-f8d6-7eb7-9051-de0376e92785' \
-  --data-urlencode 'code=016701'
+  --data-urlencode 'auth_session_id=01a0aa35-2449-7a7d-9cdb-2a4fbcf3b479' \
+  --data-urlencode 'code=008708'
 ```
 
 ```
@@ -1853,18 +1861,39 @@ curl -sS -o /dev/null -w '%{http_code}\n' -X POST \
 
 RFC 6238 §5.2: a verifier must not accept an OTP twice. The credential
 stores the time step of the last code it accepted, and the enrolment's own
-code spent that step when it created the credential. The next one works:
+code spent that step when it created the credential. The next one is
+accepted — and the login still does not finish, because enrolling the
+factor owed a recovery path for it:
 
 ```bash
 curl -sS -i -X POST http://localhost:3000/realms/otp-demo/login-actions/authenticate \
-  --data-urlencode 'auth_session_id=01a0a9d2-f8d6-7eb7-9051-de0376e92785' \
-  --data-urlencode 'code=893536'
+  --data-urlencode 'auth_session_id=01a0aa35-2449-7a7d-9cdb-2a4fbcf3b479' \
+  --data-urlencode 'code=274217'
+```
+
+```
+HTTP/1.1 200 OK
+content-type: text/html
+content-security-policy: default-src 'none'; frame-ancestors 'none'; form-action 'self'; base-uri 'none'
+x-frame-options: DENY
+content-length: 1077
+```
+
+That page is [Recovery codes](#recovery-codes), which is the rest of this
+walkthrough. Acknowledging it puts the parked login back where it was —
+waiting for a code, with the password it already accepted not asked for
+again — and the next code finishes it:
+
+```bash
+curl -sS -i -X POST http://localhost:3000/realms/otp-demo/login-actions/authenticate \
+  --data-urlencode 'auth_session_id=01a0aa35-2449-7a7d-9cdb-2a4fbcf3b479' \
+  --data-urlencode 'code=370241'
 ```
 
 ```
 HTTP/1.1 302 Found
-set-cookie: otp-demo-session=01a0a9d3-43b7-761f-a3d0-0ce9f1ddfa32; HttpOnly; SameSite=Lax; Path=/
-location: http://localhost:8080/callback?code=gsc--3jbsVZ37j6OwBRUkjjkcqyqLTCVpLHOjqULzw8&state=xyz&iss=http%3A%2F%2Flocalhost%3A3000%2Frealms%2Fotp-demo
+set-cookie: otp-demo-session=01a0aa36-4290-72c0-8d67-f9dd528fbef7; HttpOnly; SameSite=Lax; Path=/
+location: http://localhost:8080/callback?code=nHn7T_IQy7G7VZMbSpTQw1uJ3502TmSEUDXS4Fsyjww&state=xyz&iss=http%3A%2F%2Flocalhost%3A3000%2Frealms%2Fotp-demo
 ```
 
 ### What two factors do to the ID token
@@ -1872,7 +1901,7 @@ location: http://localhost:8080/callback?code=gsc--3jbsVZ37j6OwBRUkjjkcqyqLTCVpL
 ```bash
 curl -sS -X POST http://localhost:3000/realms/otp-demo/protocol/openid-connect/token \
   -d grant_type=authorization_code \
-  -d code=gsc--3jbsVZ37j6OwBRUkjjkcqyqLTCVpLHOjqULzw8 \
+  -d code=nHn7T_IQy7G7VZMbSpTQw1uJ3502TmSEUDXS4Fsyjww \
   -d client_id=otp-spa \
   --data-urlencode 'redirect_uri=http://localhost:8080/callback' \
   -d code_verifier=dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk
@@ -1883,13 +1912,13 @@ base64url segments):
 
 ```json
 {
-  "sub": "01a0a9d2-d2eb-7c63-a777-99e3ef6a3ad3",
+  "sub": "01a0aa35-232d-7902-84a5-aea088b447a9",
   "iss": "http://localhost:3000/realms/otp-demo",
   "aud": "otp-spa",
-  "iat": 1789555597,
-  "exp": 1789555897,
-  "auth_time": 1789555590,
-  "sid": "01a0a9d3-43b7-761f-a3d0-0ce9f1ddfa32",
+  "iat": 1789562086,
+  "exp": 1789562386,
+  "auth_time": 1789562077,
+  "sid": "01a0aa36-4290-72c0-8d67-f9dd528fbef7",
   "amr": ["otp", "pwd"],
   "acr": "2"
 }
@@ -1900,6 +1929,307 @@ server's internal authenticator names, and `acr` is `"2"` — a statement
 about this login, recorded on the session when it was established, not
 re-derived at issuance from what the subject happens to have enrolled by
 then.
+
+## Recovery codes
+
+Enrolling a second factor creates a way to be locked out: lose the phone and
+the password alone no longer signs anybody in. So completing `configure-totp`
+— or `configure-passkey` — adds the `generate-recovery-codes` required
+action to a subject who holds no codes already, and that is the page the
+walkthrough above landed on. A subject who _does_ already hold codes is not
+asked again: a new factor does not invalidate a list they have saved, and
+re-issuing would silently retire the copy on their paper.
+
+Every command and response below was executed against the compose stack,
+continuing the same `otp-demo` realm and the same `auth_session_id`.
+
+### The one time the codes are shown
+
+```bash
+curl -sS -X POST http://localhost:3000/realms/otp-demo/login-actions/authenticate \
+  --data-urlencode 'auth_session_id=01a0aa35-2449-7a7d-9cdb-2a4fbcf3b479' \
+  --data-urlencode 'code=274217'
+```
+
+```html
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Save your recovery codes</title>
+  </head>
+  <body>
+    <h1>Save your recovery codes</h1>
+    <p>
+      Each of these signs you in once, in place of your second factor, if you lose it.
+      <strong>This is the only time they are shown.</strong> Print them or put them in a password
+      manager before you continue — nobody, including an administrator, can show them to you again.
+    </p>
+    <ol>
+      <li><code>XZB27-QRJS3</code></li>
+      <li><code>MQC58-EQHMC</code></li>
+      <li><code>PHF63-AADTM</code></li>
+      <li><code>0Q079-T0GMD</code></li>
+      <li><code>FQN9A-ABDGV</code></li>
+      <li><code>ETKE9-DFE2X</code></li>
+      <li><code>2CCKE-TNQNW</code></li>
+      <li><code>PMMRZ-XJEYF</code></li>
+      <li><code>TPPCV-CAW88</code></li>
+      <li><code>RQ7PY-HWH0W</code></li>
+    </ol>
+    <form
+      method="post"
+      action="/realms/otp-demo/login-actions/required-action?action=generate-recovery-codes"
+    >
+      <input type="hidden" name="auth_session_id" value="01a0aa35-2449-7a7d-9cdb-2a4fbcf3b479" />
+      <button type="submit">I have saved these codes</button>
+    </form>
+  </body>
+</html>
+```
+
+Ten characters each from Crockford's 32-character base32 alphabet, printed
+as two groups of five: 32^10, which is 2^50 per code. The alphabet's
+excluded letters — `I`, `L` and `O` — are the ones a reader confuses with
+`1` and `0`, and a code typed with them is folded onto the digits rather
+than refused (the replay below does exactly that).
+
+**The page is not re-renderable, and that is the whole security property.**
+What the database holds is one credential row per code, carrying an Argon2id
+hash with the same parameters as a password — nothing anywhere holds the
+plaintext, so no later page and no administrator can print these again:
+
+```bash
+docker compose -f infra/docker/compose.yaml exec -T postgres \
+  psql -U odudu -d odudu -c \
+  "SELECT type, left(secret_data->>'hash', 30) AS hash_prefix,
+          secret_data->>'usedAt' AS used_at
+     FROM user_credentials WHERE type = 'recovery-code' LIMIT 3;"
+```
+
+```
+     type      |          hash_prefix           | used_at
+---------------+--------------------------------+---------
+ recovery-code | $argon2id$v=19$m=19456,t=2,p=1 |
+ recovery-code | $argon2id$v=19$m=19456,t=2,p=1 |
+ recovery-code | $argon2id$v=19$m=19456,t=2,p=1 |
+(3 rows)
+```
+
+Reloading the page is therefore not a way to see them twice: the render is a
+`POST` result, and repeating it issues a _different_ ten and retires the set
+it just displayed. Whatever was on the screen the first time is gone either
+way.
+
+The acknowledgement carries no code back — only the session id. It says the
+page was read, and it is what completes the action:
+
+```bash
+curl -sS -X POST \
+  'http://localhost:3000/realms/otp-demo/login-actions/required-action?action=generate-recovery-codes' \
+  --data-urlencode 'auth_session_id=01a0aa35-2449-7a7d-9cdb-2a4fbcf3b479'
+```
+
+```html
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Sign in</title>
+  </head>
+  <body>
+    <form method="post" action="/realms/otp-demo/login-actions/authenticate">
+      <input type="hidden" name="auth_session_id" value="01a0aa35-2449-7a7d-9cdb-2a4fbcf3b479" />
+      <label
+        >Code from your app
+        <input type="text" name="code" inputmode="numeric" autocomplete="one-time-code"
+      /></label>
+      <label
+        >Or a recovery code <input type="text" name="recovery_code" autocomplete="off"
+      /></label>
+      <button type="submit">Sign in</button>
+    </form>
+  </body>
+</html>
+```
+
+The password is not asked for again, unlike the return from the TOTP
+enrolment page above: that enrolment finished the login's first factor and a
+factor that finishes a login is not written down, whereas here the password
+had a second factor after it and therefore was.
+
+### Signing in with one, in place of the second factor
+
+A fresh attempt, and this time the authenticator is gone. The password step
+runs as always; the second factor is answered with a code off the list.
+
+```bash
+curl -sS -i -X POST http://localhost:3000/realms/otp-demo/login-actions/authenticate \
+  --data-urlencode 'auth_session_id=01a0aa36-92bf-70de-90a6-67793526205f' \
+  --data-urlencode 'recovery_code=XZB27-QRJS3'
+```
+
+```
+HTTP/1.1 302 Found
+set-cookie: otp-demo-session=01a0aa36-932d-7548-82b2-dd3fbe855fad; HttpOnly; SameSite=Lax; Path=/
+location: http://localhost:8080/callback?code=wl13yKDWvmou5urFlD7qUmmTtZfMxixw5Bh5jVO_BEI&state=xyz&iss=http%3A%2F%2Flocalhost%3A3000%2Frealms%2Fotp-demo
+```
+
+The same success a password-and-code login gets: a session cookie and a code
+on the redirect. No code from the app was ever submitted, and the login was
+not asked for one — the OTP step stands down for the rest of an attempt that
+presented a recovery code, since somebody who reached for the list cannot
+then produce a code from the authenticator they lost.
+
+The ID token says less about this login than the two-factor one above:
+
+```json
+{
+  "sub": "01a0aa35-232d-7902-84a5-aea088b447a9",
+  "iss": "http://localhost:3000/realms/otp-demo",
+  "aud": "otp-spa",
+  "iat": 1789562104,
+  "exp": 1789562404,
+  "auth_time": 1789562098,
+  "sid": "01a0aa36-932d-7548-82b2-dd3fbe855fad",
+  "amr": ["pwd"],
+  "acr": "2"
+}
+```
+
+`acr` is `"2"` — two factors ran — and `amr` names only one of them.
+Deliberately: RFC 8176's registry has no value that describes a
+pre-generated code off a printed list, and reporting it as `otp` would
+mislead a relying party that reads that value as a live generator. The
+reading note in [docs/protocols/oidc-core.md](protocols/oidc-core.md) has
+the full argument, including why an omission is recoverable where a
+mislabelling is not.
+
+### The same code again is refused _as_ a used code
+
+```bash
+curl -sS -X POST http://localhost:3000/realms/otp-demo/login-actions/authenticate \
+  --data-urlencode 'auth_session_id=01a0aa36-d2f4-737c-ae37-71643124497d' \
+  --data-urlencode 'recovery_code=xzb27 qrjs3'
+```
+
+```html
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Sign in</title>
+  </head>
+  <body>
+    <p>
+      <strong>You have already used that recovery code. Try another one from your list.</strong>
+    </p>
+    <form method="post" action="/realms/otp-demo/login-actions/authenticate">
+      <input type="hidden" name="auth_session_id" value="01a0aa36-d2f4-737c-ae37-71643124497d" />
+      <label
+        >Code from your app
+        <input type="text" name="code" inputmode="numeric" autocomplete="one-time-code"
+      /></label>
+      <label
+        >Or a recovery code <input type="text" name="recovery_code" autocomplete="off"
+      /></label>
+      <button type="submit">Sign in</button>
+    </form>
+  </body>
+</html>
+```
+
+Two things in one response. The code was typed in lower case with a space
+where the hyphen was, and it was still recognised as the same code —
+normalisation folds case, drops anything outside the alphabet, and maps the
+confusable letters onto digits. And the refusal _says_ the code is spent,
+which a wrong code does not:
+
+```bash
+curl -sS -X POST http://localhost:3000/realms/otp-demo/login-actions/authenticate \
+  --data-urlencode 'auth_session_id=01a0aa36-d2f4-737c-ae37-71643124497d' \
+  --data-urlencode 'recovery_code=ZZZZZ-ZZZZZ'
+```
+
+```html
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Sign in</title>
+  </head>
+  <body>
+    <form method="post" action="/realms/otp-demo/login-actions/authenticate">
+      <input type="hidden" name="auth_session_id" value="01a0aa36-d2f4-737c-ae37-71643124497d" />
+      <label
+        >Code from your app
+        <input type="text" name="code" inputmode="numeric" autocomplete="one-time-code"
+      /></label>
+      <label
+        >Or a recovery code <input type="text" name="recovery_code" autocomplete="off"
+      /></label>
+      <button type="submit">Sign in</button>
+    </form>
+  </body>
+</html>
+```
+
+The same form, and no message: which codes a list holds is not something a
+wrong guess gets told. The distinction is safe in the other direction
+because a recovery code is a _second_ factor — by the time one is presented
+the attempt is already bound to a subject, so "you have used that one"
+tells that subject about their own credential and nobody else anything at
+all. It is also the difference between trying the next code and concluding
+the whole list is worthless.
+
+What makes the refusal possible is that the row survives its use, marked
+rather than deleted:
+
+```bash
+docker compose -f infra/docker/compose.yaml exec -T postgres \
+  psql -U odudu -d odudu -c \
+  "SELECT count(*) AS codes, count(secret_data->>'usedAt') AS spent
+     FROM user_credentials WHERE type = 'recovery-code';"
+```
+
+```
+ codes | spent
+-------+-------
+    10 |     1
+(1 row)
+```
+
+Ten rows, one spent, nine still usable. Spending one is a single conditional
+`UPDATE` — it sets `usedAt` only where no `usedAt` is set — so two
+submissions racing the same code serialize on the row and exactly one of
+them signs in; the other is refused, because a read-then-write pair is how
+both would succeed.
+
+### Where the step sits in the flow
+
+```bash
+docker compose -f infra/docker/compose.yaml exec -T postgres \
+  psql -U odudu -d odudu -c \
+  "SELECT index, authenticator, requirement FROM authentication_executions e
+     JOIN realms r ON r.id = e.realm_id WHERE r.name = 'otp-demo' ORDER BY index;"
+```
+
+```
+ index | authenticator | requirement
+-------+---------------+-------------
+     0 | passkey       | alternative
+     1 | password      | alternative
+     2 | otp           | conditional
+     3 | recovery-code | conditional
+```
+
+Last, and conditional. It is applicable only to a submission that actually
+carries a code, which is what keeps it out of the way of the OTP step it
+substitutes for rather than competing with it — the same shape as the
+passkey step, which is applicable only to a submission carrying an
+assertion. A realm provisioned before this step existed gets the row from
+migration `0040_recovery_code_execution.sql`, appended so no realm's
+existing indexes shift.
 
 ## Enrolling a passkey
 
@@ -3980,7 +4310,7 @@ session lifecycle. A citation of either half here means that half.
 
 **Login**
 
-- **Password, TOTP and passkey all sign somebody in.**
+- **Password, TOTP, passkey and recovery codes all sign somebody in.**
   The executor runs a realm's own ordered `authentication_executions`
   (REQUIRED/ALTERNATIVE/CONDITIONAL/DISABLED) through a registry keyed by
   authenticator name, and a login resumes across steps rather than
@@ -3994,6 +4324,18 @@ session lifecycle. A citation of either half here means that half.
   form at a time, so the passkey step is applicable to a submission that
   actually carries an assertion; with nothing submitted the group falls
   through to the password, whose page is what offers the passkey button.
+  `recovery-code` is applicable on the same terms — only to a submission
+  carrying one — which is how it substitutes for the OTP step instead of
+  competing with it ([Recovery codes](#recovery-codes)).
+- **Recovery codes are issued once and shown once.** Ten per subject, each
+  Argon2id-hashed in its own credential row, offered by the
+  `generate-recovery-codes` required action that enrolling either second
+  factor adds. There is no way to see them again and no administrator
+  surface that can print them, by construction rather than by omission.
+  What is not there yet: no way for a subject to ask for a fresh set outside
+  the required action — self-service credential management is **P2b**'s
+  account console, and until it exists a spent list is replaced by an
+  operator deleting the rows so the action is owed again.
 - **Password reset exists; a timing oracle in it does not have a fix yet.**
   Address verification (`GET /realms/{realm}/login-actions/action-token`,
   [Address verification](#address-verification)), self-registration

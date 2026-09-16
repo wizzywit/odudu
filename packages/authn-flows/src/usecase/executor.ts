@@ -18,7 +18,13 @@ import {
   passkeyStep,
   type WebauthnSecret,
 } from '#/service/authenticators/passkey';
-import { OTP, PASSKEY, PASSWORD } from '#/service/authenticators/names';
+import { OTP, PASSKEY, PASSWORD, RECOVERY_CODE } from '#/service/authenticators/names';
+import {
+  recoveryApplicable,
+  recoveryCodeOffered,
+  recoveryStep,
+  type StoredRecoveryCode,
+} from '#/service/authenticators/recovery';
 import { otpApplicable, totpStep, type TotpSecret } from '#/service/authenticators/totp';
 import { assertedCredentialId } from '#/service/webauthn';
 
@@ -93,6 +99,43 @@ async function runOtpStep(
   // own subject — a passkey assertion — must not spend anything until that
   // guard has passed.
   return spent ? outcome : { kind: 'failure', reason: 'invalid_credentials' };
+}
+
+async function storedRecoveryCodesFor(
+  tx: RealmScopedDatabase,
+  subjectId: string,
+): Promise<StoredRecoveryCode[]> {
+  const records = await credentialRepository(tx).listFor(subjectId, 'recovery-code');
+  return records.flatMap((record) =>
+    record.secret.kind === 'recovery-code' ? [{ id: record.id, secret: record.secret }] : [],
+  );
+}
+
+// The subject comes from the authentication session, for the same reason the
+// OTP step's does: a code says which list it was printed from, not who is
+// signing in.
+async function runRecoveryStep(
+  tx: RealmScopedDatabase,
+  input: AdvanceInput,
+  context: StepContext,
+): Promise<AuthenticatorResult> {
+  const { subjectId } = context;
+  const codes = subjectId === null ? [] : await storedRecoveryCodesFor(tx, subjectId);
+  const outcome = await recoveryStep(input, { subjectId, codes });
+  if (outcome.kind !== 'success') return outcome;
+
+  // Deferred rather than written here, even though this step resolves its
+  // codes from the bound subject: spending a code is irreversible and the
+  // whole list is finite, so it happens once `advance` has confirmed the
+  // attempt is this subject's and is going to succeed. A refusal is a code
+  // a concurrent submission spent first, which makes this presentation of
+  // it the second one.
+  const { credentialId } = outcome;
+  return {
+    kind: 'success',
+    subjectId: outcome.subjectId,
+    commit: () => credentialRepository(tx).spendRecoveryCode(credentialId, context.now),
+  };
 }
 
 // The assertion names its own credential, so resolution runs before any
@@ -175,6 +218,7 @@ const AUTHENTICATORS: Record<string, RealmAuthenticatorFn> = {
   [PASSWORD]: runPasswordStep,
   [PASSKEY]: runPasskeyStep,
   [OTP]: runOtpStep,
+  [RECOVERY_CODE]: runRecoveryStep,
 };
 
 // The registry is what can tell an unresolvable authenticator name apart
@@ -191,15 +235,18 @@ export function isRegisteredAuthenticator(name: string): boolean {
 // satisfied, and whether this submission carries a passkey assertion.
 interface FlowFacts {
   hasTotp: boolean;
+  hasRecoveryCodes: boolean;
   otpRequired: boolean;
   satisfied: ReadonlySet<string>;
   assertionOffered: boolean;
+  recoveryCodeOffered: boolean;
 }
 
 interface FactsRequest {
   subjectId: string | null;
   satisfied: ReadonlySet<string>;
   assertionOffered: boolean;
+  recoveryCodeOffered: boolean;
 }
 
 async function flowFacts(
@@ -208,13 +255,21 @@ async function flowFacts(
   request: FactsRequest,
 ): Promise<FlowFacts> {
   const otpRequired = await realmSettingsRepository(tx).otpRequired(realmId);
-  const hasTotp =
-    request.subjectId !== null && (await storedTotpFor(tx, request.subjectId)) !== null;
+  const { subjectId } = request;
+  const hasTotp = subjectId !== null && (await storedTotpFor(tx, subjectId)) !== null;
+  // Only when this submission carries a code: the recovery step is
+  // inapplicable without one, so nothing the count could change is read.
+  const hasRecoveryCodes =
+    request.recoveryCodeOffered &&
+    subjectId !== null &&
+    (await storedRecoveryCodesFor(tx, subjectId)).length > 0;
   return {
     hasTotp,
+    hasRecoveryCodes,
     otpRequired,
     satisfied: request.satisfied,
     assertionOffered: request.assertionOffered,
+    recoveryCodeOffered: request.recoveryCodeOffered,
   };
 }
 
@@ -242,7 +297,22 @@ function isApplicable(authenticator: string, facts: FlowFacts): boolean {
   // into, since nothing here can be satisfied without an assertion the
   // unrendered page would have produced (docs/NEXT.md has the fix).
   if (authenticator === PASSKEY) return facts.assertionOffered;
+  if (authenticator === RECOVERY_CODE) {
+    return recoveryApplicable(
+      { hasRecoveryCodes: facts.hasRecoveryCodes },
+      facts.recoveryCodeOffered,
+      otpApplies(facts),
+      facts.satisfied,
+    );
+  }
   if (authenticator !== OTP) return false;
+  // A recovery code is presented instead of a code from the app, so the OTP
+  // step stands down for the submission that carries one — and stays down
+  // for the rest of the attempt, or a subject who used a recovery code
+  // precisely because they lost their authenticator would then be asked for
+  // a code from it. Expressed here rather than in otpApplicable so
+  // enrolmentOwed below still sees a realm that requires a second factor.
+  if (facts.recoveryCodeOffered || facts.satisfied.has(RECOVERY_CODE)) return false;
   return otpApplies(facts) && facts.hasTotp;
 }
 
@@ -349,6 +419,9 @@ export interface AdvanceInput {
   username?: string;
   password?: string;
   code?: string;
+  // One of the ten single-use codes issued by generate-recovery-codes, as
+  // it was typed — normalised where it is verified, not here.
+  recoveryCode?: string;
   // The JSON navigator.credentials.get() produced, as it arrived.
   assertion?: unknown;
 }
@@ -387,6 +460,7 @@ async function loadFlowContext(
         subjectId: record.subjectId,
         satisfied,
         assertionOffered: assertionOffered(input),
+        recoveryCodeOffered: recoveryCodeOffered(input),
       })
     ).steps,
     satisfied,
@@ -441,6 +515,7 @@ export async function initialChallenge(
     subjectId: null,
     satisfied: new Set(),
     assertionOffered: false,
+    recoveryCodeOffered: false,
   });
   const registry = bindRegistry(tx, {
     subjectId: null,
@@ -563,6 +638,7 @@ export async function advance(
     subjectId,
     satisfied: updatedSatisfied,
     assertionOffered: assertionOffered(input),
+    recoveryCodeOffered: recoveryCodeOffered(input),
   });
   await recordOtpEnrolmentIfOwed(tx, record.realmId, subjectId, facts);
 

@@ -1,11 +1,13 @@
 import {
   renderPasskeyEnrolmentPage,
+  renderRecoveryCodesPage,
   renderRequiredActionPage,
   renderTotpEnrolmentPage,
   sessionCookieName,
   type AuthenticatorResult,
   type PasskeyAuthenticationOffer,
   type PasskeyEnrolmentOffer,
+  type RecoveryCodesOffer,
   type TotpEnrolmentOffer,
 } from '@odudu/authn-flows';
 import { isUuid } from '@odudu/kernel';
@@ -46,6 +48,9 @@ export interface LoginRouteDeps extends LoginSubmissionDeps {
     subjectId: string,
     authSessionId: string,
   ): Promise<PasskeyEnrolmentOffer>;
+  // The ten codes a generate-recovery-codes page shows, written as hashes
+  // before it renders. Asked for only when that action is the one owed.
+  beginRecoveryCodes(realmId: string, subjectId: string): Promise<RecoveryCodesOffer>;
   // The request options the passkey button asks for, and the challenge it
   // parks on this attempt. Absent for the same reason the enrolment half is.
   beginPasskeyAuthentication?(
@@ -123,6 +128,7 @@ export function registerLoginRoute(app: FastifyInstance, deps: LoginRouteDeps): 
     const username = firstString(body.username);
     const password = firstString(body.password);
     const code = firstString(body.code);
+    const recoveryCode = firstString(body.recovery_code);
     const assertion = firstString(body.assertion);
 
     const outcome = await handleLoginSubmission(
@@ -134,6 +140,11 @@ export function registerLoginRoute(app: FastifyInstance, deps: LoginRouteDeps): 
         ...(username !== undefined ? { username } : {}),
         ...(password !== undefined ? { password } : {}),
         ...(code !== undefined ? { code } : {}),
+        // An empty field is not an attempt, for the same reason an empty
+        // assertion is not: the second-factor form carries both inputs, and
+        // a blank recovery code must leave the step to the one that was
+        // actually filled in.
+        ...(recoveryCode === undefined || recoveryCode.length === 0 ? {} : { recoveryCode }),
         // An empty field is not an attempt: a browser with JavaScript off
         // submits the passkey form with nothing in it, and forwarding that
         // would take the step away from the password.
@@ -177,6 +188,7 @@ export function registerLoginRoute(app: FastifyInstance, deps: LoginRouteDeps): 
           outcome.authSessionId,
           form,
           deps.passkeyLogin ?? false,
+          outcome.reason,
         ),
       );
     }
@@ -205,6 +217,17 @@ export function registerLoginRoute(app: FastifyInstance, deps: LoginRouteDeps): 
             reply,
             200,
             renderPasskeyEnrolmentPage(realmName, outcome.authSessionId, offer),
+          );
+        }
+      }
+      if (outcome.action === 'generate-recovery-codes') {
+        const realm = await deps.findRealm(realmName);
+        if (realm !== null) {
+          const offer = await deps.beginRecoveryCodes(realm.id, outcome.subjectId);
+          return sendHtml(
+            reply,
+            200,
+            renderRecoveryCodesPage(realmName, outcome.authSessionId, offer),
           );
         }
       }

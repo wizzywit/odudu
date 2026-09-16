@@ -3,8 +3,10 @@ import {
   authenticationSessionRepository,
   beginPasskeyAuthentication,
   beginPasskeyEnrolment,
+  beginRecoveryCodes,
   beginTotpEnrolment,
   completePasskeyEnrolment,
+  completeRecoveryCodes,
   completeTotpEnrolment,
   consumeAuthenticationSession,
   establishSession,
@@ -227,6 +229,11 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
     const startTotpEnrolment = (realmName: string, realmId: string, subjectId: string) =>
       withRealm(deps.database.db, realmId, (tx) => beginTotpEnrolment(tx, realmName, subjectId));
 
+    // One definition for the same two doors: the login that discovers the
+    // action is owed, and the acknowledgement that has to re-render it.
+    const startRecoveryCodes = (realmId: string, subjectId: string) =>
+      withRealm(deps.database.db, realmId, (tx) => beginRecoveryCodes(tx, { realmId, subjectId }));
+
     // Both halves of passkey enrolment exist only where a relying party can
     // be derived; where it cannot, the routes have nothing to call and say
     // so, rather than naming a domain nobody configured.
@@ -304,6 +311,9 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
         }),
       completeTotpEnrolment: (input) =>
         withRealm(deps.database.db, input.realmId, (tx) => completeTotpEnrolment(tx, input, clock)),
+      beginRecoveryCodes: startRecoveryCodes,
+      completeRecoveryCodes: (input) =>
+        withRealm(deps.database.db, input.realmId, (tx) => completeRecoveryCodes(tx, input)),
     });
     registerLoginRoute(app, {
       findRealm,
@@ -311,6 +321,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
       ...passkeyLogin,
       ...passkeyAssertion,
       beginTotpEnrolment: startTotpEnrolment,
+      beginRecoveryCodes: startRecoveryCodes,
       ...passkeyEnrolment,
       resetAuthenticationProgress: (realmId, authSessionId) =>
         withRealm(deps.database.db, realmId, (tx) =>

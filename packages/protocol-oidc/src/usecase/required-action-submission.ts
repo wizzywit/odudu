@@ -1,5 +1,6 @@
 import {
   type PasskeyEnrolmentOutcome,
+  type RecoveryCodesOutcome,
   type RequiredAction,
   type TotpEnrolmentOutcome,
 } from '@odudu/authn-flows';
@@ -16,9 +17,8 @@ export type RequiredActionOutcome =
   // permission to finish the login that asked for it, never permission to
   // attach a credential nobody asked for.
   | { kind: 'not_owed'; action: string }
-  // An owed action with no submission to satisfy it: generate-recovery-codes
-  // always, and configure-passkey on a deployment with no
-  // ODUDU_PUBLIC_BASE_URL to derive a relying party from.
+  // An owed action with no submission to satisfy it: configure-passkey on a
+  // deployment with no ODUDU_PUBLIC_BASE_URL to derive a relying party from.
   | { kind: 'unsupported'; action: string }
   // The action is done and the parked login is waiting; the caller resumes it.
   | { kind: 'completed'; authSessionId: string }
@@ -57,6 +57,13 @@ export interface RequiredActionSubmissionDeps {
     secret: string;
     code: string;
   }): Promise<TotpEnrolmentOutcome>;
+  // The acknowledgement that the one render of a subject's recovery codes
+  // was seen. It carries no code back — the page that displayed them wrote
+  // their hashes, and this submission only says the page was read.
+  completeRecoveryCodes(input: {
+    realmId: string;
+    subjectId: string;
+  }): Promise<RecoveryCodesOutcome>;
   // Absent when no relying party can be derived — see relyingPartyId in
   // @odudu/authn-flows. A passkey enrolled against a guessed RP ID is
   // unusable and silently so, so the action is reported unsupported rather
@@ -116,6 +123,10 @@ export async function handleRequiredActionSubmission(
     return completePasskey(deps, realm.id, subjectId, authSessionId, submission);
   }
 
+  if (action === 'generate-recovery-codes') {
+    return acknowledgeRecoveryCodes(deps, realm.id, subjectId, authSessionId);
+  }
+
   if (action !== 'configure-totp') {
     return { kind: 'unsupported', action };
   }
@@ -139,6 +150,27 @@ export async function handleRequiredActionSubmission(
     subjectId,
     action: 'configure-totp',
     reason: 'That code did not match. Try the next one your app shows.',
+  };
+}
+
+// The only refusal is none_issued: the acknowledgement arrived for a
+// subject with no codes stored, which is a form submitted without the page
+// that issues them ever having rendered. The remedy is that page, so the
+// rejection re-renders it with a fresh set.
+async function acknowledgeRecoveryCodes(
+  deps: RequiredActionSubmissionDeps,
+  realmId: string,
+  subjectId: string,
+  authSessionId: string,
+): Promise<RequiredActionOutcome> {
+  const outcome = await deps.completeRecoveryCodes({ realmId, subjectId });
+  if (outcome.kind === 'acknowledged') return { kind: 'completed', authSessionId };
+  return {
+    kind: 'rejected',
+    authSessionId,
+    subjectId,
+    action: 'generate-recovery-codes',
+    reason: 'Save these codes before continuing.',
   };
 }
 

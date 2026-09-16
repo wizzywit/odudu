@@ -625,9 +625,9 @@ the end user is present and interacting with the device". `packages/protocol-oid
 `user` — a WebAuthn assertion demonstrates both possession of the
 authenticator's key and the platform's own user-verification step, which is
 why major OIDC providers report passkeys the same way. A synced (software)
-passkey would more accurately be `swk`; Odudu's `passkey` authenticator has
-no runtime yet (`executor.ts`'s `unimplementedAuthenticator`), so which of
-the two is honest is a decision for whoever implements it, not this row.
+passkey would more accurately be `swk`; the `passkey` authenticator cannot
+tell the two apart from an assertion, so `hwk` is what it reports for both
+and a realm that needs the distinction does not get it from this claim.
 
 **`recovery-code` maps to nothing, deliberately — but not because RFC 8176
 excludes it.** The registry's non-exhaustive "include" leaves room for a
@@ -646,12 +646,15 @@ not knowledge the subject inherently holds, so `kba` is no closer — so
 `amrFor` omits it: the same rule that already governs any authenticator
 name the registry has nothing accurate for.
 
-This has a cost worth recording rather than hiding: once `recovery-code`
-has a runtime, a login satisfied by a recovery code alone reports `amr: []`
-— indistinguishable from a login this same code would treat as having no
-factors at all — while `acrFor` still counts it as one satisfied factor
-(`'1'`). The two claims disagree about that login, and nothing here
-resolves it; it is deferred to whoever gives `recovery-code` a runtime.
+`recovery-code` now has a runtime, and what it costs is narrower than this
+note first feared. The step is reachable only as a second factor — it
+substitutes for the OTP step, after a first factor has already bound the
+attempt to a subject — so no login is ever satisfied by a recovery code
+alone, and none reports `amr: []`. What a password-plus-recovery-code login
+reports is `amr: ["pwd"]` with `acr: "2"`: the claims do not contradict each
+other, but `amr` understates the login by naming only one of the two factors
+`acr` counted. A relying party that needs to know a recovery code was used
+cannot learn it from these claims.
 
 **`acr`'s bare digits, and why the SHOULD stays open.** §2 asks that "an
 absolute URI or an RFC 6711 registered name SHOULD be used as the `acr`

@@ -45,6 +45,12 @@ export function renderEmailUnverifiedPage(hasEmail: boolean): string {
 </html>`;
 }
 
+// One of the ten single-use codes a generate-recovery-codes page issued.
+// `autocomplete="off"`: a password manager holding the whole list would
+// offer to fill the same code every time, and each works once.
+const RECOVERY_CODE_FIELD =
+  '<label>Or a recovery code <input type="text" name="recovery_code" autocomplete="off"></label>';
+
 // `form` names the authenticator to render fields for (an authn-flows
 // registry key, e.g. 'password') — not a fixed enum, so a new authenticator
 // adds a case here rather than a schema change.
@@ -55,8 +61,16 @@ function renderFormFields(form: string): string {
   }
   // No username: which account the code is checked against comes from the
   // authentication session the hidden field names, never from this form.
+  // The recovery field sits beside the app's code rather than behind a
+  // second page, because somebody reaching for it has already lost the
+  // thing the first field asks for. Filling either one is a submission;
+  // filling both spends the recovery code, which runs first.
   if (form === 'otp') {
-    return `<label>Code from your app <input type="text" name="code" inputmode="numeric" autocomplete="one-time-code"></label>`;
+    return `<label>Code from your app <input type="text" name="code" inputmode="numeric" autocomplete="one-time-code"></label>
+  ${RECOVERY_CODE_FIELD}`;
+  }
+  if (form === 'recovery-code') {
+    return RECOVERY_CODE_FIELD;
   }
   // Unreachable today: the two authenticators with fields to render are
   // the two above, and a passkey has none — it is offered by
@@ -129,6 +143,9 @@ export function renderLoginForm(
   // id comes from ODUDU_PUBLIC_BASE_URL and nowhere else, so without that
   // there is nothing behind the button.
   passkeyLogin = false,
+  // Shown above the fields when a refusal says something the person at the
+  // form can act on — see LoginSubmissionOutcome's `reject`.
+  error?: string,
 ): RenderedPage {
   const action = `/realms/${escapeHtml(realm)}/login-actions/authenticate`;
   // Beside the password and nowhere else: a passkey is an alternative to
@@ -138,13 +155,14 @@ export function renderLoginForm(
   // carry.
   const nonce = passkeyLogin && form === 'password' ? scriptNonce() : null;
   const passkey = nonce === null ? '' : renderPasskeyOption(realm, authSessionId, nonce);
+  const message = error === undefined ? '' : `<p><strong>${escapeHtml(error)}</strong></p>\n`;
   return {
     script: nonce === null ? null : { nonce, fetchesSameOrigin: true },
     html: `<!doctype html>
 <html lang="en">
 <head><meta charset="utf-8"><title>Sign in</title></head>
 <body>
-<form method="post" action="${action}">
+${message}<form method="post" action="${action}">
   <input type="hidden" name="auth_session_id" value="${escapeHtml(authSessionId)}">
   ${renderFormFields(form)}
   <button type="submit">Sign in</button>

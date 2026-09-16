@@ -246,9 +246,12 @@ describe('enrolling a passkey', () => {
       response: registrationResponse({ challenge: offer.options.challenge }),
     });
     expect(accepted.kind).toBe('enrolled');
+    // configure-passkey is gone, and a recovery path is owed in its place:
+    // a second factor nobody can produce any more is the lockout recovery
+    // codes exist to prevent.
     expect(
       await withRealm(app.db, realmId, (tx) => requiredActionRepository(tx).pendingFor(subjectId)),
-    ).toEqual([]);
+    ).toEqual(['generate-recovery-codes']);
   });
 
   it('enrols a second passkey alongside the first', async () => {

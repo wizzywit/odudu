@@ -150,6 +150,14 @@ async function subjectIdOf(realmId: string): Promise<string> {
   });
 }
 
+function offeredCodes(body: string): string[] {
+  const codes = [
+    ...body.matchAll(/<code>([0-9A-HJKMNP-TV-Z]{5}-[0-9A-HJKMNP-TV-Z]{5})<\/code>/gu),
+  ].map((match) => match[1] ?? '');
+  if (codes.length === 0) throw new Error('no recovery codes on the page');
+  return codes;
+}
+
 function storedTotp(realmId: string, subjectId: string) {
   return withRealm(app.db, realmId, (tx) => credentialRepository(tx).listFor(subjectId, 'totp'));
 }
@@ -217,22 +225,52 @@ describe('enrolling the second factor a realm asked for', () => {
     expect(enrolled.statusCode).toBe(200);
     expect(enrolled.body).toContain('name="password"');
     expect(await storedTotp(realmId, subjectId)).toHaveLength(1);
+    // The factor is enrolled and a recovery path for it is now owed: a
+    // second factor nobody can produce any more is a locked-out account.
     expect(
       await withRealm(app.db, realmId, (tx) => requiredActionRepository(tx).pendingFor(subjectId)),
-    ).toEqual([]);
+    ).toEqual(['generate-recovery-codes']);
 
     // The enrolment's own code spent its time step, so the login's second
     // factor needs the next one.
     clock.advance(31_000);
-    const challenged = await login(realmName, {
+    const secondFactor = await login(realmName, {
       auth_session_id: authSessionId,
       username: USERNAME,
       password: PASSWORD,
     });
-    expect(challenged.statusCode).toBe(200);
-    expect(challenged.body).toContain('name="code"');
-    expect(challenged.body).not.toContain('name="username"');
+    expect(secondFactor.statusCode).toBe(200);
+    expect(secondFactor.body).toContain('name="code"');
+    // Beside the app's code, not behind a second page: somebody reaching
+    // for a recovery code has already lost what the first field asks for.
+    expect(secondFactor.body).toContain('name="recovery_code"');
 
+    // The second factor is satisfied, so now the owed action is reached:
+    // the codes, shown once, with no cookie and no code issued.
+    const codesOwed = await login(realmName, {
+      auth_session_id: authSessionId,
+      code: totpCode(secret, totpCounter(clock.now())),
+    });
+    expect(codesOwed.statusCode).toBe(200);
+    expect(codesOwed.headers['set-cookie']).toBeUndefined();
+    expect(codesOwed.body).toContain('Save your recovery codes');
+    expect(codesOwed.body).toContain('only time they are shown');
+
+    const acknowledged = await enrolmentPost(realmName, 'generate-recovery-codes', {
+      auth_session_id: authSessionId,
+    });
+    expect(acknowledged.statusCode).toBe(200);
+    // The password this attempt already satisfied is not asked for again:
+    // what the parked login is still waiting on is the code.
+    expect(acknowledged.body).toContain('name="code"');
+    expect(acknowledged.body).not.toContain('name="username"');
+    expect(
+      await withRealm(app.db, realmId, (tx) => requiredActionRepository(tx).pendingFor(subjectId)),
+    ).toEqual([]);
+
+    // The code above spent its time step, so the login's second factor
+    // needs the next one (RFC 6238 §5.2).
+    clock.advance(31_000);
     const completed = await login(realmName, {
       auth_session_id: authSessionId,
       code: totpCode(secret, totpCounter(clock.now())),
@@ -324,5 +362,78 @@ describe('enrolling the second factor a realm asked for', () => {
     });
 
     expect(refused.statusCode).toBe(400);
+  });
+});
+
+// The page and the browser are where the difference between "never issued"
+// and "already spent" actually reaches somebody: the flow engine reports
+// them apart, and this is the one path that shows it does.
+describe('signing in with a recovery code instead of the second factor', () => {
+  it('spends a code once, then says that code is spent', async () => {
+    const realmName = `recovery-${newId()}`;
+    const realmId = await setupRealm(realmName, true);
+    const subjectId = await subjectIdOf(realmId);
+    const enrolling = await startAuthSession(realmName);
+
+    const owed = await login(realmName, {
+      auth_session_id: enrolling,
+      username: USERNAME,
+      password: PASSWORD,
+    });
+    const secret = offeredSecret(owed.body);
+    await enrolmentPost(realmName, 'configure-totp', {
+      auth_session_id: enrolling,
+      secret,
+      code: totpCode(secret, totpCounter(clock.now())),
+    });
+    clock.advance(31_000);
+    await login(realmName, { auth_session_id: enrolling, username: USERNAME, password: PASSWORD });
+    const shown = await login(realmName, {
+      auth_session_id: enrolling,
+      code: totpCode(secret, totpCounter(clock.now())),
+    });
+    const codes = offeredCodes(shown.body);
+    expect(codes).toHaveLength(10);
+    await enrolmentPost(realmName, 'generate-recovery-codes', { auth_session_id: enrolling });
+
+    // A fresh attempt: the authenticator is gone, and the code form's second
+    // field is the way back in.
+    const authSessionId = await startAuthSession(realmName);
+    await login(realmName, {
+      auth_session_id: authSessionId,
+      username: USERNAME,
+      password: PASSWORD,
+    });
+    const signedIn = await login(realmName, {
+      auth_session_id: authSessionId,
+      recovery_code: codes[0] ?? '',
+    });
+    expect(signedIn.statusCode).toBe(302);
+    expect(String(signedIn.headers['set-cookie'])).toContain(`${realmName}-session=`);
+    expect(String(signedIn.headers.location)).toContain('code=');
+
+    const replay = await startAuthSession(realmName);
+    await login(realmName, { auth_session_id: replay, username: USERNAME, password: PASSWORD });
+    const refused = await login(realmName, {
+      auth_session_id: replay,
+      recovery_code: codes[0] ?? '',
+    });
+    expect(refused.statusCode).toBe(200);
+    expect(refused.headers['set-cookie']).toBeUndefined();
+    expect(refused.body).toContain('already used that recovery code');
+
+    // An unknown code says nothing of the sort: which codes a list holds is
+    // not something a wrong guess should report on.
+    const unknown = await login(realmName, {
+      auth_session_id: replay,
+      recovery_code: 'ZZZZZ-ZZZZZ',
+    });
+    expect(unknown.statusCode).toBe(200);
+    expect(unknown.body).not.toContain('already used');
+    expect(
+      await withRealm(app.db, realmId, (tx) =>
+        credentialRepository(tx).listFor(subjectId, 'recovery-code'),
+      ),
+    ).toHaveLength(10);
   });
 });

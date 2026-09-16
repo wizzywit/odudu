@@ -143,6 +143,31 @@ function enrolmentPost(realmName: string, fields: Record<string, string>) {
   );
 }
 
+// Enrolling a passkey owes a recovery path for it, so a login that has to
+// get past the enrolment has to get past this too: the page is shown once
+// on the next login, and the acknowledgement clears the action.
+async function acknowledgeRecoveryCodes(
+  realmName: string,
+  authSessionId: string,
+): Promise<string[]> {
+  const shown = await login(realmName, {
+    auth_session_id: authSessionId,
+    username: USERNAME,
+    password: PASSWORD,
+  });
+  expect(shown.statusCode).toBe(200);
+  expect(shown.body).toContain('Save your recovery codes');
+  const codes = [
+    ...shown.body.matchAll(/<code>([0-9A-HJKMNP-TV-Z]{5}-[0-9A-HJKMNP-TV-Z]{5})<\/code>/gu),
+  ].map((match) => match[1] ?? '');
+  const acknowledged = await post(
+    `/realms/${realmName}/login-actions/required-action?action=generate-recovery-codes`,
+    { auth_session_id: authSessionId },
+  );
+  expect(acknowledged.statusCode).toBe(200);
+  return codes;
+}
+
 // The challenge is never in the form; what the page carries is the creation
 // options the browser is meant to pass to navigator.credentials.create, so
 // this is what a browser would read out of the page it was served.
@@ -275,6 +300,14 @@ describe('enrolling a passkey over HTTP', () => {
     expect(stored).toHaveLength(1);
     expect(stored[0]?.label).toBe('Work laptop');
     expect(stored[0]?.lookupKey).toBeTruthy();
+    // The passkey is enrolled, and the recovery path for it is owed in its
+    // place: losing the authenticator is the lockout this prevents.
+    expect(
+      await withRealm(app.db, realmId, (tx) => requiredActionRepository(tx).pendingFor(subjectId)),
+    ).toEqual(['generate-recovery-codes']);
+
+    const codes = await acknowledgeRecoveryCodes(realmName, authSessionId);
+    expect(codes).toHaveLength(10);
     expect(
       await withRealm(app.db, realmId, (tx) => requiredActionRepository(tx).pendingFor(subjectId)),
     ).toEqual([]);
@@ -442,6 +475,7 @@ async function enrolAPasskey(
   });
   expect(enrolled.statusCode).toBe(200);
   expect(await storedPasskeys(realmId, subjectId)).toHaveLength(1);
+  await acknowledgeRecoveryCodes(realmName, authSessionId);
   return authenticator;
 }
 

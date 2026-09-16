@@ -174,10 +174,12 @@ describe('a realm that requires a second factor collects it as a required action
     );
 
     const { secret } = await enrol(realmId, subjectId, clock);
+    // configure-totp is satisfied; what the enrolment leaves behind is the
+    // recovery path for the factor it just created.
     const stillOwed = await withRealm(app.db, realmId, (tx) =>
       requiredActionRepository(tx).pendingFor(subjectId),
     );
-    expect(nextRequiredAction(stillOwed)).toBeNull();
+    expect(nextRequiredAction(stillOwed)).toBe('generate-recovery-codes');
 
     // The enrolment's own code is spent by the credential it created, so a
     // step has to pass before the next login can use one (RFC 6238 §5.2).

@@ -53,7 +53,7 @@ async function seedRealm(realmId: string): Promise<void> {
 }
 
 describe('provisionBrowserFlow', () => {
-  it('gives a freshly provisioned realm exactly the three default executions in order', async () => {
+  it('gives a freshly provisioned realm exactly the default executions in order', async () => {
     const realmId = newId();
     await seedRealm(realmId);
 
@@ -73,7 +73,9 @@ describe('provisionBrowserFlow', () => {
         requirement: execution.requirement,
       })),
     );
-    expect(executions.map((execution) => execution.index)).toEqual([0, 1, 2]);
+    expect(executions.map((execution) => execution.index)).toEqual(
+      BROWSER_FLOW_DEFAULT.map((_, index) => index),
+    );
   });
 });
 
@@ -97,7 +99,9 @@ describe('provisionRealm', () => {
     expect(executions.map((execution) => execution.authenticator)).toEqual(
       BROWSER_FLOW_DEFAULT.map((execution) => execution.authenticator),
     );
-    expect(executions.map((execution) => execution.index)).toEqual([0, 1, 2]);
+    expect(executions.map((execution) => execution.index)).toEqual(
+      BROWSER_FLOW_DEFAULT.map((_, index) => index),
+    );
   });
 });
 

@@ -12,11 +12,15 @@ interface DefaultExecution {
 // A passkey or a password gets a subject through the first group; the OTP
 // step's own applicability — enrolled, or the realm demands it, and never
 // after a passkey, which is already two factors — is decided by the
-// evaluator, not by this list.
+// evaluator, not by this list. The recovery-code step is last and is
+// applicable only to a submission that actually carries a code, which is
+// what lets it substitute for the OTP step without ever competing with it;
+// migration 0040 appends it to realms provisioned before it existed.
 export const BROWSER_FLOW_DEFAULT: readonly DefaultExecution[] = [
   { authenticator: 'passkey', requirement: 'alternative' },
   { authenticator: 'password', requirement: 'alternative' },
   { authenticator: 'otp', requirement: 'conditional' },
+  { authenticator: 'recovery-code', requirement: 'conditional' },
 ];
 
 // Seeds the browser flow alone. Exported so a caller that wants only the

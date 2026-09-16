@@ -2,6 +2,7 @@ import { type RealmScopedDatabase } from '@odudu/db';
 import { credentialRepository, userRepository } from '@odudu/domain-identity';
 import { authenticationSessionRepository } from '#/repository/authentication-sessions';
 import { requiredActionRepository } from '#/repository/required-actions';
+import { oweRecoveryCodesIfNoneHeld } from '#/usecase/recovery-codes';
 import {
   parseRegistrationResponse,
   passkeyRegistrationOptions,
@@ -120,5 +121,6 @@ export async function completePasskeyEnrolment(
     },
   });
   await requiredActionRepository(tx).complete(input.subjectId, 'configure-passkey');
+  await oweRecoveryCodesIfNoneHeld(tx, input.realmId, input.subjectId);
   return { kind: 'enrolled', credentialId: verified.credentialId };
 }

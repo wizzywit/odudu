@@ -281,6 +281,13 @@
       "when": 1789049381682,
       "tag": "0039_authentication_sessions_webauthn_challenge",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1789049381683,
+      "tag": "0040_recovery_code_execution",
+      "breakpoints": true
     }
   ]
 }

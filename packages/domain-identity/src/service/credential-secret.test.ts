@@ -36,6 +36,22 @@ describe('parseCredentialSecret', () => {
     });
   });
 
+  // The shape a spent code carries. A strict object that refused this field
+  // would throw on every read of a used code, which is every read the
+  // "already used" refusal depends on.
+  it('reads a recovery-code secret that has been spent', () => {
+    expect(
+      parseCredentialSecret('recovery-code', {
+        hash: '$argon2id$v=19$rc',
+        usedAt: '2026-09-16T12:00:00.000Z',
+      }),
+    ).toEqual({
+      kind: 'recovery-code',
+      hash: '$argon2id$v=19$rc',
+      usedAt: '2026-09-16T12:00:00.000Z',
+    });
+  });
+
   it('reads a password-history secret', () => {
     expect(parseCredentialSecret('password-history', { hash: '$argon2id$v=19$old' })).toEqual({
       kind: 'password-history',

@@ -56,6 +56,22 @@ export {
   completeTotpEnrolment,
   type TotpEnrolmentOutcome,
 } from '#/usecase/totp-enrolment';
+export {
+  generateRecoveryCodes,
+  normaliseRecoveryCode,
+  recoveryStep,
+  RECOVERY_CODE_ALPHABET,
+  RECOVERY_CODE_COUNT,
+  type RecoveryInput,
+  type RecoveryVerification,
+  type StoredRecoveryCode,
+} from '#/service/authenticators/recovery';
+export {
+  beginRecoveryCodes,
+  completeRecoveryCodes,
+  type RecoveryCodesOutcome,
+} from '#/usecase/recovery-codes';
+export { renderRecoveryCodesPage, type RecoveryCodesOffer } from '#/view/recovery-codes-html';
 export { renderTotpEnrolmentPage, type TotpEnrolmentOffer } from '#/view/totp-enrolment-html';
 export {
   beginPasskeyEnrolment,

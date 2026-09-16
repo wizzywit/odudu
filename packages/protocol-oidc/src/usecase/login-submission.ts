@@ -68,7 +68,12 @@ export async function issueAuthorizationCode(
 
 export type LoginSubmissionOutcome =
   | { kind: 'unauthenticated' }
-  | { kind: 'reject'; authSessionId: string }
+  // `reason` is present only where the refusal says something the person at
+  // the form can act on. A wrong password says nothing on purpose — which
+  // account exists is not theirs to learn — but a spent recovery code is
+  // their own credential, on an attempt already bound to them, and "try the
+  // next one" is the difference between that and abandoning the list.
+  | { kind: 'reject'; authSessionId: string; reason?: string }
   // The password was right, but the realm requires a verified address and
   // this one is not yet. Nothing is established and no code is issued; the
   // authentication session is left unconsumed so the same session can
@@ -221,7 +226,13 @@ export async function handleLoginSubmission(
     return { kind: 'unauthenticated' };
   }
   if (result.kind !== 'success') {
-    return { kind: 'reject', authSessionId };
+    return {
+      kind: 'reject',
+      authSessionId,
+      ...(result.kind === 'failure' && result.reason === 'already_used'
+        ? { reason: 'You have already used that recovery code. Try another one from your list.' }
+        : {}),
+    };
   }
 
   const refusal = await refusedForUnverifiedEmail(deps, realm, result.subjectId);

@@ -1,9 +1,11 @@
 import {
   renderPasskeyEnrolmentPage,
+  renderRecoveryCodesPage,
   renderRequiredActionPage,
   renderTotpEnrolmentPage,
   type AuthenticatorResult,
   type PasskeyEnrolmentOffer,
+  type RecoveryCodesOffer,
   type TotpEnrolmentOffer,
 } from '@odudu/authn-flows';
 import { type FastifyInstance } from 'fastify';
@@ -34,6 +36,10 @@ export interface RequiredActionRouteDeps extends RequiredActionSubmissionDeps {
     subjectId: string,
     authSessionId: string,
   ): Promise<PasskeyEnrolmentOffer>;
+  // Ten fresh codes, written as hashes and returned in plaintext for the
+  // one render of them there will be. Called again on a re-render, which
+  // is why the page it feeds says the codes on it replace any earlier set.
+  beginRecoveryCodes(realmId: string, subjectId: string): Promise<RecoveryCodesOffer>;
   // What the parked login is waiting for now that the action is done —
   // the same call the login route makes to re-render after a rejection.
   pendingChallenge(realmId: string, authSessionId: string): Promise<AuthenticatorResult>;
@@ -113,6 +119,15 @@ export function registerRequiredActionRoute(
         reply,
         200,
         renderLoginForm(realmName, outcome.authSessionId, form, deps.passkeyLogin ?? false),
+      );
+    }
+
+    if (outcome.action === 'generate-recovery-codes') {
+      const offer = await deps.beginRecoveryCodes(realm.id, outcome.subjectId);
+      return sendHtml(
+        reply,
+        200,
+        renderRecoveryCodesPage(realmName, outcome.authSessionId, offer, outcome.reason),
       );
     }
 

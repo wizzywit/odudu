@@ -108,6 +108,34 @@ means an `UPDATE realms SET …` like the account-lifecycle settings above.
 See [the TOTP section of docs/request-paths.md](docs/request-paths.md#two-factor-authentication-with-totp)
 for the walkthrough.
 
+**Enrolling a second factor also asks for ten recovery codes**, because a
+second factor with no recovery path is a locked-out account the first time a
+phone is lost. Completing `configure-totp` or `configure-passkey` adds the
+`generate-recovery-codes` required action to a subject who holds no codes
+already — one who does is not asked again, since a new factor does not
+invalidate a list they have saved. The page that renders the codes is the
+only place they are ever shown: each is Argon2id-hashed with the same
+parameters as a password, one credential row per code, so no later page and
+no administrator can print them again, and reloading that page issues a
+fresh ten and retires the set it just displayed. They are ten characters
+from Crockford's 32-character base32 alphabet — 2^50 each, printed as
+`XXXXX-XXXXX` — and the alphabet's excluded letters (`I`, `L`, `O`) are
+folded onto the digits they resemble, so a code read off paper works either
+way.
+
+**A recovery code then stands in for the second factor, once.** The code
+form carries a second field beside the one asking for the authenticator's
+code, and a submission that fills it spends one code and finishes the login
+(`amr: ["pwd"]`, `acr: "2"` — [the reading
+note](docs/protocols/oidc-core.md) explains why RFC 8176 has no accurate
+value for a recovery code). The spent row is kept and marked used rather
+than deleted, which is what lets the same code presented again be refused
+_as spent_ — a distinction that is safe to make only because a recovery code
+is a second factor, so the attempt is already bound to the subject being
+told about their own credential. Consumption is a single conditional
+`UPDATE`, so two submissions racing the same code produce one login and one
+refusal.
+
 **A subject can also enrol a passkey.** A pending `configure-passkey`
 required action renders a page that calls `navigator.credentials.create()`
 and posts the result back to `POST

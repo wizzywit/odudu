@@ -14,10 +14,11 @@ function escapeHtml(value: string): string {
     .replace(/'/g, '&#39;');
 }
 
-// `configure-totp`, `configure-passkey` and `generate-recovery-codes` have
-// no enrollment UI yet — same gap as the passkey and otp authenticators in
-// #/usecase/executor.ts — so today's page names what is owed without a form
-// to satisfy it.
+// `configure-totp`, `configure-passkey` and `generate-recovery-codes` each
+// have a page of their own (#/view/totp-enrolment-html.ts and its two
+// neighbours), reached before this one; what is left here is
+// `update-password`, and the fallback for a deployment that cannot offer an
+// action at all — no relying party id, and so no passkey to enrol.
 function renderActionFields(action: RequiredAction): string {
   if (action === 'update-password') {
     return `<label>New password <input type="password" name="password" autocomplete="new-password"></label>

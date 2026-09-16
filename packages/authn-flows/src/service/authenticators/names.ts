@@ -7,3 +7,4 @@
 export const PASSWORD = 'password';
 export const PASSKEY = 'passkey';
 export const OTP = 'otp';
+export const RECOVERY_CODE = 'recovery-code';

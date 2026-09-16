@@ -39,9 +39,13 @@ describe('the password-policy violation messages in docs/request-paths.md are on
   it('matches every <li> violation line to a real message', () => {
     const document = loadDocument(GUIDE);
     const possible = possibleMessages();
+    // A policy violation is rendered as plain text in its <li>. The other
+    // list this document shows inside a transcript is the recovery codes,
+    // whose items are `<code>`-wrapped values rather than sentences; they
+    // have their own check in recovery-codes.test.ts.
     const shown = document.lines
       .map((line, index) => ({ text: line.trim(), lineNumber: index + 1 }))
-      .filter(({ text }) => /^<li>.*<\/li>$/u.test(text));
+      .filter(({ text }) => /^<li>(?!<code>).*<\/li>$/u.test(text));
 
     if (shown.length === 0) {
       throw new Error(

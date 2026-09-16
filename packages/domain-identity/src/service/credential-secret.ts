@@ -20,7 +20,11 @@ const webauthnShape = z.strictObject({
   counter: z.number().int(),
   transports: z.array(z.string()),
 });
-const recoveryCodeShape = z.strictObject({ hash: z.string() });
+// usedAt is an ISO 8601 instant, absent until the code is spent. A recovery
+// code is single-use and the row outlives the use (ADR 0021), so "already
+// spent" has to live inside the secret rather than be inferred from
+// last_used_at, which every credential touches on every successful login.
+const recoveryCodeShape = z.strictObject({ hash: z.string(), usedAt: z.string().optional() });
 const passwordHistoryShape = z.strictObject({ hash: z.string() });
 
 export type CredentialSecret =
@@ -92,9 +96,12 @@ function parse<Shape extends z.ZodType>(
 export function serializeCredentialSecret(secret: CredentialSecret): unknown {
   switch (secret.kind) {
     case 'password':
-    case 'recovery-code':
     case 'password-history':
       return { hash: secret.hash };
+    case 'recovery-code':
+      return secret.usedAt === undefined
+        ? { hash: secret.hash }
+        : { hash: secret.hash, usedAt: secret.usedAt };
     case 'totp':
       return { secret: secret.secret, digits: secret.digits, lastStep: secret.lastStep };
     case 'webauthn':

@@ -33,6 +33,7 @@ interface Harness {
   pendingActions: Mock;
   completeTotpEnrolment: Mock;
   completePasskeyEnrolment: Mock;
+  completeRecoveryCodes: Mock;
 }
 
 function harness(): Harness {
@@ -43,6 +44,7 @@ function harness(): Harness {
   const completePasskeyEnrolment = vi
     .fn()
     .mockResolvedValue({ kind: 'enrolled', credentialId: 'credential-1' });
+  const completeRecoveryCodes = vi.fn().mockResolvedValue({ kind: 'acknowledged' });
   return {
     deps: {
       findRealm,
@@ -50,12 +52,14 @@ function harness(): Harness {
       pendingActions,
       completeTotpEnrolment,
       completePasskeyEnrolment,
+      completeRecoveryCodes,
     },
     findRealm,
     boundSubject,
     pendingActions,
     completeTotpEnrolment,
     completePasskeyEnrolment,
+    completeRecoveryCodes,
   };
 }
 
@@ -155,6 +159,35 @@ describe('handleRequiredActionSubmission — who is allowed to act', () => {
 
   it('refuses an owed action this route has no submission for', async () => {
     const { deps, pendingActions, completeTotpEnrolment } = harness();
+    pendingActions.mockResolvedValue(['update-password']);
+
+    const outcome = await handleRequiredActionSubmission(deps, 'acme', {
+      ...SUBMISSION,
+      action: 'update-password',
+    });
+
+    expect(outcome).toEqual({ kind: 'unsupported', action: 'update-password' });
+    expect(completeTotpEnrolment).not.toHaveBeenCalled();
+  });
+
+  // The acknowledgement carries no credential of its own, so the gate is
+  // the whole of its authorization: a subject who was never asked to
+  // generate codes cannot complete the action that writes them.
+  it('refuses an acknowledgement of recovery codes nobody asked for', async () => {
+    const { deps, pendingActions, completeRecoveryCodes } = harness();
+    pendingActions.mockResolvedValue(['configure-totp']);
+
+    const outcome = await handleRequiredActionSubmission(deps, 'acme', {
+      ...SUBMISSION,
+      action: 'generate-recovery-codes',
+    });
+
+    expect(outcome).toEqual({ kind: 'not_owed', action: 'generate-recovery-codes' });
+    expect(completeRecoveryCodes).not.toHaveBeenCalled();
+  });
+
+  it('completes the owed generate-recovery-codes action on acknowledgement', async () => {
+    const { deps, pendingActions, completeRecoveryCodes } = harness();
     pendingActions.mockResolvedValue(['generate-recovery-codes']);
 
     const outcome = await handleRequiredActionSubmission(deps, 'acme', {
@@ -162,8 +195,31 @@ describe('handleRequiredActionSubmission — who is allowed to act', () => {
       action: 'generate-recovery-codes',
     });
 
-    expect(outcome).toEqual({ kind: 'unsupported', action: 'generate-recovery-codes' });
-    expect(completeTotpEnrolment).not.toHaveBeenCalled();
+    expect(outcome).toEqual({ kind: 'completed', authSessionId: AUTH_SESSION_ID });
+    expect(completeRecoveryCodes).toHaveBeenCalledWith({
+      realmId: 'realm-1',
+      subjectId: 'subject-1',
+    });
+  });
+
+  // Nothing was issued, which means the page that writes the hashes never
+  // rendered: the rejection re-renders it with a fresh set rather than
+  // completing an action that protects nobody.
+  it('re-renders the page when the acknowledgement finds no codes stored', async () => {
+    const { deps, pendingActions, completeRecoveryCodes } = harness();
+    pendingActions.mockResolvedValue(['generate-recovery-codes']);
+    completeRecoveryCodes.mockResolvedValue({ kind: 'rejected', reason: 'none_issued' });
+
+    const outcome = await handleRequiredActionSubmission(deps, 'acme', {
+      ...SUBMISSION,
+      action: 'generate-recovery-codes',
+    });
+
+    expect(outcome).toMatchObject({
+      kind: 'rejected',
+      action: 'generate-recovery-codes',
+      subjectId: 'subject-1',
+    });
   });
 
   // No ODUDU_PUBLIC_BASE_URL, so no relying party id, so nothing to
@@ -177,6 +233,7 @@ describe('handleRequiredActionSubmission — who is allowed to act', () => {
       boundSubject: (realmId, authSessionId) => deps.boundSubject(realmId, authSessionId),
       pendingActions: (realmId, subjectId) => deps.pendingActions(realmId, subjectId),
       completeTotpEnrolment: (input) => deps.completeTotpEnrolment(input),
+      completeRecoveryCodes: (input) => deps.completeRecoveryCodes(input),
     };
 
     const outcome = await handleRequiredActionSubmission(withoutPasskeys, 'acme', {

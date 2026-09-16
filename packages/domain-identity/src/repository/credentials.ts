@@ -143,6 +143,43 @@ export function credentialRepository(tx: RealmScopedDatabase) {
       return rows.length > 0;
     },
 
+    // A recovery code is single-use, so the write is the decision and not a
+    // record of one — the same compare-and-swap shape as recordTotpUse, for
+    // the same reason: two submissions of one code serialize on the row and
+    // the second finds a usedAt already set. The row is kept and marked
+    // rather than deleted (ADR 0021), which is what lets a replay be refused
+    // as a spent code instead of an unknown one. Returns whether this call
+    // is the one that spent it; false is an authentication failure, not a
+    // missing credential.
+    async spendRecoveryCode(id: string, at: Date): Promise<boolean> {
+      const rows = await tx
+        .update(userCredentials)
+        .set({
+          secretData: sql`jsonb_set(${userCredentials.secretData}, '{usedAt}', to_jsonb(${at.toISOString()}::text))`,
+          lastUsedAt: at,
+        })
+        .where(
+          and(
+            eq(userCredentials.id, id),
+            eq(userCredentials.type, 'recovery-code'),
+            sql`${userCredentials.secretData}->>'usedAt' IS NULL`,
+          ),
+        )
+        .returning();
+      return rows.length > 0;
+    },
+
+    // Regenerating a set of recovery codes replaces it: the old ten stop
+    // working the moment the new ten are shown, spent or not. Returns how
+    // many rows went, so a caller can tell a replacement from a first issue.
+    async deleteFor(subjectId: string, type: CredentialType): Promise<number> {
+      const rows = await tx
+        .delete(userCredentials)
+        .where(and(eq(userCredentials.subjectId, subjectId), eq(userCredentials.type, type)))
+        .returning({ id: userCredentials.id });
+      return rows.length;
+    },
+
     async deleteOne(id: string): Promise<void> {
       const rows = await tx.delete(userCredentials).where(eq(userCredentials.id, id)).returning();
       const row = rows[0];
