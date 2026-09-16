@@ -1,4 +1,5 @@
 import { type CredentialSecret } from '@odudu/domain-identity';
+import { PASSKEY } from '#/service/authenticators/names';
 import { parseAuthenticationResponse, verifyPasskeyAssertion } from '#/service/webauthn';
 
 export type WebauthnSecret = Extract<CredentialSecret, { kind: 'webauthn' }>;
@@ -38,12 +39,21 @@ export function counterAdvanced(stored: number, asserted: number): boolean {
   return asserted > stored;
 }
 
+// Whether this submission is answering the passkey step at all. An empty
+// field is not an answer: a browser with JavaScript off submits the passkey
+// form with nothing in it, and reading that as an attempt would take the
+// step away from the password and refuse a login nobody could complete.
+export function assertionOffered(input: PasskeyInput): boolean {
+  if (input.assertion === undefined || input.assertion === null) return false;
+  return !(typeof input.assertion === 'string' && input.assertion.length === 0);
+}
+
 export async function passkeyStep(
   input: PasskeyInput,
   verification: PasskeyVerification,
 ): Promise<PasskeyStepOutcome> {
-  if (input.assertion === undefined) {
-    return { kind: 'challenge', form: 'passkey' };
+  if (!assertionOffered(input)) {
+    return { kind: 'challenge', form: PASSKEY };
   }
 
   const response = parseAuthenticationResponse(input.assertion);

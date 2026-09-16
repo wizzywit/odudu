@@ -25,7 +25,16 @@ what `FACTOR_COUNT` counts it as, so `otp_required` is a floor, not a tax.
 `passkey` shares an ALTERNATIVE group with `password` and a group offers one
 form at a time, so the passkey step is applicable to a submission that
 actually carries an assertion; with nothing submitted the group falls
-through to `password`, whose page carries the button. `AuthenticatorResult`'s
+through to `password`, whose page carries the button. **The failure mode
+that buys: a realm that disables `password` and keeps only `passkey` answers
+`no_applicable_execution` at `/authorize` and cannot be signed into at
+all** — nothing makes the passkey step applicable except already holding an
+assertion, and the only page that could produce one is never rendered. No
+realm `provisionRealm` creates is in that state, and any realm that keeps
+`password` applicable is unaffected. The fix is to let a challenge name
+every applicable member of its group rather than the first, which changes
+`nextStep` and `AuthenticatorResult`, so it is its own increment rather than
+a widening of this one. `AuthenticatorResult`'s
 success variant grew an optional `commit`, run by `advance` **after** the
 subject-mismatch guard — a factor that names its own subject must not move
 any state until the attempt is known to be that subject's.

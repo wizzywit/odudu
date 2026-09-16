@@ -489,7 +489,7 @@ curl -sS -D - --get \
 ```
 HTTP/1.1 200 OK
 content-type: text/html
-content-length: 2202
+content-length: 2369
 
 <!doctype html>
 <html lang="en">
@@ -507,7 +507,8 @@ content-length: 2202
   <button type="submit" id="passkey-submit">Sign in with a passkey</button>
 </form>
 <p id="passkey-error" hidden></p>
-<script nonce="gHWd47mjR58INKh6h3LFuA==">
+<noscript><p>Signing in with a passkey needs JavaScript, because only the browser can talk to your authenticator. Use your username and password above.</p></noscript>
+<script nonce="Q2tArwm1PPmjG9DGWoq76g==">
 const form = document.getElementById('passkey-form');
 const field = document.getElementById('passkey-assertion');
 const failure = document.getElementById('passkey-error');
@@ -542,14 +543,31 @@ form.addEventListener('submit', async (event) => {
 ```
 
 (`auth_session_id`, the script's `nonce`, and the `x-request-id` and `Date`
-headers differ per run.)
+headers differ per run. The `Content-Security-Policy` and `X-Frame-Options`
+headers are elided above and shown below.)
 
 The second form is the passkey one, and it has no username field of its
 own: see [Signing in with a passkey](#signing-in-with-a-passkey-and-no-username).
-The script is inline because only a script can reach an authenticator, and
-the response's `Content-Security-Policy` names that one `nonce` and nothing
-else — no `unsafe-inline`, so an injected script on this page still runs
-nowhere. This form appears only where `ODUDU_PUBLIC_BASE_URL` is set.
+It appears only where `ODUDU_PUBLIC_BASE_URL` is set, and only beside the
+password — a passkey is an alternative to a first factor, not to a code
+asked for after one, so the code form further down carries no script and no
+`script-src` with it.
+
+The script is inline because only a script can reach an authenticator, so
+this is the one page whose policy is not `default-src 'none'` alone
+(ADR 0018's amendment):
+
+```
+content-security-policy: default-src 'none'; frame-ancestors 'none'; form-action 'self'; base-uri 'none'; script-src 'nonce-Q2tArwm1PPmjG9DGWoq76g=='; connect-src 'self'
+```
+
+That `nonce` is the one on the `<script>` element in the body above, minted
+per response by whatever renders the page, so the header and the element
+cannot name different values. `'unsafe-inline'` is deliberately absent: an
+injected script on this page still runs nowhere. `connect-src 'self'` is
+there for the one request the script makes — the passkey enrolment page,
+which is handed its options inline and fetches nothing, is sent no
+`connect-src` at all.
 
 **What the client does next:** nothing. The user-agent is now on Odudu's own
 page. The client waits at its redirect URI.
@@ -1614,7 +1632,7 @@ docker compose -f infra/docker/compose.yaml exec -T postgres \
 ```
 
 ```
-{"created":true,"realm":"otp-demo","realmId":"01a0a996-…","clientId":"otp-spa","userSubjectId":"01a0a996-…"}
+{"created":true,"realm":"otp-demo","realmId":"01a0a9d2-…","clientId":"otp-spa","userSubjectId":"01a0a9d2-…"}
 UPDATE 1
 ```
 
@@ -1629,7 +1647,7 @@ which account a code belongs to is not knowable until then.
 curl -sS 'http://localhost:3000/realms/otp-demo/protocol/openid-connect/auth?response_type=code&client_id=otp-spa&redirect_uri=http%3A%2F%2Flocalhost%3A8080%2Fcallback&scope=openid&state=xyz&code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM&code_challenge_method=S256'
 ```
 
-The `auth_session_id` in that form — `01a0a998-8326-7900-8fa6-dd06b842b269`
+The `auth_session_id` in that form — `01a0a9d2-f8d6-7eb7-9051-de0376e92785`
 in this run — is what every request below carries. Posting the correct
 password answers 200 with an enrolment page rather than 302 with a code:
 the password was accepted, and the pending action is what stops the login
@@ -1637,7 +1655,7 @@ from completing (no `set-cookie`, no `code`).
 
 ```bash
 curl -sS -X POST http://localhost:3000/realms/otp-demo/login-actions/authenticate \
-  --data-urlencode 'auth_session_id=01a0a998-8326-7900-8fa6-dd06b842b269' \
+  --data-urlencode 'auth_session_id=01a0a9d2-f8d6-7eb7-9051-de0376e92785' \
   --data-urlencode 'username=ada' \
   --data-urlencode 'password=correct-horse-battery'
 ```
@@ -1655,16 +1673,16 @@ curl -sS -X POST http://localhost:3000/realms/otp-demo/login-actions/authenticat
     <svg …>…</svg>
     <p>
       <code
-        >otpauth://totp/otp-demo:ada?secret=I5SEMRG3LEX2G4WFYZSPCKWZ4DV6M2TR&amp;issuer=otp-demo&amp;algorithm=SHA1&amp;digits=6&amp;period=30</code
+        >otpauth://totp/otp-demo:ada?secret=OSBVKWMXQVPZMYIBFDQ667ICIHGOTILG&amp;issuer=otp-demo&amp;algorithm=SHA1&amp;digits=6&amp;period=30</code
       >
     </p>
-    <p>Key: <code>I5SEMRG3LEX2G4WFYZSPCKWZ4DV6M2TR</code></p>
+    <p>Key: <code>OSBVKWMXQVPZMYIBFDQ667ICIHGOTILG</code></p>
     <form
       method="post"
       action="/realms/otp-demo/login-actions/required-action?action=configure-totp"
     >
-      <input type="hidden" name="auth_session_id" value="01a0a998-8326-7900-8fa6-dd06b842b269" />
-      <input type="hidden" name="secret" value="I5SEMRG3LEX2G4WFYZSPCKWZ4DV6M2TR" />
+      <input type="hidden" name="auth_session_id" value="01a0a9d2-f8d6-7eb7-9051-de0376e92785" />
+      <input type="hidden" name="secret" value="OSBVKWMXQVPZMYIBFDQ667ICIHGOTILG" />
       <label
         >Code from your app
         <input type="text" name="code" inputmode="numeric" autocomplete="one-time-code"
@@ -1690,9 +1708,9 @@ that offers a secret. An abandoned enrolment leaves no row behind at all.
 ```bash
 curl -sS -X POST \
   'http://localhost:3000/realms/otp-demo/login-actions/required-action?action=configure-totp' \
-  --data-urlencode 'auth_session_id=01a0a998-8326-7900-8fa6-dd06b842b269' \
-  --data-urlencode 'secret=I5SEMRG3LEX2G4WFYZSPCKWZ4DV6M2TR' \
-  --data-urlencode 'code=077026'
+  --data-urlencode 'auth_session_id=01a0a9d2-f8d6-7eb7-9051-de0376e92785' \
+  --data-urlencode 'secret=OSBVKWMXQVPZMYIBFDQ667ICIHGOTILG' \
+  --data-urlencode 'code=016701'
 ```
 
 ```html
@@ -1704,7 +1722,7 @@ curl -sS -X POST \
   </head>
   <body>
     <form method="post" action="/realms/otp-demo/login-actions/authenticate">
-      <input type="hidden" name="auth_session_id" value="01a0a998-8326-7900-8fa6-dd06b842b269" />
+      <input type="hidden" name="auth_session_id" value="01a0a9d2-f8d6-7eb7-9051-de0376e92785" />
       <label>Username <input type="text" name="username" autocomplete="username" /></label>
       <label
         >Password <input type="password" name="password" autocomplete="current-password"
@@ -1712,12 +1730,18 @@ curl -sS -X POST \
       <button type="submit">Sign in</button>
     </form>
     <form method="post" action="/realms/otp-demo/login-actions/authenticate" id="passkey-form">
-      <input type="hidden" name="auth_session_id" value="01a0a998-8326-7900-8fa6-dd06b842b269" />
+      <input type="hidden" name="auth_session_id" value="01a0a9d2-f8d6-7eb7-9051-de0376e92785" />
       <input type="hidden" name="assertion" id="passkey-assertion" />
       <button type="submit" id="passkey-submit">Sign in with a passkey</button>
     </form>
     <p id="passkey-error" hidden></p>
-    <script nonce="22Sg9TLEnW03/9AL9AnCHA==">
+    <noscript
+      ><p>
+        Signing in with a passkey needs JavaScript, because only the browser can talk to your
+        authenticator. Use your username and password above.
+      </p></noscript
+    >
+    <script nonce="Oz31+gTtkNouLVjZ106a+Q==">
       const form = document.getElementById('passkey-form');
       const field = document.getElementById('passkey-assertion');
       const failure = document.getElementById('passkey-error');
@@ -1769,19 +1793,19 @@ than a phone:
 ```bash
 node --input-type=module -e "
 import { totpCode, totpCounter } from './packages/crypto/src/service/totp.ts';
-console.log(totpCode('I5SEMRG3LEX2G4WFYZSPCKWZ4DV6M2TR', totpCounter(new Date())));
+console.log(totpCode('OSBVKWMXQVPZMYIBFDQ667ICIHGOTILG', totpCounter(new Date())));
 "
 ```
 
 ```
-077026
+016701
 ```
 
 ### The same password now answers with a code form
 
 ```bash
 curl -sS -X POST http://localhost:3000/realms/otp-demo/login-actions/authenticate \
-  --data-urlencode 'auth_session_id=01a0a998-8326-7900-8fa6-dd06b842b269' \
+  --data-urlencode 'auth_session_id=01a0a9d2-f8d6-7eb7-9051-de0376e92785' \
   --data-urlencode 'username=ada' \
   --data-urlencode 'password=correct-horse-battery'
 ```
@@ -1795,7 +1819,7 @@ curl -sS -X POST http://localhost:3000/realms/otp-demo/login-actions/authenticat
   </head>
   <body>
     <form method="post" action="/realms/otp-demo/login-actions/authenticate">
-      <input type="hidden" name="auth_session_id" value="01a0a998-8326-7900-8fa6-dd06b842b269" />
+      <input type="hidden" name="auth_session_id" value="01a0a9d2-f8d6-7eb7-9051-de0376e92785" />
       <label
         >Code from your app
         <input type="text" name="code" inputmode="numeric" autocomplete="one-time-code"
@@ -1818,8 +1842,8 @@ answers with the same form again:
 ```bash
 curl -sS -o /dev/null -w '%{http_code}\n' -X POST \
   http://localhost:3000/realms/otp-demo/login-actions/authenticate \
-  --data-urlencode 'auth_session_id=01a0a998-8326-7900-8fa6-dd06b842b269' \
-  --data-urlencode 'code=077026'
+  --data-urlencode 'auth_session_id=01a0a9d2-f8d6-7eb7-9051-de0376e92785' \
+  --data-urlencode 'code=016701'
 ```
 
 ```
@@ -1832,14 +1856,14 @@ code spent that step when it created the credential. The next one works:
 
 ```bash
 curl -sS -i -X POST http://localhost:3000/realms/otp-demo/login-actions/authenticate \
-  --data-urlencode 'auth_session_id=01a0a998-8326-7900-8fa6-dd06b842b269' \
-  --data-urlencode 'code=454353'
+  --data-urlencode 'auth_session_id=01a0a9d2-f8d6-7eb7-9051-de0376e92785' \
+  --data-urlencode 'code=893536'
 ```
 
 ```
 HTTP/1.1 302 Found
-set-cookie: otp-demo-session=01a0a999-2113-7960-8b78-8aaff2c4252b; HttpOnly; SameSite=Lax; Path=/
-location: http://localhost:8080/callback?code=SHSqSWTm8WQvXxkm09E3tPF4Vrsz4PsoJDf-1mlFjXc&state=xyz&iss=http%3A%2F%2Flocalhost%3A3000%2Frealms%2Fotp-demo
+set-cookie: otp-demo-session=01a0a9d3-43b7-761f-a3d0-0ce9f1ddfa32; HttpOnly; SameSite=Lax; Path=/
+location: http://localhost:8080/callback?code=gsc--3jbsVZ37j6OwBRUkjjkcqyqLTCVpLHOjqULzw8&state=xyz&iss=http%3A%2F%2Flocalhost%3A3000%2Frealms%2Fotp-demo
 ```
 
 ### What two factors do to the ID token
@@ -1847,7 +1871,7 @@ location: http://localhost:8080/callback?code=SHSqSWTm8WQvXxkm09E3tPF4Vrsz4PsoJD
 ```bash
 curl -sS -X POST http://localhost:3000/realms/otp-demo/protocol/openid-connect/token \
   -d grant_type=authorization_code \
-  -d code=SHSqSWTm8WQvXxkm09E3tPF4Vrsz4PsoJDf-1mlFjXc \
+  -d code=gsc--3jbsVZ37j6OwBRUkjjkcqyqLTCVpLHOjqULzw8 \
   -d client_id=otp-spa \
   --data-urlencode 'redirect_uri=http://localhost:8080/callback' \
   -d code_verifier=dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk
@@ -1858,13 +1882,13 @@ base64url segments):
 
 ```json
 {
-  "sub": "01a0a996-c78b-75bf-843a-256c17566fcd",
+  "sub": "01a0a9d2-d2eb-7c63-a777-99e3ef6a3ad3",
   "iss": "http://localhost:3000/realms/otp-demo",
   "aud": "otp-spa",
-  "iat": 1789551788,
-  "exp": 1789552088,
-  "auth_time": 1789551780,
-  "sid": "01a0a999-2113-7960-8b78-8aaff2c4252b",
+  "iat": 1789555597,
+  "exp": 1789555897,
+  "auth_time": 1789555590,
+  "sid": "01a0a9d3-43b7-761f-a3d0-0ce9f1ddfa32",
   "amr": ["otp", "pwd"],
   "acr": "2"
 }
@@ -1920,7 +1944,9 @@ What the flow is, stated rather than shown:
 5. The page's script is inline, because only a script can reach an
    authenticator. The response's `Content-Security-Policy` names a
    per-response `nonce` and that script carries it — not `unsafe-inline`, so
-   an injected script on this page still runs nowhere.
+   an injected script on this page still runs nowhere. No `connect-src`:
+   this page is handed its options inline and fetches nothing, unlike the
+   login page's passkey script.
 
 Refused, each for its own reason:
 
@@ -1948,6 +1974,13 @@ beside the password fields, and pressing it asks for nothing typed:
   <input type="hidden" name="assertion" id="passkey-assertion" />
   <button type="submit" id="passkey-submit">Sign in with a passkey</button>
 </form>
+<p id="passkey-error" hidden></p>
+<noscript>
+  <p>
+    Signing in with a passkey needs JavaScript, because only the browser can talk to your
+    authenticator. Use your username and password above.
+  </p>
+</noscript>
 ```
 
 That button is on the `/authorize` response shown in
@@ -1955,6 +1988,13 @@ That button is on the `/authorize` response shown in
 as the username and password, so a realm offers both and the person chooses.
 It is rendered only where `ODUDU_PUBLIC_BASE_URL` is set; without it there
 is no relying party id and nothing behind the button, so there is no button.
+
+The `<noscript>` is not decoration. The `assertion` field is empty until a
+script fills it, and a browser with JavaScript off can still press that
+button — so an empty field is treated as **no attempt at all** rather than a
+failed one, and the login falls through to the password exactly as if the
+button had not been pressed. Reading it as an attempt would hand the
+ALTERNATIVE group to a factor nobody could satisfy.
 
 **No transcript here was executed, and this document does not show output
 for it.** The same limit applies as to

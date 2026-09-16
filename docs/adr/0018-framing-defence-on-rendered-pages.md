@@ -86,13 +86,21 @@ error.
 `default-src 'none'` therefore no longer describes every page, and the two
 sentences above that say it does are historical. The policy now:
 
-- Pages with no script of their own are unchanged, byte for byte. That is
-  still every page but two.
-- A page that must run a script is served with `script-src 'nonce-<value>'`
-  and `connect-src 'self'`, where the nonce is 16 random bytes generated per
-  response and carried on that one `<script>` element. `default-src 'none'`
-  stays, and the two directives narrow what it would otherwise forbid rather
-  than widening it for anything else: no stylesheet, no image, no frame.
+- A response whose page carries no script of its own is unchanged, byte for
+  byte. `default-src 'none'` still describes it exactly, and that includes
+  the login form's own variants that render no button — a directive
+  licensing a script nobody put there has stopped describing the page just
+  as surely as a missing one.
+- A page that must run a script is served with `script-src 'nonce-<value>'`,
+  where the nonce is 16 random bytes generated per response and carried on
+  that one `<script>` element. `default-src 'none'` stays, and the directive
+  narrows what it would otherwise forbid rather than widening anything else:
+  no stylesheet, no image, no frame.
+- `connect-src 'self'` is sent **only** where that script makes a request.
+  The login page's passkey script asks for assertion options; the enrolment
+  page is handed its creation options inline and fetches nothing, so it gets
+  no `connect-src` at all. The two directives are two separate needs and are
+  decided separately.
 - `'unsafe-inline'` is rejected. It licenses every inline script on the
   page, including one that arrived through an escaping failure in the
   renderer, which is precisely the blast radius `default-src 'none'` was
@@ -101,11 +109,20 @@ sentences above that say it does are historical. The policy now:
 - The nonce is per response, never reused and never derived from anything —
   a nonce a second page could predict is a nonce injected markup can carry.
 
-Since a CSP violation cannot be observed from a response, the pin is the
-agreement between the two halves: a test asserts that the nonce in the
-header is the nonce on the element, for each page that has a script. That is
-checkable without a browser; "the script actually ran" is not, and remains
-the gap this amendment exists to name.
+**The page decides, not the caller.** A renderer returns its markup together
+with the nonce that markup carries and whether its script fetches; the
+send-path derives the header from that one value. A caller that mints a
+nonce, hands it to a renderer and then hands it to the header separately has
+two chances to disagree, at every call site — and that divergence reproduces
+exactly the inert page this amendment exists because of. It cannot be
+expressed now.
+
+Since a CSP violation cannot be observed from a response, the checkable pin
+is the agreement between the two halves: a test asserts that the nonce in
+the header is the nonce on the element, for **every** page that carries a
+script — the login form and the enrolment page — and that a page with no
+script is sent no `script-src`. That is checkable without a browser; "the
+script actually ran" is not, and remains the gap this amendment names.
 
 ## Alternatives rejected
 

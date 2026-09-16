@@ -16,7 +16,7 @@ import {
   renderEmailUnverifiedPage,
   renderLoginForm,
 } from '#/view/authorize-html';
-import { scriptNonce, sendHtml } from '#/view/html-response';
+import { sendHtml } from '#/view/html-response';
 import { issuerBaseFor } from '#/view/issuer';
 
 export interface LoginRouteDeps extends LoginSubmissionDeps {
@@ -93,6 +93,11 @@ export function registerLoginRoute(app: FastifyInstance, deps: LoginRouteDeps): 
     async (request, reply) => {
       const authSessionId = firstString(request.body.auth_session_id);
       const realm = await deps.findRealm(request.params.realm);
+      // No existence check on the attempt, deliberately: the id is the
+      // unguessable value that CSRF-protects this whole path, and parking a
+      // challenge against an id no row has updates nothing. An assertion
+      // answering it then finds no challenge, which is the same refusal a
+      // replay gets.
       // Shape-checked here, for the reason handleLoginSubmission gives: this
       // writes a challenge against the id, so a value Postgres cannot parse
       // as a uuid would raise rather than update nothing.
@@ -129,7 +134,12 @@ export function registerLoginRoute(app: FastifyInstance, deps: LoginRouteDeps): 
         ...(username !== undefined ? { username } : {}),
         ...(password !== undefined ? { password } : {}),
         ...(code !== undefined ? { code } : {}),
-        ...(assertion === undefined ? {} : { assertion: parseAssertion(assertion) }),
+        // An empty field is not an attempt: a browser with JavaScript off
+        // submits the passkey form with nothing in it, and forwarding that
+        // would take the step away from the password.
+        ...(assertion === undefined || assertion.length === 0
+          ? {}
+          : { assertion: parseAssertion(assertion) }),
       },
     );
 
@@ -159,12 +169,15 @@ export function registerLoginRoute(app: FastifyInstance, deps: LoginRouteDeps): 
       const pending =
         realm === null ? null : await deps.pendingChallenge(realm.id, outcome.authSessionId);
       const form = pending?.kind === 'challenge' ? pending.form : FALLBACK_FORM;
-      const nonce = deps.passkeyLogin === true ? scriptNonce() : null;
       return sendHtml(
         reply,
         200,
-        renderLoginForm(request.params.realm, outcome.authSessionId, form, nonce),
-        nonce ?? undefined,
+        renderLoginForm(
+          request.params.realm,
+          outcome.authSessionId,
+          form,
+          deps.passkeyLogin ?? false,
+        ),
       );
     }
 
@@ -188,12 +201,10 @@ export function registerLoginRoute(app: FastifyInstance, deps: LoginRouteDeps): 
             outcome.subjectId,
             outcome.authSessionId,
           );
-          const nonce = scriptNonce();
           return sendHtml(
             reply,
             200,
-            renderPasskeyEnrolmentPage(realmName, outcome.authSessionId, offer, undefined, nonce),
-            nonce,
+            renderPasskeyEnrolmentPage(realmName, outcome.authSessionId, offer),
           );
         }
       }

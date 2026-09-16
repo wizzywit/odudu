@@ -1,3 +1,4 @@
+import { scriptNonce, type RenderedPage } from '@odudu/kernel';
 import { type PublicKeyCredentialCreationOptionsJSON } from '@simplewebauthn/server';
 
 // Matches LABEL_MAX_LENGTH in #/usecase/passkey-enrolment.ts, which
@@ -47,15 +48,17 @@ export function renderPasskeyEnrolmentPage(
   authSessionId: string,
   offer: PasskeyEnrolmentOffer,
   error?: string,
-  // The nonce the page's own Content-Security-Policy names, without which
-  // `default-src 'none'` blocks the script silently and the page looks
-  // broken rather than refused. Empty renders no nonce attribute, which is
-  // what a caller serving this page under no policy at all wants.
-  scriptNonce = '',
-): string {
+): RenderedPage {
+  // Minted here and handed back with the markup that carries it, so the
+  // policy served with this page cannot name a different value — a refused
+  // script is invisible in a response, so nothing else would notice.
+  const nonce = scriptNonce();
   const target = `/realms/${escapeHtml(realm)}/login-actions/required-action?action=configure-passkey`;
   const message = error === undefined ? '' : `<p><strong>${escapeHtml(error)}</strong></p>\n`;
-  return `<!doctype html>
+  // The options are inline, so this script fetches nothing.
+  return {
+    script: { nonce, fetchesSameOrigin: false },
+    html: `<!doctype html>
 <html lang="en">
 <head><meta charset="utf-8"><title>Add a passkey</title></head>
 <body>
@@ -69,7 +72,7 @@ ${message}<p>Your device will ask you to confirm. Nothing is stored until it doe
 </form>
 <p id="passkey-error" hidden></p>
 <noscript><p>Adding a passkey needs JavaScript, because only the browser can talk to your authenticator.</p></noscript>
-<script${scriptNonce === '' ? '' : ` nonce="${escapeHtml(scriptNonce)}"`}>
+<script nonce="${escapeHtml(nonce)}">
 const options = ${jsonForScript(offer.options)};
 const form = document.getElementById('passkey-form');
 const field = document.getElementById('passkey-credential');
@@ -106,5 +109,6 @@ form.addEventListener('submit', async (event) => {
 });
 </script>
 </body>
-</html>`;
+</html>`,
+  };
 }

@@ -6,7 +6,7 @@ import {
   type AuthorizeUsecaseDeps,
 } from '#/usecase/authorization-request';
 import { renderAuthorizeErrorPage, renderLoginForm } from '#/view/authorize-html';
-import { scriptNonce, sendHtml } from '#/view/html-response';
+import { sendHtml } from '#/view/html-response';
 import { realmIssuerFor } from '#/view/issuer';
 import { namesUnsupportedRepresentation } from '#/view/media-type';
 
@@ -77,12 +77,10 @@ async function respondToAuthorizationRequest(
     return reply.code(302).header('location', target.toString()).send();
   }
 
-  const nonce = deps.passkeyLogin === true ? scriptNonce() : null;
   return sendHtml(
     reply,
     200,
-    renderLoginForm(realm, outcome.authSessionId, outcome.form, nonce),
-    nonce ?? undefined,
+    renderLoginForm(realm, outcome.authSessionId, outcome.form, deps.passkeyLogin ?? false),
   );
 }
 

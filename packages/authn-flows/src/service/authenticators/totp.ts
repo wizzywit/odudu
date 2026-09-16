@@ -1,5 +1,6 @@
 import { verifyTotp } from '@odudu/crypto';
 import { type CredentialSecret } from '@odudu/domain-identity';
+import { OTP, PASSKEY } from '#/service/authenticators/names';
 
 export type TotpSecret = Extract<CredentialSecret, { kind: 'totp' }>;
 
@@ -30,7 +31,7 @@ export type TotpStepOutcome =
 
 export function totpStep(input: TotpInput, verification: TotpVerification): TotpStepOutcome {
   if (input.code === undefined) {
-    return { kind: 'challenge', form: 'otp' };
+    return { kind: 'challenge', form: OTP };
   }
 
   const { subjectId, secret } = verification;
@@ -95,6 +96,6 @@ export function otpApplicable(
   // authenticator's own check of whoever held it — two factors, which is
   // what FACTOR_COUNT (protocol-oidc's service/acr.ts) also counts it as.
   // A realm's otp_required is a floor, not a tax.
-  if (satisfied.has('passkey')) return false;
+  if (satisfied.has(PASSKEY)) return false;
   return subject.hasTotp || realm.otpRequired;
 }

@@ -1,3 +1,5 @@
+import { scriptNonce, type RenderedPage } from '@odudu/kernel';
+
 // Minimal, dependency-free HTML: the two pages /authorize can render are
 // small enough that pulling in a templating engine would cost more than it
 // saves, and every interpolated value passes through escapeHtml so neither
@@ -78,6 +80,7 @@ function renderPasskeyOption(realm: string, authSessionId: string, nonce: string
   <button type="submit" id="passkey-submit">Sign in with a passkey</button>
 </form>
 <p id="passkey-error" hidden></p>
+<noscript><p>Signing in with a passkey needs JavaScript, because only the browser can talk to your authenticator. Use your username and password above.</p></noscript>
 <script nonce="${escapeHtml(nonce)}">
 const form = document.getElementById('passkey-form');
 const field = document.getElementById('passkey-assertion');
@@ -122,19 +125,22 @@ export function renderLoginForm(
   realm: string,
   authSessionId: string,
   form: string,
-  // Non-null offers a passkey, with the nonce its script needs (see
-  // sendHtml): the relying party id comes from ODUDU_PUBLIC_BASE_URL and
-  // nowhere else, so without that there is nothing behind the button.
-  passkeyNonce: string | null = null,
-): string {
+  // Whether this deployment can offer a passkey at all: the relying party
+  // id comes from ODUDU_PUBLIC_BASE_URL and nowhere else, so without that
+  // there is nothing behind the button.
+  passkeyLogin = false,
+): RenderedPage {
   const action = `/realms/${escapeHtml(realm)}/login-actions/authenticate`;
   // Beside the password and nowhere else: a passkey is an alternative to
-  // the first factor, not to a code asked for after one.
-  const passkey =
-    passkeyNonce !== null && form === 'password'
-      ? renderPasskeyOption(realm, authSessionId, passkeyNonce)
-      : '';
-  return `<!doctype html>
+  // the first factor, not to a code asked for after one. The nonce is minted
+  // here, where it is known whether a script is going to be rendered at
+  // all, so the policy sent with this page never licenses one it does not
+  // carry.
+  const nonce = passkeyLogin && form === 'password' ? scriptNonce() : null;
+  const passkey = nonce === null ? '' : renderPasskeyOption(realm, authSessionId, nonce);
+  return {
+    script: nonce === null ? null : { nonce, fetchesSameOrigin: true },
+    html: `<!doctype html>
 <html lang="en">
 <head><meta charset="utf-8"><title>Sign in</title></head>
 <body>
@@ -144,5 +150,6 @@ export function renderLoginForm(
   <button type="submit">Sign in</button>
 </form>${passkey}
 </body>
-</html>`;
+</html>`,
+  };
 }

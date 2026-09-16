@@ -13,7 +13,12 @@ import {
 import { type AuthenticatorResult } from '#/schema/authenticator';
 import { nextStep, type Step } from '#/service/requirements';
 import { passwordStep, type PasswordVerification } from '#/service/authenticators/password';
-import { passkeyStep, type WebauthnSecret } from '#/service/authenticators/passkey';
+import {
+  assertionOffered,
+  passkeyStep,
+  type WebauthnSecret,
+} from '#/service/authenticators/passkey';
+import { OTP, PASSKEY, PASSWORD } from '#/service/authenticators/names';
 import { otpApplicable, totpStep, type TotpSecret } from '#/service/authenticators/totp';
 import { assertedCredentialId } from '#/service/webauthn';
 
@@ -111,7 +116,7 @@ async function runPasskeyStep(
   input: AdvanceInput,
   context: StepContext,
 ): Promise<AuthenticatorResult> {
-  if (input.assertion === undefined) {
+  if (!assertionOffered(input)) {
     return passkeyStep(input, {
       credential: null,
       expectedChallenge: null,
@@ -167,9 +172,9 @@ type RealmAuthenticatorFn = (
 ) => Promise<AuthenticatorResult>;
 
 const AUTHENTICATORS: Record<string, RealmAuthenticatorFn> = {
-  password: runPasswordStep,
-  passkey: runPasskeyStep,
-  otp: runOtpStep,
+  [PASSWORD]: runPasswordStep,
+  [PASSKEY]: runPasskeyStep,
+  [OTP]: runOtpStep,
 };
 
 // The registry is what can tell an unresolvable authenticator name apart
@@ -227,14 +232,17 @@ function otpApplies(facts: FlowFacts): boolean {
 // credential to answer it with; otpApplies' other case is enrolmentOwed
 // below, not a step.
 function isApplicable(authenticator: string, facts: FlowFacts): boolean {
-  if (authenticator === 'password') return true;
+  if (authenticator === PASSWORD) return true;
   // passkey shares an ALTERNATIVE group with password, and a group offers
   // one form at a time, so an always-applicable usernameless passkey would
   // take the group and password would never be reachable. With nothing
   // submitted the group falls through to password, whose page is what
-  // offers the passkey button in the first place.
-  if (authenticator === 'passkey') return facts.assertionOffered;
-  if (authenticator !== 'otp') return false;
+  // offers the passkey button. The cost: a realm that disables password and
+  // keeps only passkey answers no_applicable_execution and cannot be signed
+  // into, since nothing here can be satisfied without an assertion the
+  // unrendered page would have produced (docs/NEXT.md has the fix).
+  if (authenticator === PASSKEY) return facts.assertionOffered;
+  if (authenticator !== OTP) return false;
   return otpApplies(facts) && facts.hasTotp;
 }
 
@@ -378,7 +386,7 @@ async function loadFlowContext(
       await loadSteps(tx, record.realmId, {
         subjectId: record.subjectId,
         satisfied,
-        assertionOffered: input.assertion !== undefined,
+        assertionOffered: assertionOffered(input),
       })
     ).steps,
     satisfied,
@@ -467,6 +475,30 @@ export async function pendingChallenge(
   return dispatched.result;
 }
 
+// A result with no `commit` left to run, which is what makes it safe to
+// read a subject off. `AuthenticatorResult` allows a deferred write and a
+// dropped one is silent, so the second dispatch's result is put through
+// `settle` and typed as this rather than used directly.
+type SettledResult =
+  | { kind: 'success'; subjectId: string }
+  | { kind: 'challenge'; form: string }
+  | { kind: 'failure'; reason: string };
+
+// Runs whatever a factor deferred, under the same two rules the first
+// factor's `commit` passes: it must answer for the subject this attempt is
+// bound to, and its write must land. Nothing submitted can reach here today
+// — the second dispatch runs with an empty input, and every factor
+// challenges on that — but the type permits a write and there is no warning
+// for dropping one, so it is run rather than trusted not to exist.
+async function settle(result: AuthenticatorResult, boundTo: string): Promise<SettledResult> {
+  if (result.kind !== 'success') return result;
+  if (result.subjectId !== boundTo) return { kind: 'failure', reason: SUBJECT_MISMATCH };
+  if (result.commit !== undefined && !(await result.commit())) {
+    return { kind: 'failure', reason: 'invalid_credentials' };
+  }
+  return { kind: 'success', subjectId: result.subjectId };
+}
+
 // What `advance` reports on success — unlike the per-authenticator
 // `AuthenticatorResult`, this names every authenticator the login actually
 // used, in the order it ran, because that is the record `establishSession`
@@ -530,7 +562,7 @@ export async function advance(
   const { steps: stepsForSubject, facts } = await loadSteps(tx, record.realmId, {
     subjectId,
     satisfied: updatedSatisfied,
-    assertionOffered: input.assertion !== undefined,
+    assertionOffered: assertionOffered(input),
   });
   await recordOtpEnrolmentIfOwed(tx, record.realmId, subjectId, facts);
 
@@ -552,10 +584,11 @@ export async function advance(
 
   if (after.kind === 'ran') {
     await authenticationSessionRepository(tx).recordSatisfied(authSessionId, authenticator);
-    if (after.result.kind !== 'success') return after.result;
+    const settled = await settle(after.result, subjectId);
+    if (settled.kind !== 'success') return settled;
     return {
       kind: 'success',
-      subjectId: after.result.subjectId,
+      subjectId: settled.subjectId,
       authenticators: [...record.satisfied, authenticator, after.authenticator],
     };
   }

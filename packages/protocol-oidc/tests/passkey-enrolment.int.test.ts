@@ -174,6 +174,20 @@ function storedPasskeys(realmId: string, subjectId: string) {
   );
 }
 
+// A second factor for this subject, so the login form's next step is the
+// code form — a login page with no script of its own. Never answered, so
+// the secret only has to be well shaped.
+function enrolTotp(realmId: string, subjectId: string) {
+  return withRealm(app.db, realmId, (tx) =>
+    credentialRepository(tx).insert({
+      realmId,
+      subjectId,
+      type: 'totp',
+      secret: { kind: 'totp', secret: 'GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ', digits: 6, lastStep: 0 },
+    }),
+  );
+}
+
 function oweAPasskey(realmId: string, subjectId: string) {
   return withRealm(app.db, realmId, (tx) =>
     requiredActionRepository(tx).add(realmId, subjectId, 'configure-passkey'),
@@ -501,6 +515,68 @@ describe('signing in with a passkey over HTTP', () => {
     expect(page.body).toContain('Sign in with a passkey');
     expect(page.body).toContain('navigator.credentials.get');
     expect(page.body).toContain('login-actions/passkey-challenge');
+    // Nothing in a response reveals a refused script, so the only checkable
+    // half is that the policy names the nonce the markup carries. Asserted
+    // for the login page as well as the enrolment one: both would look
+    // exactly like this if the script never ran.
+    const nonce = /<script nonce="([^"]+)">/u.exec(page.body)?.[1];
+    expect(nonce).toBeDefined();
+    const policy = String(page.headers['content-security-policy']);
+    expect(policy).toContain(`script-src 'nonce-${String(nonce)}'`);
+    expect(policy).toContain("connect-src 'self'");
+    expect(policy).not.toContain("'unsafe-inline'");
+  });
+
+  // A page with no script of its own must not be served a policy licensing
+  // one: a directive that licenses nothing has stopped describing the page.
+  it('sends no script-src on a login page that renders no script', async () => {
+    const realmName = `passkey-otpform-${newId()}`;
+    const realmId = await setupRealm(realmName);
+    const subjectId = await subjectIdOf(realmId);
+    await enrolTotp(realmId, subjectId);
+    const authSessionId = await startAuthSession(realmName);
+
+    // The password is right, so the next step is the code form, which has
+    // no passkey button and therefore no script.
+    const codeForm = await login(realmName, {
+      auth_session_id: authSessionId,
+      username: USERNAME,
+      password: PASSWORD,
+    });
+
+    expect(codeForm.body).toContain('one-time-code');
+    expect(codeForm.body).not.toContain('<script');
+    const policy = String(codeForm.headers['content-security-policy']);
+    expect(policy).not.toContain('script-src');
+    expect(policy).not.toContain('connect-src');
+  });
+
+  // With JavaScript off the passkey form submits an empty field. Read as an
+  // attempt, it would take the ALTERNATIVE group away from the password and
+  // refuse a login nobody could complete.
+  it('treats an empty assertion field as no attempt at all', async () => {
+    const realmName = `passkey-noscript-${newId()}`;
+    await setupRealm(realmName);
+    const authSessionId = await startAuthSession(realmName);
+
+    const signedIn = await login(realmName, {
+      auth_session_id: authSessionId,
+      assertion: '',
+      username: USERNAME,
+      password: PASSWORD,
+    });
+
+    expect(signedIn.statusCode).toBe(302);
+    expect(String(signedIn.headers.location)).toContain('code=');
+  });
+
+  it('tells a reader with no JavaScript why the button cannot work', async () => {
+    const realmName = `passkey-noscript-msg-${newId()}`;
+    await setupRealm(realmName);
+
+    const page = await http.inject({ url: authorizeUrl(realmName) });
+
+    expect(page.body).toContain('<noscript>');
   });
 });
 
