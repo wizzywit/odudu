@@ -282,6 +282,28 @@ describe('signing in with a passkey and no username', () => {
     expect(outcome).toEqual({ kind: 'failure', reason: 'invalid_credentials' });
   });
 
+  // The passkey step is the other one whose applicability a submission can
+  // decide. Standing *up* on an input is safe where standing down is not:
+  // the group is an ALTERNATIVE run, which isGroupSatisfied never satisfies
+  // by inapplicability, and password is always applicable — so a junk
+  // assertion takes the group's turn and is refused rather than skipping
+  // anything.
+  it('refuses a junk assertion rather than letting the password beside it through', async () => {
+    const realmId = newId();
+    await seedSubjectWithAPasskey(realmId);
+    const authSessionId = await start(realmId);
+
+    const outcome = await withRealm(app.db, realmId, (tx) =>
+      advance(tx, authSessionId, {
+        username: 'ada',
+        password: PASSWORD,
+        assertion: { id: 'not-a-credential', rawId: 'x', type: 'public-key' },
+      }),
+    );
+
+    expect(outcome.kind).toBe('failure');
+  });
+
   it('leaves the password path alone: no assertion, no passkey step', async () => {
     const realmId = newId();
     const { subjectId } = await seedSubjectWithAPasskey(realmId);

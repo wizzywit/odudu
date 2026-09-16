@@ -18,9 +18,11 @@ import {
 } from '@odudu/domain-identity';
 import { FakeClock, newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
+import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { requiredActionRepository } from '#/repository/required-actions';
 import { type PendingRequest } from '#/schema/authentication-sessions';
+import { authenticationExecutions } from '#/schema/execution';
 import { RECOVERY_CODE_COUNT } from '#/service/authenticators/recovery';
 import {
   advance,
@@ -399,6 +401,52 @@ describe('the second-factor form offers both, and the recovery code wins the ste
       subjectId,
       authenticators: ['password', 'recovery-code'],
     });
+  });
+});
+
+// A conditional group whose only member does not apply counts as satisfied
+// (isGroupSatisfied), so standing the OTP step down for a submission that
+// merely carries a recovery_code field would leave both second-factor
+// groups satisfied and complete a two-factor login on the password alone.
+// The field is the submission's to choose; whether a recovery step runs is
+// not.
+describe('the OTP step stands down only for a recovery step that actually runs', () => {
+  it('challenges for a code when the subject holds none, however the field is filled', async () => {
+    const realmId = newId();
+    const clock = clockAt();
+    const subjectId = await withRealm(app.db, realmId, async (tx) => {
+      await seedRealm(tx, realmId);
+      const subject = await seedUser(tx, realmId, 'ada');
+      await enrolTotp(tx, realmId, subject, clock);
+      return subject;
+    });
+    expect(
+      await withRealm(app.db, realmId, (tx) =>
+        credentialRepository(tx).listFor(subjectId, 'recovery-code'),
+      ),
+    ).toEqual([]);
+
+    const authSessionId = await signInWithPassword(realmId, clock);
+    const outcome = await present(realmId, authSessionId, 'A', clock);
+
+    expect(outcome).toEqual({ kind: 'challenge', form: 'otp' });
+  });
+
+  it('challenges for a code when the realm has no recovery step, even for a code it would accept', async () => {
+    const clock = clockAt();
+    const account = await seedAccountWithCodes(clock);
+    await withRealm(app.db, account.realmId, (tx) =>
+      tx
+        .delete(authenticationExecutions)
+        .where(eq(authenticationExecutions.authenticator, 'recovery-code')),
+    );
+
+    const authSessionId = await signInWithPassword(account.realmId, clock);
+    const outcome = await present(account.realmId, authSessionId, account.codes[0] ?? '', clock);
+
+    expect(outcome).toEqual({ kind: 'challenge', form: 'otp' });
+    // Nothing was spent: the step the code would have answered never ran.
+    expect((await storedCodes(account)).filter((row) => row.usedAt !== undefined)).toEqual([]);
   });
 });
 

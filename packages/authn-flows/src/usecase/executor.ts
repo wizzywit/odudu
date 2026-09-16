@@ -286,7 +286,17 @@ function otpApplies(facts: FlowFacts): boolean {
 // keeps DUMMY_SUBJECT_ID meaningful. otp runs only for a subject who has a
 // credential to answer it with; otpApplies' other case is enrolmentOwed
 // below, not a step.
-function isApplicable(authenticator: string, facts: FlowFacts): boolean {
+function isApplicable(
+  authenticator: string,
+  facts: FlowFacts,
+  // Whether the recovery-code step will actually run for this submission:
+  // the realm's flow carries the step, and it applies to this subject. The
+  // only thing the OTP step is allowed to stand down for — a factor may
+  // stand down only for one that stands up in its place, because a
+  // conditional group with no applicable member counts as satisfied
+  // (isGroupSatisfied in #/service/requirements).
+  recoveryCarriesTheSecondFactor: boolean,
+): boolean {
   if (authenticator === PASSWORD) return true;
   // passkey shares an ALTERNATIVE group with password, and a group offers
   // one form at a time, so an always-applicable usernameless passkey would
@@ -307,12 +317,17 @@ function isApplicable(authenticator: string, facts: FlowFacts): boolean {
   }
   if (authenticator !== OTP) return false;
   // A recovery code is presented instead of a code from the app, so the OTP
-  // step stands down for the submission that carries one — and stays down
-  // for the rest of the attempt, or a subject who used a recovery code
-  // precisely because they lost their authenticator would then be asked for
-  // a code from it. Expressed here rather than in otpApplicable so
-  // enrolmentOwed below still sees a realm that requires a second factor.
-  if (facts.recoveryCodeOffered || facts.satisfied.has(RECOVERY_CODE)) return false;
+  // step stands down for a submission whose recovery step is going to run —
+  // never merely for one carrying a recovery_code field, which is the
+  // submission's to choose and would stand the second factor down with
+  // nothing standing up in its place.
+  if (recoveryCarriesTheSecondFactor) return false;
+  // And stays down once a code has been accepted: a subject who used one
+  // because they lost their authenticator must not then be asked for a code
+  // from it.
+  if (facts.satisfied.has(RECOVERY_CODE)) return false;
+  // Decided here rather than in otpApplicable, so enrolmentOwed still sees a
+  // realm that requires a second factor.
   return otpApplies(facts) && facts.hasTotp;
 }
 
@@ -335,12 +350,22 @@ async function loadSteps(
 ): Promise<{ steps: Step[]; facts: FlowFacts }> {
   const executions = await executionRepository(tx).forRealm(realmId);
   const facts = await flowFacts(tx, realmId, request);
+  // A realm whose flow never had the recovery-code row — one provisioned
+  // before it existed, or one that disabled it — has no recovery step for
+  // the OTP step to stand down for, however the submission is shaped. The
+  // row is read here because this is the only place the flow's own
+  // executions are in hand.
+  const recoveryCarriesTheSecondFactor =
+    executions.some(
+      (execution) =>
+        execution.authenticator === RECOVERY_CODE && execution.requirement !== 'disabled',
+    ) && isApplicable(RECOVERY_CODE, facts, false);
   return {
     facts,
     steps: executions.map((execution) => ({
       authenticator: execution.authenticator,
       requirement: execution.requirement,
-      applicable: isApplicable(execution.authenticator, facts),
+      applicable: isApplicable(execution.authenticator, facts, recoveryCarriesTheSecondFactor),
     })),
   };
 }
