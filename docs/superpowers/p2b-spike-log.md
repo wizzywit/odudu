@@ -304,7 +304,7 @@ the credential well enough to resolve a subject from `lookup_key` alone?
 **Answer to (1): yes**, with one packaging detail the brief's own probe
 command got wrong. **Answer to (2): yes**, but with a load-bearing
 qualification: `verifyAuthenticationResponse` requires the credential
-record as an *input*, so subject resolution must happen from the raw
+record as an _input_, so subject resolution must happen from the raw
 assertion **before** verification, not from anything the verified result
 hands back. Both the credential ID and a user handle are available on the
 raw response for that purpose.
@@ -450,31 +450,31 @@ Relevant excerpt, verbatim:
 
 ```typescript
 export declare function verifyAuthenticationResponse(options: {
-    response: AuthenticationResponseJSON;
-    expectedChallenge: string | ((challenge: string) => boolean | Promise<boolean>);
-    expectedOrigin: string | string[];
-    expectedRPID: string | string[];
-    credential: WebAuthnCredential;
-    expectedType?: string | string[];
-    expectedTopOrigin?: string | string[];
-    requireUserVerification?: boolean;
-    advancedFIDOConfig?: {
-        userVerification?: UserVerificationRequirement;
-    };
+  response: AuthenticationResponseJSON;
+  expectedChallenge: string | ((challenge: string) => boolean | Promise<boolean>);
+  expectedOrigin: string | string[];
+  expectedRPID: string | string[];
+  credential: WebAuthnCredential;
+  expectedType?: string | string[];
+  expectedTopOrigin?: string | string[];
+  requireUserVerification?: boolean;
+  advancedFIDOConfig?: {
+    userVerification?: UserVerificationRequirement;
+  };
 }): Promise<VerifiedAuthenticationResponse>;
 
 export type VerifiedAuthenticationResponse = {
-    verified: boolean;
-    authenticationInfo: {
-        credentialID: Base64URLString;
-        newCounter: number;
-        userVerified: boolean;
-        credentialDeviceType: CredentialDeviceType;
-        credentialBackedUp: boolean;
-        origin: string;
-        rpID: string;
-        authenticatorExtensionResults?: AuthenticationExtensionsAuthenticatorOutputs;
-    };
+  verified: boolean;
+  authenticationInfo: {
+    credentialID: Base64URLString;
+    newCounter: number;
+    userVerified: boolean;
+    credentialDeviceType: CredentialDeviceType;
+    credentialBackedUp: boolean;
+    origin: string;
+    rpID: string;
+    authenticatorExtensionResults?: AuthenticationExtensionsAuthenticatorOutputs;
+  };
 };
 ```
 
@@ -484,10 +484,10 @@ listed alongside the other required fields. Its own shape, from the same
 
 ```typescript
 export type WebAuthnCredential = {
-    id: Base64URLString;
-    publicKey: Uint8Array_;
-    counter: number;
-    transports?: string[];
+  id: Base64URLString;
+  publicKey: Uint8Array_;
+  counter: number;
+  transports?: string[];
 };
 ```
 
@@ -502,19 +502,19 @@ The raw assertion the browser sends, before verification, is
 
 ```typescript
 export interface AuthenticationResponseJSON {
-    id: Base64URLString;
-    rawId: Base64URLString;
-    response: AuthenticatorAssertionResponseJSON;
-    authenticatorAttachment?: AuthenticatorAttachment;
-    clientExtensionResults: AuthenticationExtensionsClientOutputs;
-    type: PublicKeyCredentialType;
+  id: Base64URLString;
+  rawId: Base64URLString;
+  response: AuthenticatorAssertionResponseJSON;
+  authenticatorAttachment?: AuthenticatorAttachment;
+  clientExtensionResults: AuthenticationExtensionsClientOutputs;
+  type: PublicKeyCredentialType;
 }
 
 export interface AuthenticatorAssertionResponseJSON {
-    clientDataJSON: Base64URLString;
-    authenticatorData: Base64URLString;
-    signature: Base64URLString;
-    userHandle?: Base64URLString;
+  clientDataJSON: Base64URLString;
+  authenticatorData: Base64URLString;
+  signature: Base64URLString;
+  userHandle?: Base64URLString;
 }
 ```
 
@@ -586,7 +586,7 @@ fact for clone detection.
 **No spec change needed.** Section 5.2's usernameless first-factor design
 is executable as specified — Task 19's implementation shape is: resolve
 `lookup_key` from `response.id` (or `response.response.userHandle` as a
-fallback) *before* calling `verifyAuthenticationResponse`, supply the
+fallback) _before_ calling `verifyAuthenticationResponse`, supply the
 resolved `WebAuthnCredential` to it, then persist `newCounter` from the
 result against that same credential row.
 
