@@ -15,6 +15,7 @@ const SECRET_BYTES = 20; // RFC 6238 §5.1: a key SHOULD match the HMAC output i
 const VERIFY_WINDOW_STEPS = 1; // RFC 6238 §5.2/§6: one time step of network delay/clock drift either side.
 
 const BASE32_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+const VERIFY_CODE_SHAPE = /^\d{6}$/u;
 
 function alphabetChar(index: number): string {
   const char = BASE32_ALPHABET[index];
@@ -109,7 +110,7 @@ export function verifyTotp(input: {
   lastStep: number | null;
 }): { ok: false } | { ok: true; step: number } {
   const { secret, code, now, lastStep } = input;
-  if (code.length !== DEFAULT_DIGITS) return { ok: false };
+  if (!VERIFY_CODE_SHAPE.test(code)) return { ok: false };
 
   const codeBuffer = Buffer.from(code, 'utf8');
   const currentStep = totpCounter(now);

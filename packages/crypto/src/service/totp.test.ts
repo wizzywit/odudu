@@ -140,6 +140,15 @@ describe('verifyTotp', () => {
     expect(verifyTotp({ secret, code, now, lastStep: step })).toEqual({ ok: false });
   });
 
+  it('accepts a code for the step after the last one accepted', () => {
+    const step = totpCounter(now);
+    const code = totpCode(secret, step, 6);
+    expect(verifyTotp({ secret, code, now, lastStep: step - 1 })).toEqual({
+      ok: true,
+      step,
+    });
+  });
+
   it('still refuses a stale step even when a later one in the window would otherwise match', () => {
     const step = totpCounter(now);
     const staleCode = totpCode(secret, step - 1, 6);
@@ -150,6 +159,13 @@ describe('verifyTotp', () => {
 
   it('refuses a code of the wrong length without comparing it', () => {
     expect(verifyTotp({ secret, code: '1234', now, lastStep: null })).toEqual({ ok: false });
+  });
+
+  it('refuses a code with a non-ASCII character rather than reaching the comparison', () => {
+    // "12345é" has 6 UTF-16 code units but 7 UTF-8 bytes; a guard keyed on
+    // code.length alone would let it through and then hand timingSafeEqual
+    // two differently-sized buffers, which throws instead of refusing.
+    expect(verifyTotp({ secret, code: '12345é', now, lastStep: null })).toEqual({ ok: false });
   });
 
   it('refuses a code that never matches any step in the window', () => {
