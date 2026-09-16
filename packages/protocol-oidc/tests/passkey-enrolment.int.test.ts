@@ -253,7 +253,7 @@ afterAll(async () => {
 });
 
 describe('enrolling a passkey over HTTP', () => {
-  it('offers the ceremony, stores nothing until it verifies, and resumes the login', async () => {
+  it('[WEBAUTHN2-7.1.21-01] offers the ceremony, stores nothing until it verifies, and resumes the login', async () => {
     const realmName = `passkey-enrol-${newId()}`;
     const realmId = await setupRealm(realmName);
     const subjectId = await subjectIdOf(realmId);
@@ -480,7 +480,7 @@ async function enrolAPasskey(
 }
 
 describe('signing in with a passkey over HTTP', () => {
-  it('takes no username at all: options, an assertion, a code', async () => {
+  it('[WEBAUTHN2-7-01] takes no username at all: options, an assertion, a code', async () => {
     const realmName = `passkey-login-${newId()}`;
     const realmId = await setupRealm(realmName);
     const subjectId = await subjectIdOf(realmId);
@@ -540,7 +540,7 @@ describe('signing in with a passkey over HTTP', () => {
     expect(unknown.statusCode).toBe(200);
   });
 
-  it('offers the button on the login page, with no username field of its own', async () => {
+  it('[WEBAUTHN2-7.2.2-01] offers the button on the login page, with no username field of its own', async () => {
     const realmName = `passkey-button-${newId()}`;
     await setupRealm(realmName);
 
@@ -549,6 +549,10 @@ describe('signing in with a passkey over HTTP', () => {
     expect(page.body).toContain('Sign in with a passkey');
     expect(page.body).toContain('navigator.credentials.get');
     expect(page.body).toContain('login-actions/passkey-challenge');
+    // A rejected ceremony has to say so on the page rather than leaving the
+    // reader at a button that did nothing (WebAuthn §7.2 step 2).
+    expect(page.body).toContain('catch (caught)');
+    expect(page.body).toContain('did not finish signing in');
     // Nothing in a response reveals a refused script, so the only checkable
     // half is that the policy names the nonce the markup carries. Asserted
     // for the login page as well as the enrolment one: both would look

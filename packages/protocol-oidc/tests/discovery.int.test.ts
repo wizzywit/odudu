@@ -106,7 +106,7 @@ describe('[OIDC-DISCOVERY-4-01] the discovery document is served at the well-kno
   });
 });
 
-describe('[OIDC-RPINITIATED-4-01] end_session_endpoint is advertised', () => {
+describe('[OIDC-RPINITIATED-2.1-01] end_session_endpoint is advertised', () => {
   it("names this realm's logout endpoint", async () => {
     const res = await http.inject({ url: '/realms/acme/.well-known/openid-configuration' });
     expect(res.json<{ end_session_endpoint: string }>().end_session_endpoint).toBe(

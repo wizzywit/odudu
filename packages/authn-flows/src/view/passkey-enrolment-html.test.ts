@@ -29,7 +29,7 @@ describe('renderPasskeyEnrolmentPage', () => {
 
   // Only the browser can produce a registration response, so a page that
   // did not emit the call is a page nobody can enrol from.
-  it('emits the ceremony itself, and a path for a refusal', () => {
+  it('[WEBAUTHN2-7.1.2-01] emits the ceremony itself, and a path for a refusal', () => {
     const { html: page } = renderPasskeyEnrolmentPage('acme', 'auth-session-1', OFFER);
 
     expect(page).toContain('navigator.credentials.create');

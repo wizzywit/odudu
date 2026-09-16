@@ -170,7 +170,7 @@ describe('enrolling a passkey', () => {
     expect(record?.webauthnChallenge).toBe(offer.options.challenge);
   });
 
-  it('stores a webauthn credential whose lookup_key is the credential id', async () => {
+  it('[WEBAUTHN2-7.1.23-01] stores a webauthn credential whose lookup_key is the credential id', async () => {
     const realmId = newId();
     const { subjectId, authSessionId } = await seedSubjectOwingAPasskey(realmId);
     const offer = await begin(realmId, authSessionId, subjectId);
@@ -324,7 +324,7 @@ describe('a response is answerable once', () => {
     expect(outcome).toEqual({ kind: 'rejected', reason: 'no_challenge' });
   });
 
-  it('refuses a response answering a challenge other than the outstanding one', async () => {
+  it('[WEBAUTHN2-7.1.8-01] refuses a response answering a challenge other than the outstanding one', async () => {
     const realmId = newId();
     const { subjectId, authSessionId } = await seedSubjectOwingAPasskey(realmId);
     await begin(realmId, authSessionId, subjectId);
@@ -347,7 +347,7 @@ describe('a response is answerable once', () => {
   // requires it too. An authenticator that would have honoured 'preferred'
   // by skipping its PIN is refused at the ceremony rather than enrolled as
   // a credential that looks like two factors and is one.
-  it('refuses a response whose authenticator verified nobody', async () => {
+  it('[WEBAUTHN2-7.1.15-01] refuses a response whose authenticator verified nobody', async () => {
     const realmId = newId();
     const { subjectId, authSessionId } = await seedSubjectOwingAPasskey(realmId);
     const offer = await begin(realmId, authSessionId, subjectId);
@@ -375,7 +375,7 @@ describe('a response is answerable once', () => {
   // user_credentials_lookup_key forbids; excludeCredentials is what stops
   // a compliant browser producing it. Reaching the write anyway is a
   // refusal, not a server fault.
-  it('refuses a credential id the realm already holds', async () => {
+  it('[WEBAUTHN2-7.1.22-01] refuses a credential id the realm already holds', async () => {
     const realmId = newId();
     const { subjectId, authSessionId } = await seedSubjectOwingAPasskey(realmId);
     const first = await begin(realmId, authSessionId, subjectId);

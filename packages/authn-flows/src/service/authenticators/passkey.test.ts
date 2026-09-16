@@ -99,7 +99,7 @@ describe('passkeyStep', () => {
     expect(outcome).toEqual({ kind: 'failure', reason: 'invalid_credentials' });
   });
 
-  it('returns the resolved subject for a valid assertion', async () => {
+  it('[WEBAUTHN2-7.2.7-01] returns the resolved subject for a valid assertion', async () => {
     const { authenticator, secret } = await enrol(4);
     const challenge = await offeredChallenge();
 
@@ -166,7 +166,7 @@ describe('passkeyStep', () => {
     });
   });
 
-  it('fails an assertion the authenticator did not verify anybody for', async () => {
+  it('[WEBAUTHN2-7.2.17-01] fails an assertion the authenticator did not verify anybody for', async () => {
     const { authenticator, secret } = await enrol(1);
     const challenge = await offeredChallenge();
 
@@ -186,7 +186,48 @@ describe('passkeyStep', () => {
     expect(outcome).toEqual({ kind: 'failure', reason: 'invalid_credentials' });
   });
 
-  it('fails an assertion answering a challenge this server never offered', async () => {
+  // Two checks against two different values — the origin the page was
+  // served from and the domain the credential is bound to — varied one at a
+  // time, so neither refusal could be the other one's.
+  it('[WEBAUTHN2-7.2.13-01] fails an assertion whose client data names another origin', async () => {
+    const { authenticator, secret } = await enrol(1);
+    const challenge = await offeredChallenge();
+
+    const outcome = await passkeyStep(
+      {
+        assertion: authenticator.assertion({
+          challenge,
+          rpId: RP_ID,
+          origin: 'https://attacker.example',
+          signCount: 2,
+        }),
+      },
+      verificationFor(secret, challenge),
+    );
+
+    expect(outcome).toEqual({ kind: 'failure', reason: 'invalid_credentials' });
+  });
+
+  it("[WEBAUTHN2-7.2.15-01] fails an assertion signed over another relying party's id", async () => {
+    const { authenticator, secret } = await enrol(1);
+    const challenge = await offeredChallenge();
+
+    const outcome = await passkeyStep(
+      {
+        assertion: authenticator.assertion({
+          challenge,
+          rpId: 'attacker.example',
+          origin: PUBLIC_BASE_URL,
+          signCount: 2,
+        }),
+      },
+      verificationFor(secret, challenge),
+    );
+
+    expect(outcome).toEqual({ kind: 'failure', reason: 'invalid_credentials' });
+  });
+
+  it('[WEBAUTHN2-7.2.12-01] fails an assertion answering a challenge this server never offered', async () => {
     const { authenticator, secret } = await enrol(1);
     const offered = await offeredChallenge();
 
@@ -205,7 +246,7 @@ describe('passkeyStep', () => {
     expect(outcome).toEqual({ kind: 'failure', reason: 'invalid_credentials' });
   });
 
-  it('fails when nothing shaped like an assertion was submitted', async () => {
+  it('[WEBAUTHN2-7.2.3-01] fails when nothing shaped like an assertion was submitted', async () => {
     const { secret } = await enrol(1);
     const challenge = await offeredChallenge();
 
@@ -232,7 +273,7 @@ describe('counterAdvanced', () => {
 });
 
 describe('passkeyAuthenticationOptions', () => {
-  it('names no credentials, so a browser offers every discoverable one it holds', async () => {
+  it('[WEBAUTHN2-7.2.1-01] names no credentials, so a browser offers every discoverable one it holds', async () => {
     const { options, challenge } = await passkeyAuthenticationOptions(PUBLIC_BASE_URL);
 
     expect(options.rpId).toBe(RP_ID);

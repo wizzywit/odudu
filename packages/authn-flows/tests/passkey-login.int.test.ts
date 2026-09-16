@@ -210,7 +210,7 @@ describe('signing in with a passkey and no username', () => {
     expect(outcome).toEqual({ kind: 'success', subjectId, authenticators: ['passkey'] });
   });
 
-  it('advances the stored counter to what the authenticator reported', async () => {
+  it('[WEBAUTHN2-7.2.21-01] advances the stored counter to what the authenticator reported', async () => {
     const realmId = newId();
     const { subjectId, authenticator } = await seedSubjectWithAPasskey(realmId, { signCount: 3 });
     const authSessionId = await start(realmId);
@@ -241,7 +241,7 @@ describe('signing in with a passkey and no username', () => {
     expect(owed).not.toContain('configure-totp');
   });
 
-  it('refuses an assertion whose counter did not advance', async () => {
+  it('[WEBAUTHN2-7.2.21-02] refuses an assertion whose counter did not advance', async () => {
     const realmId = newId();
     const { authenticator } = await seedSubjectWithAPasskey(realmId, { signCount: 6 });
     const authSessionId = await start(realmId);
@@ -288,7 +288,7 @@ describe('signing in with a passkey and no username', () => {
   // by inapplicability, and password is always applicable — so a junk
   // assertion takes the group's turn and is refused rather than skipping
   // anything.
-  it('refuses a junk assertion rather than letting the password beside it through', async () => {
+  it('[WEBAUTHN2-7.2.22-01] refuses a junk assertion rather than letting the password beside it through', async () => {
     const realmId = newId();
     await seedSubjectWithAPasskey(realmId);
     const authSessionId = await start(realmId);

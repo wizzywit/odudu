@@ -1,10 +1,33 @@
+import { type RegistrationResponseJSON } from '@simplewebauthn/server';
+import { softwareRegistrationResponse } from '@odudu/testkit';
 import { describe, expect, it } from 'vitest';
 import {
+  parseRegistrationResponse,
   passkeyRegistrationOptions,
   relyingPartyId,
   relyingPartyOrigin,
   verifyPasskeyRegistration,
 } from '#/service/webauthn';
+
+const PUBLIC_BASE_URL = 'http://localhost:3000';
+const RP_ID = 'localhost';
+const CHALLENGE = 'Zm9yLXJlZ2lzdHJhdGlvbi1vbmx5';
+
+// A registration the software authenticator really signed, with the origin
+// and the RP ID overridable one at a time. It goes through the same
+// narrowing a browser's POST does, so a response the parse would refuse
+// never reaches the verification.
+function registrationFor(vary: { origin?: string; rpId?: string }): RegistrationResponseJSON {
+  const parsed = parseRegistrationResponse(
+    softwareRegistrationResponse({
+      challenge: CHALLENGE,
+      rpId: vary.rpId ?? RP_ID,
+      origin: vary.origin ?? PUBLIC_BASE_URL,
+    }),
+  );
+  if (parsed === null) throw new Error('expected the fixture to produce a registration response');
+  return parsed;
+}
 
 describe('relyingPartyId', () => {
   it('is the host of the configured public base URL, without the port', () => {
@@ -50,7 +73,7 @@ describe('relyingPartyOrigin', () => {
 });
 
 describe('passkeyRegistrationOptions', () => {
-  it('names the derived relying party and carries a challenge', async () => {
+  it('[WEBAUTHN2-7.1.1-01] names the derived relying party and carries a challenge', async () => {
     const offer = await passkeyRegistrationOptions({
       publicBaseUrl: 'https://id.example.com:8443',
       realmName: 'demo',
@@ -122,7 +145,7 @@ describe('verifyPasskeyRegistration', () => {
   // The library throws on a response it cannot verify rather than returning
   // verified: false for every case. A thrown error here is a rejected
   // enrolment, not a 500, so it is caught and reported as one.
-  it('reports a rejection rather than throwing on a response that is not one', async () => {
+  it('[WEBAUTHN2-7.1.3-01] reports a rejection rather than throwing on a response that is not one', async () => {
     const outcome = await verifyPasskeyRegistration({
       publicBaseUrl: 'http://localhost:3000',
       expectedChallenge: 'a-challenge',
@@ -136,5 +159,40 @@ describe('verifyPasskeyRegistration', () => {
     });
 
     expect(outcome).toEqual({ kind: 'rejected' });
+  });
+
+  // WebAuthn §7.1 steps 9 and 13 are two checks against two different
+  // values — the origin the page was served from, and the domain the
+  // credential is bound to — and an authenticator can get one right while
+  // the other is wrong. Varied one at a time, so neither row rests on a
+  // response that would have been refused for the other reason anyway.
+  it('[WEBAUTHN2-7.1.9-01] refuses a registration whose client data names another origin', async () => {
+    const outcome = await verifyPasskeyRegistration({
+      publicBaseUrl: PUBLIC_BASE_URL,
+      expectedChallenge: CHALLENGE,
+      response: registrationFor({ origin: 'https://attacker.example' }),
+    });
+
+    expect(outcome).toEqual({ kind: 'rejected' });
+  });
+
+  it("[WEBAUTHN2-7.1.13-01] refuses a registration signed over another relying party's id", async () => {
+    const outcome = await verifyPasskeyRegistration({
+      publicBaseUrl: PUBLIC_BASE_URL,
+      expectedChallenge: CHALLENGE,
+      response: registrationFor({ rpId: 'attacker.example' }),
+    });
+
+    expect(outcome).toEqual({ kind: 'rejected' });
+  });
+
+  it('accepts the same response with both of those right', async () => {
+    const outcome = await verifyPasskeyRegistration({
+      publicBaseUrl: PUBLIC_BASE_URL,
+      expectedChallenge: CHALLENGE,
+      response: registrationFor({}),
+    });
+
+    expect(outcome.kind).toBe('verified');
   });
 });

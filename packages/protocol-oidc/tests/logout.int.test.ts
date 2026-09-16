@@ -505,6 +505,39 @@ describe('[OIDC-RPINITIATED-2-01] the confirmation page is asked for on both tri
   });
 });
 
+describe('a hint another issuer signed is no hint at all', () => {
+  it('[OIDC-RPINITIATED-2-02] asks for confirmation and ends nothing', async () => {
+    const issuingRealm = `logout-otheriss-a-${newId()}`;
+    await setupRealm(issuingRealm);
+
+    const realmName = `logout-otheriss-b-${newId()}`;
+    const { realmId } = await setupRealm(realmName);
+    const cookie = await signIn(realmName);
+    const sessionId = sessionIdFromCookie(cookie);
+    const subjectId = await subjectIdOf(realmId, USERNAME);
+
+    // Right subject, right session id, right shape — and signed by another
+    // realm's key, carrying another realm's issuer. §2 asks the OP to
+    // validate that it issued the hint before reading anything out of it,
+    // so this one has to fall through to the confirmation page rather than
+    // ending the session its `sid` names.
+    const foreignHint = await mintIdToken(issuingRealm, subjectId, sessionId);
+
+    const res = await http.inject({
+      url: logoutUrl(realmName, { id_token_hint: foreignHint }),
+      headers: { cookie },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toContain('<title>Sign out?</title>');
+
+    const stillLive = await withRealm(app.db, realmId, (tx) =>
+      sessionRepository(tx).liveById(sessionId, 30 * 24 * 3600, new Date()),
+    );
+    expect(stillLive).not.toBeNull();
+  });
+});
+
 describe('GET the logout endpoint with a foreign realm session id', () => {
   it('ends nothing', async () => {
     const realmAName = `logout-foreign-a-${newId()}`;

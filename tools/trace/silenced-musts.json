@@ -7,5 +7,8 @@
   "rfc6750.md": { "deferred": 0, "na": 12 },
   "rfc7636.md": { "deferred": 0, "na": 3 },
   "rfc9068.md": { "deferred": 2, "na": 3 },
-  "rfc9207.md": { "deferred": 0, "na": 2 }
+  "rfc9207.md": { "deferred": 0, "na": 2 },
+  "oidc-rpinitiated.md": { "deferred": 2, "na": 1 },
+  "oidc-backchannel.md": { "deferred": 14, "na": 7 },
+  "webauthn2.md": { "deferred": 0, "na": 23 }
 }
