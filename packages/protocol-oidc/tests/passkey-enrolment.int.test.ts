@@ -470,6 +470,28 @@ describe('signing in with a passkey over HTTP', () => {
     expect(stored[0]?.secret).toMatchObject({ counter: 2 });
   });
 
+  // This endpoint writes a challenge against the id it is given, so a
+  // value Postgres cannot parse as a uuid would raise rather than update
+  // nothing. Refused as a bad request, never 500.
+  it('refuses a malformed authentication session id, and one nobody offered', async () => {
+    const realmName = `passkey-badsession-${newId()}`;
+    await setupRealm(realmName);
+    const url = `/realms/${realmName}/login-actions/passkey-challenge`;
+
+    for (const malformed of ['not-a-uuid', `${newId()}\n${newId()}`, `${newId()}' or '1'='1`, '']) {
+      const refused = await post(url, { auth_session_id: malformed });
+      expect(`${JSON.stringify(malformed)}: ${String(refused.statusCode)}`).toBe(
+        `${JSON.stringify(malformed)}: 400`,
+      );
+    }
+
+    // Well-shaped and unknown is a different case: nothing to write to, so
+    // the options are issued against a row that does not exist and the
+    // assertion they produce finds no challenge to answer.
+    const unknown = await post(url, { auth_session_id: newId() });
+    expect(unknown.statusCode).toBe(200);
+  });
+
   it('offers the button on the login page, with no username field of its own', async () => {
     const realmName = `passkey-button-${newId()}`;
     await setupRealm(realmName);

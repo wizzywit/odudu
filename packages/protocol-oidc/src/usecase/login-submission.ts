@@ -6,6 +6,7 @@ import {
   type RequiredAction,
 } from '@odudu/authn-flows';
 import { type RealmScopedDatabase } from '@odudu/db';
+import { isUuid } from '@odudu/kernel';
 import { authorizationCodeRepository } from '#/repository/codes';
 import { type RealmLookup } from '#/repository/realm-lookup';
 import { generateAuthorizationCode, hashAuthorizationCode } from '#/service/authorization-code';
@@ -201,7 +202,11 @@ export async function handleLoginSubmission(
   authSessionId: string | undefined,
   input: AdvanceInput,
 ): Promise<LoginSubmissionOutcome> {
-  if (authSessionId === undefined || authSessionId.length === 0) {
+  // A value that is not shaped like a uuid names no session and never
+  // could: folded in here rather than left to the `uuid` comparison, where
+  // Postgres raises rather than matching nothing and an unauthenticated
+  // caller decides what gets logged as a server fault.
+  if (authSessionId === undefined || !isUuid(authSessionId)) {
     return { kind: 'unauthenticated' };
   }
 

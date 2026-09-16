@@ -5,6 +5,11 @@ import {
   type LoginSubmissionDeps,
 } from '#/usecase/login-submission';
 
+// A real uuid, not a readable placeholder: the handler shape-checks this
+// field before it reaches a `uuid` column, so a placeholder would be
+// refused as malformed and prove nothing about the path under test.
+const AUTH_SESSION_ID = '01a0a998-8326-7900-8fa6-dd06b842b269';
+
 const REALM = {
   id: 'realm-1',
   enabled: true,
@@ -62,6 +67,38 @@ function harness(): Harness {
   };
 }
 
+const MALFORMED_SESSION_IDS = [
+  'not-a-uuid',
+  '',
+  // Two ids joined by a newline: what a page carrying the field in more than
+  // one form gives a client that extracts every match.
+  '01a0a998-8326-7900-8fa6-dd06b842b269\n01a0a998-8326-7900-8fa6-dd06b842b269',
+  "01a0a998-8326-7900-8fa6-dd06b842b269' or '1'='1",
+];
+
+// Postgres raises on a `uuid` comparison against a value it cannot parse,
+// so a malformed id must be refused here rather than reaching one — an
+// unauthenticated caller does not get to choose what faults.
+describe('handleLoginSubmission — a session id that cannot name a session', () => {
+  it('refuses a malformed id without advancing anything', async () => {
+    for (const authSessionId of MALFORMED_SESSION_IDS) {
+      const { deps, advance, completeLogin } = harness();
+
+      const outcome = await handleLoginSubmission(
+        deps,
+        'acme',
+        'https://idp.example',
+        authSessionId,
+        { username: 'ada', password: 'x' },
+      );
+
+      expect(outcome).toEqual({ kind: 'unauthenticated' });
+      expect(advance).not.toHaveBeenCalled();
+      expect(completeLogin).not.toHaveBeenCalled();
+    }
+  });
+});
+
 describe('handleLoginSubmission — the success path', () => {
   it('redirects with the code and passes the parked request to completeLogin', async () => {
     const { deps, completeLogin } = harness();
@@ -69,7 +106,7 @@ describe('handleLoginSubmission — the success path', () => {
       deps,
       'acme',
       'https://idp.example',
-      'auth-session-1',
+      AUTH_SESSION_ID,
       { username: 'ada', password: 'x' },
     );
 
@@ -81,7 +118,7 @@ describe('handleLoginSubmission — the success path', () => {
     });
     expect(completeLogin).toHaveBeenCalledWith({
       realmId: REALM.id,
-      authSessionId: 'auth-session-1',
+      authSessionId: AUTH_SESSION_ID,
       subjectId: 'subject-1',
       clientId: 'client-uuid-1',
       redirectUri: PENDING.redirectUri,
@@ -105,13 +142,13 @@ describe('handleLoginSubmission — a realm that requires a verified address', (
       deps,
       'acme',
       'https://idp.example',
-      'auth-session-1',
+      AUTH_SESSION_ID,
       { username: 'ada', password: 'x' },
     );
 
     expect(outcome).toEqual({
       kind: 'unverified',
-      authSessionId: 'auth-session-1',
+      authSessionId: AUTH_SESSION_ID,
       hasEmail: true,
     });
     expect(completeLogin).not.toHaveBeenCalled();
@@ -126,13 +163,13 @@ describe('handleLoginSubmission — a realm that requires a verified address', (
       deps,
       'acme',
       'https://idp.example',
-      'auth-session-1',
+      AUTH_SESSION_ID,
       { username: 'ada', password: 'x' },
     );
 
     expect(outcome).toEqual({
       kind: 'unverified',
-      authSessionId: 'auth-session-1',
+      authSessionId: AUTH_SESSION_ID,
       hasEmail: false,
     });
   });
@@ -146,7 +183,7 @@ describe('handleLoginSubmission — a realm that requires a verified address', (
       deps,
       'acme',
       'https://idp.example',
-      'auth-session-1',
+      AUTH_SESSION_ID,
       { username: 'ada', password: 'x' },
     );
 
@@ -163,13 +200,13 @@ describe('handleLoginSubmission — a subject with a pending required action', (
       deps,
       'acme',
       'https://idp.example',
-      'auth-session-1',
+      AUTH_SESSION_ID,
       { username: 'ada', password: 'x' },
     );
 
     expect(outcome).toEqual({
       kind: 'required_action',
-      authSessionId: 'auth-session-1',
+      authSessionId: AUTH_SESSION_ID,
       subjectId: 'subject-1',
       action: 'configure-totp',
     });
@@ -184,13 +221,13 @@ describe('handleLoginSubmission — a subject with a pending required action', (
       deps,
       'acme',
       'https://idp.example',
-      'auth-session-1',
+      AUTH_SESSION_ID,
       { username: 'ada', password: 'x' },
     );
 
     expect(outcome).toEqual({
       kind: 'required_action',
-      authSessionId: 'auth-session-1',
+      authSessionId: AUTH_SESSION_ID,
       subjectId: 'subject-1',
       action: 'update-password',
     });
@@ -204,7 +241,7 @@ describe('handleLoginSubmission — a subject with a pending required action', (
       deps,
       'acme',
       'https://idp.example',
-      'auth-session-1',
+      AUTH_SESSION_ID,
       { username: 'ada', password: 'x' },
     );
 
@@ -222,7 +259,7 @@ describe('handleLoginSubmission — a session already consumed by an earlier or 
       deps,
       'acme',
       'https://idp.example',
-      'auth-session-1',
+      AUTH_SESSION_ID,
       { username: 'ada', password: 'x' },
     );
 
@@ -239,11 +276,11 @@ describe('handleLoginSubmission — a failed attempt must not consume the sessio
       deps,
       'acme',
       'https://idp.example',
-      'auth-session-1',
+      AUTH_SESSION_ID,
       { username: 'ada', password: 'wrong' },
     );
 
-    expect(outcome).toEqual({ kind: 'reject', authSessionId: 'auth-session-1' });
+    expect(outcome).toEqual({ kind: 'reject', authSessionId: AUTH_SESSION_ID });
     expect(completeLogin).not.toHaveBeenCalled();
   });
 
@@ -255,7 +292,7 @@ describe('handleLoginSubmission — a failed attempt must not consume the sessio
       deps,
       'acme',
       'https://idp.example',
-      'auth-session-1',
+      AUTH_SESSION_ID,
       { username: 'ada', password: 'x' },
     );
 
@@ -271,11 +308,11 @@ describe('handleLoginSubmission — a failed attempt must not consume the sessio
       deps,
       'acme',
       'https://idp.example',
-      'auth-session-1',
+      AUTH_SESSION_ID,
       {},
     );
 
-    expect(outcome).toEqual({ kind: 'reject', authSessionId: 'auth-session-1' });
+    expect(outcome).toEqual({ kind: 'reject', authSessionId: AUTH_SESSION_ID });
     expect(completeLogin).not.toHaveBeenCalled();
   });
 });
@@ -291,12 +328,12 @@ describe('handleLoginSubmission — a hint naming somebody other than who signed
       deps,
       'acme',
       'https://idp.example',
-      'auth-session-1',
+      AUTH_SESSION_ID,
       { username: 'ada', password: 'x' },
     );
 
     expect(outcome.kind).toBe('error_redirect');
-    expect(resetAuthenticationProgress).toHaveBeenCalledWith('realm-1', 'auth-session-1');
+    expect(resetAuthenticationProgress).toHaveBeenCalledWith('realm-1', AUTH_SESSION_ID);
     expect(completeLogin).not.toHaveBeenCalled();
   });
 
@@ -310,7 +347,7 @@ describe('handleLoginSubmission — a hint naming somebody other than who signed
       deps,
       'acme',
       'https://idp.example',
-      'auth-session-1',
+      AUTH_SESSION_ID,
       { username: 'ada', password: 'x' },
     );
 

@@ -114,7 +114,15 @@ AUTH_HTML=$(curl -sS -f --get \
   --data-urlencode 'code_challenge_method=S256' \
   'http://localhost:3000/realms/smoke/protocol/openid-connect/auth')
 
-AUTH_SESSION_ID=$(printf '%s' "$AUTH_HTML" | sed -n 's/.*name="auth_session_id" value="\([^"]*\)".*/\1/p')
+# First match only, and `q` rather than a pipe to `head`, which would
+# leave sed to be killed by SIGPIPE under the `pipefail` set above. The
+# page carries this field once per form — the password form and the
+# passkey one each need it — and a browser submits one form, so taking
+# every match would join two ids with a newline and send something no
+# `uuid` column can parse. Any form added later is covered by the same
+# `q`.
+AUTH_SESSION_ID=$(printf '%s' "$AUTH_HTML" \
+  | sed -n '/name="auth_session_id"/{s/.*value="\([^"]*\)".*/\1/p;q;}')
 test -n "$AUTH_SESSION_ID" || { echo "smoke: no auth_session_id in the rendered login form" >&2; exit 1; }
 
 # POST the credentials the way the login form would, then read the

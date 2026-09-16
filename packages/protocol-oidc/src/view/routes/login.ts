@@ -8,6 +8,7 @@ import {
   type PasskeyEnrolmentOffer,
   type TotpEnrolmentOffer,
 } from '@odudu/authn-flows';
+import { isUuid } from '@odudu/kernel';
 import { type FastifyInstance } from 'fastify';
 import { handleLoginSubmission, type LoginSubmissionDeps } from '#/usecase/login-submission';
 import {
@@ -92,9 +93,13 @@ export function registerLoginRoute(app: FastifyInstance, deps: LoginRouteDeps): 
     async (request, reply) => {
       const authSessionId = firstString(request.body.auth_session_id);
       const realm = await deps.findRealm(request.params.realm);
+      // Shape-checked here, for the reason handleLoginSubmission gives: this
+      // writes a challenge against the id, so a value Postgres cannot parse
+      // as a uuid would raise rather than update nothing.
       if (
         beginPasskeyAuthentication === undefined ||
         authSessionId === undefined ||
+        !isUuid(authSessionId) ||
         realm === null
       ) {
         return reply.code(400).send({ error: 'invalid_request' });

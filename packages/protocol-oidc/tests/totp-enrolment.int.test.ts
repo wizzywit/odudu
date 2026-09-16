@@ -286,6 +286,25 @@ describe('enrolling the second factor a realm asked for', () => {
     expect(refused.statusCode).toBe(400);
   });
 
+  // The same shape guard the login form's own field gets: Postgres raises
+  // on a `uuid` comparison against a value it cannot parse, and this
+  // endpoint takes the field from a form too.
+  it('refuses a malformed authentication session id as unknown, not as a server fault', async () => {
+    const realmName = `totp-badsession-${newId()}`;
+    await setupRealm(realmName, true);
+
+    for (const malformed of ['not-a-uuid', `${newId()}\n${newId()}`, `${newId()}' or '1'='1`]) {
+      const refused = await enrolmentPost(realmName, 'configure-totp', {
+        auth_session_id: malformed,
+        secret: 'GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ',
+        code: '000000',
+      });
+      expect(`${JSON.stringify(malformed)}: ${String(refused.statusCode)}`).toBe(
+        `${JSON.stringify(malformed)}: 400`,
+      );
+    }
+  });
+
   it('refuses an owed action it has no submission for', async () => {
     const realmName = `totp-unsupported-${newId()}`;
     const realmId = await setupRealm(realmName, false);

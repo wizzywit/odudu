@@ -3,6 +3,7 @@ import {
   type RequiredAction,
   type TotpEnrolmentOutcome,
 } from '@odudu/authn-flows';
+import { isUuid } from '@odudu/kernel';
 import { type RealmLookup } from '#/repository/realm-lookup';
 
 export type RequiredActionOutcome =
@@ -87,7 +88,10 @@ export async function handleRequiredActionSubmission(
   submission: RequiredActionSubmission,
 ): Promise<RequiredActionOutcome> {
   const { authSessionId, action } = submission;
-  if (authSessionId === undefined || authSessionId.length === 0) {
+  // Shape first, for the reason handleLoginSubmission gives: a value
+  // Postgres cannot parse as a uuid names no session, and must not reach
+  // the comparison that raises on it.
+  if (authSessionId === undefined || !isUuid(authSessionId)) {
     return { kind: 'unauthenticated' };
   }
 

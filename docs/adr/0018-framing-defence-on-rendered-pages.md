@@ -33,7 +33,9 @@ one pairing where `X-Frame-Options`' missing ancestor-chain semantics
 cannot make the two headers disagree.
 
 The rest of the policy is small because these pages are: markup only, no
-script, no stylesheet, no image, no frame of their own.
+script, no stylesheet, no image, no frame of their own. (No longer true of
+the passkey pages — see the amendment below, which is also where the
+"breaks visibly" claim in the next bullet is corrected.)
 
 - `default-src 'none'` describes them exactly, so a subresource added later
   breaks visibly instead of quietly widening what injected markup could
@@ -54,8 +56,9 @@ nowhere else.
 ## Consequences
 
 - Adding a stylesheet, script or image to a rendered page is a deliberate
-  act that requires widening `default-src` — a visible break, which is the
-  intent.
+  act that requires widening `default-src` — intended to be a visible break,
+  though the amendment below records that it is not visible in a response,
+  only in a browser.
 - Odudu's rendered pages can never be embedded, including by an operator
   who wants to frame the login form inside their own portal. That is the
   requirement, not a limitation to design around.
@@ -63,6 +66,46 @@ nowhere else.
   obsolete one. The pairing is only safe because `DENY` and `'none'` agree;
   if the CSP ever gains a permitted ancestor, `X-Frame-Options` must be
   removed in the same change rather than left to disagree.
+
+## Amendment: a script, and what the prediction got wrong
+
+**2026-09-16.** A WebAuthn ceremony can only happen in a script —
+`navigator.credentials.create()` and `.get()` have no markup equivalent — so
+the passkey pages do carry one, and the decision above had to be revisited.
+
+The prediction that adding a script would force a decision was right. The
+prediction that it would be **a visible break was wrong**, and that is the
+part worth recording. A refused subresource is not visible in the response:
+the status is 200, the headers are the intended ones, the markup is intact,
+and the violation is reported only in a real browser's console. A test that
+injects a request and reads the body — which is every test this server has
+— sees a page that looks correct. So the passkey enrolment page shipped
+inert: it rendered, its button did nothing, and nothing anywhere reported an
+error.
+
+`default-src 'none'` therefore no longer describes every page, and the two
+sentences above that say it does are historical. The policy now:
+
+- Pages with no script of their own are unchanged, byte for byte. That is
+  still every page but two.
+- A page that must run a script is served with `script-src 'nonce-<value>'`
+  and `connect-src 'self'`, where the nonce is 16 random bytes generated per
+  response and carried on that one `<script>` element. `default-src 'none'`
+  stays, and the two directives narrow what it would otherwise forbid rather
+  than widening it for anything else: no stylesheet, no image, no frame.
+- `'unsafe-inline'` is rejected. It licenses every inline script on the
+  page, including one that arrived through an escaping failure in the
+  renderer, which is precisely the blast radius `default-src 'none'` was
+  chosen to keep small. A nonce licenses the one element the server put
+  there and nothing a response body could smuggle in.
+- The nonce is per response, never reused and never derived from anything —
+  a nonce a second page could predict is a nonce injected markup can carry.
+
+Since a CSP violation cannot be observed from a response, the pin is the
+agreement between the two halves: a test asserts that the nonce in the
+header is the nonce on the element, for each page that has a script. That is
+checkable without a browser; "the script actually ran" is not, and remains
+the gap this amendment exists to name.
 
 ## Alternatives rejected
 

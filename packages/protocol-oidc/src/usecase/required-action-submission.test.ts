@@ -4,6 +4,11 @@ import {
   type RequiredActionSubmissionDeps,
 } from '#/usecase/required-action-submission';
 
+// A real uuid, not a readable placeholder: the handler shape-checks this
+// field before it reaches a `uuid` column, so a placeholder would be
+// refused as malformed and prove nothing about the path under test.
+const AUTH_SESSION_ID = '01a0a998-8326-7900-8fa6-dd06b842b269';
+
 const REALM = {
   id: 'realm-1',
   enabled: true,
@@ -13,7 +18,7 @@ const REALM = {
 };
 
 const SUBMISSION = {
-  authSessionId: 'auth-session-1',
+  authSessionId: AUTH_SESSION_ID,
   action: 'configure-totp',
   secret: 'GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ',
   code: '123456',
@@ -54,6 +59,15 @@ function harness(): Harness {
   };
 }
 
+const MALFORMED_SESSION_IDS = [
+  'not-a-uuid',
+  '',
+  // Two ids joined by a newline: what a page carrying the field in more than
+  // one form gives a client that extracts every match.
+  '01a0a998-8326-7900-8fa6-dd06b842b269\n01a0a998-8326-7900-8fa6-dd06b842b269',
+  "01a0a998-8326-7900-8fa6-dd06b842b269' or '1'='1",
+];
+
 describe('handleRequiredActionSubmission — who is allowed to act', () => {
   it('refuses a submission carrying no authentication session', async () => {
     const { deps, completeTotpEnrolment } = harness();
@@ -65,6 +79,24 @@ describe('handleRequiredActionSubmission — who is allowed to act', () => {
 
     expect(outcome).toEqual({ kind: 'unauthenticated' });
     expect(completeTotpEnrolment).not.toHaveBeenCalled();
+  });
+
+  // Postgres raises on a `uuid` comparison against a value it cannot parse,
+  // so a malformed id must be refused here rather than reaching one — an
+  // unauthenticated caller does not get to choose what faults.
+  it('refuses a malformed authentication session id without looking anything up', async () => {
+    for (const authSessionId of MALFORMED_SESSION_IDS) {
+      const { deps, boundSubject, completeTotpEnrolment } = harness();
+
+      const outcome = await handleRequiredActionSubmission(deps, 'acme', {
+        ...SUBMISSION,
+        authSessionId,
+      });
+
+      expect(outcome).toEqual({ kind: 'unauthenticated' });
+      expect(boundSubject).not.toHaveBeenCalled();
+      expect(completeTotpEnrolment).not.toHaveBeenCalled();
+    }
   });
 
   it('refuses a submission against a session no factor has bound to a subject', async () => {
@@ -162,7 +194,7 @@ describe('handleRequiredActionSubmission — enrolling the owed factor', () => {
 
     const outcome = await handleRequiredActionSubmission(deps, 'acme', SUBMISSION);
 
-    expect(outcome).toEqual({ kind: 'completed', authSessionId: 'auth-session-1' });
+    expect(outcome).toEqual({ kind: 'completed', authSessionId: AUTH_SESSION_ID });
     expect(completeTotpEnrolment).toHaveBeenCalledWith({
       realmId: 'realm-1',
       subjectId: 'subject-1',
@@ -179,7 +211,7 @@ describe('handleRequiredActionSubmission — enrolling the owed factor', () => {
 
     expect(outcome).toMatchObject({
       kind: 'rejected',
-      authSessionId: 'auth-session-1',
+      authSessionId: AUTH_SESSION_ID,
       subjectId: 'subject-1',
       action: 'configure-totp',
     });
@@ -193,7 +225,7 @@ describe('handleRequiredActionSubmission — enrolling the owed factor', () => {
 
     const outcome = await handleRequiredActionSubmission(deps, 'acme', SUBMISSION);
 
-    expect(outcome).toEqual({ kind: 'completed', authSessionId: 'auth-session-1' });
+    expect(outcome).toEqual({ kind: 'completed', authSessionId: AUTH_SESSION_ID });
   });
 });
 
@@ -209,11 +241,11 @@ describe('handleRequiredActionSubmission — enrolling a passkey', () => {
       label: 'Yubikey',
     });
 
-    expect(outcome).toEqual({ kind: 'completed', authSessionId: 'auth-session-1' });
+    expect(outcome).toEqual({ kind: 'completed', authSessionId: AUTH_SESSION_ID });
     expect(completePasskeyEnrolment).toHaveBeenCalledWith({
       realmId: 'realm-1',
       subjectId: 'subject-1',
-      authSessionId: 'auth-session-1',
+      authSessionId: AUTH_SESSION_ID,
       response: { id: 'abc' },
       label: 'Yubikey',
     });
@@ -254,7 +286,7 @@ describe('handleRequiredActionSubmission — enrolling a passkey', () => {
 
     expect(outcome).toMatchObject({
       kind: 'rejected',
-      authSessionId: 'auth-session-1',
+      authSessionId: AUTH_SESSION_ID,
       subjectId: 'subject-1',
       action: 'configure-passkey',
     });

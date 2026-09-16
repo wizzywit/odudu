@@ -520,6 +520,25 @@ describe('[OIDC-CORE-3.1.2.1-05] the login form cannot be driven cross-site', ()
     const foreignSessionId = await startAuthSession(http, REALM_BETA);
     expect((await submitLogin({ ...GOOD, csrf: foreignSessionId })).statusCode).toBe(400);
   });
+
+  // The field is a uuid column's value, and Postgres raises on a `uuid`
+  // comparison against anything it cannot parse rather than matching no
+  // row. Refused the same way an unknown id is — never 500, which would
+  // hand an unauthenticated caller a server fault and a logged query.
+  it('refuses a malformed session id as unknown, not as a server fault', async () => {
+    for (const malformed of [
+      'not-a-uuid',
+      '',
+      `${newId()}\n${newId()}`,
+      `${newId()}' or '1'='1`,
+      '../../etc/passwd',
+    ]) {
+      const res = await submitLogin({ ...GOOD, csrf: malformed });
+      expect(`${JSON.stringify(malformed)}: ${String(res.statusCode)}`).toBe(
+        `${JSON.stringify(malformed)}: 400`,
+      );
+    }
+  });
 });
 
 describe('the parked request is what binds the code', () => {

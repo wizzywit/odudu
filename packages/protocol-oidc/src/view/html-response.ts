@@ -15,12 +15,12 @@ const BASE_DIRECTIVES = [
   "base-uri 'none'",
 ];
 
-// A WebAuthn page is the exception: only a script can reach an
-// authenticator, and `default-src 'none'` blocks an inline one silently, so
-// the page looks broken rather than refused. It gets a per-response nonce
-// rather than 'unsafe-inline', which would licence every injected script on
-// the page as well as the intended one, and `connect-src 'self'` for the
-// one request the script makes.
+// A WebAuthn page is the exception (ADR 0018's amendment): only a script
+// can reach an authenticator, and `default-src 'none'` blocks an inline one
+// silently — the page looks broken rather than refused. It gets a
+// per-response nonce rather than 'unsafe-inline', which would licence every
+// injected script on the page as well as the intended one, and
+// `connect-src 'self'` for the one request the script makes.
 export function scriptNonce(): string {
   return randomBytes(16).toString('base64');
 }

@@ -21,7 +21,7 @@ import { effectiveGroupPaths, effectiveRoles } from '@odudu/domain-authz';
 import { withRealm, type DatabaseHandle } from '@odudu/db';
 import { userRepository, verifyPassword } from '@odudu/domain-identity';
 import { clientRepository, clientScopeRepository } from '@odudu/domain-realm';
-import { systemClock, type Clock } from '@odudu/kernel';
+import { isUuid, systemClock, type Clock } from '@odudu/kernel';
 import { type FastifyPluginAsync } from 'fastify';
 import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
 import { tokenGrantRepository } from '#/repository/grants';
@@ -40,8 +40,6 @@ import { registerRequiredActionRoute } from '#/view/routes/required-action';
 import { registerLogoutRoute } from '#/view/routes/logout';
 import { registerTokenRoute } from '#/view/routes/token';
 import { registerUserinfoRoute } from '#/view/routes/userinfo';
-
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export interface OidcRoutesDeps {
   database: DatabaseHandle;
@@ -187,7 +185,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
         // id is a UUID column — a value shaped like anything else names no
         // row rather than raising the invalid-input-syntax error Postgres
         // would give a raw comparison.
-        if (cookieValue === undefined || !UUID_PATTERN.test(cookieValue)) return null;
+        if (cookieValue === undefined || !isUuid(cookieValue)) return null;
         return withRealm(deps.database.db, realm.id, async (tx) => {
           const record = await sessionRepository(tx).liveById(
             cookieValue,
@@ -391,7 +389,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
       // The same cookie-to-live-row resolution /authorize's resolveSession
       // performs, minus the authTime that only completing a login needs.
       resolveSession: async (realm, cookieValue) => {
-        if (cookieValue === undefined || !UUID_PATTERN.test(cookieValue)) return null;
+        if (cookieValue === undefined || !isUuid(cookieValue)) return null;
         return withRealm(deps.database.db, realm.id, async (tx) => {
           const record = await sessionRepository(tx).liveById(
             cookieValue,

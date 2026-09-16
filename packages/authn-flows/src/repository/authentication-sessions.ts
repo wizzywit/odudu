@@ -1,6 +1,7 @@
 import { and, eq, isNull, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { type RealmScopedDatabase } from '@odudu/db';
+import { isUuid } from '@odudu/kernel';
 import {
   authenticationSessions,
   type AuthenticationSessionRecord,
@@ -38,7 +39,14 @@ export interface NewAuthenticationSession {
 // "resend" path) that want the row without driving `advance`.
 export function authenticationSessionRepository(tx: RealmScopedDatabase) {
   return {
+    // The first read on every path that resolves an attempt, and therefore
+    // the one place worth a backstop: `id` normally arrives from a hidden
+    // form field, and Postgres raises on a `uuid` comparison against
+    // anything it cannot parse instead of matching nothing. A caller that
+    // has not shape-checked it gets the same null an unknown id gives,
+    // rather than an unhandled database error.
     async byId(id: string): Promise<AuthenticationSessionRecord | null> {
+      if (!isUuid(id)) return null;
       const rows = await tx
         .select()
         .from(authenticationSessions)
