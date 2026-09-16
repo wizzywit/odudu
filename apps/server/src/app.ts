@@ -20,7 +20,6 @@ import {
   userRepository,
   verifyPassword,
 } from '@odudu/domain-identity';
-import { type EmailSender } from '@odudu/email';
 import { newId } from '@odudu/kernel';
 import { oidcRoutes } from '@odudu/protocol-oidc';
 import Fastify, { type FastifyInstance, type RawServerDefault } from 'fastify';
@@ -48,14 +47,6 @@ export interface AppDeps {
    */
   readonly kek: Uint8Array;
   readonly logger: PinoLogger;
-  /**
-   * Where a mailed link goes: address verification triggered by
-   * self-registration. Required rather than defaulted for the same reason
-   * `kek` is — there is no safe placeholder that would not silently drop
-   * mail, and `main.ts` builds the real one from `ODUDU_SMTP_*` while a
-   * test builds a capturing or in-memory one.
-   */
-  readonly sender: EmailSender;
   /**
    * The base a mailed verification link is built from, and the only source
    * of the WebAuthn relying party id — never derived from a request, since
@@ -213,7 +204,6 @@ export function buildApp(deps: AppDeps): FastifyInstance {
 
   registerRegistrationRoute(app, {
     database: deps.database,
-    sender: deps.sender,
     findRealm: (name) => realmSettingsRepository(deps.ownerDatabase.db).byName(name),
     publicBaseUrl: deps.publicBaseUrl,
     createAccount,
@@ -222,7 +212,6 @@ export function buildApp(deps: AppDeps): FastifyInstance {
 
   registerResetPasswordRoute(app, {
     database: deps.database,
-    sender: deps.sender,
     findRealm: (name) => realmSettingsRepository(deps.ownerDatabase.db).byName(name),
     publicBaseUrl: deps.publicBaseUrl,
     findByEmail: async (tx, email) => {

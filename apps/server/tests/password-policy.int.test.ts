@@ -5,13 +5,20 @@ import {
   runMigrations,
   type DatabaseHandle,
 } from '@odudu/db';
-import { capturingSender, type EmailMessage } from '@odudu/email';
+import {
+  capturingSender,
+  emailOutbox,
+  sendPending,
+  type EmailMessage,
+  type EmailSender,
+  type SendPendingOptions,
+} from '@odudu/email';
 import { loadConfig, MAX_PASSWORD_LENGTH, newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import { userCredentials } from '@odudu/domain-identity';
 import { and, eq, sql } from 'drizzle-orm';
 import { type FastifyInstance } from 'fastify';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { buildApp } from '#/app';
 import { seed } from '#/cli/seed';
 import { createLogger } from '#/logger';
@@ -67,6 +74,33 @@ afterAll(async () => {
   await containerHandle?.stop();
 });
 
+const OUTBOX_OPTIONS: SendPendingOptions = {
+  batchSize: 50,
+  maxAttempts: 3,
+  retryBackoffSeconds: 60,
+};
+
+// A request queues its mail and answers; the pass that hands a queued
+// message to a transport runs on the server's own schedule
+// (apps/server/src/modules/outbox.ts). A test that wants the mailed link
+// runs that pass here instead of waiting for a tick.
+
+async function drainOutbox(into: EmailSender): Promise<void> {
+  await sendPending(
+    { database: appDb, ownerDatabase: owner, sender: into },
+    drainAt(),
+    OUTBOX_OPTIONS,
+  );
+}
+
+// A message's `next_attempt_at` defaults to the database's clock, and a
+// containerised Postgres can run milliseconds ahead of this process — so a
+// pass given this process's own instant can find a message it queued a
+// moment ago not yet due. A minute ahead is past any such skew.
+function drainAt(): Date {
+  return new Date(Date.now() + 60_000);
+}
+
 function buildTestApp(): FastifyInstance {
   const config = loadConfig({ ...process.env, ODUDU_LOG_LEVEL: 'silent' });
   return buildApp({
@@ -74,7 +108,6 @@ function buildTestApp(): FastifyInstance {
     ownerDatabase: owner,
     kek: KEK,
     logger: createLogger(config),
-    sender: capturingSender(),
     ...(config.ODUDU_PUBLIC_BASE_URL !== undefined
       ? { publicBaseUrl: config.ODUDU_PUBLIC_BASE_URL }
       : {}),
@@ -139,6 +172,13 @@ function extractLink(message: EmailMessage): string {
   return link;
 }
 
+// Every test below reads either what the queue holds or what a drain
+// delivered, so each starts with the queue empty rather than with whatever
+// an earlier test left in it.
+beforeEach(async () => {
+  await owner.db.delete(emailOutbox);
+});
+
 describe('the realm password policy binds every writer', () => {
   it('refuses a weak password at registration', async () => {
     const realmName = `policy-reg-${newId()}`;
@@ -189,7 +229,6 @@ describe('the realm password policy binds every writer', () => {
       ownerDatabase: owner,
       kek: KEK,
       logger: createLogger(loadConfig({ ...process.env, ODUDU_LOG_LEVEL: 'silent' })),
-      sender,
       publicBaseUrl: PUBLIC_BASE_URL,
     });
     await app.ready();
@@ -203,6 +242,7 @@ describe('the realm password policy binds every writer', () => {
       });
       expect(requested.statusCode).toBe(200);
 
+      await drainOutbox(sender);
       const message = sender.sent[0];
       if (message === undefined) throw new Error('no reset mail sent');
       const link = extractLink(message);
@@ -342,7 +382,6 @@ describe('a password over the maximum is refused wherever one is read', () => {
       ownerDatabase: owner,
       kek: KEK,
       logger: createLogger(loadConfig({ ...process.env, ODUDU_LOG_LEVEL: 'silent' })),
-      sender,
       publicBaseUrl: PUBLIC_BASE_URL,
     });
     await app.ready();
@@ -352,6 +391,7 @@ describe('a password over the maximum is refused wherever one is read', () => {
       });
       expect(requested.statusCode).toBe(200);
 
+      await drainOutbox(sender);
       const message = sender.sent[0];
       if (message === undefined) throw new Error('no reset mail sent');
       const link = extractLink(message);

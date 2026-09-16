@@ -1,5 +1,4 @@
 import { type DatabaseHandle, type RealmScopedDatabase } from '@odudu/db';
-import { type EmailSender } from '@odudu/email';
 import { PASSWORD_TOO_LONG, readPasswordField } from '@odudu/kernel';
 import { type FastifyInstance } from 'fastify';
 import {
@@ -28,7 +27,6 @@ export interface RegistrationRealmLookup {
 
 export interface RegistrationRouteDeps {
   readonly database: DatabaseHandle;
-  readonly sender: EmailSender;
   readonly findRealm: (name: string) => Promise<RegistrationRealmLookup | null>;
   // Operator configuration (ODUDU_PUBLIC_BASE_URL), never anything read off
   // the request: `request.host` is the client-controlled Host header, and
@@ -120,7 +118,6 @@ export function registerRegistrationRoute(app: FastifyInstance, deps: Registrati
     const outcome = await register(
       {
         database: deps.database,
-        sender: deps.sender,
         realmId: realm.id,
         realmName: realm.name,
         realmDisplayName: realm.displayName ?? realm.name,

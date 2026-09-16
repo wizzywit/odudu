@@ -109,6 +109,36 @@ describe('loadConfig', () => {
     );
   });
 
+  it('sends queued mail every fifteen seconds by default', () => {
+    const config = loadConfig(minimal);
+    expect(config.ODUDU_OUTBOX_ENABLED).toBe(true);
+    expect(config.ODUDU_OUTBOX_INTERVAL_SECONDS).toBe(15);
+    expect(config.ODUDU_OUTBOX_BATCH_SIZE).toBe(20);
+    expect(config.ODUDU_OUTBOX_MAX_ATTEMPTS).toBe(5);
+    expect(config.ODUDU_OUTBOX_RETRY_BACKOFF_SECONDS).toBe(60);
+  });
+
+  // The other variable whose absence means "on", and for the same reason:
+  // a deployment that says nothing must still send its mail.
+  it('turns the outbox schedule off only on the literal string false', () => {
+    expect(loadConfig({ ...minimal, ODUDU_OUTBOX_ENABLED: 'false' }).ODUDU_OUTBOX_ENABLED).toBe(
+      false,
+    );
+    expect(() => loadConfig({ ...minimal, ODUDU_OUTBOX_ENABLED: 'no' })).toThrow(/OUTBOX_ENABLED/u);
+  });
+
+  it('refuses an attempt ceiling of zero, which would send nothing at all', () => {
+    expect(() => loadConfig({ ...minimal, ODUDU_OUTBOX_MAX_ATTEMPTS: '0' })).toThrow(
+      /OUTBOX_MAX_ATTEMPTS/u,
+    );
+  });
+
+  it('keeps a delivered message a week and a spent one thirty days', () => {
+    const config = loadConfig(minimal);
+    expect(config.ODUDU_RETENTION_EMAIL_SENT_SECONDS).toBe(604_800);
+    expect(config.ODUDU_RETENTION_EMAIL_FAILED_SECONDS).toBe(2_592_000);
+  });
+
   it('decodes ODUDU_KEK from base64 to exactly 32 bytes', () => {
     const config = loadConfig(minimal);
     expect(config.ODUDU_KEK).toBeInstanceOf(Uint8Array);

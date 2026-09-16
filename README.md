@@ -279,21 +279,18 @@ only it writes any. Closing that would mean threading the depth and the
 stored hashes into `@odudu/account`, which depends on neither the
 required-action machinery nor `apps/server`.
 
-**Known limitation:** the reset-request endpoint still has a timing
-oracle — mailing an address that exists takes an SMTP round trip longer
-than the single `SELECT` a nonexistent one costs, so a network observer can
-distinguish the two by response time even though the response body and
-status cannot. Closing it needs sending off the request path entirely (an
-outbox table and a background sender), which P2a's design spec rejected: it
-would have been the first background loop in the codebase and a second table
-nothing deletes from. Stated here rather than fixed, on the judgment that an
-honest limitation beats an accidental one.
-
-**P2b owns closing it**, as of 2026-09-15. The background loop now exists —
-it reaps expired state (`apps/server/src/scheduler.ts`,
-[ADR 0024](docs/adr/0024-a-scheduled-pass-is-a-command-first.md)) — so the
-outbox costs a table and a sender rather than new infrastructure; this
-paragraph goes away in the increment that lands it, and not before.
+**No mail is sent on the request path.** Every flow that mails — address
+verification, self-registration and password reset — writes the message to
+`email_outbox` in the same transaction that mints the token it carries, and
+answers. A sender claims batches of due messages with `FOR UPDATE SKIP
+LOCKED`, one realm at a time, and runs either on the server's own schedule
+(`ODUDU_OUTBOX_INTERVAL_SECONDS`) or as `odudu send-mail`
+([ADR 0024](docs/adr/0024-a-scheduled-pass-is-a-command-first.md)). That is
+what makes the two reset paths indistinguishable in time as well as in
+content: an address with an account costs one `INSERT` more than one
+without, not an SMTP round trip more. A refused message is retried with a
+doubling backoff and, once its attempts are spent, kept with its last error
+for an operator to read.
 
 **Known limitation, realm-wide:** the reset endpoint's enumeration safety
 does not make the realm itself un-enumerable. With `registration_allowed`
@@ -301,9 +298,8 @@ also on, the registration form (below) answers "that email address is
 already registered" with a 400 — a universal trade-off for a self-service
 registration form, and the one Keycloak makes too — so an address's
 presence in the realm is discoverable through that door even though the
-reset flow closes this one. Accepted, not fixed, for the same reason the
-timing oracle above is: honestly naming a trade-off beats implying a
-property the realm does not actually have.
+reset flow closes this one. Accepted, not fixed: honestly naming a
+trade-off beats implying a property the realm does not actually have.
 
 A mailed verification link is built from `ODUDU_PUBLIC_BASE_URL`, never
 from the request that triggered it — a request's `Host` header is
@@ -663,7 +659,7 @@ node --env-file=.env apps/server/src/main.ts reap
 ```
 
 ```
-{"ran":true,"deleted":{"refresh_tokens":0,"authorization_codes":0,"token_grants":0,"authentication_sessions":0,"action_tokens":0,"login_failures":0,"sessions":0}}
+{"ran":true,"deleted":{"refresh_tokens":0,"authorization_codes":0,"token_grants":0,"authentication_sessions":0,"action_tokens":0,"login_failures":0,"email_outbox":0,"sessions":0}}
 ```
 
 Those zeros on a freshly used stack are the design, not a bug. A row is
@@ -687,6 +683,28 @@ owner role the migrations use escapes, so it refuses rather than running
 unscoped. Outside production — where the server refuses to boot without
 that variable at all — the schedule declines to start and logs one warning
 naming it, rather than failing the same way every hour.
+
+**The mail sender is the same shape of thing.** Queued mail is sent by a
+second pass, `send-mail`, which the server runs every
+`ODUDU_OUTBOX_INTERVAL_SECONDS` (default `15`) plus a tenth as jitter, and
+which an operator can run instead:
+
+```bash
+node --env-file=.env apps/server/src/main.ts send-mail
+```
+
+```
+{"ran":true,"sent":1,"failed":0}
+```
+
+[docs/request-paths.md](docs/request-paths.md#sending-queued-mail-odudu-send-mail)
+has the queue before and after that run. Unlike the retention pass it takes
+no lock: two senders that meet claim different messages (`FOR UPDATE SKIP
+LOCKED`) and both make progress. It needs `ODUDU_APP_DATABASE_URL` for the
+same reason, and declines to start without it in the same way — and **with
+`ODUDU_OUTBOX_ENABLED=false` and nothing scheduling the command, queued
+mail is never sent at all**: no verification link, no reset link, and a
+growing table to show for it.
 
 It answers three things that are not a report of rows, and
 [says which each is](docs/request-paths.md#when-the-pass-refuses-or-finds-nothing-to-look-at):
@@ -800,6 +818,12 @@ A real deployment today looks like:
    and very large tables. Either way it requires `ODUDU_APP_DATABASE_URL`,
    because its deletes are scoped by the row-level-security policy that the
    owner role escapes.
+8. **Leave the outbox schedule on too**, or schedule
+   `node dist/main.js send-mail` instead. Nothing else sends mail: with the
+   schedule off and no command running, every verification and reset link
+   sits in `email_outbox` unsent, and the flows that queued them still
+   answer exactly as they do when mail is going out — by design, since the
+   reset endpoint must not answer differently for an address that exists.
 
 ### What is not built yet
 

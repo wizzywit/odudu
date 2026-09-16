@@ -5,7 +5,6 @@ import {
   runMigrations,
   type DatabaseHandle,
 } from '@odudu/db';
-import { capturingSender } from '@odudu/email';
 import { loadConfig, newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import { eq } from 'drizzle-orm';
@@ -75,14 +74,13 @@ afterAll(async () => {
 });
 
 // No `throttle` override: the point is the default every deployment gets.
-function buildTestApp(sender: ReturnType<typeof capturingSender>): FastifyInstance {
+function buildTestApp(): FastifyInstance {
   const config = loadConfig({ ...process.env, ODUDU_LOG_LEVEL: 'silent' });
   return buildApp({
     database: appDb,
     ownerDatabase: owner,
     kek: KEK,
     logger: createLogger(config),
-    sender,
     ...(config.ODUDU_PUBLIC_BASE_URL !== undefined
       ? { publicBaseUrl: config.ODUDU_PUBLIC_BASE_URL }
       : {}),
@@ -144,7 +142,7 @@ describe('the per-origin throttle on the routes that cost CPU', () => {
     });
     await setRealmSettings(seeded.realmId, { registrationAllowed: true, verifyEmail: false });
 
-    const app = buildTestApp(capturingSender());
+    const app = buildTestApp();
     await app.ready();
 
     try {
@@ -201,7 +199,7 @@ describe('the per-origin throttle on the routes that cost CPU', () => {
       email: EMAIL,
     });
 
-    const app = buildTestApp(capturingSender());
+    const app = buildTestApp();
     await app.ready();
 
     try {
@@ -271,7 +269,7 @@ describe('the per-origin throttle on the routes that cost CPU', () => {
     });
     await setRealmSettings(seeded.realmId, { resetPasswordAllowed: true });
 
-    const app = buildTestApp(capturingSender());
+    const app = buildTestApp();
     await app.ready();
 
     try {
@@ -312,7 +310,7 @@ describe('the per-origin throttle on the routes that cost CPU', () => {
     });
     await setRealmSettings(seeded.realmId, { registrationAllowed: true });
 
-    const app = buildTestApp(capturingSender());
+    const app = buildTestApp();
     await app.ready();
 
     try {
@@ -350,7 +348,7 @@ describe('the per-origin throttle on the routes that cost CPU', () => {
       email: EMAIL,
     });
 
-    const app = buildTestApp(capturingSender());
+    const app = buildTestApp();
     await app.ready();
 
     try {

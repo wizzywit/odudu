@@ -3,6 +3,7 @@ import { loadConfig, ModuleRegistry, systemClock } from '@odudu/kernel';
 import closeWithGrace from 'close-with-grace';
 import { buildApp } from '#/app';
 import { reapCommand } from '#/cli/reap';
+import { sendMailCommand } from '#/cli/send-mail';
 import { seed } from '#/cli/seed';
 import { resolveSeedInvocation } from '#/cli/seed-invocation';
 import {
@@ -15,11 +16,22 @@ import { buildEmailSender } from '#/email';
 import { createLogger } from '#/logger';
 import { databaseModule } from '#/modules/database';
 import { httpModule } from '#/modules/http';
+import { outboxModule } from '#/modules/outbox';
 import { reapModule } from '#/modules/reap';
 
 if (process.argv[2] === 'reap') {
   try {
     console.log(JSON.stringify(await reapCommand()));
+    process.exit(0);
+  } catch (err) {
+    console.error(err instanceof Error ? err.message : String(err));
+    process.exit(1);
+  }
+}
+
+if (process.argv[2] === 'send-mail') {
+  try {
+    console.log(JSON.stringify(await sendMailCommand()));
     process.exit(0);
   } catch (err) {
     console.error(err instanceof Error ? err.message : String(err));
@@ -58,12 +70,13 @@ if (runtime === owner) {
   );
 }
 
+const sender = buildEmailSender(config, logger);
+
 const app = buildApp({
   database: runtime,
   ownerDatabase: owner,
   kek: config.ODUDU_KEK,
   logger,
-  sender: buildEmailSender(config, logger),
   ...(config.ODUDU_PUBLIC_BASE_URL !== undefined
     ? { publicBaseUrl: config.ODUDU_PUBLIC_BASE_URL }
     : {}),
@@ -77,6 +90,7 @@ const app = buildApp({
 const registry = new ModuleRegistry()
   .register(databaseModule(owner, runtime))
   .register(reapModule({ database: runtime, ownerDatabase: owner }))
+  .register(outboxModule({ database: runtime, ownerDatabase: owner, sender }))
   .register(httpModule(app));
 
 closeWithGrace({ delay: 10_000 }, async ({ err }) => {

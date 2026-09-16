@@ -24,6 +24,9 @@ const POLICY: RetentionPolicy = {
   authenticationSessionSeconds: 60 * 60,
   actionTokenSeconds: 7 * 24 * 60 * 60,
   sessionSeconds: 24 * 60 * 60,
+  emailSentSeconds: 7 * 24 * 60 * 60,
+  emailFailedSeconds: 30 * 24 * 60 * 60,
+  emailMaxAttempts: 5,
 };
 
 const REAPABLE_TOKENS = 3;

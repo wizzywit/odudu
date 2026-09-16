@@ -1,5 +1,4 @@
 import { createDatabase, MIGRATIONS_DIR, runMigrations, type DatabaseHandle } from '@odudu/db';
-import { capturingSender } from '@odudu/email';
 import { loadConfig, newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import { sql } from 'drizzle-orm';
@@ -64,7 +63,6 @@ beforeAll(async () => {
     ownerDatabase: owner,
     kek: KEK,
     logger: createLogger(config),
-    sender: capturingSender(),
   });
   await http.ready();
 }, 120_000);

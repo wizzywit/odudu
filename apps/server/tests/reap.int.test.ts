@@ -43,6 +43,9 @@ const POLICY: RetentionPolicy = {
   authenticationSessionSeconds: 60 * 60,
   actionTokenSeconds: 7 * 24 * 60 * 60,
   sessionSeconds: 24 * 60 * 60,
+  emailSentSeconds: 7 * 24 * 60 * 60,
+  emailFailedSeconds: 30 * 24 * 60 * 60,
+  emailMaxAttempts: 5,
 };
 
 function at(offsetMs: number): string {
@@ -62,6 +65,11 @@ interface Fixture {
   readonly youngGrantId: string;
   readonly boundSessionId: string;
   readonly orphanSessionId: string;
+  readonly sentLongAgoId: string;
+  readonly sentYesterdayId: string;
+  readonly failedLongAgoId: string;
+  readonly failedYesterdayId: string;
+  readonly neverAttemptedId: string;
 }
 
 // One realm carrying, for every reaped table, a row that is eligible and a
@@ -78,6 +86,11 @@ async function seedFixture(brute?: BruteForce): Promise<Fixture> {
   const youngGrantId = newId();
   const boundSessionId = newId();
   const orphanSessionId = newId();
+  const sentLongAgoId = newId();
+  const sentYesterdayId = newId();
+  const failedLongAgoId = newId();
+  const failedYesterdayId = newId();
+  const neverAttemptedId = newId();
 
   await owner.db.execute(sql`
     INSERT INTO realms (id, name, brute_force_lockout_seconds,
@@ -163,7 +176,40 @@ async function seedFixture(brute?: BruteForce): Promise<Fixture> {
        ${at(-1 * DAY)}::timestamptz, ${at(1 * HOUR)}::timestamptz)
   `);
 
-  return { realm, realmId, staleGrantId, youngGrantId, boundSessionId, orphanSessionId };
+  // The five states a queued message can be in when a pass arrives, and
+  // only two of them are the pass's business: delivered long ago, and
+  // permanently failed long enough ago that an operator has had their
+  // window to read it. One delivered yesterday, one that failed yesterday
+  // and one never attempted at all are none of its business.
+  await owner.db.execute(sql`
+    INSERT INTO email_outbox (id, realm_id, to_address, subject, body_text, body_html,
+                              created_at, next_attempt_at, sent_at, attempts)
+    VALUES
+      (${sentLongAgoId}, ${realmId}, 'ada@example.test', 'Sent', 't', '<p>t</p>',
+       ${at(-9 * DAY)}::timestamptz, ${at(-9 * DAY)}::timestamptz, ${at(-8 * DAY)}::timestamptz, 1),
+      (${sentYesterdayId}, ${realmId}, 'ada@example.test', 'Sent', 't', '<p>t</p>',
+       ${at(-2 * DAY)}::timestamptz, ${at(-2 * DAY)}::timestamptz, ${at(-1 * DAY)}::timestamptz, 1),
+      (${failedLongAgoId}, ${realmId}, 'ada@example.test', 'Failed', 't', '<p>t</p>',
+       ${at(-40 * DAY)}::timestamptz, ${at(-31 * DAY)}::timestamptz, NULL, 5),
+      (${failedYesterdayId}, ${realmId}, 'ada@example.test', 'Failed', 't', '<p>t</p>',
+       ${at(-3 * DAY)}::timestamptz, ${at(-1 * DAY)}::timestamptz, NULL, 5),
+      (${neverAttemptedId}, ${realmId}, 'ada@example.test', 'Waiting', 't', '<p>t</p>',
+       ${at(-60 * DAY)}::timestamptz, ${at(-60 * DAY)}::timestamptz, NULL, 0)
+  `);
+
+  return {
+    realm,
+    realmId,
+    staleGrantId,
+    youngGrantId,
+    boundSessionId,
+    orphanSessionId,
+    sentLongAgoId,
+    sentYesterdayId,
+    failedLongAgoId,
+    failedYesterdayId,
+    neverAttemptedId,
+  };
 }
 
 const RELATIONS: Record<TableName, SQL> = {
@@ -173,6 +219,7 @@ const RELATIONS: Record<TableName, SQL> = {
   authentication_sessions: sql.raw('authentication_sessions'),
   action_tokens: sql.raw('action_tokens'),
   login_failures: sql.raw('login_failures'),
+  email_outbox: sql.raw('email_outbox'),
   sessions: sql.raw('sessions'),
 };
 
@@ -238,6 +285,7 @@ describe('odudu reap', () => {
       authentication_sessions: 1,
       action_tokens: 1,
       login_failures: 1,
+      email_outbox: 2,
       sessions: 1,
     });
 
@@ -251,6 +299,7 @@ describe('odudu reap', () => {
       authentication_sessions: 1,
       action_tokens: 1,
       login_failures: 1,
+      email_outbox: 3,
       sessions: 1,
     });
 
@@ -261,8 +310,47 @@ describe('odudu reap', () => {
       authentication_sessions: 0,
       action_tokens: 0,
       login_failures: 0,
+      email_outbox: 0,
       sessions: 0,
     });
+  });
+
+  // The counts above are satisfied by a rule that deletes any two of the
+  // five, so which two survived is asserted by name. Nothing an operator
+  // has not yet had a chance to read may go: this schema records a
+  // permanent failure as a spent attempt budget and nothing else, so the
+  // window that protects it is measured from the last attempt.
+  it('keeps every queued message an operator could still need to read', async () => {
+    const fixture = await seedFixture();
+
+    await runPass();
+
+    const rows = await owner.db.execute<{ id: string }>(
+      sql`SELECT id FROM email_outbox WHERE realm_id = ${fixture.realmId} ORDER BY created_at`,
+    );
+    expect(rows.map((row) => row.id).sort()).toEqual(
+      [fixture.neverAttemptedId, fixture.failedYesterdayId, fixture.sentYesterdayId].sort(),
+    );
+  });
+
+  // A message still inside its retry schedule has attempts on it but has
+  // not spent them, and is not a failure yet however old it is.
+  it('keeps a message that is still being retried, whatever its age', async () => {
+    const fixture = await seedFixture();
+    const id = newId();
+    await owner.db.execute(sql`
+      INSERT INTO email_outbox (id, realm_id, to_address, subject, body_text, body_html,
+                                created_at, next_attempt_at, attempts)
+      VALUES (${id}, ${fixture.realmId}, 'ada@example.test', 'Retrying', 't', '<p>t</p>',
+              ${at(-400 * DAY)}::timestamptz, ${at(-399 * DAY)}::timestamptz, 4)
+    `);
+
+    await runPass();
+
+    const rows = await owner.db.execute<{ n: string }>(
+      sql`SELECT count(*) AS n FROM email_outbox WHERE id = ${id}`,
+    );
+    expect(rows[0]?.n).toBe('1');
   });
 
   it('keeps a session a grant still references, without nulling the grant', async () => {

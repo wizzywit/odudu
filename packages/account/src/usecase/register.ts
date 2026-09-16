@@ -1,5 +1,5 @@
 import { withRealm, type DatabaseHandle, type RealmScopedDatabase } from '@odudu/db';
-import { renderVerifyEmail, type EmailSender } from '@odudu/email';
+import { outboxRepository, renderVerifyEmail } from '@odudu/email';
 import { OduduError } from '@odudu/kernel';
 import { actionTokenRepository } from '#/repository/action-tokens';
 import { type PasswordPolicy, type PolicyViolation } from '#/repository/realm-settings';
@@ -23,7 +23,6 @@ export interface CreateAccountResult {
 
 export interface RegisterDeps {
   readonly database: DatabaseHandle;
-  readonly sender: EmailSender;
   readonly realmId: string;
   readonly realmName: string;
   readonly realmDisplayName: string;
@@ -94,11 +93,11 @@ function classifyAccountCreationError(err: unknown): AccountCreationFailure | nu
 
 // Creates the subject, the user row, the password credential and the
 // default roles in one transaction, and — only when the realm requires
-// verification — issues the verify_email token inside that same
-// transaction. The mail goes out after commit and is awaited, exactly as
-// sendVerificationEmail (#/usecase/verify-email.ts) establishes: a token a
-// user could receive but the database never durably stored would be a
-// support call with no trace.
+// verification — issues the verify_email token and queues the mail that
+// carries it inside that same transaction, exactly as sendVerificationEmail
+// (#/usecase/verify-email.ts) establishes: an account that rolls back
+// leaves no link in anybody's inbox, and a link that reaches an inbox names
+// a token the database durably stored.
 export async function register(
   deps: RegisterDeps,
   input: NewAccountInput,
@@ -115,12 +114,16 @@ export async function register(
     return { kind: 'invalid_password', violations };
   }
 
-  let created: { subjectId: string; token: string | null };
+  let created: { subjectId: string };
   try {
     created = await withRealm(deps.database.db, deps.realmId, async (tx) => {
       const account = await deps.createAccount(tx, deps.realmId, input);
-      if (!deps.verifyEmailEnabled) {
-        return { subjectId: account.subjectId, token: null };
+      // The earlier misconfigured check already guarantees issuerBase is
+      // defined whenever verification is on; re-checking it here (rather
+      // than asserting past the type) is what lets that stay true by
+      // construction instead of by convention.
+      if (!deps.verifyEmailEnabled || deps.issuerBase === undefined) {
+        return { subjectId: account.subjectId };
       }
       const { token } = await actionTokenRepository(tx).issue({
         realmId: deps.realmId,
@@ -129,23 +132,17 @@ export async function register(
         email: input.email,
         ttlSeconds: VERIFY_EMAIL_TTL_SECONDS,
       });
-      return { subjectId: account.subjectId, token };
+      const link = `${deps.issuerBase}/realms/${deps.realmName}/login-actions/action-token?key=${encodeURIComponent(token)}`;
+      await outboxRepository(tx).enqueue({
+        realmId: deps.realmId,
+        ...renderVerifyEmail({ to: input.email, link, realmDisplayName: deps.realmDisplayName }),
+      });
+      return { subjectId: account.subjectId };
     });
   } catch (err) {
     const failure = classifyAccountCreationError(err);
     if (failure !== null) return { kind: failure };
     throw err;
-  }
-
-  // The earlier misconfigured check already guarantees issuerBase is
-  // defined whenever a token was actually issued; re-checking it here
-  // (rather than asserting past the type) is what lets that stay true by
-  // construction instead of by convention.
-  if (created.token !== null && deps.issuerBase !== undefined) {
-    const link = `${deps.issuerBase}/realms/${deps.realmName}/login-actions/action-token?key=${encodeURIComponent(created.token)}`;
-    await deps.sender.send(
-      renderVerifyEmail({ to: input.email, link, realmDisplayName: deps.realmDisplayName }),
-    );
   }
 
   return { kind: 'created', subjectId: created.subjectId };

@@ -35,7 +35,6 @@ import {
   type ClientOidcConfig,
 } from '@odudu/protocol-oidc';
 import { eq } from 'drizzle-orm';
-import { buildEmailSender } from '#/email';
 import { createLogger } from '#/logger';
 
 // A confidential client's method of proving its secret at /token: either
@@ -489,7 +488,6 @@ async function seedClientBootstrap(opts: SeedOptions): Promise<SeedResult> {
       await sendVerificationEmail(
         {
           database: runtime,
-          sender: buildEmailSender(config, logger),
           realmId: result.realmId,
           realmName: result.realm,
           realmDisplayName: realm?.displayName ?? result.realm,

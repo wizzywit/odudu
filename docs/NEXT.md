@@ -3,7 +3,48 @@
 ## Start here
 
 **P0, P1 and P2a are complete. P2b is brainstormed, specified and planned;
-Tasks 1 through 26 have landed.**
+Tasks 1 through 27 have landed.**
+
+**Mail is off the request path, and P2a's reset timing oracle is closed.**
+Address verification, self-registration and password reset each write their
+message to `email_outbox` (0043) in the same transaction that mints the
+token it carries, and answer. Nothing in a request speaks to a transport,
+so an address with an account costs one `INSERT` more than one without
+rather than an SMTP round trip more —
+`packages/account/tests/reset-timing.int.test.ts` makes the adapter take two
+seconds and asserts both answers inside a second, that nothing was sent
+during either, and that the message is nevertheless queued: an assertion
+about an absence needs a companion asserting the presence of what should
+have happened instead. Before the move, that test failed by 2011 ms, which
+was the oracle.
+
+**The sender is the second scheduled pass, and it deliberately takes no
+lock.** `sendPending` (`packages/email/src/usecase/send-pending.ts`)
+enumerates realms on the owner connection — the queue cannot be read to
+find out whose mail is in it, since the policy keys on `app.realm_id` — and
+claims per realm on the serving one under `SET LOCAL`, in one
+`UPDATE … WHERE id IN (SELECT … FOR UPDATE SKIP LOCKED)` that counts the
+attempt and leases the message for five minutes. Two senders that meet take
+different messages and both make progress, which is strictly better than
+the reaper's one-at-a-time exclusion; the reaper needs its lock because its
+correctness needs one pass at a time, and this does not. `odudu send-mail`
+is the command, `apps/server/src/modules/outbox.ts` the schedule
+(`ODUDU_OUTBOX_INTERVAL_SECONDS`, 15), and both refuse without
+`ODUDU_APP_DATABASE_URL` for the reason `reap` does.
+
+**A permanently failed message has no `failed_at`, so retention reads the
+attempt budget.** `email_outbox` is reaped on two windows: delivered plus
+`ODUDU_RETENTION_EMAIL_SENT_SECONDS` (a week), and — for a message that
+spent `ODUDU_OUTBOX_MAX_ATTEMPTS` without arriving —
+`ODUDU_RETENTION_EMAIL_FAILED_SECONDS` (thirty days) measured from
+`next_attempt_at`, the instant the sender would next have tried, so the
+window runs from the last attempt rather than from when the message was
+queued. Nothing an operator has not had a chance to read is deleted: a
+message still inside its retry schedule, and one never attempted, are not
+the pass's business at any age. The standing forcing function
+(`apps/server/tests/reap.int.test.ts`, the `information_schema.columns`
+sweep) went red on `email_outbox` the moment the migration landed and
+before the rule existed, which is the mechanism working as designed.
 
 **`odudu reap` exists, and retention is now arithmetic rather than a
 warning.** `apps/server/src/cli/reap.ts` deletes what no decision can still
@@ -986,7 +1027,9 @@ codebase would have and a second table nothing deletes from; this phase's
 design spec rejected building one. [README.md](../README.md)'s "Known
 limitation" paragraph, right after the password-reset walkthrough, states
 it for a reader; this is the record that it was a judgment call, not an
-oversight, so P2b inherits a decision rather than a bug report.
+oversight, so P2b inherits a decision rather than a bug report. **Closed in
+P2b by the outbox** (`email_outbox`, 0043): that README paragraph is gone,
+and "Start here" above records what replaced it.
 
 **New environment variables.** `ODUDU_PUBLIC_BASE_URL` — the origin every
 mailed link is built from, never from a request's `Host` header, which is

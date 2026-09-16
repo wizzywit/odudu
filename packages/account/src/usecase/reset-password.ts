@@ -1,5 +1,5 @@
 import { withRealm, type DatabaseHandle, type RealmScopedDatabase } from '@odudu/db';
-import { renderResetPassword, type EmailSender } from '@odudu/email';
+import { outboxRepository, renderResetPassword } from '@odudu/email';
 import { actionTokenRepository } from '#/repository/action-tokens';
 import { type PasswordPolicy, type PolicyViolation } from '#/repository/realm-settings';
 import { RESET_PASSWORD_TTL_SECONDS } from '#/usecase/verify-email';
@@ -12,7 +12,6 @@ export type { PasswordPolicy, PolicyViolation };
 
 export interface RequestPasswordResetDeps {
   readonly database: DatabaseHandle;
-  readonly sender: EmailSender;
   readonly realmId: string;
   readonly realmName: string;
   readonly realmDisplayName: string;
@@ -34,31 +33,27 @@ export interface RequestPasswordResetDeps {
   ) => Promise<{ subjectId: string; email: string } | null>;
 }
 
-// `mailFailed` carries a transport failure without it changing the
-// response: an operator's SMTP outage or rate limit must not become a
-// clean 500-for-known/200-for-unknown oracle, so the route always answers
-// 200 for `requested` regardless of this flag, and only logs it.
-export type RequestPasswordResetOutcome =
-  { kind: 'requested'; mailFailed: boolean; error?: unknown } | { kind: 'misconfigured' };
+export type RequestPasswordResetOutcome = { kind: 'requested' } | { kind: 'misconfigured' };
 
-// Issues the token inside its own transaction when the address matches an
-// account, then sends the mail after that transaction commits — awaited,
-// the same ordering #/usecase/verify-email.ts establishes. No match does
-// the same shape of work: no row, no mail, no error — the response is
-// composed by the route, not here, and must come out identical either way.
-// A send failure is caught rather than propagated, for the same reason —
-// see `mailFailed` above.
+// Issues the token and queues the mail that carries it in one
+// transaction — nothing here talks to a mail server. That is what makes
+// the two paths indistinguishable in time as well as in content: an
+// address with an account costs one INSERT more than one without, not an
+// SMTP round trip more. A transport failure is the sender's to retry and
+// an operator's to read (packages/email/src/usecase/send-pending.ts), and
+// no longer arrives while a caller waits for an answer.
 export async function requestPasswordReset(
   deps: RequestPasswordResetDeps,
   email: string,
 ): Promise<RequestPasswordResetOutcome> {
-  if (deps.issuerBase === undefined) {
+  const issuerBase = deps.issuerBase;
+  if (issuerBase === undefined) {
     return { kind: 'misconfigured' };
   }
 
-  const issued = await withRealm(deps.database.db, deps.realmId, async (tx) => {
+  await withRealm(deps.database.db, deps.realmId, async (tx) => {
     const user = await deps.findByEmail(tx, email);
-    if (user === null) return null;
+    if (user === null) return;
     const { token } = await actionTokenRepository(tx).issue({
       realmId: deps.realmId,
       subjectId: user.subjectId,
@@ -66,23 +61,18 @@ export async function requestPasswordReset(
       email: user.email,
       ttlSeconds: RESET_PASSWORD_TTL_SECONDS,
     });
-    return { token, email: user.email };
+    const link = `${issuerBase}/realms/${deps.realmName}/login-actions/action-token?key=${encodeURIComponent(token)}`;
+    await outboxRepository(tx).enqueue({
+      realmId: deps.realmId,
+      ...renderResetPassword({
+        to: user.email,
+        link,
+        realmDisplayName: deps.realmDisplayName,
+      }),
+    });
   });
 
-  if (issued === null) {
-    return { kind: 'requested', mailFailed: false };
-  }
-
-  const link = `${deps.issuerBase}/realms/${deps.realmName}/login-actions/action-token?key=${encodeURIComponent(issued.token)}`;
-  try {
-    await deps.sender.send(
-      renderResetPassword({ to: issued.email, link, realmDisplayName: deps.realmDisplayName }),
-    );
-  } catch (error) {
-    return { kind: 'requested', mailFailed: true, error };
-  }
-
-  return { kind: 'requested', mailFailed: false };
+  return { kind: 'requested' };
 }
 
 export interface CompletePasswordResetDeps {

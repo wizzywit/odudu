@@ -131,12 +131,44 @@ const schema = z.object({
     .max(31_536_000)
     .default(604_800),
   ODUDU_RETENTION_SESSION_SECONDS: z.coerce.number().int().min(60).max(31_536_000).default(86_400),
+  // A delivered message, measured from the delivery. Kept a week, so an
+  // operator answering "did that link ever go out?" has something to read.
+  ODUDU_RETENTION_EMAIL_SENT_SECONDS: z.coerce
+    .number()
+    .int()
+    .min(60)
+    .max(31_536_000)
+    .default(604_800),
+  // A message that spent every attempt and was never delivered, measured
+  // from its last attempt. Far longer, because nothing else records the
+  // failure: this window is how long an operator has to notice it.
+  ODUDU_RETENTION_EMAIL_FAILED_SECONDS: z.coerce
+    .number()
+    .int()
+    .min(3600)
+    .max(31_536_000)
+    .default(2_592_000),
   // How often the server runs that pass itself, and whether it runs it at
   // all. `false` is for a deployment that schedules `odudu reap` as a cron
   // entry or a Kubernetes CronJob instead — a documented alternative, and
   // the reason this is a switch rather than a fact.
   ODUDU_REAP_ENABLED: enabledEnvVar,
   ODUDU_REAP_INTERVAL_SECONDS: z.coerce.number().int().min(60).max(86_400).default(3600),
+  // Mail is queued by the request and sent by a pass of its own, which is
+  // what keeps an SMTP round trip out of a response and out of the timing
+  // of one. `false` is for a deployment that schedules `odudu send-mail`
+  // itself; with the schedule off and nothing scheduled elsewhere, queued
+  // mail is never sent.
+  ODUDU_OUTBOX_ENABLED: enabledEnvVar,
+  ODUDU_OUTBOX_INTERVAL_SECONDS: z.coerce.number().int().min(5).max(86_400).default(15),
+  // Per realm per pass, so one realm's backlog cannot starve another's.
+  ODUDU_OUTBOX_BATCH_SIZE: z.coerce.number().int().min(1).max(1000).default(20),
+  // Attempts a message gets before it is left alone for an operator to
+  // read. Nothing deletes it then; `odudu reap` bounds it by
+  // ODUDU_RETENTION_EMAIL_FAILED_SECONDS.
+  ODUDU_OUTBOX_MAX_ATTEMPTS: z.coerce.number().int().min(1).max(100).default(5),
+  // The first retry's delay; each further attempt doubles it.
+  ODUDU_OUTBOX_RETRY_BACKOFF_SECONDS: z.coerce.number().int().min(1).max(86_400).default(60),
   ODUDU_LOG_LEVEL: z
     .enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent'])
     .default('info'),

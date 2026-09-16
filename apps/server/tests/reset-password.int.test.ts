@@ -6,12 +6,19 @@ import {
   type DatabaseHandle,
 } from '@odudu/db';
 import { userCredentials } from '@odudu/domain-identity';
-import { capturingSender, type EmailMessage } from '@odudu/email';
+import {
+  capturingSender,
+  emailOutbox,
+  sendPending,
+  type EmailMessage,
+  type EmailSender,
+  type SendPendingOptions,
+} from '@odudu/email';
 import { loadConfig, newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import { and, eq, sql } from 'drizzle-orm';
 import { type FastifyInstance } from 'fastify';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { buildApp } from '#/app';
 import { seed } from '#/cli/seed';
 import { createLogger } from '#/logger';
@@ -69,14 +76,40 @@ afterAll(async () => {
   await containerHandle?.stop();
 });
 
-function buildTestApp(sender: ReturnType<typeof capturingSender>): FastifyInstance {
+const OUTBOX_OPTIONS: SendPendingOptions = {
+  batchSize: 50,
+  maxAttempts: 3,
+  retryBackoffSeconds: 60,
+};
+
+// A request queues its mail and answers; the pass that hands a queued
+// message to a transport runs on the server's own schedule
+// (apps/server/src/modules/outbox.ts). A test that wants the mailed link
+// runs that pass here instead of waiting for a tick.
+
+async function drainOutbox(into: EmailSender): Promise<void> {
+  await sendPending(
+    { database: appDb, ownerDatabase: owner, sender: into },
+    drainAt(),
+    OUTBOX_OPTIONS,
+  );
+}
+
+// A message's `next_attempt_at` defaults to the database's clock, and a
+// containerised Postgres can run milliseconds ahead of this process — so a
+// pass given this process's own instant can find a message it queued a
+// moment ago not yet due. A minute ahead is past any such skew.
+function drainAt(): Date {
+  return new Date(Date.now() + 60_000);
+}
+
+function buildTestApp(): FastifyInstance {
   const config = loadConfig({ ...process.env, ODUDU_LOG_LEVEL: 'silent' });
   return buildApp({
     database: appDb,
     ownerDatabase: owner,
     kek: KEK,
     logger: createLogger(config),
-    sender,
     ...(config.ODUDU_PUBLIC_BASE_URL !== undefined
       ? { publicBaseUrl: config.ODUDU_PUBLIC_BASE_URL }
       : {}),
@@ -172,6 +205,13 @@ async function submitNewPassword(instance: FastifyInstance, link: string, passwo
   });
 }
 
+// Every test below reads either what the queue holds or what a drain
+// delivered, so each starts with the queue empty rather than with whatever
+// an earlier test left in it.
+beforeEach(async () => {
+  await owner.db.delete(emailOutbox);
+});
+
 describe('password reset, through the real composition root', () => {
   it('lets the new password sign in and refuses the old one, all the way to an authorization code', async () => {
     const realmName = `reset-${newId()}`;
@@ -186,12 +226,13 @@ describe('password reset, through the real composition root', () => {
     await setResetPasswordAllowed(seeded.realmId, true);
 
     const sender = capturingSender();
-    const app = buildTestApp(sender);
+    const app = buildTestApp();
     await app.ready();
 
     try {
       const requested = await requestReset(app, realmName, EMAIL);
       expect(requested.statusCode).toBe(200);
+      await drainOutbox(sender);
       const message = sender.sent[0];
       if (message === undefined) throw new Error('no reset mail sent');
       const link = extractLink(message);
@@ -229,13 +270,14 @@ describe('password reset, through the real composition root', () => {
     await setResetPasswordAllowed(seeded.realmId, true);
 
     const sender = capturingSender();
-    const app = buildTestApp(sender);
+    const app = buildTestApp();
     await app.ready();
 
     try {
       const requested = await requestReset(app, realmName, EMAIL, { host: 'evil.example' });
       expect(requested.statusCode).toBe(200);
 
+      await drainOutbox(sender);
       const message = sender.sent[0];
       if (message === undefined) throw new Error('no reset mail sent');
       expect(message.text).toContain(`${PUBLIC_BASE_URL}/realms/${realmName}/`);
@@ -263,14 +305,16 @@ describe('password reset, through the real composition root', () => {
     await setResetPasswordAllowed(seeded.realmId, true);
 
     const sender = capturingSender();
-    const app = buildTestApp(sender);
+    const app = buildTestApp();
     await app.ready();
 
     try {
       await requestReset(app, realmName, EMAIL);
       await requestReset(app, realmName, EMAIL);
+      await drainOutbox(sender);
       expect(sender.sent).toHaveLength(2);
 
+      await drainOutbox(sender);
       const [firstMessage, secondMessage] = sender.sent;
       if (firstMessage === undefined || secondMessage === undefined) {
         throw new Error('expected two reset mails');
@@ -309,11 +353,12 @@ describe('password reset, through the real composition root', () => {
     await setResetPasswordAllowed(seeded.realmId, true);
 
     const sender = capturingSender();
-    const app = buildTestApp(sender);
+    const app = buildTestApp();
     await app.ready();
 
     try {
       await requestReset(app, realmName, EMAIL);
+      await drainOutbox(sender);
       const message = sender.sent[0];
       if (message === undefined) throw new Error('no reset mail sent');
       const link = extractLink(message);
@@ -358,7 +403,7 @@ describe('password reset, through the real composition root', () => {
     await agePassword(seeded.realmId, 7);
 
     const sender = capturingSender();
-    const app = buildTestApp(sender);
+    const app = buildTestApp();
     await app.ready();
 
     try {
@@ -370,6 +415,7 @@ describe('password reset, through the real composition root', () => {
       expect(expired.headers.location).toBeUndefined();
 
       await requestReset(app, realmName, EMAIL);
+      await drainOutbox(sender);
       const message = sender.sent[0];
       if (message === undefined) throw new Error('no reset mail sent');
       const link = extractLink(message);

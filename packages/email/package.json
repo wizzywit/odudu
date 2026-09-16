@@ -14,10 +14,13 @@
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
+    "@odudu/db": "workspace:*",
     "@odudu/kernel": "workspace:*",
+    "drizzle-orm": "0.45.2",
     "nodemailer": "9.1.1"
   },
   "devDependencies": {
+    "@odudu/testkit": "workspace:*",
     "@types/nodemailer": "8.0.1",
     "testcontainers": "12.1.0",
     "vitest": "5.0.0",

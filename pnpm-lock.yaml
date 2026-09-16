@@ -394,13 +394,22 @@ importers:
 
   packages/email:
     dependencies:
+      '@odudu/db':
+        specifier: workspace:*
+        version: link:../db
       '@odudu/kernel':
         specifier: workspace:*
         version: link:../kernel
+      drizzle-orm:
+        specifier: 0.45.2
+        version: 0.45.2(postgres@3.4.9)
       nodemailer:
         specifier: 9.1.1
         version: 9.1.1
     devDependencies:
+      '@odudu/testkit':
+        specifier: workspace:*
+        version: link:../testkit
       '@types/nodemailer':
         specifier: 8.0.1
         version: 8.0.1

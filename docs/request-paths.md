@@ -1218,10 +1218,15 @@ odudu seed \
   --send-verification-email
 ```
 
-With `ODUDU_SMTP_HOST` unset — true of the compose stack and of every way
-this document runs the server — nothing is actually sent. `capturingSender`
-logs the message it would have sent instead, which is how a reader without
-a mail server gets the link:
+The command queues the message and returns; nothing is sent on its way out.
+The stack's own mail pass picks it up within
+`ODUDU_OUTBOX_INTERVAL_SECONDS` ([Sending queued mail](#sending-queued-mail-odudu-send-mail)),
+so the capture below appears in `docker compose logs odudu` a moment later
+rather than in the seed command's own output. And with `ODUDU_SMTP_HOST`
+unset — true of the compose stack and of every way this document runs the
+server — nothing is actually delivered either: `capturingSender` logs the
+message it would have sent, which is how a reader without a mail server
+gets the link:
 
 ```json
 {
@@ -2545,9 +2550,15 @@ curl -sS -X POST http://localhost:3000/realms/reset-demo/login-actions/reset-pas
 </html>
 ```
 
-Identical, character for character — and only the first request produced
-mail. `ODUDU_SMTP_HOST` is unset, so the container's log carries it instead
-of an inbox, and it is there exactly once:
+Identical, character for character — and in the same time, which is the
+half of this property that the response body cannot carry. Neither request
+waits for a mail server: the one that matched an address queued its message
+in the transaction that minted the token and answered, so the difference
+between the two paths is one `INSERT`, not an SMTP round trip
+([Sending queued mail](#sending-queued-mail-odudu-send-mail)). Only the
+first produced mail at all, and `ODUDU_SMTP_HOST` is unset, so the
+container's log carries it instead of an inbox — logged by the mail pass a
+moment after both answers had gone out, and there exactly once:
 
 ```json
 {
@@ -3368,7 +3379,7 @@ odudu reap
 ```
 
 ```
-{"ran":true,"deleted":{"refresh_tokens":0,"authorization_codes":0,"token_grants":0,"authentication_sessions":0,"action_tokens":0,"login_failures":0,"sessions":0}}
+{"ran":true,"deleted":{"refresh_tokens":0,"authorization_codes":0,"token_grants":0,"authentication_sessions":0,"action_tokens":0,"login_failures":0,"email_outbox":0,"sessions":0}}
 ```
 
 Those zeros are the point. By this stage the database holds a consumed
@@ -3378,6 +3389,16 @@ them still required. The consumed code is what the replay two sections up
 revoked a grant through; the used refresh token is what told reuse from an
 unknown token. A pass keyed on expiry would have taken all three and left
 both replays answering `invalid_grant` with nothing revoked behind them.
+
+`email_outbox` is the one table here with two windows of its own. A
+delivered message is bounded from its delivery
+(`ODUDU_RETENTION_EMAIL_SENT_SECONDS`, a week). One that never arrived has
+no failure timestamp to bound it from — a spent attempt budget
+(`ODUDU_OUTBOX_MAX_ATTEMPTS`) is the only durable record that it will never
+be attempted again — so it is kept for `ODUDU_RETENTION_EMAIL_FAILED_SECONDS`
+(thirty days) measured from the last attempt, which is how long an operator
+has to read it. A message still inside its retry schedule, and one never
+attempted at all, are not this pass's business at any age.
 
 What makes a row deletable is the **grant family** being past retention,
 which is seven days for a session-bound family and thirty for an offline
@@ -3396,7 +3417,7 @@ odudu reap
 ```
 
 ```
-{"ran":true,"deleted":{"refresh_tokens":2,"authorization_codes":1,"token_grants":1,"authentication_sessions":1,"action_tokens":0,"login_failures":0,"sessions":1}}
+{"ran":true,"deleted":{"refresh_tokens":2,"authorization_codes":1,"token_grants":1,"authentication_sessions":1,"action_tokens":0,"login_failures":0,"email_outbox":0,"sessions":1}}
 ```
 
 Both refresh tokens of the family, the code that produced it, the grant
@@ -3415,7 +3436,7 @@ odudu reap
 ```
 
 ```
-{"ran":true,"deleted":{"refresh_tokens":0,"authorization_codes":0,"token_grants":0,"authentication_sessions":0,"action_tokens":0,"login_failures":0,"sessions":0}}
+{"ran":true,"deleted":{"refresh_tokens":0,"authorization_codes":0,"token_grants":0,"authentication_sessions":0,"action_tokens":0,"login_failures":0,"email_outbox":0,"sessions":0}}
 ```
 
 ### When the pass refuses, or finds nothing to look at
@@ -3496,6 +3517,121 @@ odudu reap
 A skipped pass is reported as a skipped pass, not as a report of zeros: a
 scheduled job that conflated the two would claim success for work nobody
 did.
+
+## Sending queued mail: `odudu send-mail`
+
+No request in this document sends mail. Address verification,
+self-registration and password reset each write the message to
+`email_outbox` in the transaction that mints the token it carries, and
+answer; a second pass hands it to the transport. That is what keeps an SMTP
+round trip out of a response — and out of the _timing_ of one, which is
+what the two indistinguishable answers in [Password reset](#password-reset)
+would otherwise have leaked.
+
+The server runs this pass itself every `ODUDU_OUTBOX_INTERVAL_SECONDS`
+(default `15`) plus up to a tenth as jitter, which is why the captures
+above appear in `docker compose logs odudu` a moment after the request
+rather than in the response. `ODUDU_OUTBOX_ENABLED=false` switches that
+schedule off for a deployment that runs the command on its own timetable
+([ADR 0024](adr/0024-a-scheduled-pass-is-a-command-first.md)) — and the
+stack below was started that way, so the queue stays put long enough to
+look at:
+
+```bash
+ODUDU_OUTBOX_ENABLED=false docker compose up -d
+curl -sS -o /dev/null -X POST \
+  http://localhost:3000/realms/reset-demo/login-actions/reset-password \
+  --data-urlencode 'email=ada@example.com'
+docker compose exec -T postgres psql -U odudu -d odudu -q -c \
+  'select to_address, attempts, sent_at, next_attempt_at <= now() as due
+     from email_outbox where sent_at is null;'
+```
+
+```
+   to_address    | attempts | sent_at | due
+-----------------+----------+---------+-----
+ ada@example.com |        0 |         | t
+(1 row)
+```
+
+Queued, never attempted, and due. The command sends it:
+
+```bash
+docker compose exec -T odudu node dist/main.js send-mail
+```
+
+```
+{"ran":true,"sent":1,"failed":0}
+```
+
+The capture the request used to produce inside its own response is now
+produced here, by the sender, on the way past — and the row records that it
+went:
+
+```bash
+docker compose exec -T postgres psql -U odudu -d odudu -q -c \
+  'select to_address, attempts, sent_at is not null as sent from email_outbox;'
+```
+
+```
+   to_address    | attempts | sent
+-----------------+----------+------
+ ada@example.com |        1 | t
+(1 row)
+```
+
+A second run has nothing due:
+
+```bash
+docker compose exec -T odudu node dist/main.js send-mail
+```
+
+```
+{"ran":true,"sent":0,"failed":0}
+```
+
+Running it from more than one place at once is safe, and — unlike
+[`odudu reap`](#retention-what-odudu-reap-removes) — it does not serialise
+them. The claim is a single `UPDATE … WHERE id IN (SELECT … FOR UPDATE SKIP
+LOCKED)` per realm: two senders that meet on one queue take different
+messages and both make progress, where a lock would have had one of them do
+nothing. The claim also counts the attempt and pushes `next_attempt_at`
+five minutes out, so a sender killed between the claim and the send costs
+that wait and no more.
+
+A refused message keeps its place and its reason: `last_error`, and a
+`next_attempt_at` one `ODUDU_OUTBOX_RETRY_BACKOFF_SECONDS` out, doubling
+per attempt. After `ODUDU_OUTBOX_MAX_ATTEMPTS` (default `5`) it is offered
+no further — and still there, with its error, for
+[`odudu reap`](#retention-what-odudu-reap-removes) to bound rather than for
+the sender to discard.
+
+`send-mail` refuses to run at all in the same two configurations `reap`
+does, and for the same reason: its claim is scoped by the realm policy.
+With `ODUDU_APP_DATABASE_URL` unset it answers
+`odudu send-mail requires ODUDU_APP_DATABASE_URL: it claims under the realm policy, which the owner role the migrations use escapes`,
+and pointed at the owner:
+
+```bash
+docker compose exec -e ODUDU_APP_DATABASE_URL=postgres://odudu:odudu@postgres:5432/odudu \
+  -T odudu node dist/main.js send-mail
+```
+
+```
+the outbox sender claims under the realm policy, so its serving connection must be subject to it; ODUDU_APP_DATABASE_URL names a SUPERUSER or BYPASSRLS role
+```
+
+Symmetrically, a `ODUDU_DATABASE_URL` role that cannot bypass row-level
+security reads no realms, and the queue would drain never with nothing to
+say so; that is refused too. The schedule inside the server is the one
+place that does not refuse per attempt: with no serving connection it
+declines to start at all, warning
+`not sending queued mail: ODUDU_APP_DATABASE_URL is unset` once, rather
+than throwing this every fifteen seconds for the life of the process. **With the schedule off and no command
+scheduled anywhere, queued mail is never sent** — and every flow that
+queued it still answers exactly as it does when mail is going out, by
+design, since the reset endpoint must not answer differently for an address
+that exists.
 
 ## RP-initiated logout
 
@@ -5054,8 +5190,9 @@ session lifecycle. A citation of either half here means that half.
   and the per-origin throttle is what bounds both — ten submissions a
   minute per client address, which is a budget on the multiplier rather
   than a fix for it.
-- **Password reset exists; a timing oracle in it does not have a fix yet.**
-  Address verification (`GET /realms/{realm}/login-actions/action-token`,
+- **The account-lifecycle flows exist, and none of them mails on the
+  request path.** Address verification
+  (`GET /realms/{realm}/login-actions/action-token`,
   [Address verification](#address-verification)), self-registration
   (`GET`/`POST /realms/{realm}/login-actions/registration`,
   [Self-registration](#self-registration)) and password reset
@@ -5063,11 +5200,12 @@ session lifecycle. A citation of either half here means that half.
   [Password reset](#password-reset)) all exist now, gated by their own
   realm setting, each off by default. A realm with `verify_email` on
   refuses to complete a login for a self-registered address until it is
-  verified — no authorization code, not just a page saying so. The reset
-  endpoint's remaining gap is [README.md](../README.md)'s stated
-  limitation: mailing an existing address is measurably slower than
-  answering for one that does not exist, closeable only by moving the send
-  off the request path, which this phase's design spec rejects.
+  verified — no authorization code, not just a page saying so. Each queues
+  its mail in `email_outbox` and answers; a pass of its own sends it
+  ([Sending queued mail](#sending-queued-mail-odudu-send-mail)), which is
+  what closed the reset endpoint's timing oracle. What is not there yet:
+  per-realm SMTP configuration — the transport is one set of
+  `ODUDU_SMTP_*` variables for the whole server.
 - **No "remember me".** A persistent session is a session-lifespan setting,
   and lifespans are **P2b**'s; the feature itself is not named in the
   roadmap.

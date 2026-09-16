@@ -38,6 +38,7 @@ describe('the order the retention pass runs in', () => {
         'authentication_sessions',
         'action_tokens',
         'login_failures',
+        'email_outbox',
         'sessions',
       ]);
     }).toThrow(/token_grants before refresh_tokens/u);
@@ -68,6 +69,9 @@ describe('the retention windows', () => {
       authenticationSessionSeconds: 3600,
       actionTokenSeconds: 604_800,
       sessionSeconds: 86_400,
+      emailSentSeconds: 604_800,
+      emailFailedSeconds: 2_592_000,
+      emailMaxAttempts: 5,
     });
   });
 

@@ -1,5 +1,5 @@
 import { withRealm, type DatabaseHandle, type RealmScopedDatabase } from '@odudu/db';
-import { renderVerifyEmail, type EmailSender } from '@odudu/email';
+import { outboxRepository, renderVerifyEmail } from '@odudu/email';
 import { actionTokenRepository } from '#/repository/action-tokens';
 
 // Keycloak's action-token defaults (`actionTokenGeneratedByUserLifespan` and
@@ -14,7 +14,6 @@ export const RESET_PASSWORD_TTL_SECONDS = 60 * 5;
 
 export interface SendVerificationEmailDeps {
   readonly database: DatabaseHandle;
-  readonly sender: EmailSender;
   readonly realmId: string;
   readonly realmName: string;
   readonly realmDisplayName: string;
@@ -26,30 +25,31 @@ export interface SendVerificationEmailInput {
   readonly email: string;
 }
 
-// Issues the token inside its own transaction, then sends the mail once
-// that transaction has committed — awaited, not fired-and-forgotten. A
-// token the user could receive but the database never durably stored would
-// be a support call with no trace; a send that fails after commit instead
-// leaves a user with no mail, which resend (a first-class action, not a
-// retry) exists to recover from.
+// The token and the mail that carries it are written in one transaction:
+// a token the user could receive but the database never durably stored
+// would be a support call with no trace, and a queued message naming a
+// token that rolled back would be a link that refuses on arrival. Nothing
+// here talks to a mail server — the sender does that on its own schedule
+// (packages/email/src/usecase/send-pending.ts), which is what keeps an
+// SMTP round trip out of the response.
 export async function sendVerificationEmail(
   deps: SendVerificationEmailDeps,
   input: SendVerificationEmailInput,
 ): Promise<void> {
-  const { token } = await withRealm(deps.database.db, deps.realmId, (tx) =>
-    actionTokenRepository(tx).issue({
+  await withRealm(deps.database.db, deps.realmId, async (tx) => {
+    const { token } = await actionTokenRepository(tx).issue({
       realmId: deps.realmId,
       subjectId: input.subjectId,
       type: 'verify_email',
       email: input.email,
       ttlSeconds: VERIFY_EMAIL_TTL_SECONDS,
-    }),
-  );
-
-  const link = `${deps.issuerBase}/realms/${deps.realmName}/login-actions/action-token?key=${encodeURIComponent(token)}`;
-  await deps.sender.send(
-    renderVerifyEmail({ to: input.email, link, realmDisplayName: deps.realmDisplayName }),
-  );
+    });
+    const link = `${deps.issuerBase}/realms/${deps.realmName}/login-actions/action-token?key=${encodeURIComponent(token)}`;
+    await outboxRepository(tx).enqueue({
+      realmId: deps.realmId,
+      ...renderVerifyEmail({ to: input.email, link, realmDisplayName: deps.realmDisplayName }),
+    });
+  });
 }
 
 export interface CompleteEmailVerificationDeps {

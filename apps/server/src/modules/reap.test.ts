@@ -79,6 +79,7 @@ const SWEPT: ReapOutcome = {
     authentication_sessions: 0,
     action_tokens: 0,
     login_failures: 0,
+    email_outbox: 0,
     sessions: 1,
   },
 };

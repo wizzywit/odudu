@@ -15,7 +15,13 @@ import {
   subjectRepository,
   userRepository,
 } from '@odudu/domain-identity';
-import { type EmailMessage, type EmailSender } from '@odudu/email';
+import {
+  emailOutbox,
+  sendPending,
+  type EmailMessage,
+  type EmailSender,
+  type SendPendingOptions,
+} from '@odudu/email';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import formbody from '@fastify/formbody';
@@ -135,6 +141,37 @@ async function rawSelectAllActionTokens(realmId: string) {
   return withRealm(app.db, realmId, (tx) => tx.select().from(actionTokens));
 }
 
+async function outboxRows(realmId: string) {
+  return withRealm(app.db, realmId, (tx) => tx.select().from(emailOutbox));
+}
+
+const OUTBOX_OPTIONS: SendPendingOptions = {
+  batchSize: 10,
+  maxAttempts: 3,
+  retryBackoffSeconds: 60,
+};
+
+// Registration only queues the mail; the pass that hands it to a transport
+// is packages/email/src/usecase/send-pending.ts, and a test that cares
+// where the mail ended up runs it here the way the server's schedule runs
+// it there.
+
+async function drainOutbox(into: EmailSender = sender): Promise<void> {
+  await sendPending(
+    { database: app, ownerDatabase: owner, sender: into },
+    drainAt(),
+    OUTBOX_OPTIONS,
+  );
+}
+
+// A message's `next_attempt_at` defaults to the database's clock, and a
+// containerised Postgres can run milliseconds ahead of this process — so a
+// pass given this process's own instant can find a message it queued a
+// moment ago not yet due. A minute ahead is past any such skew.
+function drainAt(): Date {
+  return new Date(Date.now() + 60_000);
+}
+
 let sender: ReturnType<typeof fakeSender>;
 // Defaults to a configured base so most tests exercise the ordinary path;
 // the one test for the fail-closed case overrides it to undefined.
@@ -145,7 +182,6 @@ function buildHttpApp(): FastifyInstance {
   instance.register(formbody);
   registerRegistrationRoute(instance, {
     database: app,
-    sender,
     findRealm: (name) => realmSettingsRepository(owner.db).byName(name),
     publicBaseUrl,
     createAccount,
@@ -180,6 +216,13 @@ async function submitRegistration(
   });
   return { statusCode: res.statusCode, body: res.body };
 }
+
+// Every test below reads either what the queue holds or what a drain
+// delivered, so each starts with the queue empty rather than with whatever
+// an earlier test left in it.
+beforeEach(async () => {
+  await owner.db.delete(emailOutbox);
+});
 
 describe('self-registration', () => {
   it('is not served at all when the realm has not enabled it', async () => {
@@ -302,6 +345,11 @@ describe('self-registration', () => {
       email: 'ada@example.test',
       password: 'correct horse battery',
     });
+    // Queued by the request, sent by the pass: nothing left during the
+    // request itself, which is what the reset endpoint's timing test
+    // (tests/reset-timing.int.test.ts) exists to hold.
+    expect(sender.sent).toHaveLength(0);
+    await drainOutbox();
     expect(sender.sent).toHaveLength(1);
 
     await submitRegistration(withoutVerify.realmName, {
@@ -309,6 +357,7 @@ describe('self-registration', () => {
       email: 'grace@example.test',
       password: 'correct horse battery',
     });
+    await drainOutbox();
     expect(sender.sent).toHaveLength(1);
   });
 
@@ -407,44 +456,35 @@ describe('self-registration', () => {
     expect(res.statusCode).toBe(400);
   });
 
-  it('sends the mail only after the transaction that issued the token commits', async () => {
+  it('registers the account whatever the transport later does with the mail', async () => {
     const { realmId, realmName } = await seedRealm(`realm-${newId()}`, {
       registrationAllowed: true,
       verifyEmail: true,
     });
-    // A sender that throws still leaves the token stored: proof that the
-    // insert already committed before send was even attempted, not proof
-    // merely that both eventually happened.
     const throwingSender: EmailSender = {
       send: () => Promise.reject(new Error('mail transport unavailable')),
     };
-    const instance = Fastify();
-    await instance.register(formbody);
-    registerRegistrationRoute(instance, {
-      database: app,
-      sender: throwingSender,
-      findRealm: (name) => realmSettingsRepository(owner.db).byName(name),
-      publicBaseUrl: 'https://idp.example.test',
-      createAccount,
-      evaluatePassword,
-    });
-    await instance.ready();
 
-    const form = new URLSearchParams({
+    const res = await submitRegistration(realmName, {
       username: 'ada',
       email: 'ada@example.test',
       password: 'correct horse battery',
     });
-    const res = await instance.inject({
-      method: 'POST',
-      url: `/realms/${realmName}/login-actions/registration`,
-      payload: form.toString(),
-      headers: { 'content-type': 'application/x-www-form-urlencoded' },
-    });
 
-    expect(res.statusCode).toBe(500);
-    const stored = await rawSelectAllActionTokens(realmId);
-    expect(stored).toHaveLength(1);
+    // The transport is not on this path at all, so its failures cannot
+    // reach the caller: the account is created, the token is stored, and
+    // the message waits for a pass that can retry it.
+    expect(res.statusCode).toBe(201);
+    expect(await rawSelectAllActionTokens(realmId)).toHaveLength(1);
+
+    await drainOutbox(throwingSender);
+
+    const queued = await outboxRows(realmId);
+    expect(queued).toHaveLength(1);
+    expect(queued[0]?.sentAt).toBeNull();
+    expect(queued[0]?.lastError).toBe('mail transport unavailable');
+    const created = await withRealm(app.db, realmId, (tx) => userRepository(tx).byUsername('ada'));
+    expect(created).not.toBeNull();
   });
 
   it('refuses to register when verify_email is on but no public base url is configured', async () => {
@@ -467,6 +507,6 @@ describe('self-registration', () => {
       userRepository(tx).byUsername('ada'),
     );
     expect(notCreated).toBeNull();
-    expect(sender.sent).toHaveLength(0);
+    expect(await outboxRows(realmId)).toEqual([]);
   });
 });

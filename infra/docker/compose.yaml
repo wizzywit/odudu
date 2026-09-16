@@ -54,6 +54,11 @@ services:
       # driving more of them than a person would — a burst captured for
       # docs/request-paths.md, say — can raise it without editing this file.
       ODUDU_THROTTLE_LIMIT: ${ODUDU_THROTTLE_LIMIT:-10}
+      # Whether this container sends its own queued mail. Passed through
+      # for the same reason the throttle is: a transcript that wants to see
+      # `odudu send-mail` do the work needs the server's own schedule out
+      # of the way, and nothing else here turns it off.
+      ODUDU_OUTBOX_ENABLED: ${ODUDU_OUTBOX_ENABLED:-true}
     depends_on:
       postgres:
         condition: service_healthy

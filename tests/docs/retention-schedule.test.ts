@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { loadConfig } from '../../packages/kernel/src/config.js';
+import { OUTBOX_JITTER_FRACTION } from '../../apps/server/src/modules/outbox.js';
 import { REAP_JITTER_FRACTION } from '../../apps/server/src/modules/reap.js';
 import { loadDocument, REPO_ROOT } from './markdown.js';
 
@@ -20,18 +21,27 @@ function textOf(name: string): string {
   return loadDocument(name).lines.join('\n');
 }
 
-function statedInterval(name: string): string {
-  const text = textOf(name);
-  const stated = /`ODUDU_REAP_INTERVAL_SECONDS`[^`]*\(default `(?<value>[0-9]+)`\)/su.exec(text);
+// Whitespace flattened, and the concatenation Prettier introduces when a
+// message outgrows one line joined back up, so a quoted sentence is
+// searched for as the reader sees it rather than as the formatter left it.
+function sourceText(source: string): string {
+  return source.replaceAll(/'\s*\+\s*'/gu, '').replaceAll(/\s+/gu, ' ');
+}
+
+function statedDefault(name: string, variable: string): string {
+  const pattern = new RegExp('`' + variable + '`[^`]*\\(default `(?<value>[0-9]+)`\\)', 'su');
+  const stated = pattern.exec(textOf(name));
   if (stated?.groups?.value === undefined) {
-    throw new Error(`${name} no longer states a default for ODUDU_REAP_INTERVAL_SECONDS`);
+    throw new Error(`${name} no longer states a default for ${variable}`);
   }
   return stated.groups.value;
 }
 
 describe('the retention schedule the documents describe is the one the server runs', () => {
   it.each(DOCUMENTS)('%s states the interval the config schema defaults to', (name) => {
-    expect(statedInterval(name)).toBe(String(defaults.ODUDU_REAP_INTERVAL_SECONDS));
+    expect(statedDefault(name, 'ODUDU_REAP_INTERVAL_SECONDS')).toBe(
+      String(defaults.ODUDU_REAP_INTERVAL_SECONDS),
+    );
   });
 
   // Both documents describe the jitter as "a tenth" of the interval in
@@ -52,5 +62,54 @@ describe('the retention schedule the documents describe is the one the server ru
     expect(module.replaceAll(/\s+/gu, ' ')).toContain(
       quoted.groups.message.replaceAll(/\s+/gu, ' '),
     );
+  });
+});
+
+// The same three claims for the mail sender, which both documents describe
+// the same way and for the same reason: a paragraph rewritten after a
+// default moved reads exactly like one that is still true.
+describe('the outbox schedule the documents describe is the one the server runs', () => {
+  it.each(DOCUMENTS)('%s states the interval the config schema defaults to', (name) => {
+    expect(statedDefault(name, 'ODUDU_OUTBOX_INTERVAL_SECONDS')).toBe(
+      String(defaults.ODUDU_OUTBOX_INTERVAL_SECONDS),
+    );
+  });
+
+  it('adds jitter of the fraction both documents call a tenth', () => {
+    expect(OUTBOX_JITTER_FRACTION).toBe(0.1);
+    for (const name of DOCUMENTS) {
+      expect(textOf(name)).toMatch(/a tenth as jitter/u);
+    }
+  });
+
+  it('states the attempt ceiling the config schema defaults to', () => {
+    expect(statedDefault('docs/request-paths.md', 'ODUDU_OUTBOX_MAX_ATTEMPTS')).toBe(
+      String(defaults.ODUDU_OUTBOX_MAX_ATTEMPTS),
+    );
+  });
+
+  it('refuses without a serving connection in the words the documents quote', () => {
+    const command = readFileSync(path.join(REPO_ROOT, 'apps/server/src/cli/send-mail.ts'), 'utf8');
+    const quoted = /`(?<message>odudu send-mail requires [^`]+)`/su.exec(
+      textOf('docs/request-paths.md'),
+    );
+    if (quoted?.groups?.message === undefined) {
+      throw new Error(
+        'docs/request-paths.md no longer quotes the refusal `odudu send-mail` prints',
+      );
+    }
+    expect(sourceText(command)).toContain(quoted.groups.message.replaceAll(/\s+/gu, ' '));
+  });
+
+  it('declines to schedule in the words README.md and request-paths.md quote', () => {
+    const module = readFileSync(path.join(REPO_ROOT, 'apps/server/src/modules/outbox.ts'), 'utf8');
+    const quoted = /`(?<message>not sending queued mail: [^`]+)`/su.exec(
+      textOf('docs/request-paths.md'),
+    );
+    if (quoted?.groups?.message === undefined) {
+      throw new Error('docs/request-paths.md no longer quotes the warning the schedule logs');
+    }
+    expect(module).toContain('ODUDU_OUTBOX_ENABLED=false');
+    expect(sourceText(module)).toContain(quoted.groups.message.replaceAll(/\s+/gu, ' '));
   });
 });

@@ -1,4 +1,5 @@
 import {
+  bypassesRowLevelSecurity,
   createDatabase,
   realms,
   withEachRealmExclusive,
@@ -12,7 +13,7 @@ import { sql, type SQL } from 'drizzle-orm';
  * The tables `reap` is answerable for. A name added here has no rule until
  * `RETENTION_RULES` gains one, which is a compile error, and no place in
  * the pass until `REAP_ORDER` gains one, which `reap` refuses to run
- * without. `email_outbox` joins this union when its migration lands.
+ * without.
  */
 export type TableName =
   | 'refresh_tokens'
@@ -21,6 +22,7 @@ export type TableName =
   | 'authentication_sessions'
   | 'action_tokens'
   | 'login_failures'
+  | 'email_outbox'
   | 'sessions';
 
 /** Rows deleted per table, summed over every realm the pass visited. */
@@ -53,6 +55,15 @@ export interface RetentionPolicy {
   readonly authenticationSessionSeconds: number;
   readonly actionTokenSeconds: number;
   readonly sessionSeconds: number;
+  readonly emailSentSeconds: number;
+  readonly emailFailedSeconds: number;
+  /**
+   * The sender's own ceiling (`ODUDU_OUTBOX_MAX_ATTEMPTS`), read here
+   * rather than restated: a message that has spent it will never be
+   * attempted again, and that is the only way this schema records a
+   * permanent failure — there is no `failed_at` to read.
+   */
+  readonly emailMaxAttempts: number;
 }
 
 export function retentionPolicyFromConfig(config: Config): RetentionPolicy {
@@ -63,6 +74,9 @@ export function retentionPolicyFromConfig(config: Config): RetentionPolicy {
     authenticationSessionSeconds: config.ODUDU_RETENTION_AUTHENTICATION_SESSION_SECONDS,
     actionTokenSeconds: config.ODUDU_RETENTION_ACTION_TOKEN_SECONDS,
     sessionSeconds: config.ODUDU_RETENTION_SESSION_SECONDS,
+    emailSentSeconds: config.ODUDU_RETENTION_EMAIL_SENT_SECONDS,
+    emailFailedSeconds: config.ODUDU_RETENTION_EMAIL_FAILED_SECONDS,
+    emailMaxAttempts: config.ODUDU_OUTBOX_MAX_ATTEMPTS,
   };
 }
 
@@ -206,6 +220,28 @@ const RETENTION_RULES: Record<TableName, RetentionRule> = {
     `,
   },
 
+  // Two windows, because a queued message reaches this table by two
+  // different ends. A delivered one is bounded from its delivery. One that
+  // never arrived has no `failed_at` to bound it from, so the only durable
+  // record of a permanent failure is a spent attempt budget — and it is
+  // measured from `next_attempt_at`, the instant the sender would next have
+  // tried, so a message is kept for its whole window *after* the last
+  // attempt rather than from when it was queued. Anything still being
+  // retried, and anything never attempted, is left alone.
+  email_outbox: {
+    after: [],
+    statement: (now, policy) => sql`
+      DELETE FROM email_outbox m
+       WHERE (m.sent_at IS NOT NULL
+              AND m.sent_at < ${now.toISOString()}::timestamptz
+                  - make_interval(secs => ${policy.emailSentSeconds}::integer))
+          OR (m.sent_at IS NULL
+              AND m.attempts >= ${policy.emailMaxAttempts}::integer
+              AND m.next_attempt_at < ${now.toISOString()}::timestamptz
+                  - make_interval(secs => ${policy.emailFailedSeconds}::integer))
+    `,
+  },
+
   // Last, and only once nothing points at it. The ON DELETE SET NULL on
   // token_grants.session_id is a backstop this must never reach: nulling a
   // session-bound grant's session would promote it to an offline one, which
@@ -240,6 +276,7 @@ export const REAP_ORDER: readonly TableName[] = [
   'authentication_sessions',
   'action_tokens',
   'login_failures',
+  'email_outbox',
   'sessions',
 ];
 
@@ -297,24 +334,6 @@ export interface ReapDeps {
    * cannot be read from inside one (ADR 0009's amendment of 2026-09-13).
    */
   readonly ownerDatabase: DatabaseHandle;
-}
-
-interface BypassRow extends Record<string, unknown> {
-  bypasses: boolean;
-}
-
-// Whether this connection's role escapes row-level security outright.
-// Asked of Postgres rather than inferred from a query that came back empty,
-// which is the same fact arriving too late to act on. A role with
-// BYPASSRLS and not SUPERUSER is the one combination no test here
-// exercises; it rests on documented semantics, and the disjunction can only
-// err towards accepting a role that then reads nothing, which the caller
-// reports rather than swallows.
-async function bypassesRowLevelSecurity(handle: DatabaseHandle): Promise<boolean> {
-  const rows = await handle.db.execute<BypassRow>(
-    sql`SELECT rolsuper OR rolbypassrls AS bypasses FROM pg_roles WHERE rolname = current_user`,
-  );
-  return rows[0]?.bypasses === true;
 }
 
 // Both halves of ADR 0021's claim that the policy is the scoping, checked
