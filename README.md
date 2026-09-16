@@ -290,7 +290,9 @@ what makes the two reset paths indistinguishable in time as well as in
 content: an address with an account costs one `INSERT` more than one
 without, not an SMTP round trip more. A refused message is retried with a
 doubling backoff and, once its attempts are spent, kept with its last error
-for an operator to read.
+for an operator to read. A transport failure therefore cannot reach a
+caller or change a status: it happens after the response, and no code
+reachable from a request holds a mail transport at all.
 
 **Known limitation, realm-wide:** the reset endpoint's enumeration safety
 does not make the realm itself un-enumerable. With `registration_allowed`

@@ -220,14 +220,14 @@ const RETENTION_RULES: Record<TableName, RetentionRule> = {
     `,
   },
 
-  // Two windows, because a queued message reaches this table by two
-  // different ends. A delivered one is bounded from its delivery. One that
-  // never arrived has no `failed_at` to bound it from, so the only durable
-  // record of a permanent failure is a spent attempt budget — and it is
-  // measured from `next_attempt_at`, the instant the sender would next have
-  // tried, so a message is kept for its whole window *after* the last
-  // attempt rather than from when it was queued. Anything still being
-  // retried, and anything never attempted, is left alone.
+  // Two windows, because a queued message reaches this table by two ends. A
+  // delivered one is bounded from its delivery. One that never arrived has
+  // no `failed_at`, so a permanent failure is a spent attempt budget with a
+  // reason on file, measured from `next_attempt_at` — the instant the
+  // sender would next have tried, so the window runs from the last attempt
+  // and not from when the message was queued. A spent budget with no
+  // `last_error` was refused by no transport: its attempts went to claims
+  // whose leases expired, and it gives an operator nothing to have seen.
   email_outbox: {
     after: [],
     statement: (now, policy) => sql`
@@ -237,6 +237,7 @@ const RETENTION_RULES: Record<TableName, RetentionRule> = {
                   - make_interval(secs => ${policy.emailSentSeconds}::integer))
           OR (m.sent_at IS NULL
               AND m.attempts >= ${policy.emailMaxAttempts}::integer
+              AND m.last_error IS NOT NULL
               AND m.next_attempt_at < ${now.toISOString()}::timestamptz
                   - make_interval(secs => ${policy.emailFailedSeconds}::integer))
     `,

@@ -30,10 +30,10 @@ let app: DatabaseHandle;
 let appUrl: string;
 
 const MINUTE = 60 * 1000;
-// An hour ahead of the clock the container inserts rows with, so a message
-// queued by `enqueue` below is already due when a pass is given this
-// instant. Fixed once, so every expectation derived from it is exact.
-const NOW = new Date(Date.now() + 60 * MINUTE);
+// Every row below is queued at this instant and every pass is given it, so
+// nothing here depends on the clock either this process or the container
+// happens to be running.
+const NOW = new Date('2026-06-01T12:00:00.000Z');
 
 const OPTIONS: SendPendingOptions = {
   batchSize: 10,
@@ -95,13 +95,16 @@ async function enqueue(
   overrides: Partial<{ to: string; subject: string }> = {},
 ): Promise<string> {
   const { id } = await withRealm(app.db, into, (tx) =>
-    outboxRepository(tx).enqueue({
-      realmId: into,
-      to: overrides.to ?? 'ada@example.test',
-      subject: overrides.subject ?? 'Reset your password',
-      text: 'Visit this link',
-      html: '<p>Visit this link</p>',
-    }),
+    outboxRepository(tx).enqueue(
+      {
+        realmId: into,
+        to: overrides.to ?? 'ada@example.test',
+        subject: overrides.subject ?? 'Reset your password',
+        text: 'Visit this link',
+        html: '<p>Visit this link</p>',
+      },
+      NOW,
+    ),
   );
   return id;
 }
@@ -141,6 +144,16 @@ describe('the outbox repository', () => {
     expect(again).toHaveLength(0);
     const row = await rowById(id);
     expect(row?.nextAttemptAt).toEqual(new Date(NOW.getTime() + OUTBOX_CLAIM_LEASE_SECONDS * 1000));
+  });
+
+  // The row's own due time is the application's clock, not the database's,
+  // so a pass given an instant from the same clock that queued the message
+  // finds it due — whatever the container's clock says.
+  it('queues a message due at the instant it was given', async () => {
+    const id = await enqueue();
+
+    const row = await rowById(id);
+    expect(row?.nextAttemptAt).toEqual(NOW);
   });
 
   it('offers nothing that is sent, not yet due, or out of attempts', async () => {
@@ -439,6 +452,27 @@ describe('the sending pass', () => {
     const row = await rowById(id);
     expect(row?.sentAt).toBeNull();
     expect(row?.lastError).toBe('mail transport unavailable');
+  });
+
+  // The transport took it, but another sender had already recorded the
+  // delivery: counting it here would inflate every report where two
+  // senders overlap, which is what `markSent` reporting the winner is for.
+  it('does not count a message another sender recorded first', async () => {
+    const id = await enqueue();
+    const racing: EmailSender = {
+      send: async () => {
+        await withRealm(app.db, realmId, (tx) => outboxRepository(tx).markSent(id, NOW));
+      },
+    };
+
+    const outcome = await sendPending(
+      { database: app, ownerDatabase: owner, sender: racing },
+      NOW,
+      OPTIONS,
+    );
+
+    expect(outcome).toEqual({ ran: true, sent: 0, failed: 0 });
+    expect((await rowById(id))?.sentAt).toEqual(NOW);
   });
 
   it('carries on to the next message after one is refused', async () => {

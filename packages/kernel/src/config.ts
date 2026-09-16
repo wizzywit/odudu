@@ -165,7 +165,11 @@ const schema = z.object({
   ODUDU_OUTBOX_BATCH_SIZE: z.coerce.number().int().min(1).max(1000).default(20),
   // Attempts a message gets before it is left alone for an operator to
   // read. Nothing deletes it then; `odudu reap` bounds it by
-  // ODUDU_RETENTION_EMAIL_FAILED_SECONDS.
+  // ODUDU_RETENTION_EMAIL_FAILED_SECONDS — and reads this same value to
+  // decide what "permanently failed" means, so lowering it reclassifies
+  // messages already queued: one that has spent the new ceiling stops
+  // being retried and starts its retention window, without anything
+  // having happened to it.
   ODUDU_OUTBOX_MAX_ATTEMPTS: z.coerce.number().int().min(1).max(100).default(5),
   // The first retry's delay; each further attempt doubles it.
   ODUDU_OUTBOX_RETRY_BACKOFF_SECONDS: z.coerce.number().int().min(1).max(86_400).default(60),

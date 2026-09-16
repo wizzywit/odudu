@@ -85,14 +85,21 @@ async function assertRolesAreRight(deps: SendPendingDeps): Promise<void> {
   }
 }
 
+/**
+ * `duplicate` is a message another sender recorded first: the transport
+ * accepted it, but this pass is not the one that delivered it, and counting
+ * it as sent would inflate every report where two senders overlap.
+ */
+type Delivery = 'sent' | 'failed' | 'duplicate';
+
 async function deliver(
   deps: SendPendingDeps,
   realmId: string,
   message: OutboxMessage,
   now: Date,
   options: SendPendingOptions,
-): Promise<boolean> {
-  const write = async (fn: (tx: RealmScopedDatabase) => Promise<void>): Promise<void> =>
+): Promise<Delivery> {
+  const write = async <T>(fn: (tx: RealmScopedDatabase) => Promise<T>): Promise<T> =>
     withRealm(deps.database.db, realmId, fn);
 
   try {
@@ -113,13 +120,11 @@ async function deliver(
         ? 'outbox message failed for the last time and is kept for an operator to read'
         : 'outbox message failed and will be retried',
     );
-    return false;
+    return 'failed';
   }
 
-  await write(async (tx) => {
-    await outboxRepository(tx).markSent(message.id, now);
-  });
-  return true;
+  const recorded = await write((tx) => outboxRepository(tx).markSent(message.id, now));
+  return recorded ? 'sent' : 'duplicate';
 }
 
 /**
@@ -161,8 +166,9 @@ export async function sendPending(
       // abandon the rest of the batch. A claimed message left unresolved
       // by a throw here is offered again once its lease elapses.
       try {
-        if (await deliver(deps, realmId, message, now, options)) sent += 1;
-        else failed += 1;
+        const delivery = await deliver(deps, realmId, message, now, options);
+        if (delivery === 'sent') sent += 1;
+        else if (delivery === 'failed') failed += 1;
       } catch (err) {
         failed += 1;
         deps.log?.error({ err, messageId: message.id }, 'outbox message could not be resolved');

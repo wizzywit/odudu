@@ -3599,6 +3599,16 @@ nothing. The claim also counts the attempt and pushes `next_attempt_at`
 five minutes out, so a sender killed between the claim and the send costs
 that wait and no more.
 
+**A transport failure cannot change any response.** It arrives here, long
+after the request it belongs to was answered, so there is no status for it
+to alter: the submission that queued the message has already returned its
+`200` (or the `201` self-registration returns), and an SMTP outage neither
+fails a registration nor tells a reset request's two paths apart. Before
+the queue existed, a send that threw during registration answered `500`
+and a reset request logged the failure and answered `200` anyway; now
+neither case exists, because nothing on a request path holds a transport at
+all.
+
 A refused message keeps its place and its reason: `last_error`, and a
 `next_attempt_at` one `ODUDU_OUTBOX_RETRY_BACKOFF_SECONDS` out, doubling
 per attempt. After `ODUDU_OUTBOX_MAX_ATTEMPTS` (default `5`) it is offered

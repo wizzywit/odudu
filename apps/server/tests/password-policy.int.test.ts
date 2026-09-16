@@ -88,17 +88,9 @@ const OUTBOX_OPTIONS: SendPendingOptions = {
 async function drainOutbox(into: EmailSender): Promise<void> {
   await sendPending(
     { database: appDb, ownerDatabase: owner, sender: into },
-    drainAt(),
+    new Date(),
     OUTBOX_OPTIONS,
   );
-}
-
-// A message's `next_attempt_at` defaults to the database's clock, and a
-// containerised Postgres can run milliseconds ahead of this process — so a
-// pass given this process's own instant can find a message it queued a
-// moment ago not yet due. A minute ahead is past any such skew.
-function drainAt(): Date {
-  return new Date(Date.now() + 60_000);
 }
 
 function buildTestApp(): FastifyInstance {

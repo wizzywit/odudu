@@ -70,6 +70,7 @@ interface Fixture {
   readonly failedLongAgoId: string;
   readonly failedYesterdayId: string;
   readonly neverAttemptedId: string;
+  readonly abandonedId: string;
 }
 
 // One realm carrying, for every reaped table, a row that is eligible and a
@@ -91,6 +92,7 @@ async function seedFixture(brute?: BruteForce): Promise<Fixture> {
   const failedLongAgoId = newId();
   const failedYesterdayId = newId();
   const neverAttemptedId = newId();
+  const abandonedId = newId();
 
   await owner.db.execute(sql`
     INSERT INTO realms (id, name, brute_force_lockout_seconds,
@@ -176,25 +178,31 @@ async function seedFixture(brute?: BruteForce): Promise<Fixture> {
        ${at(-1 * DAY)}::timestamptz, ${at(1 * HOUR)}::timestamptz)
   `);
 
-  // The five states a queued message can be in when a pass arrives, and
-  // only two of them are the pass's business: delivered long ago, and
-  // permanently failed long enough ago that an operator has had their
-  // window to read it. One delivered yesterday, one that failed yesterday
-  // and one never attempted at all are none of its business.
+  // The six states a queued message can be in when a pass arrives, and only
+  // two of them are the pass's business: delivered long ago, and refused
+  // for the last time long enough ago that an operator has had their window
+  // to read why. One delivered yesterday, one refused yesterday, one never
+  // attempted, and one whose attempts went to claims that were never
+  // resolved — a spent budget with no error on file, which no transport
+  // ever refused — are none of its business.
   await owner.db.execute(sql`
     INSERT INTO email_outbox (id, realm_id, to_address, subject, body_text, body_html,
-                              created_at, next_attempt_at, sent_at, attempts)
+                              created_at, next_attempt_at, sent_at, attempts, last_error)
     VALUES
       (${sentLongAgoId}, ${realmId}, 'ada@example.test', 'Sent', 't', '<p>t</p>',
-       ${at(-9 * DAY)}::timestamptz, ${at(-9 * DAY)}::timestamptz, ${at(-8 * DAY)}::timestamptz, 1),
+       ${at(-9 * DAY)}::timestamptz, ${at(-9 * DAY)}::timestamptz, ${at(-8 * DAY)}::timestamptz,
+       1, NULL),
       (${sentYesterdayId}, ${realmId}, 'ada@example.test', 'Sent', 't', '<p>t</p>',
-       ${at(-2 * DAY)}::timestamptz, ${at(-2 * DAY)}::timestamptz, ${at(-1 * DAY)}::timestamptz, 1),
+       ${at(-2 * DAY)}::timestamptz, ${at(-2 * DAY)}::timestamptz, ${at(-1 * DAY)}::timestamptz,
+       1, NULL),
       (${failedLongAgoId}, ${realmId}, 'ada@example.test', 'Failed', 't', '<p>t</p>',
-       ${at(-40 * DAY)}::timestamptz, ${at(-31 * DAY)}::timestamptz, NULL, 5),
+       ${at(-40 * DAY)}::timestamptz, ${at(-31 * DAY)}::timestamptz, NULL, 5, 'no such mailbox'),
       (${failedYesterdayId}, ${realmId}, 'ada@example.test', 'Failed', 't', '<p>t</p>',
-       ${at(-3 * DAY)}::timestamptz, ${at(-1 * DAY)}::timestamptz, NULL, 5),
+       ${at(-3 * DAY)}::timestamptz, ${at(-1 * DAY)}::timestamptz, NULL, 5, 'no such mailbox'),
       (${neverAttemptedId}, ${realmId}, 'ada@example.test', 'Waiting', 't', '<p>t</p>',
-       ${at(-60 * DAY)}::timestamptz, ${at(-60 * DAY)}::timestamptz, NULL, 0)
+       ${at(-60 * DAY)}::timestamptz, ${at(-60 * DAY)}::timestamptz, NULL, 0, NULL),
+      (${abandonedId}, ${realmId}, 'ada@example.test', 'Abandoned', 't', '<p>t</p>',
+       ${at(-60 * DAY)}::timestamptz, ${at(-40 * DAY)}::timestamptz, NULL, 5, NULL)
   `);
 
   return {
@@ -209,6 +217,7 @@ async function seedFixture(brute?: BruteForce): Promise<Fixture> {
     failedLongAgoId,
     failedYesterdayId,
     neverAttemptedId,
+    abandonedId,
   };
 }
 
@@ -299,7 +308,7 @@ describe('odudu reap', () => {
       authentication_sessions: 1,
       action_tokens: 1,
       login_failures: 1,
-      email_outbox: 3,
+      email_outbox: 4,
       sessions: 1,
     });
 
@@ -329,8 +338,29 @@ describe('odudu reap', () => {
       sql`SELECT id FROM email_outbox WHERE realm_id = ${fixture.realmId} ORDER BY created_at`,
     );
     expect(rows.map((row) => row.id).sort()).toEqual(
-      [fixture.neverAttemptedId, fixture.failedYesterdayId, fixture.sentYesterdayId].sort(),
+      [
+        fixture.neverAttemptedId,
+        fixture.failedYesterdayId,
+        fixture.sentYesterdayId,
+        fixture.abandonedId,
+      ].sort(),
     );
+  });
+
+  // `attempts` is counted by the claim, before the send, so a sender killed
+  // between the two spends one without any transport having refused
+  // anything. A row that spent its whole budget that way carries no
+  // `last_error`, and deleting it would delete the only record of a message
+  // that never went out, with nothing for an operator to have read.
+  it('keeps a spent message that no transport ever refused', async () => {
+    const fixture = await seedFixture();
+
+    await runPass(new Date(NOW.getTime() + 400 * DAY));
+
+    const rows = await owner.db.execute<{ n: string }>(
+      sql`SELECT count(*) AS n FROM email_outbox WHERE id = ${fixture.abandonedId}`,
+    );
+    expect(rows[0]?.n).toBe('1');
   });
 
   // A message still inside its retry schedule has attempts on it but has

@@ -39,9 +39,13 @@ export function outboxRepository(tx: RealmScopedDatabase) {
     /**
      * Written in the transaction that produced the mail, so a token the
      * database durably stored and a message nothing will ever send cannot
-     * come apart.
+     * come apart. `next_attempt_at` is written rather than defaulted: every
+     * other instant in this table's lifecycle — the claim's lease, a
+     * failure's backoff, the delivery — is the application's clock, and a
+     * row due by the database's clock instead is one a pass given an
+     * instant from the application's own may find not yet due.
      */
-    async enqueue(message: EnqueueMessage): Promise<{ id: string }> {
+    async enqueue(message: EnqueueMessage, now: Date = new Date()): Promise<{ id: string }> {
       const id = newId();
       await tx.insert(emailOutbox).values({
         id,
@@ -50,6 +54,7 @@ export function outboxRepository(tx: RealmScopedDatabase) {
         subject: message.subject,
         bodyText: message.text,
         bodyHtml: message.html,
+        nextAttemptAt: now,
       });
       return { id };
     },

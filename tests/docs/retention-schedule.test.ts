@@ -88,6 +88,24 @@ describe('the outbox schedule the documents describe is the one the server runs'
     );
   });
 
+  // The two windows an operator would actually act on, and the only
+  // defaults either document gives in words rather than in digits — so a
+  // regular expression over "(default `N`)" cannot reach them. The word is
+  // read out of the sentence that names the variable and compared as
+  // seconds.
+  it.each([
+    ['ODUDU_RETENTION_EMAIL_SENT_SECONDS', defaults.ODUDU_RETENTION_EMAIL_SENT_SECONDS],
+    ['ODUDU_RETENTION_EMAIL_FAILED_SECONDS', defaults.ODUDU_RETENTION_EMAIL_FAILED_SECONDS],
+  ])('describes %s as the period it defaults to', (variable, seconds) => {
+    const words: Record<string, number> = { 'a week': 604_800, 'thirty days': 2_592_000 };
+    const pattern = new RegExp('`' + variable + '`[^.]*?(?<period>a week|thirty days)', 'su');
+    const stated = pattern.exec(textOf('docs/request-paths.md'));
+    if (stated?.groups?.period === undefined) {
+      throw new Error(`docs/request-paths.md no longer says how long ${variable} keeps a message`);
+    }
+    expect(words[stated.groups.period]).toBe(seconds);
+  });
+
   it('refuses without a serving connection in the words the documents quote', () => {
     const command = readFileSync(path.join(REPO_ROOT, 'apps/server/src/cli/send-mail.ts'), 'utf8');
     const quoted = /`(?<message>odudu send-mail requires [^`]+)`/su.exec(

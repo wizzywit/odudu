@@ -126,6 +126,13 @@ beforeEach(async () => {
   await httpApp.ready();
 });
 
+// Every test below reads either what the queue holds or what a drain
+// delivered, so each starts with the queue empty rather than with whatever
+// an earlier test left in it.
+beforeEach(async () => {
+  await owner.db.delete(emailOutbox);
+});
+
 const OUTBOX_OPTIONS: SendPendingOptions = {
   batchSize: 10,
   maxAttempts: 3,
@@ -133,15 +140,7 @@ const OUTBOX_OPTIONS: SendPendingOptions = {
 };
 
 async function drainOutbox(): Promise<void> {
-  await sendPending({ database: app, ownerDatabase: owner, sender }, drainAt(), OUTBOX_OPTIONS);
-}
-
-// A message's `next_attempt_at` defaults to the database's clock, and a
-// containerised Postgres can run milliseconds ahead of this process — so a
-// pass given this process's own instant can find a message it queued a
-// moment ago not yet due. A minute ahead is past any such skew.
-function drainAt(): Date {
-  return new Date(Date.now() + 60_000);
+  await sendPending({ database: app, ownerDatabase: owner, sender }, new Date(), OUTBOX_OPTIONS);
 }
 
 async function outboxRows() {
@@ -169,15 +168,11 @@ async function timeRequest(email: string): Promise<number> {
 
 // The visible channel was closed when this flow was written: the body and
 // status are identical for a known and an unknown address. This is the
-// invisible one — an address that existed was measurably slower to answer,
-// because the SMTP round trip happened inside the response.
-
-// Every test below reads either what the queue holds or what a drain
-// delivered, so each starts with the queue empty rather than with whatever
-// an earlier test left in it.
-beforeEach(async () => {
-  await owner.db.delete(emailOutbox);
-});
+// invisible one — an address that existed answered measurably slower,
+// because the SMTP round trip happened inside the response. What keeps it
+// closed is structural rather than this measurement, which injects the
+// transport it times: no type reachable from a request carries an
+// EmailSender, so a send on a request path does not compile. Keep both.
 
 describe('the reset request is not a timing oracle', () => {
   it('answers a known and an unknown address in the same time', async () => {
