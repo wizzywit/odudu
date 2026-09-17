@@ -27,6 +27,7 @@ import {
   verifyClientSecret,
   type ClientRecord,
   type ClientScopeAssignment,
+  coerceRealmSetting,
 } from '@odudu/domain-realm';
 import { loadConfig, newId, OduduError } from '@odudu/kernel';
 import {
@@ -513,6 +514,9 @@ export interface RealmCommandResult {
   created: boolean;
   realm: string;
   realmId: string;
+  // The settings this call changed, named as they were given, so a
+  // transcript shows what was set rather than only that something was.
+  settings?: readonly string[];
 }
 
 export interface ClientCommandResult {
@@ -701,11 +705,17 @@ async function runRealmCommand(
   kek: Uint8Array,
   argv: readonly string[],
 ): Promise<RealmCommandResult> {
-  const { values } = parseArgs({ args: [...argv], options: { name: { type: 'string' } } });
+  const { values } = parseArgs({
+    args: [...argv],
+    options: { name: { type: 'string' }, set: { type: 'string', multiple: true } },
+  });
   if (values.name === undefined) {
     throw new OduduError('seed_invalid_options', 'seed realm requires --name');
   }
   const realmName = values.name;
+  // Parsed before the realm is touched, so a typo in the third --set does
+  // not leave the first two applied.
+  const settings = parseSettings(values.set ?? []);
 
   const { realmId, created } = await resolveRealmId(ownerDb, realmName);
   if (created) {
@@ -729,7 +739,63 @@ async function runRealmCommand(
     });
   }
 
-  return { command: 'realm', created, realm: realmName, realmId };
+  if (settings.length > 0) {
+    // Whatever the CHECK constraints refuse (migrations 0028, 0035, 0041)
+    // refuses this write too: the seed CLI has no development override, in
+    // the way it has none for the password policy.
+    await withRealm(runtimeDb, realmId, (tx) =>
+      tx
+        .update(realms)
+        .set(Object.fromEntries(settings.map(({ column, value }) => [column, value])))
+        .where(eq(realms.id, realmId)),
+    );
+  }
+
+  return {
+    command: 'realm',
+    created,
+    realm: realmName,
+    realmId,
+    ...(settings.length > 0 ? { settings: settings.map(({ name }) => name) } : {}),
+  };
+}
+
+interface ParsedSetting {
+  // Both spellings: the column is what the UPDATE needs, and the name is
+  // what the operator typed, which is what the result echoes back.
+  name: string;
+  column: string;
+  value: boolean | number | string;
+}
+
+// `--set name=value`, repeatable. The name is a column name, which is what a
+// reader of the schema or of docs/request-paths.md already has in hand.
+function parseSettings(assignments: readonly string[]): ParsedSetting[] {
+  return assignments.map((assignment) => {
+    const separator = assignment.indexOf('=');
+    if (separator <= 0) {
+      throw new OduduError(
+        'seed_invalid_options',
+        `--set expects name=value, got ${JSON.stringify(assignment)}`,
+      );
+    }
+    const name = assignment.slice(0, separator);
+    // Only the first `=` splits, so a text setting may contain one.
+    const outcome = coerceRealmSetting(name, assignment.slice(separator + 1));
+    if (outcome.kind === 'unknown_setting') {
+      throw new OduduError(
+        'seed_unknown_setting',
+        `unknown realm setting ${JSON.stringify(name)}; expected one of ${outcome.known.join(', ')}`,
+      );
+    }
+    if (outcome.kind === 'invalid_value') {
+      throw new OduduError(
+        'seed_invalid_options',
+        `realm setting ${name} expects ${outcome.expected === 'integer' ? 'an integer' : `a ${outcome.expected}`}`,
+      );
+    }
+    return { name, column: outcome.column, value: outcome.value };
+  });
 }
 
 async function runClientCommand(
@@ -746,6 +812,7 @@ async function runClientCommand(
       'client-secret': { type: 'string' },
       'token-endpoint-auth-method': { type: 'string' },
       'redirect-uri': { type: 'string', multiple: true },
+      'post-logout-redirect-uri': { type: 'string', multiple: true },
       'web-origin': { type: 'string', multiple: true },
     },
   });
@@ -783,8 +850,12 @@ async function runClientCommand(
   const clientId = values['client-id'];
   const clientSecret = values['client-secret'];
   const redirectUris = values['redirect-uri'] ?? [];
+  const postLogoutRedirectUris = values['post-logout-redirect-uri'] ?? [];
   const webOrigins = values['web-origin'] ?? [];
   assertAbsoluteRedirectUris(redirectUris);
+  // RP-Initiated Logout §2 matches these exactly, the same way §3 matches a
+  // redirect URI, so a relative one is as meaningless here as there.
+  assertAbsoluteRedirectUris(postLogoutRedirectUris);
 
   const realmId = await requireRealmId(ownerDb, realmName);
 
@@ -835,6 +906,7 @@ async function runClientCommand(
       refreshTokenTtlSeconds: 1_209_600,
       clientCredentialsScopes: [],
       webOrigins,
+      postLogoutRedirectUris,
     });
 
     return {

@@ -18,6 +18,7 @@ export type ErrorCode =
   | 'seed_conflict'
   | 'seed_not_found'
   | 'seed_unknown_command'
+  | 'seed_unknown_setting'
   | 'insert_returned_no_row'
   | 'role_not_found'
   | 'role_composite_cycle'

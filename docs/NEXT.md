@@ -146,45 +146,44 @@ rather than covered by "an account console for self-service", which is
 unfailable as written. `beginRecoveryCodes` already replaces a set wholesale,
 so what P4 owes is a surface, not a mechanism.
 
-## Seven settings have no path but `psql`, and no phase had claimed them
+## Realm settings have a command; two client writes do not, by design
 
-`docs/request-paths.md` configures six realm settings and one client setting
-by writing the database directly, because nothing else can:
+`odudu seed realm --name <realm> --set <name>=<value>` applies any of the
+twenty-one realm settings, repeatable, named by the column names the schema
+and `docs/request-paths.md` already use. All five passages that flipped a
+realm setting with `psql` now run it, and `README.md`'s three claims that no
+flag existed are gone — one of them had been wrong before this, since
+`seed client --web-origin` already existed.
 
-- `realms.registration_allowed`, `verify_email`, `reset_password_allowed`
-- `realms.otp_required`
-- `realms.password_max_age_days`, `password_history_depth`
-- `client_oidc_config.post_logout_redirect_uris`
+The validation lives in `packages/domain-realm/src/service/realm-settings.ts`
+rather than in the CLI, so P4's admin API inherits the name-to-column map and
+the coercion rather than growing a second one. **Ranges are deliberately not
+there**: they are CHECK constraints (migrations 0028, 0035, 0041), and
+`apps/server/tests/seed.int.test.ts` proves the CLI cannot write past one —
+the repository's idiom that a policy no writer may bypass belongs at the
+database, and the seed CLI having no development override matches what it
+already does for the password policy.
 
-Six passages say so, and each points at another passage saying so — "the same
-gap [Self-registration](#self-registration) notes" — so the document is
-honest about it at every site and **nowhere says where it gets fixed.** Until
-2026-09-17 the words "seed flag" appeared in no other file: not here, not in
-a phase's exit criterion, not in a phase record. That is the failure this
-file's own rule describes, in a document nobody thought to check for it.
+**Two `client_oidc_config` writes stay, and the reason is a decision rather
+than a gap.** `seed client` registers `--post-logout-redirect-uri` and
+`--web-origin` as it _creates_ a client and refuses one that already exists,
+because a re-run that quietly widened a registered redirect list is how an
+allowlist grows by accident. Both remaining sites change a client seeded
+earlier in the document, so they stay `psql` until the admin API can do it
+under authentication and audit — **P3**, whose criterion already names
+registered per-client logout URIs.
 
-**Two other direct writes are not this gap and need no flag.**
+**Asymmetry worth knowing before P4 builds on it:** `seed realm --set`
+changes an existing realm, `seed client` will not change an existing client.
+That is not an oversight — a realm's settings are configuration, while a
+client's redirect and origin lists are its security-relevant registration —
+but an admin API that treats both the same way would be wrong in one of the
+two directions.
+
+Two `UPDATE`s in the document are not this subject at all:
 `user_credentials.created_at` ages a password ninety days and
-`authentication_sessions.*` ages rows for the retention pass; the document
-already says the first has no alternative, and neither has one, because no
-command can make a row older than the process running it.
-
-**Where they belong.** `post_logout_redirect_uris` is client registration,
-which P3 already owns — its criterion names "registered per-client logout
-URIs", and registering them is the same work. The six realm settings are an
-admin surface, which is **P4**, and were covered only by "full lifecycle
-manageable from the UI"; P4's criterion now names realm settings so it can be
-failed on them.
-
-**The seed CLI is the near-term question, and it is separate from both.**
-`seed` has twelve subcommands and `seed realm` accepts only `--name`, while
-`realms` carries twenty-four columns — so a flag per setting is a treadmill
-and a generic `seed realm --set key=value` is not. Deciding this is worth
-doing before the next phase writes its transcripts, because every phase so
-far has added more `psql` to a document that is the project's showcase, and
-an identity server teaching readers to configure realms with `UPDATE`
-statements is teaching the wrong thing while skipping whatever validation the
-application layer would have applied.
+`authentication_sessions.*` ages rows for the retention pass. No command can
+make a row older than the process running it.
 
 ## Deployment gaps, for whoever asks next
 

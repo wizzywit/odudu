@@ -1232,11 +1232,17 @@ is the other half: consuming the link a verification email carries.
 mail, for an address that does not exist yet; `odudu seed
 --send-verification-email` is the other, standing in for the admin
 console's "Send verification email" action against a user who already
-exists — `ada`, seeded back in [Bootstrap](#bootstrap). There is still no
-seed flag or admin surface to flip a realm's `verify_email` itself, only a
-direct `UPDATE realms SET verify_email = true …`, the same gap
-[Self-registration](#self-registration) hits for the other two
-account-lifecycle settings:
+exists — `ada`, seeded back in [Bootstrap](#bootstrap). A realm's `verify_email` is turned on
+with `seed realm --set`, the same way
+[Self-registration](#self-registration) turns on the other two:
+
+```bash
+odudu seed realm --name demo --set verify_email=true
+```
+
+```
+{"command":"realm","created":false,"realm":"demo","realmId":"01a0af71-71ad-7759-bf73-acaa420d812a","settings":["verify_email"]}
+```
 
 ```bash
 odudu seed \
@@ -1347,15 +1353,16 @@ curl -sS -o /dev/null -w '%{http_code}\n' \
 404
 ```
 
-There is no seed flag or admin surface for the three account-lifecycle
-settings yet (the same gap [Address verification](#address-verification)
-notes), so this run flips them with `psql` against the compose stack's
-database, the same one `odudu seed` writes to — by name, since the realm id
-is generated and this document does not capture it:
+Both settings this flow needs are realm settings, so one `seed realm --set`
+turns them on — repeatable, and applied in one statement:
 
-```sql
-UPDATE realms SET registration_allowed = true, verify_email = true
-  WHERE name = 'register-demo';
+```bash
+odudu seed realm --name register-demo \
+  --set registration_allowed=true --set verify_email=true
+```
+
+```
+{"command":"realm","created":false,"realm":"register-demo","realmId":"01a0b044-8f5b-74ec-b550-49e9292e0de9","settings":["registration_allowed","verify_email"]}
 ```
 
 With both on, posting the form creates the account and, because
@@ -1656,24 +1663,24 @@ became `<meta charset="utf-8" />`, and the markup a reader saw was the
 formatter's rather than the server's. A fenced response block carries no
 language tag for that reason.
 
-There is no seed flag for `otp_required` yet (the same gap
-[Self-registration](#self-registration) notes), so this run turns it on with
-`psql`:
+`otp_required` is a realm setting, which `seed realm --set` applies:
 
 ```bash
 odudu seed \
   --realm otp-demo --client otp-spa \
   --redirect-uri http://localhost:8080/callback \
   --user ada --password correct-horse-battery
-docker compose -f infra/docker/compose.yaml exec -T postgres \
-  psql -U odudu -d odudu -c \
-  "UPDATE realms SET otp_required = true WHERE name = 'otp-demo';"
+odudu seed realm --name otp-demo --set otp_required=true
 ```
 
 ```
 {"created":true,"realm":"otp-demo","realmId":"01a0aa5f-…","clientId":"otp-spa","userSubjectId":"01a0aa5f-…"}
-UPDATE 1
+{"command":"realm","created":false,"realm":"otp-demo","realmId":"01a0b044-9629-7e64-8020-b7dd099afa39","settings":["otp_required"]}
 ```
+
+`created` is `false` because the line above it made the realm: `seed realm`
+resolves one or creates it, and `--set` then applies to whichever it found.
+The settings are echoed as they were given.
 
 ### The password is right, and the login still does not finish
 
@@ -2550,15 +2557,14 @@ odudu seed \
   --user ada --password correct-horse-battery --email ada@example.com
 ```
 
-There is still no seed flag or admin surface for this setting (the same gap
-[Address verification](#address-verification) and
-[Self-registration](#self-registration) note for the other two), so this
-run flips it with `psql` against the compose stack's database, the same one
-`odudu seed` writes to — by name, since the realm id is generated and this
-document does not capture it:
+The third account-lifecycle setting, turned on the same way as the other two:
 
-```sql
-UPDATE realms SET reset_password_allowed = true WHERE name = 'reset-demo';
+```bash
+odudu seed realm --name reset-demo --set reset_password_allowed=true
+```
+
+```
+{"command":"realm","created":false,"realm":"reset-demo","realmId":"01a0b044-9968-7dec-ab3b-7141bb9595a0","settings":["reset_password_allowed"]}
 ```
 
 The token a request mints is valid for five minutes
@@ -2825,20 +2831,17 @@ the gate that could rescue a refused login sits downstream of a success, so
 refusing the factor would lock out precisely the accounts the policy exists
 to move along.
 
-There is no seed flag for the password policy yet (the same gap
-[Self-registration](#self-registration) notes), so this run sets the two
-columns with `psql`. The second statement has no alternative: nothing can
-make a password ninety days old in less than ninety days.
+The policy is two realm settings, so `seed realm --set` carries both. The
+`psql` that follows has no alternative and never will: nothing can make a
+password ninety days old in less than ninety days.
 
 ```bash
 odudu seed \
   --realm expiry-demo --client expiry-spa \
   --redirect-uri http://localhost:8080/callback \
   --user ada --password correct-horse-battery --email ada@example.com
-docker compose -f infra/docker/compose.yaml exec -T postgres \
-  psql -U odudu -d odudu -c \
-  "UPDATE realms SET password_max_age_days = 90, password_history_depth = 2
-     WHERE name = 'expiry-demo';"
+odudu seed realm --name expiry-demo \
+  --set password_max_age_days=90 --set password_history_depth=2
 docker compose -f infra/docker/compose.yaml exec -T postgres \
   psql -U odudu -d odudu -c \
   "UPDATE user_credentials SET created_at = now() - interval '100 days'
@@ -2848,7 +2851,7 @@ docker compose -f infra/docker/compose.yaml exec -T postgres \
 
 ```
 {"created":true,"realm":"expiry-demo","realmId":"01a0aa95-…","clientId":"expiry-spa","userSubjectId":"01a0aa95-…"}
-UPDATE 1
+{"command":"realm","created":false,"realm":"expiry-demo","realmId":"01a0b044-9ccd-788b-bc5b-5ed0f6235f89","settings":["password_max_age_days","password_history_depth"]}
 UPDATE 1
 ```
 
@@ -3191,8 +3194,8 @@ captured with. It was captured against a stack started plainly
 on for it — the route answers `404` in a realm that has it off, and a `404`
 is not what the ten `200`s below are demonstrating:
 
-```sql
-UPDATE realms SET reset_password_allowed = true WHERE name = 'demo';
+```bash
+odudu seed realm --name demo --set reset_password_allowed=true
 ```
 
 ```bash
@@ -3779,8 +3782,13 @@ their own `exp` regardless (see [What is not
 implemented](#what-is-not-implemented) and README.md's own logout section
 for why).
 
-A client registers its `post_logout_redirect_uri` values ahead of time —
-there is no seed flag for it yet, so this walkthrough sets one directly:
+A client registers its `post_logout_redirect_uri` values ahead of time.
+`seed client --post-logout-redirect-uri` registers them **as it creates** a
+client, and refuses a client that already exists — deliberately, because a
+re-run that quietly widened a registered redirect list is how an allowlist
+grows by accident. `demo-spa` was seeded back in
+[Bootstrap](#bootstrap), so this walkthrough sets the column directly;
+changing a registered client is the admin API's work, which is P3's:
 
 ```bash
 docker compose -f infra/docker/compose.yaml exec -T postgres \
@@ -3949,7 +3957,9 @@ confirmation page and ends nothing.
 turn on that comparison and nothing else, the client named has to be one
 whose registration would otherwise have allowed the redirect — so
 `demo-post`, seeded in [A confidential client](#a-confidential-client)
-above, gets the same value `demo-spa` has:
+above, gets the same value `demo-spa` has — set directly for the reason
+[RP-initiated logout](#rp-initiated-logout) gives, since the client already
+exists:
 
 ```bash
 docker compose -f infra/docker/compose.yaml exec -T postgres \

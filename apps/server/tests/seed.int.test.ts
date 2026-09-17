@@ -3,6 +3,7 @@ import { signingKeys } from '@odudu/crypto';
 import {
   createDatabase,
   MIGRATIONS_DIR,
+  realms,
   runMigrations,
   withRealm,
   type DatabaseHandle,
@@ -427,5 +428,153 @@ describe('seed: --send-verification-email', () => {
         sendVerificationEmail: true,
       }),
     ).rejects.toThrow(/was not seeded with it/);
+  });
+});
+
+describe('seed realm --set', () => {
+  async function realmSettings(realmId: string) {
+    const rows = await owner.db
+      .select({
+        otpRequired: realms.otpRequired,
+        registrationAllowed: realms.registrationAllowed,
+        passwordMaxAgeDays: realms.passwordMaxAgeDays,
+        displayName: realms.displayName,
+      })
+      .from(realms)
+      .where(eq(realms.id, realmId));
+    const row = rows[0];
+    if (row === undefined) throw new Error(`no realm ${realmId}`);
+    return row;
+  }
+
+  it('applies settings to the realm it creates, and reports which', async () => {
+    const name = `set-${newId()}`;
+
+    const result = await seed([
+      'realm',
+      '--name',
+      name,
+      '--set',
+      'otp_required=true',
+      '--set',
+      'password_max_age_days=90',
+    ]);
+
+    expect(result).toMatchObject({ command: 'realm', created: true, realm: name });
+    // Echoed as they were given, not as the columns are spelled.
+    expect(result).toMatchObject({ settings: ['otp_required', 'password_max_age_days'] });
+    if (result.command !== 'realm') throw new Error('expected the realm command');
+    expect(await realmSettings(result.realmId)).toMatchObject({
+      otpRequired: true,
+      passwordMaxAgeDays: 90,
+    });
+  });
+
+  // Settings are configuration rather than identity, so a second call
+  // changes them — unlike `seed client`, which refuses an existing client
+  // rather than quietly widening a redirect allowlist.
+  it('changes a setting on a realm that already exists, leaving the rest alone', async () => {
+    const name = `set-${newId()}`;
+    const created = await seed(['realm', '--name', name, '--set', 'registration_allowed=true']);
+    if (created.command !== 'realm') throw new Error('expected the realm command');
+
+    const again = await seed(['realm', '--name', name, '--set', 'otp_required=true']);
+
+    expect(again).toMatchObject({ created: false, realmId: created.realmId });
+    expect(await realmSettings(created.realmId)).toMatchObject({
+      registrationAllowed: true,
+      otpRequired: true,
+    });
+  });
+
+  it('omits the settings key entirely when no --set was given', async () => {
+    const result = await seed(['realm', '--name', `set-${newId()}`]);
+
+    expect(result).not.toHaveProperty('settings');
+  });
+
+  // The ranges live in CHECK constraints (migrations 0028, 0035, 0041), and
+  // this is what proves the CLI has no way past them.
+  it('cannot write a value the database refuses', async () => {
+    const name = `set-${newId()}`;
+
+    await expect(
+      seed(['realm', '--name', name, '--set', 'password_max_age_days=4000']),
+    ).rejects.toThrow();
+
+    const rows = await owner.db.select().from(realms).where(eq(realms.name, name));
+    // The realm itself was created before the setting was applied, so the
+    // refusal leaves it at the column default rather than at 4000.
+    expect(rows[0]?.passwordMaxAgeDays).toBe(0);
+  });
+
+  it('refuses a setting name it does not know, and names the ones it does', async () => {
+    await expect(
+      seed(['realm', '--name', `set-${newId()}`, '--set', 'otp_requried=true']),
+    ).rejects.toThrow(/unknown realm setting "otp_requried".*otp_required/su);
+  });
+
+  it('refuses a value of the wrong shape', async () => {
+    await expect(
+      seed(['realm', '--name', `set-${newId()}`, '--set', 'otp_required=yes']),
+    ).rejects.toThrow(/expects a boolean/u);
+    await expect(
+      seed(['realm', '--name', `set-${newId()}`, '--set', 'password_max_age_days=ninety']),
+    ).rejects.toThrow(/expects an integer/u);
+    await expect(
+      seed(['realm', '--name', `set-${newId()}`, '--set', 'otp_required']),
+    ).rejects.toThrow(/expects name=value/u);
+  });
+});
+
+describe('seed client --post-logout-redirect-uri', () => {
+  it('registers the URIs RP-Initiated Logout matches against', async () => {
+    const options = uniqueOptions();
+    await seed(options);
+
+    await seed([
+      'client',
+      '--realm',
+      options.realm,
+      '--client-id',
+      'logout-spa',
+      '--public',
+      '--redirect-uri',
+      'https://app.example/callback',
+      '--post-logout-redirect-uri',
+      'https://app.example/logged-out',
+    ]);
+
+    const realmId = (await owner.db.select().from(realms).where(eq(realms.name, options.realm)))[0]
+      ?.id;
+    if (realmId === undefined) throw new Error('expected the seeded realm');
+    const stored = await withRealm(owner.db, realmId, async (tx) => {
+      const rows = await tx
+        .select()
+        .from(clients)
+        .where(and(eq(clients.realmId, realmId), eq(clients.clientId, 'logout-spa')));
+      const client = rows[0];
+      if (client === undefined) throw new Error('expected the seeded client');
+      return clientOidcConfigRepository(tx).byClientId(client.id);
+    });
+    expect(stored?.postLogoutRedirectUris).toEqual(['https://app.example/logged-out']);
+  });
+
+  it('refuses one that is not absolute', async () => {
+    const options = uniqueOptions();
+    await seed(options);
+
+    await expect(
+      seed([
+        'client',
+        '--realm',
+        options.realm,
+        '--client-id',
+        'relative-spa',
+        '--public',
+        '--post-logout-redirect-uri',
+        '/logged-out',
+      ]),
+    ).rejects.toThrow(/absolute/u);
   });
 });

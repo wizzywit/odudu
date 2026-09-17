@@ -48,17 +48,22 @@ it.
 (a preflight from the realm's union of every client's, since it carries no
 client identity to check against one) — see
 [the CORS section of docs/request-paths.md](docs/request-paths.md#cors-the-preflight-and-the-request-differ).
-The seed command has no flag for it yet, so setting one means updating
-`client_oidc_config.web_origins` directly until it grows one.
+`seed client --web-origin` registers them as it creates a client; changing
+one on a client that already exists means updating
+`client_oidc_config.web_origins` directly, because `seed client` refuses an
+existing client rather than widening a registered list on a re-run.
 
 `email_verified` is now a claim about something that happened: a mailed
 `GET /realms/{realm}/login-actions/action-token?key=…` link, redeemed once,
 flips it. A realm carries three settings for the account lifecycle this
 begins — `registration_allowed`, `verify_email` and `reset_password_allowed`
 — each defaulting off, so upgrading a realm never silently grants it public
-registration or mailed verification. There is no admin surface to change
-them yet, so flipping one means an `UPDATE realms SET …` against the
-database directly. Outgoing mail goes through `ODUDU_SMTP_HOST`,
+registration or mailed verification. `odudu seed realm --set` changes them,
+and every other realm setting, by the column name the schema uses:
+`odudu seed realm --name demo --set registration_allowed=true`, repeatable.
+There is no admin **API** for them yet — that is P4 — and the ranges the
+numeric ones accept are CHECK constraints, so the CLI has no way past a
+policy the database enforces. Outgoing mail goes through `ODUDU_SMTP_HOST`,
 `ODUDU_SMTP_PORT` (default `587`), `ODUDU_SMTP_FROM`, `ODUDU_SMTP_USERNAME`,
 `ODUDU_SMTP_PASSWORD` and `ODUDU_SMTP_STARTTLS`; leave `ODUDU_SMTP_HOST`
 unset and the server logs every message instead of sending it, which is what
@@ -105,8 +110,9 @@ correct code, never by the page that offers a secret. The algorithm is
 RFC 6238 as `@odudu/crypto` implements it — six digits, SHA-1, a 30-second
 step, a ±1-step window and a stored last-accepted step, so a code cannot be
 used twice. A two-factor login's ID token carries `amr: ["otp", "pwd"]` and
-`acr: "2"`. There is no seed flag for `otp_required` yet, so turning it on
-means an `UPDATE realms SET …` like the account-lifecycle settings above.
+`acr: "2"`. Turning it on is
+`odudu seed realm --name <realm> --set otp_required=true`, the same command
+the account-lifecycle settings above use.
 See [the TOTP section of docs/request-paths.md](docs/request-paths.md#two-factor-authentication-with-totp)
 for the walkthrough.
 
