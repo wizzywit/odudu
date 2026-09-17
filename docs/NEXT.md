@@ -77,19 +77,19 @@ overdue for a decision or a move, not for another paragraph.
 
 ## Login page theming — P2 did not decide it, and P3 inherits the question
 
-The design spec lists `ThemeProvider` among `kernel`'s registries (section 8)
-and puts theming in P10, whose exit criterion is that a third-party provider
-loads without a rebuild. Nothing is in place yet: the registry does not exist,
-and the sign-in and error pages are hardcoded HTML in
-`packages/protocol-oidc/src/view/authorize-html.ts` — dependency-free, with
-every interpolated value escaped.
+The design spec lists `ThemeProvider` among `kernel`'s registries (section 8),
+and theming is delivered by **P4b** — split out of P10 on 2026-09-17, because
+P10's criterion tested provider loading and would have passed with no theming
+at all. Nothing is in place yet: the registry does not exist, and the pages
+are hardcoded HTML, dependency-free with every interpolated value escaped.
 
-Those forty-odd lines are not the risk. The risk is page count: P2 adds an OTP
-page and a passkey page, P3 a consent screen, P4 the console. Each one written
-the same way, by a different task, leaves P10 retrofitting a theming contract
-across six pages that never shared a shape. The spec's promise that
-extensibility is "additive rather than a rewrite" is made about modules, and
-does not extend to pages on its own.
+Those lines are not the risk. The risk is page count, and it has already
+grown past what this note first estimated: P2b shipped seven page renderers,
+P3 adds a consent screen, P4 the consoles. Each one written the same way, by
+a different task, leaves P4b retrofitting a contract across pages that never
+shared a shape. The spec's promise that extensibility is "additive rather
+than a rewrite" is made about modules, and does not extend to pages on its
+own.
 
 **P2 closed without deciding it, and the condition this note set has been
 passed rather than met.** It asked for a decision "when three pages exist and
@@ -108,16 +108,19 @@ contract to extend rather than replace.
 
 The question itself is unchanged and still open: what is a theme allowed to
 replace — the whole document, a body fragment, or only styling? It now has a
-second consumer, which raises the stakes on answering it: P10's criterion was
-amended on 2026-09-17 to require **a client** supplying its own styling and
-images, not only a realm supplying a theme (section 11, "Theming was named
-but never required"). A contract that fits a trusted operator's theme and not
+second consumer and a delivery phase. On 2026-09-17 theming and client
+branding were split out of P10 into **P4b**, immediately after the consoles,
+and the criterion now requires **a client** supplying its own styling and
+images rather than only a realm supplying a theme (section 11, "Theming was
+named but never required"). So the contract is decided in P3, beside the
+consent screen, and delivered in P4b — deciding it in the phase that
+delivers it would mean writing the consent screen the old way first. A contract that fits a trusted operator's theme and not
 an untrusted client's stylesheet is the wrong contract, and the difference is
 that the second one is an authorization decision about a page carrying a
 password field and a CSRF token. Deciding it
-in P3, beside the consent screen, costs one more page written the old way.
-Deferring it again costs the console's pages too, and P10 then retrofits
-across nine.
+in P3 costs nothing but the decision; deferring it again costs the console's
+pages too, and P4b then retrofits across nine rather than building against a
+contract that already exists.
 
 ## Deployment gaps, for whoever asks next
 

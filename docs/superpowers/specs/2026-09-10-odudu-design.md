@@ -432,20 +432,28 @@ Implementation follows test-driven development.
 | P2b | Credentials, MFA and the session lifecycle                       | 95–130 h  | password, TOTP, passkey and recovery-code login through the flow tree; password policies and brute-force protection; an SSO session that is read as well as written, with idle and maximum lifespans, ended by RP-initiated logout; offline access; mail sent off the request path; expired state reaped on a stated retention window, with a test that fails if reaping breaks code or refresh-token reuse detection; adversarial suite green                                                                                                                                                                                                            |
 | P3  | Realms, clients, consent, dynamic registration                   | 75–110 h  | OIDF Dynamic OP plan passes; a consent screen a user can refuse, with the per-client scope allowlist that decides what it asks for and a recorded grant it can be asked against again; RFC 8707 `resource` indicators, with the per-client audience configuration that makes `aud` derived rather than asserted; signed and encrypted UserInfo responses, selected by client registration; front-channel and back-channel logout against registered per-client logout URIs; token introspection and revocation; `private_key_jwt` and mTLS client authentication, with a rate limit on `client_secret` attempts at `/token`; cross-realm RLS probes green |
 | P4  | Admin API and consoles                                           | 135–200 h | full lifecycle manageable from the UI, including listing a subject's sessions and ending one, and promoting a new signing key and retiring the one it replaces on the overlap window §5 states, with JWKS proven to publish both for its duration; another application able to provision users through the admin API as a service account holding admin roles; an account console for self-service; audit events persisted and queryable; realm import and export; Playwright green; OpenAPI published                                                                                                                                                    |
+| P4b | Theming and client branding                                      | 55–90 h   | a realm's login, registration and consent pages render under a supplied theme without a rebuild; a client supplies its own styling and its own images, served by Odudu, under a content-security policy derived per client rather than widened for all                                                                                                                                                                                                                                                                                                                                                                                                    |
 | P5  | Agent identity layer                                             | 80–120 h  | property-based attenuation tests pass; budgets atomic under concurrency; CIBA approvals end to end                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | P6  | Identity brokering                                               | 50–70 h   | login via Google and an upstream OIDC IdP; a user provisioned just in time on first brokered login, with the account-linking decision that implies; mix-up tests green                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | P7  | User federation and inbound provisioning                         | 80–130 h  | LDAP-backed authentication, write-back and sync; SCIM 2.0 inbound provisioning, including deprovisioning                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | P8  | SAML 2.0 IdP                                                     | 100–150 h | interop with a real SP; signature-wrapping corpus green                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | P9  | Authorization services                                           | 100–150 h | policy evaluation and UMA 2.0                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| P10 | Extensibility and theming                                        | 90–150 h  | a third-party provider loads without a rebuild; a realm's login, registration and consent pages render under a supplied theme without a rebuild; a client supplies its own styling and its own images, served by Odudu, under a content-security policy derived per client rather than widened for all                                                                                                                                                                                                                                                                                                                                                    |
+| P10 | Extensibility: third-party providers                             | 40–65 h   | a third-party provider loads without a rebuild                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | P11 | HA, clustering, performance                                      | 60–100 h  | three replicas behind a load balancer; documented p99                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | P12 | Operational readiness                                            | 40–70 h   | a versioned image published from a tagged release, with the release process written down; secrets sourced from somewhere other than the process environment, through the interface §5 already puts the key-encryption key behind; backup and restore guidance proven by restoring into an empty database and completing a login against the restore                                                                                                                                                                                                                                                                                                       |
 
-Total: roughly 1075–1640 hours.
+Total: roughly 1080–1645 hours.
 
-After P4, at roughly 475–700 hours, Odudu is usable behind real
+After P4b, at roughly 530–790 hours, Odudu is usable behind real
 applications. Everything beyond is breadth, and each phase is independently
 valuable and independently abandonable.
+
+That milestone said "after P4" until 2026-09-17. It moved because the claim
+was not true as written: every one of those real applications puts its own
+users in front of Odudu's login page, and until P4b that page cannot be made
+to look like the product it is signing people in to. A login screen nobody
+can brand is not a solution a client can adopt, whatever the protocol
+surface behind it does.
 
 That figure said "roughly 300 hours" until 2026-09-14, which was the sum
 before P2 became two phases and before the rows below were added to P2a, P3
@@ -772,12 +780,23 @@ client supplying its own look, and nothing named assets at all: no storage,
 no upload path, no serving of client-supplied images. The only occurrence of
 "static assets" is the consoles compiling to them.
 
-P10's criterion now names three testable outcomes — provider loading, a
-realm's pages under a supplied theme, and a client's own styling and images
-served by Odudu — and its estimate moves from 60–100 to 90–150 hours. The
-addition is asset storage, an upload path, and the per-client policy
-derivation below; the theme contract itself was always inside the original
-range.
+**P10 was also two phases wearing one title, and the halves have opposite
+urgency.** Dynamic third-party provider loading is plugin infrastructure:
+genuinely late, needed by nobody in order to ship. Theming is the only part
+of Odudu an end user ever looks at. Bundling them meant the second inherited
+the first's position.
+
+So theming and client branding become **P4b** (55–90 h), and P10 keeps
+provider loading alone (40–65 h). P4b is inserted rather than renumbering
+eight phases, on the precedent of P2 becoming P2a and P2b — and because
+inserting says "this was moved", where renumbering would read as though the
+roadmap had always said it. Nothing in `docs/protocols/` defers a clause past
+P3, so no traceability row moves with it.
+
+**P4b sits immediately after P4 because that is the earliest coherent point,
+not because it is convenient.** Per-client branding needs per-client
+configuration, which is P3's; managing it needs a console, which is P4's.
+Earlier than P4 there is nowhere to put the setting and no way to change it.
 
 **Three constraints any implementation inherits, discoverable now:**
 
@@ -799,12 +818,14 @@ range.
   than a replacement, and the reason the contract must be designed with the
   policy and not before it.
 
-**Ordering consequence, unresolved.** P4 builds the consoles at position 4;
-P10 builds theming at position 10. An operator uploading an asset or setting
-a client's branding wants a console surface, so either P4 ships without one
-and P10 retrofits it, or theming moves earlier. This is named rather than
-decided, because the decision wants the theme contract's shape, which is
-P3's to settle (`docs/NEXT.md`, "Login page theming").
+**The ordering consequence that prompted the split.** P4 built the consoles
+at position 4 and P10 built theming at position 10, so an operator setting a
+client's branding wanted a console surface six phases before the thing it
+manages existed. P4b resolves it by following P4 rather than preceding it.
+What remains is the contract's shape, which stays P3's to settle beside the
+consent screen (`docs/NEXT.md`, "Login page theming") — decided in P3 while
+the eighth page is being written, delivered in P4b. Deciding it in the phase
+that delivers it would mean writing the consent screen the old way first.
 
 ### Open decision, deferred deliberately
 
