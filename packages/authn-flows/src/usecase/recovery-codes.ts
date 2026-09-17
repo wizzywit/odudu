@@ -54,18 +54,18 @@ export async function completeRecoveryCodes(
   return { kind: 'acknowledged' };
 }
 
-// Enrolling a second factor is what creates the lockout recovery codes
-// exist to prevent — lose the phone or the authenticator and the password
-// alone no longer signs anybody in — so both enrolments ask for a set.
-// A subject who already holds codes is not asked again: a new second factor
-// does not invalidate a list they have already saved, and re-issuing would
-// silently retire the copy on their paper.
-export async function oweRecoveryCodesIfNoneHeld(
+// Both enrolments ask for a set, and so does spending the last code: each
+// is a moment the subject has no way back. One with codes left is not
+// asked, because re-issuing would silently retire the copy on their paper.
+// Unspent rather than held is the whole point — spent rows are kept so a
+// replay can be refused as spent (ADR 0021), so a subject who has used all
+// ten still holds ten, and a guard counting rows leaves them owing nothing.
+export async function oweRecoveryCodesIfNoneUnspent(
   tx: RealmScopedDatabase,
   realmId: string,
   subjectId: string,
 ): Promise<void> {
-  const held = await credentialRepository(tx).listFor(subjectId, 'recovery-code');
-  if (held.length > 0) return;
+  const usable = await credentialRepository(tx).countUnspentRecoveryCodes(subjectId);
+  if (usable > 0) return;
   await requiredActionRepository(tx).add(realmId, subjectId, 'generate-recovery-codes');
 }

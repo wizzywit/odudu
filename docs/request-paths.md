@@ -2244,6 +2244,99 @@ submissions racing the same code serialize on the row and exactly one of
 them signs in; the other is refused, because a read-then-write pair is how
 both would succeed.
 
+### The last code, and the set that replaces it
+
+A list that runs out is the lockout recovery codes exist to prevent, so
+spending the last one owes `generate-recovery-codes` again — in the login
+that spent it, not the next one. The section below was captured against a
+realm of its own, `rc8-demo`, with a fresh set of ten spent one login at a
+time; the numbers above belong to `otp-demo` and are untouched by it.
+
+The ninth code signs in the way every earlier one did, with one still
+unspent behind it:
+
+```bash
+curl -sS -i -X POST http://localhost:3000/realms/rc8-demo/login-actions/authenticate \
+  --data-urlencode 'auth_session_id=01a0affe-4505-72fb-af5d-801eec7c84a7' \
+  --data-urlencode 'recovery_code=D5DPE-F80P0'
+```
+
+```
+HTTP/1.1 302 Found
+set-cookie: rc8-demo-session=01a0affe-4593-74f9-8f9f-47a787713750; HttpOnly; SameSite=Lax; Path=/
+location: http://localhost:8080/callback?code=nUko6-JCypR4FzMWkdnBJybv3iTYZU-cnYKrArKSEVk&state=xyz&iss=http%3A%2F%2Flocalhost%3A3000%2Frealms%2Frc8-demo
+content-length: 0
+```
+
+The tenth authenticates just as well, and does not redirect:
+
+```bash
+curl -sS -i -X POST http://localhost:3000/realms/rc8-demo/login-actions/authenticate \
+  --data-urlencode 'auth_session_id=01a0affe-bd14-7674-b020-ec82770e9521' \
+  --data-urlencode 'recovery_code=V79VD-MDVJ3'
+```
+
+The codes themselves are elided here — the set shown above is the one this
+document prints, and `tests/docs/recovery-codes.test.ts` holds it to exactly
+one:
+
+```
+HTTP/1.1 200 OK
+content-type: text/html
+content-security-policy: default-src 'none'; frame-ancestors 'none'; form-action 'self'; base-uri 'none'
+x-frame-options: DENY
+content-length: 1165
+
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Save your recovery codes</title></head>
+<body>
+<h1>Save your recovery codes</h1>
+<p>Each of these signs you in once, in place of your second factor, if you lose it. <strong>This is the only time they are shown.</strong> Print them or put them in a password manager before you continue — nobody, including an administrator, can show them to you again.</p>
+<p>These replace the codes issued to this account before now, which no longer work.</p>
+<ol>
+  …ten of them…
+</ol>
+<form method="post" action="/realms/rc8-demo/login-actions/required-action?action=generate-recovery-codes">
+  <input type="hidden" name="auth_session_id" value="01a0affe-bd14-7674-b020-ec82770e9521">
+  <button type="submit">I have saved these codes</button>
+</form>
+</body>
+</html>
+```
+
+It is the same page the enrolment showed, carrying the extra line it renders
+when it is replacing a set rather than issuing a first one. Acknowledging it
+finishes the login, exactly as it did there.
+
+What the two responses did to the account, read either side of the last
+code:
+
+```bash
+docker compose -f infra/docker/compose.yaml exec -T postgres \
+  psql -U odudu -d odudu -c \
+  "SELECT count(*) FILTER (WHERE secret_data->>'usedAt' IS NULL) AS unspent
+     FROM user_credentials
+    WHERE type = 'recovery-code'
+      AND realm_id = (SELECT id FROM realms WHERE name = 'rc8-demo');"
+```
+
+After the ninth that is `1`, and the login redirected. After the tenth it is
+`10` — the page had already issued the replacement set by the time the query
+ran — and `user_required_actions` holds `generate-recovery-codes` until the
+acknowledgement clears it.
+
+The guard behind this counts **unspent** rows rather than rows, and that
+distinction is the whole of it. Spent codes are kept so a replay can be
+refused as spent, so a subject who has used all ten still holds ten: a guard
+reading the row count finds them provided for and owes nothing, which is a
+locked-out account with no page to show it. Keycloak re-presents its own
+setup at the same moment, for the same reason.
+
+Two ways out that this does not provide, both needing a page this server does
+not have yet: asking for a fresh set _before_ running out, and a warning as
+the list gets short. Both are the account console, which is **P4**'s.
+
 ### Where the step sits in the flow
 
 ```bash
@@ -5410,10 +5503,11 @@ session lifecycle. A citation of either half here means that half.
   `generate-recovery-codes` required action that enrolling either second
   factor adds. There is no way to see them again and no administrator
   surface that can print them, by construction rather than by omission.
-  What is not there yet: no way for a subject to ask for a fresh set outside
-  the required action — self-service credential management is the account
-  console, which is **P4**'s, and until it exists a spent list is replaced
-  by an operator deleting the rows so the action is owed again. And **no rate
+  Spending the last one owes the action again, in the login that spent it —
+  so a list runs out into a fresh set rather than into a lockout.
+  What is not there yet: no way for a subject to ask for a fresh set _before_
+  they run out, and no warning as the list gets short — self-service
+  credential management is the account console, which is **P4**'s. And **no rate
   limit on re-issuing**: while the action is owed, each login submission
   with a valid password renders the page again, which costs ten Argon2id
   hashes and eleven row writes. Bounded by holding the password and by

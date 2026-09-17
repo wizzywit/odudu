@@ -3,7 +3,7 @@ import { type RealmScopedDatabase } from '@odudu/db';
 import { credentialRepository, userRepository } from '@odudu/domain-identity';
 import { systemClock, type Clock } from '@odudu/kernel';
 import { requiredActionRepository } from '#/repository/required-actions';
-import { oweRecoveryCodesIfNoneHeld } from '#/usecase/recovery-codes';
+import { oweRecoveryCodesIfNoneUnspent } from '#/usecase/recovery-codes';
 import { isTotpSecretShape, totpEnrolmentUri } from '#/service/authenticators/totp';
 import { type TotpEnrolmentOffer } from '#/view/totp-enrolment-html';
 
@@ -59,6 +59,6 @@ export async function completeTotpEnrolment(
     secret: { kind: 'totp', secret: input.secret, digits: 6, lastStep: verified.step },
   });
   await requiredActionRepository(tx).complete(input.subjectId, 'configure-totp');
-  await oweRecoveryCodesIfNoneHeld(tx, input.realmId, input.subjectId);
+  await oweRecoveryCodesIfNoneUnspent(tx, input.realmId, input.subjectId);
   return { kind: 'enrolled' };
 }

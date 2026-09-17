@@ -12,6 +12,7 @@ import { executionRepository } from '#/repository/executions';
 import { realmSettingsRepository } from '#/repository/realm-settings';
 import { requiredActionRepository } from '#/repository/required-actions';
 import { sessionRepository } from '#/repository/sessions';
+import { oweRecoveryCodesIfNoneUnspent } from '#/usecase/recovery-codes';
 import { recordPasswordExpiryIfOwed } from '#/usecase/update-password';
 import {
   type AuthenticationSessionRecord,
@@ -179,7 +180,17 @@ async function runRecoveryStep(
   return {
     kind: 'success',
     subjectId: outcome.subjectId,
-    commit: () => credentialRepository(tx).spendRecoveryCode(credentialId, context.now),
+    commit: async () => {
+      if (!(await credentialRepository(tx).spendRecoveryCode(credentialId, context.now))) {
+        return false;
+      }
+      // Spending the last one is the moment the subject has no way back, so
+      // the login that used it is where a fresh set is asked for — the gate
+      // reads pending actions after this, so the page appears in this login
+      // rather than the next one.
+      await oweRecoveryCodesIfNoneUnspent(tx, context.realmId, outcome.subjectId);
+      return true;
+    },
   };
 }
 
@@ -247,6 +258,11 @@ async function runPasskeyStep(
 // published (null where no relying party can be derived, which is the one
 // state a passkey cannot be asserted from).
 interface StepContext {
+  // Read only by the recovery step, which owes a fresh set when it spends
+  // the last code: a new required-action row needs a realm_id of its own
+  // (requiredActionRepository.add says why a RealmScopedDatabase cannot
+  // supply one).
+  realmId: string;
   subjectId: string | null;
   authSessionId: string | null;
   now: Date;
@@ -542,6 +558,7 @@ async function loadFlowContext(
     steps: loaded.steps,
     satisfied,
     registry: bindRegistry(tx, {
+      realmId: record.realmId,
       subjectId: record.subjectId,
       authSessionId,
       now: clock.now(),
@@ -596,6 +613,7 @@ export async function initialChallenge(
     recoveryCodeOffered: false,
   });
   const registry = bindRegistry(tx, {
+    realmId,
     subjectId: null,
     authSessionId: null,
     now: clock.now(),
@@ -735,6 +753,7 @@ export async function advance(
   // only for a factor that has more work left after it, never for the one
   // that finishes the login.
   const forSubject = bindRegistry(tx, {
+    realmId: record.realmId,
     subjectId,
     authSessionId,
     now: clock.now(),

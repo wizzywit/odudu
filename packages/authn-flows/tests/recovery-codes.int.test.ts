@@ -31,7 +31,11 @@ import {
   type AdvanceOutcome,
 } from '#/usecase/executor';
 import { provisionBrowserFlow } from '#/usecase/provision-flow';
-import { beginRecoveryCodes, completeRecoveryCodes } from '#/usecase/recovery-codes';
+import {
+  beginRecoveryCodes,
+  completeRecoveryCodes,
+  oweRecoveryCodesIfNoneUnspent,
+} from '#/usecase/recovery-codes';
 import { completeTotpEnrolment } from '#/usecase/totp-enrolment';
 
 let containerHandle: TestDatabase | undefined;
@@ -186,6 +190,33 @@ function storedCodes(
       lastUsedAt: row.lastUsedAt,
     }));
   });
+}
+
+// Spends rows straight through the repository, bypassing the flow. Used to
+// set a subject up near exhaustion: driving every earlier code through a
+// real login costs an Argon2id verification per code tried and proves
+// nothing the first spend has not already proven.
+async function spendDirectly(account: Account, count: number): Promise<void> {
+  await withRealm(app.db, account.realmId, async (tx) => {
+    const rows = await credentialRepository(tx).listFor(account.subjectId, 'recovery-code');
+    for (const row of rows.slice(0, count)) {
+      expect(await credentialRepository(tx).spendRecoveryCode(row.id, new Date())).toBe(true);
+    }
+  });
+}
+
+// What the subject does after saving a set: the seeded enrolment owes the
+// action, and nothing in these tests goes through the page that clears it.
+function acknowledge(account: Account): Promise<void> {
+  return withRealm(app.db, account.realmId, (tx) =>
+    requiredActionRepository(tx).complete(account.subjectId, 'generate-recovery-codes'),
+  );
+}
+
+function pendingActions(account: Account): Promise<string[]> {
+  return withRealm(app.db, account.realmId, (tx) =>
+    requiredActionRepository(tx).pendingFor(account.subjectId),
+  );
 }
 
 describe('a recovery code stands in for the second factor, once', () => {
@@ -507,6 +538,55 @@ describe('enrolling a second factor asks for a recovery path', () => {
     expect(pending).not.toContain('generate-recovery-codes');
   });
 
+  // Keycloak re-presents the setup as the last code is spent, and the
+  // alternative is a dead end: nothing else in the server owes the action,
+  // so a subject who ran out would need an operator to delete the rows.
+  it('owes a fresh set when the last code is spent, and not when one remains', async () => {
+    const clock = clockAt();
+    const account = await seedAccountWithCodes(clock);
+    // Seeding enrols TOTP, which owes the action; the subject then saved the
+    // codes it issued. Without acknowledging that, the assertions below would
+    // pass on a row nothing in this test put there.
+    await acknowledge(account);
+    expect(await pendingActions(account)).not.toContain('generate-recovery-codes');
+    await spendDirectly(account, RECOVERY_CODE_COUNT - 2);
+
+    const [ninth, tenth] = account.codes.slice(-2);
+    const penultimate = await present(
+      account.realmId,
+      await signInWithPassword(account.realmId, clock),
+      ninth ?? '',
+      clock,
+    );
+    expect(penultimate.kind).toBe('success');
+    expect(await pendingActions(account)).not.toContain('generate-recovery-codes');
+
+    const last = await present(
+      account.realmId,
+      await signInWithPassword(account.realmId, clock),
+      tenth ?? '',
+      clock,
+    );
+    expect(last.kind).toBe('success');
+    expect(await pendingActions(account)).toContain('generate-recovery-codes');
+  });
+
+  // The spent rows are still rows, so a guard that counted them would find
+  // ten and stay quiet — which is how spending the last code came to owe
+  // nothing at all.
+  it('asks a subject whose whole set is spent, on the next enrolment', async () => {
+    const clock = clockAt();
+    const account = await seedAccountWithCodes(clock);
+    await spendDirectly(account, RECOVERY_CODE_COUNT);
+    await acknowledge(account);
+
+    await withRealm(app.db, account.realmId, (tx) =>
+      oweRecoveryCodesIfNoneUnspent(tx, account.realmId, account.subjectId),
+    );
+
+    expect(await pendingActions(account)).toContain('generate-recovery-codes');
+  });
+
   it('completes the action on acknowledgement, and refuses one with no codes stored', async () => {
     const account = await seedAccountWithCodes(clockAt());
     await withRealm(app.db, account.realmId, (tx) =>
@@ -565,6 +645,35 @@ describe('credentialRepository — the recovery-code writes', () => {
             (row) => row.secret.kind === 'recovery-code' && row.secret.usedAt !== undefined,
           ),
         ).toEqual([]);
+      },
+    });
+  });
+
+  it('counts no unspent codes under a different realm context', async () => {
+    await expectCrossRealmMethodProbe(app.db, {
+      seed: async (tx, realmId) => {
+        await seedRealm(tx, realmId);
+        const subjectId = await seedUser(tx, realmId, 'ada');
+        await beginRecoveryCodes(tx, { realmId, subjectId });
+        return { subjectId };
+      },
+      verifySeeded: async (tx, seeded) => {
+        expect(await credentialRepository(tx).countUnspentRecoveryCodes(seeded.subjectId)).toBe(
+          RECOVERY_CODE_COUNT,
+        );
+      },
+      attempt: async (tx, seeded) =>
+        credentialRepository(tx).countUnspentRecoveryCodes(seeded.subjectId),
+      expectBlocked: (result) => {
+        // Zero is the answer a foreign realm gets, and it is the answer that
+        // would owe a fresh set — so the guard that reads it is only safe
+        // because nothing calls it outside the subject's own realm context.
+        expect(result).toBe(0);
+      },
+      verifyRealmAUnaffected: async (tx, seeded) => {
+        expect(await credentialRepository(tx).countUnspentRecoveryCodes(seeded.subjectId)).toBe(
+          RECOVERY_CODE_COUNT,
+        );
       },
     });
   });

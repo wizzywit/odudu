@@ -203,6 +203,25 @@ export function credentialRepository(tx: RealmScopedDatabase) {
       return rows.length > 0;
     },
 
+    // How many of a subject's codes are still worth something. Spent rows
+    // are kept (ADR 0021) so a replay can be refused as spent, which makes
+    // the row count useless for the one question that matters — whether the
+    // subject can still recover — and a zero here is what owes them a fresh
+    // set.
+    async countUnspentRecoveryCodes(subjectId: string): Promise<number> {
+      const rows = await tx
+        .select({ id: userCredentials.id })
+        .from(userCredentials)
+        .where(
+          and(
+            eq(userCredentials.subjectId, subjectId),
+            eq(userCredentials.type, 'recovery-code'),
+            sql`${userCredentials.secretData}->>'usedAt' IS NULL`,
+          ),
+        );
+      return rows.length;
+    },
+
     // Regenerating a set of recovery codes replaces it: the old ten stop
     // working the moment the new ten are shown, spent or not. Named for the
     // one type it deletes rather than taking a CredentialType: nothing needs
