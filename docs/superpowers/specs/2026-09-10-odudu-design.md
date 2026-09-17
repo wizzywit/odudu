@@ -837,6 +837,153 @@ closed without them.
 outbox and the recovery codes named above, not scope discovered inside the
 original sentence. The roadmap total moves with it.
 
+### P2b closed against its own exit criterion, 2026-09-17
+
+Every clause of the amended row was driven against a running compose stack
+at phase close, and what follows is what was observed rather than what the
+code implies.
+
+**Password, TOTP, passkey and recovery-code login through the flow tree.**
+Password and TOTP were driven end to end: a realm with `otp_required` on
+answers a correct password with the enrolment page, the submission proving a
+code writes the credential, the same code replayed is refused (RFC 6238
+§5.2), and the next one completes a login whose ID token carries
+`amr: ["otp","pwd"]` and `acr: "2"`. A recovery code was driven the same
+way — one of the ten printed codes signed in with `amr: ["pwd"]`, `acr: "2"`,
+the same code typed back in lower case with a space for the hyphen was
+refused _as spent_, and a code from no list was refused with no message at
+all. `authentication_executions` for that realm reads `passkey`/`password`
+`alternative`, `otp`/`recovery-code` `conditional`, in that order.
+**The two WebAuthn ceremonies were not driven**, and cannot be from this
+repository: only `navigator.credentials.create()` and `.get()` inside a
+browser can produce an attestation or an assertion. What was run instead is
+`packages/authn-flows/tests/passkey-enrolment.int.test.ts`,
+`packages/authn-flows/tests/passkey-login.int.test.ts` and
+`packages/protocol-oidc/tests/passkey-enrolment.int.test.ts` — 38 cases,
+green — which drive both ceremonies against real PostgreSQL with a software
+authenticator emitting real ES256 assertions. That establishes the
+server-side half: resolution by `lookup_key`, the challenge cleared by the
+statement that read it, the counter compare-and-swap, the user-verification
+requirement, and the CSP nonce on both scripted pages. It does **not**
+establish that a real browser and a real authenticator complete the
+ceremony, which needs a browser-driving test P4's Playwright suite is the
+place for.
+
+**Password policies.** Driven at three of the four writers — registration,
+reset redemption and the change-password action — including every violation
+listed at once, `password_not_username` and `password_not_email` tripping
+independently, the password in force refused at a reset, history refused at
+a change, and `password_max_age_days` parking a login on `update-password`
+with `created_at` observed moving onto the new hash.
+
+**Brute-force protection.** Eight submissions against one parked request —
+five wrong passwords, a sixth during the lockout, the right password, and a
+username nobody holds — hash identically at
+`e90eba8ff7fcad29b7543b3c005a0090` over the whole response with four
+per-response values normalised out. `login_failures` then held one row for
+`ada` and none for the unknown name, at seven failures with `locked_until`
+four minutes out. In a realm of its own, five failures then the right
+password refused then the same password 125 seconds later completed the
+login, which is the doubling and the "an attempt during a lockout still
+counts" rule together.
+
+**The session read, with both lifespans.** A live cookie reuses its session
+at `/authorize` with no form, under `prompt=none` as well; `prompt=login`
+forces the form past it; a request with no cookie still gets
+`login_required`. Both windows were then moved independently against the
+same session — `last_active_at` backdated past
+`sso_session_idle_seconds` (1800), and `expires_at` backdated with
+`last_active_at` left at now, so the ceiling could not pass for the idle
+window — and each turned reuse into the login form, and `prompt=none` into
+`login_required`. `auth_time` on a reused session's code was the original
+login's instant, 37 seconds before the `iat` of the token minted from it.
+
+**RP-initiated logout.** Driven over `GET` and `POST`: a hint naming the
+current session skips confirmation and honours an exactly registered
+`post_logout_redirect_uri`, clearing the cookie and revoking the
+session-bound refresh token; no hint renders the confirmation form carrying
+the session id, and a `client_id` disagreeing with the hint's `aud` renders
+that form with the redirect dropped entirely, ending nothing.
+
+**Offline access.** A second code redeemed from the same live session for
+`scope=openid offline_access` produced a grant with no `sid` on either
+token, and the logout that revoked the session-bound refresh token left the
+offline one refreshing normally.
+
+**Mail off the request path.** Both reset answers were byte-identical for an
+address with an account and one without, neither waited on a transport, and
+only the first queued a message; on the default stack the capture appeared
+in the container log a moment later, on the server's own schedule, and with
+that schedule off `odudu send-mail` reported `{"ran":true,"sent":1,"failed":0}`
+and the row recorded one attempt.
+
+**Reaping on a stated window, with the detection test.** On a stack driven
+only through Path A plus one refresh rotation, `odudu reap` deleted nothing
+— the consumed code, the used refresh token and the expired authentication
+session are all past their own `expires_at` and all still required.
+Backdating forty days and running it again deleted exactly
+`{"refresh_tokens":2,"authorization_codes":1,"token_grants":1,"authentication_sessions":1,"sessions":1}`,
+and a third run nothing. The refusals were driven too: the pass declines on
+a serving connection that escapes row-level security, declines with the
+variable absent, reports `no realm was enumerated` rather than a clean
+sweep, and skips rather than queues behind a held advisory lock. The named
+forcing function is `apps/server/tests/reap-preserves-detection.int.test.ts`,
+green alongside `apps/server/tests/reap.int.test.ts`.
+
+**Adversarial suite green.** Six integration files, 501 cases, plus
+`packages/crypto/src/service/sign.adversarial.test.ts` in the unit project.
+
+**Every clause the row names was delivered.**
+
+#### What P2b leaves for P3, which its criterion never asked for
+
+None of these is in the sentence that decides when P2b is finished, so none
+reopens the row. They are named here so a phase closing cleanly is not read
+as a phase closing completely.
+
+- **One session per browser.** The cookie holds one session id, so a second
+  login replaces the first. `prompt=select_account` therefore renders the
+  ordinary form, and its three clause rows in `docs/protocols/oidc-core.md`
+  are already `deferred: P3` — the amendment above moved them before the
+  phase started, on exactly this reasoning.
+- **No rate limit on `client_secret` attempts at `/token`.** RFC 6749
+  §2.3.1's MUST was split during this phase: the end-user half is
+  `covered`, the client-authentication half is a second row, `deferred: P3`,
+  and P3's criterion in the table above now names the limit alongside
+  `private_key_jwt` and mTLS. The filing itself is new — nothing had scoped
+  it.
+- **The throttle is one process's memory.** N replicas admit N times the
+  budget. Accepted rather than deferred (ADR 0023) — the property that must
+  hold globally is the lockout's, in Postgres — but there is no load
+  balancer here to demonstrate it against, so it is a statement in
+  `README.md` rather than a transcript.
+- **No operator unlock for a locked account.** A lockout ends by waiting or
+  by a successful login. Clearing one needs the admin API, which is P4's.
+- **No self-service password change, and no way to ask for a fresh set of
+  recovery codes** outside the required action that owes them. Both are the
+  account console, P4's; until then an operator deletes rows to make the
+  action owed again.
+- **A realm with `password` disabled and only `passkey` enabled answers
+  `no_applicable_execution` and cannot be signed into.** Nothing makes the
+  passkey step applicable but a submission already carrying an assertion,
+  and the only page that could produce one is the password page. No realm
+  `provisionRealm` creates is in that state. The fix — letting a challenge
+  name every applicable member of its group rather than the first — changes
+  `nextStep` and `AuthenticatorResult`, so it is its own increment.
+- **`AUDIENCE_UNCHECKED` for an `id_token_hint`'s own audience**, inherited
+  from P1 and narrowed rather than closed here. At `/authorize` the hint's
+  signature, issuer and `typ` are verified but its `aud` is not, so a hint
+  issued to another client of the same realm is accepted; at `logout` a
+  `client_id` sent beside a hint **is** compared against that `aud`, because
+  RP-Initiated Logout §2 requires it. Tightening `/authorize` the same way
+  belongs with the per-client audience configuration P3's criterion names.
+- **The reaper discovers a misconfigured serving role once per tick**, not
+  at boot: a deployment pointing `ODUDU_APP_DATABASE_URL` at a role that
+  escapes row-level security learns from an hourly log line.
+- **`refresh_tokens` has no retention window of its own** and cannot be
+  given one, since a refresh token is retained for the life of its grant
+  family (ADR 0021's amendment).
+
 ## 12. Working protocol
 
 Development happens in bursts with gaps of weeks. The following is binding.

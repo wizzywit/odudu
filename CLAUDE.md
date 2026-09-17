@@ -64,6 +64,29 @@ transcript silently downgrades it to a claim, which is the state it was
 written to escape. If a command cannot be run, the document says so rather
 than showing output nobody produced.
 
+**Three rules a transcript has to follow, each learned from a way one was
+false while looking fine.**
+
+A fenced block holding a response **carries no language tag.** Prettier
+reformats a tagged one, so a ` ```html ` block shows the formatter's markup
+rather than the server's — `<meta charset="utf-8">` becomes
+`<meta charset="utf-8" />` — and the bytes stop being the bytes served.
+
+A transcript whose output depends on what ran before it **says what that
+was, or scopes its query so that it does not.** An unscoped
+`select … from login_failures` prints whatever earlier sections happened to
+leave behind; a psql listing of every client prints two rows on the stack
+its author had and eleven on the one the document builds. Where the state
+is the point — a retention pass's counts, a lockout's arithmetic — name the
+stack it was captured against.
+
+A precondition a refusal depends on is **shown, not asserted.** Two
+different checks that refuse with byte-identical output cannot be told apart
+by their output, so the run has to demonstrate which one fired: the
+`client_id`-versus-hint comparison needs the registered redirect list
+displayed beside it, or §3 would have refused the redirect anyway and the
+transcript would prove nothing.
+
 Saying this is not enough on its own — an instruction to keep prose current
 is unfalsifiable, because a stale document and a checked one look identical.
 So the parts that can be checked are checked: `tests/docs/` compares what
@@ -84,6 +107,25 @@ So: in a plan, any claim about third-party behaviour carries either
 `verified: <the exact command run>` or `assumption:`. Every `assumption:`
 on a load-bearing path gets a short spike **before** the task that depends
 on it. `docs/superpowers/p0-decision-log.md` has the full account.
+
+### The sibling rule P2b produced
+
+P2b's eighteen plan-level defects had the opposite shape, and the P0 rule
+does not reach them: fifteen were claims about **this repository** — which
+table already exists, which migration number is free, which helper
+`@odudu/testkit` exports, which file a method lives in, which test file has
+an HTTP surface, what a Zod shape permits, what a foreign key cascades,
+whether a dependency already takes the lock you were about to add, whether
+a testing convention has ever been used here.
+
+So: **a claim about this repository's own schema, scripts, helpers, file
+paths or conventions gets one grep before it is written into a plan, and
+the grep goes in the plan beside it.** Each of the fifteen would have been
+caught by a command that takes seconds; none was caught by review, because
+a confident sentence about your own codebase reads exactly like a true one.
+Section 17 of
+`docs/superpowers/specs/2026-09-15-p2b-credentials-mfa-sessions-design.md`
+lists them.
 
 ## Comments
 
@@ -161,6 +203,35 @@ and `await vi.advanceTimersByTimeAsync(ms)`; a jitter band is asserted by
 injecting the draw, not by timing ticks.
 `apps/server/src/scheduler.test.ts` is the example. A suite that sleeps is
 slow when it passes and flaky when it does not.
+
+## Server-rendered pages
+
+A page the login flow shows is a **`*-html.ts` in the `view` layer of the
+package that owns the step**, exporting a function that returns markup and
+nothing else: no `reply`, no status code, no headers. So the TOTP, passkey,
+recovery-code and change-password pages live in
+`packages/authn-flows/src/view/`, the registration, verification and reset
+pages in `packages/account/src/view/`, and the login, error and logout
+pages — which belong to the protocol endpoints themselves — in
+`packages/protocol-oidc/src/view/`. A renderer is then a pure function a
+unit test can assert markup against, and every page in the server has one
+shape.
+
+**Every page leaves through `sendHtml`**
+(`packages/protocol-oidc/src/view/html-response.ts`), which is what makes
+the security headers unforgettable on a page added later: a route never
+sets `content-type`, `content-security-policy` or `x-frame-options` itself.
+`html-response.test.ts` holds the view layer to naming the HTML media type
+nowhere else.
+
+**A page that needs a script says so in its return value**, as a
+`RenderedPage` carrying the nonce its own markup used, and `sendHtml`
+derives `script-src` from that one value. Never assemble a policy beside
+the markup: `default-src 'none'` blocks an inline script **silently**, so
+such a page looks broken rather than refused, and a nonce named in a header
+that the markup does not carry fails exactly the same way. ADR 0018's
+amendment has the reasoning. Every interpolated value passes through the
+renderer's own `escapeHtml`, realm names and secrets included.
 
 ## Layering
 

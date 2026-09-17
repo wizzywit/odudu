@@ -2,8 +2,99 @@
 
 ## Start here
 
-**P0, P1 and P2a are complete. P2b is brainstormed, specified and planned;
-Tasks 1 through 27 have landed.**
+**P0, P1, P2a and P2b are complete. P3 — realms, clients, consent and
+dynamic registration — is next, and has not been brainstormed.** Every
+clause of P2b's exit criterion was driven against a running stack at close,
+and section 11 of
+[the umbrella spec](superpowers/specs/2026-09-10-odudu-design.md) records
+what was observed, what could only be established another way (the two
+WebAuthn ceremonies, which need a browser), and — separately — what P2b
+leaves behind that its criterion never asked for. Section 17 of
+[the phase spec](superpowers/specs/2026-09-15-p2b-credentials-mfa-sessions-design.md)
+lists every correction the phase made to its own plan, and the pattern they
+share: almost all of them were claims about **this repository** — a table,
+a migration number, a helper, a file path, a testing convention — rather
+than about the design or a third party.
+
+### What P3 inherits from P2b
+
+**A session that is read, and one per browser.** `/authorize` resolves the
+`{realm}-session` cookie through `sessionRepository.liveById`, scoped by the
+realm's own `sso_session_idle_seconds` (1800) and `sso_session_max_seconds`
+(36000), and `decideReuse`
+(`packages/protocol-oidc/src/usecase/session-reuse.ts`) turns that plus
+`prompt` and `max_age` into reuse, a fresh authentication, or a refusal. The
+cookie holds **one** session id, so a second login in the same browser
+replaces the first. That is the limitation `prompt=select_account` runs
+into, and the reason its three clause rows in
+`docs/protocols/oidc-core.md` read `deferred: P3`: account selection needs
+concurrent sessions, which reshapes this read rather than extending it. P3
+already renders a user-choice page during `/authorize` for consent, which is
+the same surface.
+
+**A `sid` claim, so a session has a name a client can say.** Every
+session-backed access token and ID token carries it (Back-Channel Logout
+§2.1), assembled straight into the envelope rather than through
+`ClaimMapperRegistry` so no mapper can overwrite it, and an `offline_access`
+grant omits it because it has no session. That is what makes P3's
+front-channel and back-channel logout addressable at all: a logout token
+names a `sid`, and `tokenGrantRepository.bySession` and `revokeForSession`
+are already the read and write sides of it.
+
+**Revocation that an access token does not feel.** Ending a session revokes
+its grants, and `refresh-rotation.ts` checks the session's own liveness as
+well as the grant's `revoked_at` — but an `at+jwt` is self-contained and
+nothing consults anything before accepting one, so a logged-out user's
+access token works until its `exp` (at most an hour). RFC 7662
+introspection is what makes revocation real inside that window, and it is in
+P3's criterion for that reason rather than as a checklist item.
+
+**Three gaps filed to P3 during this phase, all recorded rather than
+remembered.** A rate limit on `client_secret` attempts at `/token` — RFC
+6749 §2.3.1's client half, now its own `deferred: P3` row and named in P3's
+criterion. The `prompt=select_account` rows above. And `/authorize` still
+verifies an `id_token_hint` with `AUDIENCE_UNCHECKED`, which the per-client
+audience configuration P3's criterion names is the place to close.
+
+### What re-running every transcript found, 2026-09-17
+
+`docs/request-paths.md` promises that every command in it was executed and
+every response is real output, and the phase-close pass re-ran all of it —
+not only the sections P2b added. Thirteen transcripts were stale or
+unreproducible, in four shapes worth naming because three of them look
+fine:
+
+- **A ` ```html ` fence lets Prettier rewrite the response.** Twelve blocks
+  were reformatted markup — `<meta charset="utf-8">` shown as
+  `<meta charset="utf-8" />`, indented — so the bytes a reader saw were the
+  formatter's. **A response fence carries no language tag**, and the
+  document's own preamble now says so.
+- **Output captured on a stack the document does not describe.** An
+  unscoped `select … from login_failures` printed one row where a faithful
+  run prints two; the `client_oidc_config` listing printed two clients where
+  a faithful run has eleven, and the prose leans on exactly that output; the
+  retention counts needed a stack driven only through Path A; the throttle's
+  ten `200`s needed `reset_password_allowed` on a realm the document never
+  turns it on for; and the lockout's second run needed a subject with no
+  failures behind it, which the run shown above it makes impossible. Each
+  now scopes its query or states its precondition.
+- **Prose that outlived the behaviour.** The session cookie was described as
+  "12 hours" with "nothing reads this cookie yet"; the `prompt=none` row
+  said no session is ever reused; "Nothing is ever deleted" survived the
+  reaper. `tests/docs/session-lifespans.test.ts` is new, and ties both
+  lifespans in both documents to migration 0028's own `DEFAULT` clauses —
+  and fails if either document calls the session twelve hours again.
+- **A transcript one revision behind the server.** The logout `GET` omitted
+  the `set-cookie` and `cache-control` it now returns; four decoded ID
+  tokens showed a member order the server does not emit; a groups access
+  token predated `sid`; the duplicate-address refusal is a list item now,
+  not a paragraph.
+
+Two claims the document asserted can now be shown instead: `reap` and
+`send-mail` refusing with `ODUDU_APP_DATABASE_URL` absent (`env -u`, since
+`-e VAR=` is a different refusal — an unparseable URL the config schema
+rejects first), and both session lifespans, each moved on its own so the
+ceiling cannot pass for the idle window.
 
 **Mail is off the request path, and P2a's reset timing oracle is closed.**
 Address verification, self-registration and password reset each write their

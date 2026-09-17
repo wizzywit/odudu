@@ -1,8 +1,11 @@
 # P2b — Credentials, MFA and the session lifecycle
 
-Status: accepted, 2026-09-15. Supersedes nothing; extends
-`docs/superpowers/specs/2026-09-10-odudu-design.md` section 11 for one phase,
-and amends that section in four places (section 13).
+Status: accepted 2026-09-15, delivered 2026-09-17. Supersedes nothing;
+extends `docs/superpowers/specs/2026-09-10-odudu-design.md` section 11 for
+one phase, and amends that section in four places (section 13). What was
+verified at close, and what the phase leaves for P3, are in that section's
+own "P2b closed against its own exit criterion" note; what this document got
+wrong is section 17, below.
 
 P1 delivered one authenticator behind one hardcoded step, an SSO cookie that
 is written and never read, and no way to end a session. P2a delivered the
@@ -828,3 +831,109 @@ inferred from the code — the practice P2a's closing note established. Plus
 the standing conditions: `pnpm verify` green, `pnpm trace` green in strict
 mode, `container` and `conformance` green on a pushed commit with a pull
 request open, and `docs/NEXT.md` updated to say what P2b leaves for P3.
+
+## 17. Every correction this phase made to its own plan and spec
+
+Written at phase close so the next brainstorm can see what kind of claim
+went wrong here rather than only that some did. Two were made during
+planning and are already recorded where they landed (0026's table, §7.1's
+confirmation); the rest were found during execution, each by the task that
+tripped over it.
+
+**Corrected before the plan was written.**
+
+1. **A table that already existed.** §4's first migration specified a new
+   `grants` table, on the reading that the refresh-token family had a name
+   in the code and no home. `token_grants` has been its home since P1
+   (migration 0010), so the migration became one nullable column on it.
+2. **Logout's confirmation is a MUST with two triggers, not a SHOULD.**
+   §7.1 read RP-Initiated Logout §2's "SHOULD" and missed that the
+   confirmation is required unless the request carries an `id_token_hint`
+   naming the current session — and that a `client_id` sent beside a hint
+   must be checked against it.
+
+**Corrected during execution.**
+
+3. **Three migrations were never numbered** (`authentication_sessions.satisfied`,
+   `sessions.authenticators`, `realms.otp_required`), described in prose as
+   though schema followed from description, and three more were not
+   foreseen at all (`authorization_codes.session_id`, the retention indexes,
+   and splitting the session columns from the realm columns because they
+   land in different tables). §4 sketched nine; eighteen shipped, 0026–0043.
+4. **A repository method with no file.** Task 19's file list omitted
+   `packages/domain-identity/src/repository/credentials.ts`, where the
+   counter compare-and-swap had to go.
+5. **A Playwright test that does not exist.** Task 19 Step 7 named one as
+   the evidence for a passkey login; this repository has no browser-driving
+   suite at all (it is P4's). The transcript says plainly that no command
+   was run, and points at the integration test that does drive the ceremony.
+6. **An applicability table that would have deadlocked every login.** Twice,
+   in the same shape: Task 16's OTP case "not enrolled and required
+   (applicable)" and Task 19's "`/authorize` renders a passkey page". Both
+   would have challenged for a factor the subject cannot produce, and the
+   required-action gate that rescues such a login sits downstream of a
+   success. Applicability is per-subject and per-submission; enrolment is a
+   required action recorded after a factor identifies somebody.
+7. **A strict schema that could not hold the field it was told to store.**
+   `recoveryCodeShape` is a `strictObject`, so Task 20's `usedAt` would have
+   made every read of a spent code throw.
+8. **A single `body` column that would have dropped half of every email.**
+   `EmailMessage` carries `text` and `html` and every template renders both;
+   Task 27's `body text NOT NULL` would have decided for all future
+   templates that mail is text-only.
+9. **A clause row that would have overclaimed a MUST.** RFC 6749 §2.3.1
+   covers "any endpoint using password authentication" and the row's own
+   evidence named `/token`'s client secrets, so closing it on the end-user
+   lockout alone would have asserted protection that does not exist. The row
+   was split, and the client half filed to P3.
+10. **The wrong clause number and severity for the discovery
+    advertisement.** `end_session_endpoint` is §2.1 and a MUST, not §4 and a
+    SHOULD, as both the stub and the brief repeating it had it.
+11. **The wrong file for a test.** Task 22 put a byte-identical response
+    comparison in a flow-level test with no HTTP surface, where it is
+    unprovable; it lives in
+    `packages/protocol-oidc/tests/login.adversarial.int.test.ts`.
+12. **A lock the dependency had already absorbed.** Task 26's scheduler was
+    specified as "interval, jitter, lock, call"; `withEachRealmExclusive`
+    takes `pg_try_advisory_xact_lock` as its transaction's first statement,
+    so a second key would have weakened the guarantee rather than added one.
+13. **A convention with no instance in the repository.** The dispatch's
+    standing lessons said Vitest's fake timers were "already used here —
+    find an existing example". Nothing used them; every time-dependent test
+    injects a clock. `CLAUDE.md` now names the API rather than pointing at a
+    convention that did not exist.
+14. **Two migration numbers already taken** (Task 5's `0029`, Task 13's
+    `0034`), because the spec numbered migrations before the task order
+    existed.
+15. **Helpers and fixtures that do not exist.** `seedRealm` and
+    `testDatabase` in `@odudu/testkit` (Task 1), `issueAndRotateOnce` and
+    `presentRefreshToken` (Task 25), `@odudu/db/testing` as the integration
+    harness (Task 16) — each named as though it were already there.
+16. **A test constant that was not the RFC's.** Task 15's `SEED_SHA256` was
+    the 20-byte SHA-1 secret doubled rather than RFC 6238's own 32-byte
+    seed, which continues the cyclic digit string rather than zero-padding.
+    A wrong expectation in a test is the one defect that ships as evidence.
+17. **A signature that could not do the job**, three times: `reap(db, …)`
+    and `sendPending(db, …)` each need two connections, since the deletes
+    and claims run under the realm policy and the realm enumeration must
+    escape it; `ReapReport` as a return type would have reported a skipped
+    pass as a pass of zeros.
+18. **An ordering that was backwards.** Task 25's "grants before the tokens
+    that reference them" would have had the `ON DELETE CASCADE` delete rows
+    the report never counts.
+
+**What the pattern is.** Fifteen of these eighteen are claims about **how
+this repository behaves** — which table exists, which migration number is
+free, which helper `@odudu/testkit` exports, which file a method lives in,
+which test harness has an HTTP surface, what a Zod shape permits, what a
+foreign key cascades, whether a dependency already takes a lock, whether a
+testing convention has ever been used here. Only three are claims about the
+outside world: the two specification readings (2 and 10) and the RFC's own
+test vector (16). That is the opposite of P0's lesson, which was about
+claims concerning third-party behaviour asserted from documentation, and it
+suggests the forcing function P0 produced — `verified:` or `assumption:` on
+a claim about a library — needs a sibling: **a claim about this repository's
+own schema, scripts, helpers, file paths or conventions is worth one grep
+before it is written into a plan, and the grep is worth pasting.** Every one
+of the fifteen would have been caught by a command that takes seconds, and
+none of them was caught by review.
