@@ -5430,10 +5430,13 @@ like the wrong secret.
 
 ## What is not implemented
 
-Every item below is in exactly one of three states, and says which:
-**planned**, with the phase that brings it; **a decision**, with the clause
-or the ADR that settles it; or **deliberately unplaced**, which the roadmap
-means rather than forgets. Phases are section 11 of
+Every item below is in one of two states, and says which: **planned**, with
+the phase that brings it, or **a decision**, with the clause or the ADR that
+settles it. Nothing here is unplaced — the five items that were until
+2026-09-17 are P13, and `tests/docs/not-implemented-placement.test.ts` fails
+the build on an item that names neither a phase nor a decision, because an
+unplaced gap in a list this long is indistinguishable from a forgotten one.
+Phases are section 11 of
 `docs/superpowers/specs/2026-09-10-odudu-design.md`, where the second phase
 is two: **P2a** is the identity model — roles, groups, client scopes,
 per-client web origins, email — and **P2b** is credentials, MFA and the
@@ -5467,17 +5470,16 @@ session lifecycle. A citation of either half here means that half.
   an authenticator the registry has no accurate entry for), and `acr` is
   `'1'` for a single factor or `'2'` for two, including a passkey alone.
   Checking a _requested_ `acr_values` against a session, or forcing
-  reauthentication to satisfy one, is step-up authentication, which the
-  roadmap leaves **deliberately unplaced** beside PAR and DPoP, to be scoped
-  with the FAPI 2.0 decision ADR 0016 points at.
+  reauthentication to satisfy one, is step-up authentication: **P13**, whose
+  criterion names it, beside PAR and DPoP and the FAPI 2.0 decision ADR 0016
+  points at.
 - **No request objects.** `request` and `request_uri` are refused explicitly,
   with `request_not_supported` and `request_uri_not_supported` — which is
   what OIDC Core §6.1 asks of an OP that does not support them, having first
   said "Support for the `request` parameter is OPTIONAL". Pushed
-  authorization requests (PAR, RFC 9126) are **deliberately unplaced** for
-  the same reason as DPoP: both are prerequisites of the FAPI 2.0 profiles
-  ADR 0016 identifies, so they are scoped with that decision rather than
-  scattered across phases.
+  authorization requests (PAR, RFC 9126) are **P13** for the same reason as
+  DPoP: both are prerequisites of the FAPI 2.0 profiles ADR 0016 identifies,
+  and P13's criterion is that plan passing, which neither omission survives.
 - **PKCE is mandatory with no exception** and no per-client opt-out. This is
   a decision, not a gap: ADR 0016. A relying party that cannot do PKCE
   cannot use Odudu.
@@ -5508,6 +5510,11 @@ session lifecycle. A citation of either half here means that half.
   `recovery-code` is applicable on the same terms — only to a submission
   carrying one — which is how it substitutes for the OTP step instead of
   competing with it ([Recovery codes](#recovery-codes)).
+  What is not there: any way to **change** a realm's flow.
+  `authentication_executions` has an insert and nothing else, so the rows
+  `provisionBrowserFlow` writes are what a realm has for good unless somebody
+  edits the table. A flow editor is **P4**, with the rest of the admin
+  surface.
 - **Recovery codes are issued once and shown once.** Ten per subject, each
   Argon2id-hashed in its own credential row, offered by the
   `generate-recovery-codes` required action that enrolling either second
@@ -5541,7 +5548,10 @@ session lifecycle. A citation of either half here means that half.
   ([Sending queued mail](#sending-queued-mail-odudu-send-mail)), which is
   what closed the reset endpoint's timing oracle. What is not there yet:
   per-realm SMTP configuration — the transport is one set of
-  `ODUDU_SMTP_*` variables for the whole server.
+  `ODUDU_SMTP_*` variables for the whole server. That is **P4**: it is realm
+  configuration carrying a credential, and the per-realm secret it needs
+  already has a home in the key-encryption interface §5 puts the signing key
+  behind.
 - **No "remember me", and one session per browser.** The lifespans a
   persistent session would extend now exist — a realm's
   `sso_session_idle_seconds` and `sso_session_max_seconds`, both read on
@@ -5573,26 +5583,32 @@ session lifecycle. A citation of either half here means that half.
   that half is `deferred: P3` in
   [docs/protocols/rfc6749.md](protocols/rfc6749.md).
 - **The sign-in and error pages are hardcoded HTML**, dependency-free with
-  every interpolated value escaped. Theming is **P10**; the contract for it
-  is deliberately left undecided until there were enough pages for the real
-  variation to be visible — which **P2a**'s registration and verification
-  pages and **P2b**'s second-factor, recovery-code, change-password and
-  logout pages have now supplied.
+  every interpolated value escaped. Theming and per-client branding are
+  **P4b**, split out of P10 on 2026-09-17 because P10's criterion tested
+  provider loading and would have passed with no theming at all. The
+  contract is **P3**'s to decide, beside the consent screen, since deciding
+  it in the phase that delivers it would mean writing that screen the old way
+  first — and the variation it has to cover is now visible in **P2a**'s
+  registration and verification pages and **P2b**'s second-factor,
+  recovery-code, change-password and logout pages.
 
 **`/token`**
 
 - **No token exchange (RFC 8693)**, and so none of the delegation the agent
   identity layer is built on. **P5.**
 - **No CIBA.** **P5**, whose exit criterion is CIBA approvals end to end.
-- **No device authorization grant.** **Deliberately unplaced**, with PAR,
-  DPoP and step-up authentication, for the FAPI 2.0 scoping ADR 0016 points
-  at.
+- **No device authorization grant.** **P13**, whose criterion names a
+  device-code client completing a login on a second device. It shares that
+  phase with PAR, DPoP and step-up authentication for scheduling rather than
+  for any protocol reason — RFC 8628 has nothing to do with FAPI, and the
+  roadmap says so.
 - **No resource owner password credentials.** A decision: the grant is
   removed by OAuth 2.1, and it is not coming back.
 - **No `private_key_jwt` or mTLS client authentication.** **P3**, whose exit
   criterion names both.
 - **No DPoP or other sender-constrained tokens**, mTLS-bound tokens
-  included. **Deliberately unplaced**, as above.
+  included. **P13**, as above: the FAPI 2.0 plan cannot pass without one of
+  them.
 - **No `resource` or `audience` request parameter.** A client's audiences
   are whatever its registration says. RFC 8707 resource indicators are
   **P3**, whose exit criterion names them alongside the per-client audience

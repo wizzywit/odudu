@@ -27,6 +27,41 @@ The sequence, in order:
 Work happens on a branch; `main` is protected and requires `verify`,
 `container` and `commit-messages` to pass.
 
+### The pass that closes a phase, before the branch is finished
+
+An increment keeps the documents current for what it changed. A phase is the
+only point where anything reads them **as a whole**, and four things go wrong
+only at that scale. Run these after the whole-branch review and before
+`finishing-a-development-branch`, because each one has already happened:
+
+1. **Every gap in `docs/request-paths.md`'s "What is not implemented" names
+   a phase, a decision or an ADR.**
+   `tests/docs/not-implemented-placement.test.ts` fails the build otherwise,
+   so this one is checked rather than remembered — but the test only knows
+   whether a marker is _present_. Read the section and ask whether each
+   marker is still _true_.
+2. **Grep the phase numbers you moved.** Splitting P10 into P4b left
+   `request-paths.md` saying theming was P10 for three commits, in the one
+   section a reader consults to find out where something went. A phase that
+   renumbers or splits anything greps every document for the old number
+   before it closes.
+3. **Read `docs/NEXT.md`'s headings against the phases that have closed**,
+   per the rule below. A section addressed to a closed phase is overdue for a
+   decision or a move.
+4. **Reconcile the roadmap against the "not implemented" list in both
+   directions.** Every item placed in a phase, and every phase's criterion
+   naming the work placed against it. A criterion that omits work the list
+   sends to it is work that can be skipped with nothing going red — section
+   11 of the design spec records five of those, found exactly this way.
+
+Two habits that keep this pass short. When a document admits a gap, say where
+it gets fixed in the same sentence: six passages once said "there is no seed
+flag for this" and each pointed at another that said the same, so the
+aggregate was invisible while every individual site was honest. And when the
+gap closes, the prose that admitted it is the thing most likely to be left
+asserting something that stopped being true — `README.md` claimed no flag
+existed for `web_origins` long after `seed client --web-origin` shipped.
+
 ### CI runs on the branch, from the first increment
 
 **Open a draft pull request with the first push of a phase branch, and push
