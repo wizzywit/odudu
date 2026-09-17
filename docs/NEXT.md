@@ -146,6 +146,46 @@ rather than covered by "an account console for self-service", which is
 unfailable as written. `beginRecoveryCodes` already replaces a set wholesale,
 so what P4 owes is a surface, not a mechanism.
 
+## Seven settings have no path but `psql`, and no phase had claimed them
+
+`docs/request-paths.md` configures six realm settings and one client setting
+by writing the database directly, because nothing else can:
+
+- `realms.registration_allowed`, `verify_email`, `reset_password_allowed`
+- `realms.otp_required`
+- `realms.password_max_age_days`, `password_history_depth`
+- `client_oidc_config.post_logout_redirect_uris`
+
+Six passages say so, and each points at another passage saying so — "the same
+gap [Self-registration](#self-registration) notes" — so the document is
+honest about it at every site and **nowhere says where it gets fixed.** Until
+2026-09-17 the words "seed flag" appeared in no other file: not here, not in
+a phase's exit criterion, not in a phase record. That is the failure this
+file's own rule describes, in a document nobody thought to check for it.
+
+**Two other direct writes are not this gap and need no flag.**
+`user_credentials.created_at` ages a password ninety days and
+`authentication_sessions.*` ages rows for the retention pass; the document
+already says the first has no alternative, and neither has one, because no
+command can make a row older than the process running it.
+
+**Where they belong.** `post_logout_redirect_uris` is client registration,
+which P3 already owns — its criterion names "registered per-client logout
+URIs", and registering them is the same work. The six realm settings are an
+admin surface, which is **P4**, and were covered only by "full lifecycle
+manageable from the UI"; P4's criterion now names realm settings so it can be
+failed on them.
+
+**The seed CLI is the near-term question, and it is separate from both.**
+`seed` has twelve subcommands and `seed realm` accepts only `--name`, while
+`realms` carries twenty-four columns — so a flag per setting is a treadmill
+and a generic `seed realm --set key=value` is not. Deciding this is worth
+doing before the next phase writes its transcripts, because every phase so
+far has added more `psql` to a document that is the project's showcase, and
+an identity server teaching readers to configure realms with `UPDATE`
+statements is teaching the wrong thing while skipping whatever validation the
+application layer would have applied.
+
 ## Deployment gaps, for whoever asks next
 
 `README.md` now has a Deploying section stating plainly that the container
