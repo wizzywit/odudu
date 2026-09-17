@@ -859,7 +859,8 @@ tripped over it.
    though schema followed from description, and three more were not
    foreseen at all (`authorization_codes.session_id`, the retention indexes,
    and splitting the session columns from the realm columns because they
-   land in different tables). §4 sketched nine; eighteen shipped, 0026–0043.
+   land in different tables). §4 sketched nine; nineteen shipped, 0026–0044 — the last of them
+   after the phase's own review, closing the second-factor bypass.
 4. **A repository method with no file.** Task 19's file list omitted
    `packages/domain-identity/src/repository/credentials.ts`, where the
    counter compare-and-swap had to go.

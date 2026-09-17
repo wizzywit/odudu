@@ -326,13 +326,14 @@ describe('a required action is not satisfiable before the login that owes it is 
     expect(withTheRealFactor.body).toContain('Save your recovery codes');
   });
 
-  // A password alone binds the attempt to a subject — deliberately, so a
-  // later factor cannot hand the login to somebody else — and the browser
-  // gets that same auth_session_id back on the code form. Submitting it to
-  // the required-action endpoint must not reach the page that issues
-  // recovery codes: those codes stand in for the second factor, so the page
-  // would hand whoever holds the password ten of them and destroy the set
-  // the account already had in the same request.
+  // The same refusal against the other reachable state: the codes were
+  // issued by the page and the acknowledgement never arrived, so the account
+  // owes the action *and* holds a set. No codes are leaked here even without
+  // the gate — the acknowledgement finds the ten and succeeds, rather than
+  // reaching the page that issues them — so what a password alone bought was
+  // clearing the action on the owner's behalf. This test's job is that the
+  // stored set comes through untouched, which only an assertion on the rows
+  // themselves can say.
   it('refuses generate-recovery-codes from a session still owing its second factor', async () => {
     const realmName = `gate-recovery-${newId()}`;
     const realmId = await setupRealm(realmName, true);
@@ -359,9 +360,10 @@ describe('a required action is not satisfiable before the login that owes it is 
     expect(bypass.statusCode).toBe(400);
     expect(bypass.body).toContain('no longer valid');
     expect(codesOn(bypass.body)).toEqual([]);
-    // The account's own codes are still the account's own codes, and still
-    // ten: a refusal that had regenerated them would read identically.
+    // The same ten rows, by id rather than by count: a regeneration writes
+    // ten and deletes ten, which a length assertion cannot see.
     expect(await storedCodeIds(realmId, subjectId)).toEqual(before);
+    // And the action is still owed — it is the owner's to complete.
     expect(await pendingFor(realmId, subjectId)).toEqual(['generate-recovery-codes']);
 
     // And the parked login is exactly where it was: still asking for the
@@ -470,6 +472,62 @@ describe('a required action is not satisfiable before the login that owes it is 
     expect(refused.body).toContain('no such pending action');
     expect(codesOn(refused.body)).toEqual([]);
     expect(await storedCodeIds(realmId, subjectId)).toEqual([]);
+  });
+
+  // The gate rests on a record of completion, and that record has to move
+  // back. Enrolling the factor a realm asked for makes the OTP step apply to
+  // a session that had nothing left to pass, so re-running the login parks
+  // it on a challenge again — and the action owed after the enrolment must
+  // wait for that challenge. A record that only ever moved forwards would
+  // still call this attempt finished, for as long as the session lives.
+  it('stops treating a session as finished once an enrolment makes a factor apply', async () => {
+    const realmName = `gate-reapplies-${newId()}`;
+    const realmId = await setupRealm(realmName, true);
+    const subjectId = await subjectIdOf(realmId);
+
+    // The login completes on the password alone: otp_required, and no
+    // credential that could produce a code.
+    const authSessionId = await startAuthSession(realmName);
+    const owed = await login(realmName, {
+      auth_session_id: authSessionId,
+      username: USERNAME,
+      password: PASSWORD,
+    });
+    const secret = offeredSecret(owed.body);
+    const enrolled = await actionPost(realmName, 'configure-totp', {
+      auth_session_id: authSessionId,
+      secret,
+      code: totpCode(secret, totpCounter(clock.now())),
+    });
+    expect(enrolled.statusCode).toBe(200);
+    expect(await pendingFor(realmId, subjectId)).toEqual(['generate-recovery-codes']);
+
+    // Same session, login re-run: now there is a code to ask for.
+    clock.advance(31_000);
+    const challenged = await login(realmName, {
+      auth_session_id: authSessionId,
+      username: USERNAME,
+      password: PASSWORD,
+    });
+    expect(challenged.body).toContain('name="code"');
+
+    const refused = await actionPost(realmName, 'generate-recovery-codes', {
+      auth_session_id: authSessionId,
+    });
+
+    expect(codesOn(refused.body)).toEqual([]);
+    expect(await storedCodeIds(realmId, subjectId)).toEqual([]);
+    expect(refused.statusCode).toBe(400);
+    expect(refused.body).toContain('no longer valid');
+
+    // Passing the code is what makes the action reachable, and then it is.
+    clock.advance(31_000);
+    const reached = await login(realmName, {
+      auth_session_id: authSessionId,
+      code: totpCode(secret, totpCounter(clock.now())),
+    });
+    expect(reached.body).toContain('Save your recovery codes');
+    expect(await storedCodeIds(realmId, subjectId)).toHaveLength(10);
   });
 
   // A session that has already driven a login to an authorization code is

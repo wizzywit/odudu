@@ -81,7 +81,20 @@ enrolling a second factor binds here too.
 drives the attack through the real routes; each refusal there asserts an
 effect — no codes on the page, none in the database, the saved set
 unchanged — because a status code alone cannot tell a refusal from a
-regeneration.
+regeneration. The clear-on-challenge half is pinned separately, in
+`packages/authn-flows/tests/totp-login.int.test.ts`, because reducing that
+write to a latch left every attack test green.
+
+**What P3 will meet here.** `authenticated_at` is a snapshot taken at the
+last `advance`, so a factor that becomes applicable **out of band** — a TOTP
+enrolled from another session, a realm flipping `otp_required` — leaves a
+live session recorded as complete until it is next re-run. It is bounded by
+the authentication session's own lifespan, and no factor is bypassed by it:
+whoever holds such a session completed a login when the flow had nothing
+else to ask. Re-deriving applicability on every read of the column is the
+alternative, and it costs the flow's two queries on a path that currently
+costs one row read. Worth revisiting when P3 reshapes the `/authorize`
+session read it sits beside.
 
 ### What re-running every transcript found, 2026-09-17
 

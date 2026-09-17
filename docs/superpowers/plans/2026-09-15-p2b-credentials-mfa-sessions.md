@@ -78,7 +78,7 @@ No new packages. Modified packages:
 
 | Path                        | Change                                                                                                                      |
 | --------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| `packages/db/drizzle/`      | migrations 0026–0043 and their journal entries                                                                              |
+| `packages/db/drizzle/`      | migrations 0026–0044 and their journal entries                                                                              |
 | `packages/db/src/schema/`   | `realms` gains session-lifespan, password-policy and lockout columns                                                        |
 | `packages/authn-flows/`     | the execution schema and repository, the requirement evaluator, the authenticator registry, required actions, lockout       |
 | `packages/domain-identity/` | widened credential store, per-type `secret_data` parsing, the password-policy service, `login_failures`                     |
@@ -3477,8 +3477,12 @@ The spec's section 4 numbered its migrations 0026–0034 before the task order e
 | 0041      | 22   | `login_failures` and realm lockout settings    |
 | 0042      | 25   | retention indexes                              |
 | 0043      | 27   | `email_outbox`                                 |
+| 0044      | —    | `authentication_sessions.authenticated_at`     |
 
-Eighteen migrations, not the nine section 4 sketched. The difference is
+Nineteen migrations, not the nine section 4 sketched. 0044 has no task: it
+closed the second-factor bypass the whole-branch review found, where a
+required action was satisfiable by a session bound by only the first factor
+(see docs/NEXT.md). The difference is
 three the spec folded into prose rather than numbering (`satisfied`,
 `authenticators`, `otp_required`), three it did not foresee (the retention
 indexes, splitting the session columns from the realm columns because they

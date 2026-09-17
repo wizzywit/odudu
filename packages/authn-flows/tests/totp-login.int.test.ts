@@ -26,6 +26,7 @@ import { requiredActionRepository } from '#/repository/required-actions';
 import { authenticationSessions, type PendingRequest } from '#/schema/authentication-sessions';
 import {
   advance,
+  authenticatedSubject,
   initialChallenge,
   pendingChallenge,
   resetAuthenticationProgress,
@@ -369,6 +370,111 @@ describe('a factor with work left after it is written down, and one that finishe
     const replay = await withRealm(app.db, realmId, (tx) => advance(tx, second, { code }, clock));
 
     expect(replay).toEqual({ kind: 'failure', reason: 'invalid_credentials' });
+  });
+});
+
+// `satisfied` cannot answer "is this login finished": the factor that
+// finishes one is deliberately not written down, so a complete attempt and
+// one still owing a factor leave identical rows. `authenticated_at` is that
+// answer, and it is what a required action is judged against.
+describe('a finished authentication is recorded, and stops being recorded', () => {
+  it('sets it when the flow runs out of steps and clears it when one reappears', async () => {
+    const realmId = newId();
+    const clock = clockAt();
+    const subjectId = await withRealm(app.db, realmId, async (tx) => {
+      await seedRealm(tx, realmId, true);
+      return seedUser(tx, realmId, 'ada');
+    });
+
+    // otp_required with no credential to produce a code: the step cannot
+    // apply, so the password finishes this login and the realm collects the
+    // enrolment as a required action instead.
+    const authSessionId = await start(realmId, clock);
+    const finished = await withRealm(app.db, realmId, (tx) =>
+      advance(tx, authSessionId, { username: 'ada', password: PASSWORD }, clock),
+    );
+    expect(finished).toEqual({ kind: 'success', subjectId, authenticators: ['password'] });
+    const complete = await withRealm(app.db, realmId, (tx) =>
+      authenticationSessionRepository(tx).byId(authSessionId),
+    );
+    expect(complete?.authenticatedAt).not.toBeNull();
+    expect(
+      await withRealm(app.db, realmId, (tx) => authenticatedSubject(tx, authSessionId, clock)),
+    ).toBe(subjectId);
+
+    // Completing that required action is what makes the otp step apply, so
+    // the same session now owes a factor it did not owe a moment ago. A
+    // record of completion that only ever moved one way would still call
+    // this attempt finished.
+    const { secret } = await enrol(realmId, subjectId, clock);
+    clock.advance(31_000);
+    const challenged = await withRealm(app.db, realmId, (tx) =>
+      advance(tx, authSessionId, { username: 'ada', password: PASSWORD }, clock),
+    );
+    expect(challenged).toEqual({ kind: 'challenge', form: 'otp' });
+
+    const outstanding = await withRealm(app.db, realmId, (tx) =>
+      authenticationSessionRepository(tx).byId(authSessionId),
+    );
+    expect(outstanding?.authenticatedAt).toBeNull();
+    // The predicate the required-action gate reads, not only the column it
+    // reads it from: there is nobody to act for while a factor is owed.
+    expect(
+      await withRealm(app.db, realmId, (tx) => authenticatedSubject(tx, authSessionId, clock)),
+    ).toBeNull();
+
+    // And passing that factor records completion afresh, at the later
+    // instant — rewritten on every attempt, not restored to the old stamp.
+    clock.advance(31_000);
+    const completed = await withRealm(app.db, realmId, (tx) =>
+      advance(tx, authSessionId, { code: totpCode(secret, totpCounter(clock.now())) }, clock),
+    );
+    expect(completed).toEqual({
+      kind: 'success',
+      subjectId,
+      authenticators: ['password', 'otp'],
+    });
+    const again = await withRealm(app.db, realmId, (tx) =>
+      authenticationSessionRepository(tx).byId(authSessionId),
+    );
+    expect(again?.authenticatedAt?.getTime()).toBeGreaterThan(
+      complete?.authenticatedAt?.getTime() ?? Number.POSITIVE_INFINITY,
+    );
+  });
+
+  // resetProgress exists for the one refusal whose remedy is somebody else
+  // signing in against the same parked request. A finished authentication
+  // left behind on that row would be the previous person's, and the gate
+  // would act for them.
+  it('forgets it when the attempt is put back to how it started', async () => {
+    const realmId = newId();
+    const clock = clockAt();
+    const subjectId = await withRealm(app.db, realmId, async (tx) => {
+      await seedRealm(tx, realmId, false);
+      return seedUser(tx, realmId, 'ada');
+    });
+
+    const authSessionId = await start(realmId, clock);
+    expect(
+      await withRealm(app.db, realmId, (tx) =>
+        advance(tx, authSessionId, { username: 'ada', password: PASSWORD }, clock),
+      ),
+    ).toEqual({ kind: 'success', subjectId, authenticators: ['password'] });
+    expect(
+      await withRealm(app.db, realmId, (tx) => authenticatedSubject(tx, authSessionId, clock)),
+    ).toBe(subjectId);
+
+    await withRealm(app.db, realmId, (tx) => resetAuthenticationProgress(tx, authSessionId));
+
+    const cleared = await withRealm(app.db, realmId, (tx) =>
+      authenticationSessionRepository(tx).byId(authSessionId),
+    );
+    expect(cleared?.authenticatedAt).toBeNull();
+    expect(cleared?.satisfied).toEqual([]);
+    expect(cleared?.subjectId).toBeNull();
+    expect(
+      await withRealm(app.db, realmId, (tx) => authenticatedSubject(tx, authSessionId, clock)),
+    ).toBeNull();
   });
 });
 
