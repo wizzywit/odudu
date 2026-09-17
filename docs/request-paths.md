@@ -308,7 +308,7 @@ AUTH_SESSION_ID=$(curl -sS --get \
   --data-urlencode 'nonce=n-0S6_WzA2Mj' \
   --data-urlencode "code_challenge=$CHALLENGE" \
   --data-urlencode 'code_challenge_method=S256' \
-  "$BASE/auth" | sed -n 's/.*name="auth_session_id" value="\([^"]*\)".*/\1/p;q')
+  "$BASE/auth" | sed -n '/name="auth_session_id"/{s/.*value="\([^"]*\)".*/\1/p;q;}')
 
 CODE=$(curl -sS -D - -o /dev/null \
   --data-urlencode "auth_session_id=$AUTH_SESSION_ID" \
@@ -1419,7 +1419,7 @@ AUTH_SESSION_ID=$(curl -sS --get \
   --data-urlencode 'code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM' \
   --data-urlencode 'code_challenge_method=S256' \
   'http://localhost:3000/realms/register-demo/protocol/openid-connect/auth' \
-  | sed -n 's/.*name="auth_session_id" value="\([^"]*\)".*/\1/p;q')
+  | sed -n '/name="auth_session_id"/{s/.*value="\([^"]*\)".*/\1/p;q;}')
 
 curl -sS -i -X POST http://localhost:3000/realms/register-demo/login-actions/authenticate \
   --data-urlencode "auth_session_id=$AUTH_SESSION_ID" \
@@ -1466,7 +1466,7 @@ AUTH_SESSION_ID=$(curl -sS --get \
   --data-urlencode 'code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM' \
   --data-urlencode 'code_challenge_method=S256' \
   'http://localhost:3000/realms/register-demo/protocol/openid-connect/auth' \
-  | sed -n 's/.*name="auth_session_id" value="\([^"]*\)".*/\1/p;q')
+  | sed -n '/name="auth_session_id"/{s/.*value="\([^"]*\)".*/\1/p;q;}')
 
 curl -sS -i -X POST http://localhost:3000/realms/register-demo/login-actions/authenticate \
   --data-urlencode "auth_session_id=$AUTH_SESSION_ID" \
@@ -2083,7 +2083,7 @@ parked and the password form rendered exactly as
 
 ```bash
 curl -sS 'http://localhost:3000/realms/otp-demo/protocol/openid-connect/auth?response_type=code&client_id=otp-spa&redirect_uri=http%3A%2F%2Flocalhost%3A8080%2Fcallback&scope=openid&state=xyz&code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM&code_challenge_method=S256' \
-  | sed -n 's/.*name="auth_session_id" value="\([^"]*\)".*/\1/p;q'
+  | sed -n '/name="auth_session_id"/{s/.*value="\([^"]*\)".*/\1/p;q;}'
 ```
 
 ```
@@ -2693,7 +2693,7 @@ AUTH_SESSION_ID=$(curl -sS --get \
   --data-urlencode 'code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM' \
   --data-urlencode 'code_challenge_method=S256' \
   'http://localhost:3000/realms/reset-demo/protocol/openid-connect/auth' \
-  | sed -n 's/.*name="auth_session_id" value="\([^"]*\)".*/\1/p;q')
+  | sed -n '/name="auth_session_id"/{s/.*value="\([^"]*\)".*/\1/p;q;}')
 
 curl -sS -i -X POST http://localhost:3000/realms/reset-demo/login-actions/authenticate \
   --data-urlencode "auth_session_id=$AUTH_SESSION_ID" \
@@ -2720,7 +2720,7 @@ AUTH_SESSION_ID=$(curl -sS --get \
   --data-urlencode 'code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM' \
   --data-urlencode 'code_challenge_method=S256' \
   'http://localhost:3000/realms/reset-demo/protocol/openid-connect/auth' \
-  | sed -n 's/.*name="auth_session_id" value="\([^"]*\)".*/\1/p;q')
+  | sed -n '/name="auth_session_id"/{s/.*value="\([^"]*\)".*/\1/p;q;}')
 
 curl -sS -i -X POST http://localhost:3000/realms/reset-demo/login-actions/authenticate \
   --data-urlencode "auth_session_id=$AUTH_SESSION_ID" \
@@ -3893,7 +3893,7 @@ AUTH_SESSION_ID=$(curl -sS --get \
   --data-urlencode 'state=xyz-bound' \
   --data-urlencode "code_challenge=$CHALLENGE" \
   --data-urlencode 'code_challenge_method=S256' \
-  "$BASE/auth" | sed -n 's/.*name="auth_session_id" value="\([^"]*\)".*/\1/p;q')
+  "$BASE/auth" | sed -n '/name="auth_session_id"/{s/.*value="\([^"]*\)".*/\1/p;q;}')
 
 CODE=$(curl -sS -c cookies-offline.txt -D - -o /dev/null \
   --data-urlencode "auth_session_id=$AUTH_SESSION_ID" \
@@ -4578,7 +4578,7 @@ AUTH_SESSION_ID=$(curl -sS --get \
   --data-urlencode "code_challenge=$CHALLENGE" \
   --data-urlencode 'code_challenge_method=S256' \
   "http://localhost:3000/realms/demo/protocol/openid-connect/auth" \
-  | sed -n 's/.*name="auth_session_id" value="\([^"]*\)".*/\1/p;q')
+  | sed -n '/name="auth_session_id"/{s/.*value="\([^"]*\)".*/\1/p;q;}')
 
 curl -sS -c cookies.txt -o /dev/null \
   --data-urlencode "auth_session_id=$AUTH_SESSION_ID" \
