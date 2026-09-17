@@ -1,11 +1,36 @@
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   evaluatePassword,
   REUSED_PASSWORD,
 } from '../../packages/domain-identity/src/service/password-policy.js';
-import { loadDocument } from './markdown.js';
+import { loadDocument, REPO_ROOT } from './markdown.js';
 
 const GUIDE = 'docs/request-paths.md';
+
+// The registration page renders every refusal as one list, so its own
+// non-policy reasons — a taken username, an address already registered —
+// arrive as <li> lines beside the policy's. They are read out of the route
+// that renders them rather than restated here, so a reworded one is still
+// compared against what the server would say.
+const REGISTRATION_ROUTE = 'packages/account/src/view/routes/registration.ts';
+
+function registrationRefusals(): Set<string> {
+  const source = readFileSync(path.join(REPO_ROOT, REGISTRATION_ROUTE), 'utf8');
+  const messages = new Set(
+    [...source.matchAll(/renderRegistrationFailedPage\(\['(?<message>[^']+)'\]\)/gu)].flatMap(
+      (match) => (match.groups?.message === undefined ? [] : [match.groups.message]),
+    ),
+  );
+  if (messages.size === 0) {
+    throw new Error(
+      `${REGISTRATION_ROUTE} no longer renders a refusal as a literal message; ` +
+        'point this check at where those words went.',
+    );
+  }
+  return messages;
+}
 
 // Every violation message the password policy can actually produce, for
 // the policy shapes docs/request-paths.md's transcripts exercise: the
@@ -38,6 +63,7 @@ function possibleMessages(): Set<string> {
     messages.add(violation.message);
   }
   messages.add(REUSED_PASSWORD.message);
+  for (const refusal of registrationRefusals()) messages.add(refusal);
   return messages;
 }
 

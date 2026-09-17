@@ -13,6 +13,22 @@ session ids, timestamps — are shortened or truncated where they appear, and
 that is said each time. Nothing here is reconstructed from what the code
 looks like it should do.
 
+Three conventions that keep that promise checkable. A fenced block holding a
+response **carries no language tag**, because a tagged one is reformatted by
+Prettier and what a reader then sees is the formatter's markup rather than
+the server's — the bytes below are the bytes served, line breaks included.
+Node prints two `ExperimentalWarning` lines about its Web Crypto API on
+every CLI invocation; they are on `stderr` and are trimmed from every
+transcript here. And a section whose output depends on the state of the
+stack it ran against **says which state** — [Retention](#retention-what-odudu-reap-removes),
+the second [lockout](#brute-force-lockout) run and
+[the throttle](#the-per-origin-throttle) each do. Everything else was run in
+the order it appears, front to back, against one stack started with
+`ODUDU_THROTTLE_LIMIT=1000`: a scripted walkthrough of a whole document
+sends more requests a minute than the budget a person needs
+([the per-origin throttle](#the-per-origin-throttle)), and every transcript
+past the tenth would otherwise be a `429`.
+
 ## The shape of it
 
 A **realm** is a tenant: its own users, clients, signing keys and sessions,
@@ -445,11 +461,11 @@ curl -sS http://localhost:3000/realms/demo/protocol/openid-connect/certs
   "keys": [
     {
       "kty": "RSA",
-      "n": "xnRWAMI0FVReCW0fKK2Yc743IzpZ…",
+      "n": "tLwjOBJotzhf9hx9_b1CYHgZHFQu…",
       "e": "AQAB",
+      "kid": "01a0ae6a-1e60-…",
       "alg": "RS256",
-      "use": "sig",
-      "kid": "01a096e2-c9e9-…"
+      "use": "sig"
     }
   ]
 }
@@ -626,11 +642,16 @@ Three things in that response:
   with. Without it, a client talking to several providers cannot tell which
   one answered, which is the opening a mix-up attack needs.
 
-The cookie is the SSO session, 12 hours. It carries `Secure` and the
-`__Host-` prefix when the server is told TLS terminates in front of it
-(`ODUDU_TLS=true`); on this plain-HTTP stack it does not, and the name is
-`demo-session` rather than `__Host-demo-session`. **Nothing reads this
-cookie yet** — see [What is not implemented](#what-is-not-implemented).
+The cookie is the SSO session, and it has two clocks rather than one: the
+realm's `sso_session_idle_seconds` (default `1800`) from its last use, and
+`sso_session_max_seconds` (default `36000`) from when it was established,
+whichever comes first. It carries `Secure` and the `__Host-` prefix when the
+server is told TLS terminates in front of it (`ODUDU_TLS=true`); on this
+plain-HTTP stack it does not, and the name is `demo-session` rather than
+`__Host-demo-session`. **`/authorize` reads it** — a second authorization
+request from the same browser completes without the form, and `prompt`
+decides whether that is allowed: see
+[Signing in again from an existing session](#signing-in-again-from-an-existing-session).
 
 **What the client does next:** verify `state` and `iss`, then redeem the
 code. Immediately: it expires in a minute.
@@ -706,6 +727,11 @@ The ID token, decoded:
 ```json
 { "alg": "RS256", "kid": "01a0a6cd-e3c9-…" }
 {
+  "sub": "01a0a6cd-e3cb-…",
+  "name": "ada",
+  "preferred_username": "ada",
+  "email": "ada@example.com",
+  "email_verified": false,
   "iss": "http://localhost:3000/realms/demo",
   "aud": "demo-spa",
   "iat": 1789504919,
@@ -713,15 +739,16 @@ The ID token, decoded:
   "auth_time": 1789504919,
   "nonce": "n-0S6_WzA2Mj",
   "sid": "01a0a6ce-1788-…",
-  "sub": "01a0a6cd-e3cb-…",
-  "name": "ada",
-  "preferred_username": "ada",
-  "email": "ada@example.com",
-  "email_verified": false,
   "amr": ["pwd"],
   "acr": "1"
 }
 ```
+
+The member order is the server's own and is worth not tidying: the claim
+mappers write first and the registered claims are merged over them, so
+`sub` and the profile claims precede `iss` in the encoded payload. JSON
+member order carries no meaning to any client, but a transcript that
+reorders it has stopped being the response that came back.
 
 Its `aud` is the client, not the issuer: an ID token is a statement to the
 client about who signed in, and an access token is a credential for an API.
@@ -798,6 +825,7 @@ The ID token issued alongside it carries no `roles`, though the same
 
 ```json
 {
+  "sub": "01a0a6cd-e3cb-…",
   "iss": "http://localhost:3000/realms/demo",
   "aud": "demo-spa",
   "iat": 1789505061,
@@ -805,7 +833,6 @@ The ID token issued alongside it carries no `roles`, though the same
   "auth_time": 1789505061,
   "nonce": "n-0S6_WzA2Mj",
   "sid": "01a0a6d0-4425-…",
-  "sub": "01a0a6cd-e3cb-…",
   "amr": ["pwd"],
   "acr": "1"
 }
@@ -941,7 +968,8 @@ through the group) onto the same access token:
   "scope": "openid roles groups",
   "iat": 1789425720,
   "exp": 1789426020,
-  "jti": "01a0a215-9c86-77a3-b7ab-dad58b49da4e"
+  "jti": "01a0a215-9c86-…",
+  "sid": "01a0a215-9c61-…"
 }
 ```
 
@@ -1095,6 +1123,11 @@ where they name the client:
 
 ```json
 {
+  "sub": "01a0a6cd-e3cb-…",
+  "name": "ada",
+  "preferred_username": "ada",
+  "email": "ada@example.com",
+  "email_verified": false,
   "iss": "http://localhost:3000/realms/demo",
   "aud": "demo-backend",
   "iat": 1789505125,
@@ -1102,11 +1135,6 @@ where they name the client:
   "auth_time": 1789505125,
   "nonce": "n-0S6_WzA2Mj",
   "sid": "01a0a6d1-3d1f-…",
-  "sub": "01a0a6cd-e3cb-…",
-  "name": "ada",
-  "preferred_username": "ada",
-  "email": "ada@example.com",
-  "email_verified": false,
   "amr": ["pwd"],
   "acr": "1"
 }
@@ -1497,7 +1525,9 @@ curl -sS -X POST http://localhost:3000/realms/register-demo/login-actions/regist
 <head><meta charset="utf-8"><title>Can't create this account</title></head>
 <body>
 <h1>Can't create this account</h1>
-<p>That email address is already registered.</p>
+<ul>
+<li>That email address is already registered.</li>
+</ul>
 </body>
 </html>
 ```
@@ -1618,10 +1648,13 @@ subject with no TOTP credential is given the `configure-totp` required
 action at their next login, and the login does not complete until they have
 enrolled.
 
-Every command and response below was executed against the compose stack.
-The HTML bodies are line-wrapped for readability, as every other HTML
-transcript in this document is — the markup is the server's, the line
-breaks between and inside its tags are not.
+Every command and response below was executed against the compose stack,
+and the HTML bodies are the bytes it served: line breaks, indentation and
+all. They were line-wrapped for readability until 2026-09-17, which turned
+out to mean Prettier had been rewriting them — `<meta charset="utf-8">`
+became `<meta charset="utf-8" />`, and the markup a reader saw was the
+formatter's rather than the server's. A fenced response block carries no
+language tag for that reason.
 
 There is no seed flag for `otp_required` yet (the same gap
 [Self-registration](#self-registration) notes), so this run turns it on with
@@ -1653,7 +1686,7 @@ which account a code belongs to is not knowable until then.
 curl -sS 'http://localhost:3000/realms/otp-demo/protocol/openid-connect/auth?response_type=code&client_id=otp-spa&redirect_uri=http%3A%2F%2Flocalhost%3A8080%2Fcallback&scope=openid&state=xyz&code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM&code_challenge_method=S256'
 ```
 
-The `auth_session_id` in that form — `01a0aa5f-492a-7add-8de4-70c3a6428ce4`
+The `auth_session_id` in that form — `01a0ae6e-d754-722b-832f-046df4afaf34`
 in this run — is what every request below carries. Posting the correct
 password answers 200 with an enrolment page rather than 302 with a code:
 the password was accepted, and the pending action is what stops the login
@@ -1661,41 +1694,28 @@ from completing (no `set-cookie`, no `code`).
 
 ```bash
 curl -sS -X POST http://localhost:3000/realms/otp-demo/login-actions/authenticate \
-  --data-urlencode 'auth_session_id=01a0aa5f-492a-7add-8de4-70c3a6428ce4' \
+  --data-urlencode 'auth_session_id=01a0ae6e-d754-722b-832f-046df4afaf34' \
   --data-urlencode 'username=ada' \
   --data-urlencode 'password=correct-horse-battery'
 ```
 
-```html
+```
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <title>Set up your authenticator</title>
-  </head>
-  <body>
-    <h1>Set up your authenticator</h1>
-    <p>Scan this with your authenticator app, or enter the key by hand.</p>
-    <svg …>…</svg>
-    <p>
-      <code
-        >otpauth://totp/otp-demo:ada?secret=DX6K3RSVH6GE5EN4R25CIAOPBZP5JPI7&amp;issuer=otp-demo&amp;algorithm=SHA1&amp;digits=6&amp;period=30</code
-      >
-    </p>
-    <p>Key: <code>DX6K3RSVH6GE5EN4R25CIAOPBZP5JPI7</code></p>
-    <form
-      method="post"
-      action="/realms/otp-demo/login-actions/required-action?action=configure-totp"
-    >
-      <input type="hidden" name="auth_session_id" value="01a0aa5f-492a-7add-8de4-70c3a6428ce4" />
-      <input type="hidden" name="secret" value="DX6K3RSVH6GE5EN4R25CIAOPBZP5JPI7" />
-      <label
-        >Code from your app
-        <input type="text" name="code" inputmode="numeric" autocomplete="one-time-code"
-      /></label>
-      <button type="submit">Confirm</button>
-    </form>
-  </body>
+<head><meta charset="utf-8"><title>Set up your authenticator</title></head>
+<body>
+<h1>Set up your authenticator</h1>
+<p>Scan this with your authenticator app, or enter the key by hand.</p>
+<svg …>…</svg>
+<p><code>otpauth://totp/otp-demo:ada?secret=BKZJGOJBKZZKQTPLAUMI25NSOZW2XDXT&amp;issuer=otp-demo&amp;algorithm=SHA1&amp;digits=6&amp;period=30</code></p>
+<p>Key: <code>BKZJGOJBKZZKQTPLAUMI25NSOZW2XDXT</code></p>
+<form method="post" action="/realms/otp-demo/login-actions/required-action?action=configure-totp">
+  <input type="hidden" name="auth_session_id" value="01a0ae6e-d754-722b-832f-046df4afaf34">
+  <input type="hidden" name="secret" value="BKZJGOJBKZZKQTPLAUMI25NSOZW2XDXT">
+  <label>Code from your app <input type="text" name="code" inputmode="numeric" autocomplete="one-time-code"></label>
+  <button type="submit">Confirm</button>
+</form>
+</body>
 </html>
 ```
 
@@ -1714,72 +1734,60 @@ that offers a secret. An abandoned enrolment leaves no row behind at all.
 ```bash
 curl -sS -X POST \
   'http://localhost:3000/realms/otp-demo/login-actions/required-action?action=configure-totp' \
-  --data-urlencode 'auth_session_id=01a0aa5f-492a-7add-8de4-70c3a6428ce4' \
-  --data-urlencode 'secret=DX6K3RSVH6GE5EN4R25CIAOPBZP5JPI7' \
-  --data-urlencode 'code=828217'
+  --data-urlencode 'auth_session_id=01a0ae6e-d754-722b-832f-046df4afaf34' \
+  --data-urlencode 'secret=BKZJGOJBKZZKQTPLAUMI25NSOZW2XDXT' \
+  --data-urlencode 'code=761342'
 ```
 
-```html
+```
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <title>Sign in</title>
-  </head>
-  <body>
-    <form method="post" action="/realms/otp-demo/login-actions/authenticate">
-      <input type="hidden" name="auth_session_id" value="01a0aa5f-492a-7add-8de4-70c3a6428ce4" />
-      <label>Username <input type="text" name="username" autocomplete="username" /></label>
-      <label
-        >Password <input type="password" name="password" autocomplete="current-password"
-      /></label>
-      <button type="submit">Sign in</button>
-    </form>
-    <form method="post" action="/realms/otp-demo/login-actions/authenticate" id="passkey-form">
-      <input type="hidden" name="auth_session_id" value="01a0aa5f-492a-7add-8de4-70c3a6428ce4" />
-      <input type="hidden" name="assertion" id="passkey-assertion" />
-      <button type="submit" id="passkey-submit">Sign in with a passkey</button>
-    </form>
-    <p id="passkey-error" hidden></p>
-    <noscript
-      ><p>
-        Signing in with a passkey needs JavaScript, because only the browser can talk to your
-        authenticator. Use your username and password above.
-      </p></noscript
-    >
-    <script nonce="4zofDWD0IY9CfayYQ5h7jA==">
-      const form = document.getElementById('passkey-form');
-      const field = document.getElementById('passkey-assertion');
-      const failure = document.getElementById('passkey-error');
-      const fromBase64Url = (value) =>
-        Uint8Array.from(atob(value.replace(/-/g, '+').replace(/_/g, '/')), (c) => c.charCodeAt(0));
-      form.addEventListener('submit', async (event) => {
-        if (field.value !== '') return;
-        event.preventDefault();
-        failure.hidden = true;
-        try {
-          const offered = await fetch('/realms/otp-demo/login-actions/passkey-challenge', {
-            method: 'POST',
-            headers: { 'content-type': 'application/x-www-form-urlencoded' },
-            body: new URLSearchParams({ auth_session_id: form.auth_session_id.value }),
-          });
-          if (!offered.ok) throw new Error('this server is not offering passkeys');
-          const options = await offered.json();
-          const assertion = await navigator.credentials.get({
-            publicKey: { ...options, challenge: fromBase64Url(options.challenge) },
-          });
-          field.value = JSON.stringify(assertion.toJSON());
-          form.submit();
-        } catch (caught) {
-          failure.textContent =
-            'Your device did not finish signing in — ' +
-            (caught && caught.message ? caught.message : 'the request was cancelled') +
-            '. You can try again.';
-          failure.hidden = false;
-        }
-      });
-    </script>
-  </body>
+<head><meta charset="utf-8"><title>Sign in</title></head>
+<body>
+<form method="post" action="/realms/otp-demo/login-actions/authenticate">
+  <input type="hidden" name="auth_session_id" value="01a0ae6e-d754-722b-832f-046df4afaf34">
+  <label>Username <input type="text" name="username" autocomplete="username"></label>
+  <label>Password <input type="password" name="password" autocomplete="current-password"></label>
+  <button type="submit">Sign in</button>
+</form>
+<form method="post" action="/realms/otp-demo/login-actions/authenticate" id="passkey-form">
+  <input type="hidden" name="auth_session_id" value="01a0ae6e-d754-722b-832f-046df4afaf34">
+  <input type="hidden" name="assertion" id="passkey-assertion">
+  <button type="submit" id="passkey-submit">Sign in with a passkey</button>
+</form>
+<p id="passkey-error" hidden></p>
+<noscript><p>Signing in with a passkey needs JavaScript, because only the browser can talk to your authenticator. Use your username and password above.</p></noscript>
+<script nonce="qT07bPZdP0HnQWKs2Fc/vw==">
+const form = document.getElementById('passkey-form');
+const field = document.getElementById('passkey-assertion');
+const failure = document.getElementById('passkey-error');
+const fromBase64Url = (value) =>
+  Uint8Array.from(atob(value.replace(/-/g, '+').replace(/_/g, '/')), (c) => c.charCodeAt(0));
+form.addEventListener('submit', async (event) => {
+  if (field.value !== '') return;
+  event.preventDefault();
+  failure.hidden = true;
+  try {
+    const offered = await fetch('/realms/otp-demo/login-actions/passkey-challenge', {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ auth_session_id: form.auth_session_id.value }),
+    });
+    if (!offered.ok) throw new Error('this server is not offering passkeys');
+    const options = await offered.json();
+    const assertion = await navigator.credentials.get({
+      publicKey: { ...options, challenge: fromBase64Url(options.challenge) },
+    });
+    field.value = JSON.stringify(assertion.toJSON());
+    form.submit();
+  } catch (caught) {
+    failure.textContent =
+      'Your device did not finish signing in — ' + (caught && caught.message ? caught.message : 'the request was cancelled') + '. You can try again.';
+    failure.hidden = false;
+  }
+});
+</script>
+</body>
 </html>
 ```
 
@@ -1799,43 +1807,35 @@ than a phone:
 ```bash
 node --input-type=module -e "
 import { totpCode, totpCounter } from './packages/crypto/src/service/totp.ts';
-console.log(totpCode('DX6K3RSVH6GE5EN4R25CIAOPBZP5JPI7', totpCounter(new Date())));
+console.log(totpCode('BKZJGOJBKZZKQTPLAUMI25NSOZW2XDXT', totpCounter(new Date())));
 "
 ```
 
 ```
-828217
+761342
 ```
 
 ### The same password now answers with a code form
 
 ```bash
 curl -sS -X POST http://localhost:3000/realms/otp-demo/login-actions/authenticate \
-  --data-urlencode 'auth_session_id=01a0aa5f-492a-7add-8de4-70c3a6428ce4' \
+  --data-urlencode 'auth_session_id=01a0ae6e-d754-722b-832f-046df4afaf34' \
   --data-urlencode 'username=ada' \
   --data-urlencode 'password=correct-horse-battery'
 ```
 
-```html
+```
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <title>Sign in</title>
-  </head>
-  <body>
-    <form method="post" action="/realms/otp-demo/login-actions/authenticate">
-      <input type="hidden" name="auth_session_id" value="01a0aa5f-492a-7add-8de4-70c3a6428ce4" />
-      <label
-        >Code from your app
-        <input type="text" name="code" inputmode="numeric" autocomplete="one-time-code"
-      /></label>
-      <label
-        >Or a recovery code <input type="text" name="recovery_code" autocomplete="off"
-      /></label>
-      <button type="submit">Sign in</button>
-    </form>
-  </body>
+<head><meta charset="utf-8"><title>Sign in</title></head>
+<body>
+<form method="post" action="/realms/otp-demo/login-actions/authenticate">
+  <input type="hidden" name="auth_session_id" value="01a0ae6e-d754-722b-832f-046df4afaf34">
+  <label>Code from your app <input type="text" name="code" inputmode="numeric" autocomplete="one-time-code"></label>
+  <label>Or a recovery code <input type="text" name="recovery_code" autocomplete="off"></label>
+  <button type="submit">Sign in</button>
+</form>
+</body>
 </html>
 ```
 
@@ -1856,8 +1856,8 @@ answers with the same form again:
 ```bash
 curl -sS -o /dev/null -w '%{http_code}\n' -X POST \
   http://localhost:3000/realms/otp-demo/login-actions/authenticate \
-  --data-urlencode 'auth_session_id=01a0aa5f-492a-7add-8de4-70c3a6428ce4' \
-  --data-urlencode 'code=828217'
+  --data-urlencode 'auth_session_id=01a0ae6e-d754-722b-832f-046df4afaf34' \
+  --data-urlencode 'code=761342'
 ```
 
 ```
@@ -1872,8 +1872,8 @@ factor owed a recovery path for it:
 
 ```bash
 curl -sS -i -X POST http://localhost:3000/realms/otp-demo/login-actions/authenticate \
-  --data-urlencode 'auth_session_id=01a0aa5f-492a-7add-8de4-70c3a6428ce4' \
-  --data-urlencode 'code=819253'
+  --data-urlencode 'auth_session_id=01a0ae6e-d754-722b-832f-046df4afaf34' \
+  --data-urlencode 'code=312444'
 ```
 
 ```
@@ -1891,14 +1891,14 @@ again — and the next code finishes it:
 
 ```bash
 curl -sS -i -X POST http://localhost:3000/realms/otp-demo/login-actions/authenticate \
-  --data-urlencode 'auth_session_id=01a0aa5f-492a-7add-8de4-70c3a6428ce4' \
-  --data-urlencode 'code=583624'
+  --data-urlencode 'auth_session_id=01a0ae6e-d754-722b-832f-046df4afaf34' \
+  --data-urlencode 'code=112990'
 ```
 
 ```
 HTTP/1.1 302 Found
-set-cookie: otp-demo-session=01a0aa5f-e4a2-75c1-b4e4-7389006a16bc; HttpOnly; SameSite=Lax; Path=/
-location: http://localhost:8080/callback?code=hUDwZT5XQ-eC9r5fRlzvMYoEFbQOwhH-hxYCxccGmpA&state=xyz&iss=http%3A%2F%2Flocalhost%3A3000%2Frealms%2Fotp-demo
+set-cookie: otp-demo-session=01a0ae70-c638-7675-9aee-f74d8702bdb7; HttpOnly; SameSite=Lax; Path=/
+location: http://localhost:8080/callback?code=n9kNA0HuUqyrNgWAOFiP9rmxsCr9beOHKx_6RYPZgqY&state=xyz&iss=http%3A%2F%2Flocalhost%3A3000%2Frealms%2Fotp-demo
 ```
 
 ### What two factors do to the ID token
@@ -1906,7 +1906,7 @@ location: http://localhost:8080/callback?code=hUDwZT5XQ-eC9r5fRlzvMYoEFbQOwhH-hx
 ```bash
 curl -sS -X POST http://localhost:3000/realms/otp-demo/protocol/openid-connect/token \
   -d grant_type=authorization_code \
-  -d code=hUDwZT5XQ-eC9r5fRlzvMYoEFbQOwhH-hxYCxccGmpA \
+  -d code=n9kNA0HuUqyrNgWAOFiP9rmxsCr9beOHKx_6RYPZgqY \
   -d client_id=otp-spa \
   --data-urlencode 'redirect_uri=http://localhost:8080/callback' \
   -d code_verifier=dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk
@@ -1917,13 +1917,13 @@ base64url segments):
 
 ```json
 {
-  "sub": "01a0aa5f-20c1-7306-a7b6-678e56fdd55e",
+  "sub": "01a0ae6e-a7b2-7709-a51d-1704e4c07460",
   "iss": "http://localhost:3000/realms/otp-demo",
   "aud": "otp-spa",
-  "iat": 1789564814,
-  "exp": 1789565114,
-  "auth_time": 1789564806,
-  "sid": "01a0aa5f-e4a2-75c1-b4e4-7389006a16bc",
+  "iat": 1789633021,
+  "exp": 1789633321,
+  "auth_time": 1789633021,
+  "sid": "01a0ae70-c638-7675-9aee-f74d8702bdb7",
   "amr": ["otp", "pwd"],
   "acr": "2"
 }
@@ -1952,44 +1952,34 @@ continuing the same `otp-demo` realm and the same `auth_session_id`.
 
 ```bash
 curl -sS -X POST http://localhost:3000/realms/otp-demo/login-actions/authenticate \
-  --data-urlencode 'auth_session_id=01a0aa5f-492a-7add-8de4-70c3a6428ce4' \
-  --data-urlencode 'code=819253'
+  --data-urlencode 'auth_session_id=01a0ae6e-d754-722b-832f-046df4afaf34' \
+  --data-urlencode 'code=312444'
 ```
 
-```html
+```
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <title>Save your recovery codes</title>
-  </head>
-  <body>
-    <h1>Save your recovery codes</h1>
-    <p>
-      Each of these signs you in once, in place of your second factor, if you lose it.
-      <strong>This is the only time they are shown.</strong> Print them or put them in a password
-      manager before you continue — nobody, including an administrator, can show them to you again.
-    </p>
-    <ol>
-      <li><code>Y7WTX-FFD8Q</code></li>
-      <li><code>Q0XB8-RR7K1</code></li>
-      <li><code>QWC24-MGAV5</code></li>
-      <li><code>ASGBV-H5NTD</code></li>
-      <li><code>Q02FB-K4A0Y</code></li>
-      <li><code>A10FE-2MEDR</code></li>
-      <li><code>928SN-ZEZ30</code></li>
-      <li><code>S2PZZ-MAC56</code></li>
-      <li><code>979GM-V1RXQ</code></li>
-      <li><code>JP7DJ-TJN8Q</code></li>
-    </ol>
-    <form
-      method="post"
-      action="/realms/otp-demo/login-actions/required-action?action=generate-recovery-codes"
-    >
-      <input type="hidden" name="auth_session_id" value="01a0aa5f-492a-7add-8de4-70c3a6428ce4" />
-      <button type="submit">I have saved these codes</button>
-    </form>
-  </body>
+<head><meta charset="utf-8"><title>Save your recovery codes</title></head>
+<body>
+<h1>Save your recovery codes</h1>
+<p>Each of these signs you in once, in place of your second factor, if you lose it. <strong>This is the only time they are shown.</strong> Print them or put them in a password manager before you continue — nobody, including an administrator, can show them to you again.</p>
+<ol>
+  <li><code>YXZ6X-TDJNC</code></li>
+  <li><code>B440Z-WSMPW</code></li>
+  <li><code>J1Z5M-6BMKN</code></li>
+  <li><code>KWNBQ-ZEDN2</code></li>
+  <li><code>4SRQ7-B3J85</code></li>
+  <li><code>WHM1Q-EP5VY</code></li>
+  <li><code>PGVGV-D36JZ</code></li>
+  <li><code>HKBDM-9SPV9</code></li>
+  <li><code>CSW28-1W468</code></li>
+  <li><code>ZWTGZ-5F6BB</code></li>
+</ol>
+<form method="post" action="/realms/otp-demo/login-actions/required-action?action=generate-recovery-codes">
+  <input type="hidden" name="auth_session_id" value="01a0ae6e-d754-722b-832f-046df4afaf34">
+  <button type="submit">I have saved these codes</button>
+</form>
+</body>
 </html>
 ```
 
@@ -2043,29 +2033,21 @@ page was read, and it is what completes the action:
 ```bash
 curl -sS -X POST \
   'http://localhost:3000/realms/otp-demo/login-actions/required-action?action=generate-recovery-codes' \
-  --data-urlencode 'auth_session_id=01a0aa5f-492a-7add-8de4-70c3a6428ce4'
+  --data-urlencode 'auth_session_id=01a0ae6e-d754-722b-832f-046df4afaf34'
 ```
 
-```html
+```
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <title>Sign in</title>
-  </head>
-  <body>
-    <form method="post" action="/realms/otp-demo/login-actions/authenticate">
-      <input type="hidden" name="auth_session_id" value="01a0aa5f-492a-7add-8de4-70c3a6428ce4" />
-      <label
-        >Code from your app
-        <input type="text" name="code" inputmode="numeric" autocomplete="one-time-code"
-      /></label>
-      <label
-        >Or a recovery code <input type="text" name="recovery_code" autocomplete="off"
-      /></label>
-      <button type="submit">Sign in</button>
-    </form>
-  </body>
+<head><meta charset="utf-8"><title>Sign in</title></head>
+<body>
+<form method="post" action="/realms/otp-demo/login-actions/authenticate">
+  <input type="hidden" name="auth_session_id" value="01a0ae6e-d754-722b-832f-046df4afaf34">
+  <label>Code from your app <input type="text" name="code" inputmode="numeric" autocomplete="one-time-code"></label>
+  <label>Or a recovery code <input type="text" name="recovery_code" autocomplete="off"></label>
+  <button type="submit">Sign in</button>
+</form>
+</body>
 </html>
 ```
 
@@ -2087,7 +2069,7 @@ curl -sS 'http://localhost:3000/realms/otp-demo/protocol/openid-connect/auth?res
 ```
 
 ```
-01a0aa60-2db3-7991-a103-d6d48dbe3a20
+01a0ae70-fed7-700e-bff3-7d7640225cf1
 ```
 
 The password step runs as always, and answers with the code form — the same
@@ -2096,31 +2078,23 @@ gone:
 
 ```bash
 curl -sS -X POST http://localhost:3000/realms/otp-demo/login-actions/authenticate \
-  --data-urlencode 'auth_session_id=01a0aa60-2db3-7991-a103-d6d48dbe3a20' \
+  --data-urlencode 'auth_session_id=01a0ae70-fed7-700e-bff3-7d7640225cf1' \
   --data-urlencode 'username=ada' \
   --data-urlencode 'password=correct-horse-battery'
 ```
 
-```html
+```
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <title>Sign in</title>
-  </head>
-  <body>
-    <form method="post" action="/realms/otp-demo/login-actions/authenticate">
-      <input type="hidden" name="auth_session_id" value="01a0aa60-2db3-7991-a103-d6d48dbe3a20" />
-      <label
-        >Code from your app
-        <input type="text" name="code" inputmode="numeric" autocomplete="one-time-code"
-      /></label>
-      <label
-        >Or a recovery code <input type="text" name="recovery_code" autocomplete="off"
-      /></label>
-      <button type="submit">Sign in</button>
-    </form>
-  </body>
+<head><meta charset="utf-8"><title>Sign in</title></head>
+<body>
+<form method="post" action="/realms/otp-demo/login-actions/authenticate">
+  <input type="hidden" name="auth_session_id" value="01a0ae70-fed7-700e-bff3-7d7640225cf1">
+  <label>Code from your app <input type="text" name="code" inputmode="numeric" autocomplete="one-time-code"></label>
+  <label>Or a recovery code <input type="text" name="recovery_code" autocomplete="off"></label>
+  <button type="submit">Sign in</button>
+</form>
+</body>
 </html>
 ```
 
@@ -2128,14 +2102,14 @@ The second field is what gets filled:
 
 ```bash
 curl -sS -i -X POST http://localhost:3000/realms/otp-demo/login-actions/authenticate \
-  --data-urlencode 'auth_session_id=01a0aa60-2db3-7991-a103-d6d48dbe3a20' \
-  --data-urlencode 'recovery_code=Y7WTX-FFD8Q'
+  --data-urlencode 'auth_session_id=01a0ae70-fed7-700e-bff3-7d7640225cf1' \
+  --data-urlencode 'recovery_code=YXZ6X-TDJNC'
 ```
 
 ```
 HTTP/1.1 302 Found
-set-cookie: otp-demo-session=01a0aa60-2e24-70b6-b4c2-fe0535323ac7; HttpOnly; SameSite=Lax; Path=/
-location: http://localhost:8080/callback?code=-CWSzFjrwYeQMUOUSv8B-qJ-r0PMpYoAJ3kaJ47vyjc&state=xyz&iss=http%3A%2F%2Flocalhost%3A3000%2Frealms%2Fotp-demo
+set-cookie: otp-demo-session=01a0ae70-ff5f-784a-8a6a-adf79abfba55; HttpOnly; SameSite=Lax; Path=/
+location: http://localhost:8080/callback?code=OUzqSEyTjeest7rUe87XGaCgFBYYNy4oEFVgqhkZ_gw&state=xyz&iss=http%3A%2F%2Flocalhost%3A3000%2Frealms%2Fotp-demo
 ```
 
 The same success a password-and-code login gets: a session cookie and a code
@@ -2148,13 +2122,13 @@ The ID token says less about this login than the two-factor one above:
 
 ```json
 {
-  "sub": "01a0aa5f-20c1-7306-a7b6-678e56fdd55e",
+  "sub": "01a0ae6e-a7b2-7709-a51d-1704e4c07460",
   "iss": "http://localhost:3000/realms/otp-demo",
   "aud": "otp-spa",
-  "iat": 1789564832,
-  "exp": 1789565132,
-  "auth_time": 1789564825,
-  "sid": "01a0aa60-2e24-70b6-b4c2-fe0535323ac7",
+  "iat": 1789633036,
+  "exp": 1789633336,
+  "auth_time": 1789633036,
+  "sid": "01a0ae70-ff5f-784a-8a6a-adf79abfba55",
   "amr": ["pwd"],
   "acr": "2"
 }
@@ -2178,7 +2152,7 @@ shown, so they are not repeated here.
 ```bash
 curl -sS -o /dev/null -w '%{http_code}\n' -X POST \
   http://localhost:3000/realms/otp-demo/login-actions/authenticate \
-  --data-urlencode 'auth_session_id=01a0aa60-6898-7f2e-ac45-120b4d04f30e' \
+  --data-urlencode 'auth_session_id=01a0ae71-2606-741c-a5f2-57a2281c49b1' \
   --data-urlencode 'username=ada' \
   --data-urlencode 'password=correct-horse-battery'
 ```
@@ -2192,33 +2166,23 @@ space where the hyphen was:
 
 ```bash
 curl -sS -X POST http://localhost:3000/realms/otp-demo/login-actions/authenticate \
-  --data-urlencode 'auth_session_id=01a0aa60-6898-7f2e-ac45-120b4d04f30e' \
-  --data-urlencode 'recovery_code=y7wtx ffd8q'
+  --data-urlencode 'auth_session_id=01a0ae71-2606-741c-a5f2-57a2281c49b1' \
+  --data-urlencode 'recovery_code=yxz6x tdjnc'
 ```
 
-```html
+```
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <title>Sign in</title>
-  </head>
-  <body>
-    <p>
-      <strong>You have already used that recovery code. Try another one from your list.</strong>
-    </p>
-    <form method="post" action="/realms/otp-demo/login-actions/authenticate">
-      <input type="hidden" name="auth_session_id" value="01a0aa60-6898-7f2e-ac45-120b4d04f30e" />
-      <label
-        >Code from your app
-        <input type="text" name="code" inputmode="numeric" autocomplete="one-time-code"
-      /></label>
-      <label
-        >Or a recovery code <input type="text" name="recovery_code" autocomplete="off"
-      /></label>
-      <button type="submit">Sign in</button>
-    </form>
-  </body>
+<head><meta charset="utf-8"><title>Sign in</title></head>
+<body>
+<p><strong>You have already used that recovery code. Try another one from your list.</strong></p>
+<form method="post" action="/realms/otp-demo/login-actions/authenticate">
+  <input type="hidden" name="auth_session_id" value="01a0ae71-2606-741c-a5f2-57a2281c49b1">
+  <label>Code from your app <input type="text" name="code" inputmode="numeric" autocomplete="one-time-code"></label>
+  <label>Or a recovery code <input type="text" name="recovery_code" autocomplete="off"></label>
+  <button type="submit">Sign in</button>
+</form>
+</body>
 </html>
 ```
 
@@ -2230,30 +2194,22 @@ which a wrong code does not:
 
 ```bash
 curl -sS -X POST http://localhost:3000/realms/otp-demo/login-actions/authenticate \
-  --data-urlencode 'auth_session_id=01a0aa60-6898-7f2e-ac45-120b4d04f30e' \
+  --data-urlencode 'auth_session_id=01a0ae71-2606-741c-a5f2-57a2281c49b1' \
   --data-urlencode 'recovery_code=ZZZZZ-ZZZZZ'
 ```
 
-```html
+```
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <title>Sign in</title>
-  </head>
-  <body>
-    <form method="post" action="/realms/otp-demo/login-actions/authenticate">
-      <input type="hidden" name="auth_session_id" value="01a0aa60-6898-7f2e-ac45-120b4d04f30e" />
-      <label
-        >Code from your app
-        <input type="text" name="code" inputmode="numeric" autocomplete="one-time-code"
-      /></label>
-      <label
-        >Or a recovery code <input type="text" name="recovery_code" autocomplete="off"
-      /></label>
-      <button type="submit">Sign in</button>
-    </form>
-  </body>
+<head><meta charset="utf-8"><title>Sign in</title></head>
+<body>
+<form method="post" action="/realms/otp-demo/login-actions/authenticate">
+  <input type="hidden" name="auth_session_id" value="01a0ae71-2606-741c-a5f2-57a2281c49b1">
+  <label>Code from your app <input type="text" name="code" inputmode="numeric" autocomplete="one-time-code"></label>
+  <label>Or a recovery code <input type="text" name="recovery_code" autocomplete="off"></label>
+  <button type="submit">Sign in</button>
+</form>
+</body>
 </html>
 ```
 
@@ -2304,6 +2260,7 @@ docker compose -f infra/docker/compose.yaml exec -T postgres \
      1 | password      | alternative
      2 | otp           | conditional
      3 | recovery-code | conditional
+(4 rows)
 ```
 
 Last, and conditional. It is applicable only to a submission that actually
@@ -2382,19 +2339,14 @@ Refused, each for its own reason:
 An enrolled passkey is a first factor on its own. The login page offers it
 beside the password fields, and pressing it asks for nothing typed:
 
-```html
+```
 <form method="post" action="/realms/demo/login-actions/authenticate" id="passkey-form">
-  <input type="hidden" name="auth_session_id" value="01a09678-5455-…" />
-  <input type="hidden" name="assertion" id="passkey-assertion" />
+  <input type="hidden" name="auth_session_id" value="01a0ae6a-b69a-…">
+  <input type="hidden" name="assertion" id="passkey-assertion">
   <button type="submit" id="passkey-submit">Sign in with a passkey</button>
 </form>
 <p id="passkey-error" hidden></p>
-<noscript>
-  <p>
-    Signing in with a passkey needs JavaScript, because only the browser can talk to your
-    authenticator. Use your username and password above.
-  </p>
-</noscript>
+<noscript><p>Signing in with a passkey needs JavaScript, because only the browser can talk to your authenticator. Use your username and password above.</p></noscript>
 ```
 
 That button is on the `/authorize` response shown in
@@ -2647,10 +2599,19 @@ curl -sS -i -X POST http://localhost:3000/realms/reset2-demo/login-actions/actio
 
 ```
 HTTP/1.1 400 Bad Request
-```
+content-type: text/html
+content-length: 233
 
-```
-<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Can't reset your password</title></head><body><h1>Can't reset your password</h1><ul><li>Password must not be one you have used before.</li></ul></body></html>
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Can't reset your password</title></head>
+<body>
+<h1>Can't reset your password</h1>
+<ul>
+<li>Password must not be one you have used before.</li>
+</ul>
+</body>
+</html>
 ```
 
 This is **only** the password in force, not the realm's
@@ -2794,7 +2755,7 @@ UPDATE 1
 ```
 
 `/authorize` parks the request and renders the ordinary password form; the
-`auth_session_id` in it — `01a0aa95-a6b4-7403-917e-0ecbd5566e86` in this
+`auth_session_id` in it — `01a0ae72-968d-7973-8e13-139f8614177b` in this
 run — is what every request below carries. The correct password answers
 `200` with a change-password form rather than `302` with a code: it was
 accepted, and the pending action is what holds the login (no `set-cookie`,
@@ -2802,32 +2763,24 @@ no `code`).
 
 ```bash
 curl -sS -X POST http://localhost:3000/realms/expiry-demo/login-actions/authenticate \
-  --data-urlencode 'auth_session_id=01a0aa95-a6b4-7403-917e-0ecbd5566e86' \
+  --data-urlencode 'auth_session_id=01a0ae72-968d-7973-8e13-139f8614177b' \
   --data-urlencode 'username=ada' \
   --data-urlencode 'password=correct-horse-battery'
 ```
 
-```html
+```
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <title>Change your password</title>
-  </head>
-  <body>
-    <h1>Change your password</h1>
-    <p>This account needs a new password before you can continue.</p>
-    <form
-      method="post"
-      action="/realms/expiry-demo/login-actions/required-action?action=update-password"
-    >
-      <input type="hidden" name="auth_session_id" value="01a0aa95-a6b4-7403-917e-0ecbd5566e86" />
-      <label
-        >New password <input type="password" name="password" autocomplete="new-password"
-      /></label>
-      <button type="submit">Update password</button>
-    </form>
-  </body>
+<head><meta charset="utf-8"><title>Change your password</title></head>
+<body>
+<h1>Change your password</h1>
+<p>This account needs a new password before you can continue.</p>
+<form method="post" action="/realms/expiry-demo/login-actions/required-action?action=update-password">
+  <input type="hidden" name="auth_session_id" value="01a0ae72-968d-7973-8e13-139f8614177b">
+  <label>New password <input type="password" name="password" autocomplete="new-password"></label>
+  <button type="submit">Update password</button>
+</form>
+</body>
 </html>
 ```
 
@@ -2838,15 +2791,15 @@ bound by — `400`, with every rule it broke:
 ```bash
 curl -sS -X POST \
   'http://localhost:3000/realms/expiry-demo/login-actions/required-action?action=update-password' \
-  --data-urlencode 'auth_session_id=01a0aa95-a6b4-7403-917e-0ecbd5566e86' \
+  --data-urlencode 'auth_session_id=01a0ae72-968d-7973-8e13-139f8614177b' \
   --data-urlencode 'password=short'
 ```
 
-```html
+```
 <h1>Change your password</h1>
 <p>This account needs a new password before you can continue.</p>
 <ul>
-  <li>Password must be at least 8 characters long.</li>
+<li>Password must be at least 8 characters long.</li>
 </ul>
 ```
 
@@ -2859,15 +2812,15 @@ it is reported as a policy violation like the rest:
 ```bash
 curl -sS -X POST \
   'http://localhost:3000/realms/expiry-demo/login-actions/required-action?action=update-password' \
-  --data-urlencode 'auth_session_id=01a0aa95-a6b4-7403-917e-0ecbd5566e86' \
+  --data-urlencode 'auth_session_id=01a0ae72-968d-7973-8e13-139f8614177b' \
   --data-urlencode 'password=correct-horse-battery'
 ```
 
-```html
+```
 <h1>Change your password</h1>
 <p>This account needs a new password before you can continue.</p>
 <ul>
-  <li>Password must not be one you have used before.</li>
+<li>Password must not be one you have used before.</li>
 </ul>
 ```
 
@@ -2884,7 +2837,7 @@ has to run again:
 ```bash
 curl -sS -o /dev/null -w '%{http_code}\n' -X POST \
   'http://localhost:3000/realms/expiry-demo/login-actions/required-action?action=update-password' \
-  --data-urlencode 'auth_session_id=01a0aa95-a6b4-7403-917e-0ecbd5566e86' \
+  --data-urlencode 'auth_session_id=01a0ae72-968d-7973-8e13-139f8614177b' \
   --data-urlencode 'password=a-brand-new-passphrase'
 docker compose -f infra/docker/compose.yaml exec -T postgres \
   psql -U odudu -d odudu -c \
@@ -2897,8 +2850,8 @@ docker compose -f infra/docker/compose.yaml exec -T postgres \
 200
        type       |          created_at
 ------------------+-------------------------------
- password         | 2026-09-16 14:19:09.694232+00
- password-history | 2026-09-16 14:19:09.694232+00
+ password         | 2026-09-17 08:19:09.965794+00
+ password-history | 2026-09-17 08:19:09.965794+00
 (2 rows)
 ```
 
@@ -2910,15 +2863,15 @@ completes:
 
 ```bash
 curl -sS -D - -o /dev/null -X POST http://localhost:3000/realms/expiry-demo/login-actions/authenticate \
-  --data-urlencode 'auth_session_id=01a0aa95-a6b4-7403-917e-0ecbd5566e86' \
+  --data-urlencode 'auth_session_id=01a0ae72-968d-7973-8e13-139f8614177b' \
   --data-urlencode 'username=ada' \
   --data-urlencode 'password=a-brand-new-passphrase'
 ```
 
 ```
 HTTP/1.1 302 Found
-set-cookie: expiry-demo-session=01a0aa95-f881-7b2e-9842-7e4dedaba4bf; HttpOnly; SameSite=Lax; Path=/
-location: http://localhost:8080/callback?code=YieGWpH5S4OHoQYyzScj0imaliD2ewgiP_0xuLyfNBc&state=xyz&iss=http%3A%2F%2Flocalhost%3A3000%2Frealms%2Fexpiry-demo
+set-cookie: expiry-demo-session=01a0ae72-bd69-710f-9411-cab81252891d; HttpOnly; SameSite=Lax; Path=/
+location: http://localhost:8080/callback?code=nwsvY1PSYQ1TgHC03s8D_o0vTxt7JpxLnIDZBi3S3zg&state=xyz&iss=http%3A%2F%2Flocalhost%3A3000%2Frealms%2Fexpiry-demo
 ```
 
 Reset redemption shares only half of this. It refuses the password in
@@ -2967,6 +2920,7 @@ docker compose exec -T postgres psql -U odudu -d odudu -c \
  brute_force_max_failures | brute_force_lockout_seconds | brute_force_max_lockout_seconds | brute_force_failure_reset_seconds
 --------------------------+-----------------------------+---------------------------------+-----------------------------------
                         5 |                          60 |                             900 |                             43200
+(1 row)
 ```
 
 The fifth failure locks for a minute, and each failure after that for twice
@@ -3036,31 +2990,48 @@ recorded nothing at all:
 ```bash
 docker compose exec -T postgres psql -U odudu -d odudu -x -c \
   "select subject_id, failure_count, first_failure_at, last_failure_at, locked_until
-     from login_failures;"
+     from login_failures f join realms r on r.id = f.realm_id
+     where r.name = 'demo';"
 ```
 
 ```
 -[ RECORD 1 ]----+-------------------------------------
-subject_id       | 01a0ab5e-1342-725c-8f08-2db63f48bdc6
+subject_id       | 01a0ae6a-1e63-7725-8c7e-bc5ec8910743
 failure_count    | 7
-first_failure_at | 2026-09-16 17:59:09.291+00
-last_failure_at  | 2026-09-16 17:59:09.811+00
-locked_until     | 2026-09-16 18:03:09.811+00
+first_failure_at | 2026-09-17 08:19:41.626+00
+last_failure_at  | 2026-09-17 08:19:42.109+00
+locked_until     | 2026-09-17 08:23:42.109+00
 ```
 
 One row for `ada`, none for the username nobody holds — and seven failures,
 not eight. `locked_until` is four minutes past the last of them, because the
 count reached seven: a minute at five, two at six, four at seven.
 
+The realm in that `where` clause is not decoration either. `login_failures`
+holds a row per subject across every realm, and the sections above this one
+leave their own behind — the password expiry walkthrough ends on a
+deliberately wrong password, and nothing clears a row but a successful login
+or the [retention pass](#retention-what-odudu-reap-removes). An unscoped
+`select` here would print whatever the rest of this document happened to
+do first, which is not a claim about the lockout.
+
 **An attempt made during a lockout is still an attempt**, which is what
 keeps a locked account the same cost as an unlocked one — the same read and
 the same write, so nothing can be learned from how quickly the refusal comes
 back. It also means retrying extends the wait. Five wrong passwords, then
 the right one refused, then the same right password once the second lockout
-has run out:
+has run out.
+
+**This run needs an account with no failures behind it**, so it was captured
+against a realm of its own — `lockout-demo`, seeded exactly as
+[Bootstrap](#bootstrap) seeds `demo` — rather than continuing the eight
+submissions above. Those left `ada` at seven failures in `demo`, and five
+more would take the count to twelve and the wait to the fifteen-minute
+ceiling: the arithmetic this transcript demonstrates is the arithmetic of a
+run that starts from zero.
 
 ```bash
-LOGIN='http://localhost:3000/realms/demo/login-actions/authenticate'
+LOGIN='http://localhost:3000/realms/lockout-demo/login-actions/authenticate'
 for n in 1 2 3 4 5; do
   curl -sS -o /dev/null -w "attempt $n: %{http_code}\n" \
     --data-urlencode "auth_session_id=$SID" \
@@ -3090,14 +3061,14 @@ attempt 5: 200
 status 200, location ''
 --- the same password, 125 seconds later ---
 HTTP/1.1 302 Found
-set-cookie: demo-session=01a0ab61-709d-7a9f-8b11-5bb069160ebd; HttpOnly; SameSite=Lax; Path=/
-location: http://localhost:8080/callback?code=KlK-gtOvpWtR5bdoqBZhuHrcznBSU1UJSLYLInB9MSY&state=xyz-123&iss=http%3A%2F%2Flocalhost%3A3000%2Frealms%2Fdemo
+set-cookie: lockout-demo-session=01a0ae75-c738-7d3c-aca7-8e3240e94e59; HttpOnly; SameSite=Lax; Path=/
+location: http://localhost:8080/callback?code=0xnA-pWgF0pNhoe2f7rVhx5kW8Du6sVsM6avD30z2YY&state=xyz-123&iss=http%3A%2F%2Flocalhost%3A3000%2Frealms%2Flockout-demo
 ```
 
 (`sid` is the `/authorize` request above with the hidden field read out of
-the page it renders. The wait is 125 seconds rather than 60 because the
-refused right password counted as the sixth failure and re-locked for two
-minutes.)
+the page it renders, against `lockout-demo`. The wait is 125 seconds rather
+than 60 because the refused right password counted as the sixth failure and
+re-locked for two minutes.)
 
 A correct password accepted by an **unlocked** account deletes the row, so a
 run of failures ends when the account is signed into rather than decaying.
@@ -3114,6 +3085,17 @@ client address — `ODUDU_THROTTLE_LIMIT` (default `10`) requests per
 `ODUDU_THROTTLE_WINDOW_SECONDS` (default `60`) — and nothing else on this
 page is throttled. ADR 0023 is why it is a window in this process's memory
 rather than a row.
+
+Two things about the run below, since it is the one section that needs the
+default budget rather than the raised one every other transcript here was
+captured with. It was captured against a stack started plainly
+(`docker compose up -d`), and `demo`'s `reset_password_allowed` was turned
+on for it — the route answers `404` in a realm that has it off, and a `404`
+is not what the ten `200`s below are demonstrating:
+
+```sql
+UPDATE realms SET reset_password_allowed = true WHERE name = 'demo';
+```
 
 ```bash
 RESET='http://localhost:3000/realms/demo/login-actions/reset-password'
@@ -3371,8 +3353,16 @@ correct redemption of the same code still returned 200.
 Everything above leaves rows behind, and nothing in any repository deletes
 one. `odudu reap` is the pass that does, on a stated window per table
 ([ADR 0021](adr/0021-retention-is-bounded-by-the-detection-window.md)).
-Run against the stack this document has been driving — one login, one code
-redeemed, one refresh rotated — it removes nothing at all:
+
+**The counts in this section are the whole point of it, so they were
+captured against a stack driven only as far as
+[Path A](#path-a-authorization-code-with-pkce) plus one refresh rotation** —
+a freshly built compose stack, `demo` seeded as [Bootstrap](#bootstrap)
+seeds it, one login, one code redeemed, one refresh rotated, and nothing
+else. Following this document end to end instead leaves dozens of sessions
+and grants behind, and a pass over those reports numbers that say nothing
+about which rule kept which row. Run against that minimal stack, the pass
+removes nothing at all:
 
 ```bash
 odudu reap
@@ -3460,15 +3450,28 @@ That is an outcome, not an error: it exits 0, the way a lost lock does.
 non-zero, because in both the row-level-security policy that scopes its
 deletes would be inert:
 
-- The variable is unset, and it answers
-  `reap requires ODUDU_APP_DATABASE_URL: its deletes run under the realm policy, which the owner role the migrations use escapes`.
-  The server's own boot guard demands it only in production; this command
-  demands it always, because there is no deployment where reaping with the
-  policy switched off is the intention. The schedule inside the server is
-  the one place that does not refuse per attempt: outside production it
-  declines to start at all, warning
-  `not reaping: ODUDU_APP_DATABASE_URL is unset` once, rather than throwing
-  this every hour for the life of the process.
+- The variable is unset. The compose stack sets it, so seeing this takes
+  taking it back off the command's own environment — `env -u`, rather than
+  `-e ODUDU_APP_DATABASE_URL=`, which is a different refusal: an empty
+  string is an unparseable URL and the configuration schema rejects it
+  before this check is reached.
+
+```bash
+docker compose exec -T odudu env -u ODUDU_APP_DATABASE_URL node dist/main.js reap
+```
+
+```
+reap requires ODUDU_APP_DATABASE_URL: its deletes run under the realm policy, which the owner role the migrations use escapes
+```
+
+The server's own boot guard demands it only in production; this command
+demands it always, because there is no deployment where reaping with the
+policy switched off is the intention. The schedule inside the server is
+the one place that does not refuse per attempt: outside production it
+declines to start at all, warning
+`not reaping: ODUDU_APP_DATABASE_URL is unset` once, rather than throwing
+this every hour for the life of the process.
+
 - The serving connection's role is a `SUPERUSER` or holds `BYPASSRLS`, so the
   policy does not apply to it. Pointing `ODUDU_APP_DATABASE_URL` at the owner
   is the way to reach it:
@@ -3495,7 +3498,12 @@ The server also runs this pass itself, every `ODUDU_REAP_INTERVAL_SECONDS`
 counts above are reproducible only if the backdating and the command follow
 each other inside one interval. `ODUDU_REAP_ENABLED=false` switches the
 schedule off for a deployment that runs the command on its own timetable
-([ADR 0024](adr/0024-a-scheduled-pass-is-a-command-first.md)).
+([ADR 0024](adr/0024-a-scheduled-pass-is-a-command-first.md)) — and, as of
+2026-09-17, `compose.yaml` passes that variable through, which it did not
+before: `ODUDU_REAP_ENABLED=false docker compose up -d` left it out of the
+container's environment entirely and the schedule ran anyway. The first
+tick is one interval away rather than immediate, which is why the counts
+above survived that gap.
 
 Running it from more than one place at once is safe, whether the other
 place is a cron entry or another replica's own schedule: the pass takes a
@@ -3564,13 +3572,20 @@ docker compose exec -T odudu node dist/main.js send-mail
 {"ran":true,"sent":1,"failed":0}
 ```
 
+(Two pino lines precede that summary on the way past — one saying
+`ODUDU_SMTP_HOST is unset; capturing outgoing mail instead of sending it`,
+and then the captured message itself, in the shape
+[Address verification](#address-verification) shows. Only the outcome is
+repeated here.)
+
 The capture the request used to produce inside its own response is now
 produced here, by the sender, on the way past — and the row records that it
 went:
 
 ```bash
 docker compose exec -T postgres psql -U odudu -d odudu -q -c \
-  'select to_address, attempts, sent_at is not null as sent from email_outbox;'
+  'select to_address, attempts, sent_at is not null as sent from email_outbox
+     order by created_at desc limit 1;'
 ```
 
 ```
@@ -3579,6 +3594,11 @@ docker compose exec -T postgres psql -U odudu -d odudu -q -c \
  ada@example.com |        1 | t
 (1 row)
 ```
+
+(The `limit 1` is what makes that a claim about the message just sent.
+`email_outbox` keeps a delivered message for `ODUDU_RETENTION_EMAIL_SENT_SECONDS`,
+so by this point in the document the table also holds every verification and
+reset message the sections above queued.)
 
 A second run has nothing due:
 
@@ -3618,8 +3638,16 @@ the sender to discard.
 
 `send-mail` refuses to run at all in the same two configurations `reap`
 does, and for the same reason: its claim is scoped by the realm policy.
-With `ODUDU_APP_DATABASE_URL` unset it answers
-`odudu send-mail requires ODUDU_APP_DATABASE_URL: it claims under the realm policy, which the owner role the migrations use escapes`,
+With `ODUDU_APP_DATABASE_URL` unset:
+
+```bash
+docker compose exec -T odudu env -u ODUDU_APP_DATABASE_URL node dist/main.js send-mail
+```
+
+```
+odudu send-mail requires ODUDU_APP_DATABASE_URL: it claims under the realm policy, which the owner role the migrations use escapes
+```
+
 and pointed at the owner:
 
 ```bash
@@ -3704,6 +3732,8 @@ curl -sS -b cookies.txt -D - -o /dev/null \
 
 ```
 HTTP/1.1 302 Found
+set-cookie: demo-session=; Max-Age=0; HttpOnly; SameSite=Lax; Path=/
+cache-control: no-store
 location: http://localhost:8080/logged-out?state=xyz-bye
 content-length: 0
 ```
@@ -3836,6 +3866,7 @@ docker compose -f infra/docker/compose.yaml exec -T postgres \
   psql -U odudu -d odudu -c "
     SELECT clients.client_id, client_oidc_config.post_logout_redirect_uris
     FROM client_oidc_config JOIN clients ON clients.id = client_oidc_config.client_id
+    WHERE clients.client_id IN ('demo-post', 'demo-spa')
     ORDER BY clients.client_id;
   "
 ```
@@ -3854,7 +3885,10 @@ requested redirect before the registered list is ever consulted, so a run
 in which `demo-post` had _no_ registered value produces byte-identical
 output to the one below — §3 would have refused the redirect on its own and
 the transcript would demonstrate nothing about §2's comparison. The two
-rows above are what makes the answer attributable.
+rows above are what makes the answer attributable, which is also why the
+`WHERE` clause is there: by this point the document has seeded eleven
+clients, and the two that matter have to be shown rather than found in a
+listing.
 
 Then a third session of its own, signed in as before into
 `cookies-aud.txt`, and a hint whose `aud` is `demo-spa` sent with a
@@ -4430,7 +4464,7 @@ wrong in more ways than one.
 | Scope the realm does not define        | `invalid_scope`             | `scopes_supported` is that same list, so discovery and this endpoint cannot disagree         |
 | Scope the client is not assigned       | `invalid_scope`             | Defined by the realm is not granted to every client; refused, never silently dropped         |
 | Repeated `state` (or any other repeat) | `invalid_request`           | Ambiguous, but a trustworthy redirect target exists by now, so the client can be told        |
-| `prompt=none`                          | `login_required`            | No session is ever reused, so no end user is ever already authenticated (OIDC Core §3.1.2.3) |
+| `prompt=none`                          | `login_required`            | For a request carrying no live session cookie; with one it issues a code instead (§3.1.2.3)  |
 | `prompt=none login`                    | `invalid_request`           | `none` with any other value is contradictory (OIDC Core §3.1.2.1)                            |
 | `prompt=` anything undefined           | `invalid_request`           | Better told than silently answered as if it had asked for nothing                            |
 | `request=…`                            | `request_not_supported`     | Request objects are unimplemented, and §3.1.2.6 requires saying so rather than dropping them |
@@ -4764,11 +4798,51 @@ later.
 
 `auth_time` is the login's own moment, not the moment this token was
 minted 37 seconds later — the fact a client's own `max_age` check
-(§3.1.3.7) has to be able to rely on. A session past its realm's
-`sso_session_idle_seconds` or `sso_session_max_seconds`
-(`docs/NEXT.md`), or one for a subject a `verify_email` realm has not
-verified, is refused here exactly as `prompt=none` with no session at all
-is — a redirect carrying `login_required`, nothing issued, no page shown.
+(§3.1.3.7) has to be able to rely on.
+
+**Two clocks end a session, and each was moved on its own to see it.** The
+realm's `sso_session_idle_seconds` (default `1800`) runs from the session's
+last use and `sso_session_max_seconds` (default `36000`) from when it was
+established; `isSessionLive` treats both boundaries as exclusive, and
+neither can be waited out inside a document. So this moves each one under
+the same live cookie — the idle window by backdating `last_active_at`, the
+ceiling by backdating `expires_at` while leaving `last_active_at` at now, so
+that the second run cannot pass for the first:
+
+```bash
+docker compose -f infra/docker/compose.yaml exec -T postgres \
+  psql -U odudu -d odudu -q -c \
+  "update sessions set last_active_at = now() - interval '2000 seconds'
+     where id = '01a0ae80-b889-7dea-9674-f40a09becefc';"
+```
+
+```
+idle-expired, no prompt      200
+idle-expired, prompt=none    302 …/callback?error=login_required&state=idle2&iss=…
+```
+
+```bash
+docker compose -f infra/docker/compose.yaml exec -T postgres \
+  psql -U odudu -d odudu -q -c \
+  "update sessions set last_active_at = now(),
+          created_at = now() - interval '40000 seconds',
+          expires_at = now() - interval '4000 seconds'
+     where id = '01a0ae80-b889-7dea-9674-f40a09becefc';"
+```
+
+```
+max-expired, no prompt       200
+max-expired, prompt=none     302 …/callback?error=login_required&state=max2&iss=…
+```
+
+(The same four requests this section already ran, against the same cookie
+jar; the session id is the one `grep session cookies.txt` printed above, in
+full because a `psql` statement needs it whole.) A dead session is not an
+error: with no `prompt` the request is answered with the login form, exactly
+as a request carrying no cookie is, and it is `prompt=none` — the client
+saying it will not accept an interaction — that turns the same state into
+`login_required`. A subject a `verify_email` realm has not verified is
+refused on the same two terms.
 
 ### `id_token_hint`
 
@@ -5332,9 +5406,9 @@ session lifecycle. A citation of either half here means that half.
   factor adds. There is no way to see them again and no administrator
   surface that can print them, by construction rather than by omission.
   What is not there yet: no way for a subject to ask for a fresh set outside
-  the required action — self-service credential management is **P2b**'s
-  account console, and until it exists a spent list is replaced by an
-  operator deleting the rows so the action is owed again. And **no rate
+  the required action — self-service credential management is the account
+  console, which is **P4**'s, and until it exists a spent list is replaced
+  by an operator deleting the rows so the action is owed again. And **no rate
   limit on re-issuing**: while the action is owed, each login submission
   with a valid password renders the page again, which costs ten Argon2id
   hashes and eleven row writes. Bounded by holding the password and by
@@ -5359,9 +5433,15 @@ session lifecycle. A citation of either half here means that half.
   what closed the reset endpoint's timing oracle. What is not there yet:
   per-realm SMTP configuration — the transport is one set of
   `ODUDU_SMTP_*` variables for the whole server.
-- **No "remember me".** A persistent session is a session-lifespan setting,
-  and lifespans are **P2b**'s; the feature itself is not named in the
-  roadmap.
+- **No "remember me", and one session per browser.** The lifespans a
+  persistent session would extend now exist — a realm's
+  `sso_session_idle_seconds` and `sso_session_max_seconds`, both read on
+  every `/authorize` — but a cookie holds one session id, so a second login
+  in the same browser replaces the first rather than joining it. That is
+  also why `prompt=select_account` renders the ordinary form:
+  account selection needs concurrent sessions, and both it and the three
+  clause rows behind it are **P3**'s. "Remember me" itself is named in no
+  phase.
 - **Failed sign-ins are locked out per account, and the unauthenticated
   routes that cost CPU are throttled per origin; `/token` is neither.**
   Five consecutive wrong passwords lock an account for a growing window, on
@@ -5385,9 +5465,10 @@ session lifecycle. A citation of either half here means that half.
   [docs/protocols/rfc6749.md](protocols/rfc6749.md).
 - **The sign-in and error pages are hardcoded HTML**, dependency-free with
   every interpolated value escaped. Theming is **P10**; the contract for it
-  is deliberately left undecided until there are enough pages for the real
-  variation to be visible, which means until **P2a** adds registration and
-  verification pages and **P2b** adds the second-factor steps.
+  is deliberately left undecided until there were enough pages for the real
+  variation to be visible — which **P2a**'s registration and verification
+  pages and **P2b**'s second-factor, recovery-code, change-password and
+  logout pages have now supplied.
 
 **`/token`**
 
@@ -5482,12 +5563,12 @@ session lifecycle. A citation of either half here means that half.
   it is an operator action, and it needs the authenticated administrator,
   the audit event and the surface to trigger it from that P4 is the phase
   for.
-- **Nothing is ever deleted.** Every expired `sessions`,
-  `authentication_sessions`, `authorization_codes`, `refresh_tokens` and
-  `action_tokens` row is still on disk; expiry (and, for `action_tokens`,
-  consumption) is enforced at read time, so none of them can be used. **P2b**,
-  which owns the retention window because a lifespan says when something
-  stops working and not when it stops existing. ADR 0021 carries why
-  deleting on `expires_at` alone would silently disable refresh-token reuse
-  detection — the same hazard applies to every table in this list, not only
-  the one the ADR was written against.
+- **Expired state is deleted, on a window per table, by one pass** —
+  `odudu reap`, on the server's own schedule or as a command
+  ([Retention](#retention-what-odudu-reap-removes)). What is not there yet:
+  nothing bounds `refresh_tokens` on its own, because a refresh token is
+  retained for the life of its grant family and ADR 0021 says why deleting
+  on `expires_at` alone would silently disable reuse detection; and the pass
+  discovers a misconfigured serving role once per tick rather than at boot,
+  so a deployment that sets `ODUDU_APP_DATABASE_URL` to a role that escapes
+  row-level security learns about it from an hourly log line.

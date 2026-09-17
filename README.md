@@ -35,7 +35,7 @@ every merge to `main` — a branch push with no pull request open runs
 nothing, by design (`.github/workflows/verify.yml`).
 
 There is still no consent screen, no admin API and no
-token exchange — P2a onwards. The roadmap's second phase is two: **P2a** is
+token exchange — P3 onwards. The roadmap's second phase is two: **P2a** is
 the identity model — roles, groups, client scopes, per-client web origins,
 email — and **P2b** is credentials, MFA and the session lifecycle.
 
@@ -332,6 +332,25 @@ way to add one after the fact. The login page tells them so rather than
 claiming a mail it never sent, but there is no recovery path yet; give
 every user an address before enabling `verify_email` on a realm that
 already has some.
+
+**The SSO session is read as well as written, and it has two clocks.** The
+`{realm}-session` cookie the login POST sets is now what lets a second
+authorization request from the same browser complete without the form:
+`/authorize` resolves it, and `prompt` decides whether that is allowed —
+`prompt=none` succeeds where a request with no session gets
+`login_required`, and `prompt=login` forces the form past a live session.
+A session is live until the earlier of `sso_session_idle_seconds`
+(default `1800`) measured from its last use and `sso_session_max_seconds`
+(default `36000`) from when it was established; both are per realm, both
+bounded by a `CHECK`, and an idle window longer than the ceiling is refused
+rather than clamped. A reused session issues a code carrying the
+**original** login's `auth_time`, not the moment of reuse, which is the fact
+a client's own `max_age` check depends on — and `max_age` is honoured, so a
+client can demand a fresher authentication than the cookie represents. The
+email-verified gate guards this second door into completing a login exactly
+as it guards the password form. What is not there: **one session per
+browser**, since the cookie holds one id, which is why
+`prompt=select_account` renders the ordinary form and is P3's.
 
 **A realm can now end a session.** `GET`/`POST
 /realms/{realm}/protocol/openid-connect/logout` implements OpenID Connect
@@ -637,6 +656,11 @@ access token's payload carries it:
 }
 ```
 
+(Trimmed to the claims this section is about; `aud`, `iat`, `exp`, `jti` and
+`sid` are on it too, and
+[docs/request-paths.md](docs/request-paths.md#roles-once-a-scope-reaches-it)
+shows the whole payload.)
+
 **"I created a role and it is not in my token."** Three things gate a role
 onto a token, independently: it must be granted to the subject
 (`grant-role`), mapped to a scope (`map-role`), and that scope must both be
@@ -835,21 +859,23 @@ A real deployment today looks like:
 Being straight about this, because "self-hostable" should mean something.
 Every row says where it stands, and every row has a phase:
 
-|                                                                                                              | Where it stands |
-| ------------------------------------------------------------------------------------------------------------ | --------------- |
-| Self-service registration and password reset — address verification exists; the flows that trigger it do not | P2a             |
-| A consent screen, and dynamic client registration                                                            | P3              |
-| An admin API — seeding is the only administrative surface                                                    | P4              |
-| Signing-key rotation — the shape exists, the operation does not                                              | P4              |
-| Front-channel and back-channel logout                                                                        | P3              |
-| Token introspection and revocation                                                                           | P3              |
-| Published images and a release process                                                                       | P12             |
-| Secret management beyond environment variables                                                               | P12             |
-| Backup and restore guidance                                                                                  | P12             |
-| Multi-replica support: migration locking, shared session cache, HA                                           | P11             |
-| Helm chart or Kubernetes manifests                                                                           | P11             |
+|                                                                                                        | Where it stands |
+| ------------------------------------------------------------------------------------------------------ | --------------- |
+| A consent screen, and dynamic client registration                                                      | P3              |
+| Several sessions in one browser, and the `prompt=select_account` that needs them                       | P3              |
+| A rate limit on `client_secret` attempts at `/token`                                                   | P3              |
+| An account console for self-service credential management, and an operator unlock for a locked account | P4              |
+| An admin API — seeding is the only administrative surface                                              | P4              |
+| Signing-key rotation — the shape exists, the operation does not                                        | P4              |
+| Front-channel and back-channel logout                                                                  | P3              |
+| Token introspection and revocation                                                                     | P3              |
+| Published images and a release process                                                                 | P12             |
+| Secret management beyond environment variables                                                         | P12             |
+| Backup and restore guidance                                                                            | P12             |
+| Multi-replica support: migration locking, shared session cache, HA                                     | P11             |
+| Helm chart or Kubernetes manifests                                                                     | P11             |
 
-The last three of those had no phase at all until 2026-09-14. They are
+The three P12 rows had no phase at all until 2026-09-14. They are
 operational rather than protocol work, and the roadmap — written outward
 from the specifications — had named nobody to do it, so P12, Operational
 readiness, was appended for them. The credentials the server reads today
@@ -868,8 +894,11 @@ changing shape.
 
 The single-container-plus-Postgres shape is a deliberate design decision
 (ADR 0002) and the image is built for it. There is now a protocol surface to
-serve, and users can be authenticated against it — but credentials are
-seeded from a command line, nothing has had a hardening pass, and the full
+serve, and users can be authenticated against it — with a second factor, a
+password policy, an account lockout and a per-origin throttle, each of which
+has an adversarial test behind it rather than a paragraph. What has not
+happened is a hardening pass over the whole: credentials are still seeded
+from a command line, no deployment has been reviewed end to end, and the full
 list of what each endpoint does not yet do is in
 [docs/request-paths.md](docs/request-paths.md). The notice at the top of this
 file is not boilerplate.

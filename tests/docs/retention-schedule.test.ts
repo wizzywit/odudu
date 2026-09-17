@@ -28,6 +28,22 @@ function sourceText(source: string): string {
   return source.replaceAll(/'\s*\+\s*'/gu, '').replaceAll(/\s+/gu, ' ');
 }
 
+// A refusal reaches docs/request-paths.md two ways: quoted inline in a
+// sentence, or as the captured output of the command that prints it. The
+// second is the stronger evidence and carries no backticks, so both spellings
+// are accepted — what is compared is still the document's wording against
+// the source's.
+function refusalQuoted(document: string, opening: string): string {
+  const inline = new RegExp('`(?<message>' + opening + '[^`]+)`', 'su').exec(document);
+  if (inline?.groups?.message !== undefined) return inline.groups.message;
+  const captured = new RegExp('^(?<message>' + opening + '.*)$', 'mu').exec(document);
+  if (captured?.groups?.message !== undefined) return captured.groups.message;
+  throw new Error(
+    `docs/request-paths.md no longer shows the refusal beginning "${opening}", ` +
+      `quoted in a sentence or captured from the command that prints it.`,
+  );
+}
+
 function statedDefault(name: string, variable: string): string {
   const pattern = new RegExp('`' + variable + '`[^`]*\\(default `(?<value>[0-9]+)`\\)', 'su');
   const stated = pattern.exec(textOf(name));
@@ -51,6 +67,12 @@ describe('the retention schedule the documents describe is the one the server ru
     for (const name of DOCUMENTS) {
       expect(textOf(name)).toMatch(/a tenth of (?:that|the interval)/u);
     }
+  });
+
+  it('refuses without a serving connection in the words the document shows', () => {
+    const command = readFileSync(path.join(REPO_ROOT, 'apps/server/src/cli/reap.ts'), 'utf8');
+    const quoted = refusalQuoted(textOf('docs/request-paths.md'), 'reap requires ');
+    expect(sourceText(command)).toContain(quoted.replaceAll(/\s+/gu, ' '));
   });
 
   it('logs the refusal docs/request-paths.md quotes, in those words', () => {
@@ -108,15 +130,8 @@ describe('the outbox schedule the documents describe is the one the server runs'
 
   it('refuses without a serving connection in the words the documents quote', () => {
     const command = readFileSync(path.join(REPO_ROOT, 'apps/server/src/cli/send-mail.ts'), 'utf8');
-    const quoted = /`(?<message>odudu send-mail requires [^`]+)`/su.exec(
-      textOf('docs/request-paths.md'),
-    );
-    if (quoted?.groups?.message === undefined) {
-      throw new Error(
-        'docs/request-paths.md no longer quotes the refusal `odudu send-mail` prints',
-      );
-    }
-    expect(sourceText(command)).toContain(quoted.groups.message.replaceAll(/\s+/gu, ' '));
+    const quoted = refusalQuoted(textOf('docs/request-paths.md'), 'odudu send-mail requires ');
+    expect(sourceText(command)).toContain(quoted.replaceAll(/\s+/gu, ' '));
   });
 
   it('declines to schedule in the words README.md and request-paths.md quote', () => {

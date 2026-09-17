@@ -59,6 +59,12 @@ services:
       # `odudu send-mail` do the work needs the server's own schedule out
       # of the way, and nothing else here turns it off.
       ODUDU_OUTBOX_ENABLED: ${ODUDU_OUTBOX_ENABLED:-true}
+      # And whether it reaps on its own schedule, passed through for the
+      # same reason again: `odudu reap`'s own report is only attributable
+      # with the server's hourly pass out of the way. Without this the
+      # variable is simply not in the container's environment, so setting
+      # it on the `docker compose up` line does nothing at all.
+      ODUDU_REAP_ENABLED: ${ODUDU_REAP_ENABLED:-true}
     depends_on:
       postgres:
         condition: service_healthy
