@@ -37,6 +37,12 @@ function readCookie(request: FastifyRequest, name: string): string | undefined {
   return undefined;
 }
 
+// A parameter sent twice arrives as an array, and is dropped rather than
+// read first-wins: "which one did it mean" has no answer a client can rely
+// on, and every caller here fails safe on `undefined` — a repeated
+// `session_id` takes the stricter request path, a repeated `id_token_hint`
+// leaves the End-User to confirm. The name says "first" because that is
+// the shape it narrows to, not because it picks one out of several.
 function firstString(value: string | string[] | undefined): string | undefined {
   return typeof value === 'string' ? value : undefined;
 }

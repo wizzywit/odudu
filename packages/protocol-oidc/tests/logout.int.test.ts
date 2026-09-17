@@ -624,54 +624,61 @@ describe.each(['GET', 'POST'] as const)(
   },
 );
 
-describe('[OIDC-RPINITIATED-2-04] a client_id that disagrees with the hint', () => {
-  it('is an error in the request: nothing is ended and no redirect is offered', async () => {
-    const realmName = `logout-audmismatch-${newId()}`;
-    const { realmId } = await setupRealm(realmName);
-    const cookie = await signIn(realmName);
-    const sessionId = sessionIdFromCookie(cookie);
-    const subjectId = await subjectIdOf(realmId, USERNAME);
+describe.each(['GET', 'POST'] as const)(
+  '[OIDC-RPINITIATED-2-04] a client_id that disagrees with the hint, over %s',
+  (method) => {
+    it('is an error in the request: nothing is ended and no redirect is offered', async () => {
+      const realmName = `logout-audmismatch-${method.toLowerCase()}-${newId()}`;
+      const { realmId } = await setupRealm(realmName);
+      const cookie = await signIn(realmName);
+      const sessionId = sessionIdFromCookie(cookie);
+      const subjectId = await subjectIdOf(realmId, USERNAME);
 
-    // The same session, named by `sid`, in a hint issued to a different
-    // client than the `client_id` beside it. Everything else about this
-    // request is the one the parity tests above end a session on.
-    const foreignAud = await mintIdToken(realmName, subjectId, sessionId, 'another-client');
-    const refused = await http.inject({
-      url: logoutUrl(realmName, {
-        id_token_hint: foreignAud,
-        client_id: CLIENT_ID,
-        post_logout_redirect_uri: POST_LOGOUT_REDIRECT_URI,
-      }),
-      headers: { cookie },
+      // The same session, named by `sid`, in a hint issued to a different
+      // client than the `client_id` beside it. Everything else about this
+      // request is the one the parity tests above end a session on.
+      const foreignAud = await mintIdToken(realmName, subjectId, sessionId, 'another-client');
+      const refused = await requestLogout(
+        method,
+        realmName,
+        {
+          id_token_hint: foreignAud,
+          client_id: CLIENT_ID,
+          post_logout_redirect_uri: POST_LOGOUT_REDIRECT_URI,
+        },
+        cookie,
+      );
+
+      expect(refused.statusCode).toBe(200);
+      expect(refused.body).toContain('<title>Sign out?</title>');
+      // §4: the information that failed to validate is not used, so the
+      // redirect the hint would have authorised is not carried into the
+      // form the End-User is about to post back either.
+      expect(refused.body).not.toContain(POST_LOGOUT_REDIRECT_URI);
+      const stillLive = await withRealm(app.db, realmId, (tx) =>
+        sessionRepository(tx).liveById(sessionId, 30 * 24 * 3600, new Date()),
+      );
+      expect(stillLive).not.toBeNull();
+
+      // The contrast, on the same session: the identical request with a
+      // hint issued to the `client_id` it names ends it and redirects.
+      const agreeing = await mintIdToken(realmName, subjectId, sessionId);
+      const honoured = await requestLogout(
+        method,
+        realmName,
+        {
+          id_token_hint: agreeing,
+          client_id: CLIENT_ID,
+          post_logout_redirect_uri: POST_LOGOUT_REDIRECT_URI,
+        },
+        cookie,
+      );
+
+      expect(honoured.statusCode).toBe(302);
+      expect(honoured.headers.location).toBe(POST_LOGOUT_REDIRECT_URI);
     });
-
-    expect(refused.statusCode).toBe(200);
-    expect(refused.body).toContain('<title>Sign out?</title>');
-    // §4: the information that failed to validate is not used, so the
-    // redirect the hint would have authorised is not carried into the form
-    // the End-User is about to post back either.
-    expect(refused.body).not.toContain(POST_LOGOUT_REDIRECT_URI);
-    const stillLive = await withRealm(app.db, realmId, (tx) =>
-      sessionRepository(tx).liveById(sessionId, 30 * 24 * 3600, new Date()),
-    );
-    expect(stillLive).not.toBeNull();
-
-    // The contrast, on the same session: the identical request with a hint
-    // issued to the `client_id` it names ends the session and redirects.
-    const agreeing = await mintIdToken(realmName, subjectId, sessionId);
-    const honoured = await http.inject({
-      url: logoutUrl(realmName, {
-        id_token_hint: agreeing,
-        client_id: CLIENT_ID,
-        post_logout_redirect_uri: POST_LOGOUT_REDIRECT_URI,
-      }),
-      headers: { cookie },
-    });
-
-    expect(honoured.statusCode).toBe(302);
-    expect(honoured.headers.location).toBe(POST_LOGOUT_REDIRECT_URI);
-  });
-});
+  },
+);
 
 describe('a hint another issuer signed is no hint at all', () => {
   it('[OIDC-RPINITIATED-2-02] asks for confirmation and ends nothing', async () => {

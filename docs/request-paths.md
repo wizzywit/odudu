@@ -3768,10 +3768,14 @@ alone, never about whether logout happened.
 
 §2 requires both methods at this endpoint, so an RP may serialize the
 request parameters into a form body instead of a query string. It is the
-same request and gets the same answer — a fresh sign-in, then:
+same request and gets the same answer. The `GET` above ended the session
+`cookies.txt` held, so this needs a session of its own: run the sign-in and
+the code-for-`id_token` exchange again into a second jar — the same two
+blocks, with `-c cookies-post.txt` on the login and `-b cookies-post.txt`
+on the authorize — and then:
 
 ```bash
-curl -sS -b cookies.txt -D - -o /dev/null -X POST \
+curl -sS -b cookies-post.txt -D - -o /dev/null -X POST \
   --data-urlencode "id_token_hint=$ID_TOKEN" \
   --data-urlencode 'client_id=demo-spa' \
   --data-urlencode 'post_logout_redirect_uri=http://localhost:8080/logged-out' \
@@ -3813,13 +3817,51 @@ confirmation page and ends nothing.
 ### A `client_id` that disagrees with the hint
 
 §2 requires the OP to verify a `client_id` sent alongside an
-`id_token_hint` against the client the hint was issued to. `demo-post` is
-seeded above and has been given the same `post_logout_redirect_uri` as
-`demo-spa`, so nothing but that comparison stands between this request and
-a redirect — the hint's own `aud` is `demo-spa`:
+`id_token_hint` against the client the hint was issued to. For a request to
+turn on that comparison and nothing else, the client named has to be one
+whose registration would otherwise have allowed the redirect — so
+`demo-post`, seeded in [A confidential client](#a-confidential-client)
+above, gets the same value `demo-spa` has:
 
 ```bash
-curl -sS -b cookies.txt -X POST \
+docker compose -f infra/docker/compose.yaml exec -T postgres \
+  psql -U odudu -d odudu -c "
+    UPDATE client_oidc_config
+    SET post_logout_redirect_uris = ARRAY['http://localhost:8080/logged-out']
+    FROM clients
+    WHERE clients.id = client_oidc_config.client_id AND clients.client_id = 'demo-post';
+  "
+
+docker compose -f infra/docker/compose.yaml exec -T postgres \
+  psql -U odudu -d odudu -c "
+    SELECT clients.client_id, client_oidc_config.post_logout_redirect_uris
+    FROM client_oidc_config JOIN clients ON clients.id = client_oidc_config.client_id
+    ORDER BY clients.client_id;
+  "
+```
+
+```
+UPDATE 1
+ client_id |     post_logout_redirect_uris
+-----------+------------------------------------
+ demo-post | {http://localhost:8080/logged-out}
+ demo-spa  | {http://localhost:8080/logged-out}
+(2 rows)
+```
+
+**That `SELECT` is not decoration.** A disagreeing `client_id` drops the
+requested redirect before the registered list is ever consulted, so a run
+in which `demo-post` had _no_ registered value produces byte-identical
+output to the one below — §3 would have refused the redirect on its own and
+the transcript would demonstrate nothing about §2's comparison. The two
+rows above are what makes the answer attributable.
+
+Then a third session of its own, signed in as before into
+`cookies-aud.txt`, and a hint whose `aud` is `demo-spa` sent with a
+`client_id` of `demo-post`:
+
+```bash
+curl -sS -b cookies-aud.txt -X POST \
   --data-urlencode "id_token_hint=$ID_TOKEN" \
   --data-urlencode 'client_id=demo-post' \
   --data-urlencode 'post_logout_redirect_uri=http://localhost:8080/logged-out' \
@@ -3834,7 +3876,7 @@ curl -sS -b cookies.txt -X POST \
 <h1>Sign out?</h1>
 <p>Signing out ends this session for every application that uses it.</p>
 <form method="post" action="/realms/demo/protocol/openid-connect/logout">
-  <input type="hidden" name="session_id" value="01a0ac83-428e-…">
+  <input type="hidden" name="session_id" value="01a0ae58-2a9a-…">
   <input type="hidden" name="client_id" value="demo-post">
   <button type="submit">Sign out</button>
 </form>
@@ -3850,7 +3892,7 @@ authorised are dropped together. The identical request with
 redirects:
 
 ```bash
-curl -sS -b cookies.txt -D - -o /dev/null -X POST \
+curl -sS -b cookies-aud.txt -D - -o /dev/null -X POST \
   --data-urlencode "id_token_hint=$ID_TOKEN" \
   --data-urlencode 'client_id=demo-spa' \
   --data-urlencode 'post_logout_redirect_uri=http://localhost:8080/logged-out' \
