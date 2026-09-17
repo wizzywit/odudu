@@ -2,7 +2,8 @@
 
 Read `docs/superpowers/specs/2026-09-10-odudu-design.md` first. Decisions
 and their rejected alternatives are in `docs/adr/`. Current position is in
-`docs/NEXT.md`.
+`docs/NEXT.md`, and what each finished phase found while building it is in
+`docs/phases/`.
 
 ## How a phase is run
 
@@ -277,3 +278,22 @@ import each other.
 - Every increment ends with CI green **on a pushed commit with a pull
   request open** (see "CI runs on the branch"), branch merged, and `docs/NEXT.md`
   updated.
+
+### `docs/NEXT.md` is where the project stands, not what it has done
+
+An increment's note goes to `docs/phases/<phase>.md`. `docs/NEXT.md` carries
+four things and nothing else: where the project stands, what the next phase
+inherits, decisions that are still open, and what a final review deferred.
+
+The distinction is not tidiness. `NEXT.md` reached 1,873 lines across four
+phases, of which 58 described the position it exists to describe — so the
+file whose job is to orient the next phase had made that its three per cent.
+Worse, nobody noticed a section addressed to a phase that had already closed:
+it asked P2 to decide page theming "when three pages exist", P2 shipped seven
+pages and closed without deciding, and the request sat there unanswered
+because the file was being appended to rather than read.
+
+So: **a section in `NEXT.md` addressed to a phase that has closed is overdue
+for a decision or a move, not for another paragraph.** That is the check to
+run on this file — it cannot be automated, and it takes one reading of the
+headings.

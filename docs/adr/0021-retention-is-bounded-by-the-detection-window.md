@@ -192,7 +192,7 @@ lifespans it already owns.
 - The reaper is a background writer, which the server does not have today.
   Whatever runs it must be safe under the multiple replicas P11 promises —
   the same problem the migration runner's missing advisory lock already has
-  (`docs/NEXT.md`, "Known limitations"). Keycloak solves it with
+  (`docs/phases/p0-p1-p2a.md`, "Known limitations carried into P1"). Keycloak solves it with
   `ClusterAwareScheduledTaskRunner`; Odudu had no equivalent when this was
   written. The amendment below records the one it has now, and it is a
   Postgres advisory lock rather than a scheduler.
