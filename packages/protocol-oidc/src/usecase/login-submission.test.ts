@@ -5,7 +5,18 @@ import {
   type LoginSubmissionDeps,
 } from '#/usecase/login-submission';
 
-const REALM = { id: 'realm-1', enabled: true, verifyEmail: false };
+// A real uuid, not a readable placeholder: the handler shape-checks this
+// field before it reaches a `uuid` column, so a placeholder would be
+// refused as malformed and prove nothing about the path under test.
+const AUTH_SESSION_ID = '01a0a998-8326-7900-8fa6-dd06b842b269';
+
+const REALM = {
+  id: 'realm-1',
+  enabled: true,
+  verifyEmail: false,
+  ssoSessionMaxSeconds: 36_000,
+  ssoSessionIdleSeconds: 1_800,
+};
 
 const PENDING = {
   clientId: 'oauth-client-1',
@@ -22,24 +33,71 @@ interface Harness {
   advance: Mock;
   completeLogin: Mock;
   checkEmailVerification: Mock;
+  pendingActions: Mock;
+  resetAuthenticationProgress: Mock;
 }
 
 function harness(): Harness {
-  const advance = vi.fn().mockResolvedValue({ kind: 'success', subjectId: 'subject-1' });
+  const advance = vi
+    .fn()
+    .mockResolvedValue({ kind: 'success', subjectId: 'subject-1', authenticators: ['password'] });
   const completeLogin = vi
     .fn()
     .mockResolvedValue({ kind: 'issued', sessionId: 'session-1', code: 'code-1' });
   const checkEmailVerification = vi.fn().mockResolvedValue({ verified: true, hasEmail: true });
+  const pendingActions = vi.fn().mockResolvedValue([]);
+  const resetAuthenticationProgress = vi.fn().mockResolvedValue(undefined);
   const deps: LoginSubmissionDeps = {
     findRealm: vi.fn().mockResolvedValue(REALM),
     advance,
     loadPendingRequest: vi.fn().mockResolvedValue(PENDING),
     resolveClientId: vi.fn().mockResolvedValue('client-uuid-1'),
     checkEmailVerification,
+    pendingActions,
+    resetAuthenticationProgress,
     completeLogin,
   };
-  return { deps, advance, completeLogin, checkEmailVerification };
+  return {
+    deps,
+    advance,
+    completeLogin,
+    checkEmailVerification,
+    pendingActions,
+    resetAuthenticationProgress,
+  };
 }
+
+const MALFORMED_SESSION_IDS = [
+  'not-a-uuid',
+  '',
+  // Two ids joined by a newline: what a page carrying the field in more than
+  // one form gives a client that extracts every match.
+  '01a0a998-8326-7900-8fa6-dd06b842b269\n01a0a998-8326-7900-8fa6-dd06b842b269',
+  "01a0a998-8326-7900-8fa6-dd06b842b269' or '1'='1",
+];
+
+// Postgres raises on a `uuid` comparison against a value it cannot parse,
+// so a malformed id must be refused here rather than reaching one — an
+// unauthenticated caller does not get to choose what faults.
+describe('handleLoginSubmission — a session id that cannot name a session', () => {
+  it('refuses a malformed id without advancing anything', async () => {
+    for (const authSessionId of MALFORMED_SESSION_IDS) {
+      const { deps, advance, completeLogin } = harness();
+
+      const outcome = await handleLoginSubmission(
+        deps,
+        'acme',
+        'https://idp.example',
+        authSessionId,
+        { username: 'ada', password: 'x' },
+      );
+
+      expect(outcome).toEqual({ kind: 'unauthenticated' });
+      expect(advance).not.toHaveBeenCalled();
+      expect(completeLogin).not.toHaveBeenCalled();
+    }
+  });
+});
 
 describe('handleLoginSubmission — the success path', () => {
   it('redirects with the code and passes the parked request to completeLogin', async () => {
@@ -48,7 +106,7 @@ describe('handleLoginSubmission — the success path', () => {
       deps,
       'acme',
       'https://idp.example',
-      'auth-session-1',
+      AUTH_SESSION_ID,
       { username: 'ada', password: 'x' },
     );
 
@@ -60,7 +118,7 @@ describe('handleLoginSubmission — the success path', () => {
     });
     expect(completeLogin).toHaveBeenCalledWith({
       realmId: REALM.id,
-      authSessionId: 'auth-session-1',
+      authSessionId: AUTH_SESSION_ID,
       subjectId: 'subject-1',
       clientId: 'client-uuid-1',
       redirectUri: PENDING.redirectUri,
@@ -68,6 +126,8 @@ describe('handleLoginSubmission — the success path', () => {
       nonce: PENDING.nonce,
       codeChallenge: PENDING.codeChallenge,
       codeChallengeMethod: PENDING.codeChallengeMethod,
+      ssoSessionMaxSeconds: REALM.ssoSessionMaxSeconds,
+      authenticators: ['password'],
     });
   });
 });
@@ -82,13 +142,13 @@ describe('handleLoginSubmission — a realm that requires a verified address', (
       deps,
       'acme',
       'https://idp.example',
-      'auth-session-1',
+      AUTH_SESSION_ID,
       { username: 'ada', password: 'x' },
     );
 
     expect(outcome).toEqual({
       kind: 'unverified',
-      authSessionId: 'auth-session-1',
+      authSessionId: AUTH_SESSION_ID,
       hasEmail: true,
     });
     expect(completeLogin).not.toHaveBeenCalled();
@@ -103,13 +163,13 @@ describe('handleLoginSubmission — a realm that requires a verified address', (
       deps,
       'acme',
       'https://idp.example',
-      'auth-session-1',
+      AUTH_SESSION_ID,
       { username: 'ada', password: 'x' },
     );
 
     expect(outcome).toEqual({
       kind: 'unverified',
-      authSessionId: 'auth-session-1',
+      authSessionId: AUTH_SESSION_ID,
       hasEmail: false,
     });
   });
@@ -123,7 +183,65 @@ describe('handleLoginSubmission — a realm that requires a verified address', (
       deps,
       'acme',
       'https://idp.example',
-      'auth-session-1',
+      AUTH_SESSION_ID,
+      { username: 'ada', password: 'x' },
+    );
+
+    expect(outcome.kind).toBe('redirect');
+  });
+});
+
+describe('handleLoginSubmission — a subject with a pending required action', () => {
+  it('does not complete the login, and issues no code, while an action is owed', async () => {
+    const { deps, completeLogin, pendingActions } = harness();
+    pendingActions.mockResolvedValue(['configure-totp']);
+
+    const outcome = await handleLoginSubmission(
+      deps,
+      'acme',
+      'https://idp.example',
+      AUTH_SESSION_ID,
+      { username: 'ada', password: 'x' },
+    );
+
+    expect(outcome).toEqual({
+      kind: 'required_action',
+      authSessionId: AUTH_SESSION_ID,
+      subjectId: 'subject-1',
+      action: 'configure-totp',
+    });
+    expect(completeLogin).not.toHaveBeenCalled();
+  });
+
+  it('runs update-password before configure-totp when both are owed', async () => {
+    const { deps, pendingActions } = harness();
+    pendingActions.mockResolvedValue(['configure-totp', 'update-password']);
+
+    const outcome = await handleLoginSubmission(
+      deps,
+      'acme',
+      'https://idp.example',
+      AUTH_SESSION_ID,
+      { username: 'ada', password: 'x' },
+    );
+
+    expect(outcome).toEqual({
+      kind: 'required_action',
+      authSessionId: AUTH_SESSION_ID,
+      subjectId: 'subject-1',
+      action: 'update-password',
+    });
+  });
+
+  it('completes the login once no action is owed', async () => {
+    const { deps, pendingActions } = harness();
+    pendingActions.mockResolvedValue([]);
+
+    const outcome = await handleLoginSubmission(
+      deps,
+      'acme',
+      'https://idp.example',
+      AUTH_SESSION_ID,
       { username: 'ada', password: 'x' },
     );
 
@@ -141,7 +259,7 @@ describe('handleLoginSubmission — a session already consumed by an earlier or 
       deps,
       'acme',
       'https://idp.example',
-      'auth-session-1',
+      AUTH_SESSION_ID,
       { username: 'ada', password: 'x' },
     );
 
@@ -158,11 +276,11 @@ describe('handleLoginSubmission — a failed attempt must not consume the sessio
       deps,
       'acme',
       'https://idp.example',
-      'auth-session-1',
+      AUTH_SESSION_ID,
       { username: 'ada', password: 'wrong' },
     );
 
-    expect(outcome).toEqual({ kind: 'reject', authSessionId: 'auth-session-1' });
+    expect(outcome).toEqual({ kind: 'reject', authSessionId: AUTH_SESSION_ID });
     expect(completeLogin).not.toHaveBeenCalled();
   });
 
@@ -174,7 +292,7 @@ describe('handleLoginSubmission — a failed attempt must not consume the sessio
       deps,
       'acme',
       'https://idp.example',
-      'auth-session-1',
+      AUTH_SESSION_ID,
       { username: 'ada', password: 'x' },
     );
 
@@ -190,11 +308,50 @@ describe('handleLoginSubmission — a failed attempt must not consume the sessio
       deps,
       'acme',
       'https://idp.example',
-      'auth-session-1',
+      AUTH_SESSION_ID,
       {},
     );
 
-    expect(outcome).toEqual({ kind: 'reject', authSessionId: 'auth-session-1' });
+    expect(outcome).toEqual({ kind: 'reject', authSessionId: AUTH_SESSION_ID });
     expect(completeLogin).not.toHaveBeenCalled();
+  });
+});
+
+describe('handleLoginSubmission — a hint naming somebody other than who signed in', () => {
+  it('unbinds the attempt so the hinted end-user can sign in against the same request', async () => {
+    const { deps, completeLogin, resetAuthenticationProgress } = harness();
+    deps.loadPendingRequest = vi
+      .fn()
+      .mockResolvedValue({ ...PENDING, idTokenHintSubject: 'someone-else' });
+
+    const outcome = await handleLoginSubmission(
+      deps,
+      'acme',
+      'https://idp.example',
+      AUTH_SESSION_ID,
+      { username: 'ada', password: 'x' },
+    );
+
+    expect(outcome.kind).toBe('error_redirect');
+    expect(resetAuthenticationProgress).toHaveBeenCalledWith('realm-1', AUTH_SESSION_ID);
+    expect(completeLogin).not.toHaveBeenCalled();
+  });
+
+  it('leaves the attempt bound when the hint names the subject who signed in', async () => {
+    const { deps, resetAuthenticationProgress } = harness();
+    deps.loadPendingRequest = vi
+      .fn()
+      .mockResolvedValue({ ...PENDING, idTokenHintSubject: 'subject-1' });
+
+    const outcome = await handleLoginSubmission(
+      deps,
+      'acme',
+      'https://idp.example',
+      AUTH_SESSION_ID,
+      { username: 'ada', password: 'x' },
+    );
+
+    expect(outcome.kind).toBe('redirect');
+    expect(resetAuthenticationProgress).not.toHaveBeenCalled();
   });
 });

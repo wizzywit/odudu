@@ -33,6 +33,8 @@ const UNDECLARED_TABLES = new Set(['__drizzle_migrations']);
 const EXPECTED_CHECKS: Record<string, string> = {
   'action_tokens.action_tokens_type_check':
     "CHECK ((type = ANY (ARRAY['verify_email'::text, 'reset_password'::text])))",
+  'authentication_executions.authentication_executions_requirement':
+    "CHECK ((requirement = ANY (ARRAY['required'::text, 'alternative'::text, 'conditional'::text, 'disabled'::text])))",
   'authorization_codes.authorization_codes_method_check':
     "CHECK ((code_challenge_method = 'S256'::text))",
   'client_oidc_config.client_oidc_config_access_token_ttl_ceiling':
@@ -57,6 +59,20 @@ const EXPECTED_CHECKS: Record<string, string> = {
     "CHECK ((((type = 'confidential'::text) AND (secret_hash IS NOT NULL)) OR ((type = 'public'::text) AND (secret_hash IS NULL))))",
   'clients.clients_type_check':
     "CHECK ((type = ANY (ARRAY['public'::text, 'confidential'::text])))",
+  'realms.realms_brute_force_bounds':
+    'CHECK ((((brute_force_max_failures >= 1) AND (brute_force_max_failures <= 100)) AND ((brute_force_lockout_seconds >= 1) AND (brute_force_lockout_seconds <= 86400)) AND (brute_force_max_lockout_seconds >= brute_force_lockout_seconds) AND ((brute_force_failure_reset_seconds >= 60) AND (brute_force_failure_reset_seconds <= 2592000))))',
+  'realms.realms_password_history_bounds':
+    'CHECK (((password_history_depth >= 0) AND (password_history_depth <= 24)))',
+  'realms.realms_password_max_age_bounds':
+    'CHECK (((password_max_age_days >= 0) AND (password_max_age_days <= 3650)))',
+  'realms.realms_password_min_length_bounds':
+    'CHECK (((password_min_length >= 8) AND (password_min_length <= 256)))',
+  'realms.realms_sso_idle_bounds':
+    'CHECK (((sso_session_idle_seconds >= 60) AND (sso_session_idle_seconds <= 2592000)))',
+  'realms.realms_sso_idle_within_max':
+    'CHECK ((sso_session_idle_seconds <= sso_session_max_seconds))',
+  'realms.realms_sso_max_bounds':
+    'CHECK (((sso_session_max_seconds >= 60) AND (sso_session_max_seconds <= 2592000)))',
   'role_composites.role_composites_not_self': 'CHECK ((parent_role_id <> child_role_id))',
   'roles.roles_name_has_no_colon': "CHECK (((name !~ ':'::text) AND (name <> ''::text)))",
   'signing_keys.signing_keys_alg_check':
@@ -65,7 +81,10 @@ const EXPECTED_CHECKS: Record<string, string> = {
     "CHECK ((status = ANY (ARRAY['active'::text, 'rotating'::text, 'retired'::text])))",
   'subjects.subjects_type_check':
     "CHECK ((type = ANY (ARRAY['user'::text, 'service'::text, 'agent_instance'::text])))",
-  'user_credentials.user_credentials_type_check': "CHECK ((type = 'password'::text))",
+  'user_credentials.user_credentials_type_check':
+    "CHECK ((type = ANY (ARRAY['password'::text, 'totp'::text, 'webauthn'::text, 'recovery-code'::text, 'password-history'::text])))",
+  'user_required_actions.user_required_actions_action':
+    "CHECK ((action = ANY (ARRAY['configure-totp'::text, 'configure-passkey'::text, 'update-password'::text, 'generate-recovery-codes'::text])))",
   'users.users_birthdate_shape':
     "CHECK (((birthdate IS NULL) OR (birthdate ~ '^[0-9]{4}(-[0-9]{2}-[0-9]{2})?$'::text)))",
   'users.users_email_addr_spec':

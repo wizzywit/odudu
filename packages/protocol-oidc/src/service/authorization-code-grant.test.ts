@@ -33,6 +33,7 @@ const record: AuthorizationCodeRecord = {
   expiresAt: new Date('2026-01-01T00:01:00.000Z'),
   consumedAt: null,
   grantId: null,
+  sessionId: null,
 };
 
 describe('evaluateAuthorizationCodeGrant', () => {

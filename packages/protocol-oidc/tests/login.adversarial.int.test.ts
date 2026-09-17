@@ -10,7 +10,8 @@ import {
   type RealmScopedDatabase,
 } from '@odudu/db';
 import { expectRealmIsolation } from '@odudu/db/testing';
-import { clients, provisionClientDefaults, provisionRealmDefaults } from '@odudu/domain-realm';
+import { provisionRealm } from '@odudu/authn-flows';
+import { clients, provisionClientDefaults } from '@odudu/domain-realm';
 import { FakeClock, newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import formbody from '@fastify/formbody';
@@ -78,12 +79,18 @@ async function buildHttp(deps: {
   return instance;
 }
 
+// One realm per call, which every test here relies on for a reason worth
+// naming: a realm ships with the account lockout on (five consecutive wrong
+// passwords, `brute_force_max_failures`), so a suite that submits more than
+// four against a *shared* realm starts failing somewhere that looks
+// unrelated. Share a realm here and raise that column on it, or keep taking
+// a fresh one.
 async function setupLoginRealm(name: string): Promise<string> {
   const realmId = newId();
   const clientDbId = newId();
   await withRealm(app.db, realmId, async (tx: RealmScopedDatabase) => {
     await tx.insert(realms).values({ id: realmId, name });
-    await provisionRealmDefaults(tx, realmId);
+    await provisionRealm(tx, realmId);
     await tx.insert(clients).values({
       id: clientDbId,
       realmId,
@@ -114,7 +121,7 @@ async function setupLoginRealm(name: string): Promise<string> {
         realmId,
         subjectId: subject.id,
         type: 'password',
-        secretData: await hashPassword(password),
+        secretData: { hash: await hashPassword(password) },
       });
     }
 
@@ -519,6 +526,25 @@ describe('[OIDC-CORE-3.1.2.1-05] the login form cannot be driven cross-site', ()
     const foreignSessionId = await startAuthSession(http, REALM_BETA);
     expect((await submitLogin({ ...GOOD, csrf: foreignSessionId })).statusCode).toBe(400);
   });
+
+  // The field is a uuid column's value, and Postgres raises on a `uuid`
+  // comparison against anything it cannot parse rather than matching no
+  // row. Refused the same way an unknown id is — never 500, which would
+  // hand an unauthenticated caller a server fault and a logged query.
+  it('refuses a malformed session id as unknown, not as a server fault', async () => {
+    for (const malformed of [
+      'not-a-uuid',
+      '',
+      `${newId()}\n${newId()}`,
+      `${newId()}' or '1'='1`,
+      '../../etc/passwd',
+    ]) {
+      const res = await submitLogin({ ...GOOD, csrf: malformed });
+      expect(`${JSON.stringify(malformed)}: ${String(res.statusCode)}`).toBe(
+        `${JSON.stringify(malformed)}: 400`,
+      );
+    }
+  });
 });
 
 describe('the parked request is what binds the code', () => {
@@ -618,7 +644,7 @@ describe('realm isolation', () => {
       seed: async (tx, realmId) => {
         const clientDbId = newId();
         await tx.insert(realms).values({ id: realmId, name: `probe-${realmId}` });
-        await provisionRealmDefaults(tx, realmId);
+        await provisionRealm(tx, realmId);
         await tx.insert(clients).values({
           id: clientDbId,
           realmId,
@@ -650,10 +676,10 @@ describe('realm isolation', () => {
 // OIDC Core §3.1.2.3: "If this parameter [prompt] contains login, the
 // Authorization Server MUST reauthenticate the End-User even if the End-User
 // is already authenticated." §15.1 makes that behaviour mandatory to
-// implement. This server authenticates unconditionally — /authorize never
-// reads the session cookie — so the requirement is met by construction; what
-// these assertions hold is that a live session does not change the answer,
-// and that `login` is a value the endpoint accepts rather than refuses.
+// implement. /authorize now reads the session cookie (P2b) and would reuse
+// a live session by default; `prompt=login` is what forces the fresh form
+// below despite that cookie being presented, rather than the requirement
+// being met by construction the way it was before session reuse existed.
 describe('[OIDC-CORE-3.1.2.3-03] prompt=login authenticates again despite a live session', () => {
   it('renders a fresh login form for a request carrying the session cookie just set', async () => {
     const realmName = await setupLoginRealm(`acme-prompt-login-${newId()}`);
@@ -723,15 +749,40 @@ describe('[OIDC-CORE-3.1.2.1-09] an id_token_hint names who the response is abou
     expect(await countAuthorizationCodes(realmName)).toBe(0);
     expect(res.headers['set-cookie']).toBeUndefined();
   });
+
+  it('lets the hinted end-user retry against the same parked request afterward', async () => {
+    const realmName = await setupLoginRealm(`acme-hint-retry-${newId()}`);
+    const hint = await mintIdToken(realmName, await subjectIdOf(realmName));
+    const authSessionId = await startAuthSession(http, realmName, { id_token_hint: hint });
+
+    // Somebody else signs in first, against the same parked request the
+    // hint names ada for — the session is left unconsumed specifically so
+    // this can happen (login-submission.ts's error_redirect branch).
+    const mismatch = await submitLogin({ ...OTHER_USER, realmName, csrf: authSessionId });
+    expect(mismatch.statusCode).toBe(302);
+    expect(new URL(locationHeader(mismatch)).searchParams.get('error')).toBe('login_required');
+    expect(await countAuthorizationCodes(realmName)).toBe(0);
+
+    // The end-user the hint actually names now signs in against the exact
+    // same auth_session_id, and it still works — the transcript
+    // docs/request-paths.md's "The login POST" section documents.
+    const retry = await submitLogin({ ...GOOD, realmName, csrf: authSessionId });
+    expect(retry.statusCode).toBe(302);
+    const location = new URL(locationHeader(retry));
+    expect(location.searchParams.get('code')).toBeTruthy();
+    expect(location.searchParams.get('error')).toBeNull();
+    expect(await countAuthorizationCodes(realmName)).toBe(1);
+  });
 });
 
 // OIDC Core §3.1.2.3: "the Authorization Server attempts to Authenticate the
-// End-User" when the End-User is not already authenticated. Odudu never
-// reads the SSO session cookie at /authorize, so no End-User ever is — which
-// makes the obligation unconditional, and makes its two halves observable:
-// the request is answered with an authentication interface rather than a
-// grant, and nothing is granted until credentials have actually been
-// verified.
+// End-User" when the End-User is not already authenticated. A request
+// carrying no SSO session cookie at all is never already authenticated, so
+// the obligation is unconditional for it — and makes its two halves
+// observable: the request is answered with an authentication interface
+// rather than a grant, and nothing is granted until credentials have
+// actually been verified. What a *live* cookie now does instead is
+// `packages/protocol-oidc/tests/session-reuse.int.test.ts`'s territory.
 describe('[OIDC-CORE-3.1.2.3-04] an unauthenticated request is answered by authenticating', () => {
   it('serves the login form and grants nothing to a request carrying no session', async () => {
     const realmName = await setupLoginRealm(`acme-authn-fresh-${newId()}`);
@@ -756,26 +807,6 @@ describe('[OIDC-CORE-3.1.2.3-04] an unauthenticated request is answered by authe
     const right = await submitLogin({ ...GOOD, realmName });
     expect(right.statusCode).toBe(302);
     expect(new URL(locationHeader(right)).searchParams.get('code')).toBeTruthy();
-    expect(await countAuthorizationCodes(realmName)).toBe(1);
-  });
-
-  // "Not already authenticated" is the only state this server recognises: a
-  // request arriving with a live SSO session is authenticated again rather
-  // than answered from it, so a stolen cookie cannot stand in for a login.
-  it('authenticates again rather than answering from a session already established', async () => {
-    const realmName = await setupLoginRealm(`acme-authn-session-${newId()}`);
-    const loggedIn = await submitLogin({ ...GOOD, realmName });
-    const cookie = loggedIn.headers['set-cookie'];
-    if (typeof cookie !== 'string') throw new Error('expected a session cookie to be set');
-
-    const res = await http.inject({
-      url: authorizeUrl(realmName),
-      headers: { cookie: cookie.split(';')[0] ?? '' },
-    });
-
-    expect(res.statusCode).toBe(200);
-    expect(res.body).toContain('name="auth_session_id"');
-    expect(res.headers.location).toBeUndefined();
     expect(await countAuthorizationCodes(realmName)).toBe(1);
   });
 });
@@ -877,13 +908,15 @@ describe('[OIDC-CORE-16.4-01] an access token reaches nothing but the token resp
     if (accessToken === undefined) throw new Error('expected an access token');
 
     // The same End-User, the same client, a fresh journey, carrying the SSO
-    // session the first one established: the login form and the redirect it
-    // leads to are both searched for the token that already exists.
-    const form = await http.inject({
+    // session the first one established: the reuse redirect this now
+    // produces, and the redirect a fresh submission leads to, are both
+    // searched for the token that already exists.
+    const reused = await http.inject({
       url: authorizeUrl(realmName),
       ...(issued.cookie !== undefined ? { headers: { cookie: issued.cookie } } : {}),
     });
-    expect(form.body).not.toContain(accessToken);
+    expect(reused.body).not.toContain(accessToken);
+    expect(String(reused.headers.location)).not.toContain(accessToken);
 
     const next = await submitLogin({ ...GOOD, realmName });
     expect(locationHeader(next)).not.toContain(accessToken);
@@ -944,5 +977,95 @@ describe('[OIDC-CORE-3.1.2.3-05] no page the login handler renders can be framed
     const res = await submitLogin({ ...GOOD, csrf: null });
     expect(res.statusCode).toBe(400);
     expectRefusesFraming(res, 'the error page');
+  });
+});
+
+// RFC 6749 §2.3.1's brute-force protection, from the outside. The property
+// worth testing is not that a locked account is refused — it is that the
+// refusal tells the submitter nothing: an implementation that rendered
+// "account locked" would pass a test asserting only the refusal, and would
+// be a worse oracle than the username enumeration the rest of this file
+// works to close, because it confirms both that the account exists and that
+// somebody is attacking it.
+describe('[RFC6749-2.3.1-03] a locked account is refused in bytes nothing can be read from', () => {
+  // Fastify stamps every response with the instant it was sent, which is
+  // the one header that cannot match and the one that carries nothing: it
+  // is on the successful responses too and reflects the clock rather than
+  // the account.
+  function comparable(res: LightMyRequestResponse): unknown {
+    const headers = Object.fromEntries(
+      Object.entries(res.headers).filter(([name]) => name.toLowerCase() !== 'date'),
+    );
+    return { statusCode: res.statusCode, headers, body: res.body };
+  }
+
+  // One parked request for every attempt in a case, the way a browser
+  // retrying a rejected form does: the id is in the page, so comparing
+  // responses from two different sessions would compare two different forms.
+  async function attemptsAgainstOneSession(
+    realmName: string,
+  ): Promise<(credentials: { username: string; password: string }) => Promise<unknown>> {
+    const csrf = await startAuthSession(http, realmName);
+    return async (credentials) =>
+      comparable(await submitLogin({ ...credentials, realmName, csrf }));
+  }
+
+  // Five, and not a number this realm was configured with: the default is
+  // the whole point — a MUST that ships switched off is not held.
+  it('locks after the default five failures and answers as a wrong password does', async () => {
+    const realmName = await setupLoginRealm(`acme-lockout-${newId()}`);
+    const attempt = await attemptsAgainstOneSession(realmName);
+
+    const wrongPassword = await attempt({ username: USERNAME, password: 'wrong' });
+    for (let i = 0; i < 4; i++) await attempt({ username: USERNAME, password: 'wrong' });
+
+    expect(await attempt({ username: USERNAME, password: 'wrong' })).toEqual(wrongPassword);
+    expect(await attempt(GOOD)).toEqual(wrongPassword);
+  });
+
+  // The account exists and is locked; the username does not exist at all.
+  // Both are refused with the same bytes as a plain wrong password, so the
+  // three states the server distinguishes internally are one state on the
+  // wire.
+  it('answers an unknown username with those same bytes, locked or not', async () => {
+    const realmName = await setupLoginRealm(`acme-lockout-unknown-${newId()}`);
+    const attempt = await attemptsAgainstOneSession(realmName);
+
+    const wrongPassword = await attempt({ username: USERNAME, password: 'wrong' });
+    expect(await attempt({ username: 'nobody-here', password: 'wrong' })).toEqual(wrongPassword);
+
+    for (let i = 0; i < 4; i++) await attempt({ username: USERNAME, password: 'wrong' });
+
+    expect(await attempt({ username: USERNAME, password: 'wrong' })).toEqual(wrongPassword);
+    expect(await attempt({ username: 'nobody-here', password: 'wrong' })).toEqual(wrongPassword);
+  });
+
+  // Nothing is issued, which is the half a page comparison cannot see: a
+  // locked account must not reach the redirect, the cookie or the code.
+  it('issues nothing for the right password while the account is locked', async () => {
+    const realmName = await setupLoginRealm(`acme-lockout-issues-${newId()}`);
+    const attempt = await attemptsAgainstOneSession(realmName);
+    for (let i = 0; i < 5; i++) await attempt({ username: USERNAME, password: 'wrong' });
+
+    const res = await submitLogin({ ...GOOD, realmName });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.headers.location).toBeUndefined();
+    expect(res.headers['set-cookie']).toBeUndefined();
+    expect(await countAuthorizationCodes(realmName)).toBe(0);
+  });
+
+  // A lockout is one account's, not the realm's: an attacker who can lock
+  // out the account they are guessing at must not be able to lock out
+  // everybody else by doing it.
+  it('leaves every other account in the realm signable-into', async () => {
+    const realmName = await setupLoginRealm(`acme-lockout-neighbour-${newId()}`);
+    const attempt = await attemptsAgainstOneSession(realmName);
+    for (let i = 0; i < 6; i++) await attempt({ username: USERNAME, password: 'wrong' });
+
+    const res = await submitLogin({ ...OTHER_USER, realmName });
+
+    expect(res.statusCode).toBe(302);
+    expect(new URL(locationHeader(res)).searchParams.get('code')).not.toBeNull();
   });
 });

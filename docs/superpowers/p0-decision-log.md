@@ -29,7 +29,7 @@ running something rather than by reading it:
 
 The pattern they share: a claim about how a library, database or resolver
 _behaves_, asserted from documentation and written into the plan as fact. The
-mitigation adopted for P1 is in `docs/NEXT.md`.
+mitigation adopted for P1 is in `docs/phases/p0-p1-p2a.md`.
 
 ---
 
@@ -419,8 +419,8 @@ should be findable. Cost if wrong: an ADR to supersede.
 
 ## 35
 
-recorded the affected-package CI answer in NEXT.md with trigger
-conditions rather than acting on it. Turborepo and pnpm already support
+recorded the affected-package CI answer in `docs/NEXT.md` under
+"Recorded decisions with trigger conditions" rather than acting on it. Turborepo and pnpm already support
 `--filter='...[ref]'`, so no tooling change is needed, but CI runs in ~50s
 and `test` is not yet a per-package Turbo task. Noted that caching should
 precede filtering, because a wrong dependency graph turns "skipped" into

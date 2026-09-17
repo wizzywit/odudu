@@ -5,7 +5,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createDatabase, type DatabaseHandle } from '#/client';
 import { MIGRATIONS_DIR, runMigrations } from '#/migrate';
 import { realms } from '#/schema/index';
-import { type RealmScopedDatabase, withRealm } from '#/tx';
+import { type RealmScopedDatabase, withEachRealmExclusive, withRealm } from '#/tx';
 
 const REALM_A = newId();
 const REALM_B = newId();
@@ -136,5 +136,87 @@ describe('withRealm', () => {
     }
 
     expect(nestedWithRealmMustNotCompile).toBeTypeOf('function');
+  });
+});
+
+describe('withEachRealmExclusive', () => {
+  const LOCK_KEY = 917_231;
+
+  it('binds each realm in turn inside one transaction', async () => {
+    const pass = await withEachRealmExclusive(
+      app.db,
+      LOCK_KEY,
+      [REALM_A, REALM_B],
+      async (tx, realmId) => {
+        const rows = await tx.select().from(realms);
+        return { realmId, names: rows.map((row) => row.name) };
+      },
+    );
+
+    if (!pass.acquired) throw new Error('expected the lock to be free');
+    expect(pass.values).toEqual([
+      { realmId: REALM_A, names: ['alpha'] },
+      { realmId: REALM_B, names: ['bravo'] },
+    ]);
+  });
+
+  // pg_try_advisory_xact_lock, not pg_advisory_lock: the session-scoped form
+  // would still be held on the pooled connection afterwards, so the second
+  // pass here would skip forever with nothing reporting why.
+  it('skips rather than waiting while another transaction holds the key, and takes it after', async () => {
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let signalHeld!: () => void;
+    const acquired = new Promise<void>((resolve) => {
+      signalHeld = resolve;
+    });
+
+    const holder = withEachRealmExclusive(app.db, LOCK_KEY, [REALM_A], async () => {
+      signalHeld();
+      await held;
+    });
+    await acquired;
+
+    // Its own pool: `app` is opened with max: 1, so a contender sharing it
+    // would block waiting for the holder's connection rather than reaching
+    // the lock at all.
+    const second = createDatabase(appUrl, { max: 1 });
+    try {
+      const contender = await withEachRealmExclusive(second.db, LOCK_KEY, [REALM_A], () =>
+        Promise.resolve(undefined),
+      );
+      expect(contender.acquired).toBe(false);
+    } finally {
+      await second.close();
+    }
+
+    release();
+    await holder;
+
+    const afterwards = await withEachRealmExclusive(app.db, LOCK_KEY, [REALM_A], () =>
+      Promise.resolve(undefined),
+    );
+    expect(afterwards.acquired).toBe(true);
+  });
+
+  it('releases the key when the pass throws', async () => {
+    await expect(
+      withEachRealmExclusive(app.db, LOCK_KEY, [REALM_A], () => {
+        throw new Error('force rollback');
+      }),
+    ).rejects.toThrow('force rollback');
+
+    const afterwards = await withEachRealmExclusive(app.db, LOCK_KEY, [REALM_A], () =>
+      Promise.resolve(undefined),
+    );
+    expect(afterwards.acquired).toBe(true);
+  });
+
+  it('rejects a non-UUID realm id before it opens a transaction', async () => {
+    await expect(
+      withEachRealmExclusive(app.db, LOCK_KEY, ['not-a-uuid'], () => Promise.resolve(undefined)),
+    ).rejects.toThrow(OduduError);
   });
 });

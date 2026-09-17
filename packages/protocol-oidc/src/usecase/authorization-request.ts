@@ -1,3 +1,4 @@
+import { type AuthenticatorResult } from '@odudu/authn-flows';
 import { AUDIENCE_UNCHECKED, verifyJwt, type SigningKeyRecord } from '@odudu/crypto';
 import { type ClientRecord } from '@odudu/domain-realm';
 import { type ClientOidcConfig } from '#/schema/client-oidc-config';
@@ -7,11 +8,38 @@ import {
   type AuthorizeOutcome,
 } from '#/service/authorize-validation';
 import { normalizeAuthorizeQuery } from '#/service/query-normalization';
+import { refusedForUnverifiedEmail, type LoginSubmissionDeps } from '#/usecase/login-submission';
+import { decideReuse, type ResolvedSession } from '#/usecase/session-reuse';
 
 export type AuthorizationRequestOutcome =
   | { kind: 'render'; error: string; description: string }
   | { kind: 'redirect'; redirectUri: string; error: string; state: string | null }
-  | { kind: 'started'; authSessionId: string };
+  // `form` names what the rendered login page should ask for first —
+  // whatever the realm's flow would offer nobody has submitted anything
+  // yet (authn-flows' initialChallenge).
+  | { kind: 'started'; authSessionId: string; form: string }
+  // Session reuse: a code issued with no page ever rendered and no fresh
+  // authentication session started. Carries exactly what the form-POST
+  // success redirect carries, because the client cannot tell the two apart.
+  | { kind: 'reused'; code: string; redirectUri: string; state: string | null };
+
+// What resolving the SSO session cookie against a live row yields — the two
+// facts decideReuse needs (ResolvedSession) plus the row's own id, needed
+// only afterward, to touch it once reuse is decided.
+export type ReusableSession = ResolvedSession & { sessionId: string };
+
+export interface CompleteReuseInput {
+  realmId: string;
+  sessionId: string;
+  subjectId: string;
+  clientId: string;
+  redirectUri: string;
+  scope: string;
+  nonce: string | null;
+  codeChallenge: string;
+  codeChallengeMethod: 'S256';
+  authTime: Date;
+}
 
 export interface ResolvedClient {
   client: ClientRecord | null;
@@ -39,6 +67,28 @@ export interface AuthorizeUsecaseDeps {
     realmId: string,
     request: Extract<AuthorizeOutcome, { kind: 'ok' }>['request'],
   ): Promise<{ authSessionId: string }>;
+  // What the realm's flow would ask for first, decided before any
+  // authentication session exists — also the honest way to notice a flow
+  // with no applicable execution at all: OIDC Core §3.1.2.1's `prompt=login`
+  // MUST, "an error is returned if reauthentication cannot be performed".
+  initialChallenge(realmId: string): Promise<AuthenticatorResult>;
+  // The SSO session cookie's value, resolved to a live row (never trusted
+  // for anything but that lookup) — sessionRepository(tx).liveById scoped
+  // to the realm's own idle window, read off the already-resolved `realm`
+  // rather than a second lookup by id. Null for no cookie, an unknown id,
+  // or one that has idled out or hit its ceiling.
+  resolveSession(
+    realm: RealmLookup,
+    cookieValue: string | undefined,
+  ): Promise<ReusableSession | null>;
+  // The same gate handleLoginSubmission enforces, shared so a cookie-borne
+  // login cannot complete for a subject a password login would refuse.
+  checkEmailVerification: LoginSubmissionDeps['checkEmailVerification'];
+  // Touches the reused session and issues the code atomically — the same
+  // issueAuthorizationCode the form path uses, wrapped with the touch in
+  // one transaction the way completeLogin wraps its own two writes.
+  completeReuse(input: CompleteReuseInput): Promise<{ code: string }>;
+  now(): Date;
 }
 
 // An unknown or disabled realm is indistinguishable from an unknown or
@@ -53,6 +103,10 @@ export async function handleAuthorizationRequest(
   // This realm's issuer identifier, as the discovery document states it: the
   // `iss` an id_token_hint has to carry to have come from here.
   issuer: string,
+  // The SSO session cookie's raw value, read by the route from the request
+  // header and trusted for nothing but the lookup resolveSession performs
+  // with it — no claim in it, no subject id from it.
+  cookieValue: string | undefined,
 ): Promise<AuthorizationRequestOutcome> {
   const normalized = normalizeAuthorizeQuery(rawParams);
   if (normalized.kind === 'render') return normalized;
@@ -106,19 +160,78 @@ export async function handleAuthorizationRequest(
 
   let hintSubject: string | null = null;
   if (outcome.idTokenHint !== null) {
-    const subject = await subjectOfIdTokenHint(deps, realm.id, issuer, outcome.idTokenHint);
-    if (subject === null) return reject('invalid_request');
-    hintSubject = subject;
+    const hint = await subjectOfIdTokenHint(deps, realm.id, issuer, outcome.idTokenHint);
+    if (hint === null) return reject('invalid_request');
+    hintSubject = hint.subject;
   }
 
-  // OIDC Core §3.1.2.3: with `prompt=none` the authorization server MUST NOT
-  // display any authentication or consent user interface, and MUST return an
-  // error if the End-User is not already authenticated. Nothing on this path
-  // reads the SSO session cookie — authentication always starts afresh — so
-  // no End-User is ever already authenticated here, and `login_required`
-  // (§3.1.2.6) is the whole of the behaviour rather than a shortcut through
-  // it. Session reuse would turn this into a decision; today it is a fact.
-  if (outcome.prompts.has('none')) return reject('login_required');
+  // OIDC Core §3.1.2.1/§3.1.2.3/§15.1: whether this request can be answered
+  // from the End-User's existing SSO session, has to start a fresh
+  // authentication, or — under `prompt=none` — must be refused because it
+  // would otherwise do one of those. The two are decided together rather
+  // than in sequence (docs/protocols/oidc-core.md's reading note has why).
+  const resolvedSession = await deps.resolveSession(realm, cookieValue);
+  const decision = decideReuse({
+    session: resolvedSession,
+    prompts: outcome.prompts,
+    maxAge: outcome.maxAge,
+    now: deps.now(),
+  });
+
+  if (decision.kind === 'refuse') return reject(decision.error);
+
+  if (decision.kind === 'reuse') {
+    if (resolvedSession === null) {
+      throw new Error('unreachable: decideReuse reused with no resolved session');
+    }
+    if (resolved.client === null) {
+      throw new Error('unreachable: validateAuthorizationRequest succeeded with a null client');
+    }
+
+    // The same rule the login form enforces once somebody actually signs
+    // in: the End-User a hint names is not the one who is about to be
+    // reused into this response.
+    if (hintSubject !== null && hintSubject !== decision.subjectId) {
+      return reject('login_required');
+    }
+
+    // The second door into the same decision handleLoginSubmission's
+    // password path guards — an unverified subject that happens to hold a
+    // live cookie must not sign in for free.
+    const refusal = await refusedForUnverifiedEmail(
+      deps,
+      { id: realm.id, verifyEmail: realm.verifyEmail },
+      decision.subjectId,
+    );
+    if (refusal !== null) return reject('login_required');
+
+    const { code } = await deps.completeReuse({
+      realmId: realm.id,
+      sessionId: resolvedSession.sessionId,
+      subjectId: decision.subjectId,
+      clientId: resolved.client.id,
+      redirectUri: request.redirectUri,
+      scope: request.scope,
+      nonce: request.nonce,
+      codeChallenge: request.codeChallenge,
+      codeChallengeMethod: request.codeChallengeMethod,
+      authTime: decision.authTime,
+    });
+    return { kind: 'reused', code, redirectUri: request.redirectUri, state: request.state };
+  }
+
+  // A realm whose flow has no applicable execution at all cannot
+  // authenticate anyone — the state OIDC Core §3.1.2.1 means by
+  // "reauthentication cannot be performed" under `prompt=login`. Checked
+  // before a session is started: nothing is parked and nothing rendered
+  // for a login that could never succeed.
+  const initial = await deps.initialChallenge(realm.id);
+  if (initial.kind !== 'challenge') {
+    if (initial.kind === 'success') {
+      throw new Error('unreachable: initialChallenge succeeded with no input submitted');
+    }
+    return reject('login_required');
+  }
 
   const { authSessionId } = await deps.startAuthentication(realm.id, {
     ...request,
@@ -129,21 +242,43 @@ export async function handleAuthorizationRequest(
     // which is the login submission, so it travels with the parked request.
     ...(hintSubject !== null ? { idTokenHintSubject: hintSubject } : {}),
   });
-  return { kind: 'started', authSessionId };
+  return { kind: 'started', authSessionId, form: initial.form };
+}
+
+export interface IdTokenHintClaims {
+  subject: string;
+  // Back-Channel Logout §2.1's session identifier, when the hint carries
+  // one — absent from a hint minted before this phase started emitting it.
+  // Read by `#/usecase/logout.ts` to compare against the *session*, not
+  // just the subject (see decideLogout).
+  sid: string | null;
+  // The clients this hint was issued to, as its `aud` names them. Not an
+  // audience this server has to be in — nothing here checks it against a
+  // principal — but the value RP-Initiated Logout §2 has the OP compare a
+  // `client_id` parameter against.
+  audiences: readonly string[];
+}
+
+function audiencesOf(claim: unknown): readonly string[] {
+  if (typeof claim === 'string') return [claim];
+  if (!Array.isArray(claim)) return [];
+  return claim.filter((value): value is string => typeof value === 'string');
 }
 
 // OIDC Core §3.1.2.2: "the OP MUST validate that it was the issuer of the ID
 // Token" — a signature made by one of this realm's keys, over a payload whose
-// `iss` is this realm. Returns the subject it identifies, or null for a hint
+// `iss` is this realm. Returns the claims it carries, or null for a hint
 // this server cannot recognise as its own. `exp` is enforced by verifyJwt,
 // so a hint past its expiry is refused rather than accepted as §3.1.2.2's
 // SHOULD allows (see the reading note in docs/protocols/oidc-core.md).
-async function subjectOfIdTokenHint(
-  deps: AuthorizeUsecaseDeps,
+// Exported for `#/usecase/logout.ts`, which validates its own hint the same
+// way rather than a second, looser check.
+export async function subjectOfIdTokenHint(
+  deps: Pick<AuthorizeUsecaseDeps, 'listPublishableKeys'>,
   realmId: string,
   issuer: string,
   hint: string,
-): Promise<string | null> {
+): Promise<IdTokenHintClaims | null> {
   const keys = await deps.listPublishableKeys(realmId);
   try {
     // An ID token's `aud` is the client it was issued to, so the OP reading
@@ -161,7 +296,12 @@ async function subjectOfIdTokenHint(
       // of this check of the token presented to it.
       typ: { refused: 'at+jwt' },
     });
-    return typeof payload.sub === 'string' && payload.sub.length > 0 ? payload.sub : null;
+    if (typeof payload.sub !== 'string' || payload.sub.length === 0) return null;
+    return {
+      subject: payload.sub,
+      sid: typeof payload.sid === 'string' && payload.sid.length > 0 ? payload.sid : null,
+      audiences: audiencesOf(payload.aud),
+    };
   } catch {
     return null;
   }

@@ -7,11 +7,18 @@ import {
   type DatabaseHandle,
 } from '@odudu/db';
 import { userRepository } from '@odudu/domain-identity';
-import { capturingSender, type EmailMessage } from '@odudu/email';
+import {
+  capturingSender,
+  emailOutbox,
+  sendPending,
+  type EmailMessage,
+  type EmailSender,
+  type SendPendingOptions,
+} from '@odudu/email';
 import { loadConfig, newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import { type FastifyInstance } from 'fastify';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { buildApp } from '#/app';
 import { seed } from '#/cli/seed';
 import { createLogger } from '#/logger';
@@ -67,6 +74,25 @@ afterAll(async () => {
   await containerHandle?.stop();
 });
 
+const OUTBOX_OPTIONS: SendPendingOptions = {
+  batchSize: 50,
+  maxAttempts: 3,
+  retryBackoffSeconds: 60,
+};
+
+// A request queues its mail and answers; the pass that hands a queued
+// message to a transport runs on the server's own schedule
+// (apps/server/src/modules/outbox.ts). A test that wants the mailed link
+// runs that pass here instead of waiting for a tick.
+
+async function drainOutbox(into: EmailSender): Promise<void> {
+  await sendPending(
+    { database: appDb, ownerDatabase: owner, sender: into },
+    new Date(),
+    OUTBOX_OPTIONS,
+  );
+}
+
 function buildTestApp(): FastifyInstance {
   const config = loadConfig({ ...process.env, ODUDU_LOG_LEVEL: 'silent' });
   return buildApp({
@@ -74,7 +100,6 @@ function buildTestApp(): FastifyInstance {
     ownerDatabase: owner,
     kek: KEK,
     logger: createLogger(config),
-    sender: capturingSender(),
   });
 }
 
@@ -147,6 +172,13 @@ function extractKey(message: EmailMessage): string {
   return key;
 }
 
+// Every test below reads either what the queue holds or what a drain
+// delivered, so each starts with the queue empty rather than with whatever
+// an earlier test left in it.
+beforeEach(async () => {
+  await owner.db.delete(emailOutbox);
+});
+
 describe('address verification, through the real composition root', () => {
   it('flips email_verified on the users column and in a freshly issued ID token', async () => {
     const realmName = `verify-${newId()}`;
@@ -172,7 +204,6 @@ describe('address verification, through the real composition root', () => {
       await sendVerificationEmail(
         {
           database: appDb,
-          sender,
           realmId: seeded.realmId,
           realmName,
           realmDisplayName: realmName,
@@ -180,6 +211,7 @@ describe('address verification, through the real composition root', () => {
         },
         { subjectId: userSubjectId, email: EMAIL },
       );
+      await drainOutbox(sender);
       const message = sender.sent[0];
       if (message === undefined) throw new Error('no mail sent');
       const key = extractKey(message);

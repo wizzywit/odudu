@@ -8,12 +8,19 @@ import {
 } from '@odudu/db';
 import { effectiveRoles, roleRepository } from '@odudu/domain-authz';
 import { userRepository } from '@odudu/domain-identity';
-import { capturingSender, type EmailMessage } from '@odudu/email';
+import {
+  capturingSender,
+  emailOutbox,
+  sendPending,
+  type EmailMessage,
+  type EmailSender,
+  type SendPendingOptions,
+} from '@odudu/email';
 import { loadConfig, newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import { eq } from 'drizzle-orm';
 import { type FastifyInstance } from 'fastify';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { buildApp } from '#/app';
 import { seed } from '#/cli/seed';
 import { createLogger } from '#/logger';
@@ -69,14 +76,32 @@ afterAll(async () => {
   await containerHandle?.stop();
 });
 
-function buildTestApp(sender: ReturnType<typeof capturingSender>): FastifyInstance {
+const OUTBOX_OPTIONS: SendPendingOptions = {
+  batchSize: 50,
+  maxAttempts: 3,
+  retryBackoffSeconds: 60,
+};
+
+// A request queues its mail and answers; the pass that hands a queued
+// message to a transport runs on the server's own schedule
+// (apps/server/src/modules/outbox.ts). A test that wants the mailed link
+// runs that pass here instead of waiting for a tick.
+
+async function drainOutbox(into: EmailSender): Promise<void> {
+  await sendPending(
+    { database: appDb, ownerDatabase: owner, sender: into },
+    new Date(),
+    OUTBOX_OPTIONS,
+  );
+}
+
+function buildTestApp(): FastifyInstance {
   const config = loadConfig({ ...process.env, ODUDU_LOG_LEVEL: 'silent' });
   return buildApp({
     database: appDb,
     ownerDatabase: owner,
     kek: KEK,
     logger: createLogger(config),
-    sender,
     ...(config.ODUDU_PUBLIC_BASE_URL !== undefined
       ? { publicBaseUrl: config.ODUDU_PUBLIC_BASE_URL }
       : {}),
@@ -149,6 +174,13 @@ function extractVerificationKey(message: EmailMessage): string {
   return key;
 }
 
+// Every test below reads either what the queue holds or what a drain
+// delivered, so each starts with the queue empty rather than with whatever
+// an earlier test left in it.
+beforeEach(async () => {
+  await owner.db.delete(emailOutbox);
+});
+
 describe('self-registration, through the real composition root', () => {
   it('refuses to complete a login until the address is verified, and lets it through once it is', async () => {
     const realmName = `register-${newId()}`;
@@ -167,7 +199,7 @@ describe('self-registration, through the real composition root', () => {
     );
 
     const sender = capturingSender();
-    const app = buildTestApp(sender);
+    const app = buildTestApp();
     await app.ready();
 
     try {
@@ -177,6 +209,7 @@ describe('self-registration, through the real composition root', () => {
         password: 'correct horse battery staple',
       });
       expect(registered).toBe(201);
+      await drainOutbox(sender);
       expect(sender.sent).toHaveLength(1);
 
       // The only assertion that would fail if apps/server/src/app.ts's own
@@ -203,6 +236,7 @@ describe('self-registration, through the real composition root', () => {
       expect(beforeVerification.headers.location).toBeUndefined();
       expect(beforeVerification.headers['set-cookie']).toBeUndefined();
 
+      await drainOutbox(sender);
       const message = sender.sent[0];
       if (message === undefined) throw new Error('no verification mail sent');
       const key = extractVerificationKey(message);
@@ -234,7 +268,7 @@ describe('self-registration, through the real composition root', () => {
     await setRealmSettings(seeded.realmId, { registrationAllowed: true, verifyEmail: false });
 
     const sender = capturingSender();
-    const app = buildTestApp(sender);
+    const app = buildTestApp();
     await app.ready();
 
     try {
@@ -244,6 +278,7 @@ describe('self-registration, through the real composition root', () => {
         password: 'correct horse battery staple',
       });
       expect(registered).toBe(201);
+      await drainOutbox(sender);
       expect(sender.sent).toHaveLength(0);
 
       const login = await attemptLogin(app, realmName, 'grace', 'correct horse battery staple');
@@ -270,7 +305,7 @@ describe('self-registration, through the real composition root', () => {
     await setRealmSettings(seeded.realmId, { registrationAllowed: true, verifyEmail: true });
 
     const sender = capturingSender();
-    const app = buildTestApp(sender);
+    const app = buildTestApp();
     await app.ready();
 
     try {
@@ -282,6 +317,7 @@ describe('self-registration, through the real composition root', () => {
       );
       expect(registered).toBe(201);
 
+      await drainOutbox(sender);
       const message = sender.sent[0];
       if (message === undefined) throw new Error('no verification mail sent');
       expect(message.text).toContain(`${PUBLIC_BASE_URL}/realms/${realmName}/`);

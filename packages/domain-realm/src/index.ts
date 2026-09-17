@@ -1,4 +1,10 @@
 export { verifyClientSecret } from '#/service/client';
+export {
+  coerceRealmSetting,
+  REALM_SETTING_NAMES,
+  type CoerceOutcome,
+  type RealmSettingName,
+} from '#/service/realm-settings';
 export { clients, type ClientRecord } from '#/schema/clients';
 export { clientRepository, type NewClient } from '#/repository/clients';
 export {

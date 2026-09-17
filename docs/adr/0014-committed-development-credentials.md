@@ -35,8 +35,9 @@ Three controls, not one:
 - Both published ports bind to loopback, so the stack is unreachable from the
   network even on a machine that runs it.
 - The server refuses to boot in production without `ODUDU_APP_DATABASE_URL`,
-  so the most dangerous misconfiguration — serving as the RLS-bypassing owner
-  role — fails loudly rather than silently.
+  so the most dangerous misconfiguration — serving requests as the owner
+  role, which this stack makes RLS-exempt by making it a superuser — fails
+  loudly rather than silently.
 
 ## Consequences
 

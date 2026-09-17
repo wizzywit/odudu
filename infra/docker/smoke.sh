@@ -85,7 +85,7 @@ set -o pipefail
 
 docker compose exec -T odudu node dist/main.js seed \
   --realm smoke --client smoke-app --client-secret smoke-secret \
-  --redirect-uri http://localhost:3000/cb --user smoke --password smoke-password \
+  --redirect-uri http://localhost:3000/cb --user smoke --password correct-horse-battery \
   --email smoke@example.com
 
 VERIFIER=$(openssl rand -hex 32)
@@ -114,7 +114,15 @@ AUTH_HTML=$(curl -sS -f --get \
   --data-urlencode 'code_challenge_method=S256' \
   'http://localhost:3000/realms/smoke/protocol/openid-connect/auth')
 
-AUTH_SESSION_ID=$(printf '%s' "$AUTH_HTML" | sed -n 's/.*name="auth_session_id" value="\([^"]*\)".*/\1/p')
+# First match only, and `q` rather than a pipe to `head`, which would
+# leave sed to be killed by SIGPIPE under the `pipefail` set above. The
+# page carries this field once per form — the password form and the
+# passkey one each need it — and a browser submits one form, so taking
+# every match would join two ids with a newline and send something no
+# `uuid` column can parse. Any form added later is covered by the same
+# `q`.
+AUTH_SESSION_ID=$(printf '%s' "$AUTH_HTML" \
+  | sed -n '/name="auth_session_id"/{s/.*value="\([^"]*\)".*/\1/p;q;}')
 test -n "$AUTH_SESSION_ID" || { echo "smoke: no auth_session_id in the rendered login form" >&2; exit 1; }
 
 # POST the credentials the way the login form would, then read the
@@ -124,7 +132,7 @@ LOGIN_HEADERS="$(mktemp)"
 curl -sS -f -D "$LOGIN_HEADERS" -o /dev/null \
   --data-urlencode "auth_session_id=$AUTH_SESSION_ID" \
   --data-urlencode 'username=smoke' \
-  --data-urlencode 'password=smoke-password' \
+  --data-urlencode 'password=correct-horse-battery' \
   'http://localhost:3000/realms/smoke/login-actions/authenticate'
 
 CODE=$(grep -i '^location:' "$LOGIN_HEADERS" | sed -n 's/.*[?&]code=\([^&[:space:]]*\).*/\1/p' | tr -d '\r\n')

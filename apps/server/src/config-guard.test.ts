@@ -2,6 +2,7 @@ import { loadConfig } from '@odudu/kernel';
 import { describe, expect, it, vi } from 'vitest';
 import {
   assertProductionAppDatabaseUrl,
+  assertProductionPasskeyRelyingParty,
   assertProductionTls,
   warnIfTlsDisabled,
 } from '#/config-guard';
@@ -85,5 +86,34 @@ describe('warnIfTlsDisabled', () => {
     warnIfTlsDisabled(config, log);
 
     expect(log).not.toHaveBeenCalled();
+  });
+});
+
+describe('assertProductionPasskeyRelyingParty', () => {
+  it('throws when NODE_ENV is production and ODUDU_PUBLIC_BASE_URL is unset', () => {
+    const config = loadConfig({ ...base, NODE_ENV: 'production' });
+    expect(() => {
+      assertProductionPasskeyRelyingParty(config);
+    }).toThrow(/ODUDU_PUBLIC_BASE_URL/);
+  });
+
+  it('does not throw when a relying party id can be derived', () => {
+    const config = loadConfig({
+      ...base,
+      NODE_ENV: 'production',
+      ODUDU_PUBLIC_BASE_URL: 'https://id.example.com',
+    });
+    expect(() => {
+      assertProductionPasskeyRelyingParty(config);
+    }).not.toThrow();
+  });
+
+  // Not a silent fallback to the request's host: a passkey registered
+  // against a guessed domain is one the browser will never offer again.
+  it('does not throw outside production even when the base URL is unset', () => {
+    const config = loadConfig({ ...base, NODE_ENV: 'development' });
+    expect(() => {
+      assertProductionPasskeyRelyingParty(config);
+    }).not.toThrow();
   });
 });

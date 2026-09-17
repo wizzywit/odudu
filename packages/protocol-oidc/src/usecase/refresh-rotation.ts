@@ -1,3 +1,4 @@
+import { sessionRepository } from '@odudu/authn-flows';
 import { type RealmScopedDatabase } from '@odudu/db';
 import { tokenGrantRepository, type TokenGrantRecord } from '#/repository/grants';
 import { refreshTokenRepository } from '#/repository/refresh';
@@ -6,6 +7,7 @@ import { generateRefreshToken, hashRefreshToken } from '#/service/refresh';
 export type RotationOutcome =
   | { readonly kind: 'rotated'; readonly grant: TokenGrantRecord; readonly next: string }
   | { readonly kind: 'reused'; readonly revokedFamily: string }
+  | { readonly kind: 'revoked' }
   | { readonly kind: 'unknown' };
 
 // The single entry point for redeeming a refresh token. `consume` is one
@@ -20,6 +22,7 @@ export async function rotateRefreshToken(
   presentedHash: string,
   now: Date,
   refreshTokenTtlSeconds: number,
+  idleSeconds: number,
 ): Promise<RotationOutcome> {
   const consumed = await refreshTokenRepository(tx).consume(presentedHash);
 
@@ -38,6 +41,22 @@ export async function rotateRefreshToken(
   const grant = await tokenGrantRepository(tx).byId(consumed.grantId);
   if (grant === null) {
     throw new Error(`refresh token ${presentedHash} references a nonexistent grant`);
+  }
+  // A revoked family issues nothing further. The presented token was
+  // consumed above and stays consumed: a logout or a detected reuse ends
+  // the family, and rotating one more token out of it would undo that.
+  if (grant.revokedAt !== null) {
+    return { kind: 'revoked' };
+  }
+
+  // A session-bound family lives exactly as long as its session: an idle
+  // timeout that a refresh could out-live would not be an idle timeout. An
+  // offline family has no session and is therefore bounded only by its own
+  // TTL and by retention.
+  if (grant.sessionId !== null) {
+    const session = await sessionRepository(tx).liveById(grant.sessionId, idleSeconds, now);
+    if (session === null) return { kind: 'revoked' };
+    await sessionRepository(tx).touch(grant.sessionId, now);
   }
 
   const next = generateRefreshToken();

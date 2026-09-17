@@ -18,13 +18,21 @@ export type ErrorCode =
   | 'seed_conflict'
   | 'seed_not_found'
   | 'seed_unknown_command'
+  | 'seed_unknown_setting'
   | 'insert_returned_no_row'
   | 'role_not_found'
   | 'role_composite_cycle'
   | 'group_not_found'
   | 'group_reparent_cycle'
   | 'user_not_found'
-  | 'credential_not_found';
+  | 'credential_not_found'
+  | 'realm_not_found'
+  | 'reap_cannot_enumerate_realms'
+  | 'reap_requires_app_database_url'
+  | 'reap_serving_role_bypasses_rls'
+  | 'outbox_cannot_enumerate_realms'
+  | 'outbox_requires_app_database_url'
+  | 'outbox_serving_role_bypasses_rls';
 
 export class OduduError extends Error {
   readonly code: ErrorCode;

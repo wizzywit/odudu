@@ -6,12 +6,8 @@ import {
   withRealm,
   type DatabaseHandle,
 } from '@odudu/db';
-import {
-  clientScopeRepository,
-  clients,
-  provisionClientDefaults,
-  provisionRealmDefaults,
-} from '@odudu/domain-realm';
+import { provisionRealm } from '@odudu/authn-flows';
+import { clientScopeRepository, clients, provisionClientDefaults } from '@odudu/domain-realm';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import Fastify, { type FastifyInstance, type LightMyRequestResponse } from 'fastify';
@@ -92,7 +88,7 @@ beforeAll(async () => {
   clientRowId = newId();
   await withRealm(app.db, realmId, async (tx) => {
     await tx.insert(realms).values({ id: realmId, name: REALM });
-    await provisionRealmDefaults(tx, realmId);
+    await provisionRealm(tx, realmId);
     await tx.insert(clients).values({
       id: clientRowId,
       realmId,

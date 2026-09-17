@@ -1,5 +1,7 @@
-import { and, eq, isNull } from 'drizzle-orm';
+import { and, eq, isNull, sql } from 'drizzle-orm';
+import { z } from 'zod';
 import { type RealmScopedDatabase } from '@odudu/db';
+import { isUuid } from '@odudu/kernel';
 import {
   authenticationSessions,
   type AuthenticationSessionRecord,
@@ -14,8 +16,17 @@ function toRecord(row: typeof authenticationSessions.$inferSelect): Authenticati
     createdAt: row.createdAt,
     expiresAt: row.expiresAt,
     consumedAt: row.consumedAt,
+    satisfied: row.satisfied,
+    subjectId: row.subjectId,
+    authenticatedAt: row.authenticatedAt,
+    webauthnChallenge: row.webauthnChallenge,
   };
 }
+
+// tx.execute() hands back driver rows of unknown shape; parsing is what
+// makes a renamed column fail here rather than flow on as a null challenge
+// that would look like an expired ceremony.
+const claimedChallengeRows = z.array(z.object({ challenge: z.string() }));
 
 export interface NewAuthenticationSession {
   id: string;
@@ -29,7 +40,14 @@ export interface NewAuthenticationSession {
 // "resend" path) that want the row without driving `advance`.
 export function authenticationSessionRepository(tx: RealmScopedDatabase) {
   return {
+    // The first read on every path that resolves an attempt, and therefore
+    // the one place worth a backstop: `id` normally arrives from a hidden
+    // form field, and Postgres raises on a `uuid` comparison against
+    // anything it cannot parse instead of matching nothing. A caller that
+    // has not shape-checked it gets the same null an unknown id gives,
+    // rather than an unhandled database error.
     async byId(id: string): Promise<AuthenticationSessionRecord | null> {
+      if (!isUuid(id)) return null;
       const rows = await tx
         .select()
         .from(authenticationSessions)
@@ -55,6 +73,88 @@ export function authenticationSessionRepository(tx: RealmScopedDatabase) {
         .where(and(eq(authenticationSessions.id, id), isNull(authenticationSessions.consumedAt)))
         .returning({ id: authenticationSessions.id });
       return rows.length > 0;
+    },
+
+    // Appends unconditionally rather than checking membership first: the
+    // executor only ever calls this once per authenticator per session (a
+    // satisfied one is never re-run — see `nextStep`), so a duplicate would
+    // signal a bug upstream, not something this write needs to guard
+    // against. Readers treat `satisfied` as a set (`Set` membership), so an
+    // accidental duplicate would be harmless even so.
+    async recordSatisfied(id: string, authenticator: string): Promise<void> {
+      await tx
+        .update(authenticationSessions)
+        .set({
+          satisfied: sql`array_append(${authenticationSessions.satisfied}, ${authenticator})`,
+        })
+        .where(eq(authenticationSessions.id, id));
+    },
+
+    // Written on every factor that succeeds, including the one that
+    // finishes the login — unlike `satisfied`, a bound subject lets no
+    // factor be skipped on a retry, it only fixes who the retry has to be.
+    // It is also what gives a required-action submission, which carries no
+    // credentials of its own, somebody to act for.
+    async bindSubject(id: string, subjectId: string): Promise<void> {
+      await tx
+        .update(authenticationSessions)
+        .set({ subjectId })
+        .where(eq(authenticationSessions.id, id));
+    },
+
+    // Written on every attempt that gets past the subject binding, with the
+    // instant the flow ran out of steps to ask for — or with null when a
+    // step remains. It is not a latch: completing an enrolment can make a
+    // step apply that did not apply a moment ago, so a session that was
+    // complete has to stop being complete.
+    async recordAuthenticated(id: string, authenticatedAt: Date | null): Promise<void> {
+      await tx
+        .update(authenticationSessions)
+        .set({ authenticatedAt })
+        .where(eq(authenticationSessions.id, id));
+    },
+
+    // Issued with the registration or assertion options it belongs to, and
+    // overwriting whatever a previous, abandoned ceremony left: only the
+    // most recently offered challenge can be answered.
+    async setWebauthnChallenge(id: string, challenge: string): Promise<void> {
+      await tx
+        .update(authenticationSessions)
+        .set({ webauthnChallenge: challenge })
+        .where(eq(authenticationSessions.id, id));
+    },
+
+    // Reads the challenge and clears it in one statement: a response is
+    // verified against a challenge that no longer exists by the time the
+    // verification runs, so replaying it finds null and is refused before
+    // any signature is checked. The self-join is what lets RETURNING hand
+    // back the pre-update value — RETURNING alone reports the new one,
+    // which is always null here.
+    async claimWebauthnChallenge(id: string): Promise<string | null> {
+      const result = await tx.execute(sql`
+        UPDATE authentication_sessions AS s
+        SET webauthn_challenge = NULL
+        FROM authentication_sessions AS prior
+        WHERE prior.id = s.id
+          AND s.id = ${id}
+          AND s.webauthn_challenge IS NOT NULL
+        RETURNING prior.webauthn_challenge AS challenge
+      `);
+      const rows = claimedChallengeRows.parse(result);
+      return rows[0]?.challenge ?? null;
+    },
+
+    // Puts the attempt back to how it started, for the one refusal whose
+    // remedy is a different person signing in against the same parked
+    // request: an `id_token_hint` naming somebody else (OIDC Core §3.1.2.1).
+    // The columns go together — a satisfied factor with no subject is the
+    // state the subject binding exists to rule out, and a challenge offered
+    // to the previous person is not one the next may answer.
+    async resetProgress(id: string): Promise<void> {
+      await tx
+        .update(authenticationSessions)
+        .set({ satisfied: [], subjectId: null, authenticatedAt: null, webauthnChallenge: null })
+        .where(eq(authenticationSessions.id, id));
     },
   };
 }

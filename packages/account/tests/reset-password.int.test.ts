@@ -9,12 +9,20 @@ import {
 } from '@odudu/db';
 import {
   credentialRepository,
+  evaluatePassword,
   hashPassword,
+  REUSED_PASSWORD,
   subjectRepository,
   userRepository,
   verifyPassword,
 } from '@odudu/domain-identity';
-import { type EmailMessage, type EmailSender } from '@odudu/email';
+import {
+  emailOutbox,
+  sendPending,
+  type EmailMessage,
+  type EmailSender,
+  type SendPendingOptions,
+} from '@odudu/email';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import formbody from '@fastify/formbody';
@@ -112,11 +120,11 @@ async function createAccount(
     username: input.username,
     email: input.email,
   });
-  await credentialRepository(tx).create({
+  await credentialRepository(tx).insert({
     realmId,
     subjectId: subject.id,
     type: 'password',
-    secretData: await hashPassword(input.password),
+    secret: { kind: 'password', hash: await hashPassword(input.password) },
   });
   return { subjectId: subject.id };
 }
@@ -171,6 +179,30 @@ async function rawSelectAllActionTokens(realmId: string) {
   return withRealm(app.db, realmId, (tx) => tx.select().from(actionTokens));
 }
 
+async function outboxRows(realmId: string) {
+  return withRealm(app.db, realmId, (tx) => tx.select().from(emailOutbox));
+}
+
+const OUTBOX_OPTIONS: SendPendingOptions = {
+  batchSize: 10,
+  maxAttempts: 3,
+  retryBackoffSeconds: 60,
+};
+
+// The request only queues the mail — that is what keeps an SMTP round trip
+// out of the response and out of the timing of one
+// (tests/reset-timing.int.test.ts). The pass that hands a queued message to
+// a transport is packages/email/src/usecase/send-pending.ts, and a test
+// that wants the mailed link runs it here.
+
+async function drainOutbox(into: EmailSender = sender): Promise<void> {
+  await sendPending(
+    { database: app, ownerDatabase: owner, sender: into },
+    new Date(),
+    OUTBOX_OPTIONS,
+  );
+}
+
 let sender: ReturnType<typeof fakeSender>;
 let httpApp: FastifyInstance;
 
@@ -179,7 +211,6 @@ function buildHttpApp(): FastifyInstance {
   instance.register(formbody);
   registerResetPasswordRoute(instance, {
     database: app,
-    sender,
     findRealm: (name) => realmSettingsRepository(owner.db).byName(name),
     publicBaseUrl: 'https://idp.example.test',
     findByEmail,
@@ -195,6 +226,21 @@ function buildHttpApp(): FastifyInstance {
     setPassword: async (tx, subjectId, password) => {
       await credentialRepository(tx).setPassword(subjectId, await hashPassword(password));
     },
+    getUsername: async (tx, subjectId) => {
+      const user = await userRepository(tx).bySubjectId(subjectId);
+      if (user === null) throw new Error(`no user found for subject ${subjectId}`);
+      return user.username;
+    },
+    evaluatePassword,
+    unchangedPasswordViolations: async (tx, subjectId, candidate) => {
+      const current = await credentialRepository(tx).passwordFor(subjectId);
+      if (current === null) return [];
+      return (await verifyPassword(current, candidate)) ? [REUSED_PASSWORD] : [];
+    },
+    // No required action exists in this package's tests: user_required_actions
+    // belongs to @odudu/authn-flows, which @odudu/account does not depend on.
+    // apps/server/tests/reset-password.int.test.ts holds the real wiring.
+    clearPasswordUpdateAction: () => Promise.resolve(),
   });
   return instance;
 }
@@ -216,6 +262,9 @@ async function requestReset(
     payload: form.toString(),
     headers: { 'content-type': 'application/x-www-form-urlencoded' },
   });
+  // The request itself mails nothing, so the tests below that read a link
+  // out of `sender.sent` need the pass to have run.
+  await drainOutbox();
   return { statusCode: res.statusCode, body: res.body };
 }
 
@@ -238,6 +287,13 @@ async function submitNewPassword(
   });
   return { statusCode: res.statusCode, body: res.body };
 }
+
+// Every test below reads either what the queue holds or what a drain
+// delivered, so each starts with the queue empty rather than with whatever
+// an earlier test left in it.
+beforeEach(async () => {
+  await owner.db.delete(emailOutbox);
+});
 
 describe('password reset', () => {
   it('answers identically for a known and an unknown address', async () => {
@@ -262,9 +318,11 @@ describe('password reset', () => {
 
     await requestReset(realmName, 'nobody@example.test');
     expect(sender.sent).toHaveLength(0);
+    expect(await outboxRows(realmId)).toHaveLength(0);
 
     await requestReset(realmName, 'ada@example.test');
     expect(sender.sent).toHaveLength(1);
+    expect(await outboxRows(realmId)).toHaveLength(1);
   });
 
   it('renders a set-password form for an unconsumed reset link, without consuming it', async () => {
@@ -302,6 +360,29 @@ describe('password reset', () => {
     expect(submitted.statusCode).toBe(200);
 
     expect(await passwordWorksFor(realmId, 'ada', 'a new password')).toBe(true);
+  });
+
+  it('refuses a password that fails the realm policy, without spending the link', async () => {
+    const { realmId, realmName } = await seedRealm(`realm-${newId()}`, {
+      resetPasswordAllowed: true,
+    });
+    await seedAda(realmId);
+
+    await requestReset(realmName, 'ada@example.test');
+    const message = sender.sent[0];
+    if (message === undefined) throw new Error('no mail sent');
+    const link = extractLink(message);
+
+    const rejected = await submitNewPassword(link, 'short');
+    expect(rejected.statusCode).toBe(400);
+    expect(rejected.body).toContain('at least');
+    expect(await passwordWorksFor(realmId, 'ada', 'correct horse battery')).toBe(true);
+
+    // The link is still the same unconsumed token: a compliant password on
+    // the very same link now succeeds.
+    const retried = await submitNewPassword(link, 'a compliant password');
+    expect(retried.statusCode).toBe(200);
+    expect(await passwordWorksFor(realmId, 'ada', 'a compliant password')).toBe(true);
   });
 
   it('stops the old password working', async () => {
@@ -518,7 +599,7 @@ describe('password reset', () => {
     expect(retried.statusCode).toBe(200);
   });
 
-  it('absorbs a mail transport failure and answers the fixed 200 anyway, after the token is durably stored', async () => {
+  it('keeps a refused message, with its error, and answers the fixed 200 regardless', async () => {
     const { realmId, realmName } = await seedRealm(`realm-${newId()}`, {
       resetPasswordAllowed: true,
     });
@@ -527,34 +608,25 @@ describe('password reset', () => {
     const throwingSender: EmailSender = {
       send: () => Promise.reject(new Error('mail transport unavailable')),
     };
-    const instance = Fastify();
-    await instance.register(formbody);
-    registerResetPasswordRoute(instance, {
-      database: app,
-      sender: throwingSender,
-      findRealm: (name) => realmSettingsRepository(owner.db).byName(name),
-      publicBaseUrl: 'https://idp.example.test',
-      findByEmail,
-    });
-    await instance.ready();
 
-    const form = new URLSearchParams({ email: 'ada@example.test' });
-    const res = await instance.inject({
+    const known = await httpApp.inject({
       method: 'POST',
       url: `/realms/${realmName}/login-actions/reset-password`,
-      payload: form.toString(),
+      payload: new URLSearchParams({ email: 'ada@example.test' }).toString(),
       headers: { 'content-type': 'application/x-www-form-urlencoded' },
     });
+    await drainOutbox(throwingSender);
 
-    // Order proven the way the previous tasks establish it: the transaction
-    // that issued the token committed before send was even attempted — the
-    // row survives a send that then failed — but the failure never reaches
-    // the caller as a different status, which is the property this test
-    // exists for: an SMTP outage must not become a 500-for-known,
-    // 200-for-unknown oracle.
-    expect(res.statusCode).toBe(200);
-    const stored = await rawSelectAllActionTokens(realmId);
-    expect(stored).toHaveLength(1);
+    // The property this exists for: an SMTP outage must not become a
+    // 500-for-known, 200-for-unknown oracle — and it cannot be one now,
+    // because the transport is spoken to long after the answer went out.
+    // The token is stored and the message kept, with the reason readable.
+    expect(known.statusCode).toBe(200);
+    expect(await rawSelectAllActionTokens(realmId)).toHaveLength(1);
+    const queued = await outboxRows(realmId);
+    expect(queued).toHaveLength(1);
+    expect(queued[0]?.sentAt).toBeNull();
+    expect(queued[0]?.lastError).toBe('mail transport unavailable');
   });
 
   it('refuses when no public base url is configured, identically for a known and an unknown address', async () => {
@@ -567,7 +639,6 @@ describe('password reset', () => {
     await instance.register(formbody);
     registerResetPasswordRoute(instance, {
       database: app,
-      sender,
       findRealm: (name) => realmSettingsRepository(owner.db).byName(name),
       publicBaseUrl: undefined,
       findByEmail,

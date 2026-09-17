@@ -33,6 +33,7 @@ const grant: TokenGrantRecord = {
   audience: ['https://api.example'],
   createdAt: new Date('2026-01-01T00:00:00.000Z'),
   revokedAt: null,
+  sessionId: null,
 };
 
 // The other half of RFC6749-10.10-02; see the note on the authorization

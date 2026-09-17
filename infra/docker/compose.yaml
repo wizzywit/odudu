@@ -44,10 +44,27 @@ services:
       # No ODUDU_SMTP_HOST: this stack has no mail server, and @odudu/email
       # selects its capturing adapter — which logs each message rather than
       # delivering it — whenever one is unconfigured.
-      # Where a mailed verification link points. Never derived from a
-      # request's Host header (packages/account/src/view/routes/registration.ts) —
-      # published on 127.0.0.1:3000 below, so this is that same origin.
+      # Where a mailed verification link points, and the host every passkey
+      # is registered against. Never derived from a request's Host header
+      # (packages/account/src/view/routes/registration.ts) — published on
+      # 127.0.0.1:3000 below, so this is that same origin.
       ODUDU_PUBLIC_BASE_URL: http://localhost:3000
+      # The per-origin request budget on the sign-in, registration and
+      # reset-request submissions (ADR 0023). Passed through so a session
+      # driving more of them than a person would — a burst captured for
+      # docs/request-paths.md, say — can raise it without editing this file.
+      ODUDU_THROTTLE_LIMIT: ${ODUDU_THROTTLE_LIMIT:-10}
+      # Whether this container sends its own queued mail. Passed through
+      # for the same reason the throttle is: a transcript that wants to see
+      # `odudu send-mail` do the work needs the server's own schedule out
+      # of the way, and nothing else here turns it off.
+      ODUDU_OUTBOX_ENABLED: ${ODUDU_OUTBOX_ENABLED:-true}
+      # And whether it reaps on its own schedule, passed through for the
+      # same reason again: `odudu reap`'s own report is only attributable
+      # with the server's hourly pass out of the way. Without this the
+      # variable is simply not in the container's environment, so setting
+      # it on the `docker compose up` line does nothing at all.
+      ODUDU_REAP_ENABLED: ${ODUDU_REAP_ENABLED:-true}
     depends_on:
       postgres:
         condition: service_healthy

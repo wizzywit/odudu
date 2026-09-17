@@ -1,7 +1,6 @@
 import { createDatabase, MIGRATIONS_DIR, runMigrations, type DatabaseHandle } from '@odudu/db';
 import { users } from '@odudu/domain-identity';
 import { clientScopes } from '@odudu/domain-realm';
-import { capturingSender } from '@odudu/email';
 import { loadConfig, newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import { and, eq } from 'drizzle-orm';
@@ -55,7 +54,6 @@ beforeAll(async () => {
     ownerDatabase: owner,
     kek: KEK,
     logger: createLogger(config),
-    sender: capturingSender(),
   });
   await http.ready();
 }, 120_000);
@@ -108,7 +106,7 @@ async function completeCodeFlow(input: {
 }): Promise<TokenSet> {
   const realmName = input.realmName ?? 'demo';
   const username = input.username ?? 'ada';
-  const password = input.password ?? 'p';
+  const password = input.password ?? 'correct horse battery';
 
   const authSessionId = await extractAuthSessionId(realmName, input.clientId, input.scope);
   const loginForm = new URLSearchParams({ auth_session_id: authSessionId, username, password });
@@ -170,7 +168,7 @@ describe('the seed CLI, provisioning the identity model it now has', () => {
       '--username',
       'ada',
       '--password',
-      'p',
+      'correct horse battery',
       '--email',
       'ada@example.test',
     ]);
@@ -231,7 +229,7 @@ describe('the seed CLI, provisioning the identity model it now has', () => {
       '--username',
       'ada',
       '--password',
-      'p',
+      'correct horse battery',
       '--email',
       'ada@example.test',
     ]);
@@ -296,7 +294,15 @@ describe('the seed CLI, provisioning the identity model it now has', () => {
   it('refuses to grant a role that does not exist rather than creating one', async () => {
     const realmName = `demo-${newId()}`;
     await seed(['realm', '--name', realmName]);
-    await seed(['user', '--realm', realmName, '--username', 'ada', '--password', 'p']);
+    await seed([
+      'user',
+      '--realm',
+      realmName,
+      '--username',
+      'ada',
+      '--password',
+      'correct horse battery',
+    ]);
 
     await expect(
       seed(['grant-role', '--realm', realmName, '--username', 'ada', '--role', 'nope']),
@@ -306,7 +312,15 @@ describe('the seed CLI, provisioning the identity model it now has', () => {
   it('refuses an ambiguous qualified role name rather than guessing a split', async () => {
     const realmName = `demo-${newId()}`;
     await seed(['realm', '--name', realmName]);
-    await seed(['user', '--realm', realmName, '--username', 'ada', '--password', 'p']);
+    await seed([
+      'user',
+      '--realm',
+      realmName,
+      '--username',
+      'ada',
+      '--password',
+      'correct horse battery',
+    ]);
 
     await expect(
       seed(['grant-role', '--realm', realmName, '--username', 'ada', '--role', 'a:b:c']),
@@ -327,7 +341,15 @@ describe('the seed CLI, provisioning the identity model it now has', () => {
       '--redirect-uri',
       REDIRECT_URI,
     ]);
-    await seed(['user', '--realm', realmName, '--username', 'ada', '--password', 'p']);
+    await seed([
+      'user',
+      '--realm',
+      realmName,
+      '--username',
+      'ada',
+      '--password',
+      'correct horse battery',
+    ]);
     await seed(['group', '--realm', realmName, '--name', 'engineering']);
     await seed(['group', '--realm', realmName, '--name', 'backend', '--parent', '/engineering']);
     await seed([
@@ -370,7 +392,15 @@ describe('the seed CLI, provisioning the identity model it now has', () => {
       '--redirect-uri',
       REDIRECT_URI,
     ]);
-    await seed(['user', '--realm', realmName, '--username', 'ada', '--password', 'p']);
+    await seed([
+      'user',
+      '--realm',
+      realmName,
+      '--username',
+      'ada',
+      '--password',
+      'correct horse battery',
+    ]);
     await seed(['group', '--realm', realmName, '--name', 'engineering']);
     await seed(['group', '--realm', realmName, '--name', 'backend', '--parent', '/engineering']);
     await seed([
@@ -469,7 +499,15 @@ describe('the seed CLI, provisioning the identity model it now has', () => {
   it('updates a claim column through seed profile', async () => {
     const realmName = `demo-${newId()}`;
     const realm = await seed(['realm', '--name', realmName]);
-    await seed(['user', '--realm', realmName, '--username', 'ada', '--password', 'p']);
+    await seed([
+      'user',
+      '--realm',
+      realmName,
+      '--username',
+      'ada',
+      '--password',
+      'correct horse battery',
+    ]);
 
     await seed(['profile', '--realm', realmName, '--username', 'ada', '--name', 'Ada Lovelace']);
 

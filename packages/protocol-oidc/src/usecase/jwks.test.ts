@@ -16,7 +16,14 @@ describe('resolveJwks', () => {
     let calledListKeys = false;
     const jwks = await resolveJwks(
       {
-        findRealm: () => Promise.resolve({ id: 'r1', enabled: false, verifyEmail: false }),
+        findRealm: () =>
+          Promise.resolve({
+            id: 'r1',
+            enabled: false,
+            verifyEmail: false,
+            ssoSessionMaxSeconds: 36_000,
+            ssoSessionIdleSeconds: 1_800,
+          }),
         listPublishableKeys: () => {
           calledListKeys = true;
           return Promise.resolve([]);
@@ -31,7 +38,14 @@ describe('resolveJwks', () => {
   it('assembles the published set for an enabled realm', async () => {
     const jwks = await resolveJwks(
       {
-        findRealm: () => Promise.resolve({ id: 'r1', enabled: true, verifyEmail: false }),
+        findRealm: () =>
+          Promise.resolve({
+            id: 'r1',
+            enabled: true,
+            verifyEmail: false,
+            ssoSessionMaxSeconds: 36_000,
+            ssoSessionIdleSeconds: 1_800,
+          }),
         listPublishableKeys: () => Promise.resolve([{ kid: 'a', alg: 'RS256', publicJwk }]),
       },
       'acme',

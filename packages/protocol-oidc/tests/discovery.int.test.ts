@@ -8,7 +8,7 @@ import {
   type DatabaseHandle,
   type RealmScopedDatabase,
 } from '@odudu/db';
-import { provisionRealmDefaults } from '@odudu/domain-realm';
+import { provisionRealm } from '@odudu/authn-flows';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import Fastify, { type FastifyInstance } from 'fastify';
@@ -33,7 +33,7 @@ async function seedRealm(
   opts: { name: string; enabled?: boolean },
 ): Promise<void> {
   await tx.insert(realms).values({ id, name: opts.name, enabled: opts.enabled ?? true });
-  await provisionRealmDefaults(tx, id);
+  await provisionRealm(tx, id);
 }
 
 beforeAll(async () => {
@@ -103,6 +103,29 @@ describe('[OIDC-DISCOVERY-4-01] the discovery document is served at the well-kno
       url: '/realms/acme/.well-known/openid-configuration',
     });
     expect(res.statusCode).not.toBe(200);
+  });
+});
+
+describe('[OIDC-RPINITIATED-2.1-01] end_session_endpoint is advertised', () => {
+  it("names this realm's logout endpoint", async () => {
+    const res = await http.inject({ url: '/realms/acme/.well-known/openid-configuration' });
+    expect(res.json<{ end_session_endpoint: string }>().end_session_endpoint).toBe(
+      'http://localhost/realms/acme/protocol/openid-connect/logout',
+    );
+  });
+
+  // The path is spelled independently in the discovery document
+  // (`@odudu/contracts`' discoveryDocument) and in the router
+  // (view/routes/logout.ts's own PATH) — nothing else keeps the two in
+  // agreement, so a rename on one side would otherwise advertise a 404
+  // with every other test still green.
+  it('is a path the router actually answers, not a 404', async () => {
+    const discovery = await http.inject({ url: '/realms/acme/.well-known/openid-configuration' });
+    const { end_session_endpoint: endSessionEndpoint } = discovery.json<{
+      end_session_endpoint: string;
+    }>();
+    const res = await http.inject({ url: new URL(endSessionEndpoint).pathname });
+    expect(res.statusCode).not.toBe(404);
   });
 });
 

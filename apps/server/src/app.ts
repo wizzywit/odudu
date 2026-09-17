@@ -10,19 +10,23 @@ import {
 } from '@odudu/account';
 import { type DatabaseHandle, type RealmScopedDatabase } from '@odudu/db';
 import { roleRepository } from '@odudu/domain-authz';
+import { requiredActionRepository } from '@odudu/authn-flows';
 import {
   credentialRepository,
+  evaluatePassword,
   hashPassword,
+  REUSED_PASSWORD,
   subjectRepository,
   userRepository,
+  verifyPassword,
 } from '@odudu/domain-identity';
-import { type EmailSender } from '@odudu/email';
 import { newId } from '@odudu/kernel';
 import { oidcRoutes } from '@odudu/protocol-oidc';
 import Fastify, { type FastifyInstance, type RawServerDefault } from 'fastify';
 import { type IncomingMessage, type ServerResponse } from 'node:http';
 import { type Logger as PinoLogger } from 'pino';
 import { registerHealth } from '#/health';
+import { slidingWindow } from '#/throttle';
 
 export interface AppDeps {
   readonly database: DatabaseHandle;
@@ -44,19 +48,13 @@ export interface AppDeps {
   readonly kek: Uint8Array;
   readonly logger: PinoLogger;
   /**
-   * Where a mailed link goes: address verification triggered by
-   * self-registration. Required rather than defaulted for the same reason
-   * `kek` is — there is no safe placeholder that would not silently drop
-   * mail, and `main.ts` builds the real one from `ODUDU_SMTP_*` while a
-   * test builds a capturing or in-memory one.
-   */
-  readonly sender: EmailSender;
-  /**
-   * The base a mailed verification link is built from — never derived from
-   * a request, since `Host` is client-controlled (see
+   * The base a mailed verification link is built from, and the only source
+   * of the WebAuthn relying party id — never derived from a request, since
+   * `Host` is client-controlled (see
    * `packages/account/src/view/routes/registration.ts`). Undefined when
    * `ODUDU_PUBLIC_BASE_URL` is unset; registration then refuses to send
-   * for any realm with `verify_email` on rather than guessing one.
+   * for any realm with `verify_email` on rather than guessing one, and
+   * passkey enrolment reports itself unsupported for the same reason.
    */
   readonly publicBaseUrl?: string;
   /**
@@ -66,7 +64,33 @@ export interface AppDeps {
    * rate limiting, brute-force lockout, and audit records.
    */
   readonly trustProxy?: boolean;
+  /**
+   * The per-origin request budget on the three unauthenticated routes that
+   * each cost an Argon2id hash or a mail send. Defaults to
+   * `DEFAULT_THROTTLE`; `main.ts` passes what `ODUDU_THROTTLE_*` says.
+   */
+  readonly throttle?: ThrottleSettings;
 }
+
+export interface ThrottleSettings {
+  readonly limit: number;
+  readonly windowSeconds: number;
+}
+
+export const DEFAULT_THROTTLE: ThrottleSettings = { limit: 10, windowSeconds: 60 };
+
+/**
+ * The throttled routes, by the pattern Fastify matched rather than by the
+ * path as it arrived, so a realm name cannot be spelled to miss the set.
+ * Deliberately not `/token`: it is client-authenticated and hot, and RFC
+ * 6749 §2.3.1's client half is `deferred: P3` in
+ * `docs/protocols/rfc6749.md`, where a limit keyed by client belongs.
+ */
+const THROTTLED_POSTS: ReadonlySet<string> = new Set([
+  '/realms/:realm/login-actions/authenticate',
+  '/realms/:realm/login-actions/registration',
+  '/realms/:realm/login-actions/reset-password',
+]);
 
 // The composition-root half of self-registration: @odudu/account never
 // imports @odudu/domain-identity (subjects, users, credentials) or
@@ -85,11 +109,11 @@ async function createAccount(
     username: input.username,
     email: input.email,
   });
-  await credentialRepository(tx).create({
+  await credentialRepository(tx).insert({
     realmId,
     subjectId: subject.id,
     type: 'password',
-    secretData: await hashPassword(input.password),
+    secret: { kind: 'password', hash: await hashPassword(input.password) },
   });
   const defaults = await roleRepository(tx).defaultsForRealm();
   for (const role of defaults) {
@@ -110,6 +134,25 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     reply.header('x-request-id', request.id);
   });
 
+  const throttle = slidingWindow({
+    ...(deps.throttle ?? DEFAULT_THROTTLE),
+    now: () => new Date(),
+  });
+
+  // At onRequest, so a refusal costs neither the body parse nor anything
+  // that touches the database. It is also what keeps the refusal from
+  // being an oracle: nothing here has looked an account up, so a throttled
+  // request cannot answer differently for an account that exists.
+  app.addHook('onRequest', async (request, reply) => {
+    if (request.method !== 'POST') return;
+    const route = request.routeOptions.url;
+    if (route === undefined || !THROTTLED_POSTS.has(route)) return;
+    const decision = throttle.check(request.ip);
+    if (decision.allowed) return;
+    reply.header('retry-after', String(decision.retryAfterSeconds));
+    return reply.code(429).send();
+  });
+
   // Registered here rather than by a route: the token endpoint needs
   // form-encoded bodies and the authorization endpoint needs the session
   // cookie, and plugin registration is an app-wide concern.
@@ -118,7 +161,12 @@ export function buildApp(deps: AppDeps): FastifyInstance {
 
   registerHealth(app, deps);
   app.register(
-    oidcRoutes({ database: deps.database, ownerDatabase: deps.ownerDatabase, kek: deps.kek }),
+    oidcRoutes({
+      database: deps.database,
+      ownerDatabase: deps.ownerDatabase,
+      kek: deps.kek,
+      ...(deps.publicBaseUrl === undefined ? {} : { publicBaseUrl: deps.publicBaseUrl }),
+    }),
   );
 
   // getCurrentEmail, markVerified and setPassword are the only points where
@@ -137,19 +185,33 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     setPassword: async (tx, subjectId, password) => {
       await credentialRepository(tx).setPassword(subjectId, await hashPassword(password));
     },
+    getUsername: async (tx, subjectId) => {
+      const user = await userRepository(tx).bySubjectId(subjectId);
+      if (user === null) throw new Error(`no user found for subject ${subjectId}`);
+      return user.username;
+    },
+    evaluatePassword,
+    // A subject with no password credential at all has nothing to leave
+    // unchanged, so there is nothing to refuse.
+    unchangedPasswordViolations: async (tx, subjectId, candidate) => {
+      const current = await credentialRepository(tx).passwordFor(subjectId);
+      if (current === null) return [];
+      return (await verifyPassword(current, candidate)) ? [REUSED_PASSWORD] : [];
+    },
+    clearPasswordUpdateAction: (tx, subjectId) =>
+      requiredActionRepository(tx).complete(subjectId, 'update-password'),
   });
 
   registerRegistrationRoute(app, {
     database: deps.database,
-    sender: deps.sender,
     findRealm: (name) => realmSettingsRepository(deps.ownerDatabase.db).byName(name),
     publicBaseUrl: deps.publicBaseUrl,
     createAccount,
+    evaluatePassword,
   });
 
   registerResetPasswordRoute(app, {
     database: deps.database,
-    sender: deps.sender,
     findRealm: (name) => realmSettingsRepository(deps.ownerDatabase.db).byName(name),
     publicBaseUrl: deps.publicBaseUrl,
     findByEmail: async (tx, email) => {

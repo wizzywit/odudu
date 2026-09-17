@@ -9,11 +9,15 @@ import {
   type RealmScopedDatabase,
 } from '@odudu/db';
 import { expectCrossRealmMethodProbe } from '@odudu/db/testing';
-import { clients, provisionClientDefaults, provisionRealmDefaults } from '@odudu/domain-realm';
+import { provisionRealm } from '@odudu/authn-flows';
+import { clients, provisionClientDefaults } from '@odudu/domain-realm';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { tokenGrantRepository, type TokenGrantRecord } from '#/repository/grants';
+import { refreshTokenRepository } from '#/repository/refresh';
+import { generateRefreshToken, hashRefreshToken } from '#/service/refresh';
+import { rotateRefreshToken } from '#/usecase/refresh-rotation';
 
 let containerHandle: TestDatabase | undefined;
 let ownerHandle: DatabaseHandle | undefined;
@@ -49,7 +53,7 @@ async function seedRealmClientSubject(
   realmId: string,
 ): Promise<{ clientDbId: string; subjectId: string }> {
   await tx.insert(realms).values({ id: realmId, name: `realm-${realmId}` });
-  await provisionRealmDefaults(tx, realmId);
+  await provisionRealm(tx, realmId);
   const clientDbId = newId();
   await tx.insert(clients).values({
     id: clientDbId,
@@ -73,6 +77,21 @@ async function createGrant(tx: RealmScopedDatabase, realmId: string): Promise<To
     scope: 'openid',
     audience: AUDIENCE,
   });
+}
+
+async function issueRefreshToken(
+  tx: RealmScopedDatabase,
+  realmId: string,
+): Promise<{ grant: TokenGrantRecord; token: string }> {
+  const grant = await createGrant(tx, realmId);
+  const token = generateRefreshToken();
+  await refreshTokenRepository(tx).create({
+    tokenHash: hashRefreshToken(token),
+    realmId,
+    grantId: grant.id,
+    expiresAt: new Date(Date.now() + 1_209_600_000),
+  });
+  return { grant, token };
 }
 
 describe('tokenGrantRepository', () => {
@@ -132,5 +151,19 @@ describe('tokenGrantRepository', () => {
         expect(found?.revokedAt).toBeNull();
       },
     });
+  });
+
+  it('refuses to rotate a refresh token whose grant has been revoked', async () => {
+    const realmId = newId();
+    const { grant, token } = await withRealm(app.db, realmId, (tx) =>
+      issueRefreshToken(tx, realmId),
+    );
+
+    await withRealm(app.db, realmId, (tx) => tokenGrantRepository(tx).revoke(grant.id, new Date()));
+
+    const outcome = await withRealm(app.db, realmId, (tx) =>
+      rotateRefreshToken(tx, hashRefreshToken(token), new Date(), 600, 1_800),
+    );
+    expect(outcome.kind).toBe('revoked');
   });
 });

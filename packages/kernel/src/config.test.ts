@@ -62,6 +62,83 @@ describe('loadConfig', () => {
     expect(loadConfig({ ...minimal, ODUDU_TRUST_PROXY: 'false' }).ODUDU_TRUST_PROXY).toBe(false);
   });
 
+  it('defaults the throttle to ten requests a minute', () => {
+    const config = loadConfig(minimal);
+    expect(config.ODUDU_THROTTLE_LIMIT).toBe(10);
+    expect(config.ODUDU_THROTTLE_WINDOW_SECONDS).toBe(60);
+  });
+
+  it('reads a raised throttle out of the environment', () => {
+    const config = loadConfig({
+      ...minimal,
+      ODUDU_THROTTLE_LIMIT: '500',
+      ODUDU_THROTTLE_WINDOW_SECONDS: '30',
+    });
+    expect(config.ODUDU_THROTTLE_LIMIT).toBe(500);
+    expect(config.ODUDU_THROTTLE_WINDOW_SECONDS).toBe(30);
+  });
+
+  it('refuses a throttle limit of zero rather than reading it as off', () => {
+    expect(() => loadConfig({ ...minimal, ODUDU_THROTTLE_LIMIT: '0' })).toThrow(/THROTTLE_LIMIT/u);
+  });
+
+  it('schedules the retention pass hourly by default', () => {
+    const config = loadConfig(minimal);
+    expect(config.ODUDU_REAP_ENABLED).toBe(true);
+    expect(config.ODUDU_REAP_INTERVAL_SECONDS).toBe(3600);
+  });
+
+  // The one variable in this file whose absence means "on". An operator
+  // scheduling `odudu reap` externally has to be able to say so, and a
+  // deployment that says nothing must still reap.
+  it('turns the retention schedule off only on the literal string false', () => {
+    expect(loadConfig({ ...minimal, ODUDU_REAP_ENABLED: 'false' }).ODUDU_REAP_ENABLED).toBe(false);
+    expect(loadConfig({ ...minimal, ODUDU_REAP_ENABLED: 'true' }).ODUDU_REAP_ENABLED).toBe(true);
+    expect(() => loadConfig({ ...minimal, ODUDU_REAP_ENABLED: 'no' })).toThrow(/REAP_ENABLED/u);
+  });
+
+  it('reads a shortened retention interval out of the environment', () => {
+    expect(
+      loadConfig({ ...minimal, ODUDU_REAP_INTERVAL_SECONDS: '900' }).ODUDU_REAP_INTERVAL_SECONDS,
+    ).toBe(900);
+  });
+
+  it('refuses a retention interval of zero rather than reading it as off', () => {
+    expect(() => loadConfig({ ...minimal, ODUDU_REAP_INTERVAL_SECONDS: '0' })).toThrow(
+      /REAP_INTERVAL_SECONDS/u,
+    );
+  });
+
+  it('sends queued mail every fifteen seconds by default', () => {
+    const config = loadConfig(minimal);
+    expect(config.ODUDU_OUTBOX_ENABLED).toBe(true);
+    expect(config.ODUDU_OUTBOX_INTERVAL_SECONDS).toBe(15);
+    expect(config.ODUDU_OUTBOX_BATCH_SIZE).toBe(20);
+    expect(config.ODUDU_OUTBOX_MAX_ATTEMPTS).toBe(5);
+    expect(config.ODUDU_OUTBOX_RETRY_BACKOFF_SECONDS).toBe(60);
+  });
+
+  // The other variable whose absence means "on", and for the same reason:
+  // a deployment that says nothing must still send its mail.
+  it('turns the outbox schedule off only on the literal string false', () => {
+    expect(loadConfig({ ...minimal, ODUDU_OUTBOX_ENABLED: 'false' }).ODUDU_OUTBOX_ENABLED).toBe(
+      false,
+    );
+    expect(() => loadConfig({ ...minimal, ODUDU_OUTBOX_ENABLED: 'no' })).toThrow(/OUTBOX_ENABLED/u);
+  });
+
+  it('refuses an attempt ceiling of zero, which would send nothing at all', () => {
+    expect(() => loadConfig({ ...minimal, ODUDU_OUTBOX_MAX_ATTEMPTS: '0' })).toThrow(
+      /OUTBOX_MAX_ATTEMPTS/u,
+    );
+  });
+
+  it('keeps a delivered message a week and a spent one thirty days', () => {
+    const config = loadConfig(minimal);
+    expect(config.ODUDU_RETENTION_EMAIL_SENT_SECONDS).toBe(604_800);
+    expect(config.ODUDU_RETENTION_EMAIL_FAILED_SECONDS).toBe(2_592_000);
+  });
+
   it('decodes ODUDU_KEK from base64 to exactly 32 bytes', () => {
     const config = loadConfig(minimal);
     expect(config.ODUDU_KEK).toBeInstanceOf(Uint8Array);

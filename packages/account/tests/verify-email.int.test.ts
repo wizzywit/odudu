@@ -7,7 +7,13 @@ import {
   type DatabaseHandle,
   type RealmScopedDatabase,
 } from '@odudu/db';
-import { type EmailMessage, type EmailSender } from '@odudu/email';
+import {
+  emailOutbox,
+  sendPending,
+  type EmailMessage,
+  type EmailSender,
+  type SendPendingOptions,
+} from '@odudu/email';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import { eq, sql } from 'drizzle-orm';
@@ -68,6 +74,7 @@ function fakeUserStore() {
     // Unused by any test in this file — verify_email tokens never reach the
     // reset_password branch — but registerActionTokenRoute requires it.
     setPassword: () => Promise.resolve(),
+    getUsername: () => Promise.resolve(''),
   };
 }
 
@@ -118,6 +125,28 @@ let realmId: string;
 let realmName: string;
 let subject: string;
 let sender: ReturnType<typeof fakeSender>;
+
+const OUTBOX_OPTIONS: SendPendingOptions = {
+  batchSize: 10,
+  maxAttempts: 3,
+  retryBackoffSeconds: 60,
+};
+
+// The flow only queues the mail; the pass that hands it to a transport is
+// packages/email/src/usecase/send-pending.ts, and a test that wants the
+// mailed link runs it here the way the server's schedule runs it there.
+
+async function drainOutbox(into: EmailSender = sender): Promise<void> {
+  await sendPending(
+    { database: app, ownerDatabase: owner, sender: into },
+    new Date(),
+    OUTBOX_OPTIONS,
+  );
+}
+
+async function outboxRows() {
+  return withRealm(app.db, realmId, (tx) => tx.select().from(emailOutbox));
+}
 let store: ReturnType<typeof fakeUserStore>;
 let deps: SendVerificationEmailDeps;
 let httpApp: FastifyInstance;
@@ -130,6 +159,11 @@ async function buildHttpApp(): Promise<FastifyInstance> {
     getCurrentEmail: store.getCurrentEmail,
     markVerified: store.markVerified,
     setPassword: store.setPassword,
+    getUsername: store.getUsername,
+    // Unused by any test in this file, for the same reason setPassword is.
+    evaluatePassword: () => [],
+    unchangedPasswordViolations: () => Promise.resolve([]),
+    clearPasswordUpdateAction: () => Promise.resolve(),
   });
   await instance.ready();
   return instance;
@@ -144,7 +178,6 @@ beforeEach(async () => {
   store.users.set(subject, { email: 'ada@example.test', verified: false });
   deps = {
     database: app,
-    sender,
     realmId,
     realmName,
     realmDisplayName: 'Ada Test Realm',
@@ -153,9 +186,17 @@ beforeEach(async () => {
   httpApp = await buildHttpApp();
 });
 
+// Every test below reads either what the queue holds or what a drain
+// delivered, so each starts with the queue empty rather than with whatever
+// an earlier test left in it.
+beforeEach(async () => {
+  await owner.db.delete(emailOutbox);
+});
+
 describe('address verification', () => {
   it('sends a link the user can follow, and flips email_verified when they do', async () => {
     await sendVerificationEmail(deps, { subjectId: subject, email: 'ada@example.test' });
+    await drainOutbox();
     expect(sender.sent).toHaveLength(1);
     const message = sender.sent[0];
     if (message === undefined) throw new Error('no mail sent');
@@ -167,27 +208,35 @@ describe('address verification', () => {
     expect(store.users.get(subject)?.verified).toBe(true);
   });
 
-  it('sends the mail only after the transaction that issued the token commits', async () => {
-    // A sender that throws still leaves the token stored: proof that the
-    // insert already committed before send was even attempted, not proof
-    // merely that both eventually happened.
+  it('queues the mail in the transaction that issues the token, and sends nothing itself', async () => {
+    await sendVerificationEmail(deps, { subjectId: subject, email: 'ada@example.test' });
+
+    // The token is durably stored and the mail that carries it is queued
+    // beside it, and no transport has been spoken to: the send happens on
+    // the outbox pass, where a failure cannot reach a caller.
+    expect(await rawSelectAllActionTokens(realmId)).toHaveLength(1);
+    expect(await outboxRows()).toHaveLength(1);
+    expect(sender.sent).toHaveLength(0);
+  });
+
+  it('keeps the queued message, with its error, when the transport refuses it', async () => {
     const throwingSender: EmailSender = {
       send: () => Promise.reject(new Error('mail transport unavailable')),
     };
+    await sendVerificationEmail(deps, { subjectId: subject, email: 'ada@example.test' });
 
-    await expect(
-      sendVerificationEmail(
-        { ...deps, sender: throwingSender },
-        { subjectId: subject, email: 'ada@example.test' },
-      ),
-    ).rejects.toThrow('mail transport unavailable');
+    await drainOutbox(throwingSender);
 
-    const stored = await rawSelectAllActionTokens(realmId);
-    expect(stored).toHaveLength(1);
+    const queued = await outboxRows();
+    expect(queued).toHaveLength(1);
+    expect(queued[0]?.attempts).toBe(1);
+    expect(queued[0]?.lastError).toBe('mail transport unavailable');
+    expect(await rawSelectAllActionTokens(realmId)).toHaveLength(1);
   });
 
   it('refuses a second use of the same link', async () => {
     await sendVerificationEmail(deps, { subjectId: subject, email: 'ada@example.test' });
+    await drainOutbox();
     const message = sender.sent[0];
     if (message === undefined) throw new Error('no mail sent');
     const link = extractLink(message);
@@ -201,6 +250,7 @@ describe('address verification', () => {
 
   it('invalidates an outstanding token when the address changes', async () => {
     await sendVerificationEmail(deps, { subjectId: subject, email: 'ada@example.test' });
+    await drainOutbox();
     const message = sender.sent[0];
     if (message === undefined) throw new Error('no mail sent');
     const link = extractLink(message);
@@ -222,7 +272,6 @@ describe('address verification', () => {
     otherStore.users.set(otherSubject, { email: 'grace@example.test', verified: false });
     const otherDeps: SendVerificationEmailDeps = {
       database: app,
-      sender,
       realmId: other.realmId,
       realmName: other.realmName,
       realmDisplayName: 'Other Realm',
@@ -233,6 +282,7 @@ describe('address verification', () => {
       subjectId: otherSubject,
       email: 'grace@example.test',
     });
+    await drainOutbox();
     const message = sender.sent[0];
     if (message === undefined) throw new Error('no mail sent');
     const link = extractLink(message).replace(
@@ -246,6 +296,7 @@ describe('address verification', () => {
 
   it('rejects a request naming a realm that does not exist', async () => {
     await sendVerificationEmail(deps, { subjectId: subject, email: 'ada@example.test' });
+    await drainOutbox();
     const message = sender.sent[0];
     if (message === undefined) throw new Error('no mail sent');
     const link = extractLink(message).replace(`/realms/${realmName}/`, '/realms/does-not-exist/');
@@ -256,6 +307,7 @@ describe('address verification', () => {
 
   it('refuses to redeem a link minted for a realm that has since been disabled', async () => {
     await sendVerificationEmail(deps, { subjectId: subject, email: 'ada@example.test' });
+    await drainOutbox();
     const message = sender.sent[0];
     if (message === undefined) throw new Error('no mail sent');
     const link = extractLink(message);

@@ -16,6 +16,11 @@ export type AuthorizeOutcome =
       // neither is decidable from the request parameters alone.
       prompts: ReadonlySet<PromptValue>;
       idTokenHint: string | null;
+      // Seconds since the end-user's last active authentication the client
+      // will still accept without reauthentication (§3.1.2.1); null when
+      // the request carried none. Decided alongside `prompts` for the same
+      // reason — neither is answerable from the request parameters alone.
+      maxAge: number | null;
     }
   | { kind: 'render'; error: string; description: string }
   | { kind: 'redirect'; redirectUri: string; error: string; state: string | null };
@@ -41,6 +46,21 @@ function scopesAreGrantable(
   const tokens = (scope ?? 'openid').split(' ').filter((token) => token.length > 0);
   if (tokens.length === 0) return false;
   return tokens.every((token) => knownToRealm.has(token) && assignedToClient.has(token));
+}
+
+// §3.1.2.1: "the value is a JSON number". A query parameter is text, and
+// the only text this server accepts for a JSON number here is a plain
+// non-negative integer literal — no sign, no fraction, no exponent, and
+// nothing `Number()` would coerce (whitespace, "Infinity", "0x1") into
+// looking like one.
+const MAX_AGE_PATTERN = /^(?:0|[1-9][0-9]*)$/;
+
+type MaxAgeParse = { kind: 'ok'; value: number | null } | { kind: 'invalid' };
+
+function parseMaxAge(raw: string | undefined): MaxAgeParse {
+  if (raw === undefined) return { kind: 'ok', value: null };
+  if (!MAX_AGE_PATTERN.test(raw)) return { kind: 'invalid' };
+  return { kind: 'ok', value: Number(raw) };
 }
 
 function toPendingRequest(
@@ -138,10 +158,14 @@ export function validateAuthorizationRequest(
   const prompt = parsePrompt(params.prompt);
   if (prompt.kind === 'invalid') return reject('invalid_request');
 
+  const maxAge = parseMaxAge(params.max_age);
+  if (maxAge.kind === 'invalid') return reject('invalid_request');
+
   return {
     kind: 'ok',
     request: toPendingRequest(client, params, redirectUri, state, codeChallenge),
     prompts: prompt.values,
     idTokenHint: params.id_token_hint ?? null,
+    maxAge: maxAge.value,
   };
 }

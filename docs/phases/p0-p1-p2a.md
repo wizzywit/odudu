@@ -1,0 +1,678 @@
+# P0, P1 and P2a — what those phases found
+
+The running record from before P2b, newest first, split out of `docs/NEXT.md`
+for the reason its sibling file gives.
+
+**These three phases are not separated from each other here.** The source was
+one reverse-chronological stream with no phase markers in it, so dividing P0
+from P1 from P2a would mean inventing boundaries the record never had. Where a
+note names its phase it says so; where it does not, git blame on
+`docs/NEXT.md` before 2026-09-17 is the honest way to date it.
+
+Several notes below address a phase that has since finished — most of them are
+requests P2b then carried out. They are kept as written rather than updated,
+because what they asked for and what was built are both worth having.
+
+**Reaping now covers five tables, not four, and ADR 0021's warning covers
+all five.** P2a added `action_tokens` (email verification and password
+reset links) alongside `sessions`, `authentication_sessions`,
+`authorization_codes` and `refresh_tokens` — all five carry `expires_at`
+(or, for `action_tokens`, `consumed_at`) with no `DELETE` anywhere in a
+repository. The dead rows are load-bearing: `action_tokens` needs its
+consumed and expired rows kept for the same reason a consumed
+`authorization_codes` row is kept, so that a replayed link can be told from
+one that never existed rather than silently treated as fresh. A reaper that
+deletes eagerly breaks replay and reuse detection on **any** of the five
+while leaving every test that only checks "was the request refused" green —
+see "Do not write `DELETE … WHERE expires_at < now()`" below, which now
+applies to `action_tokens` too.
+
+**A trap P2b will walk into: reading the SSO cookie at `/authorize`
+bypasses the email-verified login gate unless it re-checks it.** Today the
+cookie is written at login and never read (`/authorize` starts a fresh
+authentication every time), so the gate that refuses to complete a login
+for an unverified self-registered address only has one door to guard: the
+form POST. That gate lives in `login-submission.ts`, reached only through
+`POST /realms/{realm}/login-actions/authenticate`. The moment `/authorize`
+can complete a request from a cookie instead of a form submission, that
+check needs to run on the cookie path too, or an unverified user who
+happens to hold a live session cookie signs back in for free. Nothing
+today would catch this by accident — the form-POST tests exercise the form
+POST.
+
+**Rate limiting was always P2b's, and P2a's registration endpoint widens
+what it needs to cover.** There is no rate limiting or lockout anywhere in
+the repository. `POST /realms/{realm}/login-actions/registration` is
+unauthenticated and performs one Argon2id hash at 19 MiB per request with
+no maximum password length; Fastify's 1 MB body limit is the only ceiling
+on the request itself. Before P2a this was "guess a password against an
+existing account"; now it is also "burn CPU with no account requirement at
+all" — a cheaper attack for the same missing control.
+
+**A stated limitation, not an accident: the password-reset request endpoint
+awaits the SMTP send before responding.** An existing address is therefore
+measurably slower to answer than an unknown one, even though the response
+body and status are identical — a timing oracle where the visible channel
+is closed. Closing it needs an outbox table and a background sender to take
+the send off the request path, which is the first background loop the
+codebase would have and a second table nothing deletes from; this phase's
+design spec rejected building one. [README.md](../README.md)'s "Known
+limitation" paragraph, right after the password-reset walkthrough, states
+it for a reader; this is the record that it was a judgment call, not an
+oversight, so P2b inherits a decision rather than a bug report. **Closed in
+P2b by the outbox** (`email_outbox`, 0043): that README paragraph is gone,
+and "Start here" above records what replaced it.
+
+**New environment variables.** `ODUDU_PUBLIC_BASE_URL` — the origin every
+mailed link is built from, never from a request's `Host` header, which is
+client-controlled; sending fails closed (500, logged as a misconfiguration)
+when a realm needs to mail and this is unset. The `ODUDU_SMTP_*` set —
+`ODUDU_SMTP_HOST`, `ODUDU_SMTP_PORT` (default `587`), `ODUDU_SMTP_FROM`,
+`ODUDU_SMTP_USERNAME`, `ODUDU_SMTP_PASSWORD`, `ODUDU_SMTP_STARTTLS` — with
+`ODUDU_SMTP_HOST` unset, the server logs every message instead of sending
+it, which is what the compose stack does today.
+
+**Migrations now run to 0026.** `packages/db/drizzle/0023_users_email_unique.sql`
+is the realm-scoped `(realm_id, email)` uniqueness self-registration needs;
+0025 is the last one P2a added. 0026 (`token_grants_session`) is P2b's
+first, and the plan's own table numbers the rest through 0039.
+
+That is P2a done. **P2b** takes what P2 always meant: the flow tree with
+TOTP and passkeys, password policies, brute-force protection (a clause row
+already records it as `deferred: P2`, and means this half), session idle and
+maximum lifespans, offline access, an SSO session that is **read** as well as
+written, and RP-initiated logout to end it. Odudu now serves the OAuth 2.1 /
+OpenID Connect core plus the full P2a identity model. The rest of this file
+is the record of how P0 and P1 happened; what follows below this point is
+kept for that history, not as current guidance.
+
+**Nothing is ever deleted, and P2b now owns fixing that — five tables, not
+four (see above).** The tables carrying `expires_at` or `consumed_at` —
+`sessions`, `authentication_sessions`, `authorization_codes`,
+`refresh_tokens`, `action_tokens` — enforce expiry (or consumption) at read
+time, so an expired or spent row can never be redeemed, and **no repository
+contains a `DELETE`**. Every `/authorize` request leaves an
+`authentication_sessions` row behind holding `client_id`, `redirect_uri`,
+`scope`, `state`, `nonce` and `code_challenge`, whether the login completed
+or was abandoned; every refresh rotation leaves a `refresh_tokens` row,
+about 288 per session per day for a client refreshing every five minutes;
+every mailed link leaves an `action_tokens` row. It is P2b's because P2b
+owns the session idle and maximum lifespans, and a lifespan says when
+something stops working, not when it stops existing.
+
+**Do not write `DELETE … WHERE expires_at < now()`.** Replay detection reads
+the dead rows. `rotateRefreshToken`
+(`packages/protocol-oidc/src/usecase/refresh-rotation.ts`) tells reuse from an
+unknown token by reading the already-used row back through
+`refreshTokenRepository.byHash`; delete it and a replayed token returns
+`{ kind: 'unknown' }` instead of `{ kind: 'reused' }`, so the request is still
+refused with the same `invalid_grant` the client would have seen anyway and
+**family revocation silently never fires**. A consumed `authorization_codes`
+row is the same: revoking the grant on a replayed code depends on the row
+existing. Retention is bounded below by the **detection window — the life of
+the grant family — which is a different and much larger number than the token
+TTL.** Whatever reaper P2b writes needs a test that replays a consumed
+credential after a reaping pass and asserts the family was revoked; asserting
+the request was refused proves nothing, because the broken implementation
+refuses it too. **ADR 0021** has the decision, what the specifications do and
+do not require (they require nothing about retention — that was read, not
+recalled), and what Keycloak does instead.
+
+**P2 now owns logout, which the roadmap had never assigned to anyone.**
+RP-initiated logout (`end_session_endpoint`) belongs to the phase that makes
+the SSO session real: P1 writes a session cookie and never reads it, so an
+endpoint ending a session nothing consults could only assert that a row
+changed. Make the session load-bearing and make it endable in the same
+phase. Front-channel and back-channel logout are P3's — both are addressed
+to a client and need a registered logout URI, and back-channel issues a
+logout token, which is a second token type and therefore its own clause
+table. Section 11 of the design spec carries the full reasoning.
+
+**Comment blocks are capped at eight lines, and the cap is a test.** An
+essay belongs in an ADR or a `docs/protocols/` reading note with a one-line
+pointer back, not above the function it concerns.
+`tests/lint/comment-block-length.test.ts` enforces it over both source trees
+with no allowlist and no inline waiver; blank lines do not split a block and
+over-long lines are weighed by width, so neither dodge works. This exists
+because comment density on this branch ran from 3% of added lines to 42%
+before anybody noticed — the rule was in `CLAUDE.md` the whole time and
+nothing could tell a well-commented file from an over-commented one.
+
+**`pnpm trace` runs strict, and a new MUST that is not `covered` costs
+something in every one of the six statuses.** That is the one workflow
+change to know. Add a clause row for every MUST and SHOULD P2 introduces,
+and close it with a test id. Left `gap` or `documented:`, a MUST is an error
+under `pnpm verify`, not a warning to be triaged later. Recorded
+`accepted:`, it warns on every run and its reference must quote a heading
+the tool checks still exists. Recorded `deferred:` or `n/a:`, it prints
+nothing — but the count of MUSTs each clause table silences that way is
+recorded in `tools/trace/silenced-musts.json`, the tool requires the
+recorded number to equal the number it finds, and a new one therefore fails
+the build until somebody raises the count in a diff a reviewer sees.
+The six statuses and what each is for are in
+`docs/protocols/rfc6749.md`'s reading note "The six statuses, and what the
+two prose ones are for"; why the silent two are held by a census rather than
+by printing is in ADR 0017's 2026-09-12 amendment.
+
+**Eighteen MUSTs are `accepted:`, and they are not work items.** Seventeen
+of them come to the same thing — a property of a connection this process
+does not terminate. Fifteen are one claim in five specifications' words:
+that TLS is present, and good, on the wire. Odudu serves HTTP behind a
+reverse proxy, so nothing here can observe a ciphersuite, a certificate, or
+whether the bytes were encrypted; closing them needs Odudu to terminate TLS
+itself, or evidence gathered where the connection actually is. Neither is a
+test in this repository, and neither is P2's job. The other two are the
+`https` half of an issuer identifier (OIDC Core §2 and RFC 9207 §2):
+`realmIssuer` builds the identifier, but the scheme is whatever the proxy
+asserts through `X-Forwarded-Proto`, and closing those needs a scheme this
+process establishes rather than reads off a header. The eighteenth is RFC 6749 §10.10's umbrella sentence, which is fully held —
+by three test ids, where a row can carry one. Each cites the reading note
+that explains it, and `pnpm trace` fails if that note is renamed away. ADR
+0017 records the status, and the hole in strict mode it deliberately opens.
+
+**The TLS posture, stated once.** `assertProductionTls`
+(`apps/server/src/config-guard.ts`) refuses to boot with `NODE_ENV=production`
+and `ODUDU_TLS` off. That is what closes the rows phrased as the server
+_requiring_ TLS, and it rests on **two** operator assertions, not one:
+`NODE_ENV` gates the guard and is exactly as operator-controlled as
+`ODUDU_TLS` — `infra/docker/compose.yaml` turns the guard off with one line,
+legitimately, because it serves plain HTTP on loopback.
+`infra/conformance/compose.yaml` is the stack that runs the production
+configuration behind real TLS.
+
+**Key rotation is still owed.** `signing_keys` carries `status`
+(`active` / `rotating` / `retired`) and `not_after` from migration 0003;
+JWKS publishes every non-retired key, signing selects the active one, and
+`signing_keys_one_active` permits exactly one active key. The _operation_
+that promotes and retires keys does not exist. It is **P4**'s as of
+2026-09-14, and P4's exit criterion names it: no relying party's request
+triggers a rotation, so it needs the authenticated administrator, the audit
+event and the surface P4 builds, none of which P3 has. Nothing in P2 needs
+it, and nothing forbids an earlier CLI, but a deployment running long enough
+to want a new key today has no supported way to get one.
+
+**47 rows are `deferred:`, and 11 of them name P2**: ten in
+`docs/protocols/oidc-core.md` and one in `docs/protocols/rfc6749.md`. They
+are the clauses that need a reusable session to have a reachable branch at
+all — `prompt=login`'s "an error is returned if reauthentication cannot be
+performed" is the shape of them, unreachable while `/authorize` starts a
+fresh authentication every time and never reads the SSO cookie it sets.
+Read them before scoping P2; they are its requirements, already written
+down. The other 36 are P3's (consent, dynamic registration, audience
+configuration, RFC 8707 `resource` indicators) — all of which P3's exit
+criterion now names, along with consent and signed or encrypted UserInfo
+responses, none of which it named before 2026-09-14.
+
+**Known limitations carried into P1 are still carried**, at the end of this
+file — the `id_token_hint` audience, cookie namespacing, the single RLS
+policy, the native-module bundling trap `@node-rs/argon2` walks into in P2,
+and the migration runner's missing advisory lock.
+
+**The last of OIDC Core's MUST gaps.** `docs/protocols/oidc-core.md` went
+from 29 MUST rows with no test to 6. Twenty-two were closed — the ID
+Token's REQUIRED claims and its signature read off a token `/token`
+actually returned, the Token Endpoint's registered-authentication-method
+rule, the `id_token` that arrives exactly when the code was issued for a
+request carrying `openid`, the Token Error Response's media type and
+status, the UserInfo endpoint's RFC 6750 §3 error shape, RS256, and
+`auth_time` — and seven of those cite RFC 6749 assertions rather than new
+tests, because §3.1.3.2 restates §4.1.3's verification steps for the OIDC
+case and Odudu has one token endpoint. One row moved to `deferred: P2`:
+`prompt=login`'s "an error is returned if reauthentication cannot be
+performed" has no reachable branch until a session can be reused, which is
+what `deferred:` is for.
+
+**A covered row was passing for a reason that was not the requirement.**
+`RFC9068-2.1-03` proved "no key may spell `none`" by inserting
+`alg = 'none'` with `status = 'active'` and asserting the insert fails. It
+does fail — because of `signing_keys_one_active`, the unique index that
+refuses any second active key whatever its algorithm. Relaxing
+`signing_keys_alg_check` to admit `'none'` left the test green. Both that
+assertion and the new `OIDC-CORE-2-06` now offer the probe row as
+`retired`, so the algorithm check is the only thing that can turn it away,
+and the relaxed-constraint breakage proof turns both red.
+
+**Six oidc-core MUSTs stay `gap` on purpose**, with a reading note each:
+§3.1.2, §3.1.3, §5.3 and §16.17 ×2 are TLS on the wire, and §2's `iss` row
+asks for an `https` scheme this process does not choose — the same operator
+assertion `docs/protocols/rfc9207.md` already declines to treat as proof.
+That call has since been made: all six became `accepted:` rows, and strict
+mode is now `pnpm trace`'s default. **ADR 0017** records the status, the two
+options rejected, and the hole in strict mode a tolerated status is.
+
+**Two defects found by reading a row against its test.** Both were found
+while writing clause tests, and both were real rather than theoretical.
+
+`readOptionalField` (`packages/protocol-oidc/src/usecase/token-issuance.ts`)
+returned `''` for a parameter sent with an empty value, where RFC 6749 §3.2
+requires it to be read as omitted. Its two callers are `client_secret` and
+`client_id`; the first one mattered. A redemption carrying an
+`Authorization: Basic` header **and** `client_secret=` was refused 401
+`invalid_client` as two authentication methods presented at once (§2.3.1),
+where the identical request with the parameter left out returned 200 — the
+rule being applied was right and its trigger was wrong. §3.2's row is now
+`RFC6749-3.2-04` rather than a gap, and the test is built around the
+optional parameter, because a required one cannot tell empty from absent:
+both fail it identically. The reading note under "The default scope, and
+the empty parameter value" records why that distinction is the whole of
+the row.
+
+**Nothing is consumed on the refresh grant until the grant has been
+evaluated.** `issueRefreshTokens` rotated first and checked the
+token-to-client binding afterwards. The binding was enforced — so no MUST
+was broken — but rotation marks the presented token used and commits in
+its own transaction, so any client registered in the realm that learned
+another client's refresh token could burn it: the victim's next legitimate
+refresh was then detected as reuse, and reuse revokes the entire family.
+Reuse detection is one of this phase's headline security properties, and
+it was usable as a weapon against the client it exists to protect. The
+same was true of a client's own request that merely asked for a wider
+scope than it was granted.
+
+`evaluateRefreshGrant` now runs on both sides of the rotation. Before it,
+from a read-only lookup, as a gate that can only refuse: a request that
+was never going to succeed marks nothing used. After it, against the grant
+the rotating transaction itself read, as the decision that governs — a
+family revoked between the two reads must not still yield an access token.
+What is atomic is unchanged and deliberately so: the single-use `consume`
+in `refreshTokenRepository` is still one `UPDATE ... WHERE used_at IS NULL
+AND expires_at > now() RETURNING *`, and it alone picks the winner between
+two concurrent redemptions. Adding a read in front of it cannot turn that
+into a race, because the read grants nothing — two concurrent redemptions
+by the rightful client both pass the gate, and exactly one `UPDATE` still
+matches. The widened window can only produce additional refusals, never an
+additional success.
+
+`client_oidc_config_refresh_token_ttl_floor` (migration 0014) puts a floor
+of one second under `refresh_token_ttl_seconds`, which had no bound of any
+kind. Zero or less issues a refresh token that expired before the client
+received it, indistinguishable to every caller from one that was never
+issued. There is deliberately **no** ceiling to match 0013's hour: an
+`at+jwt` access token is self-contained, so its TTL is the whole
+unrevocable window, whereas every refresh token presentation is a database
+round-trip that reads the grant — revoking the grant ends it whatever the
+column says, which makes the TTL an idle timeout rather than exposure. No
+clause row asks for a number and none is derivable, so none was invented.
+
+**`prompt` and `id_token_hint` are answered at `/authorize`.** OIDC Core
+§15.1's mandatory `prompt` behaviours are implementable without P2's
+reusable session: `/authorize` starts a fresh authentication every time and
+never reads the SSO cookie it sets, so no End-User is ever already
+authenticated there and `prompt=none` is `login_required` unconditionally —
+§3.1.2.3's actual requirement, not a stand-in. `none` beside any other
+value is refused (§3.1.2.1 makes them exclusive), as is a value outside the
+four the specification defines. `id_token_hint` is verified as a token this
+realm signed carrying this realm's `iss` (§3.1.2.2) against the same keys
+`/jwks` publishes, before the prompt is acted on; the validated subject
+rides on the parked request, so a sign-in by somebody else answers
+`login_required` with no code, no cookie and no consumed authentication
+session. Two rows stay `gap` knowingly — see the reading note in
+`docs/protocols/oidc-core.md`.
+
+**`pnpm trace` consults every test result carrying a row's id, not the
+last one.** A `describe('[ID] …')` holding several `it`s reports one result
+per `it`, all under that id, so an id naming several results is the
+ordinary case — 55 of 104 ids in a full run. Indexing one result per id
+kept whichever the reporter emitted last, and a red test could reconcile
+its row green behind a passing sibling. A row is now covered only when
+every result carrying its id passed, and the finding names the test that
+failed.
+
+**Three defaults that were safe by accident.** An access token's lifetime
+now has a ceiling the server owns rather than one its clients happen to
+choose: `client_oidc_config_access_token_ttl_ceiling` (migration 0013)
+holds `access_token_ttl_seconds` between 1 second and one hour, so no row
+a longer-lived token could be issued from can exist. The bound sits on the
+column rather than at issuance deliberately — a clamp while minting would
+issue something other than the registration says, and would be true only
+of the code path that remembers it, while a constraint is true of every
+writer including the admin API that does not exist yet. Raising it costs a
+migration on purpose. That closes RFC 6750 §5.2's "token lifetime is
+limited" and §5.3's "one hour or less" with a test about what the database
+will hold at all plus the `exp - iat` of a token issued for the
+longest-lived client that can exist — not about a fixture's own TTL.
+
+`verifyJwt` no longer accepts a token with no audience policy stated:
+`audience` is a required argument, and a call site that is genuinely not
+the token's audience — the OP reading an `id_token_hint`, whose `aud` is
+the requesting client — passes `AUDIENCE_UNCHECKED`. An optional option
+made RFC 7519 §4.1.3 switch off by silence, which is what let a token
+minted for another audience reach `/userinfo`; the type now carries the
+guarantee, and `packages/crypto/src/service/sign.test.ts` holds it with a
+`@ts-expect-error` that `pnpm typecheck` fails on the moment the argument
+becomes optional again. **`packages/protocol-oidc/src/usecase/authorization-request.ts`
+was the one live call site that named no audience.** Whether an
+`id_token_hint` issued to one client should be honoured when presented by
+another is left open, and recorded under "Known limitations" below.
+
+RFC 7519 §4.1's `jti` row is closed where the claim is actually minted
+(`packages/protocol-oidc/src/usecase/token-issuance.ts`), by asserting
+that an access token fetched from `/token` carries a uuidv7 and that two
+of them differ — `packages/crypto` could never have answered it, since
+`signJwt` assigns no `jti`.
+
+**The issuer, TLS, userinfo POST and email.** The issuer is canonical
+again: the previous increment's move to `request.host` kept a non-default
+port but let `Host: idp.example:443` and `Host: idp.example` become two
+issuers for one deployment, which `/userinfo` — verifying an access token
+against the issuer recomputed from that request's Host — turned into a 401. The scheme's default port is now dropped and every other port kept,
+IPv6 literals included, and `realmIssuer` joins base and realm in one
+place all five producers use.
+
+`ODUDU_TLS` is no longer advisory: with `NODE_ENV=production` and TLS
+unasserted, the server refuses to boot. That closes the four RFC 6749 rows
+phrased as _the authorization server requires TLS_ and nothing else — a
+boot guard proves an operator was made to assert TLS, not that TLS is on
+the wire, and `docs/protocols/rfc6749.md`'s reading note names every row
+it deliberately leaves as a gap. The development compose stack now says
+`NODE_ENV=development`, since it serves plain HTTP on loopback;
+`infra/conformance/compose.yaml` is the stack that runs the production
+configuration behind real TLS.
+
+`/userinfo` answers POST as well as GET (OIDC Core §5.3), accepting the
+token in the `Authorization` header or, on a POST, in a form-encoded
+`access_token` body (RFC 6750 §2.2) — the reading note that excused
+GET-only contradicted a MUST and is corrected. Both methods present at
+once is §3.1's `invalid_request`. `/authorize` and `/userinfo` now share
+one media-type rule, which also answers a body arriving with no
+`Content-Type` rather than letting Fastify's own 415 reply in a second
+representation.
+
+`email` is constrained **on the column it is emitted from**
+(`users_email_addr_spec`, migration 0012), against a stated subset of RFC
+5322 addr-spec rather than an approximation of the whole grammar — see the
+reading note in `docs/protocols/oidc-core.md` for what the subset refuses.
+Validating in `userRepository.create` alone left OIDC Core §5.1 enforced
+on no path that produces a claim: nothing in production passed an email to
+that method, and every `email` Odudu emitted was inserted raw by a test
+helper. The repository keeps its check as the friendlier, earlier refusal;
+a parity assertion holds the SQL and TypeScript spellings of the subset in
+agreement case by case. `seed --email` exists so the user every demo and
+end-to-end run authenticates as can carry the claim at all.
+
+The traceability tables have a fifth status, `documented:`, for the
+clauses that oblige an authorization server to _state_ something (RFC 6749
+§3.3's scope defaults). Its reference must quote a reading-note heading of
+its own file and `pnpm trace` checks the heading still exists, so the
+promise that prose exists is enforced rather than trusted. A MUST recorded
+this way is reported, and fails under strict mode. (A sixth, `accepted:`,
+followed it and is held to the same check — see ADR 0017.)
+
+The TLS reading note now says that four `covered` rows rest on **two**
+operator assertions, not one: `NODE_ENV` gates the guard and is exactly as
+operator-controlled as `ODUDU_TLS` — `infra/docker/compose.yaml` disables
+the guard on the production image with one line. `README.md`'s deployment
+steps and `.env.example` document the guard.
+
+OIDC Core §3.1.2.6's "no other parameters on an error response" is
+recorded as a knowing deviation rather than a gap: RFC 9207 §2 MUSTs `iss`
+onto every authorization response, and a future reader closing that gap
+would delete a mix-up-attack countermeasure.
+
+**The authorization endpoint's normative gaps.** `iss` now rides on error
+authorization responses as well as successful ones (RFC 9207 §2, whose
+single MUST is tabled as two rows precisely because one row covered by a
+success-path test is what hid the omission); an empty parameter value is
+treated as omitted (RFC 6749 §3.1); an unsupported `response_mode` is
+refused with a bare HTTP 400 and discovery states
+`response_modes_supported: ["query"]` rather than inheriting Discovery
+§3's `["query", "fragment"]` default; `request` and `request_uri` are
+answered with `request_not_supported` / `request_uri_not_supported`
+instead of being dropped in silence; and `code_challenge` is checked
+against RFC 7636 §4.2's shape, sharing one pattern with the verifier. The
+issuer has one definition (`packages/protocol-oidc/src/view/issuer.ts`),
+which fixes the dropped-port bug recorded below.
+
+Before any endpoint code, write the clause tables:
+`docs/protocols/rfc6749.md` and `docs/protocols/rfc7636.md`, mapping each
+MUST and SHOULD to the test that covers it (design spec, section 10). That
+table is what makes "P1 is done" countable instead of a feeling, and it is
+the same activity as the learning goal.
+
+Then follow the phase sequence in `CLAUDE.md` — brainstorm P1's scope,
+write its spec and plan, execute it task by task.
+
+Everything below is the record of P0: what it delivered, what it
+deliberately deferred, and the decisions taken with their trigger
+conditions.
+
+---
+
+**Task 19: the conformance harness.** `infra/conformance/` stands up the
+OpenID Foundation suite (pinned `release-v5.1.36`) against odudu. Both
+open spikes are answered and recorded in `infra/conformance/README.md`:
+a Config OP plan demands `https://` unconditionally (verified against the
+suite's own source and by provoking the failure directly), and Config OP
+is fully driveable through the suite's HTTP API with no browser and — in
+the dev-mode setup this harness uses — no token either. `compose.yaml`
+puts a self-signed-TLS `nginx` proxy in front of the otherwise-unmodified
+odudu container (`ODUDU_TLS=true`, `ODUDU_TRUST_PROXY=true`), which is the
+trigger condition Task 10's `__Host-` cookie fallback was waiting for.
+`.github/workflows/verify.yml`'s new `conformance` job runs Config OP on
+every push to `main` and every pull request, mirroring `container`'s
+structure.
+
+Running the **Basic OP** plan (35 modules, `results/`) exposed a genuine
+conflict, now settled in **ADR 0016**: odudu requires PKCE on every
+`authorization_code` request, and Basic OP — a profile written before PKCE
+was mandatory anywhere — sends plain requests in every module but its own
+PKCE one, which passes. The ruling is that mandatory PKCE stays and the
+exit criterion changes. Odudu does not claim Basic OP certification.
+
+The run stays, with its purpose changed: it is the evidence that the only
+divergence is the intended one. That holds only while every module's cause
+is individually confirmed, which is why `infra/conformance/README.md`
+carries a per-module inventory rather than a summary. The first summary
+written for this run said "30 failures, one cause" and concealed an
+unimplemented MUST — OIDC Core §3.1.2.1 requires POST at the authorization
+endpoint, and it returned 404.
+
+A latent, unrelated bug surfaced while wiring the TLS proxy, and has
+since been fixed: odudu's issuer and endpoint URLs were built from
+Fastify's `request.hostname`, which silently drops the port even when
+`X-Forwarded-Host` supplies one under `trustProxy` — verified directly
+against the container. The conformance proxy sidesteps it by listening on
+the default HTTPS port 443, so no conformance run would have caught it.
+There is now one issuer definition, built on `request.host`
+(`packages/protocol-oidc/src/view/issuer.ts`), with `issuer.test.ts`
+driving Fastify directly for the ports the proxy never exercises.
+
+---
+
+**Position:** P0 complete. All exit criteria met:
+
+- `pnpm verify` green locally and in CI (format, typecheck, lint,
+  boundaries, unit, integration)
+- the server boots in a container and reports ready; CI proves it on every
+  push
+- the migration runner is proven, including idempotency
+- ADRs 0001–0013 committed
+- dependency-cruiser enforces both package and layer boundaries, with
+  fixtures proving the rules reject violations
+
+**Task 9: container, compose, and the boot proof.** The bundler path was
+taken, not the `pnpm deploy` fallback: `apps/server` builds with tsup
+(`noExternal: [/.*/]`, ESM, `target: node24`), and the bundle was run for
+real against a live PostgreSQL container before it went anywhere near the
+Dockerfile — pino's transport machinery, the documented risk, did not
+misbehave under the bundle. The multi-stage `infra/docker/Dockerfile` builds
+with `pnpm --filter @odudu/server build` and ships only `dist/` plus a
+separately-copied `packages/db/drizzle` (bundling destroys the
+`import.meta.url`-relative path `MIGRATIONS_DIR` computes, so the directory
+is passed explicitly via `ODUDU_MIGRATIONS_DIR`). The runtime stage runs as
+a non-root `odudu` user — confirmed inside a running container
+(`uid=100(odudu) gid=101(odudu)`), not just read off the Dockerfile.
+
+`infra/docker/compose.yaml` uses two connection strings on purpose:
+`ODUDU_DATABASE_URL` (the `odudu` owner) runs migrations; the server itself
+serves on `ODUDU_APP_DATABASE_URL` (`odudu_svc`), which is subject to the
+`realms_isolation` RLS policy from Task 7. Verified from inside the running
+stack, not asserted: `psql -U odudu_svc -d odudu -c 'select count(*) from
+realms;'` returns `0` (not a permission error), and `select policyname from
+pg_policies where tablename = 'realms'` returns `realms_isolation`. Setting
+`ODUDU_APP_DATABASE_URL` also means `main.ts`'s bypass warning never fires
+in the compose stack — confirmed absent from the container's logs.
+
+Wiring `odudu_svc` into RLS originally needed a workaround the brief's
+literal SQL did not have — see "Review fixes" below for the finished
+shape. `infra/docker/initdb/01-app-role.sql` now creates `odudu_app`,
+`odudu_svc`, and grants membership between them during Postgres cluster
+init, all before the `odudu` container (and therefore any migration) ever
+starts. `packages/db/drizzle/0001_row_level_security.sql`'s `CREATE ROLE
+odudu_app` is guarded (`IF NOT EXISTS`) so it still creates the role in
+the integration-test path, where no `initdb` script runs and
+`@odudu/testkit`'s `createAppRole` grants membership explicitly after
+migrations, the same as before. `packages/db/drizzle/0002_grant_service_role.sql`
+is kept as a harmless guarded no-op backstop rather than deleted (Drizzle
+already recorded it applied); its comment is now explicit that it does not
+make every ordering safe — see "Review fixes" for the production ordering
+it still cannot repair.
+
+The host-side `postgres` port in `compose.yaml` was moved from `5432` to
+`5442` (the container still listens on 5432) because this machine already
+has a native PostgreSQL bound to host port 5432; changing the host mapping
+rather than the in-container port keeps every service in the file
+addressing postgres by its default port. Both host-side ports
+(`127.0.0.1:5442:5432` and `127.0.0.1:3000:3000`) are now bound to
+loopback only — see "Review fixes".
+
+`infra/docker/smoke.sh` brings the stack up, polls `/health/ready` for up
+to 120s, then asserts from inside the running stack that `odudu_svc` can
+query `realms` and sees `0` rows (not a permission error) and that the
+`realms_isolation` policy exists, before tearing the stack down on exit
+either way. It is the `container` job in `.github/workflows/verify.yml`,
+run on every push alongside the existing `verify` job.
+
+**Review fixes (post-merge hardening of this task).** A scoped review
+found three hardening gaps and two smaller issues, all now closed:
+
+1. `smoke.sh` originally only probed `/health/ready`, which runs `select 1`
+   and needs no table privilege — it could not tell a working RLS grant
+   from a broken one, and both smoke runs during the original
+   implementation were green before and after the grant migration existed.
+   `smoke.sh` now runs the brief's step 8 as hard, automatic assertions
+   (query `realms` as `odudu_svc`, expect `0` not `permission denied`;
+   query `pg_policies` for `realms_isolation`) so CI enforces this on every
+   push. Verified by breaking the grant deliberately (commenting out both
+   the `initdb` grant and the 0002 migration's grant) and confirming
+   `smoke.sh` still reports `odudu became ready` but then fails on the new
+   check with `permission denied for table realms`, not a readiness
+   timeout; restored, and confirmed green again.
+2. The grant migration's `IF EXISTS` guard made it a permanent silent
+   no-op in a third ordering — `odudu_svc` created by tooling after
+   migrations, with nothing playing `createAppRole`'s part — which is
+   invisible to `/health/ready` forever after. Fixed by moving role and
+   membership provisioning for the compose stack into
+   `infra/docker/initdb/01-app-role.sql`, which always runs before
+   migrations, rather than depending on a migration to grant membership
+   into a role that may not exist yet. `0001`'s `CREATE ROLE odudu_app`
+   was made idempotent so it still works standalone in the
+   Testcontainers-based integration-test path. `0002` is kept as a
+   redundant backstop with an honest comment about what it still cannot
+   fix (a real deployment with a third provisioning path).
+3. `compose.yaml` committed a plainly-passworded Postgres and app server
+   published on `0.0.0.0`, unmarked, in a public repository for a security
+   product. Added a header comment stating this file is local-development
+   only and the credentials are public knowledge, and bound both publishes
+   to `127.0.0.1`.
+4. The Dockerfile's build stage did not copy the root `.npmrc`
+   (`engine-strict=true`), so the image build silently ran `pnpm install`
+   with engine enforcement off. Added `.npmrc` to the `COPY`.
+5. `smoke.sh`'s `cleanup` trap ran under `set -e`; a failing
+   `docker compose down` could mask a pending success exit code. `cleanup`
+   now tolerates its own failure.
+
+**Carried review item, closed:** Task 8 added a `res` serializer so
+`res.headers["set-cookie"]` redaction was live but unproven.
+`apps/server/src/logger.test.ts` now has a test that sets a real
+`set-cookie` header on a reply via `buildApp`/`inject()` and asserts the
+cookie value is absent from the captured log while `[redacted]` is present.
+Confirmed this test actually exercises the redact path: removing
+`'res.headers["set-cookie"]'` from `logger.ts`'s redact paths makes it fail
+with the raw cookie value in the log line.
+
+**Next increment:** P1.1 — begin the OAuth 2.1 / OIDC core. Start by
+writing `docs/protocols/rfc6749.md` and `docs/protocols/rfc7636.md` with
+the clause tables described in spec section 10, before any endpoint code.
+The requirement table is what makes "P1 is done" countable.
+
+**Verify:** `pnpm verify` exits zero; `./infra/docker/smoke.sh` exits zero
+(one-time setup: `cp infra/docker/.env.example infra/docker/.env` — the
+stack deliberately refuses to start without it, see ADR 0015; CI does this
+itself as an explicit step in `.github/workflows/verify.yml`'s `container`
+job).
+
+**Blocked on:** nothing.
+
+**Known limitations carried into P1:**
+
+- An `id_token_hint` is verified with `AUDIENCE_UNCHECKED`: this server
+  checks that it issued the token (OIDC Core §3.1.2.2) but not that the
+  client presenting it is the one the token was issued to. The hint only
+  constrains which End-User may complete the login, so a foreign hint
+  grants nothing; tightening it to the requesting `client_id` is a
+  behaviour change that wants its own clause row and test.
+- Realm cookies are namespaced rather than host-isolated (spec section 6).
+- Only the `realms` table has an RLS policy. Every new tenant table needs
+  `ENABLE`/`FORCE ROW LEVEL SECURITY` plus a policy, and a foreign-realm
+  probe in the adversarial suite.
+- The server bundle inlines all dependencies (tsup, `noExternal: [/.*/]`).
+  P2 introduces `@node-rs/argon2`, a native module that must be marked
+  external in `tsup.config.ts` regardless of which bundling path is in use
+  by then — a native `.node` binary cannot be inlined into an ESM bundle.
+- `infra/docker/compose.yaml` publishes postgres on host port `5442`
+  instead of the default `5432` to avoid colliding with a native postgres
+  on the development host; anyone connecting to the compose stack's
+  database directly from the host needs to use that port. Both host
+  publishes are bound to `127.0.0.1`, and the file is local-development
+  only — its credentials are fixed and public.
+- `infra/docker/initdb/01-app-role.sql` is what makes `odudu_svc`'s RLS
+  grant reliable in this repository's only deployment surface (compose). A
+  real production deployment that provisions `odudu_svc` a different way —
+  after migrations, with nothing playing the part of that script or
+  `@odudu/testkit`'s `createAppRole` — would still hit the silent,
+  permanent no-op described in `packages/db/drizzle/0002_grant_service_role.sql`'s
+  comment: Drizzle marks the grant migration applied on the first run
+  regardless, and no later redeploy repairs it, while `/health/ready` stays
+  green throughout. There is no production deployment target yet to build
+  the equivalent safeguard for; whoever adds one needs an explicit,
+  idempotent, post-migration provisioning step for this role, not a
+  migration.
+- `databaseModule` runs `runMigrations` on every boot, from every process,
+  with no advisory lock. One replica is fine; the three replicas P11
+  promises would all attempt the migration runner concurrently on
+  deployment, racing each other. Whoever adds the second replica needs a
+  `pg_advisory_lock`-guarded runner (or an out-of-band migration step) before
+  scaling `odudu` horizontally.
+- The plan for this phase listed `apps/server/src/context.ts` as a file to
+  create. It was never created — its job (correlation id generation,
+  per-request setup) folded into `app.ts`'s `genReqId` option and its
+  `onRequest` hook instead, which turned out to be all that was needed.
+
+**A clause row concealed missing security work for the thirteenth time, and
+the first time it was security work.** OIDC Core §3.1.2.3 asks for CSRF
+_and_ clickjacking countermeasures in one sentence; one row carried both
+against `OIDC-CORE-3.1.2.1-05`, which asserts the CSRF half only, and no
+clickjacking defence existed anywhere in the repository. It does now —
+`Content-Security-Policy: frame-ancestors 'none'` with `X-Frame-Options:
+DENY` beside it, on every page this server renders, set at a single choke
+point (`packages/protocol-oidc/src/view/html-response.ts`) that
+`html-response.test.ts` keeps single by failing the build if any other file
+in the view layer names the HTML media type. The row is now two rows with
+two test ids, which is the arrangement that cannot lose a half silently: one
+id carried by two tests stays green when one of them is deleted, two ids do
+not. **The general rule: a row's requirement text names one obligation, and
+a conjunction in the specification's words is a reason to split the row.**
+The clickjacking obligation on the authorization server is RFC 6749 §10.13
+and needs a row of its own in `docs/protocols/rfc6749.md`, which has none.
+
+**Two of the six statuses failed a build over nothing.** `deferred:` and
+`n/a:` were skipped before any level check, so a MUST silenced with either
+produced exit 0 and no output at all — not even the warning `accepted:`
+gets. They are still quiet per row, on purpose: 111 MUSTs sit behind them,
+and printing 111 lines would bury the 18 `accepted:` warnings rather than
+surface anything. What changed is that the counts are recorded per clause
+table in `tools/trace/silenced-musts.json` and required to match exactly, so
+silencing a new MUST now fails strict trace until somebody raises a number
+in a reviewed diff. ADR 0017's 2026-09-12 amendment has the ruling, what it
+buys, and the two ways it can still be defeated.

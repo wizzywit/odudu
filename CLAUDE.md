@@ -2,7 +2,8 @@
 
 Read `docs/superpowers/specs/2026-09-10-odudu-design.md` first. Decisions
 and their rejected alternatives are in `docs/adr/`. Current position is in
-`docs/NEXT.md`.
+`docs/NEXT.md`, and what each finished phase found while building it is in
+`docs/phases/`.
 
 ## How a phase is run
 
@@ -25,6 +26,41 @@ The sequence, in order:
 
 Work happens on a branch; `main` is protected and requires `verify`,
 `container` and `commit-messages` to pass.
+
+### The pass that closes a phase, before the branch is finished
+
+An increment keeps the documents current for what it changed. A phase is the
+only point where anything reads them **as a whole**, and four things go wrong
+only at that scale. Run these after the whole-branch review and before
+`finishing-a-development-branch`, because each one has already happened:
+
+1. **Every gap in `docs/request-paths.md`'s "What is not implemented" names
+   a phase, a decision or an ADR.**
+   `tests/docs/not-implemented-placement.test.ts` fails the build otherwise,
+   so this one is checked rather than remembered — but the test only knows
+   whether a marker is _present_. Read the section and ask whether each
+   marker is still _true_.
+2. **Grep the phase numbers you moved.** Splitting P10 into P4b left
+   `request-paths.md` saying theming was P10 for three commits, in the one
+   section a reader consults to find out where something went. A phase that
+   renumbers or splits anything greps every document for the old number
+   before it closes.
+3. **Read `docs/NEXT.md`'s headings against the phases that have closed**,
+   per the rule below. A section addressed to a closed phase is overdue for a
+   decision or a move.
+4. **Reconcile the roadmap against the "not implemented" list in both
+   directions.** Every item placed in a phase, and every phase's criterion
+   naming the work placed against it. A criterion that omits work the list
+   sends to it is work that can be skipped with nothing going red — section
+   11 of the design spec records five of those, found exactly this way.
+
+Two habits that keep this pass short. When a document admits a gap, say where
+it gets fixed in the same sentence: six passages once said "there is no seed
+flag for this" and each pointed at another that said the same, so the
+aggregate was invisible while every individual site was honest. And when the
+gap closes, the prose that admitted it is the thing most likely to be left
+asserting something that stopped being true — `README.md` claimed no flag
+existed for `web_origins` long after `seed client --web-origin` shipped.
 
 ### CI runs on the branch, from the first increment
 
@@ -64,6 +100,29 @@ transcript silently downgrades it to a claim, which is the state it was
 written to escape. If a command cannot be run, the document says so rather
 than showing output nobody produced.
 
+**Three rules a transcript has to follow, each learned from a way one was
+false while looking fine.**
+
+A fenced block holding a response **carries no language tag.** Prettier
+reformats a tagged one, so a ` ```html ` block shows the formatter's markup
+rather than the server's — `<meta charset="utf-8">` becomes
+`<meta charset="utf-8" />` — and the bytes stop being the bytes served.
+
+A transcript whose output depends on what ran before it **says what that
+was, or scopes its query so that it does not.** An unscoped
+`select … from login_failures` prints whatever earlier sections happened to
+leave behind; a psql listing of every client prints two rows on the stack
+its author had and eleven on the one the document builds. Where the state
+is the point — a retention pass's counts, a lockout's arithmetic — name the
+stack it was captured against.
+
+A precondition a refusal depends on is **shown, not asserted.** Two
+different checks that refuse with byte-identical output cannot be told apart
+by their output, so the run has to demonstrate which one fired: the
+`client_id`-versus-hint comparison needs the registered redirect list
+displayed beside it, or §3 would have refused the redirect anyway and the
+transcript would prove nothing.
+
 Saying this is not enough on its own — an instruction to keep prose current
 is unfalsifiable, because a stale document and a checked one look identical.
 So the parts that can be checked are checked: `tests/docs/` compares what
@@ -84,6 +143,25 @@ So: in a plan, any claim about third-party behaviour carries either
 `verified: <the exact command run>` or `assumption:`. Every `assumption:`
 on a load-bearing path gets a short spike **before** the task that depends
 on it. `docs/superpowers/p0-decision-log.md` has the full account.
+
+### The sibling rule P2b produced
+
+P2b's eighteen plan-level defects had the opposite shape, and the P0 rule
+does not reach them: fifteen were claims about **this repository** — which
+table already exists, which migration number is free, which helper
+`@odudu/testkit` exports, which file a method lives in, which test file has
+an HTTP surface, what a Zod shape permits, what a foreign key cascades,
+whether a dependency already takes the lock you were about to add, whether
+a testing convention has ever been used here.
+
+So: **a claim about this repository's own schema, scripts, helpers, file
+paths or conventions gets one grep before it is written into a plan, and
+the grep goes in the plan beside it.** Each of the fifteen would have been
+caught by a command that takes seconds; none was caught by review, because
+a confident sentence about your own codebase reads exactly like a true one.
+Section 17 of
+`docs/superpowers/specs/2026-09-15-p2b-credentials-mfa-sessions-design.md`
+lists them.
 
 ## Comments
 
@@ -126,6 +204,70 @@ deliberately thenable and leaving it unawaited is the documented usage, add
 that call to `allowForKnownSafeCalls` in `eslint.config.js` with a comment
 saying why it is safe. `fastify`'s `register` is there for exactly that
 reason.
+
+## Background work
+
+Anything that runs on a schedule is **a command first and a timer second**.
+The work is a usecase with no timer anywhere in it, taking its `now` as an
+argument, and it is exposed as a command an operator can run. The loop is a
+separate thin file that holds no logic of its own: an interval, its jitter,
+a call, a `catch` that logs, and a `stop` that awaits the pass already in
+flight. Nothing else belongs in it.
+
+That split is what makes the work testable without a clock and the loop
+testable without a database, and it is what lets a deployment schedule the
+command externally instead — which is a supported configuration, never a
+fallback. `odudu reap` and `apps/server/src/scheduler.ts` are the pair to
+copy; ADR 0024 has the reasoning.
+
+**A loop that dies is worse than a loop that never started.** Nothing
+fails, nothing alerts, and the table grows until somebody notices months
+later. So a pass that throws is logged and the loop reschedules, and the
+test that establishes this asserts a **later** run — not that the error was
+logged. "The run fired" says nothing about whether the loop is still alive.
+
+**Decide at boot what cannot change per tick.** A loop whose first act each
+hour is to rediscover a missing environment variable is a loop that logs
+the same error forever. Refuse to start, name the variable and name the
+switch that turns the schedule off. Where a precondition can only be
+checked by asking the database, a persistent per-tick error is the accepted
+cost of keeping the loop logic-free — ADR 0024 records the one instance and
+why, so read a breach in existing code against that before fixing it.
+
+**Test a loop with fake timers, never by waiting.** `vi.useFakeTimers()`
+and `await vi.advanceTimersByTimeAsync(ms)`; a jitter band is asserted by
+injecting the draw, not by timing ticks.
+`apps/server/src/scheduler.test.ts` is the example. A suite that sleeps is
+slow when it passes and flaky when it does not.
+
+## Server-rendered pages
+
+A page the login flow shows is a **`*-html.ts` in the `view` layer of the
+package that owns the step**, exporting a function that returns markup and
+nothing else: no `reply`, no status code, no headers. So the TOTP, passkey,
+recovery-code and change-password pages live in
+`packages/authn-flows/src/view/`, the registration, verification and reset
+pages in `packages/account/src/view/`, and the login, error and logout
+pages — which belong to the protocol endpoints themselves — in
+`packages/protocol-oidc/src/view/`. A renderer is then a pure function a
+unit test can assert markup against, and every page in the server has one
+shape.
+
+**Every page leaves through `sendHtml`**
+(`packages/protocol-oidc/src/view/html-response.ts`), which is what makes
+the security headers unforgettable on a page added later: a route never
+sets `content-type`, `content-security-policy` or `x-frame-options` itself.
+`html-response.test.ts` holds the view layer to naming the HTML media type
+nowhere else.
+
+**A page that needs a script says so in its return value**, as a
+`RenderedPage` carrying the nonce its own markup used, and `sendHtml`
+derives `script-src` from that one value. Never assemble a policy beside
+the markup: `default-src 'none'` blocks an inline script **silently**, so
+such a page looks broken rather than refused, and a nonce named in a header
+that the markup does not carry fails exactly the same way. ADR 0018's
+amendment has the reasoning. Every interpolated value passes through the
+renderer's own `escapeHtml`, realm names and secrets included.
 
 ## Layering
 
@@ -171,3 +313,22 @@ import each other.
 - Every increment ends with CI green **on a pushed commit with a pull
   request open** (see "CI runs on the branch"), branch merged, and `docs/NEXT.md`
   updated.
+
+### `docs/NEXT.md` is where the project stands, not what it has done
+
+An increment's note goes to `docs/phases/<phase>.md`. `docs/NEXT.md` carries
+four things and nothing else: where the project stands, what the next phase
+inherits, decisions that are still open, and what a final review deferred.
+
+The distinction is not tidiness. `NEXT.md` reached 1,873 lines across four
+phases, of which 58 described the position it exists to describe — so the
+file whose job is to orient the next phase had made that its three per cent.
+Worse, nobody noticed a section addressed to a phase that had already closed:
+it asked P2 to decide page theming "when three pages exist", P2 shipped seven
+pages and closed without deciding, and the request sat there unanswered
+because the file was being appended to rather than read.
+
+So: **a section in `NEXT.md` addressed to a phase that has closed is overdue
+for a decision or a move, not for another paragraph.** That is the check to
+run on this file — it cannot be automated, and it takes one reading of the
+headings.

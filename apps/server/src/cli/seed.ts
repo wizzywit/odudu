@@ -1,24 +1,33 @@
 import { parseArgs } from 'node:util';
 import { realmSettingsRepository, sendVerificationEmail } from '@odudu/account';
+import { provisionRealm } from '@odudu/authn-flows';
 import { groupRepository, roleRepository } from '@odudu/domain-authz';
 import { generateSigningKey, signingKeyRepository } from '@odudu/crypto';
-import { createDatabase, withRealm, type Database, type RealmScopedDatabase } from '@odudu/db';
+import {
+  createDatabase,
+  realms,
+  withRealm,
+  type Database,
+  type RealmScopedDatabase,
+} from '@odudu/db';
 import {
   credentialRepository,
+  evaluatePassword,
   hashPassword,
   subjectRepository,
   userRepository,
   verifyPassword,
+  type PasswordPolicy,
   type ProfileUpdate,
 } from '@odudu/domain-identity';
 import {
   clientRepository,
   clientScopeRepository,
   provisionClientDefaults,
-  provisionRealmDefaults,
   verifyClientSecret,
   type ClientRecord,
   type ClientScopeAssignment,
+  coerceRealmSetting,
 } from '@odudu/domain-realm';
 import { loadConfig, newId, OduduError } from '@odudu/kernel';
 import {
@@ -26,7 +35,7 @@ import {
   realmLookupRepository,
   type ClientOidcConfig,
 } from '@odudu/protocol-oidc';
-import { buildEmailSender } from '#/email';
+import { eq } from 'drizzle-orm';
 import { createLogger } from '#/logger';
 
 // A confidential client's method of proving its secret at /token: either
@@ -240,16 +249,84 @@ async function assertMatchesExisting(
 interface ResolvedRealm {
   realmId: string;
   created: boolean;
+  passwordPolicy: PasswordPolicy;
+}
+
+// Read straight off `realms` rather than through @odudu/protocol-oidc's
+// realmLookupRepository: that repository's RealmLookup is shared by every
+// OIDC usecase that resolves a realm (discovery, jwks, login), and widening
+// it here would force a password policy onto fakes that have nothing to do
+// with one. The seed CLI is the one caller in this file that writes a
+// password, so it is the one that needs this column set.
+async function passwordPolicyFor(ownerDb: Database, realmId: string): Promise<PasswordPolicy> {
+  const rows = await ownerDb
+    .select({
+      passwordMinLength: realms.passwordMinLength,
+      passwordRequireDigit: realms.passwordRequireDigit,
+      passwordRequireUppercase: realms.passwordRequireUppercase,
+      passwordRequireLowercase: realms.passwordRequireLowercase,
+      passwordRequireSpecial: realms.passwordRequireSpecial,
+      passwordNotUsername: realms.passwordNotUsername,
+      passwordNotEmail: realms.passwordNotEmail,
+      passwordHistoryDepth: realms.passwordHistoryDepth,
+      passwordMaxAgeDays: realms.passwordMaxAgeDays,
+    })
+    .from(realms)
+    .where(eq(realms.id, realmId));
+  const row = rows[0];
+  if (row === undefined) {
+    throw new OduduError('seed_not_found', `no realm with id ${JSON.stringify(realmId)}`);
+  }
+  return {
+    minLength: row.passwordMinLength,
+    requireDigit: row.passwordRequireDigit,
+    requireUppercase: row.passwordRequireUppercase,
+    requireLowercase: row.passwordRequireLowercase,
+    requireSpecial: row.passwordRequireSpecial,
+    notUsername: row.passwordNotUsername,
+    notEmail: row.passwordNotEmail,
+    historyDepth: row.passwordHistoryDepth,
+    maxAgeDays: row.passwordMaxAgeDays,
+  };
 }
 
 async function resolveRealmId(ownerDb: Database, realmName: string): Promise<ResolvedRealm> {
   const lookup = realmLookupRepository(ownerDb);
   const existing = await lookup.byName(realmName);
-  if (existing !== null) return { realmId: existing.id, created: false };
+  if (existing !== null) {
+    return {
+      realmId: existing.id,
+      created: false,
+      passwordPolicy: await passwordPolicyFor(ownerDb, existing.id),
+    };
+  }
 
   const realmId = newId();
   await lookup.create({ id: realmId, name: realmName });
-  return { realmId, created: true };
+  return { realmId, created: true, passwordPolicy: await passwordPolicyFor(ownerDb, realmId) };
+}
+
+// The seed CLI writes to the same password column every other writer does,
+// so it is bound by the same realm policy — there is no development
+// exemption for it (packages/db/drizzle/0035_realm_password_policy.sql).
+// Never called for a client secret (the two hashPassword(clientSecret)
+// call sites below): a client secret is not a user password, and rules
+// like not-username/not-email have no subject to check it against.
+function assertPasswordSatisfiesPolicy(
+  policy: PasswordPolicy,
+  username: string,
+  email: string | undefined,
+  password: string,
+): void {
+  const violations = evaluatePassword(password, policy, { username, email: email ?? null });
+  if (violations.length > 0) {
+    throw new OduduError(
+      'seed_invalid_options',
+      `password does not satisfy the realm's password policy: ${violations
+        .map((v) => v.message)
+        .join(' ')}`,
+    );
+  }
 }
 
 async function performSeed(
@@ -258,11 +335,15 @@ async function performSeed(
   kek: Uint8Array,
   opts: SeedOptions,
 ): Promise<SeedResult> {
-  const { realmId, created: realmCreated } = await resolveRealmId(ownerDb, opts.realm);
+  const {
+    realmId,
+    created: realmCreated,
+    passwordPolicy,
+  } = await resolveRealmId(ownerDb, opts.realm);
 
   return withRealm(runtimeDb, realmId, async (tx) => {
     if (realmCreated) {
-      await provisionRealmDefaults(tx, realmId);
+      await provisionRealm(tx, realmId);
     }
 
     const existingClient = await clientRepository(tx).byClientId(opts.clientId);
@@ -338,6 +419,7 @@ async function performSeed(
 
     let userSubjectId: string | undefined;
     if (opts.username !== undefined && opts.password !== undefined) {
+      assertPasswordSatisfiesPolicy(passwordPolicy, opts.username, opts.email, opts.password);
       const userSubject = await subjectRepository(tx).create({ realmId, type: 'user' });
       userSubjectId = userSubject.id;
       await userRepository(tx).create({
@@ -346,11 +428,11 @@ async function performSeed(
         username: opts.username,
         ...(opts.email !== undefined ? { email: opts.email } : {}),
       });
-      await credentialRepository(tx).create({
+      await credentialRepository(tx).insert({
         realmId,
         subjectId: userSubject.id,
         type: 'password',
-        secretData: await hashPassword(opts.password),
+        secret: { kind: 'password', hash: await hashPassword(opts.password) },
       });
     }
 
@@ -407,7 +489,6 @@ async function seedClientBootstrap(opts: SeedOptions): Promise<SeedResult> {
       await sendVerificationEmail(
         {
           database: runtime,
-          sender: buildEmailSender(config, logger),
           realmId: result.realmId,
           realmName: result.realm,
           realmDisplayName: realm?.displayName ?? result.realm,
@@ -433,6 +514,9 @@ export interface RealmCommandResult {
   created: boolean;
   realm: string;
   realmId: string;
+  // The settings this call changed, named as they were given, so a
+  // transcript shows what was set rather than only that something was.
+  settings?: readonly string[];
 }
 
 export interface ClientCommandResult {
@@ -621,11 +705,17 @@ async function runRealmCommand(
   kek: Uint8Array,
   argv: readonly string[],
 ): Promise<RealmCommandResult> {
-  const { values } = parseArgs({ args: [...argv], options: { name: { type: 'string' } } });
+  const { values } = parseArgs({
+    args: [...argv],
+    options: { name: { type: 'string' }, set: { type: 'string', multiple: true } },
+  });
   if (values.name === undefined) {
     throw new OduduError('seed_invalid_options', 'seed realm requires --name');
   }
   const realmName = values.name;
+  // Parsed before the realm is touched, so a typo in the third --set does
+  // not leave the first two applied.
+  const settings = parseSettings(values.set ?? []);
 
   const { realmId, created } = await resolveRealmId(ownerDb, realmName);
   if (created) {
@@ -635,7 +725,7 @@ async function runRealmCommand(
     // tokens, and "first client triggers key generation" was only ever
     // true because realm and client used to be seeded in the same call.
     await withRealm(runtimeDb, realmId, async (tx) => {
-      await provisionRealmDefaults(tx, realmId);
+      await provisionRealm(tx, realmId);
       const generated = await generateSigningKey('RS256', kek);
       await signingKeyRepository(tx).create({
         id: newId(),
@@ -649,7 +739,63 @@ async function runRealmCommand(
     });
   }
 
-  return { command: 'realm', created, realm: realmName, realmId };
+  if (settings.length > 0) {
+    // Whatever the CHECK constraints refuse (migrations 0028, 0035, 0041)
+    // refuses this write too: the seed CLI has no development override, in
+    // the way it has none for the password policy.
+    await withRealm(runtimeDb, realmId, (tx) =>
+      tx
+        .update(realms)
+        .set(Object.fromEntries(settings.map(({ column, value }) => [column, value])))
+        .where(eq(realms.id, realmId)),
+    );
+  }
+
+  return {
+    command: 'realm',
+    created,
+    realm: realmName,
+    realmId,
+    ...(settings.length > 0 ? { settings: settings.map(({ name }) => name) } : {}),
+  };
+}
+
+interface ParsedSetting {
+  // Both spellings: the column is what the UPDATE needs, and the name is
+  // what the operator typed, which is what the result echoes back.
+  name: string;
+  column: string;
+  value: boolean | number | string;
+}
+
+// `--set name=value`, repeatable. The name is a column name, which is what a
+// reader of the schema or of docs/request-paths.md already has in hand.
+function parseSettings(assignments: readonly string[]): ParsedSetting[] {
+  return assignments.map((assignment) => {
+    const separator = assignment.indexOf('=');
+    if (separator <= 0) {
+      throw new OduduError(
+        'seed_invalid_options',
+        `--set expects name=value, got ${JSON.stringify(assignment)}`,
+      );
+    }
+    const name = assignment.slice(0, separator);
+    // Only the first `=` splits, so a text setting may contain one.
+    const outcome = coerceRealmSetting(name, assignment.slice(separator + 1));
+    if (outcome.kind === 'unknown_setting') {
+      throw new OduduError(
+        'seed_unknown_setting',
+        `unknown realm setting ${JSON.stringify(name)}; expected one of ${outcome.known.join(', ')}`,
+      );
+    }
+    if (outcome.kind === 'invalid_value') {
+      throw new OduduError(
+        'seed_invalid_options',
+        `realm setting ${name} expects ${outcome.expected === 'integer' ? 'an integer' : `a ${outcome.expected}`}`,
+      );
+    }
+    return { name, column: outcome.column, value: outcome.value };
+  });
 }
 
 async function runClientCommand(
@@ -666,6 +812,7 @@ async function runClientCommand(
       'client-secret': { type: 'string' },
       'token-endpoint-auth-method': { type: 'string' },
       'redirect-uri': { type: 'string', multiple: true },
+      'post-logout-redirect-uri': { type: 'string', multiple: true },
       'web-origin': { type: 'string', multiple: true },
     },
   });
@@ -703,8 +850,12 @@ async function runClientCommand(
   const clientId = values['client-id'];
   const clientSecret = values['client-secret'];
   const redirectUris = values['redirect-uri'] ?? [];
+  const postLogoutRedirectUris = values['post-logout-redirect-uri'] ?? [];
   const webOrigins = values['web-origin'] ?? [];
   assertAbsoluteRedirectUris(redirectUris);
+  // RP-Initiated Logout §2 matches these exactly, the same way §3 matches a
+  // redirect URI, so a relative one is as meaningless here as there.
+  assertAbsoluteRedirectUris(postLogoutRedirectUris);
 
   const realmId = await requireRealmId(ownerDb, realmName);
 
@@ -755,6 +906,7 @@ async function runClientCommand(
       refreshTokenTtlSeconds: 1_209_600,
       clientCredentialsScopes: [],
       webOrigins,
+      postLogoutRedirectUris,
     });
 
     return {
@@ -800,6 +952,12 @@ async function runUserCommand(
   const email = values.email;
 
   const realmId = await requireRealmId(ownerDb, realmName);
+  assertPasswordSatisfiesPolicy(
+    await passwordPolicyFor(ownerDb, realmId),
+    username,
+    email,
+    password,
+  );
 
   const userSubjectId = await withRealm(runtimeDb, realmId, async (tx) => {
     const existing = await userRepository(tx).byUsername(username);
@@ -817,11 +975,11 @@ async function runUserCommand(
       username,
       ...(email !== undefined ? { email } : {}),
     });
-    await credentialRepository(tx).create({
+    await credentialRepository(tx).insert({
       realmId,
       subjectId: subject.id,
       type: 'password',
-      secretData: await hashPassword(password),
+      secret: { kind: 'password', hash: await hashPassword(password) },
     });
     return subject.id;
   });

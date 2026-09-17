@@ -28,13 +28,19 @@ export function renderRegistrationForm(realm: string): string {
 </html>`;
 }
 
-export function renderRegistrationFailedPage(message: string): string {
+// Every reason the submission was refused is listed, not just the first: a
+// password policy with four rules should not take four submissions to
+// satisfy.
+export function renderRegistrationFailedPage(messages: readonly string[]): string {
+  const items = messages.map((message) => `<li>${escapeHtml(message)}</li>`).join('\n');
   return `<!doctype html>
 <html lang="en">
 <head><meta charset="utf-8"><title>Can't create this account</title></head>
 <body>
 <h1>Can't create this account</h1>
-<p>${escapeHtml(message)}</p>
+<ul>
+${items}
+</ul>
 </body>
 </html>`;
 }

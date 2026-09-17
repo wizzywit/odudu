@@ -5,12 +5,20 @@ import {
   runMigrations,
   type DatabaseHandle,
 } from '@odudu/db';
-import { capturingSender, type EmailMessage } from '@odudu/email';
+import { userCredentials } from '@odudu/domain-identity';
+import {
+  capturingSender,
+  emailOutbox,
+  sendPending,
+  type EmailMessage,
+  type EmailSender,
+  type SendPendingOptions,
+} from '@odudu/email';
 import { loadConfig, newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
-import { eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { type FastifyInstance } from 'fastify';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { buildApp } from '#/app';
 import { seed } from '#/cli/seed';
 import { createLogger } from '#/logger';
@@ -68,14 +76,32 @@ afterAll(async () => {
   await containerHandle?.stop();
 });
 
-function buildTestApp(sender: ReturnType<typeof capturingSender>): FastifyInstance {
+const OUTBOX_OPTIONS: SendPendingOptions = {
+  batchSize: 50,
+  maxAttempts: 3,
+  retryBackoffSeconds: 60,
+};
+
+// A request queues its mail and answers; the pass that hands a queued
+// message to a transport runs on the server's own schedule
+// (apps/server/src/modules/outbox.ts). A test that wants the mailed link
+// runs that pass here instead of waiting for a tick.
+
+async function drainOutbox(into: EmailSender): Promise<void> {
+  await sendPending(
+    { database: appDb, ownerDatabase: owner, sender: into },
+    new Date(),
+    OUTBOX_OPTIONS,
+  );
+}
+
+function buildTestApp(): FastifyInstance {
   const config = loadConfig({ ...process.env, ODUDU_LOG_LEVEL: 'silent' });
   return buildApp({
     database: appDb,
     ownerDatabase: owner,
     kek: KEK,
     logger: createLogger(config),
-    sender,
     ...(config.ODUDU_PUBLIC_BASE_URL !== undefined
       ? { publicBaseUrl: config.ODUDU_PUBLIC_BASE_URL }
       : {}),
@@ -87,6 +113,19 @@ async function setResetPasswordAllowed(realmId: string, allowed: boolean): Promi
     .update(realms)
     .set({ resetPasswordAllowed: allowed })
     .where(eq(realms.id, realmId));
+}
+
+async function setPasswordMaxAgeDays(realmId: string, days: number): Promise<void> {
+  await owner.db.update(realms).set({ passwordMaxAgeDays: days }).where(eq(realms.id, realmId));
+}
+
+// created_at is written by the database's own now(), so standing a password
+// in the past is the only way to make the realm's maximum age bite.
+async function agePassword(realmId: string, days: number): Promise<void> {
+  await owner.db
+    .update(userCredentials)
+    .set({ createdAt: sql`now() - ${`${String(days)} days`}::interval` })
+    .where(and(eq(userCredentials.realmId, realmId), eq(userCredentials.type, 'password')));
 }
 
 async function extractAuthSessionId(instance: FastifyInstance, realmName: string): Promise<string> {
@@ -158,6 +197,13 @@ async function submitNewPassword(instance: FastifyInstance, link: string, passwo
   });
 }
 
+// Every test below reads either what the queue holds or what a drain
+// delivered, so each starts with the queue empty rather than with whatever
+// an earlier test left in it.
+beforeEach(async () => {
+  await owner.db.delete(emailOutbox);
+});
+
 describe('password reset, through the real composition root', () => {
   it('lets the new password sign in and refuses the old one, all the way to an authorization code', async () => {
     const realmName = `reset-${newId()}`;
@@ -172,12 +218,13 @@ describe('password reset, through the real composition root', () => {
     await setResetPasswordAllowed(seeded.realmId, true);
 
     const sender = capturingSender();
-    const app = buildTestApp(sender);
+    const app = buildTestApp();
     await app.ready();
 
     try {
       const requested = await requestReset(app, realmName, EMAIL);
       expect(requested.statusCode).toBe(200);
+      await drainOutbox(sender);
       const message = sender.sent[0];
       if (message === undefined) throw new Error('no reset mail sent');
       const link = extractLink(message);
@@ -215,13 +262,14 @@ describe('password reset, through the real composition root', () => {
     await setResetPasswordAllowed(seeded.realmId, true);
 
     const sender = capturingSender();
-    const app = buildTestApp(sender);
+    const app = buildTestApp();
     await app.ready();
 
     try {
       const requested = await requestReset(app, realmName, EMAIL, { host: 'evil.example' });
       expect(requested.statusCode).toBe(200);
 
+      await drainOutbox(sender);
       const message = sender.sent[0];
       if (message === undefined) throw new Error('no reset mail sent');
       expect(message.text).toContain(`${PUBLIC_BASE_URL}/realms/${realmName}/`);
@@ -249,14 +297,16 @@ describe('password reset, through the real composition root', () => {
     await setResetPasswordAllowed(seeded.realmId, true);
 
     const sender = capturingSender();
-    const app = buildTestApp(sender);
+    const app = buildTestApp();
     await app.ready();
 
     try {
       await requestReset(app, realmName, EMAIL);
       await requestReset(app, realmName, EMAIL);
+      await drainOutbox(sender);
       expect(sender.sent).toHaveLength(2);
 
+      await drainOutbox(sender);
       const [firstMessage, secondMessage] = sender.sent;
       if (firstMessage === undefined || secondMessage === undefined) {
         throw new Error('expected two reset mails');
@@ -295,11 +345,12 @@ describe('password reset, through the real composition root', () => {
     await setResetPasswordAllowed(seeded.realmId, true);
 
     const sender = capturingSender();
-    const app = buildTestApp(sender);
+    const app = buildTestApp();
     await app.ready();
 
     try {
       await requestReset(app, realmName, EMAIL);
+      await drainOutbox(sender);
       const message = sender.sent[0];
       if (message === undefined) throw new Error('no reset mail sent');
       const link = extractLink(message);
@@ -319,6 +370,68 @@ describe('password reset, through the real composition root', () => {
       expect(withOldPassword.headers.location).toContain('code=');
       const withAttemptedNewPassword = await attemptLogin(app, realmName, 'a brand new password');
       expect(withAttemptedNewPassword.headers.location).toBeUndefined();
+    } finally {
+      await app.close();
+    }
+  });
+
+  // Moving created_at on every password write is what stops an expired
+  // password being owed forever — and it is also what would let expiry be
+  // evaded, if a reset could set the password already in force straight
+  // back. Anybody who can read the account's mail would otherwise clear a
+  // realm's password_max_age_days without ever changing a password.
+  it('refuses a reset to the password already in force, and does not burn the link doing it', async () => {
+    const realmName = `reset-${newId()}`;
+    const seeded = await seed({
+      realm: realmName,
+      clientId: 'reset-spa',
+      redirectUris: [REDIRECT_URI],
+      username: 'ada',
+      password: PASSWORD,
+      email: EMAIL,
+    });
+    await setResetPasswordAllowed(seeded.realmId, true);
+    await setPasswordMaxAgeDays(seeded.realmId, 1);
+    await agePassword(seeded.realmId, 7);
+
+    const sender = capturingSender();
+    const app = buildTestApp();
+    await app.ready();
+
+    try {
+      // The login authenticates and stops short of a code: update-password
+      // is owed, which is the state the evasion below would clear.
+      const expired = await attemptLogin(app, realmName, PASSWORD);
+      expect(expired.statusCode).toBe(200);
+      expect(expired.body).toContain('Change your password');
+      expect(expired.headers.location).toBeUndefined();
+
+      await requestReset(app, realmName, EMAIL);
+      await drainOutbox(sender);
+      const message = sender.sent[0];
+      if (message === undefined) throw new Error('no reset mail sent');
+      const link = extractLink(message);
+
+      const unchanged = await submitNewPassword(app, link, PASSWORD);
+      expect(unchanged.statusCode).toBe(400);
+      expect(unchanged.body).toContain('one you have used before');
+
+      // Still expired, so still owed: nothing about the refused redemption
+      // moved the clock.
+      const stillExpired = await attemptLogin(app, realmName, PASSWORD);
+      expect(stillExpired.body).toContain('Change your password');
+      expect(stillExpired.headers.location).toBeUndefined();
+
+      // And the link survived the refusal, the same way a weak password
+      // does not burn it: a real change still redeems it.
+      const changed = await submitNewPassword(app, link, 'a brand new password');
+      expect(changed.statusCode).toBe(200);
+
+      // The action the expired password owed is gone, so the new password
+      // reaches a code rather than being asked for a third one.
+      const withNewPassword = await attemptLogin(app, realmName, 'a brand new password');
+      expect(withNewPassword.body).not.toContain('Change your password');
+      expect(withNewPassword.headers.location).toContain('code=');
     } finally {
       await app.close();
     }

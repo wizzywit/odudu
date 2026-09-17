@@ -1,3 +1,4 @@
+import { sessionRepository } from '@odudu/authn-flows';
 import { signJwt, signingKeyRepository, type SigningKeyRecord } from '@odudu/crypto';
 import { withRealm, type DatabaseHandle, type RealmScopedDatabase } from '@odudu/db';
 import { subjectRepository } from '@odudu/domain-identity';
@@ -14,6 +15,7 @@ import { tokenGrantRepository, type TokenGrantRecord } from '#/repository/grants
 import { refreshTokenRepository } from '#/repository/refresh';
 import { accessTokenEligibleScope, reachableRoleIds } from '#/repository/scope-role-reach';
 import { rotateRefreshToken } from '#/usecase/refresh-rotation';
+import { acrFor, amrFor } from '#/service/acr';
 import { hashAuthorizationCode } from '#/service/authorization-code';
 import { evaluateAuthorizationCodeGrant } from '#/service/authorization-code-grant';
 import { type ClaimContext } from '#/service/claims';
@@ -42,6 +44,10 @@ export interface TokenIssuanceDeps {
   issuer: string;
   kek: Uint8Array;
   clock: Clock;
+  // The realm's own idle window — the same one /authorize's resolveSession
+  // checks a session cookie against — so a session-bound refresh dies
+  // exactly when the session it is bound to would (refresh-rotation.ts).
+  idleSeconds: number;
   verifyPassword: (hash: string, secret: string) => Promise<boolean>;
   // Shared with /userinfo: the ID token's claims beyond the envelope
   // (`iss`/`aud`/`iat`/`exp`/`nonce`/`auth_time`) come from the same
@@ -303,6 +309,8 @@ async function mintAccessToken(
     // profile and email by default (RFC 9068 §2.2 draws no line here; the
     // realm's own scope definitions do).
     accessTokenScope: string[];
+    // The grant's session, if it has one — see the `sid` comment below.
+    sessionId: string | null;
   },
   key: SigningKeyRecord,
   now: Date,
@@ -332,6 +340,11 @@ async function mintAccessToken(
     iat,
     exp,
     jti: newId(),
+    // OpenID Connect Back-Channel Logout 1.0 §2.1: an opaque identifier for
+    // the End-User's session at this OP. Emitted so a resource server's
+    // introspection, and later a logout addressed to a client, can both
+    // name the session; absent on an offline grant, which has none.
+    ...(input.sessionId !== null ? { sid: input.sessionId } : {}),
   });
   const accessToken = await signJwt(accessTokenClaims, { key, kek: deps.kek, typ: 'at+jwt' });
   return { accessToken, audience, iat, exp };
@@ -365,6 +378,14 @@ async function issueAuthorizationCodeTokens(
   const reachable = await reachableRoleIds(tx, scope);
   const accessTokenScope = await accessTokenEligibleScope(tx, scope);
 
+  // `offline_access` asks for a grant no session bounds (OpenID Connect
+  // Back-Channel Logout 1.0 §2.7): whatever session the code carries is
+  // dropped for this grant, its access token and its ID token alike. The
+  // *resolved* scope decides this, never the raw request — a client
+  // without the scope assigned gets it stripped by resolveScope above, and
+  // sees an ordinary session-bound grant.
+  const sessionId = scope.includes('offline_access') ? null : code.sessionId;
+
   const { accessToken, audience, iat, exp } = await mintAccessToken(
     deps,
     {
@@ -376,6 +397,7 @@ async function issueAuthorizationCodeTokens(
       reachableRoleIds: reachable,
       fullScopeAllowed: client.fullScopeAllowed,
       accessTokenScope,
+      sessionId,
     },
     key,
     now,
@@ -402,6 +424,20 @@ async function issueAuthorizationCodeTokens(
     // what a subject's `openid`/`profile`/`email` scopes produce, not one
     // for the ID token and a second for /userinfo.
     const userClaims = await deps.claimMappers.assemble(idTokenScope, narrowedContext);
+    // What actually authenticated this login, read off the session the
+    // code's own login established (or, for a reused session, established
+    // originally) — `amr`/`acr` state what ran, never what the subject
+    // could have used instead, the reason a subject who could use a
+    // passkey but signed in with a password must not get `hwk` in the
+    // token. `code.sessionId`, not the offline-nulled local `sessionId`,
+    // because `amr`/`acr` describe the authentication, not the grant's
+    // session binding.
+    const authenticators =
+      code.sessionId !== null
+        ? ((await sessionRepository(tx).byId(code.sessionId))?.authenticators ?? [])
+        : [];
+    const amr = amrFor(authenticators);
+    const acr = acrFor(authenticators);
     // Guarded the same way the access token's assembly is, 83 lines above:
     // a mapper's output can never overwrite the envelope, `sub` included —
     // `subMapper` reaches its `sub` claim through the same registry.
@@ -413,18 +449,24 @@ async function issueAuthorizationCodeTokens(
       exp,
       auth_time: Math.floor(code.authTime.getTime() / 1000),
       ...(code.nonce !== null ? { nonce: code.nonce } : {}),
+      ...(sessionId !== null ? { sid: sessionId } : {}),
+      ...(amr.length > 0 ? { amr } : {}),
+      ...(acr !== null ? { acr } : {}),
     });
     idToken = await signJwt(idTokenClaims, { key, kek: deps.kek });
   }
 
   // Persist the grant and bind the code's redemption to it — the anchor a
-  // future revocation call, or a refresh token, points back at.
+  // future revocation call, or a refresh token, points back at. The
+  // session travels from the code, which is where the login that minted it
+  // recorded one, unless the resolved scope asked for an offline grant.
   const grant = await tokenGrantRepository(tx).create({
     realmId: deps.realmId,
     clientId: client.id,
     subjectId: code.subjectId,
     scope: scope.join(' '),
     audience,
+    sessionId,
   });
   await authorizationCodeRepository(tx).attachGrant(code.codeHash, grant.id);
 
@@ -504,7 +546,13 @@ async function issueRefreshTokens(
   await evaluatePresentedRefreshToken(tx, request, client, presentedHash);
 
   const outcome = await withRealm(deps.database.db, deps.realmId, (rotationTx) =>
-    rotateRefreshToken(rotationTx, presentedHash, now, config.refreshTokenTtlSeconds),
+    rotateRefreshToken(
+      rotationTx,
+      presentedHash,
+      now,
+      config.refreshTokenTtlSeconds,
+      deps.idleSeconds,
+    ),
   );
   if (outcome.kind !== 'rotated') throw invalidGrant();
 
@@ -533,6 +581,7 @@ async function issueRefreshTokens(
       reachableRoleIds: reachable,
       fullScopeAllowed: client.fullScopeAllowed,
       accessTokenScope,
+      sessionId: grant.sessionId,
     },
     key,
     now,
@@ -589,6 +638,9 @@ async function issueClientCredentialsTokens(
       reachableRoleIds: reachable,
       fullScopeAllowed: client.fullScopeAllowed,
       accessTokenScope,
+      // client_credentials authenticates no End-User, so there is no
+      // session for a grant here to carry.
+      sessionId: null,
     },
     key,
     now,

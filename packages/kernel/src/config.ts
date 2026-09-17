@@ -9,6 +9,14 @@ const booleanEnvVar = z
   .optional()
   .transform((value) => value === 'true');
 
+// The mirror of the above, for a switch that is on unless an operator turns
+// it off. Absent means on, so a deployment that says nothing about
+// retention still gets it.
+const enabledEnvVar = z
+  .enum(['true', 'false'])
+  .optional()
+  .transform((value) => value !== 'false');
+
 // Decoded and length-checked here, at the config boundary, so every later
 // consumer can assume 32 raw bytes rather than re-validating a base64 string.
 const kekBytes = z
@@ -79,6 +87,92 @@ const schema = z.object({
   // and by apps/server's boot guard, which refuses to serve production
   // traffic while it is off.
   ODUDU_TLS: booleanEnvVar,
+  // The per-origin request budget on the unauthenticated routes that cost
+  // an Argon2id hash or a mail send (ADR 0023). Raise it for a deployment
+  // that puts many users behind one address, or for a test suite driving
+  // logins in bulk, as infra/conformance/compose.yaml does.
+  ODUDU_THROTTLE_LIMIT: z.coerce.number().int().min(1).max(1_000_000).default(10),
+  ODUDU_THROTTLE_WINDOW_SECONDS: z.coerce.number().int().min(1).max(86_400).default(60),
+  // How long `odudu reap` keeps a row after nothing can still read it
+  // (ADR 0021). These are retention windows, not lifespans: a credential's
+  // own expiry is enforced at read time and is always the shorter of the
+  // two. A window too short for the detection that reads the row is not
+  // expressible — the pass floors each one by the life of the grant family
+  // or session it belongs to — so these raise retention, never lower it
+  // below what reuse detection needs.
+  ODUDU_RETENTION_GRANT_SECONDS: z.coerce.number().int().min(60).max(31_536_000).default(604_800),
+  ODUDU_RETENTION_OFFLINE_GRANT_SECONDS: z.coerce
+    .number()
+    .int()
+    .min(60)
+    .max(31_536_000)
+    .default(2_592_000),
+  // Only a code that never produced a grant is reaped by its own age; one
+  // that did is reaped with the family it produced.
+  ODUDU_RETENTION_AUTHORIZATION_CODE_SECONDS: z.coerce
+    .number()
+    .int()
+    .min(60)
+    .max(31_536_000)
+    .default(3600),
+  // Where nearly all the volume is, and the only one of these tables whose
+  // rows no revocation reads back: a replayed consumed row is refused and
+  // nothing follows from it.
+  ODUDU_RETENTION_AUTHENTICATION_SESSION_SECONDS: z.coerce
+    .number()
+    .int()
+    .min(60)
+    .max(31_536_000)
+    .default(3600),
+  ODUDU_RETENTION_ACTION_TOKEN_SECONDS: z.coerce
+    .number()
+    .int()
+    .min(60)
+    .max(31_536_000)
+    .default(604_800),
+  ODUDU_RETENTION_SESSION_SECONDS: z.coerce.number().int().min(60).max(31_536_000).default(86_400),
+  // A delivered message, measured from the delivery. Kept a week, so an
+  // operator answering "did that link ever go out?" has something to read.
+  ODUDU_RETENTION_EMAIL_SENT_SECONDS: z.coerce
+    .number()
+    .int()
+    .min(60)
+    .max(31_536_000)
+    .default(604_800),
+  // A message that spent every attempt and was never delivered, measured
+  // from its last attempt. Far longer, because nothing else records the
+  // failure: this window is how long an operator has to notice it.
+  ODUDU_RETENTION_EMAIL_FAILED_SECONDS: z.coerce
+    .number()
+    .int()
+    .min(3600)
+    .max(31_536_000)
+    .default(2_592_000),
+  // How often the server runs that pass itself, and whether it runs it at
+  // all. `false` is for a deployment that schedules `odudu reap` as a cron
+  // entry or a Kubernetes CronJob instead — a documented alternative, and
+  // the reason this is a switch rather than a fact.
+  ODUDU_REAP_ENABLED: enabledEnvVar,
+  ODUDU_REAP_INTERVAL_SECONDS: z.coerce.number().int().min(60).max(86_400).default(3600),
+  // Mail is queued by the request and sent by a pass of its own, which is
+  // what keeps an SMTP round trip out of a response and out of the timing
+  // of one. `false` is for a deployment that schedules `odudu send-mail`
+  // itself; with the schedule off and nothing scheduled elsewhere, queued
+  // mail is never sent.
+  ODUDU_OUTBOX_ENABLED: enabledEnvVar,
+  ODUDU_OUTBOX_INTERVAL_SECONDS: z.coerce.number().int().min(5).max(86_400).default(15),
+  // Per realm per pass, so one realm's backlog cannot starve another's.
+  ODUDU_OUTBOX_BATCH_SIZE: z.coerce.number().int().min(1).max(1000).default(20),
+  // Attempts a message gets before it is left alone for an operator to
+  // read. Nothing deletes it then; `odudu reap` bounds it by
+  // ODUDU_RETENTION_EMAIL_FAILED_SECONDS — and reads this same value to
+  // decide what "permanently failed" means, so lowering it reclassifies
+  // messages already queued: one that has spent the new ceiling stops
+  // being retried and starts its retention window, without anything
+  // having happened to it.
+  ODUDU_OUTBOX_MAX_ATTEMPTS: z.coerce.number().int().min(1).max(100).default(5),
+  // The first retry's delay; each further attempt doubles it.
+  ODUDU_OUTBOX_RETRY_BACKOFF_SECONDS: z.coerce.number().int().min(1).max(86_400).default(60),
   ODUDU_LOG_LEVEL: z
     .enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent'])
     .default('info'),

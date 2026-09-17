@@ -192,8 +192,10 @@ lifespans it already owns.
 - The reaper is a background writer, which the server does not have today.
   Whatever runs it must be safe under the multiple replicas P11 promises —
   the same problem the migration runner's missing advisory lock already has
-  (`docs/NEXT.md`, "Known limitations"). Keycloak solves it with
-  `ClusterAwareScheduledTaskRunner`; Odudu has no equivalent yet.
+  (`docs/phases/p0-p1-p2a.md`, "Known limitations carried into P1"). Keycloak solves it with
+  `ClusterAwareScheduledTaskRunner`; Odudu had no equivalent when this was
+  written. The amendment below records the one it has now, and it is a
+  Postgres advisory lock rather than a scheduler.
 
 ## Alternatives rejected
 
@@ -218,3 +220,162 @@ lifespans it already owns.
   status quo with an extra column: the same growth, the same unstated
   retention of `pending_request` and `redirect_uri`. A tombstone is only an
   answer when it is narrower than the row it replaces and is itself reaped.
+
+## Amendment, 2026-09-16 — the arithmetic
+
+The decision has not changed. What follows is newly expressible, because
+`odudu reap` (`apps/server/src/cli/reap.ts`) now exists to express it.
+
+### The windows, and where they come from
+
+Six numbers, read at the config boundary with the defaults below, each
+bounded to between a minute and a year:
+
+| Variable                                         | Default | Governs                                        |
+| ------------------------------------------------ | ------- | ---------------------------------------------- |
+| `ODUDU_RETENTION_GRANT_SECONDS`                  | 7 days  | a session-bound grant family                   |
+| `ODUDU_RETENTION_OFFLINE_GRANT_SECONDS`          | 30 days | an offline family, which no session bounds     |
+| `ODUDU_RETENTION_AUTHORIZATION_CODE_SECONDS`     | 1 hour  | a code that produced no grant                  |
+| `ODUDU_RETENTION_AUTHENTICATION_SESSION_SECONDS` | 1 hour  | `authentication_sessions`, expired or consumed |
+| `ODUDU_RETENTION_ACTION_TOKEN_SECONDS`           | 7 days  | `action_tokens`, expired or consumed           |
+| `ODUDU_RETENTION_SESSION_SECONDS`                | 1 day   | the grace past an SSO session's `expires_at`   |
+
+`refresh_tokens` has no window of its own and cannot be given one: a
+refresh token is retained for the life of the family, per decision 1 above.
+`login_failures` has no window of its own either, for a different reason
+given below.
+
+### `token_grants.created_at` plus what, exactly
+
+A family is past retention once **both** hold:
+
+1. `created_at` is older than `greatest(window, realms.sso_session_max_seconds)`,
+   where `window` is the offline number for a grant with no `session_id` and
+   the session-bound number otherwise. The `greatest` is the bound below
+   that the Consequences above ask for: a window configured shorter than the
+   session life the grant was issued under is not expressible, so an
+   operator cannot shorten retention past the point where the grant itself
+   is still usable.
+2. No refresh token of the family is still usable — `used_at IS NULL AND
+expires_at > now`. Without this a 30-day retention would kill a 90-day
+   offline token a client legitimately holds, which is a retention pass
+   revoking access rather than reclaiming space. It also makes the offline
+   window a floor and never a ceiling on the credential's own life.
+
+### Ordering, which is correctness and not throughput
+
+`refresh_tokens` and `authorization_codes` are deleted **before**
+`token_grants`, and `sessions` after it. Both directions are forced by
+constraints that already exist:
+
+- `refresh_tokens` carries `(realm_id, grant_id) REFERENCES token_grants
+ON DELETE CASCADE` (`packages/db/drizzle/0011_refresh_tokens.sql`).
+  Deleting the grant first therefore deletes its tokens without the pass
+  counting them, and reports zero for a table it had just emptied.
+- `authorization_codes.grant_id` carries **no** foreign key, so nothing
+  removes the row when its grant goes and an `EXISTS` against the departed
+  grant is false for good. A code is therefore deletable once its own window
+  has passed **and** its family is either absent, past retention, or was
+  never created — the middle case is reachable on a legal configuration,
+  since the code window accepts up to a year while the grant window defaults
+  to a week.
+- `sessions` is deletable only once **no** `token_grants` row references it
+  — not merely no live one. The `ON DELETE SET NULL` on
+  `token_grants.session_id` (`0026_token_grants_session.sql`) is a backstop
+  the pass never reaches: nulling that column promotes a session-bound
+  grant to an offline one, which is a privilege change disguised as a
+  cleanup. Grants go first by their own window, so the session follows in
+  the same pass once the last of them does.
+
+The sequence is a single declaration (`REAP_ORDER`), each rule states the
+tables it depends on, and the pass refuses to run at all — before its first
+`DELETE` — if the two disagree.
+
+### `login_failures`, which the retention table above never mentioned
+
+The table arrived with per-account lockout (`0041_login_failures.sql`) after
+this ADR was accepted, and it carries no `expires_at`. Its row is created by
+a failure and removed by a success, so an abandoned attack leaves one
+forever. It needs **two** bounds:
+
+- `last_failure_at` older than the realm's
+  `brute_force_failure_reset_seconds`, from which point the arithmetic
+  restarts from one whether the row exists or not, and
+- `locked_until` passed.
+
+The second does not follow from the first. `realms_brute_force_bounds`
+relates `max_lockout_seconds` to `lockout_seconds` and bounds
+`failure_reset_seconds`, but relates neither of those to the other, so a
+realm locking for a day while forgetting failures after a minute is legal —
+and there a pass keyed on the quiet period alone **deletes the row holding
+the lock**, unlocking accounts on a schedule, silently, with no error
+anywhere. Both bounds are per realm and per row, read from the realm in the
+same statement as the delete, never a global age.
+
+### One instance, every realm
+
+The pass runs in one transaction on the serving connection, which takes
+`pg_try_advisory_xact_lock` as its first statement and then binds each
+realm's row-level-security context in turn (`withEachRealmExclusive`,
+`packages/db/src/tx.ts`). Not `pg_advisory_lock`: that one is session-scoped
+and would outlive the transaction on a pooled connection, so the pass would
+run once and then silently never again. The transaction-scoped form releases
+on commit and on rollback alike, so there is nothing to unlock. A replica
+that loses the race is told so and skips the tick rather than retrying — the
+holder is doing the same work concurrently.
+
+Advisory locks are not realm-scoped and structurally cannot be, so one key
+means one instance reaps every realm. That is what is wanted here; per-realm
+reaping would need a deliberate per-realm key and nothing asks for one.
+
+The pass refuses to run on the owner connection at all: `reap` requires
+`ODUDU_APP_DATABASE_URL` in every environment, not only production, because
+the owner must bypass row-level security for the enumeration below to work,
+and a retention job that quietly ran with the policy switched off would be N
+unscoped passes for N realms rather than the property this section claims.
+
+Listing the realms to visit is the one read the pass makes on the owner
+connection. `realms_isolation` scopes that table by `app.realm_id`, and the
+realm ids are what a realm context would have to be built from, so the list
+cannot be read from inside one — the same gap, and the same narrow bypass,
+that ADR 0009's amendment of 2026-09-13 records for resolving `{realm}` from
+a request path. Every `DELETE` runs on the serving connection under a realm
+context, and none of them carries a `realm_id` predicate of its own: the
+policy is the scoping, and an integration case asserts that a pass over one
+realm leaves another realm's eligible rows untouched.
+
+Both halves of that are asserted rather than assumed, against `pg_roles`:
+the listing role must be `SUPERUSER` or hold `BYPASSRLS`, because `realms`
+carries `FORCE ROW LEVEL SECURITY` and a role without the escape reads zero
+realms and would reap none of them without a word — and the serving role
+must be **neither**, because a serving role that escapes the policy runs
+every `DELETE` unscoped while `app.realm_id` is bound, which is this
+section's claim failing by configuration rather than by code. Both refuse
+rather than warn. An enumeration that then comes back empty
+is reported as "no realm was enumerated" and not as a pass that found
+nothing to do.
+
+### `email_outbox`
+
+The retention table above lists it; the table does not exist yet. When its
+migration lands, its name joins `TableName`, which does not compile until
+`RETENTION_RULES` has a rule for it and does not run until `REAP_ORDER` has
+a place for it. Until then, a standing integration case fails the build for
+any table carrying a lifecycle timestamp — `sent_at` and `failed_at`
+included — that has neither a rule nor a stated reason for having none.
+
+## Amendment, 2026-09-16 — the server does run it
+
+One consequence above says "the reaper is a background writer, which the
+server does not have today". That is no longer true. The server schedules
+the pass itself, hourly by default, and
+[ADR 0024](0024-a-scheduled-pass-is-a-command-first.md) carries the shape:
+the pass stays exactly what this ADR describes — a command, taking its
+`now` as an argument — and the loop that calls it holds no logic and takes
+no lock of its own, because `withEachRealmExclusive` already holds the one
+this document's amendment named. `ODUDU_REAP_ENABLED=false` returns a
+deployment to the external cron entry this ADR assumed.
+
+Nothing in the decision or in the windows changes. What changes is that a
+deployment which schedules nothing is no longer a deployment that retains
+everything for ever.

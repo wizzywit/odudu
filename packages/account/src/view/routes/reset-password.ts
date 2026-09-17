@@ -1,5 +1,4 @@
 import { type DatabaseHandle, type RealmScopedDatabase } from '@odudu/db';
-import { type EmailSender } from '@odudu/email';
 import { type FastifyInstance } from 'fastify';
 import { requestPasswordReset } from '#/usecase/reset-password';
 import {
@@ -19,7 +18,6 @@ export interface ResetPasswordRealmLookup {
 
 export interface ResetPasswordRouteDeps {
   readonly database: DatabaseHandle;
-  readonly sender: EmailSender;
   readonly findRealm: (name: string) => Promise<ResetPasswordRealmLookup | null>;
   // Operator configuration (ODUDU_PUBLIC_BASE_URL), never anything read off
   // the request — see #/view/routes/registration.ts for why. Undefined
@@ -87,7 +85,6 @@ export function registerResetPasswordRoute(
     const outcome = await requestPasswordReset(
       {
         database: deps.database,
-        sender: deps.sender,
         realmId: realm.id,
         realmName: realm.name,
         realmDisplayName: realm.displayName ?? realm.name,
@@ -106,17 +103,6 @@ export function registerResetPasswordRoute(
         reply,
         500,
         renderResetRequestFailedPage('Password reset is temporarily unavailable. Try again later.'),
-      );
-    }
-
-    // Logged, never surfaced: a send failure must not turn into a
-    // different response for an address that exists than one that does
-    // not — see requestPasswordReset for why. The fixed 200 below is
-    // reached the same way whether or not mail actually went out.
-    if (outcome.mailFailed) {
-      request.log.error(
-        { realm: request.params.realm, err: outcome.error },
-        'password reset mail failed to send',
       );
     }
 

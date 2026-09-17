@@ -40,13 +40,29 @@ describe('migrations', () => {
     `;
 
     expect(rows.map((row) => row.column_name)).toEqual([
+      'brute_force_failure_reset_seconds',
+      'brute_force_lockout_seconds',
+      'brute_force_max_failures',
+      'brute_force_max_lockout_seconds',
       'created_at',
       'display_name',
       'enabled',
       'id',
       'name',
+      'otp_required',
+      'password_history_depth',
+      'password_max_age_days',
+      'password_min_length',
+      'password_not_email',
+      'password_not_username',
+      'password_require_digit',
+      'password_require_lowercase',
+      'password_require_special',
+      'password_require_uppercase',
       'registration_allowed',
       'reset_password_allowed',
+      'sso_session_idle_seconds',
+      'sso_session_max_seconds',
       'verify_email',
     ]);
   });
