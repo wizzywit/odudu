@@ -18,6 +18,7 @@ function toRecord(row: typeof authenticationSessions.$inferSelect): Authenticati
     consumedAt: row.consumedAt,
     satisfied: row.satisfied,
     subjectId: row.subjectId,
+    authenticatedAt: row.authenticatedAt,
     webauthnChallenge: row.webauthnChallenge,
   };
 }
@@ -101,6 +102,18 @@ export function authenticationSessionRepository(tx: RealmScopedDatabase) {
         .where(eq(authenticationSessions.id, id));
     },
 
+    // Written on every attempt that gets past the subject binding, with the
+    // instant the flow ran out of steps to ask for — or with null when a
+    // step remains. It is not a latch: completing an enrolment can make a
+    // step apply that did not apply a moment ago, so a session that was
+    // complete has to stop being complete.
+    async recordAuthenticated(id: string, authenticatedAt: Date | null): Promise<void> {
+      await tx
+        .update(authenticationSessions)
+        .set({ authenticatedAt })
+        .where(eq(authenticationSessions.id, id));
+    },
+
     // Issued with the registration or assertion options it belongs to, and
     // overwriting whatever a previous, abandoned ceremony left: only the
     // most recently offered challenge can be answered.
@@ -140,7 +153,7 @@ export function authenticationSessionRepository(tx: RealmScopedDatabase) {
     async resetProgress(id: string): Promise<void> {
       await tx
         .update(authenticationSessions)
-        .set({ satisfied: [], subjectId: null, webauthnChallenge: null })
+        .set({ satisfied: [], subjectId: null, authenticatedAt: null, webauthnChallenge: null })
         .where(eq(authenticationSessions.id, id));
     },
   };

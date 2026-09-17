@@ -1,4 +1,5 @@
 import {
+  nextRequiredAction,
   type PasskeyEnrolmentOutcome,
   type RecoveryCodesOutcome,
   type RequiredAction,
@@ -9,9 +10,11 @@ import { isUuid } from '@odudu/kernel';
 import { type RealmLookup } from '#/repository/realm-lookup';
 
 export type RequiredActionOutcome =
-  // No live authentication session, or one no factor has bound to a subject
-  // yet. Treated exactly as the login form treats a missing auth_session_id:
-  // there is nobody to act for, so there is nothing to do.
+  // No live authentication session, or one whose authentication has not
+  // finished: no factor has bound a subject yet, a later factor is still
+  // outstanding, or the session has already been spent on a login. Treated
+  // exactly as the login form treats a missing auth_session_id — there is
+  // nobody to act for, so there is nothing to do.
   | { kind: 'unauthenticated' }
   // The subject does not owe the action this submission claims to satisfy.
   // This is the whole of the endpoint's authorization: passing a factor is
@@ -51,10 +54,13 @@ export interface RequiredActionSubmission {
 
 export interface RequiredActionSubmissionDeps {
   findRealm(name: string): Promise<RealmLookup | null>;
-  // The subject the authentication session is bound to — this submission
-  // carries no credentials of its own, so that binding is the whole of what
-  // says whose account is being changed.
-  boundSubject(realmId: string, authSessionId: string): Promise<string | null>;
+  // The subject a *finished* authentication bound to this session, null
+  // otherwise. This submission carries no credentials of its own, so that is
+  // the whole of what says whose account is being changed — and the subject
+  // binding alone would not do, since the first factor writes it while later
+  // ones are still outstanding. A required action blocks a login's
+  // completion, never its factors.
+  authenticatedSubject(realmId: string, authSessionId: string): Promise<string | null>;
   // Read fresh on every submission, never cached from the login that
   // rendered the page: an action completed in another tab has to be gone
   // by the time this one is submitted.
@@ -121,17 +127,18 @@ export async function handleRequiredActionSubmission(
   const realm = await deps.findRealm(realmName);
   if (!realm?.enabled) return { kind: 'unauthenticated' };
 
-  const subjectId = await deps.boundSubject(realm.id, authSessionId);
+  const subjectId = await deps.authenticatedSubject(realm.id, authSessionId);
   if (subjectId === null) return { kind: 'unauthenticated' };
 
   // The gate, before any action-specific handling and for every action this
-  // route accepts. A bound subject is somebody who passed a factor, which is
-  // not the same thing as somebody a realm asked to enrol one: without this,
-  // a stolen password buys an attacker a TOTP credential on the account,
-  // which then applies to every future login and outlives the password reset
-  // that would otherwise have ended the compromise.
+  // route accepts: passing a factor is not being asked to enrol one, or a
+  // stolen password would buy a TOTP credential that outlives the password
+  // reset ending the compromise. Compared against the action owed *next*,
+  // not mere membership — the order nextRequiredAction imposes is what keeps
+  // an expired password from enrolling a second factor, and a submission
+  // naming a later action would otherwise walk straight past it.
   const owed = await deps.pendingActions(realm.id, subjectId);
-  if (action === undefined || !owed.some((pending) => pending === action)) {
+  if (action === undefined || action !== nextRequiredAction(owed)) {
     return { kind: 'not_owed', action: action ?? '' };
   }
 
@@ -166,10 +173,9 @@ export async function handleRequiredActionSubmission(
     return { kind: 'password_rejected', authSessionId, violations: changed.violations };
   }
 
-  if (action !== 'configure-totp') {
-    return { kind: 'unsupported', action };
-  }
-
+  // What is left is configure-totp: the gate above compared `action`
+  // against a RequiredAction, so an unrecognised string never reaches here
+  // and the four the order names are the four handled.
   const outcome = await deps.completeTotpEnrolment({
     realmId: realm.id,
     subjectId,

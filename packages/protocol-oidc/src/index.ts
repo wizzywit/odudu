@@ -1,6 +1,6 @@
 import {
   advance,
-  authenticationSessionRepository,
+  authenticatedSubject,
   beginPasskeyAuthentication,
   beginPasskeyEnrolment,
   beginRecoveryCodes,
@@ -304,12 +304,10 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
       ...passkeySubmission,
       pendingChallenge: pendingChallengeFor,
       pendingActions,
-      boundSubject: (realmId, authSessionId) =>
-        withRealm(deps.database.db, realmId, async (tx) => {
-          const record = await authenticationSessionRepository(tx).byId(authSessionId);
-          if (record === null || record.expiresAt.getTime() <= clock.now().getTime()) return null;
-          return record.subjectId;
-        }),
+      authenticatedSubject: (realmId, authSessionId) =>
+        withRealm(deps.database.db, realmId, (tx) =>
+          authenticatedSubject(tx, authSessionId, clock),
+        ),
       completeTotpEnrolment: (input) =>
         withRealm(deps.database.db, input.realmId, (tx) => completeTotpEnrolment(tx, input, clock)),
       beginRecoveryCodes: startRecoveryCodes,

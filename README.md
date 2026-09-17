@@ -121,7 +121,11 @@ parameters as a password, one credential row per code, so no later page and
 no administrator can print them again, and reloading that page issues a
 fresh ten and retires the set it just displayed — at ten Argon2id hashes and
 eleven row writes per reload, which nothing rate-limits: the per-account
-lockout counts failures, and this path takes a password that works. They are ten characters
+lockout counts failures, and this path takes a login that works. Reaching
+that page at all takes a **completed** login, not merely a correct password:
+the codes on it stand in for the second factor, so a session that has passed
+only the first one is refused there, and so is one already spent on a
+sign-in. They are ten characters
 from Crockford's 32-character base32 alphabet — 2^50 each, printed as
 `XXXXX-XXXXX` — and the alphabet's excluded letters (`I`, `L`, `O`) are
 folded onto the digits they resemble, so a code read off paper works either
@@ -265,6 +269,18 @@ and rotation retires the displaced hash as a `password-history` credential.
 Those rows are never a login's input, and the ones past the depth are
 deleted — the one place anything in this codebase deletes a credential
 rather than marking it (ADR 0021), because no decision can read them.
+
+**A required action blocks a login's completion, never its factors.**
+`POST /realms/{realm}/login-actions/required-action` carries no credentials
+of its own, so it acts only for a session whose authentication has actually
+finished — every factor the realm's flow asks of that subject passed, and
+the session not yet spent on a sign-in — and only for the action owed
+**next**, in the order `update-password`, `configure-totp`,
+`configure-passkey`, `generate-recovery-codes`. Both halves carry weight: a
+password alone binds a session to a subject while a second factor is still
+outstanding, and one of these actions prints ten recovery codes that stand
+in for that factor; and the order is what stops an expired password being
+used to enrol one.
 
 **What the two settings guarantee, exactly.** Every writer of a password
 resets the clock on it, which is what stops an expired password being owed

@@ -56,6 +56,33 @@ criterion. The `prompt=select_account` rows above. And `/authorize` still
 verifies an `id_token_hint` with `AUDIENCE_UNCHECKED`, which the per-client
 audience configuration P3's criterion names is the place to close.
 
+### A second-factor bypass closed after P2b's whole-branch review, 2026-09-17
+
+**A required action was satisfiable by a session bound by only the first
+factor.** `advance` binds the subject as soon as a factor identifies
+somebody — deliberately, so a later factor cannot hand the login to
+somebody else — and the required-action route read that binding as its
+whole authorization. A password alone therefore reached
+`generate-recovery-codes`, whose page prints ten codes that stand in for
+the second factor, and the state that made it reachable is one closed tab:
+completing `configure-totp` owes the codes, and the page that issues them
+sits behind the very factor being enrolled.
+
+Two things were missing, and both are now enforced where submissions are
+judged rather than where pages are chosen. `authentication_sessions` carries
+`authenticated_at` (0044), written by `advance` on every attempt that gets
+past the subject binding and **cleared** when a step remains — completing an
+enrolment makes a step apply that did not a moment ago, so completion cannot
+be a latch — and `authenticatedSubject` requires it, plus an unconsumed
+session. And the submission is compared against `nextRequiredAction(owed)`
+rather than membership, so the order that keeps an expired password from
+enrolling a second factor binds here too.
+`packages/protocol-oidc/tests/required-action-gate.adversarial.int.test.ts`
+drives the attack through the real routes; each refusal there asserts an
+effect — no codes on the page, none in the database, the saved set
+unchanged — because a status code alone cannot tell a refusal from a
+regeneration.
+
 ### What re-running every transcript found, 2026-09-17
 
 `docs/request-paths.md` promises that every command in it was executed and

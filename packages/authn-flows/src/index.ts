@@ -23,6 +23,7 @@ export {
   startAuthentication,
   loadPendingRequest,
   advance,
+  authenticatedSubject,
   initialChallenge,
   pendingChallenge,
   consumeAuthenticationSession,

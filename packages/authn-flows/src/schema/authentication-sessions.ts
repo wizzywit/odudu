@@ -25,6 +25,13 @@ export const authenticationSessions = pgTable('authentication_sessions', {
   // later factor is then looked up for this subject and has to answer with
   // it, so a second factor cannot hand the login to anybody else.
   subjectId: uuid('subject_id'),
+  // When the flow had nothing left to ask the bound subject; null while any
+  // step remains. `subjectId` is written by the *first* factor, so it says
+  // whose attempt this is and not that the attempt finished — and a
+  // required action, which carries no credentials of its own, may only be
+  // satisfied by a login that did (migration
+  // packages/db/drizzle/0044_authentication_sessions_authenticated.sql).
+  authenticatedAt: timestamp('authenticated_at', { withTimezone: true }),
   // The challenge a WebAuthn ceremony in progress must be answered with.
   // Server-side because a challenge the response carries proves nothing;
   // single-column because one attempt runs one ceremony at a time. Read and
@@ -59,5 +66,6 @@ export interface AuthenticationSessionRecord {
   consumedAt: Date | null;
   satisfied: string[];
   subjectId: string | null;
+  authenticatedAt: Date | null;
   webauthnChallenge: string | null;
 }

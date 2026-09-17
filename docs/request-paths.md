@@ -2325,9 +2325,14 @@ Refused, each for its own reason:
   answered no longer exists, so there is nothing for it to match.
 - A response answering a challenge this server never issued.
 - A response produced against another relying party or origin.
-- A submission for an action the subject does not owe: the required-action
-  route refuses any action absent from their pending set, whatever the form
-  says.
+- A submission for an action the subject does not owe **next**: the
+  required-action route refuses any action that is not the head of their
+  pending set in the order `update-password`, `configure-totp`,
+  `configure-passkey`, `generate-recovery-codes`, whatever the form says.
+- A submission against a session whose authentication has not finished — a
+  password passed and a second factor still outstanding — or one already
+  spent on a sign-in. A required action blocks a login's completion, not its
+  factors.
 - Any enrolment at all on a deployment with no `ODUDU_PUBLIC_BASE_URL`. The
   relying party id comes from that value and nowhere else, and the page
   reports the action as one that cannot be completed rather than binding a

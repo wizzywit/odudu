@@ -30,7 +30,7 @@ const SUBMISSION = {
 interface Harness {
   deps: RequiredActionSubmissionDeps;
   findRealm: Mock;
-  boundSubject: Mock;
+  authenticatedSubject: Mock;
   pendingActions: Mock;
   completeTotpEnrolment: Mock;
   completePasskeyEnrolment: Mock;
@@ -40,7 +40,7 @@ interface Harness {
 
 function harness(): Harness {
   const findRealm = vi.fn().mockResolvedValue(REALM);
-  const boundSubject = vi.fn().mockResolvedValue('subject-1');
+  const authenticatedSubject = vi.fn().mockResolvedValue('subject-1');
   const pendingActions = vi.fn().mockResolvedValue(['configure-totp']);
   const completeTotpEnrolment = vi.fn().mockResolvedValue({ kind: 'enrolled' });
   const completePasskeyEnrolment = vi
@@ -51,7 +51,7 @@ function harness(): Harness {
   return {
     deps: {
       findRealm,
-      boundSubject,
+      authenticatedSubject,
       pendingActions,
       completeTotpEnrolment,
       completePasskeyEnrolment,
@@ -59,7 +59,7 @@ function harness(): Harness {
       completeUpdatePassword,
     },
     findRealm,
-    boundSubject,
+    authenticatedSubject,
     pendingActions,
     completeTotpEnrolment,
     completePasskeyEnrolment,
@@ -95,7 +95,7 @@ describe('handleRequiredActionSubmission — who is allowed to act', () => {
   // unauthenticated caller does not get to choose what faults.
   it('refuses a malformed authentication session id without looking anything up', async () => {
     for (const authSessionId of MALFORMED_SESSION_IDS) {
-      const { deps, boundSubject, completeTotpEnrolment } = harness();
+      const { deps, authenticatedSubject, completeTotpEnrolment } = harness();
 
       const outcome = await handleRequiredActionSubmission(deps, 'acme', {
         ...SUBMISSION,
@@ -103,14 +103,14 @@ describe('handleRequiredActionSubmission — who is allowed to act', () => {
       });
 
       expect(outcome).toEqual({ kind: 'unauthenticated' });
-      expect(boundSubject).not.toHaveBeenCalled();
+      expect(authenticatedSubject).not.toHaveBeenCalled();
       expect(completeTotpEnrolment).not.toHaveBeenCalled();
     }
   });
 
-  it('refuses a submission against a session no factor has bound to a subject', async () => {
-    const { deps, boundSubject, completeTotpEnrolment } = harness();
-    boundSubject.mockResolvedValue(null);
+  it('refuses a submission against a session with no finished authentication', async () => {
+    const { deps, authenticatedSubject, completeTotpEnrolment } = harness();
+    authenticatedSubject.mockResolvedValue(null);
 
     const outcome = await handleRequiredActionSubmission(deps, 'acme', SUBMISSION);
 
@@ -149,6 +149,36 @@ describe('handleRequiredActionSubmission — who is allowed to act', () => {
 
     expect(outcome).toEqual({ kind: 'not_owed', action: 'configure-totp' });
     expect(completeTotpEnrolment).not.toHaveBeenCalled();
+  });
+
+  // Owing an action is not the same as being asked for it now. The order
+  // required-actions.ts imposes puts the password change first so an expired
+  // password can never be used to enrol a second factor, and that has to
+  // bind where a submission is judged, not only where a page is chosen.
+  it('enrols nothing for an owed action that is not the one owed next', async () => {
+    const { deps, pendingActions, completePasskeyEnrolment } = harness();
+    pendingActions.mockResolvedValue(['update-password', 'configure-passkey']);
+
+    const outcome = await handleRequiredActionSubmission(deps, 'acme', {
+      ...SUBMISSION,
+      action: 'configure-passkey',
+    });
+
+    expect(outcome).toEqual({ kind: 'not_owed', action: 'configure-passkey' });
+    expect(completePasskeyEnrolment).not.toHaveBeenCalled();
+  });
+
+  it('issues no recovery codes for an owed action that is not the one owed next', async () => {
+    const { deps, pendingActions, completeRecoveryCodes } = harness();
+    pendingActions.mockResolvedValue(['update-password', 'generate-recovery-codes']);
+
+    const outcome = await handleRequiredActionSubmission(deps, 'acme', {
+      ...SUBMISSION,
+      action: 'generate-recovery-codes',
+    });
+
+    expect(outcome).toEqual({ kind: 'not_owed', action: 'generate-recovery-codes' });
+    expect(completeRecoveryCodes).not.toHaveBeenCalled();
   });
 
   it('refuses a submission naming no action at all', async () => {
@@ -239,7 +269,8 @@ describe('handleRequiredActionSubmission — who is allowed to act', () => {
     pendingActions.mockResolvedValue(['configure-passkey']);
     const withoutPasskeys: RequiredActionSubmissionDeps = {
       findRealm: (name) => deps.findRealm(name),
-      boundSubject: (realmId, authSessionId) => deps.boundSubject(realmId, authSessionId),
+      authenticatedSubject: (realmId, authSessionId) =>
+        deps.authenticatedSubject(realmId, authSessionId),
       pendingActions: (realmId, subjectId) => deps.pendingActions(realmId, subjectId),
       completeTotpEnrolment: (input) => deps.completeTotpEnrolment(input),
       completeRecoveryCodes: (input) => deps.completeRecoveryCodes(input),

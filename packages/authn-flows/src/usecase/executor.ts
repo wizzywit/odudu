@@ -743,24 +743,53 @@ export async function advance(
   });
   const after = await dispatchNext(forSubject, stepsForSubject, updatedSatisfied, {});
 
+  let outcome: AdvanceOutcome;
   if (after.kind === 'ran') {
     await authenticationSessionRepository(tx).recordSatisfied(authSessionId, authenticator);
     const settled = await settle(after.result, subjectId);
-    if (settled.kind !== 'success') return settled;
-    return {
-      kind: 'success',
-      subjectId: settled.subjectId,
-      authenticators: [...record.satisfied, authenticator, after.authenticator],
-    };
+    outcome =
+      settled.kind === 'success'
+        ? {
+            kind: 'success',
+            subjectId: settled.subjectId,
+            authenticators: [...record.satisfied, authenticator, after.authenticator],
+          }
+        : settled;
+  } else if (after.kind === 'fail') {
+    outcome = { kind: 'failure', reason: NO_APPLICABLE_EXECUTION };
+  } else {
+    outcome = { kind: 'success', subjectId, authenticators: [...record.satisfied, authenticator] };
   }
-  if (after.kind === 'fail') {
-    return { kind: 'failure', reason: NO_APPLICABLE_EXECUTION };
-  }
-  return {
-    kind: 'success',
-    subjectId,
-    authenticators: [...record.satisfied, authenticator],
-  };
+
+  // What a required-action submission is judged against, since it carries no
+  // credentials of its own and the subject binding above is written by the
+  // *first* factor. Written on every attempt, not latched: enrolling a
+  // factor makes a step apply that did not a moment ago, so a session that
+  // had run out of steps has to stop having run out of them.
+  await authenticationSessionRepository(tx).recordAuthenticated(
+    authSessionId,
+    outcome.kind === 'success' ? clock.now() : null,
+  );
+  return outcome;
+}
+
+// Whom a required-action submission may act for: the subject a *finished*
+// authentication bound to this session. The binding alone is not enough —
+// the first factor writes it while later ones are still outstanding, and
+// one required action prints ten recovery codes that stand in for the
+// second factor.
+export async function authenticatedSubject(
+  tx: RealmScopedDatabase,
+  authSessionId: string,
+  clock: Clock = systemClock,
+): Promise<string | null> {
+  const record = await authenticationSessionRepository(tx).byId(authSessionId);
+  if (record === null || record.expiresAt.getTime() <= clock.now().getTime()) return null;
+  // A session that has already driven a login to an authorization code is
+  // spent: anything it owed was owed before that, so an action arriving
+  // against it now is a form the browser still had open.
+  if (record.consumedAt !== null || record.authenticatedAt === null) return null;
+  return record.subjectId;
 }
 
 // Puts an attempt back to how it started. The caller is the one refusal
