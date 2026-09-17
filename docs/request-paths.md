@@ -5559,8 +5559,11 @@ session lifecycle. A citation of either half here means that half.
   in the same browser replaces the first rather than joining it. That is
   also why `prompt=select_account` renders the ordinary form:
   account selection needs concurrent sessions, and both it and the three
-  clause rows behind it are **P3**'s. "Remember me" itself is named in no
-  phase.
+  clause rows behind it are **P3**'s. "Remember me" is **P3**'s too, named in
+  its criterion since 2026-09-17: the cookie this server sets carries no
+  `Max-Age`, which is why closing the browser ends the session, and the
+  toggle, the second pair of lifespans and the checkbox that select a
+  persistent one are all on surfaces P3 already touches.
 - **Failed sign-ins are locked out per account, and the unauthenticated
   routes that cost CPU are throttled per origin; `/token` is neither.**
   Five consecutive wrong passwords lock an account for a growing window, on

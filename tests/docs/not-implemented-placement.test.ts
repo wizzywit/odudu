@@ -52,13 +52,20 @@ describe('every gap docs/request-paths.md names has somewhere to be', () => {
     }
   });
 
-  // The word the roadmap used for the five items that had no phase. They
-  // have one now, and reintroducing the escape hatch is the thing to catch.
-  it('leaves nothing calling itself unplaced', () => {
+  // An item can name a phase for one half of itself and admit the other
+  // half has none — which is how "remember me" stayed unplaced inside an
+  // item that says P3 twice. These are the phrasings that admission has
+  // taken; the regex above cannot see any of them, because a marker being
+  // present is not the same as the item being placed.
+  const ADMITS_NO_PHASE =
+    /unplaced|named in no phase|(?:has|have|with) no phase|no phase (?:names|for it)/iu;
+
+  it('leaves no item admitting that part of it has nowhere to go', () => {
     for (const { text, lineNumber } of items) {
-      expect(`${GUIDE}:${String(lineNumber)}: ${/unplaced/iu.test(text) ? 'unplaced' : 'ok'}`).toBe(
-        `${GUIDE}:${String(lineNumber)}: ok`,
-      );
+      const admission = ADMITS_NO_PHASE.exec(text);
+      expect(
+        `${GUIDE}:${String(lineNumber)}: ${admission === null ? 'ok' : `says "${admission[0]}"`}`,
+      ).toBe(`${GUIDE}:${String(lineNumber)}: ok`);
     }
   });
 });
