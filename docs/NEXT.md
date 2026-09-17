@@ -107,7 +107,14 @@ at for an unrelated reason, and it is the obvious thing for a theming
 contract to extend rather than replace.
 
 The question itself is unchanged and still open: what is a theme allowed to
-replace — the whole document, a body fragment, or only styling? Deciding it
+replace — the whole document, a body fragment, or only styling? It now has a
+second consumer, which raises the stakes on answering it: P10's criterion was
+amended on 2026-09-17 to require **a client** supplying its own styling and
+images, not only a realm supplying a theme (section 11, "Theming was named
+but never required"). A contract that fits a trusted operator's theme and not
+an untrusted client's stylesheet is the wrong contract, and the difference is
+that the second one is an authorization decision about a page carrying a
+password field and a CSRF token. Deciding it
 in P3, beside the consent screen, costs one more page written the old way.
 Deferring it again costs the console's pages too, and P10 then retrofits
 across nine.

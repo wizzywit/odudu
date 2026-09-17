@@ -437,11 +437,11 @@ Implementation follows test-driven development.
 | P7  | User federation and inbound provisioning                         | 80–130 h  | LDAP-backed authentication, write-back and sync; SCIM 2.0 inbound provisioning, including deprovisioning                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | P8  | SAML 2.0 IdP                                                     | 100–150 h | interop with a real SP; signature-wrapping corpus green                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | P9  | Authorization services                                           | 100–150 h | policy evaluation and UMA 2.0                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| P10 | Extensibility and theming                                        | 60–100 h  | a third-party provider loads without a rebuild                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| P10 | Extensibility and theming                                        | 90–150 h  | a third-party provider loads without a rebuild; a realm's login, registration and consent pages render under a supplied theme without a rebuild; a client supplies its own styling and its own images, served by Odudu, under a content-security policy derived per client rather than widened for all                                                                                                                                                                                                                                                                                                                                                    |
 | P11 | HA, clustering, performance                                      | 60–100 h  | three replicas behind a load balancer; documented p99                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | P12 | Operational readiness                                            | 40–70 h   | a versioned image published from a tagged release, with the release process written down; secrets sourced from somewhere other than the process environment, through the interface §5 already puts the key-encryption key behind; backup and restore guidance proven by restoring into an empty database and completing a login against the restore                                                                                                                                                                                                                                                                                                       |
 
-Total: roughly 1045–1590 hours.
+Total: roughly 1075–1640 hours.
 
 After P4, at roughly 475–700 hours, Odudu is usable behind real
 applications. Everything beyond is breadth, and each phase is independently
@@ -753,6 +753,58 @@ one.
 _Administrative session termination_ — listing a subject's sessions and
 ending one on their behalf — lands in **P4** with the rest of the admin
 surface, because until there is an admin API there is nowhere to put it.
+
+### Theming was named but never required, and per-client branding was absent
+
+Found on 2026-09-17, closing P2b, by asking what the roadmap promises about
+pages rather than what it says about providers.
+
+**`ThemeProvider` had a registry entry, a phase title and no criterion.**
+Section 8 lists it among `kernel`'s registries, P10 is titled "Extensibility
+and theming", and P10's exit criterion read "a third-party provider loads
+without a rebuild" — which tests provider loading. **A P10 could have passed
+that criterion with no theming capability whatsoever**, which is the defect
+"Exit criteria that omitted work their phase already owned" was written
+about, in the one phase whose title names the omitted work.
+
+**Per-client branding was not in the roadmap at any phase.** Nothing named a
+client supplying its own look, and nothing named assets at all: no storage,
+no upload path, no serving of client-supplied images. The only occurrence of
+"static assets" is the consoles compiling to them.
+
+P10's criterion now names three testable outcomes — provider loading, a
+realm's pages under a supplied theme, and a client's own styling and images
+served by Odudu — and its estimate moves from 60–100 to 90–150 hours. The
+addition is asset storage, an upload path, and the per-client policy
+derivation below; the theme contract itself was always inside the original
+range.
+
+**Three constraints any implementation inherits, discoverable now:**
+
+- **Client-supplied CSS on the login page is an exfiltration channel.**
+  Attribute selectors can match on a field's value and leak what they match
+  through a background-image request. The pages carry a password field and
+  the `auth_session_id` CSRF token, so "accept a stylesheet" is not a
+  styling decision, it is an authorization decision about a page with
+  secrets on it.
+- **A client-supplied remote image URL tells a third party that this user is
+  signing in to this client, and when.** Serving assets from Odudu rather
+  than hotlinking is the only form that does not leak the visit, which is
+  why the criterion says "served by Odudu".
+- **The policy cannot be a static header.** P2b left these pages on
+  `default-src 'none'` with a per-response nonce (ADR 0018), and
+  `sendHtml` already derives the header from a `RenderedPage` the renderer
+  returns. Per-client assets mean deriving `img-src` and `style-src` from
+  the client being rendered for — an extension of that mechanism rather
+  than a replacement, and the reason the contract must be designed with the
+  policy and not before it.
+
+**Ordering consequence, unresolved.** P4 builds the consoles at position 4;
+P10 builds theming at position 10. An operator uploading an asset or setting
+a client's branding wants a console surface, so either P4 ships without one
+and P10 retrofits it, or theming moves earlier. This is named rather than
+decided, because the decision wants the theme contract's shape, which is
+P3's to settle (`docs/NEXT.md`, "Login page theming").
 
 ### Open decision, deferred deliberately
 
