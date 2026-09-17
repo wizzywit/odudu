@@ -122,6 +122,47 @@ in P3 costs nothing but the decision; deferring it again costs the console's
 pages too, and P4b then retrofits across nine rather than building against a
 contract that already exists.
 
+## Spending the last recovery code is a dead end, and Keycloak's is not
+
+`generate-recovery-codes` is added by `oweRecoveryCodesIfNoneHeld`
+(`packages/authn-flows/src/usecase/recovery-codes.ts`), called from the two
+enrolments and nowhere else, and its guard reads
+`credentialRepository.listFor(subjectId, 'recovery-code')`. That read does not
+filter on `usedAt`, so **ten spent codes are still ten rows**: the action is
+never owed again, and a subject who spends all ten is left with no path back
+except an operator deleting the rows. There is no admin surface for that until
+P4, so today the path is SQL against `user_credentials`.
+
+Keycloak treats the same moment as the natural place to re-issue. Its
+[recovery codes](https://www.keycloak.org/2025/10/recovery-codes) re-present
+the setup **when the last code is used to log in**, so the list regenerates as
+it is exhausted; the account console re-creates a set at any time; and a
+configurable threshold warns when fewer than four remain. GitHub's model is
+the same shape without the warning — sixteen codes, regenerate at will,
+regenerating invalidates the old set. Odudu already matches the part that
+matters most (hashed at rest, shown once, replaced rather than appended to)
+and is missing all three ways out.
+
+**The three split across two phases, and only one of them is P4's.**
+
+- **Re-owe the action when the last unspent code is spent.** No console, no
+  admin API: the recovery authenticator already spends the row that matched,
+  and the login it completes is exactly where the page can be shown. This is
+  the piece that closes the lockout, and it belongs with the login flow rather
+  than with the console — the only decision it needs is whether the page
+  appears immediately after a recovery-code sign-in, which Keycloak answers
+  yes and which costs nothing, since the subject is authenticated by then.
+- **A low-count warning.** Needs somewhere to warn, which is the account
+  console, and a realm setting for the threshold. **P4**, and now named in its
+  exit criterion rather than covered by "an account console for self-service".
+- **Self-service re-issue before exhaustion.** Also the account console, also
+  **P4** and named in the criterion. `beginRecoveryCodes` already replaces the
+  set wholesale, so the console needs a surface, not a mechanism.
+
+Counting unspent rows in the guard is a one-line change and is **not** the fix
+on its own: it only helps a subject who happens to enrol another factor after
+running out. The re-owe on the spend path is what a locked-out user needs.
+
 ## Deployment gaps, for whoever asks next
 
 `README.md` now has a Deploying section stating plainly that the container
