@@ -33,6 +33,18 @@ flag, breaks a clause Odudu is answerable for and no test here would
 notice, because no test here asserts the library's own behaviour. The
 version is named in every one of those rows for that reason.
 
+**Which signature algorithms a credential may use is the library's answer,
+not this repository's, and one of them is experimental.**
+`@simplewebauthn/server` 14.0.2 feature-detects post-quantum support at
+import — `subtle.supports('verify', 'ML-DSA-44')` — and accepts ML-DSA
+credentials wherever the runtime has it. On Node 24 it does, experimentally,
+so passkey verification here covers RFC 9864's algorithms without a line in
+this repository saying so and without a test asserting it. That is another
+library row in the sense above: a capability inherited from the pin, to
+re-check when the pin moves. The two warnings Node emits about it are
+filtered out of test output only, and ADR 0025 records why that is a logging
+decision rather than a dependency one.
+
 Inside §7 the split follows `docs/protocols/jose.md`'s: where a step is a
 decision Odudu makes — the RP ID and origin it expects, the challenge it
 offered, whether user verification is demanded, what a counter that failed
