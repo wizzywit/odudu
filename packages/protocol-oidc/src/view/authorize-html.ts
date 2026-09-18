@@ -3,7 +3,7 @@ import { escapeHtml, page } from '#/view/document';
 
 export function renderAuthorizeErrorPage(error: string, description: string): RenderedPage {
   return page(
-    'Request refused',
+    'Sign-in error',
     `<h1>Can't continue</h1>
 <p>${escapeHtml(description)}</p>
 <p><small>${escapeHtml(error)}</small></p>`,

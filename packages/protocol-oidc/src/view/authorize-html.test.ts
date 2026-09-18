@@ -8,7 +8,7 @@ import {
 describe('renderAuthorizeErrorPage', () => {
   it('returns a body fragment and a title beside the document', () => {
     const page = renderAuthorizeErrorPage('invalid_request', 'missing redirect_uri');
-    expect(page.title).toBe('Request refused');
+    expect(page.title).toBe('Sign-in error');
     expect(page.body).toContain('invalid_request');
     // The fragment is a fragment: a theme that wraps it must not find a
     // second document inside it.
