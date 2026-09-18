@@ -19,7 +19,8 @@
     "trace": "ODUDU_TRACE_STRICT=1 node tools/trace/src/index.ts trace-report.json",
     "verify": "pnpm format:check && pnpm typecheck && pnpm lint && pnpm boundaries && turbo run build && pnpm test && pnpm trace",
     "mutate:crypto": "stryker run packages/crypto/stryker.config.json",
-    "conformance:config-op": "bash infra/conformance/run-config-op.sh"
+    "conformance:config-op": "bash infra/conformance/run-config-op.sh",
+    "conformance:dynamic-op": "bash infra/conformance/run-dynamic-op.sh"
   },
   "devDependencies": {
     "@stryker-mutator/core": "10.0.0",

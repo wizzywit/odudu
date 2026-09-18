@@ -1,0 +1,153 @@
+{
+  "plan": "oidcc-dynamic-certification-test-plan",
+  "suiteVersion": "5.1.36",
+  "suiteTag": "release-v5.1.36",
+  "ranAt": "2026-09-19T00:39:00Z",
+  "target": "https://proxy/realms/conformance (odudu, behind the conformance TLS proxy) -- dynamic_client registration, response_type=code, realm open to anonymous registration",
+  "counts": {
+    "FAILED": 18,
+    "SKIPPED": 3,
+    "PASSED": 1,
+    "None": 1
+  },
+  "modules": [
+    {
+      "module": "oidcc-idtoken-rs256",
+      "testId": "3DOKcnZKA4ggWJl",
+      "status": "INTERRUPTED",
+      "result": "FAILED"
+    },
+    {
+      "module": "oidcc-idtoken-unsigned",
+      "testId": "Rm9a8hS6RzMbyB6",
+      "status": "FINISHED",
+      "result": "SKIPPED"
+    },
+    {
+      "module": "oidcc-userinfo-rs256",
+      "testId": "wQRzkLaXm3d9l41",
+      "status": "INTERRUPTED",
+      "result": "FAILED"
+    },
+    {
+      "module": "oidcc-ensure-redirect-uri-in-authorization-request",
+      "testId": "u9D5rJnTy33J49q",
+      "status": "WAITING",
+      "result": "FAILED"
+    },
+    {
+      "module": "oidcc-redirect-uri-query-OK",
+      "testId": "F0YHh81eMptYSu8",
+      "status": "INTERRUPTED",
+      "result": "FAILED"
+    },
+    {
+      "module": "oidcc-redirect-uri-query-mismatch",
+      "testId": "yyj7ez92yJjMr3S",
+      "status": "WAITING",
+      "result": "FAILED"
+    },
+    {
+      "module": "oidcc-redirect-uri-query-added",
+      "testId": "stGQnUOGjpnivgc",
+      "status": "WAITING",
+      "result": "FAILED"
+    },
+    {
+      "module": "oidcc-redirect-uri-regfrag",
+      "testId": "yZVZwLTnJ5JoHaK",
+      "status": "FINISHED",
+      "result": "PASSED"
+    },
+    {
+      "module": "oidcc-discovery-endpoint-verification",
+      "testId": "GVqp7ki8PA45l7p",
+      "status": "FINISHED",
+      "result": "FAILED"
+    },
+    {
+      "module": "oidcc-server",
+      "testId": "Nrw9OM4YFr90bcy",
+      "status": "INTERRUPTED",
+      "result": "FAILED"
+    },
+    {
+      "module": "oidcc-registration-logo-uri",
+      "testId": "VtxSIAE13IMiaf1",
+      "status": "INTERRUPTED",
+      "result": "FAILED"
+    },
+    {
+      "module": "oidcc-registration-policy-uri",
+      "testId": "USbdbdvaJbQ67jW",
+      "status": "INTERRUPTED",
+      "result": "FAILED"
+    },
+    {
+      "module": "oidcc-registration-tos-uri",
+      "testId": "Wa4gDiLZjhsfv2f",
+      "status": "INTERRUPTED",
+      "result": "FAILED"
+    },
+    {
+      "module": "oidcc-registration-jwks-uri",
+      "testId": "N1omUWJ3hXdxzat",
+      "status": "INTERRUPTED",
+      "result": "FAILED"
+    },
+    {
+      "module": "oidcc-registration-sector-uri",
+      "testId": "MEWnBjJiOJBHgja",
+      "status": "FINISHED",
+      "result": "SKIPPED"
+    },
+    {
+      "module": "oidcc-registration-sector-bad",
+      "testId": "r2uXqj6mJAeij9v",
+      "status": "FINISHED",
+      "result": "SKIPPED"
+    },
+    {
+      "module": "oidcc-server-rotate-keys",
+      "testId": "5hfWpdaEbVpff6q",
+      "status": "CONFIGURED",
+      "result": "None"
+    },
+    {
+      "module": "oidcc-refresh-token-rp-key-rotation",
+      "testId": "iDgnaD9CVlfRzzg",
+      "status": "INTERRUPTED",
+      "result": "FAILED"
+    },
+    {
+      "module": "oidcc-request-uri-unsigned",
+      "testId": "vNmCytvq8FimD5X",
+      "status": "INTERRUPTED",
+      "result": "FAILED"
+    },
+    {
+      "module": "oidcc-request-uri-signed-rs256",
+      "testId": "DzjN98iXltZMSBL",
+      "status": "INTERRUPTED",
+      "result": "FAILED"
+    },
+    {
+      "module": "oidcc-ensure-request-object-with-redirect-uri",
+      "testId": "dD4UQkEVp5VzxRL",
+      "status": "WAITING",
+      "result": "FAILED"
+    },
+    {
+      "module": "oidcc-refresh-token",
+      "testId": "UjXIozXB8hQ4GtN",
+      "status": "INTERRUPTED",
+      "result": "FAILED"
+    },
+    {
+      "module": "oidcc-ensure-client-assertion-with-iss-aud-succeeds",
+      "testId": "Xq85rYa1TioUG6q",
+      "status": "INTERRUPTED",
+      "result": "FAILED"
+    }
+  ]
+}

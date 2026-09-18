@@ -53,7 +53,7 @@ jobs:
 
   conformance:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7
 
@@ -63,10 +63,24 @@ jobs:
           path: /tmp/conformance-m2
           key: conformance-suite-m2-release-v5.1.36
 
+      # Both steps pin SUITE_DIR to the same path, so the Dynamic OP step
+      # reuses the jar the Config OP step already built (minutes) instead
+      # of cloning and building a second time.
       - name: Run the Config OP conformance plan
         run: ./infra/conformance/run-config-op.sh
         env:
           MAVEN_CACHE: /tmp/conformance-m2
+          SUITE_DIR: /tmp/conformance-suite
+
+      # Cannot pass by construction — ADR 0031 — so this step does not gate
+      # the build. It still runs on every push: the suite jar above is
+      # already built, so a second plan against it is cheap, and a module
+      # failing for a new reason is a regression worth CI catching.
+      - name: Run the Dynamic OP conformance plan
+        run: ./infra/conformance/run-dynamic-op.sh
+        env:
+          MAVEN_CACHE: /tmp/conformance-m2
+          SUITE_DIR: /tmp/conformance-suite
 
   commit-messages:
     runs-on: ubuntu-latest

@@ -616,6 +616,56 @@ downstream is waiting on this; a future profile that assumes PKCE (as
 FAPI 2.0 and the OAuth 2.1 successors do) is where a passing run would
 come from, not a change here.
 
+## Dynamic OP: a recorded incompatibility, mostly the same one
+
+**odudu cannot pass the Dynamic OP profile either, and for reasons P3a
+does not own changing.** P3a's exit criterion, written for this reason,
+is "the plan runs reproducibly with every divergence confirmed as a
+recorded decision" — verbatim the treatment ADR 0016 already gives Basic
+OP. Ran against a realm seeded `client_registration_policy=open`
+(`run-dynamic-op.sh`), `response_type=code` the one variant dimension the
+plan leaves open, plan id `4JhQ5ffOdtF1Q`, suite `5.1.36`, on
+2026-09-19. Export committed at
+`results/dynamic-op-2026-09-19-v5.1.36.json` and its `-logs.zip`.
+[ADR 0031](adr/0031-the-dynamic-op-plan-cannot-pass-code-only.md) is the
+full record; this section is its summary.
+
+**1 PASSED / 3 SKIPPED / 18 FAILED / 1 never reached a terminal status
+within the run's poll window.** Of the 18 `FAILED`, 4 are the suite
+waiting on a human rather than an odudu defect, exactly like Basic OP's
+own two manual-review modules; the module that timed out (`CONFIGURED`,
+no result) is waiting on a different manual step it cannot supply at all
+(below). Every module's cause was individually confirmed from its own
+log, not sampled:
+
+| Cause                                                                                                                   | Modules |
+| ----------------------------------------------------------------------------------------------------------------------- | ------- |
+| Mandatory PKCE (ADR 0016) — no module in this plan carries `code_challenge`                                             | 11      |
+| `response_types_supported` must contain all three of `code`/`id_token`/`token id_token` for a dynamic client (ADR 0031) | 1       |
+| `request_uri` refused (`docs/request-paths.md`, deferred P13)                                                           | 2       |
+| Self-skip: `subject_types_supported` has no `pairwise` (ADR 0031)                                                       | 2       |
+| Self-skip: `id_token_signing_alg_values_supported` has no `none` (`docs/protocols/oidc-discovery.md`)                   | 1       |
+| Harness: suite waits on a human to confirm a redirect-URI error page (ADR 0016's own precedent)                         | 4       |
+| Harness: suite waits on a human to rotate keys odudu cannot rotate yet (P4)                                             | 1       |
+| PASSED                                                                                                                  | 1       |
+
+**The surprise is which cause dominates.** The pre-run spike (below)
+expected the `response_types_supported` check to be the reason this plan
+cannot pass. It is — for exactly one module. Eleven others never get that
+far: `OIDCCDynamicTestPlan` carries no dedicated PKCE module the way Basic
+OP does, so every module that reaches `/authorize` sends a plain request
+with no `code_challenge`, and odudu's mandatory-PKCE rule (ADR 0016)
+rejects it first. `private_key_jwt` client authentication — not
+implemented until P3b — is consequently never exercised by this plan at
+all: PKCE refuses every request before a token-endpoint client
+authentication would matter.
+
+**No defect was found in this phase's work.** Every failure and
+self-skip traces to a decision already on record — ADR 0016, ADR 0031, or
+`docs/request-paths.md`'s existing P13/P4 placements — or to the same
+kind of unattended-run harness limitation ADR 0016 already names for
+Basic OP's two manual-review modules.
+
 ## Running it yourself
 
 ```bash
@@ -626,4 +676,10 @@ pnpm conformance:config-op
 ./infra/conformance/run-basic-op.sh
 # runs and polls all 35 modules in sequence, then prints where it wrote the
 # summary JSON and the suite's own zip export (does not overwrite results/)
+
+# Dynamic OP — reproduces the Dynamic OP run above; runs in CI (non-gating,
+# see ADR 0031) alongside Config OP, reusing the suite jar it already built
+pnpm conformance:dynamic-op
+# same shape as run-basic-op.sh: polls all 23 modules, then prints where it
+# wrote the summary JSON and the suite's own zip export
 ```
