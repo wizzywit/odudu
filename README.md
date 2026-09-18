@@ -34,12 +34,13 @@ security, and a container CI builds and boots on every pull request and on
 every merge to `main` — a branch push with no pull request open runs
 nothing, by design (`.github/workflows/verify.yml`).
 
-There is still no consent screen, no admin API and no
-token exchange — P3a onwards. The roadmap's second and third phases are each
-two. **P2a** is the identity model — roles, groups, client scopes,
-per-client web origins, email — and **P2b** is credentials, MFA and the
-session lifecycle. **P3a** is clients, registration and consent, and **P3b**
-is sessions, logout and the token surface.
+**P3a** adds clients, dynamic registration (RFC 7591) and a consent screen.
+There is still no admin API and no token exchange — those wait on P4 and
+P5. The roadmap's second and third phases are each two. **P2a** is the
+identity model — roles, groups, client scopes, per-client web origins,
+email — and **P2b** is credentials, MFA and the session lifecycle. **P3a**
+is clients, registration and consent, and **P3b** is sessions, logout and
+the token surface.
 
 A role reaches a token only when it is mapped to a scope the client is
 assigned, because `clients.full_scope_allowed` is off by default — a client
@@ -730,9 +731,9 @@ walks through all of it, including a client-scoped role qualified as
 **An initial access token is an operator's authorization for a client to
 exist.** `POST /realms/{realm}/clients-registrations/openid-connect` is
 RFC 7591 dynamic client registration — open to every realm whose
-`client_registration_policy` is `open`, and to nobody at all while it is
-the default, `disabled` (`seed client` is the only way to create a client
-in either case). A realm whose policy is `token` needs a way to mint the
+`client_registration_policy` is `open` or `token`, and refused outright
+while it is the default, `disabled` — `seed client` is then the only way to
+create a client in that realm. A realm whose policy is `token` needs a way to mint the
 credential a registering client presents, and `seed registration-token`
 is that command: `--realm`, `--uses` (a token is good for that many
 registrations, never zero) and `--ttl` in seconds.

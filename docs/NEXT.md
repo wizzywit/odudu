@@ -2,128 +2,85 @@
 
 ## Start here
 
-**P0, P1, P2a and P2b are complete. P3 was brainstormed on 2026-09-18 and
-became two phases:** **P3a** — clients, registration and consent — and
-**P3b** — sessions, logout and the token surface. P3a's spec is
-[2026-09-18-p3a-clients-registration-consent-design.md](superpowers/specs/2026-09-18-p3a-clients-registration-consent-design.md);
-its plan is next, and no P3a code exists yet. P3b gets its own brainstorm
-and spec when P3a closes.
+**P0, P1, P2a, P2b and P3a are complete. P3b — sessions, logout and the
+token surface — is next**, and needs its own brainstorm and spec: nothing
+below is a P3b plan, only what it inherits and the two things still open.
+P3a's own record — what each increment found, and what turned out to be
+wrong — is in [docs/phases/p3a.md](phases/p3a.md); this section is only
+where the project stands now.
 
-The split is recorded in section 11 of
-[the umbrella spec](superpowers/specs/2026-09-10-odudu-design.md), along
-with the estimate that forced it: two decisions the phase could not avoid —
-concurrent sessions per browser, and moving the existing renderers onto the
-page contract rather than only writing the consent screen against it — put
-P3 at roughly 105–160 hours, larger than P2b. The seam is a one-way
-dependency: every P3b clause reads client metadata P3a registers, and no
-P3a clause reads anything P3b builds.
+P3a shipped dynamic client registration (RFC 7591) behind a per-realm
+policy, a consent screen with per-scope choice over a client's optional
+scopes, the `client_secret` rate limit at `/token`, the address guard
+`jwks_uri` validation sits behind, and the page-contract retrofit (every
+renderer now returns `RenderedPage`, one authority for a page's headers)
+that P4b's theming will build on. The OIDF Dynamic OP plan runs
+reproducibly with every divergence a recorded decision (ADR 0031) — it
+cannot pass outright, because its discovery check demands response types
+OAuth 2.1 removes, the same shape P1's own criterion already accepted for
+Basic OP.
 
-Every clause of P2b's exit criterion was driven against a running stack at
-close, and section 11 of the umbrella spec records what was observed, what
-could only be established another way (the two WebAuthn ceremonies, which
-need a browser), and — separately — what P2b leaves behind that its
-criterion never asked for. Section 17 of
-[the phase spec](superpowers/specs/2026-09-15-p2b-credentials-mfa-sessions-design.md)
-lists every correction the phase made to its own plan, and the pattern they
-share: almost all of them were claims about **this repository** — a table,
-a migration number, a helper, a file path, a testing convention — rather
-than about the design or a third party.
+**What P3b inherits, concretely:**
 
-### Open decisions P3a's plan must settle
+- **A `jwks_uri` fetcher and pinned transport, built and exported but
+  wired into nothing.** `clientKeySet`
+  (`packages/protocol-oidc/src/repository/client-keys.ts`) and
+  `apps/server/src/client-key-transport.ts` are tested and independently
+  reviewed (pinned lookup, both timeouts, the stream-level body cap, TLS
+  verification each proven under an adversarial review, not merely
+  claimed). Registration validates a `jwks_uri`'s **shape** only —
+  `https`, no embedded credentials — and does not dereference it: an
+  earlier attempt at registration-time dereferencing was reverted
+  (`docs/phases/p3a.md`, Task 12b) after it turned an SSRF guard's own
+  refusal reason into a network oracle for an anonymous, unauthenticated
+  caller. The one consumer the OIDF suite's own source identifies is
+  `private_key_jwt` client authentication at `/token`: fetch there, at the
+  moment a signature is actually verified, with a refusal that says "the
+  signature did not verify" or "the key could not be retrieved" — never
+  the guard's own reasoning. Two known nits to fix while wiring it up for
+  real: `expiresAt` is computed from the pre-fetch clock (a slow fetch
+  shortens its own cache TTL), and there is no in-flight coalescing (two
+  concurrent fetches of one URI both reach the network before the cache
+  can suppress the second).
+- **The `claims` request parameter is P3b's**, not P3a's. It was placed in
+  P3a by `docs/protocols/oidc-core.md` on the reasoning that it needs the
+  per-client machinery and consent screen P3a builds; P3a's own criterion
+  never named it, and nothing in its plan built it — the machinery
+  shipped, the parameter that reads it did not. `docs/protocols/oidc-core.md`'s
+  three `deferred:` rows now say `P3b`, filed beside the signed and
+  encrypted UserInfo responses it shares a shape with: both read
+  per-client registration data that had no machinery to supply it before
+  P3a.
+- **The consent-screen section of `docs/request-paths.md` is still
+  derived, not observed**, and deliberately not re-derived in this closing
+  pass — reproducing it means replaying the whole document's transcript
+  from the top to reach the same `demo` realm state, which a
+  documentation-only pass cannot absorb. Explicitly assigned to **P4b**:
+  its page-contract retrofit touches every rendered page, consent
+  included, and is the next point a full re-transcription happens anyway
+  rather than as a one-off.
+- **The address guard (`packages/protocol-oidc/src/service/remote-address.ts`)
+  is sound against every bypass this phase's adversarial review found and
+  fixed** (IPv4-mapped/-compatible spellings, NAT64, 6to4 all now
+  refused, each proven by executing the function against the real address
+  forms, not by reasoning about it). One narrow class-level gap (`::/96`
+  outside the named markers) and one narrower RFC 6052 embedding gap
+  remain, the first spun off as an immediate follow-up rather than a
+  phase item.
+- **RFC 7592 client management (GET/PUT/DELETE on a registered client) is
+  not P3a's and is not P3b's.** The Dynamic OP suite's own cleanup issues
+  a best-effort DELETE against `registration_client_uri` but treats a
+  failure as a warning, not a module failure — confirmed by reading the
+  suite's source directly, not by assumption. Registered-client management
+  stays where `docs/request-paths.md` already places it, in P4, with the
+  rest of the admin surface.
 
-- **The `claims` request parameter is placed in P3a and named in no
-  criterion.** `docs/protocols/oidc-core.md` sends three rows there —
-  §2's Essential-Claim `auth_time`, §3.1.2.2's `sub`-with-a-specific-value,
-  and the prose at line 600 — on the reasoning that the parameter needs the
-  per-client machinery and consent that P3a builds. P3a's criterion does
-  not mention it, which is exactly the failure section 11 catalogues five
-  of: work placed in a phase whose criterion can be met without it. P3a's
-  plan either names it in the criterion or moves it, and says which.
-- **RFC 7592 client management is not in P3a.** Spike 4
-  (`infra/conformance/README.md`) read the Dynamic OP plan's own source at
-  `release-v5.1.36`: no module requires `registration_access_token` or
-  `registration_client_uri` in the registration response. The plan does
-  attempt a DELETE against `registration_client_uri` in cleanup
-  (`AbstractOIDCCServerTest`/`AbstractOIDCCDynamicRegistrationTest`'s shared
-  `unregisterClient()`), but it's best-effort — it no-ops when those fields
-  are absent from `client`, and a failed DELETE is only a warning
-  (`onFail(ConditionResult.WARNING)`), not a module failure — so it does not
-  change the answer. P3a ships RFC 7591 registration alone; registered-client
-  management stays where `docs/request-paths.md` already places it, in P4.
-- **Decided 2026-09-18: the Dynamic OP plan cannot pass, and P3a's
-  criterion no longer claims it will.** The plan's discovery check, when
-  `ClientRegistration` is `dynamic_client` — true for every module group it
-  defines — requires `response_types_supported` to contain `code`,
-  `id_token` **and** `token id_token`, all three
-  (`minimumMatchesRequired = SET_VALUES.length`). OAuth 2.1 removes the
-  flows behind the last two and ADR 0016 records that decision, so a
-  passing run was never available. P3a's criterion is now "the OIDF Dynamic
-  OP plan **runs reproducibly with every divergence confirmed as a recorded
-  decision**", which is verbatim the treatment P1's criterion already gives
-  Basic OP. The ADR is written by the task that runs the plan, from the
-  run's own evidence, as P1 did.
+**Two things carried forward from P2b, both now P3b's surface directly:**
+concurrent sessions per browser (`prompt=select_account`'s three clause
+rows) and the `sid`-addressable session front-channel and back-channel
+logout need. Both are described in full below, unchanged since P2b closed.
 
-  **P3b inherits the same question and should ask it earlier.** Its
-  criterion will name a suite plan too; read what that plan actually demands
-  before writing the criterion, not after. A criterion that cannot be met
-  is worth catching in a two-hour spike rather than in a phase's last task.
-
-- **Decided the same day: the JWKS fetcher is P3a's after all.**
-  `OIDCCRegistrationJwksUri` is one of the plan's own registration modules
-  and serves the key set over HTTP itself, so the OP must dereference
-  `jwks_uri` during the run. A controller ruling had deferred the fetcher to
-  P3b on the grounds that nothing in P3a consumed one; the spike reversed it,
-  which is the condition that ruling named for its own reversal. Registration
-  still validates a `jwks_uri`'s shape without dereferencing it — the fetch
-  happens where the keys are used.
-
-  **Task 12b built the fetcher and left it unwired — read this before
-  wiring it into anything.** The registration endpoint
-  (`packages/protocol-oidc/src/usecase/client-registration.ts`) does not
-  call it: a first attempt did, and review found two defects that follow
-  directly from dereferencing at registration rather than at use — a
-  transient DNS or TLS failure permanently refuses a registration with no
-  retry path, and the address guard's own refusal reason
-  (private/loopback/link-local, distinct from a DNS or TLS failure) leaked
-  into `error_description`, verbatim, to an unauthenticated registrant —
-  an oracle for the server's own network. Both are exactly what this
-  paragraph's "the fetch happens where the keys are used" already said not
-  to do. `clientKeySet` (`packages/protocol-oidc/src/repository/client-keys.ts`)
-  and the pinned transport (`apps/server/src/client-key-transport.ts`) are
-  built, independently tested, and exported from `@odudu/protocol-oidc` —
-  nothing wires either into a route. The one consumer this plan's spike
-  identifies is `private_key_jwt` client authentication at `/token`
-  (P3b): fetch there, at the moment a signature is actually verified
-  against the key, with a refusal that reports "the signature did not
-  verify" or "the key could not be retrieved" — never the guard's own
-  reasoning.
-
-- **What the spike found that needs nothing:** none of
-  `backchannel_logout_supported`, `frontchannel_logout_supported`,
-  `userinfo_encryption_alg_values_supported`, `introspection_endpoint` or
-  `revocation_endpoint` is touched by any module the plan runs, and
-  `userinfo_signing_alg_values_supported` is skip-if-absent rather than
-  required — so P3a's rule that it registers logout and UserInfo metadata
-  without advertising any of it costs nothing against the suite. The plan's
-  two sector modules self-skip, because they require
-  `subject_types_supported` to contain `pairwise` and Odudu publishes
-  `['public']`.
-
-- **"The consent screen" section of `docs/request-paths.md` is derived, not
-  observed — it needs a real transcript before this phase closes.** The
-  task that wired the consent gate onto both the form path and session
-  reuse (`packages/protocol-oidc/src/usecase/login-submission.ts`'s
-  `decideConsentGate`) added that section without a live compose-stack run:
-  reproducing one meant replaying the whole document's transcript from the
-  top to reach the same `demo` realm state, which that task's own time did
-  not allow. The section says so in its own first paragraph, in bold, and
-  names what it was derived from instead — but a note admitting a gap is
-  exactly the kind of passage the phase-closing pass has to find still
-  saying something true rather than something it settled for once. Replace
-  it with a real transcript (an anonymously self-registered client, per the
-  section's own plan) before P3a closes.
-
-### What P3a and P3b inherit from P2b
+### What P3b inherits from P2b
 
 **A session that is read, and one per browser.** `/authorize` resolves the
 `{realm}-session` cookie through `sessionRepository.liveById`, scoped by the
@@ -156,11 +113,11 @@ access token works until its `exp` (at most an hour). RFC 7662
 introspection is what makes revocation real inside that window, and it is in
 P3b's criterion for that reason rather than as a checklist item.
 
-**Three gaps filed to P3 during this phase, all recorded rather than
-remembered.** A rate limit on `client_secret` attempts at `/token` — RFC
-6749 §2.3.1's client half, filed as its own row and named in P3a's
-criterion — is closed: `RFC6749-2.3.1-04` covers it, and ADR 0023 carries
-the amendment. The `prompt=select_account` rows above remain open. And
+**Three gaps P2b filed forward, all recorded rather than remembered.** A
+rate limit on `client_secret` attempts at `/token` — RFC 6749 §2.3.1's
+client half, filed as its own row and named in P3a's criterion — is
+closed: `RFC6749-2.3.1-04` covers it, and ADR 0023 carries the amendment.
+The `prompt=select_account` rows above remain open. And
 `/authorize` still verifies an `id_token_hint` with `AUDIENCE_UNCHECKED`,
 which the per-client audience configuration P3b's criterion names is the
 place to close.
@@ -170,6 +127,7 @@ place to close.
 The running records, split out of this file on 2026-09-17: P2b reached 1,873
 lines here, of which the part describing where the project stood was 58.
 
+- [P3a — clients, dynamic registration and consent](phases/p3a.md)
 - [P2b — credentials, MFA and the session lifecycle](phases/p2b.md)
 - [P0, P1 and P2a](phases/p0-p1-p2a.md)
 
