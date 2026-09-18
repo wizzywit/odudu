@@ -31,8 +31,9 @@ each condition actually fired.
 **23 modules: 1 PASSED, 3 SKIPPED (self-skip), 18 FAILED, 1 never reached
 a terminal status.** Every `FAILURE`-result condition across all 23
 modules' committed logs (`infra/conformance/results/dynamic-op-2026-09-19-v5.1.36-logs.zip`)
-was tallied, not sampled — 20 `FAILURE` entries in total, covering 6
-distinct conditions:
+was tallied, not sampled — 32 `FAILURE` entries in total
+(15 + 11 + 2 + 1 + 1 + 1 + 1, the table below), covering 6 distinct
+conditions:
 
 | Condition                                                               | Occurrences | Modules                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | Cause                                                                                                                                               |
 | ----------------------------------------------------------------------- | ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |

@@ -685,6 +685,14 @@ result.
 self-skip traces to a decision already on record — ADR 0016, ADR 0031, or
 `docs/request-paths.md`'s existing P3b/P13/P4 placements.
 
+**The unit that makes a multi-module plan's run legible is the condition,
+not the module.** A module can fail several conditions at once, and every
+natural way to summarise a run — the module list, the status column, the
+suite's own UI — counts modules. Counting modules here first named
+mandatory PKCE the dominant cause and `private_key_jwt` unexercised;
+re-tallying by condition reversed both. The next plan run against this
+project should start from the condition list.
+
 ## Running it yourself
 
 ```bash
