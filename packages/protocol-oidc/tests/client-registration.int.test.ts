@@ -437,3 +437,33 @@ describe('[RFC6749-2.3.2-01] a mapping between client identifier and authenticat
     });
   });
 });
+
+describe('[ODUDU-CLIENT-REGISTRATION-JWKS-URI-01] a registered jwks_uri', () => {
+  // What would this test still pass under? A version that fetches jwks_uri
+  // and tolerates the fetch failing would also return 201 — the stored
+  // value proves the string was never resolved, only accepted. This host
+  // (RFC 2606) never resolves, so a version that does dereference it fails
+  // on the network call itself, not on an assertion.
+  it('registers even when the host cannot resolve, never dereferencing it', async () => {
+    const realmName = `jwks-uri-${newId()}`;
+    const realmId = newId();
+    await withRealm(app.db, realmId, (tx) =>
+      seedRealm(tx, realmId, { name: realmName, policy: 'open' }),
+    );
+
+    const res = await http.inject({
+      method: 'POST',
+      url: URL_FOR(realmName),
+      payload: { ...MINIMAL, jwks_uri: 'https://nonexistent.invalid/jwks.json' },
+    });
+    expect(res.statusCode).toBe(201);
+    const body = res.json<{ client_id: string; jwks_uri: string }>();
+    expect(body.jwks_uri).toBe('https://nonexistent.invalid/jwks.json');
+
+    await withRealm(app.db, realmId, async (tx) => {
+      const [row] = await tx.select().from(clients).where(eq(clients.clientId, body.client_id));
+      const config = await clientOidcConfigRepository(tx).byClientId(row?.id ?? '');
+      expect(config?.jwksUri).toBe('https://nonexistent.invalid/jwks.json');
+    });
+  });
+});

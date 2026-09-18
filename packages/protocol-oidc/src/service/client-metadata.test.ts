@@ -39,7 +39,12 @@ it.each(['http://rp.example/jwks.json', 'https://user:pw@rp.example/j'])(
 );
 
 it('accepts a well-formed jwks_uri without dereferencing it', () => {
-  // No lookup, no socket: the host does not exist and registration succeeds.
+  // No lookup, no socket: parseClientMetadata checks shape alone
+  // (assertFetchableUrl), so a host that cannot resolve still parses ok.
+  // The registration endpoint built on top of this never dereferences
+  // jwks_uri either — see docs/NEXT.md and
+  // packages/protocol-oidc/tests/client-registration.int.test.ts's own
+  // proof of that at the endpoint level.
   expect(parseClientMetadata(ok({ jwks_uri: 'https://nonexistent.invalid/jwks.json' })).kind).toBe(
     'ok',
   );

@@ -29,7 +29,6 @@ function deps(overrides: Partial<ClientRegistrationDeps> = {}): ClientRegistrati
     findRealm: () => Promise.resolve(REALM),
     withinRealm: explodingWithinRealm,
     hashClientSecret: (secret) => Promise.resolve(`hashed:${secret}`),
-    fetchClientKeySet: () => Promise.resolve({ keys: [] }),
     now: () => new Date('2026-09-18T00:00:00Z'),
     ...overrides,
   };

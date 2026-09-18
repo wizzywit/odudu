@@ -68,13 +68,6 @@ export interface OidcRoutesDeps {
   // passkey enrolment then reports itself unsupported rather than binding
   // credentials to a guessed domain.
   publicBaseUrl?: string;
-  // Fetches and validates a registered jwks_uri, composed at the
-  // composition root from the address guard and the pinned transport
-  // (apps/server/src/client-key-transport.ts) — protocol-oidc must not
-  // import apps/server, so the socket itself is injected. Undefined
-  // refuses every jwks_uri a client registers, which is the safe default
-  // for a caller (a test, mainly) that never wires one in.
-  fetchClientKeySet?: (uri: string) => Promise<unknown>;
 }
 
 // The plugin apps/server registers. Discovery and JWKS both read the
@@ -172,9 +165,6 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
       findRealm,
       withinRealm: (realmId, fn) => withRealm(deps.database.db, realmId, fn),
       hashClientSecret: hashPassword,
-      fetchClientKeySet:
-        deps.fetchClientKeySet ??
-        (() => Promise.reject(new Error('jwks_uri fetching is not configured'))),
       now: () => clock.now(),
     });
     registerAuthorizeRoute(app, {

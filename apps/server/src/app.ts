@@ -21,12 +21,10 @@ import {
   verifyPassword,
 } from '@odudu/domain-identity';
 import { newId } from '@odudu/kernel';
-import { clientKeySet, oidcRoutes } from '@odudu/protocol-oidc';
+import { oidcRoutes } from '@odudu/protocol-oidc';
 import Fastify, { type FastifyInstance, type RawServerDefault } from 'fastify';
 import { type IncomingMessage, type ServerResponse } from 'node:http';
 import { type Logger as PinoLogger } from 'pino';
-import { createClientKeyLookup } from '#/client-key-lookup';
-import { createClientKeyRequest } from '#/client-key-transport';
 import { registerHealth } from '#/health';
 import { slidingWindow } from '#/throttle';
 
@@ -72,14 +70,6 @@ export interface AppDeps {
    * `DEFAULT_THROTTLE`; `main.ts` passes what `ODUDU_THROTTLE_*` says.
    */
   readonly throttle?: ThrottleSettings;
-  /**
-   * Lets a registered `jwks_uri` resolve to a private, loopback or
-   * link-local address — the development and conformance stacks need this
-   * for a client whose key set the test harness serves itself. Defaults to
-   * `false`; refused outright at boot when `NODE_ENV=production`
-   * (`assertProductionNoPrivateClientUrls`).
-   */
-  readonly allowPrivateClientUrls?: boolean;
 }
 
 export interface ThrottleSettings {
@@ -170,25 +160,12 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   app.register(cookie);
 
   registerHealth(app, deps);
-  // The real socket a registered jwks_uri is fetched through: the address
-  // guard, DNS resolution and the pinned transport, composed here because
-  // protocol-oidc must not import apps/server
-  // (packages/protocol-oidc/src/repository/client-keys.ts takes all three
-  // as injected dependencies for exactly this reason).
-  const fetchClientKeySet = clientKeySet({
-    lookup: createClientKeyLookup(),
-    request: createClientKeyRequest(),
-    now: () => new Date(),
-    allowPrivate: deps.allowPrivateClientUrls ?? false,
-  }).fetch;
-
   app.register(
     oidcRoutes({
       database: deps.database,
       ownerDatabase: deps.ownerDatabase,
       kek: deps.kek,
       ...(deps.publicBaseUrl === undefined ? {} : { publicBaseUrl: deps.publicBaseUrl }),
-      fetchClientKeySet,
     }),
   );
 

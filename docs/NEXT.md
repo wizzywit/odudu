@@ -77,6 +77,27 @@ than about the design or a third party.
   still validates a `jwks_uri`'s shape without dereferencing it — the fetch
   happens where the keys are used.
 
+  **Task 12b built the fetcher and left it unwired — read this before
+  wiring it into anything.** The registration endpoint
+  (`packages/protocol-oidc/src/usecase/client-registration.ts`) does not
+  call it: a first attempt did, and review found two defects that follow
+  directly from dereferencing at registration rather than at use — a
+  transient DNS or TLS failure permanently refuses a registration with no
+  retry path, and the address guard's own refusal reason
+  (private/loopback/link-local, distinct from a DNS or TLS failure) leaked
+  into `error_description`, verbatim, to an unauthenticated registrant —
+  an oracle for the server's own network. Both are exactly what this
+  paragraph's "the fetch happens where the keys are used" already said not
+  to do. `clientKeySet` (`packages/protocol-oidc/src/repository/client-keys.ts`)
+  and the pinned transport (`apps/server/src/client-key-transport.ts`) are
+  built, independently tested, and exported from `@odudu/protocol-oidc` —
+  nothing wires either into a route. The one consumer this plan's spike
+  identifies is `private_key_jwt` client authentication at `/token`
+  (P3b): fetch there, at the moment a signature is actually verified
+  against the key, with a refusal that reports "the signature did not
+  verify" or "the key could not be retrieved" — never the guard's own
+  reasoning.
+
 - **What the spike found that needs nothing:** none of
   `backchannel_logout_supported`, `frontchannel_logout_supported`,
   `userinfo_encryption_alg_values_supported`, `introspection_endpoint` or

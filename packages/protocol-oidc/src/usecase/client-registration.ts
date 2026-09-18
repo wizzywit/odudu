@@ -20,13 +20,6 @@ export interface ClientRegistrationDeps {
   // the two inserts. A failure anywhere rolls all of it back together.
   withinRealm<T>(realmId: string, fn: (tx: RealmScopedDatabase) => Promise<T>): Promise<T>;
   hashClientSecret(secret: string): Promise<string>;
-  // Fetches and validates a registered jwks_uri the same way a later
-  // consumer of it would — composed from the address guard and the pinned
-  // transport (apps/server/src/client-key-transport.ts) at the
-  // composition root. A client whose jwks_uri does not actually resolve to
-  // a JWK Set is refused at registration time rather than only once
-  // something tries to use it.
-  fetchClientKeySet(uri: string): Promise<unknown>;
   now(): Date;
 }
 
@@ -77,15 +70,14 @@ async function performRegistration(
     return { kind: 'at_capacity' };
   }
 
-  if (metadata.jwksUri !== null) {
-    try {
-      await deps.fetchClientKeySet(metadata.jwksUri);
-    } catch (error) {
-      const reason = error instanceof Error ? error.message : String(error);
-      return { kind: 'invalid_metadata', error: 'invalid_client_metadata', description: reason };
-    }
-  }
-
+  // jwks_uri is validated for shape only, by parseClientMetadata
+  // (assertFetchableUrl) — never dereferenced here. The key is not needed
+  // until something actually verifies a signature against it, which for
+  // this phase is nothing: private_key_jwt client authentication, the
+  // consumer that would fetch it, is P3b's. Dereferencing at registration
+  // would make a registration's success depend on a socket to a host the
+  // registrant does not control being up at that instant, and never again
+  // — the opposite of what a registration is for. See docs/NEXT.md.
   const type = clientType(metadata.tokenEndpointAuthMethod);
 
   let serviceSubjectId: string | null = null;

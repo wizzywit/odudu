@@ -73,9 +73,12 @@ error vocabulary is so uniform below: most refusals come from shared code.
 
 ## Bootstrap
 
-There is no admin API yet, so realms, clients, users and signing keys are
-created by the server's seed command. It is the only way to create the first
-of anything.
+There is no admin API yet, so a realm, its first user and its signing key
+are created by the server's seed command — the only way to create the
+first of anything. A client is the one exception once a realm opens
+registration to it: `seed client` still works, but
+[dynamic client registration](#dynamic-client-registration) is a second
+door, open to whoever the realm's `client_registration_policy` admits.
 
 ### Pick how you are running it
 
@@ -5835,9 +5838,12 @@ session lifecycle. A citation of either half here means that half.
 - **No administrative way to end somebody else's session.** Listing a
   subject's sessions and ending one is **P4**, with the rest of the admin
   surface, because until there is an admin API there is nowhere to put it.
-- **Any admin API.** **P4.** The seed command is the only administrative
-  surface, and it cannot add a user to an existing client, disable anything,
-  rotate a key, or delete anything.
+- **Any admin API.** **P4.** The seed command and
+  [dynamic client registration](#dynamic-client-registration) are the only
+  administrative surfaces — the former for a realm's first user, client and
+  signing key, the latter for a client a realm has opened itself to — and
+  neither can add a user to an existing client, disable anything, rotate a
+  key, or delete anything.
 - **SAML, LDAP federation, identity brokering, authorization services.**
   P6–P9.
 
