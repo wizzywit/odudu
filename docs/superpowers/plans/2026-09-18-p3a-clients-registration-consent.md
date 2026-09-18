@@ -977,19 +977,15 @@ git commit -m "Refuse a client URL before the socket, not after"
 git push && gh pr checks 12 --watch
 ```
 
-### Task 9: The bounded JWKS fetcher — P3b's, unless the spike says otherwise
+### Task 9: The bounded JWKS fetcher
 
-> **Gated by ruling 1 and spike question 3.** Nothing in P3a consumes a
-> fetched key set: fetching is what `private_key_jwt` and encrypted UserInfo
-> need, and both are P3b. **Skip this task and carry it into P3b's plan**
-> unless Task 1's third question found that the Dynamic OP plan requires the
-> OP to fetch a client's JWKS during the run — in which case build it here,
-> before Task 12. Registration validates a `jwks_uri`'s _shape_ in Task 10
-> and stores it; it does not dereference it.
->
-> The exit criterion's "boundary stated and tested" is satisfied by Task 8
-> and ADR 0028 either way. Nothing in the criterion asks for a fetch P3a
-> never performs.
+> **In P3a, and it runs before Task 12.** The spike settled this:
+> `OIDCCDynamicTestPlan.java:86` lists `OIDCCRegistrationJwksUri`, which
+> swaps `AddPublicJwksToDynamicRegistrationRequest` for
+> `AddJwksUriToDynamicRegistrationRequest` and serves the key set over HTTP
+> itself, so the OP must dereference `jwks_uri` during the run. The split
+> with Task 8 stands: registration validates a `jwks_uri`'s shape and stores
+> it, and this module is what resolves and connects.
 
 **Files:**
 
@@ -1003,7 +999,7 @@ git push && gh pr checks 12 --watch
 - Consumes: `assertFetchableUrl`, `assertPublicAddresses` from Task 8.
 - Produces: `clientKeySet(deps: ClientKeyDeps): { fetch(uri: string): Promise<unknown> }`, where `ClientKeyDeps` injects `lookup`, `request` and `now` so the test drives it with neither DNS nor a socket.
 
-**If this task runs at all**, it runs before Task 12, so registration and the fetcher land in dependency order.
+**This task runs before Task 12**, so registration and the fetcher land in dependency order.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -1489,32 +1485,17 @@ git commit -m "Let a client register itself where a realm allows it"
 git push && gh pr checks 12 --watch
 ```
 
-### Task 13: RFC 7592 client configuration — only if Task 1 says so
+### Task 13: RFC 7592 client configuration — struck
 
-**Run Task 1 first. If its answer to question 2 was that the Dynamic OP plan does not require a client configuration endpoint, skip this task, delete it from the plan in that commit, and say so in your report.** Building an authenticated mutation surface nothing asks for is how a phase grows past its estimate.
-
-**Files:**
-
-- Modify: `packages/protocol-oidc/src/usecase/client-registration.ts`, `packages/protocol-oidc/src/view/routes/client-registration.ts`
-- Create: migration `0048_client_registration_access_tokens.sql`
-- Test: `packages/protocol-oidc/tests/client-configuration.int.test.ts`
-
-**Interfaces:**
-
-- Consumes: Task 12's registration response.
-- Produces: `GET`/`PUT`/`DELETE /realms/{realm}/clients-registrations/openid-connect/{client_id}`, and `registration_access_token` plus `registration_client_uri` in the registration response.
-
-- [ ] **Step 1: Store the registration access token**
-
-A per-client credential, stored as a SHA-256 digest exactly as Task 11's tokens are, on a column of `client_oidc_config` or its own table — decide from what the read needs and say which in your report. It authenticates **only** these three routes and never `/token`.
-
-- [ ] **Step 2: Write the failing test**
-
-Cases: reading a client with its own token returns its current metadata and never `client_secret`; reading with another client's token is 401; `PUT` replaces metadata wholesale and cannot change `client_id`; `DELETE` removes the client and afterwards its token authenticates nothing; and a `PUT` that widens `redirect_uris` is validated by `parseClientMetadata` exactly as registration was.
-
-That last case is the one worth the most care: `seed client` deliberately refuses to change an existing client because "a re-run that quietly widened a registered redirect list is how an allowlist grows by accident" (`docs/NEXT.md`). RFC 7592 requires the opposite for a self-registered client. **Both are right** — the difference is that here the mutation is authenticated by a credential only that client holds. Record that reasoning in an ADR rather than in a comment, and note in `docs/NEXT.md` that the asymmetry it describes between `seed realm` and `seed client` now has a third case.
-
-- [ ] **Steps 3–6:** implement, test, document in `request-paths.md` with a real transcript, gate, commit, push, watch — as Task 12.
+> **Not in P3a.** Task 1's second question found that no module
+> `OIDCCDynamicTestPlan` runs requires `registration_access_token` or
+> `registration_client_uri`, and none exercises GET, PUT or DELETE against a
+> client configuration endpoint — every hit for those fields sits in
+> `fapi2spid2/` and `fapi2spfinal/`, which the dynamic plan does not reach.
+> Building an authenticated mutation surface nothing asks for is how a phase
+> grows past its estimate, so this task is struck rather than left open. If
+> RFC 7592 is wanted later it is its own decision, starting from the
+> `seed client` asymmetry `docs/NEXT.md` describes.
 
 ---
 
@@ -1783,6 +1764,8 @@ bash infra/conformance/run-dynamic-op.sh
 ```
 
 **A failure here is information, not an obstacle.** ADR 0016 is the precedent: P1 recorded every Basic OP divergence as a confirmed decision rather than changing the server to please the suite. For each failure, decide and record which it is — a defect in this phase's work, a deliberate divergence that needs an ADR, or a deferral to P3b with a `deferred: P3b` row.
+
+**One divergence is known before the run, and this task writes its ADR.** The spike found that `OIDCCCheckDiscEndpointResponseTypesSupportedDynamic` requires all three of `code`, `id_token` and `token id_token` (`minimumMatchesRequired = SET_VALUES.length`), and that `OIDCCDynamicTestPlan` sets `ClientRegistration` to `dynamic_client` in every module group, so the check always runs. Odudu is `code`-only by construction — OAuth 2.1 removes Implicit and Hybrid, ADR 0016 records it, and `docs/protocols/oidc-discovery.md:73` already carries the clause as `n/a:`. That is why P3a's criterion says the plan _runs reproducibly with every divergence confirmed_ rather than _passes_. Write `docs/adr/0031-the-dynamic-op-plan-cannot-pass-code-only.md` with the run's own evidence, in the shape ADR 0016 uses, and record there that the two sector modules self-skip because Odudu advertises `subject_types_supported: ['public']`.
 
 - [ ] **Step 3: Commit the result JSON**
 

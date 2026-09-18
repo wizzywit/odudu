@@ -31,7 +31,8 @@ reads client metadata P3a registers — back-channel and front-channel
 logout URIs, the client's key material, its audiences, its UserInfo
 algorithms — and no P3a clause reads anything P3b builds. The dependency
 runs one way. The headline criterion, the OIDF Dynamic OP plan, sits
-wholly in P3a, so it passes at the halfway point rather than at the end.
+wholly in P3a, so it is answered at the halfway point rather than at the
+end.
 
 **Nothing outside P3 is renumbered.** P4 onward keep their digits, which
 matters: roughly 150 `deferred:` rows carry phase numbers, `pnpm trace`
@@ -509,7 +510,12 @@ models for the Config OP spike: read the suite's own Java source at
 running stack.
 
 **Spike 1 — does the Dynamic OP plan require metadata P3a deliberately
-does not advertise?** `assumption:` it does not. Section 4.3 forbids
+does not advertise?** **Answered 2026-09-18: it does not.** Five of the six
+fields are untouched by any module the plan runs; the sixth,
+`userinfo_signing_alg_values_supported`, is wrapped in
+`.skipIfElementMissing` and so is skipped with INFO rather than failed.
+`infra/conformance/README.md` has the quoted source. The original
+`assumption:` was that Section 4.3 forbids
 advertising `backchannel_logout_supported`,
 `userinfo_signing_alg_values_supported`, `introspection_endpoint` and the
 rest until P3b. If the plan demands them, the P3a/P3b seam is in the wrong
@@ -530,7 +536,8 @@ the plan's increment ordering is fixed.
 
 ## 12. Exit criterion
 
-The OIDF Dynamic OP plan passes; dynamic client registration (RFC 7591)
+The OIDF Dynamic OP plan runs reproducibly with every divergence confirmed
+as a recorded decision; dynamic client registration (RFC 7591)
 behind a per-realm setting closed by default, with initial access tokens
 and a per-realm client cap; the client metadata later clauses read —
 `jwks` or `jwks_uri` with the boundary of section 6 stated and tested,
