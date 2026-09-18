@@ -3,7 +3,8 @@ import { type ClaimMapperRegistry, type Clock } from '@odudu/kernel';
 import { type FastifyInstance } from 'fastify';
 import { corsHeadersForRequest } from '#/service/cors';
 import { type ClaimContext } from '#/service/claims';
-import { TokenError } from '#/service/errors';
+import { type ClientSecretLimiter } from '#/service/client-secret-throttle';
+import { TokenError, TokenRateLimited } from '#/service/errors';
 import { issueTokens, type TokenResponse } from '#/usecase/token-issuance';
 import { realmIssuerFor } from '#/view/issuer';
 
@@ -31,6 +32,9 @@ export interface TokenRouteDeps {
   // set for a client_id this realm does not have, so the header is simply
   // withheld rather than turning into an error.
   resolveClientWebOrigins(realmId: string, oauthClientId: string): Promise<ReadonlySet<string>>;
+  // ADR 0023's client-authentication budget, per client_id. See
+  // token-issuance.ts's TokenIssuanceDeps for what it counts.
+  clientSecretLimiter: ClientSecretLimiter;
 }
 
 function readClientId(body: Record<string, string | string[] | undefined>): string | undefined {
@@ -67,6 +71,7 @@ export function registerTokenRoute(app: FastifyInstance, deps: TokenRouteDeps): 
             clock: deps.clock,
             idleSeconds: realm.ssoSessionIdleSeconds,
             verifyPassword: deps.verifyPassword,
+            clientSecretLimiter: deps.clientSecretLimiter,
             claimMappers: deps.claimMappers,
             loadClaimContext: (realmId, subjectId) => deps.loadClaimContext(realmId, subjectId),
           },
@@ -82,6 +87,17 @@ export function registerTokenRoute(app: FastifyInstance, deps: TokenRouteDeps): 
         .header('pragma', 'no-cache')
         .send(response);
     } catch (err) {
+      if (err instanceof TokenRateLimited) {
+        // No body, the way the per-origin throttle's 429 carries none: the
+        // refusal must look identical whichever client_id provoked it.
+        return await reply
+          .code(429)
+          .headers(corsHeaders)
+          .header('cache-control', 'no-store')
+          .header('pragma', 'no-cache')
+          .header('retry-after', String(err.retryAfterSeconds))
+          .send();
+      }
       if (err instanceof TokenError) {
         if (err.wwwAuthenticate !== undefined) {
           reply.header('www-authenticate', err.wwwAuthenticate);

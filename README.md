@@ -258,13 +258,22 @@ behind a proxy the proxy must **overwrite** `X-Forwarded-For` rather than
 append to it; a proxy that appends leaves the key client-controlled and the
 throttle decorative.
 
-`/token` is deliberately outside it, so the protection RFC 6749 §2.3.1 asks
-for around a client's password is still unanswered: the lockout is keyed by
-subject and a client is not one, and a budget per address is one address for
-every
-request a server-side client will ever make. A limit keyed by client is
-`deferred: P3a` in [docs/protocols/rfc6749.md](docs/protocols/rfc6749.md),
-where client authentication is reworked.
+`/token` is deliberately outside it: the lockout is keyed by subject and a
+client is not one, and a budget per address is one address for every
+request a server-side client will ever make. RFC 6749 §2.3.1's protection
+for a client's password is a third budget instead — a `client_secret_basic`
+or `client_secret_post` attempt at `/token` that fails spends a window keyed
+by `client_id`, five attempts per sixty seconds by default. A healthy
+client is never throttled: only a failed attempt is counted, so a client
+that finally presents its real secret succeeds regardless of the failure
+count on record — the opposite trade from the account lockout above, which
+refuses a correct password once locked. An unknown `client_id` spends the
+same budget a wrong secret against a real one does and is refused in the
+same bytes, so the limiter is not a way to learn whether a `client_id` is
+registered. It is per instance for the same reason the throttle above is,
+which is likewise unshown here for want of a second replica. ADR 0023's
+amendment has the design; [the walkthrough is in
+docs/request-paths.md](docs/request-paths.md#the-client_secret-budget-at-token).
 
 `password_max_age_days` (default `0`, the feature off) ages a password out.
 An expired password is **not** refused: the login authenticates as it
@@ -940,7 +949,6 @@ Every row says where it stands, and every row has a phase:
 | ------------------------------------------------------------------------------------------------------ | --------------- |
 | A consent screen — `consent_required` is recorded per client, nothing reads it yet                     | P3a             |
 | Several sessions in one browser, and the `prompt=select_account` that needs them                       | P3b             |
-| A rate limit on `client_secret` attempts at `/token`                                                   | P3a             |
 | An account console for self-service credential management, and an operator unlock for a locked account | P4              |
 | An admin API — seeding is the only administrative surface                                              | P4              |
 | Signing-key rotation — the shape exists, the operation does not                                        | P4              |

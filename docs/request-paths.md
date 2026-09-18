@@ -3401,7 +3401,9 @@ Empty body, and the same one either way: the refusal is decided before the
 body is parsed or any account looked up, so it cannot say whether the
 address was one this realm knows. The budget is shared across the three
 routes rather than one per route, the rendered forms are not throttled, and
-neither is `/token`:
+neither is `/token` — this one, by origin, is not where `/token`'s own
+budget lives; [the client_secret budget](#the-client_secret-budget-at-token)
+below is:
 
 ```bash
 echo '--- the sign-in submission shares the same budget ---'
@@ -3458,6 +3460,107 @@ transcript. And the key is `request.ip`, which with `ODUDU_TRUST_PROXY=true`
 comes from `X-Forwarded-For`: a proxy that appends rather than overwrites
 that header leaves the key client-controlled. Both are in
 [README.md](../README.md) as deployment requirements.
+
+### The `client_secret` budget at `/token`
+
+RFC 6749 §2.3.1's brute-force MUST is client authentication too, and the
+lockout and the throttle above don't reach it: the lockout is keyed by
+subject, which a client is not, and the throttle's key is one address for
+every request a server-side client will ever make. `/token` gets a third,
+separate budget instead — a `slidingWindow` of its own, keyed by
+`client_id` — consulted only when a `client_secret_basic` or
+`client_secret_post` attempt fails. `ODUDU_CLIENT_SECRET_THROTTLE` has no
+env var yet; the default is five attempts per sixty seconds, mirroring the
+account lockout's own defaults. ADR 0023's amendment has the design.
+
+A client of its own for this run, so its budget starts clean regardless of
+what earlier sections in this document did to `demo-backend`'s:
+
+```bash
+odudu seed \
+  --realm demo --client demo-limited --client-secret demo-limited-secret \
+  --token-endpoint-auth-method client_secret_basic \
+  --redirect-uri http://localhost:8080/callback
+```
+
+```bash
+for n in 1 2 3 4 5; do
+  curl -sS -o /dev/null -w "attempt $n: %{http_code}\n" \
+    -u demo-limited:wrong-secret \
+    --data-urlencode 'grant_type=client_credentials' \
+    'http://localhost:3000/realms/demo/protocol/openid-connect/token'
+done
+echo '--- the sixth, over budget ---'
+curl -sS -D - -o /dev/null -u demo-limited:wrong-secret \
+  --data-urlencode 'grant_type=client_credentials' \
+  'http://localhost:3000/realms/demo/protocol/openid-connect/token' \
+  | tr -d '\r' | grep -iE '^(HTTP|retry-after|content-length)'
+echo '--- the right secret, while the budget is spent ---'
+curl -sS -D - -o /dev/null -u demo-limited:demo-limited-secret \
+  --data-urlencode 'grant_type=client_credentials' \
+  'http://localhost:3000/realms/demo/protocol/openid-connect/token' \
+  | tr -d '\r' | grep -iE '^HTTP'
+```
+
+```
+attempt 1: 401
+attempt 2: 401
+attempt 3: 401
+attempt 4: 401
+attempt 5: 401
+--- the sixth, over budget ---
+HTTP/1.1 429 Too Many Requests
+retry-after: 60
+content-length: 0
+--- the right secret, while the budget is spent ---
+HTTP/1.1 200 OK
+```
+
+Failures only: the sixth wrong secret is refused before it is even checked
+against the stored hash, but the right secret above it succeeds anyway,
+same as the fifth wrong one did — a healthy client is never throttled,
+whatever the failure count on record. That is the trade this budget makes
+against the account lockout, deliberately the opposite way: the lockout
+refuses a correct password once an account is locked, because it is
+protecting a credential from someone who does not hold it; this budget
+protects the ability to keep guessing, so someone who finally presents the
+real secret is let in regardless.
+
+An unknown `client_id` spends the same budget a wrong secret against a real
+one does, and is refused in the same bytes:
+
+```bash
+for n in 1 2 3 4 5; do
+  curl -sS -o /dev/null -w "attempt $n: %{http_code}\n" \
+    -u nobody-here:anything \
+    --data-urlencode 'grant_type=client_credentials' \
+    'http://localhost:3000/realms/demo/protocol/openid-connect/token'
+done
+echo '--- the sixth, a client_id nobody registered ---'
+curl -sS -D - -o /dev/null -u nobody-here:anything \
+  --data-urlencode 'grant_type=client_credentials' \
+  'http://localhost:3000/realms/demo/protocol/openid-connect/token' \
+  | tr -d '\r' | grep -iE '^(HTTP|retry-after|content-length)'
+```
+
+```
+attempt 1: 401
+attempt 2: 401
+attempt 3: 401
+attempt 4: 401
+attempt 5: 401
+--- the sixth, a client_id nobody registered ---
+HTTP/1.1 429 Too Many Requests
+retry-after: 60
+content-length: 0
+```
+
+Same status, same headers, same empty body as `demo-limited`'s own sixth
+attempt above: the budget cannot be used to learn whether a `client_id` is
+registered, the same property `authenticateClient`'s `invalid_client`
+already held before this budget existed. Like the throttle above, this one
+**is per instance** for the same reason — a window in one process's memory
+— and that limitation is [README.md](../README.md)'s to state.
 
 ## Path B: refresh rotation
 
@@ -5847,27 +5950,6 @@ session lifecycle. A citation of either half here means that half.
   `Max-Age`, which is why closing the browser ends the session, and the
   toggle, the second pair of lifespans and the checkbox that select a
   persistent one are all on surfaces P3b already touches.
-- **Failed sign-ins are locked out per account, and the unauthenticated
-  routes that cost CPU are throttled per origin; `/token` is neither.**
-  Five consecutive wrong passwords lock an account for a growing window, on
-  by default in every realm
-  ([Brute-force lockout](#brute-force-lockout)). What that cannot see —
-  one password tried against a thousand accounts, where every counter stays
-  at one, and `POST /realms/{realm}/login-actions/registration`, which is
-  unauthenticated and runs an Argon2id hash per request for an attacker
-  with no account at all — is bounded by the per-origin throttle instead:
-  ten requests a minute per client address across the sign-in submission,
-  registration and the reset request, answering `429`. Passwords now carry
-  a 256-character maximum, refused where the form is read, so no single
-  request can be made arbitrarily expensive. The throttle is a window in
-  one process's memory, so it is per instance; [README.md](../README.md)
-  states that limitation, which cannot be shown here because this
-  repository has no second replica to show it against. Client
-  authentication at `/token` is bounded by neither: the lockout is keyed by
-  subject and a client is not one, the throttle's key is one address for
-  every request a server-side client makes, and RFC 6749 §2.3.1's row for
-  that half is `deferred: P3a` in
-  [docs/protocols/rfc6749.md](protocols/rfc6749.md).
 - **The sign-in, error and consent pages are hardcoded HTML**, dependency-free
   with every interpolated value escaped. Theming and per-client branding are
   **P4b**, split out of P10 on 2026-09-17 because P10's criterion tested

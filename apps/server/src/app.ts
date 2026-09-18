@@ -70,6 +70,16 @@ export interface AppDeps {
    * `DEFAULT_THROTTLE`; `main.ts` passes what `ODUDU_THROTTLE_*` says.
    */
   readonly throttle?: ThrottleSettings;
+  /**
+   * ADR 0023's other half: the per-`client_id` budget on failed
+   * `client_secret_basic`/`client_secret_post` attempts at `/token`. A
+   * separate instance from `throttle` above — origin and client are
+   * different keys, so this is a different memory-bounded window rather
+   * than a second use of the same one. Defaults to
+   * `DEFAULT_CLIENT_SECRET_THROTTLE`; `main.ts` passes what
+   * `ODUDU_CLIENT_SECRET_THROTTLE_*` says.
+   */
+  readonly clientSecretThrottle?: ThrottleSettings;
 }
 
 export interface ThrottleSettings {
@@ -79,12 +89,21 @@ export interface ThrottleSettings {
 
 export const DEFAULT_THROTTLE: ThrottleSettings = { limit: 10, windowSeconds: 60 };
 
+// Mirrors the account lockout's own defaults (brute_force_max_failures,
+// brute_force_lockout_seconds — packages/db/drizzle/0041_login_failures.sql):
+// a client that legitimately fails five times in a minute is already
+// unusual, and the two budgets being the same shape is easier for an
+// operator to reason about than a third, unrelated pair of numbers.
+export const DEFAULT_CLIENT_SECRET_THROTTLE: ThrottleSettings = { limit: 5, windowSeconds: 60 };
+
 /**
  * The throttled routes, by the pattern Fastify matched rather than by the
  * path as it arrived, so a realm name cannot be spelled to miss the set.
- * Deliberately not `/token`: it is client-authenticated and hot, and RFC
- * 6749 §2.3.1's client half is `deferred: P3` in
- * `docs/protocols/rfc6749.md`, where a limit keyed by client belongs.
+ * Deliberately not `/token`: `/token` is client-authenticated, and this
+ * throttle is keyed by origin, which for a server-side client is one
+ * address for every request it will ever make (ADR 0023). `/token`'s own
+ * budget is `clientSecretThrottle` below, keyed by client and consulted
+ * inside `authenticateClient`, not here.
  */
 const THROTTLED_POSTS: ReadonlySet<string> = new Set([
   '/realms/:realm/login-actions/authenticate',
@@ -139,6 +158,14 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     now: () => new Date(),
   });
 
+  // ADR 0023's client half. A distinct `slidingWindow` from `throttle`
+  // above: same primitive, a different key and a different budget, so one
+  // flood cannot spend the other's window.
+  const clientSecretLimiter = slidingWindow({
+    ...(deps.clientSecretThrottle ?? DEFAULT_CLIENT_SECRET_THROTTLE),
+    now: () => new Date(),
+  });
+
   // At onRequest, so a refusal costs neither the body parse nor anything
   // that touches the database. It is also what keeps the refusal from
   // being an oracle: nothing here has looked an account up, so a throttled
@@ -165,6 +192,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
       database: deps.database,
       ownerDatabase: deps.ownerDatabase,
       kek: deps.kek,
+      clientSecretLimiter,
       ...(deps.publicBaseUrl === undefined ? {} : { publicBaseUrl: deps.publicBaseUrl }),
     }),
   );

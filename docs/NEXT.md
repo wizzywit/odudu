@@ -158,11 +158,12 @@ P3b's criterion for that reason rather than as a checklist item.
 
 **Three gaps filed to P3 during this phase, all recorded rather than
 remembered.** A rate limit on `client_secret` attempts at `/token` — RFC
-6749 §2.3.1's client half, now its own `deferred: P3a` row and named in
-P3a's
-criterion. The `prompt=select_account` rows above. And `/authorize` still
-verifies an `id_token_hint` with `AUDIENCE_UNCHECKED`, which the per-client
-audience configuration P3b's criterion names is the place to close.
+6749 §2.3.1's client half, filed as its own row and named in P3a's
+criterion — is closed: `RFC6749-2.3.1-04` covers it, and ADR 0023 carries
+the amendment. The `prompt=select_account` rows above remain open. And
+`/authorize` still verifies an `id_token_hint` with `AUDIENCE_UNCHECKED`,
+which the per-client audience configuration P3b's criterion names is the
+place to close.
 
 ### What each phase found while building it
 

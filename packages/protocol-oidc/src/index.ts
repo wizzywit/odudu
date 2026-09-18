@@ -33,6 +33,7 @@ import { tokenGrantRepository } from '#/repository/grants';
 import { realmLookupRepository } from '#/repository/realm-lookup';
 import { reachableRoleIds } from '#/repository/scope-role-reach';
 import { standardClaimMappers } from '#/service/claims';
+import { type ClientSecretLimiter } from '#/service/client-secret-throttle';
 import { expandWebOrigins } from '#/service/web-origin';
 import {
   issueAuthorizationCode,
@@ -75,7 +76,21 @@ export interface OidcRoutesDeps {
   // passkey enrolment then reports itself unsupported rather than binding
   // credentials to a guessed domain.
   publicBaseUrl?: string;
+  // ADR 0023's client-authentication budget on /token, per client_id.
+  // Undefined outside apps/server's own wiring — every other caller here
+  // is a test exercising something this budget is not about, so it
+  // defaults to one that never refuses rather than asking each of them to
+  // supply a real one.
+  clientSecretLimiter?: ClientSecretLimiter;
 }
+
+// Never refuses: the default for every caller that does not supply its own
+// budget. Real protection is apps/server/src/app.ts wiring a
+// `slidingWindow` instance in; protocol-oidc holds no sliding-window
+// implementation of its own; see #/service/client-secret-throttle.ts.
+const UNLIMITED_CLIENT_SECRET_LIMITER: ClientSecretLimiter = {
+  check: () => ({ allowed: true, retryAfterSeconds: 0 }),
+};
 
 // The plugin apps/server registers. Discovery and JWKS both read the
 // resolved realm's own tenant data — its scope vocabulary and its
@@ -86,6 +101,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
     const findRealm = (name: string) => realmLookupRepository(deps.ownerDatabase.db).byName(name);
     const clock = deps.clock ?? systemClock;
     const tls = deps.tls ?? false;
+    const clientSecretLimiter = deps.clientSecretLimiter ?? UNLIMITED_CLIENT_SECRET_LIMITER;
     // One registry per process, shared by discovery (claimNames, for
     // claims_supported), /userinfo, and token issuance's ID token claims —
     // so a mapper registered once reaches every consumer the same way.
@@ -550,6 +566,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
         kek: deps.kek,
         clock,
         verifyPassword,
+        clientSecretLimiter,
         claimMappers,
         loadClaimContext,
         resolveClientWebOrigins,
