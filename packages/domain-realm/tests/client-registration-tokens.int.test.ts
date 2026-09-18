@@ -122,8 +122,12 @@ describe('spend', () => {
     );
 
     const [first, second] = await Promise.all([
-      withRealm(app.db, realmId, (tx) => clientRegistrationTokenRepository(tx).spend(realmId, token)),
-      withRealm(app.db, realmId, (tx) => clientRegistrationTokenRepository(tx).spend(realmId, token)),
+      withRealm(app.db, realmId, (tx) =>
+        clientRegistrationTokenRepository(tx).spend(realmId, token),
+      ),
+      withRealm(app.db, realmId, (tx) =>
+        clientRegistrationTokenRepository(tx).spend(realmId, token),
+      ),
     ]);
 
     expect([first, second].sort()).toEqual([false, true]);
