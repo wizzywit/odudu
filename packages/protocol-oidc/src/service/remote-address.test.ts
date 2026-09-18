@@ -32,6 +32,7 @@ describe('a URL the server will fetch on a client’s say-so', () => {
     ['link-local, where a cloud metadata service lives', ['169.254.169.254']],
     ['private class A', ['10.0.0.5']],
     ['private class B', ['172.16.0.5']],
+    ['private class B, top of the /12', ['172.31.255.254']],
     ['private class C', ['192.168.1.5']],
     ['unique local v6', ['fc00::1']],
     ['link-local v6', ['fe80::1']],
@@ -53,6 +54,15 @@ describe('a URL the server will fetch on a client’s say-so', () => {
   it('accepts a public address', () => {
     expect(() => {
       assertPublicAddresses(['93.184.216.34']);
+    }).not.toThrow();
+  });
+
+  // 172.32.0.0 is one address past the top of 172.16.0.0/12 — a prefix
+  // match on "172." or "172.1"–"172.3" gets this wrong; only a numeric
+  // range check over the second octet gets it right.
+  it('accepts an address just outside the private /12, not swept in by a prefix match', () => {
+    expect(() => {
+      assertPublicAddresses(['172.32.0.1']);
     }).not.toThrow();
   });
 
