@@ -30,8 +30,8 @@ export const clientOidcConfig = pgTable('client_oidc_config', {
   // than with the rest of the client metadata.
   postLogoutRedirectUris: text('post_logout_redirect_uris').array().notNull().default([]),
   // By value or by reference, never both (client_oidc_config_one_key_source,
-  // RFC 7591 §2) — an untyped boundary; Task 10 narrows it with Zod at the
-  // point of use.
+  // RFC 7591 §2) — an untyped boundary; narrowed with Zod at the point of
+  // use, not typed here as a JWK Set.
   jwks: jsonb('jwks'),
   jwksUri: text('jwks_uri'),
   frontchannelLogoutUri: text('frontchannel_logout_uri'),

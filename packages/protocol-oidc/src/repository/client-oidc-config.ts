@@ -35,9 +35,9 @@ function toRecord(row: typeof clientOidcConfig.$inferSelect): ClientOidcConfig {
 // `clientCredentialsScopes`, `webOrigins` and `postLogoutRedirectUris`
 // default to none: every existing caller that predates them creates a
 // config without deciding on any of the three, and an empty allowlist is
-// the safe default for a client no one has yet configured for it. The nine
-// fields Task 5 added default the same way the column does, so every caller
-// that predates them keeps behaving as if they did not exist.
+// the safe default for a client no one has yet configured for it. The
+// client-metadata fields default the same way their columns do, so every
+// caller that predates them keeps behaving as if they did not exist.
 export type NewClientOidcConfig = Omit<
   ClientOidcConfig,
   | 'clientCredentialsScopes'
