@@ -28,21 +28,25 @@ export function renderUpdatePasswordPage(
     violations.length === 0
       ? ''
       : `<ul>\n${violations.map((message) => `<li>${escapeHtml(message)}</li>`).join('\n')}\n</ul>\n`;
-  // No script: nothing on this page fetches anything, so the base
-  // content-security policy describes it exactly.
-  return {
-    script: null,
-    html: `<!doctype html>
-<html lang="en">
-<head><meta charset="utf-8"><title>Change your password</title></head>
-<body>
-<h1>Change your password</h1>
+  const title = 'Change your password';
+  const body = `<h1>Change your password</h1>
 <p>This account needs a new password before you can continue.</p>
 ${listed}<form method="post" action="${target}">
   <input type="hidden" name="auth_session_id" value="${escapeHtml(authSessionId)}">
   <label>New password <input type="password" name="password" autocomplete="new-password"></label>
   <button type="submit">Update password</button>
-</form>
+</form>`;
+  // No script: nothing on this page fetches anything, so the base
+  // content-security policy describes it exactly.
+  return {
+    script: null,
+    title,
+    body,
+    html: `<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>${escapeHtml(title)}</title></head>
+<body>
+${body}
 </body>
 </html>`,
   };

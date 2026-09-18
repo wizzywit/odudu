@@ -757,7 +757,7 @@ describe('the confirmation POST is a double-submit-cookie check', () => {
     });
 
     expect(res.statusCode).toBe(400);
-    expect(res.body).toContain("<title>Can't sign out</title>");
+    expect(res.body).toContain('<title>Can&#39;t sign out</title>');
     expect(res.headers['set-cookie']).toBeUndefined();
 
     const stillLive = await withRealm(app.db, realmId, (tx) =>

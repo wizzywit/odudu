@@ -23,6 +23,8 @@ describe('the headers every rendered page carries', () => {
   it('derives script-src from the nonce the page reports', () => {
     const csp = headerMap({
       html: '<script nonce="abc">',
+      body: '<script nonce="abc">',
+      title: 'Untitled',
       script: { nonce: 'abc', fetchesSameOrigin: false },
     })['content-security-policy'];
     expect(csp).toContain("script-src 'nonce-abc'");
@@ -32,6 +34,8 @@ describe('the headers every rendered page carries', () => {
   it('licenses connect-src only for a script that actually fetches', () => {
     const csp = headerMap({
       html: '<script nonce="abc">',
+      body: '<script nonce="abc">',
+      title: 'Untitled',
       script: { nonce: 'abc', fetchesSameOrigin: true },
     })['content-security-policy'];
     expect(csp).toContain("connect-src 'self'");

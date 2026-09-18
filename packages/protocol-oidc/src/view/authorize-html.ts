@@ -1,28 +1,13 @@
 import { scriptNonce, type RenderedPage } from '@odudu/kernel';
+import { escapeHtml, page } from '#/view/document';
 
-// Minimal, dependency-free HTML: the two pages /authorize can render are
-// small enough that pulling in a templating engine would cost more than it
-// saves, and every interpolated value passes through escapeHtml so neither
-// page opens a reflected-XSS hole through the realm name or an error string.
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
-
-export function renderAuthorizeErrorPage(error: string, description: string): string {
-  return `<!doctype html>
-<html lang="en">
-<head><meta charset="utf-8"><title>Sign-in error</title></head>
-<body>
-<h1>Can't continue</h1>
+export function renderAuthorizeErrorPage(error: string, description: string): RenderedPage {
+  return page(
+    'Request refused',
+    `<h1>Can't continue</h1>
 <p>${escapeHtml(description)}</p>
-<p><small>${escapeHtml(error)}</small></p>
-</body>
-</html>`;
+<p><small>${escapeHtml(error)}</small></p>`,
+  );
 }
 
 // No auth_session_id here, unlike renderLoginForm below: this page has no
@@ -31,18 +16,15 @@ export function renderAuthorizeErrorPage(error: string, description: string): st
 // realm turning verify_email on locks these accounts out with nothing they
 // can do about it, so the page says that rather than claiming a mail it
 // never sent.
-export function renderEmailUnverifiedPage(hasEmail: boolean): string {
+export function renderEmailUnverifiedPage(hasEmail: boolean): RenderedPage {
   const detail = hasEmail
     ? 'We sent a link to the address on this account — follow it, then sign in again.'
     : 'This account has no email address on file, so there is nothing to verify yet. Contact an administrator.';
-  return `<!doctype html>
-<html lang="en">
-<head><meta charset="utf-8"><title>Verify your email</title></head>
-<body>
-<h1>Can't sign in yet</h1>
-<p>You need to verify your email address before you can sign in. ${detail}</p>
-</body>
-</html>`;
+  return page(
+    'Verify your email',
+    `<h1>Can't sign in yet</h1>
+<p>You need to verify your email address before you can sign in. ${detail}</p>`,
+  );
 }
 
 // One of the ten single-use codes a generate-recovery-codes page issued.
@@ -157,17 +139,14 @@ export function renderLoginForm(
   const passkey = nonce === null ? '' : renderPasskeyOption(realm, authSessionId, nonce);
   const message = error === undefined ? '' : `<p><strong>${escapeHtml(error)}</strong></p>\n`;
   return {
-    script: nonce === null ? null : { nonce, fetchesSameOrigin: true },
-    html: `<!doctype html>
-<html lang="en">
-<head><meta charset="utf-8"><title>Sign in</title></head>
-<body>
-${message}<form method="post" action="${action}">
+    ...page(
+      'Sign in',
+      `${message}<form method="post" action="${action}">
   <input type="hidden" name="auth_session_id" value="${escapeHtml(authSessionId)}">
   ${renderFormFields(form)}
   <button type="submit">Sign in</button>
-</form>${passkey}
-</body>
-</html>`,
+</form>${passkey}`,
+    ),
+    script: nonce === null ? null : { nonce, fetchesSameOrigin: true },
   };
 }

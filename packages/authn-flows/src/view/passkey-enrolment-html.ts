@@ -56,13 +56,8 @@ export function renderPasskeyEnrolmentPage(
   const target = `/realms/${escapeHtml(realm)}/login-actions/required-action?action=configure-passkey`;
   const message = error === undefined ? '' : `<p><strong>${escapeHtml(error)}</strong></p>\n`;
   // The options are inline, so this script fetches nothing.
-  return {
-    script: { nonce, fetchesSameOrigin: false },
-    html: `<!doctype html>
-<html lang="en">
-<head><meta charset="utf-8"><title>Add a passkey</title></head>
-<body>
-<h1>Add a passkey</h1>
+  const title = 'Add a passkey';
+  const body = `<h1>Add a passkey</h1>
 ${message}<p>Your device will ask you to confirm. Nothing is stored until it does.</p>
 <form method="post" action="${target}" id="passkey-form">
   <input type="hidden" name="auth_session_id" value="${escapeHtml(authSessionId)}">
@@ -107,7 +102,16 @@ form.addEventListener('submit', async (event) => {
     failure.hidden = false;
   }
 });
-</script>
+</script>`;
+  return {
+    script: { nonce, fetchesSameOrigin: false },
+    title,
+    body,
+    html: `<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>${escapeHtml(title)}</title></head>
+<body>
+${body}
 </body>
 </html>`,
   };

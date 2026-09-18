@@ -13,7 +13,13 @@ export interface PageScript {
 }
 
 export interface RenderedPage {
+  // The whole document, as the server sends it today.
   html: string;
+  // Everything inside <body>. What a theme is allowed to place; see
+  // ADR 0030 for why it is never handed the document.
+  body: string;
+  // The document's title, so a theme's own shell can set one.
+  title: string;
   script: PageScript | null;
 }
 
