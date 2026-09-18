@@ -19,3 +19,13 @@ export {
   provisionRealmDefaults,
   REALM_DEFAULT_SCOPE_NAMES,
 } from '#/usecase/provision-defaults';
+export {
+  consents,
+  consentScopes,
+  type ConsentRecord,
+  type ConsentScopeRecord,
+} from '#/schema/consents';
+export {
+  clientRegistrationTokens,
+  type ClientRegistrationTokenRecord,
+} from '#/schema/client-registration-tokens';

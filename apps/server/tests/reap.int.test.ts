@@ -563,7 +563,12 @@ describe('odudu reap', () => {
   // A table that carries a lifecycle timestamp either has a retention rule
   // or is named here with a reason. `email_outbox` will arrive carrying
   // `sent_at`, and this is what will not let it arrive unreaped.
-  const NOT_REAPED: Record<string, string> = {};
+  const NOT_REAPED: Record<string, string> = {
+    // A retention window for a spent or expired registration token has no
+    // decision yet — see "Open decisions P3a's plan must settle" in
+    // docs/NEXT.md.
+    client_registration_tokens: 'retention window not yet decided',
+  };
 
   it('accounts for every table carrying a lifecycle timestamp', async () => {
     const rows = await owner.db.execute<{ table_name: string }>(sql`

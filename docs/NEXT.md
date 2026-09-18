@@ -77,6 +77,14 @@ than about the design or a third party.
   still validates a `jwks_uri`'s shape without dereferencing it — the fetch
   happens where the keys are used.
 
+- **`client_registration_tokens` has no retention window.** The table
+  carries `expires_at`, so `tests/reap.int.test.ts` requires it either in
+  `REAP_ORDER` with a policy or named in `NOT_REAPED` with a reason; it is
+  named there for now. A spent or expired registration token is dead data
+  once it can no longer authorize a registration, but no task in P3a's plan
+  owns deciding its window or adding the `ODUDU_RETENTION_*` config for it.
+  Whichever task wires `odudu reap` to it moves the `NOT_REAPED` entry.
+
 - **What the spike found that needs nothing:** none of
   `backchannel_logout_supported`, `frontchannel_logout_supported`,
   `userinfo_encryption_alg_values_supported`, `introspection_endpoint` or

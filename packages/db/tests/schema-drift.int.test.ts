@@ -53,6 +53,8 @@ const EXPECTED_CHECKS: Record<string, string> = {
     'CHECK (((userinfo_encrypted_response_enc IS NULL) OR (userinfo_encrypted_response_alg IS NOT NULL)))',
   'client_oidc_config.client_oidc_config_web_origins_shape':
     'CHECK (web_origins_are_valid(web_origins))',
+  'client_registration_tokens.client_registration_tokens_uses_range':
+    'CHECK ((remaining_uses >= 0))',
   'client_scope_assignments.client_scope_assignments_assignment_check':
     "CHECK ((assignment = ANY (ARRAY['default'::text, 'optional'::text])))",
   'client_scopes.client_scopes_name_is_scope_token':
