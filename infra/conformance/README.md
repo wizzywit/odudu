@@ -254,7 +254,7 @@ Every other module in the plan's lists registers the default way, via
 which puts the key set inline as `dynamic_registration_request.jwks` rather
 than a URI — so most of the plan's traffic never needs the OP to fetch
 anything. But `OIDCCRegistrationJwksUri` is not optional to the plan; it is
-one of the eight modules in `OIDCCDynamicTestPlan`'s registration group, so
+one of the seven modules in `OIDCCDynamicTestPlan`'s registration group, so
 "the Dynamic OP plan passes" requires the OP to dereference a `jwks_uri` it
 is given at registration time.
 
