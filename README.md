@@ -349,25 +349,24 @@ every realm; outside production the variable stays optional, and without it
 passkey enrolment reports itself unavailable and the login page offers no
 passkey button, because there would be nothing behind one.
 
-The pieces that will dereference a registered `jwks_uri` exist — the
-address guard, and the socket transport it protects
+A registered `jwks_uri` is dereferenced at registration time, through the
+address guard and the socket transport it protects
 (`apps/server/src/client-key-transport.ts`), which pins the connection to
 the address the guard already checked rather than letting Node resolve the
-hostname a second time — but nothing in the server calls them today: there
-is no client registration endpoint yet to register a `jwks_uri` against.
-Once one exists, the address a `jwks_uri` resolves to will be checked
+hostname a second time. The address a `jwks_uri` resolves to is checked
 before the server connects to it — a private, loopback, link-local or
-otherwise non-public address will be refused, so a client cannot point the
+otherwise non-public address is refused, so a client cannot point the
 server at its own network — and the fetch itself carries a connect
 timeout, a total timeout, and a cap on the response body enforced as it
-streams, never against a string already read into memory.
-`ODUDU_ALLOW_PRIVATE_CLIENT_URLS` is read and enforced at boot already —
-**with `NODE_ENV=production` the server refuses to boot if it is set to
-`true`** — but the escape hatch it names has nothing to take effect on
-until the registration endpoint wires the fetch in; it exists so that,
-once it does, the development and conformance stacks can register a
-client whose `jwks_uri` resolves to a private or loopback address, which
-the OIDF conformance suite's own registration module does.
+streams, never against a string already read into memory. A `jwks_uri`
+that does not resolve to a reachable JWK Set is refused with
+`invalid_client_metadata` at registration, rather than only once something
+later tries to use it. `ODUDU_ALLOW_PRIVATE_CLIENT_URLS` lets that address
+check pass a private or loopback address instead — **with
+`NODE_ENV=production` the server refuses to boot if it is set to
+`true`** — for the development and conformance stacks, where a client's
+`jwks_uri` legitimately resolves to another container on the same compose
+network, which the OIDF conformance suite's own registration module does.
 
 **Operational trap:** turning `verify_email` on locks out every existing
 user with no email address on file — including one seeded without
@@ -717,9 +716,11 @@ walks through all of it, including a client-scoped role qualified as
 `clientId:roleName`.
 
 **An initial access token is an operator's authorization for a client to
-exist.** RFC 7591 dynamic client registration is not wired to an endpoint
-yet — `seed client` is still the only way to create one — but a realm whose
-`registration_policy` will require `token` needs a way to mint the
+exist.** `POST /realms/{realm}/clients-registrations/openid-connect` is
+RFC 7591 dynamic client registration — open to every realm whose
+`client_registration_policy` is `open`, and to nobody at all while it is
+the default, `disabled` (`seed client` is the only way to create a client
+in either case). A realm whose policy is `token` needs a way to mint the
 credential a registering client presents, and `seed registration-token`
 is that command: `--realm`, `--uses` (a token is good for that many
 registrations, never zero) and `--ttl` in seconds.
@@ -936,7 +937,7 @@ Every row says where it stands, and every row has a phase:
 
 |                                                                                                        | Where it stands |
 | ------------------------------------------------------------------------------------------------------ | --------------- |
-| A consent screen, and dynamic client registration                                                      | P3a             |
+| A consent screen — `consent_required` is recorded per client, nothing reads it yet                     | P3a             |
 | Several sessions in one browser, and the `prompt=select_account` that needs them                       | P3b             |
 | A rate limit on `client_secret` attempts at `/token`                                                   | P3a             |
 | An account console for self-service credential management, and an operator unlock for a locked account | P4              |

@@ -36,27 +36,28 @@ isolated in the database by PostgreSQL row-level security (ADR 0009). Every
 protocol endpoint lives under `/realms/{realm}/`, so the realm is chosen by
 the URL and never by a header or a parameter.
 
-| Method | Path                                               | What it is                                                  |
-| ------ | -------------------------------------------------- | ----------------------------------------------------------- |
-| `GET`  | `/realms/{realm}/.well-known/openid-configuration` | Discovery document                                          |
-| `GET`  | `/realms/{realm}/protocol/openid-connect/certs`    | JWKS (public signing keys)                                  |
-| `GET`  | `/realms/{realm}/protocol/openid-connect/auth`     | Authorization endpoint                                      |
-| `POST` | `/realms/{realm}/protocol/openid-connect/auth`     | Authorization endpoint (form)                               |
-| `POST` | `/realms/{realm}/login-actions/authenticate`       | Login form submission                                       |
-| `POST` | `/realms/{realm}/login-actions/required-action`    | Complete a pending required action (enrolment, password)    |
-| `POST` | `/realms/{realm}/login-actions/passkey-challenge`  | Request options for a usernameless passkey assertion        |
-| `GET`  | `/realms/{realm}/login-actions/registration`       | Self-registration form                                      |
-| `POST` | `/realms/{realm}/login-actions/registration`       | Self-registration submission                                |
-| `GET`  | `/realms/{realm}/login-actions/action-token`       | Redeem a mailed action token (verify email, reset password) |
-| `POST` | `/realms/{realm}/login-actions/action-token`       | Submit a new password against a reset-password token        |
-| `GET`  | `/realms/{realm}/login-actions/reset-password`     | Password reset request form                                 |
-| `POST` | `/realms/{realm}/login-actions/reset-password`     | Password reset request submission                           |
-| `POST` | `/realms/{realm}/protocol/openid-connect/token`    | Token endpoint                                              |
-| `GET`  | `/realms/{realm}/protocol/openid-connect/userinfo` | UserInfo                                                    |
-| `POST` | `/realms/{realm}/protocol/openid-connect/userinfo` | UserInfo (form)                                             |
-| `GET`  | `/realms/{realm}/protocol/openid-connect/logout`   | RP-initiated logout (`end_session_endpoint`)                |
-| `POST` | `/realms/{realm}/protocol/openid-connect/logout`   | RP-initiated logout (form-serialized), confirmation form    |
-| `GET`  | `/health/live`, `/health/ready`                    | Liveness, readiness                                         |
+| Method | Path                                                   | What it is                                                  |
+| ------ | ------------------------------------------------------ | ----------------------------------------------------------- |
+| `GET`  | `/realms/{realm}/.well-known/openid-configuration`     | Discovery document                                          |
+| `GET`  | `/realms/{realm}/protocol/openid-connect/certs`        | JWKS (public signing keys)                                  |
+| `GET`  | `/realms/{realm}/protocol/openid-connect/auth`         | Authorization endpoint                                      |
+| `POST` | `/realms/{realm}/protocol/openid-connect/auth`         | Authorization endpoint (form)                               |
+| `POST` | `/realms/{realm}/login-actions/authenticate`           | Login form submission                                       |
+| `POST` | `/realms/{realm}/login-actions/required-action`        | Complete a pending required action (enrolment, password)    |
+| `POST` | `/realms/{realm}/login-actions/passkey-challenge`      | Request options for a usernameless passkey assertion        |
+| `GET`  | `/realms/{realm}/login-actions/registration`           | Self-registration form                                      |
+| `POST` | `/realms/{realm}/login-actions/registration`           | Self-registration submission                                |
+| `GET`  | `/realms/{realm}/login-actions/action-token`           | Redeem a mailed action token (verify email, reset password) |
+| `POST` | `/realms/{realm}/login-actions/action-token`           | Submit a new password against a reset-password token        |
+| `GET`  | `/realms/{realm}/login-actions/reset-password`         | Password reset request form                                 |
+| `POST` | `/realms/{realm}/login-actions/reset-password`         | Password reset request submission                           |
+| `POST` | `/realms/{realm}/protocol/openid-connect/token`        | Token endpoint                                              |
+| `GET`  | `/realms/{realm}/protocol/openid-connect/userinfo`     | UserInfo                                                    |
+| `POST` | `/realms/{realm}/protocol/openid-connect/userinfo`     | UserInfo (form)                                             |
+| `GET`  | `/realms/{realm}/protocol/openid-connect/logout`       | RP-initiated logout (`end_session_endpoint`)                |
+| `POST` | `/realms/{realm}/protocol/openid-connect/logout`       | RP-initiated logout (form-serialized), confirmation form    |
+| `POST` | `/realms/{realm}/clients-registrations/openid-connect` | Dynamic client registration (RFC 7591)                      |
+| `GET`  | `/health/live`, `/health/ready`                        | Liveness, readiness                                         |
 
 `/login-actions/authenticate` is deliberately outside the
 `/protocol/openid-connect/` namespace: that namespace is the OIDC wire
@@ -356,30 +357,164 @@ brings the compose stack up and tears it down again, volumes included, so it
 is the all-Docker way of running whichever one you picked above — and it
 will take port 3000 and the stack's database with it.
 
-### An initial access token
+### Dynamic client registration
 
-`seed registration-token` mints an operator's authorization for a client to
-register, for a realm whose `registration_policy` will require `token` —
-dynamic client registration itself has no endpoint yet, so nothing redeems
-one today. `--uses` bounds how many registrations the token is good for,
-and `--ttl` its lifetime in seconds; both are required, since the schema
-has no default for either.
+`client_registration_policy` is `disabled` on every realm by default (ADR
+0026). Registering before it is opened, or against a realm that does not
+exist, answers the same way — an enumeration oracle costs nothing to close
+here, the same reasoning discovery and JWKS already apply to a disabled
+realm:
 
 ```bash
-odudu seed registration-token --realm demo --uses 1 --ttl 3600
+curl -sS -o /dev/null -w '%{http_code}\n' -X POST \
+  http://localhost:3000/realms/reg-demo/clients-registrations/openid-connect \
+  -H 'content-type: application/json' \
+  -d '{"redirect_uris":["https://rp.example/cb"]}'
 ```
 
 ```
-PB0YxVF5Rj4P1kbXM4oXLBL1RjMCczPq6vu4dD3T4rg
+404
 ```
 
-Every other seed subcommand answers with a line of JSON; this one answers
-with the token alone, so `TOKEN=$(odudu seed registration-token …)` captures
-exactly the credential and nothing else. It is stored as its SHA-256
-digest, the same shape `packages/account/src/repository/action-tokens.ts`
-uses, and spent by one `UPDATE … RETURNING`
+```bash
+curl -sS -o /dev/null -w '%{http_code}\n' -X POST \
+  http://localhost:3000/realms/no-such-realm/clients-registrations/openid-connect \
+  -H 'content-type: application/json' \
+  -d '{"redirect_uris":["https://rp.example/cb"]}'
+```
+
+```
+404
+```
+
+Opening it is a realm setting like any other:
+
+```bash
+odudu seed realm --name reg-demo --set client_registration_policy=open
+```
+
+```json
+{
+  "command": "realm",
+  "created": false,
+  "realm": "reg-demo",
+  "realmId": "01a0b605-…",
+  "settings": ["client_registration_policy"]
+}
+```
+
+Discovery now advertises the endpoint, and any request registers a client —
+the `open` policy is RFC 7591 §3.1's anonymous case. The server assigns
+`client_id`; a `client_secret` is generated for a confidential client (the
+default — `token_endpoint_auth_method` defaults to `client_secret_basic`)
+and returned **exactly once, in this response**. `clients.secret_hash`
+stores its Argon2id hash; there is no way to retrieve the plaintext again.
+
+```bash
+curl -sS -X POST http://localhost:3000/realms/reg-demo/clients-registrations/openid-connect \
+  -H 'content-type: application/json' \
+  -d '{"redirect_uris":["https://rp.example/cb"],"client_name":"Example RP"}'
+```
+
+```json
+{
+  "client_id": "01a0b605-7708-…",
+  "client_id_issued_at": 1789760206,
+  "client_secret": "bvHXg71rJLarigim4vtlUMm5KwV9QmAmxDSx-Mfz76U",
+  "client_secret_expires_at": 0,
+  "redirect_uris": ["https://rp.example/cb"],
+  "grant_types": ["authorization_code"],
+  "token_endpoint_auth_method": "client_secret_basic",
+  "client_name": "Example RP"
+}
+```
+
+This registration presented no credential, so `registration_origin` is
+`'anonymous'` and `consent_required` defaults `true` on the row it wrote
+(ADR 0027) — an anonymous registrant is not the operator vouching for a
+client the way `seed client` or a token-authorized registration is.
+
+The `token` policy is stricter: a request with no bearer credential is
+refused before anything is validated, with `WWW-Authenticate` naming the
+scheme and no `error` parameter (RFC 6750 §3.1's distinction between an
+absent credential and a rejected one).
+
+```bash
+odudu seed realm --name reg-demo --set client_registration_policy=token
+```
+
+```bash
+curl -sS -D - -o /dev/null -X POST \
+  http://localhost:3000/realms/reg-demo/clients-registrations/openid-connect \
+  -H 'content-type: application/json' -d '{"redirect_uris":["https://rp.example/cb"]}' \
+  | grep -iE '^HTTP|www-authenticate'
+```
+
+```
+HTTP/1.1 401 Unauthorized
+www-authenticate: Bearer realm="client-registration"
+```
+
+`seed registration-token` mints the credential a registrant presents:
+`--uses` bounds how many registrations it is good for, `--ttl` its lifetime
+in seconds, and both are required since the schema has no default for
+either. Every other seed subcommand answers with a line of JSON; this one
+answers with the token alone, so `TOKEN=$(odudu seed registration-token …)`
+captures exactly the credential and nothing else.
+
+```bash
+TOKEN=$(odudu seed registration-token --realm reg-demo --uses 1 --ttl 3600)
+```
+
+```
+w0aDvT8i3ajvn00gKiCGMwHjeSujSS2LBbn0H_xRy6U
+```
+
+It is stored as its SHA-256 digest, the same shape
+`packages/account/src/repository/action-tokens.ts` uses, and spent by one
+`UPDATE … RETURNING`
 (`packages/domain-realm/src/repository/client-registration-tokens.ts`) so
-two concurrent registrations against a one-use token cannot both win.
+two concurrent registrations against a one-use token cannot both win —
+answering the request and consuming the token happen in the one transaction
+that inserts the client, never earlier. Presenting it registers a client
+whose `registration_origin` is `'token'`, with `consent_required` defaulting
+`false`: an initial access token is an operator's own authorization, as
+much as `seed client` naming a client directly is.
+
+```bash
+curl -sS -X POST http://localhost:3000/realms/reg-demo/clients-registrations/openid-connect \
+  -H "authorization: Bearer $TOKEN" -H 'content-type: application/json' \
+  -d '{"redirect_uris":["https://rp2.example/cb"],"token_endpoint_auth_method":"none"}'
+```
+
+```json
+{
+  "client_id": "01a0b605-9e5d-…",
+  "client_id_issued_at": 1789760216,
+  "redirect_uris": ["https://rp2.example/cb"],
+  "grant_types": ["authorization_code"],
+  "token_endpoint_auth_method": "none"
+}
+```
+
+`token_endpoint_auth_method: "none"` names a public client, so no secret is
+generated or returned — RFC 6749 §10.1 gives no client that cannot keep one
+confidential a credential to keep.
+
+A realm at its `max_clients` cap refuses further registration with 403 and
+`invalid_client_metadata`, taken under `SELECT … FOR UPDATE` on the realm
+row before the count so two concurrent registrations cannot both observe
+room that only one of them will actually get
+(`packages/domain-realm/src/repository/clients.ts`'s `lockCapacity`,
+exercised concurrently in
+`packages/protocol-oidc/tests/client-registration.int.test.ts`).
+
+A registered `backchannel_logout_uri` or `userinfo_signed_response_alg` is
+stored and echoed back in the registration response, but advertises
+nothing: `backchannel_logout_supported`, `userinfo_signing_alg_values_supported`
+and the rest of what P3b implements stay absent from discovery, for the
+reason `docs/protocols/oidc-backchannel.md` gives for every capability this
+server does not yet have — advertising one would claim it.
 
 ## Path A: authorization code with PKCE
 
@@ -5656,10 +5791,14 @@ session lifecycle. A citation of either half here means that half.
 - **No signed or encrypted UserInfo responses. JSON only.** Not a
   conformance gap: OIDC Core §5.3.2 requires the claims to be "returned as
   the members of a JSON object unless a signed or encrypted response was
-  requested during Client Registration", and no client can request one
-  because there is no client registration to request it in. The clauses
-  arrive with the registration that carries them, at **P3b**, whose exit
-  criterion names signed and encrypted UserInfo responses for that reason.
+  requested during Client Registration". A client can now request one —
+  `userinfo_signed_response_alg`, `userinfo_encrypted_response_alg` and
+  `userinfo_encrypted_response_enc` are registration metadata
+  ([Dynamic client registration](#dynamic-client-registration)) and are
+  stored — but `/userinfo` reads none of the three yet and answers JSON
+  regardless of what a client registered. Delivering on what is already
+  stored is **P3b**, whose exit criterion names signed and encrypted
+  UserInfo responses for that reason.
 - **No `claims` request parameter.** A decision: §5.5 says "Support for the
   `claims` parameter is OPTIONAL", and the two ID Token clauses that depend
   on it are deferred to **P3a** with the per-client machinery, whose criterion
@@ -5687,14 +5826,15 @@ session lifecycle. A citation of either half here means that half.
   a grant — including through [RP-initiated logout](#rp-initiated-logout) —
   does not invalidate an already-issued access token before its `exp`.
 - **Front-channel and back-channel logout.** **P3b**: both are addressed to a
-  client rather than to a browser, so both need per-client
-  `frontchannel_logout_uri` and `backchannel_logout_uri` registered, which
-  is client-registration metadata.
+  client rather than to a browser. `frontchannel_logout_uri` and
+  `backchannel_logout_uri` are now client-registration metadata a client can
+  register (`POST /realms/{realm}/clients-registrations/openid-connect`,
+  [Dynamic client registration](#dynamic-client-registration)) and are
+  stored, but nothing reads either column yet — no discovery member
+  advertises the capability, and no logout delivers to either URI.
 - **No administrative way to end somebody else's session.** Listing a
   subject's sessions and ending one is **P4**, with the rest of the admin
   surface, because until there is an admin API there is nowhere to put it.
-- **Dynamic client registration (RFC 7591).** **P3a.** Today the seed command
-  is the only way to create a client.
 - **Any admin API.** **P4.** The seed command is the only administrative
   surface, and it cannot add a user to an existing client, disable anything,
   rotate a key, or delete anything.

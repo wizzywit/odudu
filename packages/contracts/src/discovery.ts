@@ -26,6 +26,10 @@ export interface DiscoveryDocument {
   // the caller — are the only members that can be absent.
   readonly scopes_supported?: readonly string[];
   readonly claims_supported?: readonly string[];
+  // RFC 7591 §3.1: present only when the realm's client_registration_policy
+  // is not 'disabled' — advertising it otherwise would claim a capability
+  // that answers 404.
+  readonly registration_endpoint?: string;
 }
 
 export interface DiscoveryDocumentOptions {
@@ -41,10 +45,12 @@ export interface DiscoveryDocumentOptions {
   // is a leaf that never reads a database. The caller hands the same list to
   // /authorize's validation, so the two cannot drift apart.
   readonly scopesSupported: readonly string[];
+  // Whether the realm's client_registration_policy is not 'disabled' — the
+  // endpoint's path is fixed the same way every other one here is, so the
+  // caller states only whether it exists, never its URL.
+  readonly clientRegistrationEnabled?: boolean;
 }
 
-// registration_endpoint is omitted entirely (not published empty or null):
-// dynamic client registration is P3's work (docs/protocols/oidc-discovery.md).
 export function discoveryDocument(opts: DiscoveryDocumentOptions): DiscoveryDocument {
   // OIDC Discovery §4.1: a terminating "/" on the issuer is removed before
   // appending "/.well-known/openid-configuration" — applied here so the
@@ -79,5 +85,8 @@ export function discoveryDocument(opts: DiscoveryDocumentOptions): DiscoveryDocu
     authorization_response_iss_parameter_supported: true,
     ...(opts.scopesSupported.length > 0 ? { scopes_supported: opts.scopesSupported } : {}),
     ...(opts.claimsSupported.length > 0 ? { claims_supported: opts.claimsSupported } : {}),
+    ...(opts.clientRegistrationEnabled === true
+      ? { registration_endpoint: `${issuer}/clients-registrations/openid-connect` }
+      : {}),
   };
 }

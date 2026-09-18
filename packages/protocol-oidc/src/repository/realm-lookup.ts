@@ -16,6 +16,11 @@ export interface RealmLookup {
   // (sessionRepository(tx).liveById) — the realm's own configured value,
   // mirroring ssoSessionMaxSeconds.
   ssoSessionIdleSeconds: number;
+  // The three-state gate the registration endpoint and discovery's
+  // registration_endpoint both read: 'disabled' answers neither, 'open'
+  // and 'token' both advertise the endpoint and differ only in whether an
+  // initial access token is required (ADR 0026).
+  clientRegistrationPolicy: 'disabled' | 'open' | 'token';
 }
 
 export interface NewRealm {
@@ -39,10 +44,17 @@ export function realmLookupRepository(db: Database) {
           verifyEmail: realms.verifyEmail,
           ssoSessionMaxSeconds: realms.ssoSessionMaxSeconds,
           ssoSessionIdleSeconds: realms.ssoSessionIdleSeconds,
+          clientRegistrationPolicy: realms.clientRegistrationPolicy,
         })
         .from(realms)
         .where(eq(realms.name, name));
-      return rows[0] ?? null;
+      const row = rows[0];
+      if (row === undefined) return null;
+      return {
+        ...row,
+        clientRegistrationPolicy:
+          row.clientRegistrationPolicy as RealmLookup['clientRegistrationPolicy'],
+      };
     },
 
     // The bootstrap seed command creates the first realm through this same
@@ -59,12 +71,17 @@ export function realmLookupRepository(db: Database) {
           verifyEmail: realms.verifyEmail,
           ssoSessionMaxSeconds: realms.ssoSessionMaxSeconds,
           ssoSessionIdleSeconds: realms.ssoSessionIdleSeconds,
+          clientRegistrationPolicy: realms.clientRegistrationPolicy,
         });
       const row = rows[0];
       if (row === undefined) {
         throw new Error('insert into realms returned no row');
       }
-      return row;
+      return {
+        ...row,
+        clientRegistrationPolicy:
+          row.clientRegistrationPolicy as RealmLookup['clientRegistrationPolicy'],
+      };
     },
   };
 }

@@ -6,7 +6,7 @@ export {
   type RealmSettingName,
 } from '#/service/realm-settings';
 export { clients, type ClientRecord } from '#/schema/clients';
-export { clientRepository, type NewClient } from '#/repository/clients';
+export { clientRepository, type ClientCapacity, type NewClient } from '#/repository/clients';
 export {
   clientScopes,
   clientScopeAssignments,

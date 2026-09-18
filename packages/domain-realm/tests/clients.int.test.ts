@@ -215,4 +215,32 @@ describe('clientRepository', () => {
       },
     });
   });
+
+  it('locks and counts capacity for the resolved realm, not the caller-supplied id', async () => {
+    await expectCrossRealmMethodProbe(app.db, {
+      seed: async (tx, realmId) => {
+        await seedRealm(tx, realmId);
+        await insertClient(tx, realmId);
+        return realmId;
+      },
+      verifySeeded: async (tx, realmId) => {
+        const capacity = await clientRepository(tx).lockCapacity(realmId);
+        expect(capacity.count).toBe(1);
+        expect(capacity.maxClients).toBe(200);
+      },
+      // Realm B's RLS-scoped read of `realms` finds no row for realm A's
+      // id, so the lock itself is what refuses — not a count that quietly
+      // comes back as someone else's realm's number.
+      attempt: async (tx, realmId) => {
+        try {
+          return await clientRepository(tx).lockCapacity(realmId);
+        } catch (error) {
+          return { threw: true, message: error instanceof Error ? error.message : String(error) };
+        }
+      },
+      expectBlocked: (result) => {
+        expect(result).toMatchObject({ threw: true });
+      },
+    });
+  });
 });

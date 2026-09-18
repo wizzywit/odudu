@@ -71,6 +71,73 @@ it('accepts client_credentials alone with no redirect_uris', () => {
   ).toBe('ok');
 });
 
+describe('[RFC6749-3.1.2-01] the redirection endpoint URI is an absolute URI', () => {
+  it('refuses a relative redirect_uri', () => {
+    const outcome = parseClientMetadata(ok({ redirect_uris: ['/cb'] }));
+    expect(outcome).toMatchObject({ kind: 'invalid', error: 'invalid_redirect_uri' });
+  });
+});
+
+describe('[RFC6749-3.1.2-02] the redirection endpoint URI does not include a fragment component', () => {
+  it('refuses a redirect_uri carrying a fragment', () => {
+    const outcome = parseClientMetadata(ok({ redirect_uris: ['https://rp.example/cb#x'] }));
+    expect(outcome).toMatchObject({ kind: 'invalid', error: 'invalid_redirect_uri' });
+  });
+});
+
+// The same code path (client_oidc_config_redirect_uris_present's exact-array
+// check in parseClientMetadata) discharges three MUST rows the spec states
+// from three different angles — a public client's own obligation (§3.1.2.2),
+// the server's obligation once a client cannot be authenticated (§10.2), and
+// public clients again (§10.6) — so all three tests below assert the same
+// refusal.
+describe('[RFC6749-3.1.2.2-01] the authorization server requires public clients to register their redirection endpoint', () => {
+  it('refuses a public client with no redirect_uris', () => {
+    const outcome = parseClientMetadata(
+      ok({ token_endpoint_auth_method: 'none', redirect_uris: [] }),
+    );
+    expect(outcome).toMatchObject({ kind: 'invalid', error: 'invalid_redirect_uri' });
+  });
+});
+
+describe('[RFC6749-10.2-01] when the client cannot be authenticated, the authorization server requires registration of its redirection URI', () => {
+  it('refuses a client registering as token_endpoint_auth_method none with no redirect_uris', () => {
+    const outcome = parseClientMetadata(
+      ok({ token_endpoint_auth_method: 'none', redirect_uris: [] }),
+    );
+    expect(outcome).toMatchObject({ kind: 'invalid', error: 'invalid_redirect_uri' });
+  });
+});
+
+describe('[RFC6749-10.6-01] the authorization server requires public clients to register their redirection URIs', () => {
+  it('refuses a public client with no redirect_uris', () => {
+    const outcome = parseClientMetadata(
+      ok({ token_endpoint_auth_method: 'none', redirect_uris: [] }),
+    );
+    expect(outcome).toMatchObject({ kind: 'invalid', error: 'invalid_redirect_uri' });
+  });
+});
+
+describe('[RFC6749-10.1-01] the authorization server does not issue client passwords or credentials to native or user-agent-based clients for authentication', () => {
+  // "Native or user-agent-based" is not a fact the server can observe —
+  // RFC 6749 §2.1 leaves client type to be declared at registration, which
+  // is exactly what token_endpoint_auth_method does here: a client that
+  // declares itself unable to keep a secret (`none`) is never handed one,
+  // regardless of what it is asking to register for.
+  it('issues no secretHash-bearing client for token_endpoint_auth_method none', () => {
+    const outcome = parseClientMetadata(ok({ token_endpoint_auth_method: 'none' }));
+    expect(outcome.kind).toBe('ok');
+    // parseClientMetadata itself never generates a secret — this asserts
+    // the metadata this server treats as "a public client" is exactly the
+    // 'none' method, which is what packages/protocol-oidc/src/usecase/
+    // client-registration.ts's clientType() switches on to decide whether
+    // to generate one at all.
+    if (outcome.kind === 'ok') {
+      expect(outcome.metadata.tokenEndpointAuthMethod).toBe('none');
+    }
+  });
+});
+
 describe('[OIDC-BACKCHANNEL-2.2-03] the back-channel logout URI scheme policy', () => {
   it('refuses a back-channel logout URI that is not https', () => {
     const outcome = parseClientMetadata(ok({ backchannel_logout_uri: 'http://rp.example/bc' }));

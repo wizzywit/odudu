@@ -22,7 +22,7 @@ import {
 import { signingKeyRepository } from '@odudu/crypto';
 import { effectiveGroupPaths, effectiveRoles } from '@odudu/domain-authz';
 import { withRealm, type DatabaseHandle } from '@odudu/db';
-import { userRepository, verifyPassword } from '@odudu/domain-identity';
+import { hashPassword, userRepository, verifyPassword } from '@odudu/domain-identity';
 import { clientRepository, clientScopeRepository } from '@odudu/domain-realm';
 import { isUuid, systemClock, type Clock } from '@odudu/kernel';
 import { type FastifyPluginAsync } from 'fastify';
@@ -35,6 +35,7 @@ import { expandWebOrigins } from '#/service/web-origin';
 import { issueAuthorizationCode } from '#/usecase/login-submission';
 import { type ResolvedClient } from '#/usecase/authorization-request';
 import { registerAuthorizeRoute } from '#/view/routes/authorize';
+import { registerClientRegistrationRoute } from '#/view/routes/client-registration';
 import { registerCors } from '#/view/routes/cors';
 import { registerDiscoveryRoute } from '#/view/routes/discovery';
 import { registerJwksRoute } from '#/view/routes/jwks';
@@ -67,6 +68,13 @@ export interface OidcRoutesDeps {
   // passkey enrolment then reports itself unsupported rather than binding
   // credentials to a guessed domain.
   publicBaseUrl?: string;
+  // Fetches and validates a registered jwks_uri, composed at the
+  // composition root from the address guard and the pinned transport
+  // (apps/server/src/client-key-transport.ts) — protocol-oidc must not
+  // import apps/server, so the socket itself is injected. Undefined
+  // refuses every jwks_uri a client registers, which is the safe default
+  // for a caller (a test, mainly) that never wires one in.
+  fetchClientKeySet?: (uri: string) => Promise<unknown>;
 }
 
 // The plugin apps/server registers. Discovery and JWKS both read the
@@ -160,6 +168,15 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
       scopesForRealm,
     });
     registerJwksRoute(app, { findRealm, listPublishableKeys });
+    registerClientRegistrationRoute(app, {
+      findRealm,
+      withinRealm: (realmId, fn) => withRealm(deps.database.db, realmId, fn),
+      hashClientSecret: hashPassword,
+      fetchClientKeySet:
+        deps.fetchClientKeySet ??
+        (() => Promise.reject(new Error('jwks_uri fetching is not configured'))),
+      now: () => clock.now(),
+    });
     registerAuthorizeRoute(app, {
       findRealm,
       tls,
@@ -464,3 +481,12 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
 export { clientOidcConfigRepository } from '#/repository/client-oidc-config';
 export { type ClientOidcConfig } from '#/schema/client-oidc-config';
 export { realmLookupRepository, type NewRealm, type RealmLookup } from '#/repository/realm-lookup';
+export {
+  clientKeySet,
+  ClientKeySetRefused,
+  MAX_JWKS_BYTES,
+  type ClientKeyDeps,
+  type ClientKeyRequest,
+  type ClientKeyResponse,
+  type ClientKeySet,
+} from '#/repository/client-keys';

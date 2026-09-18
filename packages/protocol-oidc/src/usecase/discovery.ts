@@ -32,5 +32,6 @@ export async function resolveDiscoveryDocument(
     issuer: realmIssuer(issuerBase, realmName),
     claimsSupported: deps.claimNames(),
     scopesSupported,
+    clientRegistrationEnabled: realm.clientRegistrationPolicy !== 'disabled',
   });
 }

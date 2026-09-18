@@ -13,9 +13,14 @@ export interface ClientKeyResponse {
   readonly body: string;
 }
 
+// The transport's own shape — one definition, so apps/server's real
+// implementation (client-key-transport.ts) and this repository's injected
+// dependency cannot drift into two structurally-equal-but-separate types.
+export type ClientKeyRequest = (url: URL, address: string) => Promise<ClientKeyResponse>;
+
 export interface ClientKeyDeps {
   readonly lookup: (hostname: string) => Promise<readonly string[]>;
-  readonly request: (url: URL, address: string) => Promise<ClientKeyResponse>;
+  readonly request: ClientKeyRequest;
   readonly now: () => Date;
   readonly allowPrivate?: boolean;
 }

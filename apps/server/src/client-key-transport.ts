@@ -1,13 +1,8 @@
+import { type ClientKeyRequest, type ClientKeyResponse } from '@odudu/protocol-oidc';
 import { isIPv6 } from 'node:net';
 import { request as httpsRequest } from 'node:https';
 
-export interface ClientKeyResponse {
-  readonly status: number;
-  readonly contentType: string | null;
-  readonly body: string;
-}
-
-export type ClientKeyRequest = (url: URL, address: string) => Promise<ClientKeyResponse>;
+export type { ClientKeyRequest, ClientKeyResponse };
 
 export interface ClientKeyTransportOptions {
   /** Bounds the TCP connect and TLS handshake, not the whole exchange. */
