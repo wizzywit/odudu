@@ -709,6 +709,33 @@ to the realm afterwards. [docs/request-paths.md](docs/request-paths.md#roles-onc
 walks through all of it, including a client-scoped role qualified as
 `clientId:roleName`.
 
+**An initial access token is an operator's authorization for a client to
+exist.** RFC 7591 dynamic client registration is not wired to an endpoint
+yet — `seed client` is still the only way to create one — but a realm whose
+`registration_policy` will require `token` needs a way to mint the
+credential a registering client presents, and `seed registration-token`
+is that command: `--realm`, `--uses` (a token is good for that many
+registrations, never zero) and `--ttl` in seconds.
+
+```bash
+node --env-file=.env apps/server/src/main.ts seed registration-token \
+  --realm demo --uses 1 --ttl 3600
+```
+
+```
+PB0YxVF5Rj4P1kbXM4oXLBL1RjMCczPq6vu4dD3T4rg
+```
+
+Unlike every other seed subcommand this prints nothing but the token
+itself — no JSON, no trailing newline content beyond it — so a shell can
+capture it directly: `TOKEN=$(odudu seed registration-token --realm demo
+--uses 1 --ttl 3600)`. It is stored as its SHA-256 digest
+(`packages/domain-realm/src/repository/client-registration-tokens.ts`,
+copied from the action-token pattern `docs/request-paths.md` already
+documents), found by that digest rather than compared, and spent by one
+`UPDATE … RETURNING` so two concurrent registrations against a one-use
+token cannot both win.
+
 **One pass deletes everything that expires.** Every login writes an
 `authentication_sessions` row, every redemption an `authorization_codes`
 row, and every refresh rotation a `refresh_tokens` row; no repository in the
@@ -725,7 +752,7 @@ node --env-file=.env apps/server/src/main.ts reap
 ```
 
 ```
-{"ran":true,"deleted":{"refresh_tokens":0,"authorization_codes":0,"token_grants":0,"authentication_sessions":0,"action_tokens":0,"login_failures":0,"email_outbox":0,"sessions":0}}
+{"ran":true,"deleted":{"refresh_tokens":0,"authorization_codes":0,"token_grants":0,"authentication_sessions":0,"action_tokens":0,"client_registration_tokens":0,"login_failures":0,"email_outbox":0,"sessions":0}}
 ```
 
 Those zeros on a freshly used stack are the design, not a bug. A row is

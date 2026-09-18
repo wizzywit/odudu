@@ -130,6 +130,16 @@ const schema = z.object({
     .min(60)
     .max(31_536_000)
     .default(604_800),
+  // A spent or expired registration token carries no detection value — a
+  // replayed unknown token and a replayed spent one are refused
+  // identically — so this is on the same footing as ODUDU_RETENTION_ACTION_
+  // TOKEN_SECONDS, not the grant-family floor ADR 0021 gives refresh_tokens.
+  ODUDU_RETENTION_REGISTRATION_TOKEN_SECONDS: z.coerce
+    .number()
+    .int()
+    .min(60)
+    .max(31_536_000)
+    .default(604_800),
   ODUDU_RETENTION_SESSION_SECONDS: z.coerce.number().int().min(60).max(31_536_000).default(86_400),
   // A delivered message, measured from the delivery. Kept a week, so an
   // operator answering "did that link ever go out?" has something to read.

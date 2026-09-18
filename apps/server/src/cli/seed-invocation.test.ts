@@ -28,6 +28,7 @@ describe('resolveSeedInvocation', () => {
       'grant-role',
       'join-group',
       'profile',
+      'registration-token',
     ]) {
       expect(resolveSeedInvocation([command])).toMatchObject({ kind: 'command' });
     }

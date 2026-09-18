@@ -29,3 +29,7 @@ export {
   clientRegistrationTokens,
   type ClientRegistrationTokenRecord,
 } from '#/schema/client-registration-tokens';
+export {
+  clientRegistrationTokenRepository,
+  type MintClientRegistrationToken,
+} from '#/repository/client-registration-tokens';

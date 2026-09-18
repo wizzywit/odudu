@@ -21,6 +21,7 @@ export type TableName =
   | 'token_grants'
   | 'authentication_sessions'
   | 'action_tokens'
+  | 'client_registration_tokens'
   | 'login_failures'
   | 'email_outbox'
   | 'sessions';
@@ -54,6 +55,7 @@ export interface RetentionPolicy {
   readonly authorizationCodeSeconds: number;
   readonly authenticationSessionSeconds: number;
   readonly actionTokenSeconds: number;
+  readonly registrationTokenSeconds: number;
   readonly sessionSeconds: number;
   readonly emailSentSeconds: number;
   readonly emailFailedSeconds: number;
@@ -73,6 +75,7 @@ export function retentionPolicyFromConfig(config: Config): RetentionPolicy {
     authorizationCodeSeconds: config.ODUDU_RETENTION_AUTHORIZATION_CODE_SECONDS,
     authenticationSessionSeconds: config.ODUDU_RETENTION_AUTHENTICATION_SESSION_SECONDS,
     actionTokenSeconds: config.ODUDU_RETENTION_ACTION_TOKEN_SECONDS,
+    registrationTokenSeconds: config.ODUDU_RETENTION_REGISTRATION_TOKEN_SECONDS,
     sessionSeconds: config.ODUDU_RETENTION_SESSION_SECONDS,
     emailSentSeconds: config.ODUDU_RETENTION_EMAIL_SENT_SECONDS,
     emailFailedSeconds: config.ODUDU_RETENTION_EMAIL_FAILED_SECONDS,
@@ -200,6 +203,24 @@ const RETENTION_RULES: Record<TableName, RetentionRule> = {
     `,
   },
 
+  // Copied from action_tokens, but with no spent_at to measure a spent
+  // token's window from — only created_at and the ttl-bound expires_at —
+  // so a token spent (remaining_uses = 0) well inside its ttl waits on
+  // created_at instead. Later than action_tokens' own bound in that case,
+  // by at most this table's own ttl, and with the same effect: nothing
+  // still readable here can authorize a registration (RFC 7591 §3).
+  client_registration_tokens: {
+    after: [],
+    statement: (now, policy) => sql`
+      DELETE FROM client_registration_tokens t
+       WHERE (t.remaining_uses = 0
+              AND t.created_at < ${now.toISOString()}::timestamptz
+                  - make_interval(secs => ${policy.registrationTokenSeconds}::integer))
+          OR t.expires_at < ${now.toISOString()}::timestamptz
+             - make_interval(secs => ${policy.registrationTokenSeconds}::integer)
+    `,
+  },
+
   // Two bounds, and the second does not follow from the first: nothing
   // relates brute_force_max_lockout_seconds to
   // brute_force_failure_reset_seconds (realms_brute_force_bounds,
@@ -276,6 +297,7 @@ export const REAP_ORDER: readonly TableName[] = [
   'token_grants',
   'authentication_sessions',
   'action_tokens',
+  'client_registration_tokens',
   'login_failures',
   'email_outbox',
   'sessions',

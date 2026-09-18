@@ -356,6 +356,31 @@ brings the compose stack up and tears it down again, volumes included, so it
 is the all-Docker way of running whichever one you picked above — and it
 will take port 3000 and the stack's database with it.
 
+### An initial access token
+
+`seed registration-token` mints an operator's authorization for a client to
+register, for a realm whose `registration_policy` will require `token` —
+dynamic client registration itself has no endpoint yet, so nothing redeems
+one today. `--uses` bounds how many registrations the token is good for,
+and `--ttl` its lifetime in seconds; both are required, since the schema
+has no default for either.
+
+```bash
+odudu seed registration-token --realm demo --uses 1 --ttl 3600
+```
+
+```
+PB0YxVF5Rj4P1kbXM4oXLBL1RjMCczPq6vu4dD3T4rg
+```
+
+Every other seed subcommand answers with a line of JSON; this one answers
+with the token alone, so `TOKEN=$(odudu seed registration-token …)` captures
+exactly the credential and nothing else. It is stored as its SHA-256
+digest, the same shape `packages/account/src/repository/action-tokens.ts`
+uses, and spent by one `UPDATE … RETURNING`
+(`packages/domain-realm/src/repository/client-registration-tokens.ts`) so
+two concurrent registrations against a one-use token cannot both win.
+
 ## Path A: authorization code with PKCE
 
 The full interactive flow. Every client uses PKCE, public and confidential
@@ -3470,7 +3495,7 @@ odudu reap
 ```
 
 ```
-{"ran":true,"deleted":{"refresh_tokens":0,"authorization_codes":0,"token_grants":0,"authentication_sessions":0,"action_tokens":0,"login_failures":0,"email_outbox":0,"sessions":0}}
+{"ran":true,"deleted":{"refresh_tokens":0,"authorization_codes":0,"token_grants":0,"authentication_sessions":0,"action_tokens":0,"client_registration_tokens":0,"login_failures":0,"email_outbox":0,"sessions":0}}
 ```
 
 Those zeros are the point. By this stage the database holds a consumed
@@ -3491,6 +3516,13 @@ be attempted again — so it is kept for `ODUDU_RETENTION_EMAIL_FAILED_SECONDS`
 has to read it. A message still inside its retry schedule, and one never
 attempted at all, are not this pass's business at any age.
 
+`client_registration_tokens` is on the same footing as `action_tokens`: a
+spent or expired one carries no detection value — a replayed unknown token
+and a replayed spent one are refused identically — so
+`ODUDU_RETENTION_REGISTRATION_TOKEN_SECONDS` (a week, like
+`ODUDU_RETENTION_ACTION_TOKEN_SECONDS`) is a courtesy window for an operator
+to read, not a bound ADR 0021's detection-window argument requires.
+
 What makes a row deletable is the **grant family** being past retention,
 which is seven days for a session-bound family and thirty for an offline
 one. Backdating the stack by forty days is the fastest way to see a pass
@@ -3508,7 +3540,7 @@ odudu reap
 ```
 
 ```
-{"ran":true,"deleted":{"refresh_tokens":2,"authorization_codes":1,"token_grants":1,"authentication_sessions":1,"action_tokens":0,"login_failures":0,"email_outbox":0,"sessions":1}}
+{"ran":true,"deleted":{"refresh_tokens":2,"authorization_codes":1,"token_grants":1,"authentication_sessions":1,"action_tokens":0,"client_registration_tokens":0,"login_failures":0,"email_outbox":0,"sessions":1}}
 ```
 
 Both refresh tokens of the family, the code that produced it, the grant
@@ -3527,7 +3559,7 @@ odudu reap
 ```
 
 ```
-{"ran":true,"deleted":{"refresh_tokens":0,"authorization_codes":0,"token_grants":0,"authentication_sessions":0,"action_tokens":0,"login_failures":0,"email_outbox":0,"sessions":0}}
+{"ran":true,"deleted":{"refresh_tokens":0,"authorization_codes":0,"token_grants":0,"authentication_sessions":0,"action_tokens":0,"client_registration_tokens":0,"login_failures":0,"email_outbox":0,"sessions":0}}
 ```
 
 ### When the pass refuses, or finds nothing to look at
