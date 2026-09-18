@@ -8,6 +8,7 @@ import { seed } from '#/cli/seed';
 import { resolveSeedInvocation } from '#/cli/seed-invocation';
 import {
   assertProductionAppDatabaseUrl,
+  assertProductionNoPrivateClientUrls,
   assertProductionPasskeyRelyingParty,
   assertProductionTls,
   warnIfTlsDisabled,
@@ -53,6 +54,7 @@ const logger = createLogger(config);
 assertProductionAppDatabaseUrl(config);
 assertProductionTls(config);
 assertProductionPasskeyRelyingParty(config);
+assertProductionNoPrivateClientUrls(config);
 warnIfTlsDisabled(config, (message) => {
   logger.warn({}, message);
 });
