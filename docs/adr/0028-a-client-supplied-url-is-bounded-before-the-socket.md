@@ -37,9 +37,17 @@ URL, split across the two moments such a URL can be refused:
   link-local, private, unspecified, multicast, broadcast, and the
   IETF-reserved, protocol-assignment and carrier-grade-NAT ranges, in both
   IPv4 and IPv6 — checked in the numeric domain (parsed octets or hextets,
-  never a string prefix), and including an IPv4 address embedded in IPv6:
-  the mapped and deprecated-compatible forms in either dotted or hex
-  spelling, and the NAT64 well-known prefix.
+  never a string prefix). An IPv4 address embedded in IPv6 is unwrapped and
+  checked as IPv4 for five encapsulations: IPv4-mapped and the deprecated
+  IPv4-compatible form (dotted or hex, RFC 4291 §2.5.5), IPv4-translated
+  (RFC 2765), the NAT64 well-known and local-use prefixes (RFC 6052, RFC
+  8215), and 6to4 (RFC 3056). `::` and `::1` are matched by name, ahead of
+  that unwrapping, since both bit patterns collide with the deprecated
+  compatible form's own encoding and are reserved for the unspecified and
+  loopback addresses specifically (RFC 4291 §2.5.5.1). No other IPv4-in-IPv6
+  form is known to this server; one that used a different embedding
+  position would still reach the fetcher unrecognised as IPv4, checked only
+  as an ordinary IPv6 address against the ranges above.
 
 `assertPublicAddresses` takes an `allowPrivate` option. The compose stack
 and the conformance stack both run on private addresses, so a server that

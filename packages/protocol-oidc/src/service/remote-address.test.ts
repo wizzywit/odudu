@@ -61,6 +61,19 @@ describe('a URL the server will fetch on a client’s say-so', () => {
     ['loopback, dotted IPv4-compatible (deprecated, zero marker)', ['::127.0.0.1']],
     ['loopback, hex IPv4-compatible (deprecated, zero marker)', ['::7f00:1']],
     ['loopback, reached through the NAT64 well-known prefix', ['64:ff9b::127.0.0.1']],
+    // Round 2: three more encapsulations, found by enumerating the forms
+    // deliberately rather than only the ones round 1's fix already
+    // handled. Each carries the embedded address at a different position
+    // in the 8 parsed hextets — see ENCAPSULATIONS in the implementation.
+    ['loopback, dotted IPv4-translated (RFC 2765)', ['::ffff:0:127.0.0.1']],
+    ['loopback, hex IPv4-translated (RFC 2765)', ['::ffff:0:7f00:1']],
+    ['loopback, dotted NAT64 local-use prefix (RFC 8215)', ['64:ff9b:1::127.0.0.1']],
+    ['loopback, hex NAT64 local-use prefix (RFC 8215)', ['64:ff9b:1::7f00:1']],
+    // 6to4 (RFC 3056) has no dotted spelling: the embedded address sits
+    // right after the fixed prefix, and a dotted quad is only legal as
+    // the last group of the whole address (checked directly: 2002 followed
+    // by a dotted quad in that position is not valid IPv6 syntax).
+    ['loopback, 6to4 (RFC 3056)', ['2002:7f00:1::1']],
     // Node's net.isIPv6 rejects every genuinely malformed spelling tried
     // against it (checked directly: out-of-range octets, too many groups,
     // a doubled "::", an over-long group), so there is no live input that
@@ -71,6 +84,18 @@ describe('a URL the server will fetch on a client’s say-so', () => {
   ])('refuses %s', (_name, addresses) => {
     expect(() => {
       assertPublicAddresses(addresses);
+    }).toThrow(/address/u);
+  });
+
+  it('refuses ::1 by its own name, not as an embedded IPv4 0.0.0.1', () => {
+    expect(() => {
+      assertPublicAddresses(['::1']);
+    }).toThrow(/loopback/u);
+  });
+
+  it('refuses a dotted IPv4 quad placed before "::", where it is not the last group', () => {
+    expect(() => {
+      assertPublicAddresses(['1.2.3.4::5']);
     }).toThrow(/address/u);
   });
 

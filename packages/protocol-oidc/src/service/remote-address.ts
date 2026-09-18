@@ -107,14 +107,18 @@ const HEX_GROUP = /^[0-9a-f]{1,4}$/iu;
 
 // A parse failure here must throw — never fall through to a bitmask
 // comparison against `NaN`, which always reads false and so admits the
-// address it was meant to refuse.
-function parseIPv6Half(address: string, half: string): number[] {
+// address it was meant to refuse. A dotted IPv4 quad is only legal as the
+// very last group of the whole address (RFC 4291 §2.2), so `allowDotted`
+// is false for the head of a "::" split — the head can never be the last
+// part of the address — and true for the tail, or for the single half of
+// an address with no "::" at all.
+function parseIPv6Half(address: string, half: string, allowDotted: boolean): number[] {
   if (half === '') return [];
   const groups = half.split(':');
   const hextets: number[] = [];
   groups.forEach((group, index) => {
     if (group.includes('.')) {
-      if (index !== groups.length - 1 || !isIPv4(group)) {
+      if (!allowDotted || index !== groups.length - 1 || !isIPv4(group)) {
         throw new RemoteAddressRefused(`address ${address} is not a valid IPv6 address`);
       }
       const [a, b, c, d] = ipv4Octets(group);
@@ -134,7 +138,7 @@ function ipv6Hextets(address: string): readonly number[] {
   const halves = withoutZone.split('::');
 
   if (halves.length === 1) {
-    const hextets = parseIPv6Half(address, halves[0] ?? '');
+    const hextets = parseIPv6Half(address, halves[0] ?? '', true);
     if (hextets.length !== 8) {
       throw new RemoteAddressRefused(`address ${address} is not a valid IPv6 address`);
     }
@@ -144,8 +148,8 @@ function ipv6Hextets(address: string): readonly number[] {
     throw new RemoteAddressRefused(`address ${address} is not a valid IPv6 address`);
   }
 
-  const head = parseIPv6Half(address, halves[0] ?? '');
-  const tail = parseIPv6Half(address, halves[1] ?? '');
+  const head = parseIPv6Half(address, halves[0] ?? '', false);
+  const tail = parseIPv6Half(address, halves[1] ?? '', true);
   const missing = 8 - head.length - tail.length;
   // "::" stands for one or more groups of zero; a compression that leaves
   // nothing to fill (or too little room) is not a valid address.
@@ -155,26 +159,92 @@ function ipv6Hextets(address: string): readonly number[] {
   return [...head, ...new Array<number>(missing).fill(0), ...tail];
 }
 
-// The two IPv4-in-IPv6 forms this server must not be fooled by: the
-// mapped/compatible `::ffff:a.b.c.d` and `::a.b.c.d` families (any
-// spelling — dotted or hex, compressed or not) and the NAT64 well-known
-// prefix `64:ff9b::/96` (RFC 6052). Both carry the real address in the
-// last 32 bits; every other bit pattern is checked as ordinary IPv6.
-function embeddedIPv4(hextets: readonly number[]): string | null {
-  const [h0, h1, h2, h3, h4, h5, h6, h7] = hextets;
-  const isMappedOrCompatible =
-    h0 === 0 && h1 === 0 && h2 === 0 && h3 === 0 && h4 === 0 && (h5 === 0 || h5 === 0xffff);
-  const isNat64WellKnown =
-    h0 === 0x0064 && h1 === 0xff9b && h2 === 0 && h3 === 0 && h4 === 0 && h5 === 0;
-  if (!isMappedOrCompatible && !isNat64WellKnown) return null;
+interface Encapsulation {
+  readonly matches: (h: readonly number[]) => boolean;
+  readonly highIndex: number;
+  readonly lowIndex: number;
+}
 
-  const high = h6 ?? 0;
-  const low = h7 ?? 0;
+// Every IPv4-in-IPv6 form this server must not be fooled by, keyed by
+// where the embedded address sits in the 8 parsed hextets — 6to4 carries
+// it right after the fixed prefix (hextets 1–2); every NAT64 and mapped
+// form carries it in the last 32 bits (hextets 6–7). `::` and `::1`, the
+// unspecified and loopback addresses, are excluded here deliberately: RFC
+// 4291 §2.5.5.1 reserves those two bit patterns for their own meaning, not
+// for the deprecated IPv4-compatible form, and the caller checks them
+// before this list is consulted.
+const ENCAPSULATIONS: readonly Encapsulation[] = [
+  {
+    // ::a.b.c.d / ::ffff:a.b.c.d — IPv4-compatible (deprecated) and
+    // IPv4-mapped (RFC 4291 §2.5.5), marker at hextet 5.
+    matches: (h) =>
+      h[0] === 0 &&
+      h[1] === 0 &&
+      h[2] === 0 &&
+      h[3] === 0 &&
+      h[4] === 0 &&
+      (h[5] === 0 || h[5] === 0xffff),
+    highIndex: 6,
+    lowIndex: 7,
+  },
+  {
+    // ::ffff:0:a.b.c.d — IPv4-translated (RFC 2765), marker at hextet 4.
+    matches: (h) =>
+      h[0] === 0 && h[1] === 0 && h[2] === 0 && h[3] === 0 && h[4] === 0xffff && h[5] === 0,
+    highIndex: 6,
+    lowIndex: 7,
+  },
+  {
+    // 64:ff9b::a.b.c.d — NAT64 well-known prefix (RFC 6052 §2.1), /96.
+    matches: (h) =>
+      h[0] === 0x0064 && h[1] === 0xff9b && h[2] === 0 && h[3] === 0 && h[4] === 0 && h[5] === 0,
+    highIndex: 6,
+    lowIndex: 7,
+  },
+  {
+    // 64:ff9b:1::a.b.c.d — NAT64 local-use prefix (RFC 8215), /48.
+    matches: (h) =>
+      h[0] === 0x0064 && h[1] === 0xff9b && h[2] === 1 && h[3] === 0 && h[4] === 0 && h[5] === 0,
+    highIndex: 6,
+    lowIndex: 7,
+  },
+  {
+    // 2002:a.b.c.d:: — 6to4 (RFC 3056 §2), /16. The embedded address
+    // follows the prefix directly; the interface identifier that follows
+    // it is not constrained.
+    matches: (h) => h[0] === 0x2002,
+    highIndex: 1,
+    lowIndex: 2,
+  },
+];
+
+function embeddedIPv4(hextets: readonly number[]): string | null {
+  const encapsulation = ENCAPSULATIONS.find((candidate) => candidate.matches(hextets));
+  if (encapsulation === undefined) return null;
+
+  const high = hextets[encapsulation.highIndex] ?? 0;
+  const low = hextets[encapsulation.lowIndex] ?? 0;
   return [(high >> 8) & 0xff, high & 0xff, (low >> 8) & 0xff, low & 0xff].join('.');
 }
 
 function assertPublicIPv6(address: string, options: Options): void {
   const hextets = ipv6Hextets(address);
+  const first = hextets[0];
+  if (first === undefined) {
+    throw new RemoteAddressRefused(`address ${address} is not a valid IPv6 address`);
+  }
+
+  // Checked ahead of every encapsulation: `::` and `::1` are the
+  // unspecified and loopback addresses by name, not an embedded IPv4
+  // 0.0.0.0 or 0.0.0.1 — see the note on `ENCAPSULATIONS` above.
+  const isUnspecified = hextets.every((hextet) => hextet === 0);
+  const isLoopback = hextets.slice(0, 7).every((hextet) => hextet === 0) && hextets[7] === 1;
+  if (isUnspecified) {
+    throw new RemoteAddressRefused(`address ${address} is an unspecified address`);
+  }
+  if (isLoopback) {
+    throw new RemoteAddressRefused(`address ${address} is a loopback address`);
+  }
 
   const embedded = embeddedIPv4(hextets);
   if (embedded !== null) {
@@ -182,23 +252,10 @@ function assertPublicIPv6(address: string, options: Options): void {
     return;
   }
 
-  const first = hextets[0];
-  if (first === undefined) {
-    throw new RemoteAddressRefused(`address ${address} is not a valid IPv6 address`);
-  }
-
-  const isUnspecified = hextets.every((hextet) => hextet === 0);
-  const isLoopback = hextets.slice(0, 7).every((hextet) => hextet === 0) && hextets[7] === 1;
   const isLinkLocal = (first & 0xffc0) === 0xfe80;
   const isUniqueLocal = (first & 0xfe00) === 0xfc00;
   const isMulticast = (first & 0xff00) === 0xff00;
 
-  if (isUnspecified) {
-    throw new RemoteAddressRefused(`address ${address} is an unspecified address`);
-  }
-  if (isLoopback) {
-    throw new RemoteAddressRefused(`address ${address} is a loopback address`);
-  }
   if (isLinkLocal) {
     throw new RemoteAddressRefused(`address ${address} is a link-local address`);
   }
