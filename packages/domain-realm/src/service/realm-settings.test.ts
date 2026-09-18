@@ -67,4 +67,17 @@ describe('coercing a value that arrived as a string', () => {
       value: 'Demo Realm',
     });
   });
+
+  it('coerces the registration policy as text and the client cap as an integer', () => {
+    expect(coerceRealmSetting('client_registration_policy', 'token')).toEqual({
+      kind: 'coerced',
+      column: 'clientRegistrationPolicy',
+      value: 'token',
+    });
+    expect(coerceRealmSetting('max_clients', '50')).toEqual({
+      kind: 'coerced',
+      column: 'maxClients',
+      value: 50,
+    });
+  });
 });

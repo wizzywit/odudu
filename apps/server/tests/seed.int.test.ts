@@ -508,6 +508,20 @@ describe('seed realm --set', () => {
     expect(rows[0]?.passwordMaxAgeDays).toBe(0);
   });
 
+  it('cannot write a client cap the database refuses', async () => {
+    const name = `set-${newId()}`;
+
+    await expect(seed(['realm', '--name', name, '--set', 'max_clients=-1'])).rejects.toThrow();
+  });
+
+  it('cannot write a registration policy the database refuses', async () => {
+    const name = `set-${newId()}`;
+
+    await expect(
+      seed(['realm', '--name', name, '--set', 'client_registration_policy=nonsense']),
+    ).rejects.toThrow();
+  });
+
   it('refuses a setting name it does not know, and names the ones it does', async () => {
     await expect(
       seed(['realm', '--name', `set-${newId()}`, '--set', 'otp_requried=true']),

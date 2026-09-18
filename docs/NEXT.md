@@ -221,7 +221,7 @@ so what P4 owes is a surface, not a mechanism.
 ## Realm settings have a command; two client writes do not, by design
 
 `odudu seed realm --name <realm> --set <name>=<value>` applies any of the
-twenty-one realm settings, repeatable, named by the column names the schema
+twenty-three realm settings, repeatable, named by the column names the schema
 and `docs/request-paths.md` already use. All five passages that flipped a
 realm setting with `psql` now run it, and `README.md`'s three claims that no
 flag existed are gone — one of them had been wrong before this, since
