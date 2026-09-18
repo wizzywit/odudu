@@ -90,12 +90,16 @@ registration data P3a stored but nothing yet acts on). The consent
 transcript: still derived, not observed, as the note admits. Reproducing
 it means replaying the whole document's transcript from the top to reach
 the same `demo` realm state — infeasible inside a documentation-only
-closing pass — so it is explicitly deferred rather than left open-ended:
-P4b's page-contract retrofit is the next point every rendered page,
-consent included, gets touched wholesale, which is the natural point to
-regenerate every transcript theming would otherwise silently invalidate
-anyway. Recorded in `docs/NEXT.md` with that owner rather than as a bare
-admission.
+closing pass — so it is explicitly deferred rather than left open-ended.
+A first pass of this note assigned it to P4b on the reasoning that
+theming touches every rendered page; a review of this pass caught that as
+the same defect it had just fixed for the `claims` parameter — P4b's
+criterion is theming and branding, and re-deriving a transcript is named
+in neither. Reassigned to **P3b**, which rewrites `/authorize`'s session
+decision and adds concurrent sessions and "remember me," so it re-runs the
+transcripts around this exact request path regardless, and whose own
+criterion already names the surface. Recorded in `docs/NEXT.md` with that
+owner rather than as a bare admission.
 
 **The roadmap against the "not implemented" list, both directions.** One
 new candidate, the `claims` parameter (above), resolved the same way
@@ -316,11 +320,18 @@ onward; only where it plugs in kept moving.
 
 ## Parked minors: disposition
 
-Fifteen items were explicitly parked across the phase's reviews. Each is
+Fourteen items were explicitly parked across the phase's reviews. Each is
 resolved below rather than left to be re-discovered.
 
 **Fixed in this pass (documentation only):**
 
+- _Task 8_ — ADR 0028's NAT64 clause claimed coverage of "the NAT64
+  well-known and local-use prefixes (RFC 6052, RFC 8215)" outright, when
+  the guard only unwraps and checks the `/96`-shaped embeddings under
+  those prefixes — true-with-a-caveat, per the ledger's own naming of the
+  gap. Corrected to say `/96`-shaped embeddings under those prefixes, and
+  to name the non-`/96` case it does not cover (below) rather than leave
+  it implied.
 - _Task 9_ — commit `a2f3b4d`'s body cites "the Task 8 guard," a process
   reference CLAUDE.md bars from comments and, by the same reasoning, from
   commit messages. Not rewritten: it is already pushed history, and
@@ -368,6 +379,14 @@ assumed:
 **Dropped, with reasons** — low risk, narrow blast radius, not worth a
 phase slot:
 
+- _Task 8_ — RFC 6052 §2.2 non-`/96` embeddings under `64:ff9b:1::/48`
+  (e.g. `64:ff9b:1:7f00:0:1::`) reach the ordinary IPv6 check unrecognised
+  as IPv4, since the guard only unwraps the `/96` form. Named to the
+  `::/96` follow-up (`spawn_task task_0799dcb9`) as context, but not asked
+  of it: it needs an unusual RFC 6052 deployment to exploit (§2.2 permits
+  several other prefix lengths, none in ordinary use), narrower than the
+  `::/96` gap that follow-up actually closes. Left for whoever next
+  touches `remote-address.ts`'s IPv4-in-IPv6 table.
 - _Task 2_ — the page-contract exit test exempts a file by basename rather
   than full path, so a same-named file anywhere else would also be exempt.
   True, and the directory structure this test polices has exactly three

@@ -6014,9 +6014,11 @@ session lifecycle. A citation of either half here means that half.
   UserInfo responses for that reason.
 - **No `claims` request parameter.** A decision: §5.5 says "Support for the
   `claims` parameter is OPTIONAL", and the two ID Token clauses that depend
-  on it are deferred to **P3a** with the per-client machinery, whose criterion
-  does not yet name the parameter — `docs/NEXT.md` carries that as an open
-  decision for P3a's plan.
+  on it are deferred to **P3b**. P3a built the per-client machinery and
+  consent screen the parameter needs, but P3a's own criterion never named
+  the parameter itself and nothing in its plan built it, so it moves to
+  P3b, filed beside the signed and encrypted UserInfo responses above,
+  which read the same per-client registration data.
 - **No aggregated or distributed claims.** A decision, and the specification
   is explicit: §5.6.2 says "Normal Claims MUST be supported. Support for
   Aggregated Claims and Distributed Claims is OPTIONAL." No phase is owed

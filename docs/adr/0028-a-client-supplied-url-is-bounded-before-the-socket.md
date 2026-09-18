@@ -40,8 +40,12 @@ URL, split across the two moments such a URL can be refused:
   never a string prefix). An IPv4 address embedded in IPv6 is unwrapped and
   checked as IPv4 for five encapsulations: IPv4-mapped and the deprecated
   IPv4-compatible form (dotted or hex, RFC 4291 §2.5.5), IPv4-translated
-  (RFC 2765), the NAT64 well-known and local-use prefixes (RFC 6052, RFC
-  8215), and 6to4 (RFC 3056). `::` and `::1` are matched by name, ahead of
+  (RFC 2765), `/96`-shaped embeddings under the NAT64 well-known and
+  local-use prefixes (RFC 6052 §2.2, RFC 8215), and 6to4 (RFC 3056). A
+  non-`/96` embedding under those same prefixes — RFC 6052 §2.2 permits
+  several other prefix lengths — is not unwrapped and reaches the ordinary
+  IPv6 check above unrecognised as IPv4; narrow, and not fixed here
+  (parked, `docs/phases/p3a.md`). `::` and `::1` are matched by name, ahead of
   that unwrapping, since both bit patterns collide with the deprecated
   compatible form's own encoding and are reserved for the unspecified and
   loopback addresses specifically (RFC 4291 §2.5.5.1). No other IPv4-in-IPv6

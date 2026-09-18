@@ -52,13 +52,19 @@ Basic OP.
   per-client registration data that had no machinery to supply it before
   P3a.
 - **The consent-screen section of `docs/request-paths.md` is still
-  derived, not observed**, and deliberately not re-derived in this closing
-  pass — reproducing it means replaying the whole document's transcript
-  from the top to reach the same `demo` realm state, which a
-  documentation-only pass cannot absorb. Explicitly assigned to **P4b**:
-  its page-contract retrofit touches every rendered page, consent
-  included, and is the next point a full re-transcription happens anyway
-  rather than as a one-off.
+  derived, not observed, and it is P3b's to close, not P4b's.**
+  Reproducing it means replaying the whole document's transcript from the
+  top to reach the same `demo` realm state, which a documentation-only
+  pass cannot absorb — deliberately not attempted here. P4b's criterion is
+  theming and per-client branding; re-deriving a transcript is nowhere in
+  it, the same "criterion omits the work sent to it" shape this file just
+  corrected for the `claims` parameter above. P3b is the right owner
+  instead: it rewrites `/authorize`'s session decision and adds concurrent
+  sessions and "remember me," so it will be re-running the transcripts
+  around this exact request path regardless, and its own criterion already
+  names the surface. Replace the section with a real transcript (an
+  anonymously self-registered client, per the section's own plan) as part
+  of that work, not as an afterthought.
 - **The address guard (`packages/protocol-oidc/src/service/remote-address.ts`)
   is sound against every bypass this phase's adversarial review found and
   fixed** (IPv4-mapped/-compatible spellings, NAT64, 6to4 all now
