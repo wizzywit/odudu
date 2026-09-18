@@ -318,15 +318,18 @@ pages — which belong to the protocol endpoints themselves — in
 unit test can assert markup against, and every page in the server has one
 shape.
 
-**Every page leaves through `sendHtml`**
-(`packages/protocol-oidc/src/view/html-response.ts`), which is what makes
-the security headers unforgettable on a page added later: a route never
-sets `content-type`, `content-security-policy` or `x-frame-options` itself.
-`html-response.test.ts` holds the view layer to naming the HTML media type
-nowhere else.
+**A page's headers have one authority**: `pageHeaders` in `@odudu/kernel`
+(ADR 0029). Two packages spread its result over a reply — `sendHtml`
+(`packages/protocol-oidc/src/view/html-response.ts`) and
+`sendVerificationHtml` (`packages/account/src/view/verification-html.ts`),
+each a two-line wrapper because `FastifyReply` cannot live in the
+transport-free `kernel` package. A route never sets `content-type`,
+`content-security-policy`, `x-frame-options` or `referrer-policy` itself;
+`html-response.test.ts` holds every package's view layer to naming none of
+those itself outside the two files that spread `pageHeaders`.
 
 **A page that needs a script says so in its return value**, as a
-`RenderedPage` carrying the nonce its own markup used, and `sendHtml`
+`RenderedPage` carrying the nonce its own markup used, and `pageHeaders`
 derives `script-src` from that one value. Never assemble a policy beside
 the markup: `default-src 'none'` blocks an inline script **silently**, so
 such a page looks broken rather than refused, and a nonce named in a header

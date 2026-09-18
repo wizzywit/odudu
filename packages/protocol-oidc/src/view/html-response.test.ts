@@ -7,6 +7,12 @@ import { sendHtml } from '#/view/html-response';
 
 const VIEW_DIR = import.meta.dirname;
 const HTML_MEDIA_TYPE = ['text', 'html'].join('/');
+const PACKAGES_DIR = join(VIEW_DIR, '..', '..', '..', '..', 'packages');
+const HEADER_NAMES = ['content-security-policy', 'x-frame-options', 'referrer-policy'];
+// The two files that legitimately spread the header set `pageHeaders`
+// (`@odudu/kernel`) returns — every other view-layer file gets it only by
+// going through one of them.
+const EXEMPT_FILES = ['html-response.ts', 'verification-html.ts'];
 
 async function sourcesUnder(dir: string): Promise<{ path: string; text: string }[]> {
   const found: { path: string; text: string }[] = [];
@@ -38,6 +44,20 @@ async function headersOf(
     if (typeof value === 'string') headers[name] = value;
   }
   return headers;
+}
+
+async function viewSources(): Promise<{ path: string; text: string }[]> {
+  const found: { path: string; text: string }[] = [];
+  for (const entry of await readdir(PACKAGES_DIR, { withFileTypes: true })) {
+    if (!entry.isDirectory()) continue;
+    const viewDir = join(PACKAGES_DIR, entry.name, 'src', 'view');
+    try {
+      found.push(...(await sourcesUnder(viewDir)));
+    } catch {
+      // No view layer in this package.
+    }
+  }
+  return found;
 }
 
 describe('[ODUDU-VIEW-HTML-01] an HTML response cannot leave without its framing defences', () => {
@@ -110,6 +130,18 @@ describe('[ODUDU-VIEW-HTML-01] an HTML response cannot leave without its framing
     const offenders = (await sourcesUnder(VIEW_DIR))
       .filter((f) => !f.path.endsWith('html-response.ts') && f.text.includes(HTML_MEDIA_TYPE))
       .map((f) => f.path.slice(VIEW_DIR.length + 1));
+    expect(offenders).toEqual([]);
+  });
+
+  // pageHeaders (@odudu/kernel) is the one authority for these header
+  // names; every view-layer file gets them by spreading its result rather
+  // than naming a header itself, which is what let referrer-policy diverge
+  // between the two exits this file and verification-html.ts now share.
+  it('is one of only two files across every package that names a page header', async () => {
+    const offenders = (await viewSources())
+      .filter((f) => !EXEMPT_FILES.includes(f.path.split('/').pop() ?? ''))
+      .filter((f) => HEADER_NAMES.some((name) => f.text.includes(name)))
+      .map((f) => f.path.slice(PACKAGES_DIR.length + 1));
     expect(offenders).toEqual([]);
   });
 });
