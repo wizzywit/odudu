@@ -129,6 +129,201 @@ it stays manual). Wiring Basic OP into CI would in any case gate every
 build on a profile odudu is not built to pass (next section); it is run
 by hand, when the authorization or token endpoints change.
 
+## Spike 4: what the Dynamic OP plan demands
+
+Four questions about `OIDCCDynamicTestPlan`
+(`src/main/java/net/openid/conformance/openid/OIDCCDynamicTestPlan.java`,
+`@PublishTestPlan(testPlanName = "oidcc-dynamic-certification-test-plan")`),
+read from the suite's own source at `release-v5.1.36` rather than its
+documentation.
+
+verified: `git clone --depth 1 --branch release-v5.1.36
+https://gitlab.com/openid/conformance-suite.git` into `/tmp/conformance-suite`
+(no build — only the Java is read), 2026-09-18.
+
+### Question 1 — does the plan require metadata P3a will not advertise?
+
+**No for five of the six candidate fields; the sixth
+(`userinfo_signing_alg_values_supported`) is checked but explicitly
+skippable, not required.**
+
+`OIDCCDynamicTestPlan.testModulesWithVariants()` runs
+`OIDCCDiscoveryEndpointVerification` for its `discovery`/`dynamic_client`
+module group. That class
+(`src/main/java/net/openid/conformance/openid/OIDCCDiscoveryEndpointVerification.java:99-105`)
+calls the one metadata condition among the six that the plan's modules touch
+at all, `OIDCCCheckDiscEndpointUserinfoSigningAlgValuesSupported`, wrapped as:
+
+```
+call(condition(OIDCCCheckDiscEndpointUserinfoSigningAlgValuesSupported.class)
+	.skipIfElementMissing("server", "userinfo_signing_alg_values_supported")
+	.onFail(Condition.ConditionResult.FAILURE)
+	.onSkip(Condition.ConditionResult.INFO)
+	.requirement("OIDCD-3")
+	.dontStopOnFailure()
+);
+```
+
+`.skipIfElementMissing` means the condition's own `evaluate()`
+(`OIDCCCheckDiscEndpointUserinfoSigningAlgValuesSupported.java`, which would
+otherwise throw `error(environmentVariable + ": not found")` via
+`AbstractValidateJsonArray.validate()` when the field is absent) never runs
+if the discovery document omits the field — the module logs `INFO` and
+continues. So this field is genuinely optional to the plan, matching the
+OIDC Discovery spec.
+
+`backchannel_logout_supported` and `frontchannel_logout_supported` are each
+checked only by a condition reachable from a dedicated module
+(`OIDCCBackchannelLogoutDiscoveryEndpointVerification`,
+`OIDCCFrontchannelLogoutDiscoveryEndpointVerification`) — neither class
+appears anywhere in `OIDCCDynamicTestPlan`'s `testModulesWithVariants()`
+module lists, so the dynamic plan never runs them.
+`userinfo_encryption_alg_values_supported` appears in the source tree only
+in `condition/as/OIDCCGenerateServerConfiguration.java`, which builds
+metadata for the suite acting as an authorization server in other tests, not
+a client-side check against an OP under test. `introspection_endpoint` and
+`revocation_endpoint` do not appear anywhere under `src/main/java/` — zero
+matches, not a search that missed: searched with `grep -rn
+"introspection_endpoint" src/main/java/` and the same for
+`revocation_endpoint`, both empty.
+
+Searched: `grep -rn "oidcc-dynamic-certification-test-plan" src/main/java/`
+then `grep -rln "backchannel_logout_supported\|userinfo_signing_alg_values_supported\|introspection_endpoint" src/main/java/net/openid/conformance/condition/client/`,
+followed by reading each hit and `OIDCCDynamicTestPlan.java` in full to check
+which condition classes its own module lists actually reach.
+
+### Question 2 — is RFC 7592 client management required?
+
+**No — no module the dynamic plan runs touches
+`registration_access_token` or `registration_client_uri`.**
+
+verified: `grep -rn "registration_access_token\|registration_client_uri"
+src/main/java/`, 2026-09-18. Every hit is in `fapi2spid2/`, `fapi2spfinal/`
+(the FAPI 2.0 Brazil profiles' own dynamic-client-management tests, e.g.
+`FAPI2SPID2BrazilDCRUpdateClientConfig.java`,
+`FAPI2SPID2BrazilDCRClientDeletion.java`) or generic condition
+infrastructure (`condition/common/CreateRandomRegistrationClientUri.java`,
+`condition/as/GenerateRegistrationAccessToken.java`) available to any plan
+that chooses to call it. Checked each of the seven module classes
+`OIDCCDynamicTestPlan` actually lists for registration
+(`OIDCCServerTest`, `OIDCCRegistrationLogoUri`, `OIDCCRegistrationPolicyUri`,
+`OIDCCRegistrationTosUri`, `OIDCCRegistrationJwksUri`,
+`OIDCCRegistrationSectorUri`, `OIDCCRegistrationSectorBad`) individually for
+either string — no match in any. No module exercises a GET, PUT or DELETE
+against a client configuration endpoint. Confirms the plan already changed
+to: P3a ships RFC 7591 registration alone.
+
+### Question 3 — `jwks_uri` or inline `jwks`? (reverses the plan's default)
+
+**Both — most modules register with inline `jwks`, but one module in the
+plan's own module list, `OIDCCRegistrationJwksUri`, registers a client with
+a `jwks_uri` that the suite serves and the OP must fetch. This reverses the
+plan's default of deferring the JWKS fetcher to the next phase: a fetcher
+is required in P3a for this module to pass.**
+
+`OIDCCDynamicTestPlan.java:86` lists `OIDCCRegistrationJwksUri.class, //
+OP-Registration-jwks_uri` in the third module group, run under
+`variantPrivateKeyJwtDynReg` (the plan's default client-auth variant for
+most of its modules). Its source
+(`src/main/java/net/openid/conformance/openid/OIDCCRegistrationJwksUri.java`)
+swaps the registration request's key material:
+
+```
+call(new OIDCCCreateDynamicClientRegistrationRequest(responseType)
+		.replace(GenerateRS256ClientJWKs.class,
+				condition(GenerateRS256ClientJWKsWithKeyID.class))
+		.replace(AddPublicJwksToDynamicRegistrationRequest.class,
+				condition(AddJwksUriToDynamicRegistrationRequest.class)));
+```
+
+and serves the key set itself from a suite-hosted URL:
+
+```
+private Object handleJwksRequest() {
+	JsonObject clientPublicJwks = env.getObject("client_public_jwks");
+	...
+	return ResponseEntity.ok()
+			.contentType(MediaType.APPLICATION_JSON)
+			.body(clientPublicJwks);
+}
+```
+
+Every other module in the plan's lists registers the default way, via
+`AddPublicJwksToDynamicRegistrationRequest`
+(`src/main/java/net/openid/conformance/condition/client/AddPublicJwksToDynamicRegistrationRequest.java`),
+which puts the key set inline as `dynamic_registration_request.jwks` rather
+than a URI — so most of the plan's traffic never needs the OP to fetch
+anything. But `OIDCCRegistrationJwksUri` is not optional to the plan; it is
+one of the eight modules in `OIDCCDynamicTestPlan`'s registration group, so
+"the Dynamic OP plan passes" requires the OP to dereference a `jwks_uri` it
+is given at registration time.
+
+verified: `grep -rn "jwks_uri"
+src/main/java/net/openid/conformance/condition/client/ | grep -i
+"regist\|dynamic"`, then read `OIDCCRegistrationJwksUri.java` and
+`AddPublicJwksToDynamicRegistrationRequest.java` in full, 2026-09-18.
+
+### Question 4 — does the plan demand response types this server refuses?
+
+**Yes, unconditionally: the discovery check the plan runs for every dynamic
+client registration requires `response_types_supported` to contain `code`,
+`id_token` and `token id_token` (`id_token token`) all three — not one of
+them, all of them. A server that never implements Implicit or Hybrid cannot
+pass this check.**
+
+`OIDCCDynamicTestPlan.java:21` notes "ResponseType.class is not specified so
+will be offered in the menu" — no fixed response type is baked into the
+plan itself, the operator picks one when starting a run, and individual
+modules mark themselves `@VariantNotApplicable` for response types they
+don't exercise. But the module every variant combination runs,
+`OIDCCDiscoveryEndpointVerification`, does not consult that per-run choice
+for this check. At
+`src/main/java/net/openid/conformance/openid/OIDCCDiscoveryEndpointVerification.java:85-89`:
+
+```
+if (getVariant(ClientRegistration.class) == ClientRegistration.DYNAMIC_CLIENT) {
+	callAndContinueOnFailure(OIDCCCheckDiscEndpointResponseTypesSupportedDynamic.class, Condition.ConditionResult.FAILURE, "OIDCD-3", "OIDCC-15.2");
+} else {
+	callAndContinueOnFailure(OIDCCCheckDiscEndpointResponseTypesSupported.class, Condition.ConditionResult.FAILURE, "OIDCD-3", "OIDCC-3");
+}
+```
+
+`OIDCCDynamicTestPlan` sets `ClientRegistration.class` to `"dynamic_client"`
+in every one of its module groups, so this branch always takes the
+`...Dynamic` condition, never the plain one. That condition
+(`OIDCCCheckDiscEndpointResponseTypesSupportedDynamic.java`) requires **all
+three** listed values, not merely one:
+
+```
+private static final String[] SET_VALUES = {"code", "id_token", "token id_token"}; // from OIDCD-3
+private static final int minimumMatchesRequired = SET_VALUES.length;
+
+private static final String errorMessageNotEnough = "The server does not support all of the mandatory to implement response_types for dynamic OpenID Providers.";
+```
+
+— contrast the non-dynamic sibling `OIDCCCheckDiscEndpointResponseTypesSupported`, which sets
+`minimumMatchesRequired = 1` against a six-value set including plain
+`"code"`. The dynamic-plan variant has no such escape.
+
+`docs/protocols/oidc-discovery.md:73` records the same MUST from OIDC
+Discovery §3 as `n/a:` on the reasoning that OAuth 2.1 removes Implicit and
+Hybrid and Odudu "is not and will not become" a Dynamic OpenID Provider in
+the specification's sense. This spike shows that reasoning does not carry
+over to the test plan: the plan's own discovery check enforces the
+specification's MUST regardless of which response type an operator selects
+for the rest of the run. **"The OIDF Dynamic OP plan passes" cannot be met
+by a server that will never implement `id_token` and `id_token token`.**
+Per ADR 0016's treatment of Basic OP, this needs to become a confirmed,
+documented divergence rather than an unqualified "passes" — that decision,
+and any rewording of P3a's exit criterion, is for the human.
+
+verified: `grep -rn "id_token token\|response_types_supported"
+src/main/java/net/openid/conformance/openid/`, then read
+`OIDCCDiscoveryEndpointVerification.java`,
+`OIDCCCheckDiscEndpointResponseTypesSupportedDynamic.java` and
+`OIDCCCheckDiscEndpointResponseTypesSupported.java` in full, and
+`variant/ResponseType.java` for the enum's values, 2026-09-18.
+
 ## Basic OP: a recorded incompatibility, not an outstanding failure
 
 **odudu cannot pass the Basic OP profile, and will not be changed so that

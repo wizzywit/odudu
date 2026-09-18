@@ -39,12 +39,35 @@ than about the design or a third party.
   not mention it, which is exactly the failure section 11 catalogues five
   of: work placed in a phase whose criterion can be met without it. P3a's
   plan either names it in the criterion or moves it, and says which.
-- **Whether RFC 7592 client management is in P3a at all** depends on the
-  **second** of the spec's spikes. If the OIDF Dynamic OP plan does not
-  require a client configuration endpoint, P3a ships RFC 7591 alone and the
-  registered-client management `docs/request-paths.md` describes moves to
-  P4. Both documents say "P3a, pending that spike" until it reports; neither
-  states it unconditionally.
+- **RFC 7592 client management is not in P3a.** Spike 4
+  (`infra/conformance/README.md`) read the Dynamic OP plan's own source at
+  `release-v5.1.36`: no module `OIDCCDynamicTestPlan` runs touches
+  `registration_access_token` or `registration_client_uri`, and none
+  exercises a GET, PUT or DELETE against a client configuration endpoint.
+  P3a ships RFC 7591 registration alone; registered-client management stays
+  where `docs/request-paths.md` already places it, in P4.
+- **Two more findings from the same spike, both open for a human decision:**
+  question 1 found that the plan's own discovery check
+  (`OIDCCDiscoveryEndpointVerification`) treats
+  `userinfo_signing_alg_values_supported` as skip-if-absent, not required —
+  none of the other five candidate metadata fields
+  (`backchannel_logout_supported`, `frontchannel_logout_supported`,
+  `userinfo_encryption_alg_values_supported`, `introspection_endpoint`,
+  `revocation_endpoint`) is touched by any module the plan runs, so P3a's
+  planned discovery advertisement is not short of anything the plan checks.
+  Question 4 found the opposite kind of gap: the plan's discovery check,
+  when `ClientRegistration` is `dynamic_client` (true for every module group
+  the plan defines), requires `response_types_supported` to contain `code`,
+  `id_token` **and** `token id_token` all three, unconditionally — so "the
+  OIDF Dynamic OP plan passes" cannot be met by a server that will never
+  implement Implicit or Hybrid. This needs the same treatment ADR 0016 gave
+  Basic OP (a confirmed, documented divergence) rather than an unqualified
+  "passes", and P3a's exit criterion needs rewording to match — both are
+  decisions for the human, not resolved by this spike. Question 3 also
+  reversed a plan default: `OIDCCRegistrationJwksUri`, one of the plan's own
+  registration modules, requires the OP to fetch a suite-hosted `jwks_uri`,
+  so the JWKS fetcher task moves back into this phase instead of deferring
+  to the next.
 
 ### What P3a and P3b inherit from P2b
 
