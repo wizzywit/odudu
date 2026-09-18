@@ -35,9 +35,11 @@ every merge to `main` — a branch push with no pull request open runs
 nothing, by design (`.github/workflows/verify.yml`).
 
 There is still no consent screen, no admin API and no
-token exchange — P3 onwards. The roadmap's second phase is two: **P2a** is
-the identity model — roles, groups, client scopes, per-client web origins,
-email — and **P2b** is credentials, MFA and the session lifecycle.
+token exchange — P3a onwards. The roadmap's second and third phases are each
+two. **P2a** is the identity model — roles, groups, client scopes,
+per-client web origins, email — and **P2b** is credentials, MFA and the
+session lifecycle. **P3a** is clients, registration and consent, and **P3b**
+is sessions, logout and the token surface.
 
 A role reaches a token only when it is mapped to a scope the client is
 assigned, because `clients.full_scope_allowed` is off by default — a client
@@ -261,7 +263,7 @@ for around a client's password is still unanswered: the lockout is keyed by
 subject and a client is not one, and a budget per address is one address for
 every
 request a server-side client will ever make. A limit keyed by client is
-`deferred: P3` in [docs/protocols/rfc6749.md](docs/protocols/rfc6749.md),
+`deferred: P3a` in [docs/protocols/rfc6749.md](docs/protocols/rfc6749.md),
 where client authentication is reworked.
 
 `password_max_age_days` (default `0`, the feature off) ages a password out.
@@ -372,7 +374,7 @@ client can demand a fresher authentication than the cookie represents. The
 email-verified gate guards this second door into completing a login exactly
 as it guards the password form. What is not there: **one session per
 browser**, since the cookie holds one id, which is why
-`prompt=select_account` renders the ordinary form and is P3's.
+`prompt=select_account` renders the ordinary form and is P3b's.
 
 **A realm can now end a session.** `GET`/`POST
 /realms/{realm}/protocol/openid-connect/logout` implements OpenID Connect
@@ -394,7 +396,7 @@ was issued. A grant issued with no session — `offline_access` — is
 untouched by a logout, per Back-Channel Logout 1.0 §2.7's second sentence.
 A deployment that needs revocation inside an
 access token's own lifetime is what RFC 7662 introspection is for, landing
-in P3. See [the logout section of
+in P3b. See [the logout section of
 docs/request-paths.md](docs/request-paths.md#rp-initiated-logout) for the
 walkthrough.
 
@@ -883,14 +885,14 @@ Every row says where it stands, and every row has a phase:
 
 |                                                                                                        | Where it stands |
 | ------------------------------------------------------------------------------------------------------ | --------------- |
-| A consent screen, and dynamic client registration                                                      | P3              |
-| Several sessions in one browser, and the `prompt=select_account` that needs them                       | P3              |
-| A rate limit on `client_secret` attempts at `/token`                                                   | P3              |
+| A consent screen, and dynamic client registration                                                      | P3a             |
+| Several sessions in one browser, and the `prompt=select_account` that needs them                       | P3b             |
+| A rate limit on `client_secret` attempts at `/token`                                                   | P3a             |
 | An account console for self-service credential management, and an operator unlock for a locked account | P4              |
 | An admin API — seeding is the only administrative surface                                              | P4              |
 | Signing-key rotation — the shape exists, the operation does not                                        | P4              |
-| Front-channel and back-channel logout                                                                  | P3              |
-| Token introspection and revocation                                                                     | P3              |
+| Front-channel and back-channel logout                                                                  | P3b             |
+| Token introspection and revocation                                                                     | P3b             |
 | Published images and a release process                                                                 | P12             |
 | Secret management beyond environment variables                                                         | P12             |
 | Backup and restore guidance                                                                            | P12             |

@@ -3788,7 +3788,7 @@ client, and refuses a client that already exists — deliberately, because a
 re-run that quietly widened a registered redirect list is how an allowlist
 grows by accident. `demo-spa` was seeded back in
 [Bootstrap](#bootstrap), so this walkthrough sets the column directly;
-changing a registered client is the admin API's work, which is P3's:
+changing a registered client is client-management work, which is P3a's:
 
 ```bash
 docker compose -f infra/docker/compose.yaml exec -T postgres \
@@ -5447,7 +5447,7 @@ session lifecycle. A citation of either half here means that half.
 - **No consent screen.** Every scope the realm defines and the client is
   assigned is granted without asking the user. The allowlist exists — it is
   the client's scope assignments — but nothing asks the user to approve what
-  it lets through. **P3**, the phase named for consent, and — since
+  it lets through. **P3a**, the phase named for consent, and — since
   2026-09-14 — the phase whose exit criterion names it too: a screen a user
   can refuse, and a recorded grant.
 - **`display`, `ui_locales`, `claims_locales` and `login_hint` are accepted
@@ -5559,11 +5559,11 @@ session lifecycle. A citation of either half here means that half.
   in the same browser replaces the first rather than joining it. That is
   also why `prompt=select_account` renders the ordinary form:
   account selection needs concurrent sessions, and both it and the three
-  clause rows behind it are **P3**'s. "Remember me" is **P3**'s too, named in
+  clause rows behind it are **P3b**'s. "Remember me" is **P3b**'s too, named in
   its criterion since 2026-09-17: the cookie this server sets carries no
   `Max-Age`, which is why closing the browser ends the session, and the
   toggle, the second pair of lifespans and the checkbox that select a
-  persistent one are all on surfaces P3 already touches.
+  persistent one are all on surfaces P3b already touches.
 - **Failed sign-ins are locked out per account, and the unauthenticated
   routes that cost CPU are throttled per origin; `/token` is neither.**
   Five consecutive wrong passwords lock an account for a growing window, on
@@ -5583,13 +5583,13 @@ session lifecycle. A citation of either half here means that half.
   authentication at `/token` is bounded by neither: the lockout is keyed by
   subject and a client is not one, the throttle's key is one address for
   every request a server-side client makes, and RFC 6749 §2.3.1's row for
-  that half is `deferred: P3` in
+  that half is `deferred: P3a` in
   [docs/protocols/rfc6749.md](protocols/rfc6749.md).
 - **The sign-in and error pages are hardcoded HTML**, dependency-free with
   every interpolated value escaped. Theming and per-client branding are
   **P4b**, split out of P10 on 2026-09-17 because P10's criterion tested
   provider loading and would have passed with no theming at all. The
-  contract is **P3**'s to decide, beside the consent screen, since deciding
+  contract is **P3a**'s to decide, beside the consent screen, since deciding
   it in the phase that delivers it would mean writing that screen the old way
   first — and the variation it has to cover is now visible in **P2a**'s
   registration and verification pages and **P2b**'s second-factor,
@@ -5607,14 +5607,14 @@ session lifecycle. A citation of either half here means that half.
   roadmap says so.
 - **No resource owner password credentials.** A decision: the grant is
   removed by OAuth 2.1, and it is not coming back.
-- **No `private_key_jwt` or mTLS client authentication.** **P3**, whose exit
+- **No `private_key_jwt` or mTLS client authentication.** **P3b**, whose exit
   criterion names both.
 - **No DPoP or other sender-constrained tokens**, mTLS-bound tokens
   included. **P13**, as above: the FAPI 2.0 plan cannot pass without one of
   them.
 - **No `resource` or `audience` request parameter.** A client's audiences
   are whatever its registration says. RFC 8707 resource indicators are
-  **P3**, whose exit criterion names them alongside the per-client audience
+  **P3b**, whose exit criterion names them alongside the per-client audience
   configuration that makes `aud` derived rather than asserted — which is
   where the deferred clause rows in `docs/protocols/rfc9068.md` point.
 
@@ -5625,11 +5625,13 @@ session lifecycle. A citation of either half here means that half.
   the members of a JSON object unless a signed or encrypted response was
   requested during Client Registration", and no client can request one
   because there is no client registration to request it in. The clauses
-  arrive with the registration that carries them, at **P3**, whose exit
+  arrive with the registration that carries them, at **P3b**, whose exit
   criterion names signed and encrypted UserInfo responses for that reason.
 - **No `claims` request parameter.** A decision: §5.5 says "Support for the
   `claims` parameter is OPTIONAL", and the two ID Token clauses that depend
-  on it are deferred to **P3** with the per-client machinery.
+  on it are deferred to **P3a** with the per-client machinery, whose criterion
+  does not yet name the parameter — `docs/NEXT.md` carries that as an open
+  decision for P3a's plan.
 - **No aggregated or distributed claims.** A decision, and the specification
   is explicit: §5.6.2 says "Normal Claims MUST be supported. Support for
   Aggregated Claims and Distributed Claims is OPTIONAL." No phase is owed
@@ -5646,19 +5648,19 @@ session lifecycle. A citation of either half here means that half.
 
 **Endpoints that do not exist at all**
 
-- **Token introspection (RFC 7662) and revocation (RFC 7009).** **P3**,
+- **Token introspection (RFC 7662) and revocation (RFC 7009).** **P3b**,
   whose exit criterion names both. Until then a resource server validates
   access tokens locally against the JWKS, and ending a session or revoking
   a grant — including through [RP-initiated logout](#rp-initiated-logout) —
   does not invalidate an already-issued access token before its `exp`.
-- **Front-channel and back-channel logout.** **P3**: both are addressed to a
+- **Front-channel and back-channel logout.** **P3b**: both are addressed to a
   client rather than to a browser, so both need per-client
   `frontchannel_logout_uri` and `backchannel_logout_uri` registered, which
   is client-registration metadata.
 - **No administrative way to end somebody else's session.** Listing a
   subject's sessions and ending one is **P4**, with the rest of the admin
   surface, because until there is an admin API there is nowhere to put it.
-- **Dynamic client registration (RFC 7591).** **P3.** Today the seed command
+- **Dynamic client registration (RFC 7591).** **P3a.** Today the seed command
   is the only way to create a client.
 - **Any admin API.** **P4.** The seed command is the only administrative
   surface, and it cannot add a user to an existing client, disable anything,
@@ -5687,7 +5689,8 @@ session lifecycle. A citation of either half here means that half.
   operation that would create a second does not exist. **P4**, whose exit
   criterion now names promoting a new key and retiring the one it replaces
   on the overlap window the design specification states. It landed there
-  rather than in P3 because no relying party's request triggers a rotation:
+  rather than in P3a or P3b because no relying party's request triggers a
+  rotation:
   it is an operator action, and it needs the authenticated administrator,
   the audit event and the surface to trigger it from that P4 is the phase
   for.
