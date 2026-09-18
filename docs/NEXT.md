@@ -46,28 +46,43 @@ than about the design or a third party.
   exercises a GET, PUT or DELETE against a client configuration endpoint.
   P3a ships RFC 7591 registration alone; registered-client management stays
   where `docs/request-paths.md` already places it, in P4.
-- **Two more findings from the same spike, both open for a human decision:**
-  question 1 found that the plan's own discovery check
-  (`OIDCCDiscoveryEndpointVerification`) treats
-  `userinfo_signing_alg_values_supported` as skip-if-absent, not required —
-  none of the other five candidate metadata fields
-  (`backchannel_logout_supported`, `frontchannel_logout_supported`,
-  `userinfo_encryption_alg_values_supported`, `introspection_endpoint`,
-  `revocation_endpoint`) is touched by any module the plan runs, so P3a's
-  planned discovery advertisement is not short of anything the plan checks.
-  Question 4 found the opposite kind of gap: the plan's discovery check,
-  when `ClientRegistration` is `dynamic_client` (true for every module group
-  the plan defines), requires `response_types_supported` to contain `code`,
-  `id_token` **and** `token id_token` all three, unconditionally — so "the
-  OIDF Dynamic OP plan passes" cannot be met by a server that will never
-  implement Implicit or Hybrid. This needs the same treatment ADR 0016 gave
-  Basic OP (a confirmed, documented divergence) rather than an unqualified
-  "passes", and P3a's exit criterion needs rewording to match — both are
-  decisions for the human, not resolved by this spike. Question 3 also
-  reversed a plan default: `OIDCCRegistrationJwksUri`, one of the plan's own
-  registration modules, requires the OP to fetch a suite-hosted `jwks_uri`,
-  so the JWKS fetcher task moves back into this phase instead of deferring
-  to the next.
+- **Decided 2026-09-18: the Dynamic OP plan cannot pass, and P3a's
+  criterion no longer claims it will.** The plan's discovery check, when
+  `ClientRegistration` is `dynamic_client` — true for every module group it
+  defines — requires `response_types_supported` to contain `code`,
+  `id_token` **and** `token id_token`, all three
+  (`minimumMatchesRequired = SET_VALUES.length`). OAuth 2.1 removes the
+  flows behind the last two and ADR 0016 records that decision, so a
+  passing run was never available. P3a's criterion is now "the OIDF Dynamic
+  OP plan **runs reproducibly with every divergence confirmed as a recorded
+  decision**", which is verbatim the treatment P1's criterion already gives
+  Basic OP. The ADR is written by the task that runs the plan, from the
+  run's own evidence, as P1 did.
+
+  **P3b inherits the same question and should ask it earlier.** Its
+  criterion will name a suite plan too; read what that plan actually demands
+  before writing the criterion, not after. A criterion that cannot be met
+  is worth catching in a two-hour spike rather than in a phase's last task.
+
+- **Decided the same day: the JWKS fetcher is P3a's after all.**
+  `OIDCCRegistrationJwksUri` is one of the plan's own registration modules
+  and serves the key set over HTTP itself, so the OP must dereference
+  `jwks_uri` during the run. A controller ruling had deferred the fetcher to
+  P3b on the grounds that nothing in P3a consumed one; the spike reversed it,
+  which is the condition that ruling named for its own reversal. Registration
+  still validates a `jwks_uri`'s shape without dereferencing it — the fetch
+  happens where the keys are used.
+
+- **What the spike found that needs nothing:** none of
+  `backchannel_logout_supported`, `frontchannel_logout_supported`,
+  `userinfo_encryption_alg_values_supported`, `introspection_endpoint` or
+  `revocation_endpoint` is touched by any module the plan runs, and
+  `userinfo_signing_alg_values_supported` is skip-if-absent rather than
+  required — so P3a's rule that it registers logout and UserInfo metadata
+  without advertising any of it costs nothing against the suite. The plan's
+  two sector modules self-skip, because they require
+  `subject_types_supported` to contain `pairwise` and Odudu publishes
+  `['public']`.
 
 ### What P3a and P3b inherit from P2b
 
