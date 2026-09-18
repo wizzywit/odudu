@@ -413,7 +413,7 @@ Add to `packages/protocol-oidc/src/view/authorize-html.test.ts`:
 ```ts
 it('returns a body fragment and a title beside the document', () => {
   const page = renderAuthorizeErrorPage('invalid_request', 'missing redirect_uri');
-  expect(page.title).toBe('Request refused');
+  expect(page.title).toBe('Sign-in error'); // the title this page already serves
   expect(page.body).toContain('invalid_request');
   // The fragment is a fragment: a theme that wraps it must not find a
   // second document inside it.
@@ -577,7 +577,7 @@ git push && gh pr checks 12 --watch
 - Create: `packages/db/drizzle/0045_client_registration_metadata.sql`
 - Modify: `packages/db/drizzle/meta/_journal.json`
 - Modify: `packages/protocol-oidc/src/schema/client-oidc-config.ts`
-- Modify: `packages/domain-realm/src/schema/clients.ts`, `packages/domain-realm/src/schema/realms.ts`
+- Modify: `packages/domain-realm/src/schema/clients.ts`, `packages/db/src/schema/realms.ts` (the realm table is declared in `db`, not `domain-realm` — verified 2026-09-18)
 - Test: `packages/db/tests/schema-drift.int.test.ts` (exists, asserts declarations against a migrated database)
 
 **Interfaces:**
@@ -1305,7 +1305,13 @@ Use `expectCrossRealmMethodProbe` from `@odudu/db/testing` on **`mint` and `spen
 
 Add to `apps/server/tests/seed.int.test.ts`: the command prints a token, and the printed token spends exactly once against a `--uses 1` mint.
 
-- [ ] **Step 6: Document it**
+- [ ] **Step 6: Reap the table**
+
+`client_registration_tokens` carries `expires_at`, and `apps/server/tests/reap.int.test.ts` currently excuses it in `NOT_REAPED` pending this decision. It is reaped, on the same footing as `action_tokens`, which is already in `REAP_ORDER`: a spent or expired registration token can no longer authorize a registration, and unlike a refresh token it carries **no detection value** — a replayed unknown token and a replayed spent one are refused identically, so deleting it disables nothing. That is what ADR 0021's constraint actually turns on, and it does not bite here.
+
+Add it to `TableName` and `REAP_ORDER` in `apps/server/src/cli/reap.ts` with its retention window and `ODUDU_RETENTION_*` variable, following `action_tokens` exactly. Remove its `NOT_REAPED` entry, extend the reap integration test to cover it, and update the retention section of `docs/request-paths.md` and the `docs/NEXT.md` entry that records the decision.
+
+- [ ] **Step 7: Document it**
 
 `README.md`'s seed section and `docs/request-paths.md`. In `request-paths.md` the command must be **run against a live stack with its real output pasted back**, and the token in the transcript is a real one from that run — it is a credential for a development realm, which ADR 0014 already covers, and a hand-written one would break the document's promise.
 

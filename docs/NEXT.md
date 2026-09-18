@@ -79,11 +79,16 @@ than about the design or a third party.
 
 - **`client_registration_tokens` has no retention window.** The table
   carries `expires_at`, so `tests/reap.int.test.ts` requires it either in
-  `REAP_ORDER` with a policy or named in `NOT_REAPED` with a reason; it is
-  named there for now. A spent or expired registration token is dead data
-  once it can no longer authorize a registration, but no task in P3a's plan
-  owns deciding its window or adding the `ODUDU_RETENTION_*` config for it.
-  Whichever task wires `odudu reap` to it moves the `NOT_REAPED` entry.
+  `REAP_ORDER` with a policy or named in `NOT_REAPED` with a reason.
+
+  **Decided 2026-09-18: it is reaped, on the same footing as `action_tokens`.**
+  A spent or expired registration token is dead data — it can no longer
+  authorize a registration — and unlike a refresh token it carries no
+  detection value: a replayed unknown token and a replayed spent one are
+  refused identically, so deleting it disables nothing. That is the actual
+  constraint ADR 0021 states, and it does not bite here. The table is
+  reaped by the task that builds its repository and documents the command;
+  the `NOT_REAPED` entry moves at the same time.
 
 - **What the spike found that needs nothing:** none of
   `backchannel_logout_supported`, `frontchannel_logout_supported`,
