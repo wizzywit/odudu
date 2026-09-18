@@ -41,8 +41,8 @@ const BASE_DIRECTIVES = [
 // silently, so the page looks broken rather than refused. The page says
 // what it carries and the policy is derived from that — never assembled
 // beside it, which is how a header and an element come to disagree.
-function policyFor(page: string | RenderedPage): string {
-  const script = typeof page === 'string' ? null : page.script;
+function policyFor(page: RenderedPage): string {
+  const script = page.script;
   if (script === null) return BASE_DIRECTIVES.join('; ');
   return [
     ...BASE_DIRECTIVES,
@@ -56,10 +56,10 @@ function policyFor(page: string | RenderedPage): string {
 
 // The one authority for the headers every rendered page carries, so a
 // package's reply wrapper is two lines that spread this and cannot
-// diverge from another package's. A plain string is a page with no script
-// of its own; a RenderedPage carries the nonce its own markup used, so the
-// two halves are one value.
-export function pageHeaders(page: string | RenderedPage): readonly (readonly [string, string])[] {
+// diverge from another package's. Every renderer returns a RenderedPage —
+// the nonce its own markup used travels with it, so the policy sent with a
+// page can never name a script the page does not carry.
+export function pageHeaders(page: RenderedPage): readonly (readonly [string, string])[] {
   return [
     ['content-security-policy', policyFor(page)],
     ['x-frame-options', 'DENY'],

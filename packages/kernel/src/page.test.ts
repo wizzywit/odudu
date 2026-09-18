@@ -4,15 +4,22 @@ import { pageHeaders } from '#/page';
 const headerMap = (page: Parameters<typeof pageHeaders>[0]): Record<string, string> =>
   Object.fromEntries(pageHeaders(page).map(([name, value]) => [name, value]));
 
+const MARKUP_ONLY_PAGE = {
+  html: '<!doctype html>',
+  body: '<!doctype html>',
+  title: 'Untitled',
+  script: null,
+};
+
 describe('the headers every rendered page carries', () => {
   it('describes a markup-only page as needing nothing', () => {
-    const csp = headerMap('<!doctype html>')['content-security-policy'];
+    const csp = headerMap(MARKUP_ONLY_PAGE)['content-security-policy'];
     expect(csp).toContain("default-src 'none'");
     expect(csp).not.toContain('script-src');
   });
 
   it('carries the framing defence and the referrer policy on every page', () => {
-    const headers = headerMap('<!doctype html>');
+    const headers = headerMap(MARKUP_ONLY_PAGE);
     expect(headers['x-frame-options']).toBe('DENY');
     expect(headers['referrer-policy']).toBe('no-referrer');
   });

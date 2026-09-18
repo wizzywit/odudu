@@ -66,11 +66,7 @@ function clearedCookie(name: string, tls: boolean): string {
 // Every page this route renders carries a live SSO session identifier
 // (the confirmation form's hidden `session_id`) or exists only because one
 // was just ended — neither belongs in a shared or history cache.
-function sendLogoutHtml(
-  reply: FastifyReply,
-  status: number,
-  page: string | RenderedPage,
-): FastifyReply {
+function sendLogoutHtml(reply: FastifyReply, status: number, page: RenderedPage): FastifyReply {
   reply.header('cache-control', 'no-store');
   return sendHtml(reply, status, page);
 }

@@ -35,11 +35,7 @@ async function headersOf(
   const app = Fastify();
   const html = '<!doctype html><p>hello';
   app.get('/page', (_request, reply) =>
-    sendHtml(
-      reply,
-      status,
-      script === undefined ? html : { html, body: html, title: 'Test page', script },
-    ),
+    sendHtml(reply, status, { html, body: html, title: 'Test page', script: script ?? null }),
   );
   const res = await app.inject({ url: '/page' });
   expect(res.statusCode).toBe(status);

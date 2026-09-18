@@ -1529,7 +1529,7 @@ curl -sS -X POST http://localhost:3000/realms/register-demo/login-actions/regist
 ```
 <!doctype html>
 <html lang="en">
-<head><meta charset="utf-8"><title>Can't create this account</title></head>
+<head><meta charset="utf-8"><title>Can&#39;t create this account</title></head>
 <body>
 <h1>Can't create this account</h1>
 <ul>
@@ -1560,7 +1560,7 @@ curl -sS -X POST http://localhost:3000/realms/register-demo/login-actions/regist
 ```
 <!doctype html>
 <html lang="en">
-<head><meta charset="utf-8"><title>Can't create this account</title></head>
+<head><meta charset="utf-8"><title>Can&#39;t create this account</title></head>
 <body>
 <h1>Can't create this account</h1>
 <ul>
@@ -1576,7 +1576,7 @@ on for the realm, the same short password now lists all three:
 ```
 <!doctype html>
 <html lang="en">
-<head><meta charset="utf-8"><title>Can't create this account</title></head>
+<head><meta charset="utf-8"><title>Can&#39;t create this account</title></head>
 <body>
 <h1>Can't create this account</h1>
 <ul>
@@ -1603,7 +1603,7 @@ curl -sS -X POST http://localhost:3000/realms/register-demo/login-actions/regist
 ```
 <!doctype html>
 <html lang="en">
-<head><meta charset="utf-8"><title>Can't create this account</title></head>
+<head><meta charset="utf-8"><title>Can&#39;t create this account</title></head>
 <body>
 <h1>Can't create this account</h1>
 <ul>
@@ -1628,7 +1628,7 @@ curl -sS -X POST http://localhost:3000/realms/register-demo/login-actions/regist
 ```
 <!doctype html>
 <html lang="en">
-<head><meta charset="utf-8"><title>Can't create this account</title></head>
+<head><meta charset="utf-8"><title>Can&#39;t create this account</title></head>
 <body>
 <h1>Can't create this account</h1>
 <ul>
@@ -2674,7 +2674,7 @@ curl -sS -X POST http://localhost:3000/realms/reset-demo/login-actions/action-to
 ```
 <!doctype html>
 <html lang="en">
-<head><meta charset="utf-8"><title>Can't reset your password</title></head>
+<head><meta charset="utf-8"><title>Can&#39;t reset your password</title></head>
 <body>
 <h1>Can't reset your password</h1>
 <ul>
@@ -2708,7 +2708,7 @@ content-length: 233
 
 <!doctype html>
 <html lang="en">
-<head><meta charset="utf-8"><title>Can't reset your password</title></head>
+<head><meta charset="utf-8"><title>Can&#39;t reset your password</title></head>
 <body>
 <h1>Can't reset your password</h1>
 <ul>
