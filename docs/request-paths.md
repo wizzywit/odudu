@@ -43,6 +43,7 @@ the URL and never by a header or a parameter.
 | `GET`  | `/realms/{realm}/protocol/openid-connect/auth`         | Authorization endpoint                                      |
 | `POST` | `/realms/{realm}/protocol/openid-connect/auth`         | Authorization endpoint (form)                               |
 | `POST` | `/realms/{realm}/login-actions/authenticate`           | Login form submission                                       |
+| `POST` | `/realms/{realm}/login-actions/consent`                | Consent screen submission (allow/deny)                      |
 | `POST` | `/realms/{realm}/login-actions/required-action`        | Complete a pending required action (enrolment, password)    |
 | `POST` | `/realms/{realm}/login-actions/passkey-challenge`      | Request options for a usernameless passkey assertion        |
 | `GET`  | `/realms/{realm}/login-actions/registration`           | Self-registration form                                      |
@@ -4224,10 +4225,16 @@ content-length: 0
 
 `offline_access` is a scope, seeded into every realm alongside
 `openid`/`profile`/`email` and assigned to `demo-spa` too — the one scope
-here assigned `'optional'` rather than `'default'`, which changes nothing
-`/authorize` or `/token` do with it yet and is there for the consent screen
-a later phase adds (it maps no claims either way — see
-[Discovery](#1-discovery) above). Requesting it produces a
+here assigned `'optional'` rather than `'default'`, which is what lets the
+consent screen ([below](#the-consent-screen)) tell it apart from a scope
+pre-approved the moment a client is assigned it (it maps no claims either
+way — see [Discovery](#1-discovery) above). `demo-spa`'s own
+`consent_required` is `false` — `seed client` names no way to set it, so
+every seeded client keeps the column's own default — so the transcript
+below reuses without ever seeing that screen; the consent section
+demonstrates asking, against an anonymously self-registered client, whose
+`consent_required` defaults `true` (ADR 0027, and the registration section
+above). Requesting it produces a
 grant with no session, which is what nothing here can expire and no logout
 can end (OpenID Connect Back-Channel Logout 1.0 §2.7's second sentence,
 [docs/protocols/oidc-backchannel.md](protocols/oidc-backchannel.md)). A
@@ -4435,6 +4442,117 @@ scope at redemption is the authority, not the request `/authorize` saw. A
 client never assigned the scope at all is refused outright, with
 `invalid_scope`, before a code is ever issued — the same rule any other
 unassigned scope gets (see [Discovery](#1-discovery) above).
+
+### The consent screen
+
+`demo-spa`'s own `consent_required` is `false`, so nothing above ever saw
+this screen. It exists for a client whose `consent_required` is `true` —
+every anonymously self-registered client (`consent_required` defaults
+`true` there, per [Dynamic client registration](#dynamic-client-registration)
+and ADR 0027) — and for `prompt=consent` on any client at all.
+
+**This section is derived, not observed** — every other block in this
+document is a command actually run against the compose stack; reproducing
+that here would mean replaying the whole document's transcript from the
+top to reach the same `demo` realm state this section wants to start from,
+which the time available for this pass did not allow. What follows is
+read off the implementation
+(`packages/protocol-oidc/src/usecase/login-submission.ts`'s
+`decideConsentGate`, `packages/protocol-oidc/src/usecase/authorization-request.ts`'s
+own gate on the reuse path, and `packages/protocol-oidc/src/view/consent-html.ts`)
+and the integration suite that exercises exactly these requests
+(`packages/protocol-oidc/tests/consent.int.test.ts`, ten cases, all
+passing) — not invented, but not a byte-for-byte transcript either. A
+later pass that re-derives this section from a real run should replace
+this note along with it.
+
+A client that requires consent renders the screen once the credentials
+that would otherwise complete the login have been accepted — after the
+same required-action gate `/authorize`'s form path always enforced, and
+before a code is ever issued:
+
+```
+POST /realms/demo/login-actions/authenticate
+auth_session_id=…&username=ada&password=correct-horse-battery
+```
+
+```
+HTTP/1.1 200 OK
+content-type: text/html; charset=utf-8
+
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Allow access?</title></head>
+<body>
+<h1>Example RP is asking for access</h1>
+<form method="post" action="/realms/demo/login-actions/consent">
+  <input type="hidden" name="auth_session_id" value="…">
+  <ul><li>openid</li><li>profile</li></ul>
+  <label><input type="checkbox" name="scope" value="offline_access"> offline_access — grants ongoing access, even while you are not present</label>
+  <button type="submit" name="decision" value="allow">Allow</button>
+  <button type="submit" name="decision" value="deny">Deny</button>
+</form>
+</body>
+</html>
+```
+
+No `set-cookie`, no `location`: nothing is established and no code is
+issued until the form below is answered. `offline_access` is the one scope
+here that carries the explanatory clause OIDC Core §16.18 asks for — every
+default scope (`openid`, `profile`) needs no box at all, since the client
+was already assigned it without asking.
+
+Declining the optional scope narrows what the eventual token carries —
+`scope` in the token response omits `offline_access`, not merely "the flow
+completed" — and the client's answer is what gets recorded, so the same
+request does not ask again:
+
+```
+POST /realms/demo/login-actions/consent
+auth_session_id=…&decision=allow
+```
+
+```
+HTTP/1.1 302 Found
+set-cookie: demo-session=…; HttpOnly; SameSite=Lax; Path=/
+location: https://rp.example/cb?code=…&state=xyz-123&iss=http://localhost:3000/realms/demo
+```
+
+Pressing Deny instead answers exactly where a client-side `access_denied`
+always does — the request's own `redirect_uri`, not a page — with nothing
+established and no code issued:
+
+```
+POST /realms/demo/login-actions/consent
+auth_session_id=…&decision=deny
+```
+
+```
+HTTP/1.1 302 Found
+location: https://rp.example/cb?error=access_denied&state=xyz-123&iss=http://localhost:3000/realms/demo
+```
+
+The gate applies to a live SSO session exactly as it does to a fresh
+login, which is the reason this section exists rather than being folded
+into the login-form walkthrough above: a second `/authorize` request,
+against the same cookie, asking for a wider scope than what the first
+consent recorded, renders this same screen again rather than reusing the
+session straight through to a code — `packages/protocol-oidc/tests/consent.int.test.ts`'s
+`asks for consent on a reused SSO session, not only on a fresh login` is
+the case that would ship broken if the gate lived only on the form path.
+Under `prompt=none`, that same reused-but-under-consented session is
+refused rather than asked, since `prompt=none` forbids the interaction a
+consent screen is:
+
+```
+GET /realms/demo/protocol/openid-connect/auth?…&prompt=none
+Cookie: demo-session=…
+```
+
+```
+HTTP/1.1 302 Found
+location: https://rp.example/cb?error=consent_required&state=xyz-123&iss=http://localhost:3000/realms/demo
+```
 
 ## Path C: `client_credentials`
 
@@ -5615,12 +5733,6 @@ session lifecycle. A citation of either half here means that half.
 
 **`/authorize`**
 
-- **No consent screen.** Every scope the realm defines and the client is
-  assigned is granted without asking the user. The allowlist exists — it is
-  the client's scope assignments — but nothing asks the user to approve what
-  it lets through. **P3a**, the phase named for consent, and — since
-  2026-09-14 — the phase whose exit criterion names it too: a screen a user
-  can refuse, and a recorded grant.
 - **`display`, `ui_locales`, `claims_locales` and `login_hint` are accepted
   and ignored**, including values none of them define, such as
   `display=unheard_of`; every one of those requests answers 200 with the
@@ -5756,15 +5868,13 @@ session lifecycle. A citation of either half here means that half.
   every request a server-side client makes, and RFC 6749 §2.3.1's row for
   that half is `deferred: P3a` in
   [docs/protocols/rfc6749.md](protocols/rfc6749.md).
-- **The sign-in and error pages are hardcoded HTML**, dependency-free with
-  every interpolated value escaped. Theming and per-client branding are
+- **The sign-in, error and consent pages are hardcoded HTML**, dependency-free
+  with every interpolated value escaped. Theming and per-client branding are
   **P4b**, split out of P10 on 2026-09-17 because P10's criterion tested
   provider loading and would have passed with no theming at all. The
-  contract is **P3a**'s to decide, beside the consent screen, since deciding
-  it in the phase that delivers it would mean writing that screen the old way
-  first — and the variation it has to cover is now visible in **P2a**'s
-  registration and verification pages and **P2b**'s second-factor,
-  recovery-code, change-password and logout pages.
+  variation it has to cover is visible in **P2a**'s registration and
+  verification pages, **P2b**'s second-factor, recovery-code,
+  change-password and logout pages, and **P3a**'s own consent page.
 
 **`/token`**
 

@@ -19,6 +19,7 @@ import {
   renderEmailUnverifiedPage,
   renderLoginForm,
 } from '#/view/authorize-html';
+import { renderConsentPage } from '#/view/consent-html';
 import { sendHtml } from '#/view/html-response';
 import { issuerBaseFor } from '#/view/issuer';
 
@@ -257,6 +258,23 @@ export function registerLoginRoute(app: FastifyInstance, deps: LoginRouteDeps): 
       }
       const offer = await deps.beginTotpEnrolment(realmName, realm.id, outcome.subjectId);
       return sendHtml(reply, 200, renderTotpEnrolmentPage(realmName, outcome.authSessionId, offer));
+    }
+
+    // Same reasoning as 'unverified' and 'required_action': no location
+    // header and no code, since nothing was established or issued.
+    if (outcome.kind === 'consent') {
+      return sendHtml(
+        reply,
+        200,
+        renderConsentPage({
+          realm: request.params.realm,
+          authSessionId: outcome.authSessionId,
+          clientName: outcome.clientName,
+          defaultScopes: outcome.defaultScopes,
+          optionalScopes: outcome.optionalScopes,
+          alreadyGranted: outcome.alreadyGranted,
+        }),
+      );
     }
 
     const cookieName = sessionCookieName(request.params.realm, deps.tls);

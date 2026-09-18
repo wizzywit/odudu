@@ -46,6 +46,18 @@ describe('renderConsentPage', () => {
     );
   });
 
+  // OIDC Core §16.18: "the authorization server clearly identifies
+  // long-term grants to the user during authorization" — merely listing
+  // offline_access alongside every other optional scope would not satisfy
+  // this, so pin the distinguishing text rather than just the checkbox.
+  it('[OIDC-CORE-16.18-01] identifies offline_access as a long-term grant, not just another optional scope', () => {
+    const page = renderConsentPage(BASE);
+    expect(page.body).toMatch(/offline_access[^<]*ongoing access/);
+    // A scope with no such note (email) proves the distinction is drawn
+    // deliberately, not emitted for every optional scope alike.
+    expect(page.body).not.toMatch(/email[^<]*ongoing access/);
+  });
+
   it('gives Allow and Deny distinguishable submitted values', () => {
     const page = renderConsentPage(BASE);
     expect(page.body).toMatch(/<button type="submit" name="decision" value="allow">/);

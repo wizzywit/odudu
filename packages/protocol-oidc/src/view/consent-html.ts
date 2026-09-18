@@ -16,10 +16,21 @@ function renderDefaultScope(scope: string): string {
   return `<li>${escapeHtml(scope)}</li>`;
 }
 
+// OIDC Core §16.18's SHOULD: "the authorization server clearly identifies
+// long-term grants to the user during authorization". `offline_access` is
+// the one scope this server defines that asks for exactly that (RFC 6749
+// §1.5's refresh token, outliving the browser session that requested it) —
+// naming it, not merely listing it alongside every other optional scope, is
+// what the clause asks for.
+const LONG_TERM_GRANT_NOTE: ReadonlyMap<string, string> = new Map([
+  ['offline_access', ' — grants ongoing access, even while you are not present'],
+]);
+
 function renderOptionalScope(scope: string, granted: ReadonlySet<string>): string {
   const checked = granted.has(scope) ? ' checked' : '';
   const escaped = escapeHtml(scope);
-  return `<label><input type="checkbox" name="scope" value="${escaped}"${checked}> ${escaped}</label>`;
+  const note = escapeHtml(LONG_TERM_GRANT_NOTE.get(scope) ?? '');
+  return `<label><input type="checkbox" name="scope" value="${escaped}"${checked}> ${escaped}${note}</label>`;
 }
 
 // The hidden field is the whole of this page's CSRF defence, exactly as

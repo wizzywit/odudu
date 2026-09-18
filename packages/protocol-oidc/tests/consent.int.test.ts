@@ -1,0 +1,470 @@
+import { generateSigningKey, signingKeys } from '@odudu/crypto';
+import { hashPassword, subjectRepository, userCredentials, users } from '@odudu/domain-identity';
+import {
+  createDatabase,
+  MIGRATIONS_DIR,
+  realms,
+  runMigrations,
+  withRealm,
+  type DatabaseHandle,
+  type RealmScopedDatabase,
+} from '@odudu/db';
+import { clients, provisionClientDefaults } from '@odudu/domain-realm';
+import { newId } from '@odudu/kernel';
+import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
+import formbody from '@fastify/formbody';
+import Fastify, { type FastifyInstance, type LightMyRequestResponse } from 'fastify';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { provisionRealm } from '@odudu/authn-flows';
+import { oidcRoutes } from '#/index';
+import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
+
+// The gate two doors share: the form path, after nextRequiredAction
+// clears, and session reuse's completeReuse, which issues a code with no
+// page ever rendered. A client requiring consent must be asked on both —
+// asked on the form path alone means it is asked exactly once, ever, and
+// never again from a reused session.
+
+let containerHandle: TestDatabase | undefined;
+let ownerHandle: DatabaseHandle | undefined;
+let appHandle: DatabaseHandle | undefined;
+let httpApp: FastifyInstance | undefined;
+
+let container: TestDatabase;
+let owner: DatabaseHandle;
+let app: DatabaseHandle;
+let http: FastifyInstance;
+
+const CONSENT_CLIENT_ID = 'consent-required-client';
+const CONSENT_CLIENT_SECRET = 'consent-required-client-secret';
+const REDIRECT_URI = 'https://app.example/callback';
+const USERNAME = 'ada';
+const PASSWORD = 'correct horse battery staple';
+const KEK = Buffer.alloc(32, 9);
+
+// RFC 7636 Appendix B's worked example.
+const VERIFIER = 'dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk';
+const CHALLENGE = 'E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM';
+
+async function setupRealm(
+  name: string,
+  options: { consentRequired: boolean; clientId?: string; clientSecret?: string } = {
+    consentRequired: true,
+  },
+): Promise<{ realmId: string }> {
+  const realmId = newId();
+  const clientDbId = newId();
+  const clientId = options.clientId ?? CONSENT_CLIENT_ID;
+  const clientSecret = options.clientSecret ?? CONSENT_CLIENT_SECRET;
+  await withRealm(app.db, realmId, async (tx: RealmScopedDatabase) => {
+    await tx.insert(realms).values({ id: realmId, name });
+    await provisionRealm(tx, realmId);
+    await tx.insert(clients).values({
+      id: clientDbId,
+      realmId,
+      clientId,
+      name: 'Consent test client',
+      type: 'confidential',
+      secretHash: await hashPassword(clientSecret),
+    });
+    await provisionClientDefaults(tx, clientDbId);
+    await clientOidcConfigRepository(tx).create({
+      clientId: clientDbId,
+      realmId,
+      redirectUris: [REDIRECT_URI],
+      grantTypes: ['authorization_code'],
+      tokenEndpointAuthMethod: 'client_secret_basic',
+      audiences: [],
+      accessTokenTtlSeconds: 300,
+      refreshTokenTtlSeconds: 1_209_600,
+      consentRequired: options.consentRequired,
+    });
+    const subject = await subjectRepository(tx).create({ realmId, type: 'user' });
+    await tx.insert(users).values({ subjectId: subject.id, realmId, username: USERNAME });
+    await tx.insert(userCredentials).values({
+      id: newId(),
+      realmId,
+      subjectId: subject.id,
+      type: 'password',
+      secretData: { hash: await hashPassword(PASSWORD) },
+    });
+
+    // A signing key, so redeeming a code for an `openid`-scoped grant can
+    // actually mint an ID token.
+    const generated = await generateSigningKey('ES256', KEK);
+    await tx.insert(signingKeys).values({
+      id: newId(),
+      realmId,
+      kid: generated.kid,
+      alg: generated.alg,
+      status: 'active',
+      publicJwk: generated.publicJwk,
+      privateJwkEncrypted: generated.privateJwkEncrypted,
+    });
+  });
+  return { realmId };
+}
+
+function authorizeUrl(
+  realmName: string,
+  clientId: string,
+  overrides: Record<string, string | undefined> = {},
+): string {
+  const params: Record<string, string | undefined> = {
+    response_type: 'code',
+    client_id: clientId,
+    redirect_uri: REDIRECT_URI,
+    scope: 'openid offline_access',
+    state: 'xyz',
+    code_challenge: CHALLENGE,
+    code_challenge_method: 'S256',
+    ...overrides,
+  };
+  const query = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== undefined) query.set(key, value);
+  }
+  return `/realms/${realmName}/protocol/openid-connect/auth?${query.toString()}`;
+}
+
+async function startAuthSession(realmName: string, clientId: string): Promise<string> {
+  const res = await http.inject({ url: authorizeUrl(realmName, clientId) });
+  if (res.statusCode !== 200) {
+    throw new Error(`expected /authorize to render the login form, got ${String(res.statusCode)}`);
+  }
+  const match = /name="auth_session_id" value="([^"]*)"/.exec(res.body);
+  const value = match?.[1];
+  if (value === undefined) throw new Error('auth_session_id not found in the rendered login form');
+  return value;
+}
+
+function setCookieValue(res: LightMyRequestResponse): string | undefined {
+  const raw = res.headers['set-cookie'];
+  return typeof raw === 'string' ? raw.split(';')[0] : undefined;
+}
+
+function locationHeader(res: LightMyRequestResponse): string {
+  const location = res.headers.location;
+  if (typeof location !== 'string') throw new Error('expected a location header');
+  return location;
+}
+
+function extractAuthSessionId(body: string): string {
+  const match = /name="auth_session_id" value="([^"]*)"/.exec(body);
+  const value = match?.[1];
+  if (value === undefined) throw new Error('auth_session_id not found in the rendered page');
+  return value;
+}
+
+async function submitCredentials(
+  realmName: string,
+  authSessionId: string,
+): Promise<LightMyRequestResponse> {
+  const form = new URLSearchParams({
+    auth_session_id: authSessionId,
+    username: USERNAME,
+    password: PASSWORD,
+  });
+  return http.inject({
+    method: 'POST',
+    url: `/realms/${realmName}/login-actions/authenticate`,
+    payload: form.toString(),
+    headers: { 'content-type': 'application/x-www-form-urlencoded' },
+  });
+}
+
+// Logs in against a fresh authorization request and expects the consent
+// screen rather than a redirect — the shared shape every "asks" test starts
+// from.
+async function loginExpectingConsent(
+  realmName: string,
+  clientId: string,
+): Promise<LightMyRequestResponse> {
+  const authSessionId = await startAuthSession(realmName, clientId);
+  const res = await submitCredentials(realmName, authSessionId);
+  expect(res.statusCode).toBe(200);
+  expect(res.body).toContain('login-actions/consent');
+  return res;
+}
+
+async function submitConsent(
+  realmName: string,
+  authSessionId: string,
+  decision: 'allow' | 'deny',
+  scopes: string[] = [],
+): Promise<LightMyRequestResponse> {
+  const params = new URLSearchParams({ auth_session_id: authSessionId, decision });
+  for (const scope of scopes) params.append('scope', scope);
+  return http.inject({
+    method: 'POST',
+    url: `/realms/${realmName}/login-actions/consent`,
+    payload: params.toString(),
+    headers: { 'content-type': 'application/x-www-form-urlencoded' },
+  });
+}
+
+async function redeemCode(
+  realmName: string,
+  clientId: string,
+  clientSecret: string,
+  code: string,
+): Promise<LightMyRequestResponse> {
+  const form = new URLSearchParams({
+    grant_type: 'authorization_code',
+    code,
+    redirect_uri: REDIRECT_URI,
+    code_verifier: VERIFIER,
+  });
+  return http.inject({
+    method: 'POST',
+    url: `/realms/${realmName}/protocol/openid-connect/token`,
+    payload: form.toString(),
+    headers: {
+      'content-type': 'application/x-www-form-urlencoded',
+      authorization: `Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString('base64')}`,
+    },
+  });
+}
+
+beforeAll(async () => {
+  containerHandle = await startTestDatabase();
+  container = containerHandle;
+
+  ownerHandle = createDatabase(container.adminUrl);
+  owner = ownerHandle;
+  await runMigrations(owner.db, MIGRATIONS_DIR);
+
+  const appUrl = await createAppRole(container.adminUrl);
+  appHandle = createDatabase(appUrl, { max: 5 });
+  app = appHandle;
+
+  http = Fastify();
+  httpApp = http;
+  await http.register(formbody);
+  await http.register(oidcRoutes({ database: app, ownerDatabase: owner, kek: KEK }));
+  await http.ready();
+}, 120_000);
+
+afterAll(async () => {
+  await httpApp?.close();
+  await appHandle?.close();
+  await ownerHandle?.close();
+  await containerHandle?.stop();
+});
+
+describe('the consent gate on the form path', () => {
+  it('[OIDC-CORE-3.1.2.4-01] asks for consent before issuing a code, for a client that requires it', async () => {
+    const realmName = `consent-ask-${newId()}`;
+    await setupRealm(realmName);
+
+    const res = await loginExpectingConsent(realmName, CONSENT_CLIENT_ID);
+    expect(res.body).toContain('offline_access');
+    // No code, no cookie: nothing was established or issued.
+    expect(res.headers['set-cookie']).toBeUndefined();
+  });
+
+  it('does not ask a client that does not require consent', async () => {
+    const realmName = `consent-not-required-${newId()}`;
+    await setupRealm(realmName, { consentRequired: false });
+
+    const authSessionId = await startAuthSession(realmName, CONSENT_CLIENT_ID);
+    const res = await submitCredentials(realmName, authSessionId);
+
+    expect(res.statusCode).toBe(302);
+    expect(new URL(locationHeader(res)).searchParams.get('code')).toBeTruthy();
+  });
+
+  it('[OIDC-CORE-3.1.2.1-14] redirects with access_denied when the user refuses', async () => {
+    const realmName = `consent-deny-${newId()}`;
+    await setupRealm(realmName);
+
+    const consentPage = await loginExpectingConsent(realmName, CONSENT_CLIENT_ID);
+    const authSessionId = extractAuthSessionId(consentPage.body);
+
+    const res = await submitConsent(realmName, authSessionId, 'deny');
+    expect(res.statusCode).toBe(302);
+    const location = new URL(locationHeader(res));
+    expect(location.origin + location.pathname).toBe(REDIRECT_URI);
+    expect(location.searchParams.get('error')).toBe('access_denied');
+    expect(location.searchParams.get('code')).toBeNull();
+    expect(res.headers['set-cookie']).toBeUndefined();
+  });
+
+  it('issues a code carrying only the scopes that were ticked', async () => {
+    const realmName = `consent-narrow-${newId()}`;
+    await setupRealm(realmName);
+
+    const consentPage = await loginExpectingConsent(realmName, CONSENT_CLIENT_ID);
+    const authSessionId = extractAuthSessionId(consentPage.body);
+
+    // offline_access is the only optional scope; declining it means ticking
+    // nothing.
+    const res = await submitConsent(realmName, authSessionId, 'allow', []);
+    expect(res.statusCode).toBe(302);
+    const code = new URL(locationHeader(res)).searchParams.get('code');
+    if (code === null) throw new Error('expected a code');
+
+    const redeemed = await redeemCode(realmName, CONSENT_CLIENT_ID, CONSENT_CLIENT_SECRET, code);
+    expect(redeemed.statusCode).toBe(200);
+    const scope = redeemed.json<{ scope: string }>().scope;
+    expect(scope.split(' ')).toContain('openid');
+    expect(scope.split(' ')).not.toContain('offline_access');
+  });
+
+  it('does not ask again on the next login once recorded', async () => {
+    const realmName = `consent-recorded-${newId()}`;
+    await setupRealm(realmName);
+
+    const consentPage = await loginExpectingConsent(realmName, CONSENT_CLIENT_ID);
+    const authSessionId = extractAuthSessionId(consentPage.body);
+    const allowed = await submitConsent(realmName, authSessionId, 'allow', ['offline_access']);
+    expect(allowed.statusCode).toBe(302);
+
+    const secondAuthSessionId = await startAuthSession(realmName, CONSENT_CLIENT_ID);
+    const second = await submitCredentials(realmName, secondAuthSessionId);
+    expect(second.statusCode).toBe(302);
+    expect(new URL(locationHeader(second)).searchParams.get('code')).toBeTruthy();
+  });
+
+  it('[OIDC-CORE-3.1.2.1-13] asks again when prompt=consent, even though the grant already covers the request', async () => {
+    const realmName = `consent-prompt-consent-${newId()}`;
+    await setupRealm(realmName);
+
+    const firstConsent = await loginExpectingConsent(realmName, CONSENT_CLIENT_ID);
+    const firstAuthSessionId = extractAuthSessionId(firstConsent.body);
+    const allowed = await submitConsent(realmName, firstAuthSessionId, 'allow', ['offline_access']);
+    expect(allowed.statusCode).toBe(302);
+
+    const res = await http.inject({
+      url: authorizeUrl(realmName, CONSENT_CLIENT_ID, { prompt: 'consent' }),
+    });
+    expect(res.statusCode).toBe(200);
+    const secondAuthSessionId = extractAuthSessionId(res.body);
+    const submitted = await submitCredentials(realmName, secondAuthSessionId);
+    expect(submitted.statusCode).toBe(200);
+    expect(submitted.body).toContain('login-actions/consent');
+  });
+
+  // prompt=none with no live session is refused login_required by
+  // decideReuse before the login form ever renders, so prompt=none's
+  // consent_required refusal is only reachable once a live session exists
+  // — exercised below, on the reuse path.
+
+  it('refuses a consent submission whose auth_session_id names nothing', async () => {
+    const realmName = `consent-unknown-session-${newId()}`;
+    await setupRealm(realmName);
+
+    const res = await submitConsent(realmName, '01a0a998-8326-7900-8fa6-dd06b842b269', 'allow', []);
+    expect(res.statusCode).toBe(400);
+  });
+});
+
+describe('the consent gate applies to a reused SSO session too', () => {
+  it('[OIDC-CORE-3.1.2.4-01] asks for consent on a reused SSO session, not only on a fresh login', async () => {
+    const realmName = `consent-reuse-${newId()}`;
+    await setupRealm(realmName);
+
+    // First request: a narrower scope, log in, consent, get a code — the
+    // cookie now names a live session.
+    const authSessionId = await startAuthSession(realmName, CONSENT_CLIENT_ID);
+    const firstLogin = await http.inject({
+      method: 'POST',
+      url: `/realms/${realmName}/login-actions/authenticate`,
+      payload: new URLSearchParams({
+        auth_session_id: authSessionId,
+        username: USERNAME,
+        password: PASSWORD,
+      }).toString(),
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    });
+    expect(firstLogin.statusCode).toBe(200);
+    const consentAuthSessionId = extractAuthSessionId(firstLogin.body);
+    const allowed = await submitConsent(realmName, consentAuthSessionId, 'allow', []);
+    expect(allowed.statusCode).toBe(302);
+    const cookie = setCookieValue(allowed);
+    if (cookie === undefined) throw new Error('expected a set-cookie header from consent allow');
+
+    // Second request with the SAME cookie: the reuse path must ask again,
+    // not issue — this is the case a build gating only the form path fails.
+    const res = await http.inject({
+      url: authorizeUrl(realmName, CONSENT_CLIENT_ID),
+      headers: { cookie },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toContain('login-actions/consent');
+    expect(res.body).toContain('offline_access');
+  });
+
+  // Two ids on one behaviour: OIDC Core states the same refusal twice, once
+  // in §3.1.2.1's own prompt=none MUST and once in §3.1.2.6's consent_required
+  // MAY. One assertion earns both rows; tools/trace/src/suite.ts's
+  // lastIdIn keeps only the last bracket in a title, so this is asserted
+  // twice under two titles rather than once under two brackets.
+  it('[OIDC-CORE-3.1.2.1-12] refuses with consent_required under prompt=none when a live session has nothing recorded', async () => {
+    const realmName = `consent-reuse-prompt-none-${newId()}`;
+    await setupRealm(realmName);
+
+    const authSessionId = await startAuthSession(realmName, CONSENT_CLIENT_ID);
+    const login = await submitCredentials(realmName, authSessionId);
+    expect(login.statusCode).toBe(200);
+    const consentAuthSessionId = extractAuthSessionId(login.body);
+    const allowed = await submitConsent(realmName, consentAuthSessionId, 'allow', []);
+    const cookie = setCookieValue(allowed);
+    if (cookie === undefined) throw new Error('expected a set-cookie header from consent allow');
+
+    // A wider scope than what was recorded (offline_access was declined),
+    // under prompt=none: the live session answers who, but the missing
+    // scope means consent_required, not a silent grant.
+    const res = await http.inject({
+      url: authorizeUrl(realmName, CONSENT_CLIENT_ID, { prompt: 'none' }),
+      headers: { cookie },
+    });
+    expect(res.statusCode).toBe(302);
+    const location = new URL(locationHeader(res));
+    expect(location.searchParams.get('error')).toBe('consent_required');
+    expect(location.searchParams.get('code')).toBeNull();
+  });
+
+  it('[OIDC-CORE-3.1.2.6-07] returns consent_required as the prompt=none error, naming what specifically was missing', async () => {
+    const realmName = `consent-reuse-prompt-none-mayrow-${newId()}`;
+    await setupRealm(realmName);
+
+    const authSessionId = await startAuthSession(realmName, CONSENT_CLIENT_ID);
+    const login = await submitCredentials(realmName, authSessionId);
+    expect(login.statusCode).toBe(200);
+    const consentAuthSessionId = extractAuthSessionId(login.body);
+    const allowed = await submitConsent(realmName, consentAuthSessionId, 'allow', []);
+    const cookie = setCookieValue(allowed);
+    if (cookie === undefined) throw new Error('expected a set-cookie header from consent allow');
+
+    const res = await http.inject({
+      url: authorizeUrl(realmName, CONSENT_CLIENT_ID, { prompt: 'none' }),
+      headers: { cookie },
+    });
+    expect(res.statusCode).toBe(302);
+    const location = new URL(locationHeader(res));
+    expect(location.searchParams.get('error')).toBe('consent_required');
+    expect(location.searchParams.get('code')).toBeNull();
+  });
+
+  it('reuses without asking once the wider scope has also been recorded', async () => {
+    const realmName = `consent-reuse-recorded-${newId()}`;
+    await setupRealm(realmName);
+
+    const authSessionId = await startAuthSession(realmName, CONSENT_CLIENT_ID);
+    const login = await submitCredentials(realmName, authSessionId);
+    const consentAuthSessionId = extractAuthSessionId(login.body);
+    const allowed = await submitConsent(realmName, consentAuthSessionId, 'allow', [
+      'offline_access',
+    ]);
+    const cookie = setCookieValue(allowed);
+    if (cookie === undefined) throw new Error('expected a set-cookie header from consent allow');
+
+    const res = await http.inject({
+      url: authorizeUrl(realmName, CONSENT_CLIENT_ID),
+      headers: { cookie },
+    });
+    expect(res.statusCode).toBe(302);
+    expect(new URL(locationHeader(res)).searchParams.get('code')).toBeTruthy();
+  });
+});

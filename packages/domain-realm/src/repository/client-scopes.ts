@@ -53,6 +53,21 @@ export function clientScopeRepository(tx: RealmScopedDatabase) {
       return rows.map((row) => toRecord(row.scope));
     },
 
+    // Same join as forClient, with the one extra column a consent screen
+    // needs: which side of default/optional each assignment landed on
+    // (§2's ClientScopeAssignment). forClient stays as it is for every
+    // caller that only needs the vocabulary, not the split.
+    async forClientByAssignment(
+      clientId: string,
+    ): Promise<{ scope: ClientScopeRecord; assignment: ClientScopeAssignment }[]> {
+      const rows = await tx
+        .select({ scope: clientScopes, assignment: clientScopeAssignments.assignment })
+        .from(clientScopeAssignments)
+        .innerJoin(clientScopes, eq(clientScopeAssignments.clientScopeId, clientScopes.id))
+        .where(eq(clientScopeAssignments.clientId, clientId));
+      return rows.map((row) => ({ scope: toRecord(row.scope), assignment: row.assignment }));
+    },
+
     async create(input: NewClientScope): Promise<ClientScopeRecord> {
       const rows = await tx
         .insert(clientScopes)

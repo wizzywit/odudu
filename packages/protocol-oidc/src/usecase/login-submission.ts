@@ -10,7 +10,9 @@ import { isUuid } from '@odudu/kernel';
 import { authorizationCodeRepository } from '#/repository/codes';
 import { type RealmLookup } from '#/repository/realm-lookup';
 import { generateAuthorizationCode, hashAuthorizationCode } from '#/service/authorization-code';
+import { decideConsent } from '#/service/consent';
 import { realmIssuer } from '#/service/issuer';
+import { type PromptValue } from '#/service/prompt';
 
 // A code lives 60 seconds: it is redeemed by a backend within a second or
 // two of the redirect, and a short window shrinks how long an intercepted
@@ -98,6 +100,20 @@ export type LoginSubmissionOutcome =
   // error at the client's redirect_uri: no SSO session is established and no
   // code is issued, so there is no cookie to set either.
   | { kind: 'error_redirect'; location: string }
+  // The subject is fully authenticated and owes nothing else, but consent
+  // has not been recorded for everything requested (or prompt=consent asked
+  // again regardless). Nothing is established and no code is issued, for
+  // the same reason as 'unverified' and 'required_action' above; the
+  // authentication session is left unconsumed so the consent POST resumes
+  // the same parked request.
+  | {
+      kind: 'consent';
+      authSessionId: string;
+      clientName: string;
+      defaultScopes: string[];
+      optionalScopes: string[];
+      alreadyGranted: string[];
+    }
   | { kind: 'redirect'; location: string; sessionId: string };
 
 // Everything the atomic completion step needs to establish the SSO session
@@ -145,7 +161,84 @@ export async function refusedForUnverifiedEmail(
   return status.verified ? null : { hasEmail: status.hasEmail };
 }
 
-export interface LoginSubmissionDeps {
+// What a consent decision needs about the client beyond decideConsent's own
+// pure inputs: a name to put on the page, and the name<->id mapping a
+// consent POST needs to turn a ticked checkbox (a scope name) back into
+// what consentRepository persists (a client_scopes id). One dependency
+// call bundles all three so the gate and the POST handler each pay for it
+// once, not per scope.
+export interface ConsentContext {
+  clientName: string;
+  consentRequired: boolean;
+  defaultScopes: string[];
+  optionalScopes: string[];
+  scopeIdByName: ReadonlyMap<string, string>;
+}
+
+export interface ConsentGateDeps {
+  consentContext(realmId: string, clientId: string): Promise<ConsentContext>;
+  grantedScopeIds(
+    realmId: string,
+    subjectId: string,
+    clientId: string,
+  ): Promise<ReadonlySet<string>>;
+}
+
+export type ConsentGateOutcome =
+  | { kind: 'not_required' }
+  | {
+      kind: 'ask';
+      clientName: string;
+      defaultScopes: string[];
+      optionalScopes: string[];
+      alreadyGranted: string[];
+    }
+  | { kind: 'refuse' };
+
+// Shared by both doors that can issue a code — the form path, after
+// nextRequiredAction clears, and the session-reuse path, once the reused
+// subject is known — so a client requiring consent cannot be asked on one
+// and waved through the other. Bridges decideConsent's scope-name-only
+// world to consentRepository's id-keyed one: `grantedScopeIds` comes back
+// as ids, translated to names here before decideConsent ever sees them.
+export async function decideConsentGate(
+  deps: ConsentGateDeps,
+  realmId: string,
+  clientId: string,
+  subjectId: string,
+  requestedScope: string,
+  prompt: readonly string[] | undefined,
+): Promise<ConsentGateOutcome> {
+  const context = await deps.consentContext(realmId, clientId);
+  const grantedIds = await deps.grantedScopeIds(realmId, subjectId, clientId);
+  const grantedScopes = [...context.scopeIdByName]
+    .filter(([, id]) => grantedIds.has(id))
+    .map(([name]) => name);
+
+  const decision = decideConsent({
+    requestedScopes: requestedScope.split(' ').filter((scope) => scope.length > 0),
+    defaultScopes: context.defaultScopes,
+    optionalScopes: context.optionalScopes,
+    grantedScopes,
+    // Every token this server defines is already validated at /authorize
+    // (parsePrompt); an unrecognised one could never have reached a parked
+    // request, so the cast states an invariant rather than skipping a check.
+    prompt: new Set((prompt ?? []) as PromptValue[]),
+    consentRequired: context.consentRequired,
+  });
+
+  if (decision.kind === 'not_required') return { kind: 'not_required' };
+  if (decision.kind === 'refuse') return { kind: 'refuse' };
+  return {
+    kind: 'ask',
+    clientName: context.clientName,
+    defaultScopes: decision.defaultScopes,
+    optionalScopes: decision.optionalScopes,
+    alreadyGranted: decision.alreadyGranted,
+  };
+}
+
+export interface LoginSubmissionDeps extends ConsentGateDeps {
   findRealm(name: string): Promise<RealmLookup | null>;
   advance(realmId: string, authSessionId: string, input: AdvanceInput): Promise<AdvanceOutcome>;
   loadPendingRequest(realmId: string, authSessionId: string): Promise<PendingRequest | null>;
@@ -178,8 +271,9 @@ export interface LoginSubmissionDeps {
 
 // An authorization error response delivered to the parked request's own
 // redirect_uri (OIDC Core §3.1.2.6), carrying `iss` for the same reason the
-// success redirect does (RFC 9207 §2).
-function errorRedirect(
+// success redirect does (RFC 9207 §2). Exported for consent-submission.ts,
+// whose 'deny' answer is the same shape of response.
+export function errorRedirect(
   pending: PendingRequest,
   realmName: string,
   issuerBase: string,
@@ -190,6 +284,58 @@ function errorRedirect(
   if (pending.state !== null) location.searchParams.set('state', pending.state);
   location.searchParams.set('iss', realmIssuer(issuerBase, realmName));
   return location.toString();
+}
+
+// The tail every path that finishes a login shares, from resolving the
+// client onward: consume the authentication session, establish the SSO
+// session, issue the code, and assemble the redirect. Used by the form
+// path once its gates clear, and by consent-submission.ts on an 'allow' —
+// never duplicated, so the two cannot drift on `iss`, on `state`, or on the
+// atomic consume that stops a back-button press minting a second session
+// and a second code.
+export async function completeAuthorizedLogin(
+  deps: Pick<LoginSubmissionDeps, 'resolveClientId' | 'completeLogin'>,
+  realm: { id: string; name: string; ssoSessionMaxSeconds: number },
+  issuerBase: string,
+  authSessionId: string,
+  pending: PendingRequest,
+  subjectId: string,
+  authenticators: string[],
+): Promise<LoginSubmissionOutcome> {
+  const clientId = await deps.resolveClientId(realm.id, pending.clientId);
+  if (clientId === null) {
+    return { kind: 'unauthenticated' };
+  }
+
+  const completed = await deps.completeLogin({
+    realmId: realm.id,
+    authSessionId,
+    subjectId,
+    clientId,
+    redirectUri: pending.redirectUri,
+    scope: pending.scope,
+    nonce: pending.nonce,
+    codeChallenge: pending.codeChallenge,
+    codeChallengeMethod: pending.codeChallengeMethod,
+    ssoSessionMaxSeconds: realm.ssoSessionMaxSeconds,
+    authenticators,
+  });
+
+  // A second submission of the same auth_session_id — a back-button press,
+  // a retried POST — reaches here after everything upstream succeeds again;
+  // completeLogin's atomic consume is what stops it from minting a second
+  // SSO session and a second code for the same parked request.
+  if (completed.kind === 'already_consumed') {
+    return { kind: 'unauthenticated' };
+  }
+  const { sessionId, code } = completed;
+
+  const location = new URL(pending.redirectUri);
+  location.searchParams.set('code', code);
+  if (pending.state !== null) location.searchParams.set('state', pending.state);
+  location.searchParams.set('iss', realmIssuer(issuerBase, realm.name));
+
+  return { kind: 'redirect', location: location.toString(), sessionId };
 }
 
 // The handler this drives treats a submission whose auth_session_id does
@@ -286,34 +432,44 @@ export async function handleLoginSubmission(
     return { kind: 'unauthenticated' };
   }
 
-  const completed = await deps.completeLogin({
-    realmId: realm.id,
-    authSessionId,
-    subjectId: result.subjectId,
+  // The second gate a fully authenticated subject can still owe: consent.
+  // Checked after the required-action gate for the reason that one is
+  // checked before completion — a subject who must change their password
+  // does that before being asked what to share, and nothing is established
+  // or issued until both are done. The authentication session is left
+  // unconsumed so the consent POST resumes this same parked request.
+  const gate = await decideConsentGate(
+    deps,
+    realm.id,
     clientId,
-    redirectUri: pending.redirectUri,
-    scope: pending.scope,
-    nonce: pending.nonce,
-    codeChallenge: pending.codeChallenge,
-    codeChallengeMethod: pending.codeChallengeMethod,
-    ssoSessionMaxSeconds: realm.ssoSessionMaxSeconds,
-    authenticators: result.authenticators,
-  });
-
-  // A second submission of the same auth_session_id — a back-button press,
-  // a retried POST — reaches here after advance() and loadPendingRequest()
-  // both succeed again; completeLogin's atomic consume is what stops it
-  // from minting a second SSO session and a second code for the same
-  // parked request.
-  if (completed.kind === 'already_consumed') {
-    return { kind: 'unauthenticated' };
+    result.subjectId,
+    pending.scope,
+    pending.prompt,
+  );
+  if (gate.kind === 'refuse') {
+    return {
+      kind: 'error_redirect',
+      location: errorRedirect(pending, realmName, issuerBase, 'consent_required'),
+    };
   }
-  const { sessionId, code } = completed;
+  if (gate.kind === 'ask') {
+    return {
+      kind: 'consent',
+      authSessionId,
+      clientName: gate.clientName,
+      defaultScopes: gate.defaultScopes,
+      optionalScopes: gate.optionalScopes,
+      alreadyGranted: gate.alreadyGranted,
+    };
+  }
 
-  const location = new URL(pending.redirectUri);
-  location.searchParams.set('code', code);
-  if (pending.state !== null) location.searchParams.set('state', pending.state);
-  location.searchParams.set('iss', realmIssuer(issuerBase, realmName));
-
-  return { kind: 'redirect', location: location.toString(), sessionId };
+  return completeAuthorizedLogin(
+    deps,
+    { id: realm.id, name: realmName, ssoSessionMaxSeconds: realm.ssoSessionMaxSeconds },
+    issuerBase,
+    authSessionId,
+    pending,
+    result.subjectId,
+    result.authenticators,
+  );
 }

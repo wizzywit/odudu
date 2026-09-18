@@ -52,6 +52,16 @@ export function clientRepository(tx: RealmScopedDatabase) {
       return row === undefined ? null : toRecord(row);
     },
 
+    // By the internal uuid (clients.id), not the OAuth client_id string —
+    // what a caller holding a resolved client id (a consent lookup, a
+    // token grant) uses to read the client back, rather than round-tripping
+    // through byClientId with the string it already left behind.
+    async byId(id: string): Promise<ClientRecord | null> {
+      const rows = await tx.select().from(clients).where(eq(clients.id, id));
+      const row = rows[0];
+      return row === undefined ? null : toRecord(row);
+    },
+
     // The bootstrap seed command creates clients through this repository, and
     // client resolution reads them back alongside their OIDC config, so an
     // insert path belongs here rather than only in a migration.

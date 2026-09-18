@@ -13,7 +13,7 @@ function input(overrides: Partial<ConsentInput> = {}): ConsentInput {
   };
 }
 
-describe('[OIDC-3.1.2.1-01] decideConsent', () => {
+describe('[OIDC-CORE-3.1.2.1-13] decideConsent', () => {
   // The ordering is the point: a flag-first implementation checks
   // consentRequired before prompt and returns not_required here, since the
   // flag is false. Only evaluating prompt=consent first yields ask.

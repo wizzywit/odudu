@@ -793,22 +793,54 @@ export async function advance(
 }
 
 // Whom a required-action submission may act for: the subject a *finished*
-// authentication bound to this session. The binding alone is not enough —
-// the first factor writes it while later ones are still outstanding, and
-// one required action prints ten recovery codes that stand in for the
-// second factor.
-export async function authenticatedSubject(
+// authentication bound to this session, plus the authenticators it
+// finished with — what a consent decision made after the login has already
+// completed (protocol-oidc's completeAuthorizedLogin) needs to carry the
+// same `amr` forward. The binding alone is not enough: the first factor
+// writes it while later ones are still outstanding.
+export async function authenticatedSession(
   tx: RealmScopedDatabase,
   authSessionId: string,
   clock: Clock = systemClock,
-): Promise<string | null> {
+): Promise<{ subjectId: string; authenticators: string[] } | null> {
   const record = await authenticationSessionRepository(tx).byId(authSessionId);
   if (record === null || record.expiresAt.getTime() <= clock.now().getTime()) return null;
   // A session that has already driven a login to an authorization code is
   // spent: anything it owed was owed before that, so an action arriving
   // against it now is a form the browser still had open.
   if (record.consumedAt !== null || record.authenticatedAt === null) return null;
-  return record.subjectId;
+  if (record.subjectId === null) return null;
+  return { subjectId: record.subjectId, authenticators: record.satisfied };
+}
+
+export async function authenticatedSubject(
+  tx: RealmScopedDatabase,
+  authSessionId: string,
+  clock: Clock = systemClock,
+): Promise<string | null> {
+  return (await authenticatedSession(tx, authSessionId, clock))?.subjectId ?? null;
+}
+
+// Called only by the session-reuse path, when a live SSO session already
+// answers who this is but the request still needs a consent decision made
+// against a real authentication session — a freshly started one, bound and
+// marked authenticated for the reused subject without a single factor
+// actually running. `authenticators` is the reused session's own `amr`, not
+// re-derived, so a grant recorded from here states what the original login
+// actually used rather than nothing at all.
+export async function markSessionAuthenticated(
+  tx: RealmScopedDatabase,
+  authSessionId: string,
+  subjectId: string,
+  authenticators: readonly string[],
+  clock: Clock = systemClock,
+): Promise<void> {
+  const repo = authenticationSessionRepository(tx);
+  await repo.bindSubject(authSessionId, subjectId);
+  for (const authenticator of authenticators) {
+    await repo.recordSatisfied(authSessionId, authenticator);
+  }
+  await repo.recordAuthenticated(authSessionId, clock.now());
 }
 
 // Puts an attempt back to how it started. The caller is the one refusal

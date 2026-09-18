@@ -55,6 +55,12 @@ export interface PendingRequest {
   // Absent when the request carried no hint; when present, whoever signs in
   // has to be that subject for the request to be answered positively.
   idTokenHintSubject?: string;
+  // The request's own `prompt` values (OIDC Core §3.1.2.1), parked
+  // alongside everything else so a consent decision made after the detour
+  // — a required action, a fresh login, a promoted session reuse — still
+  // sees `prompt=consent` the way it would have at the moment the request
+  // first arrived. Absent is the same as empty: no value was sent.
+  prompt?: string[];
 }
 
 export interface AuthenticationSessionRecord {

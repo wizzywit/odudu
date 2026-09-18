@@ -56,6 +56,17 @@ function harness(): Harness {
     pendingActions,
     resetAuthenticationProgress,
     completeLogin,
+    // consentRequired: false is 'not_required' unconditionally — none of
+    // this file's cases are about consent, so the gate stays a no-op here;
+    // consent.int.test.ts is where it is exercised.
+    consentContext: vi.fn().mockResolvedValue({
+      clientName: 'Test Client',
+      consentRequired: false,
+      defaultScopes: [],
+      optionalScopes: [],
+      scopeIdByName: new Map<string, string>(),
+    }),
+    grantedScopeIds: vi.fn().mockResolvedValue(new Set<string>()),
   };
   return {
     deps,
