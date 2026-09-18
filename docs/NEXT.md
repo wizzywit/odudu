@@ -41,11 +41,15 @@ than about the design or a third party.
   plan either names it in the criterion or moves it, and says which.
 - **RFC 7592 client management is not in P3a.** Spike 4
   (`infra/conformance/README.md`) read the Dynamic OP plan's own source at
-  `release-v5.1.36`: no module `OIDCCDynamicTestPlan` runs touches
-  `registration_access_token` or `registration_client_uri`, and none
-  exercises a GET, PUT or DELETE against a client configuration endpoint.
-  P3a ships RFC 7591 registration alone; registered-client management stays
-  where `docs/request-paths.md` already places it, in P4.
+  `release-v5.1.36`: no module requires `registration_access_token` or
+  `registration_client_uri` in the registration response. The plan does
+  attempt a DELETE against `registration_client_uri` in cleanup
+  (`AbstractOIDCCServerTest`/`AbstractOIDCCDynamicRegistrationTest`'s shared
+  `unregisterClient()`), but it's best-effort — it no-ops when those fields
+  are absent from `client`, and a failed DELETE is only a warning
+  (`onFail(ConditionResult.WARNING)`), not a module failure — so it does not
+  change the answer. P3a ships RFC 7591 registration alone; registered-client
+  management stays where `docs/request-paths.md` already places it, in P4.
 - **Decided 2026-09-18: the Dynamic OP plan cannot pass, and P3a's
   criterion no longer claims it will.** The plan's discovery check, when
   `ClientRegistration` is `dynamic_client` — true for every module group it

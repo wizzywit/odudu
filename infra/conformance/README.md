@@ -194,24 +194,78 @@ which condition classes its own module lists actually reach.
 
 ### Question 2 — is RFC 7592 client management required?
 
-**No — no module the dynamic plan runs touches
-`registration_access_token` or `registration_client_uri`.**
+**No module requires `registration_access_token` or
+`registration_client_uri` in the registration response — but the plan does
+attempt a DELETE against `registration_client_uri` in cleanup, best-effort
+and non-fatal, which does not change the answer.**
 
 verified: `grep -rn "registration_access_token\|registration_client_uri"
-src/main/java/`, 2026-09-18. Every hit is in `fapi2spid2/`, `fapi2spfinal/`
-(the FAPI 2.0 Brazil profiles' own dynamic-client-management tests, e.g.
+src/main/java/`, 2026-09-18. Every hit outside the two abstract base classes
+below is in `fapi2spid2/`, `fapi2spfinal/` (the FAPI 2.0 Brazil profiles'
+own dynamic-client-management tests, e.g.
 `FAPI2SPID2BrazilDCRUpdateClientConfig.java`,
 `FAPI2SPID2BrazilDCRClientDeletion.java`) or generic condition
 infrastructure (`condition/common/CreateRandomRegistrationClientUri.java`,
 `condition/as/GenerateRegistrationAccessToken.java`) available to any plan
-that chooses to call it. Checked each of the seven module classes
-`OIDCCDynamicTestPlan` actually lists for registration
-(`OIDCCServerTest`, `OIDCCRegistrationLogoUri`, `OIDCCRegistrationPolicyUri`,
-`OIDCCRegistrationTosUri`, `OIDCCRegistrationJwksUri`,
-`OIDCCRegistrationSectorUri`, `OIDCCRegistrationSectorBad`) individually for
-either string — no match in any. No module exercises a GET, PUT or DELETE
-against a client configuration endpoint. Confirms the plan already changed
-to: P3a ships RFC 7591 registration alone.
+that chooses to call it — none of it reached from the dynamic plan's own
+module classes.
+
+Each of the seven module classes `OIDCCDynamicTestPlan` lists for
+registration extends one of two abstract base classes —
+`OIDCCServerTest` and `OIDCCRegistrationJwksUri` extend
+`AbstractOIDCCServerTest`; `OIDCCRegistrationLogoUri`,
+`OIDCCRegistrationPolicyUri`, `OIDCCRegistrationTosUri`,
+`OIDCCRegistrationSectorUri` and `OIDCCRegistrationSectorBad` extend
+`AbstractOIDCCDynamicRegistrationTest` — and both override `cleanup()` with
+the identical pattern
+(`src/main/java/net/openid/conformance/openid/AbstractOIDCCServerTest.java:696-709`,
+duplicated at
+`src/main/java/net/openid/conformance/openid/AbstractOIDCCDynamicRegistrationTest.java:194-207`):
+
+```
+public void unregisterClient() {
+	if (getVariant(ClientRegistration.class) == ClientRegistration.DYNAMIC_CLIENT) {
+		eventLog.startBlock(...);
+		call(condition(UnregisterDynamicallyRegisteredClient.class)
+			.skipIfObjectsMissing("client")
+			.onSkip(ConditionResult.INFO)
+			.onFail(ConditionResult.WARNING)
+			.dontStopOnFailure());
+		eventLog.endBlock();
+	}
+}
+```
+
+`ClientRegistration` is `dynamic_client` for every module group the plan
+defines, so this runs on every one of the seven modules. The condition
+itself
+(`src/main/java/net/openid/conformance/condition/client/UnregisterDynamicallyRegisteredClient.java`)
+is best-effort on both halves of the finding: it reads
+`registration_access_token` and `registration_client_uri` off the `client`
+object and returns silently, without an HTTP call, if either is absent —
+
+```
+String accessToken = env.getString("client", "registration_access_token");
+if (Strings.isNullOrEmpty(accessToken)){
+	log("Couldn't find registration_access_token.");
+	return env;
+}
+String registrationClientUri = env.getString("client", "registration_client_uri");
+if (Strings.isNullOrEmpty(registrationClientUri)){
+	log("Couldn't find registration_client_uri.");
+	return env;
+}
+```
+
+— and when both are present, it does issue `HttpMethod.DELETE` against
+`registration_client_uri` with the access token as a Bearer credential, but
+`.onFail(ConditionResult.WARNING)` on the calling side means a failure (a
+non-204 response, or the request erroring entirely) downgrades to a warning
+rather than failing the module. So: nothing in the plan requires the
+registration response to carry those two fields in the first place — odudu
+never puts them there, cleanup silently no-ops, and RFC 7592 support is
+still not needed for the plan to pass. P3a ships RFC 7591 registration
+alone; Task 13 stays struck.
 
 ### Question 3 — `jwks_uri` or inline `jwks`? (reverses the plan's default)
 
