@@ -16,7 +16,11 @@ export interface ClientKeyTransportOptions {
   readonly totalTimeoutMs?: number;
   /** Bytes read from the response stream before the request is destroyed. */
   readonly maxBodyBytes?: number;
-  /** An additional trusted CA, for tests. Never a relaxation of verification. */
+  /**
+   * Replaces the default trusted root store with this CA — Node's `ca`
+   * does not add to the well-known set, it overrides it — so this is for
+   * a test's own self-signed server, never a production trust anchor.
+   */
   readonly ca?: string | Buffer;
 }
 

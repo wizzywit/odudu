@@ -103,24 +103,61 @@ describe('createClientKeyRequest', () => {
     const request = createClientKeyRequest({ ca: cert });
     // A different hostname than the one the certificate was issued for —
     // TLS verification must still refuse this even though the address is
-    // reachable and the CA is trusted.
+    // reachable and the CA is trusted. The specific TLS error code, not a
+    // bare throw, is what rules out ENOTFOUND/ECONNREFUSED passing for the
+    // wrong reason.
     const url = new URL(`https://impostor.invalid.test:${String(port)}/keys`);
 
-    await expect(request(url, address)).rejects.toThrow();
+    await expect(request(url, address)).rejects.toMatchObject({
+      code: 'ERR_TLS_CERT_ALTNAME_INVALID',
+    });
   });
 
-  it('caps the response body at the stream and destroys the request', async () => {
-    const oversized = 'x'.repeat(2000);
+  it('caps the response body at the stream, tearing the connection down before the writes finish', async () => {
+    // 64KB chunks, up to ~50MB, streamed continuously with no `res.end()` —
+    // a cap checked only after the body is fully materialised (`Buffer.concat`
+    // then measured) would never even see this response finish, since it
+    // never does. Only a cap enforced chunk-by-chunk as bytes arrive can
+    // reject this quickly, well short of the full 50MB.
+    const CHUNK = 'x'.repeat(64 * 1024);
+    const TOTAL_CHUNKS = 800;
+    let chunksWritten = 0;
+    let socketClosedEarly = false;
+
     const { port, address } = await startServer((_req, res) => {
       res.writeHead(200, { 'content-type': 'application/json' });
-      res.end(oversized);
+      res.on('error', () => {
+        // The client tears the socket down once its cap is exceeded.
+      });
+      res.socket?.once('close', () => {
+        socketClosedEarly = chunksWritten < TOTAL_CHUNKS;
+      });
+
+      const writeNext = (): void => {
+        if (res.destroyed || chunksWritten >= TOTAL_CHUNKS) return;
+        chunksWritten += 1;
+        if (res.write(CHUNK)) {
+          setImmediate(writeNext);
+        } else {
+          res.once('drain', writeNext);
+        }
+      };
+      writeNext();
     });
 
     const request = createClientKeyRequest({ ca: cert, maxBodyBytes: 1000 });
     const url = new URL(`https://${PINNED_HOSTNAME}:${String(port)}/keys`);
 
-    await expect(request(url, address)).rejects.toThrow(/cap|too large|exceed/iu);
-  });
+    await expect(request(url, address)).rejects.toThrow(/exceeded the body size cap/u);
+
+    // Let the server's socket observe the client's teardown before checking
+    // it — the cap fires on the client side first, by construction.
+    await new Promise((resolve) => {
+      setTimeout(resolve, 100);
+    });
+    expect(socketClosedEarly).toBe(true);
+    expect(chunksWritten).toBeLessThan(TOTAL_CHUNKS);
+  }, 10000);
 
   it('rejects a response that trickles forever, once the total timeout elapses', async () => {
     // The handshake completes and headers arrive — the connect timeout is
@@ -139,7 +176,11 @@ describe('createClientKeyRequest', () => {
     });
     const url = new URL(`https://${PINNED_HOSTNAME}:${String(port)}/keys`);
 
-    await expect(request(url, address)).rejects.toThrow(/timed out|timeout|budget/iu);
+    // The connect timeout is generous (5s) and would not fire in time — only
+    // the total timeout's own message proves it, not the connect timeout's
+    // or the two collapsed into one budget, which would also pass a looser
+    // assertion here.
+    await expect(request(url, address)).rejects.toThrow(/exceeded the total time budget/u);
   });
 
   it('rejects a connection that never completes, once the connect timeout elapses', async () => {
@@ -171,7 +212,10 @@ describe('createClientKeyRequest', () => {
     });
     const url = new URL(`https://${PINNED_HOSTNAME}:${String(info.port)}/keys`);
 
-    await expect(request(url, '127.0.0.1')).rejects.toThrow(/timed out|timeout/iu);
+    // The total timeout is generous (5s) and would not fire in time — only
+    // the connect timeout's own message proves it fired, not the total
+    // timeout's or the two collapsed into one budget.
+    await expect(request(url, '127.0.0.1')).rejects.toThrow(/timed out before it was established/u);
 
     await new Promise<void>((resolve) => {
       raw.close(() => {
