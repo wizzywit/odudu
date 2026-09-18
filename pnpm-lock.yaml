@@ -467,6 +467,9 @@ importers:
       fastify:
         specifier: 5.12.3
         version: 5.12.3
+      zod:
+        specifier: 4.6.1
+        version: 4.6.1
     devDependencies:
       '@fastify/formbody':
         specifier: 9.0.0
