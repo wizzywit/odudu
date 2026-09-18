@@ -218,19 +218,31 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
         const consumed = await consumeAuthenticationSession(tx, input.authSessionId, clock);
         if (!consumed) return { kind: 'already_consumed' };
 
-        const { sessionId } = await establishSession(
-          tx,
-          input.realmId,
-          input.subjectId,
-          input.ssoSessionMaxSeconds,
-          input.authenticators,
-          clock,
-        );
-        // authTime and now both derive from this single clock read, not a
-        // fresh one inside issueAuthorizationCode — otherwise two reads
-        // straddling a millisecond boundary could store a TTL slightly over
-        // 60s. On this path the two happen to be the same instant;
-        // completeReuse is where they diverge.
+        // A session reuse a consent decision promoted: touch and reuse it,
+        // reporting its own authTime, rather than establishing a fresh
+        // session and reporting `now` — the same distinction completeReuse
+        // draws for the ungated reuse path, and for the same reason: being
+        // asked for consent must not itself read as a new authentication.
+        const reuseSession = input.reuseSession;
+        let sessionId: string;
+        let authTime: Date;
+        if (reuseSession !== undefined) {
+          await sessionRepository(tx).touch(reuseSession.sessionId, now);
+          sessionId = reuseSession.sessionId;
+          authTime = reuseSession.authTime;
+        } else {
+          const established = await establishSession(
+            tx,
+            input.realmId,
+            input.subjectId,
+            input.ssoSessionMaxSeconds,
+            input.authenticators,
+            clock,
+          );
+          sessionId = established.sessionId;
+          authTime = now;
+        }
+
         const { code } = await issueAuthorizationCode(tx, {
           realmId: input.realmId,
           clientId: input.clientId,
@@ -240,7 +252,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
           nonce: input.nonce,
           codeChallenge: input.codeChallenge,
           codeChallengeMethod: input.codeChallengeMethod,
-          authTime: now,
+          authTime,
           now,
           sessionId,
         });

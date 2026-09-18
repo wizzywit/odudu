@@ -109,6 +109,20 @@ than about the design or a third party.
   `subject_types_supported` to contain `pairwise` and Odudu publishes
   `['public']`.
 
+- **"The consent screen" section of `docs/request-paths.md` is derived, not
+  observed — it needs a real transcript before this phase closes.** The
+  task that wired the consent gate onto both the form path and session
+  reuse (`packages/protocol-oidc/src/usecase/login-submission.ts`'s
+  `decideConsentGate`) added that section without a live compose-stack run:
+  reproducing one meant replaying the whole document's transcript from the
+  top to reach the same `demo` realm state, which that task's own time did
+  not allow. The section says so in its own first paragraph, in bold, and
+  names what it was derived from instead — but a note admitting a gap is
+  exactly the kind of passage the phase-closing pass has to find still
+  saying something true rather than something it settled for once. Replace
+  it with a real transcript (an anonymously self-registered client, per the
+  section's own plan) before P3a closes.
+
 ### What P3a and P3b inherit from P2b
 
 **A session that is read, and one per browser.** `/authorize` resolves the

@@ -61,6 +61,15 @@ export interface PendingRequest {
   // sees `prompt=consent` the way it would have at the moment the request
   // first arrived. Absent is the same as empty: no value was sent.
   prompt?: string[];
+  // Present only when this session was started to promote a session reuse
+  // into a consent decision (protocol-oidc's authorization-request.ts):
+  // the SSO session to complete into, and the instant it actually
+  // authenticated. completeAuthorizedLogin reuses that session and reports
+  // that `auth_time` rather than establishing a fresh one — asking for
+  // consent must not itself count as a new authentication. `reuseAuthTime`
+  // is an ISO string, jsonb's only way to carry a Date.
+  reuseSessionId?: string;
+  reuseAuthTime?: string;
 }
 
 export interface AuthenticationSessionRecord {

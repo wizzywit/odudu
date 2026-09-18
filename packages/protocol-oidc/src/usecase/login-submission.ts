@@ -136,8 +136,15 @@ export interface CompleteLoginInput {
   // What `advance` reported ran, in order — copied onto the session
   // establishSession creates, so a later reuse of it states `amr`/`acr`
   // about what this login actually used rather than what the subject
-  // could use by the time it is reused.
+  // could use by the time it is reused. Ignored when `reuseSession` is
+  // present: that session's own `amr`/`acr` were set at its own login.
   authenticators: string[];
+  // Present only when this completion is a session reuse a consent
+  // decision promoted (see PendingRequest.reuseSessionId): touch and reuse
+  // this SSO session instead of establishing a fresh one, and issue the
+  // code with its own `authTime` rather than `now` — being asked for
+  // consent must not itself read as a new authentication.
+  reuseSession?: { sessionId: string; authTime: Date };
 }
 
 export type CompleteLoginOutcome =
@@ -286,26 +293,30 @@ export function errorRedirect(
   return location.toString();
 }
 
-// The tail every path that finishes a login shares, from resolving the
-// client onward: consume the authentication session, establish the SSO
-// session, issue the code, and assemble the redirect. Used by the form
-// path once its gates clear, and by consent-submission.ts on an 'allow' —
-// never duplicated, so the two cannot drift on `iss`, on `state`, or on the
-// atomic consume that stops a back-button press minting a second session
-// and a second code.
+// The tail every path that finishes a login shares, from the resolved
+// client onward: consume the authentication session, establish (or reuse)
+// the SSO session, issue the code, and assemble the redirect. Used by the
+// form path once its gates clear, and by consent-submission.ts on an
+// 'allow' — never duplicated, so the two cannot drift on `iss`, `state` or
+// the atomic consume. `clientId` is never resolved again here: every
+// caller already needed it before reaching this tail.
 export async function completeAuthorizedLogin(
-  deps: Pick<LoginSubmissionDeps, 'resolveClientId' | 'completeLogin'>,
+  deps: Pick<LoginSubmissionDeps, 'completeLogin'>,
   realm: { id: string; name: string; ssoSessionMaxSeconds: number },
   issuerBase: string,
   authSessionId: string,
   pending: PendingRequest,
+  clientId: string,
   subjectId: string,
   authenticators: string[],
 ): Promise<LoginSubmissionOutcome> {
-  const clientId = await deps.resolveClientId(realm.id, pending.clientId);
-  if (clientId === null) {
-    return { kind: 'unauthenticated' };
-  }
+  // A session reuse a consent decision promoted (PendingRequest carries
+  // its own session's id and authTime): reused, not re-established, so
+  // asking for consent cannot itself mint a fresh `auth_time`.
+  const reuseSession =
+    pending.reuseSessionId !== undefined && pending.reuseAuthTime !== undefined
+      ? { sessionId: pending.reuseSessionId, authTime: new Date(pending.reuseAuthTime) }
+      : undefined;
 
   const completed = await deps.completeLogin({
     realmId: realm.id,
@@ -319,6 +330,7 @@ export async function completeAuthorizedLogin(
     codeChallengeMethod: pending.codeChallengeMethod,
     ssoSessionMaxSeconds: realm.ssoSessionMaxSeconds,
     authenticators,
+    ...(reuseSession !== undefined ? { reuseSession } : {}),
   });
 
   // A second submission of the same auth_session_id — a back-button press,
@@ -469,6 +481,7 @@ export async function handleLoginSubmission(
     issuerBase,
     authSessionId,
     pending,
+    clientId,
     result.subjectId,
     result.authenticators,
   );

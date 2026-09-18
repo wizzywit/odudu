@@ -226,6 +226,18 @@ async function redeemCode(
   });
 }
 
+function jwtPayload(token: string): Record<string, unknown> {
+  const segment = token.split('.')[1];
+  if (segment === undefined) throw new Error('expected a JWT to have a payload segment');
+  return JSON.parse(Buffer.from(segment, 'base64url').toString('utf8')) as Record<string, unknown>;
+}
+
+function sessionIdFromCookie(cookie: string): string {
+  const value = cookie.split('=')[1];
+  if (value === undefined) throw new Error('expected a session id in the cookie');
+  return value;
+}
+
 beforeAll(async () => {
   containerHandle = await startTestDatabase();
   container = containerHandle;
@@ -274,7 +286,7 @@ describe('the consent gate on the form path', () => {
     expect(new URL(locationHeader(res)).searchParams.get('code')).toBeTruthy();
   });
 
-  it('[OIDC-CORE-3.1.2.1-14] redirects with access_denied when the user refuses', async () => {
+  it('redirects with access_denied when the user refuses', async () => {
     const realmName = `consent-deny-${newId()}`;
     await setupRealm(realmName);
 
@@ -288,6 +300,33 @@ describe('the consent gate on the form path', () => {
     expect(location.searchParams.get('error')).toBe('access_denied');
     expect(location.searchParams.get('code')).toBeNull();
     expect(res.headers['set-cookie']).toBeUndefined();
+  });
+
+  // §3.1.2.1-14's own condition — prompt=consent, not merely a client that
+  // requires it — has to be on the request that gets denied, or the row
+  // closes on a test that could pass under a build honouring only the
+  // client flag.
+  it('[OIDC-CORE-3.1.2.1-14] redirects with access_denied when consent is denied under prompt=consent', async () => {
+    const realmName = `consent-deny-prompt-consent-${newId()}`;
+    // consentRequired: false — the only thing asking here is prompt=consent.
+    await setupRealm(realmName, { consentRequired: false });
+
+    const res1 = await http.inject({
+      url: authorizeUrl(realmName, CONSENT_CLIENT_ID, { prompt: 'consent' }),
+    });
+    expect(res1.statusCode).toBe(200);
+    const authSessionId = extractAuthSessionId(res1.body);
+    const login = await submitCredentials(realmName, authSessionId);
+    expect(login.statusCode).toBe(200);
+    expect(login.body).toContain('login-actions/consent');
+    const consentAuthSessionId = extractAuthSessionId(login.body);
+
+    const res = await submitConsent(realmName, consentAuthSessionId, 'deny');
+    expect(res.statusCode).toBe(302);
+    const location = new URL(locationHeader(res));
+    expect(location.origin + location.pathname).toBe(REDIRECT_URI);
+    expect(location.searchParams.get('error')).toBe('access_denied');
+    expect(location.searchParams.get('code')).toBeNull();
   });
 
   it('issues a code carrying only the scopes that were ticked', async () => {
@@ -364,8 +403,10 @@ describe('the consent gate applies to a reused SSO session too', () => {
     const realmName = `consent-reuse-${newId()}`;
     await setupRealm(realmName);
 
-    // First request: a narrower scope, log in, consent, get a code — the
-    // cookie now names a live session.
+    // First request: log in, consent to only the default scopes, get a
+    // code — the cookie now names a live session, with a narrower *grant*
+    // than the second request below will ask for (the request URL's scope
+    // is identical both times).
     const authSessionId = await startAuthSession(realmName, CONSENT_CLIENT_ID);
     const firstLogin = await http.inject({
       method: 'POST',
@@ -393,6 +434,74 @@ describe('the consent gate applies to a reused SSO session too', () => {
     expect(res.statusCode).toBe(200);
     expect(res.body).toContain('login-actions/consent');
     expect(res.body).toContain('offline_access');
+  });
+
+  // Would fail against a build that carries the gated reuse path through
+  // the ordinary completeLogin (establishSession + authTime: now, as the
+  // form path uses): the second token's auth_time would read as the
+  // instant consent was granted rather than the instant the subject
+  // actually authenticated, and the session id would differ from the
+  // first token's — a fresh SSO session minted purely because consent was
+  // asked, orphaning the original until it idles out.
+  it('[ODUDU-CONSENT-REUSE-AUTHTIME-01] reports the original auth_time and session, not the moment consent was granted', async () => {
+    const realmName = `consent-reuse-authtime-${newId()}`;
+    await setupRealm(realmName);
+
+    const authSessionId = await startAuthSession(realmName, CONSENT_CLIENT_ID);
+    const firstLogin = await submitCredentials(realmName, authSessionId);
+    expect(firstLogin.statusCode).toBe(200);
+    const firstConsentAuthSessionId = extractAuthSessionId(firstLogin.body);
+    const firstAllowed = await submitConsent(realmName, firstConsentAuthSessionId, 'allow', []);
+    expect(firstAllowed.statusCode).toBe(302);
+    const cookie = setCookieValue(firstAllowed);
+    if (cookie === undefined) throw new Error('expected a set-cookie header from consent allow');
+    const firstCode = new URL(locationHeader(firstAllowed)).searchParams.get('code');
+    if (firstCode === null) throw new Error('expected a code from the first consent');
+
+    const firstRedeemed = await redeemCode(
+      realmName,
+      CONSENT_CLIENT_ID,
+      CONSENT_CLIENT_SECRET,
+      firstCode,
+    );
+    expect(firstRedeemed.statusCode).toBe(200);
+    const firstAuthTime = jwtPayload(firstRedeemed.json<{ id_token: string }>().id_token).auth_time;
+
+    // Real time must actually advance, so a build that read `now` instead
+    // of the original authTime would be caught rather than coincidentally
+    // matching by running in the same second.
+    await new Promise((resolve) => setTimeout(resolve, 1_100));
+
+    const reused = await http.inject({
+      url: authorizeUrl(realmName, CONSENT_CLIENT_ID),
+      headers: { cookie },
+    });
+    expect(reused.statusCode).toBe(200);
+    const secondConsentAuthSessionId = extractAuthSessionId(reused.body);
+    const secondAllowed = await submitConsent(realmName, secondConsentAuthSessionId, 'allow', [
+      'offline_access',
+    ]);
+    expect(secondAllowed.statusCode).toBe(302);
+    const secondCookie = setCookieValue(secondAllowed);
+    if (secondCookie === undefined) {
+      throw new Error('expected a set-cookie header from the second consent allow');
+    }
+    const secondCode = new URL(locationHeader(secondAllowed)).searchParams.get('code');
+    if (secondCode === null) throw new Error('expected a code from the second consent');
+
+    const secondRedeemed = await redeemCode(
+      realmName,
+      CONSENT_CLIENT_ID,
+      CONSENT_CLIENT_SECRET,
+      secondCode,
+    );
+    expect(secondRedeemed.statusCode).toBe(200);
+    const secondAuthTime = jwtPayload(
+      secondRedeemed.json<{ id_token: string }>().id_token,
+    ).auth_time;
+
+    expect(secondAuthTime).toBe(firstAuthTime);
+    expect(sessionIdFromCookie(secondCookie)).toBe(sessionIdFromCookie(cookie));
   });
 
   // Two ids on one behaviour: OIDC Core states the same refusal twice, once

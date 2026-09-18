@@ -257,6 +257,11 @@ export async function handleAuthorizationRequest(
         ...request,
         prompt: [...outcome.prompts],
         ...(hintSubject !== null ? { idTokenHintSubject: hintSubject } : {}),
+        // So completeAuthorizedLogin reuses this SSO session, with its own
+        // authTime, instead of establishing a fresh one once consent is
+        // answered — asking must not itself count as a new authentication.
+        reuseSessionId: resolvedSession.sessionId,
+        reuseAuthTime: resolvedSession.authTime.toISOString(),
       });
       await deps.markAuthenticated(
         realm.id,

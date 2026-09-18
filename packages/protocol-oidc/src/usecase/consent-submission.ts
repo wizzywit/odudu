@@ -140,6 +140,7 @@ export async function handleConsentSubmission(
     issuerBase,
     authSessionId,
     { ...pending, scope: finalScopes.join(' ') },
+    clientId,
     subjectId,
     authenticators,
   ) as Promise<ConsentSubmissionOutcome>;
