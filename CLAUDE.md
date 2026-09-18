@@ -192,7 +192,7 @@ wider than Prettier's `printWidth` as the lines it reads as. There is no
 allowlist and no inline waiver: a rule anybody can switch off in a comment
 is not a rule.
 
-## Commit messages
+## Commit messages and pull requests
 
 A commit message says what changed and why. **The reasoning behind it goes
 to an ADR or a phase spec**, where a reader can find it six months later;
@@ -209,6 +209,13 @@ prose. Merge and revert subjects are exempt from the length rules, because
 both bodies are generated.
 
 Enable the hook once per clone: `git config core.hooksPath .githooks`.
+
+**A pull request description carries no tool-attribution line either.** The
+hook and the CI job can only see commit messages, so this half is a rule
+somebody has to follow rather than one the build catches — which is exactly
+why it is written down here. The body says what the branch changes and why,
+at whatever length that needs; it is the attribution that is banned, not the
+prose.
 
 ## Statements
 
