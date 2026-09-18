@@ -192,6 +192,24 @@ wider than Prettier's `printWidth` as the lines it reads as. There is no
 allowlist and no inline waiver: a rule anybody can switch off in a comment
 is not a rule.
 
+## Commit messages
+
+A commit message says what changed and why. **The reasoning behind it goes
+to an ADR or a phase spec**, where a reader can find it six months later;
+a message long enough to hold that reasoning buries the summary it exists
+to give.
+
+`tools/commit-message` enforces what can be enforced, from
+`.githooks/commit-msg` and from the `commit-messages` CI job, which call
+the same checker rather than restating the rules: a subject of at most 72
+characters, a body that reads as at most 8 lines, a blank line between
+them, and no tool-attribution trailer. A body line wider than 72 counts as
+the lines it reads as, so the budget cannot be met by rewrapping the same
+prose. Merge and revert subjects are exempt from the length rules, because
+both bodies are generated.
+
+Enable the hook once per clone: `git config core.hooksPath .githooks`.
+
 ## Statements
 
 Call a function as `doThing()`. Never `void doThing()`.

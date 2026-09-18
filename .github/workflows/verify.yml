@@ -76,11 +76,21 @@ jobs:
         with:
           # The check reads commit messages, so it needs real history.
           fetch-depth: 0
-      - name: Reject tool-attribution trailers
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+
+      # The same checker .githooks/commit-msg runs, over every commit the
+      # branch adds — so a clone that never ran `git config core.hooksPath`
+      # is held to the rules too. No install: it imports nothing but Node.
+      - name: Check commit messages
         run: |
-          if git log --format=%B origin/main..HEAD |
-             grep -inE 'co-authored-by:.*(claude|anthropic)|generated with .*(claude|anthropic)|🤖'; then
-            echo "::error::A commit message carries a tool-attribution trailer. See .githooks/commit-msg" >&2
-            exit 1
-          fi
-          echo "commit messages clean"
+          status=0
+          for sha in $(git rev-list origin/main..HEAD); do
+            git log -1 --format=%B "$sha" > /tmp/commit-message
+            if ! node tools/commit-message/src/index.ts /tmp/commit-message; then
+              echo "::error::$(git log -1 --format='%h %s' "$sha")" >&2
+              status=1
+            fi
+          done
+          exit $status

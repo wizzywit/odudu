@@ -1,0 +1,15 @@
+{
+  "name": "@odudu/commit-message",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "imports": {
+    "#/*": "./src/*.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "bin": {
+    "odudu-commit-message": "./src/index.ts"
+  }
+}

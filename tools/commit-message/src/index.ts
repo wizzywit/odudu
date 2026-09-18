@@ -1,0 +1,27 @@
+import { readFile } from 'node:fs/promises';
+import { checkCommitMessage } from '#/check';
+
+// One authority for the rules, called from two places: `.githooks/commit-msg`
+// for a commit made here, and the `commit-messages` job in verify.yml for a
+// clone that never installed the hook. The rules were written twice before
+// this, once in each, with a comment in each saying the other existed.
+const [, , path] = process.argv;
+
+if (path === undefined) {
+  process.stderr.write('usage: odudu-commit-message <message-file>\n');
+  process.exit(2);
+}
+
+const violations = checkCommitMessage(await readFile(path, 'utf8'));
+
+if (violations.length > 0) {
+  process.stderr.write('\nCommit rejected:\n\n');
+  for (const violation of violations) {
+    process.stderr.write(`  ${violation.rule}: ${violation.detail}\n`);
+  }
+  process.stderr.write(
+    '\nA commit message says what changed and why, briefly. Reasoning that does\n' +
+      'not fit belongs in an ADR or a phase spec, where a reader can find it.\n',
+  );
+  process.exit(1);
+}

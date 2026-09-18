@@ -773,8 +773,11 @@ each of those tokens is for, what `/userinfo` does with them, how a refresh
 rotates, and every way each request above can be refused, with the response
 each refusal actually returns.
 
-Enable the repo's git hooks once per clone — they reject commit messages
-carrying tool-attribution trailers, which CI also enforces:
+Enable the repo's git hooks once per clone. They hold a commit message to
+`tools/commit-message`: a subject of at most 72 characters, a body that
+reads as at most 8 lines, and no tool-attribution trailer. CI runs the same
+checker over every commit a branch adds, so a clone that skips this is
+caught anyway:
 
 ```bash
 git config core.hooksPath .githooks
