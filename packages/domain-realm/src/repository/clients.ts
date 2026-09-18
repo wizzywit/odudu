@@ -17,6 +17,7 @@ function toRecord(row: typeof clients.$inferSelect): ClientRecord {
     createdAt: row.createdAt,
     serviceSubjectId: row.serviceSubjectId,
     fullScopeAllowed: row.fullScopeAllowed,
+    registrationOrigin: row.registrationOrigin as ClientRecord['registrationOrigin'],
   };
 }
 

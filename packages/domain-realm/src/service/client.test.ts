@@ -15,6 +15,7 @@ const confidential = {
   createdAt: new Date(),
   serviceSubjectId: null,
   fullScopeAllowed: false,
+  registrationOrigin: 'seeded' as const,
 };
 const publicClient = { ...confidential, type: 'public' as const, secretHash: null };
 

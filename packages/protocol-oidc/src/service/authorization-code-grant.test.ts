@@ -17,6 +17,7 @@ const client: ClientRecord = {
   createdAt: new Date('2026-01-01T00:00:00.000Z'),
   serviceSubjectId: null,
   fullScopeAllowed: false,
+  registrationOrigin: 'seeded',
 };
 
 const record: AuthorizationCodeRecord = {

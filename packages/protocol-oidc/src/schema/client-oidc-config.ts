@@ -1,4 +1,4 @@
-import { integer, pgTable, text, uuid } from 'drizzle-orm/pg-core';
+import { boolean, integer, jsonb, pgTable, text, uuid } from 'drizzle-orm/pg-core';
 import { type TokenEndpointAuthMethod } from '@odudu/contracts';
 import { clients } from '@odudu/domain-realm';
 
@@ -29,6 +29,24 @@ export const clientOidcConfig = pgTable('client_oidc_config', {
   // 0030_client_post_logout_redirect_uris.sql for why it lives here rather
   // than with the rest of the client metadata.
   postLogoutRedirectUris: text('post_logout_redirect_uris').array().notNull().default([]),
+  // By value or by reference, never both (client_oidc_config_one_key_source,
+  // RFC 7591 §2) — an untyped boundary; Task 10 narrows it with Zod at the
+  // point of use.
+  jwks: jsonb('jwks'),
+  jwksUri: text('jwks_uri'),
+  frontchannelLogoutUri: text('frontchannel_logout_uri'),
+  backchannelLogoutUri: text('backchannel_logout_uri'),
+  backchannelLogoutSessionRequired: boolean('backchannel_logout_session_required')
+    .notNull()
+    .default(false),
+  // Whether this client's authorization requests skip the consent screen.
+  // Defaults false so an existing seeded client's behaviour is unchanged.
+  consentRequired: boolean('consent_required').notNull().default(false),
+  userinfoSignedResponseAlg: text('userinfo_signed_response_alg'),
+  userinfoEncryptedResponseAlg: text('userinfo_encrypted_response_alg'),
+  // Requires userinfoEncryptedResponseAlg
+  // (client_oidc_config_userinfo_enc_needs_alg, OIDC Core §5.3.2).
+  userinfoEncryptedResponseEnc: text('userinfo_encrypted_response_enc'),
 }).enableRLS();
 
 // Redirect URIs and grant types are OAuth vocabulary; they live here rather
@@ -46,4 +64,13 @@ export interface ClientOidcConfig {
   clientCredentialsScopes: string[];
   webOrigins: string[];
   postLogoutRedirectUris: string[];
+  jwks: unknown;
+  jwksUri: string | null;
+  frontchannelLogoutUri: string | null;
+  backchannelLogoutUri: string | null;
+  backchannelLogoutSessionRequired: boolean;
+  consentRequired: boolean;
+  userinfoSignedResponseAlg: string | null;
+  userinfoEncryptedResponseAlg: string | null;
+  userinfoEncryptedResponseEnc: string | null;
 }

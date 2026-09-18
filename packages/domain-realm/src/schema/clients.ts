@@ -26,6 +26,11 @@ export const clients = pgTable('clients', {
   // (0017), not here, because there are no roles to intersect until that
   // one runs.
   fullScopeAllowed: boolean('full_scope_allowed').notNull().default(false),
+  // How this client came to exist (clients_registration_origin_check):
+  // 'seeded' by an operator, 'token' by a registration token, 'anonymous'
+  // by RFC 7591 open registration. Defaults 'seeded' so an existing client
+  // is unchanged.
+  registrationOrigin: text('registration_origin').notNull().default('seeded'),
 }).enableRLS();
 
 // Lives beside the table, not in the repository, so that `service` (which
@@ -44,4 +49,5 @@ export interface ClientRecord {
   createdAt: Date;
   serviceSubjectId: string | null;
   fullScopeAllowed: boolean;
+  registrationOrigin: 'seeded' | 'anonymous' | 'token';
 }

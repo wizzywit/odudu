@@ -10,6 +10,7 @@ import {
 import { expectCrossRealmMethodProbe, expectRealmIsolation } from '@odudu/db/testing';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
+import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { clientRepository } from '#/repository/clients';
 import { clients } from '#/schema/clients';
@@ -170,6 +171,29 @@ describe('clientRepository', () => {
         await insertClient(tx, realmId);
       },
     });
+  });
+
+  it('leaves an existing realm and an existing client unchanged in behaviour', async () => {
+    const realmId = newId();
+
+    const created = await withRealm(app.db, realmId, async (tx) => {
+      await seedRealm(tx, realmId);
+      return clientRepository(tx).create({
+        realmId,
+        clientId: `seeded-${newId()}`,
+        name: 'A seeded client',
+        type: 'public',
+        secretHash: null,
+      });
+    });
+
+    expect(created.registrationOrigin).toBe('seeded');
+
+    const [realm] = await withRealm(app.db, realmId, async (tx) =>
+      tx.select().from(realms).where(eq(realms.id, realmId)),
+    );
+    expect(realm?.clientRegistrationPolicy).toBe('disabled');
+    expect(realm?.maxClients).toBe(200);
   });
 
   it('cannot find a client by client_id under a different realm context', async () => {

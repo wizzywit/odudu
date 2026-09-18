@@ -54,4 +54,10 @@ export const realms = pgTable('realms', {
   bruteForceFailureResetSeconds: integer('brute_force_failure_reset_seconds')
     .notNull()
     .default(43_200),
+  // Whether dynamic client registration (RFC 7591) is open to this realm,
+  // and the ceiling it is bounded by
+  // (packages/db/drizzle/0045_client_registration_metadata.sql). Defaults
+  // 'disabled'/200 so an existing realm's behaviour is unchanged.
+  clientRegistrationPolicy: text('client_registration_policy').notNull().default('disabled'),
+  maxClients: integer('max_clients').notNull().default(200),
 }).enableRLS();

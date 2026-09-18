@@ -316,6 +316,13 @@
       "when": 1789049381687,
       "tag": "0044_authentication_sessions_authenticated",
       "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "7",
+      "when": 1789049381688,
+      "tag": "0045_client_registration_metadata",
+      "breakpoints": true
     }
   ]
 }

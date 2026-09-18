@@ -20,6 +20,7 @@ const client: ClientRecord = {
   createdAt: new Date('2026-01-01T00:00:00Z'),
   serviceSubjectId: null,
   fullScopeAllowed: false,
+  registrationOrigin: 'seeded',
 };
 
 const config: ClientOidcConfig = {
@@ -34,6 +35,15 @@ const config: ClientOidcConfig = {
   clientCredentialsScopes: [],
   webOrigins: [],
   postLogoutRedirectUris: [],
+  jwks: null,
+  jwksUri: null,
+  frontchannelLogoutUri: null,
+  backchannelLogoutUri: null,
+  backchannelLogoutSessionRequired: false,
+  consentRequired: false,
+  userinfoSignedResponseAlg: null,
+  userinfoEncryptedResponseAlg: null,
+  userinfoEncryptedResponseEnc: null,
 };
 
 // One list stands for both halves of the rule these tests exercise: the

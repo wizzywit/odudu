@@ -40,13 +40,17 @@ const EXPECTED_CHECKS: Record<string, string> = {
   'client_oidc_config.client_oidc_config_access_token_ttl_ceiling':
     'CHECK (((access_token_ttl_seconds >= 1) AND (access_token_ttl_seconds <= 3600)))',
   'client_oidc_config.client_oidc_config_auth_method_check':
-    "CHECK ((token_endpoint_auth_method = ANY (ARRAY['client_secret_basic'::text, 'client_secret_post'::text, 'none'::text])))",
+    "CHECK ((token_endpoint_auth_method = ANY (ARRAY['client_secret_basic'::text, 'client_secret_post'::text, 'none'::text, 'private_key_jwt'::text, 'tls_client_auth'::text])))",
   'client_oidc_config.client_oidc_config_grant_types_check':
     "CHECK ((grant_types <@ ARRAY['authorization_code'::text, 'refresh_token'::text, 'client_credentials'::text]))",
+  'client_oidc_config.client_oidc_config_one_key_source':
+    'CHECK (((jwks IS NULL) OR (jwks_uri IS NULL)))',
   'client_oidc_config.client_oidc_config_redirect_uris_present':
     "CHECK (((cardinality(redirect_uris) >= 1) OR (grant_types = ARRAY['client_credentials'::text])))",
   'client_oidc_config.client_oidc_config_refresh_token_ttl_floor':
     'CHECK ((refresh_token_ttl_seconds >= 1))',
+  'client_oidc_config.client_oidc_config_userinfo_enc_needs_alg':
+    'CHECK (((userinfo_encrypted_response_enc IS NULL) OR (userinfo_encrypted_response_alg IS NOT NULL)))',
   'client_oidc_config.client_oidc_config_web_origins_shape':
     'CHECK (web_origins_are_valid(web_origins))',
   'client_scope_assignments.client_scope_assignments_assignment_check':
@@ -55,12 +59,17 @@ const EXPECTED_CHECKS: Record<string, string> = {
     "CHECK ((name ~ '^[\\x21\\x23-\\x5B\\x5D-\\x7E]+$'::text))",
   'groups.groups_name_has_no_slash': "CHECK (((name !~ '/'::text) AND (name <> ''::text)))",
   'groups.groups_path_is_absolute': "CHECK ((path ~~ '/%'::text))",
+  'clients.clients_registration_origin_check':
+    "CHECK ((registration_origin = ANY (ARRAY['seeded'::text, 'anonymous'::text, 'token'::text])))",
   'clients.clients_secret_matches_type':
     "CHECK ((((type = 'confidential'::text) AND (secret_hash IS NOT NULL)) OR ((type = 'public'::text) AND (secret_hash IS NULL))))",
   'clients.clients_type_check':
     "CHECK ((type = ANY (ARRAY['public'::text, 'confidential'::text])))",
   'realms.realms_brute_force_bounds':
     'CHECK ((((brute_force_max_failures >= 1) AND (brute_force_max_failures <= 100)) AND ((brute_force_lockout_seconds >= 1) AND (brute_force_lockout_seconds <= 86400)) AND (brute_force_max_lockout_seconds >= brute_force_lockout_seconds) AND ((brute_force_failure_reset_seconds >= 60) AND (brute_force_failure_reset_seconds <= 2592000))))',
+  'realms.realms_client_registration_policy_check':
+    "CHECK ((client_registration_policy = ANY (ARRAY['disabled'::text, 'open'::text, 'token'::text])))",
+  'realms.realms_max_clients_range': 'CHECK ((max_clients >= 0))',
   'realms.realms_password_history_bounds':
     'CHECK (((password_history_depth >= 0) AND (password_history_depth <= 24)))',
   'realms.realms_password_max_age_bounds':

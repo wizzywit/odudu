@@ -20,20 +20,51 @@ function toRecord(row: typeof clientOidcConfig.$inferSelect): ClientOidcConfig {
     clientCredentialsScopes: row.clientCredentialsScopes,
     webOrigins: row.webOrigins,
     postLogoutRedirectUris: row.postLogoutRedirectUris,
+    jwks: row.jwks,
+    jwksUri: row.jwksUri,
+    frontchannelLogoutUri: row.frontchannelLogoutUri,
+    backchannelLogoutUri: row.backchannelLogoutUri,
+    backchannelLogoutSessionRequired: row.backchannelLogoutSessionRequired,
+    consentRequired: row.consentRequired,
+    userinfoSignedResponseAlg: row.userinfoSignedResponseAlg,
+    userinfoEncryptedResponseAlg: row.userinfoEncryptedResponseAlg,
+    userinfoEncryptedResponseEnc: row.userinfoEncryptedResponseEnc,
   };
 }
 
 // `clientCredentialsScopes`, `webOrigins` and `postLogoutRedirectUris`
 // default to none: every existing caller that predates them creates a
 // config without deciding on any of the three, and an empty allowlist is
-// the safe default for a client no one has yet configured for it.
+// the safe default for a client no one has yet configured for it. The nine
+// fields Task 5 added default the same way the column does, so every caller
+// that predates them keeps behaving as if they did not exist.
 export type NewClientOidcConfig = Omit<
   ClientOidcConfig,
-  'clientCredentialsScopes' | 'webOrigins' | 'postLogoutRedirectUris'
+  | 'clientCredentialsScopes'
+  | 'webOrigins'
+  | 'postLogoutRedirectUris'
+  | 'jwks'
+  | 'jwksUri'
+  | 'frontchannelLogoutUri'
+  | 'backchannelLogoutUri'
+  | 'backchannelLogoutSessionRequired'
+  | 'consentRequired'
+  | 'userinfoSignedResponseAlg'
+  | 'userinfoEncryptedResponseAlg'
+  | 'userinfoEncryptedResponseEnc'
 > & {
   clientCredentialsScopes?: string[];
   webOrigins?: string[];
   postLogoutRedirectUris?: string[];
+  jwks?: unknown;
+  jwksUri?: string | null;
+  frontchannelLogoutUri?: string | null;
+  backchannelLogoutUri?: string | null;
+  backchannelLogoutSessionRequired?: boolean;
+  consentRequired?: boolean;
+  userinfoSignedResponseAlg?: string | null;
+  userinfoEncryptedResponseAlg?: string | null;
+  userinfoEncryptedResponseEnc?: string | null;
 };
 
 export function clientOidcConfigRepository(tx: RealmScopedDatabase) {
@@ -65,6 +96,15 @@ export function clientOidcConfigRepository(tx: RealmScopedDatabase) {
           clientCredentialsScopes: input.clientCredentialsScopes ?? [],
           webOrigins: input.webOrigins ?? [],
           postLogoutRedirectUris: input.postLogoutRedirectUris ?? [],
+          jwks: input.jwks ?? null,
+          jwksUri: input.jwksUri ?? null,
+          frontchannelLogoutUri: input.frontchannelLogoutUri ?? null,
+          backchannelLogoutUri: input.backchannelLogoutUri ?? null,
+          backchannelLogoutSessionRequired: input.backchannelLogoutSessionRequired ?? false,
+          consentRequired: input.consentRequired ?? false,
+          userinfoSignedResponseAlg: input.userinfoSignedResponseAlg ?? null,
+          userinfoEncryptedResponseAlg: input.userinfoEncryptedResponseAlg ?? null,
+          userinfoEncryptedResponseEnc: input.userinfoEncryptedResponseEnc ?? null,
         })
         .returning();
       const row = rows[0];
