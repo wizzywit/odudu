@@ -40,10 +40,11 @@ than about the design or a third party.
   of: work placed in a phase whose criterion can be met without it. P3a's
   plan either names it in the criterion or moves it, and says which.
 - **Whether RFC 7592 client management is in P3a at all** depends on the
-  first of the spec's three spikes. If the OIDF Dynamic OP plan does not
-  require a client configuration endpoint, P3a ships RFC 7591 alone and
-  `docs/request-paths.md`'s "changing a registered client is client-
-  management work, which is P3a's" moves to P4.
+  **second** of the spec's spikes. If the OIDF Dynamic OP plan does not
+  require a client configuration endpoint, P3a ships RFC 7591 alone and the
+  registered-client management `docs/request-paths.md` describes moves to
+  P4. Both documents say "P3a, pending that spike" until it reports; neither
+  states it unconditionally.
 
 ### What P3a and P3b inherit from P2b
 

@@ -3788,7 +3788,8 @@ client, and refuses a client that already exists — deliberately, because a
 re-run that quietly widened a registered redirect list is how an allowlist
 grows by accident. `demo-spa` was seeded back in
 [Bootstrap](#bootstrap), so this walkthrough sets the column directly;
-changing a registered client is client-management work, which is P3a's:
+changing a registered client is client-management work, which is P3a's
+pending its RFC 7592 spike and P4's otherwise:
 
 ```bash
 docker compose -f infra/docker/compose.yaml exec -T postgres \

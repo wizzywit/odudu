@@ -5,14 +5,19 @@ import { checkCommitMessage } from '#/check';
 // for a commit made here, and the `commit-messages` job in verify.yml for a
 // clone that never installed the hook. The rules were written twice before
 // this, once in each, with a comment in each saying the other existed.
-const [, , path] = process.argv;
+const [, , first, second] = process.argv;
+// `--stored` says the file holds a message read back with `git log
+// --format=%B` rather than an editor buffer, which decides whether a `#`
+// line is git's guidance or somebody's body text.
+const stored = first === '--stored';
+const path = stored ? second : first;
 
 if (path === undefined) {
-  process.stderr.write('usage: odudu-commit-message <message-file>\n');
+  process.stderr.write('usage: odudu-commit-message [--stored] <message-file>\n');
   process.exit(2);
 }
 
-const violations = checkCommitMessage(await readFile(path, 'utf8'));
+const violations = checkCommitMessage(await readFile(path, 'utf8'), stored ? 'stored' : 'editor');
 
 if (violations.length > 0) {
   process.stderr.write('\nCommit rejected:\n\n');

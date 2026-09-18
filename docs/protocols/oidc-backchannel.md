@@ -8,7 +8,9 @@ exists (RP-Initiated Logout 1.0, see `docs/protocols/oidc-rpinitiated.md`)
 and ends the session `sid` names, but the Logout Token itself and the
 back-channel delivery to a client's registered logout URI are still P3b
 work. The rest of the specification is tabled all the same, so that what
-is owed is countable rather than absent: everything the Logout Token and
+is owed is countable rather than absent. The split runs through §2.2:
+**registering and validating a `backchannel_logout_uri` is P3a's**, which is
+where a client first gets to state one, and everything the Logout Token and
 its delivery require is `deferred: P3b`, which §11 of the design spec names
 ("front-channel and back-channel logout against registered per-client
 logout URIs"), and the clauses addressed to the RP receiving a Logout

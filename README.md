@@ -774,8 +774,9 @@ rotates, and every way each request above can be refused, with the response
 each refusal actually returns.
 
 Enable the repo's git hooks once per clone. They hold a commit message to
-`tools/commit-message`: a subject of at most 72 characters, a body that
-reads as at most 8 lines, and no tool-attribution trailer. CI runs the same
+`tools/commit-message`: a subject of at most 72 characters, a blank line
+after it, a body that reads as at most 8 lines, and no tool-attribution
+trailer. CI runs the same
 checker over every commit a branch adds, so a clone that skips this is
 caught anyway:
 

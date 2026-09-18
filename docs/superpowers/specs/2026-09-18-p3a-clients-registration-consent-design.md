@@ -41,9 +41,14 @@ and 0017 cite phase numbers.
 **The 78 `deferred: P3` rows are not left to rot.** They resolve to `P3a`
 or `P3b` in the increment that splits the roadmap, before any other work:
 
-verified: `grep -rc "deferred: P3" docs/protocols/` on 2026-09-18 —
+verified: `grep -rc "deferred: P3 " docs/protocols/` on 2026-09-18 — with
+the trailing space, because `deferred: P3` also matches `P3a` and `P3b` and
+so could not distinguish a reassigned row from an untouched one —
 `oidc-backchannel.md` 33, `oidc-core.md` 22, `rfc6749.md` 18,
-`oidc-rpinitiated.md` 2, `rfc9068.md` 2, `oidc-discovery.md` 1.
+`oidc-rpinitiated.md` 2, `rfc9068.md` 2, `oidc-discovery.md` 1. The check
+that the reassignment finished is the complementary one, and it is the one
+worth re-running: `grep -rnE "\bP3\b" docs/ README.md` returns nothing,
+because P3 is not a phase any more.
 
 This is `CLAUDE.md`'s closing-pass rule 2 applied at the moment the split
 happens rather than three commits later: a phase that renumbers or splits
@@ -252,8 +257,19 @@ still override `consent_required` per client.
 **`max_clients` bounds the realm.** RFC 7591 §5: registration requests "MAY
 be rate-limited or otherwise limited to prevent a denial-of-service attack
 on the client registration endpoint." A per-realm cap is the concrete form,
-matching Keycloak's `Max Clients Limit` (200 by default) — one `COUNT` in
-the registration transaction.
+matching Keycloak's `Max Clients Limit` (200 by default).
+
+**The cap is taken under a lock, not with a bare `COUNT`.** A count followed
+by an insert is two statements with a gap: two concurrent registrations read
+the same total, both find room, and both insert — so the cap a
+denial-of-service bound exists to hold is the one thing that fails under the
+load it is meant to bound. The registration transaction issues
+`SELECT max_clients FROM realms WHERE id = $1 FOR UPDATE` first, which
+serialises registrations **per realm** and leaves other realms concurrent.
+The cost is one row lock on a path that is neither hot nor latency
+sensitive; a counter column maintained by trigger would buy concurrency this
+endpoint has no use for and add a second thing that can disagree with
+`COUNT(*)`.
 
 ## 6. A client-supplied URL the server fetches
 
@@ -318,15 +334,30 @@ being asked what to share.
 
 1. Resolve the requested scope against the client's `default` and
    `optional` assignments.
-2. If `consent_required` is false, continue.
-3. Load the recorded grant; compute what is missing.
-4. Nothing missing and `prompt` is not `consent` — continue with no page.
-   This is what recording the grant buys.
-5. Something missing and `prompt=none` — refuse. The refusal is §3.1.2.1's
+2. `prompt=consent` — ask, whatever the client's flag says and whatever is
+   recorded.
+3. If `consent_required` is false, continue.
+4. Load the recorded grant; compute what is missing.
+5. Nothing missing — continue with no page. This is what recording the grant
+   buys.
+6. Something missing and `prompt=none` — refuse. The refusal is §3.1.2.1's
    MUST ("an error is returned if the client lacks pre-configured consent
    for the requested claims"); naming it `consent_required` is §3.1.2.6's
    MAY. Both rows are in `docs/protocols/oidc-core.md`, now `deferred: P3a`.
-6. `prompt=consent` — ask regardless of what is recorded.
+7. Otherwise — ask.
+
+**Why `prompt=consent` is evaluated before the per-client flag.** §3.1.2.1's
+SHOULD is addressed to the authorization server and conditioned on the
+request, not on how the client was registered. Ordering the flag first makes
+the parameter silently inert for every seeded and token-registered client —
+which is most of them — so the screen would work in testing against a
+dynamically registered client and do nothing in production. A client that
+does not otherwise require consent is still one whose relying party may ask
+for a fresh decision.
+
+`prompt=none` and `prompt=consent` together are refused with
+`invalid_request` before any of this, by the `prompt` handling P1 already
+built.
 
 ### 7.4 The page
 

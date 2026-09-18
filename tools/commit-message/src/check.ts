@@ -18,13 +18,24 @@ export const MAX_SUBJECT_LENGTH = 72;
 const BODY_WRAP = 72;
 
 // A merge's body is the forge's, and `git revert` writes the reverted
-// commit's hash block. Failing either would make the operation impossible
-// without --no-verify, which teaches the habit of bypassing the hook.
+// commit's hash block. Neither is written by the person committing, so the
+// length rules have nothing to hold them to. The exemption earns its place
+// in CI rather than in the hook: `git revert` runs `git commit -n` through
+// the sequencer and so never reaches a commit-msg hook at all, while CI
+// reads every commit a branch adds.
 const GENERATED_SUBJECT = /^(Merge|Revert)\b/u;
 
-// Only generated attribution. A human co-author is fine.
-const TOOL_ATTRIBUTION =
-  /co-authored-by:.*(claude|anthropic)|generated with .*(claude|anthropic)|🤖/iu;
+// Only generated attribution, and not only one vendor's: the rule is that a
+// commit message carries no tool attribution, so a trailer naming any of
+// them breaks it. A human co-author is fine, and so is prose about a tool
+// that generated something other than this commit — which is why the
+// generic verb is not matched on its own.
+const GENERATORS =
+  'claude|anthropic|copilot|chatgpt|openai|gpt-[0-9]|gemini|cursor|codeium|devin|codex';
+const TOOL_ATTRIBUTION = new RegExp(
+  `co-authored-by:.*(${GENERATORS})|generated with .*(${GENERATORS})|🤖`,
+  'iu',
+);
 
 // `git commit --verbose` appends the diff below this marker.
 const SCISSORS = /^#\s*-+\s*>8\s*-+/u;
@@ -40,11 +51,17 @@ function weigh(line: string): number {
 }
 
 /**
- * What git hands the hook is the editor buffer, not the message: its own `#`
- * guidance, and under --verbose the whole diff. Both are dropped here rather
- * than at each rule, so no rule can forget.
+ * Where the message came from. An editor buffer carries git's own `#`
+ * guidance and, under --verbose, the whole diff; a stored message read back
+ * with `git log --format=%B` carries neither, and a `#` line in one is body
+ * text that `--cleanup=verbatim` kept. Stripping it there would let an
+ * over-long body through the budget, so the filtering is bound to the
+ * source rather than applied to everything.
  */
-export function messageLines(message: string): string[] {
+export type MessageSource = 'editor' | 'stored';
+
+export function messageLines(message: string, source: MessageSource): string[] {
+  if (source === 'stored') return message.split('\n');
   const lines: string[] = [];
   for (const line of message.split('\n')) {
     if (SCISSORS.test(line)) break;
@@ -54,8 +71,8 @@ export function messageLines(message: string): string[] {
   return lines;
 }
 
-export function checkCommitMessage(message: string): Violation[] {
-  const lines = messageLines(message);
+export function checkCommitMessage(message: string, source: MessageSource): Violation[] {
+  const lines = messageLines(message, source);
   const subject = lines[0] ?? '';
   const violations: Violation[] = [];
 

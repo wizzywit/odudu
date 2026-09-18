@@ -73,7 +73,7 @@ long-lived. It is OPTIONAL by default, but becomes REQUIRED in two cases:
 when the request carried `max_age` (the client needs to verify the OP
 actually re-checked freshness), or when `auth_time` was requested as an
 Essential Claim via the `claims` parameter. Both triggers are out of scope
-for P1 for the same reason — `max_age` needs the flow tree semantics P2
+for P1 for the same reason — `max_age` needs the flow tree semantics P2b
 builds, and the `claims` parameter needs the per-client machinery P3a
 builds — but the claim itself is cheap for P1 to support unconditionally:
 Odudu's session/authn-flow layer already knows when a user last actively
@@ -379,17 +379,17 @@ already signs every ID Token unconditionally per §2.
 
 ### Where `deferred:` rows land, and one open question
 
-Rows below name two phases: **P2** for anything needing flow tree
-semantics (_conditional_ reauthentication triggered by `max_age`,
-`prompt=select_account`'s multi-session selection, and `acr`/`amr` values
-that report which authentication methods and context were actually
-satisfied — all of this waits on the authentication-method modeling P2
-does); **P3a** for anything needing a consent screen, and **P13** for request
-objects, or
-per-client registration data that doesn't exist until dynamic client
-registration lands (`prompt=consent`, signed requests, signed or encrypted
-UserInfo responses). `prompt=login`'s own reauthentication behavior is
-answered in P1, not deferred — see above. Two items have no phase at all: ID Token
+Rows below name four phases. **P2b** for what needed flow tree semantics —
+_conditional_ reauthentication triggered by `max_age`, and the `acr`/`amr`
+values that report which authentication methods and context were actually
+satisfied. **P3a** for anything needing a consent screen, or the per-client
+registration data that does not exist until dynamic client registration
+lands: `prompt=consent`, and the `claims` request parameter. **P3b** for
+what that registration data then feeds — signed and encrypted UserInfo
+responses — and for `prompt=select_account`, which needs the concurrent
+sessions per browser that phase builds. **P13** for signed requests, which
+depend on the request objects §6 defines. `prompt=login`'s own
+reauthentication behavior is answered in P1, not deferred — see above. Two items have no phase at all: ID Token
 encryption negotiation (§2) and the end-user-facing mechanism to revoke
 previously granted tokens (§16.18); see the report's "Scope gaps in the
 phase roadmap" section.
