@@ -873,7 +873,8 @@ git push && gh pr checks 12 --watch
 **Interfaces:**
 
 - Consumes: nothing.
-- Produces: `assertFetchableUrl(raw: string): URL` and `assertPublicAddresses(addresses: readonly string[], options?: { allowPrivate?: boolean }): void`, both throwing `RemoteAddressRefused` with a `reason`. Task 9's fetcher calls both and passes `allowPrivate` through from configuration.
+- Produces: `assertFetchableUrl(raw: string): URL` and `assertPublicAddresses(addresses: readonly string[], options?: { allowPrivate?: boolean }): void`, both throwing `RemoteAddressRefused` with a `reason`.
+- Consumed by: **Task 10**, which calls `assertFetchableUrl` on a registered `jwks_uri` — that is the shape half of the validation registration owes, and it is what keeps this module from being built for a later phase. Task 9's fetcher calls both, and calls `assertPublicAddresses` with `allowPrivate` from configuration.
 
 **Why a pure function and why two of them.** This is the whole of the SSRF defence, and it is separated from the fetcher so it can be tested exhaustively without a network or a DNS server. The split is the two moments a URL can be refused: before resolution, on its shape, and after resolution, on where it actually points.
 
@@ -976,7 +977,19 @@ git commit -m "Refuse a client URL before the socket, not after"
 git push && gh pr checks 12 --watch
 ```
 
-### Task 9: The bounded JWKS fetcher
+### Task 9: The bounded JWKS fetcher — P3b's, unless the spike says otherwise
+
+> **Gated by ruling 1 and spike question 3.** Nothing in P3a consumes a
+> fetched key set: fetching is what `private_key_jwt` and encrypted UserInfo
+> need, and both are P3b. **Skip this task and carry it into P3b's plan**
+> unless Task 1's third question found that the Dynamic OP plan requires the
+> OP to fetch a client's JWKS during the run — in which case build it here,
+> before Task 12. Registration validates a `jwks_uri`'s _shape_ in Task 10
+> and stores it; it does not dereference it.
+>
+> The exit criterion's "boundary stated and tested" is satisfied by Task 8
+> and ADR 0028 either way. Nothing in the criterion asks for a fetch P3a
+> never performs.
 
 **Files:**
 
@@ -990,7 +1003,7 @@ git push && gh pr checks 12 --watch
 - Consumes: `assertFetchableUrl`, `assertPublicAddresses` from Task 8.
 - Produces: `clientKeySet(deps: ClientKeyDeps): { fetch(uri: string): Promise<unknown> }`, where `ClientKeyDeps` injects `lookup`, `request` and `now` so the test drives it with neither DNS nor a socket.
 
-**Ordering note from the spike.** If Task 1 found the Dynamic OP plan never registers a `jwks_uri`, this task and Task 8 are still built — `private_key_jwt` in P3b needs them — but they move behind Task 12 in the order, and the person running the plan says so in their report rather than silently reordering.
+**If this task runs at all**, it runs before Task 12, so registration and the fetcher land in dependency order.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -1117,7 +1130,7 @@ git push && gh pr checks 12 --watch
 
 **Interfaces:**
 
-- Consumes: nothing at runtime; `assertFetchableUrl` is **not** used here — a `jwks_uri` is validated for shape at registration and fetched later, and conflating the two would make registration depend on the RP being reachable at that moment.
+- Consumes: `assertFetchableUrl` from Task 8, applied to a registered `jwks_uri`. It validates **shape only** — `https`, no embedded credentials, parseable — and performs no lookup and no fetch: `assertPublicAddresses` is deliberately not called here, because resolving at registration would make a client's registration depend on its key host being reachable at that moment, and on DNS still answering the same way later.
 - Produces: `parseClientMetadata(body: unknown): ClientMetadataOutcome`, a discriminated union of `{ kind: 'ok'; metadata: ClientMetadata }` and `{ kind: 'invalid'; error: string; description: string }` where `error` is an RFC 7591 §3.2.2 code (`invalid_redirect_uri`, `invalid_client_metadata`). Task 12 calls it.
 
 **The MUST this task holds.** RFC 7591 §5: "registered redirection URI values MUST be one of: A remote web site protected by TLS... A web site hosted on the local machine using an HTTP URI... A non-HTTP application-specific URL". So `https://` anywhere, `http://` only for loopback, and a non-HTTP scheme with a scheme-specific part. `http://` to a non-loopback host is refused.
@@ -1155,6 +1168,21 @@ it.each(['http://127.0.0.1:8080/cb', 'http://[::1]:8080/cb', 'com.example.app:/c
     expect(parseClientMetadata(ok({ redirect_uris: [uri] })).kind).toBe('ok');
   },
 );
+
+it.each(['http://rp.example/jwks.json', 'https://user:pw@rp.example/j'])(
+  'refuses the jwks_uri %s',
+  (uri) => {
+    const outcome = parseClientMetadata(ok({ jwks_uri: uri }));
+    expect(outcome).toMatchObject({ kind: 'invalid', error: 'invalid_client_metadata' });
+  },
+);
+
+it('accepts a well-formed jwks_uri without dereferencing it', () => {
+  // No lookup, no socket: the host does not exist and registration succeeds.
+  expect(parseClientMetadata(ok({ jwks_uri: 'https://nonexistent.invalid/jwks.json' })).kind).toBe(
+    'ok',
+  );
+});
 
 it('refuses a client that states its keys twice', () => {
   const outcome = parseClientMetadata(ok({ jwks: { keys: [] }, jwks_uri: 'https://rp.example/j' }));
