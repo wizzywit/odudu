@@ -29,6 +29,20 @@ export const MAX_JWKS_BYTES = 1_000_000;
 
 const CACHE_TTL_MS = 300_000;
 
+// RFC 7517 §8.5 registers `application/jwk-set+json` for a JWK Set; the
+// OIDF conformance suite and most relying parties serve plain
+// `application/json` instead. Both are accepted; the media type is taken
+// only from before the first `;` (parameters such as `charset` follow it)
+// and compared case-insensitively, never substring-matched against the raw
+// header — which would also accept an unrelated type like `application/jsonish`.
+const ACCEPTED_CONTENT_TYPES = new Set(['application/json', 'application/jwk-set+json']);
+
+function acceptsContentType(contentType: string | null): boolean {
+  if (contentType === null) return false;
+  const mediaType = (contentType.split(';')[0] ?? '').trim().toLowerCase();
+  return ACCEPTED_CONTENT_TYPES.has(mediaType);
+}
+
 // A map keyed on a URL the caller chooses is a memory-exhaustion vector,
 // the same shape apps/server/src/throttle.ts bounds its key map against —
 // but this is a different budget: a cache of resolved key sets, not a
@@ -68,7 +82,7 @@ export function clientKeySet(deps: ClientKeyDeps): ClientKeySet {
     if (response.status < 200 || response.status >= 300) {
       throw new ClientKeySetRefused(`${uri} answered with status ${String(response.status)}`);
     }
-    if (response.contentType?.includes('application/json') !== true) {
+    if (!acceptsContentType(response.contentType)) {
       throw new ClientKeySetRefused(
         `${uri} answered with content type ${response.contentType ?? '(none)'}, not JSON`,
       );

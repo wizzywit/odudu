@@ -45,6 +45,27 @@ describe('clientKeySet', () => {
     await expect(keys.fetch('https://rp.example/j')).rejects.toThrow(/content type/u);
   });
 
+  it.each([
+    ['the JWK Set media type RFC 7517 §8.5 registers', 'application/jwk-set+json'],
+    ['plain JSON with a charset parameter', 'application/json; charset=utf-8'],
+    ['plain JSON, uppercased', 'APPLICATION/JSON'],
+  ])('accepts %s', async (_label, contentType) => {
+    const keys = clientKeySet(
+      deps({ request: () => Promise.resolve({ status: 200, contentType, body: '{"keys":[]}' }) }),
+    );
+    await expect(keys.fetch('https://rp.example/j')).resolves.toEqual({ keys: [] });
+  });
+
+  it('refuses a media type that merely starts with application/json', async () => {
+    const keys = clientKeySet(
+      deps({
+        request: () =>
+          Promise.resolve({ status: 200, contentType: 'application/jsonish', body: '{}' }),
+      }),
+    );
+    await expect(keys.fetch('https://rp.example/j')).rejects.toThrow(/content type/u);
+  });
+
   it('refuses a body past the cap', async () => {
     const keys = clientKeySet(
       deps({

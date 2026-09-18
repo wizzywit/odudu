@@ -349,15 +349,18 @@ every realm; outside production the variable stays optional, and without it
 passkey enrolment reports itself unavailable and the login page offers no
 passkey button, because there would be nothing behind one.
 
-A client that registers a `jwks_uri` has it dereferenced over HTTPS, and the
-address it resolves to is checked before the server connects to it — a
-private, loopback, link-local or otherwise non-public address is refused, so
-a client cannot point the server at its own network. `ODUDU_ALLOW_PRIVATE_CLIENT_URLS`
-lifts that check; it exists so the development and conformance stacks can
-register a client whose `jwks_uri` resolves to a private or loopback
-address, which the OIDF conformance suite's own registration module does.
-**With `NODE_ENV=production` the server refuses to boot if it is set to
-`true`** — off is the only production-safe value.
+The pieces that will dereference a registered `jwks_uri` exist but are not
+wired up yet: nothing in the server calls them today. When a client
+registers one, the address it resolves to will be checked before the server
+connects to it — a private, loopback, link-local or otherwise non-public
+address will be refused, so a client cannot point the server at its own
+network. `ODUDU_ALLOW_PRIVATE_CLIENT_URLS` is read and enforced at boot
+already — **with `NODE_ENV=production` the server refuses to boot if it is
+set to `true`** — but the escape hatch it names has nothing to take effect
+on until that fetch is wired in; it exists so that, once it is, the
+development and conformance stacks can register a client whose `jwks_uri`
+resolves to a private or loopback address, which the OIDF conformance
+suite's own registration module does.
 
 **Operational trap:** turning `verify_email` on locks out every existing
 user with no email address on file — including one seeded without
