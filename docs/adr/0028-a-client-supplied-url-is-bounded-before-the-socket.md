@@ -12,9 +12,9 @@ serves its key set over HTTP and expects the OP to fetch it, so refusing
 `jwks_uri` and accepting only inline `jwks` was considered and rejected:
 this server's conformance target exercises `jwks_uri`, not the inline form.
 
-verified: `grep -rn "fetch(\|undici\|axios" --include="*.ts" packages apps`
-→ one hit, browser-side script inside a rendered page. This server has made
-no outbound HTTP request of its own before this task.
+A repository-wide search for `fetch(`, `undici` and `axios` turns up one
+hit — browser-side script inside a rendered page. This server has made no
+outbound HTTP request of its own before this task.
 
 The hazard is concrete: a registrant sets `jwks_uri` to
 `http://169.254.169.254/latest/meta-data/` or `http://127.0.0.1:5432/`, and
@@ -34,8 +34,12 @@ URL, split across the two moments such a URL can be refused:
   actually returns, immediately before connecting. Every resolved address
   is checked — not the first — and the connection is made **to that
   address**, never by re-resolving the hostname. Refused: loopback,
-  link-local, private, unspecified and multicast ranges, in both IPv4 and
-  IPv6 including the IPv4-mapped IPv6 form.
+  link-local, private, unspecified, multicast, broadcast, and the
+  IETF-reserved, protocol-assignment and carrier-grade-NAT ranges, in both
+  IPv4 and IPv6 — checked in the numeric domain (parsed octets or hextets,
+  never a string prefix), and including an IPv4 address embedded in IPv6:
+  the mapped and deprecated-compatible forms in either dotted or hex
+  spelling, and the NAT64 well-known prefix.
 
 `assertPublicAddresses` takes an `allowPrivate` option. The compose stack
 and the conformance stack both run on private addresses, so a server that

@@ -20,7 +20,7 @@ describe('a URL the server will fetch on a client’s say-so', () => {
   });
 
   it('refuses a URL that fails to parse, without leaking a raw TypeError', () => {
-    expect(() => assertFetchableUrl('not a url')).toThrow(/scheme/u);
+    expect(() => assertFetchableUrl('not a url')).toThrow(/does not parse/u);
   });
 
   // Every address the name resolves to, not the first: a name answering
@@ -41,10 +41,33 @@ describe('a URL the server will fetch on a client’s say-so', () => {
     ['multicast', ['224.0.0.1']],
     ['multicast v6', ['ff02::1']],
     ['one public and one loopback', ['93.184.216.34', '127.0.0.1']],
-    // IPv4-mapped IPv6: loopback wearing a different hat. A v6-only range
-    // check would wave this through without normalising it to its v4 form
-    // first.
-    ['loopback, as an IPv4-mapped IPv6 address', ['::ffff:127.0.0.1']],
+    ['broadcast', ['255.255.255.255']],
+    ['reserved, class E', ['240.0.0.1']],
+    ['IETF protocol assignment', ['192.0.0.5']],
+    ['carrier-grade NAT', ['100.64.0.1']],
+    // IPv4-mapped IPv6, in every spelling a resolver or a client's own
+    // `new URL` normalisation can produce — not just the dotted form. Each
+    // one carries the same 32 bits as a bare IPv4 address in the last two
+    // hextets, and a v6-only range check (or a parser that mis-reads the
+    // dotted quad as hex) waves every one of these through.
+    ['loopback, dotted IPv4-mapped', ['::ffff:127.0.0.1']],
+    ['loopback, hex IPv4-mapped, compressed', ['::ffff:7f00:1']],
+    ['loopback, hex IPv4-mapped, fully written', ['0:0:0:0:0:ffff:127.0.0.1']],
+    [
+      'loopback, hex IPv4-mapped, fully written with leading zeros',
+      ['0000:0000:0000:0000:0000:ffff:127.0.0.1'],
+    ],
+    ['the metadata service, hex IPv4-mapped', ['::ffff:a9fe:a9fe']],
+    ['loopback, dotted IPv4-compatible (deprecated, zero marker)', ['::127.0.0.1']],
+    ['loopback, hex IPv4-compatible (deprecated, zero marker)', ['::7f00:1']],
+    ['loopback, reached through the NAT64 well-known prefix', ['64:ff9b::127.0.0.1']],
+    // Node's net.isIPv6 rejects every genuinely malformed spelling tried
+    // against it (checked directly: out-of-range octets, too many groups,
+    // a doubled "::", an over-long group), so there is no live input that
+    // reaches the parser while being unparseable. What a careless
+    // implementation can still get wrong is case: the marker is valid
+    // both as "ffff" and "FFFF".
+    ['loopback, IPv4-mapped with an upper-case marker', ['::FFFF:127.0.0.1']],
   ])('refuses %s', (_name, addresses) => {
     expect(() => {
       assertPublicAddresses(addresses);
@@ -54,6 +77,16 @@ describe('a URL the server will fetch on a client’s say-so', () => {
   it('accepts a public address', () => {
     expect(() => {
       assertPublicAddresses(['93.184.216.34']);
+    }).not.toThrow();
+  });
+
+  // A dotted IPv4 suffix does not by itself mean "embedded IPv4 to
+  // unwrap" — only the mapped/compatible and NAT64 well-known prefixes do.
+  // An ordinary global address that happens to spell its last 32 bits as
+  // a dotted quad must not be swept into the IPv4 checks by that alone.
+  it('accepts a public IPv6 address that uses dotted notation for its own sake', () => {
+    expect(() => {
+      assertPublicAddresses(['2001:db8::192.168.1.1']);
     }).not.toThrow();
   });
 
