@@ -1315,7 +1315,7 @@ Add it to `TableName` and `REAP_ORDER` in `apps/server/src/cli/reap.ts` with its
 
 `README.md`'s seed section and `docs/request-paths.md`. In `request-paths.md` the command must be **run against a live stack with its real output pasted back**, and the token in the transcript is a real one from that run — it is a credential for a development realm, which ADR 0014 already covers, and a hand-written one would break the document's promise.
 
-- [ ] **Step 7: Gate, commit, push, watch**
+- [ ] **Step 8: Gate, commit, push, watch**
 
 ```bash
 pnpm typecheck && pnpm lint && pnpm boundaries && pnpm exec vitest run --project integration && pnpm exec prettier --check .
@@ -1432,7 +1432,20 @@ pnpm exec vitest run --project integration client-registration
 
 Expected: FAIL — 404 from Fastify because the route does not exist, which is indistinguishable from the first case passing for the wrong reason. **Add a route-existence assertion** (the `open` policy case returning 201) and confirm _that_ one fails, so the first case is not a false green.
 
-- [ ] **Step 3: Implement the usecase**
+- [ ] **Step 3: Build the real transport, and pin the address to the socket**
+
+`clientKeySet` (built earlier) takes `request` as an injected dependency, and **nothing implements it yet** — there is no `node:https` call anywhere in this repository. That injection is what made the module's failure paths testable without a network; it also means the four properties below exist in prose and in no code, and a unit test proving the module passes a checked address down **cannot** prove the socket honours it.
+
+Implement `request` in `apps/server` composition and wire `clientKeySet` into the registration usecase. It carries all four:
+
+- **Pin the socket to the checked address.** Pass a `lookup` (or equivalent) so the connection goes to the address `assertPublicAddresses` approved, and **not** to a second resolution of the hostname. The two lookups need not agree, and the one that matters is the one the socket uses — this is the rejected alternative in ADR 0028. Keep the TLS `servername` and the `Host` header on the original hostname so certificate validation and virtual hosting stay correct; a pinned address with a rewritten SNI breaks TLS verification instead of preserving it.
+- **A connect timeout and a total timeout.** A hung socket is a resource an attacker chooses to hold.
+- **Cap the body at the stream, and destroy it on exceeding the cap.** The module's existing check runs against a materialised string, which is too late: an attacker-supplied URL that streams gigabytes has already cost the memory by then.
+- **Never weaken TLS verification.** No custom agent relaxing `rejectUnauthorized`, no `checkServerIdentity` override.
+
+Write an integration test that stands up a local HTTPS server and proves the pinning: resolve a hostname to a checked address and assert the connection lands there. If that cannot be done in this environment, say so in your report and record it as untested rather than implying coverage.
+
+- [ ] **Step 4: Implement the usecase**
 
 **The cap is taken under a lock.** `SELECT max_clients FROM realms WHERE id = $1 FOR UPDATE` before the `COUNT`, which serialises registrations per realm and leaves other realms concurrent. A bare `COUNT` then `INSERT` lets two concurrent registrations both find room — the cap failing under exactly the load a denial-of-service bound exists to hold. The lock sits on a path that is neither hot nor latency-sensitive, which is why it is right here and would be wrong on `/token`.
 
@@ -1440,11 +1453,11 @@ One transaction: resolve the realm, read its policy, authenticate the token if t
 
 The secret is returned **once**, in this response, and never again — `clients.secret_hash` is a hash. Say so in the prose you write for `request-paths.md`.
 
-- [ ] **Step 4: Advertise the endpoint conditionally**
+- [ ] **Step 5: Advertise the endpoint conditionally**
 
 `resolveDiscoveryDocument` currently takes `findRealm`, `claimNames` and `scopesForRealm`. The realm lookup it already performs carries the policy once Task 5's column is declared, so no new dependency is needed — pass a `registrationEndpoint` option into `discoveryDocument` only when the policy is not `disabled`. `packages/contracts/src/discovery.ts` gains the optional field.
 
-- [ ] **Step 5: Run the tests**
+- [ ] **Step 6: Run the tests**
 
 ```bash
 pnpm exec vitest run --project integration client-registration && pnpm exec vitest run --project unit packages/protocol-oidc
@@ -1452,15 +1465,15 @@ pnpm exec vitest run --project integration client-registration && pnpm exec vite
 
 Expected: PASS.
 
-- [ ] **Step 6: Close the clause rows the code holds**
+- [ ] **Step 7: Close the clause rows the code holds**
 
 `docs/protocols/rfc6749.md` carries 18 rows marked `deferred: P3a`, nearly all of them §2 and §3.1.2.2 client-registration requirements; `docs/protocols/oidc-discovery.md` carries one for `registration_endpoint`. Read each against what now exists and record the status the evidence supports — several will still be `deferred: P3b` (anything about `private_key_jwt` or mTLS) and at least one is a `SHOULD` about documenting the client-identifier size that prose, not code, has to satisfy. Move `tools/trace/silenced-musts.json` in the same diff.
 
-- [ ] **Step 7: Document the endpoint**
+- [ ] **Step 8: Document the endpoint**
 
 `docs/request-paths.md` gets a new section with a real transcript: opening the policy with `seed realm --set`, minting a token, registering, and the 404 and 401 refusals. **Delete the "Dynamic client registration (RFC 7591). P3a." bullet** from "What is not implemented", and check the surrounding bullets — the one about `seed client` being the only way to create a client is now false too.
 
-- [ ] **Step 8: Write ADRs 0026 and 0027**
+- [ ] **Step 9: Write ADRs 0026 and 0027**
 
 `docs/adr/0026-client-registration-is-a-realm-policy-closed-by-default.md`:
 three states rather than a boolean, why `disabled` answers 404 and omits the
@@ -1482,7 +1495,7 @@ trust a client they have since vetted); deriving it from client type rather
 than origin (a public client seeded by an operator is not the risk §5
 describes).
 
-- [ ] **Step 9: Gate, commit, push, watch**
+- [ ] **Step 10: Gate, commit, push, watch**
 
 ```bash
 pnpm verify
