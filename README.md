@@ -349,18 +349,25 @@ every realm; outside production the variable stays optional, and without it
 passkey enrolment reports itself unavailable and the login page offers no
 passkey button, because there would be nothing behind one.
 
-The pieces that will dereference a registered `jwks_uri` exist but are not
-wired up yet: nothing in the server calls them today. When a client
-registers one, the address it resolves to will be checked before the server
-connects to it — a private, loopback, link-local or otherwise non-public
-address will be refused, so a client cannot point the server at its own
-network. `ODUDU_ALLOW_PRIVATE_CLIENT_URLS` is read and enforced at boot
-already — **with `NODE_ENV=production` the server refuses to boot if it is
-set to `true`** — but the escape hatch it names has nothing to take effect
-on until that fetch is wired in; it exists so that, once it is, the
-development and conformance stacks can register a client whose `jwks_uri`
-resolves to a private or loopback address, which the OIDF conformance
-suite's own registration module does.
+The pieces that will dereference a registered `jwks_uri` exist — the
+address guard, and the socket transport it protects
+(`apps/server/src/client-key-transport.ts`), which pins the connection to
+the address the guard already checked rather than letting Node resolve the
+hostname a second time — but nothing in the server calls them today: there
+is no client registration endpoint yet to register a `jwks_uri` against.
+Once one exists, the address a `jwks_uri` resolves to will be checked
+before the server connects to it — a private, loopback, link-local or
+otherwise non-public address will be refused, so a client cannot point the
+server at its own network — and the fetch itself carries a connect
+timeout, a total timeout, and a cap on the response body enforced as it
+streams, never against a string already read into memory.
+`ODUDU_ALLOW_PRIVATE_CLIENT_URLS` is read and enforced at boot already —
+**with `NODE_ENV=production` the server refuses to boot if it is set to
+`true`** — but the escape hatch it names has nothing to take effect on
+until the registration endpoint wires the fetch in; it exists so that,
+once it does, the development and conformance stacks can register a
+client whose `jwks_uri` resolves to a private or loopback address, which
+the OIDF conformance suite's own registration module does.
 
 **Operational trap:** turning `verify_email` on locks out every existing
 user with no email address on file — including one seeded without
