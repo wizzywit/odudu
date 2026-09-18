@@ -631,40 +631,59 @@ plan leaves open, plan id `4JhQ5ffOdtF1Q`, suite `5.1.36`, on
 full record; this section is its summary.
 
 **1 PASSED / 3 SKIPPED / 18 FAILED / 1 never reached a terminal status
-within the run's poll window.** Of the 18 `FAILED`, 4 are the suite
-waiting on a human rather than an odudu defect, exactly like Basic OP's
-own two manual-review modules; the module that timed out (`CONFIGURED`,
-no result) is waiting on a different manual step it cannot supply at all
-(below). Every module's cause was individually confirmed from its own
-log, not sampled:
+within the run's poll window.** A module can fail more than one
+condition, so the table below counts `FAILURE`-result **conditions**
+across all 23 modules' committed logs, not modules — counting modules
+once each is what hid how often the most common condition actually
+fired. Every occurrence was individually confirmed from its own log, not
+sampled; the full breakdown, including which modules share a condition,
+is in [ADR 0031](adr/0031-the-dynamic-op-plan-cannot-pass-code-only.md).
 
-| Cause                                                                                                                   | Modules |
-| ----------------------------------------------------------------------------------------------------------------------- | ------- |
-| Mandatory PKCE (ADR 0016) — no module in this plan carries `code_challenge`                                             | 11      |
-| `response_types_supported` must contain all three of `code`/`id_token`/`token id_token` for a dynamic client (ADR 0031) | 1       |
-| `request_uri` refused (`docs/request-paths.md`, deferred P13)                                                           | 2       |
-| Self-skip: `subject_types_supported` has no `pairwise` (ADR 0031)                                                       | 2       |
-| Self-skip: `id_token_signing_alg_values_supported` has no `none` (`docs/protocols/oidc-discovery.md`)                   | 1       |
-| Harness: suite waits on a human to confirm a redirect-URI error page (ADR 0016's own precedent)                         | 4       |
-| Harness: suite waits on a human to rotate keys odudu cannot rotate yet (P4)                                             | 1       |
-| PASSED                                                                                                                  | 1       |
+| Condition                                                              | Occurrences | Cause                                                                                      |
+| ---------------------------------------------------------------------- | ----------- | ------------------------------------------------------------------------------------------ |
+| `EnsureServerConfigurationSupportsPrivateKeyJwt`                       | 15          | **P3b**: `private_key_jwt` client authentication not implemented (`docs/request-paths.md`) |
+| `CheckIfAuthorizationEndpointError` (`invalid_request`)                | 11          | Mandatory PKCE — ADR 0016                                                                  |
+| `CheckIfAuthorizationEndpointError` (`request_uri_not_supported`)      | 2           | **P13**: `request_uri` refused (`docs/request-paths.md`)                                   |
+| `OIDCCCheckDiscEndpointResponseTypesSupportedDynamic`                  | 1           | `response_types_supported` lacks `id_token`/`token id_token` — ADR 0031                    |
+| `OIDCCCheckDiscEndpointGrantTypesSupportedDynamic`                     | 1           | `grant_types_supported` lacks `implicit` — ADR 0031                                        |
+| `CheckDiscEndpointRequestObjectSigningAlgValuesSupportedContainsRS256` | 1           | **P13** corollary: no request-object support, so the alg list is never advertised          |
+| `CheckDiscEndpointUserinfoSigningAlgValuesSupportedContainsRS256`      | 1           | **P3b** corollary: `/userinfo` never signs a response yet                                  |
 
-**The surprise is which cause dominates.** The pre-run spike (below)
-expected the `response_types_supported` check to be the reason this plan
-cannot pass. It is — for exactly one module. Eleven others never get that
-far: `OIDCCDynamicTestPlan` carries no dedicated PKCE module the way Basic
-OP does, so every module that reaches `/authorize` sends a plain request
-with no `code_challenge`, and odudu's mandatory-PKCE rule (ADR 0016)
-rejects it first. `private_key_jwt` client authentication — not
-implemented until P3b — is consequently never exercised by this plan at
-all: PKCE refuses every request before a token-endpoint client
-authentication would matter.
+Plus 3 self-skips (2 `subject_types_supported` has no `pairwise`, ADR
+0031; 1 `id_token_signing_alg_values_supported` has no `none`,
+`docs/protocols/oidc-discovery.md`) and 1 pass
+(`oidcc-redirect-uri-regfrag`).
+
+**`private_key_jwt` is the single most common failing condition, not
+mandatory PKCE, and the two are independent.**
+`EnsureServerConfigurationSupportsPrivateKeyJwt` is a
+discovery-configuration check that fires during module setup, before any
+`/authorize` request is built — PKCE cannot be shielding it, and it isn't
+shielding PKCE either: 11 of the 14 modules that fail it also fail PKCE
+separately, but 4 fail only `private_key_jwt` (their modules test a
+missing/mismatched `redirect_uri`, not authorization-request success).
+The pre-run spike expected `response_types_supported` to be the reason
+this plan cannot pass; that check fails exactly one module. Neither PKCE
+nor `response_types_supported` is the dominant cause — `private_key_jwt`,
+**P3b**'s, is.
+
+Seven modules also reach a suite condition that logs `REVIEW` (a
+screenshot a human confirms in the suite's own UI) rather than
+`FAILURE` — the same unattended-run limitation ADR 0016 already names for
+Basic OP's two manual-review modules. All seven already carry a genuine
+`FAILURE` from the table above before reaching that checkpoint; the
+checkpoint only decides whether the module ends cleanly or gets cut off
+when the next module claims the shared alias (`WAITING` for four of them,
+`INTERRUPTED` — no different from every other PKCE failure — for the
+other three). `oidcc-server-rotate-keys` is the one module that fails no
+condition at all: it reaches a manual "please rotate the keys" step this
+run cannot perform regardless of time, since odudu has no key-rotation
+operation yet (**P4**), and its committed status is `CONFIGURED` with no
+result.
 
 **No defect was found in this phase's work.** Every failure and
 self-skip traces to a decision already on record — ADR 0016, ADR 0031, or
-`docs/request-paths.md`'s existing P13/P4 placements — or to the same
-kind of unattended-run harness limitation ADR 0016 already names for
-Basic OP's two manual-review modules.
+`docs/request-paths.md`'s existing P3b/P13/P4 placements.
 
 ## Running it yourself
 

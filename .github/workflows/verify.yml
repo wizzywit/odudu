@@ -73,9 +73,11 @@ jobs:
           SUITE_DIR: /tmp/conformance-suite
 
       # Cannot pass by construction — ADR 0031 — so this step does not gate
-      # the build. It still runs on every push: the suite jar above is
-      # already built, so a second plan against it is cheap, and a module
-      # failing for a new reason is a regression worth CI catching.
+      # the build. It still runs on every push, against the suite jar the
+      # step above already built, so this proves the plan keeps running to
+      # completion — it does not compare outcomes against the committed
+      # baseline, so it will not on its own surface a module that starts
+      # failing for a new reason (ADR 0031's Consequences).
       - name: Run the Dynamic OP conformance plan
         run: ./infra/conformance/run-dynamic-op.sh
         env:

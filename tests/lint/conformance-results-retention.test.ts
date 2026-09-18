@@ -14,6 +14,12 @@ const RESULTS_DIR = path.resolve(import.meta.dirname, '../../infra/conformance/r
 // is not history for the other.
 const RUNS_KEPT = 2;
 
+// Adding a plan is a deliberate repo change (a new run-*.sh, a new
+// package.json script, a README section) — this bounds it too, so that
+// stays true rather than assumed. Raise it in the same commit that adds
+// a plan's evidence.
+const MAX_PLANS = 2;
+
 function runNameOf(file: string): string {
   return file.replace(/-logs\.zip$/u, '').replace(/\.json$/u, '');
 }
@@ -46,6 +52,11 @@ describe('the committed conformance exports stay bounded', () => {
         `results/ holds ${String(planRuns.length)} runs of ${plan}: ${planRuns.join(', ')}`,
       ).toBeLessThanOrEqual(RUNS_KEPT);
     }
+
+    expect(
+      runsByPlan.size,
+      `results/ holds evidence for ${String(runsByPlan.size)} plans: ${[...runsByPlan.keys()].join(', ')}`,
+    ).toBeLessThanOrEqual(MAX_PLANS);
   });
 
   it('keeps both halves of every run it keeps — the summary is a claim, the log export is the evidence', async () => {

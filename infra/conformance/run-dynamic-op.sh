@@ -2,10 +2,13 @@
 # Reproduces the Dynamic OP run recorded under results/. Not wired to gate
 # CI — the plan cannot pass by construction (ADR 0031) — but the
 # `conformance` job still runs it, against the suite jar the Config OP step
-# already built, so a regression in what does pass shows up. Exports the
-# plan's results to $OUT_DIR (default: a temp directory) on the way out; it
-# does not overwrite the committed results/ files. Promoting a run into
-# results/ is deliberate and manual, exactly as run-basic-op.sh's is.
+# already built, so at minimum the plan is proven to still run to
+# completion on every push. Nothing here compares a run's outcome against
+# the committed baseline, so a module failing for a new reason does not
+# yet surface on its own — that comparison is unbuilt, not implied. Exports
+# the plan's results to $OUT_DIR (default: a temp directory) on the way
+# out; it does not overwrite the committed results/ files. Promoting a run
+# into results/ is deliberate and manual, exactly as run-basic-op.sh's is.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
