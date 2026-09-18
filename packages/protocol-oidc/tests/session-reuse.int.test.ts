@@ -18,6 +18,7 @@ import Fastify, { type FastifyInstance, type LightMyRequestResponse } from 'fast
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { sessions, provisionRealm } from '@odudu/authn-flows';
 import { oidcRoutes } from '#/index';
+import { UNLIMITED_CLIENT_SECRET_LIMITER } from '#/service/client-secret-throttle';
 import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
 
 // Two assertions matter here beyond the happy path: an authorization code
@@ -291,7 +292,14 @@ beforeAll(async () => {
   http = Fastify();
   httpApp = http;
   await http.register(formbody);
-  await http.register(oidcRoutes({ database: app, ownerDatabase: owner, kek: KEK }));
+  await http.register(
+    oidcRoutes({
+      database: app,
+      ownerDatabase: owner,
+      kek: KEK,
+      clientSecretLimiter: UNLIMITED_CLIENT_SECRET_LIMITER,
+    }),
+  );
   await http.ready();
 
   fakeClock = new FakeClock(new Date());
@@ -299,7 +307,13 @@ beforeAll(async () => {
   httpClockedApp = httpClocked;
   await httpClocked.register(formbody);
   await httpClocked.register(
-    oidcRoutes({ database: app, ownerDatabase: owner, kek: KEK, clock: fakeClock }),
+    oidcRoutes({
+      database: app,
+      ownerDatabase: owner,
+      kek: KEK,
+      clock: fakeClock,
+      clientSecretLimiter: UNLIMITED_CLIENT_SECRET_LIMITER,
+    }),
   );
   await httpClocked.ready();
 }, 120_000);

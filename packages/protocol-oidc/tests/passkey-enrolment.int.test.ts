@@ -29,6 +29,7 @@ import formbody from '@fastify/formbody';
 import Fastify, { type FastifyInstance, type LightMyRequestResponse } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { oidcRoutes } from '#/index';
+import { UNLIMITED_CLIENT_SECRET_LIMITER } from '#/service/client-secret-throttle';
 import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
 
 let containerHandle: TestDatabase | undefined;
@@ -240,6 +241,7 @@ beforeAll(async () => {
       ownerDatabase: owner,
       kek: KEK,
       publicBaseUrl: PUBLIC_BASE_URL,
+      clientSecretLimiter: UNLIMITED_CLIENT_SECRET_LIMITER,
     }),
   );
   await http.ready();
@@ -631,7 +633,14 @@ describe('a deployment that cannot name a relying party', () => {
     const unconfigured = Fastify();
     try {
       await unconfigured.register(formbody);
-      await unconfigured.register(oidcRoutes({ database: app, ownerDatabase: owner, kek: KEK }));
+      await unconfigured.register(
+        oidcRoutes({
+          database: app,
+          ownerDatabase: owner,
+          kek: KEK,
+          clientSecretLimiter: UNLIMITED_CLIENT_SECRET_LIMITER,
+        }),
+      );
       await unconfigured.ready();
 
       const authorize = await unconfigured.inject({ url: authorizeUrl(realmName) });

@@ -17,6 +17,7 @@ import Fastify, { type FastifyInstance, type LightMyRequestResponse } from 'fast
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { provisionRealm } from '@odudu/authn-flows';
 import { oidcRoutes } from '#/index';
+import { UNLIMITED_CLIENT_SECRET_LIMITER } from '#/service/client-secret-throttle';
 import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
 
 // The gate two doors share: the form path, after nextRequiredAction
@@ -253,7 +254,14 @@ beforeAll(async () => {
   http = Fastify();
   httpApp = http;
   await http.register(formbody);
-  await http.register(oidcRoutes({ database: app, ownerDatabase: owner, kek: KEK }));
+  await http.register(
+    oidcRoutes({
+      database: app,
+      ownerDatabase: owner,
+      kek: KEK,
+      clientSecretLimiter: UNLIMITED_CLIENT_SECRET_LIMITER,
+    }),
+  );
   await http.ready();
 }, 120_000);
 

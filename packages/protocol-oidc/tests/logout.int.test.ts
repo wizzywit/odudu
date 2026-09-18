@@ -18,6 +18,7 @@ import { and, eq } from 'drizzle-orm';
 import Fastify, { type FastifyInstance, type LightMyRequestResponse } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { oidcRoutes } from '#/index';
+import { UNLIMITED_CLIENT_SECRET_LIMITER } from '#/service/client-secret-throttle';
 import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
 import { tokenGrantRepository } from '#/repository/grants';
 
@@ -273,7 +274,14 @@ beforeAll(async () => {
   http = Fastify();
   httpApp = http;
   await http.register(formbody);
-  await http.register(oidcRoutes({ database: app, ownerDatabase: owner, kek: KEK }));
+  await http.register(
+    oidcRoutes({
+      database: app,
+      ownerDatabase: owner,
+      kek: KEK,
+      clientSecretLimiter: UNLIMITED_CLIENT_SECRET_LIMITER,
+    }),
+  );
   await http.ready();
 }, 120_000);
 

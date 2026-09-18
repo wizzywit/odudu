@@ -153,9 +153,14 @@ only failed `client_secret_basic`/`client_secret_post` attempts at
 `ClientSecretLimiter` dependency injected rather than imported — the layer
 boundary that made `slidingWindow` unreachable from `protocol-oidc` runs
 the same direction here, and `apps/server/src/app.ts` is the one caller that
-wires a real, memory-bounded instance in. Every other caller — every
-integration test that has no opinion on this budget — gets a limiter that
-never refuses, the same way `clock` defaults to the real one.
+wires a real, memory-bounded instance in. `oidcRoutes`'s `clientSecretLimiter`
+is **required**, not defaulted: it is an exported entry point of this
+package, and a permissive default would let an embedder register the
+plugin with no limiter and get a §2.3.1 MUST that silently does nothing,
+caught by nothing. A caller with no opinion on this budget — every
+integration test exercising something else — passes
+`UNLIMITED_CLIENT_SECRET_LIMITER` explicitly, which also documents at each
+site that this budget is not what that test is about.
 
 **Failures only, never successes.** `verifyClientCredentials` runs to
 completion and its result returns untouched on success; only the `throw`
@@ -170,13 +175,36 @@ authenticated as _not_ that client, the same bound the lockout accepts for
 subjects.
 
 **An unknown `client_id` spends the same budget a wrong secret against a
-real one does.** The key is the presented `client_id` itself, read before
-any lookup, so `authenticateClient`'s existing indistinguishability —
-unknown client, disabled client, wrong secret and a method mismatch all
-report the same `invalid_client` — extends to the limiter: nothing about
-which failure occurred changes what gets counted or how the refusal reads
-once the budget is spent (`429`, `Retry-After`, no body, mirroring this
-throttle's own).
+real one does, and is refused in the same bytes — not in the same time.**
+The key is the presented `client_id` itself, so nothing about which
+failure occurred changes what gets counted or how the refusal reads once
+the budget is spent (`429`, `Retry-After`, no body, mirroring this
+throttle's own). That is as far as the claim goes: an unknown `client_id`
+returns at the client lookup, before `verifyClientSecret` runs, while a
+wrong secret against a real client pays the Argon2id comparison first, so
+the two answer at different speeds even though their bytes and their
+budget consumption match.
+
+**That timing gap is accepted, not closed.** The tempting fix is the login
+path's own: verify against a constant hash (`DUMMY_HASH`,
+`packages/authn-flows/src/service/authenticators/password.ts`) when there
+is no real one, so an unknown identifier costs what a wrong credential
+costs. It does not transfer here. A username is secret-ish — it does not
+appear on the wire outside an authentication attempt — so paying an
+Argon2id verification to hide whether one exists is a cost worth paying
+once per attempt. A `client_id` is not: it is plain text in every
+`/authorize` URL a browser ever sees, so there is little for the timing
+oracle to reveal that a redirect didn't already. Worse, a dummy hash here
+would make every unauthenticated request bearing an unrecognized
+`client_id` cost an Argon2id — a CPU-amplification vector reachable with no
+credential at all, on an endpoint this ADR's own Context section already
+treats CPU cost as the thing to protect. The per-client budget cannot
+bound that amplification either: an attacker rotating `client_id`s gets a
+fresh budget on each one and evicts its own history first out of the
+bounded map, the same fail-open shape `MAX_THROTTLE_KEYS` chose deliberately
+for the per-origin throttle. So the existence oracle stays open — low
+value, given the `client_id` is not secret — and the mitigation that would
+close it is worse than what it closes.
 
 **Consequences inherited from this ADR's own reasoning, restated for the
 new instance:** it is per-instance, for the reason the per-origin throttle
@@ -189,7 +217,9 @@ instance too, at its own default rather than an imported constant, since
 the budget it bounds is a different one.
 
 `docs/protocols/rfc6749.md`'s client-authentication row moves from
-`deferred: P3a` to `covered`, at `RFC6749-2.3.1-04`.
+`deferred: P3b` to `covered`, at `RFC6749-2.3.1-04` — `docs/NEXT.md`'s own
+narrative called it `deferred: P3a` before this amendment, a drift between
+that file and the table this closes rather than corrects.
 
 ## Alternatives rejected
 

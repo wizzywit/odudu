@@ -269,10 +269,12 @@ that finally presents its real secret succeeds regardless of the failure
 count on record — the opposite trade from the account lockout above, which
 refuses a correct password once locked. An unknown `client_id` spends the
 same budget a wrong secret against a real one does and is refused in the
-same bytes, so the limiter is not a way to learn whether a `client_id` is
-registered. It is per instance for the same reason the throttle above is,
-which is likewise unshown here for want of a second replica. ADR 0023's
-amendment has the design; [the walkthrough is in
+same bytes — but not in the same time: it pays no Argon2id comparison, so
+the two are indistinguishable by response and by budget, not by timing.
+ADR 0023's amendment says why that gap is accepted rather than closed.
+This limiter is per instance for the same reason the throttle above is,
+which is likewise unshown here for want of a second replica; [the
+walkthrough is in
 docs/request-paths.md](docs/request-paths.md#the-client_secret-budget-at-token).
 
 `password_max_age_days` (default `0`, the feature off) ages a password out.

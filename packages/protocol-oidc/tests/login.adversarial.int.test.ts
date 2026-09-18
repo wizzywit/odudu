@@ -19,6 +19,7 @@ import { and, eq } from 'drizzle-orm';
 import Fastify, { type FastifyInstance, type LightMyRequestResponse } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { oidcRoutes } from '#/index';
+import { UNLIMITED_CLIENT_SECRET_LIMITER } from '#/service/client-secret-throttle';
 import { authorizationCodeRepository } from '#/repository/codes';
 import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
 import { authorizationCodes } from '#/schema/authorization-codes';
@@ -71,6 +72,7 @@ async function buildHttp(deps: {
       database: deps.database,
       ownerDatabase: owner,
       kek: KEK,
+      clientSecretLimiter: UNLIMITED_CLIENT_SECRET_LIMITER,
       ...(deps.tls !== undefined ? { tls: deps.tls } : {}),
       ...(deps.clock !== undefined ? { clock: deps.clock } : {}),
     }),

@@ -3516,15 +3516,28 @@ content-length: 0
 HTTP/1.1 200 OK
 ```
 
-Failures only: the sixth wrong secret is refused before it is even checked
-against the stored hash, but the right secret above it succeeds anyway,
-same as the fifth wrong one did — a healthy client is never throttled,
-whatever the failure count on record. That is the trade this budget makes
-against the account lockout, deliberately the opposite way: the lockout
-refuses a correct password once an account is locked, because it is
-protecting a credential from someone who does not hold it; this budget
-protects the ability to keep guessing, so someone who finally presents the
-real secret is let in regardless.
+Failures only: the right secret above succeeds anyway, same as the fifth
+wrong one did — a healthy client is never throttled, whatever the failure
+count on record. That is the trade this budget makes against the account
+lockout, deliberately the opposite way: the lockout refuses a correct
+password once an account is locked, because it is protecting a credential
+from someone who does not hold it; this budget protects the ability to
+keep guessing, so someone who finally presents the real secret is let in
+regardless.
+
+Unlike the per-origin throttle above — an `onRequest` hook that refuses
+before the body is even parsed — this limiter is consulted from inside
+`authenticateClient`, in the `catch` after `verifyClientCredentials` has
+already run the full comparison. The sixth wrong secret above pays the
+Argon2id verification the first five did, and only then is turned into a
+`429` instead of a `401`. This budget bounds _guesses_, not CPU: it stops
+the seventh, eighth and every later attempt in this window from having a
+chance of being right, but it does not save the sixth one's own cost. The
+per-origin throttle already covers the CPU case for the routes where an
+attacker needs no credential at all; this one is answering a different
+question — how many guesses a given client gets — for an endpoint where
+skipping the comparison on the exhausting attempt would save one Argon2id
+call and nothing more.
 
 An unknown `client_id` spends the same budget a wrong secret against a real
 one does, and is refused in the same bytes:
@@ -3556,11 +3569,16 @@ content-length: 0
 ```
 
 Same status, same headers, same empty body as `demo-limited`'s own sixth
-attempt above: the budget cannot be used to learn whether a `client_id` is
-registered, the same property `authenticateClient`'s `invalid_client`
-already held before this budget existed. Like the throttle above, this one
-**is per instance** for the same reason — a window in one process's memory
-— and that limitation is [README.md](../README.md)'s to state.
+attempt above, and the same budget: five attempts either way before the
+sixth is refused. What this does not claim is that the two are
+indistinguishable in general — an unknown `client_id` is refused at the
+client lookup, before `verifyClientSecret` runs, while a wrong secret
+against a real client pays the Argon2id comparison first, so the two paths
+differ in latency even though their response bytes and budget consumption
+match. ADR 0023's amendment records why that gap is accepted rather than
+closed with a dummy hash. Like the throttle above, this one **is per
+instance** for the same reason — a window in one process's memory — and
+that limitation is [README.md](../README.md)'s to state.
 
 ## Path B: refresh rotation
 

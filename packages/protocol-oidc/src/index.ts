@@ -77,20 +77,14 @@ export interface OidcRoutesDeps {
   // credentials to a guessed domain.
   publicBaseUrl?: string;
   // ADR 0023's client-authentication budget on /token, per client_id.
-  // Undefined outside apps/server's own wiring — every other caller here
-  // is a test exercising something this budget is not about, so it
-  // defaults to one that never refuses rather than asking each of them to
-  // supply a real one.
-  clientSecretLimiter?: ClientSecretLimiter;
+  // Required rather than defaulted: `oidcRoutes` is this package's
+  // exported entry point, and a permissive default here would let an
+  // embedder register the plugin with no limiter and get an RFC 6749
+  // §2.3.1 MUST that silently does nothing — nothing else would catch it.
+  // A caller that genuinely wants no budget says so explicitly with
+  // `UNLIMITED_CLIENT_SECRET_LIMITER` (#/service/client-secret-throttle.ts).
+  clientSecretLimiter: ClientSecretLimiter;
 }
-
-// Never refuses: the default for every caller that does not supply its own
-// budget. Real protection is apps/server/src/app.ts wiring a
-// `slidingWindow` instance in; protocol-oidc holds no sliding-window
-// implementation of its own; see #/service/client-secret-throttle.ts.
-const UNLIMITED_CLIENT_SECRET_LIMITER: ClientSecretLimiter = {
-  check: () => ({ allowed: true, retryAfterSeconds: 0 }),
-};
 
 // The plugin apps/server registers. Discovery and JWKS both read the
 // resolved realm's own tenant data — its scope vocabulary and its
@@ -101,7 +95,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
     const findRealm = (name: string) => realmLookupRepository(deps.ownerDatabase.db).byName(name);
     const clock = deps.clock ?? systemClock;
     const tls = deps.tls ?? false;
-    const clientSecretLimiter = deps.clientSecretLimiter ?? UNLIMITED_CLIENT_SECRET_LIMITER;
+    const clientSecretLimiter = deps.clientSecretLimiter;
     // One registry per process, shared by discovery (claimNames, for
     // claims_supported), /userinfo, and token issuance's ID token claims —
     // so a mapper registered once reaches every consumer the same way.

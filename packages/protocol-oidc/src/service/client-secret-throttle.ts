@@ -27,3 +27,13 @@ export function clientSecretLimiterKey(realmId: string, oauthClientId: string): 
 export interface ClientSecretLimiter {
   check: (key: string) => { allowed: boolean; retryAfterSeconds: number };
 }
+
+// Never refuses. `oidcRoutes`'s `clientSecretLimiter` is required, not
+// defaulted (index.ts), so a caller that genuinely has no opinion on this
+// budget — every integration test exercising something else — says so
+// explicitly by passing this, rather than the package silently guessing
+// on a caller's behalf what only `apps/server/src/app.ts`'s real
+// `slidingWindow` wiring should decide.
+export const UNLIMITED_CLIENT_SECRET_LIMITER: ClientSecretLimiter = {
+  check: () => ({ allowed: true, retryAfterSeconds: 0 }),
+};

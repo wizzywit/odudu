@@ -13,6 +13,7 @@ import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/test
 import Fastify, { type FastifyInstance, type LightMyRequestResponse } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { oidcRoutes } from '#/index';
+import { UNLIMITED_CLIENT_SECRET_LIMITER } from '#/service/client-secret-throttle';
 import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
 
 let containerHandle: TestDatabase | undefined;
@@ -80,7 +81,12 @@ beforeAll(async () => {
   http = Fastify();
   httpApp = http;
   await http.register(
-    oidcRoutes({ database: app, ownerDatabase: owner, kek: Buffer.alloc(32, 7) }),
+    oidcRoutes({
+      database: app,
+      ownerDatabase: owner,
+      kek: Buffer.alloc(32, 7),
+      clientSecretLimiter: UNLIMITED_CLIENT_SECRET_LIMITER,
+    }),
   );
   await http.ready();
 
