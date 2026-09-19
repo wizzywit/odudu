@@ -11,18 +11,23 @@ export interface AdmitSessionInput {
   subjectId: string;
   authenticators: readonly string[];
   remembered: boolean;
+  // The ids this browser's cookies already name (both lists together,
+  // resolveSessions's own live read — see login-submission.ts) — the cap
+  // this bounds is `max_sessions_per_browser`, not a per-subject count: a
+  // browser can hold sessions for more than one subject (what
+  // `prompt=select_account` will choose among), and evicting by subject
+  // would let each one carry the cap on its own, unbounded in total.
+  browserSessionIds: readonly string[];
   maxSessionsPerBrowser: number;
   lifespans: SessionLifespans;
 }
 
 // The only place a session row is created (ADR 0033). Locks the realm's
-// own row before reading anything else: `SELECT ... FOR UPDATE` on the
-// session rows re-qualifies only the rows its original scan already
-// found and never sees a row a concurrent admission inserted while it
-// waited, so it does not hold the cap (ADR 0033's worked failure and
-// reproduction). The realm-row lock forces a second, concurrent
-// admission's own session read, once unblocked, to be a fresh statement
-// under a fresh snapshot that finds what the first one committed.
+// own row before reading anything else: a lock on the session rows
+// instead does not hold the cap under concurrency (ADR 0033's worked
+// failure). Locking the realm row does not make eviction against a fixed
+// id list exact either — see the ADR's amendment for the accepted
+// cap+k residual and why a per-subject predicate is not the fix.
 export async function admitSession(
   tx: RealmScopedDatabase,
   input: AdmitSessionInput,
@@ -32,7 +37,7 @@ export async function admitSession(
 
   const now = clock.now();
   const repo = sessionRepository(tx);
-  const live = await repo.liveBySubject(input.subjectId, input.lifespans, now);
+  const live = await repo.liveByIds(input.browserSessionIds, input.lifespans, now);
   await repo.endMany(chooseEvictions(live, input.maxSessionsPerBrowser), now);
 
   const { maxSeconds } = lifespanFor(input.lifespans, input.remembered);

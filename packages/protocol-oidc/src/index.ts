@@ -270,6 +270,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
               subjectId: input.subjectId,
               authenticators: input.authenticators,
               remembered: input.remembered,
+              browserSessionIds: input.browserSessionIds,
               maxSessionsPerBrowser: input.maxSessionsPerBrowser,
               lifespans: input.lifespans,
             },

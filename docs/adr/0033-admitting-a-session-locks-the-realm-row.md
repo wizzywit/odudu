@@ -60,9 +60,12 @@ insert and evicts correctly.
 
 ## Consequences
 
-- The cap holds under concurrent admission, proven by the reproduction
-  above and by `packages/authn-flows/tests/session-set.int.test.ts`'s
-  "holds the cap when two logins arrive at once".
+- The lock holds under concurrent admission in the sense the reproduction
+  above tests: two transactions racing for the same realm row no longer
+  both see room under the cap from a scan that finds everything currently
+  live. It does not make a _list_-based cap exact under concurrency — see
+  the amendment below for why, and for what is exact instead (sequential
+  admissions) and what is bounded (concurrent ones).
 - **Accepted cost:** this serialises every login in a realm on one row
   lock, which is far coarser than the invariant needs — the actual
   contention is per browser, not per realm — and it sits on the hottest
@@ -85,26 +88,60 @@ place a session row is created: the realm-row lock, eviction and insert in
 one function, called from `completeLogin`
 (`packages/protocol-oidc/src/index.ts`) in place of a bare
 `establishSession`. The test helper described above is deleted;
-`session-set.int.test.ts`'s "holds the cap when two logins arrive at once"
-calls the real usecase.
+`session-set.int.test.ts` calls the real usecase.
 
-Eviction reads `sessionRepository(tx).liveBySubject`, not a list of ids the
-request already knew. A list gathered before the lock could never contain
-a session a concurrent admission had not yet inserted — the same gap the
-Decision above closes for the realm-row read, applied to the session read
-that follows it. Verified empirically, not merely reasoned: with the lock
-removed, ten runs of a two-concurrent-admission race gave a live count of 4
-against a cap of 3 in nine of them; with the lock restored, eight separate
-runs each held at exactly 3. The tenth unlocked run held by luck, which is
-the reason five or eight repetitions are what this ADR and its test both
-insist on, not one.
+Eviction reads `sessionRepository(tx).liveByIds` against the ids the
+browser's own cookies already name (`admitSession`'s `browserSessionIds`),
+never a subject- or realm-wide scan. The cap is `max_sessions_per_browser`,
+not per subject: a browser can hold sessions for more than one subject at
+once — the case `prompt=select_account` (a later increment) exists to
+choose among — so a per-subject predicate would let each subject on a
+shared browser carry the cap on its own, unbounded in total, which is
+exactly the failure this cap exists to prevent. A per-subject read
+(`liveBySubject`, tried and reverted during this work) was rejected for
+that reason, and for a second: it would let a login on one device evict a
+session the same person is actively using on another, two browsers that
+share nothing and should not share a budget.
 
-`packages/protocol-oidc/tests/session-cap.int.test.ts` proves the cap end
-to end: a browser logging in through the real HTTP routes more times than
-`max_sessions_per_browser` ends with exactly that many live sessions, and
-the `Set-Cookie` it receives names exactly those — confirmed by disabling
-eviction and watching that test fail with four cookie-borne ids against a
-cap of two.
+**The lock does not make a list-based cap exact under concurrency, and
+that is accepted, not fixed.** It serialises admissions in a realm and
+stops two of them from interleaving their own eviction decisions, but a
+fixed id list — the browser's cookies, read once, before the lock — can
+never contain a session a concurrent admission inserts while the first
+holds the lock, no matter how fresh the second admission's read against
+that same list is once unblocked. With `k` logins racing from one browser,
+the browser can transiently hold `cap + k` sessions rather than exactly
+`cap`; the next admission from that browser evicts back down, since its
+own fresh read of the (by then updated) cookie sees the surplus. This is
+tolerable where a per-subject cap is not: the cap is a size guard on the
+cookie (§5.4 — the default sits near a quarter of the measured ~110-id
+ceiling before a cookie stops fitting, not a security boundary), the
+excess self-corrects at the browser's very next login, and an exact
+cap needs a stable per-browser identifier — a `browser_sessions` row —
+which the design deliberately does not have; reversing that to close an
+off-by-`k` on a size guard is not worth the row.
+
+Verified empirically, not merely reasoned. Sequential admissions from one
+browser (past the cap, one login at a time) converge to exactly the cap
+every time, with no evicted id surviving in the next request's candidate
+list —
+`session-set.int.test.ts`'s "converges to exactly the cap across sequential
+logins". Concurrent admissions do not hold exactly the cap: with the lock
+removed, ten runs of a two-concurrent-admission race against a fixed id
+list gave a live count of 4 against a cap of 3 in nine of them (the tenth
+held by luck — this is why the test repeats rather than running once);
+with the lock restored, eight separate runs each held at exactly 4 —
+`cap + 2`, the concurrent case's own bound, asserted by
+"bounds two concurrent logins at cap plus the number racing, never
+unbounded". Both numbers matter: unlocked, an unbounded race can exceed
+even that loose bound over more attempts; locked, it does not.
+
+`packages/protocol-oidc/tests/session-cap.int.test.ts` proves the
+sequential case end to end: a browser logging in through the real HTTP
+routes, one request at a time, more times than `max_sessions_per_browser`
+ends with exactly that many live sessions, and the `Set-Cookie` it
+receives names exactly those — confirmed by disabling eviction and
+watching that test fail with four cookie-borne ids against a cap of two.
 
 ## Alternatives rejected
 

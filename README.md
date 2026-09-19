@@ -423,11 +423,15 @@ ordinary login would.
 
 **A browser's session count is capped, and the cap is enforced.**
 `realms.max_sessions_per_browser` (1–32, default 25) is the ceiling
-`admitSession` evicts a subject's least recently active sessions down to,
-in the same transaction it creates a new one — under a lock on the realm's
-own row, the only way two logins arriving at once cannot both see room
-under the cap (ADR 0033). `prompt=select_account` still renders the
-ordinary form; account selection among several remembered sessions is
+`admitSession` evicts a browser's own least recently active sessions down
+to — read from the ids its cookies already name, never by subject, since
+one browser can hold sessions for more than one — in the same transaction
+it creates a new one. A lock on the realm's own row serialises logins
+arriving at once, but does not make the cap exact under concurrency: `k`
+racing from the same browser can transiently exceed it by up to `k`,
+corrected at that browser's next login (ADR 0033's accepted residual).
+`prompt=select_account` still renders the ordinary form; account selection
+among several remembered sessions is
 **P3b**'s next increment.
 
 **A realm can now end a session.** `GET`/`POST

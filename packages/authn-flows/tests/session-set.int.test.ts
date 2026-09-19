@@ -127,25 +127,6 @@ describe('the live session set', () => {
     });
   });
 
-  it('cannot see a live session by subject across a foreign realm', async () => {
-    const realmId = newId();
-    const otherRealmId = newId();
-    const now = new Date();
-    const { subjectId } = await withRealm(app.db, realmId, async (tx) => {
-      await seedRealm(tx, realmId);
-      const subject = await subjectRepository(tx).create({ realmId, type: 'user' });
-      await createSession(tx, realmId, subject.id, new Date(now.getTime() + 3_600_000));
-      return { subjectId: subject.id };
-    });
-
-    await withRealm(app.db, otherRealmId, async (tx) => {
-      await seedRealm(tx, otherRealmId);
-      expect(await sessionRepository(tx).liveBySubject(subjectId, REALM_LIFESPANS, now)).toEqual(
-        [],
-      );
-    });
-  });
-
   it('ends several sessions at once, and ending an already-dead one is a no-op', async () => {
     const realmId = newId();
     const now = new Date();
@@ -191,7 +172,61 @@ describe('the live session set', () => {
     });
   });
 
-  it('holds the cap when two logins arrive at once', async () => {
+  it('converges to exactly the cap across sequential logins, with no evicted id left behind', async () => {
+    const realmId = newId();
+    const cap = 2;
+    const now = new Date();
+    const clock = new FakeClock(now);
+
+    const subjectId = await withRealm(app.db, realmId, async (tx) => {
+      await seedRealm(tx, realmId);
+      return (await subjectRepository(tx).create({ realmId, type: 'user' })).id;
+    });
+
+    // What the browser's own cookie would hold after each login: the ids
+    // admitSession reported as surviving, from its own answer, never a
+    // fresh read — the cookie is exactly what the last response wrote.
+    let browserSessionIds: readonly string[] = [];
+    for (let i = 0; i < cap + 2; i++) {
+      const admitted = await withRealm(app.db, realmId, (tx) =>
+        admitSession(
+          tx,
+          {
+            realmId,
+            subjectId,
+            authenticators: [],
+            remembered: false,
+            browserSessionIds,
+            maxSessionsPerBrowser: cap,
+            lifespans: REALM_LIFESPANS,
+          },
+          clock,
+        ),
+      );
+      browserSessionIds = await withRealm(app.db, realmId, (tx) =>
+        sessionRepository(tx).liveByIds(
+          [...browserSessionIds, admitted.sessionId],
+          REALM_LIFESPANS,
+          now,
+        ),
+      ).then((rows) => rows.map((row) => row.id));
+    }
+
+    expect(browserSessionIds).toHaveLength(cap);
+    await withRealm(app.db, realmId, async (tx) => {
+      const live = await sessionRepository(tx).liveByIds(browserSessionIds, REALM_LIFESPANS, now);
+      expect(live.map((s) => s.id).sort()).toEqual([...browserSessionIds].sort());
+    });
+  });
+
+  // A fixed id list gathered before the realm-row lock — the browser's own
+  // cookie, read once — can never contain a session a concurrent admission
+  // inserts while it waits, however fresh the read against that list is
+  // once unblocked. The lock still stops the two admissions interleaving
+  // their evictions, but cannot make a list-based cap exact: the accepted
+  // cap+k residual ADR 0033's amendment records, corrected at the
+  // browser's next admission rather than fixed by a per-subject read.
+  it('bounds two concurrent logins at cap plus the number racing, never unbounded', async () => {
     const realmId = newId();
     const cap = 3;
     const now = new Date();
@@ -216,6 +251,7 @@ describe('the live session set', () => {
             subjectId,
             authenticators: [],
             remembered: false,
+            browserSessionIds: seeded,
             maxSessionsPerBrowser: cap,
             lifespans: REALM_LIFESPANS,
           },
@@ -224,12 +260,13 @@ describe('the live session set', () => {
       );
     // Warms the two pool connections this race will use: a cold connection's
     // setup latency alone is enough to let the first admission finish before
-    // the second even starts, which would pass whether or not the lock
-    // works. Two harmless throwaway reads exercise the pool first.
+    // the second even starts, which would pass regardless of the lock or
+    // the id list. Two harmless throwaway reads exercise the pool first.
     await Promise.all([
       withRealm(app.db, realmId, (tx) => sessionRepository(tx).liveByIds([], REALM_LIFESPANS, now)),
       withRealm(app.db, realmId, (tx) => sessionRepository(tx).liveByIds([], REALM_LIFESPANS, now)),
     ]);
+    const concurrentAdmissions = 2;
     const [first, second] = await Promise.all([admit(), admit()]);
 
     await withRealm(app.db, realmId, async (tx) => {
@@ -238,7 +275,7 @@ describe('the live session set', () => {
         REALM_LIFESPANS,
         now,
       );
-      expect(live.length).toBeLessThanOrEqual(cap);
+      expect(live.length).toBeLessThanOrEqual(cap + concurrentAdmissions);
       expect(live.map((s) => s.id)).toEqual(
         expect.arrayContaining([first.sessionId, second.sessionId]),
       );

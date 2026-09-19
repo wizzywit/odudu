@@ -196,7 +196,7 @@ afterAll(async () => {
 describe('the session cap, end to end', () => {
   it('holds max_sessions_per_browser across repeated logins, with no evicted id left in a cookie', async () => {
     const realmName = `realm-${newId()}`;
-    const { realmId, subjectId } = await setupRealm(realmName);
+    const { realmId } = await setupRealm(realmName);
 
     const jar = new Map<string, string>();
     // Two logins past the cap: enough that a broken cap — every id ever
@@ -218,7 +218,7 @@ describe('the session cap, end to end', () => {
     // what is live — nothing evicted left behind, nothing live missing.
     const now = new Date();
     await withRealm(app.db, realmId, async (tx) => {
-      const live = await sessionRepository(tx).liveBySubject(subjectId, REALM_LIFESPANS, now);
+      const live = await sessionRepository(tx).liveByIds(finalIds, REALM_LIFESPANS, now);
       expect(live).toHaveLength(CAP);
       expect(live.map((session) => session.id).sort()).toEqual([...finalIds].sort());
     });

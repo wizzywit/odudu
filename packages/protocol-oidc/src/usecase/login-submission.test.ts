@@ -159,6 +159,7 @@ describe('handleLoginSubmission — the success path', () => {
       remembered: false,
       lifespans: REALM_LIFESPANS,
       maxSessionsPerBrowser: REALM.maxSessionsPerBrowser,
+      browserSessionIds: [],
       authenticators: ['password'],
     });
   });

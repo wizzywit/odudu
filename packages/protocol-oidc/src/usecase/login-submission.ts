@@ -154,6 +154,11 @@ export interface CompleteLoginInput {
   // never needs a lookup of its own inside the transaction it runs in.
   lifespans: SessionLifespans;
   maxSessionsPerBrowser: number;
+  // The ids this browser's cookies name, read before completeLogin runs —
+  // admitSession evicts from exactly this list, never a subject-wide one:
+  // the cap is per browser, and a browser can hold sessions for more than
+  // one subject (see ADR 0033's amendment on why per-subject was rejected).
+  browserSessionIds: readonly string[];
   // What `advance` reported ran, in order — copied onto the session
   // establishSession creates, so a later reuse of it states `amr`/`acr`
   // about what this login actually used rather than what the subject
@@ -371,6 +376,22 @@ export async function completeAuthorizedLogin(
       ? { sessionId: pending.reuseSessionId, authTime: new Date(pending.reuseAuthTime) }
       : undefined;
 
+  const lifespans = {
+    ssoSessionIdleSeconds: realm.ssoSessionIdleSeconds,
+    ssoSessionMaxSeconds: realm.ssoSessionMaxSeconds,
+    rememberMeIdleSeconds: realm.rememberMeIdleSeconds,
+    rememberMeMaxSeconds: realm.rememberMeMaxSeconds,
+  };
+
+  // Read before completing the login: admitSession evicts from exactly
+  // this list (ADR 0033) — the ids this browser's cookies name right now,
+  // never a subject-wide read, since the cap is per browser and a browser
+  // can hold sessions for more than one subject.
+  const before = await deps.resolveSessions(
+    { id: realm.id, name: realm.name, ...lifespans },
+    header,
+  );
+
   const completed = await deps.completeLogin({
     realmId: realm.id,
     authSessionId,
@@ -382,13 +403,9 @@ export async function completeAuthorizedLogin(
     codeChallenge: pending.codeChallenge,
     codeChallengeMethod: pending.codeChallengeMethod,
     remembered: rememberMeRequested,
-    lifespans: {
-      ssoSessionIdleSeconds: realm.ssoSessionIdleSeconds,
-      ssoSessionMaxSeconds: realm.ssoSessionMaxSeconds,
-      rememberMeIdleSeconds: realm.rememberMeIdleSeconds,
-      rememberMeMaxSeconds: realm.rememberMeMaxSeconds,
-    },
+    lifespans,
     maxSessionsPerBrowser: realm.maxSessionsPerBrowser,
+    browserSessionIds: before.map((session) => session.id),
     authenticators,
     ...(reuseSession !== undefined ? { reuseSession } : {}),
   });
@@ -409,16 +426,12 @@ export async function completeAuthorizedLogin(
 
   // The browser's other live sessions, joined with this one, split by the
   // cookie each already belongs to — not by which cookie the request
-  // happened to carry it in, so a mismatched cookie self-heals.
+  // happened to carry it in, so a mismatched cookie self-heals. Read
+  // fresh, after completeLogin's own commit, so an eviction admitSession
+  // just made is already reflected: an evicted id reads dead here and is
+  // dropped rather than carried forward into a cookie.
   const existing = await deps.resolveSessions(
-    {
-      id: realm.id,
-      name: realm.name,
-      ssoSessionIdleSeconds: realm.ssoSessionIdleSeconds,
-      ssoSessionMaxSeconds: realm.ssoSessionMaxSeconds,
-      rememberMeIdleSeconds: realm.rememberMeIdleSeconds,
-      rememberMeMaxSeconds: realm.rememberMeMaxSeconds,
-    },
+    { id: realm.id, name: realm.name, ...lifespans },
     header,
   );
   const survivors = existing.filter((session) => session.id !== sessionId);

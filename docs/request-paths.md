@@ -5492,8 +5492,9 @@ refused on the same two terms.
 `sessions` also carries `remembered`, a boolean set at establishment and
 never rewritten, and a realm carries `max_sessions_per_browser` (1–32,
 default 25) — a CHECK constraint bounding the **setting's own value**, and
-also the ceiling `admitSession` evicts a subject's least recently active
-sessions down to before establishing a new one
+also the ceiling `admitSession` evicts a browser's own least recently
+active sessions down to before establishing a new one, read from the ids
+its cookies already name rather than by subject
 (`packages/authn-flows/src/usecase/session-admission.ts`, ADR 0033).
 `odudu seed realm --set max_sessions_per_browser=10` changes the stored
 value the same way as every other realm setting, and every login after
@@ -6159,22 +6160,28 @@ session lifecycle. A citation of either half here means that half.
 
   `admitSession` (`packages/authn-flows/src/usecase/session-admission.ts`,
   ADR 0033) is now the only place a session row is created: it locks the
-  realm's own row, reads every live session belonging to the authenticating
-  subject, evicts the least recently active down to
+  realm's own row, reads every live session among the ids the browser's
+  own cookies already name, evicts the least recently active down to
   `realms.max_sessions_per_browser` (1–32, default 25) via
-  `chooseEvictions`, and only then inserts. The realm-row lock — not a lock
-  on the session rows, which the ADR shows performs identically to no lock
-  at all — is what stops two logins arriving at once from both seeing room
-  under the cap; `packages/authn-flows/tests/session-set.int.test.ts`'s
-  "holds the cap when two logins arrive at once" races two admissions
-  against a live container, and
-  `packages/protocol-oidc/tests/session-cap.int.test.ts` drives the real
-  HTTP routes through more logins than the cap and checks both the database
-  and the `Set-Cookie` the browser is sent. What is not there yet: with no
-  account-selection UI there is nothing for `prompt=select_account` to
-  offer a choice over, so it still renders the ordinary form, the same as
-  `login` — **P3b**'s next increment, named in its criterion since
-  2026-09-17.
+  `chooseEvictions`, and only then inserts. The cap is per browser, not
+  per subject — a browser can hold sessions for more than one subject,
+  which is what `prompt=select_account` will choose among — so eviction
+  never reads by subject. The realm-row lock — not a lock on the session
+  rows, which the ADR shows performs identically to no lock at all —
+  serialises admissions in a realm, but a fixed id list gathered before it
+  still cannot contain a session a concurrent admission inserts while it
+  waits: sequential logins from one browser converge to exactly the cap,
+  proven by `session-set.int.test.ts`'s "converges to exactly the cap
+  across sequential logins" and end to end by
+  `packages/protocol-oidc/tests/session-cap.int.test.ts`, but two logins
+  racing from the same browser can transiently exceed it by up to the
+  number racing, corrected at that browser's next login — the accepted
+  residual ADR 0033's amendment records, bounded by
+  "bounds two concurrent logins at cap plus the number racing, never
+  unbounded". What is not there yet: with no account-selection UI there is
+  nothing for `prompt=select_account` to offer a choice over, so it still
+  renders the ordinary form, the same as `login` — **P3b**'s next
+  increment, named in its criterion since 2026-09-17.
 
 - **The sign-in, error and consent pages are hardcoded HTML**, dependency-free
   with every interpolated value escaped. Theming and per-client branding are
