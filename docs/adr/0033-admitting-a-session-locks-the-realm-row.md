@@ -174,7 +174,8 @@ membership check** (`handleLogoutRequest`/`handleLogoutConfirmation`,
 `packages/protocol-oidc/src/usecase/logout.ts`), so a session absent from
 every cookie cannot be resolved, confirmed, or ended through the logout
 endpoint at all — not merely omitted from a list, unreachable by the one
-path that ends a session.
+path an End-User can invoke to end a session. Idle expiry still ends it,
+and so does an operator's `odudu reap`.
 
 **Accepted, documented, not redesigned:**
 
@@ -202,11 +203,11 @@ path that ends a session.
   session-list surface (P4) makes an orphan's absence from it visible
   rather than merely theoretical, not a residual to leave silently
   accepted.
-- **An operator can already reach an orphan today**, once the
-  administrative "end somebody else's session" surface exists — [What is
-  not implemented](../request-paths.md#what-is-not-implemented) tracks it
-  against P4. Until then, the orphan's own idle timeout is the only path
-  that ends it.
+- **An operator will be able to reach an orphan once the administrative
+  "end somebody else's session" surface is built** — [What is not
+  implemented](../request-paths.md#what-is-not-implemented) tracks it
+  against P4. That surface does not exist yet; until it does, nothing but
+  the orphan's own idle timeout (or `odudu reap`, once it is idle) ends it.
 
 ## Alternatives rejected
 

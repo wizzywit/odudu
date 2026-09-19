@@ -4264,8 +4264,13 @@ not set one.
 The hint names the session the cookie itself belongs to (OIDC Core §3.1.2.2
 validates it — this realm's own keys, this realm's issuer, an access token
 refused by `typ`), so §2's confirmation is skipped and the exact-match
-`post_logout_redirect_uri` is honoured. The refresh token this session's
-grant issued is now refused:
+`post_logout_redirect_uri` is honoured. A `sid` naming a session outside
+this browser's own resolved set — stale, or another browser's — is treated
+as a hint that names nothing usable: confirmation falls back to whichever
+of this browser's own sessions was most recently active, and the
+confirmation page names that session, not the one the `sid` asked for, so
+nobody is misled about which session confirming will end. The refresh
+token this session's grant issued is now refused:
 
 ```bash
 curl -sS \
