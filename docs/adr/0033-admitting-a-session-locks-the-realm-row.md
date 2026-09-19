@@ -78,6 +78,34 @@ insert and evicts correctly.
   replaces it must carry this lock forward and re-point the integration
   test at the real code, deleting the helper.
 
+## Amendment, 2026-09-19 — the usecase, not the helper
+
+`packages/authn-flows/src/usecase/session-admission.ts` is now the only
+place a session row is created: the realm-row lock, eviction and insert in
+one function, called from `completeLogin`
+(`packages/protocol-oidc/src/index.ts`) in place of a bare
+`establishSession`. The test helper described above is deleted;
+`session-set.int.test.ts`'s "holds the cap when two logins arrive at once"
+calls the real usecase.
+
+Eviction reads `sessionRepository(tx).liveBySubject`, not a list of ids the
+request already knew. A list gathered before the lock could never contain
+a session a concurrent admission had not yet inserted — the same gap the
+Decision above closes for the realm-row read, applied to the session read
+that follows it. Verified empirically, not merely reasoned: with the lock
+removed, ten runs of a two-concurrent-admission race gave a live count of 4
+against a cap of 3 in nine of them; with the lock restored, eight separate
+runs each held at exactly 3. The tenth unlocked run held by luck, which is
+the reason five or eight repetitions are what this ADR and its test both
+insist on, not one.
+
+`packages/protocol-oidc/tests/session-cap.int.test.ts` proves the cap end
+to end: a browser logging in through the real HTTP routes more times than
+`max_sessions_per_browser` ends with exactly that many live sessions, and
+the `Set-Cookie` it receives names exactly those — confirmed by disabling
+eviction and watching that test fail with four cookie-borne ids against a
+cap of two.
+
 ## Alternatives rejected
 
 - **`SELECT ... FOR UPDATE` on the session rows.** The remedy this ADR

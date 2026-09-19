@@ -89,6 +89,24 @@ export function sessionRepository(tx: RealmScopedDatabase) {
       });
     },
 
+    // The set admitSession (ADR 0033) evicts from: every live session
+    // belonging to this subject, read by a query that names no id in
+    // advance. A list of ids gathered before the realm-row lock could
+    // never include a session a concurrent admission had not yet
+    // inserted; scoping by subject instead means the statement admission
+    // issues right after taking the lock is a fresh scan that finds it.
+    async liveBySubject(
+      subjectId: string,
+      realm: SessionLifespans,
+      now: Date,
+    ): Promise<SessionRecord[]> {
+      const rows = await tx.select().from(sessions).where(eq(sessions.subjectId, subjectId));
+      return rows.map(toRecord).filter((record) => {
+        const { idleSeconds } = lifespanFor(realm, record.remembered);
+        return isSessionLive(record, idleSeconds, now);
+      });
+    },
+
     async endMany(ids: readonly string[], now: Date): Promise<void> {
       if (ids.length === 0) return;
       await tx

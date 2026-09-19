@@ -1,4 +1,3 @@
-import { eq } from 'drizzle-orm';
 import {
   createDatabase,
   MIGRATIONS_DIR,
@@ -10,13 +9,12 @@ import {
 } from '@odudu/db';
 import { expectCrossRealmMethodProbe } from '@odudu/db/testing';
 import { subjectRepository } from '@odudu/domain-identity';
-import { newId } from '@odudu/kernel';
+import { FakeClock, newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { sessionRepository } from '#/repository/sessions';
 import { sessions } from '#/schema/sessions';
-import { chooseEvictions } from '#/service/session-set';
-import { isSessionLive } from '#/service/session-liveness';
+import { admitSession } from '#/usecase/session-admission';
 
 const IDLE_SECONDS = 1800;
 const REALM_LIFESPANS = {
@@ -66,36 +64,6 @@ async function createSession(
   const id = newId();
   await sessionRepository(tx).create({ id, realmId, subjectId, expiresAt, authenticators: [] });
   return id;
-}
-
-// Reads the live rows for one realm, evicts down to the cap via
-// `chooseEvictions`, and inserts the new session, all inside the one
-// transaction `withRealm` opened. Locks the realm's own row first — see
-// ADR 0033 for why a lock on the session rows is not enough. Test-only:
-// the admission usecase owns the realm's actual cap and lifespans.
-async function admitSession(
-  tx: RealmScopedDatabase,
-  realmId: string,
-  subjectId: string,
-  cap: number,
-  now: Date,
-): Promise<{ id: string }> {
-  await tx.select().from(realms).where(eq(realms.id, realmId)).for('update');
-  const rows = await tx.select().from(sessions).where(eq(sessions.realmId, realmId));
-  const live = rows.filter((row) => isSessionLive(row, IDLE_SECONDS, now));
-
-  const repo = sessionRepository(tx);
-  await repo.endMany(chooseEvictions(live, cap), now);
-
-  const id = newId();
-  await repo.create({
-    id,
-    realmId,
-    subjectId,
-    expiresAt: new Date(now.getTime() + 3_600_000),
-    authenticators: [],
-  });
-  return { id };
 }
 
 describe('the live session set', () => {
@@ -159,6 +127,25 @@ describe('the live session set', () => {
     });
   });
 
+  it('cannot see a live session by subject across a foreign realm', async () => {
+    const realmId = newId();
+    const otherRealmId = newId();
+    const now = new Date();
+    const { subjectId } = await withRealm(app.db, realmId, async (tx) => {
+      await seedRealm(tx, realmId);
+      const subject = await subjectRepository(tx).create({ realmId, type: 'user' });
+      await createSession(tx, realmId, subject.id, new Date(now.getTime() + 3_600_000));
+      return { subjectId: subject.id };
+    });
+
+    await withRealm(app.db, otherRealmId, async (tx) => {
+      await seedRealm(tx, otherRealmId);
+      expect(await sessionRepository(tx).liveBySubject(subjectId, REALM_LIFESPANS, now)).toEqual(
+        [],
+      );
+    });
+  });
+
   it('ends several sessions at once, and ending an already-dead one is a no-op', async () => {
     const realmId = newId();
     const now = new Date();
@@ -219,19 +206,42 @@ describe('the live session set', () => {
       return { subjectId: subject.id, seeded: ids };
     });
 
-    const [first, second] = await Promise.all([
-      withRealm(app.db, realmId, (tx) => admitSession(tx, realmId, subjectId, cap, now)),
-      withRealm(app.db, realmId, (tx) => admitSession(tx, realmId, subjectId, cap, now)),
+    const clock = new FakeClock(now);
+    const admit = () =>
+      withRealm(app.db, realmId, (tx) =>
+        admitSession(
+          tx,
+          {
+            realmId,
+            subjectId,
+            authenticators: [],
+            remembered: false,
+            maxSessionsPerBrowser: cap,
+            lifespans: REALM_LIFESPANS,
+          },
+          clock,
+        ),
+      );
+    // Warms the two pool connections this race will use: a cold connection's
+    // setup latency alone is enough to let the first admission finish before
+    // the second even starts, which would pass whether or not the lock
+    // works. Two harmless throwaway reads exercise the pool first.
+    await Promise.all([
+      withRealm(app.db, realmId, (tx) => sessionRepository(tx).liveByIds([], REALM_LIFESPANS, now)),
+      withRealm(app.db, realmId, (tx) => sessionRepository(tx).liveByIds([], REALM_LIFESPANS, now)),
     ]);
+    const [first, second] = await Promise.all([admit(), admit()]);
 
     await withRealm(app.db, realmId, async (tx) => {
       const live = await sessionRepository(tx).liveByIds(
-        [...seeded, first.id, second.id],
+        [...seeded, first.sessionId, second.sessionId],
         REALM_LIFESPANS,
         now,
       );
       expect(live.length).toBeLessThanOrEqual(cap);
-      expect(live.map((s) => s.id)).toEqual(expect.arrayContaining([first.id, second.id]));
+      expect(live.map((s) => s.id)).toEqual(
+        expect.arrayContaining([first.sessionId, second.sessionId]),
+      );
     });
   });
 

@@ -14,6 +14,7 @@ const REALM = {
   rememberMeAllowed: true,
   rememberMeIdleSeconds: 604_800,
   rememberMeMaxSeconds: 2_592_000,
+  maxSessionsPerBrowser: 25,
   clientRegistrationPolicy: 'disabled' as const,
 };
 

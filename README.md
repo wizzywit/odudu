@@ -419,9 +419,16 @@ new session's id into the `{realm}-session-persistent` cookie, carrying
 `{realm}-session` cookie. **The realm setting is the authority, not the
 field**: a realm with `remember_me_allowed` off ignores a ticked box
 entirely, and the session lands in the ephemeral list exactly as an
-ordinary login would. `prompt=select_account` still renders the ordinary
-form; account selection among several remembered sessions is **P3b**'s
-next increment.
+ordinary login would.
+
+**A browser's session count is capped, and the cap is enforced.**
+`realms.max_sessions_per_browser` (1–32, default 25) is the ceiling
+`admitSession` evicts a subject's least recently active sessions down to,
+in the same transaction it creates a new one — under a lock on the realm's
+own row, the only way two logins arriving at once cannot both see room
+under the cap (ADR 0033). `prompt=select_account` still renders the
+ordinary form; account selection among several remembered sessions is
+**P3b**'s next increment.
 
 **A realm can now end a session.** `GET`/`POST
 /realms/{realm}/protocol/openid-connect/logout` implements OpenID Connect

@@ -1,4 +1,5 @@
 import {
+  admitSession,
   advance,
   authenticatedSession,
   authenticatedSubject,
@@ -11,7 +12,6 @@ import {
   completeTotpEnrolment,
   completeUpdatePassword,
   consumeAuthenticationSession,
-  establishSession,
   initialChallenge,
   loadPendingRequest,
   markSessionAuthenticated,
@@ -263,16 +263,19 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
           sessionId = reuseSession.sessionId;
           authTime = reuseSession.authTime;
         } else {
-          const established = await establishSession(
+          const admitted = await admitSession(
             tx,
-            input.realmId,
-            input.subjectId,
-            input.sessionMaxSeconds,
-            input.authenticators,
-            input.remembered,
+            {
+              realmId: input.realmId,
+              subjectId: input.subjectId,
+              authenticators: input.authenticators,
+              remembered: input.remembered,
+              maxSessionsPerBrowser: input.maxSessionsPerBrowser,
+              lifespans: input.lifespans,
+            },
             clock,
           );
-          sessionId = established.sessionId;
+          sessionId = admitted.sessionId;
           authTime = now;
         }
 

@@ -5491,13 +5491,13 @@ refused on the same two terms.
 
 `sessions` also carries `remembered`, a boolean set at establishment and
 never rewritten, and a realm carries `max_sessions_per_browser` (1–32,
-default 25) — a CHECK constraint bounding the **setting's own value**, not
-the number of sessions a browser may hold live at once. Nothing enforces
-that cap yet: `odudu seed realm --set max_sessions_per_browser=10` changes
-the stored value the same way as every other realm setting, but no request
-path reads it to admit or refuse a session. That enforcement is
-application logic still to be written, tracked as session-admission work in
-[What is not implemented](#what-is-not-implemented).
+default 25) — a CHECK constraint bounding the **setting's own value**, and
+also the ceiling `admitSession` evicts a subject's least recently active
+sessions down to before establishing a new one
+(`packages/authn-flows/src/usecase/session-admission.ts`, ADR 0033).
+`odudu seed realm --set max_sessions_per_browser=10` changes the stored
+value the same way as every other realm setting, and every login after
+that is measured against the new ceiling.
 
 A realm also carries the pair a remembered login's session is measured
 against instead of `sso_session_idle_seconds`/`sso_session_max_seconds`:
@@ -5506,9 +5506,41 @@ against instead of `sso_session_idle_seconds`/`sso_session_max_seconds`:
 (60–31536000, default 2592000, thirty days), each settable the same way —
 `odudu seed realm --set remember_me_idle_seconds=1209600`. Which pair a
 session uses is picked by its own `remembered` column
-(`packages/authn-flows/src/service/session-lifespan.ts`), but nothing on the
-request path sets that column to `true` yet, so these settings have no
-observable effect until the toggle described above lands.
+(`packages/authn-flows/src/service/session-lifespan.ts`), set to `true`
+when a login ticks the `remember_me` checkbox on a realm that allows it —
+see [A remembered login](#a-remembered-login) above.
+
+#### The session cap
+
+A cookie jar, `cap-demo` with `max_sessions_per_browser` lowered to 2,
+`odudu seed realm --name cap-demo --set max_sessions_per_browser=2`, three
+logins in a row (`prompt=login` on each, so a live session never short-
+circuits the form — see [Signing in again from an existing
+session](#signing-in-again-from-an-existing-session) for what it would do
+otherwise):
+
+```
+HTTP/1.1 302 Found
+set-cookie: cap-demo-session=01a0ba51-2c09-…; HttpOnly; SameSite=Lax; Path=/
+```
+
+```
+HTTP/1.1 302 Found
+set-cookie: cap-demo-session=01a0ba51-2c09-….01a0ba51-2c7c-…; HttpOnly; SameSite=Lax; Path=/
+```
+
+```
+HTTP/1.1 302 Found
+set-cookie: cap-demo-session=01a0ba51-2c7c-….01a0ba51-2cf3-…; HttpOnly; SameSite=Lax; Path=/
+```
+
+(Session ids truncated; each response also carried the cleared persistent
+cookie, `Max-Age=0`, omitted here since nothing about it changes.) The
+third login's list still holds two ids, not three: `2c09`, the first
+login's session, is gone, evicted by `admitSession` as the least recently
+active once a third session tried to join a browser already at the cap —
+the second and third logins' own ids are exactly what survive. Nothing
+asked for this browser to end its oldest session; the realm's setting did.
 
 ### `id_token_hint`
 
@@ -6104,12 +6136,12 @@ session lifecycle. A citation of either half here means that half.
   configuration carrying a credential, and the per-realm secret it needs
   already has a home in the key-encryption interface §5 puts the signing key
   behind.
-- **"Remember me" exists; no account picker for `select_account` yet, and
-  no enforced cap on how many sessions a browser may hold.** The mechanism
-  a browser's several concurrent sessions need: two cookies per realm,
-  `<realm>-session` (no `Max-Age`) and `<realm>-session-persistent`
-  (`Max-Age` set from the realm's own `remember_me_max_seconds`), each
-  carrying a dot-separated **list** of session ids rather than one
+- **"Remember me" and the session cap both exist; no account picker for
+  `select_account` yet.** The mechanism a browser's several concurrent
+  sessions need: two cookies per realm, `<realm>-session` (no `Max-Age`)
+  and `<realm>-session-persistent` (`Max-Age` set from the realm's own
+  `remember_me_max_seconds`), each carrying a dot-separated **list** of
+  session ids rather than one
   (`packages/authn-flows/src/service/session-cookie.ts`). `resolveSessions`
   reads both cookies together into the browser's whole live set — the one
   definition `/authorize`'s reuse check, login, consent and logout all read
@@ -6119,20 +6151,31 @@ session lifecycle. A citation of either half here means that half.
   session's id is written into and which lifespan pair (`sso_session_*` or
   `remember_me_*`) `liveByIds` measures it against
   (`packages/authn-flows/src/service/session-lifespan.ts`). The login form
-  now offers a `remember_me` checkbox when `remember_me_allowed` is on
-  (off by default), and ticking it is what sets `remembered` to `true` —
-  gated against that same realm setting in `login-submission.ts`, never on
-  the submitted field's own say-so, so a realm that has not turned the
-  feature on ignores it entirely. What is not there yet: `realms` carries
-  `max_sessions_per_browser` (1–32, default 25), but nothing on the
-  request path reads it to cap or evict, so the list has no enforced
-  ceiling (`packages/authn-flows/src/service/session-set.ts`'s
-  `chooseEvictions` exists and is unit-tested but is not called from
-  anywhere); and with no account-selection UI there is nothing for
-  `prompt=select_account` to offer a choice over, so it still renders the
-  ordinary form, the same as `login`. The cap's enforcement and the
-  account-selection UI are **P3b**'s next increment, named in its
-  criterion since 2026-09-17.
+  offers a `remember_me` checkbox when `remember_me_allowed` is on (off by
+  default), and ticking it is what sets `remembered` to `true` — gated
+  against that same realm setting in `login-submission.ts`, never on the
+  submitted field's own say-so, so a realm that has not turned the feature
+  on ignores it entirely.
+
+  `admitSession` (`packages/authn-flows/src/usecase/session-admission.ts`,
+  ADR 0033) is now the only place a session row is created: it locks the
+  realm's own row, reads every live session belonging to the authenticating
+  subject, evicts the least recently active down to
+  `realms.max_sessions_per_browser` (1–32, default 25) via
+  `chooseEvictions`, and only then inserts. The realm-row lock — not a lock
+  on the session rows, which the ADR shows performs identically to no lock
+  at all — is what stops two logins arriving at once from both seeing room
+  under the cap; `packages/authn-flows/tests/session-set.int.test.ts`'s
+  "holds the cap when two logins arrive at once" races two admissions
+  against a live container, and
+  `packages/protocol-oidc/tests/session-cap.int.test.ts` drives the real
+  HTTP routes through more logins than the cap and checks both the database
+  and the `Set-Cookie` the browser is sent. What is not there yet: with no
+  account-selection UI there is nothing for `prompt=select_account` to
+  offer a choice over, so it still renders the ordinary form, the same as
+  `login` — **P3b**'s next increment, named in its criterion since
+  2026-09-17.
+
 - **The sign-in, error and consent pages are hardcoded HTML**, dependency-free
   with every interpolated value escaped. Theming and per-client branding are
   **P4b**, split out of P10 on 2026-09-17 because P10's criterion tested

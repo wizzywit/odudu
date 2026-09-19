@@ -26,6 +26,7 @@ describe('resolveJwks', () => {
             rememberMeIdleSeconds: 604_800,
             rememberMeMaxSeconds: 2_592_000,
             rememberMeAllowed: false,
+            maxSessionsPerBrowser: 25,
             clientRegistrationPolicy: 'disabled',
           }),
         listPublishableKeys: () => {
@@ -52,6 +53,7 @@ describe('resolveJwks', () => {
             rememberMeIdleSeconds: 604_800,
             rememberMeMaxSeconds: 2_592_000,
             rememberMeAllowed: false,
+            maxSessionsPerBrowser: 25,
             clientRegistrationPolicy: 'disabled',
           }),
         listPublishableKeys: () => Promise.resolve([{ kid: 'a', alg: 'RS256', publicJwk }]),

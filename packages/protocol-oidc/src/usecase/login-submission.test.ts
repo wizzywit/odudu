@@ -19,6 +19,14 @@ const REALM = {
   rememberMeAllowed: true,
   rememberMeIdleSeconds: 604_800,
   rememberMeMaxSeconds: 2_592_000,
+  maxSessionsPerBrowser: 25,
+};
+
+const REALM_LIFESPANS = {
+  ssoSessionIdleSeconds: REALM.ssoSessionIdleSeconds,
+  ssoSessionMaxSeconds: REALM.ssoSessionMaxSeconds,
+  rememberMeIdleSeconds: REALM.rememberMeIdleSeconds,
+  rememberMeMaxSeconds: REALM.rememberMeMaxSeconds,
 };
 
 const PENDING = {
@@ -148,8 +156,9 @@ describe('handleLoginSubmission — the success path', () => {
       nonce: PENDING.nonce,
       codeChallenge: PENDING.codeChallenge,
       codeChallengeMethod: PENDING.codeChallengeMethod,
-      sessionMaxSeconds: REALM.ssoSessionMaxSeconds,
       remembered: false,
+      lifespans: REALM_LIFESPANS,
+      maxSessionsPerBrowser: REALM.maxSessionsPerBrowser,
       authenticators: ['password'],
     });
   });
@@ -169,7 +178,6 @@ describe('handleLoginSubmission — the success path', () => {
     expect(outcome).toMatchObject({ kind: 'redirect' });
     expect(completeLogin).toHaveBeenCalledWith(
       expect.objectContaining({
-        sessionMaxSeconds: REALM.rememberMeMaxSeconds,
         remembered: true,
       }),
     );
@@ -192,7 +200,6 @@ describe('handleLoginSubmission — the success path', () => {
     expect(outcome).toMatchObject({ kind: 'redirect' });
     expect(completeLogin).toHaveBeenCalledWith(
       expect.objectContaining({
-        sessionMaxSeconds: REALM.ssoSessionMaxSeconds,
         remembered: false,
       }),
     );

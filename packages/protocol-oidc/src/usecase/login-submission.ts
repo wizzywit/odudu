@@ -1,10 +1,10 @@
 import {
-  lifespanFor,
   nextRequiredAction,
   type AdvanceInput,
   type AdvanceOutcome,
   type PendingRequest,
   type RequiredAction,
+  type SessionLifespans,
   type SessionRecord,
 } from '@odudu/authn-flows';
 import { type RealmScopedDatabase } from '@odudu/db';
@@ -143,16 +143,17 @@ export interface CompleteLoginInput {
   nonce: string | null;
   codeChallenge: string;
   codeChallengeMethod: 'S256';
-  // The ceiling establishSession creates the session with — already
-  // resolved by the caller through `lifespanFor`, so completeLogin never
-  // needs to know which pair a remembered login picks.
-  sessionMaxSeconds: number;
   // Whether this login was remembered — the realm-gated decision the
   // caller already made (see login-submission.ts's own gate on
-  // `rememberMeAllowed`), carried onto the session establishSession
-  // creates. Ignored when `reuseSession` is present: a reuse keeps
-  // whichever value its own session was established with.
+  // `rememberMeAllowed`), carried onto the session admitSession creates.
+  // Ignored when `reuseSession` is present: a reuse keeps whichever value
+  // its own session was established with.
   remembered: boolean;
+  // The realm's lifespan pair and cap, carried through so admitSession
+  // (packages/authn-flows/src/usecase/session-admission.ts, ADR 0033)
+  // never needs a lookup of its own inside the transaction it runs in.
+  lifespans: SessionLifespans;
+  maxSessionsPerBrowser: number;
   // What `advance` reported ran, in order — copied onto the session
   // establishSession creates, so a later reuse of it states `amr`/`acr`
   // about what this login actually used rather than what the subject
@@ -344,6 +345,7 @@ export async function completeAuthorizedLogin(
     ssoSessionIdleSeconds: number;
     rememberMeIdleSeconds: number;
     rememberMeMaxSeconds: number;
+    maxSessionsPerBrowser: number;
   },
   issuerBase: string,
   authSessionId: string,
@@ -369,7 +371,6 @@ export async function completeAuthorizedLogin(
       ? { sessionId: pending.reuseSessionId, authTime: new Date(pending.reuseAuthTime) }
       : undefined;
 
-  const { maxSeconds } = lifespanFor(realm, rememberMeRequested);
   const completed = await deps.completeLogin({
     realmId: realm.id,
     authSessionId,
@@ -380,8 +381,14 @@ export async function completeAuthorizedLogin(
     nonce: pending.nonce,
     codeChallenge: pending.codeChallenge,
     codeChallengeMethod: pending.codeChallengeMethod,
-    sessionMaxSeconds: maxSeconds,
     remembered: rememberMeRequested,
+    lifespans: {
+      ssoSessionIdleSeconds: realm.ssoSessionIdleSeconds,
+      ssoSessionMaxSeconds: realm.ssoSessionMaxSeconds,
+      rememberMeIdleSeconds: realm.rememberMeIdleSeconds,
+      rememberMeMaxSeconds: realm.rememberMeMaxSeconds,
+    },
+    maxSessionsPerBrowser: realm.maxSessionsPerBrowser,
     authenticators,
     ...(reuseSession !== undefined ? { reuseSession } : {}),
   });
@@ -592,6 +599,7 @@ export async function handleLoginSubmission(
       ssoSessionIdleSeconds: realm.ssoSessionIdleSeconds,
       rememberMeIdleSeconds: realm.rememberMeIdleSeconds,
       rememberMeMaxSeconds: realm.rememberMeMaxSeconds,
+      maxSessionsPerBrowser: realm.maxSessionsPerBrowser,
     },
     issuerBase,
     authSessionId,

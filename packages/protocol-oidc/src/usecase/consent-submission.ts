@@ -211,6 +211,7 @@ export async function handleConsentSubmission(
       ssoSessionIdleSeconds: realm.ssoSessionIdleSeconds,
       rememberMeIdleSeconds: realm.rememberMeIdleSeconds,
       rememberMeMaxSeconds: realm.rememberMeMaxSeconds,
+      maxSessionsPerBrowser: realm.maxSessionsPerBrowser,
     },
     issuerBase,
     authSessionId,

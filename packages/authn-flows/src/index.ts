@@ -99,6 +99,8 @@ export {
 } from '#/schema/authentication-sessions';
 export { sessions, type SessionRecord } from '#/schema/sessions';
 export { lifespanFor, type SessionLifespans } from '#/service/session-lifespan';
+export { admitSession, type AdmitSessionInput } from '#/usecase/session-admission';
+export { chooseEvictions, type EvictionCandidate } from '#/service/session-set';
 export { type AuthenticatorResult } from '#/schema/authenticator';
 export { executionRepository, type NewAuthenticationExecution } from '#/repository/executions';
 export {
