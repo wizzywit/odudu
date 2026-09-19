@@ -5415,6 +5415,15 @@ saying it will not accept an interaction — that turns the same state into
 `login_required`. A subject a `verify_email` realm has not verified is
 refused on the same two terms.
 
+`sessions` also carries `remembered`, a boolean set at establishment and
+never rewritten, and a realm carries `max_sessions_per_browser` (1–32,
+default 25), a CHECK constraint bounding how many of a browser's sessions
+may be live at once — `odudu seed realm --set max_sessions_per_browser=10`
+changes it the same way as every other realm setting. Neither is read on
+the request path yet — that is **P3b**'s "remember me" and
+concurrent-session work, tracked in
+[What is not implemented](#what-is-not-implemented).
+
 ### `id_token_hint`
 
 A hint is checked against the realm's own keys and issuer before anything

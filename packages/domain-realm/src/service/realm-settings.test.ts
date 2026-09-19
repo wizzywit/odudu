@@ -80,4 +80,19 @@ describe('coercing a value that arrived as a string', () => {
       value: 50,
     });
   });
+
+  it('coerces the per-browser session cap', () => {
+    expect(coerceRealmSetting('max_sessions_per_browser', '8')).toEqual({
+      kind: 'coerced',
+      column: 'maxSessionsPerBrowser',
+      value: 8,
+    });
+  });
+
+  it('refuses a cap that is not an integer', () => {
+    expect(coerceRealmSetting('max_sessions_per_browser', 'lots')).toEqual({
+      kind: 'invalid_value',
+      expected: 'integer',
+    });
+  });
 });

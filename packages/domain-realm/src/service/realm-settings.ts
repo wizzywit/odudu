@@ -30,6 +30,7 @@ const SETTINGS = {
   brute_force_failure_reset_seconds: { column: 'bruteForceFailureResetSeconds', type: 'integer' },
   client_registration_policy: { column: 'clientRegistrationPolicy', type: 'text' },
   max_clients: { column: 'maxClients', type: 'integer' },
+  max_sessions_per_browser: { column: 'maxSessionsPerBrowser', type: 'integer' },
 } as const satisfies Record<string, { column: string; type: 'boolean' | 'integer' | 'text' }>;
 
 export type RealmSettingName = keyof typeof SETTINGS;

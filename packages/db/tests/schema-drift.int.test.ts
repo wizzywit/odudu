@@ -72,6 +72,8 @@ const EXPECTED_CHECKS: Record<string, string> = {
   'realms.realms_client_registration_policy_check':
     "CHECK ((client_registration_policy = ANY (ARRAY['disabled'::text, 'open'::text, 'token'::text])))",
   'realms.realms_max_clients_range': 'CHECK ((max_clients >= 0))',
+  'realms.realms_max_sessions_per_browser_range':
+    'CHECK (((max_sessions_per_browser >= 1) AND (max_sessions_per_browser <= 32)))',
   'realms.realms_password_history_bounds':
     'CHECK (((password_history_depth >= 0) AND (password_history_depth <= 24)))',
   'realms.realms_password_max_age_bounds':

@@ -50,6 +50,7 @@ describe('migrations', () => {
       'enabled',
       'id',
       'max_clients',
+      'max_sessions_per_browser',
       'name',
       'otp_required',
       'password_history_depth',

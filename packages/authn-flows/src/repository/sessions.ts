@@ -12,6 +12,7 @@ function toRecord(row: typeof sessions.$inferSelect): SessionRecord {
     expiresAt: row.expiresAt,
     lastActiveAt: row.lastActiveAt,
     authenticators: row.authenticators,
+    remembered: row.remembered,
   };
 }
 
