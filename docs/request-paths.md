@@ -6044,18 +6044,30 @@ session lifecycle. A citation of either half here means that half.
   configuration carrying a credential, and the per-realm secret it needs
   already has a home in the key-encryption interface §5 puts the signing key
   behind.
-- **No "remember me", and one session per browser.** The lifespans a
-  persistent session would extend now exist — a realm's
-  `sso_session_idle_seconds` and `sso_session_max_seconds`, both read on
-  every `/authorize` — but a cookie holds one session id, so a second login
-  in the same browser replaces the first rather than joining it. That is
-  also why `prompt=select_account` renders the ordinary form:
-  account selection needs concurrent sessions, and both it and the three
-  clause rows behind it are **P3b**'s. "Remember me" is **P3b**'s too, named in
-  its criterion since 2026-09-17: the cookie this server sets carries no
-  `Max-Age`, which is why closing the browser ends the session, and the
-  toggle, the second pair of lifespans and the checkbox that select a
-  persistent one are all on surfaces P3b already touches.
+- **No "remember me", and no account picker for `select_account`.** The
+  mechanism a browser's several concurrent sessions would need now exists:
+  two cookies per realm, `<realm>-session` (no `Max-Age`) and
+  `<realm>-session-persistent` (`Max-Age` set from the realm's own
+  `sso_session_max_seconds`), each carrying a dot-separated **list** of
+  session ids rather than one
+  (`packages/authn-flows/src/service/session-cookie.ts`). `resolveSessions`
+  reads both cookies together into the browser's whole live set — the one
+  definition `/authorize`'s reuse check, login, consent and logout all read
+  — so a fresh login in a browser that already holds a session now **joins**
+  that set rather than replacing it. `sessions` carries `remembered`
+  (default `false`), which selects which of the two cookies a session's id
+  is written into, and `realms` carries `max_sessions_per_browser` (1–32,
+  default 25) to bound how large that list may grow. What none of this does
+  yet: nothing on the request path ever sets `remembered` to `true` — the
+  login form has no field for it — so every session lands in the ephemeral
+  bucket and the persistent cookie is always written cleared, `Max-Age=0`,
+  exactly as every transcript in this document shows; nothing reads
+  `max_sessions_per_browser` to cap or evict, so the list has no enforced
+  ceiling; and with no session ever remembered there is nothing for
+  `prompt=select_account` to offer a choice over, so it still renders the
+  ordinary form, the same as `login`. The remember-me toggle, the cap's
+  enforcement, and the account-selection UI are **P3b**'s, named in its
+  criterion since 2026-09-17.
 - **The sign-in, error and consent pages are hardcoded HTML**, dependency-free
   with every interpolated value escaped. Theming and per-client branding are
   **P4b**, split out of P10 on 2026-09-17 because P10's criterion tested
