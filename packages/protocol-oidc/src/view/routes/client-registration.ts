@@ -28,7 +28,10 @@ function toResponseBody(client: RegisteredClient): Record<string, unknown> {
     ...(metadata.jwksUri === null ? {} : { jwks_uri: metadata.jwksUri }),
     ...(metadata.frontchannelLogoutUri === null
       ? {}
-      : { frontchannel_logout_uri: metadata.frontchannelLogoutUri }),
+      : {
+          frontchannel_logout_uri: metadata.frontchannelLogoutUri,
+          frontchannel_logout_session_required: metadata.frontchannelLogoutSessionRequired,
+        }),
     ...(metadata.backchannelLogoutUri === null
       ? {}
       : {

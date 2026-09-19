@@ -15,6 +15,7 @@ export interface ClientMetadata {
   frontchannelLogoutUri: string | null;
   backchannelLogoutUri: string | null;
   backchannelLogoutSessionRequired: boolean;
+  frontchannelLogoutSessionRequired: boolean;
   userinfoSignedResponseAlg: string | null;
   userinfoEncryptedResponseAlg: string | null;
   userinfoEncryptedResponseEnc: string | null;
@@ -106,6 +107,25 @@ function isValidLogoutUri(raw: string): boolean {
   return url.protocol === 'https:' && url.hash === '';
 }
 
+// Front-Channel Logout 1.0 §2: the front-channel logout URI's domain, port
+// and scheme must match a registered redirect URI's. `URL#origin` folds a
+// default port into its scheme-standard form (`https://a` and
+// `https://a:443` both yield `https://a`), so comparing origins rather than
+// raw strings treats those as the same value the specification does.
+function sharesOriginWithRegisteredRedirectUri(
+  frontchannelLogoutUri: string,
+  redirectUris: readonly string[],
+): boolean {
+  const target = new URL(frontchannelLogoutUri).origin;
+  return redirectUris.some((redirectUri) => {
+    try {
+      return new URL(redirectUri).origin === target;
+    } catch {
+      return false;
+    }
+  });
+}
+
 const jwkSetShape = z.object({ keys: z.array(z.unknown()) });
 
 const metadataShape = z.object({
@@ -118,6 +138,7 @@ const metadataShape = z.object({
   frontchannel_logout_uri: z.string().optional(),
   backchannel_logout_uri: z.string().optional(),
   backchannel_logout_session_required: z.boolean().optional(),
+  frontchannel_logout_session_required: z.boolean().optional(),
   userinfo_signed_response_alg: z.string().optional(),
   userinfo_encrypted_response_alg: z.string().optional(),
   userinfo_encrypted_response_enc: z.string().optional(),
@@ -201,14 +222,19 @@ export function parseClientMetadata(body: unknown): ClientMetadataOutcome {
     );
   }
 
-  if (
-    metadata.frontchannel_logout_uri !== undefined &&
-    !isValidLogoutUri(metadata.frontchannel_logout_uri)
-  ) {
-    return invalid(
-      'invalid_client_metadata',
-      'frontchannel_logout_uri must be an absolute https URI with no fragment',
-    );
+  if (metadata.frontchannel_logout_uri !== undefined) {
+    if (!isValidLogoutUri(metadata.frontchannel_logout_uri)) {
+      return invalid(
+        'invalid_client_metadata',
+        'frontchannel_logout_uri must be an absolute https URI with no fragment',
+      );
+    }
+    if (!sharesOriginWithRegisteredRedirectUri(metadata.frontchannel_logout_uri, redirectUris)) {
+      return invalid(
+        'invalid_client_metadata',
+        'frontchannel_logout_uri must share its domain, port and scheme with a registered redirect_uri',
+      );
+    }
   }
 
   return {
@@ -223,6 +249,7 @@ export function parseClientMetadata(body: unknown): ClientMetadataOutcome {
       frontchannelLogoutUri: metadata.frontchannel_logout_uri ?? null,
       backchannelLogoutUri: metadata.backchannel_logout_uri ?? null,
       backchannelLogoutSessionRequired: metadata.backchannel_logout_session_required ?? false,
+      frontchannelLogoutSessionRequired: metadata.frontchannel_logout_session_required ?? false,
       userinfoSignedResponseAlg: metadata.userinfo_signed_response_alg ?? null,
       userinfoEncryptedResponseAlg: metadata.userinfo_encrypted_response_alg ?? null,
       userinfoEncryptedResponseEnc: metadata.userinfo_encrypted_response_enc ?? null,

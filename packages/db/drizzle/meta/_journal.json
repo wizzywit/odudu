@@ -351,6 +351,13 @@
       "when": 1789049381692,
       "tag": "0049_realm_remember_me",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1789049381693,
+      "tag": "0050_frontchannel_logout_session_required",
+      "breakpoints": true
     }
   ]
 }

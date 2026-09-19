@@ -574,6 +574,50 @@ curl -sS -X POST http://localhost:3000/realms/reg-demo/clients-registrations/ope
 }
 ```
 
+Front-Channel Logout 1.0 §2 also requires a registered `frontchannel_logout_uri`'s
+domain, port and scheme to match one of the client's own `redirect_uris` —
+an unauthenticated inbound surface is only as trustworthy as an origin the
+client already proved it controls. Matching any one of several registered
+redirect URIs satisfies it; a client with none registered has nothing to
+match against and is refused the same way:
+
+```bash
+curl -sS -X POST http://localhost:3000/realms/reg-demo/clients-registrations/openid-connect \
+  -H 'content-type: application/json' \
+  -d '{"redirect_uris":["https://rp.example/cb"],"frontchannel_logout_uri":"https://evil.example/fc"}'
+```
+
+```json
+{
+  "error": "invalid_client_metadata",
+  "error_description": "frontchannel_logout_uri must share its domain, port and scheme with a registered redirect_uri"
+}
+```
+
+`frontchannel_logout_session_required` is accepted alongside it, stored and
+echoed back the same way `backchannel_logout_session_required` already is,
+defaulting to `false`:
+
+```bash
+curl -sS -X POST http://localhost:3000/realms/reg-demo/clients-registrations/openid-connect \
+  -H 'content-type: application/json' \
+  -d '{"redirect_uris":["https://rp.example/cb"],"frontchannel_logout_uri":"https://rp.example/fc","frontchannel_logout_session_required":true}'
+```
+
+```json
+{
+  "client_id": "01a0bbd5-5d46-…",
+  "client_id_issued_at": 1789857717,
+  "client_secret": "YkEhHefxvt6UTSiXLhdYVr3nPd42kK5R588HAqEai-Y",
+  "client_secret_expires_at": 0,
+  "redirect_uris": ["https://rp.example/cb"],
+  "grant_types": ["authorization_code"],
+  "token_endpoint_auth_method": "client_secret_basic",
+  "frontchannel_logout_uri": "https://rp.example/fc",
+  "frontchannel_logout_session_required": true
+}
+```
+
 ## Path A: authorization code with PKCE
 
 The full interactive flow. Every client uses PKCE, public and confidential
