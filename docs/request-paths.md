@@ -843,11 +843,19 @@ curl -sS -D - -o /dev/null \
 ```
 HTTP/1.1 302 Found
 set-cookie: demo-session=01a09678-7150-…; HttpOnly; SameSite=Lax; Path=/
+set-cookie: demo-session-persistent=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
 location: http://localhost:8080/callback?code=g7v4W3JWm05w…&state=xyz-123&iss=http%3A%2F%2Flocalhost%3A3000%2Frealms%2Fdemo
 content-length: 0
 ```
 
 (Session id and code truncated.)
+
+Two `set-cookie` headers, not one: the ephemeral `demo-session` this login
+just established, and `demo-session-persistent` cleared to empty with
+`Max-Age=0` because nothing asked for this login to be remembered — the
+login form has no way to yet. Both are always sent so a browser holding a
+stale persistent cookie from before this pair existed loses it on the next
+login rather than carrying it forward unnoticed.
 
 Three things in that response:
 
@@ -1729,6 +1737,7 @@ curl -sS -i -X POST http://localhost:3000/realms/register-demo/login-actions/aut
 ```
 HTTP/1.1 302 Found
 set-cookie: register-demo-session=01a0a14e-…; HttpOnly; SameSite=Lax; Path=/
+set-cookie: register-demo-session-persistent=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
 location: http://localhost:8080/callback?code=tGYl5seSh4jl2tU7-0s2eXNgYDVBDrSjT72wXB_X0FQ&state=xyz123&iss=http%3A%2F%2Flocalhost%3A3000%2Frealms%2Fregister-demo
 ```
 
@@ -2122,6 +2131,7 @@ curl -sS -i -X POST http://localhost:3000/realms/otp-demo/login-actions/authenti
 ```
 HTTP/1.1 302 Found
 set-cookie: otp-demo-session=01a0ae70-c638-7675-9aee-f74d8702bdb7; HttpOnly; SameSite=Lax; Path=/
+set-cookie: otp-demo-session-persistent=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
 location: http://localhost:8080/callback?code=n9kNA0HuUqyrNgWAOFiP9rmxsCr9beOHKx_6RYPZgqY&state=xyz&iss=http%3A%2F%2Flocalhost%3A3000%2Frealms%2Fotp-demo
 ```
 
@@ -2333,6 +2343,7 @@ curl -sS -i -X POST http://localhost:3000/realms/otp-demo/login-actions/authenti
 ```
 HTTP/1.1 302 Found
 set-cookie: otp-demo-session=01a0ae70-ff5f-784a-8a6a-adf79abfba55; HttpOnly; SameSite=Lax; Path=/
+set-cookie: otp-demo-session-persistent=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
 location: http://localhost:8080/callback?code=OUzqSEyTjeest7rUe87XGaCgFBYYNy4oEFVgqhkZ_gw&state=xyz&iss=http%3A%2F%2Flocalhost%3A3000%2Frealms%2Fotp-demo
 ```
 
@@ -2488,6 +2499,7 @@ curl -sS -i -X POST http://localhost:3000/realms/rc8-demo/login-actions/authenti
 ```
 HTTP/1.1 302 Found
 set-cookie: rc8-demo-session=01a0affe-4593-74f9-8f9f-47a787713750; HttpOnly; SameSite=Lax; Path=/
+set-cookie: rc8-demo-session-persistent=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
 location: http://localhost:8080/callback?code=nUko6-JCypR4FzMWkdnBJybv3iTYZU-cnYKrArKSEVk&state=xyz&iss=http%3A%2F%2Flocalhost%3A3000%2Frealms%2Frc8-demo
 content-length: 0
 ```
@@ -3013,6 +3025,7 @@ curl -sS -i -X POST http://localhost:3000/realms/reset-demo/login-actions/authen
 ```
 HTTP/1.1 302 Found
 set-cookie: reset-demo-session=01a0a184-8d8c-…; HttpOnly; SameSite=Lax; Path=/
+set-cookie: reset-demo-session-persistent=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
 location: http://localhost:8080/callback?code=GKAk-hPPPzrge0CYcPOL4VV-K7327epL7ce6UtqfCBw&state=xyz123&iss=http%3A%2F%2Flocalhost%3A3000%2Frealms%2Freset-demo
 ```
 
@@ -3189,6 +3202,7 @@ curl -sS -D - -o /dev/null -X POST http://localhost:3000/realms/expiry-demo/logi
 ```
 HTTP/1.1 302 Found
 set-cookie: expiry-demo-session=01a0ae72-bd69-710f-9411-cab81252891d; HttpOnly; SameSite=Lax; Path=/
+set-cookie: expiry-demo-session-persistent=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
 location: http://localhost:8080/callback?code=nwsvY1PSYQ1TgHC03s8D_o0vTxt7JpxLnIDZBi3S3zg&state=xyz&iss=http%3A%2F%2Flocalhost%3A3000%2Frealms%2Fexpiry-demo
 ```
 
@@ -3380,6 +3394,7 @@ status 200, location ''
 --- the same password, 125 seconds later ---
 HTTP/1.1 302 Found
 set-cookie: lockout-demo-session=01a0ae75-c738-7d3c-aca7-8e3240e94e59; HttpOnly; SameSite=Lax; Path=/
+set-cookie: lockout-demo-session-persistent=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
 location: http://localhost:8080/callback?code=0xnA-pWgF0pNhoe2f7rVhx5kW8Du6sVsM6avD30z2YY&state=xyz-123&iss=http%3A%2F%2Flocalhost%3A3000%2Frealms%2Flockout-demo
 ```
 
@@ -4184,11 +4199,17 @@ curl -sS -b cookies.txt -D - -o /dev/null \
 
 ```
 HTTP/1.1 302 Found
-set-cookie: demo-session=; Max-Age=0; HttpOnly; SameSite=Lax; Path=/
+set-cookie: demo-session=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
+set-cookie: demo-session-persistent=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
 cache-control: no-store
 location: http://localhost:8080/logged-out?state=xyz-bye
 content-length: 0
 ```
+
+Both cookies are cleared, not just the one this login set: logout ends the
+whole SSO session, and a browser could hold a live persistent cookie from a
+different, remembered login even though this walkthrough's own login did
+not set one.
 
 The hint names the session the cookie itself belongs to (OIDC Core §3.1.2.2
 validates it — this realm's own keys, this realm's issuer, an access token
@@ -4267,7 +4288,8 @@ curl -sS -b cookies-post.txt -D - -o /dev/null -X POST \
 
 ```
 HTTP/1.1 302 Found
-set-cookie: demo-session=; Max-Age=0; HttpOnly; SameSite=Lax; Path=/
+set-cookie: demo-session=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
+set-cookie: demo-session-persistent=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
 cache-control: no-store
 location: http://localhost:8080/logged-out?state=xyz-bye
 content-length: 0
@@ -4389,7 +4411,8 @@ curl -sS -b cookies-aud.txt -D - -o /dev/null -X POST \
 
 ```
 HTTP/1.1 302 Found
-set-cookie: demo-session=; Max-Age=0; HttpOnly; SameSite=Lax; Path=/
+set-cookie: demo-session=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
+set-cookie: demo-session-persistent=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
 cache-control: no-store
 location: http://localhost:8080/logged-out
 content-length: 0
@@ -4549,7 +4572,8 @@ curl -sS -b cookies-offline.txt -D - \
 
 ```
 HTTP/1.1 200 OK
-set-cookie: demo-session=; Max-Age=0; HttpOnly; SameSite=Lax; Path=/
+set-cookie: demo-session=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
+set-cookie: demo-session-persistent=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
 cache-control: no-store
 
 <!doctype html>
@@ -4689,6 +4713,7 @@ auth_session_id=…&decision=allow
 ```
 HTTP/1.1 302 Found
 set-cookie: demo-session=…; HttpOnly; SameSite=Lax; Path=/
+set-cookie: demo-session-persistent=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
 location: https://rp.example/cb?code=…&state=xyz-123&iss=http://localhost:3000/realms/demo
 ```
 
@@ -5417,11 +5442,12 @@ refused on the same two terms.
 
 `sessions` also carries `remembered`, a boolean set at establishment and
 never rewritten, and a realm carries `max_sessions_per_browser` (1–32,
-default 25), a CHECK constraint bounding how many of a browser's sessions
-may be live at once — `odudu seed realm --set max_sessions_per_browser=10`
-changes it the same way as every other realm setting. Neither is read on
-the request path yet — that is **P3b**'s "remember me" and
-concurrent-session work, tracked in
+default 25) — a CHECK constraint bounding the **setting's own value**, not
+the number of sessions a browser may hold live at once. Nothing enforces
+that cap yet: `odudu seed realm --set max_sessions_per_browser=10` changes
+the stored value the same way as every other realm setting, but no request
+path reads it to admit or refuse a session. That enforcement is
+application logic still to be written, tracked as session-admission work in
 [What is not implemented](#what-is-not-implemented).
 
 ### `id_token_hint`
