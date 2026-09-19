@@ -24,9 +24,13 @@ directory, outside the repository:
   `http://127.0.0.1:4001/logout` in an `<iframe>`.
 
 `127.0.0.1` and `localhost` are different origins _and_ different sites
-(neither is a subdomain or registrable-domain match of the other), which is
-what the brief warns a same-site pair like two `localhost` ports would fail
-to be. This was verified rather than assumed: after visiting the RP
+(neither is a subdomain or registrable-domain match of the other). Two
+ports on the same host would not clear that second bar: same-site cookies
+flow between them regardless of port, so a pair like `localhost:3000` and
+`localhost:4000` would let a cookie through for a reason that has nothing
+to do with front-channel logout, and the run would wrongly read as proof
+the mechanism works. This was verified rather than assumed: after visiting
+the RP
 first-party and confirming `document.cookie` held `rp_session` there,
 navigating to the OP origin and reading `document.cookie` there returned
 `""` — the RP's cookie is invisible to a first-party script on the other
