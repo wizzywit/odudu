@@ -155,6 +155,59 @@ ends with exactly that many live sessions, and the `Set-Cookie` it
 receives names exactly those — confirmed by disabling eviction and
 watching that test fail with four cookie-borne ids against a cap of two.
 
+## Amendment, 2026-09-19 — the orphan session
+
+The `cap + (k - 1)` residual above is a size matter: an extra row, self-
+correcting at the browser's next login. It understates a sharper
+consequence of the same race, found in review: one of the two sessions a
+concurrent pair of logins creates can be **unreachable through logout**,
+not merely over-counted.
+
+Both logins read `browserSessionIds` from the same cookie snapshot, taken
+before either admits. Each response then writes a fresh cookie naming its
+own new session alongside that snapshot — but a browser does not merge two
+`Set-Cookie` values for the same cookie name, it keeps whichever response
+arrived last. The session the other response created is live, uncapped
+against by the cap this ADR secures, and named by no cookie the browser
+will ever send again. `resolveSessions` supplies **logout's own
+membership check** (`handleLogoutRequest`/`handleLogoutConfirmation`,
+`packages/protocol-oidc/src/usecase/logout.ts`), so a session absent from
+every cookie cannot be resolved, confirmed, or ended through the logout
+endpoint at all — not merely omitted from a list, unreachable by the one
+path that ends a session.
+
+**Accepted, documented, not redesigned:**
+
+- Admission has no stable per-browser identifier to admit or reap by — only
+  the cookie's own id list, read once per request. A predicate that could
+  tell "another browser's session for this subject" from "this browser's
+  orphan" needs exactly the row the design deliberately does not have (see
+  the amendment above on why a per-subject predicate was rejected
+  independently, for a different reason: it caps each subject on a shared
+  browser separately rather than the browser as a whole).
+- **The exposure is bounded for an ordinary session**: nothing ever
+  presents an orphan back, so it idles out at `sso_session_idle_seconds`
+  — thirty minutes by default.
+- **The sharp case is a remembered orphan.** A login that ticks
+  `remember_me` and loses this same race produces a session that idles at
+  `remember_me_idle_seconds` instead — seven days by default, not thirty
+  minutes. A concurrent pair of logins, one of them remembered, can strand
+  a live, remembered session an End-User cannot see and cannot log out of
+  for up to a week.
+- **The durable remedy is a stable browser identifier** — a `browser_sessions`
+  row, its own cookie, stored on the session row — giving admission,
+  logout and a future session list one predicate instead of three
+  approximations of one. Not built now: this is a trigger condition, to be
+  taken up if the orphan case above is observed in practice or once a
+  session-list surface (P4) makes an orphan's absence from it visible
+  rather than merely theoretical, not a residual to leave silently
+  accepted.
+- **An operator can already reach an orphan today**, once the
+  administrative "end somebody else's session" surface exists — [What is
+  not implemented](../request-paths.md#what-is-not-implemented) tracks it
+  against P4. Until then, the orphan's own idle timeout is the only path
+  that ends it.
+
 ## Alternatives rejected
 
 - **`SELECT ... FOR UPDATE` on the session rows.** The remedy this ADR

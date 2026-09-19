@@ -5544,6 +5544,17 @@ active once a third session tried to join a browser already at the cap —
 the second and third logins' own ids are exactly what survive. Nothing
 asked for this browser to end its oldest session; the realm's setting did.
 
+The three logins above ran one at a time; two genuinely concurrent logins
+from the same browser read the cookie before either has written it, so the
+browser keeps only the later response's cookie and the earlier response's
+session is named by neither. That session is still live, but
+[logout](#rp-initiated-logout) resolves the same cookie to decide what it
+can end, so it cannot be reached that way — an orphan, not a size problem.
+It idles out at `sso_session_idle_seconds` (thirty minutes by default), or
+at `remember_me_idle_seconds` (seven days by default) if the losing login
+was a remembered one. ADR 0033's amendment has the full account and why it
+is accepted rather than fixed now.
+
 #### Choosing among sessions
 
 More than one live session in the same browser — or a client asking with
