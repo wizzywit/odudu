@@ -2,7 +2,7 @@ export { KERNEL_VERSION } from '#/version';
 export { OduduError, type ErrorCode } from '#/errors';
 export { type Clock, systemClock, FakeClock } from '#/clock';
 export { isUuid, newId, scriptNonce } from '#/ids';
-export { type PageScript, type RenderedPage } from '#/page';
+export { type PageScript, type RenderedPage, pageHeaders } from '#/page';
 export {
   MAX_PASSWORD_LENGTH,
   PASSWORD_TOO_LONG,

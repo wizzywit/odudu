@@ -21,6 +21,7 @@ import {
   type ProfileUpdate,
 } from '@odudu/domain-identity';
 import {
+  clientRegistrationTokenRepository,
   clientRepository,
   clientScopeRepository,
   provisionClientDefaults,
@@ -609,6 +610,16 @@ export interface ProfileCommandResult {
   username: string;
 }
 
+export interface RegistrationTokenCommandResult {
+  command: 'registration-token';
+  realm: string;
+  realmId: string;
+  // The only field main.ts prints for this command: the token is a
+  // bearer credential meant for a shell to capture, not a field in a JSON
+  // report alongside it.
+  token: string;
+}
+
 export type SeedCommandResult =
   | RealmCommandResult
   | ClientCommandResult
@@ -621,7 +632,8 @@ export type SeedCommandResult =
   | GrantRoleCommandResult
   | MapGroupRoleCommandResult
   | JoinGroupCommandResult
-  | ProfileCommandResult;
+  | ProfileCommandResult
+  | RegistrationTokenCommandResult;
 
 async function requireRealmId(ownerDb: Database, realmName: string): Promise<string> {
   const found = await realmLookupRepository(ownerDb).byName(realmName);
@@ -1409,6 +1421,51 @@ async function runProfileCommand(
   return { command: 'profile', realm: realmName, realmId, username };
 }
 
+function parsePositiveInteger(raw: string, flag: string): number {
+  const value = Number.parseInt(raw, 10);
+  if (!Number.isInteger(value) || value < 1 || String(value) !== raw) {
+    throw new OduduError('seed_invalid_options', `${flag} must be a positive integer`);
+  }
+  return value;
+}
+
+async function runRegistrationTokenCommand(
+  ownerDb: Database,
+  runtimeDb: Database,
+  argv: readonly string[],
+): Promise<RegistrationTokenCommandResult> {
+  const { values } = parseArgs({
+    args: [...argv],
+    options: {
+      realm: { type: 'string' },
+      uses: { type: 'string' },
+      ttl: { type: 'string' },
+    },
+  });
+
+  if (values.realm === undefined || values.uses === undefined || values.ttl === undefined) {
+    throw new OduduError(
+      'seed_invalid_options',
+      'seed registration-token requires --realm, --uses and --ttl',
+    );
+  }
+
+  const realmName = values.realm;
+  const uses = parsePositiveInteger(values.uses, '--uses');
+  const ttlSeconds = parsePositiveInteger(values.ttl, '--ttl');
+
+  const realmId = await requireRealmId(ownerDb, realmName);
+
+  return withRealm(runtimeDb, realmId, async (tx) => {
+    const { token } = await clientRegistrationTokenRepository(tx).mint({
+      realmId,
+      uses,
+      ttlSeconds,
+    });
+    return { command: 'registration-token', realm: realmName, realmId, token };
+  });
+}
+
 // Exported so main.ts can tell, before parsing anything, whether an
 // invocation names one of these subcommands or is the older
 // seedClientBootstrap form (`seed --realm ... --client ...`) — the two
@@ -1426,6 +1483,7 @@ export const SEED_COMMANDS = [
   'map-group-role',
   'join-group',
   'profile',
+  'registration-token',
 ] as const;
 
 type SeedCommand = (typeof SEED_COMMANDS)[number];
@@ -1475,6 +1533,8 @@ async function runSeedCommand(argv: readonly string[]): Promise<SeedCommandResul
         return await runJoinGroupCommand(owner.db, runtime.db, rest);
       case 'profile':
         return await runProfileCommand(owner.db, runtime.db, rest);
+      case 'registration-token':
+        return await runRegistrationTokenCommand(owner.db, runtime.db, rest);
       default: {
         const exhaustive: never = command;
         throw new OduduError(

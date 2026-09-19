@@ -135,11 +135,91 @@ because it exists to bound work rather than to shape passwords.
 - **`/token` is not throttled by this.** It is client-authenticated and
   hot, and the budget above is keyed by origin, which for a server-side
   client is one address for every request it will ever make. That is not a
-  claim that `/token` needs no protection: RFC 6749 §2.3.1's
-  client-authentication half is `deferred: P3` in
-  `docs/protocols/rfc6749.md`, with P3's exit criterion naming a `/token`
-  rate limit, and what that clause asks for is a limit keyed by _client_.
-  This throttle is not where that goes.
+  claim that `/token` needs no protection: what RFC 6749 §2.3.1's
+  client-authentication half asks for is a limit keyed by _client_, and
+  this throttle is not where that goes — see the amendment below for where
+  it did.
+
+## Amendment, 2026-09-18 — the client half, built
+
+RFC 6749 §2.3.1's clause has two endpoints, and the consequence above named
+the second without closing it: "what that clause asks for is a limit keyed
+by _client_. This throttle is not where that goes." P3a builds that limit.
+
+**A second `slidingWindow` instance, keyed by `realm_id:client_id`, counting
+only failed `client_secret_basic`/`client_secret_post` attempts at
+`/token`.** `authenticateClient`
+(`packages/protocol-oidc/src/usecase/token-issuance.ts`) consults it, on a
+`ClientSecretLimiter` dependency injected rather than imported — the layer
+boundary that made `slidingWindow` unreachable from `protocol-oidc` runs
+the same direction here, and `apps/server/src/app.ts` is the one caller that
+wires a real, memory-bounded instance in. `oidcRoutes`'s `clientSecretLimiter`
+is **required**, not defaulted: it is an exported entry point of this
+package, and a permissive default would let an embedder register the
+plugin with no limiter and get a §2.3.1 MUST that silently does nothing,
+caught by nothing. A caller with no opinion on this budget — every
+integration test exercising something else — passes
+`UNLIMITED_CLIENT_SECRET_LIMITER` explicitly, which also documents at each
+site that this budget is not what that test is about.
+
+**Failures only, never successes.** `verifyClientCredentials` runs to
+completion and its result returns untouched on success; only the `throw`
+path calls `check`. The account lockout makes the opposite trade for the
+same clause — it refuses a _correct_ password once locked, so an attacker
+flooding one subject's login denies that subject their own account. This
+limiter does not make that trade: a client that finally sends its real
+secret always succeeds, whatever the failure count on record. The cost is
+symmetric with the lockout's own — an attacker flooding one client's
+`client_id` with wrong secrets can deny nothing but requests already
+authenticated as _not_ that client, the same bound the lockout accepts for
+subjects.
+
+**An unknown `client_id` spends the same budget a wrong secret against a
+real one does, and is refused in the same bytes — not in the same time.**
+The key is the presented `client_id` itself, so nothing about which
+failure occurred changes what gets counted or how the refusal reads once
+the budget is spent (`429`, `Retry-After`, no body, mirroring this
+throttle's own). That is as far as the claim goes: an unknown `client_id`
+returns at the client lookup, before `verifyClientSecret` runs, while a
+wrong secret against a real client pays the Argon2id comparison first, so
+the two answer at different speeds even though their bytes and their
+budget consumption match.
+
+**That timing gap is accepted, not closed.** The tempting fix is the login
+path's own: verify against a constant hash (`DUMMY_HASH`,
+`packages/authn-flows/src/service/authenticators/password.ts`) when there
+is no real one, so an unknown identifier costs what a wrong credential
+costs. It does not transfer here. A username is secret-ish — it does not
+appear on the wire outside an authentication attempt — so paying an
+Argon2id verification to hide whether one exists is a cost worth paying
+once per attempt. A `client_id` is not: it is plain text in every
+`/authorize` URL a browser ever sees, so there is little for the timing
+oracle to reveal that a redirect didn't already. Worse, a dummy hash here
+would make every unauthenticated request bearing an unrecognized
+`client_id` cost an Argon2id — a CPU-amplification vector reachable with no
+credential at all, on an endpoint this ADR's own Context section already
+treats CPU cost as the thing to protect. The per-client budget cannot
+bound that amplification either: an attacker rotating `client_id`s gets a
+fresh budget on each one and evicts its own history first out of the
+bounded map, the same fail-open shape `MAX_THROTTLE_KEYS` chose deliberately
+for the per-origin throttle. So the existence oracle stays open — low
+value, given the `client_id` is not secret — and the mitigation that would
+close it is worse than what it closes.
+
+**Consequences inherited from this ADR's own reasoning, restated for the
+new instance:** it is per-instance, for the reason the per-origin throttle
+is (N replicas admit up to N × the budget, and `README.md` states rather
+than demonstrates the limitation); it depends on nothing request-derived
+being trustworthy, since the key is the request body's own `client_id`; and
+`MAX_THROTTLE_KEYS`'s reasoning — a caller-chosen key is a
+memory-exhaustion vector, bounded by evicting the coldest — applies to this
+instance too, at its own default rather than an imported constant, since
+the budget it bounds is a different one.
+
+`docs/protocols/rfc6749.md`'s client-authentication row moves from
+`deferred: P3b` to `covered`, at `RFC6749-2.3.1-04` — `docs/NEXT.md`'s own
+narrative called it `deferred: P3a` before this amendment, a drift between
+that file and the table this closes rather than corrects.
 
 ## Alternatives rejected
 

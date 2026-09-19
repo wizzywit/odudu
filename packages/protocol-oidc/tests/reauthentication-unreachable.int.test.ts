@@ -16,6 +16,7 @@ import { eq } from 'drizzle-orm';
 import Fastify, { type FastifyInstance, type LightMyRequestResponse } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { oidcRoutes } from '#/index';
+import { UNLIMITED_CLIENT_SECRET_LIMITER } from '#/service/client-secret-throttle';
 import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
 
 function locationHeader(res: LightMyRequestResponse): string {
@@ -60,7 +61,12 @@ beforeAll(async () => {
   httpApp = http;
   await http.register(formbody);
   await http.register(
-    oidcRoutes({ database: app, ownerDatabase: owner, kek: Buffer.alloc(32, 3) }),
+    oidcRoutes({
+      database: app,
+      ownerDatabase: owner,
+      kek: Buffer.alloc(32, 3),
+      clientSecretLimiter: UNLIMITED_CLIENT_SECRET_LIMITER,
+    }),
   );
   await http.ready();
 }, 120_000);

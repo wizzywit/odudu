@@ -103,13 +103,13 @@ loses.
 **Leave strict mode off.** Honest, in that it makes no claim the tables
 cannot back, and it costs nothing today. What it forfeits is the only
 mechanism that separates "nobody got to it" from "somebody decided against
-it", for every row P2 and P3 will add. A warning that has been printed on
+it", for every row a later phase will add. A warning that has been printed on
 every run for two phases is furniture; nobody will notice the twentieth
 line. The tables exist to make an unclosed MUST expensive, and a mode that
 never fails a build makes it free.
 
 **Give `accepted:` a phase field anyway.** Considered and rejected above: it
-would make `accepted: P3 — …` writable, which is `deferred:` with strict
+would make `accepted: P4 — …` writable, which is `deferred:` with strict
 mode disarmed. The absence of the field is what forces the choice.
 
 ## Amendment, 2026-09-12 (the two statuses strict never looked at)

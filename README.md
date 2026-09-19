@@ -34,10 +34,13 @@ security, and a container CI builds and boots on every pull request and on
 every merge to `main` — a branch push with no pull request open runs
 nothing, by design (`.github/workflows/verify.yml`).
 
-There is still no consent screen, no admin API and no
-token exchange — P3 onwards. The roadmap's second phase is two: **P2a** is
-the identity model — roles, groups, client scopes, per-client web origins,
-email — and **P2b** is credentials, MFA and the session lifecycle.
+**P3a** adds clients, dynamic registration (RFC 7591) and a consent screen.
+There is still no admin API and no token exchange — those wait on P4 and
+P5. The roadmap's second and third phases are each two. **P2a** is the
+identity model — roles, groups, client scopes, per-client web origins,
+email — and **P2b** is credentials, MFA and the session lifecycle. **P3a**
+is clients, registration and consent, and **P3b** is sessions, logout and
+the token surface.
 
 A role reaches a token only when it is mapped to a scope the client is
 assigned, because `clients.full_scope_allowed` is off by default — a client
@@ -256,13 +259,24 @@ behind a proxy the proxy must **overwrite** `X-Forwarded-For` rather than
 append to it; a proxy that appends leaves the key client-controlled and the
 throttle decorative.
 
-`/token` is deliberately outside it, so the protection RFC 6749 §2.3.1 asks
-for around a client's password is still unanswered: the lockout is keyed by
-subject and a client is not one, and a budget per address is one address for
-every
-request a server-side client will ever make. A limit keyed by client is
-`deferred: P3` in [docs/protocols/rfc6749.md](docs/protocols/rfc6749.md),
-where client authentication is reworked.
+`/token` is deliberately outside it: the lockout is keyed by subject and a
+client is not one, and a budget per address is one address for every
+request a server-side client will ever make. RFC 6749 §2.3.1's protection
+for a client's password is a third budget instead — a `client_secret_basic`
+or `client_secret_post` attempt at `/token` that fails spends a window keyed
+by `client_id`, five attempts per sixty seconds by default. A healthy
+client is never throttled: only a failed attempt is counted, so a client
+that finally presents its real secret succeeds regardless of the failure
+count on record — the opposite trade from the account lockout above, which
+refuses a correct password once locked. An unknown `client_id` spends the
+same budget a wrong secret against a real one does and is refused in the
+same bytes — but not in the same time: it pays no Argon2id comparison, so
+the two are indistinguishable by response and by budget, not by timing.
+ADR 0023's amendment says why that gap is accepted rather than closed.
+This limiter is per instance for the same reason the throttle above is,
+which is likewise unshown here for want of a second replica; [the
+walkthrough is in
+docs/request-paths.md](docs/request-paths.md#the-client_secret-budget-at-token).
 
 `password_max_age_days` (default `0`, the feature off) ages a password out.
 An expired password is **not** refused: the login authenticates as it
@@ -347,6 +361,26 @@ every realm; outside production the variable stays optional, and without it
 passkey enrolment reports itself unavailable and the login page offers no
 passkey button, because there would be nothing behind one.
 
+A registered `jwks_uri` is validated for shape only at registration —
+`https`, no embedded credentials, no DNS lookup
+(`assertFetchableUrl`) — and deliberately **not** dereferenced there: a
+registration's success must not depend on a key host being reachable at
+that instant, and never again (`docs/NEXT.md` records this decision). The
+pieces that will dereference it once something needs the key exist — the
+address guard and the socket transport
+(`apps/server/src/client-key-transport.ts`), which pins the connection to
+the address the guard already checked rather than letting Node resolve the
+hostname a second time, refuses a private, loopback, link-local or
+otherwise non-public address, and carries a connect timeout, a total
+timeout and a body-size cap enforced as the response streams — but nothing
+calls them yet: `private_key_jwt` client authentication, the first
+consumer of a fetched key set, is P3b's. `ODUDU_ALLOW_PRIVATE_CLIENT_URLS`
+is read and enforced at boot already — **with `NODE_ENV=production` the
+server refuses to boot if it is set to `true`** — so that once a caller
+exists, the development and conformance stacks can let it resolve a
+private or loopback address, which the OIDF conformance suite's own
+registration module does.
+
 **Operational trap:** turning `verify_email` on locks out every existing
 user with no email address on file — including one seeded without
 `--email` — since there is no address for them to verify and, for now, no
@@ -372,7 +406,7 @@ client can demand a fresher authentication than the cookie represents. The
 email-verified gate guards this second door into completing a login exactly
 as it guards the password form. What is not there: **one session per
 browser**, since the cookie holds one id, which is why
-`prompt=select_account` renders the ordinary form and is P3's.
+`prompt=select_account` renders the ordinary form and is P3b's.
 
 **A realm can now end a session.** `GET`/`POST
 /realms/{realm}/protocol/openid-connect/logout` implements OpenID Connect
@@ -394,7 +428,7 @@ was issued. A grant issued with no session — `offline_access` — is
 untouched by a logout, per Back-Channel Logout 1.0 §2.7's second sentence.
 A deployment that needs revocation inside an
 access token's own lifetime is what RFC 7662 introspection is for, landing
-in P3. See [the logout section of
+in P3b. See [the logout section of
 docs/request-paths.md](docs/request-paths.md#rp-initiated-logout) for the
 walkthrough.
 
@@ -694,6 +728,49 @@ to the realm afterwards. [docs/request-paths.md](docs/request-paths.md#roles-onc
 walks through all of it, including a client-scoped role qualified as
 `clientId:roleName`.
 
+**An initial access token is an operator's authorization for a client to
+exist.** `POST /realms/{realm}/clients-registrations/openid-connect` is
+RFC 7591 dynamic client registration — open to every realm whose
+`client_registration_policy` is `open` or `token`, and refused outright
+while it is the default, `disabled` — `seed client` is then the only way to
+create a client in that realm. A realm whose policy is `token` needs a way to mint the
+credential a registering client presents, and `seed registration-token`
+is that command: `--realm`, `--uses` (a token is good for that many
+registrations, never zero) and `--ttl` in seconds.
+
+```bash
+node --env-file=.env apps/server/src/main.ts seed registration-token \
+  --realm demo --uses 1 --ttl 3600
+```
+
+```
+PB0YxVF5Rj4P1kbXM4oXLBL1RjMCczPq6vu4dD3T4rg
+```
+
+Unlike every other seed subcommand this prints nothing but the token
+itself — no JSON, no trailing newline content beyond it — so a shell can
+capture it directly: `TOKEN=$(odudu seed registration-token --realm demo
+--uses 1 --ttl 3600)`. It is stored as its SHA-256 digest
+(`packages/domain-realm/src/repository/client-registration-tokens.ts`,
+copied from the action-token pattern `docs/request-paths.md` already
+documents), found by that digest rather than compared, and spent by one
+`UPDATE … RETURNING` so two concurrent registrations against a one-use
+token cannot both win.
+
+**A `redirect_uris` entry with no `http`/`https` scheme has to look like a
+native-app deep link, not just carry one.** RFC 7591 §5 permits "a non-HTTP
+application-specific URL", and RFC 8252 §7.1's reverse-DNS convention is
+what that looks like in practice: `com.example.app:/cb` registers,
+`myapp://cb` is refused with `invalid_redirect_uri` even though dotless
+custom schemes are common and otherwise harmless — `javascript:`, `data:`
+and `file:` are the values this rule exists to close off, and none of them
+carries a `.` in its own scheme name the way every reverse-DNS scheme does
+([ADR 0032](docs/adr/0032-a-non-http-redirect-uri-scheme-must-look-custom.md)).
+`frontchannel_logout_uri` is validated the same way its `backchannel_logout_uri`
+twin already was — `https`, absolute, no fragment — since P3b renders it
+into an iframe and a `javascript:` or bare-`http:` value would reach that
+sink unchecked otherwise.
+
 **One pass deletes everything that expires.** Every login writes an
 `authentication_sessions` row, every redemption an `authorization_codes`
 row, and every refresh rotation a `refresh_tokens` row; no repository in the
@@ -710,7 +787,7 @@ node --env-file=.env apps/server/src/main.ts reap
 ```
 
 ```
-{"ran":true,"deleted":{"refresh_tokens":0,"authorization_codes":0,"token_grants":0,"authentication_sessions":0,"action_tokens":0,"login_failures":0,"email_outbox":0,"sessions":0}}
+{"ran":true,"deleted":{"refresh_tokens":0,"authorization_codes":0,"token_grants":0,"authentication_sessions":0,"action_tokens":0,"client_registration_tokens":0,"login_failures":0,"email_outbox":0,"sessions":0}}
 ```
 
 Those zeros on a freshly used stack are the design, not a bug. A row is
@@ -771,8 +848,12 @@ each of those tokens is for, what `/userinfo` does with them, how a refresh
 rotates, and every way each request above can be refused, with the response
 each refusal actually returns.
 
-Enable the repo's git hooks once per clone — they reject commit messages
-carrying tool-attribution trailers, which CI also enforces:
+Enable the repo's git hooks once per clone. They hold a commit message to
+`tools/commit-message`: a subject of at most 72 characters, a blank line
+after it, a body that reads as at most 8 lines, and no tool-attribution
+trailer. CI runs the same
+checker over every commit a branch adds, so a clone that skips this is
+caught anyway:
 
 ```bash
 git config core.hooksPath .githooks
@@ -883,14 +964,13 @@ Every row says where it stands, and every row has a phase:
 
 |                                                                                                        | Where it stands |
 | ------------------------------------------------------------------------------------------------------ | --------------- |
-| A consent screen, and dynamic client registration                                                      | P3              |
-| Several sessions in one browser, and the `prompt=select_account` that needs them                       | P3              |
-| A rate limit on `client_secret` attempts at `/token`                                                   | P3              |
+| A consent screen — `consent_required` is recorded per client, nothing reads it yet                     | P3a             |
+| Several sessions in one browser, and the `prompt=select_account` that needs them                       | P3b             |
 | An account console for self-service credential management, and an operator unlock for a locked account | P4              |
 | An admin API — seeding is the only administrative surface                                              | P4              |
 | Signing-key rotation — the shape exists, the operation does not                                        | P4              |
-| Front-channel and back-channel logout                                                                  | P3              |
-| Token introspection and revocation                                                                     | P3              |
+| Front-channel and back-channel logout                                                                  | P3b             |
+| Token introspection and revocation                                                                     | P3b             |
 | Published images and a release process                                                                 | P12             |
 | Secret management beyond environment variables                                                         | P12             |
 | Backup and restore guidance                                                                            | P12             |

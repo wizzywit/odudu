@@ -53,7 +53,7 @@ jobs:
 
   conformance:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7
 
@@ -63,10 +63,26 @@ jobs:
           path: /tmp/conformance-m2
           key: conformance-suite-m2-release-v5.1.36
 
+      # Both steps pin SUITE_DIR to the same path, so the Dynamic OP step
+      # reuses the jar the Config OP step already built (minutes) instead
+      # of cloning and building a second time.
       - name: Run the Config OP conformance plan
         run: ./infra/conformance/run-config-op.sh
         env:
           MAVEN_CACHE: /tmp/conformance-m2
+          SUITE_DIR: /tmp/conformance-suite
+
+      # Cannot pass by construction — ADR 0031 — so this step does not gate
+      # the build. It still runs on every push, against the suite jar the
+      # step above already built, so this proves the plan keeps running to
+      # completion — it does not compare outcomes against the committed
+      # baseline, so it will not on its own surface a module that starts
+      # failing for a new reason (ADR 0031's Consequences).
+      - name: Run the Dynamic OP conformance plan
+        run: ./infra/conformance/run-dynamic-op.sh
+        env:
+          MAVEN_CACHE: /tmp/conformance-m2
+          SUITE_DIR: /tmp/conformance-suite
 
   commit-messages:
     runs-on: ubuntu-latest
@@ -76,11 +92,21 @@ jobs:
         with:
           # The check reads commit messages, so it needs real history.
           fetch-depth: 0
-      - name: Reject tool-attribution trailers
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+
+      # The same checker .githooks/commit-msg runs, over every commit the
+      # branch adds — so a clone that never ran `git config core.hooksPath`
+      # is held to the rules too. No install: it imports nothing but Node.
+      - name: Check commit messages
         run: |
-          if git log --format=%B origin/main..HEAD |
-             grep -inE 'co-authored-by:.*(claude|anthropic)|generated with .*(claude|anthropic)|🤖'; then
-            echo "::error::A commit message carries a tool-attribution trailer. See .githooks/commit-msg" >&2
-            exit 1
-          fi
-          echo "commit messages clean"
+          status=0
+          for sha in $(git rev-list origin/main..HEAD); do
+            git log -1 --format=%B "$sha" > /tmp/commit-message
+            if ! node tools/commit-message/src/index.ts --stored /tmp/commit-message; then
+              echo "::error::$(git log -1 --format='%h %s' "$sha")" >&2
+              status=1
+            fi
+          done
+          exit $status

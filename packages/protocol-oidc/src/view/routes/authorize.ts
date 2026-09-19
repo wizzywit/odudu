@@ -6,13 +6,23 @@ import {
   type AuthorizeUsecaseDeps,
 } from '#/usecase/authorization-request';
 import { renderAuthorizeErrorPage, renderLoginForm } from '#/view/authorize-html';
+import { renderConsentPage } from '#/view/consent-html';
 import { sendHtml } from '#/view/html-response';
 import { realmIssuerFor } from '#/view/issuer';
 import { namesUnsupportedRepresentation } from '#/view/media-type';
+import {
+  sendRequiredActionPage,
+  type RequiredActionResponseDeps,
+} from '#/view/routes/required-action-response';
 
 const PATH = '/realms/:realm/protocol/openid-connect/auth';
 
-export interface AuthorizeRouteDeps extends AuthorizeUsecaseDeps {
+// Omits RequiredActionResponseDeps's own `findRealm`: AuthorizeUsecaseDeps
+// already declares one — see consent.ts's identical comment for why
+// TypeScript needs the omission even though the two signatures are
+// structurally compatible.
+export interface AuthorizeRouteDeps
+  extends AuthorizeUsecaseDeps, Omit<RequiredActionResponseDeps, 'findRealm'> {
   tls: boolean;
   // Whether this deployment can offer a passkey login at all — see
   // renderLoginForm in #/view/authorize-html.
@@ -75,6 +85,38 @@ async function respondToAuthorizationRequest(
     if (outcome.state !== null) target.searchParams.set('state', outcome.state);
     target.searchParams.set('iss', issuer);
     return reply.code(302).header('location', target.toString()).send();
+  }
+
+  // A reused session that still owes a required action: the same page the
+  // form path renders, on a freshly started authentication session the
+  // reuse path bound and authenticated for the reused subject.
+  if (outcome.kind === 'required_action') {
+    return sendRequiredActionPage(
+      reply,
+      deps,
+      realm,
+      outcome.authSessionId,
+      outcome.subjectId,
+      outcome.action,
+    );
+  }
+
+  // A reused session that still needs consent: the same page the form path
+  // renders once its own gate asks, on a freshly started authentication
+  // session the reuse path bound and authenticated for the reused subject.
+  if (outcome.kind === 'consent') {
+    return sendHtml(
+      reply,
+      200,
+      renderConsentPage({
+        realm,
+        authSessionId: outcome.authSessionId,
+        clientName: outcome.clientName,
+        defaultScopes: outcome.defaultScopes,
+        optionalScopes: outcome.optionalScopes,
+        alreadyGranted: outcome.alreadyGranted,
+      }),
+    );
   }
 
   return sendHtml(

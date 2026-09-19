@@ -23,6 +23,7 @@ import formbody from '@fastify/formbody';
 import Fastify, { type FastifyInstance, type LightMyRequestResponse } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { oidcRoutes } from '#/index';
+import { UNLIMITED_CLIENT_SECRET_LIMITER } from '#/service/client-secret-throttle';
 import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
 
 let containerHandle: TestDatabase | undefined;
@@ -191,7 +192,12 @@ beforeAll(async () => {
   httpApp = http;
   await http.register(formbody);
   await http.register(
-    oidcRoutes({ database: app, ownerDatabase: owner, kek: Buffer.alloc(32, 7) }),
+    oidcRoutes({
+      database: app,
+      ownerDatabase: owner,
+      kek: Buffer.alloc(32, 7),
+      clientSecretLimiter: UNLIMITED_CLIENT_SECRET_LIMITER,
+    }),
   );
   await http.ready();
 
@@ -1024,6 +1030,11 @@ describe('[OIDC-CORE-3.1.2.2-04] every error this endpoint has ends in a §3.1.2
     expect(answer.status).toBe(400);
     expect(answer.body).not.toContain(REDIRECT_URI);
     expect(answer.body).not.toContain('<form');
+    // renderAuthorizeErrorPage's own document title, asserted here so a
+    // change to it fails a test instead of only the request-paths.md
+    // transcripts that happen to show this page (docs/request-paths.md,
+    // "rendered, never redirected").
+    expect(answer.body).toContain('<title>Sign-in error</title>');
   });
 
   it.each(REDIRECTED_ERROR_CASES)(

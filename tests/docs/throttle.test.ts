@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { loadConfig } from '../../packages/kernel/src/config.js';
 import { MAX_PASSWORD_LENGTH } from '../../packages/kernel/src/password-field.js';
+import { MAX_SUBJECT_LENGTH } from '../../tools/commit-message/src/check.js';
 import { loadDocument } from './markdown.js';
 
 // Both documents quote the throttle's budget and the password maximum as
@@ -33,21 +34,40 @@ describe('the throttle numbers the documents state are the numbers the code uses
     );
   });
 
-  // Every number this file finds next to "character", against the one
-  // constant that decides it: a reworded sentence keeping a stale number
-  // is the drift, and it fails here rather than passing on a match found
-  // somewhere else in the file.
-  it.each(DOCUMENTS)('%s states no password maximum other than the enforced one', (name) => {
+  // Every number these files state next to "character", against the constant
+  // that decides it: a reworded sentence keeping a stale number is the drift,
+  // and it fails here rather than passing on a match found somewhere else in
+  // the file. There are two such bounds now, so each match is attributed by
+  // what the sentence around it is about — leaving them pooled would let a
+  // stale password maximum pass by matching the commit-subject one.
+  const CHARACTER_BOUND =
+    /(?:capped at|at most|over|longer than)\s+\*{0,2}(?<bound>[0-9]+)\s+characters?|(?<attributive>[0-9]+)-character maximum/gu;
+
+  function statedBounds(name: string): { subject: string[]; password: string[] } {
     const text = loadDocument(name).lines.join('\n');
-    const phrase =
-      /(?:capped at|at most|over|longer than)\s+\*{0,2}(?<bound>[0-9]+)\s+characters?|(?<attributive>[0-9]+)-character maximum/gu;
-    const stated = [...text.matchAll(phrase)].map(
-      (match) => match.groups?.bound ?? match.groups?.attributive,
-    );
-    if (stated.length === 0) {
+    const subject: string[] = [];
+    const password: string[] = [];
+    for (const match of text.matchAll(CHARACTER_BOUND)) {
+      const value = match.groups?.bound ?? match.groups?.attributive;
+      if (value === undefined) continue;
+      // The clause the number sits in, not the paragraph: a commit-message
+      // sentence and a password sentence are never the same clause.
+      const clause = text.slice(Math.max(0, match.index - 80), match.index);
+      (/subject/iu.test(clause) ? subject : password).push(value);
+    }
+    return { subject, password };
+  }
+
+  it.each(DOCUMENTS)('%s states no password maximum other than the enforced one', (name) => {
+    const { password } = statedBounds(name);
+    if (password.length === 0) {
       throw new Error(`${name} no longer states the maximum password length`);
     }
-    expect([...new Set(stated)]).toEqual([String(MAX_PASSWORD_LENGTH)]);
+    expect([...new Set(password)]).toEqual([String(MAX_PASSWORD_LENGTH)]);
+  });
+
+  it('README.md states the commit-subject maximum the checker enforces', () => {
+    expect([...new Set(statedBounds('README.md').subject)]).toEqual([String(MAX_SUBJECT_LENGTH)]);
   });
 
   // The transcript is the claim most easily falsified by a changed default:

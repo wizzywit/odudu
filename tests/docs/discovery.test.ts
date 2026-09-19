@@ -21,6 +21,7 @@ async function serverDiscoveryDocument(): Promise<Record<string, unknown>> {
           verifyEmail: false,
           ssoSessionMaxSeconds: 36_000,
           ssoSessionIdleSeconds: 1_800,
+          clientRegistrationPolicy: 'disabled',
         }),
       claimNames: () => claimMappers.claimNames(),
       // What `seed realm` puts in a realm, so the document is checked against

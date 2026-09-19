@@ -17,6 +17,7 @@ import formbody from '@fastify/formbody';
 import Fastify, { type FastifyInstance, type LightMyRequestResponse } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { oidcRoutes } from '#/index';
+import { UNLIMITED_CLIENT_SECRET_LIMITER } from '#/service/client-secret-throttle';
 import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
 
 let containerHandle: TestDatabase | undefined;
@@ -178,7 +179,14 @@ beforeAll(async () => {
 
   http = Fastify();
   await http.register(formbody);
-  await http.register(oidcRoutes({ database: app, ownerDatabase: owner, kek: KEK }));
+  await http.register(
+    oidcRoutes({
+      database: app,
+      ownerDatabase: owner,
+      kek: KEK,
+      clientSecretLimiter: UNLIMITED_CLIENT_SECRET_LIMITER,
+    }),
+  );
   await http.ready();
   httpApp = http;
 }, 120_000);

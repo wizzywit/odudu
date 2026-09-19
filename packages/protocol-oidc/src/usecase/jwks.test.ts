@@ -23,6 +23,7 @@ describe('resolveJwks', () => {
             verifyEmail: false,
             ssoSessionMaxSeconds: 36_000,
             ssoSessionIdleSeconds: 1_800,
+            clientRegistrationPolicy: 'disabled',
           }),
         listPublishableKeys: () => {
           calledListKeys = true;
@@ -45,6 +46,7 @@ describe('resolveJwks', () => {
             verifyEmail: false,
             ssoSessionMaxSeconds: 36_000,
             ssoSessionIdleSeconds: 1_800,
+            clientRegistrationPolicy: 'disabled',
           }),
         listPublishableKeys: () => Promise.resolve([{ kid: 'a', alg: 'RS256', publicJwk }]),
       },

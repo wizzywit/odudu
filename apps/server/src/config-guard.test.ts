@@ -2,6 +2,7 @@ import { loadConfig } from '@odudu/kernel';
 import { describe, expect, it, vi } from 'vitest';
 import {
   assertProductionAppDatabaseUrl,
+  assertProductionNoPrivateClientUrls,
   assertProductionPasskeyRelyingParty,
   assertProductionTls,
   warnIfTlsDisabled,
@@ -65,6 +66,37 @@ describe('[RFC6749-3.1-02] assertProductionTls', () => {
     const config = loadConfig({ ...base, NODE_ENV: 'development' });
     expect(() => {
       assertProductionTls(config);
+    }).not.toThrow();
+  });
+});
+
+describe('assertProductionNoPrivateClientUrls', () => {
+  it('throws when NODE_ENV is production and ODUDU_ALLOW_PRIVATE_CLIENT_URLS is on', () => {
+    const config = loadConfig({
+      ...base,
+      NODE_ENV: 'production',
+      ODUDU_ALLOW_PRIVATE_CLIENT_URLS: 'true',
+    });
+    expect(() => {
+      assertProductionNoPrivateClientUrls(config);
+    }).toThrow(/ODUDU_ALLOW_PRIVATE_CLIENT_URLS/);
+  });
+
+  it('does not throw when NODE_ENV is production and it is off', () => {
+    const config = loadConfig({ ...base, NODE_ENV: 'production' });
+    expect(() => {
+      assertProductionNoPrivateClientUrls(config);
+    }).not.toThrow();
+  });
+
+  it('does not throw outside production even when it is on', () => {
+    const config = loadConfig({
+      ...base,
+      NODE_ENV: 'development',
+      ODUDU_ALLOW_PRIVATE_CLIENT_URLS: 'true',
+    });
+    expect(() => {
+      assertProductionNoPrivateClientUrls(config);
     }).not.toThrow();
   });
 });

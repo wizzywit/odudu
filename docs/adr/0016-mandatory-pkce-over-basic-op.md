@@ -83,7 +83,7 @@ suite. Rejected without qualification.
 **Certify against a newer profile instead.** Genuinely attractive, and not
 rejected so much as deferred: the OIDF profiles that assume PKCE are the
 FAPI 2.0 family, which brings sender-constrained tokens (DPoP or mTLS) and
-PAR with it. Those are P3-and-later surfaces. When they land, this ADR
+PAR with it. Those are **P13** surfaces. When they land, this ADR
 should be revisited to name the profile Odudu can actually certify against,
 rather than leaving "no certification" as the permanent answer.
 

@@ -53,3 +53,18 @@ export function invalidScope(): TokenError {
 export function unauthorizedClient(): TokenError {
   return new TokenError('unauthorized_client', 400);
 }
+
+// ADR 0023's client half: a client_secret_basic/client_secret_post attempt
+// past its per-client budget. Not a TokenError — the refusal carries no
+// `error` body, the way the per-origin throttle's 429 carries none, so a
+// caller cannot use response shape to tell this apart from an
+// authentication failure by anything but status and Retry-After.
+export class TokenRateLimited extends Error {
+  readonly retryAfterSeconds: number;
+
+  constructor(retryAfterSeconds: number) {
+    super('client_secret_rate_limited');
+    this.name = 'TokenRateLimited';
+    this.retryAfterSeconds = retryAfterSeconds;
+  }
+}

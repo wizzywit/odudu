@@ -1,4 +1,8 @@
-import { type AuthenticatorResult } from '@odudu/authn-flows';
+import {
+  nextRequiredAction,
+  type AuthenticatorResult,
+  type RequiredAction,
+} from '@odudu/authn-flows';
 import { AUDIENCE_UNCHECKED, verifyJwt, type SigningKeyRecord } from '@odudu/crypto';
 import { type ClientRecord } from '@odudu/domain-realm';
 import { type ClientOidcConfig } from '#/schema/client-oidc-config';
@@ -8,7 +12,12 @@ import {
   type AuthorizeOutcome,
 } from '#/service/authorize-validation';
 import { normalizeAuthorizeQuery } from '#/service/query-normalization';
-import { refusedForUnverifiedEmail, type LoginSubmissionDeps } from '#/usecase/login-submission';
+import {
+  decideConsentGate,
+  refusedForUnverifiedEmail,
+  type ConsentGateDeps,
+  type LoginSubmissionDeps,
+} from '#/usecase/login-submission';
 import { decideReuse, type ResolvedSession } from '#/usecase/session-reuse';
 
 export type AuthorizationRequestOutcome =
@@ -21,12 +30,42 @@ export type AuthorizationRequestOutcome =
   // Session reuse: a code issued with no page ever rendered and no fresh
   // authentication session started. Carries exactly what the form-POST
   // success redirect carries, because the client cannot tell the two apart.
-  | { kind: 'reused'; code: string; redirectUri: string; state: string | null };
+  | { kind: 'reused'; code: string; redirectUri: string; state: string | null }
+  // A live session answers who this is, but consent has not been recorded
+  // for everything requested — a client requiring consent must be asked on
+  // *every* door that can issue a code, not only the one that renders a
+  // login form (see the module comment above completeReuse's caller
+  // below). A fresh authentication session is started, already bound and
+  // authenticated for the reused subject, so the consent POST has
+  // something to resume.
+  | {
+      kind: 'consent';
+      authSessionId: string;
+      clientName: string;
+      defaultScopes: string[];
+      optionalScopes: string[];
+      alreadyGranted: string[];
+    }
+  // The same promotion as 'consent', for the gate handleLoginSubmission
+  // checks first: a live session reused for a subject who still owes a
+  // required action (an admin-forced password reset, unacknowledged
+  // recovery codes, pending enrolment) must not skip it just because no
+  // password was typed this time. A fresh authentication session is
+  // started, already bound and authenticated for the reused subject, so
+  // the required-action route has something to resume.
+  | {
+      kind: 'required_action';
+      authSessionId: string;
+      subjectId: string;
+      action: RequiredAction;
+    };
 
-// What resolving the SSO session cookie against a live row yields — the two
-// facts decideReuse needs (ResolvedSession) plus the row's own id, needed
-// only afterward, to touch it once reuse is decided.
-export type ReusableSession = ResolvedSession & { sessionId: string };
+// What resolving the SSO session cookie against a live row yields — the
+// facts decideReuse needs (ResolvedSession), the authenticators that
+// session's own login recorded (carried forward rather than re-derived if
+// consent promotes this reuse into a full authentication session), and the
+// row's own id, needed only afterward, to touch it once reuse is decided.
+export type ReusableSession = ResolvedSession & { sessionId: string; authenticators: string[] };
 
 export interface CompleteReuseInput {
   realmId: string;
@@ -50,7 +89,7 @@ export interface ResolvedClient {
   scopes: readonly string[];
 }
 
-export interface AuthorizeUsecaseDeps {
+export interface AuthorizeUsecaseDeps extends ConsentGateDeps {
   findRealm(name: string): Promise<RealmLookup | null>;
   // The realm's own signing keys, which is the whole of "did this server
   // issue that ID Token?" (OIDC Core §3.1.2.2). The same set /jwks
@@ -84,10 +123,24 @@ export interface AuthorizeUsecaseDeps {
   // The same gate handleLoginSubmission enforces, shared so a cookie-borne
   // login cannot complete for a subject a password login would refuse.
   checkEmailVerification: LoginSubmissionDeps['checkEmailVerification'];
+  // The same required-action gate handleLoginSubmission enforces, checked
+  // here for the reason checkEmailVerification is: a live cookie must not
+  // buy a subject out of an action a password login would still owe.
+  pendingActions: LoginSubmissionDeps['pendingActions'];
   // Touches the reused session and issues the code atomically — the same
   // issueAuthorizationCode the form path uses, wrapped with the touch in
   // one transaction the way completeLogin wraps its own two writes.
   completeReuse(input: CompleteReuseInput): Promise<{ code: string }>;
+  // Starts a fresh authentication session already bound and authenticated
+  // for `subjectId`, with `authenticators` as its satisfied set — the
+  // reuse path's way of giving a consent decision something to park the
+  // request on and resume, without a single factor actually running.
+  markAuthenticated(
+    realmId: string,
+    authSessionId: string,
+    subjectId: string,
+    authenticators: readonly string[],
+  ): Promise<void>;
   now(): Date;
 }
 
@@ -205,6 +258,71 @@ export async function handleAuthorizationRequest(
     );
     if (refusal !== null) return reject('login_required');
 
+    // Starts a fresh authentication session already bound and authenticated
+    // for the reused subject, and parks the request on it with the reuse
+    // promotion `completeAuthorizedLogin` reads — the one mechanism both
+    // the required-action and the consent gate below use to give the
+    // subject something to resume without a single factor actually
+    // running again.
+    const promoteToParkedRequest = async (): Promise<string> => {
+      const { authSessionId } = await deps.startAuthentication(realm.id, {
+        ...request,
+        prompt: [...outcome.prompts],
+        ...(hintSubject !== null ? { idTokenHintSubject: hintSubject } : {}),
+        reuseSessionId: resolvedSession.sessionId,
+        reuseAuthTime: resolvedSession.authTime.toISOString(),
+      });
+      await deps.markAuthenticated(
+        realm.id,
+        authSessionId,
+        decision.subjectId,
+        resolvedSession.authenticators,
+      );
+      return authSessionId;
+    };
+
+    // The same required-action gate handleLoginSubmission's form path
+    // enforces right after the email check and before consent: a live
+    // cookie must not buy a subject out of an action a password login
+    // would still owe (an admin-forced reset, unacknowledged recovery
+    // codes, pending enrolment).
+    const action = nextRequiredAction(await deps.pendingActions(realm.id, decision.subjectId));
+    if (action !== null) {
+      // §3.1.2.1: `prompt=none` MUST NOT display any UI, required-action
+      // page included — refused before a session is parked, the same as
+      // the email-verification gate above.
+      if (outcome.prompts.has('none')) return reject('login_required');
+      const authSessionId = await promoteToParkedRequest();
+      return { kind: 'required_action', authSessionId, subjectId: decision.subjectId, action };
+    }
+
+    // The gate handleLoginSubmission's form path enforces right before it
+    // would otherwise complete: a client requiring consent must be asked on
+    // *this* door too, or a `consent_required` client is asked exactly
+    // once, ever — the first time it is registered, and never again from a
+    // reused session, since this is the only door a reuse ever passes
+    // through with no form and no gate of its own.
+    const gate = await decideConsentGate(
+      deps,
+      realm.id,
+      resolved.client.id,
+      decision.subjectId,
+      request.scope,
+      [...outcome.prompts],
+    );
+    if (gate.kind === 'refuse') return reject('consent_required');
+    if (gate.kind === 'ask') {
+      const authSessionId = await promoteToParkedRequest();
+      return {
+        kind: 'consent',
+        authSessionId,
+        clientName: gate.clientName,
+        defaultScopes: gate.defaultScopes,
+        optionalScopes: gate.optionalScopes,
+        alreadyGranted: gate.alreadyGranted,
+      };
+    }
+
     const { code } = await deps.completeReuse({
       realmId: realm.id,
       sessionId: resolvedSession.sessionId,
@@ -241,6 +359,10 @@ export async function handleAuthorizationRequest(
     // signs in is the one it identifies can only be judged once they have,
     // which is the login submission, so it travels with the parked request.
     ...(hintSubject !== null ? { idTokenHintSubject: hintSubject } : {}),
+    // Carried forward so handleLoginSubmission's own consent gate, once
+    // this login completes, still sees `prompt=consent` the way it would
+    // have at the moment this request first arrived.
+    prompt: [...outcome.prompts],
   });
   return { kind: 'started', authSessionId, form: initial.form };
 }

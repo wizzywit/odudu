@@ -1,0 +1,40 @@
+{
+  "alias": "odudu-dynamic-op",
+  "description": "odudu Dynamic OP: RFC 7591 dynamic registration, private_key_jwt client auth",
+  "server": {
+    "discoveryUrl": "https://proxy/realms/conformance/.well-known/openid-configuration"
+  },
+  "client": {
+    "client_name": "odudu-dynamic-op",
+    "initial_access_token": ""
+  },
+  "browser": [
+    {
+      "match": "https://proxy/realms/conformance/protocol/openid-connect/auth*",
+      "tasks": [
+        {
+          "task": "Login",
+          "optional": true,
+          "match": "https://proxy/realms/conformance/protocol/openid-connect/auth*",
+          "commands": [
+            ["text", "name", "username", "conformance-user", "optional"],
+            ["text", "name", "password", "conformance-password", "optional"],
+            ["click", "css", "button[type=submit]", "optional"]
+          ]
+        },
+        {
+          "task": "Consent",
+          "optional": true,
+          "match": "https://proxy/realms/conformance/login-actions/consent*",
+          "commands": [["click", "css", "button[name=decision][value=allow]", "optional"]]
+        },
+        {
+          "task": "Verify Complete",
+          "optional": true,
+          "match": "https://localhost.emobix.co.uk:8443/test/*/callback*",
+          "commands": [["wait", "id", "submission_complete", 10]]
+        }
+      ]
+    }
+  ]
+}

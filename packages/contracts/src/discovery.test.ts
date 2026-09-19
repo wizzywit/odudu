@@ -91,6 +91,22 @@ describe('[OIDC-DISCOVERY-3-01] the discovery document', () => {
   it('advertises exactly the claims_supported list it was given, never a hardcoded one', () => {
     expect(doc.claims_supported).toBe(CLAIMS_SUPPORTED);
   });
+
+  it('omits registration_endpoint when clientRegistrationEnabled is not passed', () => {
+    expect(doc).not.toHaveProperty('registration_endpoint');
+  });
+
+  it('advertises registration_endpoint under the issuer when clientRegistrationEnabled is true', () => {
+    const withRegistration = discoveryDocument({
+      issuer: 'https://idp.example/realms/acme',
+      claimsSupported: CLAIMS_SUPPORTED,
+      scopesSupported: SCOPES_SUPPORTED,
+      clientRegistrationEnabled: true,
+    });
+    expect(withRegistration.registration_endpoint).toBe(
+      'https://idp.example/realms/acme/clients-registrations/openid-connect',
+    );
+  });
 });
 
 describe('[OIDC-DISCOVERY-4.2-01] a metadata claim with zero elements', () => {
@@ -118,9 +134,11 @@ describe('[OIDC-DISCOVERY-4.2-01] a metadata claim with zero elements', () => {
     }
   });
 
-  // Dynamic client registration is P3's work: the member is left out
-  // altogether rather than published as null or an empty string.
-  it('leaves registration_endpoint out of the document entirely', () => {
+  // A realm whose client_registration_policy is 'disabled' — what `doc`
+  // above represents, since no clientRegistrationEnabled option was passed
+  // — leaves the member out altogether rather than published as null or an
+  // empty string. `[OIDC-DISCOVERY-3-01]` above covers the opposite case.
+  it('leaves registration_endpoint out of the document entirely for a realm that has not opened it', () => {
     expect(Object.keys(doc)).not.toContain('registration_endpoint');
   });
 });

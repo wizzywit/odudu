@@ -44,6 +44,24 @@ export function assertProductionTls(config: Config): void {
 }
 
 /**
+ * `ODUDU_ALLOW_PRIVATE_CLIENT_URLS` exists so the development and
+ * conformance stacks can register a client whose `jwks_uri` resolves to a
+ * private or loopback address — the OIDF suite serves its own key set that
+ * way. It is exactly the hole the bounded JWKS fetcher's address guard
+ * exists to close (ADR 0028), so production refuses to boot with it on.
+ */
+export function assertProductionNoPrivateClientUrls(config: Config): void {
+  if (config.NODE_ENV === 'production' && config.ODUDU_ALLOW_PRIVATE_CLIENT_URLS) {
+    throw new OduduError(
+      'config_invalid',
+      'ODUDU_ALLOW_PRIVATE_CLIENT_URLS must not be true when NODE_ENV=production. It lets a ' +
+        "registered client's jwks_uri resolve to a private or loopback address, which is the " +
+        'server-side request forgery the JWKS fetcher exists to refuse.',
+    );
+  }
+}
+
+/**
  * A passkey is bound to the relying party id it was registered against, and
  * that id comes from `ODUDU_PUBLIC_BASE_URL` alone — never from `Host` or
  * `X-Forwarded-Host`, which the client controls. A credential registered

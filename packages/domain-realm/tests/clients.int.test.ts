@@ -10,6 +10,7 @@ import {
 import { expectCrossRealmMethodProbe, expectRealmIsolation } from '@odudu/db/testing';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
+import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { clientRepository } from '#/repository/clients';
 import { clients } from '#/schema/clients';
@@ -172,6 +173,29 @@ describe('clientRepository', () => {
     });
   });
 
+  it('leaves an existing realm and an existing client unchanged in behaviour', async () => {
+    const realmId = newId();
+
+    const created = await withRealm(app.db, realmId, async (tx) => {
+      await seedRealm(tx, realmId);
+      return clientRepository(tx).create({
+        realmId,
+        clientId: `seeded-${newId()}`,
+        name: 'A seeded client',
+        type: 'public',
+        secretHash: null,
+      });
+    });
+
+    expect(created.registrationOrigin).toBe('seeded');
+
+    const [realm] = await withRealm(app.db, realmId, async (tx) =>
+      tx.select().from(realms).where(eq(realms.id, realmId)),
+    );
+    expect(realm?.clientRegistrationPolicy).toBe('disabled');
+    expect(realm?.maxClients).toBe(200);
+  });
+
   it('cannot find a client by client_id under a different realm context', async () => {
     await expectCrossRealmMethodProbe(app.db, {
       seed: async (tx, realmId) => {
@@ -188,6 +212,34 @@ describe('clientRepository', () => {
       attempt: async (tx, clientId) => clientRepository(tx).byClientId(clientId),
       expectBlocked: (result) => {
         expect(result).toBeNull();
+      },
+    });
+  });
+
+  it('locks and counts capacity for the resolved realm, not the caller-supplied id', async () => {
+    await expectCrossRealmMethodProbe(app.db, {
+      seed: async (tx, realmId) => {
+        await seedRealm(tx, realmId);
+        await insertClient(tx, realmId);
+        return realmId;
+      },
+      verifySeeded: async (tx, realmId) => {
+        const capacity = await clientRepository(tx).lockCapacity(realmId);
+        expect(capacity.count).toBe(1);
+        expect(capacity.maxClients).toBe(200);
+      },
+      // Realm B's RLS-scoped read of `realms` finds no row for realm A's
+      // id, so the lock itself is what refuses — not a count that quietly
+      // comes back as someone else's realm's number.
+      attempt: async (tx, realmId) => {
+        try {
+          return await clientRepository(tx).lockCapacity(realmId);
+        } catch (error) {
+          return { threw: true, message: error instanceof Error ? error.message : String(error) };
+        }
+      },
+      expectBlocked: (result) => {
+        expect(result).toMatchObject({ threw: true });
       },
     });
   });

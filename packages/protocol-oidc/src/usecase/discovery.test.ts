@@ -26,6 +26,7 @@ describe('resolveDiscoveryDocument', () => {
             verifyEmail: false,
             ssoSessionMaxSeconds: 36_000,
             ssoSessionIdleSeconds: 1_800,
+            clientRegistrationPolicy: 'disabled',
           }),
         claimNames,
         scopesForRealm,
@@ -46,6 +47,7 @@ describe('resolveDiscoveryDocument', () => {
             verifyEmail: false,
             ssoSessionMaxSeconds: 36_000,
             ssoSessionIdleSeconds: 1_800,
+            clientRegistrationPolicy: 'disabled',
           }),
         claimNames,
         scopesForRealm,
@@ -66,6 +68,7 @@ describe('resolveDiscoveryDocument', () => {
             verifyEmail: false,
             ssoSessionMaxSeconds: 36_000,
             ssoSessionIdleSeconds: 1_800,
+            clientRegistrationPolicy: 'disabled',
           }),
         claimNames,
         scopesForRealm,
@@ -86,6 +89,7 @@ describe('resolveDiscoveryDocument', () => {
             verifyEmail: false,
             ssoSessionMaxSeconds: 36_000,
             ssoSessionIdleSeconds: 1_800,
+            clientRegistrationPolicy: 'disabled',
           }),
         claimNames,
         scopesForRealm,
@@ -99,5 +103,55 @@ describe('resolveDiscoveryDocument', () => {
       'name',
       'sub',
     ]);
+  });
+
+  // Would still pass a version that always advertises the endpoint, or one
+  // that never does — the two assertions below pin both directions, so a
+  // regression toward either constant fails one of them.
+  it.each(['open', 'token'] as const)(
+    'advertises registration_endpoint while the policy is %s',
+    async (clientRegistrationPolicy) => {
+      const doc = await resolveDiscoveryDocument(
+        {
+          findRealm: () =>
+            Promise.resolve({
+              id: 'r1',
+              enabled: true,
+              verifyEmail: false,
+              ssoSessionMaxSeconds: 36_000,
+              ssoSessionIdleSeconds: 1_800,
+              clientRegistrationPolicy,
+            }),
+          claimNames,
+          scopesForRealm,
+        },
+        'acme',
+        'https://idp.example',
+      );
+      expect(doc?.registration_endpoint).toBe(
+        'https://idp.example/realms/acme/clients-registrations/openid-connect',
+      );
+    },
+  );
+
+  it('omits registration_endpoint while the policy is disabled', async () => {
+    const doc = await resolveDiscoveryDocument(
+      {
+        findRealm: () =>
+          Promise.resolve({
+            id: 'r1',
+            enabled: true,
+            verifyEmail: false,
+            ssoSessionMaxSeconds: 36_000,
+            ssoSessionIdleSeconds: 1_800,
+            clientRegistrationPolicy: 'disabled',
+          }),
+        claimNames,
+        scopesForRealm,
+      },
+      'acme',
+      'https://idp.example',
+    );
+    expect(doc).not.toHaveProperty('registration_endpoint');
   });
 });

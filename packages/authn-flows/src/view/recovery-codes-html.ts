@@ -36,15 +36,8 @@ export function renderRecoveryCodesPage(
     ? '<p>These replace the codes issued to this account before now, which no longer work.</p>\n'
     : '';
   const items = offer.codes.map((code) => `  <li><code>${escapeHtml(code)}</code></li>`).join('\n');
-  // No script: nothing on this page talks to an authenticator or fetches
-  // anything, so the base content-security policy describes it exactly.
-  return {
-    script: null,
-    html: `<!doctype html>
-<html lang="en">
-<head><meta charset="utf-8"><title>Save your recovery codes</title></head>
-<body>
-<h1>Save your recovery codes</h1>
+  const title = 'Save your recovery codes';
+  const body = `<h1>Save your recovery codes</h1>
 ${message}<p>Each of these signs you in once, in place of your second factor, if you lose it. <strong>This is the only time they are shown.</strong> Print them or put them in a password manager before you continue — nobody, including an administrator, can show them to you again.</p>
 ${replaced}<ol>
 ${items}
@@ -52,7 +45,18 @@ ${items}
 <form method="post" action="${target}">
   <input type="hidden" name="auth_session_id" value="${escapeHtml(authSessionId)}">
   <button type="submit">I have saved these codes</button>
-</form>
+</form>`;
+  // No script: nothing on this page talks to an authenticator or fetches
+  // anything, so the base content-security policy describes it exactly.
+  return {
+    script: null,
+    title,
+    body,
+    html: `<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>${escapeHtml(title)}</title></head>
+<body>
+${body}
 </body>
 </html>`,
   };

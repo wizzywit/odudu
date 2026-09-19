@@ -8,6 +8,7 @@ import { seed } from '#/cli/seed';
 import { resolveSeedInvocation } from '#/cli/seed-invocation';
 import {
   assertProductionAppDatabaseUrl,
+  assertProductionNoPrivateClientUrls,
   assertProductionPasskeyRelyingParty,
   assertProductionTls,
   warnIfTlsDisabled,
@@ -43,7 +44,15 @@ if (process.argv[2] === 'seed') {
   const invocation = resolveSeedInvocation(process.argv.slice(3));
   const result =
     invocation.kind === 'command' ? await seed(invocation.argv) : await seed(invocation.options);
-  console.log(JSON.stringify(result));
+  // An initial access token is a bearer credential a shell is meant to
+  // capture (`TOKEN=$(odudu seed registration-token …)`), so it leaves
+  // alone on stdout rather than wrapped in the JSON report every other
+  // subcommand prints.
+  if ('command' in result && result.command === 'registration-token') {
+    console.log(result.token);
+  } else {
+    console.log(JSON.stringify(result));
+  }
   process.exit(0);
 }
 
@@ -53,6 +62,7 @@ const logger = createLogger(config);
 assertProductionAppDatabaseUrl(config);
 assertProductionTls(config);
 assertProductionPasskeyRelyingParty(config);
+assertProductionNoPrivateClientUrls(config);
 warnIfTlsDisabled(config, (message) => {
   logger.warn({}, message);
 });

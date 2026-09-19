@@ -1,5 +1,6 @@
 import {
   advance,
+  authenticatedSession,
   authenticatedSubject,
   beginPasskeyAuthentication,
   beginPasskeyEnrolment,
@@ -13,6 +14,7 @@ import {
   establishSession,
   initialChallenge,
   loadPendingRequest,
+  markSessionAuthenticated,
   pendingChallenge,
   requiredActionRepository,
   resetAuthenticationProgress,
@@ -22,8 +24,8 @@ import {
 import { signingKeyRepository } from '@odudu/crypto';
 import { effectiveGroupPaths, effectiveRoles } from '@odudu/domain-authz';
 import { withRealm, type DatabaseHandle } from '@odudu/db';
-import { userRepository, verifyPassword } from '@odudu/domain-identity';
-import { clientRepository, clientScopeRepository } from '@odudu/domain-realm';
+import { hashPassword, userRepository, verifyPassword } from '@odudu/domain-identity';
+import { clientRepository, clientScopeRepository, consentRepository } from '@odudu/domain-realm';
 import { isUuid, systemClock, type Clock } from '@odudu/kernel';
 import { type FastifyPluginAsync } from 'fastify';
 import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
@@ -31,10 +33,17 @@ import { tokenGrantRepository } from '#/repository/grants';
 import { realmLookupRepository } from '#/repository/realm-lookup';
 import { reachableRoleIds } from '#/repository/scope-role-reach';
 import { standardClaimMappers } from '#/service/claims';
+import { type ClientSecretLimiter } from '#/service/client-secret-throttle';
 import { expandWebOrigins } from '#/service/web-origin';
-import { issueAuthorizationCode } from '#/usecase/login-submission';
+import {
+  issueAuthorizationCode,
+  type CompleteLoginInput,
+  type CompleteLoginOutcome,
+} from '#/usecase/login-submission';
 import { type ResolvedClient } from '#/usecase/authorization-request';
 import { registerAuthorizeRoute } from '#/view/routes/authorize';
+import { registerClientRegistrationRoute } from '#/view/routes/client-registration';
+import { registerConsentRoute } from '#/view/routes/consent';
 import { registerCors } from '#/view/routes/cors';
 import { registerDiscoveryRoute } from '#/view/routes/discovery';
 import { registerJwksRoute } from '#/view/routes/jwks';
@@ -67,6 +76,14 @@ export interface OidcRoutesDeps {
   // passkey enrolment then reports itself unsupported rather than binding
   // credentials to a guessed domain.
   publicBaseUrl?: string;
+  // ADR 0023's client-authentication budget on /token, per client_id.
+  // Required rather than defaulted: `oidcRoutes` is this package's
+  // exported entry point, and a permissive default here would let an
+  // embedder register the plugin with no limiter and get an RFC 6749
+  // §2.3.1 MUST that silently does nothing — nothing else would catch it.
+  // A caller that genuinely wants no budget says so explicitly with
+  // `UNLIMITED_CLIENT_SECRET_LIMITER` (#/service/client-secret-throttle.ts).
+  clientSecretLimiter: ClientSecretLimiter;
 }
 
 // The plugin apps/server registers. Discovery and JWKS both read the
@@ -78,6 +95,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
     const findRealm = (name: string) => realmLookupRepository(deps.ownerDatabase.db).byName(name);
     const clock = deps.clock ?? systemClock;
     const tls = deps.tls ?? false;
+    const clientSecretLimiter = deps.clientSecretLimiter;
     // One registry per process, shared by discovery (claimNames, for
     // claims_supported), /userinfo, and token issuance's ID token claims —
     // so a mapper registered once reaches every consumer the same way.
@@ -154,75 +172,114 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
     // without it there is nothing behind one.
     const passkeyLogin = { passkeyLogin: deps.publicBaseUrl !== undefined };
 
+    // One definition for every door that can issue a code: the form path,
+    // the consent POST, and (via completeAuthorizedLogin) whichever of the
+    // two a reuse's own consent gate promoted itself into.
+    const resolveClientId = (realmId: string, oauthClientId: string) =>
+      withRealm(deps.database.db, realmId, async (tx) => {
+        const client = await clientRepository(tx).byClientId(oauthClientId);
+        return client === null ? null : client.id;
+      });
+
+    // What a consent decision needs about the client, read once per call
+    // and shared by decideConsentGate (both doors) and the consent POST
+    // that records the answer: the client's own display name, whether it
+    // requires consent at all, and its scope vocabulary split by
+    // assignment — named, not just counted, so the page can list them and
+    // the POST can turn a ticked name back into the id consent_scopes
+    // stores.
+    const consentContext = (realmId: string, clientId: string) =>
+      withRealm(deps.database.db, realmId, async (tx) => {
+        const [client, config, assignments] = await Promise.all([
+          clientRepository(tx).byId(clientId),
+          clientOidcConfigRepository(tx).byClientId(clientId),
+          clientScopeRepository(tx).forClientByAssignment(clientId),
+        ]);
+        const defaultScopes = assignments
+          .filter((row) => row.assignment === 'default')
+          .map((row) => row.scope.name);
+        const optionalScopes = assignments
+          .filter((row) => row.assignment === 'optional')
+          .map((row) => row.scope.name);
+        const scopeIdByName = new Map(assignments.map((row) => [row.scope.name, row.scope.id]));
+        return {
+          clientName: client?.name ?? '',
+          consentRequired: config?.consentRequired ?? false,
+          defaultScopes,
+          optionalScopes,
+          scopeIdByName,
+        };
+      });
+
+    const grantedScopeIds = (realmId: string, subjectId: string, clientId: string) =>
+      withRealm(deps.database.db, realmId, (tx) =>
+        consentRepository(tx).grantedScopeIds(realmId, subjectId, clientId),
+      );
+
+    // One transaction: the conditional consume, and — only if it actually
+    // consumed the session — establishing the SSO session and issuing the
+    // code. A failure anywhere in here rolls all three back together, so it
+    // never leaves a consumed session with nothing issued for it. Shared by
+    // the form path and the consent POST — completeAuthorizedLogin is the
+    // only caller of either.
+    const completeLogin = (input: CompleteLoginInput): Promise<CompleteLoginOutcome> =>
+      withRealm(deps.database.db, input.realmId, async (tx) => {
+        const now = clock.now();
+        const consumed = await consumeAuthenticationSession(tx, input.authSessionId, clock);
+        if (!consumed) return { kind: 'already_consumed' };
+
+        // A session reuse a consent decision promoted: touch and reuse it,
+        // reporting its own authTime, rather than establishing a fresh
+        // session and reporting `now` — the same distinction completeReuse
+        // draws for the ungated reuse path, and for the same reason: being
+        // asked for consent must not itself read as a new authentication.
+        const reuseSession = input.reuseSession;
+        let sessionId: string;
+        let authTime: Date;
+        if (reuseSession !== undefined) {
+          await sessionRepository(tx).touch(reuseSession.sessionId, now);
+          sessionId = reuseSession.sessionId;
+          authTime = reuseSession.authTime;
+        } else {
+          const established = await establishSession(
+            tx,
+            input.realmId,
+            input.subjectId,
+            input.ssoSessionMaxSeconds,
+            input.authenticators,
+            clock,
+          );
+          sessionId = established.sessionId;
+          authTime = now;
+        }
+
+        const { code } = await issueAuthorizationCode(tx, {
+          realmId: input.realmId,
+          clientId: input.clientId,
+          subjectId: input.subjectId,
+          redirectUri: input.redirectUri,
+          scope: input.scope,
+          nonce: input.nonce,
+          codeChallenge: input.codeChallenge,
+          codeChallengeMethod: input.codeChallengeMethod,
+          authTime,
+          now,
+          sessionId,
+        });
+        return { kind: 'issued', sessionId, code };
+      });
+
     registerDiscoveryRoute(app, {
       findRealm,
       claimNames: () => claimMappers.claimNames(),
       scopesForRealm,
     });
     registerJwksRoute(app, { findRealm, listPublishableKeys });
-    registerAuthorizeRoute(app, {
+    registerClientRegistrationRoute(app, {
       findRealm,
-      tls,
-      ...passkeyLogin,
-      listPublishableKeys,
-      scopesForRealm,
-      resolveClient: (realmId, oauthClientId) =>
-        withRealm(deps.database.db, realmId, async (tx): Promise<ResolvedClient> => {
-          const client = await clientRepository(tx).byClientId(oauthClientId);
-          if (client === null) return { client: null, config: null, scopes: [] };
-          const config = await clientOidcConfigRepository(tx).byClientId(client.id);
-          const assigned = await clientScopeRepository(tx).forClient(client.id);
-          return { client, config, scopes: assigned.map((scope) => scope.name) };
-        }),
-      startAuthentication: (realmId, request) =>
-        withRealm(deps.database.db, realmId, (tx) =>
-          startAuthentication(tx, realmId, request, clock),
-        ),
-      initialChallenge: (realmId) =>
-        withRealm(deps.database.db, realmId, (tx) => initialChallenge(tx, realmId)),
+      withinRealm: (realmId, fn) => withRealm(deps.database.db, realmId, fn),
+      hashClientSecret: hashPassword,
       now: () => clock.now(),
-      // The realm's idle window comes from the `realm` the caller already
-      // resolved (its own `findRealm`), not a second lookup by id.
-      resolveSession: async (realm, cookieValue) => {
-        // The cookie is trusted for nothing but this lookup, and a session
-        // id is a UUID column — a value shaped like anything else names no
-        // row rather than raising the invalid-input-syntax error Postgres
-        // would give a raw comparison.
-        if (cookieValue === undefined || !isUuid(cookieValue)) return null;
-        return withRealm(deps.database.db, realm.id, async (tx) => {
-          const record = await sessionRepository(tx).liveById(
-            cookieValue,
-            realm.ssoSessionIdleSeconds,
-            clock.now(),
-          );
-          if (record === null) return null;
-          return { sessionId: record.id, subjectId: record.subjectId, authTime: record.createdAt };
-        });
-      },
-      checkEmailVerification,
-      // Touch and issue in one transaction: a reused session is a session
-      // being used, and there is no reason for the two writes this makes to
-      // land in separate ones.
-      completeReuse: (input) =>
-        withRealm(deps.database.db, input.realmId, async (tx) => {
-          const now = clock.now();
-          await sessionRepository(tx).touch(input.sessionId, now);
-          // `now`, not `input.authTime`: the code's 60s TTL counts from this
-          // issuance, however long ago the session's own login was.
-          return issueAuthorizationCode(tx, {
-            realmId: input.realmId,
-            clientId: input.clientId,
-            subjectId: input.subjectId,
-            redirectUri: input.redirectUri,
-            scope: input.scope,
-            nonce: input.nonce,
-            codeChallenge: input.codeChallenge,
-            codeChallengeMethod: input.codeChallengeMethod,
-            authTime: input.authTime,
-            now,
-            sessionId: input.sessionId,
-          });
-        }),
     });
     // One definition for both doors onto the enrolment page: the login
     // submission that discovers the action is owed, and the enrolment
@@ -296,6 +353,95 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
         requiredActionRepository(tx).pendingFor(subjectId),
       );
 
+    registerAuthorizeRoute(app, {
+      findRealm,
+      tls,
+      ...passkeyLogin,
+      listPublishableKeys,
+      scopesForRealm,
+      resolveClient: (realmId, oauthClientId) =>
+        withRealm(deps.database.db, realmId, async (tx): Promise<ResolvedClient> => {
+          const client = await clientRepository(tx).byClientId(oauthClientId);
+          if (client === null) return { client: null, config: null, scopes: [] };
+          const config = await clientOidcConfigRepository(tx).byClientId(client.id);
+          const assigned = await clientScopeRepository(tx).forClient(client.id);
+          return { client, config, scopes: assigned.map((scope) => scope.name) };
+        }),
+      startAuthentication: (realmId, request) =>
+        withRealm(deps.database.db, realmId, (tx) =>
+          startAuthentication(tx, realmId, request, clock),
+        ),
+      initialChallenge: (realmId) =>
+        withRealm(deps.database.db, realmId, (tx) => initialChallenge(tx, realmId)),
+      now: () => clock.now(),
+      // The realm's idle window comes from the `realm` the caller already
+      // resolved (its own `findRealm`), not a second lookup by id.
+      resolveSession: async (realm, cookieValue) => {
+        // The cookie is trusted for nothing but this lookup, and a session
+        // id is a UUID column — a value shaped like anything else names no
+        // row rather than raising the invalid-input-syntax error Postgres
+        // would give a raw comparison.
+        if (cookieValue === undefined || !isUuid(cookieValue)) return null;
+        return withRealm(deps.database.db, realm.id, async (tx) => {
+          const record = await sessionRepository(tx).liveById(
+            cookieValue,
+            realm.ssoSessionIdleSeconds,
+            clock.now(),
+          );
+          if (record === null) return null;
+          return {
+            sessionId: record.id,
+            subjectId: record.subjectId,
+            authTime: record.createdAt,
+            // Carried forward for the one case that needs it: a consent
+            // gate promoting this reuse into a real authentication session
+            // (markAuthenticated below), whose amr has to say what the
+            // original login actually used.
+            authenticators: record.authenticators,
+          };
+        });
+      },
+      checkEmailVerification,
+      pendingActions,
+      beginTotpEnrolment: startTotpEnrolment,
+      beginRecoveryCodes: startRecoveryCodes,
+      ...passkeyEnrolment,
+      consentContext,
+      grantedScopeIds,
+      // Promotes a reuse into a real authentication session, already bound
+      // and authenticated for the reused subject — what the required-action
+      // gate and decideConsentGate's 'ask' branch both need to park the
+      // request on and render a page against, with no factor actually
+      // running.
+      markAuthenticated: (realmId, authSessionId, subjectId, authenticators) =>
+        withRealm(deps.database.db, realmId, (tx) =>
+          markSessionAuthenticated(tx, authSessionId, subjectId, authenticators, clock),
+        ),
+      // Touch and issue in one transaction: a reused session is a session
+      // being used, and there is no reason for the two writes this makes to
+      // land in separate ones.
+      completeReuse: (input) =>
+        withRealm(deps.database.db, input.realmId, async (tx) => {
+          const now = clock.now();
+          await sessionRepository(tx).touch(input.sessionId, now);
+          // `now`, not `input.authTime`: the code's 60s TTL counts from this
+          // issuance, however long ago the session's own login was.
+          return issueAuthorizationCode(tx, {
+            realmId: input.realmId,
+            clientId: input.clientId,
+            subjectId: input.subjectId,
+            redirectUri: input.redirectUri,
+            scope: input.scope,
+            nonce: input.nonce,
+            codeChallenge: input.codeChallenge,
+            codeChallengeMethod: input.codeChallengeMethod,
+            authTime: input.authTime,
+            now,
+            sessionId: input.sessionId,
+          });
+        }),
+    });
+
     registerRequiredActionRoute(app, {
       findRealm,
       ...passkeyLogin,
@@ -339,49 +485,32 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
       pendingChallenge: pendingChallengeFor,
       checkEmailVerification,
       pendingActions,
-      resolveClientId: (realmId, oauthClientId) =>
-        withRealm(deps.database.db, realmId, async (tx) => {
-          const client = await clientRepository(tx).byClientId(oauthClientId);
-          return client === null ? null : client.id;
-        }),
-      // One transaction: the conditional consume, and — only if it actually
-      // consumed the session — establishing the SSO session and issuing the
-      // code. A failure anywhere in here rolls all three back together,
-      // so it never leaves a consumed session with nothing issued for it.
-      completeLogin: (input) =>
-        withRealm(deps.database.db, input.realmId, async (tx) => {
-          const now = clock.now();
-          const consumed = await consumeAuthenticationSession(tx, input.authSessionId, clock);
-          if (!consumed) return { kind: 'already_consumed' };
-
-          const { sessionId } = await establishSession(
-            tx,
-            input.realmId,
-            input.subjectId,
-            input.ssoSessionMaxSeconds,
-            input.authenticators,
-            clock,
-          );
-          // authTime and now both derive from this single clock read, not a
-          // fresh one inside issueAuthorizationCode — otherwise two reads
-          // straddling a millisecond boundary could store a TTL slightly
-          // over 60s. On this path the two happen to be the same instant;
-          // completeReuse is where they diverge.
-          const { code } = await issueAuthorizationCode(tx, {
-            realmId: input.realmId,
-            clientId: input.clientId,
-            subjectId: input.subjectId,
-            redirectUri: input.redirectUri,
-            scope: input.scope,
-            nonce: input.nonce,
-            codeChallenge: input.codeChallenge,
-            codeChallengeMethod: input.codeChallengeMethod,
-            authTime: now,
-            now,
-            sessionId,
-          });
-          return { kind: 'issued', sessionId, code };
-        }),
+      resolveClientId,
+      consentContext,
+      grantedScopeIds,
+      completeLogin,
+    });
+    registerConsentRoute(app, {
+      findRealm,
+      tls,
+      authenticatedSession: (realmId, authSessionId) =>
+        withRealm(deps.database.db, realmId, (tx) =>
+          authenticatedSession(tx, authSessionId, clock),
+        ),
+      loadPendingRequest: (realmId, authSessionId) =>
+        withRealm(deps.database.db, realmId, (tx) => loadPendingRequest(tx, authSessionId)),
+      checkEmailVerification,
+      pendingActions,
+      beginTotpEnrolment: startTotpEnrolment,
+      beginRecoveryCodes: startRecoveryCodes,
+      ...passkeyEnrolment,
+      resolveClientId,
+      consentContext,
+      recordConsent: (realmId, subjectId, clientId, scopeIds) =>
+        withRealm(deps.database.db, realmId, (tx) =>
+          consentRepository(tx).record(realmId, subjectId, clientId, [...scopeIds]),
+        ),
+      completeLogin,
     });
     registerLogoutRoute(app, {
       findRealm,
@@ -442,6 +571,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
         kek: deps.kek,
         clock,
         verifyPassword,
+        clientSecretLimiter,
         claimMappers,
         loadClaimContext,
         resolveClientWebOrigins,
@@ -464,3 +594,12 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
 export { clientOidcConfigRepository } from '#/repository/client-oidc-config';
 export { type ClientOidcConfig } from '#/schema/client-oidc-config';
 export { realmLookupRepository, type NewRealm, type RealmLookup } from '#/repository/realm-lookup';
+export {
+  clientKeySet,
+  ClientKeySetRefused,
+  MAX_JWKS_BYTES,
+  type ClientKeyDeps,
+  type ClientKeyRequest,
+  type ClientKeyResponse,
+  type ClientKeySet,
+} from '#/repository/client-keys';

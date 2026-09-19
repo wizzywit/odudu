@@ -80,6 +80,9 @@ describe('clientOidcConfigRepository', () => {
     });
 
     expect(created.clientId).toBe(clientId);
+    // A config created without deciding on it must behave as it always did:
+    // no consent screen, no key material, no logout URIs.
+    expect(created.consentRequired).toBe(false);
 
     const found = await withRealm(app.db, realmId, async (tx) =>
       clientOidcConfigRepository(tx).byClientId(clientId),
@@ -88,6 +91,7 @@ describe('clientOidcConfigRepository', () => {
     expect(found).not.toBeNull();
     expect(found?.redirectUris).toEqual(['https://app.example/callback']);
     expect(found?.tokenEndpointAuthMethod).toBe('client_secret_basic');
+    expect(found?.consentRequired).toBe(false);
   });
 
   it('returns null when no config matches', async () => {

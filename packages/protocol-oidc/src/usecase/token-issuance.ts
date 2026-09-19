@@ -21,10 +21,17 @@ import { evaluateAuthorizationCodeGrant } from '#/service/authorization-code-gra
 import { type ClaimContext } from '#/service/claims';
 import { evaluateClientCredentialsGrant } from '#/service/client-credentials-grant';
 import {
+  clientSecretLimiterKey,
+  isPasswordAuthMethod,
+  type ClientSecretLimiter,
+} from '#/service/client-secret-throttle';
+import {
   invalidClient,
   invalidGrant,
   invalidRequest,
   invalidScope,
+  TokenError,
+  TokenRateLimited,
   unauthorizedClient,
   unsupportedGrantType,
 } from '#/service/errors';
@@ -49,6 +56,12 @@ export interface TokenIssuanceDeps {
   // exactly when the session it is bound to would (refresh-rotation.ts).
   idleSeconds: number;
   verifyPassword: (hash: string, secret: string) => Promise<boolean>;
+  // ADR 0023's client half: a per-`client_id` budget on failed
+  // client_secret_basic/client_secret_post attempts, consulted by
+  // `authenticateClient` and by nothing else. The concrete instance wraps
+  // `apps/server/src/throttle.ts`'s `slidingWindow`; protocol-oidc only
+  // ever sees the shape.
+  clientSecretLimiter: ClientSecretLimiter;
   // Shared with /userinfo: the ID token's claims beyond the envelope
   // (`iss`/`aud`/`iat`/`exp`/`nonce`/`auth_time`) come from the same
   // registry, so a claim present in one can never be missing from the
@@ -200,11 +213,11 @@ function parseBasicAuth(header: string | undefined): BasicCredentials | undefine
 // Stage 2: client authentication. Every failure here — unknown client_id,
 // disabled client, wrong secret, a public client presenting a secret, the
 // method the client is not configured for, or two methods at once — reports
-// the same `invalid_client` (401, WWW-Authenticate: Basic), never which.
-// A client authenticates the way it is registered to, not whichever way
-// happens to work: `client_secret_basic` and `client_secret_post` (RFC 6749
-// §2.3.1) are accepted only from a client whose stored
-// `token_endpoint_auth_method` names that one, never both (§2.3).
+// the same `invalid_client` (401, WWW-Authenticate: Basic), never which,
+// and (ADR 0023's amendment) is metered identically against the same
+// per-`client_id` budget. A healthy client never reaches that budget:
+// `verifyClientCredentials` returns its result untouched on success, so
+// only the `throw` path below ever calls `check`.
 async function authenticateClient(
   tx: RealmScopedDatabase,
   deps: TokenIssuanceDeps,
@@ -217,6 +230,41 @@ async function authenticateClient(
   const oauthClientId = basic?.clientId ?? bodyClientId;
   if (oauthClientId === undefined) throw invalidClient(WWW_AUTHENTICATE);
 
+  // What this request is attempting, from how the credential arrived —
+  // never the client's registered method, which an unknown client_id has
+  // none of. Basic and a body secret are §2.3.1's two password methods by
+  // construction; there is no third presentation /token accepts today.
+  const attemptedMethod =
+    basic !== undefined
+      ? 'client_secret_basic'
+      : bodyClientSecret !== undefined
+        ? 'client_secret_post'
+        : undefined;
+
+  try {
+    return await verifyClientCredentials(tx, deps, oauthClientId, basic, bodyClientSecret);
+  } catch (err) {
+    if (
+      err instanceof TokenError &&
+      attemptedMethod !== undefined &&
+      isPasswordAuthMethod(attemptedMethod)
+    ) {
+      const decision = deps.clientSecretLimiter.check(
+        clientSecretLimiterKey(deps.realmId, oauthClientId),
+      );
+      if (!decision.allowed) throw new TokenRateLimited(decision.retryAfterSeconds);
+    }
+    throw err;
+  }
+}
+
+async function verifyClientCredentials(
+  tx: RealmScopedDatabase,
+  deps: TokenIssuanceDeps,
+  oauthClientId: string,
+  basic: BasicCredentials | undefined,
+  bodyClientSecret: string | undefined,
+): Promise<{ client: ClientRecord; config: ClientOidcConfig }> {
   const client = await clientRepository(tx).byClientId(oauthClientId);
   if (client === null) throw invalidClient(WWW_AUTHENTICATE);
 

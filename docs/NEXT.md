@@ -2,21 +2,108 @@
 
 ## Start here
 
-**P0, P1, P2a and P2b are complete. P3 — realms, clients, consent and
-dynamic registration — is next, and has not been brainstormed.** Every
-clause of P2b's exit criterion was driven against a running stack at close,
-and section 11 of
-[the umbrella spec](superpowers/specs/2026-09-10-odudu-design.md) records
-what was observed, what could only be established another way (the two
-WebAuthn ceremonies, which need a browser), and — separately — what P2b
-leaves behind that its criterion never asked for. Section 17 of
-[the phase spec](superpowers/specs/2026-09-15-p2b-credentials-mfa-sessions-design.md)
-lists every correction the phase made to its own plan, and the pattern they
-share: almost all of them were claims about **this repository** — a table,
-a migration number, a helper, a file path, a testing convention — rather
-than about the design or a third party.
+**P0, P1, P2a, P2b and P3a are complete. P3b — sessions, logout and the
+token surface — is next**, and needs its own brainstorm and spec: nothing
+below is a P3b plan, only what it inherits and the two things still open.
+P3a's own record — what each increment found, and what turned out to be
+wrong — is in [docs/phases/p3a.md](phases/p3a.md); this section is only
+where the project stands now.
 
-### What P3 inherits from P2b
+P3a shipped dynamic client registration (RFC 7591) behind a per-realm
+policy, a consent screen with per-scope choice over a client's optional
+scopes, the `client_secret` rate limit at `/token`, the address guard
+`jwks_uri` validation sits behind, and the page-contract retrofit (every
+renderer now returns `RenderedPage`, one authority for a page's headers)
+that P4b's theming will build on. The OIDF Dynamic OP plan is intended to
+run reproducibly with every divergence a recorded decision (ADR 0031),
+the same treatment P1's own criterion already accepted for Basic OP — it
+cannot pass outright, because its discovery check demands response types
+OAuth 2.1 removes. Only one run is committed as evidence, though: unlike
+Basic OP, whose directory holds a run and a rerun that agree, "runs
+reproducibly" here is asserted by the plan rather than demonstrated by a
+second execution (`docs/phases/p3a.md`, Task 19).
+
+**What P3b inherits, concretely:**
+
+- **A `jwks_uri` fetcher and pinned transport, built and exported but
+  wired into nothing.** `clientKeySet`
+  (`packages/protocol-oidc/src/repository/client-keys.ts`) and
+  `apps/server/src/client-key-transport.ts` are tested and independently
+  reviewed (pinned lookup, both timeouts, the stream-level body cap, TLS
+  verification each proven under an adversarial review, not merely
+  claimed). Registration validates a `jwks_uri`'s **shape** only —
+  `https`, no embedded credentials — and does not dereference it: an
+  earlier attempt at registration-time dereferencing was reverted
+  (`docs/phases/p3a.md`, Task 12b) after it turned an SSRF guard's own
+  refusal reason into a network oracle for an anonymous, unauthenticated
+  caller. The one consumer the OIDF suite's own source identifies is
+  `private_key_jwt` client authentication at `/token`: fetch there, at the
+  moment a signature is actually verified, with a refusal that says "the
+  signature did not verify" or "the key could not be retrieved" — never
+  the guard's own reasoning. Three known nits to fix while wiring it up
+  for real: `expiresAt` is computed from the pre-fetch clock (a slow fetch
+  shortens its own cache TTL); there is no in-flight coalescing (two
+  concurrent fetches of one URI both reach the network before the cache
+  can suppress the second); and only a success is cached — `fetchFresh`
+  throws before any cache write, so a failing `jwks_uri` is re-fetched on
+  every call, which is the umbrella spec §6's "a failure is not a
+  permanent cache miss" not yet implemented. Harmless while unwired; worth
+  a negative-cache entry (with its own, shorter TTL) once `/token` is
+  calling this on every `private_key_jwt` verification.
+- **The `claims` request parameter is P3b's**, not P3a's. It was placed in
+  P3a by `docs/protocols/oidc-core.md` on the reasoning that it needs the
+  per-client machinery and consent screen P3a builds; P3a's own criterion
+  never named it, and nothing in its plan built it — the machinery
+  shipped, the parameter that reads it did not. `docs/protocols/oidc-core.md`'s
+  three `deferred:` rows now say `P3b`, filed beside the signed and
+  encrypted UserInfo responses it shares a shape with: both read
+  per-client registration data that had no machinery to supply it before
+  P3a.
+- **The consent-screen section of `docs/request-paths.md` is still
+  derived, not observed, and it is P3b's to close, not P4b's.**
+  Reproducing it means replaying the whole document's transcript from the
+  top to reach the same `demo` realm state, which a documentation-only
+  pass cannot absorb — deliberately not attempted here. P4b's criterion is
+  theming and per-client branding; re-deriving a transcript is nowhere in
+  it, the same "criterion omits the work sent to it" shape this file just
+  corrected for the `claims` parameter above. P3b is the right owner
+  instead: it rewrites `/authorize`'s session decision and adds concurrent
+  sessions and "remember me," so it will be re-running the transcripts
+  around this exact request path regardless, and its own criterion already
+  names the surface. Replace the section with a real transcript (an
+  anonymously self-registered client, per the section's own plan) as part
+  of that work, not as an afterthought.
+- **The address guard (`packages/protocol-oidc/src/service/remote-address.ts`)
+  is sound against every bypass this phase's adversarial review found and
+  fixed** (IPv4-mapped/-compatible spellings, NAT64, 6to4 all now
+  refused, each proven by executing the function against the real address
+  forms, not by reasoning about it). One narrow class-level gap (`::/96`
+  outside the named markers) and one narrower RFC 6052 embedding gap
+  remain, the first spun off as an immediate follow-up rather than a
+  phase item.
+- **The three `ODUDU-CLIENT-META-FRONTCHANNEL-*` test ids in
+  `packages/protocol-oidc/src/service/client-metadata.test.ts` want
+  re-tracing to real clause ids once a Front-Channel Logout clause table
+  exists.** Their back-channel twins already carry `OIDC-BACKCHANNEL-2.2-*`
+  ids because `docs/protocols/oidc-backchannel.md` has a clause table to
+  trace them against; front-channel logout does not yet have the
+  equivalent document, which is the whole of the asymmetry. P3b writes
+  that table alongside the `sid`-addressable front-channel logout work
+  below, so re-tracing belongs there.
+- **RFC 7592 client management (GET/PUT/DELETE on a registered client) is
+  not P3a's and is not P3b's.** The Dynamic OP suite's own cleanup issues
+  a best-effort DELETE against `registration_client_uri` but treats a
+  failure as a warning, not a module failure — confirmed by reading the
+  suite's source directly, not by assumption. Registered-client management
+  stays where `docs/request-paths.md` already places it, in P4, with the
+  rest of the admin surface.
+
+**Two things carried forward from P2b, both now P3b's surface directly:**
+concurrent sessions per browser (`prompt=select_account`'s three clause
+rows) and the `sid`-addressable session front-channel and back-channel
+logout need. Both are described in full below, unchanged since P2b closed.
+
+### What P3b inherits from P2b
 
 **A session that is read, and one per browser.** `/authorize` resolves the
 `{realm}-session` cookie through `sessionRepository.liveById`, scoped by the
@@ -27,8 +114,8 @@ realm's own `sso_session_idle_seconds` (1800) and `sso_session_max_seconds`
 cookie holds **one** session id, so a second login in the same browser
 replaces the first. That is the limitation `prompt=select_account` runs
 into, and the reason its three clause rows in
-`docs/protocols/oidc-core.md` read `deferred: P3`: account selection needs
-concurrent sessions, which reshapes this read rather than extending it. P3
+`docs/protocols/oidc-core.md` read `deferred: P3b`: account selection needs
+concurrent sessions, which reshapes this read rather than extending it. P3a
 already renders a user-choice page during `/authorize` for consent, which is
 the same surface.
 
@@ -36,7 +123,7 @@ the same surface.
 session-backed access token and ID token carries it (Back-Channel Logout
 §2.1), assembled straight into the envelope rather than through
 `ClaimMapperRegistry` so no mapper can overwrite it, and an `offline_access`
-grant omits it because it has no session. That is what makes P3's
+grant omits it because it has no session. That is what makes P3b's
 front-channel and back-channel logout addressable at all: a logout token
 names a `sid`, and `tokenGrantRepository.bySession` and `revokeForSession`
 are already the read and write sides of it.
@@ -47,20 +134,23 @@ well as the grant's `revoked_at` — but an `at+jwt` is self-contained and
 nothing consults anything before accepting one, so a logged-out user's
 access token works until its `exp` (at most an hour). RFC 7662
 introspection is what makes revocation real inside that window, and it is in
-P3's criterion for that reason rather than as a checklist item.
+P3b's criterion for that reason rather than as a checklist item.
 
-**Three gaps filed to P3 during this phase, all recorded rather than
-remembered.** A rate limit on `client_secret` attempts at `/token` — RFC
-6749 §2.3.1's client half, now its own `deferred: P3` row and named in P3's
-criterion. The `prompt=select_account` rows above. And `/authorize` still
-verifies an `id_token_hint` with `AUDIENCE_UNCHECKED`, which the per-client
-audience configuration P3's criterion names is the place to close.
+**Three gaps P2b filed forward, all recorded rather than remembered.** A
+rate limit on `client_secret` attempts at `/token` — RFC 6749 §2.3.1's
+client half, filed as its own row and named in P3a's criterion — is
+closed: `RFC6749-2.3.1-04` covers it, and ADR 0023 carries the amendment.
+The `prompt=select_account` rows above remain open. And
+`/authorize` still verifies an `id_token_hint` with `AUDIENCE_UNCHECKED`,
+which the per-client audience configuration P3b's criterion names is the
+place to close.
 
 ### What each phase found while building it
 
 The running records, split out of this file on 2026-09-17: P2b reached 1,873
 lines here, of which the part describing where the project stood was 58.
 
+- [P3a — clients, dynamic registration and consent](phases/p3a.md)
 - [P2b — credentials, MFA and the session lifecycle](phases/p2b.md)
 - [P0, P1 and P2a](phases/p0-p1-p2a.md)
 
@@ -75,52 +165,38 @@ inherits, and decisions that are still open. Not what a finished phase
 discovered. If a section here is addressed to a phase that has closed, it is
 overdue for a decision or a move, not for another paragraph.
 
-## Login page theming — P2 did not decide it, and P3 inherits the question
+## Login page theming — decided in P3a, delivered by P4b
 
-The design spec lists `ThemeProvider` among `kernel`'s registries (section 8),
-and theming is delivered by **P4b** — split out of P10 on 2026-09-17, because
-P10's criterion tested provider loading and would have passed with no theming
-at all. Nothing is in place yet: the registry does not exist, and the pages
-are hardcoded HTML, dependency-free with every interpolated value escaped.
+**Closed on 2026-09-18.** P2 left this open and the note that carried it
+asked for a decision "when three pages exist"; P2b shipped past that without
+one, which is the failure the rule at the top of this file describes. P3a's
+brainstorm settled it.
 
-Those lines are not the risk. The risk is page count, and it has already
-grown past what this note first estimated: P2b shipped seven page renderers,
-P3 adds a consent screen, P4 the consoles. Each one written the same way, by
-a different task, leaves P4b retrofitting a contract across pages that never
-shared a shape. The spec's promise that extensibility is "additive rather
-than a rewrite" is made about modules, and does not extend to pages on its
-own.
+**A theme replaces a body fragment and a token set. Never the document.**
+The document is where the CSP nonce, the framing defence and the
+`auth_session_id` live, and P4b's criterion requires an _untrusted client_
+to supply styling — so a contract that lets a client replace the document is
+a contract that lets a client replace the password field. `RenderedPage`
+grows `body` and `title` alongside `html`; P4b substitutes a shell around
+them without touching a renderer. ADR 0030, written in P3a.
 
-**P2 closed without deciding it, and the condition this note set has been
-passed rather than met.** It asked for a decision "when three pages exist and
-the real variation is visible", and guessed the eventual count at six. P2b
-shipped seven page renderers — `authorize-html`, `logout-html`,
-`required-action-html`, `totp-enrolment-html`, `passkey-enrolment-html`,
-`recovery-codes-html` and `update-password-html` — so the variation is now as
-visible as it is going to get before P3 adds the eighth.
+Two things found while deciding it, both now P3a's work:
 
-Part of the seam appeared on its own, which is the one piece of new
-information: `html-response.ts` now takes a `RenderedPage` of
-`{ html, script }` rather than a string, because the passkey pages needed a
-CSP nonce that only the renderer could know. That is a page contract arrived
-at for an unrelated reason, and it is the obvious thing for a theming
-contract to extend rather than replace.
-
-The question itself is unchanged and still open: what is a theme allowed to
-replace — the whole document, a body fragment, or only styling? It now has a
-second consumer and a delivery phase. On 2026-09-17 theming and client
-branding were split out of P10 into **P4b**, immediately after the consoles,
-and the criterion now requires **a client** supplying its own styling and
-images rather than only a realm supplying a theme (section 11, "Theming was
-named but never required"). So the contract is decided in P3, beside the
-consent screen, and delivered in P4b — deciding it in the phase that
-delivers it would mean writing the consent screen the old way first. A contract that fits a trusted operator's theme and not
-an untrusted client's stylesheet is the wrong contract, and the difference is
-that the second one is an authorization decision about a page carrying a
-password field and a CSRF token. Deciding it
-in P3 costs nothing but the decision; deferring it again costs the console's
-pages too, and P4b then retrofits across nine rather than building against a
-contract that already exists.
+- **The retrofit is 26 render functions across 10 files, not seven pages.**
+  This file and `CLAUDE.md` both said seven, which counted pages a user
+  navigates to rather than functions a contract must cover. Both are
+  corrected in the increment that does the retrofit.
+- **`CLAUDE.md`'s "every page leaves through `sendHtml`" is already
+  false.** `packages/account/src/view/verification-html.ts:14` is a second
+  exit that hand-duplicates the policy — correctly, since `html-response.ts`
+  is a protocol package's internal and no feature reaches into another's
+  internals. The two have diverged: one sets `referrer-policy: no-referrer`
+  and the other does not. P3a puts the complete header set behind one pure
+  `pageHeaders` in `kernel`, which is where `RenderedPage` already lives and
+  the only module all three page-owning packages may import. `sendHtml`
+  itself cannot move there — it takes a `FastifyReply`, and `kernel` depends
+  on `uuidv7` and `zod` only — so the promise P3a's criterion makes is **one
+  authority for a page's headers, enforced by a test**, not one exit.
 
 ## Recovery codes run out into a fresh set, not into a lockout
 
@@ -149,7 +225,7 @@ so what P4 owes is a surface, not a mechanism.
 ## Realm settings have a command; two client writes do not, by design
 
 `odudu seed realm --name <realm> --set <name>=<value>` applies any of the
-twenty-one realm settings, repeatable, named by the column names the schema
+twenty-three realm settings, repeatable, named by the column names the schema
 and `docs/request-paths.md` already use. All five passages that flipped a
 realm setting with `psql` now run it, and `README.md`'s three claims that no
 flag existed are gone — one of them had been wrong before this, since
@@ -170,7 +246,7 @@ than a gap.** `seed client` registers `--post-logout-redirect-uri` and
 because a re-run that quietly widened a registered redirect list is how an
 allowlist grows by accident. Both remaining sites change a client seeded
 earlier in the document, so they stay `psql` until the admin API can do it
-under authentication and audit — **P3**, whose criterion already names
+under authentication and audit — **P3a**, whose criterion already names
 registered per-client logout URIs.
 
 **Asymmetry worth knowing before P4 builds on it:** `seed realm --set`

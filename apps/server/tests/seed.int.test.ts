@@ -9,7 +9,12 @@ import {
   type DatabaseHandle,
 } from '@odudu/db';
 import { subjects, users } from '@odudu/domain-identity';
-import { clients, clientScopeRepository, REALM_DEFAULT_SCOPE_NAMES } from '@odudu/domain-realm';
+import {
+  clientRegistrationTokenRepository,
+  clients,
+  clientScopeRepository,
+  REALM_DEFAULT_SCOPE_NAMES,
+} from '@odudu/domain-realm';
 import { newId } from '@odudu/kernel';
 import { clientOidcConfigRepository } from '@odudu/protocol-oidc';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
@@ -508,6 +513,20 @@ describe('seed realm --set', () => {
     expect(rows[0]?.passwordMaxAgeDays).toBe(0);
   });
 
+  it('cannot write a client cap the database refuses', async () => {
+    const name = `set-${newId()}`;
+
+    await expect(seed(['realm', '--name', name, '--set', 'max_clients=-1'])).rejects.toThrow();
+  });
+
+  it('cannot write a registration policy the database refuses', async () => {
+    const name = `set-${newId()}`;
+
+    await expect(
+      seed(['realm', '--name', name, '--set', 'client_registration_policy=nonsense']),
+    ).rejects.toThrow();
+  });
+
   it('refuses a setting name it does not know, and names the ones it does', async () => {
     await expect(
       seed(['realm', '--name', `set-${newId()}`, '--set', 'otp_requried=true']),
@@ -576,5 +595,62 @@ describe('seed client --post-logout-redirect-uri', () => {
         '/logged-out',
       ]),
     ).rejects.toThrow(/absolute/u);
+  });
+});
+
+describe('seed registration-token', () => {
+  it('prints a token, and nothing but the token', async () => {
+    const options = uniqueOptions();
+    await seed(options);
+
+    const result = await seed([
+      'registration-token',
+      '--realm',
+      options.realm,
+      '--uses',
+      '1',
+      '--ttl',
+      '600',
+    ]);
+
+    expect(result).toMatchObject({ command: 'registration-token', realm: options.realm });
+    if (result.command !== 'registration-token') throw new Error('expected registration-token');
+    expect(result.token).toMatch(/^[A-Za-z0-9_-]{43}$/u);
+  });
+
+  it('spends exactly once against a --uses 1 mint', async () => {
+    const options = uniqueOptions();
+    await seed(options);
+
+    const result = await seed([
+      'registration-token',
+      '--realm',
+      options.realm,
+      '--uses',
+      '1',
+      '--ttl',
+      '600',
+    ]);
+    if (result.command !== 'registration-token') throw new Error('expected registration-token');
+
+    const realmId = (await owner.db.select().from(realms).where(eq(realms.name, options.realm)))[0]
+      ?.id;
+    if (realmId === undefined) throw new Error('expected the seeded realm');
+
+    const first = await withRealm(owner.db, realmId, (tx) =>
+      clientRegistrationTokenRepository(tx).spend(realmId, result.token),
+    );
+    const second = await withRealm(owner.db, realmId, (tx) =>
+      clientRegistrationTokenRepository(tx).spend(realmId, result.token),
+    );
+
+    expect(first).toBe(true);
+    expect(second).toBe(false);
+  });
+
+  it('refuses a realm that does not exist', async () => {
+    await expect(
+      seed(['registration-token', '--realm', `no-such-${newId()}`, '--uses', '1', '--ttl', '600']),
+    ).rejects.toThrow(/no realm named/u);
   });
 });

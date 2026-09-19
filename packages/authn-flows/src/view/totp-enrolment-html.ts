@@ -1,4 +1,6 @@
 import qrcode from 'qrcode-generator';
+import { type RenderedPage } from '@odudu/kernel';
+import { escapeHtml, page } from '#/view/document';
 
 // What an enrolment page has to show: the secret in the form the user's
 // authenticator app scans, and the same secret as text for an app that
@@ -6,20 +8,6 @@ import qrcode from 'qrcode-generator';
 export interface TotpEnrolmentOffer {
   secret: string;
   uri: string;
-}
-
-// Minimal, dependency-free HTML apart from the QR encoder, the same choice
-// packages/protocol-oidc/src/view/authorize-html.ts and
-// #/view/required-action-html.ts make: every interpolated value passes
-// through escapeHtml so neither the realm name nor the secret opens a
-// reflected-XSS hole.
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
 }
 
 // Error correction level M and an automatic version: an otpauth:// URI is
@@ -43,14 +31,12 @@ export function renderTotpEnrolmentPage(
   authSessionId: string,
   offer: TotpEnrolmentOffer,
   error?: string,
-): string {
+): RenderedPage {
   const target = `/realms/${escapeHtml(realm)}/login-actions/required-action?action=configure-totp`;
   const message = error === undefined ? '' : `<p><strong>${escapeHtml(error)}</strong></p>\n`;
-  return `<!doctype html>
-<html lang="en">
-<head><meta charset="utf-8"><title>Set up your authenticator</title></head>
-<body>
-<h1>Set up your authenticator</h1>
+  return page(
+    'Set up your authenticator',
+    `<h1>Set up your authenticator</h1>
 ${message}<p>Scan this with your authenticator app, or enter the key by hand.</p>
 ${qrSvg(offer.uri)}
 <p><code>${escapeHtml(offer.uri)}</code></p>
@@ -60,7 +46,6 @@ ${qrSvg(offer.uri)}
   <input type="hidden" name="secret" value="${escapeHtml(offer.secret)}">
   <label>Code from your app <input type="text" name="code" inputmode="numeric" autocomplete="one-time-code"></label>
   <button type="submit">Confirm</button>
-</form>
-</body>
-</html>`;
+</form>`,
+  );
 }

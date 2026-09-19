@@ -36,27 +36,29 @@ isolated in the database by PostgreSQL row-level security (ADR 0009). Every
 protocol endpoint lives under `/realms/{realm}/`, so the realm is chosen by
 the URL and never by a header or a parameter.
 
-| Method | Path                                               | What it is                                                  |
-| ------ | -------------------------------------------------- | ----------------------------------------------------------- |
-| `GET`  | `/realms/{realm}/.well-known/openid-configuration` | Discovery document                                          |
-| `GET`  | `/realms/{realm}/protocol/openid-connect/certs`    | JWKS (public signing keys)                                  |
-| `GET`  | `/realms/{realm}/protocol/openid-connect/auth`     | Authorization endpoint                                      |
-| `POST` | `/realms/{realm}/protocol/openid-connect/auth`     | Authorization endpoint (form)                               |
-| `POST` | `/realms/{realm}/login-actions/authenticate`       | Login form submission                                       |
-| `POST` | `/realms/{realm}/login-actions/required-action`    | Complete a pending required action (enrolment, password)    |
-| `POST` | `/realms/{realm}/login-actions/passkey-challenge`  | Request options for a usernameless passkey assertion        |
-| `GET`  | `/realms/{realm}/login-actions/registration`       | Self-registration form                                      |
-| `POST` | `/realms/{realm}/login-actions/registration`       | Self-registration submission                                |
-| `GET`  | `/realms/{realm}/login-actions/action-token`       | Redeem a mailed action token (verify email, reset password) |
-| `POST` | `/realms/{realm}/login-actions/action-token`       | Submit a new password against a reset-password token        |
-| `GET`  | `/realms/{realm}/login-actions/reset-password`     | Password reset request form                                 |
-| `POST` | `/realms/{realm}/login-actions/reset-password`     | Password reset request submission                           |
-| `POST` | `/realms/{realm}/protocol/openid-connect/token`    | Token endpoint                                              |
-| `GET`  | `/realms/{realm}/protocol/openid-connect/userinfo` | UserInfo                                                    |
-| `POST` | `/realms/{realm}/protocol/openid-connect/userinfo` | UserInfo (form)                                             |
-| `GET`  | `/realms/{realm}/protocol/openid-connect/logout`   | RP-initiated logout (`end_session_endpoint`)                |
-| `POST` | `/realms/{realm}/protocol/openid-connect/logout`   | RP-initiated logout (form-serialized), confirmation form    |
-| `GET`  | `/health/live`, `/health/ready`                    | Liveness, readiness                                         |
+| Method | Path                                                   | What it is                                                  |
+| ------ | ------------------------------------------------------ | ----------------------------------------------------------- |
+| `GET`  | `/realms/{realm}/.well-known/openid-configuration`     | Discovery document                                          |
+| `GET`  | `/realms/{realm}/protocol/openid-connect/certs`        | JWKS (public signing keys)                                  |
+| `GET`  | `/realms/{realm}/protocol/openid-connect/auth`         | Authorization endpoint                                      |
+| `POST` | `/realms/{realm}/protocol/openid-connect/auth`         | Authorization endpoint (form)                               |
+| `POST` | `/realms/{realm}/login-actions/authenticate`           | Login form submission                                       |
+| `POST` | `/realms/{realm}/login-actions/consent`                | Consent screen submission (allow/deny)                      |
+| `POST` | `/realms/{realm}/login-actions/required-action`        | Complete a pending required action (enrolment, password)    |
+| `POST` | `/realms/{realm}/login-actions/passkey-challenge`      | Request options for a usernameless passkey assertion        |
+| `GET`  | `/realms/{realm}/login-actions/registration`           | Self-registration form                                      |
+| `POST` | `/realms/{realm}/login-actions/registration`           | Self-registration submission                                |
+| `GET`  | `/realms/{realm}/login-actions/action-token`           | Redeem a mailed action token (verify email, reset password) |
+| `POST` | `/realms/{realm}/login-actions/action-token`           | Submit a new password against a reset-password token        |
+| `GET`  | `/realms/{realm}/login-actions/reset-password`         | Password reset request form                                 |
+| `POST` | `/realms/{realm}/login-actions/reset-password`         | Password reset request submission                           |
+| `POST` | `/realms/{realm}/protocol/openid-connect/token`        | Token endpoint                                              |
+| `GET`  | `/realms/{realm}/protocol/openid-connect/userinfo`     | UserInfo                                                    |
+| `POST` | `/realms/{realm}/protocol/openid-connect/userinfo`     | UserInfo (form)                                             |
+| `GET`  | `/realms/{realm}/protocol/openid-connect/logout`       | RP-initiated logout (`end_session_endpoint`)                |
+| `POST` | `/realms/{realm}/protocol/openid-connect/logout`       | RP-initiated logout (form-serialized), confirmation form    |
+| `POST` | `/realms/{realm}/clients-registrations/openid-connect` | Dynamic client registration (RFC 7591)                      |
+| `GET`  | `/health/live`, `/health/ready`                        | Liveness, readiness                                         |
 
 `/login-actions/authenticate` is deliberately outside the
 `/protocol/openid-connect/` namespace: that namespace is the OIDC wire
@@ -72,9 +74,12 @@ error vocabulary is so uniform below: most refusals come from shared code.
 
 ## Bootstrap
 
-There is no admin API yet, so realms, clients, users and signing keys are
-created by the server's seed command. It is the only way to create the first
-of anything.
+There is no admin API yet, so a realm, its first user and its signing key
+are created by the server's seed command — the only way to create the
+first of anything. A client is the one exception once a realm opens
+registration to it: `seed client` still works, but
+[dynamic client registration](#dynamic-client-registration) is a second
+door, open to whoever the realm's `client_registration_policy` admits.
 
 ### Pick how you are running it
 
@@ -355,6 +360,218 @@ step; read it if you would rather have something that fails loudly. It
 brings the compose stack up and tears it down again, volumes included, so it
 is the all-Docker way of running whichever one you picked above — and it
 will take port 3000 and the stack's database with it.
+
+### Dynamic client registration
+
+`client_registration_policy` is `disabled` on every realm by default (ADR
+0026). Registering before it is opened, or against a realm that does not
+exist, answers the same way — an enumeration oracle costs nothing to close
+here, the same reasoning discovery and JWKS already apply to a disabled
+realm:
+
+```bash
+curl -sS -o /dev/null -w '%{http_code}\n' -X POST \
+  http://localhost:3000/realms/reg-demo/clients-registrations/openid-connect \
+  -H 'content-type: application/json' \
+  -d '{"redirect_uris":["https://rp.example/cb"]}'
+```
+
+```
+404
+```
+
+```bash
+curl -sS -o /dev/null -w '%{http_code}\n' -X POST \
+  http://localhost:3000/realms/no-such-realm/clients-registrations/openid-connect \
+  -H 'content-type: application/json' \
+  -d '{"redirect_uris":["https://rp.example/cb"]}'
+```
+
+```
+404
+```
+
+Opening it is a realm setting like any other:
+
+```bash
+odudu seed realm --name reg-demo --set client_registration_policy=open
+```
+
+```json
+{
+  "command": "realm",
+  "created": false,
+  "realm": "reg-demo",
+  "realmId": "01a0b605-…",
+  "settings": ["client_registration_policy"]
+}
+```
+
+Discovery now advertises the endpoint, and any request registers a client —
+the `open` policy is RFC 7591 §3.1's anonymous case. The server assigns
+`client_id`; a `client_secret` is generated for a confidential client (the
+default — `token_endpoint_auth_method` defaults to `client_secret_basic`)
+and returned **exactly once, in this response**. `clients.secret_hash`
+stores its Argon2id hash; there is no way to retrieve the plaintext again.
+
+```bash
+curl -sS -X POST http://localhost:3000/realms/reg-demo/clients-registrations/openid-connect \
+  -H 'content-type: application/json' \
+  -d '{"redirect_uris":["https://rp.example/cb"],"client_name":"Example RP"}'
+```
+
+```json
+{
+  "client_id": "01a0b605-7708-…",
+  "client_id_issued_at": 1789760206,
+  "client_secret": "bvHXg71rJLarigim4vtlUMm5KwV9QmAmxDSx-Mfz76U",
+  "client_secret_expires_at": 0,
+  "redirect_uris": ["https://rp.example/cb"],
+  "grant_types": ["authorization_code"],
+  "token_endpoint_auth_method": "client_secret_basic",
+  "client_name": "Example RP"
+}
+```
+
+This registration presented no credential, so `registration_origin` is
+`'anonymous'` and `consent_required` defaults `true` on the row it wrote
+(ADR 0027) — an anonymous registrant is not the operator vouching for a
+client the way `seed client` or a token-authorized registration is.
+
+The `token` policy is stricter: a request with no bearer credential is
+refused before anything is validated, with `WWW-Authenticate` naming the
+scheme and no `error` parameter (RFC 6750 §3.1's distinction between an
+absent credential and a rejected one).
+
+```bash
+odudu seed realm --name reg-demo --set client_registration_policy=token
+```
+
+```bash
+curl -sS -D - -o /dev/null -X POST \
+  http://localhost:3000/realms/reg-demo/clients-registrations/openid-connect \
+  -H 'content-type: application/json' -d '{"redirect_uris":["https://rp.example/cb"]}' \
+  | grep -iE '^HTTP|www-authenticate'
+```
+
+```
+HTTP/1.1 401 Unauthorized
+www-authenticate: Bearer realm="client-registration"
+```
+
+`seed registration-token` mints the credential a registrant presents:
+`--uses` bounds how many registrations it is good for, `--ttl` its lifetime
+in seconds, and both are required since the schema has no default for
+either. Every other seed subcommand answers with a line of JSON; this one
+answers with the token alone, so `TOKEN=$(odudu seed registration-token …)`
+captures exactly the credential and nothing else.
+
+```bash
+TOKEN=$(odudu seed registration-token --realm reg-demo --uses 1 --ttl 3600)
+```
+
+```
+w0aDvT8i3ajvn00gKiCGMwHjeSujSS2LBbn0H_xRy6U
+```
+
+It is stored as its SHA-256 digest, the same shape
+`packages/account/src/repository/action-tokens.ts` uses, and spent by one
+`UPDATE … RETURNING`
+(`packages/domain-realm/src/repository/client-registration-tokens.ts`) so
+two concurrent registrations against a one-use token cannot both win —
+answering the request and consuming the token happen in the one transaction
+that inserts the client, never earlier. Presenting it registers a client
+whose `registration_origin` is `'token'`, with `consent_required` defaulting
+`false`: an initial access token is an operator's own authorization, as
+much as `seed client` naming a client directly is.
+
+```bash
+curl -sS -X POST http://localhost:3000/realms/reg-demo/clients-registrations/openid-connect \
+  -H "authorization: Bearer $TOKEN" -H 'content-type: application/json' \
+  -d '{"redirect_uris":["https://rp2.example/cb"],"token_endpoint_auth_method":"none"}'
+```
+
+```json
+{
+  "client_id": "01a0b605-9e5d-…",
+  "client_id_issued_at": 1789760216,
+  "redirect_uris": ["https://rp2.example/cb"],
+  "grant_types": ["authorization_code"],
+  "token_endpoint_auth_method": "none"
+}
+```
+
+`token_endpoint_auth_method: "none"` names a public client, so no secret is
+generated or returned — RFC 6749 §10.1 gives no client that cannot keep one
+confidential a credential to keep.
+
+A realm at its `max_clients` cap refuses further registration with 403 and
+`invalid_client_metadata`, taken under `SELECT … FOR UPDATE` on the realm
+row before the count so two concurrent registrations cannot both observe
+room that only one of them will actually get
+(`packages/domain-realm/src/repository/clients.ts`'s `lockCapacity`,
+exercised concurrently in
+`packages/protocol-oidc/tests/client-registration.int.test.ts`).
+
+A registered `backchannel_logout_uri` or `userinfo_signed_response_alg` is
+stored and echoed back in the registration response, but advertises
+nothing: `backchannel_logout_supported`, `userinfo_signing_alg_values_supported`
+and the rest of what P3b implements stay absent from discovery, for the
+reason `docs/protocols/oidc-backchannel.md` gives for every capability this
+server does not yet have — advertising one would claim it.
+
+A non-HTTP `redirect_uri` has to look like RFC 8252 §7.1's reverse-DNS
+custom scheme (ADR 0032): the scheme names at least one `.`, which is what
+tells `com.example.app:/cb` apart from `javascript:`, `data:` and `file:`
+without an enumerable denylist of dangerous ones. A dotless custom scheme —
+common in the wild, and otherwise harmless — is refused all the same:
+
+```bash
+curl -sS -X POST http://localhost:3000/realms/reg-demo/clients-registrations/openid-connect \
+  -H 'content-type: application/json' -d '{"redirect_uris":["myapp://cb"]}'
+```
+
+```json
+{
+  "error": "invalid_redirect_uri",
+  "error_description": "redirect_uris entry myapp://cb is not valid"
+}
+```
+
+```bash
+curl -sS -X POST http://localhost:3000/realms/reg-demo/clients-registrations/openid-connect \
+  -H 'content-type: application/json' -d '{"redirect_uris":["com.example.app:/cb"]}'
+```
+
+```json
+{
+  "client_id": "01a0b707-…",
+  "client_id_issued_at": 1789777116,
+  "client_secret": "Iv4li0N-PWbQ0hno_SR04d6sEZnkxvUlI9RWaDYCW6k",
+  "client_secret_expires_at": 0,
+  "redirect_uris": ["com.example.app:/cb"],
+  "grant_types": ["authorization_code"],
+  "token_endpoint_auth_method": "client_secret_basic"
+}
+```
+
+`frontchannel_logout_uri` gets the same https/absolute/no-fragment policy
+`backchannel_logout_uri` already had — it is destined for an iframe `src`
+once P3b renders it, the sink a bare `http:` or `javascript:` value would
+otherwise reach:
+
+```bash
+curl -sS -X POST http://localhost:3000/realms/reg-demo/clients-registrations/openid-connect \
+  -H 'content-type: application/json' \
+  -d '{"redirect_uris":["https://rp.example/cb"],"frontchannel_logout_uri":"http://rp.example/fc"}'
+```
+
+```json
+{
+  "error": "invalid_client_metadata",
+  "error_description": "frontchannel_logout_uri must be an absolute https URI with no fragment"
+}
+```
 
 ## Path A: authorization code with PKCE
 
@@ -1529,7 +1746,7 @@ curl -sS -X POST http://localhost:3000/realms/register-demo/login-actions/regist
 ```
 <!doctype html>
 <html lang="en">
-<head><meta charset="utf-8"><title>Can't create this account</title></head>
+<head><meta charset="utf-8"><title>Can&#39;t create this account</title></head>
 <body>
 <h1>Can't create this account</h1>
 <ul>
@@ -1560,7 +1777,7 @@ curl -sS -X POST http://localhost:3000/realms/register-demo/login-actions/regist
 ```
 <!doctype html>
 <html lang="en">
-<head><meta charset="utf-8"><title>Can't create this account</title></head>
+<head><meta charset="utf-8"><title>Can&#39;t create this account</title></head>
 <body>
 <h1>Can't create this account</h1>
 <ul>
@@ -1576,7 +1793,7 @@ on for the realm, the same short password now lists all three:
 ```
 <!doctype html>
 <html lang="en">
-<head><meta charset="utf-8"><title>Can't create this account</title></head>
+<head><meta charset="utf-8"><title>Can&#39;t create this account</title></head>
 <body>
 <h1>Can't create this account</h1>
 <ul>
@@ -1603,7 +1820,7 @@ curl -sS -X POST http://localhost:3000/realms/register-demo/login-actions/regist
 ```
 <!doctype html>
 <html lang="en">
-<head><meta charset="utf-8"><title>Can't create this account</title></head>
+<head><meta charset="utf-8"><title>Can&#39;t create this account</title></head>
 <body>
 <h1>Can't create this account</h1>
 <ul>
@@ -1628,7 +1845,7 @@ curl -sS -X POST http://localhost:3000/realms/register-demo/login-actions/regist
 ```
 <!doctype html>
 <html lang="en">
-<head><meta charset="utf-8"><title>Can't create this account</title></head>
+<head><meta charset="utf-8"><title>Can&#39;t create this account</title></head>
 <body>
 <h1>Can't create this account</h1>
 <ul>
@@ -2674,7 +2891,7 @@ curl -sS -X POST http://localhost:3000/realms/reset-demo/login-actions/action-to
 ```
 <!doctype html>
 <html lang="en">
-<head><meta charset="utf-8"><title>Can't reset your password</title></head>
+<head><meta charset="utf-8"><title>Can&#39;t reset your password</title></head>
 <body>
 <h1>Can't reset your password</h1>
 <ul>
@@ -2708,7 +2925,7 @@ content-length: 233
 
 <!doctype html>
 <html lang="en">
-<head><meta charset="utf-8"><title>Can't reset your password</title></head>
+<head><meta charset="utf-8"><title>Can&#39;t reset your password</title></head>
 <body>
 <h1>Can't reset your password</h1>
 <ul>
@@ -3237,7 +3454,9 @@ Empty body, and the same one either way: the refusal is decided before the
 body is parsed or any account looked up, so it cannot say whether the
 address was one this realm knows. The budget is shared across the three
 routes rather than one per route, the rendered forms are not throttled, and
-neither is `/token`:
+neither is `/token` — this one, by origin, is not where `/token`'s own
+budget lives; [the client_secret budget](#the-client_secret-budget-at-token)
+below is:
 
 ```bash
 echo '--- the sign-in submission shares the same budget ---'
@@ -3294,6 +3513,125 @@ transcript. And the key is `request.ip`, which with `ODUDU_TRUST_PROXY=true`
 comes from `X-Forwarded-For`: a proxy that appends rather than overwrites
 that header leaves the key client-controlled. Both are in
 [README.md](../README.md) as deployment requirements.
+
+### The `client_secret` budget at `/token`
+
+RFC 6749 §2.3.1's brute-force MUST is client authentication too, and the
+lockout and the throttle above don't reach it: the lockout is keyed by
+subject, which a client is not, and the throttle's key is one address for
+every request a server-side client will ever make. `/token` gets a third,
+separate budget instead — a `slidingWindow` of its own, keyed by
+`client_id` — consulted only when a `client_secret_basic` or
+`client_secret_post` attempt fails. `ODUDU_CLIENT_SECRET_THROTTLE` has no
+env var yet; the default is five attempts per sixty seconds, mirroring the
+account lockout's own defaults. ADR 0023's amendment has the design.
+
+A client of its own for this run, so its budget starts clean regardless of
+what earlier sections in this document did to `demo-backend`'s:
+
+```bash
+odudu seed \
+  --realm demo --client demo-limited --client-secret demo-limited-secret \
+  --token-endpoint-auth-method client_secret_basic \
+  --redirect-uri http://localhost:8080/callback
+```
+
+```bash
+for n in 1 2 3 4 5; do
+  curl -sS -o /dev/null -w "attempt $n: %{http_code}\n" \
+    -u demo-limited:wrong-secret \
+    --data-urlencode 'grant_type=client_credentials' \
+    'http://localhost:3000/realms/demo/protocol/openid-connect/token'
+done
+echo '--- the sixth, over budget ---'
+curl -sS -D - -o /dev/null -u demo-limited:wrong-secret \
+  --data-urlencode 'grant_type=client_credentials' \
+  'http://localhost:3000/realms/demo/protocol/openid-connect/token' \
+  | tr -d '\r' | grep -iE '^(HTTP|retry-after|content-length)'
+echo '--- the right secret, while the budget is spent ---'
+curl -sS -D - -o /dev/null -u demo-limited:demo-limited-secret \
+  --data-urlencode 'grant_type=client_credentials' \
+  'http://localhost:3000/realms/demo/protocol/openid-connect/token' \
+  | tr -d '\r' | grep -iE '^HTTP'
+```
+
+```
+attempt 1: 401
+attempt 2: 401
+attempt 3: 401
+attempt 4: 401
+attempt 5: 401
+--- the sixth, over budget ---
+HTTP/1.1 429 Too Many Requests
+retry-after: 60
+content-length: 0
+--- the right secret, while the budget is spent ---
+HTTP/1.1 200 OK
+```
+
+Failures only: the right secret above succeeds anyway, same as the fifth
+wrong one did — a healthy client is never throttled, whatever the failure
+count on record. That is the trade this budget makes against the account
+lockout, deliberately the opposite way: the lockout refuses a correct
+password once an account is locked, because it is protecting a credential
+from someone who does not hold it; this budget protects the ability to
+keep guessing, so someone who finally presents the real secret is let in
+regardless.
+
+Unlike the per-origin throttle above — an `onRequest` hook that refuses
+before the body is even parsed — this limiter is consulted from inside
+`authenticateClient`, in the `catch` after `verifyClientCredentials` has
+already run the full comparison. The sixth wrong secret above pays the
+Argon2id verification the first five did, and only then is turned into a
+`429` instead of a `401`. This budget bounds _guesses_, not CPU: it stops
+the seventh, eighth and every later attempt in this window from having a
+chance of being right, but it does not save the sixth one's own cost. The
+per-origin throttle already covers the CPU case for the routes where an
+attacker needs no credential at all; this one is answering a different
+question — how many guesses a given client gets — for an endpoint where
+skipping the comparison on the exhausting attempt would save one Argon2id
+call and nothing more.
+
+An unknown `client_id` spends the same budget a wrong secret against a real
+one does, and is refused in the same bytes:
+
+```bash
+for n in 1 2 3 4 5; do
+  curl -sS -o /dev/null -w "attempt $n: %{http_code}\n" \
+    -u nobody-here:anything \
+    --data-urlencode 'grant_type=client_credentials' \
+    'http://localhost:3000/realms/demo/protocol/openid-connect/token'
+done
+echo '--- the sixth, a client_id nobody registered ---'
+curl -sS -D - -o /dev/null -u nobody-here:anything \
+  --data-urlencode 'grant_type=client_credentials' \
+  'http://localhost:3000/realms/demo/protocol/openid-connect/token' \
+  | tr -d '\r' | grep -iE '^(HTTP|retry-after|content-length)'
+```
+
+```
+attempt 1: 401
+attempt 2: 401
+attempt 3: 401
+attempt 4: 401
+attempt 5: 401
+--- the sixth, a client_id nobody registered ---
+HTTP/1.1 429 Too Many Requests
+retry-after: 60
+content-length: 0
+```
+
+Same status, same headers, same empty body as `demo-limited`'s own sixth
+attempt above, and the same budget: five attempts either way before the
+sixth is refused. What this does not claim is that the two are
+indistinguishable in general — an unknown `client_id` is refused at the
+client lookup, before `verifyClientSecret` runs, while a wrong secret
+against a real client pays the Argon2id comparison first, so the two paths
+differ in latency even though their response bytes and budget consumption
+match. ADR 0023's amendment records why that gap is accepted rather than
+closed with a dummy hash. Like the throttle above, this one **is per
+instance** for the same reason — a window in one process's memory — and
+that limitation is [README.md](../README.md)'s to state.
 
 ## Path B: refresh rotation
 
@@ -3470,7 +3808,7 @@ odudu reap
 ```
 
 ```
-{"ran":true,"deleted":{"refresh_tokens":0,"authorization_codes":0,"token_grants":0,"authentication_sessions":0,"action_tokens":0,"login_failures":0,"email_outbox":0,"sessions":0}}
+{"ran":true,"deleted":{"refresh_tokens":0,"authorization_codes":0,"token_grants":0,"authentication_sessions":0,"action_tokens":0,"client_registration_tokens":0,"login_failures":0,"email_outbox":0,"sessions":0}}
 ```
 
 Those zeros are the point. By this stage the database holds a consumed
@@ -3491,6 +3829,13 @@ be attempted again — so it is kept for `ODUDU_RETENTION_EMAIL_FAILED_SECONDS`
 has to read it. A message still inside its retry schedule, and one never
 attempted at all, are not this pass's business at any age.
 
+`client_registration_tokens` is on the same footing as `action_tokens`: a
+spent or expired one carries no detection value — a replayed unknown token
+and a replayed spent one are refused identically — so
+`ODUDU_RETENTION_REGISTRATION_TOKEN_SECONDS` (a week, like
+`ODUDU_RETENTION_ACTION_TOKEN_SECONDS`) is a courtesy window for an operator
+to read, not a bound ADR 0021's detection-window argument requires.
+
 What makes a row deletable is the **grant family** being past retention,
 which is seven days for a session-bound family and thirty for an offline
 one. Backdating the stack by forty days is the fastest way to see a pass
@@ -3508,7 +3853,7 @@ odudu reap
 ```
 
 ```
-{"ran":true,"deleted":{"refresh_tokens":2,"authorization_codes":1,"token_grants":1,"authentication_sessions":1,"action_tokens":0,"login_failures":0,"email_outbox":0,"sessions":1}}
+{"ran":true,"deleted":{"refresh_tokens":2,"authorization_codes":1,"token_grants":1,"authentication_sessions":1,"action_tokens":0,"client_registration_tokens":0,"login_failures":0,"email_outbox":0,"sessions":1}}
 ```
 
 Both refresh tokens of the family, the code that produced it, the grant
@@ -3527,7 +3872,7 @@ odudu reap
 ```
 
 ```
-{"ran":true,"deleted":{"refresh_tokens":0,"authorization_codes":0,"token_grants":0,"authentication_sessions":0,"action_tokens":0,"login_failures":0,"email_outbox":0,"sessions":0}}
+{"ran":true,"deleted":{"refresh_tokens":0,"authorization_codes":0,"token_grants":0,"authentication_sessions":0,"action_tokens":0,"client_registration_tokens":0,"login_failures":0,"email_outbox":0,"sessions":0}}
 ```
 
 ### When the pass refuses, or finds nothing to look at
@@ -3788,7 +4133,8 @@ client, and refuses a client that already exists — deliberately, because a
 re-run that quietly widened a registered redirect list is how an allowlist
 grows by accident. `demo-spa` was seeded back in
 [Bootstrap](#bootstrap), so this walkthrough sets the column directly;
-changing a registered client is the admin API's work, which is P3's:
+changing a registered client is client-management work, which is P3a's
+pending its RFC 7592 spike and P4's otherwise:
 
 ```bash
 docker compose -f infra/docker/compose.yaml exec -T postgres \
@@ -4053,10 +4399,16 @@ content-length: 0
 
 `offline_access` is a scope, seeded into every realm alongside
 `openid`/`profile`/`email` and assigned to `demo-spa` too — the one scope
-here assigned `'optional'` rather than `'default'`, which changes nothing
-`/authorize` or `/token` do with it yet and is there for the consent screen
-a later phase adds (it maps no claims either way — see
-[Discovery](#1-discovery) above). Requesting it produces a
+here assigned `'optional'` rather than `'default'`, which is what lets the
+consent screen ([below](#the-consent-screen)) tell it apart from a scope
+pre-approved the moment a client is assigned it (it maps no claims either
+way — see [Discovery](#1-discovery) above). `demo-spa`'s own
+`consent_required` is `false` — `seed client` names no way to set it, so
+every seeded client keeps the column's own default — so the transcript
+below reuses without ever seeing that screen; the consent section
+demonstrates asking, against an anonymously self-registered client, whose
+`consent_required` defaults `true` (ADR 0027, and the registration section
+above). Requesting it produces a
 grant with no session, which is what nothing here can expire and no logout
 can end (OpenID Connect Back-Channel Logout 1.0 §2.7's second sentence,
 [docs/protocols/oidc-backchannel.md](protocols/oidc-backchannel.md)). A
@@ -4264,6 +4616,117 @@ scope at redemption is the authority, not the request `/authorize` saw. A
 client never assigned the scope at all is refused outright, with
 `invalid_scope`, before a code is ever issued — the same rule any other
 unassigned scope gets (see [Discovery](#1-discovery) above).
+
+### The consent screen
+
+`demo-spa`'s own `consent_required` is `false`, so nothing above ever saw
+this screen. It exists for a client whose `consent_required` is `true` —
+every anonymously self-registered client (`consent_required` defaults
+`true` there, per [Dynamic client registration](#dynamic-client-registration)
+and ADR 0027) — and for `prompt=consent` on any client at all.
+
+**This section is derived, not observed** — every other block in this
+document is a command actually run against the compose stack; reproducing
+that here would mean replaying the whole document's transcript from the
+top to reach the same `demo` realm state this section wants to start from,
+which the time available for this pass did not allow. What follows is
+read off the implementation
+(`packages/protocol-oidc/src/usecase/login-submission.ts`'s
+`decideConsentGate`, `packages/protocol-oidc/src/usecase/authorization-request.ts`'s
+own gate on the reuse path, and `packages/protocol-oidc/src/view/consent-html.ts`)
+and the integration suite that exercises exactly these requests
+(`packages/protocol-oidc/tests/consent.int.test.ts`, ten cases, all
+passing) — not invented, but not a byte-for-byte transcript either. A
+later pass that re-derives this section from a real run should replace
+this note along with it.
+
+A client that requires consent renders the screen once the credentials
+that would otherwise complete the login have been accepted — after the
+same required-action gate `/authorize`'s form path always enforced, and
+before a code is ever issued:
+
+```
+POST /realms/demo/login-actions/authenticate
+auth_session_id=…&username=ada&password=correct-horse-battery
+```
+
+```
+HTTP/1.1 200 OK
+content-type: text/html; charset=utf-8
+
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Allow access?</title></head>
+<body>
+<h1>Example RP is asking for access</h1>
+<form method="post" action="/realms/demo/login-actions/consent">
+  <input type="hidden" name="auth_session_id" value="…">
+  <ul><li>openid</li><li>profile</li></ul>
+  <label><input type="checkbox" name="scope" value="offline_access"> offline_access — grants ongoing access, even while you are not present</label>
+  <button type="submit" name="decision" value="allow">Allow</button>
+  <button type="submit" name="decision" value="deny">Deny</button>
+</form>
+</body>
+</html>
+```
+
+No `set-cookie`, no `location`: nothing is established and no code is
+issued until the form below is answered. `offline_access` is the one scope
+here that carries the explanatory clause OIDC Core §16.18 asks for — every
+default scope (`openid`, `profile`) needs no box at all, since the client
+was already assigned it without asking.
+
+Declining the optional scope narrows what the eventual token carries —
+`scope` in the token response omits `offline_access`, not merely "the flow
+completed" — and the client's answer is what gets recorded, so the same
+request does not ask again:
+
+```
+POST /realms/demo/login-actions/consent
+auth_session_id=…&decision=allow
+```
+
+```
+HTTP/1.1 302 Found
+set-cookie: demo-session=…; HttpOnly; SameSite=Lax; Path=/
+location: https://rp.example/cb?code=…&state=xyz-123&iss=http://localhost:3000/realms/demo
+```
+
+Pressing Deny instead answers exactly where a client-side `access_denied`
+always does — the request's own `redirect_uri`, not a page — with nothing
+established and no code issued:
+
+```
+POST /realms/demo/login-actions/consent
+auth_session_id=…&decision=deny
+```
+
+```
+HTTP/1.1 302 Found
+location: https://rp.example/cb?error=access_denied&state=xyz-123&iss=http://localhost:3000/realms/demo
+```
+
+The gate applies to a live SSO session exactly as it does to a fresh
+login, which is the reason this section exists rather than being folded
+into the login-form walkthrough above: a second `/authorize` request,
+against the same cookie, asking for a wider scope than what the first
+consent recorded, renders this same screen again rather than reusing the
+session straight through to a code — `packages/protocol-oidc/tests/consent.int.test.ts`'s
+`asks for consent on a reused SSO session, not only on a fresh login` is
+the case that would ship broken if the gate lived only on the form path.
+Under `prompt=none`, that same reused-but-under-consented session is
+refused rather than asked, since `prompt=none` forbids the interaction a
+consent screen is:
+
+```
+GET /realms/demo/protocol/openid-connect/auth?…&prompt=none
+Cookie: demo-session=…
+```
+
+```
+HTTP/1.1 302 Found
+location: https://rp.example/cb?error=consent_required&state=xyz-123&iss=http://localhost:3000/realms/demo
+```
 
 ## Path C: `client_credentials`
 
@@ -5444,12 +5907,6 @@ session lifecycle. A citation of either half here means that half.
 
 **`/authorize`**
 
-- **No consent screen.** Every scope the realm defines and the client is
-  assigned is granted without asking the user. The allowlist exists — it is
-  the client's scope assignments — but nothing asks the user to approve what
-  it lets through. **P3**, the phase named for consent, and — since
-  2026-09-14 — the phase whose exit criterion names it too: a screen a user
-  can refuse, and a recorded grant.
 - **`display`, `ui_locales`, `claims_locales` and `login_hint` are accepted
   and ignored**, including values none of them define, such as
   `display=unheard_of`; every one of those requests answers 200 with the
@@ -5559,41 +6016,18 @@ session lifecycle. A citation of either half here means that half.
   in the same browser replaces the first rather than joining it. That is
   also why `prompt=select_account` renders the ordinary form:
   account selection needs concurrent sessions, and both it and the three
-  clause rows behind it are **P3**'s. "Remember me" is **P3**'s too, named in
+  clause rows behind it are **P3b**'s. "Remember me" is **P3b**'s too, named in
   its criterion since 2026-09-17: the cookie this server sets carries no
   `Max-Age`, which is why closing the browser ends the session, and the
   toggle, the second pair of lifespans and the checkbox that select a
-  persistent one are all on surfaces P3 already touches.
-- **Failed sign-ins are locked out per account, and the unauthenticated
-  routes that cost CPU are throttled per origin; `/token` is neither.**
-  Five consecutive wrong passwords lock an account for a growing window, on
-  by default in every realm
-  ([Brute-force lockout](#brute-force-lockout)). What that cannot see —
-  one password tried against a thousand accounts, where every counter stays
-  at one, and `POST /realms/{realm}/login-actions/registration`, which is
-  unauthenticated and runs an Argon2id hash per request for an attacker
-  with no account at all — is bounded by the per-origin throttle instead:
-  ten requests a minute per client address across the sign-in submission,
-  registration and the reset request, answering `429`. Passwords now carry
-  a 256-character maximum, refused where the form is read, so no single
-  request can be made arbitrarily expensive. The throttle is a window in
-  one process's memory, so it is per instance; [README.md](../README.md)
-  states that limitation, which cannot be shown here because this
-  repository has no second replica to show it against. Client
-  authentication at `/token` is bounded by neither: the lockout is keyed by
-  subject and a client is not one, the throttle's key is one address for
-  every request a server-side client makes, and RFC 6749 §2.3.1's row for
-  that half is `deferred: P3` in
-  [docs/protocols/rfc6749.md](protocols/rfc6749.md).
-- **The sign-in and error pages are hardcoded HTML**, dependency-free with
-  every interpolated value escaped. Theming and per-client branding are
+  persistent one are all on surfaces P3b already touches.
+- **The sign-in, error and consent pages are hardcoded HTML**, dependency-free
+  with every interpolated value escaped. Theming and per-client branding are
   **P4b**, split out of P10 on 2026-09-17 because P10's criterion tested
   provider loading and would have passed with no theming at all. The
-  contract is **P3**'s to decide, beside the consent screen, since deciding
-  it in the phase that delivers it would mean writing that screen the old way
-  first — and the variation it has to cover is now visible in **P2a**'s
-  registration and verification pages and **P2b**'s second-factor,
-  recovery-code, change-password and logout pages.
+  variation it has to cover is visible in **P2a**'s registration and
+  verification pages, **P2b**'s second-factor, recovery-code,
+  change-password and logout pages, and **P3a**'s own consent page.
 
 **`/token`**
 
@@ -5607,14 +6041,14 @@ session lifecycle. A citation of either half here means that half.
   roadmap says so.
 - **No resource owner password credentials.** A decision: the grant is
   removed by OAuth 2.1, and it is not coming back.
-- **No `private_key_jwt` or mTLS client authentication.** **P3**, whose exit
+- **No `private_key_jwt` or mTLS client authentication.** **P3b**, whose exit
   criterion names both.
 - **No DPoP or other sender-constrained tokens**, mTLS-bound tokens
   included. **P13**, as above: the FAPI 2.0 plan cannot pass without one of
   them.
 - **No `resource` or `audience` request parameter.** A client's audiences
   are whatever its registration says. RFC 8707 resource indicators are
-  **P3**, whose exit criterion names them alongside the per-client audience
+  **P3b**, whose exit criterion names them alongside the per-client audience
   configuration that makes `aud` derived rather than asserted — which is
   where the deferred clause rows in `docs/protocols/rfc9068.md` point.
 
@@ -5623,13 +6057,21 @@ session lifecycle. A citation of either half here means that half.
 - **No signed or encrypted UserInfo responses. JSON only.** Not a
   conformance gap: OIDC Core §5.3.2 requires the claims to be "returned as
   the members of a JSON object unless a signed or encrypted response was
-  requested during Client Registration", and no client can request one
-  because there is no client registration to request it in. The clauses
-  arrive with the registration that carries them, at **P3**, whose exit
-  criterion names signed and encrypted UserInfo responses for that reason.
+  requested during Client Registration". A client can now request one —
+  `userinfo_signed_response_alg`, `userinfo_encrypted_response_alg` and
+  `userinfo_encrypted_response_enc` are registration metadata
+  ([Dynamic client registration](#dynamic-client-registration)) and are
+  stored — but `/userinfo` reads none of the three yet and answers JSON
+  regardless of what a client registered. Delivering on what is already
+  stored is **P3b**, whose exit criterion names signed and encrypted
+  UserInfo responses for that reason.
 - **No `claims` request parameter.** A decision: §5.5 says "Support for the
   `claims` parameter is OPTIONAL", and the two ID Token clauses that depend
-  on it are deferred to **P3** with the per-client machinery.
+  on it are deferred to **P3b**. P3a built the per-client machinery and
+  consent screen the parameter needs, but P3a's own criterion never named
+  the parameter itself and nothing in its plan built it, so it moves to
+  P3b, filed beside the signed and encrypted UserInfo responses above,
+  which read the same per-client registration data.
 - **No aggregated or distributed claims.** A decision, and the specification
   is explicit: §5.6.2 says "Normal Claims MUST be supported. Support for
   Aggregated Claims and Distributed Claims is OPTIONAL." No phase is owed
@@ -5646,23 +6088,27 @@ session lifecycle. A citation of either half here means that half.
 
 **Endpoints that do not exist at all**
 
-- **Token introspection (RFC 7662) and revocation (RFC 7009).** **P3**,
+- **Token introspection (RFC 7662) and revocation (RFC 7009).** **P3b**,
   whose exit criterion names both. Until then a resource server validates
   access tokens locally against the JWKS, and ending a session or revoking
   a grant — including through [RP-initiated logout](#rp-initiated-logout) —
   does not invalidate an already-issued access token before its `exp`.
-- **Front-channel and back-channel logout.** **P3**: both are addressed to a
-  client rather than to a browser, so both need per-client
-  `frontchannel_logout_uri` and `backchannel_logout_uri` registered, which
-  is client-registration metadata.
+- **Front-channel and back-channel logout.** **P3b**: both are addressed to a
+  client rather than to a browser. `frontchannel_logout_uri` and
+  `backchannel_logout_uri` are now client-registration metadata a client can
+  register (`POST /realms/{realm}/clients-registrations/openid-connect`,
+  [Dynamic client registration](#dynamic-client-registration)) and are
+  stored, but nothing reads either column yet — no discovery member
+  advertises the capability, and no logout delivers to either URI.
 - **No administrative way to end somebody else's session.** Listing a
   subject's sessions and ending one is **P4**, with the rest of the admin
   surface, because until there is an admin API there is nowhere to put it.
-- **Dynamic client registration (RFC 7591).** **P3.** Today the seed command
-  is the only way to create a client.
-- **Any admin API.** **P4.** The seed command is the only administrative
-  surface, and it cannot add a user to an existing client, disable anything,
-  rotate a key, or delete anything.
+- **Any admin API.** **P4.** The seed command and
+  [dynamic client registration](#dynamic-client-registration) are the only
+  administrative surfaces — the former for a realm's first user, client and
+  signing key, the latter for a client a realm has opened itself to — and
+  neither can add a user to an existing client, disable anything, rotate a
+  key, or delete anything.
 - **SAML, LDAP federation, identity brokering, authorization services.**
   P6–P9.
 
@@ -5687,7 +6133,8 @@ session lifecycle. A citation of either half here means that half.
   operation that would create a second does not exist. **P4**, whose exit
   criterion now names promoting a new key and retiring the one it replaces
   on the overlap window the design specification states. It landed there
-  rather than in P3 because no relying party's request triggers a rotation:
+  rather than in P3a or P3b because no relying party's request triggers a
+  rotation:
   it is an operator action, and it needs the authenticated administrator,
   the audit event and the surface to trigger it from that P4 is the phase
   for.

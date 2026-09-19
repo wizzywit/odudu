@@ -42,6 +42,7 @@ const POLICY: RetentionPolicy = {
   authorizationCodeSeconds: 60 * 60,
   authenticationSessionSeconds: 60 * 60,
   actionTokenSeconds: 7 * 24 * 60 * 60,
+  registrationTokenSeconds: 7 * 24 * 60 * 60,
   sessionSeconds: 24 * 60 * 60,
   emailSentSeconds: 7 * 24 * 60 * 60,
   emailFailedSeconds: 30 * 24 * 60 * 60,
@@ -165,6 +166,13 @@ async function seedFixture(brute?: BruteForce): Promise<Fixture> {
        ${at(1 * HOUR)}::timestamptz, NULL)
   `);
 
+  await owner.db.execute(sql`
+    INSERT INTO client_registration_tokens (id, realm_id, token_hash, remaining_uses, expires_at)
+    VALUES
+      (${newId()}, ${realmId}, ${`crt-stale-${realmId}`}, 1, ${at(-8 * DAY)}::timestamptz),
+      (${newId()}, ${realmId}, ${`crt-live-${realmId}`}, 1, ${at(1 * HOUR)}::timestamptz)
+  `);
+
   // One row past both bounds, one still holding a lock. In a realm whose
   // lockout can outlast its quiet period, the second is the row a pass
   // keyed on the quiet period alone would delete, unlocking the account.
@@ -227,6 +235,7 @@ const RELATIONS: Record<TableName, SQL> = {
   token_grants: sql.raw('token_grants'),
   authentication_sessions: sql.raw('authentication_sessions'),
   action_tokens: sql.raw('action_tokens'),
+  client_registration_tokens: sql.raw('client_registration_tokens'),
   login_failures: sql.raw('login_failures'),
   email_outbox: sql.raw('email_outbox'),
   sessions: sql.raw('sessions'),
@@ -293,6 +302,7 @@ describe('odudu reap', () => {
       token_grants: 1,
       authentication_sessions: 1,
       action_tokens: 1,
+      client_registration_tokens: 1,
       login_failures: 1,
       email_outbox: 2,
       sessions: 1,
@@ -307,6 +317,7 @@ describe('odudu reap', () => {
       token_grants: 1,
       authentication_sessions: 1,
       action_tokens: 1,
+      client_registration_tokens: 1,
       login_failures: 1,
       email_outbox: 4,
       sessions: 1,
@@ -318,6 +329,7 @@ describe('odudu reap', () => {
       token_grants: 0,
       authentication_sessions: 0,
       action_tokens: 0,
+      client_registration_tokens: 0,
       login_failures: 0,
       email_outbox: 0,
       sessions: 0,
@@ -433,6 +445,35 @@ describe('odudu reap', () => {
         FROM login_failures WHERE realm_id = ${fixture.realmId}
     `);
     expect(rows.map((row) => row.locked)).toEqual([true]);
+  });
+
+  // The branch the shared fixture cannot exercise: a token spent
+  // (remaining_uses = 0) well inside its own ttl has no spent_at to measure
+  // a window from, so the window runs from created_at instead.
+  it('keeps a spent registration token until its own window clears created_at', async () => {
+    const fixture = await seedFixture();
+    const spentId = newId();
+    await owner.db.execute(sql`
+      INSERT INTO client_registration_tokens (id, realm_id, token_hash, remaining_uses,
+                                              created_at, expires_at)
+      VALUES (${spentId}, ${fixture.realmId}, ${`crt-spent-${fixture.realmId}`}, 0,
+              ${at(-1 * HOUR)}::timestamptz, ${at(1 * DAY)}::timestamptz)
+    `);
+
+    await runPass();
+    expect(await countRows(fixture.realmId, 'client_registration_tokens')).toBeGreaterThanOrEqual(
+      1,
+    );
+    const rows = await owner.db.execute<{ n: string }>(
+      sql`SELECT count(*) AS n FROM client_registration_tokens WHERE id = ${spentId}`,
+    );
+    expect(rows[0]?.n).toBe('1');
+
+    await runPass(new Date(NOW.getTime() + 8 * DAY));
+    const rowsAfter = await owner.db.execute<{ n: string }>(
+      sql`SELECT count(*) AS n FROM client_registration_tokens WHERE id = ${spentId}`,
+    );
+    expect(rowsAfter[0]?.n).toBe('0');
   });
 
   it('lifts the row once the lock itself has expired', async () => {

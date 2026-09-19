@@ -129,6 +129,255 @@ it stays manual). Wiring Basic OP into CI would in any case gate every
 build on a profile odudu is not built to pass (next section); it is run
 by hand, when the authorization or token endpoints change.
 
+## Spike 4: what the Dynamic OP plan demands
+
+Four questions about `OIDCCDynamicTestPlan`
+(`src/main/java/net/openid/conformance/openid/OIDCCDynamicTestPlan.java`,
+`@PublishTestPlan(testPlanName = "oidcc-dynamic-certification-test-plan")`),
+read from the suite's own source at `release-v5.1.36` rather than its
+documentation.
+
+verified: `git clone --depth 1 --branch release-v5.1.36
+https://gitlab.com/openid/conformance-suite.git` into `/tmp/conformance-suite`
+(no build — only the Java is read), 2026-09-18.
+
+### Question 1 — does the plan require metadata P3a will not advertise?
+
+**No for five of the six candidate fields; the sixth
+(`userinfo_signing_alg_values_supported`) is checked but explicitly
+skippable, not required.**
+
+`OIDCCDynamicTestPlan.testModulesWithVariants()` runs
+`OIDCCDiscoveryEndpointVerification` for its `discovery`/`dynamic_client`
+module group. That class
+(`src/main/java/net/openid/conformance/openid/OIDCCDiscoveryEndpointVerification.java:99-105`)
+calls the one metadata condition among the six that the plan's modules touch
+at all, `OIDCCCheckDiscEndpointUserinfoSigningAlgValuesSupported`, wrapped as:
+
+```
+call(condition(OIDCCCheckDiscEndpointUserinfoSigningAlgValuesSupported.class)
+	.skipIfElementMissing("server", "userinfo_signing_alg_values_supported")
+	.onFail(Condition.ConditionResult.FAILURE)
+	.onSkip(Condition.ConditionResult.INFO)
+	.requirement("OIDCD-3")
+	.dontStopOnFailure()
+);
+```
+
+`.skipIfElementMissing` means the condition's own `evaluate()`
+(`OIDCCCheckDiscEndpointUserinfoSigningAlgValuesSupported.java`, which would
+otherwise throw `error(environmentVariable + ": not found")` via
+`AbstractValidateJsonArray.validate()` when the field is absent) never runs
+if the discovery document omits the field — the module logs `INFO` and
+continues. So this field is genuinely optional to the plan, matching the
+OIDC Discovery spec.
+
+`backchannel_logout_supported` and `frontchannel_logout_supported` are each
+checked only by a condition reachable from a dedicated module
+(`OIDCCBackchannelLogoutDiscoveryEndpointVerification`,
+`OIDCCFrontchannelLogoutDiscoveryEndpointVerification`) — neither class
+appears anywhere in `OIDCCDynamicTestPlan`'s `testModulesWithVariants()`
+module lists, so the dynamic plan never runs them.
+`userinfo_encryption_alg_values_supported` appears in the source tree only
+in `condition/as/OIDCCGenerateServerConfiguration.java`, which builds
+metadata for the suite acting as an authorization server in other tests, not
+a client-side check against an OP under test. `introspection_endpoint` and
+`revocation_endpoint` do not appear anywhere under `src/main/java/` — zero
+matches, not a search that missed: searched with `grep -rn
+"introspection_endpoint" src/main/java/` and the same for
+`revocation_endpoint`, both empty.
+
+Searched: `grep -rn "oidcc-dynamic-certification-test-plan" src/main/java/`
+then `grep -rln "backchannel_logout_supported\|userinfo_signing_alg_values_supported\|introspection_endpoint" src/main/java/net/openid/conformance/condition/client/`,
+followed by reading each hit and `OIDCCDynamicTestPlan.java` in full to check
+which condition classes its own module lists actually reach.
+
+### Question 2 — is RFC 7592 client management required?
+
+**No module requires `registration_access_token` or
+`registration_client_uri` in the registration response — but the plan does
+attempt a DELETE against `registration_client_uri` in cleanup, best-effort
+and non-fatal, which does not change the answer.**
+
+verified: `grep -rn "registration_access_token\|registration_client_uri"
+src/main/java/`, 2026-09-18. Every hit outside the two abstract base classes
+below is in `fapi2spid2/`, `fapi2spfinal/` (the FAPI 2.0 Brazil profiles'
+own dynamic-client-management tests, e.g.
+`FAPI2SPID2BrazilDCRUpdateClientConfig.java`,
+`FAPI2SPID2BrazilDCRClientDeletion.java`) or generic condition
+infrastructure (`condition/common/CreateRandomRegistrationClientUri.java`,
+`condition/as/GenerateRegistrationAccessToken.java`) available to any plan
+that chooses to call it — none of it reached from the dynamic plan's own
+module classes.
+
+Each of the seven module classes `OIDCCDynamicTestPlan` lists for
+registration extends one of two abstract base classes —
+`OIDCCServerTest` and `OIDCCRegistrationJwksUri` extend
+`AbstractOIDCCServerTest`; `OIDCCRegistrationLogoUri`,
+`OIDCCRegistrationPolicyUri`, `OIDCCRegistrationTosUri`,
+`OIDCCRegistrationSectorUri` and `OIDCCRegistrationSectorBad` extend
+`AbstractOIDCCDynamicRegistrationTest` — and both override `cleanup()` with
+the identical pattern
+(`src/main/java/net/openid/conformance/openid/AbstractOIDCCServerTest.java:696-709`,
+duplicated at
+`src/main/java/net/openid/conformance/openid/AbstractOIDCCDynamicRegistrationTest.java:194-207`):
+
+```
+public void unregisterClient() {
+	if (getVariant(ClientRegistration.class) == ClientRegistration.DYNAMIC_CLIENT) {
+		eventLog.startBlock(...);
+		call(condition(UnregisterDynamicallyRegisteredClient.class)
+			.skipIfObjectsMissing("client")
+			.onSkip(ConditionResult.INFO)
+			.onFail(ConditionResult.WARNING)
+			.dontStopOnFailure());
+		eventLog.endBlock();
+	}
+}
+```
+
+`ClientRegistration` is `dynamic_client` for every module group the plan
+defines, so this runs on every one of the seven modules. The condition
+itself
+(`src/main/java/net/openid/conformance/condition/client/UnregisterDynamicallyRegisteredClient.java`)
+is best-effort on both halves of the finding: it reads
+`registration_access_token` and `registration_client_uri` off the `client`
+object and returns silently, without an HTTP call, if either is absent —
+
+```
+String accessToken = env.getString("client", "registration_access_token");
+if (Strings.isNullOrEmpty(accessToken)){
+	log("Couldn't find registration_access_token.");
+	return env;
+}
+String registrationClientUri = env.getString("client", "registration_client_uri");
+if (Strings.isNullOrEmpty(registrationClientUri)){
+	log("Couldn't find registration_client_uri.");
+	return env;
+}
+```
+
+— and when both are present, it does issue `HttpMethod.DELETE` against
+`registration_client_uri` with the access token as a Bearer credential, but
+`.onFail(ConditionResult.WARNING)` on the calling side means a failure (a
+non-204 response, or the request erroring entirely) downgrades to a warning
+rather than failing the module. So: nothing in the plan requires the
+registration response to carry those two fields in the first place — odudu
+never puts them there, cleanup silently no-ops, and RFC 7592 support is
+still not needed for the plan to pass. P3a ships RFC 7591 registration
+alone; Task 13 stays struck.
+
+### Question 3 — `jwks_uri` or inline `jwks`? (reverses the plan's default)
+
+**Both — most modules register with inline `jwks`, but one module in the
+plan's own module list, `OIDCCRegistrationJwksUri`, registers a client with
+a `jwks_uri` that the suite serves and the OP must fetch. This reverses the
+plan's default of deferring the JWKS fetcher to the next phase: a fetcher
+is required in P3a for this module to pass.**
+
+`OIDCCDynamicTestPlan.java:86` lists `OIDCCRegistrationJwksUri.class, //
+OP-Registration-jwks_uri` in the third module group, run under
+`variantPrivateKeyJwtDynReg` (the plan's default client-auth variant for
+most of its modules). Its source
+(`src/main/java/net/openid/conformance/openid/OIDCCRegistrationJwksUri.java`)
+swaps the registration request's key material:
+
+```
+call(new OIDCCCreateDynamicClientRegistrationRequest(responseType)
+		.replace(GenerateRS256ClientJWKs.class,
+				condition(GenerateRS256ClientJWKsWithKeyID.class))
+		.replace(AddPublicJwksToDynamicRegistrationRequest.class,
+				condition(AddJwksUriToDynamicRegistrationRequest.class)));
+```
+
+and serves the key set itself from a suite-hosted URL:
+
+```
+private Object handleJwksRequest() {
+	JsonObject clientPublicJwks = env.getObject("client_public_jwks");
+	...
+	return ResponseEntity.ok()
+			.contentType(MediaType.APPLICATION_JSON)
+			.body(clientPublicJwks);
+}
+```
+
+Every other module in the plan's lists registers the default way, via
+`AddPublicJwksToDynamicRegistrationRequest`
+(`src/main/java/net/openid/conformance/condition/client/AddPublicJwksToDynamicRegistrationRequest.java`),
+which puts the key set inline as `dynamic_registration_request.jwks` rather
+than a URI — so most of the plan's traffic never needs the OP to fetch
+anything. But `OIDCCRegistrationJwksUri` is not optional to the plan; it is
+one of the seven modules in `OIDCCDynamicTestPlan`'s registration group, so
+"the Dynamic OP plan passes" requires the OP to dereference a `jwks_uri` it
+is given at registration time.
+
+verified: `grep -rn "jwks_uri"
+src/main/java/net/openid/conformance/condition/client/ | grep -i
+"regist\|dynamic"`, then read `OIDCCRegistrationJwksUri.java` and
+`AddPublicJwksToDynamicRegistrationRequest.java` in full, 2026-09-18.
+
+### Question 4 — does the plan demand response types this server refuses?
+
+**Yes, unconditionally: the discovery check the plan runs for every dynamic
+client registration requires `response_types_supported` to contain `code`,
+`id_token` and `token id_token` (`id_token token`) all three — not one of
+them, all of them. A server that never implements Implicit or Hybrid cannot
+pass this check.**
+
+`OIDCCDynamicTestPlan.java:21` notes "ResponseType.class is not specified so
+will be offered in the menu" — no fixed response type is baked into the
+plan itself, the operator picks one when starting a run, and individual
+modules mark themselves `@VariantNotApplicable` for response types they
+don't exercise. But the module every variant combination runs,
+`OIDCCDiscoveryEndpointVerification`, does not consult that per-run choice
+for this check. At
+`src/main/java/net/openid/conformance/openid/OIDCCDiscoveryEndpointVerification.java:85-89`:
+
+```
+if (getVariant(ClientRegistration.class) == ClientRegistration.DYNAMIC_CLIENT) {
+	callAndContinueOnFailure(OIDCCCheckDiscEndpointResponseTypesSupportedDynamic.class, Condition.ConditionResult.FAILURE, "OIDCD-3", "OIDCC-15.2");
+} else {
+	callAndContinueOnFailure(OIDCCCheckDiscEndpointResponseTypesSupported.class, Condition.ConditionResult.FAILURE, "OIDCD-3", "OIDCC-3");
+}
+```
+
+`OIDCCDynamicTestPlan` sets `ClientRegistration.class` to `"dynamic_client"`
+in every one of its module groups, so this branch always takes the
+`...Dynamic` condition, never the plain one. That condition
+(`OIDCCCheckDiscEndpointResponseTypesSupportedDynamic.java`) requires **all
+three** listed values, not merely one:
+
+```
+private static final String[] SET_VALUES = {"code", "id_token", "token id_token"}; // from OIDCD-3
+private static final int minimumMatchesRequired = SET_VALUES.length;
+
+private static final String errorMessageNotEnough = "The server does not support all of the mandatory to implement response_types for dynamic OpenID Providers.";
+```
+
+— contrast the non-dynamic sibling `OIDCCCheckDiscEndpointResponseTypesSupported`, which sets
+`minimumMatchesRequired = 1` against a six-value set including plain
+`"code"`. The dynamic-plan variant has no such escape.
+
+`docs/protocols/oidc-discovery.md:73` records the same MUST from OIDC
+Discovery §3 as `n/a:` on the reasoning that OAuth 2.1 removes Implicit and
+Hybrid and Odudu "is not and will not become" a Dynamic OpenID Provider in
+the specification's sense. This spike shows that reasoning does not carry
+over to the test plan: the plan's own discovery check enforces the
+specification's MUST regardless of which response type an operator selects
+for the rest of the run. **"The OIDF Dynamic OP plan passes" cannot be met
+by a server that will never implement `id_token` and `id_token token`.**
+Per ADR 0016's treatment of Basic OP, this needs to become a confirmed,
+documented divergence rather than an unqualified "passes" — that decision,
+and any rewording of P3a's exit criterion, is for the human.
+
+verified: `grep -rn "id_token token\|response_types_supported"
+src/main/java/net/openid/conformance/openid/`, then read
+`OIDCCDiscoveryEndpointVerification.java`,
+`OIDCCCheckDiscEndpointResponseTypesSupportedDynamic.java` and
+`OIDCCCheckDiscEndpointResponseTypesSupported.java` in full, and
+`variant/ResponseType.java` for the enum's values, 2026-09-18.
+
 ## Basic OP: a recorded incompatibility, not an outstanding failure
 
 **odudu cannot pass the Basic OP profile, and will not be changed so that
@@ -367,6 +616,83 @@ downstream is waiting on this; a future profile that assumes PKCE (as
 FAPI 2.0 and the OAuth 2.1 successors do) is where a passing run would
 come from, not a change here.
 
+## Dynamic OP: a recorded incompatibility, mostly the same one
+
+**odudu cannot pass the Dynamic OP profile either, and for reasons P3a
+does not own changing.** P3a's exit criterion, written for this reason,
+is "the plan runs reproducibly with every divergence confirmed as a
+recorded decision" — verbatim the treatment ADR 0016 already gives Basic
+OP. Ran against a realm seeded `client_registration_policy=open`
+(`run-dynamic-op.sh`), `response_type=code` the one variant dimension the
+plan leaves open, plan id `4JhQ5ffOdtF1Q`, suite `5.1.36`, on
+2026-09-19. Export committed at
+`results/dynamic-op-2026-09-19-v5.1.36.json` and its `-logs.zip`.
+[ADR 0031](adr/0031-the-dynamic-op-plan-cannot-pass-code-only.md) is the
+full record; this section is its summary.
+
+**1 PASSED / 3 SKIPPED / 18 FAILED / 1 never reached a terminal status
+within the run's poll window.** A module can fail more than one
+condition, so the table below counts `FAILURE`-result **conditions**
+across all 23 modules' committed logs, not modules — counting modules
+once each is what hid how often the most common condition actually
+fired. Every occurrence was individually confirmed from its own log, not
+sampled; the full breakdown, including which modules share a condition,
+is in [ADR 0031](adr/0031-the-dynamic-op-plan-cannot-pass-code-only.md).
+
+| Condition                                                              | Occurrences | Cause                                                                                      |
+| ---------------------------------------------------------------------- | ----------- | ------------------------------------------------------------------------------------------ |
+| `EnsureServerConfigurationSupportsPrivateKeyJwt`                       | 15          | **P3b**: `private_key_jwt` client authentication not implemented (`docs/request-paths.md`) |
+| `CheckIfAuthorizationEndpointError` (`invalid_request`)                | 11          | Mandatory PKCE — ADR 0016                                                                  |
+| `CheckIfAuthorizationEndpointError` (`request_uri_not_supported`)      | 2           | **P13**: `request_uri` refused (`docs/request-paths.md`)                                   |
+| `OIDCCCheckDiscEndpointResponseTypesSupportedDynamic`                  | 1           | `response_types_supported` lacks `id_token`/`token id_token` — ADR 0031                    |
+| `OIDCCCheckDiscEndpointGrantTypesSupportedDynamic`                     | 1           | `grant_types_supported` lacks `implicit` — ADR 0031                                        |
+| `CheckDiscEndpointRequestObjectSigningAlgValuesSupportedContainsRS256` | 1           | **P13** corollary: no request-object support, so the alg list is never advertised          |
+| `CheckDiscEndpointUserinfoSigningAlgValuesSupportedContainsRS256`      | 1           | **P3b** corollary: `/userinfo` never signs a response yet                                  |
+
+Plus 3 self-skips (2 `subject_types_supported` has no `pairwise`, ADR
+0031; 1 `id_token_signing_alg_values_supported` has no `none`,
+`docs/protocols/oidc-discovery.md`) and 1 pass
+(`oidcc-redirect-uri-regfrag`).
+
+**`private_key_jwt` is the single most common failing condition, not
+mandatory PKCE, and the two are independent.**
+`EnsureServerConfigurationSupportsPrivateKeyJwt` is a
+discovery-configuration check that fires during module setup, before any
+`/authorize` request is built — PKCE cannot be shielding it, and it isn't
+shielding PKCE either: 11 of the 14 modules that fail it also fail PKCE
+separately, but 4 fail only `private_key_jwt` (their modules test a
+missing/mismatched `redirect_uri`, not authorization-request success).
+The pre-run spike expected `response_types_supported` to be the reason
+this plan cannot pass; that check fails exactly one module. Neither PKCE
+nor `response_types_supported` is the dominant cause — `private_key_jwt`,
+**P3b**'s, is.
+
+Seven modules also reach a suite condition that logs `REVIEW` (a
+screenshot a human confirms in the suite's own UI) rather than
+`FAILURE` — the same unattended-run limitation ADR 0016 already names for
+Basic OP's two manual-review modules. All seven already carry a genuine
+`FAILURE` from the table above before reaching that checkpoint; the
+checkpoint only decides whether the module ends cleanly or gets cut off
+when the next module claims the shared alias (`WAITING` for four of them,
+`INTERRUPTED` — no different from every other PKCE failure — for the
+other three). `oidcc-server-rotate-keys` is the one module that fails no
+condition at all: it reaches a manual "please rotate the keys" step this
+run cannot perform regardless of time, since odudu has no key-rotation
+operation yet (**P4**), and its committed status is `CONFIGURED` with no
+result.
+
+**No defect was found in this phase's work.** Every failure and
+self-skip traces to a decision already on record — ADR 0016, ADR 0031, or
+`docs/request-paths.md`'s existing P3b/P13/P4 placements.
+
+**The unit that makes a multi-module plan's run legible is the condition,
+not the module.** A module can fail several conditions at once, and every
+natural way to summarise a run — the module list, the status column, the
+suite's own UI — counts modules. Counting modules here first named
+mandatory PKCE the dominant cause and `private_key_jwt` unexercised;
+re-tallying by condition reversed both. The next plan run against this
+project should start from the condition list.
+
 ## Running it yourself
 
 ```bash
@@ -377,4 +703,10 @@ pnpm conformance:config-op
 ./infra/conformance/run-basic-op.sh
 # runs and polls all 35 modules in sequence, then prints where it wrote the
 # summary JSON and the suite's own zip export (does not overwrite results/)
+
+# Dynamic OP — reproduces the Dynamic OP run above; runs in CI (non-gating,
+# see ADR 0031) alongside Config OP, reusing the suite jar it already built
+pnpm conformance:dynamic-op
+# same shape as run-basic-op.sh: polls all 23 modules, then prints where it
+# wrote the summary JSON and the suite's own zip export
 ```

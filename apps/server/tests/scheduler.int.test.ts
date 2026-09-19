@@ -23,6 +23,7 @@ const POLICY: RetentionPolicy = {
   authorizationCodeSeconds: 60 * 60,
   authenticationSessionSeconds: 60 * 60,
   actionTokenSeconds: 7 * 24 * 60 * 60,
+  registrationTokenSeconds: 7 * 24 * 60 * 60,
   sessionSeconds: 24 * 60 * 60,
   emailSentSeconds: 7 * 24 * 60 * 60,
   emailFailedSeconds: 30 * 24 * 60 * 60,
