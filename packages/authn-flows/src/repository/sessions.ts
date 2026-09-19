@@ -23,6 +23,10 @@ export interface NewSession {
   subjectId: string;
   expiresAt: Date;
   authenticators: string[];
+  // Omitted, a fresh session is ordinary — the schema's own default
+  // (packages/authn-flows/src/schema/sessions.ts). establishSession is the
+  // only caller with a login's own choice to record.
+  remembered?: boolean;
 }
 
 // All persistence for an established SSO session. `byId` is what a later

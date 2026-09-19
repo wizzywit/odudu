@@ -1,4 +1,5 @@
 import {
+  lifespanFor,
   nextRequiredAction,
   type AdvanceInput,
   type AdvanceOutcome,
@@ -122,8 +123,7 @@ export type LoginSubmissionOutcome =
       // What sessionCookies (the one authority for the cookie, @odudu/authn-flows)
       // needs to write both lists: this login's session joined with the
       // browser's other surviving ones, split by which cookie already
-      // carries each. Persistent is always empty until a login can ask to
-      // be remembered.
+      // carries each.
       ephemeralSessionIds: readonly string[];
       persistentSessionIds: readonly string[];
       persistentMaxAgeSeconds: number;
@@ -143,9 +143,16 @@ export interface CompleteLoginInput {
   nonce: string | null;
   codeChallenge: string;
   codeChallengeMethod: 'S256';
-  // The realm's configured SSO session ceiling, carried through so
-  // completeLogin's establishSession call never needs a lookup of its own.
-  ssoSessionMaxSeconds: number;
+  // The ceiling establishSession creates the session with — already
+  // resolved by the caller through `lifespanFor`, so completeLogin never
+  // needs to know which pair a remembered login picks.
+  sessionMaxSeconds: number;
+  // Whether this login was remembered — the realm-gated decision the
+  // caller already made (see login-submission.ts's own gate on
+  // `rememberMeAllowed`), carried onto the session establishSession
+  // creates. Ignored when `reuseSession` is present: a reuse keeps
+  // whichever value its own session was established with.
+  remembered: boolean;
   // What `advance` reported ran, in order — copied onto the session
   // establishSession creates, so a later reuse of it states `amr`/`acr`
   // about what this login actually used rather than what the subject
@@ -348,6 +355,11 @@ export async function completeAuthorizedLogin(
   // nothing but resolving its current session set — the same value
   // /authorize and logout resolve through.
   header: string | undefined,
+  // Whether to remember this login — already gated against
+  // `realm.rememberMeAllowed` by the caller (handleLoginSubmission), never
+  // an unauthenticated request's own say-so. Consent-submission.ts's call
+  // carries no such choice and passes `false`.
+  rememberMeRequested = false,
 ): Promise<LoginSubmissionOutcome> {
   // A session reuse a consent decision promoted (PendingRequest carries
   // its own session's id and authTime): reused, not re-established, so
@@ -357,6 +369,7 @@ export async function completeAuthorizedLogin(
       ? { sessionId: pending.reuseSessionId, authTime: new Date(pending.reuseAuthTime) }
       : undefined;
 
+  const { maxSeconds } = lifespanFor(realm, rememberMeRequested);
   const completed = await deps.completeLogin({
     realmId: realm.id,
     authSessionId,
@@ -367,7 +380,8 @@ export async function completeAuthorizedLogin(
     nonce: pending.nonce,
     codeChallenge: pending.codeChallenge,
     codeChallengeMethod: pending.codeChallengeMethod,
-    ssoSessionMaxSeconds: realm.ssoSessionMaxSeconds,
+    sessionMaxSeconds: maxSeconds,
+    remembered: rememberMeRequested,
     authenticators,
     ...(reuseSession !== undefined ? { reuseSession } : {}),
   });
@@ -387,11 +401,8 @@ export async function completeAuthorizedLogin(
   location.searchParams.set('iss', realmIssuer(issuerBase, realm.name));
 
   // The browser's other live sessions, joined with this one, split by the
-  // cookie each already belongs to (`remembered`) — not by which cookie the
-  // request happened to carry it in, so a mismatched cookie self-heals. A
-  // reused session keeps whichever list it was already in; a freshly
-  // established one is always ephemeral until a login can ask to be
-  // remembered.
+  // cookie each already belongs to — not by which cookie the request
+  // happened to carry it in, so a mismatched cookie self-heals.
   const existing = await deps.resolveSessions(
     {
       id: realm.id,
@@ -404,7 +415,14 @@ export async function completeAuthorizedLogin(
     header,
   );
   const survivors = existing.filter((session) => session.id !== sessionId);
-  const remembered = existing.find((session) => session.id === sessionId)?.remembered ?? false;
+  // A reused session was already in the browser's cookies, so `existing`
+  // carries its own `remembered` (read fresh, from the row); a freshly
+  // established one never was — nothing sent it back yet — so its bucket
+  // is exactly what was just asked for and gated.
+  const remembered =
+    reuseSession !== undefined
+      ? (existing.find((session) => session.id === sessionId)?.remembered ?? false)
+      : rememberMeRequested;
   const bucket = (flag: boolean) =>
     survivors.filter((session) => session.remembered === flag).map((session) => session.id);
 
@@ -414,7 +432,11 @@ export async function completeAuthorizedLogin(
     sessionId,
     ephemeralSessionIds: remembered ? bucket(false) : [...bucket(false), sessionId],
     persistentSessionIds: remembered ? [...bucket(true), sessionId] : bucket(true),
-    persistentMaxAgeSeconds: realm.ssoSessionMaxSeconds,
+    // The ceiling for whatever the persistent cookie carries, which may be
+    // sessions this login never touched — never this login's own
+    // `rememberMeRequested`, which says nothing about a survivor already
+    // in the list.
+    persistentMaxAgeSeconds: realm.rememberMeMaxSeconds,
   };
 }
 
@@ -438,6 +460,12 @@ export async function handleLoginSubmission(
   // reply's cookie. A caller with no cookie to give passes `undefined`
   // explicitly.
   header: string | undefined,
+  // The login form's `remember_me` checkbox, as submitted — a request from
+  // an unauthenticated browser, not an authority. Gated below against
+  // `realm.rememberMeAllowed` before it can do anything; a realm that has
+  // not turned the feature on ignores this entirely; see the module's
+  // security note on why the realm setting, not the field, decides.
+  rememberMe = false,
 ): Promise<LoginSubmissionOutcome> {
   // A value that is not shaped like a uuid names no session and never
   // could: folded in here rather than left to the `uuid` comparison, where
@@ -549,6 +577,12 @@ export async function handleLoginSubmission(
     };
   }
 
+  // The realm setting is the authority; the field is a request. A realm
+  // with rememberMeAllowed false ignores `remember_me` entirely — this is
+  // the one place that gate is applied, so no downstream code can honour
+  // the field on its own.
+  const remembered = rememberMe && realm.rememberMeAllowed;
+
   return completeAuthorizedLogin(
     deps,
     {
@@ -566,5 +600,6 @@ export async function handleLoginSubmission(
     result.subjectId,
     result.authenticators,
     header,
+    remembered,
   );
 }

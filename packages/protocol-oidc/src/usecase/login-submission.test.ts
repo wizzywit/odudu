@@ -16,6 +16,9 @@ const REALM = {
   verifyEmail: false,
   ssoSessionMaxSeconds: 36_000,
   ssoSessionIdleSeconds: 1_800,
+  rememberMeAllowed: true,
+  rememberMeIdleSeconds: 604_800,
+  rememberMeMaxSeconds: 2_592_000,
 };
 
 const PENDING = {
@@ -133,7 +136,7 @@ describe('handleLoginSubmission — the success path', () => {
       sessionId: 'session-1',
       ephemeralSessionIds: ['session-1'],
       persistentSessionIds: [],
-      persistentMaxAgeSeconds: REALM.ssoSessionMaxSeconds,
+      persistentMaxAgeSeconds: REALM.rememberMeMaxSeconds,
     });
     expect(completeLogin).toHaveBeenCalledWith({
       realmId: REALM.id,
@@ -145,9 +148,54 @@ describe('handleLoginSubmission — the success path', () => {
       nonce: PENDING.nonce,
       codeChallenge: PENDING.codeChallenge,
       codeChallengeMethod: PENDING.codeChallengeMethod,
-      ssoSessionMaxSeconds: REALM.ssoSessionMaxSeconds,
+      sessionMaxSeconds: REALM.ssoSessionMaxSeconds,
+      remembered: false,
       authenticators: ['password'],
     });
+  });
+
+  it('remembers the login when the field is set and the realm allows it', async () => {
+    const { deps, completeLogin } = harness();
+    const outcome = await handleLoginSubmission(
+      deps,
+      'acme',
+      'https://idp.example',
+      AUTH_SESSION_ID,
+      { username: 'ada', password: 'x' },
+      undefined,
+      true,
+    );
+
+    expect(outcome).toMatchObject({ kind: 'redirect' });
+    expect(completeLogin).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sessionMaxSeconds: REALM.rememberMeMaxSeconds,
+        remembered: true,
+      }),
+    );
+  });
+
+  it('ignores the field when the realm does not allow remembering', async () => {
+    const { deps, completeLogin } = harness();
+    deps.findRealm = vi.fn().mockResolvedValue({ ...REALM, rememberMeAllowed: false });
+
+    const outcome = await handleLoginSubmission(
+      deps,
+      'acme',
+      'https://idp.example',
+      AUTH_SESSION_ID,
+      { username: 'ada', password: 'x' },
+      undefined,
+      true,
+    );
+
+    expect(outcome).toMatchObject({ kind: 'redirect' });
+    expect(completeLogin).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sessionMaxSeconds: REALM.ssoSessionMaxSeconds,
+        remembered: false,
+      }),
+    );
   });
 });
 

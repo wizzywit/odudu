@@ -21,6 +21,10 @@ export interface RealmLookup {
   // (packages/authn-flows/src/service/session-lifespan.ts).
   rememberMeIdleSeconds: number;
   rememberMeMaxSeconds: number;
+  // The authority login-submission.ts gates the login form's `remember_me`
+  // field against: a request to remember a login is only ever honoured
+  // when this is true, never on the field's say-so alone.
+  rememberMeAllowed: boolean;
   // The three-state gate the registration endpoint and discovery's
   // registration_endpoint both read: 'disabled' answers neither, 'open'
   // and 'token' both advertise the endpoint and differ only in whether an
@@ -51,6 +55,7 @@ export function realmLookupRepository(db: Database) {
           ssoSessionIdleSeconds: realms.ssoSessionIdleSeconds,
           rememberMeIdleSeconds: realms.rememberMeIdleSeconds,
           rememberMeMaxSeconds: realms.rememberMeMaxSeconds,
+          rememberMeAllowed: realms.rememberMeAllowed,
           clientRegistrationPolicy: realms.clientRegistrationPolicy,
         })
         .from(realms)
@@ -80,6 +85,7 @@ export function realmLookupRepository(db: Database) {
           ssoSessionIdleSeconds: realms.ssoSessionIdleSeconds,
           rememberMeIdleSeconds: realms.rememberMeIdleSeconds,
           rememberMeMaxSeconds: realms.rememberMeMaxSeconds,
+          rememberMeAllowed: realms.rememberMeAllowed,
           clientRegistrationPolicy: realms.clientRegistrationPolicy,
         });
       const row = rows[0];

@@ -406,9 +406,22 @@ client can demand a fresher authentication than the cookie represents. The
 email-verified gate guards this second door into completing a login exactly
 as it guards the password form. The cookie now holds a **list** of session
 ids, not one, and a fresh login joins a browser's existing set rather than
-replacing it — but nothing yet marks a session `remembered` or offers a
-choice among several, so there is still no "remember me" and
-`prompt=select_account` still renders the ordinary form. Both are P3b's.
+replacing it.
+
+**A realm can now offer "remember me."** Three settings gate it:
+`remember_me_allowed` (off by default), and the pair
+`remember_me_idle_seconds`/`remember_me_max_seconds` (defaults 7 and 30
+days) a remembered login is measured against instead of
+`sso_session_idle_seconds`/`sso_session_max_seconds`. When the setting is
+on, the login form offers a `remember_me` checkbox; ticking it writes the
+new session's id into the `{realm}-session-persistent` cookie, carrying
+`Max-Age=remember_me_max_seconds`, instead of the ephemeral
+`{realm}-session` cookie. **The realm setting is the authority, not the
+field**: a realm with `remember_me_allowed` off ignores a ticked box
+entirely, and the session lands in the ephemeral list exactly as an
+ordinary login would. `prompt=select_account` still renders the ordinary
+form; account selection among several remembered sessions is **P3b**'s
+next increment.
 
 **A realm can now end a session.** `GET`/`POST
 /realms/{realm}/protocol/openid-connect/logout` implements OpenID Connect

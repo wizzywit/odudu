@@ -852,10 +852,11 @@ content-length: 0
 
 Two `set-cookie` headers, not one: the ephemeral `demo-session` this login
 just established, and `demo-session-persistent` cleared to empty with
-`Max-Age=0` because nothing asked for this login to be remembered — the
-login form has no way to yet. Both are always sent so a browser holding a
-stale persistent cookie from before this pair existed loses it on the next
-login rather than carrying it forward unnoticed.
+`Max-Age=0` because this submission carried no `remember_me` field. Both
+are always sent so a browser holding a stale persistent cookie from before
+this pair existed loses it on the next login rather than carrying it
+forward unnoticed. [A remembered login](#a-remembered-login) below shows
+the other case.
 
 Three things in that response:
 
@@ -880,6 +881,54 @@ decides whether that is allowed: see
 
 **What the client does next:** verify `state` and `iss`, then redeem the
 code. Immediately: it expires in a minute.
+
+#### A remembered login
+
+The login form renders a `remember_me` checkbox whenever the realm's
+`remember_me_allowed` setting is on (off by default):
+
+```
+<input type="checkbox" name="remember_me" id="remember-me" value="true"> Remember me
+```
+
+`demo`'s setting was turned on for this run —
+`odudu seed realm --name demo --set remember_me_allowed=true` — since it is
+off for every other transcript in this document. Ticking the box and
+submitting the same form puts the new session's id in the **persistent**
+cookie instead:
+
+```bash
+curl -sS -D - -o /dev/null \
+  --data-urlencode "auth_session_id=$AUTH_SESSION_ID" \
+  --data-urlencode 'username=ada' \
+  --data-urlencode 'password=correct-horse-battery' \
+  --data-urlencode 'remember_me=true' \
+  'http://localhost:3000/realms/demo/login-actions/authenticate'
+```
+
+```
+HTTP/1.1 302 Found
+set-cookie: demo-session=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
+set-cookie: demo-session-persistent=01a0ba39-8997-…; HttpOnly; SameSite=Lax; Path=/; Max-Age=2592000
+location: http://localhost:8080/callback?code=r5SsanuPHH-…&state=xyz-123&iss=http%3A%2F%2Flocalhost%3A3000%2Frealms%2Fdemo
+content-length: 0
+```
+
+(Session id and code truncated.) The two cookies swap roles from the
+ordinary case above: `demo-session` is now the one cleared with
+`Max-Age=0`, and `demo-session-persistent` carries this session's id with
+`Max-Age=2592000` — the realm's `remember_me_max_seconds` (default 30
+days), not `sso_session_max_seconds`. The session this establishes is also
+measured against a different idle window while it lives,
+`remember_me_idle_seconds` (default 7 days) rather than
+`sso_session_idle_seconds`.
+
+**The realm setting is the authority, the field is only a request.** A
+realm with `remember_me_allowed` off ignores `remember_me` outright: the
+session it establishes lands in the ephemeral cookie exactly as the
+ordinary transcript above shows, with the persistent cookie still sent but
+cleared, `Max-Age=0` — ticking a box the login page never even offered
+(since the checkbox itself is gated on the same setting) changes nothing.
 
 ### 4. `/token`
 
@@ -6055,29 +6104,34 @@ session lifecycle. A citation of either half here means that half.
   configuration carrying a credential, and the per-realm secret it needs
   already has a home in the key-encryption interface §5 puts the signing key
   behind.
-- **No "remember me", and no account picker for `select_account`.** The
-  mechanism a browser's several concurrent sessions would need now exists:
-  two cookies per realm, `<realm>-session` (no `Max-Age`) and
-  `<realm>-session-persistent` (`Max-Age` set from the realm's own
-  `sso_session_max_seconds`), each carrying a dot-separated **list** of
-  session ids rather than one
+- **"Remember me" exists; no account picker for `select_account` yet, and
+  no enforced cap on how many sessions a browser may hold.** The mechanism
+  a browser's several concurrent sessions need: two cookies per realm,
+  `<realm>-session` (no `Max-Age`) and `<realm>-session-persistent`
+  (`Max-Age` set from the realm's own `remember_me_max_seconds`), each
+  carrying a dot-separated **list** of session ids rather than one
   (`packages/authn-flows/src/service/session-cookie.ts`). `resolveSessions`
   reads both cookies together into the browser's whole live set — the one
   definition `/authorize`'s reuse check, login, consent and logout all read
   — so a fresh login in a browser that already holds a session now **joins**
   that set rather than replacing it. `sessions` carries `remembered`
-  (default `false`), which selects which of the two cookies a session's id
-  is written into, and `realms` carries `max_sessions_per_browser` (1–32,
-  default 25) to bound how large that list may grow. What none of this does
-  yet: nothing on the request path ever sets `remembered` to `true` — the
-  login form has no field for it — so every session lands in the ephemeral
-  bucket and the persistent cookie is always written cleared, `Max-Age=0`,
-  exactly as every transcript in this document shows; nothing reads
-  `max_sessions_per_browser` to cap or evict, so the list has no enforced
-  ceiling; and with no session ever remembered there is nothing for
+  (default `false`), which selects both which of the two cookies a
+  session's id is written into and which lifespan pair (`sso_session_*` or
+  `remember_me_*`) `liveByIds` measures it against
+  (`packages/authn-flows/src/service/session-lifespan.ts`). The login form
+  now offers a `remember_me` checkbox when `remember_me_allowed` is on
+  (off by default), and ticking it is what sets `remembered` to `true` —
+  gated against that same realm setting in `login-submission.ts`, never on
+  the submitted field's own say-so, so a realm that has not turned the
+  feature on ignores it entirely. What is not there yet: `realms` carries
+  `max_sessions_per_browser` (1–32, default 25), but nothing on the
+  request path reads it to cap or evict, so the list has no enforced
+  ceiling (`packages/authn-flows/src/service/session-set.ts`'s
+  `chooseEvictions` exists and is unit-tested but is not called from
+  anywhere); and with no account-selection UI there is nothing for
   `prompt=select_account` to offer a choice over, so it still renders the
-  ordinary form, the same as `login`. The remember-me toggle, the cap's
-  enforcement, and the account-selection UI are **P3b**'s, named in its
+  ordinary form, the same as `login`. The cap's enforcement and the
+  account-selection UI are **P3b**'s next increment, named in its
   criterion since 2026-09-17.
 - **The sign-in, error and consent pages are hardcoded HTML**, dependency-free
   with every interpolated value escaped. Theming and per-client branding are

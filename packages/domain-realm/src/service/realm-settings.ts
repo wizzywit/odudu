@@ -3,9 +3,9 @@
 // camel case. Identity is absent on purpose: `name` is in every issuer URL
 // already minted, and `id` is what row-level security keys on.
 //
-// Ranges are not here. They are CHECK constraints (migrations 0028, 0035 and
-// 0041), which is the repository's idiom for a rule no writer may bypass —
-// restating them would give a second authority to disagree with.
+// Ranges are not here. They are CHECK constraints (migrations 0028, 0035,
+// 0041 and 0049), which is the repository's idiom for a rule no writer may
+// bypass — restating them would give a second authority to disagree with.
 const SETTINGS = {
   display_name: { column: 'displayName', type: 'text' },
   enabled: { column: 'enabled', type: 'boolean' },

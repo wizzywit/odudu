@@ -25,6 +25,7 @@ describe('resolveJwks', () => {
             ssoSessionIdleSeconds: 1_800,
             rememberMeIdleSeconds: 604_800,
             rememberMeMaxSeconds: 2_592_000,
+            rememberMeAllowed: false,
             clientRegistrationPolicy: 'disabled',
           }),
         listPublishableKeys: () => {
@@ -50,6 +51,7 @@ describe('resolveJwks', () => {
             ssoSessionIdleSeconds: 1_800,
             rememberMeIdleSeconds: 604_800,
             rememberMeMaxSeconds: 2_592_000,
+            rememberMeAllowed: false,
             clientRegistrationPolicy: 'disabled',
           }),
         listPublishableKeys: () => Promise.resolve([{ kid: 'a', alg: 'RS256', publicJwk }]),

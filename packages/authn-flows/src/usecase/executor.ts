@@ -878,6 +878,11 @@ export async function establishSession(
   // here, because a reused session's `amr`/`acr` must go on describing this
   // login rather than being re-derived at every future token issuance.
   authenticators: readonly string[],
+  // Whether this login was remembered — the realm-gated decision the
+  // caller already made, never re-derived here. Selects which cookie the
+  // session's id is later carried in and which lifespan pair `liveByIds`
+  // measures it against.
+  remembered = false,
   clock: Clock = systemClock,
 ): Promise<{ sessionId: string }> {
   // Always a fresh id, even for the same subject: reusing the pre-auth id
@@ -889,6 +894,7 @@ export async function establishSession(
     subjectId,
     authenticators: [...authenticators],
     expiresAt: new Date(clock.now().getTime() + maxSeconds * 1000),
+    remembered,
   });
   return { sessionId: id };
 }

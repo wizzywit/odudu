@@ -267,8 +267,9 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
             tx,
             input.realmId,
             input.subjectId,
-            input.ssoSessionMaxSeconds,
+            input.sessionMaxSeconds,
             input.authenticators,
+            input.remembered,
             clock,
           );
           sessionId = established.sessionId;

@@ -98,6 +98,7 @@ export {
   type PendingRequest,
 } from '#/schema/authentication-sessions';
 export { sessions, type SessionRecord } from '#/schema/sessions';
+export { lifespanFor, type SessionLifespans } from '#/service/session-lifespan';
 export { type AuthenticatorResult } from '#/schema/authenticator';
 export { executionRepository, type NewAuthenticationExecution } from '#/repository/executions';
 export {

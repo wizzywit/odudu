@@ -28,7 +28,7 @@ export type AuthorizationRequestOutcome =
   // `form` names what the rendered login page should ask for first —
   // whatever the realm's flow would offer nobody has submitted anything
   // yet (authn-flows' initialChallenge).
-  | { kind: 'started'; authSessionId: string; form: string }
+  | { kind: 'started'; authSessionId: string; form: string; rememberMeAllowed: boolean }
   // Session reuse: a code issued with no page ever rendered and no fresh
   // authentication session started. Carries exactly what the form-POST
   // success redirect carries, because the client cannot tell the two apart.
@@ -397,7 +397,12 @@ export async function handleAuthorizationRequest(
     // have at the moment this request first arrived.
     prompt: [...outcome.prompts],
   });
-  return { kind: 'started', authSessionId, form: initial.form };
+  return {
+    kind: 'started',
+    authSessionId,
+    form: initial.form,
+    rememberMeAllowed: realm.rememberMeAllowed,
+  };
 }
 
 export interface IdTokenHintClaims {

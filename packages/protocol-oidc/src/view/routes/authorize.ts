@@ -108,7 +108,13 @@ async function respondToAuthorizationRequest(
   return sendHtml(
     reply,
     200,
-    renderLoginForm(realm, outcome.authSessionId, outcome.form, deps.passkeyLogin ?? false),
+    renderLoginForm(
+      realm,
+      outcome.authSessionId,
+      outcome.form,
+      deps.passkeyLogin ?? false,
+      outcome.rememberMeAllowed,
+    ),
   );
 }
 
