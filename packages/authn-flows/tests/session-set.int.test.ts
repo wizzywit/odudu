@@ -64,11 +64,9 @@ async function createSession(
 
 // Reads the live rows for one realm, evicts down to the cap via
 // `chooseEvictions`, and inserts the new session, all inside the one
-// transaction `withRealm` opened. Locks the realm's own row first: a
-// `for update` lock on the session rows alone lets a blocked reader miss a
-// row the other transaction inserted, since read-committed only re-checks
-// the rows it already scanned. Test-only — a later task's usecase owns the
-// realm's actual cap and lifespans.
+// transaction `withRealm` opened. Locks the realm's own row first — see
+// ADR 0033 for why a lock on the session rows is not enough. Test-only:
+// the admission usecase owns the realm's actual cap and lifespans.
 async function admitSession(
   tx: RealmScopedDatabase,
   realmId: string,
