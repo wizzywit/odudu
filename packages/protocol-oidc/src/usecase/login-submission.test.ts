@@ -209,6 +209,35 @@ describe('handleLoginSubmission — the success path', () => {
       }),
     );
   });
+
+  // completeAuthorizedLogin never runs on this path — the consent POST
+  // runs it later, from recordRememberMe's parked value, not this
+  // request's own field. The same `remembered` variable feeds both
+  // branches today; this only stays true if something keeps asserting it.
+  it('ignores the field on the consent path too, when the realm does not allow remembering', async () => {
+    const { deps, recordRememberMe } = harness();
+    deps.findRealm = vi.fn().mockResolvedValue({ ...REALM, rememberMeAllowed: false });
+    deps.consentContext = vi.fn().mockResolvedValue({
+      clientName: 'Test Client',
+      consentRequired: true,
+      defaultScopes: ['openid'],
+      optionalScopes: [],
+      scopeIdByName: new Map<string, string>(),
+    });
+
+    const outcome = await handleLoginSubmission(
+      deps,
+      'acme',
+      'https://idp.example',
+      AUTH_SESSION_ID,
+      { username: 'ada', password: 'x' },
+      undefined,
+      true,
+    );
+
+    expect(outcome).toMatchObject({ kind: 'consent' });
+    expect(recordRememberMe).toHaveBeenCalledWith(REALM.id, AUTH_SESSION_ID, false);
+  });
 });
 
 describe('handleLoginSubmission — a realm that requires a verified address', () => {

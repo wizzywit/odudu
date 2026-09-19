@@ -108,14 +108,19 @@ stops two of them from interleaving their own eviction decisions, but a
 fixed id list — the browser's cookies, read once, before the lock — can
 never contain a session a concurrent admission inserts while the first
 holds the lock, no matter how fresh the second admission's read against
-that same list is once unblocked. Only the first of `k` logins racing from
-one browser ever sees a correct picture — the rest each independently read
-the same stale candidate list once the first has emptied it — so the
-browser can transiently hold `cap + (k - 1)` sessions rather than exactly
-`cap` (measured, not assumed: `k = 2` gives `cap + 1`, `k = 3` gives
-`cap + 2`, `k = 4` gives `cap + 3`, five trials each, no exception). The
-next admission from that browser evicts back down, since its own fresh
-read of the (by then updated) cookie sees the surplus. This is tolerable
+that same list is once unblocked. The candidate list is fixed per request
+and identical across racers from one browser, so once the first racer
+evicts, that same list resolves to at most `cap - 1` live for everyone
+behind it: `chooseEvictions`' own `surplus` is `live.length + 1 - cap`,
+which is now `≤ 0`, so each of the remaining `k - 1` racers evicts nothing
+and inserts unconditionally. The browser can therefore transiently hold
+`cap + (k - 1)` sessions rather than exactly `cap` — the worst case, for a
+browser already at or above the cap when the race starts; dead sessions in
+the candidate list only shrink the total. Measured, not merely derived:
+`k = 2` gives `cap + 1`, `k = 3` gives `cap + 2`, `k = 4` gives `cap + 3`,
+five trials each, no exception. The next admission from that browser
+evicts back down, since its own fresh read of the (by then updated)
+cookie sees the surplus. This is tolerable
 where a per-subject cap is not: the cap is a size guard on the cookie
 (§5.4 — the default sits near a quarter of the measured ~110-id ceiling
 before a cookie stops fitting, not a security boundary), the excess
