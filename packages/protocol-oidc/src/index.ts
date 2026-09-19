@@ -410,6 +410,24 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
       ...passkeyEnrolment,
       consentContext,
       grantedScopeIds,
+      // The account chooser's own POST reads back the request a 'select'
+      // outcome parked here — the same call login.ts and consent.ts each
+      // wire for their own resumed submissions.
+      loadPendingRequest: (realmId, authSessionId) =>
+        withRealm(deps.database.db, realmId, (tx) => loadPendingRequest(tx, authSessionId)),
+      // The chooser's label for each candidate: preferred_username falling
+      // back to username, the same fallback #/service/claims.ts uses for
+      // the preferred_username claim itself — never email, which the
+      // chooser must not print on a shared device.
+      accountDisplayNames: (realmId, subjectIds) =>
+        withRealm(deps.database.db, realmId, async (tx) => {
+          const names = new Map<string, string>();
+          for (const subjectId of new Set(subjectIds)) {
+            const user = await userRepository(tx).bySubjectId(subjectId);
+            if (user !== null) names.set(subjectId, user.preferredUsername ?? user.username);
+          }
+          return names;
+        }),
       // Promotes a reuse into a real authentication session, already bound
       // and authenticated for the reused subject — what the required-action
       // gate and decideConsentGate's 'ask' branch both need to park the

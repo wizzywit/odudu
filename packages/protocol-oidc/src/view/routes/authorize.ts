@@ -2,6 +2,8 @@ import { type FastifyInstance, type FastifyReply } from 'fastify';
 import { FORM_MEDIA_TYPE } from '#/service/media-type';
 import {
   handleAuthorizationRequest,
+  handleSelectAccountSubmission,
+  type AuthorizationRequestOutcome,
   type AuthorizeUsecaseDeps,
 } from '#/usecase/authorization-request';
 import { renderAuthorizeErrorPage, renderLoginForm } from '#/view/authorize-html';
@@ -13,6 +15,7 @@ import {
   sendRequiredActionPage,
   type RequiredActionResponseDeps,
 } from '#/view/routes/required-action-response';
+import { renderSelectAccountPage } from '#/view/select-account-html';
 
 const PATH = '/realms/:realm/protocol/openid-connect/auth';
 
@@ -28,25 +31,17 @@ export interface AuthorizeRouteDeps
   passkeyLogin?: boolean;
 }
 
-// OIDC Core §3.1.2 requires both methods; they differ only in where the
-// parameters come from, and share everything after, so they cannot drift
-// out of agreement — down to a POST naming no representation answering
-// exactly as a GET with no query parameters does. Parameters arrive as
-// `unknown` because that is the truth: they are whatever a body parser
-// produced, and normalizeAuthorizeQuery turns them back into strings.
-async function respondToAuthorizationRequest(
+// Shared by the authorization request itself and the account chooser's own
+// POST below: both eventually reach an AuthorizationRequestOutcome — one
+// directly, one via the reuse tail a chosen session completes the same
+// way — and from there the response is identical.
+async function renderAuthorizationOutcome(
   deps: AuthorizeRouteDeps,
   realm: string,
-  params: unknown,
   issuer: string,
-  // The browser's raw `Cookie` header, passed through untouched: the
-  // usecase resolves both session cookies out of it, so the route reaches
-  // for no header itself.
-  header: string | undefined,
+  outcome: AuthorizationRequestOutcome,
   reply: FastifyReply,
 ): Promise<FastifyReply> {
-  const outcome = await handleAuthorizationRequest(deps, realm, params, issuer, header);
-
   if (outcome.kind === 'render') {
     return sendHtml(reply, 400, renderAuthorizeErrorPage(outcome.error, outcome.description));
   }
@@ -87,6 +82,22 @@ async function respondToAuthorizationRequest(
     );
   }
 
+  // Neither a login form nor a single reused session answers this request:
+  // the browser's cookies name more than one live session, or the client
+  // asked with prompt=select_account. The chooser's own POST resumes the
+  // authentication session parked here.
+  if (outcome.kind === 'select') {
+    return sendHtml(
+      reply,
+      200,
+      renderSelectAccountPage({
+        realm,
+        authSessionId: outcome.authSessionId,
+        accounts: outcome.accounts,
+      }),
+    );
+  }
+
   // A reused session that still needs consent: the same page the form path
   // renders once its own gate asks, on a freshly started authentication
   // session the reuse path bound and authenticated for the reused subject.
@@ -116,6 +127,79 @@ async function respondToAuthorizationRequest(
       outcome.rememberMeAllowed,
     ),
   );
+}
+
+// OIDC Core §3.1.2 requires both methods; they differ only in where the
+// parameters come from, and share everything after, so they cannot drift
+// out of agreement — down to a POST naming no representation answering
+// exactly as a GET with no query parameters does. Parameters arrive as
+// `unknown` because that is the truth: they are whatever a body parser
+// produced, and normalizeAuthorizeQuery turns them back into strings.
+async function respondToAuthorizationRequest(
+  deps: AuthorizeRouteDeps,
+  realm: string,
+  params: unknown,
+  issuer: string,
+  // The browser's raw `Cookie` header, passed through untouched: the
+  // usecase resolves both session cookies out of it, so the route reaches
+  // for no header itself.
+  header: string | undefined,
+  reply: FastifyReply,
+): Promise<FastifyReply> {
+  const outcome = await handleAuthorizationRequest(deps, realm, params, issuer, header);
+  return renderAuthorizationOutcome(deps, realm, issuer, outcome, reply);
+}
+
+function firstString(value: string | string[] | undefined): string | undefined {
+  return typeof value === 'string' ? value : undefined;
+}
+
+// The chooser's POST: `login-actions/select-account`, mirroring the same
+// naming consent and required-action already use for Odudu's own UI
+// actions, never under /protocol/openid-connect/.
+async function respondToSelectAccountSubmission(
+  deps: AuthorizeRouteDeps,
+  realm: string,
+  body: Record<string, string | string[] | undefined>,
+  issuer: string,
+  header: string | undefined,
+  reply: FastifyReply,
+): Promise<FastifyReply> {
+  const outcome = await handleSelectAccountSubmission(
+    deps,
+    realm,
+    firstString(body.auth_session_id),
+    { sessionId: firstString(body.session_id), useOther: firstString(body.use_other) !== undefined },
+    header,
+  );
+
+  if (outcome.kind === 'unauthenticated') {
+    return sendHtml(
+      reply,
+      400,
+      renderAuthorizeErrorPage(
+        'invalid_request',
+        'This sign-in attempt is no longer valid. Go back and start again.',
+      ),
+    );
+  }
+
+  // The security case: the posted session_id names no member of the set
+  // this browser's own cookies resolve to. Refused, never honoured merely
+  // because it names some live session in the realm — see
+  // handleSelectAccountSubmission's own comment on why.
+  if (outcome.kind === 'invalid_selection') {
+    return sendHtml(
+      reply,
+      400,
+      renderAuthorizeErrorPage(
+        'invalid_request',
+        'That account is not one this browser is currently signed in to.',
+      ),
+    );
+  }
+
+  return renderAuthorizationOutcome(deps, realm, issuer, outcome, reply);
 }
 
 export function registerAuthorizeRoute(app: FastifyInstance, deps: AuthorizeRouteDeps): void {
@@ -162,5 +246,19 @@ export function registerAuthorizeRoute(app: FastifyInstance, deps: AuthorizeRout
         request.headers.cookie,
         reply,
       ),
+  );
+
+  app.post<{
+    Params: { realm: string };
+    Body: Record<string, string | string[] | undefined>;
+  }>('/realms/:realm/login-actions/select-account', (request, reply) =>
+    respondToSelectAccountSubmission(
+      deps,
+      request.params.realm,
+      request.body,
+      realmIssuerFor(request, request.params.realm),
+      request.headers.cookie,
+      reply,
+    ),
   );
 }

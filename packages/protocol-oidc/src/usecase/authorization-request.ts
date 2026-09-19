@@ -1,11 +1,13 @@
 import {
   nextRequiredAction,
   type AuthenticatorResult,
+  type PendingRequest,
   type RequiredAction,
   type SessionRecord,
 } from '@odudu/authn-flows';
 import { AUDIENCE_UNCHECKED, verifyJwt, type SigningKeyRecord } from '@odudu/crypto';
 import { type ClientRecord } from '@odudu/domain-realm';
+import { isUuid } from '@odudu/kernel';
 import { type ClientOidcConfig } from '#/schema/client-oidc-config';
 import { type RealmLookup } from '#/repository/realm-lookup';
 import {
@@ -59,7 +61,19 @@ export type AuthorizationRequestOutcome =
       authSessionId: string;
       subjectId: string;
       action: RequiredAction;
-    };
+    }
+  // The browser's cookies resolve to more than one live session, or the
+  // client asked with prompt=select_account (OIDC Core §3.1.2.1): neither
+  // is answerable without asking which account, so a fresh authentication
+  // session is parked — unauthenticated, unlike the reuse promotions above,
+  // because nobody has been identified yet — for the chooser's POST to
+  // resume once one is.
+  | { kind: 'select'; authSessionId: string; accounts: readonly SelectAccountCandidate[] };
+
+export interface SelectAccountCandidate {
+  sessionId: string;
+  displayName: string;
+}
 
 // What resolving the SSO session cookie against a live row yields — the
 // facts decideReuse needs (ResolvedSession) plus the authenticators that
@@ -106,6 +120,11 @@ export interface AuthorizeUsecaseDeps extends ConsentGateDeps {
     realmId: string,
     request: Extract<AuthorizeOutcome, { kind: 'ok' }>['request'],
   ): Promise<{ authSessionId: string }>;
+  // Reads back the request a 'select' outcome parked — the chooser's POST
+  // has no query parameters of its own, so this is its only source of
+  // scope, redirect_uri, nonce, state and code_challenge, exactly as
+  // consent-submission.ts's own loadPendingRequest call is for that POST.
+  loadPendingRequest(realmId: string, authSessionId: string): Promise<PendingRequest | null>;
   // What the realm's flow would ask for first, decided before any
   // authentication session exists — also the honest way to notice a flow
   // with no applicable execution at all: OIDC Core §3.1.2.1's `prompt=login`
@@ -147,6 +166,16 @@ export interface AuthorizeUsecaseDeps extends ConsentGateDeps {
     subjectId: string,
     authenticators: readonly string[],
   ): Promise<void>;
+  // The account chooser's label for each candidate session:
+  // preferred_username falling back to username — never email, a recovery
+  // identifier this page can render on a shared device. A subject with no
+  // row (impossible for a live session's own subject, but not a type this
+  // signature can rule out) is left off the returned map, and the caller
+  // falls back to the subject id itself.
+  accountDisplayNames(
+    realmId: string,
+    subjectIds: readonly string[],
+  ): Promise<ReadonlyMap<string, string>>;
   now(): Date;
 }
 
@@ -365,6 +394,31 @@ export async function handleAuthorizationRequest(
     return { kind: 'reused', code, redirectUri: request.redirectUri, state: request.state };
   }
 
+  if (decision.kind === 'select') {
+    // Parked unauthenticated — no markAuthenticated call, unlike
+    // promoteToParkedRequest above, because nobody has been identified yet.
+    // handleSelectAccountSubmission binds the session once a choice is
+    // posted back and membership against the browser's own cookies is
+    // proven.
+    const { authSessionId } = await deps.startAuthentication(realm.id, {
+      ...request,
+      prompt: [...outcome.prompts],
+      ...(hintSubject !== null ? { idTokenHintSubject: hintSubject } : {}),
+    });
+    const names = await deps.accountDisplayNames(
+      realm.id,
+      decision.candidates.map((candidate) => candidate.subjectId),
+    );
+    return {
+      kind: 'select',
+      authSessionId,
+      accounts: decision.candidates.map((candidate) => ({
+        sessionId: candidate.id,
+        displayName: names.get(candidate.subjectId) ?? candidate.subjectId,
+      })),
+    };
+  }
+
   // A realm whose flow has no applicable execution at all cannot
   // authenticate anyone — the state OIDC Core §3.1.2.1 means by
   // "reauthentication cannot be performed" under `prompt=login`. Checked
@@ -397,6 +451,153 @@ export async function handleAuthorizationRequest(
     form: initial.form,
     rememberMeAllowed: realm.rememberMeAllowed,
   };
+}
+
+export type SelectAccountOutcome =
+  | AuthorizationRequestOutcome
+  | { kind: 'unauthenticated' }
+  // The posted session_id names no member of the set this browser's own
+  // cookies resolve to — refused rather than honoured, because that is the
+  // whole of this endpoint's defence against completing as somebody else's
+  // account (see the module comment on ReusableSession and decideReuse's
+  // own module comment for the property this enforces).
+  | { kind: 'invalid_selection' };
+
+export interface SelectAccountAnswer {
+  sessionId: string | undefined;
+  useOther: boolean;
+}
+
+// The chooser's POST: resolves the browser's own live sessions again — the
+// posted session_id is a claim, and only membership in that fresh set
+// authorises it — then continues exactly the tail handleAuthorizationRequest
+// runs for an ungated 'reuse' decision, with the chosen session standing in
+// for the one decideReuse would have picked unassisted.
+export async function handleSelectAccountSubmission(
+  deps: AuthorizeUsecaseDeps,
+  realmName: string,
+  authSessionId: string | undefined,
+  answer: SelectAccountAnswer,
+  header: string | undefined,
+): Promise<SelectAccountOutcome> {
+  if (authSessionId === undefined || !isUuid(authSessionId)) {
+    return { kind: 'unauthenticated' };
+  }
+
+  const realm = await deps.findRealm(realmName);
+  if (!realm?.enabled) {
+    return { kind: 'unauthenticated' };
+  }
+
+  const pending: PendingRequest | null = await deps.loadPendingRequest(realm.id, authSessionId);
+  if (pending === null) {
+    return { kind: 'unauthenticated' };
+  }
+
+  if (answer.useOther) {
+    const initial = await deps.initialChallenge(realm.id);
+    if (initial.kind !== 'challenge') {
+      if (initial.kind === 'success') {
+        throw new Error('unreachable: initialChallenge succeeded with no input submitted');
+      }
+      return {
+        kind: 'redirect',
+        redirectUri: pending.redirectUri,
+        error: 'login_required',
+        state: pending.state,
+      };
+    }
+    // The same parked authentication session, not a fresh one: nobody was
+    // ever bound to it, so the ordinary login form resumes it exactly as if
+    // it had rendered that form to begin with.
+    return {
+      kind: 'started',
+      authSessionId,
+      form: initial.form,
+      rememberMeAllowed: realm.rememberMeAllowed,
+    };
+  }
+
+  const realmShape = {
+    id: realm.id,
+    name: realmName,
+    ssoSessionIdleSeconds: realm.ssoSessionIdleSeconds,
+    ssoSessionMaxSeconds: realm.ssoSessionMaxSeconds,
+    rememberMeIdleSeconds: realm.rememberMeIdleSeconds,
+    rememberMeMaxSeconds: realm.rememberMeMaxSeconds,
+  };
+  const sessions = await deps.resolveSessions(realmShape, header);
+  const chosen = sessions.find((session) => session.id === answer.sessionId);
+  if (chosen === undefined) {
+    return { kind: 'invalid_selection' };
+  }
+
+  const resolvedClient = await deps.resolveClient(realm.id, pending.clientId);
+  if (resolvedClient.client === null) {
+    return { kind: 'unauthenticated' };
+  }
+  const client = resolvedClient.client;
+
+  const reject = (error: string): SelectAccountOutcome => ({
+    kind: 'redirect',
+    redirectUri: pending.redirectUri,
+    error,
+    state: pending.state,
+  });
+
+  // The same rule the reuse tail enforces once a candidate is settled: the
+  // End-User a hint names is not whoever the browser happens to have picked.
+  if (pending.idTokenHintSubject !== undefined && pending.idTokenHintSubject !== chosen.subjectId) {
+    return reject('login_required');
+  }
+
+  const refusal = await refusedForUnverifiedEmail(
+    deps,
+    { id: realm.id, verifyEmail: realm.verifyEmail },
+    chosen.subjectId,
+  );
+  if (refusal !== null) return reject('login_required');
+
+  const action = nextRequiredAction(await deps.pendingActions(realm.id, chosen.subjectId));
+  if (action !== null) {
+    await deps.markAuthenticated(realm.id, authSessionId, chosen.subjectId, chosen.authenticators);
+    return { kind: 'required_action', authSessionId, subjectId: chosen.subjectId, action };
+  }
+
+  const gate = await decideConsentGate(
+    deps,
+    realm.id,
+    client.id,
+    chosen.subjectId,
+    pending.scope,
+    pending.prompt,
+  );
+  if (gate.kind === 'refuse') return reject('consent_required');
+  if (gate.kind === 'ask') {
+    await deps.markAuthenticated(realm.id, authSessionId, chosen.subjectId, chosen.authenticators);
+    return {
+      kind: 'consent',
+      authSessionId,
+      clientName: gate.clientName,
+      defaultScopes: gate.defaultScopes,
+      optionalScopes: gate.optionalScopes,
+      alreadyGranted: gate.alreadyGranted,
+    };
+  }
+
+  const { code } = await deps.completeReuse({
+    realmId: realm.id,
+    sessionId: chosen.id,
+    subjectId: chosen.subjectId,
+    clientId: client.id,
+    redirectUri: pending.redirectUri,
+    scope: pending.scope,
+    nonce: pending.nonce,
+    codeChallenge: pending.codeChallenge,
+    codeChallengeMethod: pending.codeChallengeMethod,
+    authTime: chosen.createdAt,
+  });
+  return { kind: 'reused', code, redirectUri: pending.redirectUri, state: pending.state };
 }
 
 export interface IdTokenHintClaims {

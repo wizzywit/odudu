@@ -44,6 +44,7 @@ the URL and never by a header or a parameter.
 | `POST` | `/realms/{realm}/protocol/openid-connect/auth`         | Authorization endpoint (form)                               |
 | `POST` | `/realms/{realm}/login-actions/authenticate`           | Login form submission                                       |
 | `POST` | `/realms/{realm}/login-actions/consent`                | Consent screen submission (allow/deny)                      |
+| `POST` | `/realms/{realm}/login-actions/select-account`         | Account chooser submission                                  |
 | `POST` | `/realms/{realm}/login-actions/required-action`        | Complete a pending required action (enrolment, password)    |
 | `POST` | `/realms/{realm}/login-actions/passkey-challenge`      | Request options for a usernameless passkey assertion        |
 | `GET`  | `/realms/{realm}/login-actions/registration`           | Self-registration form                                      |
@@ -5543,6 +5544,175 @@ active once a third session tried to join a browser already at the cap —
 the second and third logins' own ids are exactly what survive. Nothing
 asked for this browser to end its oldest session; the realm's setting did.
 
+#### Choosing among sessions
+
+More than one live session in the same browser — or a client asking with
+`prompt=select_account` — answers neither with the login form nor with a
+silent reuse: `decideReuse` (`packages/protocol-oidc/src/usecase/session-reuse.ts`)
+returns a `select` outcome, `/authorize` renders a chooser instead, and its
+own POST, `login-actions/select-account`, is where a pick is honoured or
+refused.
+
+A second user seeded into `demo` so this browser can hold sessions for two
+subjects at once:
+
+```bash
+odudu seed user --realm demo --username bob --password another-horse-battery \
+  --email bob@example.com
+```
+
+```json
+{"command":"user","realm":"demo","realmId":"01a0baa4-…","username":"bob","userSubjectId":"01a0baa4-…"}
+```
+
+Two logins, one cookie jar — the second with `prompt=login`, the same way
+[the session cap](#the-session-cap) above forces the form past a cookie
+that would otherwise short-circuit it:
+
+```bash
+VERIFIER=$(openssl rand -hex 32)
+CHALLENGE=$(printf '%s' "$VERIFIER" | openssl dgst -binary -sha256 \
+  | openssl base64 | tr '+/' '-_' | tr -d '=')
+
+AUTH1=$(curl -sS --get \
+  --data-urlencode 'response_type=code' \
+  --data-urlencode 'client_id=demo-spa' \
+  --data-urlencode 'redirect_uri=http://localhost:8080/callback' \
+  --data-urlencode 'scope=openid' \
+  --data-urlencode 'state=alice-login' \
+  --data-urlencode "code_challenge=$CHALLENGE" \
+  --data-urlencode 'code_challenge_method=S256' \
+  "http://localhost:3000/realms/demo/protocol/openid-connect/auth" \
+  | sed -n '/name="auth_session_id"/{s/.*value="\([^"]*\)".*/\1/p;q;}')
+
+curl -sS -c cookies.txt -o /dev/null \
+  --data-urlencode "auth_session_id=$AUTH1" \
+  --data-urlencode 'username=ada' \
+  --data-urlencode 'password=correct-horse-battery' \
+  "http://localhost:3000/realms/demo/login-actions/authenticate"
+
+AUTH2=$(curl -sS -b cookies.txt --get \
+  --data-urlencode 'response_type=code' \
+  --data-urlencode 'client_id=demo-spa' \
+  --data-urlencode 'redirect_uri=http://localhost:8080/callback' \
+  --data-urlencode 'scope=openid' \
+  --data-urlencode 'state=bob-login' \
+  --data-urlencode "code_challenge=$CHALLENGE" \
+  --data-urlencode 'code_challenge_method=S256' \
+  --data-urlencode 'prompt=login' \
+  "http://localhost:3000/realms/demo/protocol/openid-connect/auth" \
+  | sed -n '/name="auth_session_id"/{s/.*value="\([^"]*\)".*/\1/p;q;}')
+
+curl -sS -b cookies.txt -c cookies.txt -o /dev/null \
+  --data-urlencode "auth_session_id=$AUTH2" \
+  --data-urlencode 'username=bob' \
+  --data-urlencode 'password=another-horse-battery' \
+  "http://localhost:3000/realms/demo/login-actions/authenticate"
+
+grep session cookies.txt
+```
+
+```
+#HttpOnly_localhost	FALSE	/	FALSE	0	demo-session	01a0baa4-73e4-79c2-8aa4-d9c6b73ceef9.01a0baa4-8d3c-7693-9086-0446d49daf22
+```
+
+A third `/authorize`, the same cookie jar, no `prompt` at all: the browser
+now names two live sessions, so the chooser renders rather than either
+login answering on its own:
+
+```bash
+curl -sS -b cookies.txt --get \
+  --data-urlencode 'response_type=code' \
+  --data-urlencode 'client_id=demo-spa' \
+  --data-urlencode 'redirect_uri=http://localhost:8080/callback' \
+  --data-urlencode 'scope=openid' \
+  --data-urlencode 'state=xyz-select' \
+  --data-urlencode "code_challenge=$CHALLENGE" \
+  --data-urlencode 'code_challenge_method=S256' \
+  "http://localhost:3000/realms/demo/protocol/openid-connect/auth" -o chooser.html
+cat chooser.html
+```
+
+```
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Choose an account</title></head>
+<body>
+<h1>Choose an account</h1>
+<form method="post" action="/realms/demo/login-actions/select-account">
+  <input type="hidden" name="auth_session_id" value="01a0baa4-a055-7f4a-bf3d-9698d36f0d63">
+  <button type="submit" name="session_id" value="01a0baa4-73e4-79c2-8aa4-d9c6b73ceef9">ada</button>
+  <button type="submit" name="session_id" value="01a0baa4-8d3c-7693-9086-0446d49daf22">bob</button>
+  <button type="submit" name="use_other" value="1">Use another account</button>
+</form>
+</body>
+</html>
+```
+
+The label on each button is `preferred_username` falling back to
+`username` — never `email`, a recovery identifier this page can render on a
+shared device — and the value is the session id itself, not the subject:
+posting it back is the only way this request ever learns which session was
+picked. Picking `ada`'s completes the authorization exactly as an ungated
+reuse would, down to the code and the `iss` a mix-up attack would need to
+fake:
+
+```bash
+AUTH3=$(sed -n '/name="auth_session_id"/{s/.*value="\([^"]*\)".*/\1/p;q;}' chooser.html)
+ADA_SESSION=$(grep -o 'name="session_id" value="[^"]*">ada' chooser.html \
+  | sed -E 's/.*value="([^"]*)".*/\1/')
+
+curl -sS -b cookies.txt -D - -o /dev/null \
+  --data-urlencode "auth_session_id=$AUTH3" \
+  --data-urlencode "session_id=$ADA_SESSION" \
+  "http://localhost:3000/realms/demo/login-actions/select-account"
+```
+
+```
+HTTP/1.1 302 Found
+location: http://localhost:8080/callback?code=wzxlUc1eWVJ7Bh4lfIAJERWArQUKg6UynM0ntrUFGKU&state=xyz-select&iss=http%3A%2F%2Flocalhost%3A3000%2Frealms%2Fdemo
+```
+
+The posted `session_id` is a claim the browser makes, honoured only when it
+names a member of the set this same request's own cookies resolve to — the
+same defence `login-actions/logout`'s confirmation form uses (see
+[RP-initiated logout](#rp-initiated-logout)). A `session_id` naming some
+other live session in the realm — one this browser's cookies never
+named — is refused with 400, not honoured merely because the session
+exists:
+
+```bash
+curl -sS -b cookies.txt -o /dev/null -w '%{http_code}\n' \
+  --data-urlencode "auth_session_id=$AUTH3" \
+  --data-urlencode 'session_id=00000000-0000-0000-0000-000000000000' \
+  "http://localhost:3000/realms/demo/login-actions/select-account"
+```
+
+```
+400
+```
+
+(A well-formed but foreign uuid stands in here for a stranger's real
+session id — see `packages/protocol-oidc/tests/select-account.int.test.ts`
+for the version of this with an actual second browser's live session,
+which is what the integration suite proves this refusal against.)
+
+`use_other=1` in place of `session_id` falls through to the ordinary login
+form instead, on the same parked authentication session — nobody was ever
+bound to it, so a fresh set of credentials starts it exactly as if the
+chooser had never rendered:
+
+```bash
+curl -sS -b cookies.txt -o /dev/null -w '%{http_code}\n' \
+  --data-urlencode "auth_session_id=$AUTH3" \
+  --data-urlencode 'use_other=1' \
+  "http://localhost:3000/realms/demo/login-actions/select-account"
+```
+
+```
+200
+```
+
 ### `id_token_hint`
 
 A hint is checked against the realm's own keys and issuer before anything
@@ -6137,51 +6307,6 @@ session lifecycle. A citation of either half here means that half.
   configuration carrying a credential, and the per-realm secret it needs
   already has a home in the key-encryption interface §5 puts the signing key
   behind.
-- **"Remember me" and the session cap both exist; no account picker for
-  `select_account` yet.** The mechanism a browser's several concurrent
-  sessions need: two cookies per realm, `<realm>-session` (no `Max-Age`)
-  and `<realm>-session-persistent` (`Max-Age` set from the realm's own
-  `remember_me_max_seconds`), each carrying a dot-separated **list** of
-  session ids rather than one
-  (`packages/authn-flows/src/service/session-cookie.ts`). `resolveSessions`
-  reads both cookies together into the browser's whole live set — the one
-  definition `/authorize`'s reuse check, login, consent and logout all read
-  — so a fresh login in a browser that already holds a session now **joins**
-  that set rather than replacing it. `sessions` carries `remembered`
-  (default `false`), which selects both which of the two cookies a
-  session's id is written into and which lifespan pair (`sso_session_*` or
-  `remember_me_*`) `liveByIds` measures it against
-  (`packages/authn-flows/src/service/session-lifespan.ts`). The login form
-  offers a `remember_me` checkbox when `remember_me_allowed` is on (off by
-  default), and ticking it is what sets `remembered` to `true` — gated
-  against that same realm setting in `login-submission.ts`, never on the
-  submitted field's own say-so, so a realm that has not turned the feature
-  on ignores it entirely.
-
-  `admitSession` (`packages/authn-flows/src/usecase/session-admission.ts`,
-  ADR 0033) is now the only place a session row is created: it locks the
-  realm's own row, reads every live session among the ids the browser's
-  own cookies already name, evicts the least recently active down to
-  `realms.max_sessions_per_browser` (1–32, default 25) via
-  `chooseEvictions`, and only then inserts. The cap is per browser, not
-  per subject — a browser can hold sessions for more than one subject,
-  which is what `prompt=select_account` will choose among — so eviction
-  never reads by subject. The realm-row lock — not a lock on the session
-  rows, which the ADR shows performs identically to no lock at all —
-  serialises admissions in a realm, but a fixed id list gathered before it
-  still cannot contain a session a concurrent admission inserts while it
-  waits: sequential logins from one browser converge to exactly the cap,
-  proven by `session-set.int.test.ts`'s "converges to exactly the cap
-  across sequential logins" and end to end by
-  `packages/protocol-oidc/tests/session-cap.int.test.ts`, but two logins
-  racing from the same browser can transiently reach `cap + 1`, corrected
-  at that browser's next login — the accepted residual ADR 0033's
-  amendment records, measured (not merely bounded) by
-  "bounds two concurrent logins at cap plus one, over several races".
-  What is not there yet: with no account-selection UI there is
-  nothing for `prompt=select_account` to offer a choice over, so it still
-  renders the ordinary form, the same as `login` — **P3b**'s next
-  increment, named in its criterion since 2026-09-17.
 
 - **The sign-in, error and consent pages are hardcoded HTML**, dependency-free
   with every interpolated value escaped. Theming and per-client branding are
