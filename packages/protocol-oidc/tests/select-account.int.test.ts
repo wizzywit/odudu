@@ -1,3 +1,4 @@
+import { generateSigningKey, signingKeys, signJwt, type SigningKeyRecord } from '@odudu/crypto';
 import { hashPassword, subjectRepository, userCredentials, users } from '@odudu/domain-identity';
 import {
   createDatabase,
@@ -52,6 +53,9 @@ const BOB_USERNAME = 'bob';
 const BOB_PASSWORD = 'a different passphrase entirely';
 const CAROL_USERNAME = 'carol';
 const CAROL_PASSWORD = 'yet another passphrase again';
+const KEK = Buffer.alloc(32, 9);
+
+const signingKeyOf = new Map<string, SigningKeyRecord>();
 
 async function setupRealm(name: string): Promise<{ realmId: string }> {
   const realmId = newId();
@@ -101,8 +105,50 @@ async function setupRealm(name: string): Promise<{ realmId: string }> {
         secretData: { hash: await hashPassword(password) },
       });
     }
+
+    // A signing key, so an id_token_hint minted for this realm verifies
+    // (OIDC Core §3.1.2.2) the way one issued by /token would.
+    const generated = await generateSigningKey('ES256', KEK);
+    const key: SigningKeyRecord = {
+      id: newId(),
+      realmId,
+      kid: generated.kid,
+      alg: generated.alg,
+      status: 'active',
+      publicJwk: generated.publicJwk,
+      privateJwkEncrypted: generated.privateJwkEncrypted,
+      createdAt: new Date(),
+      notAfter: null,
+    };
+    signingKeyOf.set(name, key);
+    await tx.insert(signingKeys).values({
+      id: key.id,
+      realmId,
+      kid: key.kid,
+      alg: key.alg,
+      status: 'active',
+      publicJwk: key.publicJwk,
+      privateJwkEncrypted: key.privateJwkEncrypted,
+    });
   });
   return { realmId };
+}
+
+async function issuerFor(realmName: string): Promise<string> {
+  const res = await http.inject({
+    url: `/realms/${realmName}/.well-known/openid-configuration`,
+  });
+  return res.json<{ issuer: string }>().issuer;
+}
+
+async function mintIdToken(realmName: string, sub: string): Promise<string> {
+  const key = signingKeyOf.get(realmName);
+  if (key === undefined) throw new Error(`no signing key for ${realmName}`);
+  const now = Math.floor(Date.now() / 1000);
+  return signJwt(
+    { iss: await issuerFor(realmName), aud: CLIENT_ID, sub, iat: now, exp: now + 300 },
+    { key, kek: KEK },
+  );
 }
 
 async function subjectIdOf(realmId: string, username: string): Promise<string> {
@@ -123,6 +169,15 @@ async function liveSessionIdOf(realmId: string, subjectId: string): Promise<stri
   const row = rows[0];
   if (row === undefined) throw new Error(`no live session for subject ${subjectId}`);
   return row.id;
+}
+
+// Ordered oldest first, for a subject a test signs in more than once.
+async function liveSessionIdsOf(realmId: string, subjectId: string): Promise<string[]> {
+  const rows = await owner.db
+    .select({ id: sessions.id, createdAt: sessions.createdAt })
+    .from(sessions)
+    .where(and(eq(sessions.realmId, realmId), eq(sessions.subjectId, subjectId)));
+  return rows.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime()).map((row) => row.id);
 }
 
 function authorizeUrl(
@@ -302,6 +357,31 @@ describe('the account chooser', () => {
 
     expect(res.statusCode).toBe(200);
     expect(res.body).toContain('Choose an account');
+  });
+
+  it('lists one button per subject, keeping the newest of two sessions for the same account', async () => {
+    const realmName = `select-dedupe-${newId()}`;
+    const { realmId } = await setupRealm(realmName);
+    const alice = await subjectIdOf(realmId, ALICE_USERNAME);
+    const jar = new Map<string, string>();
+    await login(realmName, jar, ALICE_USERNAME, ALICE_PASSWORD);
+    await login(realmName, jar, ALICE_USERNAME, ALICE_PASSWORD);
+    await login(realmName, jar, BOB_USERNAME, BOB_PASSWORD);
+    const [olderAliceSessionId, newerAliceSessionId] = await liveSessionIdsOf(realmId, alice);
+    if (olderAliceSessionId === undefined || newerAliceSessionId === undefined) {
+      throw new Error("expected two of alice's own live sessions");
+    }
+
+    const res = await http.inject({
+      url: authorizeUrl(realmName, { prompt: 'select_account' }),
+      headers: { cookie: cookieHeader(jar) },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toContain(newerAliceSessionId);
+    expect(res.body).not.toContain(olderAliceSessionId);
+    const buttons = res.body.match(/name="session_id"/g) ?? [];
+    expect(buttons).toHaveLength(2);
   });
 
   it('[OIDC-CORE-3.1.2.1-15] shows the chooser for prompt=select_account with one live session', async () => {
@@ -518,5 +598,63 @@ describe('the account chooser', () => {
 
     expect(res.statusCode).toBe(200);
     expect(res.body).toContain('name="password"');
+  });
+});
+
+describe('an id_token_hint narrows the chooser to the subject it names', () => {
+  it('reuses the hinted subject rather than rendering the chooser', async () => {
+    const realmName = `select-hint-reuse-${newId()}`;
+    const { realmId } = await setupRealm(realmName);
+    const alice = await subjectIdOf(realmId, ALICE_USERNAME);
+    const jar = new Map<string, string>();
+    await login(realmName, jar, ALICE_USERNAME, ALICE_PASSWORD);
+    await login(realmName, jar, BOB_USERNAME, BOB_PASSWORD);
+    const hint = await mintIdToken(realmName, alice);
+
+    const res = await http.inject({
+      url: authorizeUrl(realmName, { id_token_hint: hint }),
+      headers: { cookie: cookieHeader(jar) },
+    });
+
+    expect(res.statusCode).toBe(302);
+    const location = new URL(locationHeader(res));
+    expect(location.searchParams.get('code')).toBeTruthy();
+  });
+
+  it('returns a code under prompt=none instead of account_selection_required', async () => {
+    const realmName = `select-hint-prompt-none-${newId()}`;
+    const { realmId } = await setupRealm(realmName);
+    const alice = await subjectIdOf(realmId, ALICE_USERNAME);
+    const jar = new Map<string, string>();
+    await login(realmName, jar, ALICE_USERNAME, ALICE_PASSWORD);
+    await login(realmName, jar, BOB_USERNAME, BOB_PASSWORD);
+    const hint = await mintIdToken(realmName, alice);
+
+    const res = await http.inject({
+      url: authorizeUrl(realmName, { id_token_hint: hint, prompt: 'none' }),
+      headers: { cookie: cookieHeader(jar) },
+    });
+
+    expect(res.statusCode).toBe(302);
+    const location = new URL(locationHeader(res));
+    expect(location.searchParams.get('error')).toBeNull();
+    expect(location.searchParams.get('code')).toBeTruthy();
+  });
+});
+
+describe('the chooser POST against a missing body', () => {
+  // Fastify leaves request.body undefined for a POST with no Content-Type
+  // and no payload — respondToSelectAccountSubmission must not throw
+  // reading auth_session_id off it, and instead falls into the ordinary
+  // unauthenticated handling an absent auth_session_id already gets.
+  it('refuses with the unauthenticated page rather than throwing', async () => {
+    const realmName = `select-empty-body-${newId()}`;
+    await setupRealm(realmName);
+
+    const res = await http.inject({
+      method: 'POST',
+      url: `/realms/${realmName}/login-actions/select-account`,
+    });
+    expect(res.statusCode).toBe(400);
   });
 });

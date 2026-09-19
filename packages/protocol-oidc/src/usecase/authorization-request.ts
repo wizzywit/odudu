@@ -182,6 +182,20 @@ export interface AuthorizeUsecaseDeps extends ConsentGateDeps {
   now(): Date;
 }
 
+// Several live sessions for the same subject are one account, not several
+// choices — the chooser shows the newest by authTime and drops the rest.
+// The others stay live; this is a rendering decision, not a logout one.
+function newestPerSubject(candidates: readonly ResolvedSession[]): readonly ResolvedSession[] {
+  const newestBySubject = new Map<string, ResolvedSession>();
+  for (const candidate of candidates) {
+    const current = newestBySubject.get(candidate.subjectId);
+    if (current === undefined || candidate.authTime > current.authTime) {
+      newestBySubject.set(candidate.subjectId, candidate);
+    }
+  }
+  return candidates.filter((candidate) => newestBySubject.get(candidate.subjectId) === candidate);
+}
+
 function toReusableSession(session: SessionRecord): ReusableSession {
   return {
     id: session.id,
@@ -282,8 +296,18 @@ export async function handleAuthorizationRequest(
     header,
   );
   const resolvedSessions = sessions.map(toReusableSession);
+  // A hint names one subject, so only that subject's sessions are reusable
+  // or offered by the chooser here — this is what lets a hinted subject
+  // reuse a live session instead of facing a chooser for other subjects on
+  // the same browser, and what makes prompt=none answer from it rather
+  // than account_selection_required. The chooser POST's own membership
+  // check (handleSelectAccountSubmission) is a separate, later question.
+  const candidateSessions =
+    hintSubject === null
+      ? resolvedSessions
+      : resolvedSessions.filter((session) => session.subjectId === hintSubject);
   const decision = decideReuse({
-    sessions: resolvedSessions,
+    sessions: candidateSessions,
     prompts: outcome.prompts,
     maxAge: outcome.maxAge,
     now: deps.now(),
@@ -300,11 +324,14 @@ export async function handleAuthorizationRequest(
       throw new Error('unreachable: validateAuthorizationRequest succeeded with a null client');
     }
 
-    // The same rule the login form enforces once somebody actually signs
-    // in: the End-User a hint names is not the one who is about to be
-    // reused into this response.
+    // Invariant, not a live check: candidateSessions above already excluded
+    // every session but the hinted subject's own, so decideReuse could not
+    // have reused anybody else. A hint mismatch is refused by falling
+    // through to a fresh authentication instead (the 'authenticate' branch
+    // below), the same door handleLoginSubmission's own hintSubject check
+    // guards once somebody actually signs in there.
     if (hintSubject !== null && hintSubject !== decision.subjectId) {
-      return reject('login_required');
+      throw new Error('unreachable: decideReuse reused a session the hint filter excluded');
     }
 
     // The second door into the same decision handleLoginSubmission's
@@ -411,14 +438,15 @@ export async function handleAuthorizationRequest(
       // handleSelectAccountSubmission's own withinMaxAge call.
       ...(outcome.maxAge !== null ? { maxAge: outcome.maxAge } : {}),
     });
+    const rendered = newestPerSubject(decision.candidates);
     const names = await deps.accountDisplayNames(
       realm.id,
-      decision.candidates.map((candidate) => candidate.subjectId),
+      rendered.map((candidate) => candidate.subjectId),
     );
     return {
       kind: 'select',
       authSessionId,
-      accounts: decision.candidates.map((candidate) => ({
+      accounts: rendered.map((candidate) => ({
         sessionId: candidate.id,
         displayName: names.get(candidate.subjectId) ?? candidate.subjectId,
       })),
