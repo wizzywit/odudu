@@ -493,6 +493,11 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
         ),
       loadPendingRequest: (realmId, authSessionId) =>
         withRealm(deps.database.db, realmId, (tx) => loadPendingRequest(tx, authSessionId)),
+      checkEmailVerification,
+      pendingActions,
+      beginTotpEnrolment: startTotpEnrolment,
+      beginRecoveryCodes: startRecoveryCodes,
+      ...passkeyEnrolment,
       resolveClientId,
       consentContext,
       recordConsent: (realmId, subjectId, clientId, scopeIds) =>

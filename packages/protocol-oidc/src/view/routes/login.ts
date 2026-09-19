@@ -1,9 +1,4 @@
 import {
-  renderPasskeyEnrolmentPage,
-  renderRecoveryCodesPage,
-  renderRequiredActionPage,
-  renderTotpEnrolmentPage,
-  renderUpdatePasswordPage,
   sessionCookieName,
   type AuthenticatorResult,
   type PasskeyAuthenticationOffer,
@@ -22,6 +17,7 @@ import {
 import { renderConsentPage } from '#/view/consent-html';
 import { sendHtml } from '#/view/html-response';
 import { issuerBaseFor } from '#/view/issuer';
+import { sendRequiredActionPage } from '#/view/routes/required-action-response';
 
 export interface LoginRouteDeps extends LoginSubmissionDeps {
   tls: boolean;
@@ -215,49 +211,14 @@ export function registerLoginRoute(app: FastifyInstance, deps: LoginRouteDeps): 
     // Same reasoning as 'unverified': no location header and no code, since
     // nothing was established or issued.
     if (outcome.kind === 'required_action') {
-      const realmName = request.params.realm;
-      const beginPasskey = deps.beginPasskeyEnrolment?.bind(deps);
-      if (outcome.action === 'configure-passkey' && beginPasskey !== undefined) {
-        const realm = await deps.findRealm(realmName);
-        if (realm !== null) {
-          const offer = await beginPasskey(
-            realmName,
-            realm.id,
-            outcome.subjectId,
-            outcome.authSessionId,
-          );
-          return sendHtml(
-            reply,
-            200,
-            renderPasskeyEnrolmentPage(realmName, outcome.authSessionId, offer),
-          );
-        }
-      }
-      if (outcome.action === 'generate-recovery-codes') {
-        const realm = await deps.findRealm(realmName);
-        if (realm !== null) {
-          const offer = await deps.beginRecoveryCodes(realm.id, outcome.subjectId);
-          return sendHtml(
-            reply,
-            200,
-            renderRecoveryCodesPage(realmName, outcome.authSessionId, offer),
-          );
-        }
-      }
-      if (outcome.action === 'update-password') {
-        return sendHtml(reply, 200, renderUpdatePasswordPage(realmName, outcome.authSessionId));
-      }
-      if (outcome.action !== 'configure-totp') {
-        return sendHtml(reply, 200, renderRequiredActionPage(outcome.action));
-      }
-      // The realm was already resolved inside handleLoginSubmission, for the
-      // same reason the 'reject' branch above resolves it again.
-      const realm = await deps.findRealm(realmName);
-      if (realm === null) {
-        return sendHtml(reply, 200, renderRequiredActionPage(outcome.action));
-      }
-      const offer = await deps.beginTotpEnrolment(realmName, realm.id, outcome.subjectId);
-      return sendHtml(reply, 200, renderTotpEnrolmentPage(realmName, outcome.authSessionId, offer));
+      return sendRequiredActionPage(
+        reply,
+        deps,
+        request.params.realm,
+        outcome.authSessionId,
+        outcome.subjectId,
+        outcome.action,
+      );
     }
 
     // Same reasoning as 'unverified' and 'required_action': no location

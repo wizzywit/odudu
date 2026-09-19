@@ -14,11 +14,14 @@ policy, a consent screen with per-scope choice over a client's optional
 scopes, the `client_secret` rate limit at `/token`, the address guard
 `jwks_uri` validation sits behind, and the page-contract retrofit (every
 renderer now returns `RenderedPage`, one authority for a page's headers)
-that P4b's theming will build on. The OIDF Dynamic OP plan runs
-reproducibly with every divergence a recorded decision (ADR 0031) — it
+that P4b's theming will build on. The OIDF Dynamic OP plan is intended to
+run reproducibly with every divergence a recorded decision (ADR 0031),
+the same treatment P1's own criterion already accepted for Basic OP — it
 cannot pass outright, because its discovery check demands response types
-OAuth 2.1 removes, the same shape P1's own criterion already accepted for
-Basic OP.
+OAuth 2.1 removes. Only one run is committed as evidence, though: unlike
+Basic OP, whose directory holds a run and a rerun that agree, "runs
+reproducibly" here is asserted by the plan rather than demonstrated by a
+second execution (`docs/phases/p3a.md`, Task 19).
 
 **What P3b inherits, concretely:**
 
@@ -37,11 +40,16 @@ Basic OP.
   `private_key_jwt` client authentication at `/token`: fetch there, at the
   moment a signature is actually verified, with a refusal that says "the
   signature did not verify" or "the key could not be retrieved" — never
-  the guard's own reasoning. Two known nits to fix while wiring it up for
-  real: `expiresAt` is computed from the pre-fetch clock (a slow fetch
-  shortens its own cache TTL), and there is no in-flight coalescing (two
+  the guard's own reasoning. Three known nits to fix while wiring it up
+  for real: `expiresAt` is computed from the pre-fetch clock (a slow fetch
+  shortens its own cache TTL); there is no in-flight coalescing (two
   concurrent fetches of one URI both reach the network before the cache
-  can suppress the second).
+  can suppress the second); and only a success is cached — `fetchFresh`
+  throws before any cache write, so a failing `jwks_uri` is re-fetched on
+  every call, which is the umbrella spec §6's "a failure is not a
+  permanent cache miss" not yet implemented. Harmless while unwired; worth
+  a negative-cache entry (with its own, shorter TTL) once `/token` is
+  calling this on every `private_key_jwt` verification.
 - **The `claims` request parameter is P3b's**, not P3a's. It was placed in
   P3a by `docs/protocols/oidc-core.md` on the reasoning that it needs the
   per-client machinery and consent screen P3a builds; P3a's own criterion

@@ -147,6 +147,16 @@ decision," verbatim the treatment P1's own criterion already gives Basic
 OP — the repository's established answer to a suite whose own preconditions
 a project has already, deliberately, declined to meet.
 
+**Recorded, not fixed, by the whole-branch review:** "runs reproducibly" is
+not yet demonstrated for Dynamic OP the way it is for Basic OP. Basic OP's
+own precedent (P1) committed a run and a rerun, so its evidence directory
+holds two independent executions that agree. Only one Dynamic OP run is
+committed here — the claim rests on the plan's own text, not on a second
+execution the repository can point to. Not re-run in this pass, which is a
+documentation-only closing pass rather than a conformance re-execution;
+left for whoever next touches the Dynamic OP evidence to add the rerun
+Basic OP already has.
+
 ## Task 18 — the `client_secret` limiter, and an accepted timing oracle
 
 The limiter is real: keyed by realm and client, genuinely injected rather
@@ -263,13 +273,22 @@ to ship a security control with three verified, executed bypasses in it —
 Task 9's fetcher was going to call this function, so parking them would
 have meant every later task building on a guard known to be walkable.
 
-**Ruling 10 — two further findings (bare `::/96` outside the named
-markers; RFC 6052 §2.2 non-`/96` embeddings) were genuinely parked**,
-because each needs an ISATAP tunnel or an unusual stack to exploit, unlike
-round 2's findings, which reached loopback and the metadata service from
-an ordinary registration on an ordinary stack. The first is named as a
-one-line class-level fix (refuse all of `::/96` after the by-name `::`/
-`::1` checks) and is disposed of below, in "Parked minors."
+**Ruling 10 — corrected during the whole-branch review**: the finding as
+recorded here claimed a bare `::/96` residue outside the named markers.
+Re-checked against `ENCAPSULATIONS[0]` in `remote-address.ts`: its `matches`
+predicate accepts `h[5] === 0` with no further constraint on `h[6]`/`h[7]`,
+which is exactly `::/96` — the whole block is already unwrapped and checked,
+not merely the deprecated and mapped forms named in its comment. There is no
+`::/96` gap. The residue RFC 6052 §2.2's non-`/96` embeddings leave
+unguarded is real but narrower and already covered below; a second, distinct
+residue is `::/80` addresses whose sixth hextet is neither `0` nor `0xffff`
+(so `h[0]`–`h[4]` are zero but `h[5]` is not) — these fall through every
+encapsulation, unrecognised as IPv4, and reach the ordinary IPv6 check. That
+range is unrouted (RFC 4291's Unspecified/Loopback carve-outs aside, `::/96`
+downward is deprecated and unallocated), so nothing routable is missed. The
+follow-up this ruling spawned (`spawn_task task_0799dcb9`, "refuse all of
+`::/96`") is against a gap that does not exist and should be dismissed or
+re-scoped to the `::/80` residue instead.
 
 ## Increments 1–3 — the page contract, the schema, dynamic registration's shape
 
@@ -343,12 +362,8 @@ resolved below rather than left to be re-discovered.
   `docs/request-paths.md`'s registration-token section as written — the
   concern does not reproduce against the merged text. No change needed.
 
-**Spun off as immediate follow-ups, not deferred to a phase** (both named
-by the ledger as one-line class-level fixes, both out of scope for a
-documentation-only closing pass to make directly):
+**Spun off as immediate follow-ups, not deferred to a phase**:
 
-- _Task 8_ — refuse all of `::/96` after the by-name `::`/`::1` checks.
-  One line, closes a class rather than a member of it.
 - _Task 4_ — the three `authn-flows` renderers (`update-password-html.ts`,
   `recovery-codes-html.ts`, `passkey-enrolment-html.ts`) still carry a
   local `escapeHtml` instead of importing the package's shared one in
@@ -381,12 +396,13 @@ phase slot:
 
 - _Task 8_ — RFC 6052 §2.2 non-`/96` embeddings under `64:ff9b:1::/48`
   (e.g. `64:ff9b:1:7f00:0:1::`) reach the ordinary IPv6 check unrecognised
-  as IPv4, since the guard only unwraps the `/96` form. Named to the
-  `::/96` follow-up (`spawn_task task_0799dcb9`) as context, but not asked
-  of it: it needs an unusual RFC 6052 deployment to exploit (§2.2 permits
-  several other prefix lengths, none in ordinary use), narrower than the
-  `::/96` gap that follow-up actually closes. Left for whoever next
-  touches `remote-address.ts`'s IPv4-in-IPv6 table.
+  as IPv4, since the guard only unwraps the `/96` form. It needs an unusual
+  RFC 6052 deployment to exploit (§2.2 permits several other prefix
+  lengths, none in ordinary use). Left for whoever next touches
+  `remote-address.ts`'s IPv4-in-IPv6 table, alongside the `::/80` residue
+  Ruling 10 now names above (`h[5]` neither `0` nor `0xffff`) — both are
+  the same class of "unwrapped only at `/96`" gap and worth closing
+  together rather than in two separate passes.
 - _Task 2_ — the page-contract exit test exempts a file by basename rather
   than full path, so a same-named file anywhere else would also be exempt.
   True, and the directory structure this test polices has exactly three

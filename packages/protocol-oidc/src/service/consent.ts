@@ -44,7 +44,12 @@ export function decideConsent(input: ConsentInput): ConsentDecision {
 
   if (!input.consentRequired) return { kind: 'not_required' };
 
-  const missing = [...requested].some((scope) => !grantedSet.has(scope));
+  // Only over what a grant can actually cover — a requested scope outside
+  // the client's declared default/optional vocabulary can never be
+  // recorded (consent-submission.ts's recordedNames is built from exactly
+  // these two sets), so counting it here would ask on every request
+  // forever, with no consent screen able to satisfy the check.
+  const missing = [...askDefault, ...askOptional].some((scope) => !grantedSet.has(scope));
   if (!missing) return { kind: 'not_required' };
 
   if (input.prompt.has('none')) return { kind: 'refuse', error: 'consent_required' };

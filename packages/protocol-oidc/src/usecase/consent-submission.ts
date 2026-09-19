@@ -1,22 +1,32 @@
-import { type PendingRequest } from '@odudu/authn-flows';
+import { nextRequiredAction, type PendingRequest, type RequiredAction } from '@odudu/authn-flows';
 import { isUuid } from '@odudu/kernel';
 import { type RealmLookup } from '#/repository/realm-lookup';
 import {
   completeAuthorizedLogin,
   errorRedirect,
+  refusedForUnverifiedEmail,
   type CompleteLoginInput,
   type CompleteLoginOutcome,
   type ConsentContext,
 } from '#/usecase/login-submission';
 
 // completeAuthorizedLogin's own return type covers every LoginSubmissionOutcome
-// member (required_action, unverified, consent...) because the form path
-// shares it too, but none of those are reachable here: the session this
-// function resumes has already cleared every gate that could produce them.
-// Only the three this handler's own logic can also produce are named.
+// member because the form path shares it too, but only 'redirect' and
+// 'unauthenticated' (an already-consumed session) are reachable from the
+// tail call below — this handler's own two gates below produce 'unverified'
+// and 'required_action' themselves, and 'consent' cannot recur from a
+// session that already answered it.
 export type ConsentSubmissionOutcome =
   | { kind: 'unauthenticated' }
   | { kind: 'error_redirect'; location: string }
+  // The same two gates handleLoginSubmission enforces before it will ever
+  // hand out a 'consent' outcome, enforced again here: the session this
+  // request resumes was parked *before* either check could run (both leave
+  // the authentication session unconsumed on purpose, so the parked request
+  // survives), so a decision=allow posted straight to this endpoint must
+  // clear them too, in the same order, or it is a third door around both.
+  | { kind: 'unverified'; authSessionId: string; hasEmail: boolean }
+  | { kind: 'required_action'; authSessionId: string; subjectId: string; action: RequiredAction }
   | { kind: 'redirect'; location: string; sessionId: string };
 
 export interface ConsentSubmissionDeps {
@@ -43,6 +53,14 @@ export interface ConsentSubmissionDeps {
     scopeIds: readonly string[],
   ): Promise<void>;
   completeLogin(input: CompleteLoginInput): Promise<CompleteLoginOutcome>;
+  // The same two dependencies handleLoginSubmission reads to enforce its own
+  // pre-consent gates — see refusedForUnverifiedEmail and nextRequiredAction
+  // below, this endpoint's only callers of either.
+  checkEmailVerification(
+    realmId: string,
+    subjectId: string,
+  ): Promise<{ verified: boolean; hasEmail: boolean }>;
+  pendingActions(realmId: string, subjectId: string): Promise<readonly RequiredAction[]>;
 }
 
 // The route's whole answer to "what did the person tick and press" — never
@@ -79,12 +97,32 @@ export async function handleConsentSubmission(
   }
   const { subjectId, authenticators } = authenticated;
 
+  // The first of the two gates handleLoginSubmission clears before it will
+  // ever produce a 'consent' outcome — checked here in the same order, for
+  // the same reason: a parked request can only reach this endpoint by
+  // having been refused past this point once already, and a decision=allow
+  // posted straight at it must not skip what the form path never let it
+  // skip. See refusedForUnverifiedEmail's own comment for why this sits
+  // ahead of everything else.
+  const emailRefusal = await refusedForUnverifiedEmail(deps, realm, subjectId);
+  if (emailRefusal !== null) {
+    return { kind: 'unverified', authSessionId, hasEmail: emailRefusal.hasEmail };
+  }
+
   // The only source of scope, redirect_uri, nonce, state and
   // code_challenge — never the request body, for the same reason
   // handleLoginSubmission never reads them from the form.
   const pending = await deps.loadPendingRequest(realm.id, authSessionId);
   if (pending === null) {
     return { kind: 'unauthenticated' };
+  }
+
+  // The second gate handleLoginSubmission clears before 'consent': a
+  // required action owed by this subject, checked before the client is even
+  // resolved, mirroring where the form path checks it.
+  const action = nextRequiredAction(await deps.pendingActions(realm.id, subjectId));
+  if (action !== null) {
+    return { kind: 'required_action', authSessionId, subjectId, action };
   }
 
   const clientId = await deps.resolveClientId(realm.id, pending.clientId);

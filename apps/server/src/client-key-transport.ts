@@ -1,4 +1,8 @@
-import { type ClientKeyRequest, type ClientKeyResponse } from '@odudu/protocol-oidc';
+import {
+  MAX_JWKS_BYTES,
+  type ClientKeyRequest,
+  type ClientKeyResponse,
+} from '@odudu/protocol-oidc';
 import { isIPv6 } from 'node:net';
 import { request as httpsRequest } from 'node:https';
 
@@ -21,7 +25,10 @@ export interface ClientKeyTransportOptions {
 
 const DEFAULT_CONNECT_TIMEOUT_MS = 5_000;
 const DEFAULT_TOTAL_TIMEOUT_MS = 10_000;
-const DEFAULT_MAX_BODY_BYTES = 1_000_000;
+// The one cap on a fetched JWK Set, shared with client-keys.ts's own check
+// on the same bytes — this transport reads the response stream that check
+// runs against, so the two must not drift on the number.
+const DEFAULT_MAX_BODY_BYTES = MAX_JWKS_BYTES;
 
 function firstHeaderValue(value: string | string[] | undefined): string | null {
   if (value === undefined) return null;

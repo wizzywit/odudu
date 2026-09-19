@@ -14,7 +14,7 @@ import {
   type DatabaseHandle,
   type RealmScopedDatabase,
 } from '@odudu/db';
-import { provisionRealm, requiredActionRepository } from '@odudu/authn-flows';
+import { provisionRealm, requiredActionRepository, sessions } from '@odudu/authn-flows';
 import { clients, provisionClientDefaults } from '@odudu/domain-realm';
 import { FakeClock, newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
@@ -44,7 +44,11 @@ const CHALLENGE = 'E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM';
 
 const clock = new FakeClock(new Date('2031-01-01T00:00:00.000Z'));
 
-async function setupRealm(name: string, otpRequired: boolean): Promise<string> {
+async function setupRealm(
+  name: string,
+  otpRequired: boolean,
+  consentRequired = false,
+): Promise<string> {
   const realmId = newId();
   const clientDbId = newId();
   await withRealm(app.db, realmId, async (tx: RealmScopedDatabase) => {
@@ -67,6 +71,7 @@ async function setupRealm(name: string, otpRequired: boolean): Promise<string> {
       audiences: [],
       accessTokenTtlSeconds: 300,
       refreshTokenTtlSeconds: 1_209_600,
+      consentRequired,
     });
     const subject = await subjectRepository(tx).create({ realmId, type: 'user' });
     await tx.insert(users).values({ subjectId: subject.id, realmId, username: USERNAME });
@@ -131,6 +136,15 @@ function actionPost(realmName: string, action: string, fields: Record<string, st
     `/realms/${realmName}/login-actions/required-action?action=${encodeURIComponent(action)}`,
     fields,
   );
+}
+
+function consentPost(realmName: string, fields: Record<string, string>) {
+  return post(`/realms/${realmName}/login-actions/consent`, fields);
+}
+
+async function sessionCount(realmId: string): Promise<number> {
+  const rows = await withRealm(app.db, realmId, (tx) => tx.select().from(sessions));
+  return rows.length;
 }
 
 function offeredSecret(body: string): string {
@@ -636,5 +650,56 @@ describe('a required action is not satisfiable before the login that owes it is 
     expect(changed.statusCode).toBe(200);
     expect(await pendingFor(realmId, subjectId)).toEqual([]);
     expect(await storedPassword(realmId, subjectId)).not.toBe(before);
+  });
+
+  // The third door onto the same gate. A client that requires consent parks
+  // the request on the same auth_session_id whether the login form or the
+  // consent endpoint is what eventually resumes it, so an owed action must
+  // refuse a decision=allow posted straight at /login-actions/consent
+  // exactly as it refuses one taken out of turn on /login-actions/required-
+  // action above — an admin-forced password reset is not something the
+  // authenticating user gets to skip by finding the other door.
+  it('refuses to establish a session from a consent decision while a password reset is owed', async () => {
+    const realmName = `gate-consent-${newId()}`;
+    const realmId = await setupRealm(realmName, false, true);
+    const subjectId = await subjectIdOf(realmId);
+    await withRealm(app.db, realmId, (tx) =>
+      requiredActionRepository(tx).add(realmId, subjectId, 'update-password'),
+    );
+
+    const authSessionId = await startAuthSession(realmName);
+    const owed = await login(realmName, {
+      auth_session_id: authSessionId,
+      username: USERNAME,
+      password: PASSWORD,
+    });
+    expect(owed.statusCode).toBe(200);
+    expect(owed.body).toContain('Change your password');
+
+    const bypass = await consentPost(realmName, {
+      auth_session_id: authSessionId,
+      decision: 'allow',
+    });
+
+    // The evidence that nothing was established or issued, not merely a
+    // status code: a 302 here would be the same page a legitimate consent
+    // grant produces, and only the absence of a cookie and a session row
+    // tells the two apart.
+    expect(bypass.statusCode).toBe(200);
+    expect(bypass.headers['set-cookie']).toBeUndefined();
+    expect(bypass.body).toContain('Change your password');
+    expect(await sessionCount(realmId)).toBe(0);
+    expect(await pendingFor(realmId, subjectId)).toEqual(['update-password']);
+
+    // And the parked login is exactly where it was: still owing the reset
+    // the bypass attempt tried to walk around.
+    const stillOwed = await login(realmName, {
+      auth_session_id: authSessionId,
+      username: USERNAME,
+      password: PASSWORD,
+    });
+    expect(stillOwed.statusCode).toBe(200);
+    expect(stillOwed.headers['set-cookie']).toBeUndefined();
+    expect(stillOwed.body).toContain('Change your password');
   });
 });

@@ -7,7 +7,9 @@ import { sendHtml } from '#/view/html-response';
 
 const VIEW_DIR = import.meta.dirname;
 const HTML_MEDIA_TYPE = ['text', 'html'].join('/');
-const PACKAGES_DIR = join(VIEW_DIR, '..', '..', '..', '..', 'packages');
+const REPO_ROOT = join(VIEW_DIR, '..', '..', '..', '..');
+const PACKAGES_DIR = join(REPO_ROOT, 'packages');
+const APPS_DIR = join(REPO_ROOT, 'apps');
 const HEADER_NAMES = ['content-security-policy', 'x-frame-options', 'referrer-policy'];
 // The two files that legitimately spread the header set `pageHeaders`
 // (`@odudu/kernel`) returns — every other view-layer file gets it only by
@@ -46,6 +48,10 @@ async function headersOf(
   return headers;
 }
 
+// Every package's own view layer, plus every app's whole `src` — apps have
+// no view/usecase/repository split of their own, and a route file wiring a
+// header directly (apps/server/src, say) is exactly what widened this scan:
+// the package-only glob could not see it.
 async function viewSources(): Promise<{ path: string; text: string }[]> {
   const found: { path: string; text: string }[] = [];
   for (const entry of await readdir(PACKAGES_DIR, { withFileTypes: true })) {
@@ -55,6 +61,15 @@ async function viewSources(): Promise<{ path: string; text: string }[]> {
       found.push(...(await sourcesUnder(viewDir)));
     } catch {
       // No view layer in this package.
+    }
+  }
+  for (const entry of await readdir(APPS_DIR, { withFileTypes: true })) {
+    if (!entry.isDirectory()) continue;
+    const srcDir = join(APPS_DIR, entry.name, 'src');
+    try {
+      found.push(...(await sourcesUnder(srcDir)));
+    } catch {
+      // No src directory in this app.
     }
   }
   return found;
@@ -141,7 +156,7 @@ describe('[ODUDU-VIEW-HTML-01] an HTML response cannot leave without its framing
     const offenders = (await viewSources())
       .filter((f) => !EXEMPT_FILES.includes(f.path.split('/').pop() ?? ''))
       .filter((f) => HEADER_NAMES.some((name) => f.text.includes(name)))
-      .map((f) => f.path.slice(PACKAGES_DIR.length + 1));
+      .map((f) => f.path.slice(REPO_ROOT.length + 1));
     expect(offenders).toEqual([]);
   });
 });

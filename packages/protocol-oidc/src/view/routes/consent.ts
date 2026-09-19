@@ -1,11 +1,21 @@
 import { sessionCookieName } from '@odudu/authn-flows';
 import { type FastifyInstance } from 'fastify';
 import { handleConsentSubmission, type ConsentSubmissionDeps } from '#/usecase/consent-submission';
-import { renderAuthorizeErrorPage } from '#/view/authorize-html';
+import { renderAuthorizeErrorPage, renderEmailUnverifiedPage } from '#/view/authorize-html';
 import { sendHtml } from '#/view/html-response';
 import { issuerBaseFor } from '#/view/issuer';
+import {
+  sendRequiredActionPage,
+  type RequiredActionResponseDeps,
+} from '#/view/routes/required-action-response';
 
-export interface ConsentRouteDeps extends ConsentSubmissionDeps {
+// Omits RequiredActionResponseDeps's own `findRealm`: ConsentSubmissionDeps
+// already declares one, and TypeScript refuses to extend two interfaces
+// whose same-named method signatures are not identical, even when they are
+// structurally compatible (RealmLookup is a subtype of the `{ id }` shape
+// sendRequiredActionPage actually reads).
+export interface ConsentRouteDeps
+  extends ConsentSubmissionDeps, Omit<RequiredActionResponseDeps, 'findRealm'> {
   tls: boolean;
 }
 
@@ -57,6 +67,26 @@ export function registerConsentRoute(app: FastifyInstance, deps: ConsentRouteDep
     // attributes' reasoning).
     if (outcome.kind === 'error_redirect') {
       return reply.code(302).header('location', outcome.location).send();
+    }
+
+    // The same two gates login.ts's own form submission can still owe at
+    // this point — nothing is established or issued, so no location header
+    // and no cookie either. See consent-submission.ts's module comment on
+    // ConsentSubmissionOutcome for why a decision=allow has to clear these
+    // too.
+    if (outcome.kind === 'unverified') {
+      return sendHtml(reply, 200, renderEmailUnverifiedPage(outcome.hasEmail));
+    }
+
+    if (outcome.kind === 'required_action') {
+      return sendRequiredActionPage(
+        reply,
+        deps,
+        request.params.realm,
+        outcome.authSessionId,
+        outcome.subjectId,
+        outcome.action,
+      );
     }
 
     const cookieName = sessionCookieName(request.params.realm, deps.tls);

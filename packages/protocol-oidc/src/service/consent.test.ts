@@ -94,4 +94,23 @@ describe('[OIDC-CORE-3.1.2.1-13] decideConsent', () => {
       alreadyGranted: ['profile'],
     });
   });
+
+  // Would fail under an implementation that computes coverage over every
+  // requested scope: a scope outside the client's declared default/optional
+  // vocabulary can never be recorded (consent-submission.ts's recordedNames
+  // is built from exactly those two sets), so counting it toward "missing"
+  // would ask on every request forever, with no consent screen able to
+  // satisfy the check.
+  it('does not require consent when only an ungrantable scope is unrecorded', () => {
+    const decision = decideConsent(
+      input({
+        requestedScopes: ['openid', 'profile', 'unknown-scope'],
+        defaultScopes: ['openid'],
+        optionalScopes: ['profile'],
+        grantedScopes: ['openid', 'profile'],
+        consentRequired: true,
+      }),
+    );
+    expect(decision).toEqual({ kind: 'not_required' });
+  });
 });

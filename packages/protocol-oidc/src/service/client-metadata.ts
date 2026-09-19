@@ -61,9 +61,21 @@ function isLoopbackHost(hostname: string): boolean {
   return hostname === '127.0.0.1' || hostname === '[::1]' || hostname === 'localhost';
 }
 
+// RFC 7591 §5's third bullet is "a non-HTTP application-specific URL", not
+// any scheme a client names — `javascript:`, `data:` and `file:` would
+// otherwise all pass as a bare "carries its own scheme-specific part".
+// RFC 8252 §7.1's reverse-DNS convention (`com.example.app:/cb`) is what a
+// private-use scheme actually looks like, and no dangerous scheme carries a
+// '.' in its own name, so requiring one closes the class without an
+// enumerable — and inevitably incomplete — denylist.
+function isCustomUriScheme(scheme: string): boolean {
+  return scheme.includes('.');
+}
+
 // RFC 7591 §5 MUST: an https URI to any host, an http URI to loopback only,
-// or a non-HTTP scheme carrying its own scheme-specific part. A fragment is
-// refused for every form — RFC 6749 §3.1.2 redirect URIs never carry one.
+// or a non-HTTP application-specific URL carrying its own scheme-specific
+// part. A fragment is refused for every form — RFC 6749 §3.1.2 redirect
+// URIs never carry one.
 function isValidRedirectUri(raw: string): boolean {
   let url: URL;
   try {
@@ -74,13 +86,17 @@ function isValidRedirectUri(raw: string): boolean {
   if (url.hash !== '') return false;
   if (url.protocol === 'https:') return true;
   if (url.protocol === 'http:') return isLoopbackHost(url.hostname);
-  return url.pathname !== '' || url.search !== '' || url.hostname !== '';
+  const scheme = url.protocol.slice(0, -1);
+  return (
+    isCustomUriScheme(scheme) && (url.pathname !== '' || url.search !== '' || url.hostname !== '')
+  );
 }
 
-// Registration-time policy only (OIDC Back-Channel Logout 1.0 §2.2): https,
+// Registration-time policy for both logout URIs (OIDC Back-Channel Logout
+// 1.0 §2.2, Front-Channel Logout 1.0 §2's own registration metadata): https,
 // absolute, no fragment. Unlike the redirect_uri MAY, no exception is made
 // for a confidential client's http URI — see docs/protocols/oidc-backchannel.md.
-function isValidBackchannelLogoutUri(raw: string): boolean {
+function isValidLogoutUri(raw: string): boolean {
   let url: URL;
   try {
     url = new URL(raw);
@@ -177,11 +193,21 @@ export function parseClientMetadata(body: unknown): ClientMetadataOutcome {
 
   if (
     metadata.backchannel_logout_uri !== undefined &&
-    !isValidBackchannelLogoutUri(metadata.backchannel_logout_uri)
+    !isValidLogoutUri(metadata.backchannel_logout_uri)
   ) {
     return invalid(
       'invalid_client_metadata',
       'backchannel_logout_uri must be an absolute https URI with no fragment',
+    );
+  }
+
+  if (
+    metadata.frontchannel_logout_uri !== undefined &&
+    !isValidLogoutUri(metadata.frontchannel_logout_uri)
+  ) {
+    return invalid(
+      'invalid_client_metadata',
+      'frontchannel_logout_uri must be an absolute https URI with no fragment',
     );
   }
 

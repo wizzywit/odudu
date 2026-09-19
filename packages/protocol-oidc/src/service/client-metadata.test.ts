@@ -30,6 +30,23 @@ it.each(['http://127.0.0.1:8080/cb', 'http://[::1]:8080/cb', 'com.example.app:/c
   },
 );
 
+// RFC 7591 §5's third bullet is "a non-HTTP application-specific URL", not
+// any scheme a client can name — these three would previously pass the
+// non-http branch's "carries a scheme-specific part" check unmodified.
+describe('[RFC7591-5-01] a non-HTTP redirect_uri scheme is application-specific', () => {
+  it.each(['javascript:alert(1)', 'data:text/html,x', 'file:///etc/passwd'])(
+    'refuses the dangerous scheme %s',
+    (uri) => {
+      const outcome = parseClientMetadata(ok({ redirect_uris: [uri] }));
+      expect(outcome).toMatchObject({ kind: 'invalid', error: 'invalid_redirect_uri' });
+    },
+  );
+
+  it('accepts a reverse-DNS custom scheme', () => {
+    expect(parseClientMetadata(ok({ redirect_uris: ['com.example.app:/cb'] })).kind).toBe('ok');
+  });
+});
+
 it.each(['http://rp.example/jwks.json', 'https://user:pw@rp.example/j'])(
   'refuses the jwks_uri %s',
   (uri) => {
@@ -166,5 +183,39 @@ describe('[OIDC-BACKCHANNEL-2.2-02] the back-channel logout URI carries no fragm
 
 it('accepts a well-formed back-channel logout URI', () => {
   const outcome = parseClientMetadata(ok({ backchannel_logout_uri: 'https://rp.example/bc' }));
+  expect(outcome.kind).toBe('ok');
+});
+
+// frontchannel_logout_uri is rendered into an iframe (P3b), which is exactly
+// the sink isValidLogoutUri exists to keep a javascript: or bare-http value
+// out of — the same policy the back-channel twin already has above.
+describe('[OIDC-FRONTCHANNEL-2-01] the front-channel logout URI scheme policy', () => {
+  it('refuses a front-channel logout URI that is not https', () => {
+    const outcome = parseClientMetadata(ok({ frontchannel_logout_uri: 'http://rp.example/fc' }));
+    expect(outcome).toMatchObject({ kind: 'invalid', error: 'invalid_client_metadata' });
+  });
+
+  it('refuses a javascript: front-channel logout URI', () => {
+    const outcome = parseClientMetadata(ok({ frontchannel_logout_uri: 'javascript:alert(1)' }));
+    expect(outcome).toMatchObject({ kind: 'invalid', error: 'invalid_client_metadata' });
+  });
+});
+
+describe('[OIDC-FRONTCHANNEL-2-02] the front-channel logout URI is absolute', () => {
+  it('refuses a relative front-channel logout URI', () => {
+    const outcome = parseClientMetadata(ok({ frontchannel_logout_uri: '/fc' }));
+    expect(outcome).toMatchObject({ kind: 'invalid', error: 'invalid_client_metadata' });
+  });
+});
+
+describe('[OIDC-FRONTCHANNEL-2-03] the front-channel logout URI carries no fragment', () => {
+  it('refuses a front-channel logout URI with a fragment', () => {
+    const outcome = parseClientMetadata(ok({ frontchannel_logout_uri: 'https://rp.example/fc#x' }));
+    expect(outcome).toMatchObject({ kind: 'invalid', error: 'invalid_client_metadata' });
+  });
+});
+
+it('accepts a well-formed front-channel logout URI', () => {
+  const outcome = parseClientMetadata(ok({ frontchannel_logout_uri: 'https://rp.example/fc' }));
   expect(outcome.kind).toBe('ok');
 });
