@@ -10,5 +10,6 @@
   "rfc9207.md": { "deferred": 0, "na": 2 },
   "oidc-rpinitiated.md": { "deferred": 0, "na": 1 },
   "oidc-backchannel.md": { "deferred": 12, "na": 7 },
+  "oidc-frontchannel.md": { "deferred": 3, "na": 0 },
   "webauthn2.md": { "deferred": 0, "na": 23 }
 }

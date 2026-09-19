@@ -192,10 +192,9 @@ it('accepts a well-formed back-channel logout URI', () => {
 
 // frontchannel_logout_uri is rendered into an iframe (P3b) — the sink
 // isValidLogoutUri exists to keep a javascript: or bare-http value out of,
-// the same policy the back-channel twin already has above. `ODUDU-` ids:
-// Front-Channel Logout 1.0 carries no docs/protocols clause table yet, so a
-// spec-style id here would fail `pnpm trace` with nothing to resolve against.
-describe('[ODUDU-CLIENT-META-FRONTCHANNEL-SCHEME-01] the front-channel logout URI scheme policy', () => {
+// the same policy the back-channel twin already has above. Ids trace
+// against docs/protocols/oidc-frontchannel.md.
+describe('[OIDC-FRONTCHANNEL-2-SCHEME-01] the front-channel logout URI scheme policy', () => {
   it('refuses a front-channel logout URI that is not https', () => {
     const outcome = parseClientMetadata(ok({ frontchannel_logout_uri: 'http://rp.example/fc' }));
     expect(outcome).toMatchObject({ kind: 'invalid', error: 'invalid_client_metadata' });
@@ -207,14 +206,14 @@ describe('[ODUDU-CLIENT-META-FRONTCHANNEL-SCHEME-01] the front-channel logout UR
   });
 });
 
-describe('[ODUDU-CLIENT-META-FRONTCHANNEL-ABSOLUTE-01] the front-channel logout URI is absolute', () => {
+describe('[OIDC-FRONTCHANNEL-2-ABSOLUTE-01] the front-channel logout URI is absolute', () => {
   it('refuses a relative front-channel logout URI', () => {
     const outcome = parseClientMetadata(ok({ frontchannel_logout_uri: '/fc' }));
     expect(outcome).toMatchObject({ kind: 'invalid', error: 'invalid_client_metadata' });
   });
 });
 
-describe('[ODUDU-CLIENT-META-FRONTCHANNEL-FRAGMENT-01] the front-channel logout URI carries no fragment', () => {
+describe('[OIDC-FRONTCHANNEL-2-FRAGMENT-01] the front-channel logout URI carries no fragment', () => {
   it('refuses a front-channel logout URI with a fragment', () => {
     const outcome = parseClientMetadata(ok({ frontchannel_logout_uri: 'https://rp.example/fc#x' }));
     expect(outcome).toMatchObject({ kind: 'invalid', error: 'invalid_client_metadata' });
