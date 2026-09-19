@@ -2,6 +2,7 @@ import {
   nextRequiredAction,
   type AuthenticatorResult,
   type RequiredAction,
+  type SessionRecord,
 } from '@odudu/authn-flows';
 import { AUDIENCE_UNCHECKED, verifyJwt, type SigningKeyRecord } from '@odudu/crypto';
 import { type ClientRecord } from '@odudu/domain-realm';
@@ -111,15 +112,15 @@ export interface AuthorizeUsecaseDeps extends ConsentGateDeps {
   // with no applicable execution at all: OIDC Core §3.1.2.1's `prompt=login`
   // MUST, "an error is returned if reauthentication cannot be performed".
   initialChallenge(realmId: string): Promise<AuthenticatorResult>;
-  // The SSO session cookie's value, resolved to a live row (never trusted
-  // for anything but that lookup) — sessionRepository(tx).liveById scoped
-  // to the realm's own idle window, read off the already-resolved `realm`
-  // rather than a second lookup by id. Null for no cookie, an unknown id,
-  // or one that has idled out or hit its ceiling.
-  resolveSession(
-    realm: RealmLookup,
-    cookieValue: string | undefined,
-  ): Promise<ReusableSession | null>;
+  // The browser's session cookies, resolved to their live rows (never
+  // trusted for anything but that lookup) — sessionRepository(tx).liveByIds
+  // scoped to the realm's own idle window. decideReuse still decides over
+  // one session (Task 10 changes that); handleAuthorizationRequest picks
+  // the most recently active of the set resolved here.
+  resolveSessions(
+    realm: { id: string; name: string; ssoSessionIdleSeconds: number },
+    header: string | undefined,
+  ): Promise<SessionRecord[]>;
   // The same gate handleLoginSubmission enforces, shared so a cookie-borne
   // login cannot complete for a subject a password login would refuse.
   checkEmailVerification: LoginSubmissionDeps['checkEmailVerification'];
@@ -144,6 +145,24 @@ export interface AuthorizeUsecaseDeps extends ConsentGateDeps {
   now(): Date;
 }
 
+// decideReuse still decides over one session (Task 10 changes that). A
+// browser with more than one live session hands it the most recently
+// active, the same stand-in logout's own CSRF check makes for decideLogout.
+function mostRecentlyActiveSession(sessions: readonly SessionRecord[]): ReusableSession | null {
+  const latest = sessions.reduce<SessionRecord | null>(
+    (current, candidate) =>
+      current === null || candidate.lastActiveAt > current.lastActiveAt ? candidate : current,
+    null,
+  );
+  if (latest === null) return null;
+  return {
+    sessionId: latest.id,
+    subjectId: latest.subjectId,
+    authTime: latest.createdAt,
+    authenticators: latest.authenticators,
+  };
+}
+
 // An unknown or disabled realm is indistinguishable from an unknown or
 // disabled client for the same reason discovery and JWKS already treat them
 // that way: there is no client to trust a redirect_uri against, so this
@@ -156,10 +175,10 @@ export async function handleAuthorizationRequest(
   // This realm's issuer identifier, as the discovery document states it: the
   // `iss` an id_token_hint has to carry to have come from here.
   issuer: string,
-  // The SSO session cookie's raw value, read by the route from the request
-  // header and trusted for nothing but the lookup resolveSession performs
-  // with it — no claim in it, no subject id from it.
-  cookieValue: string | undefined,
+  // The browser's raw `Cookie` header, read by the route and trusted for
+  // nothing but the lookup resolveSessions performs with it — no claim in
+  // it, no subject id from it.
+  header: string | undefined,
 ): Promise<AuthorizationRequestOutcome> {
   const normalized = normalizeAuthorizeQuery(rawParams);
   if (normalized.kind === 'render') return normalized;
@@ -223,7 +242,11 @@ export async function handleAuthorizationRequest(
   // authentication, or — under `prompt=none` — must be refused because it
   // would otherwise do one of those. The two are decided together rather
   // than in sequence (docs/protocols/oidc-core.md's reading note has why).
-  const resolvedSession = await deps.resolveSession(realm, cookieValue);
+  const sessions = await deps.resolveSessions(
+    { id: realm.id, name: realmName, ssoSessionIdleSeconds: realm.ssoSessionIdleSeconds },
+    header,
+  );
+  const resolvedSession = mostRecentlyActiveSession(sessions);
   const decision = decideReuse({
     session: resolvedSession,
     prompts: outcome.prompts,

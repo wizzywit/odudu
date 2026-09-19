@@ -1,3 +1,4 @@
+import { type SessionRecord } from '@odudu/authn-flows';
 import { type SigningKeyRecord } from '@odudu/crypto';
 import { type RealmLookup } from '#/repository/realm-lookup';
 import { subjectOfIdTokenHint } from '#/usecase/authorization-request';
@@ -89,12 +90,13 @@ export interface LogoutUsecaseDeps {
   // empty list, refusing any redirect rather than resolving one with no
   // client to trust it against (§3).
   postLogoutRedirectUris(realmId: string, oauthClientId: string): Promise<readonly string[]>;
-  // The SSO session cookie's value, resolved to a live row exactly the way
-  // /authorize resolves one — never trusted for anything but that lookup.
-  resolveSession(
-    realm: RealmLookup,
-    cookieValue: string | undefined,
-  ): Promise<LogoutSession | null>;
+  // The browser's session cookies, resolved to their live rows exactly the
+  // way /authorize resolves them — never trusted for anything but that
+  // lookup.
+  resolveSessions(
+    realm: { id: string; name: string; ssoSessionIdleSeconds: number },
+    header: string | undefined,
+  ): Promise<SessionRecord[]>;
   // One transaction: ends the session row and revokes every grant whose
   // session_id is that session (Back-Channel Logout §2.7). Access tokens
   // are not touched — see README.md's logout section for why not.
@@ -111,6 +113,18 @@ async function registeredUris(
   return deps.postLogoutRedirectUris(realmId, clientId);
 }
 
+// decideLogout still decides over one session (Tasks 8 and 10 change that).
+// A browser with more than one live session hands it the most recently
+// active — the same stand-in the reuse decision at /authorize makes.
+function mostRecentlyActive(sessions: readonly SessionRecord[]): LogoutSession | null {
+  const latest = sessions.reduce<SessionRecord | null>(
+    (current, candidate) =>
+      current === null || candidate.lastActiveAt > current.lastActiveAt ? candidate : current,
+    null,
+  );
+  return latest === null ? null : { id: latest.id, subjectId: latest.subjectId };
+}
+
 // A `GET` (or unconfirmed `POST`) against the logout endpoint: the first
 // contact, before anything has been ended. Ends the session immediately
 // only when the hint already proves the End-User's intent (§2); otherwise
@@ -120,13 +134,17 @@ export async function handleLogoutRequest(
   deps: LogoutUsecaseDeps,
   realmName: string,
   issuer: string,
-  cookieValue: string | undefined,
+  header: string | undefined,
   params: LogoutRequestParams,
 ): Promise<LogoutOutcome> {
   const realm = await deps.findRealm(realmName);
   if (!realm?.enabled) return { kind: 'not_found' };
 
-  const session = await deps.resolveSession(realm, cookieValue);
+  const sessions = await deps.resolveSessions(
+    { id: realm.id, name: realmName, ssoSessionIdleSeconds: realm.ssoSessionIdleSeconds },
+    header,
+  );
+  const session = mostRecentlyActive(sessions);
   const hint =
     params.idTokenHint === null
       ? null
@@ -180,11 +198,11 @@ export async function handleLogoutRequest(
 
 export interface LogoutConfirmationParams {
   // The value the confirmation form's hidden field carried — a
-  // double-submit cookie check, not a single-use token: it *is* the
-  // session cookie's own value, echoed back and compared against what the
-  // cookie itself still resolves to. Only a browser holding that
-  // HttpOnly cookie can supply a match, which is what stops a forged
-  // cross-site POST from ending it.
+  // double-submit cookie check, not a single-use token: it *is* one of the
+  // session cookies' own values, echoed back and checked for membership in
+  // the set the cookies themselves still resolve to. Only a browser
+  // holding an HttpOnly cookie can name a member, which is what stops a
+  // forged cross-site POST from ending it.
   confirmedSessionId: string;
   clientId: string | null;
   postLogoutRedirectUri: string | null;
@@ -198,16 +216,21 @@ export interface LogoutConfirmationParams {
 export async function handleLogoutConfirmation(
   deps: LogoutUsecaseDeps,
   realmName: string,
-  cookieValue: string | undefined,
+  header: string | undefined,
   params: LogoutConfirmationParams,
 ): Promise<LogoutOutcome> {
   const realm = await deps.findRealm(realmName);
   if (!realm?.enabled) return { kind: 'not_found' };
 
-  const session = await deps.resolveSession(realm, cookieValue);
-  if (session?.id !== params.confirmedSessionId) {
+  const sessions = await deps.resolveSessions(
+    { id: realm.id, name: realmName, ssoSessionIdleSeconds: realm.ssoSessionIdleSeconds },
+    header,
+  );
+  const confirmed = sessions.find((candidate) => candidate.id === params.confirmedSessionId);
+  if (confirmed === undefined) {
     return { kind: 'unauthenticated' };
   }
+  const session: LogoutSession = { id: confirmed.id, subjectId: confirmed.subjectId };
 
   const registered = await registeredUris(deps, realm.id, params.clientId);
   // Forcing sid to the session's own id trivially satisfies decideLogout's

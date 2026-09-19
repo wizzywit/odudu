@@ -1,5 +1,5 @@
 import {
-  sessionCookieName,
+  sessionCookies,
   type AuthenticatorResult,
   type PasskeyAuthenticationOffer,
   type PasskeyEnrolmentOffer,
@@ -161,6 +161,7 @@ export function registerLoginRoute(app: FastifyInstance, deps: LoginRouteDeps): 
           ? {}
           : { assertion: parseAssertion(assertion) }),
       },
+      request.headers.cookie,
     );
 
     if (outcome.kind === 'unauthenticated') {
@@ -238,15 +239,16 @@ export function registerLoginRoute(app: FastifyInstance, deps: LoginRouteDeps): 
       );
     }
 
-    const cookieName = sessionCookieName(request.params.realm, deps.tls);
-    const cookie = [
-      `${cookieName}=${outcome.sessionId}`,
-      'HttpOnly',
-      'SameSite=Lax',
-      'Path=/',
-      ...(deps.tls ? ['Secure'] : []),
-    ].join('; ');
+    const written = sessionCookies({
+      realm: request.params.realm,
+      tls: deps.tls,
+      ephemeral: outcome.ephemeralSessionIds,
+      persistent: outcome.persistentSessionIds,
+      persistentMaxAgeSeconds: outcome.persistentMaxAgeSeconds,
+    });
 
-    return reply.code(302).header('set-cookie', cookie).header('location', outcome.location).send();
+    const reply302 = reply.code(302);
+    for (const cookie of written) reply302.header('set-cookie', cookie);
+    return reply302.header('location', outcome.location).send();
   });
 }

@@ -1,4 +1,9 @@
-import { nextRequiredAction, type PendingRequest, type RequiredAction } from '@odudu/authn-flows';
+import {
+  nextRequiredAction,
+  type PendingRequest,
+  type RequiredAction,
+  type SessionRecord,
+} from '@odudu/authn-flows';
 import { isUuid } from '@odudu/kernel';
 import { type RealmLookup } from '#/repository/realm-lookup';
 import {
@@ -27,7 +32,14 @@ export type ConsentSubmissionOutcome =
   // clear them too, in the same order, or it is a third door around both.
   | { kind: 'unverified'; authSessionId: string; hasEmail: boolean }
   | { kind: 'required_action'; authSessionId: string; subjectId: string; action: RequiredAction }
-  | { kind: 'redirect'; location: string; sessionId: string };
+  | {
+      kind: 'redirect';
+      location: string;
+      sessionId: string;
+      ephemeralSessionIds: readonly string[];
+      persistentSessionIds: readonly string[];
+      persistentMaxAgeSeconds: number;
+    };
 
 export interface ConsentSubmissionDeps {
   findRealm(name: string): Promise<RealmLookup | null>;
@@ -53,6 +65,13 @@ export interface ConsentSubmissionDeps {
     scopeIds: readonly string[],
   ): Promise<void>;
   completeLogin(input: CompleteLoginInput): Promise<CompleteLoginOutcome>;
+  // The same session-set authority completeAuthorizedLogin reads on the
+  // form path — see login-submission.ts's LoginSubmissionDeps for the
+  // full comment.
+  resolveSessions(
+    realm: { id: string; name: string; ssoSessionIdleSeconds: number },
+    header: string | undefined,
+  ): Promise<SessionRecord[]>;
   // The same two dependencies handleLoginSubmission reads to enforce its own
   // pre-consent gates — see refusedForUnverifiedEmail and nextRequiredAction
   // below, this endpoint's only callers of either.
@@ -81,6 +100,9 @@ export async function handleConsentSubmission(
   issuerBase: string,
   authSessionId: string | undefined,
   answer: ConsentAnswer,
+  // The browser's `Cookie` header — see login-submission.ts's identical
+  // parameter on handleLoginSubmission.
+  header?: string,
 ): Promise<ConsentSubmissionOutcome> {
   if (authSessionId === undefined || !isUuid(authSessionId)) {
     return { kind: 'unauthenticated' };
@@ -174,12 +196,18 @@ export async function handleConsentSubmission(
   // module comment on ConsentSubmissionOutcome.
   return completeAuthorizedLogin(
     deps,
-    { id: realm.id, name: realmName, ssoSessionMaxSeconds: realm.ssoSessionMaxSeconds },
+    {
+      id: realm.id,
+      name: realmName,
+      ssoSessionMaxSeconds: realm.ssoSessionMaxSeconds,
+      ssoSessionIdleSeconds: realm.ssoSessionIdleSeconds,
+    },
     issuerBase,
     authSessionId,
     { ...pending, scope: finalScopes.join(' ') },
     clientId,
     subjectId,
     authenticators,
+    header,
   ) as Promise<ConsentSubmissionOutcome>;
 }

@@ -1,5 +1,4 @@
-import { sessionCookieName } from '@odudu/authn-flows';
-import { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
+import { type FastifyInstance, type FastifyReply } from 'fastify';
 import { FORM_MEDIA_TYPE } from '#/service/media-type';
 import {
   handleAuthorizationRequest,
@@ -29,22 +28,6 @@ export interface AuthorizeRouteDeps
   passkeyLogin?: boolean;
 }
 
-// The cookie is read here and nowhere else on this path: the usecase
-// receives a bare string and never the request, so it cannot reach for any
-// other header no matter what a future change to it might try. A `Cookie`
-// header this server cannot parse a named value out of is the same as no
-// cookie — a malformed header names no live session either way.
-function readCookie(request: FastifyRequest, name: string): string | undefined {
-  const header = request.headers.cookie;
-  if (typeof header !== 'string') return undefined;
-  for (const part of header.split(';')) {
-    const separator = part.indexOf('=');
-    if (separator === -1) continue;
-    if (part.slice(0, separator).trim() === name) return part.slice(separator + 1).trim();
-  }
-  return undefined;
-}
-
 // OIDC Core §3.1.2 requires both methods; they differ only in where the
 // parameters come from, and share everything after, so they cannot drift
 // out of agreement — down to a POST naming no representation answering
@@ -56,10 +39,13 @@ async function respondToAuthorizationRequest(
   realm: string,
   params: unknown,
   issuer: string,
-  cookieValue: string | undefined,
+  // The browser's raw `Cookie` header, passed through untouched: the
+  // usecase resolves both session cookies out of it, so the route reaches
+  // for no header itself.
+  header: string | undefined,
   reply: FastifyReply,
 ): Promise<FastifyReply> {
-  const outcome = await handleAuthorizationRequest(deps, realm, params, issuer, cookieValue);
+  const outcome = await handleAuthorizationRequest(deps, realm, params, issuer, header);
 
   if (outcome.kind === 'render') {
     return sendHtml(reply, 400, renderAuthorizeErrorPage(outcome.error, outcome.description));
@@ -133,7 +119,7 @@ export function registerAuthorizeRoute(app: FastifyInstance, deps: AuthorizeRout
       request.params.realm,
       request.query,
       realmIssuerFor(request, request.params.realm),
-      readCookie(request, sessionCookieName(request.params.realm, deps.tls)),
+      request.headers.cookie,
       reply,
     ),
   );
@@ -167,7 +153,7 @@ export function registerAuthorizeRoute(app: FastifyInstance, deps: AuthorizeRout
         request.params.realm,
         request.body,
         realmIssuerFor(request, request.params.realm),
-        readCookie(request, sessionCookieName(request.params.realm, deps.tls)),
+        request.headers.cookie,
         reply,
       ),
   );

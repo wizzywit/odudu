@@ -67,6 +67,9 @@ function harness(): Harness {
       scopeIdByName: new Map<string, string>(),
     }),
     grantedScopeIds: vi.fn().mockResolvedValue(new Set<string>()),
+    // No other live session by default — the harness's cases are about the
+    // login gates, not the browser's existing session set.
+    resolveSessions: vi.fn().mockResolvedValue([]),
   };
   return {
     deps,
@@ -126,6 +129,9 @@ describe('handleLoginSubmission — the success path', () => {
       location:
         'https://app.example/callback?code=code-1&state=xyz&iss=https%3A%2F%2Fidp.example%2Frealms%2Facme',
       sessionId: 'session-1',
+      ephemeralSessionIds: ['session-1'],
+      persistentSessionIds: [],
+      persistentMaxAgeSeconds: REALM.ssoSessionMaxSeconds,
     });
     expect(completeLogin).toHaveBeenCalledWith({
       realmId: REALM.id,
