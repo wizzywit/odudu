@@ -13,7 +13,6 @@ import {
   type AuthorizeOutcome,
 } from '#/service/authorize-validation';
 import { normalizeAuthorizeQuery } from '#/service/query-normalization';
-import { mostRecentlyActive } from '#/service/session-selection';
 import {
   decideConsentGate,
   refusedForUnverifiedEmail,
@@ -63,11 +62,10 @@ export type AuthorizationRequestOutcome =
     };
 
 // What resolving the SSO session cookie against a live row yields — the
-// facts decideReuse needs (ResolvedSession), the authenticators that
-// session's own login recorded (carried forward rather than re-derived if
-// consent promotes this reuse into a full authentication session), and the
-// row's own id, needed only afterward, to touch it once reuse is decided.
-export type ReusableSession = ResolvedSession & { sessionId: string; authenticators: string[] };
+// facts decideReuse needs (ResolvedSession) plus the authenticators that
+// session's own login recorded, carried forward rather than re-derived if
+// consent promotes this reuse into a full authentication session.
+export type ReusableSession = ResolvedSession & { authenticators: string[] };
 
 export interface CompleteReuseInput {
   realmId: string;
@@ -115,9 +113,8 @@ export interface AuthorizeUsecaseDeps extends ConsentGateDeps {
   initialChallenge(realmId: string): Promise<AuthenticatorResult>;
   // The browser's session cookies, resolved to their live rows (never
   // trusted for anything but that lookup) — sessionRepository(tx).liveByIds
-  // scoped to the realm's own idle window. decideReuse decides over one
-  // session, while a browser may hold several; handleAuthorizationRequest
-  // picks the most recently active of the set resolved here.
+  // scoped to the realm's own idle window. decideReuse decides over the
+  // whole set resolved here, which may belong to more than one subject.
   resolveSessions(
     realm: {
       id: string;
@@ -153,16 +150,12 @@ export interface AuthorizeUsecaseDeps extends ConsentGateDeps {
   now(): Date;
 }
 
-// decideReuse decides over one session, while a browser may hold several —
-// mostRecentlyActive (#/service/session-selection) is what stands in until
-// it is widened to decide over the resolved set itself.
-function toReusableSession(latest: SessionRecord | null): ReusableSession | null {
-  if (latest === null) return null;
+function toReusableSession(session: SessionRecord): ReusableSession {
   return {
-    sessionId: latest.id,
-    subjectId: latest.subjectId,
-    authTime: latest.createdAt,
-    authenticators: latest.authenticators,
+    id: session.id,
+    subjectId: session.subjectId,
+    authTime: session.createdAt,
+    authenticators: session.authenticators,
   };
 }
 
@@ -256,9 +249,9 @@ export async function handleAuthorizationRequest(
     },
     header,
   );
-  const resolvedSession = toReusableSession(mostRecentlyActive(sessions));
+  const resolvedSessions = sessions.map(toReusableSession);
   const decision = decideReuse({
-    session: resolvedSession,
+    sessions: resolvedSessions,
     prompts: outcome.prompts,
     maxAge: outcome.maxAge,
     now: deps.now(),
@@ -267,8 +260,9 @@ export async function handleAuthorizationRequest(
   if (decision.kind === 'refuse') return reject(decision.error);
 
   if (decision.kind === 'reuse') {
-    if (resolvedSession === null) {
-      throw new Error('unreachable: decideReuse reused with no resolved session');
+    const resolvedSession = resolvedSessions.find((s) => s.id === decision.sessionId);
+    if (resolvedSession === undefined) {
+      throw new Error('unreachable: decideReuse reused a session outside the resolved set');
     }
     if (resolved.client === null) {
       throw new Error('unreachable: validateAuthorizationRequest succeeded with a null client');
@@ -302,7 +296,7 @@ export async function handleAuthorizationRequest(
         ...request,
         prompt: [...outcome.prompts],
         ...(hintSubject !== null ? { idTokenHintSubject: hintSubject } : {}),
-        reuseSessionId: resolvedSession.sessionId,
+        reuseSessionId: resolvedSession.id,
         reuseAuthTime: resolvedSession.authTime.toISOString(),
       });
       await deps.markAuthenticated(
@@ -358,7 +352,7 @@ export async function handleAuthorizationRequest(
 
     const { code } = await deps.completeReuse({
       realmId: realm.id,
-      sessionId: resolvedSession.sessionId,
+      sessionId: resolvedSession.id,
       subjectId: decision.subjectId,
       clientId: resolved.client.id,
       redirectUri: request.redirectUri,
