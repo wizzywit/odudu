@@ -16,6 +16,7 @@ import {
   loadPendingRequest,
   markSessionAuthenticated,
   pendingChallenge,
+  pendingSession,
   readSessionIds,
   recordRememberMe,
   requiredActionRepository,
@@ -410,6 +411,27 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
       ...passkeyEnrolment,
       consentContext,
       grantedScopeIds,
+      // The account chooser's own POST reads back the request a 'select'
+      // outcome parked here. Unlike login.ts's and consent.ts's own
+      // loadPendingRequest calls below, this session was never bound to a
+      // subject, so authenticatedSession's own liveness check cannot gate
+      // it — pendingSession applies the same expiry/consumed checks to a
+      // session that has not yet been authenticated.
+      loadPendingRequest: (realmId, authSessionId) =>
+        withRealm(deps.database.db, realmId, (tx) => pendingSession(tx, authSessionId, clock)),
+      // The chooser's label for each candidate: preferred_username falling
+      // back to username, the same fallback #/service/claims.ts uses for
+      // the preferred_username claim itself — never email, which the
+      // chooser must not print on a shared device.
+      accountDisplayNames: (realmId, subjectIds) =>
+        withRealm(deps.database.db, realmId, async (tx) => {
+          const names = new Map<string, string>();
+          for (const subjectId of new Set(subjectIds)) {
+            const user = await userRepository(tx).bySubjectId(subjectId);
+            if (user !== null) names.set(subjectId, user.preferredUsername ?? user.username);
+          }
+          return names;
+        }),
       // Promotes a reuse into a real authentication session, already bound
       // and authenticated for the reused subject — what the required-action
       // gate and decideConsentGate's 'ask' branch both need to park the

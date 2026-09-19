@@ -61,6 +61,12 @@ export interface PendingRequest {
   // sees `prompt=consent` the way it would have at the moment the request
   // first arrived. Absent is the same as empty: no value was sent.
   prompt?: string[];
+  // The request's own `max_age` (OIDC Core §3.1.2.1), parked so a
+  // selection made after an account-chooser detour is re-checked against
+  // it — a session the chooser excluded for being too old must stay
+  // excluded when its id is posted back, not merely be re-admitted because
+  // it is still live. Absent is the same as no `max_age` sent.
+  maxAge?: number;
   // Present only when this session was started to promote a session reuse
   // into a consent decision (protocol-oidc's authorization-request.ts):
   // the SSO session to complete into, and the instant it actually

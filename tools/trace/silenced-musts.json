@@ -1,6 +1,6 @@
 {
   "jose.md": { "deferred": 0, "na": 1 },
-  "oidc-core.md": { "deferred": 8, "na": 29 },
+  "oidc-core.md": { "deferred": 7, "na": 29 },
   "oidc-discovery.md": { "deferred": 0, "na": 5 },
   "rfc6749.md": { "deferred": 0, "na": 26 },
   "rfc6238.md": { "deferred": 0, "na": 5 },

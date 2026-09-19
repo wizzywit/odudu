@@ -430,9 +430,22 @@ it creates a new one. A lock on the realm's own row serialises logins
 arriving at once, but does not make the cap exact under concurrency: `k`
 racing from the same browser can transiently exceed it by up to `k - 1`,
 corrected at that browser's next login (ADR 0033's accepted residual).
-`prompt=select_account` still renders the ordinary form; account selection
-among several remembered sessions is
-**P3b**'s next increment.
+
+**More than one live session in a browser gets a chooser, not a guess.**
+When `/authorize` resolves several live sessions at once — or the client
+asks with `prompt=select_account` — it renders an account picker instead of
+either reusing one unasked or falling back to the login form; picking one
+posts to `login-actions/select-account` and completes the authorization the
+same way an ungated reuse does. The posted session id is a claim the
+browser makes, honoured only when it names a member of the set that
+request's own cookies resolve to — never merely because it names some live
+session in the realm — which is what stops it from being a way to continue
+as somebody else's account. `prompt=none` with no account resolvable
+answers `account_selection_required` rather than showing any UI, and
+choosing "use another account" falls through to the ordinary login form on
+the same parked request. See [docs/request-paths.md's "Choosing among
+sessions"](docs/request-paths.md#choosing-among-sessions) for a full
+transcript.
 
 **A realm can now end a session.** `GET`/`POST
 /realms/{realm}/protocol/openid-connect/logout` implements OpenID Connect
@@ -991,7 +1004,6 @@ Every row says where it stands, and every row has a phase:
 |                                                                                                        | Where it stands |
 | ------------------------------------------------------------------------------------------------------ | --------------- |
 | A consent screen — `consent_required` is recorded per client, nothing reads it yet                     | P3a             |
-| Several sessions in one browser, and the `prompt=select_account` that needs them                       | P3b             |
 | An account console for self-service credential management, and an operator unlock for a locked account | P4              |
 | An admin API — seeding is the only administrative surface                                              | P4              |
 | Signing-key rotation — the shape exists, the operation does not                                        | P4              |
