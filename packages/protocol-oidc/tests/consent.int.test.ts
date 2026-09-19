@@ -409,6 +409,21 @@ describe('the consent gate on the form path', () => {
     const res = await submitConsent(realmName, '01a0a998-8326-7900-8fa6-dd06b842b269', 'allow', []);
     expect(res.statusCode).toBe(400);
   });
+
+  // Fastify leaves request.body undefined for a POST with no Content-Type
+  // and no payload — a real request a client library can send by omitting
+  // both — and handleConsentSubmission's auth_session_id read must not
+  // throw on it.
+  it('refuses a POST with no content-type and no body, rather than throwing', async () => {
+    const realmName = `consent-empty-body-${newId()}`;
+    await setupRealm(realmName);
+
+    const res = await http.inject({
+      method: 'POST',
+      url: `/realms/${realmName}/login-actions/consent`,
+    });
+    expect(res.statusCode).toBe(400);
+  });
 });
 
 describe('the consent gate applies to a reused SSO session too', () => {
