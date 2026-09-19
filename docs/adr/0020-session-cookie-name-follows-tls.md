@@ -23,7 +23,8 @@ Two ways out were considered:
 ## Decision
 
 **(b).** `sessionCookieName(realm, tls)`
-(`packages/authn-flows/src/index.ts`) is the only place the name is decided.
+(`packages/authn-flows/src/service/session-cookie.ts`) is the only place the
+name is decided.
 
 This keeps the production cookie shape correct from day one, so there is no
 later migration of session cookies; it keeps `pnpm dev` working without a
