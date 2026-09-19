@@ -16,6 +16,17 @@ const REALM = {
   verifyEmail: false,
   ssoSessionMaxSeconds: 36_000,
   ssoSessionIdleSeconds: 1_800,
+  rememberMeAllowed: true,
+  rememberMeIdleSeconds: 604_800,
+  rememberMeMaxSeconds: 2_592_000,
+  maxSessionsPerBrowser: 25,
+};
+
+const REALM_LIFESPANS = {
+  ssoSessionIdleSeconds: REALM.ssoSessionIdleSeconds,
+  ssoSessionMaxSeconds: REALM.ssoSessionMaxSeconds,
+  rememberMeIdleSeconds: REALM.rememberMeIdleSeconds,
+  rememberMeMaxSeconds: REALM.rememberMeMaxSeconds,
 };
 
 const PENDING = {
@@ -35,6 +46,7 @@ interface Harness {
   checkEmailVerification: Mock;
   pendingActions: Mock;
   resetAuthenticationProgress: Mock;
+  recordRememberMe: Mock;
 }
 
 function harness(): Harness {
@@ -47,6 +59,7 @@ function harness(): Harness {
   const checkEmailVerification = vi.fn().mockResolvedValue({ verified: true, hasEmail: true });
   const pendingActions = vi.fn().mockResolvedValue([]);
   const resetAuthenticationProgress = vi.fn().mockResolvedValue(undefined);
+  const recordRememberMe = vi.fn().mockResolvedValue(undefined);
   const deps: LoginSubmissionDeps = {
     findRealm: vi.fn().mockResolvedValue(REALM),
     advance,
@@ -55,6 +68,7 @@ function harness(): Harness {
     checkEmailVerification,
     pendingActions,
     resetAuthenticationProgress,
+    recordRememberMe,
     completeLogin,
     // consentRequired: false is 'not_required' unconditionally — none of
     // this file's cases are about consent, so the gate stays a no-op here;
@@ -78,6 +92,7 @@ function harness(): Harness {
     checkEmailVerification,
     pendingActions,
     resetAuthenticationProgress,
+    recordRememberMe,
   };
 }
 
@@ -133,7 +148,7 @@ describe('handleLoginSubmission — the success path', () => {
       sessionId: 'session-1',
       ephemeralSessionIds: ['session-1'],
       persistentSessionIds: [],
-      persistentMaxAgeSeconds: REALM.ssoSessionMaxSeconds,
+      persistentMaxAgeSeconds: REALM.rememberMeMaxSeconds,
     });
     expect(completeLogin).toHaveBeenCalledWith({
       realmId: REALM.id,
@@ -145,9 +160,83 @@ describe('handleLoginSubmission — the success path', () => {
       nonce: PENDING.nonce,
       codeChallenge: PENDING.codeChallenge,
       codeChallengeMethod: PENDING.codeChallengeMethod,
-      ssoSessionMaxSeconds: REALM.ssoSessionMaxSeconds,
+      remembered: false,
+      lifespans: REALM_LIFESPANS,
+      maxSessionsPerBrowser: REALM.maxSessionsPerBrowser,
+      browserSessionIds: [],
       authenticators: ['password'],
     });
+  });
+
+  it('remembers the login when the field is set and the realm allows it', async () => {
+    const { deps, completeLogin } = harness();
+    const outcome = await handleLoginSubmission(
+      deps,
+      'acme',
+      'https://idp.example',
+      AUTH_SESSION_ID,
+      { username: 'ada', password: 'x' },
+      undefined,
+      true,
+    );
+
+    expect(outcome).toMatchObject({ kind: 'redirect' });
+    expect(completeLogin).toHaveBeenCalledWith(
+      expect.objectContaining({
+        remembered: true,
+      }),
+    );
+  });
+
+  it('ignores the field when the realm does not allow remembering', async () => {
+    const { deps, completeLogin } = harness();
+    deps.findRealm = vi.fn().mockResolvedValue({ ...REALM, rememberMeAllowed: false });
+
+    const outcome = await handleLoginSubmission(
+      deps,
+      'acme',
+      'https://idp.example',
+      AUTH_SESSION_ID,
+      { username: 'ada', password: 'x' },
+      undefined,
+      true,
+    );
+
+    expect(outcome).toMatchObject({ kind: 'redirect' });
+    expect(completeLogin).toHaveBeenCalledWith(
+      expect.objectContaining({
+        remembered: false,
+      }),
+    );
+  });
+
+  // completeAuthorizedLogin never runs on this path — the consent POST
+  // runs it later, from recordRememberMe's parked value, not this
+  // request's own field. The same `remembered` variable feeds both
+  // branches today; this only stays true if something keeps asserting it.
+  it('ignores the field on the consent path too, when the realm does not allow remembering', async () => {
+    const { deps, recordRememberMe } = harness();
+    deps.findRealm = vi.fn().mockResolvedValue({ ...REALM, rememberMeAllowed: false });
+    deps.consentContext = vi.fn().mockResolvedValue({
+      clientName: 'Test Client',
+      consentRequired: true,
+      defaultScopes: ['openid'],
+      optionalScopes: [],
+      scopeIdByName: new Map<string, string>(),
+    });
+
+    const outcome = await handleLoginSubmission(
+      deps,
+      'acme',
+      'https://idp.example',
+      AUTH_SESSION_ID,
+      { username: 'ada', password: 'x' },
+      undefined,
+      true,
+    );
+
+    expect(outcome).toMatchObject({ kind: 'consent' });
+    expect(recordRememberMe).toHaveBeenCalledWith(REALM.id, AUTH_SESSION_ID, false);
   });
 });
 

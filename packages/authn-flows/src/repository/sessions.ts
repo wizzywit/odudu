@@ -2,6 +2,7 @@ import { eq, inArray } from 'drizzle-orm';
 import { type RealmScopedDatabase } from '@odudu/db';
 import { sessions, type SessionRecord } from '#/schema/sessions';
 import { isSessionLive } from '#/service/session-liveness';
+import { lifespanFor, type SessionLifespans } from '#/service/session-lifespan';
 
 function toRecord(row: typeof sessions.$inferSelect): SessionRecord {
   return {
@@ -22,6 +23,10 @@ export interface NewSession {
   subjectId: string;
   expiresAt: Date;
   authenticators: string[];
+  // Omitted, a fresh session is ordinary — the schema's own default
+  // (packages/authn-flows/src/schema/sessions.ts). establishSession is the
+  // only caller with a login's own choice to record.
+  remembered?: boolean;
 }
 
 // All persistence for an established SSO session. `byId` is what a later
@@ -64,10 +69,13 @@ export function sessionRepository(tx: RealmScopedDatabase) {
 
     // The set read every session consumer uses now that a browser may hold
     // more than one. Liveness is applied in the same pass rather than by the
-    // caller, so no caller can forget the idle window.
+    // caller, so no caller can forget the idle window — and each record is
+    // measured against its own pair, picked by its own `remembered` column,
+    // so a remembered session beside an ordinary one is never checked
+    // against the other's window.
     async liveByIds(
       ids: readonly string[],
-      idleSeconds: number,
+      realm: SessionLifespans,
       now: Date,
     ): Promise<SessionRecord[]> {
       if (ids.length === 0) return [];
@@ -75,7 +83,10 @@ export function sessionRepository(tx: RealmScopedDatabase) {
         .select()
         .from(sessions)
         .where(inArray(sessions.id, [...ids]));
-      return rows.map(toRecord).filter((record) => isSessionLive(record, idleSeconds, now));
+      return rows.map(toRecord).filter((record) => {
+        const { idleSeconds } = lifespanFor(realm, record.remembered);
+        return isSessionLive(record, idleSeconds, now);
+      });
     },
 
     async endMany(ids: readonly string[], now: Date): Promise<void> {

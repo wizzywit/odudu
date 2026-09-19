@@ -42,4 +42,17 @@ describe('renderLoginForm', () => {
     expect(page.html).toContain('<!doctype html>');
     expect(page.html).toContain(page.body);
   });
+
+  it('offers remember me when the realm allows it', () => {
+    const page = renderLoginForm('acme', 'session-id', 'password', false, true);
+    expect(page.body).toContain(
+      '<input type="checkbox" name="remember_me" id="remember-me" value="true">',
+    );
+    expect(page.body).toContain('Remember me');
+  });
+
+  it('offers nothing when the realm does not allow it', () => {
+    const page = renderLoginForm('acme', 'session-id', 'password', false, false);
+    expect(page.body).not.toContain('remember_me');
+  });
 });

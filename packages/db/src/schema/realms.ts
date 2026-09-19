@@ -64,4 +64,12 @@ export const realms = pgTable('realms', {
   // (packages/db/drizzle/0048_sessions_remembered_and_cap.sql). 25 is the
   // spike-measured default; see docs/superpowers/p3b-spike-cookies.md.
   maxSessionsPerBrowser: integer('max_sessions_per_browser').notNull().default(25),
+  // Whether this realm offers "remember me", and the idle/ceiling pair a
+  // login that takes it is measured against instead of sso_session_*
+  // (packages/db/drizzle/0049_realm_remember_me.sql). See
+  // packages/authn-flows/src/service/session-lifespan.ts for how the two
+  // pairs are chosen between.
+  rememberMeAllowed: boolean('remember_me_allowed').notNull().default(false),
+  rememberMeIdleSeconds: integer('remember_me_idle_seconds').notNull().default(604_800),
+  rememberMeMaxSeconds: integer('remember_me_max_seconds').notNull().default(2_592_000),
 }).enableRLS();

@@ -125,6 +125,11 @@ export function renderLoginForm(
   // id comes from ODUDU_PUBLIC_BASE_URL and nowhere else, so without that
   // there is nothing behind the button.
   passkeyLogin = false,
+  // Whether the realm's `remember_me_allowed` setting is on. The checkbox
+  // is offered on that authority alone; login-submission.ts applies the
+  // same gate again when the form comes back, so nothing here needs to be
+  // trusted for more than what to render.
+  rememberMeAllowed = false,
   // Shown above the fields when a refusal says something the person at the
   // form can act on — see LoginSubmissionOutcome's `reject`.
   error?: string,
@@ -138,13 +143,19 @@ export function renderLoginForm(
   const nonce = passkeyLogin && form === 'password' ? scriptNonce() : null;
   const passkey = nonce === null ? '' : renderPasskeyOption(realm, authSessionId, nonce);
   const message = error === undefined ? '' : `<p><strong>${escapeHtml(error)}</strong></p>\n`;
+  // Never rendered at all when the realm has not turned the setting on —
+  // login-submission.ts's own gate is the one that matters, but a checkbox
+  // this realm could never honour is not offered in the first place.
+  const rememberMe = rememberMeAllowed
+    ? '<label><input type="checkbox" name="remember_me" id="remember-me" value="true"> Remember me</label>\n  '
+    : '';
   return {
     ...page(
       'Sign in',
       `${message}<form method="post" action="${action}">
   <input type="hidden" name="auth_session_id" value="${escapeHtml(authSessionId)}">
   ${renderFormFields(form)}
-  <button type="submit">Sign in</button>
+  ${rememberMe}<button type="submit">Sign in</button>
 </form>${passkey}`,
     ),
     script: nonce === null ? null : { nonce, fetchesSameOrigin: true },

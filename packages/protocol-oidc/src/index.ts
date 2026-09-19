@@ -1,4 +1,5 @@
 import {
+  admitSession,
   advance,
   authenticatedSession,
   authenticatedSubject,
@@ -11,12 +12,12 @@ import {
   completeTotpEnrolment,
   completeUpdatePassword,
   consumeAuthenticationSession,
-  establishSession,
   initialChallenge,
   loadPendingRequest,
   markSessionAuthenticated,
   pendingChallenge,
   readSessionIds,
+  recordRememberMe,
   requiredActionRepository,
   resetAuthenticationProgress,
   sessionRepository,
@@ -173,16 +174,19 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
     // set with a fresh login, and by logout's membership check — never
     // trusted for anything but that lookup.
     const resolveSessions = (
-      realm: { id: string; name: string; ssoSessionIdleSeconds: number },
+      realm: {
+        id: string;
+        name: string;
+        ssoSessionIdleSeconds: number;
+        ssoSessionMaxSeconds: number;
+        rememberMeIdleSeconds: number;
+        rememberMeMaxSeconds: number;
+      },
       header: string | undefined,
     ) => {
       const ids = readSessionIds(header, realm.name, tls);
       return withRealm(deps.database.db, realm.id, (tx) =>
-        sessionRepository(tx).liveByIds(
-          [...ids.ephemeral, ...ids.persistent],
-          realm.ssoSessionIdleSeconds,
-          clock.now(),
-        ),
+        sessionRepository(tx).liveByIds([...ids.ephemeral, ...ids.persistent], realm, clock.now()),
       );
     };
 
@@ -260,15 +264,20 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
           sessionId = reuseSession.sessionId;
           authTime = reuseSession.authTime;
         } else {
-          const established = await establishSession(
+          const admitted = await admitSession(
             tx,
-            input.realmId,
-            input.subjectId,
-            input.ssoSessionMaxSeconds,
-            input.authenticators,
+            {
+              realmId: input.realmId,
+              subjectId: input.subjectId,
+              authenticators: input.authenticators,
+              remembered: input.remembered,
+              browserSessionIds: input.browserSessionIds,
+              maxSessionsPerBrowser: input.maxSessionsPerBrowser,
+              lifespans: input.lifespans,
+            },
             clock,
           );
-          sessionId = established.sessionId;
+          sessionId = admitted.sessionId;
           authTime = now;
         }
 
@@ -466,6 +475,10 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
       resetAuthenticationProgress: (realmId, authSessionId) =>
         withRealm(deps.database.db, realmId, (tx) =>
           resetAuthenticationProgress(tx, authSessionId),
+        ),
+      recordRememberMe: (realmId, authSessionId, remembered) =>
+        withRealm(deps.database.db, realmId, (tx) =>
+          recordRememberMe(tx, authSessionId, remembered),
         ),
       advance: (realmId, authSessionId, input) =>
         withRealm(deps.database.db, realmId, (tx) =>

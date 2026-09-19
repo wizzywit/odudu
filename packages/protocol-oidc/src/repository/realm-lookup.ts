@@ -9,13 +9,25 @@ export interface RealmLookup {
   // until an unverified self-registered address is verified — see
   // #/usecase/login-submission.ts.
   verifyEmail: boolean;
-  // The ceiling completeLogin passes to establishSession: the realm's own
+  // The ceiling completeLogin passes to admitSession: the realm's own
   // configured value, not a package-wide constant.
   ssoSessionMaxSeconds: number;
   // The idle window resolveSessions checks a browser's sessions against
   // (sessionRepository(tx).liveByIds) — the realm's own configured value,
   // mirroring ssoSessionMaxSeconds.
   ssoSessionIdleSeconds: number;
+  // The remembered-login pair `lifespanFor` picks between alongside
+  // ssoSessionIdleSeconds/ssoSessionMaxSeconds
+  // (packages/authn-flows/src/service/session-lifespan.ts).
+  rememberMeIdleSeconds: number;
+  rememberMeMaxSeconds: number;
+  // The authority login-submission.ts gates the login form's `remember_me`
+  // field against: a request to remember a login is only ever honoured
+  // when this is true, never on the field's say-so alone.
+  rememberMeAllowed: boolean;
+  // The cap admitSession (ADR 0033) evicts down to before inserting a new
+  // session.
+  maxSessionsPerBrowser: number;
   // The three-state gate the registration endpoint and discovery's
   // registration_endpoint both read: 'disabled' answers neither, 'open'
   // and 'token' both advertise the endpoint and differ only in whether an
@@ -44,6 +56,10 @@ export function realmLookupRepository(db: Database) {
           verifyEmail: realms.verifyEmail,
           ssoSessionMaxSeconds: realms.ssoSessionMaxSeconds,
           ssoSessionIdleSeconds: realms.ssoSessionIdleSeconds,
+          rememberMeIdleSeconds: realms.rememberMeIdleSeconds,
+          rememberMeMaxSeconds: realms.rememberMeMaxSeconds,
+          rememberMeAllowed: realms.rememberMeAllowed,
+          maxSessionsPerBrowser: realms.maxSessionsPerBrowser,
           clientRegistrationPolicy: realms.clientRegistrationPolicy,
         })
         .from(realms)
@@ -71,6 +87,10 @@ export function realmLookupRepository(db: Database) {
           verifyEmail: realms.verifyEmail,
           ssoSessionMaxSeconds: realms.ssoSessionMaxSeconds,
           ssoSessionIdleSeconds: realms.ssoSessionIdleSeconds,
+          rememberMeIdleSeconds: realms.rememberMeIdleSeconds,
+          rememberMeMaxSeconds: realms.rememberMeMaxSeconds,
+          rememberMeAllowed: realms.rememberMeAllowed,
+          maxSessionsPerBrowser: realms.maxSessionsPerBrowser,
           clientRegistrationPolicy: realms.clientRegistrationPolicy,
         });
       const row = rows[0];

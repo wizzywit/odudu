@@ -8,6 +8,10 @@ const REALM: RealmLookup = {
   verifyEmail: false,
   ssoSessionMaxSeconds: 36_000,
   ssoSessionIdleSeconds: 1_800,
+  rememberMeIdleSeconds: 604_800,
+  rememberMeMaxSeconds: 2_592_000,
+  rememberMeAllowed: false,
+  maxSessionsPerBrowser: 25,
   clientRegistrationPolicy: 'open',
 };
 

@@ -11,6 +11,10 @@ const REALM = {
   verifyEmail: false,
   ssoSessionMaxSeconds: 36_000,
   ssoSessionIdleSeconds: 1_800,
+  rememberMeAllowed: true,
+  rememberMeIdleSeconds: 604_800,
+  rememberMeMaxSeconds: 2_592_000,
+  maxSessionsPerBrowser: 25,
   clientRegistrationPolicy: 'disabled' as const,
 };
 
@@ -41,6 +45,7 @@ function deps(): LoginRouteDeps {
     checkEmailVerification: vi.fn().mockResolvedValue({ verified: true, hasEmail: true }),
     pendingActions: vi.fn().mockResolvedValue([]),
     resetAuthenticationProgress: vi.fn().mockResolvedValue(undefined),
+    recordRememberMe: vi.fn().mockResolvedValue(undefined),
     completeLogin: vi
       .fn()
       .mockResolvedValue({ kind: 'issued', sessionId: 'new-session', code: 'code-1' }),

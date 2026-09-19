@@ -856,6 +856,18 @@ export async function resetAuthenticationProgress(
   await authenticationSessionRepository(tx).resetProgress(authSessionId);
 }
 
+// Parks a gated `remember_me` decision on the parked request, for the one
+// caller (handleLoginSubmission's 'consent' branch) that hands a login off
+// to a door — the consent POST — which completes it without asking the
+// field itself. See PendingRequest.rememberMe for the read side.
+export async function recordRememberMe(
+  tx: RealmScopedDatabase,
+  authSessionId: string,
+  rememberMe: boolean,
+): Promise<void> {
+  await authenticationSessionRepository(tx).recordRememberMe(authSessionId, rememberMe);
+}
+
 // The gate that makes an authentication session single-use. The caller
 // (protocol-oidc's login-submission wiring) must run this in the same
 // transaction as issuing whatever the successful login produces, so a
@@ -878,6 +890,11 @@ export async function establishSession(
   // here, because a reused session's `amr`/`acr` must go on describing this
   // login rather than being re-derived at every future token issuance.
   authenticators: readonly string[],
+  // Whether this login was remembered — the realm-gated decision the
+  // caller already made, never re-derived here. Selects which cookie the
+  // session's id is later carried in and which lifespan pair `liveByIds`
+  // measures it against.
+  remembered = false,
   clock: Clock = systemClock,
 ): Promise<{ sessionId: string }> {
   // Always a fresh id, even for the same subject: reusing the pre-auth id
@@ -889,6 +906,7 @@ export async function establishSession(
     subjectId,
     authenticators: [...authenticators],
     expiresAt: new Date(clock.now().getTime() + maxSeconds * 1000),
+    remembered,
   });
   return { sessionId: id };
 }

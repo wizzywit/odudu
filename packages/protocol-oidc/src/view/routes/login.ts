@@ -139,6 +139,10 @@ export function registerLoginRoute(app: FastifyInstance, deps: LoginRouteDeps): 
     const code = firstString(body.code);
     const recoveryCode = firstString(body.recovery_code);
     const assertion = firstString(body.assertion);
+    // Whether the checkbox was ticked, exactly as submitted — the realm's
+    // rememberMeAllowed is what decides whether this does anything at all;
+    // see login-submission.ts's gate.
+    const rememberMe = firstString(body.remember_me) === 'true';
 
     const outcome = await handleLoginSubmission(
       deps,
@@ -162,6 +166,7 @@ export function registerLoginRoute(app: FastifyInstance, deps: LoginRouteDeps): 
           : { assertion: parseAssertion(assertion) }),
       },
       request.headers.cookie,
+      rememberMe,
     );
 
     if (outcome.kind === 'unauthenticated') {
@@ -198,6 +203,7 @@ export function registerLoginRoute(app: FastifyInstance, deps: LoginRouteDeps): 
           outcome.authSessionId,
           form,
           deps.passkeyLogin ?? false,
+          realm?.rememberMeAllowed ?? false,
           outcome.reason,
         ),
       );
