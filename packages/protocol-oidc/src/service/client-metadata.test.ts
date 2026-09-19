@@ -190,15 +190,11 @@ it('accepts a well-formed back-channel logout URI', () => {
   expect(outcome.kind).toBe('ok');
 });
 
-// frontchannel_logout_uri is rendered into an iframe (P3b), which is exactly
-// the sink isValidLogoutUri exists to keep a javascript: or bare-http value
-// out of — the same policy the back-channel twin already has above. `ODUDU-`
-// ids throughout: OpenID Connect Front-Channel Logout 1.0 carries no clause
-// table in docs/protocols yet (unlike its back-channel twin), so a
-// spec-style id here would fail `pnpm trace` with nothing for it to resolve
-// against. Registering and validating the URI ahead of the logout flow
-// itself mirrors the split docs/protocols/oidc-backchannel.md already
-// states for its own twin.
+// frontchannel_logout_uri is rendered into an iframe (P3b) — the sink
+// isValidLogoutUri exists to keep a javascript: or bare-http value out of,
+// the same policy the back-channel twin already has above. `ODUDU-` ids:
+// Front-Channel Logout 1.0 carries no docs/protocols clause table yet, so a
+// spec-style id here would fail `pnpm trace` with nothing to resolve against.
 describe('[ODUDU-CLIENT-META-FRONTCHANNEL-SCHEME-01] the front-channel logout URI scheme policy', () => {
   it('refuses a front-channel logout URI that is not https', () => {
     const outcome = parseClientMetadata(ok({ frontchannel_logout_uri: 'http://rp.example/fc' }));
