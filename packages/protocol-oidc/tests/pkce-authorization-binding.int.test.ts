@@ -12,7 +12,7 @@ import {
 } from '@odudu/db';
 import { PERSISTENT_SUFFIX, provisionRealm, sessionCookieName } from '@odudu/authn-flows';
 import { clients, provisionClientDefaults } from '@odudu/domain-realm';
-import { newId } from '@odudu/kernel';
+import { isUuid, newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import formbody from '@fastify/formbody';
 import { eq } from 'drizzle-orm';
@@ -310,12 +310,8 @@ function setCookies(res: LightMyRequestResponse): string[] {
 // journey happened to produce.
 const COMPACT_JWS = /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]*$/;
 
-// The session cookie's own value is a dot-delimited list of session ids
-// (session-cookie.ts) — three or more concurrent sessions makes that list
-// itself dot-separated, which can coincidentally match COMPACT_JWS without
-// holding a token. Checked by name against the two cookies session-cookie.ts
-// writes, not by shape, so the check stays meaningful once a browser holds
-// more than two sessions.
+// The two cookies session-cookie.ts writes, matched by name rather than by
+// the shape of their value — that value is legitimately dot-separated.
 function isSessionCookie(name: string): boolean {
   const base = sessionCookieName(REALM, false);
   return name === base || name === `${base}${PERSISTENT_SUFFIX}`;
@@ -357,7 +353,12 @@ describe('[RFC6750-5.2-04] no bearer token is ever put in a cookie', () => {
           : [pair.slice(0, separator), pair.slice(separator + 1)];
       })();
       if (isSessionCookie(name)) {
-        for (const id of value.split('.')) expect(id).not.toMatch(COMPACT_JWS);
+        // The positive shape the cookie is defined to hold — every id
+        // readSessionIds would itself keep (session-cookie.ts filters on
+        // exactly this) — rather than a negative "not token-shaped" check,
+        // which a dot-separated list of several ids can satisfy by
+        // accident. Empty is the cleared-list cookie, not a session id.
+        for (const id of value.length === 0 ? [] : value.split('.')) expect(isUuid(id)).toBe(true);
       } else {
         expect(value).not.toMatch(COMPACT_JWS);
       }
