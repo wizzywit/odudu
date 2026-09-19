@@ -72,12 +72,20 @@ const EXPECTED_CHECKS: Record<string, string> = {
   'realms.realms_client_registration_policy_check':
     "CHECK ((client_registration_policy = ANY (ARRAY['disabled'::text, 'open'::text, 'token'::text])))",
   'realms.realms_max_clients_range': 'CHECK ((max_clients >= 0))',
+  'realms.realms_max_sessions_per_browser_range':
+    'CHECK (((max_sessions_per_browser >= 1) AND (max_sessions_per_browser <= 32)))',
   'realms.realms_password_history_bounds':
     'CHECK (((password_history_depth >= 0) AND (password_history_depth <= 24)))',
   'realms.realms_password_max_age_bounds':
     'CHECK (((password_max_age_days >= 0) AND (password_max_age_days <= 3650)))',
   'realms.realms_password_min_length_bounds':
     'CHECK (((password_min_length >= 8) AND (password_min_length <= 256)))',
+  'realms.realms_remember_me_idle_range':
+    'CHECK (((remember_me_idle_seconds >= 60) AND (remember_me_idle_seconds <= 31536000)))',
+  'realms.realms_remember_me_idle_within_max':
+    'CHECK ((remember_me_idle_seconds <= remember_me_max_seconds))',
+  'realms.realms_remember_me_max_range':
+    'CHECK (((remember_me_max_seconds >= 60) AND (remember_me_max_seconds <= 31536000)))',
   'realms.realms_sso_idle_bounds':
     'CHECK (((sso_session_idle_seconds >= 60) AND (sso_session_idle_seconds <= 2592000)))',
   'realms.realms_sso_idle_within_max':

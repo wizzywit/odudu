@@ -10,9 +10,9 @@ import {
   type DatabaseHandle,
   type RealmScopedDatabase,
 } from '@odudu/db';
-import { provisionRealm } from '@odudu/authn-flows';
+import { PERSISTENT_SUFFIX, provisionRealm, sessionCookieName } from '@odudu/authn-flows';
 import { clients, provisionClientDefaults } from '@odudu/domain-realm';
-import { newId } from '@odudu/kernel';
+import { isUuid, newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import formbody from '@fastify/formbody';
 import { eq } from 'drizzle-orm';
@@ -305,10 +305,17 @@ function setCookies(res: LightMyRequestResponse): string[] {
 }
 
 // A JWS Compact Serialization: three base64url segments, the last possibly
-// empty. Every token this server hands a client is one, so a cookie value
-// of that shape is a token in a cookie whether or not it is one of the
-// three this journey happened to produce.
+// empty. Every token this server hands a client is one, so a value of that
+// shape is a token in a cookie whether or not it is one of the three this
+// journey happened to produce.
 const COMPACT_JWS = /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]*$/;
+
+// The two cookies session-cookie.ts writes, matched by name rather than by
+// the shape of their value — that value is legitimately dot-separated.
+function isSessionCookie(name: string): boolean {
+  const base = sessionCookieName(REALM, false);
+  return name === base || name === `${base}${PERSISTENT_SUFFIX}`;
+}
 
 describe('[RFC6750-5.2-04] no bearer token is ever put in a cookie', () => {
   it('sets cookies during the journey, and none of them carries a token', async () => {
@@ -338,8 +345,23 @@ describe('[RFC6750-5.2-04] no bearer token is ever put in a cookie', () => {
       for (const token of [tokens.access_token, tokens.id_token, tokens.refresh_token]) {
         if (token !== undefined) expect(cookie).not.toContain(token);
       }
-      const value = cookie.split(';')[0]?.split('=').slice(1).join('=') ?? '';
-      expect(value).not.toMatch(COMPACT_JWS);
+      const [name, value] = (() => {
+        const pair = cookie.split(';')[0] ?? '';
+        const separator = pair.indexOf('=');
+        return separator === -1
+          ? [pair, '']
+          : [pair.slice(0, separator), pair.slice(separator + 1)];
+      })();
+      if (isSessionCookie(name)) {
+        // The positive shape the cookie is defined to hold — every id
+        // readSessionIds would itself keep (session-cookie.ts filters on
+        // exactly this) — rather than a negative "not token-shaped" check,
+        // which a dot-separated list of several ids can satisfy by
+        // accident. Empty is the cleared-list cookie, not a session id.
+        for (const id of value.length === 0 ? [] : value.split('.')) expect(isUuid(id)).toBe(true);
+      } else {
+        expect(value).not.toMatch(COMPACT_JWS);
+      }
     }
   });
 });

@@ -1,4 +1,5 @@
 import {
+  admitSession,
   advance,
   authenticatedSession,
   authenticatedSubject,
@@ -11,11 +12,13 @@ import {
   completeTotpEnrolment,
   completeUpdatePassword,
   consumeAuthenticationSession,
-  establishSession,
   initialChallenge,
   loadPendingRequest,
   markSessionAuthenticated,
   pendingChallenge,
+  pendingSession,
+  readSessionIds,
+  recordRememberMe,
   requiredActionRepository,
   resetAuthenticationProgress,
   sessionRepository,
@@ -26,7 +29,7 @@ import { effectiveGroupPaths, effectiveRoles } from '@odudu/domain-authz';
 import { withRealm, type DatabaseHandle } from '@odudu/db';
 import { hashPassword, userRepository, verifyPassword } from '@odudu/domain-identity';
 import { clientRepository, clientScopeRepository, consentRepository } from '@odudu/domain-realm';
-import { isUuid, systemClock, type Clock } from '@odudu/kernel';
+import { systemClock, type Clock } from '@odudu/kernel';
 import { type FastifyPluginAsync } from 'fastify';
 import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
 import { tokenGrantRepository } from '#/repository/grants';
@@ -167,6 +170,27 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
         };
       });
 
+    // The one definition of "what is this browser's live session set":
+    // read by /authorize's reuse check, by login and consent to grow the
+    // set with a fresh login, and by logout's membership check — never
+    // trusted for anything but that lookup.
+    const resolveSessions = (
+      realm: {
+        id: string;
+        name: string;
+        ssoSessionIdleSeconds: number;
+        ssoSessionMaxSeconds: number;
+        rememberMeIdleSeconds: number;
+        rememberMeMaxSeconds: number;
+      },
+      header: string | undefined,
+    ) => {
+      const ids = readSessionIds(header, realm.name, tls);
+      return withRealm(deps.database.db, realm.id, (tx) =>
+        sessionRepository(tx).liveByIds([...ids.ephemeral, ...ids.persistent], realm, clock.now()),
+      );
+    };
+
     // Whether the login page offers a passkey button at all: the relying
     // party id comes from ODUDU_PUBLIC_BASE_URL and nowhere else, so
     // without it there is nothing behind one.
@@ -241,15 +265,20 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
           sessionId = reuseSession.sessionId;
           authTime = reuseSession.authTime;
         } else {
-          const established = await establishSession(
+          const admitted = await admitSession(
             tx,
-            input.realmId,
-            input.subjectId,
-            input.ssoSessionMaxSeconds,
-            input.authenticators,
+            {
+              realmId: input.realmId,
+              subjectId: input.subjectId,
+              authenticators: input.authenticators,
+              remembered: input.remembered,
+              browserSessionIds: input.browserSessionIds,
+              maxSessionsPerBrowser: input.maxSessionsPerBrowser,
+              lifespans: input.lifespans,
+            },
             clock,
           );
-          sessionId = established.sessionId;
+          sessionId = admitted.sessionId;
           authTime = now;
         }
 
@@ -374,33 +403,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
       initialChallenge: (realmId) =>
         withRealm(deps.database.db, realmId, (tx) => initialChallenge(tx, realmId)),
       now: () => clock.now(),
-      // The realm's idle window comes from the `realm` the caller already
-      // resolved (its own `findRealm`), not a second lookup by id.
-      resolveSession: async (realm, cookieValue) => {
-        // The cookie is trusted for nothing but this lookup, and a session
-        // id is a UUID column — a value shaped like anything else names no
-        // row rather than raising the invalid-input-syntax error Postgres
-        // would give a raw comparison.
-        if (cookieValue === undefined || !isUuid(cookieValue)) return null;
-        return withRealm(deps.database.db, realm.id, async (tx) => {
-          const record = await sessionRepository(tx).liveById(
-            cookieValue,
-            realm.ssoSessionIdleSeconds,
-            clock.now(),
-          );
-          if (record === null) return null;
-          return {
-            sessionId: record.id,
-            subjectId: record.subjectId,
-            authTime: record.createdAt,
-            // Carried forward for the one case that needs it: a consent
-            // gate promoting this reuse into a real authentication session
-            // (markAuthenticated below), whose amr has to say what the
-            // original login actually used.
-            authenticators: record.authenticators,
-          };
-        });
-      },
+      resolveSessions,
       checkEmailVerification,
       pendingActions,
       beginTotpEnrolment: startTotpEnrolment,
@@ -408,6 +411,27 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
       ...passkeyEnrolment,
       consentContext,
       grantedScopeIds,
+      // The account chooser's own POST reads back the request a 'select'
+      // outcome parked here. Unlike login.ts's and consent.ts's own
+      // loadPendingRequest calls below, this session was never bound to a
+      // subject, so authenticatedSession's own liveness check cannot gate
+      // it — pendingSession applies the same expiry/consumed checks to a
+      // session that has not yet been authenticated.
+      loadPendingRequest: (realmId, authSessionId) =>
+        withRealm(deps.database.db, realmId, (tx) => pendingSession(tx, authSessionId, clock)),
+      // The chooser's label for each candidate: preferred_username falling
+      // back to username, the same fallback #/service/claims.ts uses for
+      // the preferred_username claim itself — never email, which the
+      // chooser must not print on a shared device.
+      accountDisplayNames: (realmId, subjectIds) =>
+        withRealm(deps.database.db, realmId, async (tx) => {
+          const names = new Map<string, string>();
+          for (const subjectId of new Set(subjectIds)) {
+            const user = await userRepository(tx).bySubjectId(subjectId);
+            if (user !== null) names.set(subjectId, user.preferredUsername ?? user.username);
+          }
+          return names;
+        }),
       // Promotes a reuse into a real authentication session, already bound
       // and authenticated for the reused subject — what the required-action
       // gate and decideConsentGate's 'ask' branch both need to park the
@@ -474,6 +498,10 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
         withRealm(deps.database.db, realmId, (tx) =>
           resetAuthenticationProgress(tx, authSessionId),
         ),
+      recordRememberMe: (realmId, authSessionId, remembered) =>
+        withRealm(deps.database.db, realmId, (tx) =>
+          recordRememberMe(tx, authSessionId, remembered),
+        ),
       advance: (realmId, authSessionId, input) =>
         withRealm(deps.database.db, realmId, (tx) =>
           advance(tx, authSessionId, input, clock, {
@@ -489,6 +517,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
       consentContext,
       grantedScopeIds,
       completeLogin,
+      resolveSessions,
     });
     registerConsentRoute(app, {
       findRealm,
@@ -511,6 +540,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
           consentRepository(tx).record(realmId, subjectId, clientId, [...scopeIds]),
         ),
       completeLogin,
+      resolveSessions,
     });
     registerLogoutRoute(app, {
       findRealm,
@@ -527,20 +557,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
           if (client === null) return [];
           return clientOidcConfigRepository(tx).postLogoutRedirectUris(client.id);
         }),
-      // The same cookie-to-live-row resolution /authorize's resolveSession
-      // performs, minus the authTime that only completing a login needs.
-      resolveSession: async (realm, cookieValue) => {
-        if (cookieValue === undefined || !isUuid(cookieValue)) return null;
-        return withRealm(deps.database.db, realm.id, async (tx) => {
-          const record = await sessionRepository(tx).liveById(
-            cookieValue,
-            realm.ssoSessionIdleSeconds,
-            clock.now(),
-          );
-          if (record === null) return null;
-          return { id: record.id, subjectId: record.subjectId };
-        });
-      },
+      resolveSessions,
       // One transaction, per Back-Channel Logout §2.7: end the session, then
       // revoke every grant whose session_id is that session. A failure
       // anywhere rolls both back — a session that ends with its grants

@@ -200,9 +200,14 @@ async function startAuthSession(
   return value;
 }
 
+// Two cookies travel on a successful login now (session-cookie.ts, the one
+// authority): the ephemeral list and the persistent one. This walks the
+// browser's SSO session, never the remembered one, which stays empty until
+// a login can ask to be remembered.
 function setCookieValue(res: LightMyRequestResponse): string | undefined {
   const raw = res.headers['set-cookie'];
-  return typeof raw === 'string' ? raw.split(';')[0] : undefined;
+  const values = raw === undefined ? [] : Array.isArray(raw) ? raw : [raw];
+  return values.find((value) => !value.includes('-persistent='))?.split(';')[0];
 }
 
 function locationHeader(res: LightMyRequestResponse): string {
@@ -395,7 +400,14 @@ describe('a live session cookie completes an authorization request', () => {
     expect(sub).not.toBe(grace);
   });
 
-  it('refuses reuse when an id_token_hint names a different subject', async () => {
+  it('falls through to a fresh login rather than reusing a session for somebody the hint does not name', async () => {
+    // A live session for ada answers nothing about grace: candidateSessions
+    // (authorization-request.ts) excludes ada's session before decideReuse
+    // ever sees it, so this is the same "no reusable session" case a
+    // browser with no cookie at all reaches — the form renders, giving
+    // grace an actual chance to sign in, rather than an immediate refusal
+    // that could never have been satisfied merely by the right person
+    // trying.
     const realmName = `reuse-hint-mismatch-${newId()}`;
     const realmId = await setupRealm(realmName);
     const grace = await subjectIdOf(realmId, OTHER_USERNAME);
@@ -407,8 +419,22 @@ describe('a live session cookie completes an authorization request', () => {
       headers: { cookie },
     });
 
-    expect(res.statusCode).toBe(302);
-    const location = new URL(locationHeader(res));
+    expect(res.statusCode).toBe(200);
+    const authSessionId = /name="auth_session_id" value="([^"]*)"/.exec(res.body)?.[1];
+    if (authSessionId === undefined) throw new Error('auth_session_id not found');
+
+    // ada signing in against this parked request is still refused —
+    // login-submission.ts's own hintSubject check, the door this now
+    // reaches instead of the reuse path's.
+    const wrongSubject = await submitCredentials(
+      http,
+      realmName,
+      authSessionId,
+      USERNAME,
+      PASSWORD,
+    );
+    expect(wrongSubject.statusCode).toBe(302);
+    const location = new URL(locationHeader(wrongSubject));
     expect(location.searchParams.get('error')).toBe('login_required');
     expect(location.searchParams.get('code')).toBeNull();
   });

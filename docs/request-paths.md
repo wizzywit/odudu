@@ -44,6 +44,7 @@ the URL and never by a header or a parameter.
 | `POST` | `/realms/{realm}/protocol/openid-connect/auth`         | Authorization endpoint (form)                               |
 | `POST` | `/realms/{realm}/login-actions/authenticate`           | Login form submission                                       |
 | `POST` | `/realms/{realm}/login-actions/consent`                | Consent screen submission (allow/deny)                      |
+| `POST` | `/realms/{realm}/login-actions/select-account`         | Account chooser submission                                  |
 | `POST` | `/realms/{realm}/login-actions/required-action`        | Complete a pending required action (enrolment, password)    |
 | `POST` | `/realms/{realm}/login-actions/passkey-challenge`      | Request options for a usernameless passkey assertion        |
 | `GET`  | `/realms/{realm}/login-actions/registration`           | Self-registration form                                      |
@@ -843,11 +844,20 @@ curl -sS -D - -o /dev/null \
 ```
 HTTP/1.1 302 Found
 set-cookie: demo-session=01a09678-7150-…; HttpOnly; SameSite=Lax; Path=/
+set-cookie: demo-session-persistent=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
 location: http://localhost:8080/callback?code=g7v4W3JWm05w…&state=xyz-123&iss=http%3A%2F%2Flocalhost%3A3000%2Frealms%2Fdemo
 content-length: 0
 ```
 
 (Session id and code truncated.)
+
+Two `set-cookie` headers, not one: the ephemeral `demo-session` this login
+just established, and `demo-session-persistent` cleared to empty with
+`Max-Age=0` because this submission carried no `remember_me` field. Both
+are always sent so a browser holding a stale persistent cookie from before
+this pair existed loses it on the next login rather than carrying it
+forward unnoticed. [A remembered login](#a-remembered-login) below shows
+the other case.
 
 Three things in that response:
 
@@ -872,6 +882,54 @@ decides whether that is allowed: see
 
 **What the client does next:** verify `state` and `iss`, then redeem the
 code. Immediately: it expires in a minute.
+
+#### A remembered login
+
+The login form renders a `remember_me` checkbox whenever the realm's
+`remember_me_allowed` setting is on (off by default):
+
+```
+<input type="checkbox" name="remember_me" id="remember-me" value="true"> Remember me
+```
+
+`demo`'s setting was turned on for this run —
+`odudu seed realm --name demo --set remember_me_allowed=true` — since it is
+off for every other transcript in this document. Ticking the box and
+submitting the same form puts the new session's id in the **persistent**
+cookie instead:
+
+```bash
+curl -sS -D - -o /dev/null \
+  --data-urlencode "auth_session_id=$AUTH_SESSION_ID" \
+  --data-urlencode 'username=ada' \
+  --data-urlencode 'password=correct-horse-battery' \
+  --data-urlencode 'remember_me=true' \
+  'http://localhost:3000/realms/demo/login-actions/authenticate'
+```
+
+```
+HTTP/1.1 302 Found
+set-cookie: demo-session=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
+set-cookie: demo-session-persistent=01a0ba39-8997-…; HttpOnly; SameSite=Lax; Path=/; Max-Age=2592000
+location: http://localhost:8080/callback?code=r5SsanuPHH-…&state=xyz-123&iss=http%3A%2F%2Flocalhost%3A3000%2Frealms%2Fdemo
+content-length: 0
+```
+
+(Session id and code truncated.) The two cookies swap roles from the
+ordinary case above: `demo-session` is now the one cleared with
+`Max-Age=0`, and `demo-session-persistent` carries this session's id with
+`Max-Age=2592000` — the realm's `remember_me_max_seconds` (default 30
+days), not `sso_session_max_seconds`. The session this establishes is also
+measured against a different idle window while it lives,
+`remember_me_idle_seconds` (default 7 days) rather than
+`sso_session_idle_seconds`.
+
+**The realm setting is the authority, the field is only a request.** A
+realm with `remember_me_allowed` off ignores `remember_me` outright: the
+session it establishes lands in the ephemeral cookie exactly as the
+ordinary transcript above shows, with the persistent cookie still sent but
+cleared, `Max-Age=0` — ticking a box the login page never even offered
+(since the checkbox itself is gated on the same setting) changes nothing.
 
 ### 4. `/token`
 
@@ -1729,6 +1787,7 @@ curl -sS -i -X POST http://localhost:3000/realms/register-demo/login-actions/aut
 ```
 HTTP/1.1 302 Found
 set-cookie: register-demo-session=01a0a14e-…; HttpOnly; SameSite=Lax; Path=/
+set-cookie: register-demo-session-persistent=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
 location: http://localhost:8080/callback?code=tGYl5seSh4jl2tU7-0s2eXNgYDVBDrSjT72wXB_X0FQ&state=xyz123&iss=http%3A%2F%2Flocalhost%3A3000%2Frealms%2Fregister-demo
 ```
 
@@ -2122,6 +2181,7 @@ curl -sS -i -X POST http://localhost:3000/realms/otp-demo/login-actions/authenti
 ```
 HTTP/1.1 302 Found
 set-cookie: otp-demo-session=01a0ae70-c638-7675-9aee-f74d8702bdb7; HttpOnly; SameSite=Lax; Path=/
+set-cookie: otp-demo-session-persistent=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
 location: http://localhost:8080/callback?code=n9kNA0HuUqyrNgWAOFiP9rmxsCr9beOHKx_6RYPZgqY&state=xyz&iss=http%3A%2F%2Flocalhost%3A3000%2Frealms%2Fotp-demo
 ```
 
@@ -2333,6 +2393,7 @@ curl -sS -i -X POST http://localhost:3000/realms/otp-demo/login-actions/authenti
 ```
 HTTP/1.1 302 Found
 set-cookie: otp-demo-session=01a0ae70-ff5f-784a-8a6a-adf79abfba55; HttpOnly; SameSite=Lax; Path=/
+set-cookie: otp-demo-session-persistent=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
 location: http://localhost:8080/callback?code=OUzqSEyTjeest7rUe87XGaCgFBYYNy4oEFVgqhkZ_gw&state=xyz&iss=http%3A%2F%2Flocalhost%3A3000%2Frealms%2Fotp-demo
 ```
 
@@ -2488,6 +2549,7 @@ curl -sS -i -X POST http://localhost:3000/realms/rc8-demo/login-actions/authenti
 ```
 HTTP/1.1 302 Found
 set-cookie: rc8-demo-session=01a0affe-4593-74f9-8f9f-47a787713750; HttpOnly; SameSite=Lax; Path=/
+set-cookie: rc8-demo-session-persistent=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
 location: http://localhost:8080/callback?code=nUko6-JCypR4FzMWkdnBJybv3iTYZU-cnYKrArKSEVk&state=xyz&iss=http%3A%2F%2Flocalhost%3A3000%2Frealms%2Frc8-demo
 content-length: 0
 ```
@@ -3013,6 +3075,7 @@ curl -sS -i -X POST http://localhost:3000/realms/reset-demo/login-actions/authen
 ```
 HTTP/1.1 302 Found
 set-cookie: reset-demo-session=01a0a184-8d8c-…; HttpOnly; SameSite=Lax; Path=/
+set-cookie: reset-demo-session-persistent=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
 location: http://localhost:8080/callback?code=GKAk-hPPPzrge0CYcPOL4VV-K7327epL7ce6UtqfCBw&state=xyz123&iss=http%3A%2F%2Flocalhost%3A3000%2Frealms%2Freset-demo
 ```
 
@@ -3189,6 +3252,7 @@ curl -sS -D - -o /dev/null -X POST http://localhost:3000/realms/expiry-demo/logi
 ```
 HTTP/1.1 302 Found
 set-cookie: expiry-demo-session=01a0ae72-bd69-710f-9411-cab81252891d; HttpOnly; SameSite=Lax; Path=/
+set-cookie: expiry-demo-session-persistent=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
 location: http://localhost:8080/callback?code=nwsvY1PSYQ1TgHC03s8D_o0vTxt7JpxLnIDZBi3S3zg&state=xyz&iss=http%3A%2F%2Flocalhost%3A3000%2Frealms%2Fexpiry-demo
 ```
 
@@ -3380,6 +3444,7 @@ status 200, location ''
 --- the same password, 125 seconds later ---
 HTTP/1.1 302 Found
 set-cookie: lockout-demo-session=01a0ae75-c738-7d3c-aca7-8e3240e94e59; HttpOnly; SameSite=Lax; Path=/
+set-cookie: lockout-demo-session-persistent=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
 location: http://localhost:8080/callback?code=0xnA-pWgF0pNhoe2f7rVhx5kW8Du6sVsM6avD30z2YY&state=xyz-123&iss=http%3A%2F%2Flocalhost%3A3000%2Frealms%2Flockout-demo
 ```
 
@@ -4184,17 +4249,28 @@ curl -sS -b cookies.txt -D - -o /dev/null \
 
 ```
 HTTP/1.1 302 Found
-set-cookie: demo-session=; Max-Age=0; HttpOnly; SameSite=Lax; Path=/
+set-cookie: demo-session=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
+set-cookie: demo-session-persistent=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
 cache-control: no-store
 location: http://localhost:8080/logged-out?state=xyz-bye
 content-length: 0
 ```
 
+Both cookies are cleared, not just the one this login set: logout ends the
+whole SSO session, and a browser could hold a live persistent cookie from a
+different, remembered login even though this walkthrough's own login did
+not set one.
+
 The hint names the session the cookie itself belongs to (OIDC Core §3.1.2.2
 validates it — this realm's own keys, this realm's issuer, an access token
 refused by `typ`), so §2's confirmation is skipped and the exact-match
-`post_logout_redirect_uri` is honoured. The refresh token this session's
-grant issued is now refused:
+`post_logout_redirect_uri` is honoured. A `sid` naming a session outside
+this browser's own resolved set — stale, or another browser's — is treated
+as a hint that names nothing usable: confirmation falls back to whichever
+of this browser's own sessions was most recently active, and the
+confirmation page names that session, not the one the `sid` asked for, so
+nobody is misled about which session confirming will end. The refresh
+token this session's grant issued is now refused:
 
 ```bash
 curl -sS \
@@ -4267,7 +4343,8 @@ curl -sS -b cookies-post.txt -D - -o /dev/null -X POST \
 
 ```
 HTTP/1.1 302 Found
-set-cookie: demo-session=; Max-Age=0; HttpOnly; SameSite=Lax; Path=/
+set-cookie: demo-session=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
+set-cookie: demo-session-persistent=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
 cache-control: no-store
 location: http://localhost:8080/logged-out?state=xyz-bye
 content-length: 0
@@ -4389,7 +4466,8 @@ curl -sS -b cookies-aud.txt -D - -o /dev/null -X POST \
 
 ```
 HTTP/1.1 302 Found
-set-cookie: demo-session=; Max-Age=0; HttpOnly; SameSite=Lax; Path=/
+set-cookie: demo-session=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
+set-cookie: demo-session-persistent=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
 cache-control: no-store
 location: http://localhost:8080/logged-out
 content-length: 0
@@ -4549,7 +4627,8 @@ curl -sS -b cookies-offline.txt -D - \
 
 ```
 HTTP/1.1 200 OK
-set-cookie: demo-session=; Max-Age=0; HttpOnly; SameSite=Lax; Path=/
+set-cookie: demo-session=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
+set-cookie: demo-session-persistent=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
 cache-control: no-store
 
 <!doctype html>
@@ -4689,6 +4768,7 @@ auth_session_id=…&decision=allow
 ```
 HTTP/1.1 302 Found
 set-cookie: demo-session=…; HttpOnly; SameSite=Lax; Path=/
+set-cookie: demo-session-persistent=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
 location: https://rp.example/cb?code=…&state=xyz-123&iss=http://localhost:3000/realms/demo
 ```
 
@@ -5415,6 +5495,246 @@ saying it will not accept an interaction — that turns the same state into
 `login_required`. A subject a `verify_email` realm has not verified is
 refused on the same two terms.
 
+`sessions` also carries `remembered`, a boolean set at establishment and
+never rewritten, and a realm carries `max_sessions_per_browser` (1–32,
+default 25) — a CHECK constraint bounding the **setting's own value**, and
+also the ceiling `admitSession` evicts a browser's own least recently
+active sessions down to before establishing a new one, read from the ids
+its cookies already name rather than by subject
+(`packages/authn-flows/src/usecase/session-admission.ts`, ADR 0033).
+`odudu seed realm --set max_sessions_per_browser=10` changes the stored
+value the same way as every other realm setting, and every login after
+that is measured against the new ceiling.
+
+A realm also carries the pair a remembered login's session is measured
+against instead of `sso_session_idle_seconds`/`sso_session_max_seconds`:
+`remember_me_allowed` (boolean, default `false`), `remember_me_idle_seconds`
+(60–31536000, default 604800, one week) and `remember_me_max_seconds`
+(60–31536000, default 2592000, thirty days), each settable the same way —
+`odudu seed realm --set remember_me_idle_seconds=1209600`. Which pair a
+session uses is picked by its own `remembered` column
+(`packages/authn-flows/src/service/session-lifespan.ts`), set to `true`
+when a login ticks the `remember_me` checkbox on a realm that allows it —
+see [A remembered login](#a-remembered-login) above.
+
+#### The session cap
+
+A cookie jar, `cap-demo` with `max_sessions_per_browser` lowered to 2,
+`odudu seed realm --name cap-demo --set max_sessions_per_browser=2`, three
+logins in a row (`prompt=login` on each, so a live session never short-
+circuits the form — see [Signing in again from an existing
+session](#signing-in-again-from-an-existing-session) for what it would do
+otherwise):
+
+```
+HTTP/1.1 302 Found
+set-cookie: cap-demo-session=01a0ba51-2c09-…; HttpOnly; SameSite=Lax; Path=/
+```
+
+```
+HTTP/1.1 302 Found
+set-cookie: cap-demo-session=01a0ba51-2c09-….01a0ba51-2c7c-…; HttpOnly; SameSite=Lax; Path=/
+```
+
+```
+HTTP/1.1 302 Found
+set-cookie: cap-demo-session=01a0ba51-2c7c-….01a0ba51-2cf3-…; HttpOnly; SameSite=Lax; Path=/
+```
+
+(Session ids truncated; each response also carried the cleared persistent
+cookie, `Max-Age=0`, omitted here since nothing about it changes.) The
+third login's list still holds two ids, not three: `2c09`, the first
+login's session, is gone, evicted by `admitSession` as the least recently
+active once a third session tried to join a browser already at the cap —
+the second and third logins' own ids are exactly what survive. Nothing
+asked for this browser to end its oldest session; the realm's setting did.
+
+The three logins above ran one at a time; two genuinely concurrent logins
+from the same browser read the cookie before either has written it, so the
+browser keeps only the later response's cookie and the earlier response's
+session is named by neither. That session is still live, but
+[logout](#rp-initiated-logout) resolves the same cookie to decide what it
+can end, so it cannot be reached that way — an orphan, not a size problem.
+It idles out at `sso_session_idle_seconds` (thirty minutes by default), or
+at `remember_me_idle_seconds` (seven days by default) if the losing login
+was a remembered one. ADR 0033's amendment has the full account and why it
+is accepted rather than fixed now.
+
+#### Choosing among sessions
+
+More than one live session in the same browser — or a client asking with
+`prompt=select_account` — answers neither with the login form nor with a
+silent reuse: `decideReuse` (`packages/protocol-oidc/src/usecase/session-reuse.ts`)
+returns a `select` outcome, `/authorize` renders a chooser instead, and its
+own POST, `login-actions/select-account`, is where a pick is honoured or
+refused.
+
+A second user seeded into `demo` so this browser can hold sessions for two
+subjects at once:
+
+```bash
+odudu seed user --realm demo --username bob --password another-horse-battery \
+  --email bob@example.com
+```
+
+```json
+{
+  "command": "user",
+  "realm": "demo",
+  "realmId": "01a0baa4-…",
+  "username": "bob",
+  "userSubjectId": "01a0baa4-…"
+}
+```
+
+Two logins, one cookie jar — the second with `prompt=login`, the same way
+[the session cap](#the-session-cap) above forces the form past a cookie
+that would otherwise short-circuit it:
+
+```bash
+VERIFIER=$(openssl rand -hex 32)
+CHALLENGE=$(printf '%s' "$VERIFIER" | openssl dgst -binary -sha256 \
+  | openssl base64 | tr '+/' '-_' | tr -d '=')
+
+AUTH1=$(curl -sS --get \
+  --data-urlencode 'response_type=code' \
+  --data-urlencode 'client_id=demo-spa' \
+  --data-urlencode 'redirect_uri=http://localhost:8080/callback' \
+  --data-urlencode 'scope=openid' \
+  --data-urlencode 'state=alice-login' \
+  --data-urlencode "code_challenge=$CHALLENGE" \
+  --data-urlencode 'code_challenge_method=S256' \
+  "http://localhost:3000/realms/demo/protocol/openid-connect/auth" \
+  | sed -n '/name="auth_session_id"/{s/.*value="\([^"]*\)".*/\1/p;q;}')
+
+curl -sS -c cookies.txt -o /dev/null \
+  --data-urlencode "auth_session_id=$AUTH1" \
+  --data-urlencode 'username=ada' \
+  --data-urlencode 'password=correct-horse-battery' \
+  "http://localhost:3000/realms/demo/login-actions/authenticate"
+
+AUTH2=$(curl -sS -b cookies.txt --get \
+  --data-urlencode 'response_type=code' \
+  --data-urlencode 'client_id=demo-spa' \
+  --data-urlencode 'redirect_uri=http://localhost:8080/callback' \
+  --data-urlencode 'scope=openid' \
+  --data-urlencode 'state=bob-login' \
+  --data-urlencode "code_challenge=$CHALLENGE" \
+  --data-urlencode 'code_challenge_method=S256' \
+  --data-urlencode 'prompt=login' \
+  "http://localhost:3000/realms/demo/protocol/openid-connect/auth" \
+  | sed -n '/name="auth_session_id"/{s/.*value="\([^"]*\)".*/\1/p;q;}')
+
+curl -sS -b cookies.txt -c cookies.txt -o /dev/null \
+  --data-urlencode "auth_session_id=$AUTH2" \
+  --data-urlencode 'username=bob' \
+  --data-urlencode 'password=another-horse-battery' \
+  "http://localhost:3000/realms/demo/login-actions/authenticate"
+
+grep session cookies.txt
+```
+
+```
+#HttpOnly_localhost	FALSE	/	FALSE	0	demo-session	01a0baa4-73e4-79c2-8aa4-d9c6b73ceef9.01a0baa4-8d3c-7693-9086-0446d49daf22
+```
+
+A third `/authorize`, the same cookie jar, no `prompt` at all: the browser
+now names two live sessions, so the chooser renders rather than either
+login answering on its own:
+
+```bash
+curl -sS -b cookies.txt --get \
+  --data-urlencode 'response_type=code' \
+  --data-urlencode 'client_id=demo-spa' \
+  --data-urlencode 'redirect_uri=http://localhost:8080/callback' \
+  --data-urlencode 'scope=openid' \
+  --data-urlencode 'state=xyz-select' \
+  --data-urlencode "code_challenge=$CHALLENGE" \
+  --data-urlencode 'code_challenge_method=S256' \
+  "http://localhost:3000/realms/demo/protocol/openid-connect/auth" -o chooser.html
+cat chooser.html
+```
+
+```
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Choose an account</title></head>
+<body>
+<h1>Choose an account</h1>
+<form method="post" action="/realms/demo/login-actions/select-account">
+  <input type="hidden" name="auth_session_id" value="01a0baa4-a055-7f4a-bf3d-9698d36f0d63">
+  <button type="submit" name="session_id" value="01a0baa4-73e4-79c2-8aa4-d9c6b73ceef9">ada</button>
+  <button type="submit" name="session_id" value="01a0baa4-8d3c-7693-9086-0446d49daf22">bob</button>
+  <button type="submit" name="use_other" value="1">Use another account</button>
+</form>
+</body>
+</html>
+```
+
+The label on each button is `preferred_username` falling back to
+`username` — never `email`, a recovery identifier this page can render on a
+shared device — and the value is the session id itself, not the subject:
+posting it back is the only way this request ever learns which session was
+picked. Picking `ada`'s completes the authorization exactly as an ungated
+reuse would, down to the code and the `iss` a mix-up attack would need to
+fake:
+
+```bash
+AUTH3=$(sed -n '/name="auth_session_id"/{s/.*value="\([^"]*\)".*/\1/p;q;}' chooser.html)
+ADA_SESSION=$(grep -o 'name="session_id" value="[^"]*">ada' chooser.html \
+  | sed -E 's/.*value="([^"]*)".*/\1/')
+
+curl -sS -b cookies.txt -D - -o /dev/null \
+  --data-urlencode "auth_session_id=$AUTH3" \
+  --data-urlencode "session_id=$ADA_SESSION" \
+  "http://localhost:3000/realms/demo/login-actions/select-account"
+```
+
+```
+HTTP/1.1 302 Found
+location: http://localhost:8080/callback?code=wzxlUc1eWVJ7Bh4lfIAJERWArQUKg6UynM0ntrUFGKU&state=xyz-select&iss=http%3A%2F%2Flocalhost%3A3000%2Frealms%2Fdemo
+```
+
+The posted `session_id` is a claim the browser makes, honoured only when it
+names a member of the set this same request's own cookies resolve to — the
+same defence `login-actions/logout`'s confirmation form uses (see
+[RP-initiated logout](#rp-initiated-logout)). A `session_id` naming some
+other live session in the realm — one this browser's cookies never
+named — is refused with 400, not honoured merely because the session
+exists:
+
+```bash
+curl -sS -b cookies.txt -o /dev/null -w '%{http_code}\n' \
+  --data-urlencode "auth_session_id=$AUTH3" \
+  --data-urlencode 'session_id=00000000-0000-0000-0000-000000000000' \
+  "http://localhost:3000/realms/demo/login-actions/select-account"
+```
+
+```
+400
+```
+
+(A well-formed but foreign uuid stands in here for a stranger's real
+session id — see `packages/protocol-oidc/tests/select-account.int.test.ts`
+for the version of this with an actual second browser's live session,
+which is what the integration suite proves this refusal against.)
+
+`use_other=1` in place of `session_id` falls through to the ordinary login
+form instead, on the same parked authentication session — nobody was ever
+bound to it, so a fresh set of credentials starts it exactly as if the
+chooser had never rendered:
+
+```bash
+curl -sS -b cookies.txt -o /dev/null -w '%{http_code}\n' \
+  --data-urlencode "auth_session_id=$AUTH3" \
+  --data-urlencode 'use_other=1' \
+  "http://localhost:3000/realms/demo/login-actions/select-account"
+```
+
+```
+200
+```
+
 ### `id_token_hint`
 
 A hint is checked against the realm's own keys and issuer before anything
@@ -6009,18 +6329,7 @@ session lifecycle. A citation of either half here means that half.
   configuration carrying a credential, and the per-realm secret it needs
   already has a home in the key-encryption interface §5 puts the signing key
   behind.
-- **No "remember me", and one session per browser.** The lifespans a
-  persistent session would extend now exist — a realm's
-  `sso_session_idle_seconds` and `sso_session_max_seconds`, both read on
-  every `/authorize` — but a cookie holds one session id, so a second login
-  in the same browser replaces the first rather than joining it. That is
-  also why `prompt=select_account` renders the ordinary form:
-  account selection needs concurrent sessions, and both it and the three
-  clause rows behind it are **P3b**'s. "Remember me" is **P3b**'s too, named in
-  its criterion since 2026-09-17: the cookie this server sets carries no
-  `Max-Age`, which is why closing the browser ends the session, and the
-  toggle, the second pair of lifespans and the checkbox that select a
-  persistent one are all on surfaces P3b already touches.
+
 - **The sign-in, error and consent pages are hardcoded HTML**, dependency-free
   with every interpolated value escaped. Theming and per-client branding are
   **P4b**, split out of P10 on 2026-09-17 because P10's criterion tested

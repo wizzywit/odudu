@@ -404,9 +404,48 @@ rather than clamped. A reused session issues a code carrying the
 a client's own `max_age` check depends on — and `max_age` is honoured, so a
 client can demand a fresher authentication than the cookie represents. The
 email-verified gate guards this second door into completing a login exactly
-as it guards the password form. What is not there: **one session per
-browser**, since the cookie holds one id, which is why
-`prompt=select_account` renders the ordinary form and is P3b's.
+as it guards the password form. The cookie now holds a **list** of session
+ids, not one, and a fresh login joins a browser's existing set rather than
+replacing it.
+
+**A realm can now offer "remember me."** Three settings gate it:
+`remember_me_allowed` (off by default), and the pair
+`remember_me_idle_seconds`/`remember_me_max_seconds` (defaults 7 and 30
+days) a remembered login is measured against instead of
+`sso_session_idle_seconds`/`sso_session_max_seconds`. When the setting is
+on, the login form offers a `remember_me` checkbox; ticking it writes the
+new session's id into the `{realm}-session-persistent` cookie, carrying
+`Max-Age=remember_me_max_seconds`, instead of the ephemeral
+`{realm}-session` cookie. **The realm setting is the authority, not the
+field**: a realm with `remember_me_allowed` off ignores a ticked box
+entirely, and the session lands in the ephemeral list exactly as an
+ordinary login would.
+
+**A browser's session count is capped, and the cap is enforced.**
+`realms.max_sessions_per_browser` (1–32, default 25) is the ceiling
+`admitSession` evicts a browser's own least recently active sessions down
+to — read from the ids its cookies already name, never by subject, since
+one browser can hold sessions for more than one — in the same transaction
+it creates a new one. A lock on the realm's own row serialises logins
+arriving at once, but does not make the cap exact under concurrency: `k`
+racing from the same browser can transiently exceed it by up to `k - 1`,
+corrected at that browser's next login (ADR 0033's accepted residual).
+
+**More than one live session in a browser gets a chooser, not a guess.**
+When `/authorize` resolves several live sessions at once — or the client
+asks with `prompt=select_account` — it renders an account picker instead of
+either reusing one unasked or falling back to the login form; picking one
+posts to `login-actions/select-account` and completes the authorization the
+same way an ungated reuse does. The posted session id is a claim the
+browser makes, honoured only when it names a member of the set that
+request's own cookies resolve to — never merely because it names some live
+session in the realm — which is what stops it from being a way to continue
+as somebody else's account. `prompt=none` with no account resolvable
+answers `account_selection_required` rather than showing any UI, and
+choosing "use another account" falls through to the ordinary login form on
+the same parked request. See [docs/request-paths.md's "Choosing among
+sessions"](docs/request-paths.md#choosing-among-sessions) for a full
+transcript.
 
 **A realm can now end a session.** `GET`/`POST
 /realms/{realm}/protocol/openid-connect/logout` implements OpenID Connect
@@ -965,7 +1004,6 @@ Every row says where it stands, and every row has a phase:
 |                                                                                                        | Where it stands |
 | ------------------------------------------------------------------------------------------------------ | --------------- |
 | A consent screen — `consent_required` is recorded per client, nothing reads it yet                     | P3a             |
-| Several sessions in one browser, and the `prompt=select_account` that needs them                       | P3b             |
 | An account console for self-service credential management, and an operator unlock for a locked account | P4              |
 | An admin API — seeding is the only administrative surface                                              | P4              |
 | Signing-key rotation — the shape exists, the operation does not                                        | P4              |

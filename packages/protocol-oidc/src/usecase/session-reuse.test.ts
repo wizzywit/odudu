@@ -1,61 +1,67 @@
 import { describe, expect, it } from 'vitest';
 import { decideReuse } from '#/usecase/session-reuse';
+import { type PromptValue } from '#/service/prompt';
 
-const now = new Date('2026-09-15T12:00:00Z');
-const session = { subjectId: 'u1', authTime: new Date('2026-09-15T11:00:00Z') };
+const now = new Date('2026-09-19T10:30:30Z');
+const alice = { id: 's1', subjectId: 'alice', authTime: new Date('2026-09-19T10:00:00Z') };
+const bob = { id: 's2', subjectId: 'bob', authTime: new Date('2026-09-19T10:30:00Z') };
+const stale = { id: 's3', subjectId: 'carol', authTime: new Date('2026-09-19T10:00:00Z') };
 
-describe('decideReuse', () => {
-  it('reuses a live session when no prompt constrains it', () => {
-    expect(decideReuse({ session, prompts: new Set(), maxAge: null, now })).toEqual({
+describe('decideReuse over a set', () => {
+  it('reuses the only live session', () => {
+    expect(decideReuse({ sessions: [alice], prompts: new Set(), maxAge: null, now })).toEqual({
       kind: 'reuse',
-      subjectId: 'u1',
-      authTime: session.authTime,
+      sessionId: 's1',
+      subjectId: 'alice',
+      authTime: alice.authTime,
     });
   });
 
-  it('reuses under prompt=none, which is the whole point of prompt=none', () => {
-    expect(decideReuse({ session, prompts: new Set(['none']), maxAge: null, now }).kind).toBe(
-      'reuse',
-    );
+  it('asks which account when more than one is live, with no prompt at all', () => {
+    const decision = decideReuse({
+      sessions: [alice, bob],
+      prompts: new Set(),
+      maxAge: null,
+      now,
+    });
+    expect(decision).toEqual({ kind: 'select', candidates: [alice, bob] });
   });
 
-  it('refuses prompt=none with no session', () => {
-    expect(decideReuse({ session: null, prompts: new Set(['none']), maxAge: null, now })).toEqual({
+  it('asks which account for prompt=select_account even with one live session', () => {
+    const prompts = new Set<PromptValue>(['select_account']);
+    expect(decideReuse({ sessions: [alice], prompts, maxAge: null, now }).kind).toBe('select');
+  });
+
+  it('refuses under prompt=none when selection would be required', () => {
+    const prompts = new Set<PromptValue>(['none']);
+    expect(decideReuse({ sessions: [alice, bob], prompts, maxAge: null, now })).toEqual({
+      kind: 'refuse',
+      error: 'account_selection_required',
+    });
+  });
+
+  it('refuses login_required under prompt=none with no session', () => {
+    const prompts = new Set<PromptValue>(['none']);
+    expect(decideReuse({ sessions: [], prompts, maxAge: null, now })).toEqual({
       kind: 'refuse',
       error: 'login_required',
     });
   });
 
-  it('authenticates afresh under prompt=login even with a live session', () => {
-    expect(decideReuse({ session, prompts: new Set(['login']), maxAge: null, now }).kind).toBe(
-      'authenticate',
-    );
-  });
-
-  it('refuses prompt=none and prompt=login together rather than choosing one', () => {
-    expect(
-      decideReuse({ session, prompts: new Set(['none', 'login']), maxAge: null, now }),
-    ).toEqual({ kind: 'refuse', error: 'login_required' });
-  });
-
-  it('reuses when the session is younger than max_age', () => {
-    expect(decideReuse({ session, prompts: new Set(), maxAge: 7200, now }).kind).toBe('reuse');
-  });
-
-  it('reauthenticates when max_age is exceeded', () => {
-    expect(decideReuse({ session, prompts: new Set(), maxAge: 1800, now }).kind).toBe(
-      'authenticate',
-    );
-  });
-
-  it('refuses when max_age is exceeded and prompt=none forbids the page', () => {
-    expect(decideReuse({ session, prompts: new Set(['none']), maxAge: 1800, now })).toEqual({
-      kind: 'refuse',
-      error: 'login_required',
+  it('drops a session past max_age from the candidates rather than refusing outright', () => {
+    const decision = decideReuse({ sessions: [stale, bob], prompts: new Set(), maxAge: 60, now });
+    expect(decision).toEqual({
+      kind: 'reuse',
+      sessionId: 's2',
+      subjectId: 'bob',
+      authTime: bob.authTime,
     });
   });
 
-  it('treats max_age=0 as a demand to reauthenticate now', () => {
-    expect(decideReuse({ session, prompts: new Set(), maxAge: 0, now }).kind).toBe('authenticate');
+  it('authenticates when prompt=login, whatever is live', () => {
+    const prompts = new Set<PromptValue>(['login']);
+    expect(decideReuse({ sessions: [alice, bob], prompts, maxAge: null, now }).kind).toBe(
+      'authenticate',
+    );
   });
 });

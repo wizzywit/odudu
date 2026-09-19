@@ -99,9 +99,10 @@ second execution (`docs/phases/p3a.md`, Task 19).
   rest of the admin surface.
 
 **Two things carried forward from P2b, both now P3b's surface directly:**
-concurrent sessions per browser (`prompt=select_account`'s three clause
-rows) and the `sid`-addressable session front-channel and back-channel
-logout need. Both are described in full below, unchanged since P2b closed.
+concurrent sessions per browser, whose `prompt=select_account`'s three
+clause rows an increment inside P3b has since resolved (see below), and
+the `sid`-addressable session front-channel and back-channel logout still
+needs. Both are described in full below.
 
 ### What P3b inherits from P2b
 
@@ -112,12 +113,12 @@ realm's own `sso_session_idle_seconds` (1800) and `sso_session_max_seconds`
 (`packages/protocol-oidc/src/usecase/session-reuse.ts`) turns that plus
 `prompt` and `max_age` into reuse, a fresh authentication, or a refusal. The
 cookie holds **one** session id, so a second login in the same browser
-replaces the first. That is the limitation `prompt=select_account` runs
-into, and the reason its three clause rows in
-`docs/protocols/oidc-core.md` read `deferred: P3b`: account selection needs
-concurrent sessions, which reshapes this read rather than extending it. P3a
-already renders a user-choice page during `/authorize` for consent, which is
-the same surface.
+replaces the first — the limitation `prompt=select_account` ran into when
+this section was written, and the reason its three clause rows in
+`docs/protocols/oidc-core.md` read `deferred: P3b` at the time. A P3b
+increment has since widened the cookie to a list and added the chooser
+`/authorize` renders over it: all three rows now read `covered`
+(`OIDC-CORE-3.1.2.1-15`, `-16`, `OIDC-CORE-3.1.2.6-08`).
 
 **A `sid` claim, so a session has a name a client can say.** Every
 session-backed access token and ID token carries it (Back-Channel Logout
@@ -140,10 +141,10 @@ P3b's criterion for that reason rather than as a checklist item.
 rate limit on `client_secret` attempts at `/token` — RFC 6749 §2.3.1's
 client half, filed as its own row and named in P3a's criterion — is
 closed: `RFC6749-2.3.1-04` covers it, and ADR 0023 carries the amendment.
-The `prompt=select_account` rows above remain open. And
-`/authorize` still verifies an `id_token_hint` with `AUDIENCE_UNCHECKED`,
-which the per-client audience configuration P3b's criterion names is the
-place to close.
+The `prompt=select_account` rows above are closed too, as of the same
+increment. And `/authorize` still verifies an `id_token_hint` with
+`AUDIENCE_UNCHECKED`, which the per-client audience configuration P3b's
+criterion names is the place to close.
 
 ### What each phase found while building it
 

@@ -61,6 +61,12 @@ export interface PendingRequest {
   // sees `prompt=consent` the way it would have at the moment the request
   // first arrived. Absent is the same as empty: no value was sent.
   prompt?: string[];
+  // The request's own `max_age` (OIDC Core §3.1.2.1), parked so a
+  // selection made after an account-chooser detour is re-checked against
+  // it — a session the chooser excluded for being too old must stay
+  // excluded when its id is posted back, not merely be re-admitted because
+  // it is still live. Absent is the same as no `max_age` sent.
+  maxAge?: number;
   // Present only when this session was started to promote a session reuse
   // into a consent decision (protocol-oidc's authorization-request.ts):
   // the SSO session to complete into, and the instant it actually
@@ -70,6 +76,12 @@ export interface PendingRequest {
   // is an ISO string, jsonb's only way to carry a Date.
   reuseSessionId?: string;
   reuseAuthTime?: string;
+  // The already realm-gated `remember_me` decision, parked here only when
+  // a detour — today, consent — completes the login from a door that
+  // never asks the field itself (login-submission.ts's `recordRememberMe`,
+  // its only writer). Absent, the same as `false`, on every session this
+  // was never written against.
+  rememberMe?: boolean;
 }
 
 export interface AuthenticationSessionRecord {

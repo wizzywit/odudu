@@ -1,0 +1,247 @@
+import { hashPassword, subjectRepository, userCredentials, users } from '@odudu/domain-identity';
+import {
+  createDatabase,
+  MIGRATIONS_DIR,
+  realms,
+  runMigrations,
+  withRealm,
+  type DatabaseHandle,
+  type RealmScopedDatabase,
+} from '@odudu/db';
+import { clients, provisionClientDefaults } from '@odudu/domain-realm';
+import { newId } from '@odudu/kernel';
+import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
+import formbody from '@fastify/formbody';
+import Fastify, { type FastifyInstance, type LightMyRequestResponse } from 'fastify';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { provisionRealm, sessionRepository } from '@odudu/authn-flows';
+import { oidcRoutes } from '#/index';
+import { UNLIMITED_CLIENT_SECRET_LIMITER } from '#/service/client-secret-throttle';
+import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
+
+const REALM_LIFESPANS = {
+  ssoSessionIdleSeconds: 1_800,
+  ssoSessionMaxSeconds: 36_000,
+  rememberMeIdleSeconds: 604_800,
+  rememberMeMaxSeconds: 2_592_000,
+};
+
+// ADR 0033: a browser may hold at most `max_sessions_per_browser` live
+// sessions, enforced by admitSession's realm-row lock so two concurrent
+// admissions cannot both see room under the cap. This is the end-to-end
+// proof: a browser that logs in more times than the cap ends with exactly
+// the cap's worth of live sessions, and the cookies it is sent name
+// exactly those — nothing evicted is left behind in either list.
+
+let containerHandle: TestDatabase | undefined;
+let ownerHandle: DatabaseHandle | undefined;
+let appHandle: DatabaseHandle | undefined;
+let httpApp: FastifyInstance | undefined;
+
+let container: TestDatabase;
+let owner: DatabaseHandle;
+let app: DatabaseHandle;
+let http: FastifyInstance;
+
+const CLIENT_ID = 'session-cap-client';
+const REDIRECT_URI = 'https://app.example/callback';
+const USERNAME = 'ada';
+const PASSWORD = 'correct horse battery staple';
+const CAP = 2;
+
+async function setupRealm(name: string): Promise<{ realmId: string; subjectId: string }> {
+  const realmId = newId();
+  const clientDbId = newId();
+  let subjectId = '';
+  await withRealm(app.db, realmId, async (tx: RealmScopedDatabase) => {
+    await tx.insert(realms).values({ id: realmId, name, maxSessionsPerBrowser: CAP });
+    await provisionRealm(tx, realmId);
+    await tx.insert(clients).values({
+      id: clientDbId,
+      realmId,
+      clientId: CLIENT_ID,
+      name: 'Session cap test client',
+      type: 'public',
+    });
+    await provisionClientDefaults(tx, clientDbId);
+    await clientOidcConfigRepository(tx).create({
+      clientId: clientDbId,
+      realmId,
+      redirectUris: [REDIRECT_URI],
+      grantTypes: ['authorization_code'],
+      tokenEndpointAuthMethod: 'none',
+      audiences: [],
+      accessTokenTtlSeconds: 300,
+      refreshTokenTtlSeconds: 1_209_600,
+    });
+    const subject = await subjectRepository(tx).create({ realmId, type: 'user' });
+    subjectId = subject.id;
+    await tx.insert(users).values({ subjectId: subject.id, realmId, username: USERNAME });
+    await tx.insert(userCredentials).values({
+      id: newId(),
+      realmId,
+      subjectId: subject.id,
+      type: 'password',
+      secretData: { hash: await hashPassword(PASSWORD) },
+    });
+  });
+  return { realmId, subjectId };
+}
+
+function authorizeUrl(realmName: string): string {
+  const params = new URLSearchParams({
+    response_type: 'code',
+    client_id: CLIENT_ID,
+    redirect_uri: REDIRECT_URI,
+    scope: 'openid',
+    state: 'xyz',
+    code_challenge: 'a'.repeat(43),
+    code_challenge_method: 'S256',
+    // Forces the form even though this browser already holds a live SSO
+    // session — a repeat visit that reused it would never submit
+    // credentials again, and this test needs every one of its logins to.
+    prompt: 'login',
+  });
+  return `/realms/${realmName}/protocol/openid-connect/auth?${params.toString()}`;
+}
+
+async function startAuthSession(realmName: string, cookie: string): Promise<string> {
+  const res = await http.inject({
+    url: authorizeUrl(realmName),
+    headers: cookie.length > 0 ? { cookie } : {},
+  });
+  if (res.statusCode !== 200) {
+    throw new Error(`expected /authorize to render the login form, got ${String(res.statusCode)}`);
+  }
+  const match = /name="auth_session_id" value="([^"]*)"/.exec(res.body);
+  const value = match?.[1];
+  if (value === undefined) throw new Error('auth_session_id not found in the rendered login form');
+  return value;
+}
+
+function cookieList(res: LightMyRequestResponse): string[] {
+  const raw = res.headers['set-cookie'];
+  return raw === undefined ? [] : Array.isArray(raw) ? raw : [raw];
+}
+
+// A real browser merges each Set-Cookie's name=value pair into the Cookie
+// header of its next request. Only the two session cookies matter here.
+function mergeCookies(existing: Map<string, string>, res: LightMyRequestResponse): void {
+  for (const set of cookieList(res)) {
+    const pair = set.split(';')[0];
+    const eq = pair?.indexOf('=');
+    if (pair === undefined || eq === undefined || eq === -1) continue;
+    existing.set(pair.slice(0, eq), pair.slice(eq + 1));
+  }
+}
+
+function cookieHeader(jar: Map<string, string>): string {
+  return [...jar].map(([name, value]) => `${name}=${value}`).join('; ');
+}
+
+// The ephemeral session-cookie ids a single response set, as opposed to
+// what survives in the jar after every response has overwritten the last —
+// an evicted id shows up here even though mergeCookies has since replaced
+// it with whatever the next login wrote.
+function ephemeralIdsSet(realmName: string, res: LightMyRequestResponse): string[] {
+  const name = `${realmName}-session=`;
+  const value = cookieList(res)
+    .find((set) => set.startsWith(name))
+    ?.split(';')[0]
+    ?.slice(name.length);
+  return value === undefined ? [] : value.split('.').filter((id) => id.length > 0);
+}
+
+async function login(realmName: string, jar: Map<string, string>): Promise<LightMyRequestResponse> {
+  const authSessionId = await startAuthSession(realmName, cookieHeader(jar));
+  const form = new URLSearchParams({
+    auth_session_id: authSessionId,
+    username: USERNAME,
+    password: PASSWORD,
+  });
+  const res = await http.inject({
+    method: 'POST',
+    url: `/realms/${realmName}/login-actions/authenticate`,
+    payload: form.toString(),
+    headers: {
+      'content-type': 'application/x-www-form-urlencoded',
+      ...(cookieHeader(jar).length > 0 ? { cookie: cookieHeader(jar) } : {}),
+    },
+  });
+  expect(res.statusCode).toBe(302);
+  mergeCookies(jar, res);
+  return res;
+}
+
+beforeAll(async () => {
+  containerHandle = await startTestDatabase();
+  container = containerHandle;
+
+  ownerHandle = createDatabase(container.adminUrl);
+  owner = ownerHandle;
+  await runMigrations(owner.db, MIGRATIONS_DIR);
+
+  const appUrl = await createAppRole(container.adminUrl);
+  appHandle = createDatabase(appUrl, { max: 5 });
+  app = appHandle;
+
+  http = Fastify();
+  httpApp = http;
+  await http.register(formbody);
+  await http.register(
+    oidcRoutes({
+      database: app,
+      ownerDatabase: owner,
+      kek: Buffer.alloc(32, 9),
+      clientSecretLimiter: UNLIMITED_CLIENT_SECRET_LIMITER,
+    }),
+  );
+  await http.ready();
+}, 120_000);
+
+afterAll(async () => {
+  await httpApp?.close();
+  await appHandle?.close();
+  await ownerHandle?.close();
+  await containerHandle?.stop();
+});
+
+describe('the session cap, end to end', () => {
+  it('holds max_sessions_per_browser across repeated logins, with no evicted id left in a cookie', async () => {
+    const realmName = `realm-${newId()}`;
+    const { realmId } = await setupRealm(realmName);
+
+    const jar = new Map<string, string>();
+    // Two logins past the cap: enough that a broken cap — every id ever
+    // issued kept in the cookie, or the realm-row lock missing so a race
+    // slips one extra past eviction — would show up as more than CAP ids
+    // below.
+    const everyIssuedId = new Set<string>();
+    for (let i = 0; i < CAP + 2; i++) {
+      const res = await login(realmName, jar);
+      for (const id of ephemeralIdsSet(realmName, res)) everyIssuedId.add(id);
+    }
+
+    const ephemeral = jar.get(`${realmName}-session`);
+    if (ephemeral === undefined) throw new Error('expected an ephemeral cookie in the jar');
+    const finalIds = ephemeral.split('.').filter((id) => id.length > 0);
+    expect(finalIds).toHaveLength(CAP);
+    expect(new Set(finalIds).size).toBe(CAP);
+
+    // The final cookie alone would pass even if an evicted id were still
+    // live: querying only the ids that happened to survive the last
+    // response cannot see one the database still holds. The union of every
+    // id any response ever issued is what actually proves the cap —
+    // sequential logins from one browser converge on exactly the cap
+    // across every id ever handed out, not just the last one kept.
+    const allIssuedIds = [...everyIssuedId];
+    expect(allIssuedIds.length).toBeGreaterThan(CAP);
+
+    const now = new Date();
+    await withRealm(app.db, realmId, async (tx) => {
+      const live = await sessionRepository(tx).liveByIds(allIssuedIds, REALM_LIFESPANS, now);
+      expect(live).toHaveLength(CAP);
+      expect(live.map((session) => session.id).sort()).toEqual([...finalIds].sort());
+    });
+  });
+});

@@ -144,6 +144,21 @@ export function authenticationSessionRepository(tx: RealmScopedDatabase) {
       return rows[0]?.challenge ?? null;
     },
 
+    // Patches `pendingRequest.rememberMe` in place rather than replacing
+    // the row's whole JSON, so a write here cannot clobber `prompt`,
+    // `reuseSessionId` or anything else already parked on the same
+    // request. The one caller is the 'consent' branch of
+    // handleLoginSubmission, before it hands off to a door that reads
+    // `pendingRequest` but never asks `remember_me` of its own.
+    async recordRememberMe(id: string, rememberMe: boolean): Promise<void> {
+      await tx
+        .update(authenticationSessions)
+        .set({
+          pendingRequest: sql`jsonb_set(${authenticationSessions.pendingRequest}, '{rememberMe}', to_jsonb(${rememberMe}))`,
+        })
+        .where(eq(authenticationSessions.id, id));
+    },
+
     // Puts the attempt back to how it started, for the one refusal whose
     // remedy is a different person signing in against the same parked
     // request: an `id_token_hint` naming somebody else (OIDC Core §3.1.2.1).

@@ -1,5 +1,5 @@
 import {
-  sessionCookieName,
+  sessionCookies,
   type AuthenticatorResult,
   type PasskeyAuthenticationOffer,
   type PasskeyEnrolmentOffer,
@@ -139,6 +139,10 @@ export function registerLoginRoute(app: FastifyInstance, deps: LoginRouteDeps): 
     const code = firstString(body.code);
     const recoveryCode = firstString(body.recovery_code);
     const assertion = firstString(body.assertion);
+    // Whether the checkbox was ticked, exactly as submitted — the realm's
+    // rememberMeAllowed is what decides whether this does anything at all;
+    // see login-submission.ts's gate.
+    const rememberMe = firstString(body.remember_me) === 'true';
 
     const outcome = await handleLoginSubmission(
       deps,
@@ -161,6 +165,8 @@ export function registerLoginRoute(app: FastifyInstance, deps: LoginRouteDeps): 
           ? {}
           : { assertion: parseAssertion(assertion) }),
       },
+      request.headers.cookie,
+      rememberMe,
     );
 
     if (outcome.kind === 'unauthenticated') {
@@ -197,6 +203,7 @@ export function registerLoginRoute(app: FastifyInstance, deps: LoginRouteDeps): 
           outcome.authSessionId,
           form,
           deps.passkeyLogin ?? false,
+          realm?.rememberMeAllowed ?? false,
           outcome.reason,
         ),
       );
@@ -238,15 +245,16 @@ export function registerLoginRoute(app: FastifyInstance, deps: LoginRouteDeps): 
       );
     }
 
-    const cookieName = sessionCookieName(request.params.realm, deps.tls);
-    const cookie = [
-      `${cookieName}=${outcome.sessionId}`,
-      'HttpOnly',
-      'SameSite=Lax',
-      'Path=/',
-      ...(deps.tls ? ['Secure'] : []),
-    ].join('; ');
+    const written = sessionCookies({
+      realm: request.params.realm,
+      tls: deps.tls,
+      ephemeral: outcome.ephemeralSessionIds,
+      persistent: outcome.persistentSessionIds,
+      persistentMaxAgeSeconds: outcome.persistentMaxAgeSeconds,
+    });
 
-    return reply.code(302).header('set-cookie', cookie).header('location', outcome.location).send();
+    const reply302 = reply.code(302);
+    for (const cookie of written) reply302.header('set-cookie', cookie);
+    return reply302.header('location', outcome.location).send();
   });
 }

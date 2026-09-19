@@ -152,7 +152,13 @@ export function registerRequiredActionRoute(
       return sendHtml(
         reply,
         200,
-        renderLoginForm(realmName, outcome.authSessionId, form, deps.passkeyLogin ?? false),
+        renderLoginForm(
+          realmName,
+          outcome.authSessionId,
+          form,
+          deps.passkeyLogin ?? false,
+          realm.rememberMeAllowed,
+        ),
       );
     }
 
