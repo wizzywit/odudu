@@ -284,9 +284,16 @@ one, which `docs/NEXT.md` records as the gap introspection exists to close.
 
 Wires `clientKeySet` at the moment a signature is verified — never at
 registration, which was reverted in P3a for turning an SSRF guard's refusal
-reason into a network oracle for an anonymous caller. The refusal says "the
-signature did not verify" or "the key could not be retrieved", and never
-the guard's own reasoning.
+reason into a network oracle for an anonymous caller.
+
+**One external refusal, whatever failed.** A fetch that was refused by the
+address guard, a `jwks_uri` that did not answer, a key set that did not
+parse and a signature that did not verify all produce the same
+`invalid_client` with the same description. Two messages would themselves
+be the oracle the registration-time revert removed: a caller who registers
+a `jwks_uri` and watches which refusal comes back learns whether that
+address was reachable and served parseable JWKS. The specific reason is
+logged, where only an operator sees it.
 
 The three nits `docs/NEXT.md` records are fixed here, because this is the
 call site that makes them matter:
@@ -401,8 +408,10 @@ Concurrent sessions per browser, with `prompt=select_account` choosing
 among them and `account_selection_required` where it cannot; a realm's
 "remember me", offered on the login form, carrying a cookie that outlives
 the browser session and selecting the second pair of idle and maximum
-lifespans; front-channel logout delivered against the URIs P3a registers,
-with a clause table and the registration metadata completed, and
+lifespans; front-channel logout **attempted** against every URI P3a registers — the
+iframe issued, with `iss` and with `sid` where the client required it,
+which is the most an OP can promise once browsers refuse third-party
+cookies — with a clause table and the registration metadata completed, and
 back-channel logout delivered through a queue and a command rather than on
 the request path; token introspection (RFC 7662) scoped by audience and
 consulting session liveness, and revocation (RFC 7009); RFC 8707 `resource`

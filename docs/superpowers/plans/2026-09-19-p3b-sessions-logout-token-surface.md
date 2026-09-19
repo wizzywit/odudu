@@ -44,11 +44,12 @@ Why this shape rather than one pull request for the phase: the review a push att
 
 Two things it costs, so nobody discovers them mid-phase. The `conformance` job runs on each increment pull request **and** again on the phase pull request when that increment merges, so conformance minutes roughly double. And the integration branch is not protected — only `main` is — so nothing mechanically prevents merging an increment whose checks are red. The checks are visible on the pull request; honouring them is discipline.
 
-**Both pull requests open before the increment's first task, not after its last.**
-The phase pull request and the increment's own pull request are opened on the first
-push of the branch — an empty branch is enough. A branch with no pull request open
-runs **no CI at all**, so every task implemented before the pull request exists is a
-task nobody checked. P1 ran nineteen increments that way.
+**Each pull request opens on the branch's first commit, not after its last task.**
+GitHub refuses a pull request with no commits between head and base, so an increment's
+pull request cannot precede its first commit — but it must not wait for its last. Open it
+as soon as the first task commits. A branch with no pull request open runs **no CI at
+all**, so every task implemented before the pull request exists is a task nobody
+checked. P1 ran nineteen increments that way.
 
 ```bash
 git checkout p3b-sessions-logout-token-surface && git push -u origin HEAD
@@ -63,13 +64,14 @@ gh pr create --draft --base main --head p3b-sessions-logout-token-surface \
 git checkout p3b-sessions-logout-token-surface
 git pull
 git checkout -b p3b/<n>-<slug>
+# ... the increment's first task, through to its commit ...
 git push -u origin HEAD
 gh pr create --base p3b-sessions-logout-token-surface --head p3b/<n>-<slug> \
   --title "P3b increment <n> — <name>" --body "<tasks> of the P3b plan."
 ```
 
-The push and the `gh pr create` come **first**, before the increment's first task is
-dispatched. Pushing again after each task is what puts CI on the work.
+The `gh pr create` comes immediately after the **first** task's commit, not after the
+increment's last. Pushing again after each subsequent task is what keeps CI on the work.
 
 **Closing one**, after CI is green and the review is answered:
 
@@ -3166,17 +3168,25 @@ it('issues a token to a client that registered inline jwks', async () => {
 it('refuses an assertion signed by a key the client does not publish', async () => {
   const response = await token({ assertion: signedBy(strangerKey) });
   expect(response.statusCode).toBe(401);
-  expect(response.json().error_description).toBe('the signature did not verify');
+  expect(response.json()).toEqual(refusal);
 });
 
-it('says the key could not be retrieved when the jwks_uri does not answer', async () => {
+it('answers the same refusal when the jwks_uri does not answer', async () => {
   const response = await token({ client: unreachableJwksClient, assertion: signedBy(clientKey) });
-  expect(response.json().error_description).toBe('the key could not be retrieved');
+  expect(response.json()).toEqual(refusal);
+});
+
+it('cannot be used to tell a reachable jwks_uri from an unreachable one', async () => {
+  const unreachable = await token({ client: unreachableJwksClient, assertion: signedBy(clientKey) });
+  const badSignature = await token({ assertion: signedBy(strangerKey) });
+
+  expect(unreachable.json()).toEqual(badSignature.json());
+  expect(unreachable.statusCode).toBe(badSignature.statusCode);
 });
 
 it('never reports the address guard's own reasoning', async () => {
   const response = await token({ client: clientWithPrivateJwksUri, assertion: signedBy(clientKey) });
-  expect(response.json().error_description).toBe('the key could not be retrieved');
+  expect(response.json()).toEqual(refusal);
   expect(JSON.stringify(response.json())).not.toMatch(/loopback|private|link-local|blocked/iu);
 });
 
@@ -3195,7 +3205,7 @@ it('advertises private_key_jwt in token_endpoint_auth_methods_supported', async 
 });
 ```
 
-The fifth is the reason registration-time dereferencing was reverted in P3a: an SSRF guard's refusal reason is a network oracle, and the only safe refusal is one that says nothing about why.
+Those cases are one requirement stated several ways, and it is the reason registration-time dereferencing was reverted in P3a. **Every failure answers the same bytes** — the guard refused the address, the host did not answer, the key set did not parse, the signature did not verify — one `invalid_client` with one description, bound to a single `refusal` constant the tests compare against. Two distinct messages are themselves the oracle: a caller registers the `jwks_uri` and reads from the difference whether that address was reachable and served parseable JWKS. The reason is logged, where only an operator sees it.
 
 - [ ] **Step 2: Run it to verify it fails**
 
@@ -3204,7 +3214,7 @@ Expected: FAIL — the method is not accepted.
 
 - [ ] **Step 3: Implement it**
 
-In the client-authentication branch of `token-issuance.ts`: parse the assertion, resolve the client, refuse unless its registered method is `private_key_jwt`, claim the `jti`, fetch its key set through `clientKeySet`, and verify. Two refusal strings and no others, chosen by whether the key set was retrieved.
+In the client-authentication branch of `token-issuance.ts`: parse the assertion, resolve the client, refuse unless its registered method is `private_key_jwt`, claim the `jti`, fetch its key set through `clientKeySet`, and verify. **One refusal and no others** — the same response whatever failed — with the specific reason passed to the logger rather than to the caller.
 
 The rate limit does not apply: `isSharedSecretMethod` (`client-secret-throttle.ts:11`) already excludes this method, and its comment says why — possession of a key is not a secret that can be guessed.
 
