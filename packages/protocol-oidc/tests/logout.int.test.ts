@@ -430,6 +430,40 @@ describe('GET the logout endpoint with a hint matching the session', () => {
   });
 });
 
+describe('a hint naming an older session, in a browser holding a newer one too', () => {
+  it('ends the session the hint names, not the most recently active one', async () => {
+    const realmName = `logout-two-live-${newId()}`;
+    const { realmId } = await setupRealm(realmName);
+    const olderCookie = await signIn(realmName);
+    const olderSessionId = sessionIdFromCookie(olderCookie);
+    // A second, later login for the same subject — the newer of the two,
+    // and the one mostRecentlyActive would pick if the hint were ignored.
+    const newerCookie = await signIn(realmName);
+    const newerSessionId = sessionIdFromCookie(newerCookie);
+    const subjectId = await subjectIdOf(realmId, USERNAME);
+    const hint = await mintIdToken(realmName, subjectId, olderSessionId);
+
+    // One browser holding both: the two cookies' own ids, combined the way
+    // sessionCookies itself joins a list (session-cookie.ts's SEPARATOR).
+    const bothCookie = `${realmName}-session=${olderSessionId}.${newerSessionId}`;
+
+    const res = await http.inject({
+      url: logoutUrl(realmName, { id_token_hint: hint }),
+      headers: { cookie: bothCookie },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toContain('<title>Signed out</title>');
+
+    const olderRow = await sessionRowFor(olderSessionId);
+    expect(olderRow?.expiresAt.getTime()).toBeLessThanOrEqual(Date.now());
+
+    const newerStillLive = await withRealm(app.db, realmId, (tx) =>
+      sessionRepository(tx).liveById(newerSessionId, 30 * 24 * 3600, new Date()),
+    );
+    expect(newerStillLive).not.toBeNull();
+  });
+});
+
 describe('[OIDC-RPINITIATED-2-01] the confirmation page is asked for on both triggers', () => {
   it('when there is no id_token_hint, and ends nothing until the form is posted', async () => {
     const realmName = `logout-confirm-${newId()}`;

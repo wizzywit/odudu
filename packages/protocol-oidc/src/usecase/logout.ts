@@ -121,11 +121,21 @@ async function registeredUris(
   return deps.postLogoutRedirectUris(realmId, clientId);
 }
 
-// decideLogout decides over one session, while a browser may hold several —
-// mostRecentlyActive (#/service/session-selection) is the same stand-in the
-// reuse decision at /authorize makes.
-function toLogoutSession(latest: SessionRecord | null): LogoutSession | null {
-  return latest === null ? null : { id: latest.id, subjectId: latest.subjectId };
+// decideLogout decides over one session, while a browser may hold several.
+// A hint that names a `sid` identifies which one the End-User asked to end,
+// so it is matched against the resolved set first; mostRecentlyActive
+// (#/service/session-selection) is only the fallback for a hint that names
+// nothing usable, the same stand-in the reuse decision at /authorize makes.
+function selectLogoutSession(
+  sessions: readonly SessionRecord[],
+  hintSid: string | null,
+): SessionRecord | null {
+  const named = hintSid === null ? undefined : sessions.find((session) => session.id === hintSid);
+  return named ?? mostRecentlyActive(sessions);
+}
+
+function toLogoutSession(session: SessionRecord | null): LogoutSession | null {
+  return session === null ? null : { id: session.id, subjectId: session.subjectId };
 }
 
 // A `GET` (or unconfirmed `POST`) against the logout endpoint: the first
@@ -154,7 +164,6 @@ export async function handleLogoutRequest(
     },
     header,
   );
-  const session = toLogoutSession(mostRecentlyActive(sessions));
   const hint =
     params.idTokenHint === null
       ? null
@@ -169,10 +178,12 @@ export async function handleLogoutRequest(
   const disagreeing =
     params.clientId !== null && hint !== null && !hint.audiences.includes(params.clientId);
   const requested = disagreeing ? null : params.postLogoutRedirectUri;
+  const hintSid = disagreeing ? null : (hint?.sid ?? null);
+  const session = toLogoutSession(selectLogoutSession(sessions, hintSid));
 
   const decision = decideLogout({
     hintSubject: disagreeing ? null : (hint?.subject ?? null),
-    hintSid: disagreeing ? null : (hint?.sid ?? null),
+    hintSid,
     session,
     requested,
     registered,
