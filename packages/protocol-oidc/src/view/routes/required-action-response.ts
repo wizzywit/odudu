@@ -34,9 +34,9 @@ export interface RequiredActionResponseDeps {
   beginRecoveryCodes(realmId: string, subjectId: string): Promise<RecoveryCodesOffer>;
 }
 
-// The one place a 'required_action' outcome becomes a response, so login.ts
-// and consent.ts render the same page for the same owed action rather than
-// two implementations that can drift.
+// The one place a 'required_action' outcome becomes a response, so login.ts,
+// consent.ts and authorize.ts's session-reuse path render the same page for
+// the same owed action rather than three implementations that can drift.
 export async function sendRequiredActionPage(
   reply: FastifyReply,
   deps: RequiredActionResponseDeps,

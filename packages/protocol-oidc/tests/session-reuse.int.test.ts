@@ -16,7 +16,12 @@ import formbody from '@fastify/formbody';
 import { and, eq } from 'drizzle-orm';
 import Fastify, { type FastifyInstance, type LightMyRequestResponse } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { requiredActionRepository, sessions, provisionRealm } from '@odudu/authn-flows';
+import {
+  authenticationSessions,
+  requiredActionRepository,
+  sessions,
+  provisionRealm,
+} from '@odudu/authn-flows';
 import { oidcRoutes } from '#/index';
 import { UNLIMITED_CLIENT_SECRET_LIMITER } from '#/service/client-secret-throttle';
 import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
@@ -522,6 +527,55 @@ describe('the required-action gate applies to a reused session too', () => {
 
     const after = await sessionRowFor(cookie);
     expect(after?.lastActiveAt.getTime()).toBe(before?.lastActiveAt.getTime());
+  });
+
+  // OIDC Core §3.1.2.1: `prompt=none` "MUST NOT display any authentication
+  // or consent user interface" — the required-action page is exactly such
+  // UI, so a subject owing update-password must get the redirected error
+  // this gate's sibling above already renders under prompt=none, not the
+  // 200 HTML the same subject gets without it.
+  it('refuses under prompt=none rather than rendering the required-action page', async () => {
+    const realmName = `reuse-required-action-none-${newId()}`;
+    const realmId = await setupRealm(realmName);
+    const subjectId = await subjectIdOf(realmId, USERNAME);
+    const cookie = await signIn(realmName);
+    await withRealm(app.db, realmId, (tx) =>
+      requiredActionRepository(tx).add(realmId, subjectId, 'update-password'),
+    );
+    // signIn() already parked and consumed one authentication session for
+    // this subject; the assertion below is that the prompt=none request
+    // adds no second one, not that none exists.
+    const sessionsBefore = await owner.db
+      .select({ id: authenticationSessions.id })
+      .from(authenticationSessions)
+      .where(
+        and(
+          eq(authenticationSessions.realmId, realmId),
+          eq(authenticationSessions.subjectId, subjectId),
+        ),
+      );
+
+    const res = await http.inject({
+      url: authorizeUrl(realmName, { prompt: 'none' }),
+      headers: { cookie },
+    });
+
+    expect(res.statusCode).toBe(302);
+    const location = new URL(locationHeader(res));
+    expect(location.searchParams.get('error')).toBe('login_required');
+    expect(location.searchParams.get('code')).toBeNull();
+    expect(res.headers['set-cookie']).toBeUndefined();
+
+    const sessionsAfter = await owner.db
+      .select({ id: authenticationSessions.id })
+      .from(authenticationSessions)
+      .where(
+        and(
+          eq(authenticationSessions.realmId, realmId),
+          eq(authenticationSessions.subjectId, subjectId),
+        ),
+      );
+    expect(sessionsAfter).toHaveLength(sessionsBefore.length);
   });
 });
 

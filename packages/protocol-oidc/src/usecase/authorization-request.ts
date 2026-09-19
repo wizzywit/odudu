@@ -288,6 +288,10 @@ export async function handleAuthorizationRequest(
     // codes, pending enrolment).
     const action = nextRequiredAction(await deps.pendingActions(realm.id, decision.subjectId));
     if (action !== null) {
+      // §3.1.2.1: `prompt=none` MUST NOT display any UI, required-action
+      // page included — refused before a session is parked, the same as
+      // the email-verification gate above.
+      if (outcome.prompts.has('none')) return reject('login_required');
       const authSessionId = await promoteToParkedRequest();
       return { kind: 'required_action', authSessionId, subjectId: decision.subjectId, action };
     }
