@@ -75,11 +75,10 @@ insert and evicts correctly.
   keyed to a hash of the browser's own session-id set, or a lock on the
   subject row, either of which narrows contention to the sessions actually
   racing instead of the whole realm.
-- The admission logic — realm-row lock, eviction, insert — currently lives
-  only in `admitSession`, a test helper inside
-  `packages/authn-flows/tests/session-set.int.test.ts`. The usecase that
-  replaces it must carry this lock forward and re-point the integration
-  test at the real code, deleting the helper.
+- The admission logic — realm-row lock, eviction, insert — lives in
+  `packages/authn-flows/src/usecase/session-admission.ts`'s `admitSession`,
+  the only place a session row is created; see the amendment below for how
+  it replaced the test helper this bullet originally described.
 
 ## Amendment, 2026-09-19 — the usecase, not the helper
 
@@ -109,17 +108,21 @@ stops two of them from interleaving their own eviction decisions, but a
 fixed id list — the browser's cookies, read once, before the lock — can
 never contain a session a concurrent admission inserts while the first
 holds the lock, no matter how fresh the second admission's read against
-that same list is once unblocked. With `k` logins racing from one browser,
-the browser can transiently hold `cap + k` sessions rather than exactly
-`cap`; the next admission from that browser evicts back down, since its
-own fresh read of the (by then updated) cookie sees the surplus. This is
-tolerable where a per-subject cap is not: the cap is a size guard on the
-cookie (§5.4 — the default sits near a quarter of the measured ~110-id
-ceiling before a cookie stops fitting, not a security boundary), the
-excess self-corrects at the browser's very next login, and an exact
-cap needs a stable per-browser identifier — a `browser_sessions` row —
-which the design deliberately does not have; reversing that to close an
-off-by-`k` on a size guard is not worth the row.
+that same list is once unblocked. Only the first of `k` logins racing from
+one browser ever sees a correct picture — the rest each independently read
+the same stale candidate list once the first has emptied it — so the
+browser can transiently hold `cap + (k - 1)` sessions rather than exactly
+`cap` (measured, not assumed: `k = 2` gives `cap + 1`, `k = 3` gives
+`cap + 2`, `k = 4` gives `cap + 3`, five trials each, no exception). The
+next admission from that browser evicts back down, since its own fresh
+read of the (by then updated) cookie sees the surplus. This is tolerable
+where a per-subject cap is not: the cap is a size guard on the cookie
+(§5.4 — the default sits near a quarter of the measured ~110-id ceiling
+before a cookie stops fitting, not a security boundary), the excess
+self-corrects at the browser's very next login, and an exact cap needs a
+stable per-browser identifier — a `browser_sessions` row — which the
+design deliberately does not have; reversing that to close an off-by-`k`
+on a size guard is not worth the row.
 
 Verified empirically, not merely reasoned. Sequential admissions from one
 browser (past the cap, one login at a time) converge to exactly the cap
@@ -130,11 +133,15 @@ logins". Concurrent admissions do not hold exactly the cap: with the lock
 removed, ten runs of a two-concurrent-admission race against a fixed id
 list gave a live count of 4 against a cap of 3 in nine of them (the tenth
 held by luck — this is why the test repeats rather than running once);
-with the lock restored, eight separate runs each held at exactly 4 —
-`cap + 2`, the concurrent case's own bound, asserted by
-"bounds two concurrent logins at cap plus the number racing, never
-unbounded". Both numbers matter: unlocked, an unbounded race can exceed
-even that loose bound over more attempts; locked, it does not.
+with the lock restored, the same race held at exactly 4 — `cap + 1`, not
+`cap + 2` — in every repetition seen so far, asserted by "bounds two
+concurrent logins at cap plus one, over several races", which races five
+times per run against a realm-wide live count rather than a query
+pre-limited to the ids the test already expects, so a broken eviction has
+room to show up as more than `cap + 1` (removing the `endMany` call fails
+it immediately, at 5 against a bound of 4). Both numbers matter: unlocked,
+the race is unbounded and gets worse with more racers; locked, two racers
+cost exactly one extra session, never more.
 
 `packages/protocol-oidc/tests/session-cap.int.test.ts` proves the
 sequential case end to end: a browser logging in through the real HTTP
@@ -147,10 +154,13 @@ watching that test fail with four cookie-borne ids against a cap of two.
 
 - **`SELECT ... FOR UPDATE` on the session rows.** The remedy this ADR
   exists to rule out — see Evidence above.
-- **Retry on a detected overage.** Would need a second pass reading the
-  live set again after commit, on every admission, to catch a race that a
-  lock prevents for free; adds latency and complexity for a case the lock
-  already makes impossible.
+- **Retry on a detected overage.** Would close the `cap + (k - 1)` residual the
+  amendment above accepts rather than fixes — the lock does not make the
+  case impossible. Rejected on cost, not impossibility: a second read
+  after every commit, on every admission, in the realm's hottest write
+  path, to correct a size guard that already self-corrects at the
+  browser's next login. Worth reopening only if the residual itself
+  becomes the problem, not merely once noticed.
 - **`SERIALIZABLE` isolation instead of an explicit lock.** Would catch
   the conflict, but as a commit-time serialization failure the caller must
   retry — an explicit lock blocks up front instead and needs no retry

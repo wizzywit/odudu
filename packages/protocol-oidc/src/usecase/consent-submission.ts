@@ -220,5 +220,10 @@ export async function handleConsentSubmission(
     subjectId,
     authenticators,
     header,
+    // The only place this choice can still come from: this door reads no
+    // `remember_me` field of its own, so whatever handleLoginSubmission's
+    // 'consent' branch already gated and parked on the request is what
+    // decides — see PendingRequest.rememberMe.
+    pending.rememberMe ?? false,
   ) as Promise<ConsentSubmissionOutcome>;
 }

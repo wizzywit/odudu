@@ -46,6 +46,7 @@ interface Harness {
   checkEmailVerification: Mock;
   pendingActions: Mock;
   resetAuthenticationProgress: Mock;
+  recordRememberMe: Mock;
 }
 
 function harness(): Harness {
@@ -58,6 +59,7 @@ function harness(): Harness {
   const checkEmailVerification = vi.fn().mockResolvedValue({ verified: true, hasEmail: true });
   const pendingActions = vi.fn().mockResolvedValue([]);
   const resetAuthenticationProgress = vi.fn().mockResolvedValue(undefined);
+  const recordRememberMe = vi.fn().mockResolvedValue(undefined);
   const deps: LoginSubmissionDeps = {
     findRealm: vi.fn().mockResolvedValue(REALM),
     advance,
@@ -66,6 +68,7 @@ function harness(): Harness {
     checkEmailVerification,
     pendingActions,
     resetAuthenticationProgress,
+    recordRememberMe,
     completeLogin,
     // consentRequired: false is 'not_required' unconditionally — none of
     // this file's cases are about consent, so the gate stays a no-op here;
@@ -89,6 +92,7 @@ function harness(): Harness {
     checkEmailVerification,
     pendingActions,
     resetAuthenticationProgress,
+    recordRememberMe,
   };
 }
 

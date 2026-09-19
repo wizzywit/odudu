@@ -856,6 +856,18 @@ export async function resetAuthenticationProgress(
   await authenticationSessionRepository(tx).resetProgress(authSessionId);
 }
 
+// Parks a gated `remember_me` decision on the parked request, for the one
+// caller (handleLoginSubmission's 'consent' branch) that hands a login off
+// to a door — the consent POST — which completes it without asking the
+// field itself. See PendingRequest.rememberMe for the read side.
+export async function recordRememberMe(
+  tx: RealmScopedDatabase,
+  authSessionId: string,
+  rememberMe: boolean,
+): Promise<void> {
+  await authenticationSessionRepository(tx).recordRememberMe(authSessionId, rememberMe);
+}
+
 // The gate that makes an authentication session single-use. The caller
 // (protocol-oidc's login-submission wiring) must run this in the same
 // transaction as issuing whatever the successful login produces, so a

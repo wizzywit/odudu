@@ -70,6 +70,12 @@ export interface PendingRequest {
   // is an ISO string, jsonb's only way to carry a Date.
   reuseSessionId?: string;
   reuseAuthTime?: string;
+  // The already realm-gated `remember_me` decision, parked here only when
+  // a detour — today, consent — completes the login from a door that
+  // never asks the field itself (login-submission.ts's `recordRememberMe`,
+  // its only writer). Absent, the same as `false`, on every session this
+  // was never written against.
+  rememberMe?: boolean;
 }
 
 export interface AuthenticationSessionRecord {

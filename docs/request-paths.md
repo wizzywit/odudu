@@ -6174,11 +6174,11 @@ session lifecycle. A citation of either half here means that half.
   proven by `session-set.int.test.ts`'s "converges to exactly the cap
   across sequential logins" and end to end by
   `packages/protocol-oidc/tests/session-cap.int.test.ts`, but two logins
-  racing from the same browser can transiently exceed it by up to the
-  number racing, corrected at that browser's next login — the accepted
-  residual ADR 0033's amendment records, bounded by
-  "bounds two concurrent logins at cap plus the number racing, never
-  unbounded". What is not there yet: with no account-selection UI there is
+  racing from the same browser can transiently reach `cap + 1`, corrected
+  at that browser's next login — the accepted residual ADR 0033's
+  amendment records, measured (not merely bounded) by
+  "bounds two concurrent logins at cap plus one, over several races".
+  What is not there yet: with no account-selection UI there is
   nothing for `prompt=select_account` to offer a choice over, so it still
   renders the ordinary form, the same as `login` — **P3b**'s next
   increment, named in its criterion since 2026-09-17.

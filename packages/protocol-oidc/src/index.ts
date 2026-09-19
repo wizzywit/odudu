@@ -17,6 +17,7 @@ import {
   markSessionAuthenticated,
   pendingChallenge,
   readSessionIds,
+  recordRememberMe,
   requiredActionRepository,
   resetAuthenticationProgress,
   sessionRepository,
@@ -474,6 +475,10 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
       resetAuthenticationProgress: (realmId, authSessionId) =>
         withRealm(deps.database.db, realmId, (tx) =>
           resetAuthenticationProgress(tx, authSessionId),
+        ),
+      recordRememberMe: (realmId, authSessionId, remembered) =>
+        withRealm(deps.database.db, realmId, (tx) =>
+          recordRememberMe(tx, authSessionId, remembered),
         ),
       advance: (realmId, authSessionId, input) =>
         withRealm(deps.database.db, realmId, (tx) =>

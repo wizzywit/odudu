@@ -428,7 +428,7 @@ to — read from the ids its cookies already name, never by subject, since
 one browser can hold sessions for more than one — in the same transaction
 it creates a new one. A lock on the realm's own row serialises logins
 arriving at once, but does not make the cap exact under concurrency: `k`
-racing from the same browser can transiently exceed it by up to `k`,
+racing from the same browser can transiently exceed it by up to `k - 1`,
 corrected at that browser's next login (ADR 0033's accepted residual).
 `prompt=select_account` still renders the ordinary form; account selection
 among several remembered sessions is

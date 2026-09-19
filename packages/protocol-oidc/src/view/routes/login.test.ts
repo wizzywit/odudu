@@ -45,6 +45,7 @@ function deps(): LoginRouteDeps {
     checkEmailVerification: vi.fn().mockResolvedValue({ verified: true, hasEmail: true }),
     pendingActions: vi.fn().mockResolvedValue([]),
     resetAuthenticationProgress: vi.fn().mockResolvedValue(undefined),
+    recordRememberMe: vi.fn().mockResolvedValue(undefined),
     completeLogin: vi
       .fn()
       .mockResolvedValue({ kind: 'issued', sessionId: 'new-session', code: 'code-1' }),
