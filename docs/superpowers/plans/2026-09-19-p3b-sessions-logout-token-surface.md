@@ -81,6 +81,30 @@ git checkout p3b-sessions-logout-token-surface
 git pull
 ```
 
+**After every merge, check the phase pull request itself — its CI and its review threads.**
+Both accumulate there and neither is visible from the increment's own pull request:
+
+```bash
+gh pr checks 13                       # every job; look for `fail`, do not skim for `pass`
+gh api graphql -f query='{ repository(owner:"<owner>", name:"<repo>") { pullRequest(number:13) {
+  reviewThreads(first:60) { nodes { isResolved comments(first:1){nodes{databaseId path line body}} } } } } }'
+```
+
+Two failures on this phase are why this is written down. Increment 3 was merged while `verify`
+was failing, because a `--watch` tail showed four passes and the failure was above the cut —
+`gh pr checks` prints every job, so check that none says `fail` rather than that some say
+`pass`. And `pnpm verify` is a chain (`format:check && typecheck && lint && boundaries && build
+&& test && trace`), so a red first step means **nothing after it ran**: a formatting failure
+hides the fact that no test executed at all. Separately, six unresolved review threads built up
+on the phase pull request across three increments before anyone looked — the bot reviews that
+pull request as increments merge into it, and findings appear there that exist on no increment's
+pull request.
+
+Findings raised on the phase pull request are answered the same way as any other: fixed with the
+commit named, refuted with the fact that refutes them, or deferred to a recorded owner — and the
+thread is resolved. Where they touch increments already merged, they go on their own branch into
+the phase branch rather than being folded into whatever increment happens to be open.
+
 A merge commit rather than a squash: the increment's own commits are the record of what was done in what order, and `tools/commit-message` exempts merge subjects from the length rules because their bodies are generated.
 
 ## Review Focus
