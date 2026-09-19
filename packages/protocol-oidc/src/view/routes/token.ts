@@ -13,7 +13,7 @@ export interface TokenRouteDeps {
   // Shaped like repository/realm-lookup.ts's RealmLookup, not imported from
   // it: view never reaches into repository (dependency-cruiser's
   // no-view-to-repository rule). `ssoSessionIdleSeconds` is read here for
-  // the same reason /authorize's own resolveSession reads it — a
+  // the same reason /authorize's own resolveSessions reads it — a
   // session-bound refresh dies exactly when the session it is bound to
   // would (refresh-rotation.ts).
   findRealm(

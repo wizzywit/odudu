@@ -275,6 +275,16 @@ function locationHeader(res: LightMyRequestResponse): string {
   return location;
 }
 
+// Two cookies travel on a successful login now (session-cookie.ts, the one
+// authority): the ephemeral list and the persistent one. This walks the
+// browser's SSO session, never the remembered one, which stays empty until
+// a login can ask to be remembered.
+function setCookieValue(res: LightMyRequestResponse): string | undefined {
+  const raw = res.headers['set-cookie'];
+  const values = raw === undefined ? [] : Array.isArray(raw) ? raw : [raw];
+  return values.find((value) => !value.includes('-persistent='))?.split(';')[0];
+}
+
 async function issuerFor(instance: FastifyInstance, realmName: string): Promise<string> {
   const res = await instance.inject({
     url: `/realms/${realmName}/.well-known/openid-configuration`,
@@ -374,10 +384,9 @@ async function signInAndRedeem(
 
   const redeemed = await redeemCode(realmName, code);
   expect(redeemed.statusCode).toBe(200);
-  const setCookie = res.headers['set-cookie'];
   return {
     code,
-    cookie: typeof setCookie === 'string' ? (setCookie.split(';')[0] ?? undefined) : undefined,
+    cookie: setCookieValue(res),
     tokens: redeemed.json<TokenResponseBody>(),
   };
 }
@@ -568,7 +577,7 @@ describe('the parked request is what binds the code', () => {
 describe('the session cookie', () => {
   it('is HttpOnly, SameSite and Path-scoped', async () => {
     const res = await submitLogin(GOOD);
-    const cookie = res.headers['set-cookie'] as string;
+    const cookie = String(res.headers['set-cookie']);
     expect(cookie).toMatch(/HttpOnly/i);
     expect(cookie).toMatch(/SameSite=Lax/i);
     expect(cookie).toMatch(/Path=\//i);
@@ -576,11 +585,11 @@ describe('the session cookie', () => {
 
   it('carries Secure and the __Host- prefix only when TLS is on', async () => {
     const tlsRes = await submitLogin({ ...GOOD, instance: httpTls });
-    const tlsCookie = tlsRes.headers['set-cookie'] as string;
+    const tlsCookie = String(tlsRes.headers['set-cookie']);
     expect(tlsCookie).toMatch(new RegExp(`^__Host-${REALM}-session=.*Secure`));
 
     const plainRes = await submitLogin(GOOD);
-    const plainCookie = plainRes.headers['set-cookie'] as string;
+    const plainCookie = String(plainRes.headers['set-cookie']);
     expect(plainCookie).not.toMatch(/Secure/);
     expect(plainCookie).toMatch(/HttpOnly/i);
   });
@@ -686,12 +695,12 @@ describe('[OIDC-CORE-3.1.2.3-03] prompt=login authenticates again despite a live
   it('renders a fresh login form for a request carrying the session cookie just set', async () => {
     const realmName = await setupLoginRealm(`acme-prompt-login-${newId()}`);
     const loggedIn = await submitLogin({ ...GOOD, realmName });
-    const cookie = loggedIn.headers['set-cookie'];
-    if (typeof cookie !== 'string') throw new Error('expected a session cookie to be set');
+    const cookie = setCookieValue(loggedIn);
+    if (cookie === undefined) throw new Error('expected a session cookie to be set');
 
     const res = await http.inject({
       url: authorizeUrl(realmName, { prompt: 'login' }),
-      headers: { cookie: cookie.split(';')[0] ?? '' },
+      headers: { cookie },
     });
 
     expect(res.statusCode).toBe(200);

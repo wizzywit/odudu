@@ -139,9 +139,14 @@ async function startAuthSession(realmName: string, clientId: string): Promise<st
   return value;
 }
 
+// Two cookies travel on a successful login now (session-cookie.ts, the one
+// authority): the ephemeral list and the persistent one. This walks the
+// browser's SSO session, never the remembered one, which stays empty until
+// a login can ask to be remembered.
 function setCookieValue(res: LightMyRequestResponse): string | undefined {
   const raw = res.headers['set-cookie'];
-  return typeof raw === 'string' ? raw.split(';')[0] : undefined;
+  const values = raw === undefined ? [] : Array.isArray(raw) ? raw : [raw];
+  return values.find((value) => !value.includes('-persistent='))?.split(';')[0];
 }
 
 function locationHeader(res: LightMyRequestResponse): string {

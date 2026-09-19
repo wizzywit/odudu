@@ -67,6 +67,9 @@ function harness(): Harness {
       scopeIdByName: new Map<string, string>(),
     }),
     grantedScopeIds: vi.fn().mockResolvedValue(new Set<string>()),
+    // No other live session by default — the harness's cases are about the
+    // login gates, not the browser's existing session set.
+    resolveSessions: vi.fn().mockResolvedValue([]),
   };
   return {
     deps,
@@ -101,6 +104,7 @@ describe('handleLoginSubmission — a session id that cannot name a session', ()
         'https://idp.example',
         authSessionId,
         { username: 'ada', password: 'x' },
+        undefined,
       );
 
       expect(outcome).toEqual({ kind: 'unauthenticated' });
@@ -119,6 +123,7 @@ describe('handleLoginSubmission — the success path', () => {
       'https://idp.example',
       AUTH_SESSION_ID,
       { username: 'ada', password: 'x' },
+      undefined,
     );
 
     expect(outcome).toEqual({
@@ -126,6 +131,9 @@ describe('handleLoginSubmission — the success path', () => {
       location:
         'https://app.example/callback?code=code-1&state=xyz&iss=https%3A%2F%2Fidp.example%2Frealms%2Facme',
       sessionId: 'session-1',
+      ephemeralSessionIds: ['session-1'],
+      persistentSessionIds: [],
+      persistentMaxAgeSeconds: REALM.ssoSessionMaxSeconds,
     });
     expect(completeLogin).toHaveBeenCalledWith({
       realmId: REALM.id,
@@ -155,6 +163,7 @@ describe('handleLoginSubmission — a realm that requires a verified address', (
       'https://idp.example',
       AUTH_SESSION_ID,
       { username: 'ada', password: 'x' },
+      undefined,
     );
 
     expect(outcome).toEqual({
@@ -176,6 +185,7 @@ describe('handleLoginSubmission — a realm that requires a verified address', (
       'https://idp.example',
       AUTH_SESSION_ID,
       { username: 'ada', password: 'x' },
+      undefined,
     );
 
     expect(outcome).toEqual({
@@ -196,6 +206,7 @@ describe('handleLoginSubmission — a realm that requires a verified address', (
       'https://idp.example',
       AUTH_SESSION_ID,
       { username: 'ada', password: 'x' },
+      undefined,
     );
 
     expect(outcome.kind).toBe('redirect');
@@ -213,6 +224,7 @@ describe('handleLoginSubmission — a subject with a pending required action', (
       'https://idp.example',
       AUTH_SESSION_ID,
       { username: 'ada', password: 'x' },
+      undefined,
     );
 
     expect(outcome).toEqual({
@@ -234,6 +246,7 @@ describe('handleLoginSubmission — a subject with a pending required action', (
       'https://idp.example',
       AUTH_SESSION_ID,
       { username: 'ada', password: 'x' },
+      undefined,
     );
 
     expect(outcome).toEqual({
@@ -254,6 +267,7 @@ describe('handleLoginSubmission — a subject with a pending required action', (
       'https://idp.example',
       AUTH_SESSION_ID,
       { username: 'ada', password: 'x' },
+      undefined,
     );
 
     expect(outcome.kind).toBe('redirect');
@@ -272,6 +286,7 @@ describe('handleLoginSubmission — a session already consumed by an earlier or 
       'https://idp.example',
       AUTH_SESSION_ID,
       { username: 'ada', password: 'x' },
+      undefined,
     );
 
     expect(outcome).toEqual({ kind: 'unauthenticated' });
@@ -289,6 +304,7 @@ describe('handleLoginSubmission — a failed attempt must not consume the sessio
       'https://idp.example',
       AUTH_SESSION_ID,
       { username: 'ada', password: 'wrong' },
+      undefined,
     );
 
     expect(outcome).toEqual({ kind: 'reject', authSessionId: AUTH_SESSION_ID });
@@ -305,6 +321,7 @@ describe('handleLoginSubmission — a failed attempt must not consume the sessio
       'https://idp.example',
       AUTH_SESSION_ID,
       { username: 'ada', password: 'x' },
+      undefined,
     );
 
     expect(outcome).toEqual({ kind: 'unauthenticated' });
@@ -321,6 +338,7 @@ describe('handleLoginSubmission — a failed attempt must not consume the sessio
       'https://idp.example',
       AUTH_SESSION_ID,
       {},
+      undefined,
     );
 
     expect(outcome).toEqual({ kind: 'reject', authSessionId: AUTH_SESSION_ID });
@@ -341,6 +359,7 @@ describe('handleLoginSubmission — a hint naming somebody other than who signed
       'https://idp.example',
       AUTH_SESSION_ID,
       { username: 'ada', password: 'x' },
+      undefined,
     );
 
     expect(outcome.kind).toBe('error_redirect');
@@ -360,6 +379,7 @@ describe('handleLoginSubmission — a hint naming somebody other than who signed
       'https://idp.example',
       AUTH_SESSION_ID,
       { username: 'ada', password: 'x' },
+      undefined,
     );
 
     expect(outcome.kind).toBe('redirect');

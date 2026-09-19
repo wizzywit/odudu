@@ -12,8 +12,8 @@ export interface RealmLookup {
   // The ceiling completeLogin passes to establishSession: the realm's own
   // configured value, not a package-wide constant.
   ssoSessionMaxSeconds: number;
-  // The idle window resolveSession checks a cookie's session against
-  // (sessionRepository(tx).liveById) — the realm's own configured value,
+  // The idle window resolveSessions checks a browser's sessions against
+  // (sessionRepository(tx).liveByIds) — the realm's own configured value,
   // mirroring ssoSessionMaxSeconds.
   ssoSessionIdleSeconds: number;
   // The three-state gate the registration endpoint and discovery's

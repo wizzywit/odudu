@@ -60,4 +60,8 @@ export const realms = pgTable('realms', {
   // 'disabled'/200 so an existing realm's behaviour is unchanged.
   clientRegistrationPolicy: text('client_registration_policy').notNull().default('disabled'),
   maxClients: integer('max_clients').notNull().default(200),
+  // How many live sessions one browser may hold for this realm
+  // (packages/db/drizzle/0048_sessions_remembered_and_cap.sql). 25 is the
+  // spike-measured default; see docs/superpowers/p3b-spike-cookies.md.
+  maxSessionsPerBrowser: integer('max_sessions_per_browser').notNull().default(25),
 }).enableRLS();

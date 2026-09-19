@@ -25,6 +25,7 @@ Every task's requirements implicitly include this section. Values are copied fro
 - **A page renderer is a `*-html.ts` in its package's `view` layer** returning `RenderedPage` and nothing else: no `reply`, no status, no headers. Headers come from `pageHeaders` alone.
 - **Layering:** `view` → own model and `shared/view`; `usecase` → repository, service, view models; `repository` → adapter, service; `adapter` → transport, service; `service` → nothing. Domain packages never import protocol packages; protocol packages never import each other.
 - **Background work is a command first and a timer second.** The usecase takes `now` as an argument and holds no timer; the loop is an interval, jitter, a call, a logging `catch` and a `stop` that awaits the pass in flight, and nothing else. Test loops with `vi.useFakeTimers()`, never by waiting.
+- **No tool-attribution line in a pull request description either** — not "Generated with", not "Co-Authored-By", nothing. `CLAUDE.md` bans it, and unlike the commit half no hook or CI job can see a pull request body, so this one is followed rather than caught. It is the attribution that is banned, not the prose.
 - **Commit messages:** subject ≤72 characters, body reading as ≤8 lines, blank line between, **no tool-attribution trailer**. `.githooks/commit-msg` and the `commit-messages` CI job enforce it. Enable the hook once per clone with `git config core.hooksPath .githooks`.
 - **An increment is finished when CI is green on a pushed commit with a pull request open, and the review that push attracted has been answered.** See _Branch layout_ below for which pull request that is.
 - **`README.md` and `docs/request-paths.md` are updated in the same commit as the code** that changes a request, response, branch, error code, endpoint, command or default. Every transcript in `request-paths.md` is real output from a running stack; a fenced block holding a response carries **no language tag**.
@@ -43,13 +44,34 @@ Why this shape rather than one pull request for the phase: the review a push att
 
 Two things it costs, so nobody discovers them mid-phase. The `conformance` job runs on each increment pull request **and** again on the phase pull request when that increment merges, so conformance minutes roughly double. And the integration branch is not protected — only `main` is — so nothing mechanically prevents merging an increment whose checks are red. The checks are visible on the pull request; honouring them is discipline.
 
+**Each pull request opens on the branch's first commit, not after its last task.**
+GitHub refuses a pull request with no commits between head and base, so an increment's
+pull request cannot precede its first commit — but it must not wait for its last. Open it
+as soon as the first task commits. A branch with no pull request open runs **no CI at
+all**, so every task implemented before the pull request exists is a task nobody
+checked. P1 ran nineteen increments that way.
+
+```bash
+git checkout p3b-sessions-logout-token-surface && git push -u origin HEAD
+gh pr create --draft --base main --head p3b-sessions-logout-token-surface \
+  --title "P3b — sessions, logout and the token surface" \
+  --body "Implements the P3b design spec. Increments merge into this branch one pull request at a time."
+```
+
 **Opening an increment:**
 
 ```bash
 git checkout p3b-sessions-logout-token-surface
 git pull
-git checkout -b p3b/1-session-set
+git checkout -b p3b/<n>-<slug>
+# ... the increment's first task, through to its commit ...
+git push -u origin HEAD
+gh pr create --base p3b-sessions-logout-token-surface --head p3b/<n>-<slug> \
+  --title "P3b increment <n> — <name>" --body "<tasks> of the P3b plan."
 ```
+
+The `gh pr create` comes immediately after the **first** task's commit, not after the
+increment's last. Pushing again after each subsequent task is what keeps CI on the work.
 
 **Closing one**, after CI is green and the review is answered:
 
@@ -3146,17 +3168,25 @@ it('issues a token to a client that registered inline jwks', async () => {
 it('refuses an assertion signed by a key the client does not publish', async () => {
   const response = await token({ assertion: signedBy(strangerKey) });
   expect(response.statusCode).toBe(401);
-  expect(response.json().error_description).toBe('the signature did not verify');
+  expect(response.json()).toEqual(refusal);
 });
 
-it('says the key could not be retrieved when the jwks_uri does not answer', async () => {
+it('answers the same refusal when the jwks_uri does not answer', async () => {
   const response = await token({ client: unreachableJwksClient, assertion: signedBy(clientKey) });
-  expect(response.json().error_description).toBe('the key could not be retrieved');
+  expect(response.json()).toEqual(refusal);
+});
+
+it('cannot be used to tell a reachable jwks_uri from an unreachable one', async () => {
+  const unreachable = await token({ client: unreachableJwksClient, assertion: signedBy(clientKey) });
+  const badSignature = await token({ assertion: signedBy(strangerKey) });
+
+  expect(unreachable.json()).toEqual(badSignature.json());
+  expect(unreachable.statusCode).toBe(badSignature.statusCode);
 });
 
 it('never reports the address guard's own reasoning', async () => {
   const response = await token({ client: clientWithPrivateJwksUri, assertion: signedBy(clientKey) });
-  expect(response.json().error_description).toBe('the key could not be retrieved');
+  expect(response.json()).toEqual(refusal);
   expect(JSON.stringify(response.json())).not.toMatch(/loopback|private|link-local|blocked/iu);
 });
 
@@ -3175,7 +3205,7 @@ it('advertises private_key_jwt in token_endpoint_auth_methods_supported', async 
 });
 ```
 
-The fifth is the reason registration-time dereferencing was reverted in P3a: an SSRF guard's refusal reason is a network oracle, and the only safe refusal is one that says nothing about why.
+Those cases are one requirement stated several ways, and it is the reason registration-time dereferencing was reverted in P3a. **Every failure answers the same bytes** — the guard refused the address, the host did not answer, the key set did not parse, the signature did not verify — one `invalid_client` with one description, bound to a single `refusal` constant the tests compare against. Two distinct messages are themselves the oracle: a caller registers the `jwks_uri` and reads from the difference whether that address was reachable and served parseable JWKS. The reason is logged, where only an operator sees it.
 
 - [ ] **Step 2: Run it to verify it fails**
 
@@ -3184,7 +3214,7 @@ Expected: FAIL — the method is not accepted.
 
 - [ ] **Step 3: Implement it**
 
-In the client-authentication branch of `token-issuance.ts`: parse the assertion, resolve the client, refuse unless its registered method is `private_key_jwt`, claim the `jti`, fetch its key set through `clientKeySet`, and verify. Two refusal strings and no others, chosen by whether the key set was retrieved.
+In the client-authentication branch of `token-issuance.ts`: parse the assertion, resolve the client, refuse unless its registered method is `private_key_jwt`, claim the `jti`, fetch its key set through `clientKeySet`, and verify. **One refusal and no others** — the same response whatever failed — with the specific reason passed to the logger rather than to the caller.
 
 The rate limit does not apply: `isSharedSecretMethod` (`client-secret-throttle.ts:11`) already excludes this method, and its comment says why — possession of a key is not a secret that can be guessed.
 

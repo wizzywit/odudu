@@ -4,6 +4,7 @@ import {
   type AdvanceOutcome,
   type PendingRequest,
   type RequiredAction,
+  type SessionRecord,
 } from '@odudu/authn-flows';
 import { type RealmScopedDatabase } from '@odudu/db';
 import { isUuid } from '@odudu/kernel';
@@ -114,7 +115,19 @@ export type LoginSubmissionOutcome =
       optionalScopes: string[];
       alreadyGranted: string[];
     }
-  | { kind: 'redirect'; location: string; sessionId: string };
+  | {
+      kind: 'redirect';
+      location: string;
+      sessionId: string;
+      // What sessionCookies (the one authority for the cookie, @odudu/authn-flows)
+      // needs to write both lists: this login's session joined with the
+      // browser's other surviving ones, split by which cookie already
+      // carries each. Persistent is always empty until a login can ask to
+      // be remembered.
+      ephemeralSessionIds: readonly string[];
+      persistentSessionIds: readonly string[];
+      persistentMaxAgeSeconds: number;
+    };
 
 // Everything the atomic completion step needs to establish the SSO session
 // and issue the code, gathered ahead of the call so that step can be one
@@ -274,6 +287,14 @@ export interface LoginSubmissionDeps extends ConsentGateDeps {
   // the one transaction this name promises. See index.ts for the wiring
   // that makes it one `withRealm` call rather than three.
   completeLogin(input: CompleteLoginInput): Promise<CompleteLoginOutcome>;
+  // The browser's own live session set, resolved from its two cookies —
+  // the same authority /authorize and logout resolve through (index.ts).
+  // completeAuthorizedLogin reads it to add a login to the set rather than
+  // replace it.
+  resolveSessions(
+    realm: { id: string; name: string; ssoSessionIdleSeconds: number },
+    header: string | undefined,
+  ): Promise<SessionRecord[]>;
 }
 
 // An authorization error response delivered to the parked request's own
@@ -301,14 +322,18 @@ export function errorRedirect(
 // the atomic consume. `clientId` is never resolved again here: every
 // caller already needed it before reaching this tail.
 export async function completeAuthorizedLogin(
-  deps: Pick<LoginSubmissionDeps, 'completeLogin'>,
-  realm: { id: string; name: string; ssoSessionMaxSeconds: number },
+  deps: Pick<LoginSubmissionDeps, 'completeLogin' | 'resolveSessions'>,
+  realm: { id: string; name: string; ssoSessionMaxSeconds: number; ssoSessionIdleSeconds: number },
   issuerBase: string,
   authSessionId: string,
   pending: PendingRequest,
   clientId: string,
   subjectId: string,
   authenticators: string[],
+  // The browser's own `Cookie` header, read by the route and trusted for
+  // nothing but resolving its current session set — the same value
+  // /authorize and logout resolve through.
+  header: string | undefined,
 ): Promise<LoginSubmissionOutcome> {
   // A session reuse a consent decision promoted (PendingRequest carries
   // its own session's id and authTime): reused, not re-established, so
@@ -347,7 +372,29 @@ export async function completeAuthorizedLogin(
   if (pending.state !== null) location.searchParams.set('state', pending.state);
   location.searchParams.set('iss', realmIssuer(issuerBase, realm.name));
 
-  return { kind: 'redirect', location: location.toString(), sessionId };
+  // The browser's other live sessions, joined with this one, split by the
+  // cookie each already belongs to (`remembered`) — not by which cookie the
+  // request happened to carry it in, so a mismatched cookie self-heals. A
+  // reused session keeps whichever list it was already in; a freshly
+  // established one is always ephemeral until a login can ask to be
+  // remembered.
+  const existing = await deps.resolveSessions(
+    { id: realm.id, name: realm.name, ssoSessionIdleSeconds: realm.ssoSessionIdleSeconds },
+    header,
+  );
+  const survivors = existing.filter((session) => session.id !== sessionId);
+  const remembered = existing.find((session) => session.id === sessionId)?.remembered ?? false;
+  const bucket = (flag: boolean) =>
+    survivors.filter((session) => session.remembered === flag).map((session) => session.id);
+
+  return {
+    kind: 'redirect',
+    location: location.toString(),
+    sessionId,
+    ephemeralSessionIds: remembered ? bucket(false) : [...bucket(false), sessionId],
+    persistentSessionIds: remembered ? [...bucket(true), sessionId] : bucket(true),
+    persistentMaxAgeSeconds: realm.ssoSessionMaxSeconds,
+  };
 }
 
 // The handler this drives treats a submission whose auth_session_id does
@@ -364,6 +411,12 @@ export async function handleLoginSubmission(
   issuerBase: string,
   authSessionId: string | undefined,
   input: AdvanceInput,
+  // The browser's `Cookie` header, threaded through to completeAuthorizedLogin
+  // — required, not optional: an omitted header resolves to an empty
+  // session set and silently drops every other live session from the
+  // reply's cookie. A caller with no cookie to give passes `undefined`
+  // explicitly.
+  header: string | undefined,
 ): Promise<LoginSubmissionOutcome> {
   // A value that is not shaped like a uuid names no session and never
   // could: folded in here rather than left to the `uuid` comparison, where
@@ -477,12 +530,18 @@ export async function handleLoginSubmission(
 
   return completeAuthorizedLogin(
     deps,
-    { id: realm.id, name: realmName, ssoSessionMaxSeconds: realm.ssoSessionMaxSeconds },
+    {
+      id: realm.id,
+      name: realmName,
+      ssoSessionMaxSeconds: realm.ssoSessionMaxSeconds,
+      ssoSessionIdleSeconds: realm.ssoSessionIdleSeconds,
+    },
     issuerBase,
     authSessionId,
     pending,
     clientId,
     result.subjectId,
     result.authenticators,
+    header,
   );
 }

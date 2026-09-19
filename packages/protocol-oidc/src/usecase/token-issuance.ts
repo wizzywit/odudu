@@ -51,8 +51,8 @@ export interface TokenIssuanceDeps {
   issuer: string;
   kek: Uint8Array;
   clock: Clock;
-  // The realm's own idle window — the same one /authorize's resolveSession
-  // checks a session cookie against — so a session-bound refresh dies
+  // The realm's own idle window — the same one /authorize's resolveSessions
+  // checks a browser's sessions against — so a session-bound refresh dies
   // exactly when the session it is bound to would (refresh-rotation.ts).
   idleSeconds: number;
   verifyPassword: (hash: string, secret: string) => Promise<boolean>;

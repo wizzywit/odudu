@@ -404,9 +404,11 @@ rather than clamped. A reused session issues a code carrying the
 a client's own `max_age` check depends on — and `max_age` is honoured, so a
 client can demand a fresher authentication than the cookie represents. The
 email-verified gate guards this second door into completing a login exactly
-as it guards the password form. What is not there: **one session per
-browser**, since the cookie holds one id, which is why
-`prompt=select_account` renders the ordinary form and is P3b's.
+as it guards the password form. The cookie now holds a **list** of session
+ids, not one, and a fresh login joins a browser's existing set rather than
+replacing it — but nothing yet marks a session `remembered` or offers a
+choice among several, so there is still no "remember me" and
+`prompt=select_account` still renders the ordinary form. Both are P3b's.
 
 **A realm can now end a session.** `GET`/`POST
 /realms/{realm}/protocol/openid-connect/logout` implements OpenID Connect
