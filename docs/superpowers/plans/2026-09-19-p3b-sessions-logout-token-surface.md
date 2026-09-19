@@ -43,13 +43,32 @@ Why this shape rather than one pull request for the phase: the review a push att
 
 Two things it costs, so nobody discovers them mid-phase. The `conformance` job runs on each increment pull request **and** again on the phase pull request when that increment merges, so conformance minutes roughly double. And the integration branch is not protected — only `main` is — so nothing mechanically prevents merging an increment whose checks are red. The checks are visible on the pull request; honouring them is discipline.
 
+**Both pull requests open before the increment's first task, not after its last.**
+The phase pull request and the increment's own pull request are opened on the first
+push of the branch — an empty branch is enough. A branch with no pull request open
+runs **no CI at all**, so every task implemented before the pull request exists is a
+task nobody checked. P1 ran nineteen increments that way.
+
+```bash
+git checkout p3b-sessions-logout-token-surface && git push -u origin HEAD
+gh pr create --draft --base main --head p3b-sessions-logout-token-surface \
+  --title "P3b — sessions, logout and the token surface" \
+  --body "Implements the P3b design spec. Increments merge into this branch one pull request at a time."
+```
+
 **Opening an increment:**
 
 ```bash
 git checkout p3b-sessions-logout-token-surface
 git pull
-git checkout -b p3b/1-session-set
+git checkout -b p3b/<n>-<slug>
+git push -u origin HEAD
+gh pr create --base p3b-sessions-logout-token-surface --head p3b/<n>-<slug> \
+  --title "P3b increment <n> — <name>" --body "<tasks> of the P3b plan."
 ```
+
+The push and the `gh pr create` come **first**, before the increment's first task is
+dispatched. Pushing again after each task is what puts CI on the work.
 
 **Closing one**, after CI is green and the review is answered:
 
