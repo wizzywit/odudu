@@ -173,16 +173,19 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
     // set with a fresh login, and by logout's membership check — never
     // trusted for anything but that lookup.
     const resolveSessions = (
-      realm: { id: string; name: string; ssoSessionIdleSeconds: number },
+      realm: {
+        id: string;
+        name: string;
+        ssoSessionIdleSeconds: number;
+        ssoSessionMaxSeconds: number;
+        rememberMeIdleSeconds: number;
+        rememberMeMaxSeconds: number;
+      },
       header: string | undefined,
     ) => {
       const ids = readSessionIds(header, realm.name, tls);
       return withRealm(deps.database.db, realm.id, (tx) =>
-        sessionRepository(tx).liveByIds(
-          [...ids.ephemeral, ...ids.persistent],
-          realm.ssoSessionIdleSeconds,
-          clock.now(),
-        ),
+        sessionRepository(tx).liveByIds([...ids.ephemeral, ...ids.persistent], realm, clock.now()),
       );
     };
 

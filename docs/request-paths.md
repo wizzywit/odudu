@@ -5450,6 +5450,17 @@ path reads it to admit or refuse a session. That enforcement is
 application logic still to be written, tracked as session-admission work in
 [What is not implemented](#what-is-not-implemented).
 
+A realm also carries the pair a remembered login's session is measured
+against instead of `sso_session_idle_seconds`/`sso_session_max_seconds`:
+`remember_me_allowed` (boolean, default `false`), `remember_me_idle_seconds`
+(60–31536000, default 604800, one week) and `remember_me_max_seconds`
+(60–31536000, default 2592000, thirty days), each settable the same way —
+`odudu seed realm --set remember_me_idle_seconds=1209600`. Which pair a
+session uses is picked by its own `remembered` column
+(`packages/authn-flows/src/service/session-lifespan.ts`), but nothing on the
+request path sets that column to `true` yet, so these settings have no
+observable effect until the toggle described above lands.
+
 ### `id_token_hint`
 
 A hint is checked against the realm's own keys and issuer before anything

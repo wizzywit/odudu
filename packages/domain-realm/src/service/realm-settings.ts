@@ -31,6 +31,9 @@ const SETTINGS = {
   client_registration_policy: { column: 'clientRegistrationPolicy', type: 'text' },
   max_clients: { column: 'maxClients', type: 'integer' },
   max_sessions_per_browser: { column: 'maxSessionsPerBrowser', type: 'integer' },
+  remember_me_allowed: { column: 'rememberMeAllowed', type: 'boolean' },
+  remember_me_idle_seconds: { column: 'rememberMeIdleSeconds', type: 'integer' },
+  remember_me_max_seconds: { column: 'rememberMeMaxSeconds', type: 'integer' },
 } as const satisfies Record<string, { column: string; type: 'boolean' | 'integer' | 'text' }>;
 
 export type RealmSettingName = keyof typeof SETTINGS;

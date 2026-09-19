@@ -119,7 +119,14 @@ export interface AuthorizeUsecaseDeps extends ConsentGateDeps {
   // session, while a browser may hold several; handleAuthorizationRequest
   // picks the most recently active of the set resolved here.
   resolveSessions(
-    realm: { id: string; name: string; ssoSessionIdleSeconds: number },
+    realm: {
+      id: string;
+      name: string;
+      ssoSessionIdleSeconds: number;
+      ssoSessionMaxSeconds: number;
+      rememberMeIdleSeconds: number;
+      rememberMeMaxSeconds: number;
+    },
     header: string | undefined,
   ): Promise<SessionRecord[]>;
   // The same gate handleLoginSubmission enforces, shared so a cookie-borne
@@ -239,7 +246,14 @@ export async function handleAuthorizationRequest(
   // would otherwise do one of those. The two are decided together rather
   // than in sequence (docs/protocols/oidc-core.md's reading note has why).
   const sessions = await deps.resolveSessions(
-    { id: realm.id, name: realmName, ssoSessionIdleSeconds: realm.ssoSessionIdleSeconds },
+    {
+      id: realm.id,
+      name: realmName,
+      ssoSessionIdleSeconds: realm.ssoSessionIdleSeconds,
+      ssoSessionMaxSeconds: realm.ssoSessionMaxSeconds,
+      rememberMeIdleSeconds: realm.rememberMeIdleSeconds,
+      rememberMeMaxSeconds: realm.rememberMeMaxSeconds,
+    },
     header,
   );
   const resolvedSession = toReusableSession(mostRecentlyActive(sessions));

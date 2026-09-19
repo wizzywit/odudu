@@ -19,6 +19,12 @@ import { chooseEvictions } from '#/service/session-set';
 import { isSessionLive } from '#/service/session-liveness';
 
 const IDLE_SECONDS = 1800;
+const REALM_LIFESPANS = {
+  ssoSessionIdleSeconds: IDLE_SECONDS,
+  ssoSessionMaxSeconds: 36_000,
+  rememberMeIdleSeconds: 604_800,
+  rememberMeMaxSeconds: 2_592_000,
+};
 
 let containerHandle: TestDatabase | undefined;
 let ownerHandle: DatabaseHandle | undefined;
@@ -109,7 +115,7 @@ describe('the live session set', () => {
     });
 
     await withRealm(app.db, realmId, async (tx) => {
-      const found = await sessionRepository(tx).liveByIds([liveId, deadId], IDLE_SECONDS, now);
+      const found = await sessionRepository(tx).liveByIds([liveId, deadId], REALM_LIFESPANS, now);
       expect(found.map((s) => s.id)).toEqual([liveId]);
     });
   });
@@ -124,7 +130,7 @@ describe('the live session set', () => {
     });
 
     await withRealm(app.db, realmId, async (tx) => {
-      const found = await sessionRepository(tx).liveByIds([liveId, newId()], IDLE_SECONDS, now);
+      const found = await sessionRepository(tx).liveByIds([liveId, newId()], REALM_LIFESPANS, now);
       expect(found.map((s) => s.id)).toEqual([liveId]);
     });
   });
@@ -133,7 +139,7 @@ describe('the live session set', () => {
     const realmId = newId();
     await withRealm(app.db, realmId, async (tx) => {
       await seedRealm(tx, realmId);
-      expect(await sessionRepository(tx).liveByIds([], IDLE_SECONDS, new Date())).toEqual([]);
+      expect(await sessionRepository(tx).liveByIds([], REALM_LIFESPANS, new Date())).toEqual([]);
     });
   });
 
@@ -149,7 +155,7 @@ describe('the live session set', () => {
 
     await withRealm(app.db, otherRealmId, async (tx) => {
       await seedRealm(tx, otherRealmId);
-      expect(await sessionRepository(tx).liveByIds([liveId], IDLE_SECONDS, now)).toEqual([]);
+      expect(await sessionRepository(tx).liveByIds([liveId], REALM_LIFESPANS, now)).toEqual([]);
     });
   });
 
@@ -168,7 +174,7 @@ describe('the live session set', () => {
     await withRealm(app.db, realmId, async (tx) => {
       const repo = sessionRepository(tx);
       await repo.endMany([liveId, deadId], now);
-      expect(await repo.liveByIds([liveId, deadId], IDLE_SECONDS, now)).toEqual([]);
+      expect(await repo.liveByIds([liveId, deadId], REALM_LIFESPANS, now)).toEqual([]);
     });
   });
 
@@ -181,7 +187,7 @@ describe('the live session set', () => {
         return createSession(tx, realmId, subject.id, new Date(now.getTime() + 3_600_000));
       },
       verifySeeded: async (tx, id) => {
-        expect(await sessionRepository(tx).liveByIds([id], IDLE_SECONDS, now)).toHaveLength(1);
+        expect(await sessionRepository(tx).liveByIds([id], REALM_LIFESPANS, now)).toHaveLength(1);
       },
       attempt: async (tx, id) => {
         await sessionRepository(tx).endMany([id], now);
@@ -193,7 +199,7 @@ describe('the live session set', () => {
         // gives to a foreign id.
       },
       verifyRealmAUnaffected: async (tx, id) => {
-        expect(await sessionRepository(tx).liveByIds([id], IDLE_SECONDS, now)).toHaveLength(1);
+        expect(await sessionRepository(tx).liveByIds([id], REALM_LIFESPANS, now)).toHaveLength(1);
       },
     });
   });
@@ -221,11 +227,47 @@ describe('the live session set', () => {
     await withRealm(app.db, realmId, async (tx) => {
       const live = await sessionRepository(tx).liveByIds(
         [...seeded, first.id, second.id],
-        IDLE_SECONDS,
+        REALM_LIFESPANS,
         now,
       );
       expect(live.length).toBeLessThanOrEqual(cap);
       expect(live.map((s) => s.id)).toEqual(expect.arrayContaining([first.id, second.id]));
+    });
+  });
+
+  it('measures a remembered session against the remembered idle window', async () => {
+    const realmId = newId();
+    const now = new Date();
+    // Idle for two days: dead under sso_session_idle_seconds (1800s), live
+    // under the remembered pair (604800s).
+    const idledSince = new Date(now.getTime() - 2 * 24 * 3_600_000);
+
+    const { rememberedId, ordinaryId } = await withRealm(app.db, realmId, async (tx) => {
+      await seedRealm(tx, realmId);
+      const subject = await subjectRepository(tx).create({ realmId, type: 'user' });
+      const far = new Date(now.getTime() + 30 * 24 * 3_600_000);
+      const rememberedId = newId();
+      await tx.insert(sessions).values({
+        id: rememberedId,
+        realmId,
+        subjectId: subject.id,
+        expiresAt: far,
+        authenticators: [],
+        remembered: true,
+      });
+      await sessionRepository(tx).touch(rememberedId, idledSince);
+      const ordinaryId = await createSession(tx, realmId, subject.id, far);
+      await sessionRepository(tx).touch(ordinaryId, idledSince);
+      return { rememberedId, ordinaryId };
+    });
+
+    await withRealm(app.db, realmId, async (tx) => {
+      const live = await sessionRepository(tx).liveByIds(
+        [rememberedId, ordinaryId],
+        REALM_LIFESPANS,
+        now,
+      );
+      expect(live.map((s) => s.id)).toEqual([rememberedId]);
     });
   });
 });

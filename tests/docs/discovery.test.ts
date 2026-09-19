@@ -21,6 +21,8 @@ async function serverDiscoveryDocument(): Promise<Record<string, unknown>> {
           verifyEmail: false,
           ssoSessionMaxSeconds: 36_000,
           ssoSessionIdleSeconds: 1_800,
+          rememberMeIdleSeconds: 604_800,
+          rememberMeMaxSeconds: 2_592_000,
           clientRegistrationPolicy: 'disabled',
         }),
       claimNames: () => claimMappers.claimNames(),

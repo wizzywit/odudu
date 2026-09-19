@@ -292,7 +292,14 @@ export interface LoginSubmissionDeps extends ConsentGateDeps {
   // completeAuthorizedLogin reads it to add a login to the set rather than
   // replace it.
   resolveSessions(
-    realm: { id: string; name: string; ssoSessionIdleSeconds: number },
+    realm: {
+      id: string;
+      name: string;
+      ssoSessionIdleSeconds: number;
+      ssoSessionMaxSeconds: number;
+      rememberMeIdleSeconds: number;
+      rememberMeMaxSeconds: number;
+    },
     header: string | undefined,
   ): Promise<SessionRecord[]>;
 }
@@ -323,7 +330,14 @@ export function errorRedirect(
 // caller already needed it before reaching this tail.
 export async function completeAuthorizedLogin(
   deps: Pick<LoginSubmissionDeps, 'completeLogin' | 'resolveSessions'>,
-  realm: { id: string; name: string; ssoSessionMaxSeconds: number; ssoSessionIdleSeconds: number },
+  realm: {
+    id: string;
+    name: string;
+    ssoSessionMaxSeconds: number;
+    ssoSessionIdleSeconds: number;
+    rememberMeIdleSeconds: number;
+    rememberMeMaxSeconds: number;
+  },
   issuerBase: string,
   authSessionId: string,
   pending: PendingRequest,
@@ -379,7 +393,14 @@ export async function completeAuthorizedLogin(
   // established one is always ephemeral until a login can ask to be
   // remembered.
   const existing = await deps.resolveSessions(
-    { id: realm.id, name: realm.name, ssoSessionIdleSeconds: realm.ssoSessionIdleSeconds },
+    {
+      id: realm.id,
+      name: realm.name,
+      ssoSessionIdleSeconds: realm.ssoSessionIdleSeconds,
+      ssoSessionMaxSeconds: realm.ssoSessionMaxSeconds,
+      rememberMeIdleSeconds: realm.rememberMeIdleSeconds,
+      rememberMeMaxSeconds: realm.rememberMeMaxSeconds,
+    },
     header,
   );
   const survivors = existing.filter((session) => session.id !== sessionId);
@@ -535,6 +556,8 @@ export async function handleLoginSubmission(
       name: realmName,
       ssoSessionMaxSeconds: realm.ssoSessionMaxSeconds,
       ssoSessionIdleSeconds: realm.ssoSessionIdleSeconds,
+      rememberMeIdleSeconds: realm.rememberMeIdleSeconds,
+      rememberMeMaxSeconds: realm.rememberMeMaxSeconds,
     },
     issuerBase,
     authSessionId,

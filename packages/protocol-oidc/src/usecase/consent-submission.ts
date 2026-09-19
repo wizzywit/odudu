@@ -69,7 +69,14 @@ export interface ConsentSubmissionDeps {
   // form path — see login-submission.ts's LoginSubmissionDeps for the
   // full comment.
   resolveSessions(
-    realm: { id: string; name: string; ssoSessionIdleSeconds: number },
+    realm: {
+      id: string;
+      name: string;
+      ssoSessionIdleSeconds: number;
+      ssoSessionMaxSeconds: number;
+      rememberMeIdleSeconds: number;
+      rememberMeMaxSeconds: number;
+    },
     header: string | undefined,
   ): Promise<SessionRecord[]>;
   // The same two dependencies handleLoginSubmission reads to enforce its own
@@ -202,6 +209,8 @@ export async function handleConsentSubmission(
       name: realmName,
       ssoSessionMaxSeconds: realm.ssoSessionMaxSeconds,
       ssoSessionIdleSeconds: realm.ssoSessionIdleSeconds,
+      rememberMeIdleSeconds: realm.rememberMeIdleSeconds,
+      rememberMeMaxSeconds: realm.rememberMeMaxSeconds,
     },
     issuerBase,
     authSessionId,

@@ -95,7 +95,14 @@ export interface LogoutUsecaseDeps {
   // way /authorize resolves them — never trusted for anything but that
   // lookup.
   resolveSessions(
-    realm: { id: string; name: string; ssoSessionIdleSeconds: number },
+    realm: {
+      id: string;
+      name: string;
+      ssoSessionIdleSeconds: number;
+      ssoSessionMaxSeconds: number;
+      rememberMeIdleSeconds: number;
+      rememberMeMaxSeconds: number;
+    },
     header: string | undefined,
   ): Promise<SessionRecord[]>;
   // One transaction: ends the session row and revokes every grant whose
@@ -137,7 +144,14 @@ export async function handleLogoutRequest(
   if (!realm?.enabled) return { kind: 'not_found' };
 
   const sessions = await deps.resolveSessions(
-    { id: realm.id, name: realmName, ssoSessionIdleSeconds: realm.ssoSessionIdleSeconds },
+    {
+      id: realm.id,
+      name: realmName,
+      ssoSessionIdleSeconds: realm.ssoSessionIdleSeconds,
+      ssoSessionMaxSeconds: realm.ssoSessionMaxSeconds,
+      rememberMeIdleSeconds: realm.rememberMeIdleSeconds,
+      rememberMeMaxSeconds: realm.rememberMeMaxSeconds,
+    },
     header,
   );
   const session = toLogoutSession(mostRecentlyActive(sessions));
@@ -219,7 +233,14 @@ export async function handleLogoutConfirmation(
   if (!realm?.enabled) return { kind: 'not_found' };
 
   const sessions = await deps.resolveSessions(
-    { id: realm.id, name: realmName, ssoSessionIdleSeconds: realm.ssoSessionIdleSeconds },
+    {
+      id: realm.id,
+      name: realmName,
+      ssoSessionIdleSeconds: realm.ssoSessionIdleSeconds,
+      ssoSessionMaxSeconds: realm.ssoSessionMaxSeconds,
+      rememberMeIdleSeconds: realm.rememberMeIdleSeconds,
+      rememberMeMaxSeconds: realm.rememberMeMaxSeconds,
+    },
     header,
   );
   const confirmed = sessions.find((candidate) => candidate.id === params.confirmedSessionId);

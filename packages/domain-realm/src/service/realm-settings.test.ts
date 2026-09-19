@@ -95,4 +95,22 @@ describe('coercing a value that arrived as a string', () => {
       expected: 'integer',
     });
   });
+
+  it('coerces the remember-me switch and its lifespan pair', () => {
+    expect(coerceRealmSetting('remember_me_allowed', 'true')).toEqual({
+      kind: 'coerced',
+      column: 'rememberMeAllowed',
+      value: true,
+    });
+    expect(coerceRealmSetting('remember_me_idle_seconds', '604800')).toEqual({
+      kind: 'coerced',
+      column: 'rememberMeIdleSeconds',
+      value: 604_800,
+    });
+    expect(coerceRealmSetting('remember_me_max_seconds', '2592000')).toEqual({
+      kind: 'coerced',
+      column: 'rememberMeMaxSeconds',
+      value: 2_592_000,
+    });
+  });
 });
