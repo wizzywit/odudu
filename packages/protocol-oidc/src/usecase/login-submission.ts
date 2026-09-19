@@ -411,10 +411,12 @@ export async function handleLoginSubmission(
   issuerBase: string,
   authSessionId: string | undefined,
   input: AdvanceInput,
-  // The browser's `Cookie` header, threaded through to completeAuthorizedLogin.
-  // Optional so every existing caller in tests that has no cookie to give
-  // keeps compiling — absent is the same as a browser with no other session.
-  header?: string,
+  // The browser's `Cookie` header, threaded through to completeAuthorizedLogin
+  // — required, not optional: an omitted header resolves to an empty
+  // session set and silently drops every other live session from the
+  // reply's cookie. A caller with no cookie to give passes `undefined`
+  // explicitly.
+  header: string | undefined,
 ): Promise<LoginSubmissionOutcome> {
   // A value that is not shaped like a uuid names no session and never
   // could: folded in here rather than left to the `uuid` comparison, where

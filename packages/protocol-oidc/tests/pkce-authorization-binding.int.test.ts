@@ -10,7 +10,7 @@ import {
   type DatabaseHandle,
   type RealmScopedDatabase,
 } from '@odudu/db';
-import { provisionRealm } from '@odudu/authn-flows';
+import { PERSISTENT_SUFFIX, provisionRealm, sessionCookieName } from '@odudu/authn-flows';
 import { clients, provisionClientDefaults } from '@odudu/domain-realm';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
@@ -305,10 +305,21 @@ function setCookies(res: LightMyRequestResponse): string[] {
 }
 
 // A JWS Compact Serialization: three base64url segments, the last possibly
-// empty. Every token this server hands a client is one, so a cookie value
-// of that shape is a token in a cookie whether or not it is one of the
-// three this journey happened to produce.
+// empty. Every token this server hands a client is one, so a value of that
+// shape is a token in a cookie whether or not it is one of the three this
+// journey happened to produce.
 const COMPACT_JWS = /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]*$/;
+
+// The session cookie's own value is a dot-delimited list of session ids
+// (session-cookie.ts) — three or more concurrent sessions makes that list
+// itself dot-separated, which can coincidentally match COMPACT_JWS without
+// holding a token. Checked by name against the two cookies session-cookie.ts
+// writes, not by shape, so the check stays meaningful once a browser holds
+// more than two sessions.
+function isSessionCookie(name: string): boolean {
+  const base = sessionCookieName(REALM, false);
+  return name === base || name === `${base}${PERSISTENT_SUFFIX}`;
+}
 
 describe('[RFC6750-5.2-04] no bearer token is ever put in a cookie', () => {
   it('sets cookies during the journey, and none of them carries a token', async () => {
@@ -338,8 +349,18 @@ describe('[RFC6750-5.2-04] no bearer token is ever put in a cookie', () => {
       for (const token of [tokens.access_token, tokens.id_token, tokens.refresh_token]) {
         if (token !== undefined) expect(cookie).not.toContain(token);
       }
-      const value = cookie.split(';')[0]?.split('=').slice(1).join('=') ?? '';
-      expect(value).not.toMatch(COMPACT_JWS);
+      const [name, value] = (() => {
+        const pair = cookie.split(';')[0] ?? '';
+        const separator = pair.indexOf('=');
+        return separator === -1
+          ? [pair, '']
+          : [pair.slice(0, separator), pair.slice(separator + 1)];
+      })();
+      if (isSessionCookie(name)) {
+        for (const id of value.split('.')) expect(id).not.toMatch(COMPACT_JWS);
+      } else {
+        expect(value).not.toMatch(COMPACT_JWS);
+      }
     }
   });
 });

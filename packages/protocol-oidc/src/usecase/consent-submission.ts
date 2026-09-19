@@ -100,9 +100,10 @@ export async function handleConsentSubmission(
   issuerBase: string,
   authSessionId: string | undefined,
   answer: ConsentAnswer,
-  // The browser's `Cookie` header — see login-submission.ts's identical
-  // parameter on handleLoginSubmission.
-  header?: string,
+  // The browser's `Cookie` header — required, not optional; see
+  // login-submission.ts's identical parameter on handleLoginSubmission for
+  // why an omitted one is a silent bug rather than a safe default.
+  header: string | undefined,
 ): Promise<ConsentSubmissionOutcome> {
   if (authSessionId === undefined || !isUuid(authSessionId)) {
     return { kind: 'unauthenticated' };

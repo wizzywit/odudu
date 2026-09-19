@@ -1,6 +1,7 @@
 import { type SessionRecord } from '@odudu/authn-flows';
 import { type SigningKeyRecord } from '@odudu/crypto';
 import { type RealmLookup } from '#/repository/realm-lookup';
+import { mostRecentlyActive } from '#/service/session-selection';
 import { subjectOfIdTokenHint } from '#/usecase/authorization-request';
 
 export interface LogoutSession {
@@ -113,15 +114,10 @@ async function registeredUris(
   return deps.postLogoutRedirectUris(realmId, clientId);
 }
 
-// decideLogout still decides over one session (Tasks 8 and 10 change that).
-// A browser with more than one live session hands it the most recently
-// active — the same stand-in the reuse decision at /authorize makes.
-function mostRecentlyActive(sessions: readonly SessionRecord[]): LogoutSession | null {
-  const latest = sessions.reduce<SessionRecord | null>(
-    (current, candidate) =>
-      current === null || candidate.lastActiveAt > current.lastActiveAt ? candidate : current,
-    null,
-  );
+// decideLogout decides over one session, while a browser may hold several —
+// mostRecentlyActive (#/service/session-selection) is the same stand-in the
+// reuse decision at /authorize makes.
+function toLogoutSession(latest: SessionRecord | null): LogoutSession | null {
   return latest === null ? null : { id: latest.id, subjectId: latest.subjectId };
 }
 
@@ -144,7 +140,7 @@ export async function handleLogoutRequest(
     { id: realm.id, name: realmName, ssoSessionIdleSeconds: realm.ssoSessionIdleSeconds },
     header,
   );
-  const session = mostRecentlyActive(sessions);
+  const session = toLogoutSession(mostRecentlyActive(sessions));
   const hint =
     params.idTokenHint === null
       ? null

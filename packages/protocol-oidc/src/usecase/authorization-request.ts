@@ -13,6 +13,7 @@ import {
   type AuthorizeOutcome,
 } from '#/service/authorize-validation';
 import { normalizeAuthorizeQuery } from '#/service/query-normalization';
+import { mostRecentlyActive } from '#/service/session-selection';
 import {
   decideConsentGate,
   refusedForUnverifiedEmail,
@@ -114,9 +115,9 @@ export interface AuthorizeUsecaseDeps extends ConsentGateDeps {
   initialChallenge(realmId: string): Promise<AuthenticatorResult>;
   // The browser's session cookies, resolved to their live rows (never
   // trusted for anything but that lookup) — sessionRepository(tx).liveByIds
-  // scoped to the realm's own idle window. decideReuse still decides over
-  // one session (Task 10 changes that); handleAuthorizationRequest picks
-  // the most recently active of the set resolved here.
+  // scoped to the realm's own idle window. decideReuse decides over one
+  // session, while a browser may hold several; handleAuthorizationRequest
+  // picks the most recently active of the set resolved here.
   resolveSessions(
     realm: { id: string; name: string; ssoSessionIdleSeconds: number },
     header: string | undefined,
@@ -145,15 +146,10 @@ export interface AuthorizeUsecaseDeps extends ConsentGateDeps {
   now(): Date;
 }
 
-// decideReuse still decides over one session (Task 10 changes that). A
-// browser with more than one live session hands it the most recently
-// active, the same stand-in logout's own CSRF check makes for decideLogout.
-function mostRecentlyActiveSession(sessions: readonly SessionRecord[]): ReusableSession | null {
-  const latest = sessions.reduce<SessionRecord | null>(
-    (current, candidate) =>
-      current === null || candidate.lastActiveAt > current.lastActiveAt ? candidate : current,
-    null,
-  );
+// decideReuse decides over one session, while a browser may hold several —
+// mostRecentlyActive (#/service/session-selection) is what stands in until
+// it is widened to decide over the resolved set itself.
+function toReusableSession(latest: SessionRecord | null): ReusableSession | null {
   if (latest === null) return null;
   return {
     sessionId: latest.id,
@@ -246,7 +242,7 @@ export async function handleAuthorizationRequest(
     { id: realm.id, name: realmName, ssoSessionIdleSeconds: realm.ssoSessionIdleSeconds },
     header,
   );
-  const resolvedSession = mostRecentlyActiveSession(sessions);
+  const resolvedSession = toReusableSession(mostRecentlyActive(sessions));
   const decision = decideReuse({
     session: resolvedSession,
     prompts: outcome.prompts,
