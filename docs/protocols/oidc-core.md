@@ -171,13 +171,27 @@ free just because this request found a second way to complete a login.
 
 `prompt` parsing (`service/prompt.ts`) refuses `none` alongside any other
 value, which §3.1.2.1 requires, and refuses a value outside the four the
-specification defines, which §3.1.2.1 leaves as a MAY. `consent` and
-`select_account` are accepted and have no effect of their own — both sets of
-rows are now deferred — `consent`'s to `P3a`, which builds the consent
-screen, and `select_account`'s to `P3b`, having moved out of P2b on
-2026-09-15 when P2b's brainstorm established that account selection needs
-several concurrent sessions per browser rather than flow tree semantics — so
-this server recognises them without yet obeying them.
+specification defines, which §3.1.2.1 leaves as a MAY. `consent` is
+accepted and has no effect of its own — its rows are deferred to `P3a`,
+which builds the consent screen. `select_account` moved out of P2b to
+`P3b` on 2026-09-15, when P2b's brainstorm established that account
+selection needs several concurrent sessions per browser rather than flow
+tree semantics; a later P3b increment (`packages/protocol-oidc/src/usecase/session-reuse.ts`'s
+`select` outcome and the chooser `/authorize` renders over it,
+`packages/protocol-oidc/src/view/select-account-html.ts`) closed all three
+rows, `OIDC-CORE-3.1.2.1-15`, `-16` and `OIDC-CORE-3.1.2.6-08`.
+
+**`OIDC-CORE-3.1.2.1-16` is tagged on a `prompt=none` request, not one
+spelling `select_account` alone.** The two cannot be combined on the wire:
+`parsePrompt` refuses `none` alongside any other value, the same MUST the
+paragraph above already covers for `login` and `consent`. So the one
+manifestation §3.1.2.1's own MUST admits — an error when account selection
+cannot be obtained under a prompt forbidding interaction — is reachable
+only as `prompt=none` alone, exactly the request `decideReuse` already
+turns into `refuse: account_selection_required` whenever it would
+otherwise return `select`. There is no separate `prompt=select_account`
+failure case to test, because `prompt=select_account` on its own can
+always ask — that is `-15`'s row, not `-16`'s.
 
 **The row §3.1.2.1 phrases for `prompt=login`'s failure was `deferred: P2`
 until the flow engine gave it a reachable branch, and it is now

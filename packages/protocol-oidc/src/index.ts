@@ -16,6 +16,7 @@ import {
   loadPendingRequest,
   markSessionAuthenticated,
   pendingChallenge,
+  pendingSession,
   readSessionIds,
   recordRememberMe,
   requiredActionRepository,
@@ -411,10 +412,13 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
       consentContext,
       grantedScopeIds,
       // The account chooser's own POST reads back the request a 'select'
-      // outcome parked here — the same call login.ts and consent.ts each
-      // wire for their own resumed submissions.
+      // outcome parked here. Unlike login.ts's and consent.ts's own
+      // loadPendingRequest calls below, this session was never bound to a
+      // subject, so authenticatedSession's own liveness check cannot gate
+      // it — pendingSession applies the same expiry/consumed checks to a
+      // session that has not yet been authenticated.
       loadPendingRequest: (realmId, authSessionId) =>
-        withRealm(deps.database.db, realmId, (tx) => loadPendingRequest(tx, authSessionId)),
+        withRealm(deps.database.db, realmId, (tx) => pendingSession(tx, authSessionId, clock)),
       // The chooser's label for each candidate: preferred_username falling
       // back to username, the same fallback #/service/claims.ts uses for
       // the preferred_username claim itself — never email, which the

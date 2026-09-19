@@ -792,6 +792,22 @@ export async function advance(
   return outcome;
 }
 
+// The same liveness authenticatedSession (below) enforces — unexpired,
+// unconsumed — for a session no factor has finished yet: the account
+// chooser's own parked request, read back once a selection is posted. A
+// null `subjectId`/`authenticatedAt` is expected here, unlike there, since
+// nobody has been identified yet.
+export async function pendingSession(
+  tx: RealmScopedDatabase,
+  authSessionId: string,
+  clock: Clock = systemClock,
+): Promise<PendingRequest | null> {
+  const record = await authenticationSessionRepository(tx).byId(authSessionId);
+  if (record === null || record.expiresAt.getTime() <= clock.now().getTime()) return null;
+  if (record.consumedAt !== null) return null;
+  return record.pendingRequest;
+}
+
 // Whom a required-action submission may act for: the subject a *finished*
 // authentication bound to this session, plus the authenticators it
 // finished with — what a consent decision made after the login has already

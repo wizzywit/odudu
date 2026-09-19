@@ -24,9 +24,14 @@ export type ReuseDecision =
   | { readonly kind: 'authenticate' }
   | { readonly kind: 'refuse'; readonly error: string };
 
-function withinMaxAge(session: ResolvedSession, maxAge: number | null, now: Date): boolean {
+// Exported for #/usecase/authorization-request.ts's chooser POST, which
+// re-applies this same predicate to a posted selection — a session
+// decideReuse's own candidate filter already excluded for being too old
+// must stay excluded when its id comes back on the wire, not be re-admitted
+// merely because it is still live and still this browser's.
+export function withinMaxAge(authTime: Date, maxAge: number | null, now: Date): boolean {
   if (maxAge === null) return true;
-  return now.getTime() - session.authTime.getTime() < maxAge * 1000;
+  return now.getTime() - authTime.getTime() < maxAge * 1000;
 }
 
 // OIDC Core §3.1.2.1, §3.1.2.3 and §3.1.2.6. `prompt=none` forbids any user
@@ -40,7 +45,7 @@ export function decideReuse(input: ReuseInput): ReuseDecision {
   }
 
   const candidates = input.sessions.filter((session) =>
-    withinMaxAge(session, input.maxAge, input.now),
+    withinMaxAge(session.authTime, input.maxAge, input.now),
   );
 
   if (candidates.length === 0) {

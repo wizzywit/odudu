@@ -21,7 +21,7 @@ import {
   type ConsentGateDeps,
   type LoginSubmissionDeps,
 } from '#/usecase/login-submission';
-import { decideReuse, type ResolvedSession } from '#/usecase/session-reuse';
+import { decideReuse, withinMaxAge, type ResolvedSession } from '#/usecase/session-reuse';
 
 export type AuthorizationRequestOutcome =
   | { kind: 'render'; error: string; description: string }
@@ -122,8 +122,11 @@ export interface AuthorizeUsecaseDeps extends ConsentGateDeps {
   ): Promise<{ authSessionId: string }>;
   // Reads back the request a 'select' outcome parked — the chooser's POST
   // has no query parameters of its own, so this is its only source of
-  // scope, redirect_uri, nonce, state and code_challenge, exactly as
-  // consent-submission.ts's own loadPendingRequest call is for that POST.
+  // scope, redirect_uri, nonce, state, code_challenge and max_age. Unlike
+  // consent-submission.ts's own loadPendingRequest call, this session was
+  // never bound to a subject, so it carries its own liveness check
+  // (expired or already consumed answers null) rather than relying on
+  // authenticatedSession's, which this session could never pass.
   loadPendingRequest(realmId: string, authSessionId: string): Promise<PendingRequest | null>;
   // What the realm's flow would ask for first, decided before any
   // authentication session exists — also the honest way to notice a flow
@@ -404,6 +407,9 @@ export async function handleAuthorizationRequest(
       ...request,
       prompt: [...outcome.prompts],
       ...(hintSubject !== null ? { idTokenHintSubject: hintSubject } : {}),
+      // Re-checked against whichever session is posted back — see
+      // handleSelectAccountSubmission's own withinMaxAge call.
+      ...(outcome.maxAge !== null ? { maxAge: outcome.maxAge } : {}),
     });
     const names = await deps.accountDisplayNames(
       realm.id,
@@ -528,7 +534,15 @@ export async function handleSelectAccountSubmission(
   };
   const sessions = await deps.resolveSessions(realmShape, header);
   const chosen = sessions.find((session) => session.id === answer.sessionId);
-  if (chosen === undefined) {
+  // Membership alone is not enough: decideReuse's own candidate filter
+  // (session-reuse.ts's withinMaxAge) already excluded anything older than
+  // the parked request's own max_age when the chooser rendered, and a
+  // session excluded from that page is not a valid choice merely because
+  // it is still live and still this browser's.
+  if (
+    chosen === undefined ||
+    !withinMaxAge(chosen.createdAt, pending.maxAge ?? null, deps.now())
+  ) {
     return { kind: 'invalid_selection' };
   }
 
@@ -585,6 +599,11 @@ export async function handleSelectAccountSubmission(
     };
   }
 
+  // Deliberately not consumed: a live SSO cookie can drive completeReuse
+  // through the ordinary GET as many times as a client re-asks, and a
+  // chooser selection is the same reuse with the candidate picked rather
+  // than inferred — repeatable for the same reason, gated by pendingSession's
+  // own expiry check above rather than by single use.
   const { code } = await deps.completeReuse({
     realmId: realm.id,
     sessionId: chosen.id,

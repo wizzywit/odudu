@@ -11,6 +11,7 @@ export {
 export {
   startAuthentication,
   loadPendingRequest,
+  pendingSession,
   advance,
   authenticatedSession,
   authenticatedSubject,

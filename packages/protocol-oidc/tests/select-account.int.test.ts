@@ -9,7 +9,7 @@ import {
   type RealmScopedDatabase,
 } from '@odudu/db';
 import { clients, provisionClientDefaults } from '@odudu/domain-realm';
-import { newId } from '@odudu/kernel';
+import { FakeClock, newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import formbody from '@fastify/formbody';
 import { and, eq } from 'drizzle-orm';
@@ -22,20 +22,27 @@ import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
 
 // decideReuse's 'select' outcome and renderSelectAccountPage
 // (view/select-account-html.ts) both existed before this file — this is
-// the first thing that reaches either from the wire. The fifth test is the
-// security property the whole task exists to prove: a posted session_id is
-// a claim, honoured only when it names a member of the set this browser's
-// own cookies resolve to.
+// the first thing that reaches either from the wire. The property under
+// test throughout: a posted session_id is a claim, honoured only when it
+// names a member of the set this browser's own cookies resolve to, and
+// only once it passes every other check an ordinary reuse would —
+// max_age included.
 
 let containerHandle: TestDatabase | undefined;
 let ownerHandle: DatabaseHandle | undefined;
 let appHandle: DatabaseHandle | undefined;
 let httpApp: FastifyInstance | undefined;
+let httpClockedApp: FastifyInstance | undefined;
 
 let container: TestDatabase;
 let owner: DatabaseHandle;
 let app: DatabaseHandle;
 let http: FastifyInstance;
+// A second instance sharing the database but backed by a clock this file
+// controls, for the one test that needs the parked authentication
+// session's own TTL to actually elapse rather than merely be plausible.
+let httpClocked: FastifyInstance;
+let fakeClock: FakeClock;
 
 const CLIENT_ID = 'select-account-client';
 const REDIRECT_URI = 'https://app.example/callback';
@@ -50,7 +57,16 @@ async function setupRealm(name: string): Promise<{ realmId: string }> {
   const realmId = newId();
   const clientDbId = newId();
   await withRealm(app.db, realmId, async (tx: RealmScopedDatabase) => {
-    await tx.insert(realms).values({ id: realmId, name, maxSessionsPerBrowser: 10 });
+    // sso_session_idle_seconds raised well past the 30-minute TTL
+    // AUTH_SESSION_TTL_MS fixes for an authentication session, so the one
+    // expiry test below can advance past the latter without the SSO
+    // session itself going idle-expired and confounding the result.
+    await tx.insert(realms).values({
+      id: realmId,
+      name,
+      maxSessionsPerBrowser: 10,
+      ssoSessionIdleSeconds: 7_200,
+    });
     await provisionRealm(tx, realmId);
     await tx.insert(clients).values({
       id: clientDbId,
@@ -172,9 +188,10 @@ async function login(
   jar: Map<string, string>,
   username: string,
   password: string,
+  instance: FastifyInstance = http,
 ): Promise<LightMyRequestResponse> {
   const cookie = cookieHeader(jar);
-  const started = await http.inject({
+  const started = await instance.inject({
     url: authorizeUrl(realmName, { prompt: 'login' }),
     headers: cookie.length > 0 ? { cookie } : {},
   });
@@ -184,7 +201,7 @@ async function login(
   const authSessionId = extractAuthSessionId(started.body);
 
   const form = new URLSearchParams({ auth_session_id: authSessionId, username, password });
-  const res = await http.inject({
+  const res = await instance.inject({
     method: 'POST',
     url: `/realms/${realmName}/login-actions/authenticate`,
     payload: form.toString(),
@@ -202,12 +219,13 @@ async function postSelectAccount(
   realmName: string,
   jar: Map<string, string>,
   fields: Record<string, string | undefined>,
+  instance: FastifyInstance = http,
 ): Promise<LightMyRequestResponse> {
   const params = new URLSearchParams();
   for (const [key, value] of Object.entries(fields)) {
     if (value !== undefined) params.set(key, value);
   }
-  return http.inject({
+  return instance.inject({
     method: 'POST',
     url: `/realms/${realmName}/login-actions/select-account`,
     payload: params.toString(),
@@ -242,17 +260,33 @@ beforeAll(async () => {
     }),
   );
   await http.ready();
+
+  fakeClock = new FakeClock(new Date());
+  httpClocked = Fastify();
+  httpClockedApp = httpClocked;
+  await httpClocked.register(formbody);
+  await httpClocked.register(
+    oidcRoutes({
+      database: app,
+      ownerDatabase: owner,
+      kek: Buffer.alloc(32, 9),
+      clock: fakeClock,
+      clientSecretLimiter: UNLIMITED_CLIENT_SECRET_LIMITER,
+    }),
+  );
+  await httpClocked.ready();
 }, 120_000);
 
 afterAll(async () => {
   await httpApp?.close();
+  await httpClockedApp?.close();
   await appHandle?.close();
   await ownerHandle?.close();
   await containerHandle?.stop();
 });
 
 describe('the account chooser', () => {
-  it('[OIDC-CORE-3.1.2.1-15] shows the chooser when a browser holds two live sessions', async () => {
+  it('shows the chooser when a browser holds two live sessions', async () => {
     const realmName = `select-two-sessions-${newId()}`;
     await setupRealm(realmName);
     const jar = new Map<string, string>();
@@ -268,7 +302,7 @@ describe('the account chooser', () => {
     expect(res.body).toContain('Choose an account');
   });
 
-  it('shows the chooser for prompt=select_account with one live session', async () => {
+  it('[OIDC-CORE-3.1.2.1-15] shows the chooser for prompt=select_account with one live session', async () => {
     const realmName = `select-prompt-${newId()}`;
     await setupRealm(realmName);
     const jar = new Map<string, string>();
@@ -355,6 +389,78 @@ describe('the account chooser', () => {
 
     expect(res.statusCode).toBe(302);
     expect(new URL(locationHeader(res)).searchParams.get('code')).toBeTruthy();
+  });
+
+  // decideReuse's own max_age filter (session-reuse.ts's withinMaxAge) has
+  // to be re-applied to the posted selection, not only to what the chooser
+  // listed: a session excluded from the page for being too old is not a
+  // valid choice merely because it is still live and still this browser's.
+  it('refuses a chosen session older than the request required, even though it is the browser\'s own', async () => {
+    const realmName = `select-max-age-${newId()}`;
+    const { realmId } = await setupRealm(realmName);
+    const bob = await subjectIdOf(realmId, BOB_USERNAME);
+    const jar = new Map<string, string>();
+    await login(realmName, jar, ALICE_USERNAME, ALICE_PASSWORD);
+    await login(realmName, jar, BOB_USERNAME, BOB_PASSWORD);
+
+    const bobSessionId = await liveSessionIdOf(realmId, bob);
+    await owner.db
+      .update(sessions)
+      .set({ createdAt: new Date(Date.now() - 120_000) })
+      .where(eq(sessions.id, bobSessionId));
+
+    // max_age=60 with bob backdated 120s: decideReuse's own candidate
+    // filter drops him, so the chooser — forced open by prompt=select_account
+    // even though only one candidate remains — lists alice only.
+    const chooser = await http.inject({
+      url: authorizeUrl(realmName, { prompt: 'select_account', max_age: '60' }),
+      headers: { cookie: cookieHeader(jar) },
+    });
+    expect(chooser.statusCode).toBe(200);
+    expect(chooser.body).not.toContain(bobSessionId);
+    const authSessionId = extractAuthSessionId(chooser.body);
+
+    const res = await postSelectAccount(realmName, jar, {
+      auth_session_id: authSessionId,
+      session_id: bobSessionId,
+    });
+
+    expect(res.statusCode).toBe(400);
+  });
+
+  // The parked authentication session the chooser rendered against has its
+  // own 30-minute TTL (authn-flows/src/usecase/executor.ts's
+  // AUTH_SESSION_TTL_MS) — the same one every sibling POST is gated by via
+  // authenticatedSession. A selection posted after it has expired must be
+  // refused the same way, not accepted indefinitely merely because
+  // nothing here ever marks the row consumed.
+  it('refuses a selection posted after the parked session has expired', async () => {
+    const realmName = `select-expired-${newId()}`;
+    await setupRealm(realmName);
+    fakeClock.set(new Date());
+    const jar = new Map<string, string>();
+    await login(realmName, jar, ALICE_USERNAME, ALICE_PASSWORD, httpClocked);
+    await login(realmName, jar, BOB_USERNAME, BOB_PASSWORD, httpClocked);
+
+    const chooser = await httpClocked.inject({
+      url: authorizeUrl(realmName),
+      headers: { cookie: cookieHeader(jar) },
+    });
+    expect(chooser.statusCode).toBe(200);
+    const authSessionId = extractAuthSessionId(chooser.body);
+    const aliceSessionId = /value="([^"]*)">alice/.exec(chooser.body)?.[1];
+    if (aliceSessionId === undefined) throw new Error('expected alice on the chooser page');
+
+    fakeClock.advance(31 * 60_000);
+
+    const res = await postSelectAccount(
+      realmName,
+      jar,
+      { auth_session_id: authSessionId, session_id: aliceSessionId },
+      httpClocked,
+    );
+
+    expect(res.statusCode).toBe(400);
   });
 
   // The security case: honouring session_id merely because it names a live
