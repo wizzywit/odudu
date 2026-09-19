@@ -539,10 +539,7 @@ export async function handleSelectAccountSubmission(
   // the parked request's own max_age when the chooser rendered, and a
   // session excluded from that page is not a valid choice merely because
   // it is still live and still this browser's.
-  if (
-    chosen === undefined ||
-    !withinMaxAge(chosen.createdAt, pending.maxAge ?? null, deps.now())
-  ) {
+  if (chosen === undefined || !withinMaxAge(chosen.createdAt, pending.maxAge ?? null, deps.now())) {
     return { kind: 'invalid_selection' };
   }
 

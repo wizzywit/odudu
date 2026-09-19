@@ -169,7 +169,10 @@ async function respondToSelectAccountSubmission(
     deps,
     realm,
     firstString(body.auth_session_id),
-    { sessionId: firstString(body.session_id), useOther: firstString(body.use_other) !== undefined },
+    {
+      sessionId: firstString(body.session_id),
+      useOther: firstString(body.use_other) !== undefined,
+    },
     header,
   );
 

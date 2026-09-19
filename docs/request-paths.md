@@ -5562,7 +5562,13 @@ odudu seed user --realm demo --username bob --password another-horse-battery \
 ```
 
 ```json
-{"command":"user","realm":"demo","realmId":"01a0baa4-…","username":"bob","userSubjectId":"01a0baa4-…"}
+{
+  "command": "user",
+  "realm": "demo",
+  "realmId": "01a0baa4-…",
+  "username": "bob",
+  "userSubjectId": "01a0baa4-…"
+}
 ```
 
 Two logins, one cookie jar — the second with `prompt=login`, the same way

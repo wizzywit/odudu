@@ -196,7 +196,9 @@ async function login(
     headers: cookie.length > 0 ? { cookie } : {},
   });
   if (started.statusCode !== 200) {
-    throw new Error(`expected /authorize to render the login form, got ${String(started.statusCode)}`);
+    throw new Error(
+      `expected /authorize to render the login form, got ${String(started.statusCode)}`,
+    );
   }
   const authSessionId = extractAuthSessionId(started.body);
 
@@ -395,7 +397,7 @@ describe('the account chooser', () => {
   // to be re-applied to the posted selection, not only to what the chooser
   // listed: a session excluded from the page for being too old is not a
   // valid choice merely because it is still live and still this browser's.
-  it('refuses a chosen session older than the request required, even though it is the browser\'s own', async () => {
+  it("refuses a chosen session older than the request required, even though it is the browser's own", async () => {
     const realmName = `select-max-age-${newId()}`;
     const { realmId } = await setupRealm(realmName);
     const bob = await subjectIdOf(realmId, BOB_USERNAME);
