@@ -160,18 +160,23 @@ function firstString(value: string | string[] | undefined): string | undefined {
 async function respondToSelectAccountSubmission(
   deps: AuthorizeRouteDeps,
   realm: string,
-  body: Record<string, string | string[] | undefined>,
+  body: Record<string, string | string[] | undefined> | undefined,
   issuer: string,
   header: string | undefined,
   reply: FastifyReply,
 ): Promise<FastifyReply> {
+  // Fastify leaves `request.body` undefined for a POST with no Content-Type
+  // and no payload — normalised to an empty object so the ordinary
+  // invalid_request handling below runs instead of throwing on a missing
+  // read.
+  const fields = body ?? {};
   const outcome = await handleSelectAccountSubmission(
     deps,
     realm,
-    firstString(body.auth_session_id),
+    firstString(fields.auth_session_id),
     {
-      sessionId: firstString(body.session_id),
-      useOther: firstString(body.use_other) !== undefined,
+      sessionId: firstString(fields.session_id),
+      useOther: firstString(fields.use_other) !== undefined,
     },
     header,
   );
@@ -253,7 +258,7 @@ export function registerAuthorizeRoute(app: FastifyInstance, deps: AuthorizeRout
 
   app.post<{
     Params: { realm: string };
-    Body: Record<string, string | string[] | undefined>;
+    Body: Record<string, string | string[] | undefined> | undefined;
   }>('/realms/:realm/login-actions/select-account', (request, reply) =>
     respondToSelectAccountSubmission(
       deps,

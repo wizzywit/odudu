@@ -139,6 +139,19 @@ function cookieHeader(jar: Map<string, string>): string {
   return [...jar].map(([name, value]) => `${name}=${value}`).join('; ');
 }
 
+// The ephemeral session-cookie ids a single response set, as opposed to
+// what survives in the jar after every response has overwritten the last —
+// an evicted id shows up here even though mergeCookies has since replaced
+// it with whatever the next login wrote.
+function ephemeralIdsSet(realmName: string, res: LightMyRequestResponse): string[] {
+  const name = `${realmName}-session=`;
+  const value = cookieList(res)
+    .find((set) => set.startsWith(name))
+    ?.split(';')[0]
+    ?.slice(name.length);
+  return value === undefined ? [] : value.split('.').filter((id) => id.length > 0);
+}
+
 async function login(realmName: string, jar: Map<string, string>): Promise<LightMyRequestResponse> {
   const authSessionId = await startAuthSession(realmName, cookieHeader(jar));
   const form = new URLSearchParams({
@@ -203,8 +216,10 @@ describe('the session cap, end to end', () => {
     // issued kept in the cookie, or the realm-row lock missing so a race
     // slips one extra past eviction — would show up as more than CAP ids
     // below.
+    const everyIssuedId = new Set<string>();
     for (let i = 0; i < CAP + 2; i++) {
-      await login(realmName, jar);
+      const res = await login(realmName, jar);
+      for (const id of ephemeralIdsSet(realmName, res)) everyIssuedId.add(id);
     }
 
     const ephemeral = jar.get(`${realmName}-session`);
@@ -213,12 +228,18 @@ describe('the session cap, end to end', () => {
     expect(finalIds).toHaveLength(CAP);
     expect(new Set(finalIds).size).toBe(CAP);
 
-    // The cookie is one view; the database is the ground truth admission
-    // actually enforced. Both must agree, and the cookie must name exactly
-    // what is live — nothing evicted left behind, nothing live missing.
+    // The final cookie alone would pass even if an evicted id were still
+    // live: querying only the ids that happened to survive the last
+    // response cannot see one the database still holds. The union of every
+    // id any response ever issued is what actually proves the cap —
+    // sequential logins from one browser converge on exactly the cap
+    // across every id ever handed out, not just the last one kept.
+    const allIssuedIds = [...everyIssuedId];
+    expect(allIssuedIds.length).toBeGreaterThan(CAP);
+
     const now = new Date();
     await withRealm(app.db, realmId, async (tx) => {
-      const live = await sessionRepository(tx).liveByIds(finalIds, REALM_LIFESPANS, now);
+      const live = await sessionRepository(tx).liveByIds(allIssuedIds, REALM_LIFESPANS, now);
       expect(live).toHaveLength(CAP);
       expect(live.map((session) => session.id).sort()).toEqual([...finalIds].sort());
     });

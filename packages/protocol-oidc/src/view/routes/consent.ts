@@ -36,9 +36,13 @@ function scopeValues(value: string | string[] | undefined): string[] {
 export function registerConsentRoute(app: FastifyInstance, deps: ConsentRouteDeps): void {
   app.post<{
     Params: { realm: string };
-    Body: Record<string, string | string[] | undefined>;
+    Body: Record<string, string | string[] | undefined> | undefined;
   }>('/realms/:realm/login-actions/consent', async (request, reply) => {
-    const body = request.body;
+    // Fastify leaves `request.body` undefined for a POST with no
+    // Content-Type and no payload — normalised to an empty object so the
+    // ordinary invalid_request handling below runs instead of throwing on a
+    // missing read (the same fix authorize.ts's chooser POST needs).
+    const body = request.body ?? {};
     const authSessionId = firstString(body.auth_session_id);
 
     const outcome = await handleConsentSubmission(
