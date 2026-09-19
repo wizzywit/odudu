@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 import { type RealmScopedDatabase } from '@odudu/db';
 import { sessions, type SessionRecord } from '#/schema/sessions';
 import { isSessionLive } from '#/service/session-liveness';
@@ -60,6 +60,30 @@ export function sessionRepository(tx: RealmScopedDatabase) {
     // moves `expires_at` earlier or leaves it where it was.
     async end(id: string, now: Date): Promise<void> {
       await tx.update(sessions).set({ expiresAt: now }).where(eq(sessions.id, id));
+    },
+
+    // The set read every session consumer uses now that a browser may hold
+    // more than one. Liveness is applied in the same pass rather than by the
+    // caller, so no caller can forget the idle window.
+    async liveByIds(
+      ids: readonly string[],
+      idleSeconds: number,
+      now: Date,
+    ): Promise<SessionRecord[]> {
+      if (ids.length === 0) return [];
+      const rows = await tx
+        .select()
+        .from(sessions)
+        .where(inArray(sessions.id, [...ids]));
+      return rows.map(toRecord).filter((record) => isSessionLive(record, idleSeconds, now));
+    },
+
+    async endMany(ids: readonly string[], now: Date): Promise<void> {
+      if (ids.length === 0) return;
+      await tx
+        .update(sessions)
+        .set({ expiresAt: now })
+        .where(inArray(sessions.id, [...ids]));
     },
   };
 }
