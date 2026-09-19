@@ -1,9 +1,21 @@
 import { type RealmScopedDatabase } from '@odudu/db';
 import { newId } from '@odudu/kernel';
 import { eq } from 'drizzle-orm';
+import { clientOidcConfig } from '#/schema/client-oidc-config';
 import { tokenGrants, type TokenGrantRecord } from '#/schema/token-grants';
 
 export type { TokenGrantRecord } from '#/schema/token-grants';
+
+// Front-Channel §3 and Back-Channel §2.3's "set of logged-in RPs" for a
+// session: enough of each distinct client's logout metadata to build both
+// kinds of logout request, none of the rest of its configuration.
+export interface ClientLogoutTarget {
+  clientId: string;
+  frontchannelLogoutUri: string | null;
+  frontchannelLogoutSessionRequired: boolean;
+  backchannelLogoutUri: string | null;
+  backchannelLogoutSessionRequired: boolean;
+}
 
 function toRecord(row: typeof tokenGrants.$inferSelect): TokenGrantRecord {
   return {
@@ -80,6 +92,28 @@ export function tokenGrantRepository(tx: RealmScopedDatabase) {
     async bySession(sessionId: string): Promise<TokenGrantRecord[]> {
       const rows = await tx.select().from(tokenGrants).where(eq(tokenGrants.sessionId, sessionId));
       return rows.map(toRecord);
+    },
+
+    // Front-Channel §2 and Back-Channel §2.3's "set of logged-in RPs": the
+    // distinct clients that hold a grant issued under this session. No
+    // tracking to maintain — the grants are already the record, and
+    // token_grants' (realm_id, session_id) index is what this reads
+    // through. `token_grants.client_id` and `client_oidc_config.client_id`
+    // are both the clients table's surrogate id, never the OAuth client_id
+    // string, so the join needs no third table.
+    async clientsForSession(sessionId: string): Promise<ClientLogoutTarget[]> {
+      const rows = await tx
+        .selectDistinct({
+          clientId: clientOidcConfig.clientId,
+          frontchannelLogoutUri: clientOidcConfig.frontchannelLogoutUri,
+          frontchannelLogoutSessionRequired: clientOidcConfig.frontchannelLogoutSessionRequired,
+          backchannelLogoutUri: clientOidcConfig.backchannelLogoutUri,
+          backchannelLogoutSessionRequired: clientOidcConfig.backchannelLogoutSessionRequired,
+        })
+        .from(tokenGrants)
+        .innerJoin(clientOidcConfig, eq(clientOidcConfig.clientId, tokenGrants.clientId))
+        .where(eq(tokenGrants.sessionId, sessionId));
+      return rows;
     },
   };
 }

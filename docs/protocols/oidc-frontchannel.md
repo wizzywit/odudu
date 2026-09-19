@@ -8,9 +8,15 @@ https/absolute/no-fragment policy already given to its back-channel twin
 in the same file now refuses one whose domain, port or scheme does not match
 a registered redirect URI. `frontchannel_logout_session_required` is also
 registration metadata now, stored and echoed the same way its back-channel
-twin already was. Everything downstream of registration — rendering the
-iframe and adding `iss` and `sid` — is `deferred: P3b`, which §11 of the
-design spec names.
+twin already was. P3b builds everything downstream of registration: reading
+the session's own set of relying parties (`tokenGrantRepository(tx)
+.clientsForSession`, `packages/protocol-oidc/src/repository/grants.ts`),
+building each one's logout URL (`frontChannelLogoutUrl`,
+`packages/protocol-oidc/src/service/frontchannel-logout.ts`), and rendering
+the logout page's iframes (`renderLoggedOutPage`,
+`packages/protocol-oidc/src/view/logout-html.ts`). Advertising the
+capability at discovery is still `deferred: P3b`, which §11 of the design
+spec names.
 
 A spike ran before this table was written, because §4.1's third-party
 cookie warning is exactly the kind of claim about browser behaviour that
@@ -45,19 +51,19 @@ closed obligation rather than name a second one.
 | ------ | ------ | ------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | 2      | MUST   | a registered front-channel logout URI's domain, port and scheme match those of a registered redirect URI                        | `OIDC-FRONTCHANNEL-2-ORIGIN-01`           | covered                                                                                                                                                                                          |
 | 2      | MUST   | the front-channel logout URI is an absolute URI                                                                                 | `OIDC-FRONTCHANNEL-2-ABSOLUTE-01`         | covered                                                                                                                                                                                          |
-| 2      | MUST   | a query component in the front-channel logout URI is retained when the OP adds further query parameters                         | —                                         | deferred: P3b — nothing composes a front-channel logout request yet                                                                                                                              |
+| 2      | MUST   | a query component in the front-channel logout URI is retained when the OP adds further query parameters                         | `OIDC-FRONTCHANNEL-2-QUERY-01`            | covered                                                                                                                                                                                          |
 | 2      | MUST   | the front-channel logout URI includes no fragment component                                                                     | `OIDC-FRONTCHANNEL-2-FRAGMENT-01`         | covered                                                                                                                                                                                          |
 | 2      | SHOULD | `frontchannel_logout_uri` uses the `https` scheme                                                                               | `OIDC-FRONTCHANNEL-2-SCHEME-01`           | covered                                                                                                                                                                                          |
 | 2      | MAY    | `frontchannel_logout_uri` uses the `http` scheme where the Client Type is confidential and the OP allows it                     | —                                         | accepted: "§2's confidential-client `http` exception: declined, not absent" — `isValidLogoutUri` refuses `http` unconditionally, the same policy and the same reasoning as its back-channel twin |
-| 2      | MAY    | the OP adds `iss` and `sid` query parameters when rendering the registered logout URI in an iframe                              | —                                         | deferred: P3b — nothing renders a front-channel logout iframe yet                                                                                                                                |
-| 2      | MUST   | if either `iss` or `sid` is added, both are added                                                                               | —                                         | deferred: P3b — nothing composes the query yet                                                                                                                                                   |
+| 2      | MAY    | the OP adds `iss` and `sid` query parameters when rendering the registered logout URI in an iframe                              | `OIDC-FRONTCHANNEL-3-IFRAME-01`           | covered                                                                                                                                                                                          |
+| 2      | MUST   | if either `iss` or `sid` is added, both are added                                                                               | `OIDC-FRONTCHANNEL-3-IFRAME-01`           | covered                                                                                                                                                                                          |
 | 2      | MAY    | the RP verifies `iss` and `sid` against the Claims of a current or recent ID Token and ignores the request if they do not match | —                                         | n/a: addressed to the party receiving a front-channel logout request, which is the RP                                                                                                            |
 | 2      | SHOULD | the RP's response carries `Cache-Control: no-store`                                                                             | —                                         | n/a: the response is the RP's to send                                                                                                                                                            |
 | 2      | SHOULD | `frontchannel_logout_session_required` is also registered                                                                       | `OIDC-FRONTCHANNEL-2-SESSION-REQUIRED-01` | covered                                                                                                                                                                                          |
-| 3      | SHOULD | the OP keeps track of the set of logged-in RPs for a session, so it knows which to contact at their logout URIs                 | —                                         | deferred: P3b — `token_grants` already carries `session_id` and `client_id` (migration 0026), indexed, which is where this lands; nothing reads it for front-channel delivery yet                |
-| 3      | MAY    | the OP contacts logged-in RPs in parallel, using a dynamically constructed page of `<iframe>` tags                              | —                                         | deferred: P3b — nothing renders a front-channel logout page yet                                                                                                                                  |
+| 3      | SHOULD | the OP keeps track of the set of logged-in RPs for a session, so it knows which to contact at their logout URIs                 | `OIDC-FRONTCHANNEL-3-TRACKING-01`         | covered                                                                                                                                                                                          |
+| 3      | MAY    | the OP contacts logged-in RPs in parallel, using a dynamically constructed page of `<iframe>` tags                              | `OIDC-FRONTCHANNEL-3-IFRAME-01`           | covered                                                                                                                                                                                          |
 | 3      | MAY    | the OP advertises `frontchannel_logout_supported` as `true`                                                                     | —                                         | deferred: P3b — no front-channel logout metadata is published yet; the value would claim a capability the OP does not have                                                                       |
-| 3      | SHOULD | the OP also registers `frontchannel_logout_session_supported`                                                                   | —                                         | deferred: P3b — it arrives with the same `iss`/`sid` delivery the §2 rows above defer                                                                                                            |
+| 3      | SHOULD | the OP also registers `frontchannel_logout_session_supported`                                                                   | —                                         | deferred: P3b — discovery advertisement, alongside the row above                                                                                                                                 |
 | 5      | SHOULD | Session ID values carry sufficient entropy that collisions and guessing are impractical                                         | —                                         | gap                                                                                                                                                                                              |
 
 ## Reading note
@@ -74,6 +80,16 @@ end. `isValidLogoutUri` makes no branch on Client Type for either logout
 URI, so revisiting this exception costs the same small, well-understood
 change in both places, and neither is done because neither buys back
 anything for the risk `http` reopens.
+
+### What "covered" reads through, for the rows P3b closed
+
+`tokenGrantRepository(tx).clientsForSession` (§3's tracking row) reads
+`token_grants`' own `(realm_id, session_id)` index; nothing separate is
+kept, because the grants already are the record. `frontChannelLogoutUrl`
+(§2's `iss`/`sid` rows, `packages/protocol-oidc/src/service/frontchannel-logout.ts`)
+sets `iss` unconditionally before it ever considers `sid`, so the MUST that
+either both appear or neither does follows from the order of two
+statements rather than needing a check of its own.
 
 ### The spike changes what "implemented" can mean here
 

@@ -91,7 +91,7 @@ async function respondToOutcome(
   // 9207 has /authorize carry iss on every response — this is not an
   // authorization response, so no `iss` parameter of its own applies here.
   if (outcome.redirectTo === null) {
-    return sendLogoutHtml(reply, 200, renderLoggedOutPage());
+    return sendLogoutHtml(reply, 200, renderLoggedOutPage(outcome.frontChannelLogoutUrls));
   }
   const target = new URL(outcome.redirectTo);
   if (outcome.state !== null) target.searchParams.set('state', outcome.state);
@@ -156,6 +156,7 @@ export function registerLogoutRoute(app: FastifyInstance, deps: LogoutRouteDeps)
     const outcome = await handleLogoutConfirmation(
       deps,
       request.params.realm,
+      realmIssuerFor(request, request.params.realm),
       request.headers.cookie,
       {
         confirmedSessionId,

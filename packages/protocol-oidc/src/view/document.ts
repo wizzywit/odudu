@@ -15,12 +15,17 @@ export function escapeHtml(value: string): string {
 // The one document shell for every page protocol-oidc renders. `body` is
 // what a theme may replace; `html` is what the server sends today. See
 // ADR 0030 for why a theme is handed the body and never the document.
-export function page(title: string, body: string, script: PageScript | null = null): RenderedPage {
+export function page(
+  title: string,
+  body: string,
+  script: PageScript | null = null,
+  frames: readonly string[] = [],
+): RenderedPage {
   return {
     title,
     body,
     script,
-    frames: [],
+    frames,
     html: `<!doctype html>
 <html lang="en">
 <head><meta charset="utf-8"><title>${escapeHtml(title)}</title></head>

@@ -4517,6 +4517,112 @@ location: http://localhost:8080/logged-out
 content-length: 0
 ```
 
+### Front-channel logout
+
+[OpenID Connect Front-Channel Logout 1.0](protocols/oidc-frontchannel.md)
+asks the OP to render, on the page it shows after ending a session, one
+`<iframe>` per client that registered a `frontchannel_logout_uri` and held
+a grant under that session. `seed client` has no flag for the URI (see
+[What is not implemented](#what-is-not-implemented)), so a second client is
+seeded and given one directly, the same way `post_logout_redirect_uris`
+was set above:
+
+```bash
+odudu seed client \
+  --realm demo --client-id reports-widget --client-secret reports-widget-secret \
+  --redirect-uri http://localhost:9100/callback
+
+docker compose -f infra/docker/compose.yaml exec -T postgres \
+  psql -U odudu -d odudu -c "
+    UPDATE client_oidc_config
+    SET frontchannel_logout_uri = 'http://localhost:9100/logout',
+        frontchannel_logout_session_required = true
+    FROM clients
+    WHERE clients.id = client_oidc_config.client_id AND clients.client_id = 'reports-widget';
+  "
+```
+
+Signing in as [Path A](#path-a-authorization-code-with-pkce) does, then
+reusing that same session's cookie for a second, consent-free authorization
+against `reports-widget` and redeeming its code, gives the session a grant
+under each client:
+
+```bash
+curl -sS -b cookies.txt --get \
+  --data-urlencode 'response_type=code' \
+  --data-urlencode 'client_id=reports-widget' \
+  --data-urlencode 'redirect_uri=http://localhost:9100/callback' \
+  --data-urlencode 'scope=openid' \
+  --data-urlencode 'state=xyz-rw' \
+  --data-urlencode "code_challenge=$CHALLENGE" \
+  --data-urlencode 'code_challenge_method=S256' \
+  "http://localhost:3000/realms/demo/protocol/openid-connect/auth"
+
+curl -sS \
+  --data-urlencode 'grant_type=authorization_code' \
+  --data-urlencode "code=$RW_CODE" \
+  --data-urlencode 'redirect_uri=http://localhost:9100/callback' \
+  --data-urlencode 'client_id=reports-widget' \
+  --data-urlencode "code_verifier=$VERIFIER" \
+  -u reports-widget:reports-widget-secret \
+  "http://localhost:3000/realms/demo/protocol/openid-connect/token"
+```
+
+Ending that session with no `post_logout_redirect_uri` at all — the branch
+that renders the signed-out page rather than redirecting away from it —
+now frames `reports-widget`:
+
+```bash
+curl -sS -b cookies.txt --get \
+  --data-urlencode "id_token_hint=$ID_TOKEN" \
+  "http://localhost:3000/realms/demo/protocol/openid-connect/logout"
+```
+
+```
+HTTP/1.1 200 OK
+set-cookie: demo-session=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
+set-cookie: demo-session-persistent=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
+cache-control: no-store
+content-type: text/html
+content-security-policy: default-src 'none'; frame-ancestors 'none'; form-action 'self'; base-uri 'none'; frame-src http://localhost:9100
+x-frame-options: DENY
+referrer-policy: no-referrer
+content-length: 317
+```
+
+```
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Signed out</title></head>
+<body>
+<h1>Signed out</h1>
+<p>You have been signed out.</p>
+<iframe src="http://localhost:9100/logout?iss=http%3A%2F%2Flocalhost%3A3000%2Frealms%2Fdemo&amp;sid=01a0bc04-3b60-…"></iframe>
+</body>
+</html>
+```
+
+(`sid` shortened; it is the session cookie's own id, and `iss` is this
+realm's issuer.) `sid` is present because `reports-widget` registered
+`frontchannel_logout_session_required`; a client that had not would be
+framed with `iss` alone. `demo-spa` itself is not framed here — it
+registered no `frontchannel_logout_uri` at all, and §2's own rule is that a
+client without one is not framed and contributes no origin, which
+`frame-src` above bears out: it names `reports-widget`'s origin and
+nothing else.
+
+**This is an attempt, not a delivered notification.** The iframe's
+response is never read back, and whether `reports-widget` ever sees the
+request depends on browser behaviour this OP does not control:
+`docs/superpowers/p3b-spike-frontchannel.md` found that a cookie with no
+explicit `SameSite` is never sent on this framed cross-site request at
+all, in every browser tested, and a cookie that opts in with
+`SameSite=None; Secure` is still subject to third-party-cookie blocking
+that Safari and Firefox apply by default and Chrome allows a user or
+administrator to apply. ADR 0034 has the full reasoning. Discovery still
+advertises no `frontchannel_logout_supported` — see
+[What is not implemented](#what-is-not-implemented).
+
 ### Offline access
 
 `offline_access` is a scope, seeded into every realm alongside
@@ -6446,13 +6552,18 @@ session lifecycle. A citation of either half here means that half.
   access tokens locally against the JWKS, and ending a session or revoking
   a grant — including through [RP-initiated logout](#rp-initiated-logout) —
   does not invalidate an already-issued access token before its `exp`.
-- **Front-channel and back-channel logout.** **P3b**: both are addressed to a
-  client rather than to a browser. `frontchannel_logout_uri` and
-  `backchannel_logout_uri` are now client-registration metadata a client can
+- **Back-channel logout.** **P3b**, whose exit criterion names it.
+  `backchannel_logout_uri` is client-registration metadata a client can
   register (`POST /realms/{realm}/clients-registrations/openid-connect`,
-  [Dynamic client registration](#dynamic-client-registration)) and are
-  stored, but nothing reads either column yet — no discovery member
-  advertises the capability, and no logout delivers to either URI.
+  [Dynamic client registration](#dynamic-client-registration)) and is
+  stored, but nothing reads the column yet — no discovery member advertises
+  the capability, and ending a session delivers to no back-channel URI.
+  [Front-channel logout](#front-channel-logout) is no longer in this list:
+  the logout page now frames each relying party's `frontchannel_logout_uri`
+  (see that section for a real transcript) — an **attempt**, not a
+  guarantee of delivery, for the browser reasons that section and ADR 0034
+  give. Discovery still advertises neither `frontchannel_logout_supported`
+  nor `frontchannel_logout_session_supported`.
 - **No administrative way to end somebody else's session.** Listing a
   subject's sessions and ending one is **P4**, with the rest of the admin
   surface, because until there is an admin API there is nowhere to put it.

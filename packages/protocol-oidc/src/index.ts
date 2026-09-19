@@ -567,6 +567,13 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
           await sessionRepository(tx).end(sessionId, now);
           await tokenGrantRepository(tx).revokeForSession(sessionId, now);
         }),
+      // Front-Channel Logout 1.0 §3's "set of logged-in RPs" — read after
+      // endSession above has already revoked the session's grants, since
+      // revoking one only stamps revoked_at rather than removing it.
+      clientsForSession: (realmId, sessionId) =>
+        withRealm(deps.database.db, realmId, (tx) =>
+          tokenGrantRepository(tx).clientsForSession(sessionId),
+        ),
     });
     // Own encapsulation scope: `@fastify/cors`'s delegator-driven hook adds
     // `Vary: Origin` to every response it sees, including a disallowed one
