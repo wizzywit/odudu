@@ -16,7 +16,7 @@ import formbody from '@fastify/formbody';
 import { and, eq } from 'drizzle-orm';
 import Fastify, { type FastifyInstance, type LightMyRequestResponse } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { sessions, provisionRealm } from '@odudu/authn-flows';
+import { requiredActionRepository, sessions, provisionRealm } from '@odudu/authn-flows';
 import { oidcRoutes } from '#/index';
 import { UNLIMITED_CLIENT_SECRET_LIMITER } from '#/service/client-secret-throttle';
 import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
@@ -475,6 +475,50 @@ describe('the verified-email gate applies to a reused session too', () => {
 
     const res = await http.inject({ url: authorizeUrl(realmName), headers: { cookie } });
     expect(res.statusCode).toBe(302);
+
+    const after = await sessionRowFor(cookie);
+    expect(after?.lastActiveAt.getTime()).toBe(before?.lastActiveAt.getTime());
+  });
+});
+
+describe('the required-action gate applies to a reused session too', () => {
+  // The fourth door, closed by the same fix as the third: a subject
+  // holding a live SSO cookie who is then given an admin-forced
+  // update-password (a compromise response) must not get a fresh
+  // authorization code from /authorize just because no password was typed
+  // this time — the reuse path has to owe the same action the login form
+  // would still be showing.
+  it('refuses to reuse a live cookie while a password reset is owed, rendering the action instead', async () => {
+    const realmName = `reuse-required-action-${newId()}`;
+    const realmId = await setupRealm(realmName);
+    const subjectId = await subjectIdOf(realmId, USERNAME);
+    const cookie = await signIn(realmName);
+    await withRealm(app.db, realmId, (tx) =>
+      requiredActionRepository(tx).add(realmId, subjectId, 'update-password'),
+    );
+
+    const res = await http.inject({ url: authorizeUrl(realmName), headers: { cookie } });
+
+    // A 200 carrying the required-action page, not the 302 a completed
+    // reuse would answer with — no code, no set-cookie, since nothing new
+    // was established.
+    expect(res.statusCode).toBe(200);
+    expect(res.headers['set-cookie']).toBeUndefined();
+    expect(res.body).toContain('Change your password');
+  });
+
+  it('does not touch the session it refused to reuse for', async () => {
+    const realmName = `reuse-required-action-touch-${newId()}`;
+    const realmId = await setupRealm(realmName);
+    const subjectId = await subjectIdOf(realmId, USERNAME);
+    const cookie = await signIn(realmName);
+    await withRealm(app.db, realmId, (tx) =>
+      requiredActionRepository(tx).add(realmId, subjectId, 'update-password'),
+    );
+    const before = await sessionRowFor(cookie);
+
+    const res = await http.inject({ url: authorizeUrl(realmName), headers: { cookie } });
+    expect(res.statusCode).toBe(200);
 
     const after = await sessionRowFor(cookie);
     expect(after?.lastActiveAt.getTime()).toBe(before?.lastActiveAt.getTime());

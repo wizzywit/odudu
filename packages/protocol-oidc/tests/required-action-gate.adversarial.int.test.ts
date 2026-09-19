@@ -48,11 +48,12 @@ async function setupRealm(
   name: string,
   otpRequired: boolean,
   consentRequired = false,
+  verifyEmail = false,
 ): Promise<string> {
   const realmId = newId();
   const clientDbId = newId();
   await withRealm(app.db, realmId, async (tx: RealmScopedDatabase) => {
-    await tx.insert(realms).values({ id: realmId, name, otpRequired });
+    await tx.insert(realms).values({ id: realmId, name, otpRequired, verifyEmail });
     await provisionRealm(tx, realmId);
     await tx.insert(clients).values({
       id: clientDbId,
@@ -701,5 +702,45 @@ describe('a required action is not satisfiable before the login that owes it is 
     expect(stillOwed.statusCode).toBe(200);
     expect(stillOwed.headers['set-cookie']).toBeUndefined();
     expect(stillOwed.body).toContain('Change your password');
+  });
+
+  // The other gate the same third door has to clear, proven independently:
+  // a build with refusedForUnverifiedEmail deleted from the consent path
+  // would pass every other test in this file, since the required-action
+  // case above never sets verify_email. This one does, and owes nothing
+  // but an unverified address, so it fails on this gate alone.
+  it('refuses to establish a session from a consent decision while the email is unverified', async () => {
+    const realmName = `gate-consent-unverified-${newId()}`;
+    const realmId = await setupRealm(realmName, false, true, true);
+
+    const authSessionId = await startAuthSession(realmName);
+    const owed = await login(realmName, {
+      auth_session_id: authSessionId,
+      username: USERNAME,
+      password: PASSWORD,
+    });
+    expect(owed.statusCode).toBe(200);
+    expect(owed.body).toContain("Can't sign in yet");
+
+    const bypass = await consentPost(realmName, {
+      auth_session_id: authSessionId,
+      decision: 'allow',
+    });
+
+    expect(bypass.statusCode).toBe(200);
+    expect(bypass.headers['set-cookie']).toBeUndefined();
+    expect(bypass.body).toContain("Can't sign in yet");
+    expect(await sessionCount(realmId)).toBe(0);
+
+    // And the parked login is exactly where it was: still asking for the
+    // verification the bypass attempt tried to walk around.
+    const stillOwed = await login(realmName, {
+      auth_session_id: authSessionId,
+      username: USERNAME,
+      password: PASSWORD,
+    });
+    expect(stillOwed.statusCode).toBe(200);
+    expect(stillOwed.headers['set-cookie']).toBeUndefined();
+    expect(stillOwed.body).toContain("Can't sign in yet");
   });
 });

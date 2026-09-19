@@ -520,6 +520,59 @@ and the rest of what P3b implements stay absent from discovery, for the
 reason `docs/protocols/oidc-backchannel.md` gives for every capability this
 server does not yet have — advertising one would claim it.
 
+A non-HTTP `redirect_uri` has to look like RFC 8252 §7.1's reverse-DNS
+custom scheme (ADR 0032): the scheme names at least one `.`, which is what
+tells `com.example.app:/cb` apart from `javascript:`, `data:` and `file:`
+without an enumerable denylist of dangerous ones. A dotless custom scheme —
+common in the wild, and otherwise harmless — is refused all the same:
+
+```bash
+curl -sS -X POST http://localhost:3000/realms/reg-demo/clients-registrations/openid-connect \
+  -H 'content-type: application/json' -d '{"redirect_uris":["myapp://cb"]}'
+```
+
+```json
+{
+  "error": "invalid_redirect_uri",
+  "error_description": "redirect_uris entry myapp://cb is not valid"
+}
+```
+
+```bash
+curl -sS -X POST http://localhost:3000/realms/reg-demo/clients-registrations/openid-connect \
+  -H 'content-type: application/json' -d '{"redirect_uris":["com.example.app:/cb"]}'
+```
+
+```json
+{
+  "client_id": "01a0b707-…",
+  "client_id_issued_at": 1789777116,
+  "client_secret": "Iv4li0N-PWbQ0hno_SR04d6sEZnkxvUlI9RWaDYCW6k",
+  "client_secret_expires_at": 0,
+  "redirect_uris": ["com.example.app:/cb"],
+  "grant_types": ["authorization_code"],
+  "token_endpoint_auth_method": "client_secret_basic"
+}
+```
+
+`frontchannel_logout_uri` gets the same https/absolute/no-fragment policy
+`backchannel_logout_uri` already had — it is destined for an iframe `src`
+once P3b renders it, the sink a bare `http:` or `javascript:` value would
+otherwise reach:
+
+```bash
+curl -sS -X POST http://localhost:3000/realms/reg-demo/clients-registrations/openid-connect \
+  -H 'content-type: application/json' \
+  -d '{"redirect_uris":["https://rp.example/cb"],"frontchannel_logout_uri":"http://rp.example/fc"}'
+```
+
+```json
+{
+  "error": "invalid_client_metadata",
+  "error_description": "frontchannel_logout_uri must be an absolute https URI with no fragment"
+}
+```
+
 ## Path A: authorization code with PKCE
 
 The full interactive flow. Every client uses PKCE, public and confidential

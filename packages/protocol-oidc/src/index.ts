@@ -281,89 +281,6 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
       hashClientSecret: hashPassword,
       now: () => clock.now(),
     });
-    registerAuthorizeRoute(app, {
-      findRealm,
-      tls,
-      ...passkeyLogin,
-      listPublishableKeys,
-      scopesForRealm,
-      resolveClient: (realmId, oauthClientId) =>
-        withRealm(deps.database.db, realmId, async (tx): Promise<ResolvedClient> => {
-          const client = await clientRepository(tx).byClientId(oauthClientId);
-          if (client === null) return { client: null, config: null, scopes: [] };
-          const config = await clientOidcConfigRepository(tx).byClientId(client.id);
-          const assigned = await clientScopeRepository(tx).forClient(client.id);
-          return { client, config, scopes: assigned.map((scope) => scope.name) };
-        }),
-      startAuthentication: (realmId, request) =>
-        withRealm(deps.database.db, realmId, (tx) =>
-          startAuthentication(tx, realmId, request, clock),
-        ),
-      initialChallenge: (realmId) =>
-        withRealm(deps.database.db, realmId, (tx) => initialChallenge(tx, realmId)),
-      now: () => clock.now(),
-      // The realm's idle window comes from the `realm` the caller already
-      // resolved (its own `findRealm`), not a second lookup by id.
-      resolveSession: async (realm, cookieValue) => {
-        // The cookie is trusted for nothing but this lookup, and a session
-        // id is a UUID column — a value shaped like anything else names no
-        // row rather than raising the invalid-input-syntax error Postgres
-        // would give a raw comparison.
-        if (cookieValue === undefined || !isUuid(cookieValue)) return null;
-        return withRealm(deps.database.db, realm.id, async (tx) => {
-          const record = await sessionRepository(tx).liveById(
-            cookieValue,
-            realm.ssoSessionIdleSeconds,
-            clock.now(),
-          );
-          if (record === null) return null;
-          return {
-            sessionId: record.id,
-            subjectId: record.subjectId,
-            authTime: record.createdAt,
-            // Carried forward for the one case that needs it: a consent
-            // gate promoting this reuse into a real authentication session
-            // (markAuthenticated below), whose amr has to say what the
-            // original login actually used.
-            authenticators: record.authenticators,
-          };
-        });
-      },
-      checkEmailVerification,
-      consentContext,
-      grantedScopeIds,
-      // Promotes a reuse into a real authentication session, already bound
-      // and authenticated for the reused subject — what decideConsentGate's
-      // 'ask' branch needs to park the request on and render a consent page
-      // against, with no factor actually running.
-      markAuthenticated: (realmId, authSessionId, subjectId, authenticators) =>
-        withRealm(deps.database.db, realmId, (tx) =>
-          markSessionAuthenticated(tx, authSessionId, subjectId, authenticators, clock),
-        ),
-      // Touch and issue in one transaction: a reused session is a session
-      // being used, and there is no reason for the two writes this makes to
-      // land in separate ones.
-      completeReuse: (input) =>
-        withRealm(deps.database.db, input.realmId, async (tx) => {
-          const now = clock.now();
-          await sessionRepository(tx).touch(input.sessionId, now);
-          // `now`, not `input.authTime`: the code's 60s TTL counts from this
-          // issuance, however long ago the session's own login was.
-          return issueAuthorizationCode(tx, {
-            realmId: input.realmId,
-            clientId: input.clientId,
-            subjectId: input.subjectId,
-            redirectUri: input.redirectUri,
-            scope: input.scope,
-            nonce: input.nonce,
-            codeChallenge: input.codeChallenge,
-            codeChallengeMethod: input.codeChallengeMethod,
-            authTime: input.authTime,
-            now,
-            sessionId: input.sessionId,
-          });
-        }),
-    });
     // One definition for both doors onto the enrolment page: the login
     // submission that discovers the action is owed, and the enrolment
     // submission that has to re-render it after a wrong code.
@@ -435,6 +352,95 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
       withRealm(deps.database.db, realmId, (tx) =>
         requiredActionRepository(tx).pendingFor(subjectId),
       );
+
+    registerAuthorizeRoute(app, {
+      findRealm,
+      tls,
+      ...passkeyLogin,
+      listPublishableKeys,
+      scopesForRealm,
+      resolveClient: (realmId, oauthClientId) =>
+        withRealm(deps.database.db, realmId, async (tx): Promise<ResolvedClient> => {
+          const client = await clientRepository(tx).byClientId(oauthClientId);
+          if (client === null) return { client: null, config: null, scopes: [] };
+          const config = await clientOidcConfigRepository(tx).byClientId(client.id);
+          const assigned = await clientScopeRepository(tx).forClient(client.id);
+          return { client, config, scopes: assigned.map((scope) => scope.name) };
+        }),
+      startAuthentication: (realmId, request) =>
+        withRealm(deps.database.db, realmId, (tx) =>
+          startAuthentication(tx, realmId, request, clock),
+        ),
+      initialChallenge: (realmId) =>
+        withRealm(deps.database.db, realmId, (tx) => initialChallenge(tx, realmId)),
+      now: () => clock.now(),
+      // The realm's idle window comes from the `realm` the caller already
+      // resolved (its own `findRealm`), not a second lookup by id.
+      resolveSession: async (realm, cookieValue) => {
+        // The cookie is trusted for nothing but this lookup, and a session
+        // id is a UUID column — a value shaped like anything else names no
+        // row rather than raising the invalid-input-syntax error Postgres
+        // would give a raw comparison.
+        if (cookieValue === undefined || !isUuid(cookieValue)) return null;
+        return withRealm(deps.database.db, realm.id, async (tx) => {
+          const record = await sessionRepository(tx).liveById(
+            cookieValue,
+            realm.ssoSessionIdleSeconds,
+            clock.now(),
+          );
+          if (record === null) return null;
+          return {
+            sessionId: record.id,
+            subjectId: record.subjectId,
+            authTime: record.createdAt,
+            // Carried forward for the one case that needs it: a consent
+            // gate promoting this reuse into a real authentication session
+            // (markAuthenticated below), whose amr has to say what the
+            // original login actually used.
+            authenticators: record.authenticators,
+          };
+        });
+      },
+      checkEmailVerification,
+      pendingActions,
+      beginTotpEnrolment: startTotpEnrolment,
+      beginRecoveryCodes: startRecoveryCodes,
+      ...passkeyEnrolment,
+      consentContext,
+      grantedScopeIds,
+      // Promotes a reuse into a real authentication session, already bound
+      // and authenticated for the reused subject — what the required-action
+      // gate and decideConsentGate's 'ask' branch both need to park the
+      // request on and render a page against, with no factor actually
+      // running.
+      markAuthenticated: (realmId, authSessionId, subjectId, authenticators) =>
+        withRealm(deps.database.db, realmId, (tx) =>
+          markSessionAuthenticated(tx, authSessionId, subjectId, authenticators, clock),
+        ),
+      // Touch and issue in one transaction: a reused session is a session
+      // being used, and there is no reason for the two writes this makes to
+      // land in separate ones.
+      completeReuse: (input) =>
+        withRealm(deps.database.db, input.realmId, async (tx) => {
+          const now = clock.now();
+          await sessionRepository(tx).touch(input.sessionId, now);
+          // `now`, not `input.authTime`: the code's 60s TTL counts from this
+          // issuance, however long ago the session's own login was.
+          return issueAuthorizationCode(tx, {
+            realmId: input.realmId,
+            clientId: input.clientId,
+            subjectId: input.subjectId,
+            redirectUri: input.redirectUri,
+            scope: input.scope,
+            nonce: input.nonce,
+            codeChallenge: input.codeChallenge,
+            codeChallengeMethod: input.codeChallengeMethod,
+            authTime: input.authTime,
+            now,
+            sessionId: input.sessionId,
+          });
+        }),
+    });
 
     registerRequiredActionRoute(app, {
       findRealm,

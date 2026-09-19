@@ -757,6 +757,20 @@ documents), found by that digest rather than compared, and spent by one
 `UPDATE … RETURNING` so two concurrent registrations against a one-use
 token cannot both win.
 
+**A `redirect_uris` entry with no `http`/`https` scheme has to look like a
+native-app deep link, not just carry one.** RFC 7591 §5 permits "a non-HTTP
+application-specific URL", and RFC 8252 §7.1's reverse-DNS convention is
+what that looks like in practice: `com.example.app:/cb` registers,
+`myapp://cb` is refused with `invalid_redirect_uri` even though dotless
+custom schemes are common and otherwise harmless — `javascript:`, `data:`
+and `file:` are the values this rule exists to close off, and none of them
+carries a `.` in its own scheme name the way every reverse-DNS scheme does
+([ADR 0032](docs/adr/0032-a-non-http-redirect-uri-scheme-must-look-custom.md)).
+`frontchannel_logout_uri` is validated the same way its `backchannel_logout_uri`
+twin already was — `https`, absolute, no fragment — since P3b renders it
+into an iframe and a `javascript:` or bare-`http:` value would reach that
+sink unchecked otherwise.
+
 **One pass deletes everything that expires.** Every login writes an
 `authentication_sessions` row, every redemption an `authorization_codes`
 row, and every refresh rotation a `refresh_tokens` row; no repository in the

@@ -32,8 +32,12 @@ it.each(['http://127.0.0.1:8080/cb', 'http://[::1]:8080/cb', 'com.example.app:/c
 
 // RFC 7591 §5's third bullet is "a non-HTTP application-specific URL", not
 // any scheme a client can name — these three would previously pass the
-// non-http branch's "carries a scheme-specific part" check unmodified.
-describe('[RFC7591-5-01] a non-HTTP redirect_uri scheme is application-specific', () => {
+// non-http branch's "carries a scheme-specific part" check unmodified. The
+// reverse-DNS closure itself is Odudu's own decision, not a MUST the RFC
+// states in these words — see ADR 0032 — hence the `ODUDU-` id rather than
+// one this file's `pnpm trace` would try to resolve against an RFC 7591
+// clause table this repository does not carry.
+describe('[ODUDU-CLIENT-META-REDIRECT-SCHEME-01] a non-HTTP redirect_uri scheme is application-specific', () => {
   it.each(['javascript:alert(1)', 'data:text/html,x', 'file:///etc/passwd'])(
     'refuses the dangerous scheme %s',
     (uri) => {
@@ -188,8 +192,14 @@ it('accepts a well-formed back-channel logout URI', () => {
 
 // frontchannel_logout_uri is rendered into an iframe (P3b), which is exactly
 // the sink isValidLogoutUri exists to keep a javascript: or bare-http value
-// out of — the same policy the back-channel twin already has above.
-describe('[OIDC-FRONTCHANNEL-2-01] the front-channel logout URI scheme policy', () => {
+// out of — the same policy the back-channel twin already has above. `ODUDU-`
+// ids throughout: OpenID Connect Front-Channel Logout 1.0 carries no clause
+// table in docs/protocols yet (unlike its back-channel twin), so a
+// spec-style id here would fail `pnpm trace` with nothing for it to resolve
+// against. Registering and validating the URI ahead of the logout flow
+// itself mirrors the split docs/protocols/oidc-backchannel.md already
+// states for its own twin.
+describe('[ODUDU-CLIENT-META-FRONTCHANNEL-SCHEME-01] the front-channel logout URI scheme policy', () => {
   it('refuses a front-channel logout URI that is not https', () => {
     const outcome = parseClientMetadata(ok({ frontchannel_logout_uri: 'http://rp.example/fc' }));
     expect(outcome).toMatchObject({ kind: 'invalid', error: 'invalid_client_metadata' });
@@ -201,14 +211,14 @@ describe('[OIDC-FRONTCHANNEL-2-01] the front-channel logout URI scheme policy', 
   });
 });
 
-describe('[OIDC-FRONTCHANNEL-2-02] the front-channel logout URI is absolute', () => {
+describe('[ODUDU-CLIENT-META-FRONTCHANNEL-ABSOLUTE-01] the front-channel logout URI is absolute', () => {
   it('refuses a relative front-channel logout URI', () => {
     const outcome = parseClientMetadata(ok({ frontchannel_logout_uri: '/fc' }));
     expect(outcome).toMatchObject({ kind: 'invalid', error: 'invalid_client_metadata' });
   });
 });
 
-describe('[OIDC-FRONTCHANNEL-2-03] the front-channel logout URI carries no fragment', () => {
+describe('[ODUDU-CLIENT-META-FRONTCHANNEL-FRAGMENT-01] the front-channel logout URI carries no fragment', () => {
   it('refuses a front-channel logout URI with a fragment', () => {
     const outcome = parseClientMetadata(ok({ frontchannel_logout_uri: 'https://rp.example/fc#x' }));
     expect(outcome).toMatchObject({ kind: 'invalid', error: 'invalid_client_metadata' });

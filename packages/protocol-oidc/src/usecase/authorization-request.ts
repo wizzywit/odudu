@@ -1,4 +1,8 @@
-import { type AuthenticatorResult } from '@odudu/authn-flows';
+import {
+  nextRequiredAction,
+  type AuthenticatorResult,
+  type RequiredAction,
+} from '@odudu/authn-flows';
 import { AUDIENCE_UNCHECKED, verifyJwt, type SigningKeyRecord } from '@odudu/crypto';
 import { type ClientRecord } from '@odudu/domain-realm';
 import { type ClientOidcConfig } from '#/schema/client-oidc-config';
@@ -41,6 +45,19 @@ export type AuthorizationRequestOutcome =
       defaultScopes: string[];
       optionalScopes: string[];
       alreadyGranted: string[];
+    }
+  // The same promotion as 'consent', for the gate handleLoginSubmission
+  // checks first: a live session reused for a subject who still owes a
+  // required action (an admin-forced password reset, unacknowledged
+  // recovery codes, pending enrolment) must not skip it just because no
+  // password was typed this time. A fresh authentication session is
+  // started, already bound and authenticated for the reused subject, so
+  // the required-action route has something to resume.
+  | {
+      kind: 'required_action';
+      authSessionId: string;
+      subjectId: string;
+      action: RequiredAction;
     };
 
 // What resolving the SSO session cookie against a live row yields — the
@@ -106,6 +123,10 @@ export interface AuthorizeUsecaseDeps extends ConsentGateDeps {
   // The same gate handleLoginSubmission enforces, shared so a cookie-borne
   // login cannot complete for a subject a password login would refuse.
   checkEmailVerification: LoginSubmissionDeps['checkEmailVerification'];
+  // The same required-action gate handleLoginSubmission enforces, checked
+  // here for the reason checkEmailVerification is: a live cookie must not
+  // buy a subject out of an action a password login would still owe.
+  pendingActions: LoginSubmissionDeps['pendingActions'];
   // Touches the reused session and issues the code atomically — the same
   // issueAuthorizationCode the form path uses, wrapped with the touch in
   // one transaction the way completeLogin wraps its own two writes.
@@ -237,6 +258,40 @@ export async function handleAuthorizationRequest(
     );
     if (refusal !== null) return reject('login_required');
 
+    // Starts a fresh authentication session already bound and authenticated
+    // for the reused subject, and parks the request on it with the reuse
+    // promotion `completeAuthorizedLogin` reads — the one mechanism both
+    // the required-action and the consent gate below use to give the
+    // subject something to resume without a single factor actually
+    // running again.
+    const promoteToParkedRequest = async (): Promise<string> => {
+      const { authSessionId } = await deps.startAuthentication(realm.id, {
+        ...request,
+        prompt: [...outcome.prompts],
+        ...(hintSubject !== null ? { idTokenHintSubject: hintSubject } : {}),
+        reuseSessionId: resolvedSession.sessionId,
+        reuseAuthTime: resolvedSession.authTime.toISOString(),
+      });
+      await deps.markAuthenticated(
+        realm.id,
+        authSessionId,
+        decision.subjectId,
+        resolvedSession.authenticators,
+      );
+      return authSessionId;
+    };
+
+    // The same required-action gate handleLoginSubmission's form path
+    // enforces right after the email check and before consent: a live
+    // cookie must not buy a subject out of an action a password login
+    // would still owe (an admin-forced reset, unacknowledged recovery
+    // codes, pending enrolment).
+    const action = nextRequiredAction(await deps.pendingActions(realm.id, decision.subjectId));
+    if (action !== null) {
+      const authSessionId = await promoteToParkedRequest();
+      return { kind: 'required_action', authSessionId, subjectId: decision.subjectId, action };
+    }
+
     // The gate handleLoginSubmission's form path enforces right before it
     // would otherwise complete: a client requiring consent must be asked on
     // *this* door too, or a `consent_required` client is asked exactly
@@ -253,22 +308,7 @@ export async function handleAuthorizationRequest(
     );
     if (gate.kind === 'refuse') return reject('consent_required');
     if (gate.kind === 'ask') {
-      const { authSessionId } = await deps.startAuthentication(realm.id, {
-        ...request,
-        prompt: [...outcome.prompts],
-        ...(hintSubject !== null ? { idTokenHintSubject: hintSubject } : {}),
-        // So completeAuthorizedLogin reuses this SSO session, with its own
-        // authTime, instead of establishing a fresh one once consent is
-        // answered — asking must not itself count as a new authentication.
-        reuseSessionId: resolvedSession.sessionId,
-        reuseAuthTime: resolvedSession.authTime.toISOString(),
-      });
-      await deps.markAuthenticated(
-        realm.id,
-        authSessionId,
-        decision.subjectId,
-        resolvedSession.authenticators,
-      );
+      const authSessionId = await promoteToParkedRequest();
       return {
         kind: 'consent',
         authSessionId,
