@@ -1,4 +1,5 @@
 import { type RealmScopedDatabase } from '@odudu/db';
+import { clients } from '@odudu/domain-realm';
 import { newId } from '@odudu/kernel';
 import { eq } from 'drizzle-orm';
 import { clientOidcConfig } from '#/schema/client-oidc-config';
@@ -8,9 +9,14 @@ export type { TokenGrantRecord } from '#/schema/token-grants';
 
 // Front-Channel §3 and Back-Channel §2.3's "set of logged-in RPs" for a
 // session: enough of each distinct client's logout metadata to build both
-// kinds of logout request, none of the rest of its configuration.
+// kinds of logout request, none of the rest of its configuration. `clientId`
+// is the clients table's own surrogate id — the delivery queue's foreign
+// key wants exactly that — while `oauthClientId` is the client_id string a
+// Logout Token's `aud` must carry (Back-Channel Logout §2.4); front-channel
+// logout needs neither for anything beyond distinguishing rows.
 export interface ClientLogoutTarget {
   clientId: string;
+  oauthClientId: string;
   frontchannelLogoutUri: string | null;
   frontchannelLogoutSessionRequired: boolean;
   backchannelLogoutUri: string | null;
@@ -105,6 +111,7 @@ export function tokenGrantRepository(tx: RealmScopedDatabase) {
       const rows = await tx
         .selectDistinct({
           clientId: clientOidcConfig.clientId,
+          oauthClientId: clients.clientId,
           frontchannelLogoutUri: clientOidcConfig.frontchannelLogoutUri,
           frontchannelLogoutSessionRequired: clientOidcConfig.frontchannelLogoutSessionRequired,
           backchannelLogoutUri: clientOidcConfig.backchannelLogoutUri,
@@ -112,6 +119,7 @@ export function tokenGrantRepository(tx: RealmScopedDatabase) {
         })
         .from(tokenGrants)
         .innerJoin(clientOidcConfig, eq(clientOidcConfig.clientId, tokenGrants.clientId))
+        .innerJoin(clients, eq(clients.id, tokenGrants.clientId))
         .where(eq(tokenGrants.sessionId, sessionId));
       return rows;
     },
