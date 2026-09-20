@@ -4694,23 +4694,70 @@ Querying the same row again shows why, in the queue's own words:
 (1 row)
 ```
 
-**Nothing in this repository can deliver a back-channel logout to a
-loopback or private address, in any configuration.** `assertPublicAddress`
-(`packages/protocol-oidc/src/service/remote-address.ts`) refuses `127.0.0.0/8`
-unconditionally — the check runs before `options.allowPrivate` is even
-read — the same guard `clientKeySet`'s `jwks_uri` fetch uses (ADR 0028),
-but with no `ODUDU_ALLOW_PRIVATE_CLIENT_URLS`-shaped escape hatch wired to
-it: `createLogoutDeliveryTransport()` is constructed with no options
-anywhere this server calls it
-(`apps/server/src/main.ts`, `apps/server/src/cli/send-logouts.ts`). So a
-real relying party, reachable at a public `https://` origin, is exactly
-what this pass is built to reach; this walkthrough's own loopback listener
-is refused by the same rule production traffic is, which is why this
-transcript shows a refusal rather than a delivery. `attempts` reads `2`,
-not `1`, because `claimDue` spends one optimistically at the claim and
-`markFailed` spends a second recording the outcome — both against the
-same real row, captured on the stack this section's other commands ran
-against.
+`assertPublicAddress` (`packages/protocol-oidc/src/service/remote-address.ts`)
+refuses `127.0.0.0/8` unconditionally, ahead of any override — the same
+guard `clientKeySet`'s `jwks_uri` fetch uses (ADR 0028). `attempts` reads
+`2`, not `1`, because `claimDue` spends one optimistically at the claim
+and `markFailed` spends a second recording the outcome.
+
+**A private-range address is a different branch of that same guard, and
+one an operator can open.** `ODUDU_ALLOW_PRIVATE_CLIENT_URLS` — already
+read at boot for `jwks_uri` — now reaches
+`createLogoutDeliveryTransport` too, at both call sites that build one
+(`apps/server/src/main.ts`, `apps/server/src/cli/send-logouts.ts`). With
+it set, delivery to a real listener actually happens. Continuing this
+same stack: the server was restarted with
+`ODUDU_ALLOW_PRIVATE_CLIENT_URLS=true` and
+`NODE_EXTRA_CA_CERTS=<path-to-a-self-signed-cert.pem>` (the trust anchor
+for a plain Node `https` listener bound to this machine's own LAN
+address, `192.168.1.71`, standing in for a relying party — a private
+address is exactly what this variable exists to admit; a _public_ one
+needs no such override), and `reports-widget`'s `backchannel_logout_uri`
+was pointed at it instead:
+
+```bash
+docker compose -f infra/docker/compose.yaml exec -T postgres \
+  psql -U odudu -d odudu -c "
+    UPDATE client_oidc_config SET backchannel_logout_uri = 'https://192.168.1.71:9443/backchannel'
+    FROM clients WHERE clients.id = client_oidc_config.client_id AND clients.client_id = 'reports-widget';
+  "
+```
+
+A fresh sign-in, second-client authorization and logout — the same three
+steps as above — enqueue one row exactly as before. `odudu send-logouts`,
+run with the variable set:
+
+```bash
+odudu send-logouts
+```
+
+```
+{"ran":true,"delivered":1,"failed":0}
+```
+
+The listener's own log shows the request actually arrived:
+
+```
+POST /backchannel content-type=application/x-www-form-urlencoded body=logout_token=eyJhbGciOiJSUzI1NiIsImtpZCI6IjAxYTBiZDExLTQzZDYtN2JlNS1iZDE2LTU2NTg4ZDg4ZGFmYSIsInR5cCI6ImxvZ291dCtqd3QifQ.eyJpc3MiOiJodHRwOi8vbG9jYWxob3N0OjMwMDAvcmVhbG1zL2RlbW8iLCJhdWQiOiJyZXBvcnRzLXdpZGdldCIsImlhdCI6MTc4OTg3ODQ1NiwiZXhwIjoxNzg5ODc4NTc2LCJqdGkiOiIwMWEwYmQxMS1kMDJjLTdjMmQtOTdmYy05MjNkMTEyNmMyOTIiLCJzdWIiOiIwMWEwYmQxMS00M2Q5LTdmM2EtYTc0MS1lM2M4MmFmYzM5ZTYiLCJzaWQiOiIwMWEwYmQxMS1hMjA3LTdiZTEtYjQ0MC05ZWYwZmQ4YmNiMjYiLCJldmVudHMiOnsiaHR0cDovL3NjaGVtYXMub3BlbmlkLm5ldC9ldmVudC9iYWNrY2hhbm5lbC1sb2dvdXQiOnt9fX0.AG7EbUY0MiqAWYP8uiHgufzzSAMhUUqr2e4_ByXejtOXsJTaB-C8NliP6or4AXOUQ-KZRK4BDQXsVRlOkGcmWw12GBbveMxvkwl7ha4ov0ADSOhBqSi2PRVfkBrWfIJkjpyX6Ewry8Y-pbLJ51EIf7BRHZ4TaSTldTTv10yqCpe2EhsjyJkT4pbb4niVT9uWYvuTp2sIwg1w_x23qMme-nKYt0Ph9lZpPaobOD_jVjSVvww5fTexGMfN7k1RY-VdWybA3WujRHuL6AfacOMaFlnue-a2R4NRNAMYwbG6LTeX1MfJN3Ckv9FUbVYBeg6fxCoG5TI7cxKGktGXkzQsGA
+```
+
+Its header decodes to `{"alg":"RS256","kid":"01a0bd11-…","typ":"logout+jwt"}`
+and its payload to `{"iss":"http://localhost:3000/realms/demo","aud":"reports-widget",
+"iat":1789878456,"exp":1789878576,"jti":"01a0bd11-…","sub":"01a0bd11-…",
+"sid":"01a0bd11-…","events":{"http://schemas.openid.net/event/backchannel-logout":{}}}`
+— every §2.4 member the clause table claims, on a token this walkthrough's
+own listener actually received. The queue shows the same thing from the
+other side:
+
+```
+   client_id    |               endpoint                | attempts |        delivered_at        | last_error
+----------------+---------------------------------------+----------+----------------------------+------------
+ reports-widget | https://192.168.1.71:9443/backchannel |        1 | 2026-09-20 04:27:47.309+00 |
+(1 row)
+```
+
+`attempts` reads `1` here, not `2`: `markDelivered` records success without
+touching `attempts` the way `markFailed` does.
 
 Discovery now advertises `backchannel_logout_supported`,
 `backchannel_logout_session_supported`, `frontchannel_logout_supported`

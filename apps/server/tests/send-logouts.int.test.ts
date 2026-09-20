@@ -10,8 +10,13 @@ import { clients } from '@odudu/domain-realm';
 import { newId } from '@odudu/kernel';
 import { logoutDeliveryRepository, type LogoutDeliveryTransport } from '@odudu/protocol-oidc';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { sendLogoutsAcrossRealms, type LogoutSenderOptions } from '#/cli/send-logouts';
+import { sql } from 'drizzle-orm';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import {
+  sendLogoutsAcrossRealms,
+  sendLogoutsCommand,
+  type LogoutSenderOptions,
+} from '#/cli/send-logouts';
 
 let containerHandle: TestDatabase | undefined;
 let ownerHandle: DatabaseHandle | undefined;
@@ -20,8 +25,10 @@ let appHandle: DatabaseHandle | undefined;
 let container: TestDatabase;
 let owner: DatabaseHandle;
 let app: DatabaseHandle;
+let appConnectionUrl: string;
 
 const NOW = new Date('2026-06-01T12:00:00.000Z');
+const KEK = Buffer.alloc(32, 7).toString('base64');
 
 const OPTIONS: LogoutSenderOptions = { batchSize: 10, leaseSeconds: 30, responseTimeoutMs: 1000 };
 
@@ -33,8 +40,8 @@ beforeAll(async () => {
   owner = ownerHandle;
   await runMigrations(owner.db, MIGRATIONS_DIR);
 
-  const appUrl = await createAppRole(container.adminUrl);
-  appHandle = createDatabase(appUrl, { max: 5 });
+  appConnectionUrl = await createAppRole(container.adminUrl);
+  appHandle = createDatabase(appConnectionUrl, { max: 5 });
   app = appHandle;
 }, 120_000);
 
@@ -167,5 +174,68 @@ describe('sendLogoutsAcrossRealms', () => {
         OPTIONS,
       ),
     ).rejects.toMatchObject({ code: 'logout_sender_serving_role_bypasses_rls' });
+  });
+}, 60_000);
+
+async function lastErrorFor(id: string): Promise<string | null> {
+  const rows = await owner.db.execute<{ last_error: string | null }>(
+    sql`SELECT last_error FROM backchannel_logout_deliveries WHERE id = ${id}`,
+  );
+  return rows[0]?.last_error ?? null;
+}
+
+// `sendLogoutsCommand` is what `odudu send-logouts` and the server's own
+// schedule actually call — unlike `sendLogoutsAcrossRealms` above, it
+// builds its own transport from `loadConfig()`, which is the only place
+// `ODUDU_ALLOW_PRIVATE_CLIENT_URLS` can reach it from.
+describe('the transport the command builds from configuration', () => {
+  afterEach(() => {
+    delete process.env.ODUDU_DATABASE_URL;
+    delete process.env.ODUDU_APP_DATABASE_URL;
+    delete process.env.ODUDU_KEK;
+    delete process.env.ODUDU_ALLOW_PRIVATE_CLIENT_URLS;
+  });
+
+  // A private (RFC 1918), not loopback, address: `assertPublicIPv4`
+  // (packages/protocol-oidc/src/service/remote-address.ts) throws for
+  // loopback unconditionally, before `allowPrivate` is even read, so a
+  // loopback endpoint cannot tell this flag's default apart from it being
+  // on — see the next test. Private-range refusal is the branch the flag
+  // actually gates.
+  it('refuses a private backchannel_logout_uri by default', async () => {
+    const realmId = await seedRealm();
+    const id = await seedDueDelivery(realmId, 'https://10.255.255.1:9443/backchannel');
+
+    process.env.ODUDU_DATABASE_URL = container.adminUrl;
+    process.env.ODUDU_APP_DATABASE_URL = appConnectionUrl;
+    process.env.ODUDU_KEK = KEK;
+
+    // Not an exact count: `sendLogoutsCommand` walks every realm in the
+    // shared test database, including due deliveries earlier tests in
+    // this file left behind against unreachable hostnames. This row's own
+    // `last_error` is what proves the refusal, not the report's total.
+    const report = await sendLogoutsCommand();
+
+    if (!report.ran) throw new Error('expected the pass to run');
+    expect(report.delivered).toBe(0);
+    expect(await lastErrorFor(id)).toMatch(/private address/u);
+  });
+
+  // Not a case the flag can fix: this is `assertPublicIPv4`'s own
+  // unconditional loopback refusal, ahead of the `allowPrivate` read.
+  it('refuses a loopback backchannel_logout_uri even with the flag on', async () => {
+    const realmId = await seedRealm();
+    const id = await seedDueDelivery(realmId, 'https://127.0.0.1:9443/backchannel');
+
+    process.env.ODUDU_DATABASE_URL = container.adminUrl;
+    process.env.ODUDU_APP_DATABASE_URL = appConnectionUrl;
+    process.env.ODUDU_KEK = KEK;
+    process.env.ODUDU_ALLOW_PRIVATE_CLIENT_URLS = 'true';
+
+    const report = await sendLogoutsCommand();
+
+    if (!report.ran) throw new Error('expected the pass to run');
+    expect(report.delivered).toBe(0);
+    expect(await lastErrorFor(id)).toMatch(/loopback address/u);
   });
 }, 60_000);

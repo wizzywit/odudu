@@ -146,7 +146,13 @@ export async function sendLogoutsCommand(): Promise<LogoutSenderReport> {
 
   try {
     return await sendLogoutsAcrossRealms(
-      { database: runtime, ownerDatabase: owner, transport: createLogoutDeliveryTransport() },
+      {
+        database: runtime,
+        ownerDatabase: owner,
+        transport: createLogoutDeliveryTransport({
+          allowPrivate: config.ODUDU_ALLOW_PRIVATE_CLIENT_URLS,
+        }),
+      },
       new Date(),
       logoutSenderOptionsFromConfig(config),
     );

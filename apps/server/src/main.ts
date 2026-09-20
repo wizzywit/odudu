@@ -118,7 +118,9 @@ const registry = new ModuleRegistry()
     logoutSenderModule({
       database: runtime,
       ownerDatabase: owner,
-      transport: createLogoutDeliveryTransport(),
+      transport: createLogoutDeliveryTransport({
+        allowPrivate: config.ODUDU_ALLOW_PRIVATE_CLIENT_URLS,
+      }),
     }),
   )
   .register(httpModule(app));

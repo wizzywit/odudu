@@ -243,12 +243,13 @@ const schema = z.object({
   ODUDU_SMTP_PASSWORD: z.string().min(1).optional(),
   ODUDU_SMTP_STARTTLS: booleanEnvVar,
   ODUDU_PUBLIC_BASE_URL: publicBaseUrl,
-  // Lets the bounded JWKS fetcher (@odudu/protocol-oidc's client-keys
-  // repository) connect to a private or loopback address when a client
-  // registers a jwks_uri pointing at one — which the development and
-  // conformance stacks both do, since the suite serves its key set from
-  // inside the same compose network. Off by default; production refuses
-  // to boot with it on (apps/server/src/config-guard.ts).
+  // Lets a bounded address-checked fetch — the JWKS fetcher
+  // (@odudu/protocol-oidc's client-keys repository) or the back-channel
+  // logout transport (apps/server/src/logout-delivery-transport.ts) —
+  // reach a private address a client registered, which local development
+  // and the OIDF conformance stack both need. Off by default; production
+  // refuses to boot with it on (apps/server/src/config-guard.ts). Neither
+  // fetch admits a loopback address regardless of this flag.
   ODUDU_ALLOW_PRIVATE_CLIENT_URLS: booleanEnvVar,
 });
 
