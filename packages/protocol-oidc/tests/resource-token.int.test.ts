@@ -340,11 +340,11 @@ describe('[RFC9068-3-03] aud derived from resource at /token — authorization_c
     expect(result.body.error).toBe('invalid_target');
   });
 
-  // R-24b's regression: every client in this repository has `audiences`
-  // `[]` today, so every code carries `resource = []` when /authorize
-  // resolves none. A rule that refuses on an empty stored value would
-  // refuse all of them; this asserts the one it actually gets — a token
-  // whose aud is the issuer alone, exactly what it got before this task.
+  // Every client in this repository has `audiences` `[]` today, so every
+  // code carries `resource = []` when /authorize resolves none. A rule
+  // that refuses on an empty stored value would refuse all of them; this
+  // asserts the one such a client actually gets — a token whose aud is
+  // the issuer alone.
   it('still mints a token for a client with no registered audience, aud is the issuer alone', async () => {
     const code = await mintCode(noAudienceClientDbId, []);
     const result = await redeem(code, NO_AUDIENCE_CLIENT_ID, NO_AUDIENCE_CLIENT_SECRET);
@@ -373,11 +373,12 @@ describe('[RFC9068-3-03] aud derived from resource at /token — client_credenti
   });
 });
 
-// R-24a: the refresh grant recomputed its audience from `config.audiences`
-// like every other call site, so a client could narrow at /token with a
-// `resource` and then obtain a wider token on the next refresh — the only
-// one of these four call sites where that is a security property, not a
-// correctness one, since it defeats "may never widen" in one round trip.
+// A refresh that recomputed its audience from `config.audiences`, like
+// every other grant's audience once did, would let a client narrow at
+// /token with a `resource` and then obtain a wider token on the next
+// refresh — the one call site among these where that is a security
+// property, not a correctness one, since it defeats "may never widen" in
+// one round trip.
 describe('[RFC9068-3-03] aud derived from resource at /token — refresh_token', () => {
   it('a refresh preserves the audience the authorization_code redemption narrowed', async () => {
     const code = await mintCode(allClientDbId, REGISTERED_AUDIENCES);

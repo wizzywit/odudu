@@ -1051,9 +1051,31 @@ the code (see its own bullet under
 derives `aud` from — a `resource` on the token request itself may select
 one value out of what the code carries, but naming one the code does not
 carry refuses with `invalid_target` rather than being ignored, on a public
-client with no secret to authenticate the request:
+client with no secret to authenticate the request. `$CODE` above is
+already spent by the successful redemption, so this needs a fresh one —
+the first three blocks under
+[The shell variables](#the-shell-variables-the-rest-of-this-document-uses),
+run again with a distinct `state`/`nonce` so the two login forms are not
+confused for one:
 
 ```bash
+AUTH_SESSION_ID=$(curl -sS --get \
+  --data-urlencode 'response_type=code' \
+  --data-urlencode 'client_id=demo-spa' \
+  --data-urlencode 'redirect_uri=http://localhost:8080/callback' \
+  --data-urlencode 'scope=openid profile email' \
+  --data-urlencode 'state=xyz-124' \
+  --data-urlencode 'nonce=n-0S6_WzA2Mk' \
+  --data-urlencode "code_challenge=$CHALLENGE" \
+  --data-urlencode 'code_challenge_method=S256' \
+  "$BASE/auth" | sed -n '/name="auth_session_id"/{s/.*value="\([^"]*\)".*/\1/p;q;}')
+
+CODE=$(curl -sS -D - -o /dev/null \
+  --data-urlencode "auth_session_id=$AUTH_SESSION_ID" \
+  --data-urlencode 'username=ada' \
+  --data-urlencode 'password=correct-horse-battery' \
+  "$LOGIN" | sed -n 's/.*[?&]code=\([^&[:space:]]*\).*/\1/p' | tr -d '\r')
+
 curl -sS -w '\nHTTP %{http_code}\n' \
   --data-urlencode 'grant_type=authorization_code' \
   --data-urlencode "code=$CODE" \
@@ -1069,6 +1091,12 @@ curl -sS -w '\nHTTP %{http_code}\n' \
 HTTP 400
 ```
 
+Redeeming `$CODE` above with the _same_ `resource` a second time, or
+without minting a fresh one first, does not reproduce this: the code is
+already single-use spent by then, and the answer is `invalid_grant`, not
+`invalid_target` — the two are easy to conflate by output shape alone, and
+only a fresh code isolates which one actually fired.
+
 `demo-spa` has no registered `audiences` — every client seeded by this
 document does not, `odudu seed` has no flag for one yet — so its code's
 stored `resource` is `[]`, and no `resource` named at `/token` is ever
@@ -1078,10 +1106,14 @@ client registered for at least one audience — `audiences`, set directly on
 `client_oidc_config` today, since no seed flag or registration field
 exposes it — would see `resource` narrow `aud` to that one value instead;
 `packages/protocol-oidc/tests/resource-token.int.test.ts` is where that
-case is exercised. The refresh grant derives the same way from the grant
-the refresh token rotated, not from the client's current configuration, so
-narrowing survives a refresh and cannot be undone by one — the same file's
-`refresh_token` suite.
+case, and the refresh grant's own derivation, are exercised. The refresh
+path narrows from the grant that the original redemption already
+resolved, not from the client's current configuration, so a
+narrowing made when the code was redeemed survives every later refresh; a
+`resource` named on a refresh request itself narrows only that one
+response and is not written back to the grant, so the refresh after it
+returns to the grant's own (already-resolved) audience rather than
+whatever the previous refresh asked for.
 
 Requesting `profile` and `email` grants them (they are in `scope` above)
 without putting `name`, `email` or `email_verified` on this token: an
@@ -6637,9 +6669,10 @@ session lifecycle. A citation of either half here means that half.
   is parked on the authentication session's own
   `PendingRequest.resource` between the request and whichever door
   completes it. `/token` now derives `aud` from this column — see the
-  `/token` bullet below. What is still not there is RFC 8707 §2's SHOULD
-  that a `resource` value carry no query component, which `parseResource`
-  does not check.
+  `resource` paragraph under [step 4](#4-token) of the walkthrough. What is
+  still not there is RFC 8707 §2's SHOULD that a `resource` value carry no
+  query component (**P3b**, `rfc8707.md`'s own `deferred: P3b` row for
+  it), which `parseResource` does not check.
 
 **Login**
 
