@@ -83,6 +83,7 @@ async function issueCode(tx: RealmScopedDatabase, realmId: string): Promise<stri
     codeChallengeMethod: 'S256',
     authTime: new Date(),
     expiresAt: new Date(Date.now() + 60_000),
+    resource: [],
   });
   return codeHash;
 }
@@ -116,6 +117,7 @@ describe('authorizationCodeRepository', () => {
           codeChallengeMethod: 'S256',
           authTime: new Date(),
           expiresAt: new Date(Date.now() + 60_000),
+          resource: [],
         }),
       ),
     ).rejects.toThrow();

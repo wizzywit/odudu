@@ -256,6 +256,7 @@ async function issueCode(opts: IssueCodeOptions = {}): Promise<{ code: string; c
       codeChallengeMethod: 'S256',
       authTime,
       expiresAt,
+      resource: [],
     });
     if (opts.consumedImmediately === true) {
       await authorizationCodeRepository(tx).consume(codeHash);

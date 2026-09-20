@@ -62,10 +62,11 @@ export interface NewAuthorizationCode {
   authTime: Date;
   expiresAt: Date;
   sessionId?: string | null;
-  // The audience resolved at /authorize — omitted by a caller that has not
-  // wired resource resolution through yet, which defaults to the column's
-  // own empty default rather than to `undefined` reaching the insert.
-  resource?: readonly string[] | undefined;
+  // The audience resolved at /authorize. `[]` has exactly one meaning —
+  // the resolved audience is empty — the same meaning the column comment
+  // states; every caller resolves one, so there is no "unset" for this
+  // field to mean instead.
+  resource: readonly string[];
 }
 
 export function authorizationCodeRepository(tx: RealmScopedDatabase) {
@@ -74,7 +75,7 @@ export function authorizationCodeRepository(tx: RealmScopedDatabase) {
       await tx.insert(authorizationCodes).values({
         ...input,
         sessionId: input.sessionId ?? null,
-        resource: input.resource === undefined ? [] : [...input.resource],
+        resource: [...input.resource],
         consumedAt: null,
         grantId: null,
       });

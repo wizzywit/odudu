@@ -169,6 +169,7 @@ async function issueTokens(
       codeChallengeMethod: 'S256',
       authTime: new Date(),
       expiresAt: new Date(Date.now() + 60_000),
+      resource: [],
     });
   });
 
@@ -358,6 +359,7 @@ describe('[ODUDU-CROSS-REALM-LEAKAGE-01] cross-realm leakage', () => {
         codeChallengeMethod: 'S256',
         authTime: new Date(),
         expiresAt: new Date(Date.now() + 60_000),
+        resource: [],
       });
     });
 

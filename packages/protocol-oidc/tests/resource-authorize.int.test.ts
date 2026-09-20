@@ -226,6 +226,54 @@ async function establishSession(clientId: string): Promise<string> {
   return (await formLogin(clientId)).cookie;
 }
 
+// `prompt=consent` routes a fresh login through the consent POST instead of
+// completing directly — a fourth door onto the same `completeAuthorizedLogin`
+// tail the plain form login uses, reading the same parked
+// `PendingRequest.resource`.
+async function formLoginToConsent(
+  clientId: string,
+  overrides: Record<string, string | undefined> = {},
+): Promise<string> {
+  const authorize = await http.inject({
+    url: authorizeUrl(clientId, { prompt: 'consent', ...overrides }),
+  });
+  expect(authorize.statusCode).toBe(200);
+
+  const sessionId = /name="auth_session_id" value="([^"]*)"/.exec(authorize.body)?.[1];
+  if (sessionId === undefined) throw new Error('no auth_session_id in the rendered login form');
+
+  const form = new URLSearchParams({
+    auth_session_id: sessionId,
+    username: USERNAME,
+    password: PASSWORD,
+  });
+  const login = await http.inject({
+    method: 'POST',
+    url: `/realms/${REALM}/login-actions/authenticate`,
+    payload: form.toString(),
+    headers: { 'content-type': 'application/x-www-form-urlencoded' },
+  });
+  expect(login.statusCode).toBe(200);
+
+  const consentSessionId = /name="auth_session_id" value="([^"]*)"/.exec(login.body)?.[1];
+  if (consentSessionId === undefined) throw new Error('no auth_session_id on the consent page');
+
+  const consentForm = new URLSearchParams({
+    auth_session_id: consentSessionId,
+    decision: 'allow',
+  });
+  const consented = await http.inject({
+    method: 'POST',
+    url: `/realms/${REALM}/login-actions/consent`,
+    payload: consentForm.toString(),
+    headers: { 'content-type': 'application/x-www-form-urlencoded' },
+  });
+  expect(consented.statusCode).toBe(302);
+  const code = new URL(locationHeader(consented)).searchParams.get('code');
+  if (code === null) throw new Error('expected a code on the consent redirect');
+  return code;
+}
+
 // Renders the account chooser (`prompt=select_account` against a single
 // live session still counts as "more than one answer possible" —
 // decideReuse's own rule), picks the one account offered, and returns the
@@ -420,12 +468,35 @@ describe('[ODUDU-RESOURCE-04] an empty resource value is an omitted parameter, n
     if (code === null) throw new Error('expected a code on the redirect');
     expect(await resourceOf(code)).toEqual(['https://api.example']);
   });
+
+  it('resolves resource=&resource=<value> to the single non-empty value, empty first', async () => {
+    const cookie = await establishSession(CLIENT_ID);
+    const response = await authorizeRaw('resource=&resource=https://api.example', {
+      cookie,
+    });
+    expect(response.statusCode).toBe(302);
+    const code = new URL(locationHeader(response)).searchParams.get('code');
+    if (code === null) throw new Error('expected a code on the redirect');
+    expect(await resourceOf(code)).toEqual(['https://api.example']);
+  });
+
+  it('resolves resource=&resource= to the registered list, both values empty', async () => {
+    const cookie = await establishSession(CLIENT_ID);
+    const response = await authorizeRaw('resource=&resource=', { cookie });
+    expect(response.statusCode).toBe(302);
+    const code = new URL(locationHeader(response)).searchParams.get('code');
+    if (code === null) throw new Error('expected a code on the redirect');
+    expect(await resourceOf(code)).toEqual(REGISTERED_AUDIENCES);
+  });
 });
 
-// `PendingRequest.resource` carries the resolved audience across the two
-// doors that mint a code by way of a parked authentication session —an
-// ordinary first-time form login, and the account chooser — the same
-// value the immediate session-reuse door stores directly.
+// `PendingRequest.resource` carries the resolved audience across every
+// door that mints a code by way of a parked authentication session — an
+// ordinary first-time form login, the account chooser, and the consent
+// POST (`prompt=consent`, both after a fresh login and after a reuse
+// promotion route through the same `completeAuthorizedLogin` tail; only
+// the fresh-login leg is asserted here) — the same value the immediate
+// session-reuse door stores directly.
 describe('[ODUDU-RESOURCE-05] resource reaches the code through every door that mints one', () => {
   it('is stored from an ordinary, first-time form login', async () => {
     const { code } = await formLogin(CLIENT_ID, { resource: 'https://api.example' });
@@ -436,5 +507,10 @@ describe('[ODUDU-RESOURCE-05] resource reaches the code through every door that 
     const { cookie } = await formLogin(CLIENT_ID);
     const code = await chooseAccount(CLIENT_ID, cookie, { resource: 'https://reports.example' });
     expect(await resourceOf(code)).toEqual(['https://reports.example']);
+  });
+
+  it('is stored through the consent POST after a fresh login', async () => {
+    const code = await formLoginToConsent(CLIENT_ID, { resource: 'https://api.example' });
+    expect(await resourceOf(code)).toEqual(['https://api.example']);
   });
 });

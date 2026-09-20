@@ -154,6 +154,7 @@ async function issueTokens(
       codeChallengeMethod: 'S256',
       authTime: new Date(),
       expiresAt: new Date(Date.now() + 60_000),
+      resource: [],
     });
   });
 

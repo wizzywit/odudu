@@ -221,13 +221,14 @@ function resourceParam(rawParams: unknown): string | string[] | undefined {
   }
   const raw = (rawParams as Record<string, unknown>).resource;
   const sent = Array.isArray(raw) ? raw : [raw];
-  // RFC 6749 §3.1: "a parameter sent without a value is treated as if it
-  // had been omitted" — `parameterValue`'s own rule in
-  // query-normalization.ts, restated here because `resource` reads the
-  // raw query directly rather than going through that function. Without
-  // this, `?resource=` alone refuses the whole request instead of
-  // resolving like an absent parameter, and `resource=<uri>&resource=`
-  // reads as two values instead of one.
+  // RFC 6749 §3.1: an empty value is an omitted parameter —
+  // `parameterValue`'s own rule (query-normalization.ts), restated here
+  // because `resource` reads the raw query directly. Without this,
+  // `?resource=` alone refuses the request, and `resource=<uri>&resource=`
+  // reads as two values instead of one. Unlike `parameterValue`, an
+  // unreadable value is dropped, not counted towards a repeat — Fastify's
+  // default parser yields only strings here, so the two never diverge on
+  // a value either could actually see.
   const present = sent.filter(
     (entry): entry is string => typeof entry === 'string' && entry !== '',
   );
