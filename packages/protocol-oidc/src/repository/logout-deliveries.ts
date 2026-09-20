@@ -17,6 +17,17 @@ export interface EnqueueDelivery {
   readonly nextAttemptAt: Date;
 }
 
+export interface ClaimDue {
+  readonly now: Date;
+  readonly limit: number;
+  /**
+   * How long a claim holds a delivery invisible to other passes. It is
+   * what a process killed between the claim and the send costs: the
+   * delivery waits this long and is then offered again.
+   */
+  readonly leaseSeconds: number;
+}
+
 interface ClaimedRow extends Record<string, unknown> {
   id: string;
   realm_id: string;
@@ -50,22 +61,30 @@ export function logoutDeliveryRepository(tx: RealmScopedDatabase) {
     },
 
     /**
-     * `FOR UPDATE SKIP LOCKED`: a row a concurrent pass already holds is
-     * skipped rather than blocked on, so two passes draining the same
-     * queue take different rows and both make progress. The caller marks
-     * the outcome (`markDelivered`/`markFailed`) before the transaction
-     * that claimed it commits and releases the lock.
+     * One statement: the rows are selected, locked and leased together, so
+     * two passes never hand the same delivery to a sender twice. `FOR
+     * UPDATE SKIP LOCKED` rather than blocking — a row a concurrent pass
+     * already holds is skipped, not waited on, so both passes take
+     * different rows and make progress. The lease is what a crash between
+     * this claim and the send costs: `attempts` is spent up front, and
+     * `next_attempt_at` moves out by `leaseSeconds` so nothing else offers
+     * the row again before that, win or lose.
      */
-    async claimDue(now: Date, limit: number): Promise<LogoutDelivery[]> {
+    async claimDue(input: ClaimDue): Promise<LogoutDelivery[]> {
       const rows = await tx.execute<ClaimedRow>(sql`
-        SELECT id, realm_id, client_id, endpoint, logout_token, attempts
-          FROM backchannel_logout_deliveries
-         WHERE delivered_at IS NULL
-           AND attempts < ${BACKCHANNEL_LOGOUT_MAX_ATTEMPTS}::integer
-           AND next_attempt_at <= ${now.toISOString()}::timestamptz
-         ORDER BY next_attempt_at
-         LIMIT ${limit}::integer
-         FOR UPDATE SKIP LOCKED
+        UPDATE backchannel_logout_deliveries
+           SET attempts = attempts + 1,
+               next_attempt_at = ${input.now.toISOString()}::timestamptz
+                 + make_interval(secs => ${input.leaseSeconds}::integer)
+         WHERE id IN (
+           SELECT id FROM backchannel_logout_deliveries
+            WHERE delivered_at IS NULL
+              AND attempts < ${BACKCHANNEL_LOGOUT_MAX_ATTEMPTS}::integer
+              AND next_attempt_at <= ${input.now.toISOString()}::timestamptz
+            ORDER BY next_attempt_at
+            LIMIT ${input.limit}::integer
+            FOR UPDATE SKIP LOCKED)
+        RETURNING id, realm_id, client_id, endpoint, logout_token, attempts
       `);
 
       return rows.map((row) => ({
