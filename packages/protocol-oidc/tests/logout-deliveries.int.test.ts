@@ -79,6 +79,7 @@ function delivery(overrides: Partial<EnqueueDelivery> = {}): EnqueueDelivery {
     id: newId(),
     realmId,
     clientId,
+    sessionId: newId(),
     endpoint: 'https://rp.example/backchannel-logout',
     logoutToken: 'signed-logout-token',
     nextAttemptAt: NOW,
@@ -107,6 +108,28 @@ describe('the backchannel logout delivery queue', () => {
     });
 
     expect(claimed.map((d) => d.id)).toEqual([dueRow.id]);
+  });
+
+  // What a session ending twice — sequentially, or racing itself across
+  // two concurrent requests — must leave behind: one delivery per client,
+  // not one per attempt to end it.
+  it('enqueues the same session and client only once', async () => {
+    const first = delivery();
+    const second = delivery({
+      id: newId(),
+      sessionId: first.sessionId,
+      logoutToken: 'second-signed-logout-token',
+    });
+
+    const claimed = await withRealm(app.db, realmId, async (tx) => {
+      const repo = logoutDeliveryRepository(tx);
+      await repo.enqueue([first]);
+      await repo.enqueue([second]);
+      return repo.claimDue(claimAt(NOW));
+    });
+
+    expect(claimed).toHaveLength(1);
+    expect(claimed[0]?.logoutToken).toBe(first.logoutToken);
   });
 
   it('does not return a delivery already marked delivered', async () => {

@@ -10,6 +10,10 @@ export const backchannelLogoutDeliveries = pgTable('backchannel_logout_deliverie
     .notNull()
     .references(() => realms.id, { onDelete: 'cascade' }),
   clientId: uuid('client_id').notNull(),
+  // Named for dedupe, not reference — see migration
+  // 0052_backchannel_logout_deliveries_session.sql for why this carries no
+  // foreign key to sessions.
+  sessionId: uuid('session_id').notNull(),
   endpoint: text('endpoint').notNull(),
   // Stored rather than minted at send time: it is signed at the moment the
   // session ended, so its iat and exp date from that event, not from

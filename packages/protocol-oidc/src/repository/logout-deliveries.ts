@@ -12,6 +12,7 @@ export interface EnqueueDelivery {
   readonly id: string;
   readonly realmId: string;
   readonly clientId: string;
+  readonly sessionId: string;
   readonly endpoint: string;
   readonly logoutToken: string;
   readonly nextAttemptAt: Date;
@@ -40,24 +41,32 @@ interface ClaimedRow extends Record<string, unknown> {
 export function logoutDeliveryRepository(tx: RealmScopedDatabase) {
   return {
     /**
-     * Written in the transaction that ends the session (the next task's
-     * work), so a token the database durably stored and a delivery nothing
-     * will ever send cannot come apart.
+     * Written in the transaction that ends the session, so a token the
+     * database durably stored and a delivery nothing will ever send cannot
+     * come apart. `ON CONFLICT DO NOTHING` against
+     * `backchannel_logout_deliveries_dedupe` (realm_id, session_id,
+     * client_id) is what makes a session ending twice — sequentially or in
+     * a genuine race — enqueue at most once per client: the loser of the
+     * race gets a no-op insert rather than a duplicate row or an error.
      */
     async enqueue(deliveries: readonly EnqueueDelivery[]): Promise<void> {
       if (deliveries.length === 0) {
         return;
       }
-      await tx.insert(backchannelLogoutDeliveries).values(
-        deliveries.map((delivery) => ({
-          id: delivery.id,
-          realmId: delivery.realmId,
-          clientId: delivery.clientId,
-          endpoint: delivery.endpoint,
-          logoutToken: delivery.logoutToken,
-          nextAttemptAt: delivery.nextAttemptAt,
-        })),
-      );
+      await tx
+        .insert(backchannelLogoutDeliveries)
+        .values(
+          deliveries.map((delivery) => ({
+            id: delivery.id,
+            realmId: delivery.realmId,
+            clientId: delivery.clientId,
+            sessionId: delivery.sessionId,
+            endpoint: delivery.endpoint,
+            logoutToken: delivery.logoutToken,
+            nextAttemptAt: delivery.nextAttemptAt,
+          })),
+        )
+        .onConflictDoNothing();
     },
 
     /**

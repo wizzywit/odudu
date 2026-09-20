@@ -570,7 +570,10 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
       // revoke every grant whose session_id is that session, then mint and
       // enqueue one delivery per client that used the session and
       // registered a back-channel URI. A failure anywhere rolls all of it
-      // back — see the JSDoc on LogoutUsecaseDeps.endSession for why.
+      // back — see the JSDoc on LogoutUsecaseDeps.endSession for why. Two
+      // concurrent logouts on the same session both reach here and both
+      // attempt to enqueue; logoutDeliveryRepository.enqueue's own comment
+      // is why that yields one delivery, not two.
       endSession: (realmId, sessionId, subjectId, now, issuer) =>
         withRealm(deps.database.db, realmId, async (tx) => {
           await sessionRepository(tx).end(sessionId, now);
@@ -598,6 +601,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
                 id: newId(),
                 realmId,
                 clientId: target.clientId,
+                sessionId,
                 endpoint: target.backchannelLogoutUri,
                 logoutToken,
                 nextAttemptAt: now,

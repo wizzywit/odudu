@@ -281,12 +281,12 @@ describe('a grant and the session it belongs to', () => {
 
   // Under realm-scoped access, clientsForSession returns nothing for a
   // foreign realm's session. It does not, by itself, prove
-  // client_oidc_config's own RLS policy (packages/db/drizzle/
-  // 0007_client_oidc_config.sql) survives the join: token_grants_client_fk
-  // and client_oidc_config_client_fk both tie realm_id to the same
-  // clients row, so a foreign grant's row is already excluded by
-  // token_grants' own policy before the join runs, and that policy is
-  // never exercised here on its own.
+  // client_oidc_config's or clients' own RLS policies (packages/db/drizzle/
+  // 0007_client_oidc_config.sql, 0004_clients.sql) survive the join:
+  // token_grants_client_fk ties realm_id to the same clients row, so a
+  // foreign grant's row is already excluded by token_grants' own policy
+  // before either join runs, and neither policy is exercised here on its
+  // own.
   it('cannot find a foreign realm’s client behind a session’s grant', async () => {
     const theirsRealmId = newId();
     const mineRealmId = newId();
