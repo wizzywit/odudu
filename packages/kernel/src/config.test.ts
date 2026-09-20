@@ -165,6 +165,12 @@ describe('loadConfig', () => {
     expect(config.ODUDU_RETENTION_EMAIL_FAILED_SECONDS).toBe(2_592_000);
   });
 
+  it('keeps a delivered logout a week and an abandoned one thirty days', () => {
+    const config = loadConfig(minimal);
+    expect(config.ODUDU_RETENTION_LOGOUT_DELIVERED_SECONDS).toBe(604_800);
+    expect(config.ODUDU_RETENTION_LOGOUT_FAILED_SECONDS).toBe(2_592_000);
+  });
+
   it('decodes ODUDU_KEK from base64 to exactly 32 bytes', () => {
     const config = loadConfig(minimal);
     expect(config.ODUDU_KEK).toBeInstanceOf(Uint8Array);

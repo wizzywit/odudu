@@ -72,7 +72,7 @@ afterEach(async () => {
 });
 
 describe('createRawLogoutDeliveryRequest', () => {
-  it('posts the logout token as form-urlencoded and returns the status', async () => {
+  it('[OIDC-BACKCHANNEL-2.5-01] posts the logout token as form-urlencoded and returns the status', async () => {
     let sawBody = '';
     let sawContentType: string | undefined;
     const { port, address } = await startServer((req, res) => {
@@ -114,11 +114,25 @@ describe('createRawLogoutDeliveryRequest', () => {
     const CHUNK = 'x'.repeat(64 * 1024);
     const TOTAL_CHUNKS = 800;
     let chunksWritten = 0;
+    let socketClosed = false;
+    let resolveClosed: () => void = () => undefined;
+    const closed = new Promise<void>((resolve) => {
+      resolveClosed = resolve;
+    });
 
     const { port, address } = await startServer((_req, res) => {
       res.writeHead(200);
       res.on('error', () => {
         // The client tears the socket down once its cap is exceeded.
+      });
+      // Without `createRawLogoutDeliveryRequest`'s own `req.destroy()`, the
+      // client stops reading but never closes the connection, so this
+      // event never fires and the assertion below times out fast rather
+      // than the test hanging for the file's 120s afterEach hook (which
+      // waits for every open connection before `server.close()` resolves).
+      res.socket?.once('close', () => {
+        socketClosed = true;
+        resolveClosed();
       });
 
       const writeNext = (): void => {
@@ -140,5 +154,16 @@ describe('createRawLogoutDeliveryRequest', () => {
       /exceeded the body size cap/u,
     );
     expect(chunksWritten).toBeLessThan(TOTAL_CHUNKS);
+
+    const timedOut = await Promise.race([
+      closed.then(() => false),
+      new Promise<boolean>((resolve) => {
+        setTimeout(() => {
+          resolve(true);
+        }, 2000);
+      }),
+    ]);
+    expect(timedOut).toBe(false);
+    expect(socketClosed).toBe(true);
   }, 10000);
 });

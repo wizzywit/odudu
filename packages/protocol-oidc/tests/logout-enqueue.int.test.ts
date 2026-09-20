@@ -303,7 +303,7 @@ afterAll(async () => {
 });
 
 describe('ending a session enqueues its back-channel deliveries', () => {
-  it('enqueues one delivery per client that registered a back-channel URI', async () => {
+  it('[OIDC-BACKCHANNEL-2.3-01] enqueues one delivery per client that registered a back-channel URI', async () => {
     const realmName = `logout-enqueue-${newId()}`;
     const { realmId, subjectId, rpClientIds } = await setupRealm(realmName, [
       RP_ONE,

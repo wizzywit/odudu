@@ -14,9 +14,9 @@ the session's own set of relying parties (`tokenGrantRepository(tx)
 building each one's logout URL (`frontChannelLogoutUrl`,
 `packages/protocol-oidc/src/service/frontchannel-logout.ts`), and rendering
 the logout page's iframes (`renderLoggedOutPage`,
-`packages/protocol-oidc/src/view/logout-html.ts`). Advertising the
-capability at discovery is still `deferred: P3b`, which §11 of the design
-spec names.
+`packages/protocol-oidc/src/view/logout-html.ts`). Discovery now advertises
+`frontchannel_logout_supported` and `frontchannel_logout_session_supported`,
+closing §11 of the design spec's own name for this row.
 
 A spike ran before this table was written, because §4.1's third-party
 cookie warning is exactly the kind of claim about browser behaviour that
@@ -61,9 +61,8 @@ closed obligation rather than name a second one.
 | 2      | SHOULD | the RP's response carries `Cache-Control: no-store`                                                                             | —                                         | n/a: the response is the RP's to send                                                                                                                                                            |
 | 2      | SHOULD | `frontchannel_logout_session_required` is also registered                                                                       | `OIDC-FRONTCHANNEL-2-SESSION-REQUIRED-01` | covered                                                                                                                                                                                          |
 | 3      | SHOULD | the OP keeps track of the set of logged-in RPs for a session, so it knows which to contact at their logout URIs                 | `OIDC-FRONTCHANNEL-3-TRACKING-01`         | covered                                                                                                                                                                                          |
-| 3      | MAY    | the OP contacts logged-in RPs in parallel, using a dynamically constructed page of `<iframe>` tags                              | `OIDC-FRONTCHANNEL-3-IFRAME-01`           | covered                                                                                                                                                                                          |
-| 3      | MAY    | the OP advertises `frontchannel_logout_supported` as `true`                                                                     | —                                         | deferred: P3b — no front-channel logout metadata is published yet; the value would claim a capability the OP does not have                                                                       |
-| 3      | SHOULD | the OP also registers `frontchannel_logout_session_supported`                                                                   | —                                         | deferred: P3b — discovery advertisement, alongside the row above                                                                                                                                 |
+| 3      | MAY    | the OP advertises `frontchannel_logout_supported` as `true`                                                                     | `OIDC-FRONTCHANNEL-2-01`                  | covered                                                                                                                                                                                          |
+| 3      | SHOULD | the OP also registers `frontchannel_logout_session_supported`                                                                   | `OIDC-FRONTCHANNEL-2-01`                  | covered                                                                                                                                                                                          |
 | 5      | SHOULD | Session ID values carry sufficient entropy that collisions and guessing are impractical                                         | —                                         | gap                                                                                                                                                                                              |
 
 ## Reading note

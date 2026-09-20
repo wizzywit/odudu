@@ -47,6 +47,8 @@ const POLICY: RetentionPolicy = {
   emailSentSeconds: 7 * 24 * 60 * 60,
   emailFailedSeconds: 30 * 24 * 60 * 60,
   emailMaxAttempts: 5,
+  logoutDeliveredSeconds: 7 * 24 * 60 * 60,
+  logoutFailedSeconds: 30 * 24 * 60 * 60,
 };
 
 function at(offsetMs: number): string {
@@ -72,6 +74,11 @@ interface Fixture {
   readonly failedYesterdayId: string;
   readonly neverAttemptedId: string;
   readonly abandonedId: string;
+  readonly logoutDeliveredLongAgoId: string;
+  readonly logoutDeliveredYesterdayId: string;
+  readonly logoutAbandonedLongAgoId: string;
+  readonly logoutAbandonedYesterdayId: string;
+  readonly logoutStillRetryingId: string;
 }
 
 // One realm carrying, for every reaped table, a row that is eligible and a
@@ -94,6 +101,11 @@ async function seedFixture(brute?: BruteForce): Promise<Fixture> {
   const failedYesterdayId = newId();
   const neverAttemptedId = newId();
   const abandonedId = newId();
+  const logoutDeliveredLongAgoId = newId();
+  const logoutDeliveredYesterdayId = newId();
+  const logoutAbandonedLongAgoId = newId();
+  const logoutAbandonedYesterdayId = newId();
+  const logoutStillRetryingId = newId();
 
   await owner.db.execute(sql`
     INSERT INTO realms (id, name, brute_force_lockout_seconds,
@@ -213,6 +225,32 @@ async function seedFixture(brute?: BruteForce): Promise<Fixture> {
        ${at(-60 * DAY)}::timestamptz, ${at(-40 * DAY)}::timestamptz, NULL, 5, NULL)
   `);
 
+  // The same shape as email_outbox's own fixture, one column renamed:
+  // delivered long ago, delivered yesterday, abandoned (attempts spent,
+  // an error on file) long ago, abandoned yesterday, and one still inside
+  // its retry budget however old it is.
+  await owner.db.execute(sql`
+    INSERT INTO backchannel_logout_deliveries (id, realm_id, client_id, session_id, endpoint,
+                                               logout_token, created_at, next_attempt_at,
+                                               delivered_at, attempts, last_error)
+    VALUES
+      (${logoutDeliveredLongAgoId}, ${realmId}, ${clientId}, ${newId()},
+       'https://rp.example/backchannel', 'token', ${at(-9 * DAY)}::timestamptz,
+       ${at(-9 * DAY)}::timestamptz, ${at(-9 * DAY)}::timestamptz, 1, NULL),
+      (${logoutDeliveredYesterdayId}, ${realmId}, ${clientId}, ${newId()},
+       'https://rp.example/backchannel', 'token', ${at(-2 * DAY)}::timestamptz,
+       ${at(-2 * DAY)}::timestamptz, ${at(-1 * DAY)}::timestamptz, 1, NULL),
+      (${logoutAbandonedLongAgoId}, ${realmId}, ${clientId}, ${newId()},
+       'https://rp.example/backchannel', 'token', ${at(-40 * DAY)}::timestamptz,
+       ${at(-31 * DAY)}::timestamptz, NULL, 5, 'logout delivery refused with status 400'),
+      (${logoutAbandonedYesterdayId}, ${realmId}, ${clientId}, ${newId()},
+       'https://rp.example/backchannel', 'token', ${at(-3 * DAY)}::timestamptz,
+       ${at(-1 * DAY)}::timestamptz, NULL, 5, 'logout delivery refused with status 400'),
+      (${logoutStillRetryingId}, ${realmId}, ${clientId}, ${newId()},
+       'https://rp.example/backchannel', 'token', ${at(-400 * DAY)}::timestamptz,
+       ${at(-399 * DAY)}::timestamptz, NULL, 4, 'logout delivery failed with status 503')
+  `);
+
   return {
     realm,
     realmId,
@@ -226,6 +264,11 @@ async function seedFixture(brute?: BruteForce): Promise<Fixture> {
     failedYesterdayId,
     neverAttemptedId,
     abandonedId,
+    logoutDeliveredLongAgoId,
+    logoutDeliveredYesterdayId,
+    logoutAbandonedLongAgoId,
+    logoutAbandonedYesterdayId,
+    logoutStillRetryingId,
   };
 }
 
@@ -238,6 +281,7 @@ const RELATIONS: Record<TableName, SQL> = {
   client_registration_tokens: sql.raw('client_registration_tokens'),
   login_failures: sql.raw('login_failures'),
   email_outbox: sql.raw('email_outbox'),
+  backchannel_logout_deliveries: sql.raw('backchannel_logout_deliveries'),
   sessions: sql.raw('sessions'),
 };
 
@@ -305,6 +349,7 @@ describe('odudu reap', () => {
       client_registration_tokens: 1,
       login_failures: 1,
       email_outbox: 2,
+      backchannel_logout_deliveries: 2,
       sessions: 1,
     });
 
@@ -320,6 +365,7 @@ describe('odudu reap', () => {
       client_registration_tokens: 1,
       login_failures: 1,
       email_outbox: 4,
+      backchannel_logout_deliveries: 3,
       sessions: 1,
     });
 
@@ -332,6 +378,7 @@ describe('odudu reap', () => {
       client_registration_tokens: 0,
       login_failures: 0,
       email_outbox: 0,
+      backchannel_logout_deliveries: 0,
       sessions: 0,
     });
   });
@@ -355,6 +402,27 @@ describe('odudu reap', () => {
         fixture.failedYesterdayId,
         fixture.sentYesterdayId,
         fixture.abandonedId,
+      ].sort(),
+    );
+  });
+
+  // The same property, for the queue a session's own logout writes to:
+  // delivered yesterday, abandoned yesterday, and one still inside its
+  // retry budget survive; delivered and abandoned long ago do not.
+  it('keeps every queued logout delivery an operator could still need to read', async () => {
+    const fixture = await seedFixture();
+
+    await runPass();
+
+    const rows = await owner.db.execute<{ id: string }>(sql`
+      SELECT id FROM backchannel_logout_deliveries WHERE realm_id = ${fixture.realmId}
+       ORDER BY created_at
+    `);
+    expect(rows.map((row) => row.id).sort()).toEqual(
+      [
+        fixture.logoutDeliveredYesterdayId,
+        fixture.logoutAbandonedYesterdayId,
+        fixture.logoutStillRetryingId,
       ].sort(),
     );
   });

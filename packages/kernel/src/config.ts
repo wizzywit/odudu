@@ -158,6 +158,27 @@ const schema = z.object({
     .min(3600)
     .max(31_536_000)
     .default(2_592_000),
+  // A delivered back-channel logout, measured from its delivery — the same
+  // shape as ODUDU_RETENTION_EMAIL_SENT_SECONDS, and the same week-long
+  // default, for the same reason: something for an operator to read.
+  ODUDU_RETENTION_LOGOUT_DELIVERED_SECONDS: z.coerce
+    .number()
+    .int()
+    .min(60)
+    .max(31_536_000)
+    .default(604_800),
+  // A delivery that spent every attempt (BACKCHANNEL_LOGOUT_MAX_ATTEMPTS,
+  // `packages/protocol-oidc/src/repository/logout-deliveries.ts`, which has
+  // no environment variable of its own) and was never delivered, measured
+  // from its last attempt. Far longer, for the same reason
+  // ODUDU_RETENTION_EMAIL_FAILED_SECONDS is: nothing else records the
+  // failure.
+  ODUDU_RETENTION_LOGOUT_FAILED_SECONDS: z.coerce
+    .number()
+    .int()
+    .min(3600)
+    .max(31_536_000)
+    .default(2_592_000),
   // How often the server runs that pass itself, and whether it runs it at
   // all. `false` is for a deployment that schedules `odudu reap` as a cron
   // entry or a Kubernetes CronJob instead — a documented alternative, and

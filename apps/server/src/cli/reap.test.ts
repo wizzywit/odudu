@@ -40,6 +40,7 @@ describe('the order the retention pass runs in', () => {
         'client_registration_tokens',
         'login_failures',
         'email_outbox',
+        'backchannel_logout_deliveries',
         'sessions',
       ]);
     }).toThrow(/token_grants before refresh_tokens/u);
@@ -74,6 +75,8 @@ describe('the retention windows', () => {
       emailSentSeconds: 604_800,
       emailFailedSeconds: 2_592_000,
       emailMaxAttempts: 5,
+      logoutDeliveredSeconds: 604_800,
+      logoutFailedSeconds: 2_592_000,
     });
   });
 

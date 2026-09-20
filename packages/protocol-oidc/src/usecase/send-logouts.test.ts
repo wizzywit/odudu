@@ -182,7 +182,7 @@ describe('sendLogouts', () => {
     expect(deps.queue.byId.get('delivery-1')?.delivered).toBe(true);
   });
 
-  it('retries a 503, which is recoverable', async () => {
+  it('[OIDC-BACKCHANNEL-2.5-02] retries a 503, which is recoverable', async () => {
     const deps = buildDeps([row()], transportWith(503));
 
     const result = await sendLogouts(deps, NOW);
@@ -193,7 +193,7 @@ describe('sendLogouts', () => {
     expect(after?.attempts).toBeLessThan(MAX_ATTEMPTS);
   });
 
-  it('does not retry a 400, which is not', async () => {
+  it('[OIDC-BACKCHANNEL-2.5-03] does not retry a 400, which is not', async () => {
     const deps = buildDeps([row()], transportWith(400));
 
     await sendLogouts(deps, NOW);

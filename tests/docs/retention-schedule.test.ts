@@ -149,8 +149,10 @@ describe('the outbox schedule the documents describe is the one the server runs'
 });
 
 // The same interval and jitter claims, for the pass that delivers
-// back-channel logouts — README-only, since docs/request-paths.md has no
-// transcript for this command yet.
+// back-channel logouts — README-only. docs/request-paths.md now carries a
+// real `odudu send-logouts` transcript (under "Front-channel and
+// back-channel logout"), but states no interval or timeout default in
+// words there for this check to read.
 describe('the logout-sender schedule README describes is the one the server runs', () => {
   it('states the interval the config schema defaults to', () => {
     expect(statedDefault('README.md', 'ODUDU_LOGOUT_SENDER_INTERVAL_SECONDS')).toBe(

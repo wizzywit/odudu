@@ -135,6 +135,30 @@ describe('[OIDC-RPINITIATED-2.1-01] end_session_endpoint is advertised', () => {
   });
 });
 
+describe('[OIDC-BACKCHANNEL-2.1-02] back-channel logout is advertised', () => {
+  it('advertises support, with session support', async () => {
+    const res = await http.inject({ url: '/realms/acme/.well-known/openid-configuration' });
+    const document = res.json<{
+      backchannel_logout_supported: boolean;
+      backchannel_logout_session_supported: boolean;
+    }>();
+    expect(document.backchannel_logout_supported).toBe(true);
+    expect(document.backchannel_logout_session_supported).toBe(true);
+  });
+});
+
+describe('[OIDC-FRONTCHANNEL-2-01] front-channel logout is advertised', () => {
+  it('advertises support, with session support', async () => {
+    const res = await http.inject({ url: '/realms/acme/.well-known/openid-configuration' });
+    const document = res.json<{
+      frontchannel_logout_supported: boolean;
+      frontchannel_logout_session_supported: boolean;
+    }>();
+    expect(document.frontchannel_logout_supported).toBe(true);
+    expect(document.frontchannel_logout_session_supported).toBe(true);
+  });
+});
+
 describe('[RFC7517-4-02] the published key set carries no private material', () => {
   it('never emits a private or symmetric member', async () => {
     const res = await http.inject({ url: '/realms/acme/protocol/openid-connect/certs' });
