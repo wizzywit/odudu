@@ -6592,9 +6592,9 @@ session lifecycle. A citation of either half here means that half.
   stored column has exactly one meaning: the resolved audience is empty,
   never "not carried" — every door that mints a code resolves and stores
   the same value: immediate session-reuse at `/authorize`, an ordinary
-  first-time form login, the account chooser, and the consent step (both
-  after a fresh login and after a reuse promotion) each of those can
-  detour through. The value is parked on the authentication session's own
+  first-time form login, the account chooser, and the consent step, which
+  either a fresh login or a reuse promotion can detour through. The value
+  is parked on the authentication session's own
   `PendingRequest.resource` between the request and whichever door
   completes it. What is not there yet is the other side:
   `/token`'s `aud` still comes from the client's configured `audiences`
