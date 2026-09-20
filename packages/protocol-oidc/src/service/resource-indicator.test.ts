@@ -27,8 +27,14 @@ describe('parseResource', () => {
     });
   });
 
-  it('refuses a value carrying a fragment, which RFC 8707 §2 forbids', () => {
+  it('refuses a fragment-bearing value that also is not registered', () => {
     expect(parseResource('https://api.example#x', registered)).toEqual({ kind: 'invalid_target' });
+  });
+
+  it('refuses a fragment even when the fragment-bearing value is itself registered', () => {
+    expect(parseResource('https://api.example#x', ['https://api.example#x'])).toEqual({
+      kind: 'invalid_target',
+    });
   });
 
   it('refuses a relative reference', () => {
