@@ -20,9 +20,12 @@ export interface LogoutTokenInput {
   readonly now: Date;
 }
 
-// The index signature is what lets this be handed to `signJwt`, whose
-// `jose` payload type carries one; every named claim is still typed above
-// it, so a caller narrows nothing to read `iss`, `sid`, and the rest.
+// Closed deliberately: no index signature. §2.4 is as much about what a
+// Logout Token must not carry as what it must, so excess-property checking
+// stays on. A caller handing this to `signJwt` (whose `jose` payload type
+// does carry an index signature) spreads it into a fresh object literal —
+// `signJwt({ ...claims }, opts)` — which type-checks without loosening this
+// type itself.
 export interface LogoutTokenClaims {
   readonly iss: string;
   readonly aud: string;
@@ -32,7 +35,6 @@ export interface LogoutTokenClaims {
   readonly sub: string;
   readonly sid: string;
   readonly events: Readonly<Record<string, Readonly<Record<string, never>>>>;
-  readonly [claim: string]: unknown;
 }
 
 // §2.4: `sub` and `sid` are each individually optional but at least one is

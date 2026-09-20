@@ -88,7 +88,7 @@ describe('signing a logout token', () => {
       now: new Date(),
     });
 
-    const token = await signJwt(claims, { key, kek: KEK, typ: LOGOUT_TOKEN_TYP });
+    const token = await signJwt({ ...claims }, { key, kek: KEK, typ: LOGOUT_TOKEN_TYP });
 
     // verifyJwt reads `typ` off the protected header, never the payload
     // (packages/crypto/src/service/sign.ts's `checkTyp`), so a match here
