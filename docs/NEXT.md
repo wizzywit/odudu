@@ -291,6 +291,23 @@ row-level security rather than a permission error.
 
 ## Recorded decisions with trigger conditions
 
+**No scope means anything in particular at an audience.** RFC 9068 §2.2.3
+requires that a token's `scope` be coherent with its `aud`. P3b gave a client
+the means to narrow `aud` to one resource (RFC 8707's `resource`), but
+narrowing what a token is _restricted to_ says nothing about whether its
+granted scope _suits_ that restriction: a client may ask for `reports:read`
+against `resource=https://api.example` and nothing here objects. The MUST is
+recorded as `accepted:` in `docs/protocols/rfc9068.md` with that reasoning,
+not as covered.
+
+Closing it honestly needs a per-audience scope model — which resources a
+scope is meaningful for — which this server does not have, and which belongs
+to client management rather than to the token surface.
+
+- Trigger: whichever phase gives scopes an audience of their own. Most
+  likely wherever per-resource scope registration lands; until then the row
+  stays `accepted:` and the census counts it as such.
+
 **Affected-package-only CI.** Turborepo and pnpm both support
 `--filter='...[<ref>]'` — changed packages plus their dependents — so no
 tooling change is needed to adopt it. Not adopted now: CI runs in about 50
