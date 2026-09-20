@@ -109,6 +109,21 @@ function transportWith(status: number): LogoutDeliveryTransport {
   return () => Promise.resolve({ status });
 }
 
+// A bound the test itself enforces, rather than vitest's suite timeout: a
+// pass that never returns fails this assertion in about `boundMs`, not in
+// whatever the runner's own timeout happens to be — the failure reads as
+// this test's own defect, not as an unrelated hang elsewhere in the suite.
+function withinMs<T>(promise: Promise<T>, boundMs: number): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_resolve, reject) => {
+      setTimeout(() => {
+        reject(new Error(`sendLogouts did not return within ${String(boundMs)}ms`));
+      }, boundMs);
+    }),
+  ]);
+}
+
 function hangingTransport(): LogoutDeliveryTransport & { aborted: boolean } {
   const state = { aborted: false };
   const transport: LogoutDeliveryTransport = (_endpoint, _logoutToken, signal) =>
@@ -187,11 +202,21 @@ describe('sendLogouts', () => {
     expect(after?.attempts).toBeGreaterThanOrEqual(MAX_ATTEMPTS);
   });
 
+  it('retries a 429, asking to slow down rather than refusing the token', async () => {
+    const deps = buildDeps([row()], transportWith(429));
+
+    const result = await sendLogouts(deps, NOW);
+
+    expect(result).toEqual({ delivered: 0, failed: 1 });
+    const after = deps.queue.byId.get('delivery-1');
+    expect(after?.attempts).toBeLessThan(MAX_ATTEMPTS);
+  });
+
   it('abandons a relying party that accepts the connection and never answers', async () => {
     const transport = hangingTransport();
     const deps = buildDeps([row()], transport);
 
-    const result = await sendLogouts(deps, NOW);
+    const result = await withinMs(sendLogouts(deps, NOW), RESPONSE_TIMEOUT_MS * 5);
 
     expect(transport.aborted).toBe(true);
     expect(result).toEqual({ delivered: 0, failed: 1 });

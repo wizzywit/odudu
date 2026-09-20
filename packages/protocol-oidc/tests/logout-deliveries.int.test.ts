@@ -366,6 +366,36 @@ describe('a foreign realm cannot reach a queued delivery', () => {
     });
   });
 
+  it('cannot abandon another realm’s delivery', async () => {
+    await expectCrossRealmMethodProbe(app.db, {
+      seed: async (tx, seededRealm) => {
+        await owner.db.insert(realms).values({ id: seededRealm, name: `probe-${seededRealm}` });
+        const seededClientId = await seedClient(seededRealm);
+        const row = delivery({ id: newId(), realmId: seededRealm, clientId: seededClientId });
+        await logoutDeliveryRepository(tx).enqueue([row]);
+        return row.id;
+      },
+      verifySeeded: async (tx, id) => {
+        const rows = await tx
+          .select()
+          .from(backchannelLogoutDeliveries)
+          .where(eq(backchannelLogoutDeliveries.id, id));
+        expect(rows[0]?.attempts).toBe(0);
+      },
+      attempt: (tx, id) =>
+        logoutDeliveryRepository(tx).markAbandoned(id, NOW, 'written from the wrong realm'),
+      expectBlocked: () => undefined,
+      verifyRealmAUnaffected: async (tx, id) => {
+        const rows = await tx
+          .select()
+          .from(backchannelLogoutDeliveries)
+          .where(eq(backchannelLogoutDeliveries.id, id));
+        expect(rows[0]?.lastError).toBeNull();
+        expect(rows[0]?.attempts).toBe(0);
+      },
+    });
+  });
+
   it('claims nothing of another realm, and leaves its attempt count alone', async () => {
     const foreignRealm = await seedRealm();
     const foreignClientId = await seedClient(foreignRealm);

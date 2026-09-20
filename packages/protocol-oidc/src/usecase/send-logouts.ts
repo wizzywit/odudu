@@ -42,15 +42,16 @@ export interface SendLogoutsOutcome {
   readonly failed: number;
 }
 
-// §2.8 gives the relying party exactly two responses to a Logout Token: 200
-// for a successful logout, 400 for one it refuses. A 400 is the relying
-// party rejecting this token deterministically, so sending the same token
-// again would repeat a request already refused — §2.5's second SHOULD.
-// Everything else this pass ever sees — a 503, any other status, a
-// connection error, or this delivery's own deadline firing — is read as the
-// first SHOULD's "may have failed recoverably" and gets a retry.
+// §2.8's two responses to a Logout Token, 200 and 400: a 400 is the
+// relying party rejecting this token deterministically, so retrying it
+// would repeat a request already refused (§2.5's second SHOULD). A 503,
+// an unexpected status or a connection error is read as the first
+// SHOULD's "may have failed recoverably" instead. 429 is carved out of
+// the 4xx range on the same reading: it asks for the request to slow
+// down, not a refusal of the token, so the delayed retry that first
+// SHOULD calls for is exactly what it wants.
 function isUnrecoverable(status: number): boolean {
-  return status >= 400 && status < 500;
+  return status >= 400 && status < 500 && status !== 429;
 }
 
 function describeError(error: unknown): string {
