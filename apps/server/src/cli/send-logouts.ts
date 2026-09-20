@@ -11,6 +11,7 @@ import {
   sendLogouts,
   type LogoutDeliveryTransport,
 } from '@odudu/protocol-oidc';
+import { assertProductionNoPrivateClientUrls } from '#/config-guard';
 import { createLogoutDeliveryTransport } from '#/logout-delivery-transport';
 
 export interface LogoutSenderOptions {
@@ -129,6 +130,11 @@ export async function sendLogoutsAcrossRealms(
 // an operator at a shell — can invoke it as a one-shot process (ADR 0024).
 export async function sendLogoutsCommand(): Promise<LogoutSenderReport> {
   const config = loadConfig();
+  // Called here, not only from `main.ts`'s module-scope sequence: the CLI
+  // dispatch above that sequence exits before ever reaching it, so this
+  // command is the only place guaranteed to run before the transport is
+  // built, whichever entry point reached it.
+  assertProductionNoPrivateClientUrls(config);
   const appUrl = config.ODUDU_APP_DATABASE_URL;
   // Demanded in every environment, not only production: the claim runs
   // under the realm policy, which the owner role the migrations use

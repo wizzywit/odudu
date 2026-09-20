@@ -38,3 +38,25 @@ describe('the connection the command sends on', () => {
     await expect(sendLogoutsCommand()).rejects.toThrow(/ODUDU_APP_DATABASE_URL/u);
   });
 });
+
+describe('the private-URL escape hatch in production', () => {
+  afterEach(() => {
+    delete process.env.NODE_ENV;
+    delete process.env.ODUDU_DATABASE_URL;
+    delete process.env.ODUDU_KEK;
+    delete process.env.ODUDU_ALLOW_PRIVATE_CLIENT_URLS;
+  });
+
+  // Called by `sendLogoutsCommand` itself, not only inherited from
+  // `main.ts`'s module-scope sequence: the CLI dispatch that reaches this
+  // command exits before that sequence's own guard call ever runs, so
+  // this is the only place this refusal can happen for `odudu send-logouts`.
+  it('refuses before opening a database connection', async () => {
+    process.env.NODE_ENV = 'production';
+    process.env.ODUDU_DATABASE_URL = MINIMAL.ODUDU_DATABASE_URL;
+    process.env.ODUDU_KEK = MINIMAL.ODUDU_KEK;
+    process.env.ODUDU_ALLOW_PRIVATE_CLIENT_URLS = 'true';
+
+    await expect(sendLogoutsCommand()).rejects.toThrow(/ODUDU_ALLOW_PRIVATE_CLIENT_URLS/u);
+  });
+});

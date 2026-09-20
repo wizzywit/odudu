@@ -147,7 +147,7 @@ describe('[OIDC-BACKCHANNEL-2.1-02] back-channel logout is advertised', () => {
   });
 });
 
-describe('[OIDC-FRONTCHANNEL-2-01] front-channel logout is advertised', () => {
+describe('[OIDC-FRONTCHANNEL-3-01] front-channel logout is advertised', () => {
   it('advertises support, with session support', async () => {
     const res = await http.inject({ url: '/realms/acme/.well-known/openid-configuration' });
     const document = res.json<{
