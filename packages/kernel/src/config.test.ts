@@ -133,6 +133,32 @@ describe('loadConfig', () => {
     );
   });
 
+  it('delivers back-channel logouts every fifteen seconds by default', () => {
+    const config = loadConfig(minimal);
+    expect(config.ODUDU_LOGOUT_SENDER_ENABLED).toBe(true);
+    expect(config.ODUDU_LOGOUT_SENDER_INTERVAL_SECONDS).toBe(15);
+    expect(config.ODUDU_LOGOUT_SENDER_BATCH_SIZE).toBe(20);
+    expect(config.ODUDU_LOGOUT_SENDER_LEASE_SECONDS).toBe(30);
+    expect(config.ODUDU_LOGOUT_SENDER_RESPONSE_TIMEOUT_MS).toBe(5000);
+  });
+
+  // The third variable whose absence means "on": a deployment that says
+  // nothing must still tell relying parties a session ended.
+  it('turns the logout-sender schedule off only on the literal string false', () => {
+    expect(
+      loadConfig({ ...minimal, ODUDU_LOGOUT_SENDER_ENABLED: 'false' }).ODUDU_LOGOUT_SENDER_ENABLED,
+    ).toBe(false);
+    expect(() => loadConfig({ ...minimal, ODUDU_LOGOUT_SENDER_ENABLED: 'no' })).toThrow(
+      /LOGOUT_SENDER_ENABLED/u,
+    );
+  });
+
+  it('refuses a logout-sender interval of zero rather than reading it as off', () => {
+    expect(() => loadConfig({ ...minimal, ODUDU_LOGOUT_SENDER_INTERVAL_SECONDS: '0' })).toThrow(
+      /LOGOUT_SENDER_INTERVAL_SECONDS/u,
+    );
+  });
+
   it('keeps a delivered message a week and a spent one thirty days', () => {
     const config = loadConfig(minimal);
     expect(config.ODUDU_RETENTION_EMAIL_SENT_SECONDS).toBe(604_800);

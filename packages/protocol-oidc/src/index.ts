@@ -670,3 +670,23 @@ export {
   type ClientKeyResponse,
   type ClientKeySet,
 } from '#/repository/client-keys';
+export {
+  logoutDeliveryRepository,
+  BACKCHANNEL_LOGOUT_MAX_ATTEMPTS,
+  BACKCHANNEL_LOGOUT_RETRY_BACKOFF_SECONDS,
+  type ClaimDue,
+  type EnqueueDelivery,
+} from '#/repository/logout-deliveries';
+export {
+  sendLogouts,
+  type ClaimedLogoutDelivery,
+  type LogoutDeliveryResponse,
+  type LogoutDeliveryTransport,
+  type SendLogoutsDeps,
+  type SendLogoutsOutcome,
+} from '#/usecase/send-logouts';
+export {
+  assertFetchableUrl,
+  assertPublicAddresses,
+  RemoteAddressRefused,
+} from '#/service/remote-address';

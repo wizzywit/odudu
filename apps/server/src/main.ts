@@ -3,6 +3,7 @@ import { loadConfig, ModuleRegistry, systemClock } from '@odudu/kernel';
 import closeWithGrace from 'close-with-grace';
 import { buildApp } from '#/app';
 import { reapCommand } from '#/cli/reap';
+import { sendLogoutsCommand } from '#/cli/send-logouts';
 import { sendMailCommand } from '#/cli/send-mail';
 import { seed } from '#/cli/seed';
 import { resolveSeedInvocation } from '#/cli/seed-invocation';
@@ -15,8 +16,10 @@ import {
 } from '#/config-guard';
 import { buildEmailSender } from '#/email';
 import { createLogger } from '#/logger';
+import { createLogoutDeliveryTransport } from '#/logout-delivery-transport';
 import { databaseModule } from '#/modules/database';
 import { httpModule } from '#/modules/http';
+import { logoutSenderModule } from '#/modules/logout-sender';
 import { outboxModule } from '#/modules/outbox';
 import { reapModule } from '#/modules/reap';
 
@@ -33,6 +36,16 @@ if (process.argv[2] === 'reap') {
 if (process.argv[2] === 'send-mail') {
   try {
     console.log(JSON.stringify(await sendMailCommand()));
+    process.exit(0);
+  } catch (err) {
+    console.error(err instanceof Error ? err.message : String(err));
+    process.exit(1);
+  }
+}
+
+if (process.argv[2] === 'send-logouts') {
+  try {
+    console.log(JSON.stringify(await sendLogoutsCommand()));
     process.exit(0);
   } catch (err) {
     console.error(err instanceof Error ? err.message : String(err));
@@ -101,6 +114,13 @@ const registry = new ModuleRegistry()
   .register(databaseModule(owner, runtime))
   .register(reapModule({ database: runtime, ownerDatabase: owner }))
   .register(outboxModule({ database: runtime, ownerDatabase: owner, sender }))
+  .register(
+    logoutSenderModule({
+      database: runtime,
+      ownerDatabase: owner,
+      transport: createLogoutDeliveryTransport(),
+    }),
+  )
   .register(httpModule(app));
 
 closeWithGrace({ delay: 10_000 }, async ({ err }) => {

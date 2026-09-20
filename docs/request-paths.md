@@ -6560,12 +6560,17 @@ session lifecycle. A citation of either half here means that half.
   access tokens locally against the JWKS, and ending a session or revoking
   a grant — including through [RP-initiated logout](#rp-initiated-logout) —
   does not invalidate an already-issued access token before its `exp`.
-- **Back-channel logout.** **P3b**, whose exit criterion names it.
-  `backchannel_logout_uri` is client-registration metadata a client can
-  register (`POST /realms/{realm}/clients-registrations/openid-connect`,
-  [Dynamic client registration](#dynamic-client-registration)) and is
-  stored, but nothing reads the column yet — no discovery member advertises
-  the capability, and ending a session delivers to no back-channel URI.
+- **Back-channel logout discovery.** **P3b**, whose exit criterion names
+  back-channel logout. Ending a session now enqueues a Logout Token for
+  every client that registered a `backchannel_logout_uri`
+  (`POST /realms/{realm}/clients-registrations/openid-connect`,
+  [Dynamic client registration](#dynamic-client-registration)) and used the
+  session, and `odudu send-logouts` (README's "Ending a session tells the
+  relying parties that were part of it") delivers them, on its own schedule
+  or as a one-shot command. What remains is discovery: no member advertises
+  the capability (`backchannel_logout_supported`,
+  `backchannel_logout_session_supported`), so a relying party has no
+  standards-based way to learn the server supports it before registering.
   [Front-channel logout](#front-channel-logout) is no longer in this list:
   the logout page now frames each relying party's `frontchannel_logout_uri`
   (see that section for a real transcript) — an **attempt**, not a

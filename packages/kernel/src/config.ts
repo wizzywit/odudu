@@ -183,6 +183,29 @@ const schema = z.object({
   ODUDU_OUTBOX_MAX_ATTEMPTS: z.coerce.number().int().min(1).max(100).default(5),
   // The first retry's delay; each further attempt doubles it.
   ODUDU_OUTBOX_RETRY_BACKOFF_SECONDS: z.coerce.number().int().min(1).max(86_400).default(60),
+  // A back-channel logout is enqueued the instant a session ends, so this
+  // pass has no queueing delay of the outbox's kind to hide — it exists to
+  // take a relying party's own slowness off the request path. `false` is
+  // for a deployment that schedules `odudu send-logouts` itself; with the
+  // schedule off and nothing scheduled elsewhere, an ended session's
+  // relying parties are never told.
+  ODUDU_LOGOUT_SENDER_ENABLED: enabledEnvVar,
+  ODUDU_LOGOUT_SENDER_INTERVAL_SECONDS: z.coerce.number().int().min(5).max(86_400).default(15),
+  // Deliveries claimed per realm per pass, so one realm's backlog cannot
+  // starve another's — the same reasoning as ODUDU_OUTBOX_BATCH_SIZE.
+  ODUDU_LOGOUT_SENDER_BATCH_SIZE: z.coerce.number().int().min(1).max(1000).default(20),
+  // How long a claimed delivery stays invisible to other passes; what a
+  // process killed between the claim and the send costs.
+  ODUDU_LOGOUT_SENDER_LEASE_SECONDS: z.coerce.number().int().min(1).max(3600).default(30),
+  // Bounds one delivery end to end (connect and response together): a
+  // relying party that accepts the connection and never answers is
+  // abandoned for this pass, not for good.
+  ODUDU_LOGOUT_SENDER_RESPONSE_TIMEOUT_MS: z.coerce
+    .number()
+    .int()
+    .min(100)
+    .max(60_000)
+    .default(5000),
   ODUDU_LOG_LEVEL: z
     .enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent'])
     .default('info'),

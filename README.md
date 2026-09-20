@@ -890,6 +890,31 @@ security, since either way the policy that scopes its deletes would not
 apply. It refuses rather than warning: a retention pass whose isolation is
 inert is no better than one that never ran.
 
+**Ending a session tells the relying parties that were part of it.** A
+session that ends enqueues one back-channel Logout Token per client that
+registered a `backchannel_logout_uri` and used the session, and a third
+pass, `send-logouts`, delivers them — every `ODUDU_LOGOUT_SENDER_INTERVAL_SECONDS`
+(default `15`) plus a tenth as jitter, or as a one-shot command:
+
+```bash
+node --env-file=.env apps/server/src/main.ts send-logouts
+```
+
+```
+{"ran":true,"delivered":1,"failed":0}
+```
+
+Like the outbox it takes no lock and needs `ODUDU_APP_DATABASE_URL` for the
+same reason, declining to start without it the same way — and **with
+`ODUDU_LOGOUT_SENDER_ENABLED=false` and nothing scheduling the command, an
+ended session's relying parties are never told**, the way `frontchannel_logout_uri`
+already isn't when a redirect fires instead of the logout page rendering
+(ADR 0034). A relying party that accepts the connection and never answers
+costs one delivery, not the queue: `ODUDU_LOGOUT_SENDER_RESPONSE_TIMEOUT_MS`
+(default `5000`) bounds each one independently, and a 400 response — the
+relying party rejecting the token outright — is never retried, while
+anything else recoverable is, up to `BACKCHANNEL_LOGOUT_MAX_ATTEMPTS`.
+
 **[docs/request-paths.md](docs/request-paths.md) takes it from there** — what
 each of those tokens is for, what `/userinfo` does with them, how a refresh
 rotates, and every way each request above can be refused, with the response
