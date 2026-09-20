@@ -279,11 +279,14 @@ describe('a grant and the session it belongs to', () => {
     expect(found.map((target) => target.clientId)).toEqual([clientDbId]);
   });
 
-  // client_oidc_config is a second RLS-policed table (packages/db/drizzle/
-  // 0007_client_oidc_config.sql) that clientsForSession joins to — the one
-  // method in this file where the isolation policy has to survive a join,
-  // not just a plain select, to keep a foreign realm's grant from also
-  // leaking that realm's client configuration.
+  // Under realm-scoped access, clientsForSession returns nothing for a
+  // foreign realm's session. It does not, by itself, prove
+  // client_oidc_config's own RLS policy (packages/db/drizzle/
+  // 0007_client_oidc_config.sql) survives the join: token_grants_client_fk
+  // and client_oidc_config_client_fk both tie realm_id to the same
+  // clients row, so a foreign grant's row is already excluded by
+  // token_grants' own policy before the join runs, and that policy is
+  // never exercised here on its own.
   it('cannot find a foreign realm’s client behind a session’s grant', async () => {
     const theirsRealmId = newId();
     const mineRealmId = newId();
