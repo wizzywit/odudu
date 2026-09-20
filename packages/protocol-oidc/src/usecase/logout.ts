@@ -144,7 +144,7 @@ async function frontChannelLogoutUrls(
   sessionId: string,
 ): Promise<readonly string[]> {
   const targets = await deps.clientsForSession(realmId, sessionId);
-  return targets
+  const urls = targets
     .filter(hasFrontChannelLogoutUri)
     .map((target) =>
       frontChannelLogoutUrl(
@@ -154,6 +154,7 @@ async function frontChannelLogoutUrls(
         target.frontchannelLogoutSessionRequired,
       ),
     );
+  return urls.filter((url): url is string => url !== null);
 }
 
 async function registeredUris(

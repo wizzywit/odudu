@@ -303,6 +303,18 @@ the same time so a root config or lockfile change still forces everything.
 ADR 0014 for the reasoning, the three controls that make it acceptable, and
 the conditions under which to revisit.
 
+**Front-channel logout on a redirecting session end.** The logout page
+frames a relying party's `frontchannel_logout_uri` only on the branch that
+renders it — never on the 302 a matched `post_logout_redirect_uri` takes
+instead, which is RP-initiated logout's common case. Rendering the frames
+first and navigating afterward was never weighed against today's choice;
+ADR 0034's Consequences record the question as open, not answered.
+
+- Trigger: back-channel logout (P3b, still to land) gives a redirecting
+  session end a server-to-server notification path instead; revisit
+  whether front-channel still needs one if that closes the gap in
+  practice.
+
 ## Deferred from the final review
 
 - **Closed, differently than this item expected.** The snapshots are not

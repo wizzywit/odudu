@@ -70,6 +70,14 @@ const RP_NEVER_USED: RpClientSpec = {
   frontchannelLogoutUri: 'https://rp-never-used.example/logout',
   frontchannelLogoutSessionRequired: false,
 };
+// Stored the way an operator's direct UPDATE could, bypassing the
+// isValidLogoutUri check dynamic registration and seed client both go
+// through — proves a row like this cannot take logout down for the realm.
+const RP_MALFORMED: RpClientSpec = {
+  hostname: 'rp-malformed.example',
+  frontchannelLogoutUri: 'not a url at all',
+  frontchannelLogoutSessionRequired: false,
+};
 
 const signingKeyOf = new Map<string, SigningKeyRecord>();
 
@@ -426,5 +434,27 @@ describe('the logout page frames each relying party that used the session', () =
     expect(res.body).not.toContain('<iframe');
     expect(res.body).not.toContain('rp-one.example');
     expect(String(res.headers['content-security-policy'])).not.toContain('frame-src');
+  });
+
+  it('skips a stored frontchannel_logout_uri it cannot parse, rather than failing the whole logout', async () => {
+    const realmName = `frontchannel-malformed-${newId()}`;
+    const { realmId, subjectId, rpClientIds } = await setupRealm(realmName, [RP_ONE, RP_MALFORMED]);
+    const cookie = await signIn(realmName);
+    const sessionId = sessionIdFromCookie(cookie);
+
+    const rpOneId = rpClientIds.get(RP_ONE.hostname);
+    const rpMalformedId = rpClientIds.get(RP_MALFORMED.hostname);
+    if (rpOneId === undefined || rpMalformedId === undefined) {
+      throw new Error('expected both RP clients to have been provisioned');
+    }
+    await grantUnderSession(realmId, rpOneId, subjectId, sessionId);
+    await grantUnderSession(realmId, rpMalformedId, subjectId, sessionId);
+
+    const hint = await mintIdToken(realmName, subjectId, sessionId);
+    const res = await http.inject({ url: logoutUrl(realmName, hint), headers: { cookie } });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toContain('<iframe src="https://rp-one.example/logout?');
+    expect(res.body).not.toContain('rp-malformed.example');
   });
 });

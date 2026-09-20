@@ -4542,6 +4542,14 @@ docker compose -f infra/docker/compose.yaml exec -T postgres \
   "
 ```
 
+(`http://localhost:9100` is for reachability in this local walkthrough
+only. `isValidLogoutUri` refuses `http` unconditionally for a URI
+registered through dynamic registration or `seed client` — see
+`docs/protocols/oidc-frontchannel.md`'s clause table — and this direct
+`UPDATE` is the one path in this document that bypasses that check
+entirely, the same way it bypasses the domain/port/scheme-matching check
+on `frontchannel_logout_uri` itself.)
+
 Signing in as [Path A](#path-a-authorization-code-with-pkce) does, then
 reusing that same session's cookie for a second, consent-free authorization
 against `reports-widget` and redeeming its code, gives the session a grant
@@ -6562,8 +6570,12 @@ session lifecycle. A citation of either half here means that half.
   the logout page now frames each relying party's `frontchannel_logout_uri`
   (see that section for a real transcript) — an **attempt**, not a
   guarantee of delivery, for the browser reasons that section and ADR 0034
-  give. Discovery still advertises neither `frontchannel_logout_supported`
-  nor `frontchannel_logout_session_supported`.
+  give. Framing happens only on the branch that renders that page, never
+  on the redirect a matched `post_logout_redirect_uri` takes instead — the
+  common case for RP-initiated logout — so today's front-channel logout
+  notifies nobody whenever a redirect fires (ADR 0034's Consequences).
+  Discovery still advertises neither `frontchannel_logout_supported` nor
+  `frontchannel_logout_session_supported`.
 - **No administrative way to end somebody else's session.** Listing a
   subject's sessions and ending one is **P4**, with the rest of the admin
   surface, because until there is an admin API there is nowhere to put it.
