@@ -117,10 +117,21 @@ export interface LogoutUsecaseDeps {
     },
     header: string | undefined,
   ): Promise<SessionRecord[]>;
-  // One transaction: ends the session row and revokes every grant whose
-  // session_id is that session (Back-Channel Logout §2.7). Access tokens
-  // are not touched — see README.md's logout section for why not.
-  endSession(realmId: string, sessionId: string, now: Date): Promise<void>;
+  // One transaction: ends the session row, revokes every grant whose
+  // session_id is that session (Back-Channel Logout §2.7), and enqueues one
+  // back-channel logout delivery per relying party that used the session
+  // and registered a back-channel URI (§2.5). A failure anywhere — minting
+  // or queuing a delivery included — rolls the whole transaction back, so a
+  // session cannot end with a delivery lost: nothing would ever retry a row
+  // that was never written. Access tokens are not touched — see README.md's
+  // logout section for why not.
+  endSession(
+    realmId: string,
+    sessionId: string,
+    subjectId: string,
+    now: Date,
+    issuer: string,
+  ): Promise<void>;
   // Front-Channel Logout 1.0 §3's "set of logged-in RPs": the distinct
   // clients holding a grant issued under this session, with enough of each
   // one's logout metadata to build a front-channel logout URL for it.
@@ -248,7 +259,7 @@ export async function handleLogoutRequest(
   // matched redirect with nothing to end (see its own comment) — there is
   // no session row to touch.
   if (session !== null) {
-    await deps.endSession(realm.id, session.id, deps.now());
+    await deps.endSession(realm.id, session.id, session.subjectId, deps.now(), issuer);
   }
 
   if (decision.kind === 'end') {
@@ -323,7 +334,7 @@ export async function handleLogoutConfirmation(
     registered,
   });
 
-  await deps.endSession(realm.id, session.id, deps.now());
+  await deps.endSession(realm.id, session.id, session.subjectId, deps.now(), issuer);
 
   if (decision.kind === 'end') {
     const frontChannel =

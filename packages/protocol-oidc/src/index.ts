@@ -24,19 +24,21 @@ import {
   sessionRepository,
   startAuthentication,
 } from '@odudu/authn-flows';
-import { signingKeyRepository } from '@odudu/crypto';
+import { signingKeyRepository, signJwt } from '@odudu/crypto';
 import { effectiveGroupPaths, effectiveRoles } from '@odudu/domain-authz';
 import { withRealm, type DatabaseHandle } from '@odudu/db';
 import { hashPassword, userRepository, verifyPassword } from '@odudu/domain-identity';
 import { clientRepository, clientScopeRepository, consentRepository } from '@odudu/domain-realm';
-import { systemClock, type Clock } from '@odudu/kernel';
+import { newId, systemClock, type Clock } from '@odudu/kernel';
 import { type FastifyPluginAsync } from 'fastify';
 import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
-import { tokenGrantRepository } from '#/repository/grants';
+import { tokenGrantRepository, type ClientLogoutTarget } from '#/repository/grants';
+import { logoutDeliveryRepository } from '#/repository/logout-deliveries';
 import { realmLookupRepository } from '#/repository/realm-lookup';
 import { reachableRoleIds } from '#/repository/scope-role-reach';
 import { standardClaimMappers } from '#/service/claims';
 import { type ClientSecretLimiter } from '#/service/client-secret-throttle';
+import { logoutTokenClaims, LOGOUT_TOKEN_TYP } from '#/service/logout-token';
 import { expandWebOrigins } from '#/service/web-origin';
 import {
   issueAuthorizationCode,
@@ -87,6 +89,12 @@ export interface OidcRoutesDeps {
   // A caller that genuinely wants no budget says so explicitly with
   // `UNLIMITED_CLIENT_SECRET_LIMITER` (#/service/client-secret-throttle.ts).
   clientSecretLimiter: ClientSecretLimiter;
+}
+
+function hasBackchannelLogoutUri(
+  target: ClientLogoutTarget,
+): target is ClientLogoutTarget & { backchannelLogoutUri: string } {
+  return target.backchannelLogoutUri !== null;
 }
 
 // The plugin apps/server registers. Discovery and JWKS both read the
@@ -558,14 +566,49 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
           return clientOidcConfigRepository(tx).postLogoutRedirectUris(client.id);
         }),
       resolveSessions,
-      // One transaction, per Back-Channel Logout §2.7: end the session, then
-      // revoke every grant whose session_id is that session. A failure
-      // anywhere rolls both back — a session that ends with its grants
-      // still live would be logout not actually having happened.
-      endSession: (realmId, sessionId, now) =>
+      // One transaction, per Back-Channel Logout §2.7: end the session,
+      // revoke every grant whose session_id is that session, then mint and
+      // enqueue one delivery per client that used the session and
+      // registered a back-channel URI. A failure anywhere rolls all of it
+      // back — see the JSDoc on LogoutUsecaseDeps.endSession for why. Two
+      // concurrent logouts on the same session both reach here and both
+      // attempt to enqueue; logoutDeliveryRepository.enqueue's own comment
+      // is why that yields one delivery, not two.
+      endSession: (realmId, sessionId, subjectId, now, issuer) =>
         withRealm(deps.database.db, realmId, async (tx) => {
           await sessionRepository(tx).end(sessionId, now);
           await tokenGrantRepository(tx).revokeForSession(sessionId, now);
+
+          const targets = await tokenGrantRepository(tx).clientsForSession(sessionId);
+          const backchannelTargets = targets.filter(hasBackchannelLogoutUri);
+          if (backchannelTargets.length === 0) return;
+
+          const key = await signingKeyRepository(tx).active();
+          const deliveries = await Promise.all(
+            backchannelTargets.map(async (target) => {
+              const claims = logoutTokenClaims({
+                issuer,
+                audience: target.oauthClientId,
+                subject: subjectId,
+                sessionId,
+                now,
+              });
+              const logoutToken = await signJwt(
+                { ...claims },
+                { key, kek: deps.kek, typ: LOGOUT_TOKEN_TYP },
+              );
+              return {
+                id: newId(),
+                realmId,
+                clientId: target.clientId,
+                sessionId,
+                endpoint: target.backchannelLogoutUri,
+                logoutToken,
+                nextAttemptAt: now,
+              };
+            }),
+          );
+          await logoutDeliveryRepository(tx).enqueue(deliveries);
         }),
       // Front-Channel Logout 1.0 §3's "set of logged-in RPs" — read after
       // endSession above has already revoked the session's grants, since
@@ -627,3 +670,23 @@ export {
   type ClientKeyResponse,
   type ClientKeySet,
 } from '#/repository/client-keys';
+export {
+  logoutDeliveryRepository,
+  BACKCHANNEL_LOGOUT_MAX_ATTEMPTS,
+  BACKCHANNEL_LOGOUT_RETRY_BACKOFF_SECONDS,
+  type ClaimDue,
+  type EnqueueDelivery,
+} from '#/repository/logout-deliveries';
+export {
+  sendLogouts,
+  type ClaimedLogoutDelivery,
+  type LogoutDeliveryResponse,
+  type LogoutDeliveryTransport,
+  type SendLogoutsDeps,
+  type SendLogoutsOutcome,
+} from '#/usecase/send-logouts';
+export {
+  assertFetchableUrl,
+  assertPublicAddresses,
+  RemoteAddressRefused,
+} from '#/service/remote-address';

@@ -20,6 +20,15 @@ export interface DiscoveryDocument {
   readonly grant_types_supported: readonly string[];
   readonly token_endpoint_auth_methods_supported: readonly string[];
   readonly authorization_response_iss_parameter_supported: boolean;
+  // Back-Channel Logout 1.0 §2.1 and Front-Channel Logout 1.0 §2: fixed
+  // true, like `end_session_endpoint` above, since a client opts in per
+  // client rather than per realm. `_session_supported` is true for both:
+  // `sid` always travels in the logout token and in the front-channel
+  // redirect when the client registered `..._session_required`.
+  readonly backchannel_logout_supported: boolean;
+  readonly backchannel_logout_session_supported: boolean;
+  readonly frontchannel_logout_supported: boolean;
+  readonly frontchannel_logout_session_supported: boolean;
   // Both optional because OIDC Discovery §4.2 requires a claim with zero
   // elements to be omitted rather than served as []; every other list here
   // is built from a non-empty literal, so these two — the ones supplied by
@@ -83,6 +92,10 @@ export function discoveryDocument(opts: DiscoveryDocumentOptions): DiscoveryDocu
     // method the token endpoint would actually reject.
     token_endpoint_auth_methods_supported: TOKEN_ENDPOINT_AUTH_METHODS_SUPPORTED,
     authorization_response_iss_parameter_supported: true,
+    backchannel_logout_supported: true,
+    backchannel_logout_session_supported: true,
+    frontchannel_logout_supported: true,
+    frontchannel_logout_session_supported: true,
     ...(opts.scopesSupported.length > 0 ? { scopes_supported: opts.scopesSupported } : {}),
     ...(opts.claimsSupported.length > 0 ? { claims_supported: opts.claimsSupported } : {}),
     ...(opts.clientRegistrationEnabled === true

@@ -352,10 +352,12 @@ describe('[ODUDU-CLIENT-REGISTRATION-CAP-01] the realm client cap', () => {
 });
 
 describe('[ODUDU-CLIENT-REGISTRATION-SEAM-01] the P3a/P3b seam', () => {
-  // The whole point of the seam: the metadata is stored so P3b has it to
-  // read, and nothing advertises a capability this phase does not
-  // implement — docs/protocols/oidc-backchannel.md:25.
-  it('stores logout and userinfo metadata without advertising any of it', async () => {
+  // The seam that remains: `backchannel_logout_uri` is stored and now read
+  // (discovery advertises the capability unconditionally, and ending a
+  // session delivers to it — docs/protocols/oidc-backchannel.md), but
+  // `userinfo_signed_response_alg` is stored with nothing downstream of it
+  // yet, and discovery advertises no capability for it.
+  it('stores userinfo metadata without advertising it, unlike backchannel_logout_uri', async () => {
     const realmName = `seam-${newId()}`;
     const realmId = newId();
     await withRealm(app.db, realmId, (tx) =>
@@ -377,9 +379,8 @@ describe('[ODUDU-CLIENT-REGISTRATION-SEAM-01] the P3a/P3b seam', () => {
     expect(body.userinfo_signed_response_alg).toBe('RS256');
 
     const doc = await discovery(realmName);
+    expect(doc.backchannel_logout_supported).toBe(true);
     for (const key of [
-      'backchannel_logout_supported',
-      'frontchannel_logout_supported',
       'userinfo_signing_alg_values_supported',
       'userinfo_encryption_alg_values_supported',
       'introspection_endpoint',

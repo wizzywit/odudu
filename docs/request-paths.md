@@ -514,12 +514,15 @@ room that only one of them will actually get
 exercised concurrently in
 `packages/protocol-oidc/tests/client-registration.int.test.ts`).
 
-A registered `backchannel_logout_uri` or `userinfo_signed_response_alg` is
-stored and echoed back in the registration response, but advertises
-nothing: `backchannel_logout_supported`, `userinfo_signing_alg_values_supported`
-and the rest of what P3b implements stay absent from discovery, for the
-reason `docs/protocols/oidc-backchannel.md` gives for every capability this
-server does not yet have — advertising one would claim it.
+A registered `backchannel_logout_uri` is stored, echoed back in the
+registration response, and now read: discovery advertises
+`backchannel_logout_supported` and its front-channel twin for every realm
+(see [discovery](#1-discovery) above), and ending a session delivers to it
+(see [front-channel and back-channel logout](#front-channel-and-back-channel-logout)
+below). `userinfo_signed_response_alg` is stored and echoed the same way,
+but `userinfo_signing_alg_values_supported` stays absent from discovery and
+nothing signs a `/userinfo` response — that capability is still P3b's to
+build.
 
 A non-HTTP `redirect_uri` has to look like RFC 8252 §7.1's reverse-DNS
 custom scheme (ADR 0032): the scheme names at least one `.`, which is what
@@ -645,6 +648,10 @@ curl -sS http://localhost:3000/realms/demo/.well-known/openid-configuration
   "grant_types_supported": ["authorization_code", "refresh_token", "client_credentials"],
   "token_endpoint_auth_methods_supported": ["client_secret_basic", "client_secret_post", "none"],
   "authorization_response_iss_parameter_supported": true,
+  "backchannel_logout_supported": true,
+  "backchannel_logout_session_supported": true,
+  "frontchannel_logout_supported": true,
+  "frontchannel_logout_session_supported": true,
   "scopes_supported": [
     "address",
     "email",
@@ -688,7 +695,11 @@ because omitting it would default to `["query", "fragment"]` (OIDC Discovery
 §3) and promise a delivery mode `/authorize` refuses.
 `code_challenge_methods_supported` lists `S256` and never `plain`.
 `end_session_endpoint` is RP-Initiated Logout 1.0's own discovery member —
-see [RP-initiated logout](#rp-initiated-logout) below.
+see [RP-initiated logout](#rp-initiated-logout) below. The four
+`backchannel_logout_*` and `frontchannel_logout_*` members are fixed `true`
+for every realm — see
+[back-channel logout](#front-channel-and-back-channel-logout) below for what
+reads them.
 
 `scopes_supported` is the realm's own scope vocabulary, read from the
 database rather than compiled in: these eight are what `odudu seed` gives a
@@ -3917,7 +3928,7 @@ odudu reap
 ```
 
 ```
-{"ran":true,"deleted":{"refresh_tokens":0,"authorization_codes":0,"token_grants":0,"authentication_sessions":0,"action_tokens":0,"client_registration_tokens":0,"login_failures":0,"email_outbox":0,"sessions":0}}
+{"ran":true,"deleted":{"refresh_tokens":0,"authorization_codes":0,"token_grants":0,"authentication_sessions":0,"action_tokens":0,"client_registration_tokens":0,"login_failures":0,"email_outbox":0,"backchannel_logout_deliveries":0,"sessions":0}}
 ```
 
 Those zeros are the point. By this stage the database holds a consumed
@@ -3928,8 +3939,9 @@ revoked a grant through; the used refresh token is what told reuse from an
 unknown token. A pass keyed on expiry would have taken all three and left
 both replays answering `invalid_grant` with nothing revoked behind them.
 
-`email_outbox` is the one table here with two windows of its own. A
-delivered message is bounded from its delivery
+`email_outbox` and `backchannel_logout_deliveries` are the two tables here
+with two windows of their own, and the same two windows for the same
+reason. A delivered message is bounded from its delivery
 (`ODUDU_RETENTION_EMAIL_SENT_SECONDS`, a week). One that never arrived has
 no failure timestamp to bound it from — a spent attempt budget
 (`ODUDU_OUTBOX_MAX_ATTEMPTS`) is the only durable record that it will never
@@ -3937,6 +3949,14 @@ be attempted again — so it is kept for `ODUDU_RETENTION_EMAIL_FAILED_SECONDS`
 (thirty days) measured from the last attempt, which is how long an operator
 has to read it. A message still inside its retry schedule, and one never
 attempted at all, are not this pass's business at any age.
+
+A back-channel logout delivery is bounded from its own delivery the same
+way (`ODUDU_RETENTION_LOGOUT_DELIVERED_SECONDS`, a week), and one that
+spent every attempt (`BACKCHANNEL_LOGOUT_MAX_ATTEMPTS`, fixed at 5, with no
+environment variable of its own) is kept for
+`ODUDU_RETENTION_LOGOUT_FAILED_SECONDS` (thirty days) measured from the
+last attempt. A delivery still inside its retry schedule is not this
+pass's business at any age either.
 
 `client_registration_tokens` is on the same footing as `action_tokens`: a
 spent or expired one carries no detection value — a replayed unknown token
@@ -3962,7 +3982,7 @@ odudu reap
 ```
 
 ```
-{"ran":true,"deleted":{"refresh_tokens":2,"authorization_codes":1,"token_grants":1,"authentication_sessions":1,"action_tokens":0,"client_registration_tokens":0,"login_failures":0,"email_outbox":0,"sessions":1}}
+{"ran":true,"deleted":{"refresh_tokens":2,"authorization_codes":1,"token_grants":1,"authentication_sessions":1,"action_tokens":0,"client_registration_tokens":0,"login_failures":0,"email_outbox":0,"backchannel_logout_deliveries":0,"sessions":1}}
 ```
 
 Both refresh tokens of the family, the code that produced it, the grant
@@ -3981,7 +4001,7 @@ odudu reap
 ```
 
 ```
-{"ran":true,"deleted":{"refresh_tokens":0,"authorization_codes":0,"token_grants":0,"authentication_sessions":0,"action_tokens":0,"client_registration_tokens":0,"login_failures":0,"email_outbox":0,"sessions":0}}
+{"ran":true,"deleted":{"refresh_tokens":0,"authorization_codes":0,"token_grants":0,"authentication_sessions":0,"action_tokens":0,"client_registration_tokens":0,"login_failures":0,"email_outbox":0,"backchannel_logout_deliveries":0,"sessions":0}}
 ```
 
 ### When the pass refuses, or finds nothing to look at
@@ -4517,14 +4537,17 @@ location: http://localhost:8080/logged-out
 content-length: 0
 ```
 
-### Front-channel logout
+### Front-channel and back-channel logout
 
 [OpenID Connect Front-Channel Logout 1.0](protocols/oidc-frontchannel.md)
 asks the OP to render, on the page it shows after ending a session, one
 `<iframe>` per client that registered a `frontchannel_logout_uri` and held
-a grant under that session. `seed client` has no flag for the URI (see
+a grant under that session. [Back-Channel Logout 1.0](protocols/oidc-backchannel.md)
+asks it to also `POST` a signed Logout Token to every client that
+registered a `backchannel_logout_uri` and held a grant under that session.
+`seed client` has no flag for either URI (see
 [What is not implemented](#what-is-not-implemented)), so a second client is
-seeded and given one directly, the same way `post_logout_redirect_uris`
+seeded and given both directly, the same way `post_logout_redirect_uris`
 was set above:
 
 ```bash
@@ -4536,7 +4559,8 @@ docker compose -f infra/docker/compose.yaml exec -T postgres \
   psql -U odudu -d odudu -c "
     UPDATE client_oidc_config
     SET frontchannel_logout_uri = 'http://localhost:9100/logout',
-        frontchannel_logout_session_required = true
+        frontchannel_logout_session_required = true,
+        backchannel_logout_uri = 'https://127.0.0.1:9443/backchannel'
     FROM clients
     WHERE clients.id = client_oidc_config.client_id AND clients.client_id = 'reports-widget';
   "
@@ -4627,9 +4651,135 @@ explicit `SameSite` is never sent on this framed cross-site request at
 all, in every browser tested, and a cookie that opts in with
 `SameSite=None; Secure` is still subject to third-party-cookie blocking
 that Safari and Firefox apply by default and Chrome allows a user or
-administrator to apply. ADR 0034 has the full reasoning. Discovery still
-advertises no `frontchannel_logout_supported` — see
-[What is not implemented](#what-is-not-implemented).
+administrator to apply. ADR 0034 has the full reasoning.
+
+**Back-channel logout is a server-to-server `POST`, so none of that
+applies to it — but it went through the same logout above**, because
+`reports-widget` registered `backchannel_logout_uri` alongside
+`frontchannel_logout_uri` in the `UPDATE` further up, and ending a session
+enqueues a delivery for every client that registered either. This
+sub-section's own commands were re-run against a fresh session on the
+same compose stack (`docker compose -f infra/docker/compose.yaml up -d
+--build`, per [Bootstrap](#bootstrap)), started with
+`ODUDU_LOGOUT_SENDER_ENABLED=false` on the environment so the one-shot
+command below is what claims the row, not the server's own schedule.
+Queried straight after that same `GET .../logout` call:
+
+```bash
+docker compose -f infra/docker/compose.yaml exec -T postgres \
+  psql -U odudu -d odudu -c "
+    SELECT c.client_id, d.endpoint, d.attempts, d.delivered_at, d.last_error
+    FROM backchannel_logout_deliveries d JOIN clients c ON c.id = d.client_id
+    WHERE c.client_id = 'reports-widget';
+  "
+```
+
+```
+   client_id    |              endpoint              | attempts | delivered_at | last_error
+----------------+------------------------------------+----------+--------------+------------
+ reports-widget | https://127.0.0.1:9443/backchannel |        0 |              |
+(1 row)
+```
+
+One row, written in the same transaction that ended the session — before
+any pass has looked at it. `odudu send-logouts` is what drains it, on its
+own schedule or as the one-shot command below
+([README's "Ending a session tells the relying parties that were part of
+it"](../README.md)):
+
+```bash
+odudu send-logouts
+```
+
+```
+{"ran":true,"delivered":0,"failed":1}
+```
+
+Querying the same row again shows why, in the queue's own words:
+
+```
+   client_id    |              endpoint              | attempts | delivered_at |               last_error
+----------------+------------------------------------+----------+--------------+-----------------------------------------
+ reports-widget | https://127.0.0.1:9443/backchannel |        2 |              | address 127.0.0.1 is a loopback address
+(1 row)
+```
+
+`assertPublicAddress` (`packages/protocol-oidc/src/service/remote-address.ts`)
+refuses `127.0.0.0/8` unconditionally, ahead of any override — the same
+guard `clientKeySet`'s `jwks_uri` fetch uses (ADR 0028). `attempts` reads
+`2`, not `1`, because `claimDue` spends one optimistically at the claim
+and `markFailed` spends a second recording the outcome.
+
+**A private-range address is a different branch of that same guard, and
+one an operator can open.** `ODUDU_ALLOW_PRIVATE_CLIENT_URLS` — already
+read at boot for `jwks_uri` — now reaches
+`createLogoutDeliveryTransport` too, at both call sites that build one
+(`apps/server/src/main.ts`, `apps/server/src/cli/send-logouts.ts`). With
+it set, delivery to a real listener actually happens. Continuing this
+same stack: the container was recreated with
+`ODUDU_ALLOW_PRIVATE_CLIENT_URLS=true` on the environment (`docker compose
+up -d`), a plain Node `https` listener was started on this host's own LAN
+address (`192.168.1.71:9443`, standing in for a relying party — a private
+address is exactly what this variable exists to admit; a _public_ one
+needs no such override), its self-signed certificate was copied into the
+container (`docker cp cert.pem docker-odudu-1:/tmp/listener-cert.pem`),
+and `reports-widget`'s `backchannel_logout_uri` was pointed at it instead:
+
+```bash
+docker compose -f infra/docker/compose.yaml exec -T postgres \
+  psql -U odudu -d odudu -c "
+    UPDATE client_oidc_config SET backchannel_logout_uri = 'https://192.168.1.71:9443/backchannel'
+    FROM clients WHERE clients.id = client_oidc_config.client_id AND clients.client_id = 'reports-widget';
+  "
+```
+
+A fresh sign-in, second-client authorization and logout — the same three
+steps as above — enqueue one row exactly as before: the earlier row's own
+`endpoint` is a snapshot taken at logout, unaffected by this `UPDATE`, so
+only a fresh session's delivery targets the new address. `odudu
+send-logouts`, run with `NODE_EXTRA_CA_CERTS` pointed at the copied
+certificate — the standard Node mechanism for trusting a root beyond the
+default store, needed because the transport passes no `ca` option in
+production and so falls back to it:
+
+```bash
+docker compose -f infra/docker/compose.yaml exec -T \
+  -e NODE_EXTRA_CA_CERTS=/tmp/listener-cert.pem odudu node dist/main.js send-logouts
+```
+
+```
+{"ran":true,"delivered":1,"failed":0}
+```
+
+The listener's own log shows the request actually arrived:
+
+```
+POST /backchannel content-type=application/x-www-form-urlencoded body=logout_token=eyJhbGciOiJSUzI1NiIsImtpZCI6IjAxYTBiZDJlLTk4YjctN2JlZS04ODJkLTVkZDg2MjQwNGFjZSIsInR5cCI6ImxvZ291dCtqd3QifQ.eyJpc3MiOiJodHRwOi8vbG9jYWxob3N0OjMwMDAvcmVhbG1zL2RlbW8iLCJhdWQiOiJyZXBvcnRzLXdpZGdldCIsImlhdCI6MTc4OTg4MDU4NSwiZXhwIjoxNzg5ODgwNzA1LCJqdGkiOiIwMWEwYmQzMi00YmE3LTc1YjctYTQ4YS05MWIwMWEyZmU0NWIiLCJzdWIiOiIwMWEwYmQyZS05OGJhLTc0NTEtOWQ5YS1jMDMzZTM3Y2FiNTEiLCJzaWQiOiIwMWEwYmQzMi00YTZhLTc4NjEtYmQzZC1hNTRlYmZlZWE2NGUiLCJldmVudHMiOnsiaHR0cDovL3NjaGVtYXMub3BlbmlkLm5ldC9ldmVudC9iYWNrY2hhbm5lbC1sb2dvdXQiOnt9fX0.hGIXaBd3Coz7k7NOgTPUAEZP1VFDiO9lfry96Soi-KtxbFcFQYvcxlIOPkaLT7Yis0vleyiUIII6EKnuxMZJ1ErNJiTg4ce-CQ7bRZdS1uR2HZZ6J8DTBUkT5sa6ptg-kPXnb92-2m-I_AIH2REEQTjlb6eMF1KYKJLtlt-qTSW11Ql959aAfIRjj9uMKUoYajtIODLcZ8OPh1p-CbIswgeFCloWcUx28U8d4PIKV7-S0Ru3y-rCaGszRLN9MkVJo8PA91Xo_TeqkSeAlUr18a5baA8iW2XJNBIFHwEWt9HBxYFNI8PqNm4TJuCQKa5HqGGlRGbU6L3sNFNSpzYOuQ
+```
+
+Its header decodes to `{"alg":"RS256","kid":"01a0bd2e-…","typ":"logout+jwt"}`
+and its payload to `{"iss":"http://localhost:3000/realms/demo","aud":"reports-widget",
+"iat":1789880585,"exp":1789880705,"jti":"01a0bd32-…","sub":"01a0bd2e-…",
+"sid":"01a0bd32-…","events":{"http://schemas.openid.net/event/backchannel-logout":{}}}`
+— every §2.4 member the clause table claims, on a token this walkthrough's
+own listener actually received. The queue shows the same thing from the
+other side:
+
+```
+   client_id    |               endpoint                | attempts |        delivered_at        | last_error
+----------------+---------------------------------------+----------+----------------------------+------------
+ reports-widget | https://192.168.1.71:9443/backchannel |        1 | 2026-09-20 05:03:18.365+00 |
+(1 row)
+```
+
+`attempts` reads `1` here, not `2`: `markDelivered` records success without
+touching `attempts` the way `markFailed` does.
+
+Discovery now advertises `backchannel_logout_supported`,
+`backchannel_logout_session_supported`, `frontchannel_logout_supported`
+and `frontchannel_logout_session_supported` — all four unconditionally
+`true` for every realm, since a client opts in per client rather than per
+realm (see [Discovery](#1-discovery) above).
 
 ### Offline access
 
@@ -6560,22 +6710,6 @@ session lifecycle. A citation of either half here means that half.
   access tokens locally against the JWKS, and ending a session or revoking
   a grant — including through [RP-initiated logout](#rp-initiated-logout) —
   does not invalidate an already-issued access token before its `exp`.
-- **Back-channel logout.** **P3b**, whose exit criterion names it.
-  `backchannel_logout_uri` is client-registration metadata a client can
-  register (`POST /realms/{realm}/clients-registrations/openid-connect`,
-  [Dynamic client registration](#dynamic-client-registration)) and is
-  stored, but nothing reads the column yet — no discovery member advertises
-  the capability, and ending a session delivers to no back-channel URI.
-  [Front-channel logout](#front-channel-logout) is no longer in this list:
-  the logout page now frames each relying party's `frontchannel_logout_uri`
-  (see that section for a real transcript) — an **attempt**, not a
-  guarantee of delivery, for the browser reasons that section and ADR 0034
-  give. Framing happens only on the branch that renders that page, never
-  on the redirect a matched `post_logout_redirect_uri` takes instead — the
-  common case for RP-initiated logout — so today's front-channel logout
-  notifies nobody whenever a redirect fires (ADR 0034's Consequences).
-  Discovery still advertises neither `frontchannel_logout_supported` nor
-  `frontchannel_logout_session_supported`.
 - **No administrative way to end somebody else's session.** Listing a
   subject's sessions and ending one is **P4**, with the rest of the admin
   surface, because until there is an admin API there is nowhere to put it.

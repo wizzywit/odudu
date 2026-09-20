@@ -65,6 +65,14 @@ services:
       # variable is simply not in the container's environment, so setting
       # it on the `docker compose up` line does nothing at all.
       ODUDU_REAP_ENABLED: ${ODUDU_REAP_ENABLED:-true}
+      # Same reasoning again, for the pass that delivers back-channel
+      # logouts: `odudu send-logouts`'s own report is only attributable
+      # with the server's own schedule out of the way.
+      ODUDU_LOGOUT_SENDER_ENABLED: ${ODUDU_LOGOUT_SENDER_ENABLED:-true}
+      # Off by default (ADR 0028): lets a registered client's jwks_uri or
+      # backchannel_logout_uri resolve to a private address, which this
+      # stack's own containers are to each other and to the host.
+      ODUDU_ALLOW_PRIVATE_CLIENT_URLS: ${ODUDU_ALLOW_PRIVATE_CLIENT_URLS:-false}
     depends_on:
       postgres:
         condition: service_healthy

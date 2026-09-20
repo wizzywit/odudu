@@ -28,6 +28,8 @@ const POLICY: RetentionPolicy = {
   emailSentSeconds: 7 * 24 * 60 * 60,
   emailFailedSeconds: 30 * 24 * 60 * 60,
   emailMaxAttempts: 5,
+  logoutDeliveredSeconds: 7 * 24 * 60 * 60,
+  logoutFailedSeconds: 30 * 24 * 60 * 60,
 };
 
 const REAPABLE_TOKENS = 3;

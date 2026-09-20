@@ -91,9 +91,10 @@ second execution (`docs/phases/p3a.md`, Task 19).
 
 **Two things carried forward from P2b, both now P3b's surface directly:**
 concurrent sessions per browser, whose `prompt=select_account`'s three
-clause rows an increment inside P3b has since resolved (see below), and
-the `sid`-addressable session front-channel and back-channel logout still
-needs. Both are described in full below.
+clause rows an increment inside P3b has since resolved, and the
+`sid`-addressable session front-channel and back-channel logout needed —
+an increment inside P3b has since built both, discovery advertisement and
+retention included (see below). Both are described in full below.
 
 ### What P3b inherits from P2b
 
@@ -115,10 +116,18 @@ increment has since widened the cookie to a list and added the chooser
 session-backed access token and ID token carries it (Back-Channel Logout
 §2.1), assembled straight into the envelope rather than through
 `ClaimMapperRegistry` so no mapper can overwrite it, and an `offline_access`
-grant omits it because it has no session. That is what makes P3b's
-front-channel and back-channel logout addressable at all: a logout token
-names a `sid`, and `tokenGrantRepository.bySession` and `revokeForSession`
-are already the read and write sides of it.
+grant omits it because it has no session. That is what made front-channel
+and back-channel logout addressable at all: a logout token names a `sid`,
+and `tokenGrantRepository.bySession` and `revokeForSession` were already
+the read and write sides of it. A later P3b increment built on this —
+discovery now advertises all four `_logout_supported` members, ending a
+session enqueues a signed Logout Token for every client that registered a
+`backchannel_logout_uri`, `odudu send-logouts` delivers them, and `reap`
+retains the queue on its own window
+(`docs/protocols/oidc-backchannel.md`, `docs/protocols/oidc-frontchannel.md`).
+What is still open: encrypted Logout Tokens (no JWE exists anywhere in
+this repository), delivering a batch's rows in parallel rather than one at
+a time, and the DNS-lookup deadline gap below.
 
 **Revocation that an access token does not feel.** Ending a session revokes
 its grants, and `refresh-rotation.ts` checks the session's own liveness as
@@ -310,10 +319,31 @@ instead, which is RP-initiated logout's common case. Rendering the frames
 first and navigating afterward was never weighed against today's choice;
 ADR 0034's Consequences record the question as open, not answered.
 
-- Trigger: back-channel logout (P3b, still to land) gives a redirecting
-  session end a server-to-server notification path instead; revisit
-  whether front-channel still needs one if that closes the gap in
-  practice.
+- Trigger: back-channel logout has since landed, giving a redirecting
+  session end a server-to-server notification path — but only to a
+  relying party reachable at a public address (see the DNS-lookup gap
+  below, and the loopback/private-address refusal
+  `docs/request-paths.md`'s back-channel logout section demonstrates).
+  Revisit whether front-channel still needs one once a deployment's actual
+  relying parties make that comparison meaningful.
+
+**Back-channel logout's DNS lookup carries no deadline of its own.**
+`createLogoutDeliveryTransport`'s `defaultLookup`
+(`apps/server/src/logout-delivery-transport.ts`) calls `node:dns/promises`'
+`lookup` with no timeout and no regard for the `AbortSignal` `sendLogouts`
+already started running. A relying party whose authoritative nameserver
+stalls delays that one claimed row by the resolver's own budget, serially,
+before the signal's deadline even begins bounding the connection. This is
+the first production outbound DNS resolution in the server —
+`clientKeySet` (the `jwks_uri` fetch this transport otherwise mirrors) is
+exported but wired into no production path yet — so there is no existing
+parity argument that already covers it.
+
+- Trigger: a relying party's back-channel endpoint resolves through a slow
+  or unreachable nameserver in practice, or `clientKeySet` is wired into a
+  production path and the two need a shared answer. Until then: bound the
+  lookup itself (a timeout race, or a resolver library that takes one) and
+  have it honour the incoming signal the way the connection already does.
 
 ## Deferred from the final review
 

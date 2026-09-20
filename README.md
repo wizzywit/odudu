@@ -678,7 +678,7 @@ curl -sS http://localhost:3000/realms/demo/.well-known/openid-configuration
 }
 ```
 
-(Five of the sixteen members it returns; the other eleven, and what a client
+(Five of the twenty members it returns; the other fifteen, and what a client
 does with each, are in the guide.)
 
 And this signs ada in and comes back with tokens — the whole
@@ -834,7 +834,7 @@ node --env-file=.env apps/server/src/main.ts reap
 ```
 
 ```
-{"ran":true,"deleted":{"refresh_tokens":0,"authorization_codes":0,"token_grants":0,"authentication_sessions":0,"action_tokens":0,"client_registration_tokens":0,"login_failures":0,"email_outbox":0,"sessions":0}}
+{"ran":true,"deleted":{"refresh_tokens":0,"authorization_codes":0,"token_grants":0,"authentication_sessions":0,"action_tokens":0,"client_registration_tokens":0,"login_failures":0,"email_outbox":0,"backchannel_logout_deliveries":0,"sessions":0}}
 ```
 
 Those zeros on a freshly used stack are the design, not a bug. A row is
@@ -889,6 +889,34 @@ seeded yet, and — exiting non-zero — a refusal to run at all when
 security, since either way the policy that scopes its deletes would not
 apply. It refuses rather than warning: a retention pass whose isolation is
 inert is no better than one that never ran.
+
+**Ending a session tells the relying parties that were part of it.** A
+session that ends enqueues one back-channel Logout Token per client that
+registered a `backchannel_logout_uri` and used the session, and a third
+pass, `send-logouts`, delivers them — every `ODUDU_LOGOUT_SENDER_INTERVAL_SECONDS`
+(default `15`) plus a tenth as jitter, or as a one-shot command:
+
+```bash
+node --env-file=.env apps/server/src/main.ts send-logouts
+```
+
+It reports the same shape `send-mail` does: `{"ran":true,"delivered":N,"failed":N}`,
+or `{"ran":false,"reason":"no realm was enumerated"}` on a database nobody
+has seeded yet.
+
+Like the outbox it takes no lock and needs `ODUDU_APP_DATABASE_URL` for the
+same reason, declining to start without it the same way — and **with
+`ODUDU_LOGOUT_SENDER_ENABLED=false` and nothing scheduling the command, an
+ended session's relying parties are never told**, the way `frontchannel_logout_uri`
+already isn't when a redirect fires instead of the logout page rendering
+(ADR 0034). A relying party that accepts the connection and never answers
+costs one delivery, not the queue: `ODUDU_LOGOUT_SENDER_RESPONSE_TIMEOUT_MS`
+(default `5000`) bounds each one independently, and every 4xx response
+except 429 — the relying party rejecting the token outright, or refusing
+it for a reason retrying will not fix — is abandoned rather than retried;
+429 and anything else recoverable is retried, up to the source's own
+`BACKCHANNEL_LOGOUT_MAX_ATTEMPTS` ceiling, which has no environment
+variable of its own.
 
 **[docs/request-paths.md](docs/request-paths.md) takes it from there** — what
 each of those tokens is for, what `/userinfo` does with them, how a refresh
