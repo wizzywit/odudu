@@ -139,5 +139,30 @@ export function logoutDeliveryRepository(tx: RealmScopedDatabase) {
           ),
         );
     },
+
+    /**
+     * Records a failure this relying party is never offered again for
+     * (Back-Channel Logout §2.5's second SHOULD): the relying party
+     * rejected the token deterministically, so retrying would only repeat
+     * a request it already refused. Spending `attempts` past the limit is
+     * what keeps `claimDue` from selecting it again — the same guard an
+     * ordinary retry exhaustion relies on — so this needs no column of
+     * its own.
+     */
+    async markAbandoned(id: string, now: Date, error: string): Promise<void> {
+      await tx
+        .update(backchannelLogoutDeliveries)
+        .set({
+          attempts: BACKCHANNEL_LOGOUT_MAX_ATTEMPTS,
+          lastError: error,
+          nextAttemptAt: now,
+        })
+        .where(
+          and(
+            eq(backchannelLogoutDeliveries.id, id),
+            isNull(backchannelLogoutDeliveries.deliveredAt),
+          ),
+        );
+    },
   };
 }

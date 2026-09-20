@@ -178,6 +178,23 @@ describe('the backchannel logout delivery queue', () => {
     expect(claimed).toEqual([]);
   });
 
+  // §2.5's second SHOULD: a delivery the relying party rejected
+  // deterministically is never offered again, not merely backed off — the
+  // far future a mere backoff would have cleared still excludes it.
+  it('never offers a delivery again once it is marked abandoned', async () => {
+    const dueRow = delivery();
+    const farFuture = new Date(NOW.getTime() + 365 * 24 * 60 * MINUTE);
+
+    const claimed = await withRealm(app.db, realmId, async (tx) => {
+      const repo = logoutDeliveryRepository(tx);
+      await repo.enqueue([dueRow]);
+      await repo.markAbandoned(dueRow.id, NOW, 'logout delivery refused with status 400');
+      return repo.claimDue(claimAt(farFuture));
+    });
+
+    expect(claimed).toEqual([]);
+  });
+
   // What FOR UPDATE SKIP LOCKED buys the lease over blocking behind one
   // lock: a claim's own UPDATE moves next_attempt_at forward immediately,
   // so a second claim on the same connection sees the row as not yet due
