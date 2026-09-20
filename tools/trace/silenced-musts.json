@@ -12,7 +12,7 @@
   "oidc-backchannel.md": { "deferred": 0, "na": 8 },
   "oidc-frontchannel.md": { "deferred": 0, "na": 0 },
   "webauthn2.md": { "deferred": 0, "na": 23 },
-  "rfc7662.md": { "deferred": 11, "na": 4 },
-  "rfc7009.md": { "deferred": 10, "na": 3 },
+  "rfc7662.md": { "deferred": 11, "na": 5 },
+  "rfc7009.md": { "deferred": 7, "na": 2 },
   "rfc8707.md": { "deferred": 2, "na": 0 }
 }
