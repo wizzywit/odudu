@@ -30,12 +30,14 @@ import {
   invalidGrant,
   invalidRequest,
   invalidScope,
+  invalidTarget,
   TokenError,
   TokenRateLimited,
   unauthorizedClient,
   unsupportedGrantType,
 } from '#/service/errors';
 import { evaluateRefreshGrant, generateRefreshToken, hashRefreshToken } from '#/service/refresh';
+import { parseResource } from '#/service/resource-indicator';
 import { resolveScope } from '#/service/scope';
 import { narrowByScopeMappings } from '#/service/scope-mapping';
 import { withRegisteredClaimsWinning } from '#/service/token-claims';
@@ -93,22 +95,41 @@ type StructuredRequest =
       redirectUri: string;
       clientId: string | undefined;
       codeVerifier: string;
+      resource: string | string[] | undefined;
     }
   | {
       grantType: 'refresh_token';
       refreshToken: string;
       clientId: string | undefined;
       scope: string;
+      resource: string | string[] | undefined;
     }
   | {
       grantType: 'client_credentials';
       clientId: string | undefined;
       scope: string;
+      resource: string | string[] | undefined;
     };
 
 function readField(body: Record<string, string | string[] | undefined>, key: string): string {
   const value = body[key];
   return typeof value === 'string' ? value : '';
+}
+
+// RFC 8707 §2's whole rule is "reject two values", so `resource` cannot be
+// folded down to one string the way `readField` folds every other
+// parameter — the same reason /authorize's own `resourceParam`
+// (usecase/authorization-request.ts) reads it off the raw query instead of
+// the normalized params. `body` already carries this shape, so there is no
+// raw query to read here; only the empty-value and repeat-collapsing rules
+// need restating.
+function readResourceField(
+  body: Record<string, string | string[] | undefined>,
+): string | string[] | undefined {
+  const raw = body.resource;
+  const sent = Array.isArray(raw) ? raw : raw === undefined ? [] : [raw];
+  const present = sent.filter((entry) => entry !== '');
+  return present.length > 1 ? present : present[0];
 }
 
 // RFC 6749 §3.2: a parameter sent with an empty value is treated as if it
@@ -139,6 +160,7 @@ function parseStructure(body: Record<string, string | string[] | undefined>): St
       redirectUri,
       clientId: readOptionalField(body, 'client_id'),
       codeVerifier: readField(body, 'code_verifier'),
+      resource: readResourceField(body),
     };
   }
 
@@ -150,6 +172,7 @@ function parseStructure(body: Record<string, string | string[] | undefined>): St
       refreshToken,
       clientId: readOptionalField(body, 'client_id'),
       scope: readField(body, 'scope'),
+      resource: readResourceField(body),
     };
   }
 
@@ -158,6 +181,7 @@ function parseStructure(body: Record<string, string | string[] | undefined>): St
       grantType,
       clientId: readOptionalField(body, 'client_id'),
       scope: readField(body, 'scope'),
+      resource: readResourceField(body),
     };
   }
 
@@ -332,13 +356,29 @@ async function redeemAuthorizationCode(
   return record;
 }
 
+// RFC 8707 §2 at /token: what a request's `resource` narrows `base` to.
+// `base` is the ceiling each caller already resolved — a code's stored
+// `resource`, a rotated grant's `audience`, or a codeless
+// client_credentials grant's `audiences` — never `config.audiences` once
+// one of those has narrowed it. No `resource` keeps `base` verbatim, empty
+// or not (an empty `base` is a resolved empty audience, not "unset"). A
+// named `resource` must be found in `base`; empty is one way not to be.
+function resolveAudience(
+  base: readonly string[],
+  requestedResource: string | string[] | undefined,
+): string[] {
+  const outcome = parseResource(requestedResource, base);
+  if (outcome.kind === 'invalid_target') throw invalidTarget();
+  return [...outcome.audience];
+}
+
 // Stages 5-6, shared by every grant: sign an access token bound to `sub`
-// and `scope`. The audience is the issuer itself, plus whatever resource
-// APIs this realm's client is configured for — the issuer is never
-// dropped in favor of a configured audience, since a token that cannot be
-// used at the issuer's own endpoints (e.g. /userinfo) would be unusable
-// for anything OIDC promised the client (RFC 9068 §4: a resource server,
-// including this one, must find itself in `aud` or refuse the token).
+// and `scope`. The audience is the issuer itself, plus the audience the
+// caller has already resolved via `resolveAudience` — the issuer is never
+// dropped in favor of it, since a token that cannot be used at the
+// issuer's own endpoints (e.g. /userinfo) would be unusable for anything
+// OIDC promised the client (RFC 9068 §4: a resource server, including
+// this one, must find itself in `aud` or refuse the token).
 async function mintAccessToken(
   deps: TokenIssuanceDeps,
   input: {
@@ -346,6 +386,10 @@ async function mintAccessToken(
     clientId: string;
     scope: string[];
     config: ClientOidcConfig;
+    // The resolved audience this token is bound to, before the issuer is
+    // appended — see `resolveAudience`, which every caller runs before
+    // reaching here.
+    audience: readonly string[];
     // Resolved once per issuance by the caller — see loadClaimContext's own
     // doc comment for why a claim mapper never resolves this itself.
     claimContext: ClaimContext;
@@ -365,9 +409,9 @@ async function mintAccessToken(
 ): Promise<{ accessToken: string; audience: string[]; iat: number; exp: number }> {
   const iat = Math.floor(now.getTime() / 1000);
   const exp = iat + input.config.accessTokenTtlSeconds;
-  const audience = input.config.audiences.includes(deps.issuer)
-    ? input.config.audiences
-    : [...input.config.audiences, deps.issuer];
+  const audience = input.audience.includes(deps.issuer)
+    ? [...input.audience]
+    : [...input.audience, deps.issuer];
 
   const narrowedContext: ClaimContext = {
     ...input.claimContext,
@@ -434,6 +478,12 @@ async function issueAuthorizationCodeTokens(
   // sees an ordinary session-bound grant.
   const sessionId = scope.includes('offline_access') ? null : code.sessionId;
 
+  // RFC 8707 §2: `/token` may narrow what `/authorize` already resolved
+  // onto the code, and may never widen it — `code.resource` is the
+  // ceiling, not `config.audiences`, which a client's registered list
+  // could since have grown past what this code was ever authorized for.
+  const resolvedAudience = resolveAudience(code.resource, request.resource);
+
   const { accessToken, audience, iat, exp } = await mintAccessToken(
     deps,
     {
@@ -441,6 +491,7 @@ async function issueAuthorizationCodeTokens(
       clientId: client.clientId,
       scope,
       config,
+      audience: resolvedAudience,
       claimContext,
       reachableRoleIds: reachable,
       fullScopeAllowed: client.fullScopeAllowed,
@@ -618,6 +669,16 @@ async function issueRefreshTokens(
   const claimContext = await deps.loadClaimContext(deps.realmId, grant.subjectId);
   const reachable = await reachableRoleIds(tx, scope);
   const accessTokenScope = await accessTokenEligibleScope(tx, scope);
+
+  // RFC 8707 §2: a refresh derives its ceiling from the grant it rotated,
+  // never from `config.audiences` — the grant is what a `resource` at the
+  // original redemption already may have narrowed, and re-deriving from
+  // the client's current configured list would let a wider audience back
+  // in on the next refresh after that redemption deliberately narrowed it.
+  // A `resource` on this request may narrow `grant.audience` further, and,
+  // by the same rule as the authorization_code path, may never widen it.
+  const resolvedAudience = resolveAudience(grant.audience, request.resource);
+
   const { accessToken } = await mintAccessToken(
     deps,
     {
@@ -625,6 +686,7 @@ async function issueRefreshTokens(
       clientId: client.clientId,
       scope,
       config,
+      audience: resolvedAudience,
       claimContext,
       reachableRoleIds: reachable,
       fullScopeAllowed: client.fullScopeAllowed,
@@ -675,6 +737,13 @@ async function issueClientCredentialsTokens(
   const claimContext = await deps.loadClaimContext(deps.realmId, serviceSubjectId);
   const reachable = await reachableRoleIds(tx, scope);
   const accessTokenScope = await accessTokenEligibleScope(tx, scope);
+
+  // RFC 8707 §2: no code and no prior grant here, so the ceiling `resource`
+  // may narrow is the client's own configured `audiences` — the same base
+  // /authorize's `parseResource` resolves a code's `resource` from when the
+  // request carries none.
+  const resolvedAudience = resolveAudience(config.audiences, request.resource);
+
   const { accessToken, audience } = await mintAccessToken(
     deps,
     {
@@ -682,6 +751,7 @@ async function issueClientCredentialsTokens(
       clientId: client.clientId,
       scope,
       config,
+      audience: resolvedAudience,
       claimContext,
       reachableRoleIds: reachable,
       fullScopeAllowed: client.fullScopeAllowed,

@@ -1044,6 +1044,45 @@ resource audiences the client is configured for, because a token that
 cannot be used at the issuer's own endpoints would be unusable for what
 OIDC promised the client.
 
+**A `resource` at `/token` narrows what the code already carries, and can
+never widen it.** The same `resource` `/authorize` resolves and stores on
+the code (see its own bullet under
+[What is not implemented](#what-is-not-implemented)) is what `/token`
+derives `aud` from — a `resource` on the token request itself may select
+one value out of what the code carries, but naming one the code does not
+carry refuses with `invalid_target` rather than being ignored, on a public
+client with no secret to authenticate the request:
+
+```bash
+curl -sS -w '\nHTTP %{http_code}\n' \
+  --data-urlencode 'grant_type=authorization_code' \
+  --data-urlencode "code=$CODE" \
+  --data-urlencode 'redirect_uri=http://localhost:8080/callback' \
+  --data-urlencode 'client_id=demo-spa' \
+  --data-urlencode "code_verifier=$VERIFIER" \
+  --data-urlencode 'resource=https://reports.example' \
+  "$BASE/token"
+```
+
+```
+{"error":"invalid_target"}
+HTTP 400
+```
+
+`demo-spa` has no registered `audiences` — every client seeded by this
+document does not, `odudu seed` has no flag for one yet — so its code's
+stored `resource` is `[]`, and no `resource` named at `/token` is ever
+found in it; the ordinary redemption above, naming none, still succeeds
+with `aud` the issuer alone, exactly as it did before this existed. A
+client registered for at least one audience — `audiences`, set directly on
+`client_oidc_config` today, since no seed flag or registration field
+exposes it — would see `resource` narrow `aud` to that one value instead;
+`packages/protocol-oidc/tests/resource-token.int.test.ts` is where that
+case is exercised. The refresh grant derives the same way from the grant
+the refresh token rotated, not from the client's current configuration, so
+narrowing survives a refresh and cannot be undone by one — the same file's
+`refresh_token` suite.
+
 Requesting `profile` and `email` grants them (they are in `scope` above)
 without putting `name`, `email` or `email_verified` on this token: an
 access token goes to whatever's named in `aud`, not the browser, and
@@ -6575,8 +6614,9 @@ session lifecycle. A citation of either half here means that half.
   with no flow that returns a response in the fragment there is no second
   `response_mode` to offer. `response_modes_supported` states `["query"]`
   rather than being omitted so that the advertisement matches.
-- **`resource` (RFC 8707 §2) is validated, but not yet what `/token` derives
-  `aud` from.** A single value is checked as an absolute URI with no
+- **`resource` (RFC 8707 §2) is validated, but not yet checked for a query
+  component** (**P3b**, per `rfc8707.md`'s own `deferred: P3b` row for this
+  SHOULD). A single value is checked as an absolute URI with no
   fragment, against the client's registered `audiences`; two values or one
   outside that list refuse with `error=invalid_target`, on the same
   post-boundary redirect every other refusal here uses
@@ -6596,10 +6636,10 @@ session lifecycle. A citation of either half here means that half.
   either a fresh login or a reuse promotion can detour through. The value
   is parked on the authentication session's own
   `PendingRequest.resource` between the request and whichever door
-  completes it. What is not there yet is the other side:
-  `/token`'s `aud` still comes from the client's configured `audiences`
-  (`docs/protocols/rfc9068.md` §3), not from this column. Closing that is
-  the rest of **P3b**, whose exit criterion names the parameter.
+  completes it. `/token` now derives `aud` from this column — see the
+  `/token` bullet below. What is still not there is RFC 8707 §2's SHOULD
+  that a `resource` value carry no query component, which `parseResource`
+  does not check.
 
 **Login**
 
@@ -6688,14 +6728,6 @@ session lifecycle. A citation of either half here means that half.
 - **No DPoP or other sender-constrained tokens**, mTLS-bound tokens
   included. **P13**, as above: the FAPI 2.0 plan cannot pass without one of
   them.
-- **No `resource` or `audience` request parameter here.** `aud` is still
-  whatever the client's own `audiences` configuration says, not derived
-  from a request. `/authorize` now validates `resource` and resolves an
-  audience from it (see the `/authorize` bullet above), but `/token` does
-  not read it yet, and the code's stored audience does not yet reach `aud`.
-  Finishing that is the rest of **P3b**, whose exit criterion names the
-  parameter alongside the per-client audience configuration — which is
-  where the deferred clause rows in `docs/protocols/rfc9068.md` point.
 
 **`/userinfo`**
 

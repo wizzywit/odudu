@@ -4,7 +4,8 @@ export type TokenErrorCode =
   | 'invalid_grant'
   | 'unsupported_grant_type'
   | 'invalid_scope'
-  | 'unauthorized_client';
+  | 'unauthorized_client'
+  | 'invalid_target';
 
 // The one shape every /token failure reports through. `invalidGrant()` in
 // particular is called from every distinct way an authorization_code
@@ -52,6 +53,15 @@ export function invalidScope(): TokenError {
 // client is, not what it's allowed to do).
 export function unauthorizedClient(): TokenError {
   return new TokenError('unauthorized_client', 400);
+}
+
+// RFC 8707 §2: a `resource` named at /token that the redeemed code (or, on
+// a refresh, the grant) did not carry — including a client asking for one
+// at all when the stored value is empty. The same code the parameter's own
+// error registration names, so a client narrowing at /token and one naming
+// an unregistered audience at /authorize see the same failure mode.
+export function invalidTarget(): TokenError {
+  return new TokenError('invalid_target', 400);
 }
 
 // ADR 0023's client half: a client_secret_basic/client_secret_post attempt
