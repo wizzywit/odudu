@@ -315,6 +315,24 @@ ADR 0034's Consequences record the question as open, not answered.
   whether front-channel still needs one if that closes the gap in
   practice.
 
+**Back-channel logout's DNS lookup carries no deadline of its own.**
+`createLogoutDeliveryTransport`'s `defaultLookup`
+(`apps/server/src/logout-delivery-transport.ts`) calls `node:dns/promises`'
+`lookup` with no timeout and no regard for the `AbortSignal` `sendLogouts`
+already started running. A relying party whose authoritative nameserver
+stalls delays that one claimed row by the resolver's own budget, serially,
+before the signal's deadline even begins bounding the connection. This is
+the first production outbound DNS resolution in the server —
+`clientKeySet` (the `jwks_uri` fetch this transport otherwise mirrors) is
+exported but wired into no production path yet — so there is no existing
+parity argument that already covers it.
+
+- Trigger: a relying party's back-channel endpoint resolves through a slow
+  or unreachable nameserver in practice, or `clientKeySet` is wired into a
+  production path and the two need a shared answer. Until then: bound the
+  lookup itself (a timeout race, or a resolver library that takes one) and
+  have it honour the incoming signal the way the connection already does.
+
 ## Deferred from the final review
 
 - **Closed, differently than this item expected.** The snapshots are not

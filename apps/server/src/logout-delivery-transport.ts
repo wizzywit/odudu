@@ -77,8 +77,21 @@ export function createRawLogoutDeliveryRequest(
         },
       });
 
+      // `client-key-transport.ts`'s identical guard: without it, a
+      // body-cap rejection racing the socket's own `error` event could
+      // settle this promise twice, and neither settling leaves `req`
+      // itself torn down — only the response stream this file used to
+      // destroy on its own.
+      let settled = false;
+      const fail = (err: Error): void => {
+        if (settled) return;
+        settled = true;
+        req.destroy();
+        reject(err);
+      };
+
       req.on('error', (err) => {
-        reject(err instanceof Error ? err : new Error(String(err)));
+        fail(err instanceof Error ? err : new Error(String(err)));
       });
 
       req.on('response', (res) => {
@@ -87,17 +100,18 @@ export function createRawLogoutDeliveryRequest(
         res.on('data', (chunk: Buffer) => {
           received += chunk.length;
           if (received > maxBodyBytes) {
-            res.destroy();
-            reject(new Error(`response from ${url.hostname} exceeded the body size cap`));
+            fail(new Error(`response from ${url.hostname} exceeded the body size cap`));
           }
         });
 
         res.on('end', () => {
+          if (settled) return;
+          settled = true;
           resolve({ status: res.statusCode ?? 0 });
         });
 
         res.on('error', (err) => {
-          reject(err instanceof Error ? err : new Error(String(err)));
+          fail(err instanceof Error ? err : new Error(String(err)));
         });
       });
 

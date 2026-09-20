@@ -900,9 +900,9 @@ pass, `send-logouts`, delivers them — every `ODUDU_LOGOUT_SENDER_INTERVAL_SECO
 node --env-file=.env apps/server/src/main.ts send-logouts
 ```
 
-```
-{"ran":true,"delivered":1,"failed":0}
-```
+It reports the same shape `send-mail` does: `{"ran":true,"delivered":N,"failed":N}`,
+or `{"ran":false,"reason":"no realm was enumerated"}` on a database nobody
+has seeded yet.
 
 Like the outbox it takes no lock and needs `ODUDU_APP_DATABASE_URL` for the
 same reason, declining to start without it the same way — and **with
@@ -911,9 +911,12 @@ ended session's relying parties are never told**, the way `frontchannel_logout_u
 already isn't when a redirect fires instead of the logout page rendering
 (ADR 0034). A relying party that accepts the connection and never answers
 costs one delivery, not the queue: `ODUDU_LOGOUT_SENDER_RESPONSE_TIMEOUT_MS`
-(default `5000`) bounds each one independently, and a 400 response — the
-relying party rejecting the token outright — is never retried, while
-anything else recoverable is, up to `BACKCHANNEL_LOGOUT_MAX_ATTEMPTS`.
+(default `5000`) bounds each one independently, and every 4xx response
+except 429 — the relying party rejecting the token outright, or refusing
+it for a reason retrying will not fix — is abandoned rather than retried;
+429 and anything else recoverable is retried, up to the source's own
+`BACKCHANNEL_LOGOUT_MAX_ATTEMPTS` ceiling, which has no environment
+variable of its own.
 
 **[docs/request-paths.md](docs/request-paths.md) takes it from there** — what
 each of those tokens is for, what `/userinfo` does with them, how a refresh

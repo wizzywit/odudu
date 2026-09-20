@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { loadConfig } from '../../packages/kernel/src/config.js';
+import { LOGOUT_SENDER_JITTER_FRACTION } from '../../apps/server/src/modules/logout-sender.js';
 import { OUTBOX_JITTER_FRACTION } from '../../apps/server/src/modules/outbox.js';
 import { REAP_JITTER_FRACTION } from '../../apps/server/src/modules/reap.js';
 import { loadDocument, REPO_ROOT } from './markdown.js';
@@ -144,5 +145,27 @@ describe('the outbox schedule the documents describe is the one the server runs'
     }
     expect(module).toContain('ODUDU_OUTBOX_ENABLED=false');
     expect(sourceText(module)).toContain(quoted.groups.message.replaceAll(/\s+/gu, ' '));
+  });
+});
+
+// The same interval and jitter claims, for the pass that delivers
+// back-channel logouts — README-only, since docs/request-paths.md has no
+// transcript for this command yet.
+describe('the logout-sender schedule README describes is the one the server runs', () => {
+  it('states the interval the config schema defaults to', () => {
+    expect(statedDefault('README.md', 'ODUDU_LOGOUT_SENDER_INTERVAL_SECONDS')).toBe(
+      String(defaults.ODUDU_LOGOUT_SENDER_INTERVAL_SECONDS),
+    );
+  });
+
+  it('adds jitter of the fraction README calls a tenth', () => {
+    expect(LOGOUT_SENDER_JITTER_FRACTION).toBe(0.1);
+    expect(textOf('README.md')).toMatch(/a tenth as jitter/u);
+  });
+
+  it('states the response timeout the config schema defaults to', () => {
+    expect(statedDefault('README.md', 'ODUDU_LOGOUT_SENDER_RESPONSE_TIMEOUT_MS')).toBe(
+      String(defaults.ODUDU_LOGOUT_SENDER_RESPONSE_TIMEOUT_MS),
+    );
   });
 });
