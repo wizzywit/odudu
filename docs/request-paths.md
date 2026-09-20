@@ -6575,6 +6575,20 @@ session lifecycle. A citation of either half here means that half.
   with no flow that returns a response in the fragment there is no second
   `response_mode` to offer. `response_modes_supported` states `["query"]`
   rather than being omitted so that the advertisement matches.
+- **`resource` (RFC 8707 §2) is validated, but not yet what `/token` derives
+  `aud` from.** A single value is checked as an absolute URI with no
+  fragment, against the client's registered `audiences`; two values or one
+  outside that list refuse with `error=invalid_target`, on the same
+  post-boundary redirect every other refusal here uses
+  (`parseResource`, `packages/protocol-oidc/src/service/resource-indicator.ts`).
+  Omitting it resolves to the client's whole registered list, and a client
+  with no registered audience — every client in this repository, today —
+  still succeeds with an empty one rather than being refused. The resolved
+  audience is stored on the code the immediate session-reuse path mints;
+  the ordinary form-login and account-chooser paths do not carry it yet,
+  and `/token`'s `aud` still comes from the client's configured `audiences`
+  (`docs/protocols/rfc9068.md` §3), not from this column. Closing both is
+  the rest of **P3b**, whose exit criterion names the parameter.
 
 **Login**
 
@@ -6663,10 +6677,13 @@ session lifecycle. A citation of either half here means that half.
 - **No DPoP or other sender-constrained tokens**, mTLS-bound tokens
   included. **P13**, as above: the FAPI 2.0 plan cannot pass without one of
   them.
-- **No `resource` or `audience` request parameter.** A client's audiences
-  are whatever its registration says. RFC 8707 resource indicators are
-  **P3b**, whose exit criterion names them alongside the per-client audience
-  configuration that makes `aud` derived rather than asserted — which is
+- **No `resource` or `audience` request parameter here.** `aud` is still
+  whatever the client's own `audiences` configuration says, not derived
+  from a request. `/authorize` now validates `resource` and resolves an
+  audience from it (see the `/authorize` bullet above), but `/token` does
+  not read it yet, and the code's stored audience does not yet reach `aud`.
+  Finishing that is the rest of **P3b**, whose exit criterion names the
+  parameter alongside the per-client audience configuration — which is
   where the deferred clause rows in `docs/protocols/rfc9068.md` point.
 
 **`/userinfo`**

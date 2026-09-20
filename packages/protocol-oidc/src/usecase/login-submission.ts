@@ -45,6 +45,10 @@ export interface IssueAuthorizationCodeInput {
   // without a lookup of its own. Null for an offline-scoped grant, which
   // by definition has no session.
   sessionId: string | null;
+  // The audience resolved at /authorize (parseResource against the
+  // client's registered list). Omitted by a caller that has not resolved
+  // one, which stores the column's own empty default.
+  resource?: readonly string[];
 }
 
 // Returns the raw code exactly once; only its hash is ever persisted.
@@ -66,6 +70,7 @@ export async function issueAuthorizationCode(
     authTime: input.authTime,
     expiresAt: new Date(input.now.getTime() + AUTHORIZATION_CODE_TTL_MS),
     sessionId: input.sessionId,
+    resource: input.resource,
   });
   return { code };
 }

@@ -470,6 +470,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
             authTime: input.authTime,
             now,
             sessionId: input.sessionId,
+            resource: input.resource,
           });
         }),
     });

@@ -25,6 +25,7 @@ interface RawAuthorizationCodeRow {
   consumed_at: string | null;
   grant_id: string | null;
   session_id: string | null;
+  resource: string[];
 }
 
 function toRecord(row: RawAuthorizationCodeRow): AuthorizationCodeRecord {
@@ -44,6 +45,7 @@ function toRecord(row: RawAuthorizationCodeRow): AuthorizationCodeRecord {
     consumedAt: row.consumed_at === null ? null : new Date(row.consumed_at),
     grantId: row.grant_id,
     sessionId: row.session_id,
+    resource: row.resource,
   };
 }
 
@@ -60,6 +62,10 @@ export interface NewAuthorizationCode {
   authTime: Date;
   expiresAt: Date;
   sessionId?: string | null;
+  // The audience resolved at /authorize — omitted by a caller that has not
+  // wired resource resolution through yet, which defaults to the column's
+  // own empty default rather than to `undefined` reaching the insert.
+  resource?: readonly string[] | undefined;
 }
 
 export function authorizationCodeRepository(tx: RealmScopedDatabase) {
@@ -68,6 +74,7 @@ export function authorizationCodeRepository(tx: RealmScopedDatabase) {
       await tx.insert(authorizationCodes).values({
         ...input,
         sessionId: input.sessionId ?? null,
+        resource: input.resource === undefined ? [] : [...input.resource],
         consumedAt: null,
         grantId: null,
       });

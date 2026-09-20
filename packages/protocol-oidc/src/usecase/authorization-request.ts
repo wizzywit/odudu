@@ -15,6 +15,7 @@ import {
   type AuthorizeOutcome,
 } from '#/service/authorize-validation';
 import { normalizeAuthorizeQuery } from '#/service/query-normalization';
+import { parseResource } from '#/service/resource-indicator';
 import {
   decideConsentGate,
   refusedForUnverifiedEmail,
@@ -92,6 +93,10 @@ export interface CompleteReuseInput {
   codeChallenge: string;
   codeChallengeMethod: 'S256';
   authTime: Date;
+  // The audience resolved at /authorize (parseResource against the
+  // client's registered list) — stored on the code so /token derives `aud`
+  // from what was approved rather than re-deriving it.
+  resource: readonly string[];
 }
 
 export interface ResolvedClient {
@@ -205,6 +210,22 @@ function toReusableSession(session: SessionRecord): ReusableSession {
   };
 }
 
+// normalizeAuthorizeQuery folds every repeated key but `resource` down to a
+// single string, which is right for a parameter this server refuses to see
+// twice but wrong for one whose whole rule is "reject two values" — so
+// `resource` is read from the raw query Fastify handed the route, not from
+// the normalized params, the same shape parseResource is typed against.
+function resourceParam(rawParams: unknown): string | string[] | undefined {
+  if (typeof rawParams !== 'object' || rawParams === null || Array.isArray(rawParams)) {
+    return undefined;
+  }
+  const value = (rawParams as Record<string, unknown>).resource;
+  if (typeof value === 'string') return value;
+  if (Array.isArray(value))
+    return value.filter((entry): entry is string => typeof entry === 'string');
+  return undefined;
+}
+
 // An unknown or disabled realm is indistinguishable from an unknown or
 // disabled client for the same reason discovery and JWKS already treat them
 // that way: there is no client to trust a redirect_uri against, so this
@@ -271,6 +292,15 @@ export async function handleAuthorizationRequest(
     error,
     state: request.state,
   });
+
+  // RFC 8707 §2: resolved against the client's registered audience list
+  // before anything else below the boundary, so a request naming a target
+  // it may not use is refused before a session is ever touched. A client
+  // with no registered audience (every client in this repository, today)
+  // still succeeds with an empty resolved audience — see parseResource.
+  const resourceOutcome = parseResource(resourceParam(rawParams), resolved.config?.audiences ?? []);
+  if (resourceOutcome.kind === 'invalid_target') return reject('invalid_target');
+  const audience = resourceOutcome.audience;
 
   let hintSubject: string | null = null;
   if (outcome.idTokenHint !== null) {
@@ -420,6 +450,7 @@ export async function handleAuthorizationRequest(
       codeChallenge: request.codeChallenge,
       codeChallengeMethod: request.codeChallengeMethod,
       authTime: decision.authTime,
+      resource: audience,
     });
     return { kind: 'reused', code, redirectUri: request.redirectUri, state: request.state };
   }
@@ -640,6 +671,10 @@ export async function handleSelectAccountSubmission(
     codeChallenge: pending.codeChallenge,
     codeChallengeMethod: pending.codeChallengeMethod,
     authTime: chosen.createdAt,
+    // Not carried through the chooser leg: PendingRequest has no field to
+    // park a resolved audience on, so nothing survives from the /authorize
+    // request that started this journey to resolve it against here.
+    resource: [],
   });
   return { kind: 'reused', code, redirectUri: pending.redirectUri, state: pending.state };
 }
