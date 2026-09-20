@@ -24,6 +24,7 @@ export function page(title: string, body: string, script: PageScript | null = nu
     title,
     body,
     script,
+    frames: [],
     html: `<!doctype html>
 <html lang="en">
 <head><meta charset="utf-8"><title>${escapeHtml(title)}</title></head>

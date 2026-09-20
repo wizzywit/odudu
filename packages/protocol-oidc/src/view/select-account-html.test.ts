@@ -32,9 +32,10 @@ describe('renderSelectAccountPage', () => {
     expect(page.html).not.toContain('<script>alert(1)</script>');
   });
 
-  it('carries no script', () => {
+  it('carries no script and declares no frames', () => {
     const page = renderSelectAccountPage(base);
     expect(page.script).toBeNull();
+    expect(page.frames).toEqual([]);
   });
 
   it('returns a title and a body that is not the whole document', () => {

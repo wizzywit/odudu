@@ -1,6 +1,8 @@
 import { type SessionRecord } from '@odudu/authn-flows';
 import { type SigningKeyRecord } from '@odudu/crypto';
+import { type ClientLogoutTarget } from '#/repository/grants';
 import { type RealmLookup } from '#/repository/realm-lookup';
+import { frontChannelLogoutUrl } from '#/service/frontchannel-logout';
 import { mostRecentlyActive } from '#/service/session-selection';
 import { subjectOfIdTokenHint } from '#/usecase/authorization-request';
 
@@ -77,8 +79,18 @@ export type LogoutOutcome =
     }
   // A session was ended, or there was none to end and the redirect alone
   // was honoured (see decideLogout). `sessionEnded` tells the route whether
-  // there is a cookie to clear.
-  | { kind: 'end'; redirectTo: string | null; state: string | null; sessionEnded: boolean }
+  // there is a cookie to clear. `frontChannelLogoutUrls` is non-empty only
+  // when a session ended with nowhere to redirect to — the route then
+  // renders it as the logged-out page's iframes (Front-Channel Logout 1.0
+  // §3); a redirect leaves the page, and with it any chance an iframe on
+  // it could load, so building the list would serve nothing there.
+  | {
+      kind: 'end';
+      redirectTo: string | null;
+      state: string | null;
+      sessionEnded: boolean;
+      frontChannelLogoutUrls: readonly string[];
+    }
   | { kind: 'render'; error: string; state: string | null };
 
 export interface LogoutUsecaseDeps {
@@ -109,7 +121,40 @@ export interface LogoutUsecaseDeps {
   // session_id is that session (Back-Channel Logout §2.7). Access tokens
   // are not touched — see README.md's logout section for why not.
   endSession(realmId: string, sessionId: string, now: Date): Promise<void>;
+  // Front-Channel Logout 1.0 §3's "set of logged-in RPs": the distinct
+  // clients holding a grant issued under this session, with enough of each
+  // one's logout metadata to build a front-channel logout URL for it.
+  clientsForSession(realmId: string, sessionId: string): Promise<ClientLogoutTarget[]>;
   now(): Date;
+}
+
+function hasFrontChannelLogoutUri(
+  target: ClientLogoutTarget,
+): target is ClientLogoutTarget & { frontchannelLogoutUri: string } {
+  return target.frontchannelLogoutUri !== null;
+}
+
+// Built only for the branch that is about to render the logged-out page —
+// a redirect leaves the browser before any iframe on it could load, so
+// there is nothing here for that branch to use.
+async function frontChannelLogoutUrls(
+  deps: LogoutUsecaseDeps,
+  realmId: string,
+  issuer: string,
+  sessionId: string,
+): Promise<readonly string[]> {
+  const targets = await deps.clientsForSession(realmId, sessionId);
+  const urls = targets
+    .filter(hasFrontChannelLogoutUri)
+    .map((target) =>
+      frontChannelLogoutUrl(
+        target.frontchannelLogoutUri,
+        issuer,
+        sessionId,
+        target.frontchannelLogoutSessionRequired,
+      ),
+    );
+  return urls.filter((url): url is string => url !== null);
 }
 
 async function registeredUris(
@@ -207,11 +252,16 @@ export async function handleLogoutRequest(
   }
 
   if (decision.kind === 'end') {
+    const frontChannel =
+      session !== null && decision.redirectTo === null
+        ? await frontChannelLogoutUrls(deps, realm.id, issuer, session.id)
+        : [];
     return {
       kind: 'end',
       redirectTo: decision.redirectTo,
       state: params.state,
       sessionEnded: session !== null,
+      frontChannelLogoutUrls: frontChannel,
     };
   }
   return { kind: 'render', error: decision.error, state: params.state };
@@ -237,6 +287,7 @@ export interface LogoutConfirmationParams {
 export async function handleLogoutConfirmation(
   deps: LogoutUsecaseDeps,
   realmName: string,
+  issuer: string,
   header: string | undefined,
   params: LogoutConfirmationParams,
 ): Promise<LogoutOutcome> {
@@ -275,11 +326,16 @@ export async function handleLogoutConfirmation(
   await deps.endSession(realm.id, session.id, deps.now());
 
   if (decision.kind === 'end') {
+    const frontChannel =
+      decision.redirectTo === null
+        ? await frontChannelLogoutUrls(deps, realm.id, issuer, session.id)
+        : [];
     return {
       kind: 'end',
       redirectTo: decision.redirectTo,
       state: params.state,
       sessionEnded: true,
+      frontChannelLogoutUrls: frontChannel,
     };
   }
   if (decision.kind === 'render') {

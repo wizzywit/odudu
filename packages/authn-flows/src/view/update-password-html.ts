@@ -40,6 +40,7 @@ ${listed}<form method="post" action="${target}">
   // content-security policy describes it exactly.
   return {
     script: null,
+    frames: [],
     title,
     body,
     html: `<!doctype html>

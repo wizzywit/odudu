@@ -13,6 +13,7 @@ import { clients, provisionClientDefaults } from '@odudu/domain-realm';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
 import { tokenGrantRepository } from '#/repository/grants';
 
 let containerHandle: TestDatabase | undefined;
@@ -232,6 +233,100 @@ describe('a grant and the session it belongs to', () => {
 
     const found = await withRealm(app.db, mineRealmId, (tx) =>
       tokenGrantRepository(tx).bySession(sessionId),
+    );
+    expect(found).toEqual([]);
+  });
+
+  it('finds the client behind a session’s grant, joining client_oidc_config', async () => {
+    const realmId = newId();
+    const sessionId = newId();
+
+    const { clientDbId, subjectId } = await withRealm(app.db, realmId, (tx) =>
+      seedRealmClientSubject(tx, realmId),
+    );
+    await withRealm(app.db, realmId, async (tx) => {
+      await sessionRepository(tx).create({
+        id: sessionId,
+        realmId,
+        subjectId,
+        expiresAt: new Date(Date.now() + 3_600_000),
+        authenticators: [],
+      });
+      await clientOidcConfigRepository(tx).create({
+        clientId: clientDbId,
+        realmId,
+        redirectUris: ['https://rp.example/callback'],
+        grantTypes: ['authorization_code'],
+        tokenEndpointAuthMethod: 'client_secret_basic',
+        audiences: [],
+        accessTokenTtlSeconds: 300,
+        refreshTokenTtlSeconds: 1_209_600,
+        frontchannelLogoutUri: 'https://rp.example/logout',
+      });
+      await tokenGrantRepository(tx).create({
+        realmId,
+        clientId: clientDbId,
+        subjectId,
+        scope: 'openid',
+        audience: [],
+        sessionId,
+      });
+    });
+
+    const found = await withRealm(app.db, realmId, (tx) =>
+      tokenGrantRepository(tx).clientsForSession(sessionId),
+    );
+    expect(found.map((target) => target.clientId)).toEqual([clientDbId]);
+  });
+
+  // Under realm-scoped access, clientsForSession returns nothing for a
+  // foreign realm's session. It does not, by itself, prove
+  // client_oidc_config's own RLS policy (packages/db/drizzle/
+  // 0007_client_oidc_config.sql) survives the join: token_grants_client_fk
+  // and client_oidc_config_client_fk both tie realm_id to the same
+  // clients row, so a foreign grant's row is already excluded by
+  // token_grants' own policy before the join runs, and that policy is
+  // never exercised here on its own.
+  it('cannot find a foreign realm’s client behind a session’s grant', async () => {
+    const theirsRealmId = newId();
+    const mineRealmId = newId();
+    const sessionId = newId();
+
+    await withRealm(app.db, mineRealmId, (tx) => seedRealmClientSubject(tx, mineRealmId));
+    const { clientDbId, subjectId } = await withRealm(app.db, theirsRealmId, (tx) =>
+      seedRealmClientSubject(tx, theirsRealmId),
+    );
+    await withRealm(app.db, theirsRealmId, async (tx) => {
+      await sessionRepository(tx).create({
+        id: sessionId,
+        realmId: theirsRealmId,
+        subjectId,
+        expiresAt: new Date(Date.now() + 3_600_000),
+        authenticators: [],
+      });
+      await clientOidcConfigRepository(tx).create({
+        clientId: clientDbId,
+        realmId: theirsRealmId,
+        redirectUris: ['https://rp.example/callback'],
+        grantTypes: ['authorization_code'],
+        tokenEndpointAuthMethod: 'client_secret_basic',
+        audiences: [],
+        accessTokenTtlSeconds: 300,
+        refreshTokenTtlSeconds: 1_209_600,
+        frontchannelLogoutUri: 'https://rp.example/logout',
+      });
+      await tokenGrantRepository(tx).create({
+        realmId: theirsRealmId,
+        clientId: clientDbId,
+        subjectId,
+        scope: 'openid',
+        audience: [],
+        sessionId,
+      });
+    });
+
+    const found = await withRealm(app.db, mineRealmId, (tx) =>
+      tokenGrantRepository(tx).clientsForSession(sessionId),
     );
     expect(found).toEqual([]);
   });

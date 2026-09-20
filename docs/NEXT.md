@@ -81,15 +81,6 @@ second execution (`docs/phases/p3a.md`, Task 19).
   outside the named markers) and one narrower RFC 6052 embedding gap
   remain, the first spun off as an immediate follow-up rather than a
   phase item.
-- **The three `ODUDU-CLIENT-META-FRONTCHANNEL-*` test ids in
-  `packages/protocol-oidc/src/service/client-metadata.test.ts` want
-  re-tracing to real clause ids once a Front-Channel Logout clause table
-  exists.** Their back-channel twins already carry `OIDC-BACKCHANNEL-2.2-*`
-  ids because `docs/protocols/oidc-backchannel.md` has a clause table to
-  trace them against; front-channel logout does not yet have the
-  equivalent document, which is the whole of the asymmetry. P3b writes
-  that table alongside the `sid`-addressable front-channel logout work
-  below, so re-tracing belongs there.
 - **RFC 7592 client management (GET/PUT/DELETE on a registered client) is
   not P3a's and is not P3b's.** The Dynamic OP suite's own cleanup issues
   a best-effort DELETE against `registration_client_uri` but treats a
@@ -311,6 +302,18 @@ the same time so a root config or lockfile change still forces everything.
 **Committed development credentials.** Kept inline deliberately; see
 ADR 0014 for the reasoning, the three controls that make it acceptable, and
 the conditions under which to revisit.
+
+**Front-channel logout on a redirecting session end.** The logout page
+frames a relying party's `frontchannel_logout_uri` only on the branch that
+renders it — never on the 302 a matched `post_logout_redirect_uri` takes
+instead, which is RP-initiated logout's common case. Rendering the frames
+first and navigating afterward was never weighed against today's choice;
+ADR 0034's Consequences record the question as open, not answered.
+
+- Trigger: back-channel logout (P3b, still to land) gives a redirecting
+  session end a server-to-server notification path instead; revisit
+  whether front-channel still needs one if that closes the gap in
+  practice.
 
 ## Deferred from the final review
 

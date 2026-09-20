@@ -39,6 +39,9 @@ export const clientOidcConfig = pgTable('client_oidc_config', {
   backchannelLogoutSessionRequired: boolean('backchannel_logout_session_required')
     .notNull()
     .default(false),
+  frontchannelLogoutSessionRequired: boolean('frontchannel_logout_session_required')
+    .notNull()
+    .default(false),
   // Whether this client's authorization requests skip the consent screen.
   // Defaults false so an existing seeded client's behaviour is unchanged.
   consentRequired: boolean('consent_required').notNull().default(false),
@@ -69,6 +72,7 @@ export interface ClientOidcConfig {
   frontchannelLogoutUri: string | null;
   backchannelLogoutUri: string | null;
   backchannelLogoutSessionRequired: boolean;
+  frontchannelLogoutSessionRequired: boolean;
   consentRequired: boolean;
   userinfoSignedResponseAlg: string | null;
   userinfoEncryptedResponseAlg: string | null;

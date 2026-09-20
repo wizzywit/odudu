@@ -192,10 +192,9 @@ it('accepts a well-formed back-channel logout URI', () => {
 
 // frontchannel_logout_uri is rendered into an iframe (P3b) — the sink
 // isValidLogoutUri exists to keep a javascript: or bare-http value out of,
-// the same policy the back-channel twin already has above. `ODUDU-` ids:
-// Front-Channel Logout 1.0 carries no docs/protocols clause table yet, so a
-// spec-style id here would fail `pnpm trace` with nothing to resolve against.
-describe('[ODUDU-CLIENT-META-FRONTCHANNEL-SCHEME-01] the front-channel logout URI scheme policy', () => {
+// the same policy the back-channel twin already has above. Ids trace
+// against docs/protocols/oidc-frontchannel.md.
+describe('[OIDC-FRONTCHANNEL-2-SCHEME-01] the front-channel logout URI scheme policy', () => {
   it('refuses a front-channel logout URI that is not https', () => {
     const outcome = parseClientMetadata(ok({ frontchannel_logout_uri: 'http://rp.example/fc' }));
     expect(outcome).toMatchObject({ kind: 'invalid', error: 'invalid_client_metadata' });
@@ -207,14 +206,14 @@ describe('[ODUDU-CLIENT-META-FRONTCHANNEL-SCHEME-01] the front-channel logout UR
   });
 });
 
-describe('[ODUDU-CLIENT-META-FRONTCHANNEL-ABSOLUTE-01] the front-channel logout URI is absolute', () => {
+describe('[OIDC-FRONTCHANNEL-2-ABSOLUTE-01] the front-channel logout URI is absolute', () => {
   it('refuses a relative front-channel logout URI', () => {
     const outcome = parseClientMetadata(ok({ frontchannel_logout_uri: '/fc' }));
     expect(outcome).toMatchObject({ kind: 'invalid', error: 'invalid_client_metadata' });
   });
 });
 
-describe('[ODUDU-CLIENT-META-FRONTCHANNEL-FRAGMENT-01] the front-channel logout URI carries no fragment', () => {
+describe('[OIDC-FRONTCHANNEL-2-FRAGMENT-01] the front-channel logout URI carries no fragment', () => {
   it('refuses a front-channel logout URI with a fragment', () => {
     const outcome = parseClientMetadata(ok({ frontchannel_logout_uri: 'https://rp.example/fc#x' }));
     expect(outcome).toMatchObject({ kind: 'invalid', error: 'invalid_client_metadata' });
@@ -224,4 +223,71 @@ describe('[ODUDU-CLIENT-META-FRONTCHANNEL-FRAGMENT-01] the front-channel logout 
 it('accepts a well-formed front-channel logout URI', () => {
   const outcome = parseClientMetadata(ok({ frontchannel_logout_uri: 'https://rp.example/fc' }));
   expect(outcome.kind).toBe('ok');
+});
+
+describe('[OIDC-FRONTCHANNEL-2-SESSION-REQUIRED-01] frontchannel_logout_session_required is registerable', () => {
+  it('accepts frontchannel_logout_session_required and defaults it to false', () => {
+    const outcome = parseClientMetadata(ok({ frontchannel_logout_session_required: true }));
+    expect(outcome.kind).toBe('ok');
+    if (outcome.kind === 'ok') {
+      expect(outcome.metadata.frontchannelLogoutSessionRequired).toBe(true);
+    }
+
+    const omitted = parseClientMetadata(ok());
+    expect(omitted.kind).toBe('ok');
+    if (omitted.kind === 'ok') {
+      expect(omitted.metadata.frontchannelLogoutSessionRequired).toBe(false);
+    }
+  });
+
+  it('refuses a non-boolean frontchannel_logout_session_required', () => {
+    const outcome = parseClientMetadata(ok({ frontchannel_logout_session_required: 'yes' }));
+    expect(outcome.kind).toBe('invalid');
+  });
+});
+
+// Front-Channel Logout 1.0 §2: the domain, port and scheme of the
+// front-channel logout URI must match a registered redirect URI's — a
+// second, unauthenticated inbound surface is only as trustworthy as the
+// origin the client already proved it controls at registration.
+describe('[OIDC-FRONTCHANNEL-2-ORIGIN-01] the front-channel logout URI origin matches a registered redirect URI', () => {
+  it('refuses a front-channel logout URI whose host does not match any redirect_uri', () => {
+    const outcome = parseClientMetadata(
+      ok({
+        redirect_uris: ['https://rp.example/cb'],
+        frontchannel_logout_uri: 'https://evil.example/fc',
+      }),
+    );
+    expect(outcome).toMatchObject({ kind: 'invalid', error: 'invalid_client_metadata' });
+  });
+
+  it('refuses a front-channel logout URI on a different port than every redirect_uri', () => {
+    const outcome = parseClientMetadata(
+      ok({
+        redirect_uris: ['https://rp.example:8443/cb'],
+        frontchannel_logout_uri: 'https://rp.example/fc',
+      }),
+    );
+    expect(outcome).toMatchObject({ kind: 'invalid', error: 'invalid_client_metadata' });
+  });
+
+  it('accepts a front-channel logout URI matching the default https port explicitly', () => {
+    const outcome = parseClientMetadata(
+      ok({
+        redirect_uris: ['https://rp.example/cb'],
+        frontchannel_logout_uri: 'https://rp.example:443/fc',
+      }),
+    );
+    expect(outcome.kind).toBe('ok');
+  });
+
+  it('accepts a front-channel logout URI matching one of several redirect_uris', () => {
+    const outcome = parseClientMetadata(
+      ok({
+        redirect_uris: ['https://other.example/cb', 'https://rp.example/cb'],
+        frontchannel_logout_uri: 'https://rp.example/fc',
+      }),
+    );
+    expect(outcome.kind).toBe('ok');
+  });
 });

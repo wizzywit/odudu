@@ -117,6 +117,7 @@ async function performRegistration(
     frontchannelLogoutUri: metadata.frontchannelLogoutUri,
     backchannelLogoutUri: metadata.backchannelLogoutUri,
     backchannelLogoutSessionRequired: metadata.backchannelLogoutSessionRequired,
+    frontchannelLogoutSessionRequired: metadata.frontchannelLogoutSessionRequired,
     // The one axis this defaults on for: an anonymous registration is
     // untrusted the way a seeded or token-authorized client is not (ADR
     // 0027, RFC 7591 §5).

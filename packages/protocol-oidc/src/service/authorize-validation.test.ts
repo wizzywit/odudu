@@ -40,6 +40,7 @@ const config: ClientOidcConfig = {
   frontchannelLogoutUri: null,
   backchannelLogoutUri: null,
   backchannelLogoutSessionRequired: false,
+  frontchannelLogoutSessionRequired: false,
   consentRequired: false,
   userinfoSignedResponseAlg: null,
   userinfoEncryptedResponseAlg: null,

@@ -467,9 +467,17 @@ was issued. A grant issued with no session — `offline_access` — is
 untouched by a logout, per Back-Channel Logout 1.0 §2.7's second sentence.
 A deployment that needs revocation inside an
 access token's own lifetime is what RFC 7662 introspection is for, landing
-in P3b. See [the logout section of
+in P3b. **The page a logout with nowhere to redirect renders now frames
+each relying party's `frontchannel_logout_uri`**, per OpenID Connect
+Front-Channel Logout 1.0 §3 — an attempt, not a guarantee: the iframe's
+response is never read back, and a browser may never deliver the framed
+request to a live RP session at all (third-party-cookie policy;
+`docs/superpowers/p3b-spike-frontchannel.md` has the measured evidence).
+Back-channel logout is still `deferred: P3b`. See [the logout section of
 docs/request-paths.md](docs/request-paths.md#rp-initiated-logout) for the
-walkthrough.
+walkthrough, and [its front-channel logout
+section](docs/request-paths.md#front-channel-logout) for a real transcript
+of the framed page.
 
 > ### → [docs/request-paths.md](docs/request-paths.md)
 >
@@ -1007,7 +1015,7 @@ Every row says where it stands, and every row has a phase:
 | An account console for self-service credential management, and an operator unlock for a locked account | P4              |
 | An admin API — seeding is the only administrative surface                                              | P4              |
 | Signing-key rotation — the shape exists, the operation does not                                        | P4              |
-| Front-channel and back-channel logout                                                                  | P3b             |
+| Back-channel logout, and discovery advertisement of front-channel logout                               | P3b             |
 | Token introspection and revocation                                                                     | P3b             |
 | Published images and a release process                                                                 | P12             |
 | Secret management beyond environment variables                                                         | P12             |

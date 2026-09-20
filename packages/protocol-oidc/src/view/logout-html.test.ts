@@ -43,6 +43,22 @@ describe('renderLoggedOutPage', () => {
     expect(page.body).toContain('signed out');
     expectFragment(page);
   });
+
+  it('frames each URL it is given, as its own iframe and its own origin', () => {
+    const page = renderLoggedOutPage([
+      'https://rp-one.example/logout?iss=a',
+      'https://rp-two.example/logout?iss=a',
+    ]);
+    expect(page.body).toContain('<iframe src="https://rp-one.example/logout?iss=a"></iframe>');
+    expect(page.body).toContain('<iframe src="https://rp-two.example/logout?iss=a"></iframe>');
+    expect(page.frames).toEqual(['https://rp-one.example', 'https://rp-two.example']);
+  });
+
+  it('escapes a query character in a framed URL rather than passing it through raw', () => {
+    const page = renderLoggedOutPage(['https://rp.example/logout?a=1&b=2']);
+    expect(page.body).toContain('<iframe src="https://rp.example/logout?a=1&amp;b=2"></iframe>');
+    expect(page.body).not.toContain('logout?a=1&b=2"');
+  });
 });
 
 describe('renderLogoutRedirectRefusedPage', () => {

@@ -21,6 +21,11 @@ export interface RenderedPage {
   // The document's title, so a theme's own shell can set one.
   title: string;
   script: PageScript | null;
+  // The exact origins this page's own markup frames. `frame-src` is derived
+  // from it, so a policy can never license an origin the markup does not
+  // embed, nor refuse one it does — the failure mode ADR 0018's amendment
+  // describes for scripts, which is silent for frames in the same way.
+  frames: readonly string[];
 }
 
 // RFC 6749 §10.13's framing defence for the pages rendered to an end-user.
@@ -43,15 +48,23 @@ const BASE_DIRECTIVES = [
 // beside it, which is how a header and an element come to disagree.
 function policyFor(page: RenderedPage): string {
   const script = page.script;
-  if (script === null) return BASE_DIRECTIVES.join('; ');
-  return [
-    ...BASE_DIRECTIVES,
-    `script-src 'nonce-${script.nonce}'`,
-    // Only for a script that actually makes a request. A page handed its
-    // options inline asks for nothing, and a directive licensing nothing
-    // stops describing the page.
-    ...(script.fetchesSameOrigin ? ["connect-src 'self'"] : []),
-  ].join('; ');
+  const directives =
+    script === null
+      ? [...BASE_DIRECTIVES]
+      : [
+          ...BASE_DIRECTIVES,
+          `script-src 'nonce-${script.nonce}'`,
+          // Only for a script that actually makes a request. A page handed
+          // its options inline asks for nothing, and a directive licensing
+          // nothing stops describing the page.
+          ...(script.fetchesSameOrigin ? ["connect-src 'self'"] : []),
+        ];
+  // Two clients may register a logout URI on the same host, and the list is
+  // built per relying party, so a duplicate origin is expected rather than
+  // exceptional.
+  const framed = [...new Set(page.frames)];
+  if (framed.length > 0) directives.push(`frame-src ${framed.join(' ')}`);
+  return directives.join('; ');
 }
 
 // The one authority for the headers every rendered page carries, so a
@@ -62,6 +75,8 @@ function policyFor(page: RenderedPage): string {
 export function pageHeaders(page: RenderedPage): readonly (readonly [string, string])[] {
   return [
     ['content-security-policy', policyFor(page)],
+    // Governs this page being framed, not this page framing others — that
+    // direction is `frame-src`, above. Untouched by `frames`.
     ['x-frame-options', 'DENY'],
     // Defence in depth for the query-string tokens some of these pages
     // carry: default-src already stops a subresource leaking one via

@@ -25,6 +25,7 @@ function toRecord(row: typeof clientOidcConfig.$inferSelect): ClientOidcConfig {
     frontchannelLogoutUri: row.frontchannelLogoutUri,
     backchannelLogoutUri: row.backchannelLogoutUri,
     backchannelLogoutSessionRequired: row.backchannelLogoutSessionRequired,
+    frontchannelLogoutSessionRequired: row.frontchannelLogoutSessionRequired,
     consentRequired: row.consentRequired,
     userinfoSignedResponseAlg: row.userinfoSignedResponseAlg,
     userinfoEncryptedResponseAlg: row.userinfoEncryptedResponseAlg,
@@ -48,6 +49,7 @@ export type NewClientOidcConfig = Omit<
   | 'frontchannelLogoutUri'
   | 'backchannelLogoutUri'
   | 'backchannelLogoutSessionRequired'
+  | 'frontchannelLogoutSessionRequired'
   | 'consentRequired'
   | 'userinfoSignedResponseAlg'
   | 'userinfoEncryptedResponseAlg'
@@ -61,6 +63,7 @@ export type NewClientOidcConfig = Omit<
   frontchannelLogoutUri?: string | null;
   backchannelLogoutUri?: string | null;
   backchannelLogoutSessionRequired?: boolean;
+  frontchannelLogoutSessionRequired?: boolean;
   consentRequired?: boolean;
   userinfoSignedResponseAlg?: string | null;
   userinfoEncryptedResponseAlg?: string | null;
@@ -101,6 +104,7 @@ export function clientOidcConfigRepository(tx: RealmScopedDatabase) {
           frontchannelLogoutUri: input.frontchannelLogoutUri ?? null,
           backchannelLogoutUri: input.backchannelLogoutUri ?? null,
           backchannelLogoutSessionRequired: input.backchannelLogoutSessionRequired ?? false,
+          frontchannelLogoutSessionRequired: input.frontchannelLogoutSessionRequired ?? false,
           consentRequired: input.consentRequired ?? false,
           userinfoSignedResponseAlg: input.userinfoSignedResponseAlg ?? null,
           userinfoEncryptedResponseAlg: input.userinfoEncryptedResponseAlg ?? null,
