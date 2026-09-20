@@ -46,9 +46,10 @@ export interface IssueAuthorizationCodeInput {
   // by definition has no session.
   sessionId: string | null;
   // The audience resolved at /authorize (parseResource against the
-  // client's registered list). Omitted by a caller that has not resolved
-  // one, which stores the column's own empty default.
-  resource?: readonly string[];
+  // client's registered list). Every caller resolves one — `[]` means the
+  // resolved audience is empty, never "not carried"; see the schema
+  // column's own comment.
+  resource: readonly string[];
 }
 
 // Returns the raw code exactly once; only its hash is ever persisted.
@@ -176,6 +177,12 @@ export interface CompleteLoginInput {
   // code with its own `authTime` rather than `now` — being asked for
   // consent must not itself read as a new authentication.
   reuseSession?: { sessionId: string; authTime: Date };
+  // The audience `parseResource` resolved at /authorize, parked on
+  // `PendingRequest.resource` and read back here so a code minted from
+  // this door stores the same resolved audience a session reuse would
+  // have. `[]` already means "resolved to nothing" — see the field's own
+  // comment on `PendingRequest`.
+  resource: readonly string[];
 }
 
 export type CompleteLoginOutcome =
@@ -418,6 +425,7 @@ export async function completeAuthorizedLogin(
     browserSessionIds: before.map((session) => session.id),
     authenticators,
     ...(reuseSession !== undefined ? { reuseSession } : {}),
+    resource: pending.resource ?? [],
   });
 
   // A second submission of the same auth_session_id — a back-button press,

@@ -302,6 +302,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
           authTime,
           now,
           sessionId,
+          resource: input.resource,
         });
         return { kind: 'issued', sessionId, code };
       });

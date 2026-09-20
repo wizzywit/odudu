@@ -6581,13 +6581,22 @@ session lifecycle. A citation of either half here means that half.
   outside that list refuse with `error=invalid_target`, on the same
   post-boundary redirect every other refusal here uses
   (`parseResource`, `packages/protocol-oidc/src/service/resource-indicator.ts`).
-  Omitting it resolves to the client's whole registered list, and a client
+  `?resource=` alone, and a repeat where one value is empty
+  (`resource=<uri>&resource=`), both resolve as RFC 6749 §3.1 resolves any
+  other empty-valued parameter here — as omitted — rather than as a
+  refusal or a second value; only two genuinely distinct values are a
+  repeat. Omitting it resolves to the client's whole registered list, and
+  a client
   with no registered audience — every client in this repository, today —
-  still succeeds with an empty one rather than being refused. The resolved
-  audience is stored on the code the immediate session-reuse path mints;
-  the ordinary form-login and account-chooser paths do not carry it yet,
-  and `/token`'s `aud` still comes from the client's configured `audiences`
-  (`docs/protocols/rfc9068.md` §3), not from this column. Closing both is
+  still succeeds with an empty one rather than being refused. `[]` on the
+  stored column has exactly one meaning: the resolved audience is empty,
+  never "not carried" — every door that mints a code (immediate
+  session-reuse, an ordinary first-time form login, and the account
+  chooser) resolves and stores the same value, parked on the authentication
+  session's own `PendingRequest.resource` between the request and whichever
+  of those doors completes it. What is not there yet is the other side:
+  `/token`'s `aud` still comes from the client's configured `audiences`
+  (`docs/protocols/rfc9068.md` §3), not from this column. Closing that is
   the rest of **P3b**, whose exit criterion names the parameter.
 
 **Login**

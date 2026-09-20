@@ -44,6 +44,7 @@ let REALM_ID: string;
 
 const CLIENT_ID = 'resource-client';
 const CLIENT_NO_AUDIENCE_ID = 'resource-client-no-audience';
+const CLIENT_MALFORMED_ID = 'resource-client-malformed-audiences';
 const PASSWORD = 'correct horse battery staple';
 const USERNAME = 'ada';
 const REDIRECT_URI = 'https://app.example/callback';
@@ -51,6 +52,14 @@ const KEK = Buffer.alloc(32, 7);
 const CHALLENGE = 'E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM';
 
 const REGISTERED_AUDIENCES = ['https://api.example', 'https://reports.example'];
+// Registered literally, on a client of its own, so that the absolute-URI
+// and no-fragment MUSTs are isolated from the membership check: if either
+// were deleted, the value would still be found in this list and the
+// request would succeed, which is what proves the deleted check — not
+// membership — was refusing it (see 6b4d020's fix for the same shape in
+// the unit suite).
+const MALFORMED_NOT_A_URI = 'not-a-uri';
+const MALFORMED_WITH_FRAGMENT = 'https://api.example/reports#frag';
 
 async function setupRealm(): Promise<void> {
   REALM = `resource-authorize-${newId()}`;
@@ -98,6 +107,27 @@ async function setupRealm(): Promise<void> {
       grantTypes: ['authorization_code'],
       tokenEndpointAuthMethod: 'client_secret_basic',
       audiences: [],
+      accessTokenTtlSeconds: 300,
+      refreshTokenTtlSeconds: 1_209_600,
+    });
+
+    const malformedId = newId();
+    await tx.insert(clients).values({
+      id: malformedId,
+      realmId: REALM_ID,
+      clientId: CLIENT_MALFORMED_ID,
+      name: 'Client with literally-registered malformed values',
+      type: 'confidential',
+      secretHash: await hashPassword('resource-client-malformed-secret'),
+    });
+    await provisionClientDefaults(tx, malformedId);
+    await clientOidcConfigRepository(tx).create({
+      clientId: malformedId,
+      realmId: REALM_ID,
+      redirectUris: [REDIRECT_URI],
+      grantTypes: ['authorization_code'],
+      tokenEndpointAuthMethod: 'client_secret_basic',
+      audiences: [MALFORMED_NOT_A_URI, MALFORMED_WITH_FRAGMENT],
       accessTokenTtlSeconds: 300,
       refreshTokenTtlSeconds: 1_209_600,
     });
@@ -160,12 +190,16 @@ function cookieHeaderFrom(res: LightMyRequestResponse): string {
   return header;
 }
 
-// Signs the one seeded subject in against `clientId`'s own parked request,
-// and returns the SSO session cookie it establishes — the session itself is
-// not scoped to that client, so a later /authorize for either seeded client
-// reuses it.
-async function establishSession(clientId: string): Promise<string> {
-  const authorize = await http.inject({ url: authorizeUrl(clientId) });
+// Signs the one seeded subject in against `clientId`'s own parked request —
+// an ordinary, first-time form login, the door most requests actually take
+// — and returns both the code that login mints and the SSO session cookie
+// it establishes. The session itself is not scoped to `clientId`, so a
+// later /authorize for either seeded client can reuse the cookie.
+async function formLogin(
+  clientId: string,
+  overrides: Record<string, string | undefined> = {},
+): Promise<{ code: string; cookie: string }> {
+  const authorize = await http.inject({ url: authorizeUrl(clientId, overrides) });
   expect(authorize.statusCode).toBe(200);
 
   const sessionId = /name="auth_session_id" value="([^"]*)"/.exec(authorize.body)?.[1];
@@ -183,7 +217,47 @@ async function establishSession(clientId: string): Promise<string> {
     headers: { 'content-type': 'application/x-www-form-urlencoded' },
   });
   expect(login.statusCode).toBe(302);
-  return cookieHeaderFrom(login);
+  const code = new URL(locationHeader(login)).searchParams.get('code');
+  if (code === null) throw new Error('expected a code on the login redirect');
+  return { code, cookie: cookieHeaderFrom(login) };
+}
+
+async function establishSession(clientId: string): Promise<string> {
+  return (await formLogin(clientId)).cookie;
+}
+
+// Renders the account chooser (`prompt=select_account` against a single
+// live session still counts as "more than one answer possible" —
+// decideReuse's own rule), picks the one account offered, and returns the
+// code the chooser's own POST mints.
+async function chooseAccount(
+  clientId: string,
+  cookie: string,
+  overrides: Record<string, string | undefined> = {},
+): Promise<string> {
+  const select = await http.inject({
+    url: authorizeUrl(clientId, { prompt: 'select_account', ...overrides }),
+    headers: { cookie },
+  });
+  expect(select.statusCode).toBe(200);
+
+  const authSessionId = /name="auth_session_id" value="([^"]*)"/.exec(select.body)?.[1];
+  const sessionId = /name="session_id" value="([^"]*)"/.exec(select.body)?.[1];
+  if (authSessionId === undefined || sessionId === undefined) {
+    throw new Error('expected the chooser page to carry auth_session_id and session_id');
+  }
+
+  const form = new URLSearchParams({ auth_session_id: authSessionId, session_id: sessionId });
+  const chosen = await http.inject({
+    method: 'POST',
+    url: `/realms/${REALM}/login-actions/select-account`,
+    payload: form.toString(),
+    headers: { 'content-type': 'application/x-www-form-urlencoded', cookie },
+  });
+  expect(chosen.statusCode).toBe(302);
+  const code = new URL(locationHeader(chosen)).searchParams.get('code');
+  if (code === null) throw new Error('expected a code on the chooser redirect');
+  return code;
 }
 
 // A second /authorize for a live SSO cookie takes the session-reuse path,
@@ -206,15 +280,19 @@ async function authorizeWith(
 
 async function authorize(
   overrides: Record<string, string | undefined> = {},
+  clientId: string = CLIENT_ID,
 ): Promise<LightMyRequestResponse> {
-  return http.inject({ url: authorizeUrl(CLIENT_ID, overrides) });
+  return http.inject({ url: authorizeUrl(clientId, overrides) });
 }
 
 // For a literal duplicate `resource` key, which URLSearchParams (used by
 // authorizeUrl) cannot express — `.set` on a repeated key collapses it to
 // one, and this is exactly the shape parseResource must refuse.
-async function authorizeRaw(extraQuery: string): Promise<LightMyRequestResponse> {
-  return http.inject({ url: `${authorizeUrl(CLIENT_ID)}&${extraQuery}` });
+async function authorizeRaw(
+  extraQuery: string,
+  headers: Record<string, string> = {},
+): Promise<LightMyRequestResponse> {
+  return http.inject({ url: `${authorizeUrl(CLIENT_ID)}&${extraQuery}`, headers });
 }
 
 async function resourceOf(code: string): Promise<string[]> {
@@ -287,16 +365,16 @@ describe('[ODUDU-RESOURCE-02] a resource outside the registered list is refused'
 });
 
 describe('[RFC8707-2-04] a resource value must be an absolute URI', () => {
-  it('redirects with invalid_target for a value that is not an absolute URI', async () => {
-    const response = await authorize({ resource: 'not-a-uri' });
+  it('redirects with invalid_target for a value that is not an absolute URI, even when that exact string is registered', async () => {
+    const response = await authorize({ resource: MALFORMED_NOT_A_URI }, CLIENT_MALFORMED_ID);
     expect(response.statusCode).toBe(302);
     expect(new URL(locationHeader(response)).searchParams.get('error')).toBe('invalid_target');
   });
 });
 
 describe('[RFC8707-2-05] a resource value must carry no fragment', () => {
-  it('redirects with invalid_target for a registered URI carrying a fragment', async () => {
-    const response = await authorize({ resource: 'https://api.example#frag' });
+  it('redirects with invalid_target for a value with a fragment, even when that exact string is registered', async () => {
+    const response = await authorize({ resource: MALFORMED_WITH_FRAGMENT }, CLIENT_MALFORMED_ID);
     expect(response.statusCode).toBe(302);
     expect(new URL(locationHeader(response)).searchParams.get('error')).toBe('invalid_target');
   });
@@ -316,5 +394,47 @@ describe('[ODUDU-RESOURCE-03] no resource asked for records the whole registered
     const cookie = await establishSession(CLIENT_NO_AUDIENCE_ID);
     const code = await authorizeWith(CLIENT_NO_AUDIENCE_ID, cookie, {});
     expect(await resourceOf(code)).toEqual([]);
+  });
+});
+
+// RFC 6749 §3.1 ([RFC6749-3.1-01] in query-normalization.test.ts): "a
+// parameter sent without a value is treated as if it had been omitted".
+// `resourceParam` reads the raw query directly (it must see a real array
+// for a genuine repeat, which normalizeAuthorizeQuery's params object
+// cannot carry), so it has to apply this rule itself rather than inherit
+// it — see resourceParam's own comment.
+describe('[ODUDU-RESOURCE-04] an empty resource value is an omitted parameter, not a refusal', () => {
+  it('resolves ?resource= alone to the registered list, same as no resource at all', async () => {
+    const cookie = await establishSession(CLIENT_ID);
+    const code = await authorizeWith(CLIENT_ID, cookie, { resource: '' });
+    expect(await resourceOf(code)).toEqual(REGISTERED_AUDIENCES);
+  });
+
+  it('resolves resource=<value>&resource= to the single non-empty value', async () => {
+    const cookie = await establishSession(CLIENT_ID);
+    const response = await authorizeRaw('resource=https://api.example&resource=', {
+      cookie,
+    });
+    expect(response.statusCode).toBe(302);
+    const code = new URL(locationHeader(response)).searchParams.get('code');
+    if (code === null) throw new Error('expected a code on the redirect');
+    expect(await resourceOf(code)).toEqual(['https://api.example']);
+  });
+});
+
+// `PendingRequest.resource` carries the resolved audience across the two
+// doors that mint a code by way of a parked authentication session —an
+// ordinary first-time form login, and the account chooser — the same
+// value the immediate session-reuse door stores directly.
+describe('[ODUDU-RESOURCE-05] resource reaches the code through every door that mints one', () => {
+  it('is stored from an ordinary, first-time form login', async () => {
+    const { code } = await formLogin(CLIENT_ID, { resource: 'https://api.example' });
+    expect(await resourceOf(code)).toEqual(['https://api.example']);
+  });
+
+  it('is stored through the account chooser', async () => {
+    const { cookie } = await formLogin(CLIENT_ID);
+    const code = await chooseAccount(CLIENT_ID, cookie, { resource: 'https://reports.example' });
+    expect(await resourceOf(code)).toEqual(['https://reports.example']);
   });
 });

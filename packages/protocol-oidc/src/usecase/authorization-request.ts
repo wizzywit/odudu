@@ -219,11 +219,19 @@ function resourceParam(rawParams: unknown): string | string[] | undefined {
   if (typeof rawParams !== 'object' || rawParams === null || Array.isArray(rawParams)) {
     return undefined;
   }
-  const value = (rawParams as Record<string, unknown>).resource;
-  if (typeof value === 'string') return value;
-  if (Array.isArray(value))
-    return value.filter((entry): entry is string => typeof entry === 'string');
-  return undefined;
+  const raw = (rawParams as Record<string, unknown>).resource;
+  const sent = Array.isArray(raw) ? raw : [raw];
+  // RFC 6749 §3.1: "a parameter sent without a value is treated as if it
+  // had been omitted" — `parameterValue`'s own rule in
+  // query-normalization.ts, restated here because `resource` reads the
+  // raw query directly rather than going through that function. Without
+  // this, `?resource=` alone refuses the whole request instead of
+  // resolving like an absent parameter, and `resource=<uri>&resource=`
+  // reads as two values instead of one.
+  const present = sent.filter(
+    (entry): entry is string => typeof entry === 'string' && entry !== '',
+  );
+  return present.length > 1 ? present : present[0];
 }
 
 // An unknown or disabled realm is indistinguishable from an unknown or
@@ -387,6 +395,7 @@ export async function handleAuthorizationRequest(
         ...(hintSubject !== null ? { idTokenHintSubject: hintSubject } : {}),
         reuseSessionId: resolvedSession.id,
         reuseAuthTime: resolvedSession.authTime.toISOString(),
+        resource: [...audience],
       });
       await deps.markAuthenticated(
         realm.id,
@@ -468,6 +477,7 @@ export async function handleAuthorizationRequest(
       // Re-checked against whichever session is posted back — see
       // handleSelectAccountSubmission's own withinMaxAge call.
       ...(outcome.maxAge !== null ? { maxAge: outcome.maxAge } : {}),
+      resource: [...audience],
     });
     const rendered = newestPerSubject(decision.candidates);
     const names = await deps.accountDisplayNames(
@@ -509,6 +519,7 @@ export async function handleAuthorizationRequest(
     // this login completes, still sees `prompt=consent` the way it would
     // have at the moment this request first arrived.
     prompt: [...outcome.prompts],
+    resource: [...audience],
   });
   return {
     kind: 'started',
@@ -671,10 +682,10 @@ export async function handleSelectAccountSubmission(
     codeChallenge: pending.codeChallenge,
     codeChallengeMethod: pending.codeChallengeMethod,
     authTime: chosen.createdAt,
-    // Not carried through the chooser leg: PendingRequest has no field to
-    // park a resolved audience on, so nothing survives from the /authorize
-    // request that started this journey to resolve it against here.
-    resource: [],
+    // Parked on PendingRequest by the /authorize GET that started this
+    // journey — resolved once, against the query it actually carried, not
+    // re-derived here where no query parameters survive.
+    resource: pending.resource ?? [],
   });
   return { kind: 'reused', code, redirectUri: pending.redirectUri, state: pending.state };
 }
