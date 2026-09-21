@@ -721,9 +721,14 @@ describe('[OIDC-CORE-3.1.2.2-01] an id_token_hint this server did not issue is r
   });
 
   // The refusal above is the `typ` header and nothing else about the access
-  // token's claims: the same payload without it is honoured.
+  // token's claims: the same payload without it is honoured. `aud` is
+  // overridden to CLIENT_ID — /authorize now checks a hint's audience
+  // against the requesting client, and an access token's own `aud` (the
+  // issuer, per RFC 9068 §2.2) would fail that on its own, leaving this
+  // test unable to isolate `typ` as the one thing that changed.
   it('honours the same claims when they carry no at+jwt typ', async () => {
-    const hint = await signJwt(await accessTokenClaims(newId()), { key: realmKey, kek: KEK });
+    const claims = { ...(await accessTokenClaims(newId())), aud: CLIENT_ID };
+    const hint = await signJwt(claims, { key: realmKey, kek: KEK });
     const res = await http.inject({ url: authorizeUrl({ id_token_hint: hint }) });
     expect(res.statusCode).toBe(200);
   });

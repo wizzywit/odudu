@@ -1,5 +1,5 @@
 import { type SessionRecord } from '@odudu/authn-flows';
-import { type SigningKeyRecord } from '@odudu/crypto';
+import { AUDIENCE_UNCHECKED, type SigningKeyRecord } from '@odudu/crypto';
 import { type ClientLogoutTarget } from '#/repository/grants';
 import { type RealmLookup } from '#/repository/realm-lookup';
 import { frontChannelLogoutUrl } from '#/service/frontchannel-logout';
@@ -223,7 +223,18 @@ export async function handleLogoutRequest(
   const hint =
     params.idTokenHint === null
       ? null
-      : await subjectOfIdTokenHint(deps, realm.id, issuer, params.idTokenHint);
+      : // Unlike /authorize, this door has no principal of its own to check
+        // the hint's `aud` against — RP-Initiated Logout §2's own
+        // `client_id` comparison, against `hint.audiences` below, is what
+        // stands in its place. Left AUDIENCE_UNCHECKED deliberately; a
+        // later task settles whether that stays true.
+        await subjectOfIdTokenHint(
+          deps,
+          realm.id,
+          issuer,
+          params.idTokenHint,
+          AUDIENCE_UNCHECKED,
+        );
   const registered = await registeredUris(deps, realm.id, params.clientId);
 
   // §2: "When both `client_id` and `id_token_hint` are present, the OP MUST

@@ -5,7 +5,7 @@ import {
   type RequiredAction,
   type SessionRecord,
 } from '@odudu/authn-flows';
-import { AUDIENCE_UNCHECKED, verifyJwt, type SigningKeyRecord } from '@odudu/crypto';
+import { verifyJwt, type ExpectedAudience, type SigningKeyRecord } from '@odudu/crypto';
 import { type ClientRecord } from '@odudu/domain-realm';
 import { isUuid } from '@odudu/kernel';
 import { type ClientOidcConfig } from '#/schema/client-oidc-config';
@@ -313,7 +313,17 @@ export async function handleAuthorizationRequest(
 
   let hintSubject: string | null = null;
   if (outcome.idTokenHint !== null) {
-    const hint = await subjectOfIdTokenHint(deps, realm.id, issuer, outcome.idTokenHint);
+    // Unlike `/logout`, this door has a principal to check the hint's `aud`
+    // against: the client making this very request. A hint minted for
+    // another client is refused here even though its signature and issuer
+    // are this realm's own.
+    const hint = await subjectOfIdTokenHint(
+      deps,
+      realm.id,
+      issuer,
+      outcome.idTokenHint,
+      request.clientId,
+    );
     if (hint === null) return reject('invalid_request');
     hintSubject = hint.subject;
   }
@@ -719,22 +729,29 @@ function audiencesOf(claim: unknown): readonly string[] {
 // SHOULD allows (see the reading note in docs/protocols/oidc-core.md).
 // Exported for `#/usecase/logout.ts`, which validates its own hint the same
 // way rather than a second, looser check.
+//
+// `audience` is a parameter rather than a constant: an ID Token's `aud` is
+// the client it was issued to, so the OP reading one back is not the
+// principal RFC 7519 §4.1.3 addresses, and §3.1.2.2 asks only that the OP
+// was its issuer. Naming an audience here is a deliberate additional check
+// this server chooses to make, not that obligation being met at last — and
+// callers differ on whether they make it. `/authorize` passes the
+// requesting client's id (RP-Initiated Logout §2 asks the same of
+// `/logout`, which still declines it — see `AUDIENCE_UNCHECKED`'s call site
+// in `#/usecase/logout.ts`).
 export async function subjectOfIdTokenHint(
   deps: Pick<AuthorizeUsecaseDeps, 'listPublishableKeys'>,
   realmId: string,
   issuer: string,
   hint: string,
+  audience: ExpectedAudience,
 ): Promise<IdTokenHintClaims | null> {
   const keys = await deps.listPublishableKeys(realmId);
   try {
-    // An ID token's `aud` is the client it was issued to, so the OP reading
-    // one back as a hint is not the principal RFC 7519 §4.1.3 addresses and
-    // has no audience of its own to match. §3.1.2.2 asks only that the OP
-    // was its issuer, which `issuer` and the realm's own keys settle.
     const payload = await verifyJwt(hint, {
       keys,
       issuer,
-      audience: AUDIENCE_UNCHECKED,
+      audience,
       // An ID Token has no `typ` of its own — OIDC Core §2 defines none and
       // the ones /token issues carry none — so the honest demand is not
       // "must be an ID Token" but "must not be an access token", which RFC

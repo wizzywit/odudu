@@ -88,6 +88,41 @@ describe('signJwt / verifyJwt', () => {
     ).rejects.toThrow();
   });
 
+  // OIDC Core §2: `aud` "MAY be an array". verifyJwt forwards a single
+  // string as `audience` to jose's jwtVerify, which checks presence rather
+  // than equality (jose's checkAudiencePresence), so this holds without
+  // sign.ts doing anything array-specific itself.
+  it('accepts a string audience present among several in an array aud', async () => {
+    const key = await makeKey('RS256');
+    const token = await signJwt(
+      { sub: 'user-7', iss: ISS, aud: ['client-a', 'other'] },
+      { key, kek: KEK },
+    );
+    const payload = await verifyJwt(token, {
+      keys: [key],
+      issuer: ISS,
+      audience: 'client-a',
+      typ: TYP_UNCHECKED,
+    });
+    expect(payload.sub).toBe('user-7');
+  });
+
+  it('rejects an array aud that does not contain the expected audience', async () => {
+    const key = await makeKey('RS256');
+    const token = await signJwt(
+      { sub: 'user-8', iss: ISS, aud: ['client-b', 'other'] },
+      { key, kek: KEK },
+    );
+    await expect(
+      verifyJwt(token, {
+        keys: [key],
+        issuer: ISS,
+        audience: 'client-a',
+        typ: TYP_UNCHECKED,
+      }),
+    ).rejects.toThrow();
+  });
+
   it('picks the matching key by kid out of several candidates', async () => {
     const first = await makeKey('RS256');
     const second = await makeKey('ES256');
