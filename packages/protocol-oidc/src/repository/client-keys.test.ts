@@ -245,6 +245,73 @@ describe('clientKeySet', () => {
     expect(calls).toBe(2);
   });
 
+  it('records a negative entry for a realm that only joined a failing attempt, not just the one that started it', async () => {
+    let calls = 0;
+    let releaseFetch: (() => void) | undefined;
+    const gate = new Promise<void>((resolve) => {
+      releaseFetch = resolve;
+    });
+    const keys = clientKeySet(
+      deps({
+        request: async () => {
+          calls += 1;
+          await gate;
+          throw new Error('connrefused');
+        },
+      }),
+    );
+
+    const raced = Promise.allSettled([
+      keys.fetch('https://rp.example/j', REALM),
+      keys.fetch('https://rp.example/j', OTHER_REALM),
+    ]);
+    releaseFetch?.();
+    const [first, second] = await raced;
+
+    expect(first.status).toBe('rejected');
+    expect(second.status).toBe('rejected');
+    expect(calls).toBe(1);
+
+    // Both realms raced the same attempt; both must have their own negative
+    // entry, or the joiner's next call would reach the network again.
+    await expect(keys.fetch('https://rp.example/j', REALM)).rejects.toThrow();
+    await expect(keys.fetch('https://rp.example/j', OTHER_REALM)).rejects.toThrow();
+    expect(calls).toBe(1);
+  });
+
+  it('never leaves a window, between a failure and its negative entry, where a new call reaches the network', async () => {
+    let calls = 0;
+    const keys = clientKeySet(
+      deps({
+        request: () => {
+          calls += 1;
+          return Promise.reject(new Error('connrefused'));
+        },
+      }),
+    );
+
+    const first = keys.fetch('https://rp.example/j', REALM).catch(() => undefined);
+
+    // A plain `.then()` chain, not `await` in a loop: an `await` inside the
+    // loop would let each probe call's own internal awaits (lookup, request)
+    // advance the background attempt further than intended, which is exactly
+    // what let the regression this pins hide from a looser probe. Sampling
+    // `calls` at every microtask tick this way caught it at ticks 4 through
+    // 15 out of 16 against the pre-fix implementation.
+    let chain: Promise<unknown> = Promise.resolve();
+    const observedAtEachTick: number[] = [];
+    for (let tick = 0; tick < 16; tick += 1) {
+      chain = chain.then(() => {
+        keys.fetch('https://rp.example/j', REALM).catch(() => undefined);
+        observedAtEachTick.push(calls);
+      });
+    }
+    await chain;
+    await first;
+
+    expect(Math.max(...observedAtEachTick)).toBe(1);
+  });
+
   // Only a change to one of the two constants can break this; no edit to the
   // fetcher's logic does. Kept because it pins an invariant a future edit
   // could still violate.

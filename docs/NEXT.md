@@ -47,7 +47,10 @@ second execution (`docs/phases/p3a.md`, Task 19).
   success TTL) rather than re-fetching every call — the umbrella spec §6's
   "a failure is not a permanent cache miss". Still wired into nothing:
   wiring the fetcher into `/token`'s `private_key_jwt` verification is
-  what remains.
+  what remains, and that wiring must construct one `clientKeySet` shared
+  across requests — the cache is in-memory, so a per-request instance
+  would never serve a hit and the realm-keyed negative cache would do
+  nothing.
 - **The `claims` request parameter is P3b's**, not P3a's. It was placed in
   P3a by `docs/protocols/oidc-core.md` on the reasoning that it needs the
   per-client machinery and consent screen P3a builds; P3a's own criterion

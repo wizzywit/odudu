@@ -60,35 +60,44 @@ function acceptsContentType(contentType: string | null): boolean {
 // is cached under the URI alone and one realm's clients warm it for another's.
 // A failure is not: it would let one realm's transient outage suppress
 // private_key_jwt for every other realm pointed at the same jwks_uri, so it
-// is cached under this key instead. `realmId` is a UUID and `uri` is always
-// `https://…` (enforced by `assertFetchableUrl`), so the two can never
-// collide with each other or with a bare success key.
+// is cached under this key instead. `uri` is always `https://…` (enforced by
+// `assertFetchableUrl`) and `realmId` is a `realms.id uuid`
+// (packages/db/src/schema/realms.ts), so `:` cannot appear in either half and
+// the two can never collide with each other or with a bare success key.
 function negativeCacheKey(realmId: string, uri: string): string {
   return `${realmId}:${uri}`;
 }
 
 // A map keyed on a URL the caller chooses is a memory-exhaustion vector,
 // the same shape apps/server/src/throttle.ts bounds its key map against.
-// Eviction is by write order, not by use — a read never reinserts — so
-// under sustained failure a negative entry (rewritten every
-// NEGATIVE_CACHE_TTL_MS) ages out of that order ten times faster than a
-// success does, and a full cache evicts successes first. Accepted: the
-// ceiling still needs 1000 distinct jwks_uri values, each naming a
-// bearer-token-gated registered client — already the bigger problem.
+// Eviction is by write order, not use — a read never reinserts. A negative
+// entry is rewritten ten times more often than a success (NEGATIVE_CACHE_TTL_MS
+// versus CACHE_TTL_MS), so it sits younger in that order and a success is
+// what a full cache evicts first. Accepted: the ceiling still needs 1000
+// distinct realm/URI pairs, each naming a client registered — bearer-token-
+// gated — in that realm, already the bigger problem.
 const MAX_CACHE_ENTRIES = 1000;
 
 type CacheEntry =
   | { readonly kind: 'success'; readonly body: unknown; readonly expiresAt: number }
   | { readonly kind: 'failure'; readonly error: unknown; readonly expiresAt: number };
 
+// Keyed on the URI alone, not realm-scoped: a fetch attempt is a network
+// operation, not a realm-scoped one, so two realms racing the same uri
+// share one attempt, and each realm that joins it is recorded in `realms`
+// so the attempt's own failure handler can write every joiner's negative
+// entry before this map's entry is removed (see the handler below). Every
+// entry is removed there too, so this map's size is bounded by
+// concurrently in-flight fetches, never by the number of distinct URIs
+// seen — no ceiling needed.
+interface InFlightAttempt {
+  readonly promise: Promise<unknown>;
+  readonly realms: Set<string>;
+}
+
 export function clientKeySet(deps: ClientKeyDeps): ClientKeySet {
   const cache = new Map<string, CacheEntry>();
-  // Keyed on the URI alone, not realm-scoped: a fetch attempt is a network
-  // operation, not a realm-scoped one, so two realms racing the same uri
-  // still share one attempt. Every entry is removed in the attempt's own
-  // `finally`, so this map's size is bounded by concurrently in-flight
-  // fetches, never by the number of distinct URIs seen — no ceiling needed.
-  const inFlight = new Map<string, Promise<unknown>>();
+  const inFlight = new Map<string, InFlightAttempt>();
 
   const evictOldestIfFull = (): void => {
     if (cache.size < MAX_CACHE_ENTRIES) return;
@@ -133,11 +142,11 @@ export function clientKeySet(deps: ClientKeyDeps): ClientKeySet {
 
   return {
     // Checked in this order: the success cache, then the caller's own
-    // negative cache entry, then in-flight. A cache hit — positive or
-    // negative — is authoritative and must short-circuit even during the
-    // one-microtask window (`.finally` lands a tick after `.then`) where a
-    // just-written entry and the settled in-flight attempt that wrote it
-    // still coexist; only a genuine miss on both may join or start a fetch.
+    // negative cache entry, then in-flight. A cache entry for this uri and
+    // its in-flight attempt are never both present at once — the handler
+    // below writes the entry and clears `inFlight` in the same microtask —
+    // so a genuine miss on all three is the only way to join or start a
+    // fetch.
     fetch: async (uri: string, realmId: string): Promise<unknown> => {
       const now = deps.now().getTime();
 
@@ -153,40 +162,41 @@ export function clientKeySet(deps: ClientKeyDeps): ClientKeySet {
       }
 
       const existing = inFlight.get(uri);
-      const attempt =
-        existing ??
-        fetchFresh(uri)
-          .then((body) => {
-            cache.delete(uri);
-            evictOldestIfFull();
-            cache.set(uri, {
-              kind: 'success',
-              body,
-              expiresAt: deps.now().getTime() + CACHE_TTL_MS,
-            });
-            return body;
-          })
-          .finally(() => {
-            inFlight.delete(uri);
-          });
-      if (existing === undefined) inFlight.set(uri, attempt);
-
-      try {
-        return await attempt;
-      } catch (error) {
-        // Recorded per realm even though the attempt is shared: every
-        // caller that observes this rejection — whichever realm it is
-        // calling for — marks its own realm's negative entry here, rather
-        // than the (single) attempt marking only the realm that started it.
-        cache.delete(negativeKey);
-        evictOldestIfFull();
-        cache.set(negativeKey, {
-          kind: 'failure',
-          error,
-          expiresAt: deps.now().getTime() + NEGATIVE_CACHE_TTL_MS,
-        });
-        throw error;
+      if (existing !== undefined) {
+        existing.realms.add(realmId);
+        return existing.promise;
       }
+
+      const realms = new Set([realmId]);
+      // One handler for both outcomes, not `.then(...).catch(...).finally(...)`:
+      // a rejection's cache write and this map's own cleanup must land in the
+      // same microtask, or a caller landing between them finds neither a
+      // cache entry nor an in-flight attempt and starts a second fetch at a
+      // uri that just failed — the regression a split `.catch`/`.finally`
+      // produced. `realms` is read here, not when the caller joined, so every
+      // realm that joined before this handler runs gets its own entry.
+      const promise = fetchFresh(uri).then(
+        (body) => {
+          cache.delete(uri);
+          evictOldestIfFull();
+          cache.set(uri, { kind: 'success', body, expiresAt: deps.now().getTime() + CACHE_TTL_MS });
+          inFlight.delete(uri);
+          return body;
+        },
+        (error: unknown) => {
+          const expiresAt = deps.now().getTime() + NEGATIVE_CACHE_TTL_MS;
+          for (const realm of realms) {
+            const key = negativeCacheKey(realm, uri);
+            cache.delete(key);
+            evictOldestIfFull();
+            cache.set(key, { kind: 'failure', error, expiresAt });
+          }
+          inFlight.delete(uri);
+          throw error;
+        },
+      );
+      inFlight.set(uri, { promise, realms });
+      return promise;
     },
   };
 }
