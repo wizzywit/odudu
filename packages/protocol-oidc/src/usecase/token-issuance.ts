@@ -623,6 +623,13 @@ async function evaluatePresentedRefreshToken(
   if (!decision.ok) {
     throw decision.reason === 'scope_widened' ? invalidScope() : invalidGrant();
   }
+
+  // Repeated after rotation (line ~680 below), where it stays the
+  // authoritative check — the comment above `issueRefreshTokens` explains
+  // why that copy cannot move earlier. This one only needs to be right
+  // often enough to refuse before the presented token is consumed; a
+  // revocation landing between the two reads is still caught there.
+  resolveAudience(grant.audience, request.resource);
 }
 
 // Stage 3 (and everything after) for `refresh_token`. Rotation runs in its

@@ -411,4 +411,31 @@ describe('[RFC9068-3-03] aud derived from resource at /token — refresh_token',
     expect(refreshed.status).toBe(400);
     expect(refreshed.body.error).toBe('invalid_target');
   });
+
+  // The defect this pins: refusing an unsupported `resource` must not cost
+  // the client the token it presented. Proven by using the same token again
+  // afterwards, not merely by the first response's status.
+  it('a refused resource leaves the presented refresh token usable afterwards', async () => {
+    const code = await mintCode(allClientDbId, REGISTERED_AUDIENCES);
+    const redeemed = await redeem(code, ALL_CLIENT_ID, ALL_CLIENT_SECRET, 'https://api.example');
+    expect(redeemed.status).toBe(200);
+    const refreshToken = redeemed.body.refresh_token;
+    if (refreshToken === undefined) throw new Error('expected a refresh_token');
+
+    const refused = await refresh(
+      refreshToken,
+      ALL_CLIENT_ID,
+      ALL_CLIENT_SECRET,
+      'https://reports.example',
+    );
+    expect(refused.status).toBe(400);
+    expect(refused.body.error).toBe('invalid_target');
+
+    const retried = await refresh(refreshToken, ALL_CLIENT_ID, ALL_CLIENT_SECRET);
+    expect(retried.status).toBe(200);
+    const token = retried.body.access_token;
+    if (token === undefined) throw new Error('expected an access_token');
+    const claims = decode(token);
+    expect(claims.aud).toEqual(['https://api.example', issuerOf(claims)]);
+  });
 });
