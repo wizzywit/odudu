@@ -221,11 +221,11 @@ export async function handleLogoutRequest(
     header,
   );
   // AUDIENCE_UNCHECKED here does not mean this door leaves `aud`
-  // unexamined — §4 requires a disagreeing `client_id`/hint pair told
-  // apart from no usable hint at all, and jose's audience check answers
-  // both the same way, `null`, unable to report a mismatch without
-  // throwing. `disagreeing`, below, makes that comparison instead, where
-  // the caller can still see which case it is.
+  // unexamined — §4 requires a disagreeing `client_id`/hint pair told apart
+  // from no usable hint at all, and `subjectOfIdTokenHint` returns `null`
+  // for every failure alike, so a mismatch refused inside verification
+  // would be indistinguishable from an absent hint. `disagreeing`, below,
+  // makes that comparison where the caller can still see which case it is.
   const hint =
     params.idTokenHint === null
       ? null

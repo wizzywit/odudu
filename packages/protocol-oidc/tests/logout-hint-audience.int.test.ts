@@ -21,11 +21,10 @@ import { oidcRoutes } from '#/index';
 import { UNLIMITED_CLIENT_SECRET_LIMITER } from '#/service/client-secret-throttle';
 import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
 
-// /logout's `id_token_hint` audience handling is unchanged by this task —
-// id-token-hint-audience.int.test.ts pins that directly. `disagreeing`
-// still makes the comparison after verification, not inside it, because
-// §4 needs a disagreeing pair told apart from no usable hint at all, and
-// jose cannot report a mismatch without throwing. This file pins that the
+// `disagreeing` makes the `client_id`/hint comparison after verification
+// rather than inside it, because §4 needs a disagreeing pair told apart
+// from no usable hint at all, and `subjectOfIdTokenHint` collapses every
+// verification failure to `null`. This file pins that the
 // comparison still composes with the pre-existing `sid` check once an
 // agreeing pair is in play.
 
