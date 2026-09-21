@@ -71,6 +71,7 @@ async function seedRealmClientSubject(
 async function createGrant(tx: RealmScopedDatabase, realmId: string): Promise<TokenGrantRecord> {
   const { clientDbId, subjectId } = await seedRealmClientSubject(tx, realmId);
   return tokenGrantRepository(tx).create({
+    id: newId(),
     realmId,
     clientId: clientDbId,
     subjectId,

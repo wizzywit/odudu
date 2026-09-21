@@ -321,6 +321,7 @@ describe('GET the logout endpoint with a hint matching the session', () => {
     // on it.
     const offlineGrant = await withRealm(app.db, realmId, (tx) =>
       tokenGrantRepository(tx).create({
+        id: newId(),
         realmId,
         clientId: clientDbId,
         subjectId,

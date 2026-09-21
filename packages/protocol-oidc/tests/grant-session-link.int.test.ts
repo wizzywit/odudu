@@ -85,6 +85,7 @@ describe('a grant and the session it belongs to', () => {
       const repository = tokenGrantRepository(tx);
       return [
         await repository.create({
+          id: newId(),
           realmId,
           clientId: clientDbId,
           subjectId,
@@ -93,6 +94,7 @@ describe('a grant and the session it belongs to', () => {
           sessionId,
         }),
         await repository.create({
+          id: newId(),
           realmId,
           clientId: clientDbId,
           subjectId,
@@ -134,6 +136,7 @@ describe('a grant and the session it belongs to', () => {
         authenticators: [],
       });
       await tokenGrantRepository(tx).create({
+        id: newId(),
         realmId: theirsRealmId,
         clientId: clientDbId,
         subjectId,
@@ -170,6 +173,7 @@ describe('a grant and the session it belongs to', () => {
       const repository = tokenGrantRepository(tx);
       return [
         await repository.create({
+          id: newId(),
           realmId,
           clientId: clientDbId,
           subjectId,
@@ -178,6 +182,7 @@ describe('a grant and the session it belongs to', () => {
           sessionId,
         }),
         await repository.create({
+          id: newId(),
           realmId,
           clientId: clientDbId,
           subjectId,
@@ -189,6 +194,7 @@ describe('a grant and the session it belongs to', () => {
     });
     await withRealm(app.db, realmId, (tx) =>
       tokenGrantRepository(tx).create({
+        id: newId(),
         realmId,
         clientId: clientDbId,
         subjectId,
@@ -222,6 +228,7 @@ describe('a grant and the session it belongs to', () => {
         authenticators: [],
       });
       await tokenGrantRepository(tx).create({
+        id: newId(),
         realmId: theirsRealmId,
         clientId: clientDbId,
         subjectId,
@@ -264,6 +271,7 @@ describe('a grant and the session it belongs to', () => {
         frontchannelLogoutUri: 'https://rp.example/logout',
       });
       await tokenGrantRepository(tx).create({
+        id: newId(),
         realmId,
         clientId: clientDbId,
         subjectId,
@@ -316,6 +324,7 @@ describe('a grant and the session it belongs to', () => {
         frontchannelLogoutUri: 'https://rp.example/logout',
       });
       await tokenGrantRepository(tx).create({
+        id: newId(),
         realmId: theirsRealmId,
         clientId: clientDbId,
         subjectId,
