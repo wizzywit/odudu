@@ -416,6 +416,30 @@ describe('odudu reap', () => {
     expect(rows.map((row) => row.jti)).toEqual([fixture.assertionJtiLive]);
   });
 
+  // Correction 5's foreign-realm probe, for this table specifically: the
+  // generic "scopes each realm's statements by row-level security alone"
+  // test below hard-codes authentication_sessions and never runs this
+  // table's own DELETE, so it proves nothing about client_assertion_jti.
+  it('scopes the client_assertion_jti delete to one realm by row-level security alone', async () => {
+    const mine = await seedFixture();
+    const theirs = await seedFixture();
+
+    const before = await countRows(theirs.realmId, 'client_assertion_jti');
+    const pass = await withEachRealmExclusive(appDb.db, REAP_LOCK_KEY, [mine.realmId], (tx) =>
+      tx.execute(sql`
+        DELETE FROM client_assertion_jti
+         WHERE expires_at < ${NOW.toISOString()}::timestamptz
+      `),
+    );
+    expect(pass.acquired).toBe(true);
+
+    // Only mine's stale row is gone; the live one it seeded stays.
+    expect(await countRows(mine.realmId, 'client_assertion_jti')).toBe(1);
+    expect(await countRows(theirs.realmId, 'client_assertion_jti')).toBe(before);
+
+    await runPass();
+  });
+
   // The counts above are satisfied by a rule that deletes any two of the
   // five, so which two survived is asserted by name. Nothing an operator
   // has not yet had a chance to read may go: this schema records a

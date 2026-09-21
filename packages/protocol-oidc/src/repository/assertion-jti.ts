@@ -1,28 +1,33 @@
-import { type RealmScopedDatabase } from '@odudu/db';
+import { withRealm, type DatabaseHandle } from '@odudu/db';
 import { clientAssertionJti } from '#/schema/client-assertion-jti';
 
-export function assertionJtiRepository(tx: RealmScopedDatabase) {
+// Takes the pool handle, not a `RealmScopedDatabase`, unlike every other
+// repository in this package: `claim` opens its own `withRealm` inside
+// itself, so a caller's enclosing request transaction is structurally out
+// of reach and an unrelated rollback there can never release a spent jti
+// — the same property `rotateRefreshToken` (usecase/refresh-rotation.ts)
+// gets only because its caller (usecase/token-issuance.ts) remembers to
+// open a fresh transaction. There is no call site yet for this one to
+// forget.
+export function assertionJtiRepository(database: DatabaseHandle) {
   return {
     // True the first time this (realm, client, jti) is claimed, false on a
     // replay: `onConflictDoNothing` against the primary key, with
-    // `returning`, makes the check and the write one statement. Must run
-    // in a transaction of its own, never the caller's enclosing request
-    // transaction — an unrelated rollback there must not release the jti,
-    // the property `rotateRefreshToken` (usecase/token-issuance.ts) pins
-    // for a rotated refresh token, by the same means: its caller opens a
-    // fresh `withRealm` transaction rather than reusing its own.
+    // `returning`, makes the check and the write one statement.
     async claim(
       realmId: string,
       oauthClientId: string,
       jti: string,
       expiresAt: Date,
     ): Promise<boolean> {
-      const rows = await tx
-        .insert(clientAssertionJti)
-        .values({ realmId, oauthClientId, jti, expiresAt })
-        .onConflictDoNothing()
-        .returning({ jti: clientAssertionJti.jti });
-      return rows.length === 1;
+      return withRealm(database.db, realmId, async (tx) => {
+        const rows = await tx
+          .insert(clientAssertionJti)
+          .values({ realmId, oauthClientId, jti, expiresAt })
+          .onConflictDoNothing()
+          .returning({ jti: clientAssertionJti.jti });
+        return rows.length === 1;
+      });
     },
   };
 }

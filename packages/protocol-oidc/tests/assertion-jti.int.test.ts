@@ -56,19 +56,13 @@ beforeEach(async () => {
 
 describe('assertionJtiRepository', () => {
   it('admits a jti the first time', async () => {
-    const result = await withRealm(app.db, realmId, (tx) =>
-      assertionJtiRepository(tx).claim(realmId, 'client-a', 'jti-1', expiresAt),
-    );
+    const result = await assertionJtiRepository(app).claim(realmId, 'client-a', 'jti-1', expiresAt);
     expect(result).toBe(true);
   });
 
   it('refuses the same jti from the same client', async () => {
-    await withRealm(app.db, realmId, (tx) =>
-      assertionJtiRepository(tx).claim(realmId, 'client-a', 'jti-1', expiresAt),
-    );
-    const replay = await withRealm(app.db, realmId, (tx) =>
-      assertionJtiRepository(tx).claim(realmId, 'client-a', 'jti-1', expiresAt),
-    );
+    await assertionJtiRepository(app).claim(realmId, 'client-a', 'jti-1', expiresAt);
+    const replay = await assertionJtiRepository(app).claim(realmId, 'client-a', 'jti-1', expiresAt);
     expect(replay).toBe(false);
   });
 
@@ -76,72 +70,61 @@ describe('assertionJtiRepository', () => {
   // unique per issuer, and two clients may pick the same one. Satisfied
   // only by the client dimension of the key — the realm is the same
   // realmId both calls run under — so this is the one test that would
-  // still pass if the primary key dropped oauth_client_id entirely.
+  // fail if the primary key dropped oauth_client_id (mutated in review:
+  // narrowing the key to (realm_id, jti) turns this `true` into a `false`).
   it('admits the same jti from a different client', async () => {
-    await withRealm(app.db, realmId, (tx) =>
-      assertionJtiRepository(tx).claim(realmId, 'client-a', 'jti-1', expiresAt),
-    );
-    const other = await withRealm(app.db, realmId, (tx) =>
-      assertionJtiRepository(tx).claim(realmId, 'client-b', 'jti-1', expiresAt),
-    );
+    await assertionJtiRepository(app).claim(realmId, 'client-a', 'jti-1', expiresAt);
+    const other = await assertionJtiRepository(app).claim(realmId, 'client-b', 'jti-1', expiresAt);
     expect(other).toBe(true);
   });
 
-  // Satisfied only by the realm dimension of the key — client and jti are
-  // identical across both calls, only realmId differs — the complement of
-  // the client-dimension test above.
-  it('cannot see a jti claimed in another realm', async () => {
-    await withRealm(app.db, realmId, (tx) =>
-      assertionJtiRepository(tx).claim(realmId, 'client-a', 'jti-1', expiresAt),
-    );
+  // The complement of the test above: client and jti are identical across
+  // both calls, only realmId differs, so this is satisfied by the realm
+  // dimension of the key alone.
+  it('admits the same jti from a different realm', async () => {
+    await assertionJtiRepository(app).claim(realmId, 'client-a', 'jti-1', expiresAt);
 
     const otherRealmId = newId();
     await withRealm(app.db, otherRealmId, (tx) => seedRealm(tx, otherRealmId));
 
-    const admitted = await withRealm(app.db, otherRealmId, (tx) =>
-      assertionJtiRepository(tx).claim(otherRealmId, 'client-a', 'jti-1', expiresAt),
+    const admitted = await assertionJtiRepository(app).claim(
+      otherRealmId,
+      'client-a',
+      'jti-1',
+      expiresAt,
     );
     expect(admitted).toBe(true);
   });
 
-  // The non-negotiable every repository method is held to: a realm_id that
-  // disagrees with the transaction's own realm context is refused, by the
-  // same USING/WITH CHECK predicate any other cross-realm write hits
-  // (0054_client_assertion_jti.sql) — postgres.js rejects the whole
-  // transaction on the policy violation, so this asserts the rejection
-  // directly, the way codes.int.test.ts's own cross-realm create probe does.
-  it('refuses to claim a jti under a foreign realm_id', async () => {
-    const foreignRealmId = newId();
-    await withRealm(app.db, foreignRealmId, (tx) => seedRealm(tx, foreignRealmId));
-
+  // `claim` opens its own transaction for the realmId it is given, so
+  // there is no longer a separable "the transaction's own realm" for that
+  // argument to disagree with — the two collapsed into one value by
+  // construction (see assertion-jti.ts). What is still checkable is the
+  // foreign key to realms: a realmId naming no row is refused.
+  it('refuses to claim a jti under a realm_id that names no realm', async () => {
+    const unseededRealmId = newId();
     await expect(
-      withRealm(app.db, realmId, (tx) =>
-        assertionJtiRepository(tx).claim(foreignRealmId, 'client-a', 'jti-1', expiresAt),
-      ),
+      assertionJtiRepository(app).claim(unseededRealmId, 'client-a', 'jti-1', expiresAt),
     ).rejects.toThrow();
   });
 
-  // The property this guard exists for: a claim made inside a request that
-  // later fails for an unrelated reason must stay spent. `claim` is called
-  // here the way `rotateRefreshToken`'s caller uses it (token-issuance.ts)
-  // — in its own `withRealm` transaction, independent of the "request"
-  // transaction enclosing it — and the request transaction then rolls
-  // back. A test that only claimed twice in a row would not reach this: it
-  // is the rollback, not the second claim, that would release a jti run
-  // inside the request's own transaction.
+  // The property this guard exists for, made structural rather than
+  // conventional: `claim` takes the pool handle and opens its own
+  // transaction internally, so passing it the handle a real request
+  // holds — the only way anything can call it — cannot smuggle the
+  // request's own transaction in underneath. The outer `withRealm` here
+  // stands in for the rest of a request's work; it throws after the
+  // claim, and the claim survives that rollback because it was never
+  // inside it.
   it('leaves a jti spent when the request that claimed it rolls back', async () => {
     await expect(
       withRealm(app.db, realmId, async () => {
-        await withRealm(app.db, realmId, (claimTx) =>
-          assertionJtiRepository(claimTx).claim(realmId, 'client-a', 'jti-1', expiresAt),
-        );
+        await assertionJtiRepository(app).claim(realmId, 'client-a', 'jti-1', expiresAt);
         throw new Error('the request failed for an unrelated reason');
       }),
     ).rejects.toThrow('the request failed for an unrelated reason');
 
-    const replay = await withRealm(app.db, realmId, (tx) =>
-      assertionJtiRepository(tx).claim(realmId, 'client-a', 'jti-1', expiresAt),
-    );
+    const replay = await assertionJtiRepository(app).claim(realmId, 'client-a', 'jti-1', expiresAt);
     expect(replay).toBe(false);
   });
 
@@ -154,12 +137,8 @@ describe('assertionJtiRepository', () => {
   // row past its own expires_at is still exactly as good at refusing a
   // replay as a fresh one, until something reaps it.
   it('keeps refusing a replay of a jti already past its own expiry', async () => {
-    await withRealm(app.db, realmId, (tx) =>
-      assertionJtiRepository(tx).claim(realmId, 'client-a', 'jti-1', past),
-    );
-    const replay = await withRealm(app.db, realmId, (tx) =>
-      assertionJtiRepository(tx).claim(realmId, 'client-a', 'jti-1', expiresAt),
-    );
+    await assertionJtiRepository(app).claim(realmId, 'client-a', 'jti-1', past);
+    const replay = await assertionJtiRepository(app).claim(realmId, 'client-a', 'jti-1', expiresAt);
     expect(replay).toBe(false);
   });
 });

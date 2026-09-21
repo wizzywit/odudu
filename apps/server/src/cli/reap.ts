@@ -295,10 +295,11 @@ const RETENTION_RULES: Record<TableName, RetentionRule> = {
   },
 
   // Carries no window of its own: expires_at is already the assertion's
-  // own claimed exp (bounded at claim time by MAX_ASSERTION_LIFETIME_SECONDS,
-  // client-assertion.ts), so once that instant has passed the assertion
-  // could never satisfy the exp check that makes it presentable again — a
-  // policy window here would only delay deleting a row nothing can use.
+  // own claimed exp (bounded when the assertion is parsed, by
+  // MAX_ASSERTION_LIFETIME_SECONDS in client-assertion.ts), so once that
+  // instant has passed the assertion could never satisfy the exp check
+  // that makes it presentable again — a policy window here would only
+  // delay deleting a row nothing can use.
   client_assertion_jti: {
     after: [],
     statement: (now) => sql`

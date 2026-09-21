@@ -847,7 +847,7 @@ node --env-file=.env apps/server/src/main.ts reap
 ```
 
 ```
-{"ran":true,"deleted":{"refresh_tokens":0,"authorization_codes":0,"token_grants":0,"authentication_sessions":0,"action_tokens":0,"client_registration_tokens":0,"login_failures":0,"email_outbox":0,"backchannel_logout_deliveries":0,"sessions":0}}
+{"ran":true,"deleted":{"refresh_tokens":0,"authorization_codes":0,"token_grants":0,"authentication_sessions":0,"action_tokens":0,"client_registration_tokens":0,"login_failures":0,"email_outbox":0,"backchannel_logout_deliveries":0,"client_assertion_jti":0,"sessions":0}}
 ```
 
 Those zeros on a freshly used stack are the design, not a bug. A row is

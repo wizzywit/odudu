@@ -5,6 +5,7 @@ import { loadConfig } from '../../packages/kernel/src/config.js';
 import { LOGOUT_SENDER_JITTER_FRACTION } from '../../apps/server/src/modules/logout-sender.js';
 import { OUTBOX_JITTER_FRACTION } from '../../apps/server/src/modules/outbox.js';
 import { REAP_JITTER_FRACTION } from '../../apps/server/src/modules/reap.js';
+import { REAP_ORDER } from '../../apps/server/src/cli/reap.js';
 import { loadDocument, REPO_ROOT } from './markdown.js';
 
 // README.md and docs/request-paths.md both quote the interval the server
@@ -74,6 +75,23 @@ describe('the retention schedule the documents describe is the one the server ru
     const command = readFileSync(path.join(REPO_ROOT, 'apps/server/src/cli/reap.ts'), 'utf8');
     const quoted = refusalQuoted(textOf('docs/request-paths.md'), 'reap requires ');
     expect(sourceText(command)).toContain(quoted.replaceAll(/\s+/gu, ' '));
+  });
+
+  // A table added to REAP_ORDER without touching every captured transcript
+  // is exactly what put this table's own report one key short of the real
+  // command's output — checked here so the next one fails a build instead.
+  it('every captured `odudu reap` report carries REAP_ORDER’s keys, in order', () => {
+    for (const name of DOCUMENTS) {
+      const pattern = /"ran":true,"deleted":\{(?<body>[^}]*)\}/gu;
+      const matches = [...textOf(name).matchAll(pattern)];
+      expect(matches.length).toBeGreaterThan(0);
+      for (const match of matches) {
+        const body = match.groups?.body;
+        if (body === undefined) throw new Error('unreachable: the pattern captured no body');
+        const parsed = JSON.parse(`{${body}}`) as Record<string, number>;
+        expect(Object.keys(parsed)).toEqual([...REAP_ORDER]);
+      }
+    }
   });
 
   it('logs the refusal docs/request-paths.md quotes, in those words', () => {
