@@ -40,15 +40,14 @@ second execution (`docs/phases/p3a.md`, Task 19).
   `private_key_jwt` client authentication at `/token`: fetch there, at the
   moment a signature is actually verified, with a refusal that says "the
   signature did not verify" or "the key could not be retrieved" — never
-  the guard's own reasoning. The three nits this passage used to record —
-  `expiresAt` computed from the pre-fetch clock, no in-flight coalescing,
-  and a failure that was never cached — are fixed: `expiresAt` is read
-  after the fetch resolves, concurrent callers for one URI join a single
-  in-flight attempt, and a failure now writes its own negative-cache entry
-  (`NEGATIVE_CACHE_TTL_MS`, shorter than the success TTL) rather than
-  re-fetching every call, which is the umbrella spec §6's "a failure is not
-  a permanent cache miss". Still wired into nothing, though — that is the
-  rest of this increment's work.
+  the guard's own reasoning. `expiresAt` is now read after the fetch
+  resolves rather than before it, concurrent callers for one URI join a
+  single in-flight attempt, and a failure writes its own negative-cache
+  entry keyed by realm and URI (`NEGATIVE_CACHE_TTL_MS`, shorter than the
+  success TTL) rather than re-fetching every call — the umbrella spec §6's
+  "a failure is not a permanent cache miss". Still wired into nothing:
+  wiring the fetcher into `/token`'s `private_key_jwt` verification is
+  what remains.
 - **The `claims` request parameter is P3b's**, not P3a's. It was placed in
   P3a by `docs/protocols/oidc-core.md` on the reasoning that it needs the
   per-client machinery and consent screen P3a builds; P3a's own criterion
