@@ -34,6 +34,7 @@ function deps(overrides: Partial<ClientRegistrationDeps> = {}): ClientRegistrati
     withinRealm: explodingWithinRealm,
     hashClientSecret: (secret) => Promise.resolve(`hashed:${secret}`),
     now: () => new Date('2026-09-18T00:00:00Z'),
+    tlsClientAuthEnabled: false,
     ...overrides,
   };
 }
@@ -145,6 +146,23 @@ describe('registerClient — metadata validation', () => {
     if (outcome.kind === 'invalid_metadata') {
       expect(outcome.error).toBe('invalid_client_metadata');
       expect(outcome.description).toContain('client_id');
+    }
+  });
+
+  // docs/superpowers/specs/2026-09-18-p3a-clients-registration-consent-design.md:596-598:
+  // a deployment with ODUDU_TRUST_PROXY off must refuse a tls_client_auth
+  // registration outright, the registration half of the same decision
+  // /token's own trustProxy gate is the authentication half of.
+  it('refuses tls_client_auth registration when this deployment cannot honour it', async () => {
+    const outcome = await registerClient(deps({ tlsClientAuthEnabled: false }), 'acme', undefined, {
+      grant_types: ['client_credentials'],
+      token_endpoint_auth_method: 'tls_client_auth',
+      tls_client_auth_subject_dn: 'CN=client-a,O=Example',
+    });
+    expect(outcome.kind).toBe('invalid_metadata');
+    if (outcome.kind === 'invalid_metadata') {
+      expect(outcome.error).toBe('invalid_client_metadata');
+      expect(outcome.description).toContain('tls_client_auth');
     }
   });
 });

@@ -66,6 +66,13 @@ export interface AppDeps {
    */
   readonly trustProxy?: boolean;
   /**
+   * The header a deployment's reverse proxy emits a client certificate's
+   * subject under, read by `tls_client_auth` client authentication at
+   * `/token` while `trustProxy` above is on. Defaults to the same value
+   * `ODUDU_TLS_CLIENT_CERT_HEADER` does.
+   */
+  readonly tlsClientCertHeader?: string;
+  /**
    * The per-origin request budget on the three unauthenticated routes that
    * each cost an Argon2id hash or a mail send. Defaults to
    * `DEFAULT_THROTTLE`; `main.ts` passes what `ODUDU_THROTTLE_*` says.
@@ -218,6 +225,9 @@ export function buildApp(deps: AppDeps): FastifyInstance {
       clientKeySet: privateKeyJwtKeySet,
       ...(deps.publicBaseUrl === undefined ? {} : { publicBaseUrl: deps.publicBaseUrl }),
       trustProxy: deps.trustProxy ?? false,
+      ...(deps.tlsClientCertHeader === undefined
+        ? {}
+        : { tlsClientCertHeader: deps.tlsClientCertHeader }),
     }),
   );
 

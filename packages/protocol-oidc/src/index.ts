@@ -40,6 +40,7 @@ import { reachableRoleIds } from '#/repository/scope-role-reach';
 import { standardClaimMappers } from '#/service/claims';
 import { type ClientSecretLimiter } from '#/service/client-secret-throttle';
 import { logoutTokenClaims, LOGOUT_TOKEN_TYP } from '#/service/logout-token';
+import { DEFAULT_TLS_CLIENT_SUBJECT_HEADER } from '#/service/tls-client-auth';
 import { expandWebOrigins } from '#/service/web-origin';
 import {
   issueAuthorizationCode,
@@ -103,8 +104,15 @@ export interface OidcRoutesDeps {
   // already gates Fastify's own `X-Forwarded-*` trust
   // (apps/server/src/app.ts). Defaults off, the same as that trust does —
   // a caller with no reverse proxy in front of it must not have a
-  // proxy-supplied header trusted by default.
+  // proxy-supplied header trusted by default. Also what discovery's
+  // `token_endpoint_auth_methods_supported` conditions `tls_client_auth`
+  // on — see `resolveDiscoveryDocument`.
   trustProxy?: boolean;
+  // The header a deployment's own proxy emits the certificate subject
+  // under (`ODUDU_TLS_CLIENT_CERT_HEADER`) — no two proxies agree on a
+  // name, so this is never a constant. Defaults to the same value the
+  // kernel config schema does.
+  tlsClientCertHeader?: string;
 }
 
 function hasBackchannelLogoutUri(
@@ -328,6 +336,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
       findRealm,
       claimNames: () => claimMappers.claimNames(),
       scopesForRealm,
+      trustProxy: deps.trustProxy ?? false,
     });
     registerJwksRoute(app, { findRealm, listPublishableKeys });
     // Introspection's two grant/session reads, resolved here rather than in
@@ -378,6 +387,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
       withinRealm: (realmId, fn) => withRealm(deps.database.db, realmId, fn),
       hashClientSecret: hashPassword,
       now: () => clock.now(),
+      tlsClientAuthEnabled: deps.trustProxy ?? false,
     });
     // One definition for both doors onto the enrolment page: the login
     // submission that discovers the action is owed, and the enrolment
@@ -706,6 +716,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
         resolveClientWebOrigins,
         clientKeySet,
         trustProxy: deps.trustProxy ?? false,
+        tlsClientCertHeader: deps.tlsClientCertHeader ?? DEFAULT_TLS_CLIENT_SUBJECT_HEADER,
       });
       registerUserinfoRoute(scope, {
         findRealm,

@@ -41,6 +41,9 @@ export interface TokenRouteDeps {
   // Gates tls_client_auth — see token-issuance.ts's TokenIssuanceDeps for
   // what reads it.
   trustProxy: boolean;
+  // `ODUDU_TLS_CLIENT_CERT_HEADER` — see token-issuance.ts's
+  // TokenIssuanceDeps for what reads it.
+  tlsClientCertHeader: string;
 }
 
 function readClientId(body: Record<string, string | string[] | undefined>): string | undefined {
@@ -83,10 +86,12 @@ export function registerTokenRoute(app: FastifyInstance, deps: TokenRouteDeps): 
             clientKeySet: deps.clientKeySet,
             logger: request.log,
             trustProxy: deps.trustProxy,
+            tlsClientCertHeader: deps.tlsClientCertHeader,
           },
           request.body,
           request.headers.authorization,
           request.headers,
+          request.raw.rawHeaders,
         ),
       );
 

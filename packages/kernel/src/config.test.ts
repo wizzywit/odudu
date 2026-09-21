@@ -62,6 +62,22 @@ describe('loadConfig', () => {
     expect(loadConfig({ ...minimal, ODUDU_TRUST_PROXY: 'false' }).ODUDU_TRUST_PROXY).toBe(false);
   });
 
+  it('defaults ODUDU_TLS_CLIENT_CERT_HEADER to x-ssl-client-s-dn', () => {
+    expect(loadConfig(minimal).ODUDU_TLS_CLIENT_CERT_HEADER).toBe('x-ssl-client-s-dn');
+  });
+
+  it('accepts a deployment-chosen ODUDU_TLS_CLIENT_CERT_HEADER', () => {
+    const config = loadConfig({
+      ...minimal,
+      ODUDU_TLS_CLIENT_CERT_HEADER: 'x-forwarded-client-cert',
+    });
+    expect(config.ODUDU_TLS_CLIENT_CERT_HEADER).toBe('x-forwarded-client-cert');
+  });
+
+  it('refuses to boot on an explicitly blank ODUDU_TLS_CLIENT_CERT_HEADER', () => {
+    expect(() => loadConfig({ ...minimal, ODUDU_TLS_CLIENT_CERT_HEADER: '' })).toThrow(OduduError);
+  });
+
   it('defaults the throttle to ten requests a minute', () => {
     const config = loadConfig(minimal);
     expect(config.ODUDU_THROTTLE_LIMIT).toBe(10);

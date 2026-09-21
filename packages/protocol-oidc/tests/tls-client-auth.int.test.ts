@@ -19,10 +19,12 @@ import Fastify, {
   type FastifyInstance,
   type LightMyRequestResponse,
 } from 'fastify';
+import net from 'node:net';
 import { pino } from 'pino';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { NO_CLIENT_KEY_FETCHER, oidcRoutes } from '#/index';
 import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
+import { CLIENT_ASSERTION_TYPE } from '#/service/client-assertion';
 import { UNLIMITED_CLIENT_SECRET_LIMITER } from '#/service/client-secret-throttle';
 
 let containerHandle: TestDatabase | undefined;
@@ -38,9 +40,21 @@ let app: DatabaseHandle;
 const KEK = Buffer.alloc(32, 17);
 const NOW = new Date('2026-09-21T00:00:00Z');
 const SUBJECT_DN = 'CN=client-a,O=Example';
+// RFC 2253's own escaping of an embedded comma keeps the space that
+// follows it — the exact shape nginx's `$ssl_client_s_dn` emits, and the
+// false positive the ", " marker used to produce (I1).
+const COMMA_SUBJECT_DN = 'CN=client-b,O=Example\\, Inc.';
+const HEADER = 'x-ssl-client-s-dn';
 
 let REALM: string;
 let REALM_ID: string;
+// A second, otherwise-independent realm — the probe of whether
+// `authenticateTlsClientAuth`'s `clientRepository(tx).byClientId` lookup is
+// genuinely realm-scoped (via `tx`'s `SET LOCAL app.realm_id`) or could
+// somehow reach across realms, the same shape private-key-jwt.int.test.ts
+// uses for `private_key_jwt`.
+let REALM_B: string;
+let REALM_B_ID: string;
 let serviceSubjectId: string;
 let logLines: unknown[] = [];
 
@@ -52,25 +66,29 @@ async function createClient(
     subjectDn?: string;
     enabled?: boolean;
     type?: 'public' | 'confidential';
+    realmId?: string;
+    serviceSubjectId?: string;
   },
 ): Promise<void> {
   const dbId = newId();
+  const realmId = input.realmId ?? REALM_ID;
   await tx.insert(clients).values({
     id: dbId,
-    realmId: REALM_ID,
+    realmId,
     clientId: input.clientId,
     name: input.clientId,
     type: input.type ?? 'confidential',
     enabled: input.enabled ?? true,
-    // clients_secret_matches_type requires a confidential client to carry
-    // one; tls_client_auth never reads it.
+    // clients_secret_matches_type: a public client carries no secret; every
+    // confidential one here gets a real, checkable one (I5's one-method
+    // tests present it as `client_secret` or Basic).
     secretHash:
-      (input.type ?? 'confidential') === 'confidential' ? await hashPassword('unused') : null,
-    serviceSubjectId,
+      (input.type ?? 'confidential') === 'confidential' ? await hashPassword('s3cret') : null,
+    serviceSubjectId: input.serviceSubjectId ?? serviceSubjectId,
   });
   await clientOidcConfigRepository(tx).create({
     clientId: dbId,
-    realmId: REALM_ID,
+    realmId,
     redirectUris: [],
     grantTypes: ['client_credentials'],
     tokenEndpointAuthMethod: input.method,
@@ -81,7 +99,10 @@ async function createClient(
   });
 }
 
-async function buildServer(deps: { trustProxy: boolean }): Promise<FastifyInstance> {
+async function buildServer(deps: {
+  trustProxy: boolean;
+  tlsClientCertHeader?: string;
+}): Promise<FastifyInstance> {
   const logger: FastifyBaseLogger = pino(
     { level: 'info' },
     { write: (line: string) => logLines.push(JSON.parse(line)) },
@@ -97,6 +118,9 @@ async function buildServer(deps: { trustProxy: boolean }): Promise<FastifyInstan
       clientKeySet: NO_CLIENT_KEY_FETCHER,
       clock: { now: () => NOW },
       trustProxy: deps.trustProxy,
+      ...(deps.tlsClientCertHeader === undefined
+        ? {}
+        : { tlsClientCertHeader: deps.tlsClientCertHeader }),
     }),
   );
   await http.ready();
@@ -119,7 +143,14 @@ beforeAll(async () => {
   REALM_ID = newId();
 
   await withRealm(app.db, REALM_ID, async (tx) => {
-    await tx.insert(realms).values({ id: REALM_ID, name: REALM });
+    await tx.insert(realms).values({
+      id: REALM_ID,
+      name: REALM,
+      // Open so the registration-gating test below can reach
+      // registerClient at all — every other test in this file registers
+      // clients directly and never touches this policy.
+      clientRegistrationPolicy: 'open',
+    });
     await provisionRealm(tx, REALM_ID);
 
     const serviceSubject = await subjectRepository(tx).create({
@@ -132,6 +163,11 @@ beforeAll(async () => {
       clientId: 'tls-client',
       method: 'tls_client_auth',
       subjectDn: SUBJECT_DN,
+    });
+    await createClient(tx, {
+      clientId: 'comma-client',
+      method: 'tls_client_auth',
+      subjectDn: COMMA_SUBJECT_DN,
     });
     await createClient(tx, {
       clientId: 'disabled-tls-client',
@@ -162,6 +198,41 @@ beforeAll(async () => {
     });
   });
 
+  REALM_B = `tca-b-${newId()}`;
+  REALM_B_ID = newId();
+  await withRealm(app.db, REALM_B_ID, async (tx) => {
+    await tx.insert(realms).values({ id: REALM_B_ID, name: REALM_B });
+    await provisionRealm(tx, REALM_B_ID);
+
+    const serviceSubjectB = await subjectRepository(tx).create({
+      realmId: REALM_B_ID,
+      type: 'service',
+    });
+
+    // Same OAuth client_id string as REALM's own `tls-client`, a
+    // deliberately *different* registered subject — if the lookup in
+    // `authenticateTlsClientAuth` ever escaped realm scoping, REALM's
+    // matching header would authenticate here too, against the wrong row.
+    await createClient(tx, {
+      clientId: 'tls-client',
+      method: 'tls_client_auth',
+      subjectDn: 'CN=realm-b-client',
+      realmId: REALM_B_ID,
+      serviceSubjectId: serviceSubjectB.id,
+    });
+
+    const keyB = await generateSigningKey('RS256', KEK);
+    await tx.insert(signingKeys).values({
+      id: newId(),
+      realmId: REALM_B_ID,
+      kid: keyB.kid,
+      alg: keyB.alg,
+      status: 'active',
+      publicJwk: keyB.publicJwk,
+      privateJwkEncrypted: keyB.privateJwkEncrypted,
+    });
+  });
+
   trusted = await buildServer({ trustProxy: true });
   untrusted = await buildServer({ trustProxy: false });
 }, 120_000);
@@ -179,7 +250,7 @@ beforeEach(() => {
 });
 
 function certHeader(subjectDn: string): Record<string, string> {
-  return { 'x-ssl-client-s-dn': subjectDn };
+  return { [HEADER]: subjectDn };
 }
 
 function lastLoggedReason(): string | undefined {
@@ -197,18 +268,21 @@ function lastLoggedReason(): string | undefined {
 
 async function token(input: {
   server?: FastifyInstance;
+  realm?: string;
   client?: string;
   headers?: Record<string, string>;
+  extraForm?: Record<string, string>;
 }): Promise<LightMyRequestResponse> {
   const form = new URLSearchParams();
   form.set('grant_type', 'client_credentials');
   if (input.client !== undefined) form.set('client_id', input.client);
+  for (const [key, value] of Object.entries(input.extraForm ?? {})) form.set(key, value);
 
   const server = input.server ?? trusted;
   if (server === undefined) throw new Error('server not ready');
   return server.inject({
     method: 'POST',
-    url: `/realms/${REALM}/protocol/openid-connect/token`,
+    url: `/realms/${input.realm ?? REALM}/protocol/openid-connect/token`,
     payload: form.toString(),
     headers: { 'content-type': 'application/x-www-form-urlencoded', ...(input.headers ?? {}) },
   });
@@ -219,6 +293,15 @@ const REFUSAL = { error: 'invalid_client' };
 describe('[RFC8705-2.1-03] tls_client_auth at /token', () => {
   it('authenticates a client whose registered subject matches the header', async () => {
     const res = await token({ client: 'tls-client', headers: certHeader(SUBJECT_DN) });
+    expect(res.statusCode).toBe(200);
+  });
+
+  // I1: the false positive a `', '` marker produced. RFC 2253's own
+  // escaping of an embedded comma keeps the following space — this is a
+  // certificate openssl would issue for an organization named "Example,
+  // Inc.", sent exactly once, and it must authenticate like any other.
+  it('authenticates a client whose subject contains a legitimate comma', async () => {
+    const res = await token({ client: 'comma-client', headers: certHeader(COMMA_SUBJECT_DN) });
     expect(res.statusCode).toBe(200);
   });
 
@@ -234,10 +317,10 @@ describe('[RFC8705-2.1-03] tls_client_auth at /token', () => {
   it('refuses the method entirely when ODUDU_TRUST_PROXY is off', async () => {
     // Same 401 and body as the subject-mismatch case above (the shared
     // invalid_client shape), but for a different reason: with no trusted
-    // proxy, tlsClientSubject returns null, so this falls back to ordinary
-    // client authentication, refusing a confidential client that presented
-    // no client_secret. `lastLoggedReason` below is what actually tells the
-    // two apart, since the response bytes cannot.
+    // proxy, tlsClientSubject returns "absent", so this falls back to
+    // ordinary client authentication, refusing a confidential client that
+    // presented no client_secret. `lastLoggedReason` below is what
+    // actually tells the two apart, since the response bytes cannot.
     if (untrusted === undefined) throw new Error('server not ready');
     const res = await token({
       server: untrusted,
@@ -274,6 +357,10 @@ describe('[RFC8705-2.1-03] tls_client_auth at /token', () => {
     const res = await token({ client: 'public-tls-client', headers: certHeader(SUBJECT_DN) });
     expect(res.statusCode).toBe(401);
     expect(res.json()).toEqual(REFUSAL);
+    // Status and body are indistinguishable from the confidentiality
+    // check having never run (evaluateClientCredentialsGrant refuses a
+    // public client downstream regardless) — this is what actually
+    // proves the check above fired.
     expect(lastLoggedReason()).toBe('client is not confidential');
   });
 
@@ -284,42 +371,178 @@ describe('[RFC8705-2.1-03] tls_client_auth at /token', () => {
     expect(lastLoggedReason()).toBe('no client_id presented alongside the certificate');
   });
 
-  it('refuses a certificate presented alongside a client_secret', async () => {
-    const form = new URLSearchParams();
-    form.set('grant_type', 'client_credentials');
-    form.set('client_id', 'basic-client');
-    form.set('client_secret', 'unused');
-    const server = trusted;
-    if (server === undefined) throw new Error('server not ready');
-    const res = await server.inject({
-      method: 'POST',
-      url: `/realms/${REALM}/protocol/openid-connect/token`,
-      payload: form.toString(),
-      headers: {
-        'content-type': 'application/x-www-form-urlencoded',
-        ...certHeader(SUBJECT_DN),
-      },
-    });
-    expect(res.statusCode).toBe(401);
-    expect(res.json()).toEqual(REFUSAL);
-    expect(lastLoggedReason()).toBe(
-      'certificate presented alongside another authentication method',
-    );
+  // I5: the one-method-per-request rule, pinned against a fixture the rule
+  // itself must be what refuses — `tls-client`'s certificate genuinely
+  // matches, so without this check the request would otherwise succeed.
+  // The prior version of this suite used `basic-client`, which
+  // `authenticateTlsClientAuth` refuses on its own merits regardless of
+  // whether the one-method check runs at all; that fixture is kept below
+  // only for the "not registered" case above, never for this one.
+  it.each([
+    ['a client_secret', { client_secret: 's3cret' }, {}],
+    [
+      'Basic',
+      {},
+      { authorization: `Basic ${Buffer.from('tls-client:s3cret').toString('base64')}` },
+    ],
+    [
+      'a client_assertion',
+      { client_assertion_type: CLIENT_ASSERTION_TYPE, client_assertion: 'not-a-real-jwt' },
+      {},
+    ],
+  ] as const)(
+    'refuses a matching certificate presented alongside %s',
+    async (_name, extraForm, extraHeaders) => {
+      const res = await token({
+        client: 'tls-client',
+        headers: { ...certHeader(SUBJECT_DN), ...extraHeaders },
+        extraForm,
+      });
+      expect(res.statusCode).toBe(401);
+      expect(res.json()).toEqual(REFUSAL);
+      expect(lastLoggedReason()).toBe(
+        'certificate presented alongside another authentication method',
+      );
+    },
+  );
+
+  // I1: a genuinely duplicated header, verified over a real socket rather
+  // than through `inject`'s own header folding (light-my-request joins an
+  // array header value into one string before it ever reaches
+  // `rawHeaders`, so it cannot reproduce two independent header lines —
+  // only a raw connection can). A dedicated, short-lived listener, closed
+  // within the test rather than left for `afterAll`.
+  it('refuses a header sent twice on the wire, and logs why', async () => {
+    const probe = await buildServer({ trustProxy: true });
+    try {
+      const address = await probe.listen({ port: 0, host: '127.0.0.1' });
+      const url = new URL(address);
+      const body = new URLSearchParams({
+        grant_type: 'client_credentials',
+        client_id: 'tls-client',
+      }).toString();
+      const request = [
+        `POST /realms/${REALM}/protocol/openid-connect/token HTTP/1.1`,
+        `Host: ${url.host}`,
+        'Content-Type: application/x-www-form-urlencoded',
+        `Content-Length: ${String(Buffer.byteLength(body))}`,
+        `X-SSL-Client-S-DN: ${SUBJECT_DN}`,
+        `X-SSL-Client-S-DN: CN=attacker`,
+        'Connection: close',
+        '',
+        body,
+      ].join('\r\n');
+      const response = await new Promise<string>((resolve, reject) => {
+        const socket = net.connect(Number(url.port), url.hostname, () => {
+          socket.write(request);
+        });
+        let data = '';
+        socket.on('data', (chunk: Buffer) => {
+          data += chunk.toString('utf8');
+        });
+        socket.on('error', reject);
+        socket.on('close', () => {
+          resolve(data);
+        });
+      });
+      expect(response).toContain(' 401 ');
+      expect(response).toContain('{"error":"invalid_client"}');
+    } finally {
+      await probe.close();
+    }
+    expect(lastLoggedReason()).toBe('certificate subject header presented more than once');
   });
 
-  it('refuses a duplicated header even for a matching subject', async () => {
-    // What arrives when two devices set this header is Node's own join with
-    // ", " (verified empirically — tls-client-auth.ts's own comment), not an
-    // array; this fixture mirrors that shape.
+  // I2: the header name is configuration, not a constant — a deployment
+  // behind a proxy that emits a different one must still work.
+  it('reads the subject from a deployment-configured header name', async () => {
+    const custom = await buildServer({ trustProxy: true, tlsClientCertHeader: 'x-custom-cert-dn' });
+    try {
+      const res = await custom.inject({
+        method: 'POST',
+        url: `/realms/${REALM}/protocol/openid-connect/token`,
+        payload: new URLSearchParams({
+          grant_type: 'client_credentials',
+          client_id: 'tls-client',
+        }).toString(),
+        headers: {
+          'content-type': 'application/x-www-form-urlencoded',
+          'x-custom-cert-dn': SUBJECT_DN,
+          // The default header name must not also be honoured once a
+          // deployment has chosen a different one — this is the failure
+          // mode that would make a misconfiguration look like it worked.
+          [HEADER]: 'CN=should-be-ignored',
+        },
+      });
+      expect(res.statusCode).toBe(200);
+    } finally {
+      await custom.close();
+    }
+  });
+
+  // M5: the realm-scoping probe every new repository read gets. Same OAuth
+  // client_id string in both realms, a different registered subject in
+  // each — RLS (`tx`'s `SET LOCAL app.realm_id`) is what makes
+  // `clientRepository(tx).byClientId` in `authenticateTlsClientAuth` see
+  // only the row for the realm named in the URL, never the other one.
+  it("realm B's client is unreachable through REALM's own matching header", async () => {
     const res = await token({
+      realm: REALM_B,
       client: 'tls-client',
-      headers: { 'x-ssl-client-s-dn': `${SUBJECT_DN}, CN=attacker` },
+      headers: certHeader(SUBJECT_DN),
     });
     expect(res.statusCode).toBe(401);
     expect(res.json()).toEqual(REFUSAL);
-    // Falls back to ordinary client authentication, same as the
-    // untrusted-proxy case: tlsClientSubject already returned null, so
-    // authenticateTlsClientAuth never ran and logged nothing.
-    expect(lastLoggedReason()).toBeUndefined();
+    expect(lastLoggedReason()).toBe('certificate subject does not match the registered value');
+  });
+
+  it("realm B's own client authenticates against realm B's own registered subject", async () => {
+    const res = await token({
+      realm: REALM_B,
+      client: 'tls-client',
+      headers: certHeader('CN=realm-b-client'),
+    });
+    expect(res.statusCode).toBe(200);
+  });
+
+  // docs/superpowers/specs/2026-09-18-p3a-clients-registration-consent-design.md:596-598:
+  // registration is refused too, not only authentication — the untrusted
+  // server never advertises the method, but a client could still try to
+  // register one directly.
+  it('refuses to register a tls_client_auth client when ODUDU_TRUST_PROXY is off', async () => {
+    if (untrusted === undefined) throw new Error('server not ready');
+    const res = await untrusted.inject({
+      method: 'POST',
+      url: `/realms/${REALM}/clients-registrations/openid-connect`,
+      payload: JSON.stringify({
+        redirect_uris: [],
+        grant_types: ['client_credentials'],
+        token_endpoint_auth_method: 'tls_client_auth',
+        tls_client_auth_subject_dn: 'CN=new-client',
+      }),
+      headers: { 'content-type': 'application/json' },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json()).toMatchObject({ error: 'invalid_client_metadata' });
+  });
+
+  it('registers a tls_client_auth client when ODUDU_TRUST_PROXY is on', async () => {
+    if (trusted === undefined) throw new Error('server not ready');
+    const registration = await trusted.inject({
+      method: 'POST',
+      url: `/realms/${REALM}/clients-registrations/openid-connect`,
+      payload: JSON.stringify({
+        redirect_uris: [],
+        grant_types: ['client_credentials'],
+        token_endpoint_auth_method: 'tls_client_auth',
+        tls_client_auth_subject_dn: 'CN=new-client',
+      }),
+      headers: { 'content-type': 'application/json' },
+    });
+    expect(registration.statusCode).toBe(201);
+    expect(registration.json()).toMatchObject({
+      token_endpoint_auth_method: 'tls_client_auth',
+      tls_client_auth_subject_dn: 'CN=new-client',
+    });
   });
 });

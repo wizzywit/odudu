@@ -57,7 +57,14 @@ second execution (`docs/phases/p3a.md`, Task 19).
   subject compared against a client's registered
   `tls_client_auth_subject_dn`, gated on `ODUDU_TRUST_PROXY` the same way
   Fastify's own proxy trust already is — off means the method is refused,
-  never trusted. Both methods the P3b criterion named are now built.
+  never trusted, and never advertised in discovery either
+  (`tlsClientAuthEnabled`, `packages/contracts/src/discovery.ts`). The
+  header name is `ODUDU_TLS_CLIENT_CERT_HEADER`
+  (`packages/kernel/src/config.ts`), not a constant — both halves of the
+  design decision at
+  `docs/superpowers/specs/2026-09-18-p3a-clients-registration-consent-design.md:596-598`
+  are honored, not only the method's existence. Both methods the P3b
+  criterion named are now built.
 - **The `claims` request parameter is P3b's**, not P3a's. It was placed in
   P3a by `docs/protocols/oidc-core.md` on the reasoning that it needs the
   per-client machinery and consent screen P3a builds; P3a's own criterion
@@ -335,6 +342,22 @@ already implements.
   distinct from ordinary client authentication, or a per-resource scope
   model like the one the entry above already needs. Until one exists, both
   rows stay `gap`.
+
+**A `private_key_jwt` or `tls_client_auth` client can never call
+`/introspect` or `/revoke`.** Both endpoints authenticate through
+`authenticateClient` alone (`usecase/introspection-request.ts:31`,
+`usecase/revocation.ts:62`), which only ever checks a Basic header or a body
+`client_secret`; a client registered for either assertion-based method
+presents neither, so `verifyClientSecret` is handed `null` against a
+confidential client and refuses it every time. `private_key_jwt` introduced
+this gap; `tls_client_auth` (this task) inherited it rather than closing it
+— P3b owns RFC 7662 and RFC 7009 both, so the gap is P3b's to close, not a
+future phase's, and nothing has yet.
+
+- Trigger: extend the same `assertionOutcome`/certificate-subject dispatch
+  `usecase/token-issuance.ts` already has to `/introspect` and `/revoke`,
+  or record it as an accepted limitation in `docs/protocols/rfc7662.md` and
+  `docs/protocols/rfc7009.md` if P3b closes without doing so.
 
 **Affected-package-only CI.** Turborepo and pnpm both support
 `--filter='...[<ref>]'` — changed packages plus their dependents — so no

@@ -89,6 +89,10 @@ export interface TokenIssuanceDeps extends ClientAuthenticationDeps {
   // read only when an operator has said something in front of this
   // process controls it. See authenticateTlsClientAuth below.
   trustProxy: boolean;
+  // `ODUDU_TLS_CLIENT_CERT_HEADER` — no deployment's reverse proxy agrees
+  // on a name for this (nginx, Envoy, Apache and HAProxy each use a
+  // different one), so it is never a constant here.
+  tlsClientCertHeader: string;
 }
 
 export interface AssertionLogger {
@@ -796,11 +800,12 @@ function refuseTlsClientAuth(
 
 // RFC 8705 §2.1's PKI mutual-TLS method, proxy-terminated
 // (`tls-client-auth.ts` has the deployment shape). Seven preconditions,
-// each checked here explicitly rather than assumed: known client, enabled,
-// confidential, registered for this method, a registered subject exists,
-// and it matches. `enabled` in particular is checked directly rather than
-// inherited from a callee — the lesson `authenticatePrivateKeyJwt` above
-// already had to learn once.
+// each checked here explicitly rather than assumed: a client_id was
+// presented, the client is known, enabled, confidential, registered for
+// this method, a registered subject exists, and it matches. `enabled` in
+// particular is checked directly rather than inherited from a callee —
+// nothing here may assume a property of the client that some other
+// function established.
 async function authenticateTlsClientAuth(
   tx: RealmScopedDatabase,
   deps: TokenIssuanceDeps,
@@ -817,12 +822,19 @@ async function authenticateTlsClientAuth(
   // tls_client_auth is a confidential-client method — client-registration.ts
   // creates every client this way whenever its method isn't 'none' — but
   // that invariant is registration's, not this function's, so it is
-  // checked again here rather than trusted.
+  // checked again here rather than trusted. Load-bearing for the logged
+  // reason, not for the response: a public client here still ends in 401
+  // (`evaluateClientCredentialsGrant` refuses it downstream either way),
+  // so mutating this check away changes no status code or body — only
+  // `lastLoggedReason()` below can tell the two refusals apart.
   if (client.type !== 'confidential') {
     return refuseTlsClientAuth(deps, 'client is not confidential', claimedClientId);
   }
 
   const config = await clientOidcConfigRepository(tx).byClientId(client.id);
+  // Also load-bearing only for the reason, not the outcome: skip this and
+  // a client of any other method still 401s at the null-subject check
+  // below, just with a less specific message logged.
   if (config?.tokenEndpointAuthMethod !== 'tls_client_auth') {
     return refuseTlsClientAuth(
       deps,
@@ -830,11 +842,13 @@ async function authenticateTlsClientAuth(
       claimedClientId,
     );
   }
+  // Unreachable only because the check immediately above already pinned
+  // `tokenEndpointAuthMethod === 'tls_client_auth'`, and
   // client_oidc_config_tls_client_auth_needs_subject_dn (migration
-  // 0055_client_tls_client_auth_subject_dn.sql) makes this unreachable for
-  // a row the database accepted — checked anyway, the same defense the
-  // client_credentials path takes on `serviceSubjectId` above, since this
-  // function must never assume an invariant enforced somewhere else.
+  // 0055_client_tls_client_auth_subject_dn.sql) guarantees a non-null
+  // subject for exactly that method — the constraint alone does not, since
+  // it says nothing about any other method. Checked anyway, the same
+  // defense the client_credentials path takes on `serviceSubjectId` above.
   if (config.tlsClientAuthSubjectDn === null) {
     return refuseTlsClientAuth(
       deps,
@@ -864,6 +878,11 @@ export async function issueTokens(
   // header every caller already threads through, where this is the raw
   // request the tls_client_auth path alone needs.
   headers: Record<string, string | string[] | undefined>,
+  // Node's own `IncomingMessage.rawHeaders` — flat, duplicate-preserving
+  // name/value pairs. The only consumer is `tlsClientSubject`'s duplicate
+  // check; `headers` above cannot answer that question (see
+  // tls-client-auth.ts's own comment on why).
+  rawHeaders: readonly string[],
 ): Promise<TokenResponse> {
   const request = parseStructure(body);
   // OIDC Core §9: the audience a private_key_jwt assertion must name is
@@ -875,7 +894,18 @@ export async function issueTokens(
   });
   const basic = parseBasicAuth(authorizationHeader);
   const bodyClientSecret = readOptionalField(body, 'client_secret');
-  const certificateSubject = tlsClientSubject(headers, { trustProxy: deps.trustProxy });
+  const certResult = tlsClientSubject(headers, rawHeaders, {
+    trustProxy: deps.trustProxy,
+    headerName: deps.tlsClientCertHeader,
+  });
+  // A duplicated header is refused outright, the same way every other
+  // tls_client_auth refusal is — never silently downgraded to "no
+  // certificate presented", which would leave an operator debugging a
+  // completely unexplained 401.
+  if (certResult.kind === 'duplicated') {
+    refuseTlsClientAuth(deps, 'certificate subject header presented more than once');
+  }
+  const certificateSubject = certResult.kind === 'present' ? certResult.subject : null;
 
   // RFC 7521 §4.2 / RFC 6749 §2.3: a client presents exactly one
   // authentication mechanism per request. `authenticateClient` already

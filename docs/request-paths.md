@@ -654,8 +654,7 @@ curl -sS http://localhost:3000/realms/demo/.well-known/openid-configuration
     "client_secret_basic",
     "client_secret_post",
     "none",
-    "private_key_jwt",
-    "tls_client_auth"
+    "private_key_jwt"
   ],
   "authorization_response_iss_parameter_supported": true,
   "backchannel_logout_supported": true,
@@ -6480,7 +6479,7 @@ getting `invalid_request` rather than `invalid_client`.
 | Wrong client secret                                                                                                                                          | 401    | `invalid_client`         |
 | Secret in the body from a `client_secret_basic` client                                                                                                       | 401    | `invalid_client`         |
 | Secret in the header from a `client_secret_post` client                                                                                                      | 401    | `invalid_client`         |
-| Both methods presented at once (Basic, body secret, **or a `client_assertion` alongside either**)                                                            | 401    | `invalid_client`         |
+| Both methods presented at once (Basic, body secret, a `client_assertion`, **or a proxy-supplied certificate subject alongside any of the other three**)      | 401    | `invalid_client`         |
 | A `Basic` header that is not a form-urlencoding                                                                                                              | 401    | `invalid_client`         |
 | Public client presenting a secret                                                                                                                            | 401    | `invalid_client`         |
 | Public client asking for `client_credentials`                                                                                                                | 401    | `invalid_client`         |
@@ -6489,6 +6488,11 @@ getting `invalid_request` rather than `invalid_client`.
 | `private_key_jwt`: client publishes no keys, or its `jwks_uri` can't be fetched (address guard, DNS, transport, status, content type, size, or invalid JSON) | 401    | `invalid_client`         |
 | `private_key_jwt`: signature doesn't verify (wrong key, or a fetched document that isn't a JWK Set)                                                          | 401    | `invalid_client`         |
 | `private_key_jwt`: replayed assertion (`jti` already spent)                                                                                                  | 401    | `invalid_client`         |
+| `tls_client_auth`: `ODUDU_TRUST_PROXY` is off — the header is never read, whatever it says (falls back to ordinary client authentication)                    | 401    | `invalid_client`         |
+| `tls_client_auth`: the certificate header sent twice, or genuinely duplicated by an intermediary                                                             | 401    | `invalid_client`         |
+| `tls_client_auth`: no `client_id` presented alongside the certificate                                                                                        | 401    | `invalid_client`         |
+| `tls_client_auth`: unknown or disabled client, one not confidential, or one not registered for the method                                                    | 401    | `invalid_client`         |
+| `tls_client_auth`: certificate subject does not match the client's registered `tls_client_auth_subject_dn`                                                   | 401    | `invalid_client`         |
 | Confidential client with no service account                                                                                                                  | 400    | `unauthorized_client`    |
 | Unknown, expired or replayed `code`                                                                                                                          | 400    | `invalid_grant`          |
 | Wrong or missing `code_verifier`                                                                                                                             | 400    | `invalid_grant`          |
@@ -6506,6 +6510,23 @@ getting `invalid_request` rather than `invalid_client`.
 Every 401 carries `WWW-Authenticate: Basic realm="token"`. Every response,
 success or failure, carries `cache-control: no-store` and `pragma:
 no-cache`.
+
+`tls_client_auth` (RFC 8705 §2.1) registers with a `tls_client_auth_subject_dn`
+metadata field — the exact string the client's certificate's subject must
+equal, byte for byte after trimming surrounding whitespace, for the
+comparison to pass (no `distinguishedNameMatch`, a deliberate
+simplification: `packages/protocol-oidc/src/service/tls-client-auth.ts`).
+Registering `token_endpoint_auth_method: "tls_client_auth"` without it is
+`invalid_client_metadata`. At `/token`, the subject arrives as a header a
+trusted reverse proxy sets — its name is `ODUDU_TLS_CLIENT_CERT_HEADER`
+(default `x-ssl-client-s-dn`), and the method is refused outright, not
+downgraded, whenever `ODUDU_TRUST_PROXY` is off (README.md's deployment
+section has the proxy's own obligations). Off means the method is
+unavailable end to end, not only at `/token`: discovery's
+`token_endpoint_auth_methods_supported` does not name `tls_client_auth`
+either — off on this stack, which is why the transcript above does not
+list it — and registering a client for it is itself `invalid_client_metadata`,
+the same as an unknown `token_endpoint_auth_method` would be.
 
 RFC 6749 §2.3.1 puts both halves of the `Basic` payload through
 `application/x-www-form-urlencoded` before the base64, which is what lets a
@@ -6978,6 +6999,16 @@ session lifecycle. A citation of either half here means that half.
   included. **P13**, as above: the FAPI 2.0 plan cannot pass without one of
   them.
 
+**`/introspect` and `/revoke`**
+
+- **A `private_key_jwt` or `tls_client_auth` client can never call either
+  endpoint.** Both authenticate through `authenticateClient` alone, which
+  only reads a Basic header or a body `client_secret`; a client registered
+  for either assertion-based method presents neither and is refused every
+  time. `private_key_jwt` introduced the gap; `tls_client_auth` inherited
+  it. P3b owns both RFCs, so this is P3b's to close — recorded with a
+  trigger in `docs/NEXT.md`, "Recorded decisions with trigger conditions".
+
 **`/userinfo`**
 
 - **No signed or encrypted UserInfo responses. JSON only.** Not a
@@ -7028,11 +7059,13 @@ session lifecycle. A citation of either half here means that half.
   `frontchannel_logout_uri`/`backchannel_logout_uri` or `consent_required`.
   `--token-endpoint-auth-method` itself only accepts `client_secret_basic`
   and `client_secret_post` (`apps/server/src/cli/seed-invocation.ts`) —
-  there is no `--jwks`/`--jwks-uri` flag, so `seed client` cannot produce a
-  `private_key_jwt` client at all; the only route to one is dynamic client
-  registration, on a realm whose `clientRegistrationPolicy` allows it. The
-  demo realm's does not, which is why no transcript below exercises
-  `private_key_jwt` the way [Redeeming the code with
+  there is no `--jwks`/`--jwks-uri` flag and no
+  `--tls-client-auth-subject-dn` flag either, so `seed client` cannot
+  produce a `private_key_jwt` or `tls_client_auth` client at all; the only
+  route to either is dynamic client registration, on a realm whose
+  `clientRegistrationPolicy` allows it. The demo realm's does not, which is
+  why no transcript below exercises `private_key_jwt` or `tls_client_auth`
+  the way [Redeeming the code with
   `client_secret_basic`](#redeeming-the-code-with-client_secret_basic) and
   its `client_secret_post` sibling exercise theirs — there is no command to
   run that would produce one, per this document's own rule for a command

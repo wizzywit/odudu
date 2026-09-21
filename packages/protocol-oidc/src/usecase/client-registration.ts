@@ -21,6 +21,10 @@ export interface ClientRegistrationDeps {
   withinRealm<T>(realmId: string, fn: (tx: RealmScopedDatabase) => Promise<T>): Promise<T>;
   hashClientSecret(secret: string): Promise<string>;
   now(): Date;
+  // Gates `tls_client_auth` registrations the same way `/token` gates
+  // authenticating with one — see `parseClientMetadata`'s own
+  // `tlsClientAuthEnabled` for the design decision this honours.
+  tlsClientAuthEnabled: boolean;
 }
 
 export interface RegisteredClient {
@@ -154,7 +158,7 @@ export async function registerClient(
     return { kind: 'unauthorized' };
   }
 
-  const parsed = parseClientMetadata(body);
+  const parsed = parseClientMetadata(body, { tlsClientAuthEnabled: deps.tlsClientAuthEnabled });
   if (parsed.kind === 'invalid') {
     return { kind: 'invalid_metadata', error: parsed.error, description: parsed.description };
   }

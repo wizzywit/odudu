@@ -149,7 +149,10 @@ const metadataShape = z.object({
 // The registration body is an untyped boundary: parsed with Zod, never
 // cast. Business rules (server-assigned fields, grant/method allowlists,
 // jwks exclusivity, URI shape) run after the shape is known to be sound.
-export function parseClientMetadata(body: unknown): ClientMetadataOutcome {
+export function parseClientMetadata(
+  body: unknown,
+  options: { tlsClientAuthEnabled: boolean },
+): ClientMetadataOutcome {
   if (typeof body !== 'object' || body === null || Array.isArray(body)) {
     return invalid('invalid_client_metadata', 'registration body must be a JSON object');
   }
@@ -180,6 +183,16 @@ export function parseClientMetadata(body: unknown): ClientMetadataOutcome {
     return invalid(
       'invalid_client_metadata',
       `token_endpoint_auth_method must not be ${tokenEndpointAuthMethod}`,
+    );
+  }
+  // docs/superpowers/specs/2026-09-18-p3a-clients-registration-consent-design.md:596-598:
+  // "unset means the method is unavailable and a client registering
+  // tls_client_auth is refused" — a registration nobody could ever
+  // authenticate with is worse than none, since it looks configured.
+  if (tokenEndpointAuthMethod === 'tls_client_auth' && !options.tlsClientAuthEnabled) {
+    return invalid(
+      'invalid_client_metadata',
+      'tls_client_auth is unavailable: ODUDU_TRUST_PROXY is off on this deployment',
     );
   }
 
