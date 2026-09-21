@@ -13,7 +13,7 @@ currently admits `userinfo_encrypted_response_alg`/`_enc` as
 key-management and content-encryption algorithm identifiers a client could
 plausibly register, since the metadata validator does not narrow it today.
 
-## Step 1: which `alg`/`enc` pairs `jose` can produce
+## Which `alg`/`enc` pairs `jose` can produce
 
 `assumption:` `jose` supports every JWA-registered `alg`/`enc` pair a client
 could register. Tested with a throwaway script
@@ -40,9 +40,9 @@ shows `* removed RSA1_5 JWE support` in the changelog, and a direct
 "alg" (Algorithm) value` (`verified: node jwe-spike2.throwaway.mjs`). If
 `RSA1_5` is left in the permitted set, a client can register it, the server
 will accept the registration, and every `/userinfo` request for that client
-will fail at encryption time — the exact late failure Task 37 exists to
+will fail at encryption time — the exact late failure narrowing exists to
 prevent. **Recommendation: exclude `RSA1_5` from the narrowed permitted set
-in Task 37.**
+where the permitted set is narrowed.**
 
 **`RSA-OAEP` needs a key generated or imported specifically for it.** A
 CryptoKey produced by `jose.generateKeyPair('RSA-OAEP-256', …)` fails when
@@ -69,7 +69,7 @@ front: `dir` needs a shared symmetric key, which is not something a client
 publishes as a public JWKS entry any more than `A*KW` is, and `PBES2-*` is
 password-derived, not applicable to a client's asymmetric key material).
 
-### Recommended narrowed permitted set (for Task 37)
+### Recommended narrowed permitted set
 
 - `userinfo_encrypted_response_alg`: `RSA-OAEP-256`, `ECDH-ES`,
   `ECDH-ES+A128KW`, `ECDH-ES+A192KW`, `ECDH-ES+A256KW`. Excludes `RSA1_5`
@@ -82,7 +82,7 @@ password-derived, not applicable to a client's asymmetric key material).
   `A192CBC-HS384`, `A256CBC-HS512`, `A128GCM`, `A192GCM`, `A256GCM` — since
   every one succeeded against every admitted `alg`.
 
-## Step 2: key selection from a client's JWKS
+## Key selection from a client's JWKS
 
 `assumption:` a client's JWKS names an encryption key unambiguously by
 `use: 'enc'` or by `alg`. Built four JWKS shapes and a selection rule
@@ -102,7 +102,7 @@ the registered `alg` family (`RSA` for `RSA-*`, `EC`/`OKP` for `ECDH-ES*`).
 | One key, `use: 'sig'` only (no `enc` key published at all)                                                   | no candidate — refused, not "picked the only key anyway" |
 | One key, no `use` and no `alg` at all (bare)                                                                 | selected — nothing to filter on, so it passes by default |
 
-**Recommendation on the two-candidate case (the plan's Step 2 asks for a
+**Recommendation on the two-candidate case (a
 selection rule; this goes further and recommends what the rule should do):
 refuse, not pick.** The `alg` field breaks a tie cleanly when clients set it
 (row 3), so the rule should filter by `alg` first. But when two keys share
@@ -144,7 +144,7 @@ independently observable by the client the way an outright refusal is — a
 client can react to a 5xx and republish a distinguishing `alg`; it cannot
 react to "the server has been encrypting to the key I meant to retire."
 
-## Step 3 / Question 3: a key with no `use` and no `alg`
+## A key with no `use` and no `alg`
 
 `assumption:` OIDC Core §5.3.2 and JWA require an encryption key to carry
 `use: 'enc'` or an `alg`, or to be distinct from a client's signing key.
@@ -224,7 +224,7 @@ not between a client and its own token request.
    **no timeout wrapped around it anywhere in the call chain**
    (`verified: read of client-keys.ts's fetchFresh — `await deps.lookup(...)`is a bare`await`, and `defaultClientKeyLookup`passes no`timeout`-like
 option; `dns.lookup`'s Node API takes no timeout parameter at all). This
-is the "unbounded DNS lookup" the brief names, and it is unbounded by
+is the unbounded DNS lookup, and it is unbounded by
 this codebase's own code, not by a library default this spike measured —
 what actually bounds it in production is the OS resolver's own retry/
 timeout behavior (glibc's `resolv.conf` defaults, or the equivalent on
@@ -270,7 +270,7 @@ place.
   deliberately, since `jose` implements them, not Odudu); it adds detail
   this spike needed but does not contradict anything there. No update made.
 - `packages/protocol-oidc/src/service/client-metadata.ts` lines 144–145 —
-  where Task 37 narrows the permitted `alg`/`enc` sets per this document's
+  where the permitted `alg`/`enc` sets are narrowed per this document's
   recommendation.
 - `packages/protocol-oidc/src/repository/client-keys.ts` and
   `apps/server/src/client-key-transport.ts` — the fetcher and transport this
