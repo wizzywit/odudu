@@ -79,6 +79,8 @@ interface Fixture {
   readonly logoutAbandonedLongAgoId: string;
   readonly logoutAbandonedYesterdayId: string;
   readonly logoutStillRetryingId: string;
+  readonly assertionJtiStale: string;
+  readonly assertionJtiLive: string;
 }
 
 // One realm carrying, for every reaped table, a row that is eligible and a
@@ -106,6 +108,8 @@ async function seedFixture(brute?: BruteForce): Promise<Fixture> {
   const logoutAbandonedLongAgoId = newId();
   const logoutAbandonedYesterdayId = newId();
   const logoutStillRetryingId = newId();
+  const assertionJtiStale = `jti-stale-${realmId}`;
+  const assertionJtiLive = `jti-live-${realmId}`;
 
   await owner.db.execute(sql`
     INSERT INTO realms (id, name, brute_force_lockout_seconds,
@@ -251,6 +255,15 @@ async function seedFixture(brute?: BruteForce): Promise<Fixture> {
        ${at(-399 * DAY)}::timestamptz, NULL, 4, 'logout delivery failed with status 503')
   `);
 
+  // One jti already past the exp its own claim carried, one still short of
+  // it — no separate policy window, so age alone decides.
+  await owner.db.execute(sql`
+    INSERT INTO client_assertion_jti (realm_id, oauth_client_id, jti, expires_at)
+    VALUES
+      (${realmId}, 'app', ${assertionJtiStale}, ${at(-1 * MINUTE)}::timestamptz),
+      (${realmId}, 'app', ${assertionJtiLive}, ${at(1 * HOUR)}::timestamptz)
+  `);
+
   return {
     realm,
     realmId,
@@ -269,6 +282,8 @@ async function seedFixture(brute?: BruteForce): Promise<Fixture> {
     logoutAbandonedLongAgoId,
     logoutAbandonedYesterdayId,
     logoutStillRetryingId,
+    assertionJtiStale,
+    assertionJtiLive,
   };
 }
 
@@ -282,6 +297,7 @@ const RELATIONS: Record<TableName, SQL> = {
   login_failures: sql.raw('login_failures'),
   email_outbox: sql.raw('email_outbox'),
   backchannel_logout_deliveries: sql.raw('backchannel_logout_deliveries'),
+  client_assertion_jti: sql.raw('client_assertion_jti'),
   sessions: sql.raw('sessions'),
 };
 
@@ -350,6 +366,7 @@ describe('odudu reap', () => {
       login_failures: 1,
       email_outbox: 2,
       backchannel_logout_deliveries: 2,
+      client_assertion_jti: 1,
       sessions: 1,
     });
 
@@ -366,6 +383,7 @@ describe('odudu reap', () => {
       login_failures: 1,
       email_outbox: 4,
       backchannel_logout_deliveries: 3,
+      client_assertion_jti: 1,
       sessions: 1,
     });
 
@@ -379,8 +397,23 @@ describe('odudu reap', () => {
       login_failures: 0,
       email_outbox: 0,
       backchannel_logout_deliveries: 0,
+      client_assertion_jti: 0,
       sessions: 0,
     });
+  });
+
+  // The count above is satisfied equally by deleting the stale row or the
+  // live one — one seeded of each, one deleted either way — so which one
+  // survives is asserted by name.
+  it('keeps the jti that has not yet reached its own expiry', async () => {
+    const fixture = await seedFixture();
+
+    await runPass();
+
+    const rows = await owner.db.execute<{ jti: string }>(
+      sql`SELECT jti FROM client_assertion_jti WHERE realm_id = ${fixture.realmId}`,
+    );
+    expect(rows.map((row) => row.jti)).toEqual([fixture.assertionJtiLive]);
   });
 
   // The counts above are satisfied by a rule that deletes any two of the

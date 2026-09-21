@@ -26,6 +26,7 @@ export type TableName =
   | 'login_failures'
   | 'email_outbox'
   | 'backchannel_logout_deliveries'
+  | 'client_assertion_jti'
   | 'sessions';
 
 /** Rows deleted per table, summed over every realm the pass visited. */
@@ -293,6 +294,19 @@ const RETENTION_RULES: Record<TableName, RetentionRule> = {
     `,
   },
 
+  // Carries no window of its own: expires_at is already the assertion's
+  // own claimed exp (bounded at claim time by MAX_ASSERTION_LIFETIME_SECONDS,
+  // client-assertion.ts), so once that instant has passed the assertion
+  // could never satisfy the exp check that makes it presentable again — a
+  // policy window here would only delay deleting a row nothing can use.
+  client_assertion_jti: {
+    after: [],
+    statement: (now) => sql`
+      DELETE FROM client_assertion_jti j
+       WHERE j.expires_at < ${now.toISOString()}::timestamptz
+    `,
+  },
+
   // Last, and only once nothing points at it. The ON DELETE SET NULL on
   // token_grants.session_id is a backstop this must never reach: nulling a
   // session-bound grant's session would promote it to an offline one, which
@@ -330,6 +344,7 @@ export const REAP_ORDER: readonly TableName[] = [
   'login_failures',
   'email_outbox',
   'backchannel_logout_deliveries',
+  'client_assertion_jti',
   'sessions',
 ];
 

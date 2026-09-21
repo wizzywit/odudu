@@ -705,6 +705,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
   };
 }
 
+export { assertionJtiRepository } from '#/repository/assertion-jti';
 export { clientOidcConfigRepository } from '#/repository/client-oidc-config';
 export { type ClientOidcConfig } from '#/schema/client-oidc-config';
 export { realmLookupRepository, type NewRealm, type RealmLookup } from '#/repository/realm-lookup';
