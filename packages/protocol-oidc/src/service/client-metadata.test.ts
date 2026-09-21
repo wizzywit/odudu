@@ -397,6 +397,23 @@ describe('[RFC8705-2.1.2-01] a tls_client_auth registration requires its subject
       expect(outcome.metadata.tlsClientAuthSubjectDn).toBeNull();
     }
   });
+
+  // A subject DN sent alongside an unrelated method is dropped, not kept:
+  // stored dormant, it would be a certificate a later registered-method
+  // change could authenticate against without anyone choosing that.
+  it('drops a tls_client_auth_subject_dn sent for a different method', () => {
+    const outcome = parseClientMetadata(
+      ok({
+        token_endpoint_auth_method: 'client_secret_basic',
+        tls_client_auth_subject_dn: 'CN=client-a,O=Example',
+      }),
+      { tlsClientAuthEnabled: true },
+    );
+    expect(outcome.kind).toBe('ok');
+    if (outcome.kind === 'ok') {
+      expect(outcome.metadata.tlsClientAuthSubjectDn).toBeNull();
+    }
+  });
 });
 
 // docs/superpowers/specs/2026-09-18-p3a-clients-registration-consent-design.md:596-598:
@@ -404,7 +421,7 @@ describe('[RFC8705-2.1.2-01] a tls_client_auth registration requires its subject
 // tls_client_auth is refused" — the half of that decision `/token`'s own
 // gate (ODUDU_TRUST_PROXY) does not reach, since registration and
 // authentication are two different code paths.
-describe('[RFC8705-2.1-04] tls_client_auth registration is refused when the deployment cannot honour it', () => {
+describe('[ODUDU-TLS-CLIENT-AUTH-REGISTRATION-GATE-01] tls_client_auth registration is refused when the deployment cannot honour it', () => {
   it('refuses the method when tlsClientAuthEnabled is false, even with a subject DN', () => {
     const outcome = parseClientMetadata(
       ok({

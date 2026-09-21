@@ -41,8 +41,8 @@ const KEK = Buffer.alloc(32, 17);
 const NOW = new Date('2026-09-21T00:00:00Z');
 const SUBJECT_DN = 'CN=client-a,O=Example';
 // RFC 2253's own escaping of an embedded comma keeps the space that
-// follows it — the exact shape nginx's `$ssl_client_s_dn` emits, and the
-// false positive the ", " marker used to produce (I1).
+// follows it — the exact shape nginx's `$ssl_client_s_dn` emits, and a
+// value the duplicate-header check below must never mistake for two.
 const COMMA_SUBJECT_DN = 'CN=client-b,O=Example\\, Inc.';
 const HEADER = 'x-ssl-client-s-dn';
 
@@ -80,8 +80,9 @@ async function createClient(
     type: input.type ?? 'confidential',
     enabled: input.enabled ?? true,
     // clients_secret_matches_type: a public client carries no secret; every
-    // confidential one here gets a real, checkable one (I5's one-method
-    // tests present it as `client_secret` or Basic).
+    // confidential one here gets a real, checkable one — the one-method
+    // tests below present it as a body `client_secret` or `Authorization:
+    // Basic`.
     secretHash:
       (input.type ?? 'confidential') === 'confidential' ? await hashPassword('s3cret') : null,
     serviceSubjectId: input.serviceSubjectId ?? serviceSubjectId,
@@ -290,22 +291,22 @@ async function token(input: {
 
 const REFUSAL = { error: 'invalid_client' };
 
-describe('[RFC8705-2.1-03] tls_client_auth at /token', () => {
-  it('authenticates a client whose registered subject matches the header', async () => {
+describe('tls_client_auth at /token', () => {
+  it('[RFC8705-2-03] authenticates a client whose registered subject matches the header', async () => {
     const res = await token({ client: 'tls-client', headers: certHeader(SUBJECT_DN) });
     expect(res.statusCode).toBe(200);
   });
 
-  // I1: the false positive a `', '` marker produced. RFC 2253's own
-  // escaping of an embedded comma keeps the following space — this is a
-  // certificate openssl would issue for an organization named "Example,
-  // Inc.", sent exactly once, and it must authenticate like any other.
-  it('authenticates a client whose subject contains a legitimate comma', async () => {
+  // RFC 2253's own escaping of an embedded comma keeps the following
+  // space — this is a certificate openssl would issue for an organization
+  // named "Example, Inc.", sent exactly once, and it must authenticate
+  // like any other.
+  it('[RFC8705-2-03] authenticates a client whose subject contains a legitimate comma', async () => {
     const res = await token({ client: 'comma-client', headers: certHeader(COMMA_SUBJECT_DN) });
     expect(res.statusCode).toBe(200);
   });
 
-  it('refuses when the registered subject differs', async () => {
+  it('[RFC8705-2-03] refuses when the registered subject differs', async () => {
     const res = await token({ client: 'tls-client', headers: certHeader('CN=someone-else') });
     expect(res.statusCode).toBe(401);
     expect(res.json()).toEqual(REFUSAL);
@@ -314,7 +315,7 @@ describe('[RFC8705-2.1-03] tls_client_auth at /token', () => {
     expect(lastLoggedReason()).toBe('certificate subject does not match the registered value');
   });
 
-  it('refuses the method entirely when ODUDU_TRUST_PROXY is off', async () => {
+  it('[ODUDU-TLS-CLIENT-AUTH-TRUST-PROXY-01] refuses the method entirely when ODUDU_TRUST_PROXY is off', async () => {
     // Same 401 and body as the subject-mismatch case above (the shared
     // invalid_client shape), but for a different reason: with no trusted
     // proxy, tlsClientSubject returns "absent", so this falls back to
@@ -332,28 +333,28 @@ describe('[RFC8705-2.1-03] tls_client_auth at /token', () => {
     expect(lastLoggedReason()).toBeUndefined();
   });
 
-  it('refuses an unknown client', async () => {
+  it('[RFC8705-2-02] refuses an unknown client', async () => {
     const res = await token({ client: 'no-such-client', headers: certHeader(SUBJECT_DN) });
     expect(res.statusCode).toBe(401);
     expect(res.json()).toEqual(REFUSAL);
     expect(lastLoggedReason()).toBe('unknown client');
   });
 
-  it('refuses a disabled client even with a matching subject', async () => {
+  it('[RFC8705-2-02] refuses a disabled client even with a matching subject', async () => {
     const res = await token({ client: 'disabled-tls-client', headers: certHeader(SUBJECT_DN) });
     expect(res.statusCode).toBe(401);
     expect(res.json()).toEqual(REFUSAL);
     expect(lastLoggedReason()).toBe('client is disabled');
   });
 
-  it('refuses a client not registered for tls_client_auth', async () => {
+  it('[RFC8705-2-02] refuses a client not registered for tls_client_auth', async () => {
     const res = await token({ client: 'basic-client', headers: certHeader(SUBJECT_DN) });
     expect(res.statusCode).toBe(401);
     expect(res.json()).toEqual(REFUSAL);
     expect(lastLoggedReason()).toBe('client is not registered for tls_client_auth');
   });
 
-  it('refuses a public client even if registered with tls_client_auth', async () => {
+  it('[RFC8705-2-02] refuses a public client even if registered with tls_client_auth', async () => {
     const res = await token({ client: 'public-tls-client', headers: certHeader(SUBJECT_DN) });
     expect(res.statusCode).toBe(401);
     expect(res.json()).toEqual(REFUSAL);
@@ -364,20 +365,20 @@ describe('[RFC8705-2.1-03] tls_client_auth at /token', () => {
     expect(lastLoggedReason()).toBe('client is not confidential');
   });
 
-  it('refuses no client_id presented alongside the certificate', async () => {
+  it('[RFC8705-2-01] refuses no client_id presented alongside the certificate', async () => {
     const res = await token({ headers: certHeader(SUBJECT_DN) });
     expect(res.statusCode).toBe(401);
     expect(res.json()).toEqual(REFUSAL);
     expect(lastLoggedReason()).toBe('no client_id presented alongside the certificate');
   });
 
-  // I5: the one-method-per-request rule, pinned against a fixture the rule
-  // itself must be what refuses — `tls-client`'s certificate genuinely
-  // matches, so without this check the request would otherwise succeed.
-  // The prior version of this suite used `basic-client`, which
-  // `authenticateTlsClientAuth` refuses on its own merits regardless of
-  // whether the one-method check runs at all; that fixture is kept below
-  // only for the "not registered" case above, never for this one.
+  // The one-method-per-request rule, pinned against a fixture the rule
+  // itself must be what refuses: `tls-client`'s certificate genuinely
+  // matches its registered subject, so without this check the request
+  // would otherwise succeed. `basic-client` above proves a different
+  // thing — a client never registered for this method at all — and
+  // cannot stand in for this case, since it is refused on its own merits
+  // whether or not the one-method check runs.
   it.each([
     ['a client_secret', { client_secret: 's3cret' }, {}],
     [
@@ -391,7 +392,7 @@ describe('[RFC8705-2.1-03] tls_client_auth at /token', () => {
       {},
     ],
   ] as const)(
-    'refuses a matching certificate presented alongside %s',
+    '[ODUDU-TLS-CLIENT-AUTH-ONE-METHOD-01] refuses a matching certificate presented alongside %s',
     async (_name, extraForm, extraHeaders) => {
       const res = await token({
         client: 'tls-client',
@@ -406,13 +407,13 @@ describe('[RFC8705-2.1-03] tls_client_auth at /token', () => {
     },
   );
 
-  // I1: a genuinely duplicated header, verified over a real socket rather
+  // A genuinely duplicated header, verified over a real socket rather
   // than through `inject`'s own header folding (light-my-request joins an
   // array header value into one string before it ever reaches
   // `rawHeaders`, so it cannot reproduce two independent header lines —
   // only a raw connection can). A dedicated, short-lived listener, closed
   // within the test rather than left for `afterAll`.
-  it('refuses a header sent twice on the wire, and logs why', async () => {
+  it('[ODUDU-TLS-CLIENT-AUTH-DUPLICATE-HEADER-01] refuses a header sent twice on the wire, and logs why', async () => {
     const probe = await buildServer({ trustProxy: true });
     try {
       const address = await probe.listen({ port: 0, host: '127.0.0.1' });
@@ -453,9 +454,9 @@ describe('[RFC8705-2.1-03] tls_client_auth at /token', () => {
     expect(lastLoggedReason()).toBe('certificate subject header presented more than once');
   });
 
-  // I2: the header name is configuration, not a constant — a deployment
+  // The header name is configuration, not a constant — a deployment
   // behind a proxy that emits a different one must still work.
-  it('reads the subject from a deployment-configured header name', async () => {
+  it('[ODUDU-TLS-CLIENT-AUTH-HEADER-NAME-01] reads the subject from a deployment-configured header name', async () => {
     const custom = await buildServer({ trustProxy: true, tlsClientCertHeader: 'x-custom-cert-dn' });
     try {
       const res = await custom.inject({
@@ -480,12 +481,12 @@ describe('[RFC8705-2.1-03] tls_client_auth at /token', () => {
     }
   });
 
-  // M5: the realm-scoping probe every new repository read gets. Same OAuth
-  // client_id string in both realms, a different registered subject in
-  // each — RLS (`tx`'s `SET LOCAL app.realm_id`) is what makes
-  // `clientRepository(tx).byClientId` in `authenticateTlsClientAuth` see
-  // only the row for the realm named in the URL, never the other one.
-  it("realm B's client is unreachable through REALM's own matching header", async () => {
+  // Realm-scoping probe: same OAuth client_id string in both realms, a
+  // different registered subject in each — RLS (`tx`'s `SET LOCAL
+  // app.realm_id`) is what makes `clientRepository(tx).byClientId` in
+  // `authenticateTlsClientAuth` see only the row for the realm named in
+  // the URL, never the other one.
+  it("[ODUDU-TLS-CLIENT-AUTH-REALM-ISOLATION-01] realm B's client is unreachable through REALM's own matching header", async () => {
     const res = await token({
       realm: REALM_B,
       client: 'tls-client',
@@ -496,7 +497,7 @@ describe('[RFC8705-2.1-03] tls_client_auth at /token', () => {
     expect(lastLoggedReason()).toBe('certificate subject does not match the registered value');
   });
 
-  it("realm B's own client authenticates against realm B's own registered subject", async () => {
+  it("[ODUDU-TLS-CLIENT-AUTH-REALM-ISOLATION-01] realm B's own client authenticates against realm B's own registered subject", async () => {
     const res = await token({
       realm: REALM_B,
       client: 'tls-client',
@@ -509,7 +510,7 @@ describe('[RFC8705-2.1-03] tls_client_auth at /token', () => {
   // registration is refused too, not only authentication — the untrusted
   // server never advertises the method, but a client could still try to
   // register one directly.
-  it('refuses to register a tls_client_auth client when ODUDU_TRUST_PROXY is off', async () => {
+  it('[ODUDU-TLS-CLIENT-AUTH-REGISTRATION-GATE-01] refuses to register a tls_client_auth client when ODUDU_TRUST_PROXY is off', async () => {
     if (untrusted === undefined) throw new Error('server not ready');
     const res = await untrusted.inject({
       method: 'POST',
@@ -526,7 +527,7 @@ describe('[RFC8705-2.1-03] tls_client_auth at /token', () => {
     expect(res.json()).toMatchObject({ error: 'invalid_client_metadata' });
   });
 
-  it('registers a tls_client_auth client when ODUDU_TRUST_PROXY is on', async () => {
+  it('[ODUDU-TLS-CLIENT-AUTH-REGISTRATION-GATE-01] registers a tls_client_auth client when ODUDU_TRUST_PROXY is on', async () => {
     if (trusted === undefined) throw new Error('server not ready');
     const registration = await trusted.inject({
       method: 'POST',

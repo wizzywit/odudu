@@ -8,7 +8,7 @@ function rawHeadersFor(...pairs: [string, string][]): string[] {
   return pairs.flat();
 }
 
-describe('[RFC8705-2.1-01] tlsClientSubject', () => {
+describe('[ODUDU-TLS-CLIENT-AUTH-HEADER-01] tlsClientSubject', () => {
   it('reads the subject from the header when the proxy is trusted', () => {
     const headers = { [HEADER]: 'CN=client-a,O=Example' };
     const rawHeaders = rawHeadersFor(['X-SSL-Client-S-DN', 'CN=client-a,O=Example']);
@@ -68,7 +68,7 @@ describe('[RFC8705-2.1-01] tlsClientSubject', () => {
   });
 });
 
-describe('[RFC8705-2.1-02] tlsClientAuthSubjectMatches', () => {
+describe('[ODUDU-TLS-CLIENT-AUTH-DN-MATCH-01] tlsClientAuthSubjectMatches', () => {
   it('matches an identical subject', () => {
     expect(tlsClientAuthSubjectMatches('CN=client-a,O=Example', 'CN=client-a,O=Example')).toBe(
       true,

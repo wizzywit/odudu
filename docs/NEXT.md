@@ -359,6 +359,24 @@ future phase's, and nothing has yet.
   or record it as an accepted limitation in `docs/protocols/rfc7662.md` and
   `docs/protocols/rfc7009.md` if P3b closes without doing so.
 
+**`client_oidc_config_tls_client_auth_needs_subject_dn` enforces `NOT
+NULL`, not non-blank.** A row with `tls_client_auth_subject_dn = ''`
+passes the CHECK the same migration (0055) adds, and `tlsClientSubject`
+only refuses a zero-length header, so a client in that state would
+authenticate against a blank subject. No code path in this repository can
+produce such a row today — `parseClientMetadata` trims and rejects a
+blank value before it ever reaches the repository — so this is reachable
+only by a hand-written `INSERT`, the same class of gap the `jwks`/
+`jwks_uri` mutual-exclusion constraint already accepts (it says nothing
+about `jwks: {}` either). Declined rather than fixed, because 0055 is
+already committed and closing it needs a second migration
+(`CHECK (tls_client_auth_subject_dn <> '')` alongside the existing
+`IS NOT NULL`) for a state application code cannot reach.
+
+- Trigger: the next migration that touches `client_oidc_config` for an
+  unrelated reason is the natural place to add the tightened constraint
+  alongside it, rather than spending a migration on this alone.
+
 **Affected-package-only CI.** Turborepo and pnpm both support
 `--filter='...[<ref>]'` — changed packages plus their dependents — so no
 tooling change is needed to adopt it. Not adopted now: CI runs in about 50

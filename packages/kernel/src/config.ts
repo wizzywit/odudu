@@ -80,13 +80,14 @@ const schema = z.object({
   ODUDU_MIGRATIONS_DIR: z.string().min(1).optional(),
   ODUDU_APP_DATABASE_URL: z.url().optional(),
   ODUDU_TRUST_PROXY: booleanEnvVar,
-  // The header a deployment's reverse proxy emits a client certificate's
-  // subject under — read only while `ODUDU_TRUST_PROXY` is on
-  // (`tls_client_auth` at /token). No two proxies agree on a name
-  // (nginx's `$ssl_client_s_dn`, Envoy's, Apache's, HAProxy's each
-  // differ), so this is never a constant. `.min(1)` refuses to boot on an
-  // explicit empty string rather than silently breaking the method.
-  ODUDU_TLS_CLIENT_CERT_HEADER: z.string().min(1).default('x-ssl-client-s-dn'),
+  // The header a deployment's proxy emits a client certificate's subject
+  // under — read only while `ODUDU_TRUST_PROXY` is on (`tls_client_auth`
+  // at /token); no two proxies agree on a name, so never a constant.
+  // Trimmed and lower-cased once, here — Fastify's own header map is
+  // lower-cased, so every downstream reader can assume this already is.
+  // `.min(1)` runs after `.trim()`, so blank or whitespace-only refuses
+  // to boot rather than silently disabling the method.
+  ODUDU_TLS_CLIENT_CERT_HEADER: z.string().trim().min(1).toLowerCase().default('x-ssl-client-s-dn'),
   // Whether this process itself terminates TLS, or (via a reverse proxy)
   // knows the client's connection to be HTTPS. Off by default: the compose
   // stack serves plain HTTP on :3000 today. Read by @odudu/authn-flows to

@@ -200,14 +200,19 @@ export function parseClientMetadata(
   // 0055_client_tls_client_auth_subject_dn.sql): the column the token
   // endpoint compares a proxy-supplied certificate subject against, so a
   // tls_client_auth registration with nothing in it would authenticate
-  // against nothing. RFC 8705 §2.1.2.
-  const tlsClientAuthSubjectDn = metadata.tls_client_auth_subject_dn?.trim() ?? '';
-  if (tokenEndpointAuthMethod === 'tls_client_auth' && tlsClientAuthSubjectDn.length === 0) {
+  // against nothing. RFC 8705 §2.1.2. Stored only for that method — a
+  // value sent alongside any other one is dropped, not kept dormant, so a
+  // `client_secret_basic` row can never carry a subject a certificate
+  // could later be checked against.
+  const providedSubjectDn = metadata.tls_client_auth_subject_dn?.trim() ?? '';
+  if (tokenEndpointAuthMethod === 'tls_client_auth' && providedSubjectDn.length === 0) {
     return invalid(
       'invalid_client_metadata',
       'tls_client_auth_subject_dn is required when token_endpoint_auth_method is tls_client_auth',
     );
   }
+  const tlsClientAuthSubjectDn =
+    tokenEndpointAuthMethod === 'tls_client_auth' ? providedSubjectDn : '';
 
   const redirectUris = metadata.redirect_uris ?? [];
   const badRedirectUri = redirectUris.find((uri) => !isValidRedirectUri(uri));

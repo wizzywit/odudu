@@ -819,22 +819,25 @@ async function authenticateTlsClientAuth(
   const client = await clientRepository(tx).byClientId(claimedClientId);
   if (client === null) return refuseTlsClientAuth(deps, 'unknown client', claimedClientId);
   if (!client.enabled) return refuseTlsClientAuth(deps, 'client is disabled', claimedClientId);
-  // tls_client_auth is a confidential-client method — client-registration.ts
-  // creates every client this way whenever its method isn't 'none' — but
-  // that invariant is registration's, not this function's, so it is
-  // checked again here rather than trusted. Load-bearing for the logged
-  // reason, not for the response: a public client here still ends in 401
-  // (`evaluateClientCredentialsGrant` refuses it downstream either way),
-  // so mutating this check away changes no status code or body — only
-  // `lastLoggedReason()` below can tell the two refusals apart.
+  // tls_client_auth is a confidential-client method — checked again here
+  // rather than trusted from registration. The only confidentiality check
+  // on this path: `evaluateClientCredentialsGrant` also refuses a public
+  // client, but only for the client_credentials grant it belongs to —
+  // authorization_code and refresh_token have no such downstream check, so
+  // for those grants this is the only thing standing between a public
+  // client and a token.
   if (client.type !== 'confidential') {
     return refuseTlsClientAuth(deps, 'client is not confidential', claimedClientId);
   }
 
   const config = await clientOidcConfigRepository(tx).byClientId(client.id);
-  // Also load-bearing only for the reason, not the outcome: skip this and
-  // a client of any other method still 401s at the null-subject check
-  // below, just with a less specific message logged.
+  // client-metadata.ts's `parseClientMetadata` stores
+  // `tlsClientAuthSubjectDn` only for a client registered `tls_client_auth`
+  // — a client of any other method always reaches this with `config`
+  // either absent or carrying a null subject, so skipping this check
+  // would still 401 there, at the null-subject check below, just with a
+  // less specific reason logged. True only because that storage rule
+  // holds; checked directly anyway, not trusted.
   if (config?.tokenEndpointAuthMethod !== 'tls_client_auth') {
     return refuseTlsClientAuth(
       deps,
