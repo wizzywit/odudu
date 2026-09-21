@@ -108,6 +108,7 @@ const app = buildApp({
     limit: config.ODUDU_THROTTLE_LIMIT,
     windowSeconds: config.ODUDU_THROTTLE_WINDOW_SECONDS,
   },
+  allowPrivateClientUrls: config.ODUDU_ALLOW_PRIVATE_CLIENT_URLS,
 });
 
 const registry = new ModuleRegistry()

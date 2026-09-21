@@ -9,6 +9,7 @@ export const TOKEN_ENDPOINT_AUTH_METHODS_SUPPORTED = [
   'client_secret_basic',
   'client_secret_post',
   'none',
+  'private_key_jwt',
 ] as const;
 
 export type TokenEndpointAuthMethod = (typeof TOKEN_ENDPOINT_AUTH_METHODS_SUPPORTED)[number];

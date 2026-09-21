@@ -31,6 +31,7 @@ import { hashPassword, userRepository, verifyPassword } from '@odudu/domain-iden
 import { clientRepository, clientScopeRepository, consentRepository } from '@odudu/domain-realm';
 import { newId, systemClock, type Clock } from '@odudu/kernel';
 import { type FastifyPluginAsync } from 'fastify';
+import { ClientKeySetRefused, type ClientKeySet } from '#/repository/client-keys';
 import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
 import { tokenGrantRepository, type ClientLogoutTarget } from '#/repository/grants';
 import { logoutDeliveryRepository } from '#/repository/logout-deliveries';
@@ -91,7 +92,24 @@ export interface OidcRoutesDeps {
   // A caller that genuinely wants no budget says so explicitly with
   // `UNLIMITED_CLIENT_SECRET_LIMITER` (#/service/client-secret-throttle.ts).
   clientSecretLimiter: ClientSecretLimiter;
+  // RFC 7523 §2.2's fetcher for a client's jwks_uri, consulted only by
+  // private_key_jwt authentication at /token. Optional and safe to omit,
+  // unlike `clientSecretLimiter` above: omitting it fails closed — every
+  // jwks_uri-based client simply cannot authenticate — rather than open, so
+  // there is no silently-do-nothing MUST for an embedder to miss. Defaults
+  // to a fetcher that refuses every uri; `apps/server/src/app.ts` supplies
+  // the real one, wired to `node:https` and `node:dns`.
+  clientKeySet?: ClientKeySet;
 }
+
+// The default `clientKeySet`: refuses every fetch, so a jwks_uri-based
+// private_key_jwt client can never authenticate unless the embedder wires
+// a real one in. A client with inline `jwks` is unaffected — it never
+// reaches this fetcher at all (token-issuance.ts's
+// authenticatePrivateKeyJwt).
+const NO_CLIENT_KEY_FETCHER: ClientKeySet = {
+  fetch: () => Promise.reject(new ClientKeySetRefused('no client key fetcher is configured')),
+};
 
 function hasBackchannelLogoutUri(
   target: ClientLogoutTarget,
@@ -109,6 +127,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
     const clock = deps.clock ?? systemClock;
     const tls = deps.tls ?? false;
     const clientSecretLimiter = deps.clientSecretLimiter;
+    const clientKeySet = deps.clientKeySet ?? NO_CLIENT_KEY_FETCHER;
     // One registry per process, shared by discovery (claimNames, for
     // claims_supported), /userinfo, and token issuance's ID token claims —
     // so a mapper registered once reaches every consumer the same way.
@@ -689,6 +708,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
         claimMappers,
         loadClaimContext,
         resolveClientWebOrigins,
+        clientKeySet,
       });
       registerUserinfoRoute(scope, {
         findRealm,

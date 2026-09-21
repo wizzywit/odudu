@@ -1,10 +1,17 @@
 import { sessionRepository } from '@odudu/authn-flows';
-import { signJwt, signingKeyRepository, type SigningKeyRecord } from '@odudu/crypto';
+import {
+  signJwt,
+  signingKeyRepository,
+  verifyJwtAgainstJwkSet,
+  type SigningKeyRecord,
+} from '@odudu/crypto';
 import { withRealm, type DatabaseHandle, type RealmScopedDatabase } from '@odudu/db';
 import { subjectRepository } from '@odudu/domain-identity';
-import { clientScopeRepository, type ClientRecord } from '@odudu/domain-realm';
+import { clientRepository, clientScopeRepository, type ClientRecord } from '@odudu/domain-realm';
 import { type ClaimMapperRegistry, type Clock, newId } from '@odudu/kernel';
-import { type ClientOidcConfig } from '#/repository/client-oidc-config';
+import { assertionJtiRepository } from '#/repository/assertion-jti';
+import { type ClientKeySet } from '#/repository/client-keys';
+import { clientOidcConfigRepository, type ClientOidcConfig } from '#/repository/client-oidc-config';
 import { authorizationCodeRepository } from '#/repository/codes';
 import { tokenGrantRepository, type TokenGrantRecord } from '#/repository/grants';
 import { refreshTokenRepository } from '#/repository/refresh';
@@ -13,6 +20,7 @@ import { rotateRefreshToken } from '#/usecase/refresh-rotation';
 import { acrFor, amrFor } from '#/service/acr';
 import { hashAuthorizationCode } from '#/service/authorization-code';
 import { evaluateAuthorizationCodeGrant } from '#/service/authorization-code-grant';
+import { parseClientAssertion, type AssertionOutcome } from '#/service/client-assertion';
 import { type ClaimContext } from '#/service/claims';
 import { evaluateClientCredentialsGrant } from '#/service/client-credentials-grant';
 import {
@@ -37,6 +45,11 @@ import {
   type ClientAuthenticationDeps,
 } from '#/usecase/client-authentication';
 
+// Re-exported so the view layer can name it without reaching into
+// repository directly (dependency-cruiser's no-view-to-repository rule) —
+// view/routes/token.ts is the one caller.
+export type { ClientKeySet } from '#/repository/client-keys';
+
 export interface TokenIssuanceDeps extends ClientAuthenticationDeps {
   // Used only to run a step in its own, independently committed
   // transaction: the enclosing `tx` this call runs in is always rolled
@@ -57,6 +70,19 @@ export interface TokenIssuanceDeps extends ClientAuthenticationDeps {
   // other for the same subject and scope.
   claimMappers: ClaimMapperRegistry<ClaimContext>;
   loadClaimContext(realmId: string, subjectId: string): Promise<ClaimContext>;
+  // RFC 7523 §2.2's fetcher for a client's jwks_uri — the same one
+  // client-keys.ts's own comment says registration never calls (P3a
+  // reverted that dereference). private_key_jwt authentication is the one
+  // caller.
+  clientKeySet: ClientKeySet;
+  // Where a private_key_jwt refusal's real cause goes — the caller sees
+  // one invalid_client whatever it was; see
+  // authenticatePrivateKeyJwt below.
+  logger: AssertionLogger;
+}
+
+export interface AssertionLogger {
+  warn(details: Record<string, unknown>, message: string): void;
 }
 
 export interface TokenResponse {
@@ -660,6 +686,68 @@ async function issueClientCredentialsTokens(
   };
 }
 
+// RFC 7523 §2.2 / OIDC Core §9's `private_key_jwt`. Every failure reports
+// the same `invalid_client`, verification runs before the jti is ever
+// claimed, and the timing residual that leaves open is stated rather than
+// hidden — see docs/protocols/rfc7523.md's reading notes for why each of
+// those holds. The specific reason goes to `deps.logger`; only an operator
+// reads it.
+async function authenticatePrivateKeyJwt(
+  tx: RealmScopedDatabase,
+  deps: TokenIssuanceDeps,
+  body: Record<string, string | string[] | undefined>,
+  outcome: Exclude<AssertionOutcome, { kind: 'unsupported' }>,
+  tokenEndpoint: string,
+): Promise<{ client: ClientRecord; config: ClientOidcConfig }> {
+  const fail = (reason: string): never => {
+    deps.logger.warn({ reason }, 'private_key_jwt authentication refused');
+    throw invalidClient(WWW_AUTHENTICATE);
+  };
+
+  if (outcome.kind !== 'ok') return fail('assertion failed structural validation');
+
+  const assertion = body.client_assertion;
+  if (typeof assertion !== 'string') return fail('assertion failed structural validation');
+
+  const client = await clientRepository(tx).byClientId(outcome.claimedClientId);
+  if (client === null) return fail('unknown client');
+
+  const config = await clientOidcConfigRepository(tx).byClientId(client.id);
+  if (config?.tokenEndpointAuthMethod !== 'private_key_jwt') {
+    return fail('client is not registered for private_key_jwt');
+  }
+
+  let jwks: unknown;
+  if (config.jwks !== null) {
+    jwks = config.jwks;
+  } else if (config.jwksUri !== null) {
+    try {
+      jwks = await deps.clientKeySet.fetch(config.jwksUri, deps.realmId);
+    } catch (err) {
+      return fail(err instanceof Error ? err.message : 'jwks_uri fetch failed');
+    }
+  } else {
+    return fail('client publishes no keys');
+  }
+
+  const verified = await verifyJwtAgainstJwkSet(assertion, jwks, {
+    issuer: outcome.claimedClientId,
+    audience: tokenEndpoint,
+    now: deps.clock.now(),
+  });
+  if (!verified) return fail('assertion signature did not verify');
+
+  const claimed = await assertionJtiRepository(deps.database).claim(
+    deps.realmId,
+    outcome.claimedClientId,
+    outcome.jti,
+    outcome.expiresAt,
+  );
+  if (!claimed) return fail('jti already spent');
+
+  return { client, config };
+}
+
 export async function issueTokens(
   tx: RealmScopedDatabase,
   deps: TokenIssuanceDeps,
@@ -667,14 +755,24 @@ export async function issueTokens(
   authorizationHeader: string | undefined,
 ): Promise<TokenResponse> {
   const request = parseStructure(body);
-  const basic = parseBasicAuth(authorizationHeader);
-  const { client, config } = await authenticateClient(
-    tx,
-    deps,
-    basic,
-    request.clientId,
-    readOptionalField(body, 'client_secret'),
-  );
+  // OIDC Core §9: the audience a private_key_jwt assertion must name is
+  // this realm's own token endpoint — the same string discovery.ts's
+  // token_endpoint publishes (contracts/discovery.ts).
+  const tokenEndpoint = `${deps.issuer}/protocol/openid-connect/token`;
+  const assertionOutcome = parseClientAssertion(body, deps.clock.now(), {
+    audience: tokenEndpoint,
+  });
+
+  const { client, config } =
+    assertionOutcome.kind === 'unsupported'
+      ? await authenticateClient(
+          tx,
+          deps,
+          parseBasicAuth(authorizationHeader),
+          request.clientId,
+          readOptionalField(body, 'client_secret'),
+        )
+      : await authenticatePrivateKeyJwt(tx, deps, body, assertionOutcome, tokenEndpoint);
 
   if (request.grantType === 'authorization_code') {
     return issueAuthorizationCodeTokens(tx, deps, request, client, config);

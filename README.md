@@ -366,20 +366,19 @@ A registered `jwks_uri` is validated for shape only at registration —
 (`assertFetchableUrl`) — and deliberately **not** dereferenced there: a
 registration's success must not depend on a key host being reachable at
 that instant, and never again (`docs/NEXT.md` records this decision). The
-pieces that will dereference it once something needs the key exist — the
-address guard and the socket transport
-(`apps/server/src/client-key-transport.ts`), which pins the connection to
-the address the guard already checked rather than letting Node resolve the
-hostname a second time, refuses a private, loopback, link-local or
-otherwise non-public address, and carries a connect timeout, a total
-timeout and a body-size cap enforced as the response streams — but nothing
-calls them yet: `private_key_jwt` client authentication, the first
-consumer of a fetched key set, is P3b's. `ODUDU_ALLOW_PRIVATE_CLIENT_URLS`
-is read and enforced at boot already — **with `NODE_ENV=production` the
-server refuses to boot if it is set to `true`** — so that once a caller
-exists, the development and conformance stacks can let it resolve a
+pieces that dereference it at request time now: the address guard and
+the socket transport (`apps/server/src/client-key-transport.ts`), which
+pins the connection to the address the guard already checked rather than
+letting Node resolve the hostname a second time, refuses a private,
+loopback, link-local or otherwise non-public address, and carries a
+connect timeout, a total timeout and a body-size cap enforced as the
+response streams — are called by `private_key_jwt` client authentication
+at `/token`, their first and so far only caller.
+`ODUDU_ALLOW_PRIVATE_CLIENT_URLS` is read and enforced at boot — **with
+`NODE_ENV=production` the server refuses to boot if it is set to
+`true`** — so the development and conformance stacks can let it resolve a
 private or loopback address, which the OIDF conformance suite's own
-registration module does.
+registration module does, without production doing the same.
 
 **Operational trap:** turning `verify_email` on locks out every existing
 user with no email address on file — including one seeded without

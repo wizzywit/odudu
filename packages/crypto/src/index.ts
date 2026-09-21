@@ -15,6 +15,7 @@ export {
   type ExpectedAudience,
   type ExpectedTyp,
 } from '#/service/sign';
+export { verifyJwtAgainstJwkSet } from '#/service/jwk-set-verify';
 export {
   generateTotpSecret,
   totpCode,

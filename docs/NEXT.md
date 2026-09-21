@@ -45,12 +45,15 @@ second execution (`docs/phases/p3a.md`, Task 19).
   single in-flight attempt, and a failure writes its own negative-cache
   entry keyed by realm and URI (`NEGATIVE_CACHE_TTL_MS`, shorter than the
   success TTL) rather than re-fetching every call — the umbrella spec §6's
-  "a failure is not a permanent cache miss". Still wired into nothing:
-  wiring the fetcher into `/token`'s `private_key_jwt` verification is
-  what remains, and that wiring must construct one `clientKeySet` shared
-  across requests — the cache is in-memory, so a per-request instance
-  would never serve a hit and the realm-keyed negative cache would do
-  nothing.
+  "a failure is not a permanent cache miss". **Now wired in**: `/token`
+  accepts `private_key_jwt` (`authenticatePrivateKeyJwt`,
+  `packages/protocol-oidc/src/usecase/token-issuance.ts`), fetching at the
+  moment a signature is verified and reporting one `invalid_client`
+  whatever failed — see `docs/protocols/rfc7523.md`'s reading notes for
+  that property and its timing residual. `apps/server/src/app.ts`
+  constructs the one `clientKeySet` shared across requests the caching
+  above assumes. What is not built yet: mTLS client authentication, the
+  P3b criterion's other named method.
 - **The `claims` request parameter is P3b's**, not P3a's. It was placed in
   P3a by `docs/protocols/oidc-core.md` on the reasoning that it needs the
   per-client machinery and consent screen P3a builds; P3a's own criterion

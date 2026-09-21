@@ -650,7 +650,12 @@ curl -sS http://localhost:3000/realms/demo/.well-known/openid-configuration
   "id_token_signing_alg_values_supported": ["RS256", "ES256"],
   "code_challenge_methods_supported": ["S256"],
   "grant_types_supported": ["authorization_code", "refresh_token", "client_credentials"],
-  "token_endpoint_auth_methods_supported": ["client_secret_basic", "client_secret_post", "none"],
+  "token_endpoint_auth_methods_supported": [
+    "client_secret_basic",
+    "client_secret_post",
+    "none",
+    "private_key_jwt"
+  ],
   "authorization_response_iss_parameter_supported": true,
   "backchannel_logout_supported": true,
   "backchannel_logout_session_supported": true,
@@ -6956,8 +6961,9 @@ session lifecycle. A citation of either half here means that half.
   roadmap says so.
 - **No resource owner password credentials.** A decision: the grant is
   removed by OAuth 2.1, and it is not coming back.
-- **No `private_key_jwt` or mTLS client authentication.** **P3b**, whose exit
-  criterion names both.
+- **No mTLS client authentication.** **P3b**, whose exit criterion named it
+  alongside `private_key_jwt` — `/token` now accepts `private_key_jwt`,
+  advertised in `token_endpoint_auth_methods_supported` above.
 - **No DPoP or other sender-constrained tokens**, mTLS-bound tokens
   included. **P13**, as above: the FAPI 2.0 plan cannot pass without one of
   them.

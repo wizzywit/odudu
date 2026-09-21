@@ -36,11 +36,12 @@ describe('[OIDC-DISCOVERY-3-01] the discovery document', () => {
     ]);
   });
 
-  it('advertises exactly the three client authentication methods the token endpoint honours', () => {
+  it('advertises exactly the four client authentication methods the token endpoint honours', () => {
     expect([...doc.token_endpoint_auth_methods_supported].sort()).toEqual([
       'client_secret_basic',
       'client_secret_post',
       'none',
+      'private_key_jwt',
     ]);
   });
 
