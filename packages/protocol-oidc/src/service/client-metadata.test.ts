@@ -10,7 +10,7 @@ const ok = (over: Record<string, unknown> = {}): unknown => ({
 });
 
 it('accepts a minimal registration', () => {
-  const outcome = parseClientMetadata(ok());
+  const outcome = parseClientMetadata(ok(), { tlsClientAuthEnabled: false });
   expect(outcome.kind).toBe('ok');
 });
 
@@ -19,14 +19,18 @@ it.each([
   ['a fragment', 'https://rp.example/cb#x'],
   ['a relative URI', '/cb'],
 ])('refuses a redirect_uri with %s', (_name, uri) => {
-  const outcome = parseClientMetadata(ok({ redirect_uris: [uri] }));
+  const outcome = parseClientMetadata(ok({ redirect_uris: [uri] }), {
+    tlsClientAuthEnabled: false,
+  });
   expect(outcome).toMatchObject({ kind: 'invalid', error: 'invalid_redirect_uri' });
 });
 
 it.each(['http://127.0.0.1:8080/cb', 'http://[::1]:8080/cb', 'com.example.app:/cb'])(
   'accepts %s',
   (uri) => {
-    expect(parseClientMetadata(ok({ redirect_uris: [uri] })).kind).toBe('ok');
+    expect(
+      parseClientMetadata(ok({ redirect_uris: [uri] }), { tlsClientAuthEnabled: false }).kind,
+    ).toBe('ok');
   },
 );
 
@@ -41,20 +45,26 @@ describe('[ODUDU-CLIENT-META-REDIRECT-SCHEME-01] a non-HTTP redirect_uri scheme 
   it.each(['javascript:alert(1)', 'data:text/html,x', 'file:///etc/passwd'])(
     'refuses the dangerous scheme %s',
     (uri) => {
-      const outcome = parseClientMetadata(ok({ redirect_uris: [uri] }));
+      const outcome = parseClientMetadata(ok({ redirect_uris: [uri] }), {
+        tlsClientAuthEnabled: false,
+      });
       expect(outcome).toMatchObject({ kind: 'invalid', error: 'invalid_redirect_uri' });
     },
   );
 
   it('accepts a reverse-DNS custom scheme', () => {
-    expect(parseClientMetadata(ok({ redirect_uris: ['com.example.app:/cb'] })).kind).toBe('ok');
+    expect(
+      parseClientMetadata(ok({ redirect_uris: ['com.example.app:/cb'] }), {
+        tlsClientAuthEnabled: false,
+      }).kind,
+    ).toBe('ok');
   });
 });
 
 it.each(['http://rp.example/jwks.json', 'https://user:pw@rp.example/j'])(
   'refuses the jwks_uri %s',
   (uri) => {
-    const outcome = parseClientMetadata(ok({ jwks_uri: uri }));
+    const outcome = parseClientMetadata(ok({ jwks_uri: uri }), { tlsClientAuthEnabled: false });
     expect(outcome).toMatchObject({ kind: 'invalid', error: 'invalid_client_metadata' });
   },
 );
@@ -66,23 +76,32 @@ it('accepts a well-formed jwks_uri without dereferencing it', () => {
   // jwks_uri either — see docs/NEXT.md and
   // packages/protocol-oidc/tests/client-registration.int.test.ts's own
   // proof of that at the endpoint level.
-  expect(parseClientMetadata(ok({ jwks_uri: 'https://nonexistent.invalid/jwks.json' })).kind).toBe(
-    'ok',
-  );
+  expect(
+    parseClientMetadata(ok({ jwks_uri: 'https://nonexistent.invalid/jwks.json' }), {
+      tlsClientAuthEnabled: false,
+    }).kind,
+  ).toBe('ok');
 });
 
 it('refuses a client that states its keys twice', () => {
-  const outcome = parseClientMetadata(ok({ jwks: { keys: [] }, jwks_uri: 'https://rp.example/j' }));
+  const outcome = parseClientMetadata(
+    ok({ jwks: { keys: [] }, jwks_uri: 'https://rp.example/j' }),
+    { tlsClientAuthEnabled: false },
+  );
   expect(outcome).toMatchObject({ kind: 'invalid', error: 'invalid_client_metadata' });
 });
 
 it('refuses a client_id the client proposed for itself', () => {
-  const outcome = parseClientMetadata(ok({ client_id: 'i-picked-this' }));
+  const outcome = parseClientMetadata(ok({ client_id: 'i-picked-this' }), {
+    tlsClientAuthEnabled: false,
+  });
   expect(outcome).toMatchObject({ kind: 'invalid', error: 'invalid_client_metadata' });
 });
 
 it('refuses a grant type this server does not implement', () => {
-  const outcome = parseClientMetadata(ok({ grant_types: ['implicit'] }));
+  const outcome = parseClientMetadata(ok({ grant_types: ['implicit'] }), {
+    tlsClientAuthEnabled: false,
+  });
   expect(outcome).toMatchObject({ kind: 'invalid', error: 'invalid_client_metadata' });
 });
 
@@ -90,23 +109,30 @@ it('refuses a grant type this server does not implement', () => {
 // the existing CHECK on client_oidc_config permits with no redirect_uri.
 it('accepts client_credentials alone with no redirect_uris', () => {
   expect(
-    parseClientMetadata({
-      grant_types: ['client_credentials'],
-      token_endpoint_auth_method: 'client_secret_basic',
-    }).kind,
+    parseClientMetadata(
+      {
+        grant_types: ['client_credentials'],
+        token_endpoint_auth_method: 'client_secret_basic',
+      },
+      { tlsClientAuthEnabled: false },
+    ).kind,
   ).toBe('ok');
 });
 
 describe('[RFC6749-3.1.2-01] the redirection endpoint URI is an absolute URI', () => {
   it('refuses a relative redirect_uri', () => {
-    const outcome = parseClientMetadata(ok({ redirect_uris: ['/cb'] }));
+    const outcome = parseClientMetadata(ok({ redirect_uris: ['/cb'] }), {
+      tlsClientAuthEnabled: false,
+    });
     expect(outcome).toMatchObject({ kind: 'invalid', error: 'invalid_redirect_uri' });
   });
 });
 
 describe('[RFC6749-3.1.2-02] the redirection endpoint URI does not include a fragment component', () => {
   it('refuses a redirect_uri carrying a fragment', () => {
-    const outcome = parseClientMetadata(ok({ redirect_uris: ['https://rp.example/cb#x'] }));
+    const outcome = parseClientMetadata(ok({ redirect_uris: ['https://rp.example/cb#x'] }), {
+      tlsClientAuthEnabled: false,
+    });
     expect(outcome).toMatchObject({ kind: 'invalid', error: 'invalid_redirect_uri' });
   });
 });
@@ -121,6 +147,7 @@ describe('[RFC6749-3.1.2.2-01] the authorization server requires public clients 
   it('refuses a public client with no redirect_uris', () => {
     const outcome = parseClientMetadata(
       ok({ token_endpoint_auth_method: 'none', redirect_uris: [] }),
+      { tlsClientAuthEnabled: false },
     );
     expect(outcome).toMatchObject({ kind: 'invalid', error: 'invalid_redirect_uri' });
   });
@@ -130,6 +157,7 @@ describe('[RFC6749-10.2-01] when the client cannot be authenticated, the authori
   it('refuses a client registering as token_endpoint_auth_method none with no redirect_uris', () => {
     const outcome = parseClientMetadata(
       ok({ token_endpoint_auth_method: 'none', redirect_uris: [] }),
+      { tlsClientAuthEnabled: false },
     );
     expect(outcome).toMatchObject({ kind: 'invalid', error: 'invalid_redirect_uri' });
   });
@@ -139,6 +167,7 @@ describe('[RFC6749-10.6-01] the authorization server requires public clients to 
   it('refuses a public client with no redirect_uris', () => {
     const outcome = parseClientMetadata(
       ok({ token_endpoint_auth_method: 'none', redirect_uris: [] }),
+      { tlsClientAuthEnabled: false },
     );
     expect(outcome).toMatchObject({ kind: 'invalid', error: 'invalid_redirect_uri' });
   });
@@ -151,7 +180,9 @@ describe('[RFC6749-10.1-01] the authorization server does not issue client passw
   // declares itself unable to keep a secret (`none`) is never handed one,
   // regardless of what it is asking to register for.
   it('issues no secretHash-bearing client for token_endpoint_auth_method none', () => {
-    const outcome = parseClientMetadata(ok({ token_endpoint_auth_method: 'none' }));
+    const outcome = parseClientMetadata(ok({ token_endpoint_auth_method: 'none' }), {
+      tlsClientAuthEnabled: false,
+    });
     expect(outcome.kind).toBe('ok');
     // parseClientMetadata itself never generates a secret — this asserts
     // the metadata this server treats as "a public client" is exactly the
@@ -166,27 +197,35 @@ describe('[RFC6749-10.1-01] the authorization server does not issue client passw
 
 describe('[OIDC-BACKCHANNEL-2.2-03] the back-channel logout URI scheme policy', () => {
   it('refuses a back-channel logout URI that is not https', () => {
-    const outcome = parseClientMetadata(ok({ backchannel_logout_uri: 'http://rp.example/bc' }));
+    const outcome = parseClientMetadata(ok({ backchannel_logout_uri: 'http://rp.example/bc' }), {
+      tlsClientAuthEnabled: false,
+    });
     expect(outcome).toMatchObject({ kind: 'invalid', error: 'invalid_client_metadata' });
   });
 });
 
 describe('[OIDC-BACKCHANNEL-2.2-01] the back-channel logout URI is absolute', () => {
   it('refuses a relative back-channel logout URI', () => {
-    const outcome = parseClientMetadata(ok({ backchannel_logout_uri: '/bc' }));
+    const outcome = parseClientMetadata(ok({ backchannel_logout_uri: '/bc' }), {
+      tlsClientAuthEnabled: false,
+    });
     expect(outcome).toMatchObject({ kind: 'invalid', error: 'invalid_client_metadata' });
   });
 });
 
 describe('[OIDC-BACKCHANNEL-2.2-02] the back-channel logout URI carries no fragment', () => {
   it('refuses a back-channel logout URI with a fragment', () => {
-    const outcome = parseClientMetadata(ok({ backchannel_logout_uri: 'https://rp.example/bc#x' }));
+    const outcome = parseClientMetadata(ok({ backchannel_logout_uri: 'https://rp.example/bc#x' }), {
+      tlsClientAuthEnabled: false,
+    });
     expect(outcome).toMatchObject({ kind: 'invalid', error: 'invalid_client_metadata' });
   });
 });
 
 it('accepts a well-formed back-channel logout URI', () => {
-  const outcome = parseClientMetadata(ok({ backchannel_logout_uri: 'https://rp.example/bc' }));
+  const outcome = parseClientMetadata(ok({ backchannel_logout_uri: 'https://rp.example/bc' }), {
+    tlsClientAuthEnabled: false,
+  });
   expect(outcome.kind).toBe('ok');
 });
 
@@ -196,44 +235,57 @@ it('accepts a well-formed back-channel logout URI', () => {
 // against docs/protocols/oidc-frontchannel.md.
 describe('[OIDC-FRONTCHANNEL-2-SCHEME-01] the front-channel logout URI scheme policy', () => {
   it('refuses a front-channel logout URI that is not https', () => {
-    const outcome = parseClientMetadata(ok({ frontchannel_logout_uri: 'http://rp.example/fc' }));
+    const outcome = parseClientMetadata(ok({ frontchannel_logout_uri: 'http://rp.example/fc' }), {
+      tlsClientAuthEnabled: false,
+    });
     expect(outcome).toMatchObject({ kind: 'invalid', error: 'invalid_client_metadata' });
   });
 
   it('refuses a javascript: front-channel logout URI', () => {
-    const outcome = parseClientMetadata(ok({ frontchannel_logout_uri: 'javascript:alert(1)' }));
+    const outcome = parseClientMetadata(ok({ frontchannel_logout_uri: 'javascript:alert(1)' }), {
+      tlsClientAuthEnabled: false,
+    });
     expect(outcome).toMatchObject({ kind: 'invalid', error: 'invalid_client_metadata' });
   });
 });
 
 describe('[OIDC-FRONTCHANNEL-2-ABSOLUTE-01] the front-channel logout URI is absolute', () => {
   it('refuses a relative front-channel logout URI', () => {
-    const outcome = parseClientMetadata(ok({ frontchannel_logout_uri: '/fc' }));
+    const outcome = parseClientMetadata(ok({ frontchannel_logout_uri: '/fc' }), {
+      tlsClientAuthEnabled: false,
+    });
     expect(outcome).toMatchObject({ kind: 'invalid', error: 'invalid_client_metadata' });
   });
 });
 
 describe('[OIDC-FRONTCHANNEL-2-FRAGMENT-01] the front-channel logout URI carries no fragment', () => {
   it('refuses a front-channel logout URI with a fragment', () => {
-    const outcome = parseClientMetadata(ok({ frontchannel_logout_uri: 'https://rp.example/fc#x' }));
+    const outcome = parseClientMetadata(
+      ok({ frontchannel_logout_uri: 'https://rp.example/fc#x' }),
+      { tlsClientAuthEnabled: false },
+    );
     expect(outcome).toMatchObject({ kind: 'invalid', error: 'invalid_client_metadata' });
   });
 });
 
 it('accepts a well-formed front-channel logout URI', () => {
-  const outcome = parseClientMetadata(ok({ frontchannel_logout_uri: 'https://rp.example/fc' }));
+  const outcome = parseClientMetadata(ok({ frontchannel_logout_uri: 'https://rp.example/fc' }), {
+    tlsClientAuthEnabled: false,
+  });
   expect(outcome.kind).toBe('ok');
 });
 
 describe('[OIDC-FRONTCHANNEL-2-SESSION-REQUIRED-01] frontchannel_logout_session_required is registerable', () => {
   it('accepts frontchannel_logout_session_required and defaults it to false', () => {
-    const outcome = parseClientMetadata(ok({ frontchannel_logout_session_required: true }));
+    const outcome = parseClientMetadata(ok({ frontchannel_logout_session_required: true }), {
+      tlsClientAuthEnabled: false,
+    });
     expect(outcome.kind).toBe('ok');
     if (outcome.kind === 'ok') {
       expect(outcome.metadata.frontchannelLogoutSessionRequired).toBe(true);
     }
 
-    const omitted = parseClientMetadata(ok());
+    const omitted = parseClientMetadata(ok(), { tlsClientAuthEnabled: false });
     expect(omitted.kind).toBe('ok');
     if (omitted.kind === 'ok') {
       expect(omitted.metadata.frontchannelLogoutSessionRequired).toBe(false);
@@ -241,7 +293,9 @@ describe('[OIDC-FRONTCHANNEL-2-SESSION-REQUIRED-01] frontchannel_logout_session_
   });
 
   it('refuses a non-boolean frontchannel_logout_session_required', () => {
-    const outcome = parseClientMetadata(ok({ frontchannel_logout_session_required: 'yes' }));
+    const outcome = parseClientMetadata(ok({ frontchannel_logout_session_required: 'yes' }), {
+      tlsClientAuthEnabled: false,
+    });
     expect(outcome.kind).toBe('invalid');
   });
 });
@@ -257,6 +311,7 @@ describe('[OIDC-FRONTCHANNEL-2-ORIGIN-01] the front-channel logout URI origin ma
         redirect_uris: ['https://rp.example/cb'],
         frontchannel_logout_uri: 'https://evil.example/fc',
       }),
+      { tlsClientAuthEnabled: false },
     );
     expect(outcome).toMatchObject({ kind: 'invalid', error: 'invalid_client_metadata' });
   });
@@ -267,6 +322,7 @@ describe('[OIDC-FRONTCHANNEL-2-ORIGIN-01] the front-channel logout URI origin ma
         redirect_uris: ['https://rp.example:8443/cb'],
         frontchannel_logout_uri: 'https://rp.example/fc',
       }),
+      { tlsClientAuthEnabled: false },
     );
     expect(outcome).toMatchObject({ kind: 'invalid', error: 'invalid_client_metadata' });
   });
@@ -277,6 +333,7 @@ describe('[OIDC-FRONTCHANNEL-2-ORIGIN-01] the front-channel logout URI origin ma
         redirect_uris: ['https://rp.example/cb'],
         frontchannel_logout_uri: 'https://rp.example:443/fc',
       }),
+      { tlsClientAuthEnabled: false },
     );
     expect(outcome.kind).toBe('ok');
   });
@@ -287,7 +344,110 @@ describe('[OIDC-FRONTCHANNEL-2-ORIGIN-01] the front-channel logout URI origin ma
         redirect_uris: ['https://other.example/cb', 'https://rp.example/cb'],
         frontchannel_logout_uri: 'https://rp.example/fc',
       }),
+      { tlsClientAuthEnabled: false },
     );
+    expect(outcome.kind).toBe('ok');
+  });
+});
+
+// client_oidc_config_tls_client_auth_needs_subject_dn (migration
+// 0055_client_tls_client_auth_subject_dn.sql): nothing downstream can
+// compare a proxy-supplied certificate subject against a client that
+// registered tls_client_auth without one.
+describe('[RFC8705-2.1.2-01] a tls_client_auth registration requires its subject DN', () => {
+  it('refuses tls_client_auth with no tls_client_auth_subject_dn', () => {
+    const outcome = parseClientMetadata(
+      ok({ grant_types: ['client_credentials'], token_endpoint_auth_method: 'tls_client_auth' }),
+      { tlsClientAuthEnabled: true },
+    );
+    expect(outcome).toMatchObject({ kind: 'invalid', error: 'invalid_client_metadata' });
+  });
+
+  it('refuses tls_client_auth with a blank tls_client_auth_subject_dn', () => {
+    const outcome = parseClientMetadata(
+      ok({
+        grant_types: ['client_credentials'],
+        token_endpoint_auth_method: 'tls_client_auth',
+        tls_client_auth_subject_dn: '   ',
+      }),
+      { tlsClientAuthEnabled: true },
+    );
+    expect(outcome).toMatchObject({ kind: 'invalid', error: 'invalid_client_metadata' });
+  });
+
+  it('accepts tls_client_auth with a subject DN and stores it trimmed', () => {
+    const outcome = parseClientMetadata(
+      ok({
+        grant_types: ['client_credentials'],
+        token_endpoint_auth_method: 'tls_client_auth',
+        tls_client_auth_subject_dn: '  CN=client-a,O=Example  ',
+      }),
+      { tlsClientAuthEnabled: true },
+    );
+    expect(outcome.kind).toBe('ok');
+    if (outcome.kind === 'ok') {
+      expect(outcome.metadata.tlsClientAuthSubjectDn).toBe('CN=client-a,O=Example');
+    }
+  });
+
+  it('leaves tlsClientAuthSubjectDn null for every other method', () => {
+    const outcome = parseClientMetadata(ok(), { tlsClientAuthEnabled: true });
+    expect(outcome.kind).toBe('ok');
+    if (outcome.kind === 'ok') {
+      expect(outcome.metadata.tlsClientAuthSubjectDn).toBeNull();
+    }
+  });
+
+  // A subject DN sent alongside an unrelated method is dropped, not kept:
+  // stored dormant, it would be a certificate a later registered-method
+  // change could authenticate against without anyone choosing that.
+  it('drops a tls_client_auth_subject_dn sent for a different method', () => {
+    const outcome = parseClientMetadata(
+      ok({
+        token_endpoint_auth_method: 'client_secret_basic',
+        tls_client_auth_subject_dn: 'CN=client-a,O=Example',
+      }),
+      { tlsClientAuthEnabled: true },
+    );
+    expect(outcome.kind).toBe('ok');
+    if (outcome.kind === 'ok') {
+      expect(outcome.metadata.tlsClientAuthSubjectDn).toBeNull();
+    }
+  });
+});
+
+// docs/superpowers/specs/2026-09-18-p3a-clients-registration-consent-design.md:596-598:
+// "unset means the method is unavailable and a client registering
+// tls_client_auth is refused" — the half of that decision `/token`'s own
+// gate (ODUDU_TRUST_PROXY) does not reach, since registration and
+// authentication are two different code paths.
+describe('[ODUDU-TLS-CLIENT-AUTH-REGISTRATION-GATE-01] tls_client_auth registration is refused when the deployment cannot honour it', () => {
+  it('refuses the method when tlsClientAuthEnabled is false, even with a subject DN', () => {
+    const outcome = parseClientMetadata(
+      ok({
+        grant_types: ['client_credentials'],
+        token_endpoint_auth_method: 'tls_client_auth',
+        tls_client_auth_subject_dn: 'CN=client-a,O=Example',
+      }),
+      { tlsClientAuthEnabled: false },
+    );
+    expect(outcome).toMatchObject({ kind: 'invalid', error: 'invalid_client_metadata' });
+  });
+
+  it('accepts the method when tlsClientAuthEnabled is true and a subject DN is present', () => {
+    const outcome = parseClientMetadata(
+      ok({
+        grant_types: ['client_credentials'],
+        token_endpoint_auth_method: 'tls_client_auth',
+        tls_client_auth_subject_dn: 'CN=client-a,O=Example',
+      }),
+      { tlsClientAuthEnabled: true },
+    );
+    expect(outcome.kind).toBe('ok');
+  });
+
+  it('never refuses an unrelated method for tlsClientAuthEnabled being false', () => {
+    const outcome = parseClientMetadata(ok(), { tlsClientAuthEnabled: false });
     expect(outcome.kind).toBe('ok');
   });
 });

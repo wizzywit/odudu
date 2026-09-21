@@ -31,6 +31,7 @@ import { hashPassword, userRepository, verifyPassword } from '@odudu/domain-iden
 import { clientRepository, clientScopeRepository, consentRepository } from '@odudu/domain-realm';
 import { newId, systemClock, type Clock } from '@odudu/kernel';
 import { type FastifyPluginAsync } from 'fastify';
+import { type ClientKeySet } from '#/repository/client-keys';
 import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
 import { tokenGrantRepository, type ClientLogoutTarget } from '#/repository/grants';
 import { logoutDeliveryRepository } from '#/repository/logout-deliveries';
@@ -39,6 +40,7 @@ import { reachableRoleIds } from '#/repository/scope-role-reach';
 import { standardClaimMappers } from '#/service/claims';
 import { type ClientSecretLimiter } from '#/service/client-secret-throttle';
 import { logoutTokenClaims, LOGOUT_TOKEN_TYP } from '#/service/logout-token';
+import { DEFAULT_TLS_CLIENT_SUBJECT_HEADER } from '#/service/tls-client-auth';
 import { expandWebOrigins } from '#/service/web-origin';
 import {
   issueAuthorizationCode,
@@ -91,6 +93,26 @@ export interface OidcRoutesDeps {
   // A caller that genuinely wants no budget says so explicitly with
   // `UNLIMITED_CLIENT_SECRET_LIMITER` (#/service/client-secret-throttle.ts).
   clientSecretLimiter: ClientSecretLimiter;
+  // RFC 7523 §2.2's fetcher for a client's jwks_uri, consulted only by
+  // private_key_jwt authentication at /token. Required for the same
+  // reason `clientSecretLimiter` above is (see its comment); a caller
+  // with no opinion says so explicitly with `NO_CLIENT_KEY_FETCHER`
+  // (#/repository/client-keys.ts). `apps/server/src/app.ts` supplies the
+  // real one, wired to `node:https` and `node:dns`.
+  clientKeySet: ClientKeySet;
+  // Gates tls_client_auth client authentication at /token the same way it
+  // already gates Fastify's own `X-Forwarded-*` trust
+  // (apps/server/src/app.ts). Defaults off, the same as that trust does —
+  // a caller with no reverse proxy in front of it must not have a
+  // proxy-supplied header trusted by default. Also what discovery's
+  // `token_endpoint_auth_methods_supported` conditions `tls_client_auth`
+  // on — see `resolveDiscoveryDocument`.
+  trustProxy?: boolean;
+  // The header a deployment's own proxy emits the certificate subject
+  // under (`ODUDU_TLS_CLIENT_CERT_HEADER`) — no two proxies agree on a
+  // name, so this is never a constant. Defaults to the same value the
+  // kernel config schema does.
+  tlsClientCertHeader?: string;
 }
 
 function hasBackchannelLogoutUri(
@@ -109,6 +131,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
     const clock = deps.clock ?? systemClock;
     const tls = deps.tls ?? false;
     const clientSecretLimiter = deps.clientSecretLimiter;
+    const clientKeySet = deps.clientKeySet;
     // One registry per process, shared by discovery (claimNames, for
     // claims_supported), /userinfo, and token issuance's ID token claims —
     // so a mapper registered once reaches every consumer the same way.
@@ -313,6 +336,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
       findRealm,
       claimNames: () => claimMappers.claimNames(),
       scopesForRealm,
+      trustProxy: deps.trustProxy ?? false,
     });
     registerJwksRoute(app, { findRealm, listPublishableKeys });
     // Introspection's two grant/session reads, resolved here rather than in
@@ -363,6 +387,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
       withinRealm: (realmId, fn) => withRealm(deps.database.db, realmId, fn),
       hashClientSecret: hashPassword,
       now: () => clock.now(),
+      tlsClientAuthEnabled: deps.trustProxy ?? false,
     });
     // One definition for both doors onto the enrolment page: the login
     // submission that discovers the action is owed, and the enrolment
@@ -689,6 +714,9 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
         claimMappers,
         loadClaimContext,
         resolveClientWebOrigins,
+        clientKeySet,
+        trustProxy: deps.trustProxy ?? false,
+        tlsClientCertHeader: deps.tlsClientCertHeader ?? DEFAULT_TLS_CLIENT_SUBJECT_HEADER,
       });
       registerUserinfoRoute(scope, {
         findRealm,
@@ -705,6 +733,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
   };
 }
 
+export { assertionJtiRepository } from '#/repository/assertion-jti';
 export { clientOidcConfigRepository } from '#/repository/client-oidc-config';
 export { type ClientOidcConfig } from '#/schema/client-oidc-config';
 export { realmLookupRepository, type NewRealm, type RealmLookup } from '#/repository/realm-lookup';
@@ -712,6 +741,7 @@ export {
   clientKeySet,
   ClientKeySetRefused,
   MAX_JWKS_BYTES,
+  NO_CLIENT_KEY_FETCHER,
   type ClientKeyDeps,
   type ClientKeyRequest,
   type ClientKeyResponse,

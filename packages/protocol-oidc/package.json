@@ -30,6 +30,7 @@
   "devDependencies": {
     "@fastify/formbody": "9.0.0",
     "@odudu/testkit": "workspace:*",
+    "pino": "10.3.1",
     "vitest": "5.0.0"
   }
 }

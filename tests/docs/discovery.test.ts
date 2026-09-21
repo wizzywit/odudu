@@ -31,6 +31,10 @@ async function serverDiscoveryDocument(): Promise<Record<string, unknown>> {
       // What `seed realm` puts in a realm, so the document is checked against
       // the vocabulary a freshly seeded stack actually serves.
       scopesForRealm: () => Promise.resolve(REALM_DEFAULT_SCOPE_NAMES),
+      // ODUDU_TRUST_PROXY defaults false, and docs/request-paths.md's own
+      // transcript was captured against a stack that never set it — see
+      // this same value's effect on token_endpoint_auth_methods_supported.
+      trustProxy: false,
     },
     REALM,
     ISSUER_BASE,

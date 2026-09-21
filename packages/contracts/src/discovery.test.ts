@@ -36,11 +36,31 @@ describe('[OIDC-DISCOVERY-3-01] the discovery document', () => {
     ]);
   });
 
-  it('advertises exactly the three client authentication methods the token endpoint honours', () => {
+  // tls_client_auth is excluded by default: docs/superpowers/specs/2026-09-18-p3a-clients-registration-consent-design.md:596-598
+  // decides that an unset ODUDU_TRUST_PROXY means the method is
+  // unavailable, so discovery must not name it either.
+  it('advertises exactly the four client authentication methods the token endpoint honours with no trusted proxy', () => {
     expect([...doc.token_endpoint_auth_methods_supported].sort()).toEqual([
       'client_secret_basic',
       'client_secret_post',
       'none',
+      'private_key_jwt',
+    ]);
+  });
+
+  it('adds tls_client_auth only when the caller says the deployment can honour it', () => {
+    const withTls = discoveryDocument({
+      issuer: 'https://idp.example/realms/acme',
+      claimsSupported: CLAIMS_SUPPORTED,
+      scopesSupported: SCOPES_SUPPORTED,
+      tlsClientAuthEnabled: true,
+    });
+    expect([...withTls.token_endpoint_auth_methods_supported].sort()).toEqual([
+      'client_secret_basic',
+      'client_secret_post',
+      'none',
+      'private_key_jwt',
+      'tls_client_auth',
     ]);
   });
 

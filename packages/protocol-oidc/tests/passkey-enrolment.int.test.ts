@@ -29,6 +29,7 @@ import formbody from '@fastify/formbody';
 import Fastify, { type FastifyInstance, type LightMyRequestResponse } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { oidcRoutes } from '#/index';
+import { NO_CLIENT_KEY_FETCHER } from '#/repository/client-keys';
 import { UNLIMITED_CLIENT_SECRET_LIMITER } from '#/service/client-secret-throttle';
 import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
 
@@ -242,6 +243,7 @@ beforeAll(async () => {
       kek: KEK,
       publicBaseUrl: PUBLIC_BASE_URL,
       clientSecretLimiter: UNLIMITED_CLIENT_SECRET_LIMITER,
+      clientKeySet: NO_CLIENT_KEY_FETCHER,
     }),
   );
   await http.ready();
@@ -639,6 +641,7 @@ describe('a deployment that cannot name a relying party', () => {
           ownerDatabase: owner,
           kek: KEK,
           clientSecretLimiter: UNLIMITED_CLIENT_SECRET_LIMITER,
+          clientKeySet: NO_CLIENT_KEY_FETCHER,
         }),
       );
       await unconfigured.ready();

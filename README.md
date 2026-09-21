@@ -366,20 +366,19 @@ A registered `jwks_uri` is validated for shape only at registration —
 (`assertFetchableUrl`) — and deliberately **not** dereferenced there: a
 registration's success must not depend on a key host being reachable at
 that instant, and never again (`docs/NEXT.md` records this decision). The
-pieces that will dereference it once something needs the key exist — the
-address guard and the socket transport
-(`apps/server/src/client-key-transport.ts`), which pins the connection to
-the address the guard already checked rather than letting Node resolve the
-hostname a second time, refuses a private, loopback, link-local or
-otherwise non-public address, and carries a connect timeout, a total
-timeout and a body-size cap enforced as the response streams — but nothing
-calls them yet: `private_key_jwt` client authentication, the first
-consumer of a fetched key set, is P3b's. `ODUDU_ALLOW_PRIVATE_CLIENT_URLS`
-is read and enforced at boot already — **with `NODE_ENV=production` the
-server refuses to boot if it is set to `true`** — so that once a caller
-exists, the development and conformance stacks can let it resolve a
+pieces that dereference it at request time now: the address guard and
+the socket transport (`apps/server/src/client-key-transport.ts`), which
+pins the connection to the address the guard already checked rather than
+letting Node resolve the hostname a second time, refuses a private,
+loopback, link-local or otherwise non-public address, and carries a
+connect timeout, a total timeout and a body-size cap enforced as the
+response streams — are called by `private_key_jwt` client authentication
+at `/token`, their first and so far only caller.
+`ODUDU_ALLOW_PRIVATE_CLIENT_URLS` is read and enforced at boot — **with
+`NODE_ENV=production` the server refuses to boot if it is set to
+`true`** — so the development and conformance stacks can let it resolve a
 private or loopback address, which the OIDF conformance suite's own
-registration module does.
+registration module does, without production doing the same.
 
 **Operational trap:** turning `verify_email` on locks out every existing
 user with no email address on file — including one seeded without
@@ -483,7 +482,10 @@ Front-Channel Logout 1.0 §3 — an attempt, not a guarantee: the iframe's
 response is never read back, and a browser may never deliver the framed
 request to a live RP session at all (third-party-cookie policy;
 `docs/superpowers/p3b-spike-frontchannel.md` has the measured evidence).
-Back-channel logout is still `deferred: P3b`. See [the logout section of
+Back-channel logout ships too: a session that ends enqueues one Logout
+Token per client that registered a `backchannel_logout_uri`, and the
+`send-logouts` pass delivers them off the request path — see below. See
+[the logout section of
 docs/request-paths.md](docs/request-paths.md#rp-initiated-logout) for the
 walkthrough, and [its front-channel logout
 section](docs/request-paths.md#front-channel-logout) for a real transcript
@@ -844,7 +846,7 @@ node --env-file=.env apps/server/src/main.ts reap
 ```
 
 ```
-{"ran":true,"deleted":{"refresh_tokens":0,"authorization_codes":0,"token_grants":0,"authentication_sessions":0,"action_tokens":0,"client_registration_tokens":0,"login_failures":0,"email_outbox":0,"backchannel_logout_deliveries":0,"sessions":0}}
+{"ran":true,"deleted":{"refresh_tokens":0,"authorization_codes":0,"token_grants":0,"authentication_sessions":0,"action_tokens":0,"client_registration_tokens":0,"login_failures":0,"email_outbox":0,"backchannel_logout_deliveries":0,"client_assertion_jti":0,"sessions":0}}
 ```
 
 Those zeros on a freshly used stack are the design, not a bug. A row is
@@ -1013,7 +1015,29 @@ A real deployment today looks like:
    that overwrites `X-Forwarded-*`, or `request.ip` becomes
    client-controlled — and with it the key the per-origin throttle counts
    on, which a spoofed `X-Forwarded-For` then bypasses a header at a time.
-   Appending is not enough: the value must be replaced.
+   Appending is not enough: the value must be replaced. The same flag now
+   also gates `tls_client_auth` client authentication at `/token`: with it
+   on, the server reads the client certificate's subject from the header
+   named by `ODUDU_TLS_CLIENT_CERT_HEADER` (default `x-ssl-client-s-dn`;
+   the name is not standardized — Envoy, Apache and HAProxy each use a
+   different one, so set this to whatever the proxy actually emits). **The
+   proxy must strip this header from every inbound request before adding
+   its own** — a deployment that trusts the header without stripping it
+   lets any caller assert any client's identity, since nothing downstream
+   of the proxy can otherwise tell its own header from one the proxy
+   appended. **The proxy must also actually verify the certificate**
+   (nginx's `ssl_verify_client on`, not `optional_no_ca`) — a client
+   authentication method is not optional-if-presented, and an unverified
+   certificate is just a header a caller wrote into its own request. When
+   no certificate is presented, the header must be absent or empty, never
+   a literal placeholder like `(null)` or `-`: either of those would be
+   read as a real, if unmatched, subject and refuse every ordinary
+   `client_secret_basic` or `client_secret_post` request from that proxy
+   too, since it would then look like a certificate was always presented.
+   With the flag off, `tls_client_auth` is unavailable end to end:
+   discovery does not advertise it and dynamic client registration refuses
+   to register a client for it, not only `/token`'s own refusal to
+   authenticate one.
 5. Set `ODUDU_PUBLIC_BASE_URL` to the origin users reach the server on.
    **With `NODE_ENV=production` the server refuses to boot without it** — it
    is the base of every mailed link and the WebAuthn relying party id every
@@ -1053,7 +1077,6 @@ Every row says where it stands, and every row has a phase:
 | An account console for self-service credential management, and an operator unlock for a locked account | P4              |
 | An admin API — seeding is the only administrative surface                                              | P4              |
 | Signing-key rotation — the shape exists, the operation does not                                        | P4              |
-| Back-channel logout, and discovery advertisement of front-channel logout                               | P3b             |
 | Published images and a release process                                                                 | P12             |
 | Secret management beyond environment variables                                                         | P12             |
 | Backup and restore guidance                                                                            | P12             |

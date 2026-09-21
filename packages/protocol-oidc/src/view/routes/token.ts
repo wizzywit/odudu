@@ -5,7 +5,7 @@ import { corsHeadersForRequest } from '#/service/cors';
 import { type ClaimContext } from '#/service/claims';
 import { type ClientSecretLimiter } from '#/service/client-secret-throttle';
 import { TokenError, TokenRateLimited } from '#/service/errors';
-import { issueTokens, type TokenResponse } from '#/usecase/token-issuance';
+import { issueTokens, type ClientKeySet, type TokenResponse } from '#/usecase/token-issuance';
 import { realmIssuerFor } from '#/view/issuer';
 
 export interface TokenRouteDeps {
@@ -35,6 +35,15 @@ export interface TokenRouteDeps {
   // ADR 0023's client-authentication budget, per client_id. See
   // token-issuance.ts's TokenIssuanceDeps for what it counts.
   clientSecretLimiter: ClientSecretLimiter;
+  // RFC 7523 §2.2's fetcher for a client's jwks_uri — see
+  // token-issuance.ts's TokenIssuanceDeps for what calls it.
+  clientKeySet: ClientKeySet;
+  // Gates tls_client_auth — see token-issuance.ts's TokenIssuanceDeps for
+  // what reads it.
+  trustProxy: boolean;
+  // `ODUDU_TLS_CLIENT_CERT_HEADER` — see token-issuance.ts's
+  // TokenIssuanceDeps for what reads it.
+  tlsClientCertHeader: string;
 }
 
 function readClientId(body: Record<string, string | string[] | undefined>): string | undefined {
@@ -74,9 +83,15 @@ export function registerTokenRoute(app: FastifyInstance, deps: TokenRouteDeps): 
             clientSecretLimiter: deps.clientSecretLimiter,
             claimMappers: deps.claimMappers,
             loadClaimContext: (realmId, subjectId) => deps.loadClaimContext(realmId, subjectId),
+            clientKeySet: deps.clientKeySet,
+            logger: request.log,
+            trustProxy: deps.trustProxy,
+            tlsClientCertHeader: deps.tlsClientCertHeader,
           },
           request.body,
           request.headers.authorization,
+          request.headers,
+          request.raw.rawHeaders,
         ),
       );
 

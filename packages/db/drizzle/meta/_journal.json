@@ -379,6 +379,20 @@
       "when": 1789049381696,
       "tag": "0053_authorization_codes_resource",
       "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "7",
+      "when": 1789049381697,
+      "tag": "0054_client_assertion_jti",
+      "breakpoints": true
+    },
+    {
+      "idx": 55,
+      "version": "7",
+      "when": 1789049381698,
+      "tag": "0055_client_tls_client_auth_subject_dn",
+      "breakpoints": true
     }
   ]
 }

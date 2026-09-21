@@ -12,6 +12,12 @@ export interface DiscoveryUsecaseDeps {
   // realm data rather than a constant in the binary. `/authorize` validates
   // against this same read.
   scopesForRealm(realmId: string): Promise<readonly string[]>;
+  // Whether this deployment's `ODUDU_TRUST_PROXY` is on — server config,
+  // not realm data, so it is read once per process the way `/token`'s own
+  // `trustProxy` dep is, not resolved per realm. Gates
+  // `token_endpoint_auth_methods_supported`'s `tls_client_auth` entry: see
+  // `discoveryDocument`'s `tlsClientAuthEnabled`.
+  trustProxy: boolean;
 }
 
 // Returns null for both an unknown realm and a disabled one — the view
@@ -33,5 +39,6 @@ export async function resolveDiscoveryDocument(
     claimsSupported: deps.claimNames(),
     scopesSupported,
     clientRegistrationEnabled: realm.clientRegistrationPolicy !== 'disabled',
+    tlsClientAuthEnabled: deps.trustProxy,
   });
 }

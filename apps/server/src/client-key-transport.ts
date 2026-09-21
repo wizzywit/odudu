@@ -5,8 +5,15 @@ import {
 } from '@odudu/protocol-oidc';
 import { isIPv6 } from 'node:net';
 import { request as httpsRequest } from 'node:https';
+import { lookup as dnsLookup } from 'node:dns/promises';
 
 export type { ClientKeyRequest, ClientKeyResponse };
+
+/** `clientKeySet`'s own `lookup`: every address a hostname resolves to, for `assertPublicAddresses` to check. */
+export async function defaultClientKeyLookup(hostname: string): Promise<readonly string[]> {
+  const records = await dnsLookup(hostname, { all: true });
+  return records.map((record) => record.address);
+}
 
 export interface ClientKeyTransportOptions {
   /** Bounds the TCP connect and TLS handshake, not the whole exchange. */

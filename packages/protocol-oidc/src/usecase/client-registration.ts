@@ -21,6 +21,10 @@ export interface ClientRegistrationDeps {
   withinRealm<T>(realmId: string, fn: (tx: RealmScopedDatabase) => Promise<T>): Promise<T>;
   hashClientSecret(secret: string): Promise<string>;
   now(): Date;
+  // Gates `tls_client_auth` registrations the same way `/token` gates
+  // authenticating with one — see `parseClientMetadata`'s own
+  // `tlsClientAuthEnabled` for the design decision this honours.
+  tlsClientAuthEnabled: boolean;
 }
 
 export interface RegisteredClient {
@@ -72,12 +76,11 @@ async function performRegistration(
 
   // jwks_uri is validated for shape only, by parseClientMetadata
   // (assertFetchableUrl) — never dereferenced here. The key is not needed
-  // until something actually verifies a signature against it, which for
-  // this phase is nothing: private_key_jwt client authentication, the
-  // consumer that would fetch it, is P3b's. Dereferencing at registration
-  // would make a registration's success depend on a socket to a host the
-  // registrant does not control being up at that instant, and never again
-  // — the opposite of what a registration is for. See docs/NEXT.md.
+  // until `authenticatePrivateKeyJwt` (usecase/token-issuance.ts) fetches
+  // it at request time; dereferencing at registration would make a
+  // registration's success depend on a socket to a host the registrant
+  // does not control being up at that instant, and never again — the
+  // opposite of what a registration is for. See docs/NEXT.md.
   const type = clientType(metadata.tokenEndpointAuthMethod);
 
   let serviceSubjectId: string | null = null;
@@ -125,6 +128,7 @@ async function performRegistration(
     userinfoSignedResponseAlg: metadata.userinfoSignedResponseAlg,
     userinfoEncryptedResponseAlg: metadata.userinfoEncryptedResponseAlg,
     userinfoEncryptedResponseEnc: metadata.userinfoEncryptedResponseEnc,
+    tlsClientAuthSubjectDn: metadata.tlsClientAuthSubjectDn,
   });
 
   return {
@@ -154,7 +158,7 @@ export async function registerClient(
     return { kind: 'unauthorized' };
   }
 
-  const parsed = parseClientMetadata(body);
+  const parsed = parseClientMetadata(body, { tlsClientAuthEnabled: deps.tlsClientAuthEnabled });
   if (parsed.kind === 'invalid') {
     return { kind: 'invalid_metadata', error: parsed.error, description: parsed.description };
   }

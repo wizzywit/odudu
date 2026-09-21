@@ -9,7 +9,7 @@ const scopesForRealm = () => Promise.resolve(['profile', 'openid', 'email']);
 describe('resolveDiscoveryDocument', () => {
   it('returns null for an unknown realm', async () => {
     const doc = await resolveDiscoveryDocument(
-      { findRealm: () => Promise.resolve(null), claimNames, scopesForRealm },
+      { findRealm: () => Promise.resolve(null), claimNames, scopesForRealm, trustProxy: false },
       'no-such-realm',
       'https://idp.example',
     );
@@ -34,6 +34,7 @@ describe('resolveDiscoveryDocument', () => {
           }),
         claimNames,
         scopesForRealm,
+        trustProxy: false,
       },
       'disabled-realm',
       'https://idp.example',
@@ -59,6 +60,7 @@ describe('resolveDiscoveryDocument', () => {
           }),
         claimNames,
         scopesForRealm,
+        trustProxy: false,
       },
       'acme',
       'https://idp.example',
@@ -84,6 +86,7 @@ describe('resolveDiscoveryDocument', () => {
           }),
         claimNames,
         scopesForRealm,
+        trustProxy: false,
       },
       'acme',
       'https://idp.example',
@@ -109,6 +112,7 @@ describe('resolveDiscoveryDocument', () => {
           }),
         claimNames,
         scopesForRealm,
+        trustProxy: false,
       },
       'acme',
       'https://idp.example',
@@ -144,12 +148,48 @@ describe('resolveDiscoveryDocument', () => {
             }),
           claimNames,
           scopesForRealm,
+          trustProxy: false,
         },
         'acme',
         'https://idp.example',
       );
       expect(doc?.registration_endpoint).toBe(
         'https://idp.example/realms/acme/clients-registrations/openid-connect',
+      );
+    },
+  );
+
+  // The design decision this pins:
+  // docs/superpowers/specs/2026-09-18-p3a-clients-registration-consent-design.md:596-598 —
+  // unset ODUDU_TRUST_PROXY means tls_client_auth is unavailable, so
+  // discovery must not name it either.
+  it.each([false, true])(
+    'advertises tls_client_auth only when trustProxy is %s',
+    async (trustProxy) => {
+      const doc = await resolveDiscoveryDocument(
+        {
+          findRealm: () =>
+            Promise.resolve({
+              id: 'r1',
+              enabled: true,
+              verifyEmail: false,
+              ssoSessionMaxSeconds: 36_000,
+              ssoSessionIdleSeconds: 1_800,
+              rememberMeIdleSeconds: 604_800,
+              rememberMeMaxSeconds: 2_592_000,
+              rememberMeAllowed: false,
+              maxSessionsPerBrowser: 25,
+              clientRegistrationPolicy: 'disabled',
+            }),
+          claimNames,
+          scopesForRealm,
+          trustProxy,
+        },
+        'acme',
+        'https://idp.example',
+      );
+      expect(doc?.token_endpoint_auth_methods_supported.includes('tls_client_auth')).toBe(
+        trustProxy,
       );
     },
   );
@@ -172,6 +212,7 @@ describe('resolveDiscoveryDocument', () => {
           }),
         claimNames,
         scopesForRealm,
+        trustProxy: false,
       },
       'acme',
       'https://idp.example',

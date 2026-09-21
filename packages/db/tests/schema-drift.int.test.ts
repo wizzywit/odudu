@@ -49,6 +49,8 @@ const EXPECTED_CHECKS: Record<string, string> = {
     "CHECK (((cardinality(redirect_uris) >= 1) OR (grant_types = ARRAY['client_credentials'::text])))",
   'client_oidc_config.client_oidc_config_refresh_token_ttl_floor':
     'CHECK ((refresh_token_ttl_seconds >= 1))',
+  'client_oidc_config.client_oidc_config_tls_client_auth_needs_subject_dn':
+    "CHECK (((token_endpoint_auth_method <> 'tls_client_auth'::text) OR (tls_client_auth_subject_dn IS NOT NULL)))",
   'client_oidc_config.client_oidc_config_userinfo_enc_needs_alg':
     'CHECK (((userinfo_encrypted_response_enc IS NULL) OR (userinfo_encrypted_response_alg IS NOT NULL)))',
   'client_oidc_config.client_oidc_config_web_origins_shape':

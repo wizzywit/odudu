@@ -82,6 +82,7 @@ const SWEPT: ReapOutcome = {
     login_failures: 0,
     email_outbox: 0,
     backchannel_logout_deliveries: 0,
+    client_assertion_jti: 0,
     sessions: 1,
   },
 };

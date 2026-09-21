@@ -40,16 +40,31 @@ second execution (`docs/phases/p3a.md`, Task 19).
   `private_key_jwt` client authentication at `/token`: fetch there, at the
   moment a signature is actually verified, with a refusal that says "the
   signature did not verify" or "the key could not be retrieved" — never
-  the guard's own reasoning. Three known nits to fix while wiring it up
-  for real: `expiresAt` is computed from the pre-fetch clock (a slow fetch
-  shortens its own cache TTL); there is no in-flight coalescing (two
-  concurrent fetches of one URI both reach the network before the cache
-  can suppress the second); and only a success is cached — `fetchFresh`
-  throws before any cache write, so a failing `jwks_uri` is re-fetched on
-  every call, which is the umbrella spec §6's "a failure is not a
-  permanent cache miss" not yet implemented. Harmless while unwired; worth
-  a negative-cache entry (with its own, shorter TTL) once `/token` is
-  calling this on every `private_key_jwt` verification.
+  the guard's own reasoning. `expiresAt` is now read after the fetch
+  resolves rather than before it, concurrent callers for one URI join a
+  single in-flight attempt, and a failure writes its own negative-cache
+  entry keyed by realm and URI (`NEGATIVE_CACHE_TTL_MS`, shorter than the
+  success TTL) rather than re-fetching every call — the umbrella spec §6's
+  "a failure is not a permanent cache miss". **Now wired in**: `/token`
+  accepts `private_key_jwt` (`authenticatePrivateKeyJwt`,
+  `packages/protocol-oidc/src/usecase/token-issuance.ts`), fetching at the
+  moment a signature is verified and reporting one `invalid_client`
+  whatever failed — see `docs/protocols/rfc7523.md`'s reading notes for
+  that property and its timing residual. `apps/server/src/app.ts`
+  constructs the one `clientKeySet` shared across requests the caching
+  above assumes. **Also now wired in**: `tls_client_auth`
+  (`authenticateTlsClientAuth`, same file), a proxy-supplied certificate
+  subject compared against a client's registered
+  `tls_client_auth_subject_dn`, gated on `ODUDU_TRUST_PROXY` the same way
+  Fastify's own proxy trust already is — off means the method is refused,
+  never trusted, and never advertised in discovery either
+  (`tlsClientAuthEnabled`, `packages/contracts/src/discovery.ts`). The
+  header name is `ODUDU_TLS_CLIENT_CERT_HEADER`
+  (`packages/kernel/src/config.ts`), not a constant — both halves of the
+  design decision at
+  `docs/superpowers/specs/2026-09-18-p3a-clients-registration-consent-design.md:596-598`
+  are honored, not only the method's existence. Both methods the P3b
+  criterion named are now built.
 - **The `claims` request parameter is P3b's**, not P3a's. It was placed in
   P3a by `docs/protocols/oidc-core.md` on the reasoning that it needs the
   per-client machinery and consent screen P3a builds; P3a's own criterion
@@ -328,6 +343,40 @@ already implements.
   model like the one the entry above already needs. Until one exists, both
   rows stay `gap`.
 
+**A `private_key_jwt` or `tls_client_auth` client can never call
+`/introspect` or `/revoke`.** Both endpoints authenticate through
+`authenticateClient` alone (`usecase/introspection-request.ts:31`,
+`usecase/revocation.ts:62`), which only ever checks a Basic header or a body
+`client_secret`; a client registered for either assertion-based method
+presents neither, so `verifyClientSecret` is handed `null` against a
+confidential client and refuses it every time. `private_key_jwt` introduced
+this gap; `tls_client_auth` (this task) inherited it rather than closing it
+— P3b owns RFC 7662 and RFC 7009 both, so the gap is P3b's to close, not a
+future phase's, and nothing has yet.
+
+- Trigger: extend the same `assertionOutcome`/certificate-subject dispatch
+  `usecase/token-issuance.ts` already has to `/introspect` and `/revoke`,
+  or record it as an accepted limitation in `docs/protocols/rfc7662.md` and
+  `docs/protocols/rfc7009.md` if P3b closes without doing so.
+
+**`client_oidc_config_tls_client_auth_needs_subject_dn` enforces `NOT
+NULL`, not non-blank.** A row with `tls_client_auth_subject_dn = ''`
+passes the CHECK the same migration (0055) adds, and `tlsClientSubject`
+only refuses a zero-length header, so a client in that state would
+authenticate against a blank subject. No code path in this repository can
+produce such a row today — `parseClientMetadata` trims and rejects a
+blank value before it ever reaches the repository — so this is reachable
+only by a hand-written `INSERT`, the same class of gap the `jwks`/
+`jwks_uri` mutual-exclusion constraint already accepts (it says nothing
+about `jwks: {}` either). Declined rather than fixed, because 0055 is
+already committed and closing it needs a second migration
+(`CHECK (tls_client_auth_subject_dn <> '')` alongside the existing
+`IS NOT NULL`) for a state application code cannot reach.
+
+- Trigger: the next migration that touches `client_oidc_config` for an
+  unrelated reason is the natural place to add the tightened constraint
+  alongside it, rather than spending a migration on this alone.
+
 **Affected-package-only CI.** Turborepo and pnpm both support
 `--filter='...[<ref>]'` — changed packages plus their dependents — so no
 tooling change is needed to adopt it. Not adopted now: CI runs in about 50
@@ -364,23 +413,25 @@ ADR 0034's Consequences record the question as open, not answered.
   Revisit whether front-channel still needs one once a deployment's actual
   relying parties make that comparison meaningful.
 
-**Back-channel logout's DNS lookup carries no deadline of its own.**
-`createLogoutDeliveryTransport`'s `defaultLookup`
-(`apps/server/src/logout-delivery-transport.ts`) calls `node:dns/promises`'
-`lookup` with no timeout and no regard for the `AbortSignal` `sendLogouts`
-already started running. A relying party whose authoritative nameserver
-stalls delays that one claimed row by the resolver's own budget, serially,
-before the signal's deadline even begins bounding the connection. This is
-the first production outbound DNS resolution in the server —
-`clientKeySet` (the `jwks_uri` fetch this transport otherwise mirrors) is
-exported but wired into no production path yet — so there is no existing
-parity argument that already covers it.
+**Neither of the server's two outbound DNS lookups carries a deadline of
+its own — and now both run in production.** `createLogoutDeliveryTransport`'s
+`defaultLookup` (`apps/server/src/logout-delivery-transport.ts`) and
+`defaultClientKeyLookup` (`apps/server/src/client-key-transport.ts`, wired
+into `/token`'s `private_key_jwt` authentication as of P3b's client-auth
+increment) both call `node:dns/promises`'s `lookup` with no timeout; the
+first also ignores the `AbortSignal` `sendLogouts` already started
+running. A stalling nameserver delays a claimed logout row by the
+resolver's own budget before the signal's deadline begins bounding the
+connection, and delays a `private_key_jwt` refusal past the 10s total
+timeout `docs/protocols/rfc7523.md`'s reading notes already say that bound
+does not cover. The parity argument the trigger below asked for now
+exists: both lookups are unbounded, in production, for the same reason.
 
-- Trigger: a relying party's back-channel endpoint resolves through a slow
-  or unreachable nameserver in practice, or `clientKeySet` is wired into a
-  production path and the two need a shared answer. Until then: bound the
-  lookup itself (a timeout race, or a resolver library that takes one) and
-  have it honour the incoming signal the way the connection already does.
+- Trigger: fired. A relying party's back-channel endpoint or a client's
+  `jwks_uri` resolves through a slow or unreachable nameserver in
+  practice. Bound the lookup itself (a timeout race, or a resolver
+  library that takes one), and decide whether the two transports share
+  one answer or each wires its own.
 
 **`/introspect`'s entitlement check sits in a `usecase`, not a `service`.**
 `callerIsAddressed` and `audienceOf`
@@ -395,6 +446,40 @@ scope.
 - Trigger: the task that wires `/introspect`'s HTTP route, or any task that
   next touches `introspection.ts`. Move `callerIsAddressed`/`audienceOf`
   into `service/` at that point.
+
+**`/token` enforces no `config.grantTypes` allowlist, for either
+authentication path.** `evaluateClientCredentialsGrant`'s own comment says
+a confidential client with a service subject is granted "regardless of
+what `grant_types` claims", and `token-issuance.ts`'s only read of
+`config.grantTypes` gates whether a _refresh token_ is issued, not which
+grant a request may use. So a client registered for `authorization_code`
+only can still obtain a `client_credentials` token. Pre-existing, and
+identical for `client_secret_*` and `private_key_jwt` clients alike — not
+a gap this task introduced or one specific to the new method.
+
+- Trigger: whichever task next touches grant selection in
+  `usecase/token-issuance.ts`'s `issueTokens`. Add a
+  `config.grantTypes.includes(request.grantType)` check before dispatching
+  to a grant-specific issuance function.
+
+**RFC 7523 has no clause table; its clauses are absent from the
+traceability matrix.** `docs/protocols/rfc7523.md` is a reading-notes-only
+file — the one file in `docs/protocols/` without a `| Clause | Level |
+... |` table — because building one accurately needs an hour of reading
+the RFC text carefully enough to quote each clause, not spent under the
+task that implemented `private_key_jwt` client authentication. `pnpm
+trace` does not fail on the omission: a file with no table contributes
+zero rows, not an error, so Odudu has implemented an RFC whose every
+clause is untracked in the one system built to make that visible, and
+nothing goes red.
+
+- Trigger: before this phase closes. What it takes: §2.2's two request
+  parameters and §3's claim requirements — §5 (Security Considerations)
+  stays prose, per `rfc7523.md`'s own header, not a source of further
+  rows. Test IDs are mostly already fillable from
+  `[ODUDU-PRIVATE-KEY-JWT-01]`'s cases
+  (`packages/protocol-oidc/tests/private-key-jwt.int.test.ts`) and
+  `service/client-assertion.test.ts`.
 
 **`/introspect`'s session-liveness check cannot express a remembered
 session's own idle window.** `IntrospectionDeps.isSessionLive` takes one

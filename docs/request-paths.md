@@ -650,7 +650,12 @@ curl -sS http://localhost:3000/realms/demo/.well-known/openid-configuration
   "id_token_signing_alg_values_supported": ["RS256", "ES256"],
   "code_challenge_methods_supported": ["S256"],
   "grant_types_supported": ["authorization_code", "refresh_token", "client_credentials"],
-  "token_endpoint_auth_methods_supported": ["client_secret_basic", "client_secret_post", "none"],
+  "token_endpoint_auth_methods_supported": [
+    "client_secret_basic",
+    "client_secret_post",
+    "none",
+    "private_key_jwt"
+  ],
   "authorization_response_iss_parameter_supported": true,
   "backchannel_logout_supported": true,
   "backchannel_logout_session_supported": true,
@@ -1609,6 +1614,13 @@ Which of the two a client may use is registered, not chosen per request, and
 sending the other is `invalid_client` even with the right secret — the matrix
 is in
 [Client authentication is by the registered method and no other](#client-authentication-is-by-the-registered-method-and-no-other).
+
+A third method, `private_key_jwt`, is also registered by no client on this
+stack — `seed client` cannot produce one and the demo realm's client
+registration policy is closed — so no transcript for it appears here; see
+[What is not implemented](#what-is-not-implemented)'s "Any admin API" row
+for why, and the [`/token`](#token) refusal table for the bytes each of
+its failures answers with.
 
 Presenting no secret at all is refused the same way. A confidential client
 cannot redeem a code as though it were public, however good the code and the
@@ -4016,7 +4028,7 @@ odudu reap
 ```
 
 ```
-{"ran":true,"deleted":{"refresh_tokens":0,"authorization_codes":0,"token_grants":0,"authentication_sessions":0,"action_tokens":0,"client_registration_tokens":0,"login_failures":0,"email_outbox":0,"backchannel_logout_deliveries":0,"sessions":0}}
+{"ran":true,"deleted":{"refresh_tokens":0,"authorization_codes":0,"token_grants":0,"authentication_sessions":0,"action_tokens":0,"client_registration_tokens":0,"login_failures":0,"email_outbox":0,"backchannel_logout_deliveries":0,"client_assertion_jti":0,"sessions":0}}
 ```
 
 Those zeros are the point. By this stage the database holds a consumed
@@ -4070,7 +4082,7 @@ odudu reap
 ```
 
 ```
-{"ran":true,"deleted":{"refresh_tokens":2,"authorization_codes":1,"token_grants":1,"authentication_sessions":1,"action_tokens":0,"client_registration_tokens":0,"login_failures":0,"email_outbox":0,"backchannel_logout_deliveries":0,"sessions":1}}
+{"ran":true,"deleted":{"refresh_tokens":2,"authorization_codes":1,"token_grants":1,"authentication_sessions":1,"action_tokens":0,"client_registration_tokens":0,"login_failures":0,"email_outbox":0,"backchannel_logout_deliveries":0,"client_assertion_jti":0,"sessions":1}}
 ```
 
 Both refresh tokens of the family, the code that produced it, the grant
@@ -4089,7 +4101,7 @@ odudu reap
 ```
 
 ```
-{"ran":true,"deleted":{"refresh_tokens":0,"authorization_codes":0,"token_grants":0,"authentication_sessions":0,"action_tokens":0,"client_registration_tokens":0,"login_failures":0,"email_outbox":0,"backchannel_logout_deliveries":0,"sessions":0}}
+{"ran":true,"deleted":{"refresh_tokens":0,"authorization_codes":0,"token_grants":0,"authentication_sessions":0,"action_tokens":0,"client_registration_tokens":0,"login_failures":0,"email_outbox":0,"backchannel_logout_deliveries":0,"client_assertion_jti":0,"sessions":0}}
 ```
 
 ### When the pass refuses, or finds nothing to look at
@@ -6457,37 +6469,64 @@ grant. A malformed request is `invalid_request` before any client is looked
 up, verified by sending no `grant_type` with an unknown `client_id` and
 getting `invalid_request` rather than `invalid_client`.
 
-| Request                                                 | Status | Body                     |
-| ------------------------------------------------------- | ------ | ------------------------ |
-| No `grant_type`                                         | 400    | `invalid_request`        |
-| `grant_type=password`                                   | 400    | `unsupported_grant_type` |
-| `authorization_code` with no `code` or `redirect_uri`   | 400    | `invalid_request`        |
-| `refresh_token` with no `refresh_token`                 | 400    | `invalid_request`        |
-| Unknown `client_id`                                     | 401    | `invalid_client`         |
-| Wrong client secret                                     | 401    | `invalid_client`         |
-| Secret in the body from a `client_secret_basic` client  | 401    | `invalid_client`         |
-| Secret in the header from a `client_secret_post` client | 401    | `invalid_client`         |
-| Both methods presented at once                          | 401    | `invalid_client`         |
-| A `Basic` header that is not a form-urlencoding         | 401    | `invalid_client`         |
-| Public client presenting a secret                       | 401    | `invalid_client`         |
-| Public client asking for `client_credentials`           | 401    | `invalid_client`         |
-| Confidential client with no service account             | 400    | `unauthorized_client`    |
-| Unknown, expired or replayed `code`                     | 400    | `invalid_grant`          |
-| Wrong or missing `code_verifier`                        | 400    | `invalid_grant`          |
-| `redirect_uri` different from the code's                | 400    | `invalid_grant`          |
-| A different client redeeming the code                   | 400    | `invalid_grant`          |
-| Unknown, expired or replayed `refresh_token`            | 400    | `invalid_grant`          |
-| Another client's `refresh_token`                        | 400    | `invalid_grant`          |
-| Another realm's `code` or `refresh_token`               | 400    | `invalid_grant`          |
-| Refresh or `client_credentials` asking for wider scope  | 400    | `invalid_scope`          |
-| Any parameter sent twice, even with identical values    | 400    | `invalid_request`        |
-| A required parameter sent with an empty value           | 400    | `invalid_request`        |
-| An empty `client_id` from a public client               | 401    | `invalid_client`         |
-| `GET` instead of `POST`                                 | 404    | —                        |
+| Request                                                                                                                                                      | Status | Body                     |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------ | ------------------------ |
+| No `grant_type`                                                                                                                                              | 400    | `invalid_request`        |
+| `grant_type=password`                                                                                                                                        | 400    | `unsupported_grant_type` |
+| `authorization_code` with no `code` or `redirect_uri`                                                                                                        | 400    | `invalid_request`        |
+| `refresh_token` with no `refresh_token`                                                                                                                      | 400    | `invalid_request`        |
+| Unknown `client_id`                                                                                                                                          | 401    | `invalid_client`         |
+| Wrong client secret                                                                                                                                          | 401    | `invalid_client`         |
+| Secret in the body from a `client_secret_basic` client                                                                                                       | 401    | `invalid_client`         |
+| Secret in the header from a `client_secret_post` client                                                                                                      | 401    | `invalid_client`         |
+| Both methods presented at once (Basic, body secret, a `client_assertion`, **or a proxy-supplied certificate subject alongside any of the other three**)      | 401    | `invalid_client`         |
+| A `Basic` header that is not a form-urlencoding                                                                                                              | 401    | `invalid_client`         |
+| Public client presenting a secret                                                                                                                            | 401    | `invalid_client`         |
+| Public client asking for `client_credentials`                                                                                                                | 401    | `invalid_client`         |
+| `private_key_jwt`: assertion fails structural validation (bad `iss`/`sub`/`aud`/`exp`/`jti`, or doesn't parse as a JWT)                                      | 401    | `invalid_client`         |
+| `private_key_jwt`: unknown or disabled client, or one not registered for the method                                                                          | 401    | `invalid_client`         |
+| `private_key_jwt`: client publishes no keys, or its `jwks_uri` can't be fetched (address guard, DNS, transport, status, content type, size, or invalid JSON) | 401    | `invalid_client`         |
+| `private_key_jwt`: signature doesn't verify (wrong key, or a fetched document that isn't a JWK Set)                                                          | 401    | `invalid_client`         |
+| `private_key_jwt`: replayed assertion (`jti` already spent)                                                                                                  | 401    | `invalid_client`         |
+| `tls_client_auth`: `ODUDU_TRUST_PROXY` is off — the header is never read, whatever it says (falls back to ordinary client authentication)                    | 401    | `invalid_client`         |
+| `tls_client_auth`: the certificate header sent twice, or genuinely duplicated by an intermediary                                                             | 401    | `invalid_client`         |
+| `tls_client_auth`: no `client_id` presented alongside the certificate                                                                                        | 401    | `invalid_client`         |
+| `tls_client_auth`: unknown or disabled client, one not confidential, or one not registered for the method                                                    | 401    | `invalid_client`         |
+| `tls_client_auth`: certificate subject does not match the client's registered `tls_client_auth_subject_dn`                                                   | 401    | `invalid_client`         |
+| Confidential client with no service account                                                                                                                  | 400    | `unauthorized_client`    |
+| Unknown, expired or replayed `code`                                                                                                                          | 400    | `invalid_grant`          |
+| Wrong or missing `code_verifier`                                                                                                                             | 400    | `invalid_grant`          |
+| `redirect_uri` different from the code's                                                                                                                     | 400    | `invalid_grant`          |
+| A different client redeeming the code                                                                                                                        | 400    | `invalid_grant`          |
+| Unknown, expired or replayed `refresh_token`                                                                                                                 | 400    | `invalid_grant`          |
+| Another client's `refresh_token`                                                                                                                             | 400    | `invalid_grant`          |
+| Another realm's `code` or `refresh_token`                                                                                                                    | 400    | `invalid_grant`          |
+| Refresh or `client_credentials` asking for wider scope                                                                                                       | 400    | `invalid_scope`          |
+| Any parameter sent twice, even with identical values                                                                                                         | 400    | `invalid_request`        |
+| A required parameter sent with an empty value                                                                                                                | 400    | `invalid_request`        |
+| An empty `client_id` from a public client                                                                                                                    | 401    | `invalid_client`         |
+| `GET` instead of `POST`                                                                                                                                      | 404    | —                        |
 
 Every 401 carries `WWW-Authenticate: Basic realm="token"`. Every response,
 success or failure, carries `cache-control: no-store` and `pragma:
 no-cache`.
+
+`tls_client_auth` (RFC 8705 §2.1) registers with a `tls_client_auth_subject_dn`
+metadata field — the exact string the client's certificate's subject must
+equal, byte for byte after trimming surrounding whitespace, for the
+comparison to pass (no `distinguishedNameMatch`, a deliberate
+simplification: `packages/protocol-oidc/src/service/tls-client-auth.ts`).
+Registering `token_endpoint_auth_method: "tls_client_auth"` without it is
+`invalid_client_metadata`. At `/token`, the subject arrives as a header a
+trusted reverse proxy sets — its name is `ODUDU_TLS_CLIENT_CERT_HEADER`
+(default `x-ssl-client-s-dn`), and the method is refused outright, not
+downgraded, whenever `ODUDU_TRUST_PROXY` is off (README.md's deployment
+section has the proxy's own obligations). Off means the method is
+unavailable end to end, not only at `/token`: discovery's
+`token_endpoint_auth_methods_supported` does not name `tls_client_auth`
+either — off on this stack, which is why the transcript above does not
+list it — and registering a client for it is itself `invalid_client_metadata`,
+the same as an unknown `token_endpoint_auth_method` would be.
 
 RFC 6749 §2.3.1 puts both halves of the `Basic` payload through
 `application/x-www-form-urlencoded` before the base64, which is what lets a
@@ -6956,11 +6995,19 @@ session lifecycle. A citation of either half here means that half.
   roadmap says so.
 - **No resource owner password credentials.** A decision: the grant is
   removed by OAuth 2.1, and it is not coming back.
-- **No `private_key_jwt` or mTLS client authentication.** **P3b**, whose exit
-  criterion names both.
 - **No DPoP or other sender-constrained tokens**, mTLS-bound tokens
   included. **P13**, as above: the FAPI 2.0 plan cannot pass without one of
   them.
+
+**`/introspect` and `/revoke`**
+
+- **A `private_key_jwt` or `tls_client_auth` client can never call either
+  endpoint.** Both authenticate through `authenticateClient` alone, which
+  only reads a Basic header or a body `client_secret`; a client registered
+  for either assertion-based method presents neither and is refused every
+  time. `private_key_jwt` introduced the gap; `tls_client_auth` inherited
+  it. P3b owns both RFCs, so this is P3b's to close — recorded with a
+  trigger in `docs/NEXT.md`, "Recorded decisions with trigger conditions".
 
 **`/userinfo`**
 
@@ -7010,8 +7057,21 @@ session lifecycle. A citation of either half here means that half.
   `--post-logout-redirect-uri`, `--web-origin`, `--client-secret` and
   `--token-endpoint-auth-method`, and nothing for `audiences`,
   `frontchannel_logout_uri`/`backchannel_logout_uri` or `consent_required`.
-  A second, different gap sits beside it: metadata a flag does set is only
-  settable at creation, so a client already seeded is amended with SQL too.
+  `--token-endpoint-auth-method` itself only accepts `client_secret_basic`
+  and `client_secret_post` (`apps/server/src/cli/seed-invocation.ts`) —
+  there is no `--jwks`/`--jwks-uri` flag and no
+  `--tls-client-auth-subject-dn` flag either, so `seed client` cannot
+  produce a `private_key_jwt` or `tls_client_auth` client at all; the only
+  route to either is dynamic client registration, on a realm whose
+  `clientRegistrationPolicy` allows it. The demo realm's does not, which is
+  why no transcript below exercises `private_key_jwt` or `tls_client_auth`
+  the way [Redeeming the code with
+  `client_secret_basic`](#redeeming-the-code-with-client_secret_basic) and
+  its `client_secret_post` sibling exercise theirs — there is no command to
+  run that would produce one, per this document's own rule for a command
+  that cannot be run. A second, different gap sits beside it: metadata a
+  flag does set is only settable at creation, so a client already seeded is
+  amended with SQL too.
   Each site in this document that reaches for SQL instead says so at the
   point it does it — [Front-channel
   and back-channel logout](#front-channel-and-back-channel-logout), [Token

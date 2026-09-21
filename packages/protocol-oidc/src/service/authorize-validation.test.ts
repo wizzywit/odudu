@@ -45,6 +45,7 @@ const config: ClientOidcConfig = {
   userinfoSignedResponseAlg: null,
   userinfoEncryptedResponseAlg: null,
   userinfoEncryptedResponseEnc: null,
+  tlsClientAuthSubjectDn: null,
 };
 
 // One list stands for both halves of the rule these tests exercise: the

@@ -66,6 +66,12 @@ export interface DiscoveryDocumentOptions {
   // endpoint's path is fixed the same way every other one here is, so the
   // caller states only whether it exists, never its URL.
   readonly clientRegistrationEnabled?: boolean;
+  // Whether this deployment's `ODUDU_TRUST_PROXY` is on — the design
+  // decision `tls_client_auth` was recorded under
+  // (docs/superpowers/specs/2026-09-18-p3a-clients-registration-consent-design.md:596-598):
+  // unset means the method is unavailable, so it must not be advertised
+  // either. Defaults false, the same as the flag itself does.
+  readonly tlsClientAuthEnabled?: boolean;
 }
 
 export function discoveryDocument(opts: DiscoveryDocumentOptions): DiscoveryDocument {
@@ -99,8 +105,14 @@ export function discoveryDocument(opts: DiscoveryDocumentOptions): DiscoveryDocu
     grant_types_supported: ['authorization_code', 'refresh_token', 'client_credentials'],
     // Built from the same constant `authenticateClient` validates against
     // (@odudu/contracts' token.ts), so discovery can never advertise a
-    // method the token endpoint would actually reject.
-    token_endpoint_auth_methods_supported: TOKEN_ENDPOINT_AUTH_METHODS_SUPPORTED,
+    // method the token endpoint would actually reject — `tls_client_auth`
+    // filtered out unless this deployment can actually honour it
+    // (`tlsClientAuthEnabled` above), the same way `registration_endpoint`
+    // below is only ever named when the realm can actually serve it.
+    token_endpoint_auth_methods_supported:
+      opts.tlsClientAuthEnabled === true
+        ? TOKEN_ENDPOINT_AUTH_METHODS_SUPPORTED
+        : TOKEN_ENDPOINT_AUTH_METHODS_SUPPORTED.filter((method) => method !== 'tls_client_auth'),
     authorization_response_iss_parameter_supported: true,
     backchannel_logout_supported: true,
     backchannel_logout_session_supported: true,
