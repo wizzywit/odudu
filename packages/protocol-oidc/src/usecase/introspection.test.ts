@@ -7,10 +7,10 @@ const ISSUER = 'https://op.example/realms/demo';
 const NOW = new Date('2026-09-21T10:00:00Z');
 
 // Pins the same clock into both `introspect`'s own `now` argument and
-// `verifyJwt`'s `exp` check, which otherwise reads the system clock — see
-// the fix-round review's I1: a suite with an absolute `exp` and no fake
-// timer goes red the moment the wall clock catches up to it, and three
-// refusal tests pass on expiry rather than the rule they name.
+// `verifyJwt`'s `exp` check, which otherwise reads the system clock: a
+// suite with an absolute `exp` and no fake timer goes red the moment the
+// wall clock catches up to it, and several refusal tests would then pass
+// on expiry rather than the rule each names.
 beforeEach(() => {
   vi.useFakeTimers();
   vi.setSystemTime(NOW);
@@ -70,7 +70,7 @@ function accessTokenPayload(claims: AccessTokenClaims): Record<string, unknown> 
 
 // The default caller: entitled through `audiences`, never through
 // `clientId` — that dimension is exercised separately by its own positive
-// test (I3), and the negative test below matches on neither.
+// test below, and the negative test matches on neither.
 const caller = { clientId: 'resource-server-a', audiences: ['https://api.example'] };
 
 function makeDeps(overrides: Partial<IntrospectionDeps> = {}): IntrospectionDeps {
@@ -106,10 +106,10 @@ describe('introspect', () => {
     });
   });
 
-  // I3: the "client_id half" of R-27a — a caller entitled only because a
-  // deployment registered its resource URI as a `client_id`. Deleting
-  // `caller.clientId` from `callerIsAddressed`'s identities list leaves
-  // this red; see the fix-round report's mutation evidence.
+  // The other entitlement dimension: a caller with no matching
+  // `audiences` entry, entitled only because a deployment registered its
+  // resource URI as a `client_id`. Deleting `caller.clientId` from
+  // `callerIsAddressed`'s identities list leaves this test alone red.
   it('describes a live token to a caller entitled through its own client_id', async () => {
     const key = await makeSigningKey();
     const token = await mintToken({ sid: 'session-1' }, key);
@@ -150,8 +150,8 @@ describe('introspect', () => {
     expect(response).toEqual({ active: false });
   });
 
-  // M3: RFC 7662 §2.2's fused MUST also names "does not exist on this
-  // server" as its own condition, distinct from "revoked".
+  // RFC 7662 §2.2's fused MUST also names "does not exist on this server"
+  // as its own condition, distinct from "revoked".
   it('answers inactive for a token whose grant does not exist', async () => {
     const key = await makeSigningKey();
     const token = await mintToken({ sid: 'session-1' }, key);
@@ -162,12 +162,12 @@ describe('introspect', () => {
     expect(response).toEqual({ active: false });
   });
 
-  // C1 / R-27d: the whole point of a per-grant `grant_id` claim. Two
-  // grants — a revoked one (the id this token actually names) and a live
-  // sibling — are distinguishable only by id; `loadGrant` is asserted to
-  // have been called with the token's own id, not the sibling's, so this
-  // cannot pass by `loadGrant` returning the wrong row and disagreeing
-  // with the assertion for unrelated reasons.
+  // The whole point of a per-grant `grant_id` claim. Two grants — a
+  // revoked one (the id this token actually names) and a live sibling —
+  // are distinguishable only by id; `loadGrant` is asserted to have been
+  // called with the token's own id, not the sibling's, so this cannot
+  // pass by `loadGrant` returning the wrong row and disagreeing with the
+  // assertion for unrelated reasons.
   it('answers inactive for a revoked grant even when a live sibling grant exists', async () => {
     const key = await makeSigningKey();
     const token = await mintToken({ grantId: 'grant-a' }, key);
@@ -185,9 +185,8 @@ describe('introspect', () => {
     expect(loadGrant).not.toHaveBeenCalledWith('grant-b');
   });
 
-  // R-27d's fail-closed requirement: a token minted before `grant_id`
-  // existed carries no such claim, and must not fall back to any
-  // triple-based guess — it is simply inactive.
+  // A token minted before `grant_id` existed carries no such claim, and
+  // must not fall back to any triple-based guess — it is simply inactive.
   it('answers inactive for a token minted before grant_id existed', async () => {
     const key = await makeSigningKey();
     const token = await mintToken({ sid: 'session-1', grantId: null }, key);
@@ -238,9 +237,9 @@ describe('introspect', () => {
     expect(response).toEqual({ active: false });
   });
 
-  // M3: the claim-shape guards. Each constructs a token missing (or
-  // malforming) exactly one required claim, verified via `signJwt` rather
-  // than the JWT library filling in a default.
+  // The claim-shape guards. Each constructs a token missing exactly one
+  // required claim, verified via `signJwt` rather than the JWT library
+  // filling in a default.
   it('answers inactive when client_id is missing', async () => {
     const key = await makeSigningKey();
     const token = await mintToken({ client_id: null }, key);
@@ -311,11 +310,11 @@ describe('introspect', () => {
     expect(response).toEqual({ active: false });
   });
 
-  // M6: the sibling test above pins unknown-`kid` isolation, not issuer
-  // isolation — a token from an actually foreign realm also carries that
-  // realm's own `iss`. This one is refused there instead, before any key
-  // lookup: `verifyJwt`'s `issuer` option is `ISSUER`, so a token minted
-  // under a different issuer fails `jwtVerify`'s own `iss` check.
+  // The test above pins unknown-`kid` isolation, not issuer isolation — a
+  // token from an actually foreign realm also carries that realm's own
+  // `iss`. This one is refused there instead, before any key lookup:
+  // `verifyJwt`'s `issuer` option is `ISSUER`, so a token minted under a
+  // different issuer fails `jwtVerify`'s own `iss` check.
   it('answers inactive for a token issued by another issuer', async () => {
     const key = await makeSigningKey();
     const foreignIssuerToken = await mintToken(

@@ -759,8 +759,8 @@ access token's payload carries it:
 }
 ```
 
-(Trimmed to the claims this section is about; `aud`, `iat`, `exp`, `jti` and
-`sid` are on it too, and
+(Trimmed to the claims this section is about; `aud`, `iat`, `exp`, `jti`,
+`sid` and `grant_id` are on it too, and
 [docs/request-paths.md](docs/request-paths.md#roles-once-a-scope-reaches-it)
 shows the whole payload.)
 

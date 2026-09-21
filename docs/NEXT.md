@@ -365,6 +365,35 @@ parity argument that already covers it.
   lookup itself (a timeout race, or a resolver library that takes one) and
   have it honour the incoming signal the way the connection already does.
 
+**`/introspect`'s entitlement check sits in a `usecase`, not a `service`.**
+`callerIsAddressed` and `audienceOf`
+(`packages/protocol-oidc/src/usecase/introspection.ts`) are pure domain
+decisions with no orchestration in them — this package's convention puts
+that kind of function in `service/`, alongside `authorization-code-grant.ts`
+and `client-credentials-grant.ts`, where it would get unit tests of its own
+independent of `introspect`'s. The task that built `/introspect` named only
+its usecase and test file; moving the check would add a file beyond that
+scope.
+
+- Trigger: the task that wires `/introspect`'s HTTP route, or any task that
+  next touches `introspection.ts`. Move `callerIsAddressed`/`audienceOf`
+  into `service/` at that point.
+
+**`/introspect`'s session-liveness check cannot express a remembered
+session's own idle window.** `IntrospectionDeps.isSessionLive` takes one
+`idleSeconds` value, mirroring `refresh-rotation.ts`'s older `liveById`
+call — but `sessionRepository.liveByIds` takes the realm's whole
+`SessionLifespans` pair precisely because a remembered session and an
+ordinary one are never measured against the other's window
+(`authn-flows/src/repository/sessions.ts`). Remember-me is in P3b's scope,
+so a remembered session's token can be reported dead after the ordinary
+idle window — shorter than the session's own — passes.
+
+- Trigger: the task that wires `/introspect`'s real `loadGrant`/
+  `isSessionLive` against actual sessions. Thread `SessionLifespans` (or
+  the session's own `remembered` flag) through instead of a bare
+  `idleSeconds`.
+
 ## Deferred from the final review
 
 - **Closed, differently than this item expected.** The snapshots are not

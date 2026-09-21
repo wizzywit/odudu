@@ -1024,17 +1024,18 @@ authenticates as well, in the one way it is registered for.
 The access token, decoded:
 
 ```json
-{ "alg": "RS256", "kid": "01a0a6cd-e3c9-…", "typ": "at+jwt" }
+{ "alg": "RS256", "kid": "01a0c3a8-078b-…", "typ": "at+jwt" }
 {
   "iss": "http://localhost:3000/realms/demo",
-  "sub": "01a0a6cd-e3cb-…",
+  "sub": "01a0c3a8-078e-…",
   "aud": ["http://localhost:3000/realms/demo"],
   "client_id": "demo-spa",
   "scope": "openid profile email",
-  "iat": 1789504919,
-  "exp": 1789505219,
-  "jti": "01a0a6ce-17ac-…",
-  "sid": "01a0a6ce-1788-…"
+  "iat": 1789988969,
+  "exp": 1789989269,
+  "jti": "01a0c3a8-1bf0-…",
+  "sid": "01a0c3a8-1b89-…",
+  "grant_id": "01a0c3a8-1bf0-71c0-8f30-4ff30a339e1a"
 }
 ```
 
@@ -1043,6 +1044,15 @@ place at `/userinfo`. The issuer is always in `aud`, added to whatever
 resource audiences the client is configured for, because a token that
 cannot be used at the issuer's own endpoints would be unusable for what
 OIDC promised the client.
+
+`grant_id` is a private claim: the `token_grants` row this access token
+was minted from, present on every access token without exception —
+unlike `sid`, absent below on a grant with no session. It is what lets
+introspection (and `/revoke`) name one grant precisely; see
+[docs/protocols/rfc9068.md](protocols/rfc9068.md)'s reading note on
+private claims. Shown here in full rather than truncated, because `jti`
+and `grant_id` are minted close enough together that their first 13
+characters — this document's usual truncation — coincide.
 
 **A `resource` at `/token` narrows what the code already carries, and can
 never widen it.** The same `resource` `/authorize` resolves and stores on
@@ -1210,14 +1220,15 @@ token that carries it:
 {
   "roles": ["reviewer"],
   "iss": "http://localhost:3000/realms/demo",
-  "sub": "01a0a6cd-e3cb-…",
+  "sub": "01a0c3a8-078e-…",
   "aud": ["http://localhost:3000/realms/demo"],
   "client_id": "demo-spa",
   "scope": "openid roles",
-  "iat": 1789505061,
-  "exp": 1789505361,
-  "jti": "01a0a6d0-445f-…",
-  "sid": "01a0a6d0-4425-…"
+  "iat": 1789988979,
+  "exp": 1789989279,
+  "jti": "01a0c3a8-42dd-…",
+  "sid": "01a0c3a8-429b-…",
+  "grant_id": "01a0c3a8-42dc-…"
 }
 ```
 
@@ -1363,14 +1374,15 @@ through the group) onto the same access token:
   "roles": ["engineering-lead", "reviewer"],
   "groups": ["/engineering/backend"],
   "iss": "http://localhost:3000/realms/demo",
-  "sub": "01a0a215-204a-75a9-b3b1-89bf08b1c76b",
+  "sub": "01a0c3a8-078e-…",
   "aud": ["http://localhost:3000/realms/demo"],
   "client_id": "demo-spa",
   "scope": "openid roles groups",
-  "iat": 1789425720,
-  "exp": 1789426020,
-  "jti": "01a0a215-9c86-…",
-  "sid": "01a0a215-9c61-…"
+  "iat": 1789988992,
+  "exp": 1789989292,
+  "jti": "01a0c3a8-75e2-…",
+  "sid": "01a0c3a8-7582-…",
+  "grant_id": "01a0c3a8-75e2-78d4-bfa7-14fd17cf0d39"
 }
 ```
 
@@ -1511,14 +1523,15 @@ where they name the client:
 ```json
 {
   "iss": "http://localhost:3000/realms/demo",
-  "sub": "01a0a6cd-e3cb-…",
+  "sub": "01a0c3a8-078e-…",
   "aud": ["http://localhost:3000/realms/demo"],
   "client_id": "demo-backend",
   "scope": "openid profile email",
-  "iat": 1789505125,
-  "exp": 1789505425,
-  "jti": "01a0a6d1-3d61-…",
-  "sid": "01a0a6d1-3d1f-…"
+  "iat": 1789988996,
+  "exp": 1789989296,
+  "jti": "01a0c3a8-8538-…",
+  "sid": "01a0c3a8-84e5-…",
+  "grant_id": "01a0c3a8-8538-7cd9-9bb4-f04e04c19955"
 }
 ```
 
@@ -4938,20 +4951,23 @@ OFFLINE_REFRESH_TOKEN=$(printf '%s' "$OFFLINE_TOKENS" | sed -n 's/.*"refresh_tok
 ```json
 {
   "iss": "http://localhost:3000/realms/demo",
-  "sub": "01a0a6cd-e3cb-…",
+  "sub": "01a0c3a8-078e-…",
   "aud": ["http://localhost:3000/realms/demo"],
   "client_id": "demo-spa",
   "scope": "openid offline_access",
-  "iat": 1789505162,
-  "exp": 1789505462,
-  "jti": "01a0a6d1-cbc5-…"
+  "iat": 1789989000,
+  "exp": 1789989300,
+  "jti": "01a0c3a8-94f5-…",
+  "grant_id": "01a0c3a8-94f5-7b87-baf7-d057e9b1dfb1"
 }
 ```
 
 No `sid` — every other access token in this document carries one
 ([docs/protocols/oidc-backchannel.md](protocols/oidc-backchannel.md) §2.1),
-and this is the one grant here with no session for it to name. The ID
-token, decoded, is missing it the same way, but still carries `amr` and
+and this is the one grant here with no session for it to name. `grant_id`
+carries no such exception; it names the grant itself, not a session, so
+it is on this token exactly as it is on every other. The ID token,
+decoded, is missing `sid` the same way, but still carries `amr` and
 `acr`:
 
 ```json
@@ -5208,16 +5224,17 @@ curl -sS -u demo-backend:demo-backend-secret \
 ```
 
 ```json
-{ "alg": "RS256", "kid": "01a09678-…", "typ": "at+jwt" }
+{ "alg": "RS256", "kid": "01a0c3a8-078b-…", "typ": "at+jwt" }
 {
   "iss": "http://localhost:3000/realms/demo",
-  "sub": "01a0967a-211c-…",
+  "sub": "01a0c3a8-0a62-…",
   "aud": ["http://localhost:3000/realms/demo"],
   "client_id": "demo-backend",
   "scope": "",
-  "iat": 1789231004,
-  "exp": 1789231304,
-  "jti": "01a0967a-7d0d-…"
+  "iat": 1789989007,
+  "exp": 1789989307,
+  "jti": "01a0c3a8-b1b2-…",
+  "grant_id": "01a0c3a8-b1b2-779e-a915-4413650df71a"
 }
 ```
 

@@ -47,10 +47,10 @@ function decodeProtectedHeaderSafely(token: string): Record<string, unknown> {
 // token. A verifier naming no audience checks none, so the obligation used
 // to be switched off by silence — the /userinfo mix-up that accepted
 // another audience's token was one call site forgetting an optional
-// option. Naming an audience is therefore required; a call site with no
-// principal of its own — today, `/logout`'s id_token_hint and
-// `/introspect`'s caller check (docs/protocols/rfc9068.md) — declares
-// that here.
+// option. Naming an audience is required; a call site declares this when
+// it has none to check (`/logout`'s id_token_hint) or its check is a set
+// intersection, not membership of one fixed string
+// (`/introspect` — docs/protocols/rfc7662.md).
 export const AUDIENCE_UNCHECKED = Symbol('audience unchecked');
 
 export type ExpectedAudience = string | typeof AUDIENCE_UNCHECKED;

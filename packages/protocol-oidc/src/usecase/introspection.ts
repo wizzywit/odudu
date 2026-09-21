@@ -9,8 +9,8 @@ export interface IntrospectionGrant {
 // token's `aud` is built from RFC 8707 resource URIs
 // (`client_oidc_config.audiences`) — a different namespace. Either
 // identity entitles the caller to a description; see
-// docs/protocols/rfc7662.md's reading note on R-27a for why, and why this
-// is its own type rather than a bare string.
+// docs/protocols/rfc7662.md's reading note "The caller's identity" for
+// why, and why this is its own type rather than a bare string.
 export interface IntrospectionCaller {
   readonly clientId: string;
   readonly audiences: readonly string[];
