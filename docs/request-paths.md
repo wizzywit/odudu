@@ -4444,11 +4444,12 @@ Local validation cannot see that a session just ended — the access token
 above is still a validly signed JWT until its own `exp` — so the two walks
 below use a freshly seeded realm and confidential client of their own,
 `revokedoc`/`revoke-doc-client`, so a resource server that wants to see a
-revocation before `exp` has something to call. `--audience` does not exist
-on `seed client` yet, so the client's own `client_oidc_config.audiences` is
-set directly, the same way [the section
-above](#rp-initiated-logout) sets `post_logout_redirect_uris` directly —
-client management is P3a's pending RFC 7592 spike and P4's otherwise:
+revocation before `exp` has something to call. `seed client` has no
+`--audience` flag (see [What is not
+implemented](#what-is-not-implemented)'s "Any admin API" row), so the
+client's own `client_oidc_config.audiences` is set directly, the same way
+[the section above](#rp-initiated-logout) sets `post_logout_redirect_uris`
+directly:
 
 ```bash
 docker compose -f infra/docker/compose.yaml exec -T postgres \
@@ -4512,10 +4513,13 @@ curl -sS -u revoke-doc-client:revoke-doc-secret \
 
 `exp` above is `1790002471`; this second call landed at `1790002187` —
 284 seconds still on the clock, and every one of them made no difference,
-because introspection checks the session's own liveness
-(`docs/protocols/rfc7662.md`'s §8.2 reading note), not merely the token's
-signature. A resource server that only verified the JWT locally would still
-be accepting this token.
+because logout revoked the grant this token names along with the session
+(`tokenGrantRepository(tx).revokeForSession`,
+`packages/protocol-oidc/src/index.ts`'s `endSession`), and introspection
+checks that `revoked_at` before it ever looks at the session
+(`docs/protocols/rfc7662.md`'s §8.2 reading note) — not merely the token's
+own signature. A resource server that only verified the JWT locally would
+still be accepting this token.
 
 `/revoke` (RFC 7009) is the other half — ending a grant deliberately, from
 either side of it, rather than waiting for a session to end one. A fresh
@@ -4784,8 +4788,9 @@ a grant under that session. [Back-Channel Logout 1.0](protocols/oidc-backchannel
 asks it to also `POST` a signed Logout Token to every client that
 registered a `backchannel_logout_uri` and held a grant under that session.
 `seed client` has no flag for either URI (see
-[What is not implemented](#what-is-not-implemented)), so a second client is
-seeded and given both directly, the same way `post_logout_redirect_uris`
+[What is not implemented](#what-is-not-implemented)'s "Any admin API"
+row), so a second client is seeded and given both directly, the same way
+`post_logout_redirect_uris`
 was set above:
 
 ```bash
@@ -5027,8 +5032,9 @@ here assigned `'optional'` rather than `'default'`, which is what lets the
 consent screen ([below](#the-consent-screen)) tell it apart from a scope
 pre-approved the moment a client is assigned it (it maps no claims either
 way — see [Discovery](#1-discovery) above). `demo-spa`'s own
-`consent_required` is `false` — `seed client` names no way to set it, so
-every seeded client keeps the column's own default — so the transcript
+`consent_required` is `false` — `seed client` names no way to set it (see
+[What is not implemented](#what-is-not-implemented)'s "Any admin API" row)
+— so every seeded client keeps the column's own default — so the transcript
 below reuses without ever seeing that screen; the consent section
 demonstrates asking, against an anonymously self-registered client, whose
 `consent_required` defaults `true` (ADR 0027, and the registration section
@@ -7000,7 +7006,16 @@ session lifecycle. A citation of either half here means that half.
   administrative surfaces — the former for a realm's first user, client and
   signing key, the latter for a client a realm has opened itself to — and
   neither can add a user to an existing client, disable anything, rotate a
-  key, or delete anything.
+  key, or delete anything. `seed client` also has no flag for client
+  metadata beyond redirect URIs, web origins and the auth method: not
+  `audiences`, not `frontchannel_logout_uri`/`backchannel_logout_uri`, not
+  `consent_required`. Each site in this document that sets one of those
+  directly with SQL instead says so at the point it does it — [Front-channel
+  and back-channel logout](#front-channel-and-back-channel-logout), [Token
+  introspection and revocation](#token-introspection-and-revocation), and
+  [Offline access](#offline-access) — and this is the one row that
+  aggregates all three, rather than each staying an individually honest but
+  uncollected admission.
 - **SAML, LDAP federation, identity brokering, authorization services.**
   P6–P9.
 

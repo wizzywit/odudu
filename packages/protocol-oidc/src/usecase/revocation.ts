@@ -74,13 +74,17 @@ export async function respondToRevocationRequest(
   const grant = await tokenGrantRepository(tx).byId(grantId);
   if (grant === null) return;
 
-  // The grant is the record a family's rotation shares — revoking it by id
-  // reaches a refresh token's current row whatever rotation it is on, the
-  // same way `rotateRefreshToken` reads `grant.revokedAt` rather than
-  // anything on the presented token itself.
+  // RFC 7009 §2.1: the server verifies the token was issued to the
+  // requesting client. A grant genuinely found under a different client is
+  // refused, never treated as unknown — the boundary §2.2's blanket success
+  // stops short of.
   if (grant.clientId !== client.id) throw invalidGrant();
 
   if (grant.revokedAt !== null) return;
 
+  // The grant is the record a family's rotation shares — revoking it by id
+  // reaches a refresh token's current row whatever rotation it is on, the
+  // same way `rotateRefreshToken` reads `grant.revokedAt` rather than
+  // anything on the presented token itself.
   await tokenGrantRepository(tx).revoke(grant.id, now);
 }

@@ -378,6 +378,14 @@ describe('[ODUDU-REVOKE-OTHER-CLIENT-01] a token found under another client is r
     const stillLive = await redeemRefresh(refreshToken);
     expect(stillLive.statusCode).toBe(200);
   });
+
+  it('refuses to revoke an access token issued to another client, the same way', async () => {
+    const { accessToken } = await completeAuthorizationCodeFlow();
+    const response = await revoke({ token: accessToken, auth: otherClient });
+    expect(response.statusCode).toBe(400);
+    expect(response.json<{ error: string }>().error).toBe('invalid_grant');
+    expect(await introspectActive(accessToken)).toBe(true);
+  });
 });
 
 describe('[RFC7009-2.1-04] an access token names the same grant a refresh token does', () => {
@@ -393,6 +401,7 @@ describe('[RFC7009-2.1-04] an access token names the same grant a refresh token 
     const rotated = await redeemRefresh(refreshToken);
     expect(rotated.statusCode).toBe(200);
     const rotatedRefreshToken = rotated.json<{ refresh_token: string }>().refresh_token;
+    expect(rotatedRefreshToken).not.toBe(refreshToken);
 
     await revoke({ token: accessToken, auth: client });
 
