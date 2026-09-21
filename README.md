@@ -483,7 +483,10 @@ Front-Channel Logout 1.0 §3 — an attempt, not a guarantee: the iframe's
 response is never read back, and a browser may never deliver the framed
 request to a live RP session at all (third-party-cookie policy;
 `docs/superpowers/p3b-spike-frontchannel.md` has the measured evidence).
-Back-channel logout is still `deferred: P3b`. See [the logout section of
+Back-channel logout ships too: a session that ends enqueues one Logout
+Token per client that registered a `backchannel_logout_uri`, and the
+`send-logouts` pass delivers them off the request path — see below. See
+[the logout section of
 docs/request-paths.md](docs/request-paths.md#rp-initiated-logout) for the
 walkthrough, and [its front-channel logout
 section](docs/request-paths.md#front-channel-logout) for a real transcript
@@ -1053,7 +1056,6 @@ Every row says where it stands, and every row has a phase:
 | An account console for self-service credential management, and an operator unlock for a locked account | P4              |
 | An admin API — seeding is the only administrative surface                                              | P4              |
 | Signing-key rotation — the shape exists, the operation does not                                        | P4              |
-| Back-channel logout, and discovery advertisement of front-channel logout                               | P3b             |
 | Published images and a release process                                                                 | P12             |
 | Secret management beyond environment variables                                                         | P12             |
 | Backup and restore guidance                                                                            | P12             |
