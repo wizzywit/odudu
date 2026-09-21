@@ -50,6 +50,7 @@ const NUMBER_WORDS: ReadonlyMap<string, number> = new Map([
   ['sixteen', 16],
   ['seventeen', 17],
   ['twenty', 20],
+  ['twenty-one', 21],
 ]);
 
 function spelled(word: string, context: string): number {
@@ -87,7 +88,9 @@ describe('the discovery document the guide publishes is the one the server produ
         'README.md no longer says how many discovery members it is quoting out of how many',
       );
     }
-    const counts = /^\((?<quoted>\w+) of the (?<total>\w+) members it returns/u.exec(prose.trim());
+    const counts = /^\((?<quoted>[\w-]+) of the (?<total>[\w-]+) members it returns/u.exec(
+      prose.trim(),
+    );
     if (counts === null) throw new Error(`README.md's count of discovery members reads: ${prose}`);
 
     expect(

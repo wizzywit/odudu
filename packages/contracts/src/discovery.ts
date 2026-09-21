@@ -4,6 +4,10 @@ export interface DiscoveryDocument {
   readonly issuer: string;
   readonly authorization_endpoint: string;
   readonly token_endpoint: string;
+  // RFC 7662 §2's own discovery convention (OAuth 2.0 Authorization Server
+  // Metadata, RFC 8414 §2, formalizes it): always served once a realm is
+  // provisioned, the same way `end_session_endpoint` below is.
+  readonly introspection_endpoint: string;
   readonly userinfo_endpoint: string;
   readonly jwks_uri: string;
   // OpenID Connect RP-Initiated Logout 1.0 §4's own discovery member —
@@ -71,6 +75,7 @@ export function discoveryDocument(opts: DiscoveryDocumentOptions): DiscoveryDocu
     issuer,
     authorization_endpoint: `${issuer}/protocol/openid-connect/auth`,
     token_endpoint: `${issuer}/protocol/openid-connect/token`,
+    introspection_endpoint: `${issuer}/protocol/openid-connect/token/introspect`,
     userinfo_endpoint: `${issuer}/protocol/openid-connect/userinfo`,
     jwks_uri: `${issuer}/protocol/openid-connect/certs`,
     end_session_endpoint: `${issuer}/protocol/openid-connect/logout`,

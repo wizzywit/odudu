@@ -68,6 +68,7 @@ describe('[OIDC-DISCOVERY-3-01] the discovery document', () => {
     for (const url of [
       doc.authorization_endpoint,
       doc.token_endpoint,
+      doc.introspection_endpoint,
       doc.userinfo_endpoint,
       doc.jwks_uri,
       doc.end_session_endpoint,

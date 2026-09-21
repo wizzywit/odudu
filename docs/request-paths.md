@@ -36,30 +36,31 @@ isolated in the database by PostgreSQL row-level security (ADR 0009). Every
 protocol endpoint lives under `/realms/{realm}/`, so the realm is chosen by
 the URL and never by a header or a parameter.
 
-| Method | Path                                                   | What it is                                                  |
-| ------ | ------------------------------------------------------ | ----------------------------------------------------------- |
-| `GET`  | `/realms/{realm}/.well-known/openid-configuration`     | Discovery document                                          |
-| `GET`  | `/realms/{realm}/protocol/openid-connect/certs`        | JWKS (public signing keys)                                  |
-| `GET`  | `/realms/{realm}/protocol/openid-connect/auth`         | Authorization endpoint                                      |
-| `POST` | `/realms/{realm}/protocol/openid-connect/auth`         | Authorization endpoint (form)                               |
-| `POST` | `/realms/{realm}/login-actions/authenticate`           | Login form submission                                       |
-| `POST` | `/realms/{realm}/login-actions/consent`                | Consent screen submission (allow/deny)                      |
-| `POST` | `/realms/{realm}/login-actions/select-account`         | Account chooser submission                                  |
-| `POST` | `/realms/{realm}/login-actions/required-action`        | Complete a pending required action (enrolment, password)    |
-| `POST` | `/realms/{realm}/login-actions/passkey-challenge`      | Request options for a usernameless passkey assertion        |
-| `GET`  | `/realms/{realm}/login-actions/registration`           | Self-registration form                                      |
-| `POST` | `/realms/{realm}/login-actions/registration`           | Self-registration submission                                |
-| `GET`  | `/realms/{realm}/login-actions/action-token`           | Redeem a mailed action token (verify email, reset password) |
-| `POST` | `/realms/{realm}/login-actions/action-token`           | Submit a new password against a reset-password token        |
-| `GET`  | `/realms/{realm}/login-actions/reset-password`         | Password reset request form                                 |
-| `POST` | `/realms/{realm}/login-actions/reset-password`         | Password reset request submission                           |
-| `POST` | `/realms/{realm}/protocol/openid-connect/token`        | Token endpoint                                              |
-| `GET`  | `/realms/{realm}/protocol/openid-connect/userinfo`     | UserInfo                                                    |
-| `POST` | `/realms/{realm}/protocol/openid-connect/userinfo`     | UserInfo (form)                                             |
-| `GET`  | `/realms/{realm}/protocol/openid-connect/logout`       | RP-initiated logout (`end_session_endpoint`)                |
-| `POST` | `/realms/{realm}/protocol/openid-connect/logout`       | RP-initiated logout (form-serialized), confirmation form    |
-| `POST` | `/realms/{realm}/clients-registrations/openid-connect` | Dynamic client registration (RFC 7591)                      |
-| `GET`  | `/health/live`, `/health/ready`                        | Liveness, readiness                                         |
+| Method | Path                                                       | What it is                                                  |
+| ------ | ---------------------------------------------------------- | ----------------------------------------------------------- |
+| `GET`  | `/realms/{realm}/.well-known/openid-configuration`         | Discovery document                                          |
+| `GET`  | `/realms/{realm}/protocol/openid-connect/certs`            | JWKS (public signing keys)                                  |
+| `GET`  | `/realms/{realm}/protocol/openid-connect/auth`             | Authorization endpoint                                      |
+| `POST` | `/realms/{realm}/protocol/openid-connect/auth`             | Authorization endpoint (form)                               |
+| `POST` | `/realms/{realm}/login-actions/authenticate`               | Login form submission                                       |
+| `POST` | `/realms/{realm}/login-actions/consent`                    | Consent screen submission (allow/deny)                      |
+| `POST` | `/realms/{realm}/login-actions/select-account`             | Account chooser submission                                  |
+| `POST` | `/realms/{realm}/login-actions/required-action`            | Complete a pending required action (enrolment, password)    |
+| `POST` | `/realms/{realm}/login-actions/passkey-challenge`          | Request options for a usernameless passkey assertion        |
+| `GET`  | `/realms/{realm}/login-actions/registration`               | Self-registration form                                      |
+| `POST` | `/realms/{realm}/login-actions/registration`               | Self-registration submission                                |
+| `GET`  | `/realms/{realm}/login-actions/action-token`               | Redeem a mailed action token (verify email, reset password) |
+| `POST` | `/realms/{realm}/login-actions/action-token`               | Submit a new password against a reset-password token        |
+| `GET`  | `/realms/{realm}/login-actions/reset-password`             | Password reset request form                                 |
+| `POST` | `/realms/{realm}/login-actions/reset-password`             | Password reset request submission                           |
+| `POST` | `/realms/{realm}/protocol/openid-connect/token`            | Token endpoint                                              |
+| `POST` | `/realms/{realm}/protocol/openid-connect/token/introspect` | Token introspection (RFC 7662)                              |
+| `GET`  | `/realms/{realm}/protocol/openid-connect/userinfo`         | UserInfo                                                    |
+| `POST` | `/realms/{realm}/protocol/openid-connect/userinfo`         | UserInfo (form)                                             |
+| `GET`  | `/realms/{realm}/protocol/openid-connect/logout`           | RP-initiated logout (`end_session_endpoint`)                |
+| `POST` | `/realms/{realm}/protocol/openid-connect/logout`           | RP-initiated logout (form-serialized), confirmation form    |
+| `POST` | `/realms/{realm}/clients-registrations/openid-connect`     | Dynamic client registration (RFC 7591)                      |
+| `GET`  | `/health/live`, `/health/ready`                            | Liveness, readiness                                         |
 
 `/login-actions/authenticate` is deliberately outside the
 `/protocol/openid-connect/` namespace: that namespace is the OIDC wire
@@ -637,6 +638,7 @@ curl -sS http://localhost:3000/realms/demo/.well-known/openid-configuration
   "issuer": "http://localhost:3000/realms/demo",
   "authorization_endpoint": "http://localhost:3000/realms/demo/protocol/openid-connect/auth",
   "token_endpoint": "http://localhost:3000/realms/demo/protocol/openid-connect/token",
+  "introspection_endpoint": "http://localhost:3000/realms/demo/protocol/openid-connect/token/introspect",
   "userinfo_endpoint": "http://localhost:3000/realms/demo/protocol/openid-connect/userinfo",
   "jwks_uri": "http://localhost:3000/realms/demo/protocol/openid-connect/certs",
   "end_session_endpoint": "http://localhost:3000/realms/demo/protocol/openid-connect/logout",
@@ -6606,9 +6608,11 @@ received.
 `/userinfo` or to your own API. It lives 300 seconds. A resource server
 validating it should verify the signature against the realm's JWKS, then
 `typ: at+jwt`, `iss`, `exp`, and that it is named in `aud` — and then check
-`scope` for whatever the call requires. There is no introspection endpoint,
-so this is local validation only; the token stays valid until `exp` even if
-its grant has since been revoked.
+`scope` for whatever the call requires. A resource server named in `aud`
+can instead call `/introspect` (RFC 7662), authenticating with its own
+client credentials, to learn whether the grant behind the token has since
+been revoked or its session has ended — the one check local validation
+alone cannot make before `exp`. There is still no `/revoke` endpoint.
 
 **From a refresh token.** Present it at `/token` when the access token is
 about to expire, and **replace your stored copy with the one that comes
@@ -6834,11 +6838,13 @@ session lifecycle. A citation of either half here means that half.
 
 **Endpoints that do not exist at all**
 
-- **Token introspection (RFC 7662) and revocation (RFC 7009).** **P3b**,
-  whose exit criterion names both. Until then a resource server validates
-  access tokens locally against the JWKS, and ending a session or revoking
-  a grant — including through [RP-initiated logout](#rp-initiated-logout) —
-  does not invalidate an already-issued access token before its `exp`.
+- **Token revocation (RFC 7009).** **P3b**, whose exit criterion names it
+  alongside introspection. Until it exists, a resource server that only
+  validates access tokens locally against the JWKS sees no effect from
+  ending a session or revoking a grant — including through
+  [RP-initiated logout](#rp-initiated-logout) — before the token's `exp`;
+  `/introspect` (RFC 7662), described above under "From an access token",
+  closes that gap for a resource server willing to call it.
 - **No administrative way to end somebody else's session.** Listing a
   subject's sessions and ending one is **P4**, with the rest of the admin
   surface, because until there is an admin API there is nowhere to put it.

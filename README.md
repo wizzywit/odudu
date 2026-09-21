@@ -678,8 +678,8 @@ curl -sS http://localhost:3000/realms/demo/.well-known/openid-configuration
 }
 ```
 
-(Five of the twenty members it returns; the other fifteen, and what a client
-does with each, are in the guide.)
+(Five of the twenty-one members it returns; the other sixteen, and what a
+client does with each, are in the guide.)
 
 And this signs ada in and comes back with tokens — the whole
 authorization-code-with-PKCE flow, with `curl` standing in for the browser,

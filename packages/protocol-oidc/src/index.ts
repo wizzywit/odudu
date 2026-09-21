@@ -51,6 +51,7 @@ import { registerClientRegistrationRoute } from '#/view/routes/client-registrati
 import { registerConsentRoute } from '#/view/routes/consent';
 import { registerCors } from '#/view/routes/cors';
 import { registerDiscoveryRoute } from '#/view/routes/discovery';
+import { registerIntrospectRoute } from '#/view/routes/introspect';
 import { registerJwksRoute } from '#/view/routes/jwks';
 import { registerLoginRoute } from '#/view/routes/login';
 import { registerRequiredActionRoute } from '#/view/routes/required-action';
@@ -313,6 +314,17 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
       scopesForRealm,
     });
     registerJwksRoute(app, { findRealm, listPublishableKeys });
+    // No CORS scope: unlike /userinfo, a resource server calls this with
+    // its own client credentials, never a browser holding a bearer token,
+    // so there is no Origin this endpoint owes a header to.
+    registerIntrospectRoute(app, {
+      database: deps.database,
+      findRealm,
+      listPublishableKeys,
+      verifyPassword,
+      clientSecretLimiter,
+      clock,
+    });
     registerClientRegistrationRoute(app, {
       findRealm,
       withinRealm: (realmId, fn) => withRealm(deps.database.db, realmId, fn),

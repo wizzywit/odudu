@@ -15,6 +15,29 @@ const database: DatabaseHandle = {
   close: () => Promise.resolve(),
 };
 
+// Fastify derives HEAD from every GET route. The documents describe requests a
+// client makes, so HEAD is left out of them and out of the comparison.
+const IMPLIED_BY_GET = 'HEAD';
+
+// `@fastify/cors` registers this catch-all preflight responder itself
+// (`packages/protocol-oidc/src/view/routes/cors.ts`) — plumbing for every
+// route CORS applies to, not a protocol endpoint a client is told to call.
+const CORS_PREFLIGHT_CATCHALL = 'OPTIONS *';
+
+interface Endpoint {
+  readonly method: string;
+  readonly url: string;
+}
+
+function format(endpoint: Endpoint): string {
+  return `${endpoint.method} ${endpoint.url}`;
+}
+
+// `onRoute` fires once per registered route with its real, full URL — unlike
+// `printRoutes`, which renders a tree for people and folds a route nested
+// under a sibling's prefix (`/token/introspect` under `/token`) down to just
+// its own suffix, silently dropping routes from any comparison built on that
+// text.
 async function servingApp() {
   const config = loadConfig({
     ODUDU_DATABASE_URL: 'postgres://u:p@localhost:5432/odudu',
@@ -27,40 +50,19 @@ async function servingApp() {
     kek: config.ODUDU_KEK,
     logger: createLogger(config),
   });
+  const routes: Endpoint[] = [];
+  app.addHook('onRoute', (route) => {
+    const methods = Array.isArray(route.method) ? route.method : [route.method];
+    for (const method of methods) {
+      if (method === IMPLIED_BY_GET) continue;
+      routes.push({ method, url: route.url });
+    }
+  });
   await app.ready();
-  return app;
-}
-
-// Fastify derives HEAD from every GET route. The documents describe requests a
-// client makes, so HEAD is left out of them and out of the comparison.
-const IMPLIED_BY_GET = 'HEAD';
-
-interface Endpoint {
-  readonly method: string;
-  readonly url: string;
-}
-
-function format(endpoint: Endpoint): string {
-  return `${endpoint.method} ${endpoint.url}`;
-}
-
-function served(app: Awaited<ReturnType<typeof servingApp>>): Endpoint[] {
-  const printed = app.printRoutes({ commonPrefix: false });
-  const endpoints = [...printed.matchAll(/(?<url>\/\S*) \((?<methods>[A-Z, ]+)\)/gu)].flatMap(
-    (match) =>
-      (match.groups?.methods ?? '')
-        .split(', ')
-        .filter((method) => method !== IMPLIED_BY_GET)
-        .map((method) => ({ method, url: match.groups?.url ?? '' })),
-  );
-
-  // printRoutes renders a tree for people, so its shape is not a contract. A
-  // rendering change that stopped matching would otherwise empty this list and
-  // turn the comparison below into a tautology.
-  if (endpoints.length === 0) {
-    throw new Error(`no routes parsed out of Fastify's route listing:\n${printed}`);
+  if (routes.length === 0) {
+    throw new Error("no routes reached the onRoute hook — Fastify's route API may have changed");
   }
-  return endpoints;
+  return { app, routes };
 }
 
 // `{realm}` reads as a placeholder to a person; Fastify spells it `:realm`.
@@ -76,7 +78,7 @@ function documented(): Endpoint[] {
 
 describe(`the endpoints ${DOCUMENT} lists are the endpoints the server serves`, () => {
   it('serves every endpoint the document tells a reader to call', async () => {
-    const app = await servingApp();
+    const { app } = await servingApp();
     const missing = documented().filter(
       (endpoint) => !app.hasRoute({ method: endpoint.method, url: endpoint.url }),
     );
@@ -88,11 +90,11 @@ describe(`the endpoints ${DOCUMENT} lists are the endpoints the server serves`, 
   });
 
   it('documents every endpoint the server serves', async () => {
-    const app = await servingApp();
+    const { routes } = await servingApp();
     const claimed = new Set(documented().map(format));
-    const undocumented = served(app)
+    const undocumented = routes
       .map(format)
-      .filter((endpoint) => !claimed.has(endpoint));
+      .filter((endpoint) => endpoint !== CORS_PREFLIGHT_CATCHALL && !claimed.has(endpoint));
 
     expect(
       undocumented,
