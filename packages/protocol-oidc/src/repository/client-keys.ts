@@ -32,7 +32,15 @@ export interface ClientKeySet {
 /** A parsed JWK Set document is capped here, before `JSON.parse` ever sees it. */
 export const MAX_JWKS_BYTES = 1_000_000;
 
-const CACHE_TTL_MS = 300_000;
+export const CACHE_TTL_MS = 300_000;
+
+// Short on purpose: a URI that fails to fetch suppresses that client's
+// private_key_jwt authentication until this entry expires, so the TTL is
+// also the ceiling on how long anything that can make one fetch fail (a
+// dead host, a firewall rule, a slow DNS server) can deny that client. It
+// trades against re-hitting a genuinely dead jwks_uri on every attempt in
+// between.
+export const NEGATIVE_CACHE_TTL_MS = 30_000;
 
 // RFC 7517 §8.5 registers `application/jwk-set+json` for a JWK Set; the
 // OIDF conformance suite and most relying parties serve plain
@@ -51,16 +59,20 @@ function acceptsContentType(contentType: string | null): boolean {
 // A map keyed on a URL the caller chooses is a memory-exhaustion vector,
 // the same shape apps/server/src/throttle.ts bounds its key map against —
 // but this is a different budget: a cache of resolved key sets, not a
-// request-rate window, so it gets its own ceiling.
+// request-rate window, so it gets its own ceiling. Negative entries share
+// this budget rather than a separate one: a distinct URI still costs an
+// attacker a registered client to name it, and MAX_CACHE_ENTRIES is sized
+// well past any realistic deployment's client count, so a flood large
+// enough to evict good entries is already a bigger problem than this cache.
 const MAX_CACHE_ENTRIES = 1000;
 
-interface CacheEntry {
-  readonly body: unknown;
-  readonly expiresAt: number;
-}
+type CacheEntry =
+  | { readonly kind: 'success'; readonly body: unknown; readonly expiresAt: number }
+  | { readonly kind: 'failure'; readonly error: unknown; readonly expiresAt: number };
 
 export function clientKeySet(deps: ClientKeyDeps): ClientKeySet {
   const cache = new Map<string, CacheEntry>();
+  const inFlight = new Map<string, Promise<unknown>>();
 
   const evictColdestIfFull = (): void => {
     if (cache.size < MAX_CACHE_ENTRIES) return;
@@ -104,19 +116,43 @@ export function clientKeySet(deps: ClientKeyDeps): ClientKeySet {
   };
 
   return {
+    // Checked in this order: a cache entry (success or failure) answers
+    // without touching the network or the in-flight map at all; only a
+    // cache miss consults in-flight, so two callers racing a fresh URI join
+    // the one attempt already under way instead of each starting their own.
     fetch: async (uri: string): Promise<unknown> => {
       const cached = cache.get(uri);
-      const now = deps.now().getTime();
-      if (cached !== undefined && cached.expiresAt > now) {
-        return cached.body;
+      if (cached !== undefined && cached.expiresAt > deps.now().getTime()) {
+        if (cached.kind === 'success') return cached.body;
+        throw cached.error;
       }
 
-      const body = await fetchFresh(uri);
+      const existing = inFlight.get(uri);
+      if (existing !== undefined) return existing;
 
-      cache.delete(uri);
-      evictColdestIfFull();
-      cache.set(uri, { body, expiresAt: now + CACHE_TTL_MS });
-      return body;
+      const attempt = fetchFresh(uri)
+        .then((body) => {
+          cache.delete(uri);
+          evictColdestIfFull();
+          cache.set(uri, { kind: 'success', body, expiresAt: deps.now().getTime() + CACHE_TTL_MS });
+          return body;
+        })
+        .catch((error: unknown) => {
+          cache.delete(uri);
+          evictColdestIfFull();
+          cache.set(uri, {
+            kind: 'failure',
+            error,
+            expiresAt: deps.now().getTime() + NEGATIVE_CACHE_TTL_MS,
+          });
+          throw error;
+        })
+        .finally(() => {
+          inFlight.delete(uri);
+        });
+
+      inFlight.set(uri, attempt);
+      return attempt;
     },
   };
 }
