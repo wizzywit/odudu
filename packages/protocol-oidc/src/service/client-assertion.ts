@@ -35,6 +35,11 @@ export type AssertionOutcome =
       readonly claimedClientId: string;
       readonly jti: string;
       readonly expiresAt: Date;
+      // The raw JWT, for the caller that will verify its signature once it
+      // has a key — carried here so that caller narrows on `kind: 'ok'`
+      // rather than re-reading `body.client_assertion` and re-proving to
+      // itself, at runtime, the string-ness this function already checked.
+      readonly assertion: string;
     }
   | { readonly kind: 'unsupported' }
   | { readonly kind: 'invalid' };
@@ -107,5 +112,6 @@ export function parseClientAssertion(
     claimedClientId: claims.sub,
     jti: claims.jti,
     expiresAt: new Date(claims.exp * 1000),
+    assertion: body.client_assertion,
   };
 }

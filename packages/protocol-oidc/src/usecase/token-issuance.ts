@@ -70,10 +70,13 @@ export interface TokenIssuanceDeps extends ClientAuthenticationDeps {
   // other for the same subject and scope.
   claimMappers: ClaimMapperRegistry<ClaimContext>;
   loadClaimContext(realmId: string, subjectId: string): Promise<ClaimContext>;
-  // RFC 7523 §2.2's fetcher for a client's jwks_uri — the same one
-  // client-keys.ts's own comment says registration never calls (P3a
-  // reverted that dereference). private_key_jwt authentication is the one
-  // caller.
+  // RFC 7523 §2.2's fetcher for a client's jwks_uri — the dereference
+  // `usecase/client-registration.ts` deliberately never performs (P3a
+  // reverted that). private_key_jwt authentication is the one caller.
+  // No safe default: a caller with no opinion says so explicitly with
+  // `NO_CLIENT_KEY_FETCHER` (`#/repository/client-keys.ts`) rather than
+  // this package silently choosing on its behalf — the same reasoning as
+  // `clientSecretLimiter` above.
   clientKeySet: ClientKeySet;
   // Where a private_key_jwt refusal's real cause goes — the caller sees
   // one invalid_client whatever it was; see
@@ -695,22 +698,31 @@ async function issueClientCredentialsTokens(
 async function authenticatePrivateKeyJwt(
   tx: RealmScopedDatabase,
   deps: TokenIssuanceDeps,
-  body: Record<string, string | string[] | undefined>,
   outcome: Exclude<AssertionOutcome, { kind: 'unsupported' }>,
   tokenEndpoint: string,
 ): Promise<{ client: ClientRecord; config: ClientOidcConfig }> {
+  // `claimedClientId`, not `clientId`: nothing here is verified until the
+  // signature check below passes, so the log names it for what it is — the
+  // assertion's own say-so — the same distinction `client-assertion.ts`
+  // draws in `AssertionOutcome`'s own doc comment.
   const fail = (reason: string): never => {
-    deps.logger.warn({ reason }, 'private_key_jwt authentication refused');
+    deps.logger.warn(
+      { reason, ...(outcome.kind === 'ok' ? { claimedClientId: outcome.claimedClientId } : {}) },
+      'private_key_jwt authentication refused',
+    );
     throw invalidClient(WWW_AUTHENTICATE);
   };
 
   if (outcome.kind !== 'ok') return fail('assertion failed structural validation');
 
-  const assertion = body.client_assertion;
-  if (typeof assertion !== 'string') return fail('assertion failed structural validation');
-
   const client = await clientRepository(tx).byClientId(outcome.claimedClientId);
   if (client === null) return fail('unknown client');
+  // `authenticateClient`'s password path gets this only incidentally, inside
+  // `verifyClientSecret` (packages/domain-realm/src/service/client.ts) —
+  // this path calls no such function, so a disabled client must be refused
+  // here explicitly or the operator's one revocation lever does nothing to
+  // a private_key_jwt client.
+  if (!client.enabled) return fail('client is disabled');
 
   const config = await clientOidcConfigRepository(tx).byClientId(client.id);
   if (config?.tokenEndpointAuthMethod !== 'private_key_jwt') {
@@ -730,7 +742,7 @@ async function authenticatePrivateKeyJwt(
     return fail('client publishes no keys');
   }
 
-  const verified = await verifyJwtAgainstJwkSet(assertion, jwks, {
+  const verified = await verifyJwtAgainstJwkSet(outcome.assertion, jwks, {
     issuer: outcome.claimedClientId,
     audience: tokenEndpoint,
     now: deps.clock.now(),
@@ -762,17 +774,25 @@ export async function issueTokens(
   const assertionOutcome = parseClientAssertion(body, deps.clock.now(), {
     audience: tokenEndpoint,
   });
+  const basic = parseBasicAuth(authorizationHeader);
+  const bodyClientSecret = readOptionalField(body, 'client_secret');
+
+  // RFC 7521 §4.2 / RFC 6749 §2.3: a client presents exactly one
+  // authentication mechanism per request. `authenticateClient` already
+  // refuses Basic alongside a body secret; this is that same rule's other
+  // edge, refused before either path runs rather than silently preferring
+  // the assertion and dropping the header.
+  if (
+    assertionOutcome.kind !== 'unsupported' &&
+    (basic !== undefined || bodyClientSecret !== undefined)
+  ) {
+    throw invalidClient(WWW_AUTHENTICATE);
+  }
 
   const { client, config } =
     assertionOutcome.kind === 'unsupported'
-      ? await authenticateClient(
-          tx,
-          deps,
-          parseBasicAuth(authorizationHeader),
-          request.clientId,
-          readOptionalField(body, 'client_secret'),
-        )
-      : await authenticatePrivateKeyJwt(tx, deps, body, assertionOutcome, tokenEndpoint);
+      ? await authenticateClient(tx, deps, basic, request.clientId, bodyClientSecret)
+      : await authenticatePrivateKeyJwt(tx, deps, assertionOutcome, tokenEndpoint);
 
   if (request.grantType === 'authorization_code') {
     return issueAuthorizationCodeTokens(tx, deps, request, client, config);

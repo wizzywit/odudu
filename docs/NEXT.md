@@ -368,23 +368,25 @@ ADR 0034's Consequences record the question as open, not answered.
   Revisit whether front-channel still needs one once a deployment's actual
   relying parties make that comparison meaningful.
 
-**Back-channel logout's DNS lookup carries no deadline of its own.**
-`createLogoutDeliveryTransport`'s `defaultLookup`
-(`apps/server/src/logout-delivery-transport.ts`) calls `node:dns/promises`'
-`lookup` with no timeout and no regard for the `AbortSignal` `sendLogouts`
-already started running. A relying party whose authoritative nameserver
-stalls delays that one claimed row by the resolver's own budget, serially,
-before the signal's deadline even begins bounding the connection. This is
-the first production outbound DNS resolution in the server —
-`clientKeySet` (the `jwks_uri` fetch this transport otherwise mirrors) is
-exported but wired into no production path yet — so there is no existing
-parity argument that already covers it.
+**Neither of the server's two outbound DNS lookups carries a deadline of
+its own — and now both run in production.** `createLogoutDeliveryTransport`'s
+`defaultLookup` (`apps/server/src/logout-delivery-transport.ts`) and
+`defaultClientKeyLookup` (`apps/server/src/client-key-transport.ts`, wired
+into `/token`'s `private_key_jwt` authentication as of P3b's client-auth
+increment) both call `node:dns/promises`'s `lookup` with no timeout; the
+first also ignores the `AbortSignal` `sendLogouts` already started
+running. A stalling nameserver delays a claimed logout row by the
+resolver's own budget before the signal's deadline begins bounding the
+connection, and delays a `private_key_jwt` refusal past the 10s total
+timeout `docs/protocols/rfc7523.md`'s reading notes already say that bound
+does not cover. The parity argument the trigger below asked for now
+exists: both lookups are unbounded, in production, for the same reason.
 
-- Trigger: a relying party's back-channel endpoint resolves through a slow
-  or unreachable nameserver in practice, or `clientKeySet` is wired into a
-  production path and the two need a shared answer. Until then: bound the
-  lookup itself (a timeout race, or a resolver library that takes one) and
-  have it honour the incoming signal the way the connection already does.
+- Trigger: fired. A relying party's back-channel endpoint or a client's
+  `jwks_uri` resolves through a slow or unreachable nameserver in
+  practice. Bound the lookup itself (a timeout race, or a resolver
+  library that takes one), and decide whether the two transports share
+  one answer or each wires its own.
 
 **`/introspect`'s entitlement check sits in a `usecase`, not a `service`.**
 `callerIsAddressed` and `audienceOf`
@@ -399,6 +401,23 @@ scope.
 - Trigger: the task that wires `/introspect`'s HTTP route, or any task that
   next touches `introspection.ts`. Move `callerIsAddressed`/`audienceOf`
   into `service/` at that point.
+
+**RFC 7523 has no clause table; its clauses are absent from the
+traceability matrix.** `docs/protocols/rfc7523.md` is a reading-notes-only
+file — the one file in `docs/protocols/` without a `| Clause | Level |
+... |` table — because building one accurately needs an hour of reading
+the RFC text carefully enough to quote each clause, not spent under the
+task that implemented `private_key_jwt` client authentication. `pnpm
+trace` does not fail on the omission: a file with no table contributes
+zero rows, not an error, so Odudu has implemented an RFC whose every
+clause is untracked in the one system built to make that visible, and
+nothing goes red.
+
+- Trigger: before this phase closes. What it takes: §2.2's two request
+  parameters and §3's claim requirements, plus §5's replay guidance — Test
+  IDs are mostly already fillable from `[ODUDU-PRIVATE-KEY-JWT-01]`'s
+  cases (`packages/protocol-oidc/tests/private-key-jwt.int.test.ts`) and
+  `service/client-assertion.test.ts`.
 
 **`/introspect`'s session-liveness check cannot express a remembered
 session's own idle window.** `IntrospectionDeps.isSessionLive` takes one

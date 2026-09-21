@@ -1,11 +1,10 @@
 // RFC 6749 §2.3.1's brute-force MUST names endpoints doing *password*
 // authentication. client_secret_basic (the Basic header) and
 // client_secret_post (the body parameter) are that: both present a shared
-// secret. private_key_jwt proves possession of a key instead, and a
-// registered client can already choose it even though /token accepts no
-// such assertion until P3b — this predicate is what keeps that future
-// client off a budget meant for guessed secrets, the day it can reach
-// /token at all.
+// secret. private_key_jwt proves possession of a key instead — this
+// predicate is what keeps a private_key_jwt client off a budget meant for
+// guessed secrets: `authenticatePrivateKeyJwt` (usecase/token-issuance.ts)
+// never calls `authenticateClient`, so it never reaches this check at all.
 export function isPasswordAuthMethod(
   method: string,
 ): method is 'client_secret_basic' | 'client_secret_post' {

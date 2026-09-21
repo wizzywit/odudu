@@ -56,9 +56,9 @@ let REALM_ID: string;
 let AUDIENCE: string;
 
 // This suite's whole point: every refusal is this one body, whatever
-// failed — the address guard, an unreachable host, an unparseable key set,
-// a bad signature, an unknown client, the wrong registered method, or a
-// spent jti. See token-issuance.ts's authenticatePrivateKeyJwt.
+// failed, of the eight branches `authenticatePrivateKeyJwt` has — see
+// docs/protocols/rfc7523.md's "One refusal, not several" for the list,
+// re-derived from the code rather than copied stale.
 const REFUSAL = { error: 'invalid_client' };
 
 let logLines: unknown[] = [];
@@ -108,7 +108,8 @@ let serviceSubjectId: string;
 // The fake transport `clientKeySet` fetches through. No real socket is
 // opened: `pkj-client.example` answers with `clientKey`'s published JWKS,
 // `unreachable.example` never answers at all (an Error the way a timed-out
-// socket would reject), and every other host is a fixture bug.
+// socket would reject), `bad-document.example` answers with valid JSON
+// that is not a JWK Set, and every other host is a fixture bug.
 const request: ClientKeyRequest = (url) => {
   if (url.hostname === 'unreachable.example') {
     return Promise.reject(new Error('connection to unreachable.example timed out'));
@@ -118,6 +119,13 @@ const request: ClientKeyRequest = (url) => {
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify(jwksFor(clientKey)),
+    });
+  }
+  if (url.hostname === 'bad-document.example') {
+    return Promise.resolve({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ not: 'a jwk set' }),
     });
   }
   return Promise.reject(new Error(`unexpected fetch to ${url.hostname}`));
@@ -135,6 +143,7 @@ async function createClient(
     method: 'private_key_jwt' | 'client_secret_basic';
     jwks?: unknown;
     jwksUri?: string;
+    enabled?: boolean;
   },
 ): Promise<void> {
   const dbId = newId();
@@ -144,6 +153,7 @@ async function createClient(
     clientId: input.clientId,
     name: input.clientId,
     type: 'confidential',
+    enabled: input.enabled ?? true,
     // clients_secret_matches_type requires a confidential client to carry
     // one; its value is irrelevant to every private_key_jwt path, which
     // never reads it, and to `basic-client`'s test, which sends a
@@ -207,6 +217,21 @@ async function setupRealm(): Promise<void> {
     await createClient(tx, {
       clientId: 'basic-client',
       method: 'client_secret_basic',
+    });
+    await createClient(tx, {
+      clientId: 'no-keys-client',
+      method: 'private_key_jwt',
+    });
+    await createClient(tx, {
+      clientId: 'bad-document-client',
+      method: 'private_key_jwt',
+      jwksUri: 'https://bad-document.example/jwks.json',
+    });
+    await createClient(tx, {
+      clientId: 'disabled-client',
+      method: 'private_key_jwt',
+      jwksUri: 'https://pkj-client.example/jwks.json',
+      enabled: false,
     });
 
     const key = await generateSigningKey('RS256', KEK);
@@ -351,6 +376,10 @@ describe('[ODUDU-PRIVATE-KEY-JWT-01] private_key_jwt at /token', () => {
 
     expect(unreachable.json()).toEqual(badSignature.json());
     expect(unreachable.statusCode).toBe(badSignature.statusCode);
+    // The challenge itself must not distinguish the two either — see
+    // rfc7523.md's note on why it is the Basic challenge on both, not a
+    // scheme-specific one.
+    expect(unreachable.headers['www-authenticate']).toBe(badSignature.headers['www-authenticate']);
   });
 
   it("never reports the address guard's own reasoning", async () => {
@@ -391,6 +420,51 @@ describe('[ODUDU-PRIVATE-KEY-JWT-01] private_key_jwt at /token', () => {
 
   it('refuses a client_secret from a client registered for private_key_jwt', async () => {
     const res = await token({ auth: basic('pkj-client', 'secret') });
+    expect(res.statusCode).toBe(401);
+    expect(res.json()).toEqual(REFUSAL);
+  });
+
+  it('refuses an assertion that does not even parse as a JWT', async () => {
+    const res = await token({ assertion: 'not-a-jwt-at-all' });
+    expect(res.statusCode).toBe(401);
+    expect(res.json()).toEqual(REFUSAL);
+    expect(lastLoggedReason()).toBe('assertion failed structural validation');
+  });
+
+  it('refuses a client that publishes no keys at all', async () => {
+    const assertion = await signAssertion(clientKey, 'no-keys-client');
+    const res = await token({ assertion });
+    expect(res.statusCode).toBe(401);
+    expect(res.json()).toEqual(REFUSAL);
+    expect(lastLoggedReason()).toBe('client publishes no keys');
+  });
+
+  it('refuses a signature checked against a jwks_uri document that is not a JWK Set', async () => {
+    const assertion = await signAssertion(clientKey, 'bad-document-client');
+    const res = await token({ assertion });
+    expect(res.statusCode).toBe(401);
+    expect(res.json()).toEqual(REFUSAL);
+    expect(lastLoggedReason()).toBe('assertion signature did not verify');
+  });
+
+  // C1: the operator's one revocation lever must reach a private_key_jwt
+  // client too. `disabled-client` publishes the same key `pkj-client` does
+  // and the assertion is genuinely, correctly signed — the only thing that
+  // can be refusing this is `client.enabled`.
+  it('refuses a genuinely signed assertion from a disabled client', async () => {
+    const assertion = await signAssertion(clientKey, 'disabled-client');
+    const res = await token({ assertion });
+    expect(res.statusCode).toBe(401);
+    expect(res.json()).toEqual(REFUSAL);
+    expect(lastLoggedReason()).toBe('client is disabled');
+  });
+
+  // RFC 7521 §4.2 / RFC 6749 §2.3: one authentication mechanism per
+  // request. `authenticateClient` already refuses Basic-plus-body-secret;
+  // this is the same rule's other edge.
+  it('refuses a request presenting both an assertion and a client_secret', async () => {
+    const assertion = await signAssertion(clientKey, 'pkj-client');
+    const res = await token({ assertion, auth: basic('pkj-client', 'secret') });
     expect(res.statusCode).toBe(401);
     expect(res.json()).toEqual(REFUSAL);
   });

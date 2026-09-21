@@ -46,6 +46,7 @@ describe('parseClientAssertion', () => {
       claimedClientId: 'client-a',
       jti: validClaims.jti,
       expiresAt: new Date(validClaims.exp * 1000),
+      assertion: jwt(validClaims),
     });
   });
 
