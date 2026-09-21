@@ -142,12 +142,12 @@ rate limit on `client_secret` attempts at `/token` — RFC 6749 §2.3.1's
 client half, filed as its own row and named in P3a's criterion — is
 closed: `RFC6749-2.3.1-04` covers it, and ADR 0023 carries the amendment.
 The `prompt=select_account` rows above are closed too, as of the same
-increment. `/authorize` and `/logout` both now pass the requesting or
-disagreeing `client_id` into `subjectOfIdTokenHint` as the expected
-audience rather than `AUDIENCE_UNCHECKED`; `/logout` still falls back to
-`AUDIENCE_UNCHECKED` when no `client_id` accompanies the hint, since §2
-gives it nothing to compare against there (deliberate, not the gap this
-paragraph used to name).
+increment. `/authorize` passes the requesting client's id into
+`subjectOfIdTokenHint` as the expected audience, closing the gap this
+paragraph used to name; `/logout` was never that gap; it already compared
+`client_id` against the hint's `aud` itself (§2, `disagreeing`) and still
+does — `AUDIENCE_UNCHECKED` there names verification finding no audience
+of its own to check, not the client comparison having none.
 
 ### What each phase found while building it
 

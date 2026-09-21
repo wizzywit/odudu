@@ -187,3 +187,7 @@ session on the strength of a disagreeing pair would be worse than
 refusing: a client that can quote another client's ID Token is the case
 the comparison exists to catch, and the honest answer to it is to ask the
 End-User.
+
+A hint carrying no `aud` claim at all reaches the same refusal: `aud`
+absent reads as `[]`, which cannot include a `client_id` that was given,
+so the comparison is already `true` against it.

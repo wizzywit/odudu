@@ -220,33 +220,34 @@ export async function handleLogoutRequest(
     },
     header,
   );
-  // Unlike /authorize, this door has no principal of its own to check the
-  // hint's `aud` against — a bare hint, with no `client_id` beside it,
-  // names no claim to refute, so it is verified with no audience at all
-  // (§2 gives the OP nothing to compare it against either). A `client_id`
-  // that does arrive is RP-Initiated Logout §2's own comparison, and is
-  // passed here as the expected audience so a hint minted for a different
-  // client fails verification itself rather than being checked afterward.
+  // AUDIENCE_UNCHECKED here does not mean this door leaves `aud`
+  // unexamined — §4 requires a disagreeing `client_id`/hint pair told
+  // apart from no usable hint at all, and jose's audience check answers
+  // both the same way, `null`, unable to report a mismatch without
+  // throwing. `disagreeing`, below, makes that comparison instead, where
+  // the caller can still see which case it is.
   const hint =
     params.idTokenHint === null
       ? null
-      : await subjectOfIdTokenHint(
-          deps,
-          realm.id,
-          issuer,
-          params.idTokenHint,
-          params.clientId ?? AUDIENCE_UNCHECKED,
-        );
+      : await subjectOfIdTokenHint(deps, realm.id, issuer, params.idTokenHint, AUDIENCE_UNCHECKED);
   const registered = await registeredUris(deps, realm.id, params.clientId);
 
-  const hintSid = hint?.sid ?? null;
+  // §2: "When both `client_id` and `id_token_hint` are present, the OP MUST
+  // verify that the Client Identifier matches the one used when issuing the
+  // ID Token." A pair that disagrees is an error detected in the request, so
+  // §4 applies to it: neither half is used, and the redirect the hint would
+  // otherwise have authorised is dropped with it.
+  const disagreeing =
+    params.clientId !== null && hint !== null && !hint.audiences.includes(params.clientId);
+  const requested = disagreeing ? null : params.postLogoutRedirectUri;
+  const hintSid = disagreeing ? null : (hint?.sid ?? null);
   const session = toLogoutSession(selectLogoutSession(sessions, hintSid));
 
   const decision = decideLogout({
-    hintSubject: hint?.subject ?? null,
+    hintSubject: disagreeing ? null : (hint?.subject ?? null),
     hintSid,
     session,
-    requested: params.postLogoutRedirectUri,
+    requested,
     registered,
   });
 
@@ -255,7 +256,7 @@ export async function handleLogoutRequest(
       kind: 'confirm',
       sessionId: session?.id ?? null,
       clientId: params.clientId,
-      postLogoutRedirectUri: params.postLogoutRedirectUri,
+      postLogoutRedirectUri: requested,
       state: params.state,
     };
   }

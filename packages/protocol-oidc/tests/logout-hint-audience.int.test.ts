@@ -21,13 +21,13 @@ import { oidcRoutes } from '#/index';
 import { UNLIMITED_CLIENT_SECRET_LIMITER } from '#/service/client-secret-throttle';
 import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
 
-// /logout closes AUDIENCE_UNCHECKED the same way /authorize did: a
-// `client_id` beside `id_token_hint` is now passed into
-// subjectOfIdTokenHint as the expected audience, so a hint whose `aud`
-// does not name that client fails verification itself (RP-Initiated
-// Logout 1.0 §2's own comparison, made structural). With no `client_id`
-// there is nothing to check the hint against, so it is verified with no
-// audience at all, exactly as before.
+// /logout's `id_token_hint` audience handling is unchanged by this task —
+// id-token-hint-audience.int.test.ts pins that directly. `disagreeing`
+// still makes the comparison after verification, not inside it, because
+// §4 needs a disagreeing pair told apart from no usable hint at all, and
+// jose cannot report a mismatch without throwing. This file pins that the
+// comparison still composes with the pre-existing `sid` check once an
+// agreeing pair is in play.
 
 let containerHandle: TestDatabase | undefined;
 let ownerHandle: DatabaseHandle | undefined;
@@ -274,9 +274,8 @@ describe('/logout checks an id_token_hint against the client_id beside it', () =
   // logout.int.test.ts's "[OIDC-RPINITIATED-2-04]" suite. The property
   // worth pinning here is that agreement between client_id and the
   // hint's `aud` is necessary but not sufficient: the hint still has to
-  // name the session actually live in this request's own browser.
-  // Closing AUDIENCE_UNCHECKED must not let an agreeing pair substitute
-  // for that sid check.
+  // name the session actually live in this request's own browser, not
+  // merely one belonging to the same subject.
   it('an agreeing client_id and hint audience does not end a session the hint names for a different login', async () => {
     const realmName = `logout-hint-aud-agree-wrong-session-${newId()}`;
     const { realmId } = await setupRealm(realmName);
@@ -322,5 +321,36 @@ describe('/logout checks an id_token_hint against the client_id beside it', () =
     expect(res.statusCode).toBe(200);
     expect(res.body).toContain('<title>Signed out</title>');
     expect(await sessionIsStillLive(realmId, sessionId)).toBe(false);
+  });
+
+  // A hint with no `aud` claim at all, sent beside a client_id, is
+  // refused the same way a disagreeing one is: audiencesOf returns `[]`
+  // for an absent claim, so `disagreeing` is already true against it.
+  // Verification does not enforce this itself — only a named audience
+  // makes jose require the claim — so this is the one place the check
+  // still runs entirely in `disagreeing`, not in any earlier throw.
+  it('refuses a hint with no aud claim at all, once a client_id is given', async () => {
+    const realmName = `logout-hint-no-aud-${newId()}`;
+    const { realmId } = await setupRealm(realmName);
+    const subjectId = await subjectIdOf(realmId, USERNAME);
+    const cookie = await signIn(realmName, CLIENT_A_ID);
+    const sessionId = sessionIdFromCookie(cookie);
+
+    const key = signingKeyOf.get(realmName);
+    if (key === undefined) throw new Error(`no signing key for ${realmName}`);
+    const now = Math.floor(Date.now() / 1000);
+    const hintWithNoAud = await signJwt(
+      { iss: await issuerFor(realmName), sub: subjectId, sid: sessionId, iat: now, exp: now + 300 },
+      { key, kek: KEK },
+    );
+
+    const res = await http.inject({
+      url: logoutUrl(realmName, { id_token_hint: hintWithNoAud, client_id: CLIENT_A_ID }),
+      headers: { cookie },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toContain('<title>Sign out?</title>');
+    expect(await sessionIsStillLive(realmId, sessionId)).toBe(true);
   });
 });

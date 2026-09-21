@@ -683,11 +683,8 @@ describe.each(['GET', 'POST'] as const)(
       const subjectId = await subjectIdOf(realmId, USERNAME);
 
       // The same session, named by `sid`, in a hint issued to a different
-      // client than the `client_id` beside it. subjectOfIdTokenHint now
-      // checks the audience during verification, so this hint fails to
-      // verify at all — indistinguishable, from here, from any other
-      // invalid hint, which is why the confirmation page below still
-      // carries the requested redirect rather than omitting it.
+      // client than the `client_id` beside it. Everything else about this
+      // request is the one the parity tests above end a session on.
       const foreignAud = await mintIdToken(realmName, subjectId, sessionId, 'another-client');
       const refused = await requestLogout(
         method,
@@ -702,7 +699,10 @@ describe.each(['GET', 'POST'] as const)(
 
       expect(refused.statusCode).toBe(200);
       expect(refused.body).toContain('<title>Sign out?</title>');
-      expect(refused.body).toContain(POST_LOGOUT_REDIRECT_URI);
+      // §4: the information that failed to validate is not used, so the
+      // redirect the hint would have authorised is not carried into the
+      // form the End-User is about to post back either.
+      expect(refused.body).not.toContain(POST_LOGOUT_REDIRECT_URI);
       const stillLive = await withRealm(app.db, realmId, (tx) =>
         sessionRepository(tx).liveById(sessionId, 30 * 24 * 3600, new Date()),
       );
@@ -724,6 +724,36 @@ describe.each(['GET', 'POST'] as const)(
 
       expect(honoured.statusCode).toBe(302);
       expect(honoured.headers.location).toBe(POST_LOGOUT_REDIRECT_URI);
+    });
+
+    // The drop above happens before decideRedirect ever runs (disagreeing
+    // forces confirmation), not because an unregistered value would have
+    // been refused there anyway — a registered and an unregistered URI
+    // reach different outcomes once posted back (302 versus 400), so a
+    // single pinned case cannot stand in for both.
+    it('drops the redirect whether or not it is registered', async () => {
+      const realmName = `logout-audmismatch-unregistered-${method.toLowerCase()}-${newId()}`;
+      const { realmId } = await setupRealm(realmName);
+      const cookie = await signIn(realmName);
+      const sessionId = sessionIdFromCookie(cookie);
+      const subjectId = await subjectIdOf(realmId, USERNAME);
+      const unregistered = 'https://not-registered.example/after-logout';
+
+      const foreignAud = await mintIdToken(realmName, subjectId, sessionId, 'another-client');
+      const refused = await requestLogout(
+        method,
+        realmName,
+        { id_token_hint: foreignAud, client_id: CLIENT_ID, post_logout_redirect_uri: unregistered },
+        cookie,
+      );
+
+      expect(refused.statusCode).toBe(200);
+      expect(refused.body).toContain('<title>Sign out?</title>');
+      expect(refused.body).not.toContain(unregistered);
+      const stillLive = await withRealm(app.db, realmId, (tx) =>
+        sessionRepository(tx).liveById(sessionId, 30 * 24 * 3600, new Date()),
+      );
+      expect(stillLive).not.toBeNull();
     });
   },
 );
