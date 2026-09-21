@@ -383,7 +383,6 @@ describe('[ODUDU-CLIENT-REGISTRATION-SEAM-01] the P3a/P3b seam', () => {
     for (const key of [
       'userinfo_signing_alg_values_supported',
       'userinfo_encryption_alg_values_supported',
-      'revocation_endpoint',
     ]) {
       expect(doc).not.toHaveProperty(key);
     }

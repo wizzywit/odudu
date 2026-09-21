@@ -56,6 +56,7 @@ import { registerJwksRoute } from '#/view/routes/jwks';
 import { registerLoginRoute } from '#/view/routes/login';
 import { registerRequiredActionRoute } from '#/view/routes/required-action';
 import { registerLogoutRoute } from '#/view/routes/logout';
+import { registerRevokeRoute } from '#/view/routes/revoke';
 import { registerTokenRoute } from '#/view/routes/token';
 import { registerUserinfoRoute } from '#/view/routes/userinfo';
 
@@ -345,6 +346,16 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
       clientSecretLimiter,
       loadGrant: loadIntrospectionGrant,
       isSessionLive: isIntrospectionSessionLive,
+      clock,
+    });
+    // Same no-CORS reasoning as /introspect above: a client revokes its own
+    // token with its own credentials, never a browser bearer token.
+    registerRevokeRoute(app, {
+      database: deps.database,
+      findRealm,
+      listPublishableKeys,
+      verifyPassword,
+      clientSecretLimiter,
       clock,
     });
     registerClientRegistrationRoute(app, {

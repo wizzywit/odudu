@@ -55,6 +55,7 @@ the URL and never by a header or a parameter.
 | `POST` | `/realms/{realm}/login-actions/reset-password`             | Password reset request submission                           |
 | `POST` | `/realms/{realm}/protocol/openid-connect/token`            | Token endpoint                                              |
 | `POST` | `/realms/{realm}/protocol/openid-connect/token/introspect` | Token introspection (RFC 7662)                              |
+| `POST` | `/realms/{realm}/protocol/openid-connect/revoke`           | Token revocation (RFC 7009)                                 |
 | `GET`  | `/realms/{realm}/protocol/openid-connect/userinfo`         | UserInfo                                                    |
 | `POST` | `/realms/{realm}/protocol/openid-connect/userinfo`         | UserInfo (form)                                             |
 | `GET`  | `/realms/{realm}/protocol/openid-connect/logout`           | RP-initiated logout (`end_session_endpoint`)                |
@@ -639,6 +640,7 @@ curl -sS http://localhost:3000/realms/demo/.well-known/openid-configuration
   "authorization_endpoint": "http://localhost:3000/realms/demo/protocol/openid-connect/auth",
   "token_endpoint": "http://localhost:3000/realms/demo/protocol/openid-connect/token",
   "introspection_endpoint": "http://localhost:3000/realms/demo/protocol/openid-connect/token/introspect",
+  "revocation_endpoint": "http://localhost:3000/realms/demo/protocol/openid-connect/revoke",
   "userinfo_endpoint": "http://localhost:3000/realms/demo/protocol/openid-connect/userinfo",
   "jwks_uri": "http://localhost:3000/realms/demo/protocol/openid-connect/certs",
   "end_session_endpoint": "http://localhost:3000/realms/demo/protocol/openid-connect/logout",
@@ -4337,10 +4339,12 @@ that exists.
 `GET`/`POST /realms/{realm}/protocol/openid-connect/logout` implements
 [OpenID Connect RP-Initiated Logout
 1.0](protocols/oidc-rpinitiated.md). Ending a session revokes it and every
-grant whose `session_id` names it — not access tokens, which stay valid to
-their own `exp` regardless (see [What is not
-implemented](#what-is-not-implemented) and README.md's own logout section
-for why).
+grant whose `session_id` names it. The access tokens those grants minted
+are self-contained `at+jwt` JWTs, so a resource server that only checks a
+signature locally keeps accepting one until its own `exp` regardless — but
+[`/introspect`](#token-introspection-and-revocation) reports it inactive
+immediately, which is what closes that gap before `exp`. README.md's own
+logout section has the same account.
 
 A client registers its `post_logout_redirect_uri` values ahead of time.
 `seed client --post-logout-redirect-uri` registers them **as it creates** a
@@ -4432,6 +4436,154 @@ curl -sS \
 
 ```json
 { "error": "invalid_grant" }
+```
+
+### Token introspection and revocation
+
+Local validation cannot see that a session just ended — the access token
+above is still a validly signed JWT until its own `exp` — so the two walks
+below use a freshly seeded realm and confidential client of their own,
+`revokedoc`/`revoke-doc-client`, so a resource server that wants to see a
+revocation before `exp` has something to call. `--audience` does not exist
+on `seed client` yet, so the client's own `client_oidc_config.audiences` is
+set directly, the same way [the section
+above](#rp-initiated-logout) sets `post_logout_redirect_uris` directly —
+client management is P3a's pending RFC 7592 spike and P4's otherwise:
+
+```bash
+docker compose -f infra/docker/compose.yaml exec -T postgres \
+  psql -U odudu -d odudu -c "
+    UPDATE client_oidc_config
+    SET audiences = ARRAY['revoke-doc-client']
+    FROM clients
+    WHERE clients.id = client_oidc_config.client_id AND clients.client_id = 'revoke-doc-client';
+  "
+```
+
+`revoke-doc-client` now names itself in its own `audiences`, which is what
+lets it call `/introspect` for its own tokens — `callerIsAddressed`
+(`packages/protocol-oidc/src/usecase/introspection.ts`) entitles a caller
+through its own `client_id` or any of its registered `audiences`, and this
+client's request for no particular `resource` resolves to exactly that set
+(`resolveAudience`, `packages/protocol-oidc/src/usecase/token-issuance.ts`).
+
+Signing in as `revoke-doc-client` — the same PKCE flow as
+[Path A](#path-a-authorization-code-with-pkce), against this client instead
+of `demo-spa` — and introspecting the access token it receives, while the
+session is still live:
+
+```bash
+curl -sS -u revoke-doc-client:revoke-doc-secret \
+  -X POST "http://localhost:3000/realms/revokedoc/protocol/openid-connect/token/introspect" \
+  --data-urlencode "token=$ACCESS_TOKEN"
+```
+
+```json
+{
+  "active": true,
+  "scope": "openid",
+  "client_id": "revoke-doc-client",
+  "sub": "01a0c46d-…",
+  "aud": ["revoke-doc-client", "http://localhost:3000/realms/revokedoc"],
+  "token_type": "Bearer",
+  "exp": 1790002471,
+  "iat": 1790002171
+}
+```
+
+Ending that session — the same `id_token_hint` logout as above — and
+introspecting the identical, still-unexpired access token again:
+
+```bash
+curl -sS -b cookies.txt --get \
+  --data-urlencode "id_token_hint=$ID_TOKEN" \
+  --data-urlencode "client_id=revoke-doc-client" \
+  --data-urlencode "state=bye-1" \
+  "http://localhost:3000/realms/revokedoc/protocol/openid-connect/logout"
+
+curl -sS -u revoke-doc-client:revoke-doc-secret \
+  -X POST "http://localhost:3000/realms/revokedoc/protocol/openid-connect/token/introspect" \
+  --data-urlencode "token=$ACCESS_TOKEN"
+```
+
+```json
+{ "active": false }
+```
+
+`exp` above is `1790002471`; this second call landed at `1790002187` —
+284 seconds still on the clock, and every one of them made no difference,
+because introspection checks the session's own liveness
+(`docs/protocols/rfc7662.md`'s §8.2 reading note), not merely the token's
+signature. A resource server that only verified the JWT locally would still
+be accepting this token.
+
+`/revoke` (RFC 7009) is the other half — ending a grant deliberately, from
+either side of it, rather than waiting for a session to end one. A fresh
+sign-in, the same way, gives a second, still-live access and refresh token
+pair. Revoking the refresh token:
+
+```bash
+curl -sS -u revoke-doc-client:revoke-doc-secret \
+  -X POST "http://localhost:3000/realms/revokedoc/protocol/openid-connect/revoke" \
+  --data-urlencode "token=$REFRESH_TOKEN"
+```
+
+```
+HTTP/1.1 200 OK
+cache-control: no-store
+content-length: 0
+```
+
+The grant is really gone, not merely marked for it: redeeming the same
+refresh token now fails the same way an unknown one would (RFC 6749 §5.2's
+own rule against distinguishing them),
+
+```bash
+curl -sS -u revoke-doc-client:revoke-doc-secret \
+  -X POST "http://localhost:3000/realms/revokedoc/protocol/openid-connect/token" \
+  --data-urlencode "grant_type=refresh_token" \
+  --data-urlencode "refresh_token=$REFRESH_TOKEN"
+```
+
+```json
+{ "error": "invalid_grant" }
+```
+
+and so does its sibling access token — the two name the same
+`token_grants` row, so revoking either invalidates both
+(`docs/protocols/rfc7009.md`'s "Both revocation directions go through the
+grant, not the token"):
+
+```bash
+curl -sS -u revoke-doc-client:revoke-doc-secret \
+  -X POST "http://localhost:3000/realms/revokedoc/protocol/openid-connect/token/introspect" \
+  --data-urlencode "token=$ACCESS_TOKEN"
+```
+
+```json
+{ "active": false }
+```
+
+Revoking it again is RFC 7009 §2.2's other rule, pinned separately from the
+first `200` above: an already-revoked token is not an error either.
+
+```bash
+curl -sS -u revoke-doc-client:revoke-doc-secret \
+  -X POST "http://localhost:3000/realms/revokedoc/protocol/openid-connect/revoke" \
+  --data-urlencode "token=$REFRESH_TOKEN"
+```
+
+```
+HTTP/1.1 200 OK
+cache-control: no-store
+content-length: 0
+```
+
+And discovery now names the endpoint that did all of this:
+
+```
+"introspection_endpoint": "http://localhost:3000/realms/revokedoc/protocol/openid-connect/token/introspect",
+"revocation_endpoint": "http://localhost:3000/realms/revokedoc/protocol/openid-connect/revoke",
 ```
 
 A second, separate sign-in with **no** `id_token_hint` gets the
@@ -6612,7 +6764,9 @@ validating it should verify the signature against the realm's JWKS, then
 can instead call `/introspect` (RFC 7662), authenticating with its own
 client credentials, to learn whether the grant behind the token has since
 been revoked or its session has ended — the one check local validation
-alone cannot make before `exp`. There is still no `/revoke` endpoint.
+alone cannot make before `exp`. A client holding either the access token or
+its refresh token can also end the grant deliberately with `/revoke` (RFC 7009) — see [Token introspection and
+revocation](#token-introspection-and-revocation).
 
 **From a refresh token.** Present it at `/token` when the access token is
 about to expire, and **replace your stored copy with the one that comes
@@ -6838,13 +6992,6 @@ session lifecycle. A citation of either half here means that half.
 
 **Endpoints that do not exist at all**
 
-- **Token revocation (RFC 7009).** **P3b**, whose exit criterion names it
-  alongside introspection. Until it exists, a resource server that only
-  validates access tokens locally against the JWKS sees no effect from
-  ending a session or revoking a grant — including through
-  [RP-initiated logout](#rp-initiated-logout) — before the token's `exp`;
-  `/introspect` (RFC 7662), described above under "From an access token",
-  closes that gap for a resource server willing to call it.
 - **No administrative way to end somebody else's session.** Listing a
   subject's sessions and ending one is **P4**, with the rest of the admin
   surface, because until there is an admin API there is nowhere to put it.
