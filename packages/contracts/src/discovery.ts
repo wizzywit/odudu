@@ -4,9 +4,9 @@ export interface DiscoveryDocument {
   readonly issuer: string;
   readonly authorization_endpoint: string;
   readonly token_endpoint: string;
-  // RFC 7662 §2's own discovery convention (OAuth 2.0 Authorization Server
-  // Metadata, RFC 8414 §2, formalizes it): always served once a realm is
-  // provisioned, the same way `end_session_endpoint` below is.
+  // RFC 8414 §2's own discovery member for the endpoint RFC 7662 §2
+  // defines; always served once a realm is provisioned, the same way
+  // `end_session_endpoint` below is.
   readonly introspection_endpoint: string;
   readonly userinfo_endpoint: string;
   readonly jwks_uri: string;

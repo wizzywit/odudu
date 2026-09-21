@@ -311,6 +311,23 @@ to client management rather than to the token surface.
   likely wherever per-resource scope registration lands; until then the row
   stays `accepted:` and the census counts it as such.
 
+**`/introspect` answers every registered client the same way, regardless of
+which resource it names.** RFC 7662 §2.2 MAY lets a deployment limit which
+scopes from a token a given protected resource sees, and §4 SHOULD asks
+that a protected resource be _specifically authorized_ to call the
+introspection endpoint at all, not merely authenticated. Neither is built:
+any client that authenticates with its own registered secret may call
+`/introspect` for any token, and an entitled caller (per `aud`) always sees
+the token's whole `scope`. Both rows are `gap` in `docs/protocols/rfc7662.md`
+rather than `deferred:`, because no phase has committed to either — the
+design spec's §8.2 names only the audience-scoping mechanism `introspect`
+already implements.
+
+- Trigger: a phase that gives a client a "may introspect" capability
+  distinct from ordinary client authentication, or a per-resource scope
+  model like the one the entry above already needs. Until one exists, both
+  rows stay `gap`.
+
 **Affected-package-only CI.** Turborepo and pnpm both support
 `--filter='...[<ref>]'` — changed packages plus their dependents — so no
 tooling change is needed to adopt it. Not adopted now: CI runs in about 50

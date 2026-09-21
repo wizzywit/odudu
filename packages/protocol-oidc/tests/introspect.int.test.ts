@@ -39,11 +39,11 @@ const KEK = Buffer.alloc(32, 23);
 // The resource server under test names itself the same way the client
 // authenticating at /introspect does: `API_CLIENT_ID` is both a registered
 // OAuth client_id (used to authenticate here) and the audience a separate
-// client's token is minted for — the entitlement `introspect`
-// (packages/protocol-oidc/src/usecase/introspection.ts) checks is `aud`
-// against the caller's own `client_id`, so the two have to be the same
-// string for a token to describe itself to the resource server that holds
-// it.
+// client's token is minted for. `introspect`
+// (packages/protocol-oidc/src/usecase/introspection.ts) entitles a caller
+// through `client_id` **or** any of its own registered `audiences`; this
+// fixture exercises only the `client_id` half, which is why the two
+// strings have to match here.
 const API_CLIENT_ID = 'api-client';
 const API_CLIENT_SECRET = 'secret';
 const OTHER_CLIENT_ID = 'other-client';
@@ -278,6 +278,22 @@ describe('[RFC7662-2.2-02] an unentitled caller gets the fused active:false, not
   it('answers 200 with active false to an authenticated caller with no claim to the token', async () => {
     const token = await mintToken();
     const response = await introspect({ token, auth: basic(OTHER_CLIENT_ID, OTHER_CLIENT_SECRET) });
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({ active: false });
+  });
+});
+
+describe('[RFC7662-2.2-03] a token this server never minted also gets the fused active:false', () => {
+  // The third leg of the fused MUST, pinned separately from
+  // RFC7662-2.2-02's caller-not-addressed case: an authenticated caller
+  // presenting a token this server did not issue must not be told anything
+  // different — no distinguishing status code, not even a 400 for an
+  // unparseable one.
+  it('answers 200 with active false for a token this server never minted', async () => {
+    const response = await introspect({
+      token: 'this-was-never-a-jwt',
+      auth: basic(API_CLIENT_ID, API_CLIENT_SECRET),
+    });
     expect(response.statusCode).toBe(200);
     expect(response.json()).toEqual({ active: false });
   });

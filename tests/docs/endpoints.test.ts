@@ -33,11 +33,6 @@ function format(endpoint: Endpoint): string {
   return `${endpoint.method} ${endpoint.url}`;
 }
 
-// `onRoute` fires once per registered route with its real, full URL — unlike
-// `printRoutes`, which renders a tree for people and folds a route nested
-// under a sibling's prefix (`/token/introspect` under `/token`) down to just
-// its own suffix, silently dropping routes from any comparison built on that
-// text.
 async function servingApp() {
   const config = loadConfig({
     ODUDU_DATABASE_URL: 'postgres://u:p@localhost:5432/odudu',
@@ -50,19 +45,51 @@ async function servingApp() {
     kek: config.ODUDU_KEK,
     logger: createLogger(config),
   });
-  const routes: Endpoint[] = [];
-  app.addHook('onRoute', (route) => {
-    const methods = Array.isArray(route.method) ? route.method : [route.method];
-    for (const method of methods) {
-      if (method === IMPLIED_BY_GET) continue;
-      routes.push({ method, url: route.url });
-    }
-  });
   await app.ready();
-  if (routes.length === 0) {
-    throw new Error("no routes reached the onRoute hook — Fastify's route API may have changed");
+  return app;
+}
+
+// One tree line, e.g. "│   └── /introspect (POST)": `indent` is every
+// 4-character column ahead of the branch marker (`│   ` for an ancestor
+// with siblings still to print, `    ` for one that has finished), `url`
+// is this node's own path segment, and `methods` the comma-joined list.
+const TREE_LINE =
+  /^(?<indent>(?:│ {3}| {4})*)(?:├── |└── )(?<url>\/\S*|\*) \((?<methods>[A-Z, ]+)\)$/u;
+
+// `printRoutes` renders a tree for people: a route nested under a sibling's
+// own path (`/token/introspect` under `/token`) prints as a child line
+// carrying only its own suffix, `/introspect`, not the full URL. Parsing it
+// with a single-line regex loses that prefix; walking the tree by indent
+// depth and concatenating each node's segment onto its nearest shallower
+// ancestor's reconstructs the real URL regardless of nesting.
+function served(app: Awaited<ReturnType<typeof servingApp>>): Endpoint[] {
+  const printed = app.printRoutes({ commonPrefix: false });
+  const stack: { depth: number; path: string }[] = [];
+  const endpoints: Endpoint[] = [];
+
+  for (const line of printed.split('\n')) {
+    const match = TREE_LINE.exec(line);
+    if (match === null) continue;
+    const depth = (match.groups?.indent ?? '').length / 4;
+    while ((stack[stack.length - 1]?.depth ?? -1) >= depth) stack.pop();
+    const parentPath = stack[stack.length - 1]?.path ?? '';
+    const url = match.groups?.url ?? '';
+    const path = url === '*' ? url : parentPath + url;
+    stack.push({ depth, path });
+
+    for (const method of (match.groups?.methods ?? '').split(', ')) {
+      if (method === IMPLIED_BY_GET) continue;
+      endpoints.push({ method, url: path });
+    }
   }
-  return { app, routes };
+
+  // printRoutes renders a tree for people, so its shape is not a contract. A
+  // rendering change that stopped matching would otherwise empty this list and
+  // turn the comparison below into a tautology.
+  if (endpoints.length === 0) {
+    throw new Error(`no routes parsed out of Fastify's route listing:\n${printed}`);
+  }
+  return endpoints;
 }
 
 // `{realm}` reads as a placeholder to a person; Fastify spells it `:realm`.
@@ -78,7 +105,7 @@ function documented(): Endpoint[] {
 
 describe(`the endpoints ${DOCUMENT} lists are the endpoints the server serves`, () => {
   it('serves every endpoint the document tells a reader to call', async () => {
-    const { app } = await servingApp();
+    const app = await servingApp();
     const missing = documented().filter(
       (endpoint) => !app.hasRoute({ method: endpoint.method, url: endpoint.url }),
     );
@@ -90,9 +117,9 @@ describe(`the endpoints ${DOCUMENT} lists are the endpoints the server serves`, 
   });
 
   it('documents every endpoint the server serves', async () => {
-    const { routes } = await servingApp();
+    const app = await servingApp();
     const claimed = new Set(documented().map(format));
-    const undocumented = routes
+    const undocumented = served(app)
       .map(format)
       .filter((endpoint) => endpoint !== CORS_PREFLIGHT_CATCHALL && !claimed.has(endpoint));
 

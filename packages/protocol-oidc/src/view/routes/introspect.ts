@@ -1,9 +1,8 @@
 import { type SigningKeyRecord } from '@odudu/crypto';
-import { sessionRepository } from '@odudu/authn-flows';
-import { withRealm, type DatabaseHandle, type RealmScopedDatabase } from '@odudu/db';
+import { withRealm, type DatabaseHandle } from '@odudu/db';
 import { type Clock, systemClock } from '@odudu/kernel';
 import { type FastifyInstance } from 'fastify';
-import { tokenGrantRepository } from '#/repository/grants';
+import { type IntrospectionGrant } from '#/usecase/introspection';
 import { type ClientSecretLimiter } from '#/service/client-secret-throttle';
 import { TokenError, TokenRateLimited } from '#/service/errors';
 import {
@@ -21,34 +20,19 @@ export interface IntrospectRouteDeps {
   verifyPassword: (hash: string, secret: string) => Promise<boolean>;
   // Reused, never re-implemented — see #/usecase/client-authentication.ts.
   clientSecretLimiter: ClientSecretLimiter;
+  // Built at the composition root (index.ts), the same way every other
+  // repository-backed lookup this package's routes consume is — a route
+  // never imports a repository (dependency-cruiser's no-view-to-repository
+  // rule; see token.ts's own `findRealm` comment for the same rule stated
+  // where /token obeys it).
+  loadGrant(realmId: string, grantId: string): Promise<IntrospectionGrant | null>;
+  isSessionLive(
+    realmId: string,
+    sessionId: string,
+    idleSeconds: number,
+    now: Date,
+  ): Promise<boolean>;
   clock?: Clock;
-}
-
-// `IntrospectionDeps`'s two lookups closed over the transaction realm
-// context is already resolved inside: `loadGrant` by the grant's own
-// `grant_id`, `isSessionLive` by the session-liveness read every other
-// consumer of a session uses (`sessionRepository(tx).liveById`).
-function introspectionDepsFor(
-  tx: RealmScopedDatabase,
-  deps: IntrospectRouteDeps,
-  realm: { id: string; ssoSessionIdleSeconds: number },
-  issuer: string,
-  keys: SigningKeyRecord[],
-): IntrospectionRequestDeps {
-  return {
-    realmId: realm.id,
-    verifyPassword: deps.verifyPassword,
-    clientSecretLimiter: deps.clientSecretLimiter,
-    issuer,
-    keys,
-    idleSeconds: realm.ssoSessionIdleSeconds,
-    loadGrant: async (grantId) => {
-      const grant = await tokenGrantRepository(tx).byId(grantId);
-      return grant === null ? null : { revokedAt: grant.revokedAt };
-    },
-    isSessionLive: async (sessionId, idleSeconds, now) =>
-      (await sessionRepository(tx).liveById(sessionId, idleSeconds, now)) !== null,
-  };
 }
 
 export function registerIntrospectRoute(app: FastifyInstance, deps: IntrospectRouteDeps): void {
@@ -65,11 +49,23 @@ export function registerIntrospectRoute(app: FastifyInstance, deps: IntrospectRo
     const now = clock.now();
     const keys = await deps.listPublishableKeys(realm.id);
 
+    const requestDeps: IntrospectionRequestDeps = {
+      realmId: realm.id,
+      verifyPassword: deps.verifyPassword,
+      clientSecretLimiter: deps.clientSecretLimiter,
+      issuer,
+      keys,
+      idleSeconds: realm.ssoSessionIdleSeconds,
+      loadGrant: (grantId) => deps.loadGrant(realm.id, grantId),
+      isSessionLive: (sessionId, idleSeconds, sessionNow) =>
+        deps.isSessionLive(realm.id, sessionId, idleSeconds, sessionNow),
+    };
+
     try {
       const response = await withRealm(deps.database.db, realm.id, (tx) =>
         respondToIntrospectionRequest(
           tx,
-          introspectionDepsFor(tx, deps, realm, issuer, keys),
+          requestDeps,
           request.body,
           request.headers.authorization,
           now,
