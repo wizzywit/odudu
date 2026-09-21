@@ -99,6 +99,12 @@ export interface OidcRoutesDeps {
   // (#/repository/client-keys.ts). `apps/server/src/app.ts` supplies the
   // real one, wired to `node:https` and `node:dns`.
   clientKeySet: ClientKeySet;
+  // Gates tls_client_auth client authentication at /token the same way it
+  // already gates Fastify's own `X-Forwarded-*` trust
+  // (apps/server/src/app.ts). Defaults off, the same as that trust does —
+  // a caller with no reverse proxy in front of it must not have a
+  // proxy-supplied header trusted by default.
+  trustProxy?: boolean;
 }
 
 function hasBackchannelLogoutUri(
@@ -699,6 +705,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
         loadClaimContext,
         resolveClientWebOrigins,
         clientKeySet,
+        trustProxy: deps.trustProxy ?? false,
       });
       registerUserinfoRoute(scope, {
         findRealm,

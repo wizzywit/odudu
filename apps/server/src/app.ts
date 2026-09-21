@@ -217,6 +217,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
       clientSecretLimiter,
       clientKeySet: privateKeyJwtKeySet,
       ...(deps.publicBaseUrl === undefined ? {} : { publicBaseUrl: deps.publicBaseUrl }),
+      trustProxy: deps.trustProxy ?? false,
     }),
   );
 

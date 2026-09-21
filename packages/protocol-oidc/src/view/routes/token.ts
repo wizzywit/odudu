@@ -38,6 +38,9 @@ export interface TokenRouteDeps {
   // RFC 7523 §2.2's fetcher for a client's jwks_uri — see
   // token-issuance.ts's TokenIssuanceDeps for what calls it.
   clientKeySet: ClientKeySet;
+  // Gates tls_client_auth — see token-issuance.ts's TokenIssuanceDeps for
+  // what reads it.
+  trustProxy: boolean;
 }
 
 function readClientId(body: Record<string, string | string[] | undefined>): string | undefined {
@@ -79,9 +82,11 @@ export function registerTokenRoute(app: FastifyInstance, deps: TokenRouteDeps): 
             loadClaimContext: (realmId, subjectId) => deps.loadClaimContext(realmId, subjectId),
             clientKeySet: deps.clientKeySet,
             logger: request.log,
+            trustProxy: deps.trustProxy,
           },
           request.body,
           request.headers.authorization,
+          request.headers,
         ),
       );
 

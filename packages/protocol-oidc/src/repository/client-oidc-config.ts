@@ -30,6 +30,7 @@ function toRecord(row: typeof clientOidcConfig.$inferSelect): ClientOidcConfig {
     userinfoSignedResponseAlg: row.userinfoSignedResponseAlg,
     userinfoEncryptedResponseAlg: row.userinfoEncryptedResponseAlg,
     userinfoEncryptedResponseEnc: row.userinfoEncryptedResponseEnc,
+    tlsClientAuthSubjectDn: row.tlsClientAuthSubjectDn,
   };
 }
 
@@ -54,6 +55,7 @@ export type NewClientOidcConfig = Omit<
   | 'userinfoSignedResponseAlg'
   | 'userinfoEncryptedResponseAlg'
   | 'userinfoEncryptedResponseEnc'
+  | 'tlsClientAuthSubjectDn'
 > & {
   clientCredentialsScopes?: string[];
   webOrigins?: string[];
@@ -68,6 +70,7 @@ export type NewClientOidcConfig = Omit<
   userinfoSignedResponseAlg?: string | null;
   userinfoEncryptedResponseAlg?: string | null;
   userinfoEncryptedResponseEnc?: string | null;
+  tlsClientAuthSubjectDn?: string | null;
 };
 
 export function clientOidcConfigRepository(tx: RealmScopedDatabase) {
@@ -109,6 +112,7 @@ export function clientOidcConfigRepository(tx: RealmScopedDatabase) {
           userinfoSignedResponseAlg: input.userinfoSignedResponseAlg ?? null,
           userinfoEncryptedResponseAlg: input.userinfoEncryptedResponseAlg ?? null,
           userinfoEncryptedResponseEnc: input.userinfoEncryptedResponseEnc ?? null,
+          tlsClientAuthSubjectDn: input.tlsClientAuthSubjectDn ?? null,
         })
         .returning();
       const row = rows[0];

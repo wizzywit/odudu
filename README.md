@@ -1015,7 +1015,15 @@ A real deployment today looks like:
    that overwrites `X-Forwarded-*`, or `request.ip` becomes
    client-controlled — and with it the key the per-origin throttle counts
    on, which a spoofed `X-Forwarded-For` then bypasses a header at a time.
-   Appending is not enough: the value must be replaced.
+   Appending is not enough: the value must be replaced. The same flag now
+   also gates `tls_client_auth` client authentication at `/token`: with it
+   on, the server reads the client certificate's subject from the
+   `x-ssl-client-s-dn` request header, set by the proxy terminating mTLS.
+   **The proxy must strip this header from every inbound request before
+   adding its own** — a deployment that trusts the header without
+   stripping it lets any caller assert any client's identity, since
+   nothing downstream of the proxy can otherwise tell its own header from
+   one the proxy appended.
 5. Set `ODUDU_PUBLIC_BASE_URL` to the origin users reach the server on.
    **With `NODE_ENV=production` the server refuses to boot without it** — it
    is the base of every mailed link and the WebAuthn relying party id every

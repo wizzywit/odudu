@@ -52,8 +52,12 @@ second execution (`docs/phases/p3a.md`, Task 19).
   whatever failed — see `docs/protocols/rfc7523.md`'s reading notes for
   that property and its timing residual. `apps/server/src/app.ts`
   constructs the one `clientKeySet` shared across requests the caching
-  above assumes. What is not built yet: mTLS client authentication, the
-  P3b criterion's other named method.
+  above assumes. **Also now wired in**: `tls_client_auth`
+  (`authenticateTlsClientAuth`, same file), a proxy-supplied certificate
+  subject compared against a client's registered
+  `tls_client_auth_subject_dn`, gated on `ODUDU_TRUST_PROXY` the same way
+  Fastify's own proxy trust already is — off means the method is refused,
+  never trusted. Both methods the P3b criterion named are now built.
 - **The `claims` request parameter is P3b's**, not P3a's. It was placed in
   P3a by `docs/protocols/oidc-core.md` on the reasoning that it needs the
   per-client machinery and consent screen P3a builds; P3a's own criterion

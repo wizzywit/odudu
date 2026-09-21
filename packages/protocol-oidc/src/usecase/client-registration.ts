@@ -124,6 +124,7 @@ async function performRegistration(
     userinfoSignedResponseAlg: metadata.userinfoSignedResponseAlg,
     userinfoEncryptedResponseAlg: metadata.userinfoEncryptedResponseAlg,
     userinfoEncryptedResponseEnc: metadata.userinfoEncryptedResponseEnc,
+    tlsClientAuthSubjectDn: metadata.tlsClientAuthSubjectDn,
   });
 
   return {

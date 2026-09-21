@@ -47,6 +47,9 @@ function toResponseBody(client: RegisteredClient): Record<string, unknown> {
     ...(metadata.userinfoEncryptedResponseEnc === null
       ? {}
       : { userinfo_encrypted_response_enc: metadata.userinfoEncryptedResponseEnc }),
+    ...(metadata.tlsClientAuthSubjectDn === null
+      ? {}
+      : { tls_client_auth_subject_dn: metadata.tlsClientAuthSubjectDn }),
   };
 }
 

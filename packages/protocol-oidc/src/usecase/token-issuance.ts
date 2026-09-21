@@ -37,6 +37,7 @@ import { parseResource } from '#/service/resource-indicator';
 import { resolveScope } from '#/service/scope';
 import { narrowByScopeMappings } from '#/service/scope-mapping';
 import { withRegisteredClaimsWinning } from '#/service/token-claims';
+import { tlsClientAuthSubjectMatches, tlsClientSubject } from '#/service/tls-client-auth';
 import {
   authenticateClient,
   parseBasicAuth,
@@ -82,6 +83,12 @@ export interface TokenIssuanceDeps extends ClientAuthenticationDeps {
   // one invalid_client whatever it was; see
   // authenticatePrivateKeyJwt below.
   logger: AssertionLogger;
+  // Gates tls_client_auth exactly the way it already gates Fastify's own
+  // `X-Forwarded-*` trust (apps/server/src/app.ts) — the proxy-supplied
+  // certificate-subject header is exactly as forgeable as those, so it is
+  // read only when an operator has said something in front of this
+  // process controls it. See authenticateTlsClientAuth below.
+  trustProxy: boolean;
 }
 
 export interface AssertionLogger {
@@ -770,11 +777,93 @@ async function authenticatePrivateKeyJwt(
   return { client, config };
 }
 
+// Shares `refusePrivateKeyJwt`'s shape (same log message pattern, same
+// single invalid_client) rather than its function: the two methods refuse
+// for entirely different reasons, and folding them into one function would
+// make a future change to one method's logging silently change the
+// other's too.
+function refuseTlsClientAuth(
+  deps: TokenIssuanceDeps,
+  reason: string,
+  claimedClientId?: string,
+): never {
+  deps.logger.warn(
+    { reason, ...(claimedClientId !== undefined ? { claimedClientId } : {}) },
+    'tls_client_auth authentication refused',
+  );
+  throw invalidClient(WWW_AUTHENTICATE);
+}
+
+// RFC 8705 §2.1's PKI mutual-TLS method, proxy-terminated
+// (`tls-client-auth.ts` has the deployment shape). Seven preconditions,
+// each checked here explicitly rather than assumed: known client, enabled,
+// confidential, registered for this method, a registered subject exists,
+// and it matches. `enabled` in particular is checked directly rather than
+// inherited from a callee — the lesson `authenticatePrivateKeyJwt` above
+// already had to learn once.
+async function authenticateTlsClientAuth(
+  tx: RealmScopedDatabase,
+  deps: TokenIssuanceDeps,
+  certificateSubject: string,
+  claimedClientId: string | undefined,
+): Promise<{ client: ClientRecord; config: ClientOidcConfig }> {
+  if (claimedClientId === undefined) {
+    return refuseTlsClientAuth(deps, 'no client_id presented alongside the certificate');
+  }
+
+  const client = await clientRepository(tx).byClientId(claimedClientId);
+  if (client === null) return refuseTlsClientAuth(deps, 'unknown client', claimedClientId);
+  if (!client.enabled) return refuseTlsClientAuth(deps, 'client is disabled', claimedClientId);
+  // tls_client_auth is a confidential-client method — client-registration.ts
+  // creates every client this way whenever its method isn't 'none' — but
+  // that invariant is registration's, not this function's, so it is
+  // checked again here rather than trusted.
+  if (client.type !== 'confidential') {
+    return refuseTlsClientAuth(deps, 'client is not confidential', claimedClientId);
+  }
+
+  const config = await clientOidcConfigRepository(tx).byClientId(client.id);
+  if (config?.tokenEndpointAuthMethod !== 'tls_client_auth') {
+    return refuseTlsClientAuth(
+      deps,
+      'client is not registered for tls_client_auth',
+      claimedClientId,
+    );
+  }
+  // client_oidc_config_tls_client_auth_needs_subject_dn (migration
+  // 0055_client_tls_client_auth_subject_dn.sql) makes this unreachable for
+  // a row the database accepted — checked anyway, the same defense the
+  // client_credentials path takes on `serviceSubjectId` above, since this
+  // function must never assume an invariant enforced somewhere else.
+  if (config.tlsClientAuthSubjectDn === null) {
+    return refuseTlsClientAuth(
+      deps,
+      'client has no registered certificate subject',
+      claimedClientId,
+    );
+  }
+  if (!tlsClientAuthSubjectMatches(certificateSubject, config.tlsClientAuthSubjectDn)) {
+    return refuseTlsClientAuth(
+      deps,
+      'certificate subject does not match the registered value',
+      claimedClientId,
+    );
+  }
+
+  return { client, config };
+}
+
 export async function issueTokens(
   tx: RealmScopedDatabase,
   deps: TokenIssuanceDeps,
   body: Record<string, string | string[] | undefined>,
   authorizationHeader: string | undefined,
+  // The full header set, read for exactly one thing: the proxy-supplied
+  // certificate subject `tlsClientSubject` reads off it below. Kept
+  // separate from `authorizationHeader` because that one is a single named
+  // header every caller already threads through, where this is the raw
+  // request the tls_client_auth path alone needs.
+  headers: Record<string, string | string[] | undefined>,
 ): Promise<TokenResponse> {
   const request = parseStructure(body);
   // OIDC Core §9: the audience a private_key_jwt assertion must name is
@@ -786,12 +875,21 @@ export async function issueTokens(
   });
   const basic = parseBasicAuth(authorizationHeader);
   const bodyClientSecret = readOptionalField(body, 'client_secret');
+  const certificateSubject = tlsClientSubject(headers, { trustProxy: deps.trustProxy });
 
   // RFC 7521 §4.2 / RFC 6749 §2.3: a client presents exactly one
   // authentication mechanism per request. `authenticateClient` already
-  // refuses Basic alongside a body secret; this is that same rule's other
-  // edge, refused before either path runs rather than silently preferring
-  // the assertion and dropping the header.
+  // refuses Basic alongside a body secret; this extends the same
+  // one-method rule to the certificate subject, refused before any path
+  // runs rather than silently preferring one and dropping the other.
+  if (
+    certificateSubject !== null &&
+    (assertionOutcome.kind !== 'unsupported' ||
+      basic !== undefined ||
+      bodyClientSecret !== undefined)
+  ) {
+    refuseTlsClientAuth(deps, 'certificate presented alongside another authentication method');
+  }
   if (
     assertionOutcome.kind !== 'unsupported' &&
     (basic !== undefined || bodyClientSecret !== undefined)
@@ -804,9 +902,11 @@ export async function issueTokens(
   }
 
   const { client, config } =
-    assertionOutcome.kind === 'unsupported'
-      ? await authenticateClient(tx, deps, basic, request.clientId, bodyClientSecret)
-      : await authenticatePrivateKeyJwt(tx, deps, assertionOutcome, tokenEndpoint);
+    assertionOutcome.kind !== 'unsupported'
+      ? await authenticatePrivateKeyJwt(tx, deps, assertionOutcome, tokenEndpoint)
+      : certificateSubject !== null
+        ? await authenticateTlsClientAuth(tx, deps, certificateSubject, request.clientId)
+        : await authenticateClient(tx, deps, basic, request.clientId, bodyClientSecret);
 
   if (request.grantType === 'authorization_code') {
     return issueAuthorizationCodeTokens(tx, deps, request, client, config);

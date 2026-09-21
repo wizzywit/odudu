@@ -50,6 +50,12 @@ export const clientOidcConfig = pgTable('client_oidc_config', {
   // Requires userinfoEncryptedResponseAlg
   // (client_oidc_config_userinfo_enc_needs_alg, OIDC Core §5.3.2).
   userinfoEncryptedResponseEnc: text('userinfo_encrypted_response_enc'),
+  // RFC 8705 §2.1.2's own metadata name: the certificate subject a
+  // tls_client_auth client authenticates with. Required exactly when
+  // tokenEndpointAuthMethod is 'tls_client_auth'
+  // (client_oidc_config_tls_client_auth_needs_subject_dn), so it stays
+  // nullable here the way jwksUri does for private_key_jwt.
+  tlsClientAuthSubjectDn: text('tls_client_auth_subject_dn'),
 }).enableRLS();
 
 // Redirect URIs and grant types are OAuth vocabulary; they live here rather
@@ -77,4 +83,5 @@ export interface ClientOidcConfig {
   userinfoSignedResponseAlg: string | null;
   userinfoEncryptedResponseAlg: string | null;
   userinfoEncryptedResponseEnc: string | null;
+  tlsClientAuthSubjectDn: string | null;
 }

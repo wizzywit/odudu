@@ -291,3 +291,49 @@ describe('[OIDC-FRONTCHANNEL-2-ORIGIN-01] the front-channel logout URI origin ma
     expect(outcome.kind).toBe('ok');
   });
 });
+
+// client_oidc_config_tls_client_auth_needs_subject_dn (migration
+// 0055_client_tls_client_auth_subject_dn.sql): nothing downstream can
+// compare a proxy-supplied certificate subject against a client that
+// registered tls_client_auth without one.
+describe('[RFC8705-2.1.2-01] a tls_client_auth registration requires its subject DN', () => {
+  it('refuses tls_client_auth with no tls_client_auth_subject_dn', () => {
+    const outcome = parseClientMetadata(
+      ok({ grant_types: ['client_credentials'], token_endpoint_auth_method: 'tls_client_auth' }),
+    );
+    expect(outcome).toMatchObject({ kind: 'invalid', error: 'invalid_client_metadata' });
+  });
+
+  it('refuses tls_client_auth with a blank tls_client_auth_subject_dn', () => {
+    const outcome = parseClientMetadata(
+      ok({
+        grant_types: ['client_credentials'],
+        token_endpoint_auth_method: 'tls_client_auth',
+        tls_client_auth_subject_dn: '   ',
+      }),
+    );
+    expect(outcome).toMatchObject({ kind: 'invalid', error: 'invalid_client_metadata' });
+  });
+
+  it('accepts tls_client_auth with a subject DN and stores it trimmed', () => {
+    const outcome = parseClientMetadata(
+      ok({
+        grant_types: ['client_credentials'],
+        token_endpoint_auth_method: 'tls_client_auth',
+        tls_client_auth_subject_dn: '  CN=client-a,O=Example  ',
+      }),
+    );
+    expect(outcome.kind).toBe('ok');
+    if (outcome.kind === 'ok') {
+      expect(outcome.metadata.tlsClientAuthSubjectDn).toBe('CN=client-a,O=Example');
+    }
+  });
+
+  it('leaves tlsClientAuthSubjectDn null for every other method', () => {
+    const outcome = parseClientMetadata(ok());
+    expect(outcome.kind).toBe('ok');
+    if (outcome.kind === 'ok') {
+      expect(outcome.metadata.tlsClientAuthSubjectDn).toBeNull();
+    }
+  });
+});
