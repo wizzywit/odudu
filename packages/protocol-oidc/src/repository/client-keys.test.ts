@@ -292,12 +292,11 @@ describe('clientKeySet', () => {
 
     const first = keys.fetch('https://rp.example/j', REALM).catch(() => undefined);
 
-    // A plain `.then()` chain, not `await` in a loop: an `await` inside the
-    // loop would let each probe call's own internal awaits (lookup, request)
-    // advance the background attempt further than intended, which is exactly
-    // what let the regression this pins hide from a looser probe. Sampling
-    // `calls` at every microtask tick this way caught it at ticks 4 through
-    // 15 out of 16 against the pre-fix implementation.
+    // A plain `.then()` chain rather than `await` in a loop, so each sample
+    // lands on a known microtask tick instead of wherever the probe's own
+    // awaits leave it. Against an implementation that writes the negative
+    // entry after clearing `inFlight`, this reports a second network call at
+    // ticks 4 through 15 of 16.
     let chain: Promise<unknown> = Promise.resolve();
     const observedAtEachTick: number[] = [];
     for (let tick = 0; tick < 16; tick += 1) {

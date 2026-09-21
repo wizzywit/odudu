@@ -60,10 +60,10 @@ function acceptsContentType(contentType: string | null): boolean {
 // is cached under the URI alone and one realm's clients warm it for another's.
 // A failure is not: it would let one realm's transient outage suppress
 // private_key_jwt for every other realm pointed at the same jwks_uri, so it
-// is cached under this key instead. `uri` is always `https://…` (enforced by
-// `assertFetchableUrl`) and `realmId` is a `realms.id uuid`
-// (packages/db/src/schema/realms.ts), so `:` cannot appear in either half and
-// the two can never collide with each other or with a bare success key.
+// is cached under this key instead. `realmId` is a `realms.id uuid`
+// (packages/db/src/schema/realms.ts), which carries no `:`, so the first one
+// in this key is always the separator however many the uri holds — and a
+// success key, a bare uri beginning `https://`, can never be read as one.
 function negativeCacheKey(realmId: string, uri: string): string {
   return `${realmId}:${uri}`;
 }
@@ -142,11 +142,12 @@ export function clientKeySet(deps: ClientKeyDeps): ClientKeySet {
 
   return {
     // Checked in this order: the success cache, then the caller's own
-    // negative cache entry, then in-flight. A cache entry for this uri and
-    // its in-flight attempt are never both present at once — the handler
-    // below writes the entry and clears `inFlight` in the same microtask —
-    // so a genuine miss on all three is the only way to join or start a
-    // fetch.
+    // negative cache entry, then in-flight. All three are consulted because
+    // an attempt can coexist with entries it did not write — a refresh runs
+    // while the expired success is still mapped, and one realm's negative
+    // entry outlives the attempt another realm starts. What the handler
+    // below guarantees is narrower: the entries an attempt writes appear in
+    // the same microtask that clears its own `inFlight`.
     fetch: async (uri: string, realmId: string): Promise<unknown> => {
       const now = deps.now().getTime();
 
