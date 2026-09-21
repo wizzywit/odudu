@@ -401,6 +401,10 @@ describe('[RFC7009-2.1-04] an access token names the same grant a refresh token 
     const rotated = await redeemRefresh(refreshToken);
     expect(rotated.statusCode).toBe(200);
     const rotatedRefreshToken = rotated.json<{ refresh_token: string }>().refresh_token;
+    // That a rotation issues a different secret, and that the presented one
+    // stops working, are refresh-rotation's own properties and are pinned in
+    // refresh-tokens.int.test.ts. What this test adds is that revocation
+    // reaches whichever token the rotation left behind.
     expect(rotatedRefreshToken).not.toBe(refreshToken);
 
     await revoke({ token: accessToken, auth: client });

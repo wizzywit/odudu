@@ -7006,11 +7006,14 @@ session lifecycle. A citation of either half here means that half.
   administrative surfaces — the former for a realm's first user, client and
   signing key, the latter for a client a realm has opened itself to — and
   neither can add a user to an existing client, disable anything, rotate a
-  key, or delete anything. `seed client` also has no flag for client
-  metadata beyond redirect URIs, web origins and the auth method: not
-  `audiences`, not `frontchannel_logout_uri`/`backchannel_logout_uri`, not
-  `consent_required`. Each site in this document that sets one of those
-  directly with SQL instead says so at the point it does it — [Front-channel
+  key, or delete anything. `seed client` takes `--redirect-uri`,
+  `--post-logout-redirect-uri`, `--web-origin`, `--client-secret` and
+  `--token-endpoint-auth-method`, and nothing for `audiences`,
+  `frontchannel_logout_uri`/`backchannel_logout_uri` or `consent_required`.
+  A second, different gap sits beside it: metadata a flag does set is only
+  settable at creation, so a client already seeded is amended with SQL too.
+  Each site in this document that reaches for SQL instead says so at the
+  point it does it — [Front-channel
   and back-channel logout](#front-channel-and-back-channel-logout), [Token
   introspection and revocation](#token-introspection-and-revocation), and
   [Offline access](#offline-access) — and this is the one row that
