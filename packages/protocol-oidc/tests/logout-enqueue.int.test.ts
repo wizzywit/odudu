@@ -227,6 +227,7 @@ async function grantUnderSession(
 ): Promise<void> {
   await withRealm(app.db, realmId, (tx) =>
     tokenGrantRepository(tx).create({
+      id: newId(),
       realmId,
       clientId: clientDbId,
       subjectId,

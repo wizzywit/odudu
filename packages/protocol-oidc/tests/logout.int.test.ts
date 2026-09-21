@@ -321,6 +321,7 @@ describe('GET the logout endpoint with a hint matching the session', () => {
     // on it.
     const offlineGrant = await withRealm(app.db, realmId, (tx) =>
       tokenGrantRepository(tx).create({
+        id: newId(),
         realmId,
         clientId: clientDbId,
         subjectId,
@@ -724,6 +725,36 @@ describe.each(['GET', 'POST'] as const)(
 
       expect(honoured.statusCode).toBe(302);
       expect(honoured.headers.location).toBe(POST_LOGOUT_REDIRECT_URI);
+    });
+
+    // The drop above happens before decideRedirect ever runs (disagreeing
+    // forces confirmation), not because an unregistered value would have
+    // been refused there anyway — a registered and an unregistered URI
+    // reach different outcomes once posted back (302 versus 400), so a
+    // single pinned case cannot stand in for both.
+    it('drops the redirect whether or not it is registered', async () => {
+      const realmName = `logout-audmismatch-unregistered-${method.toLowerCase()}-${newId()}`;
+      const { realmId } = await setupRealm(realmName);
+      const cookie = await signIn(realmName);
+      const sessionId = sessionIdFromCookie(cookie);
+      const subjectId = await subjectIdOf(realmId, USERNAME);
+      const unregistered = 'https://not-registered.example/after-logout';
+
+      const foreignAud = await mintIdToken(realmName, subjectId, sessionId, 'another-client');
+      const refused = await requestLogout(
+        method,
+        realmName,
+        { id_token_hint: foreignAud, client_id: CLIENT_ID, post_logout_redirect_uri: unregistered },
+        cookie,
+      );
+
+      expect(refused.statusCode).toBe(200);
+      expect(refused.body).toContain('<title>Sign out?</title>');
+      expect(refused.body).not.toContain(unregistered);
+      const stillLive = await withRealm(app.db, realmId, (tx) =>
+        sessionRepository(tx).liveById(sessionId, 30 * 24 * 3600, new Date()),
+      );
+      expect(stillLive).not.toBeNull();
     });
   },
 );

@@ -31,6 +31,14 @@ export const authorizationCodes = pgTable('authorization_codes', {
   // predates this column. No foreign key — see migration 0029: a code
   // redeemed after its session has been reaped must still redeem.
   sessionId: uuid('session_id'),
+  // The audience `parseResource` resolved at /authorize, against the
+  // client's registered list — stored so /token derives `aud` from what
+  // was approved rather than re-deriving it. `[]` has exactly one
+  // meaning: the resolved audience is empty, so `aud` is the issuer
+  // alone — never "unset" or "not carried". Every code-minting path sets
+  // this from the same resolution, whether the request completes
+  // immediately or after a login detour — see migration 0053.
+  resource: text('resource').array().notNull().default([]),
 }).enableRLS();
 
 // Every value the token endpoint must check the redemption against
@@ -52,4 +60,5 @@ export interface AuthorizationCodeRecord {
   consumedAt: Date | null;
   grantId: string | null;
   sessionId: string | null;
+  resource: readonly string[];
 }

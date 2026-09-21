@@ -142,6 +142,7 @@ async function issueAccessToken(realm: RealmSetup): Promise<IssuedToken> {
       codeChallengeMethod: 'S256',
       authTime: new Date(),
       expiresAt: new Date(Date.now() + 60_000),
+      resource: [],
     });
   });
 

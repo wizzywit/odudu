@@ -51,10 +51,12 @@ import { registerClientRegistrationRoute } from '#/view/routes/client-registrati
 import { registerConsentRoute } from '#/view/routes/consent';
 import { registerCors } from '#/view/routes/cors';
 import { registerDiscoveryRoute } from '#/view/routes/discovery';
+import { registerIntrospectRoute } from '#/view/routes/introspect';
 import { registerJwksRoute } from '#/view/routes/jwks';
 import { registerLoginRoute } from '#/view/routes/login';
 import { registerRequiredActionRoute } from '#/view/routes/required-action';
 import { registerLogoutRoute } from '#/view/routes/logout';
+import { registerRevokeRoute } from '#/view/routes/revoke';
 import { registerTokenRoute } from '#/view/routes/token';
 import { registerUserinfoRoute } from '#/view/routes/userinfo';
 
@@ -302,6 +304,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
           authTime,
           now,
           sessionId,
+          resource: input.resource,
         });
         return { kind: 'issued', sessionId, code };
       });
@@ -312,6 +315,49 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
       scopesForRealm,
     });
     registerJwksRoute(app, { findRealm, listPublishableKeys });
+    // Introspection's two grant/session reads, resolved here rather than in
+    // the route — a route never imports a repository (dependency-cruiser's
+    // no-view-to-repository rule; see token.ts's own `findRealm` comment for
+    // the same rule stated where /token obeys it).
+    const loadIntrospectionGrant = (realmId: string, grantId: string) =>
+      withRealm(deps.database.db, realmId, async (tx) => {
+        const grant = await tokenGrantRepository(tx).byId(grantId);
+        return grant === null ? null : { revokedAt: grant.revokedAt };
+      });
+    const isIntrospectionSessionLive = (
+      realmId: string,
+      sessionId: string,
+      idleSeconds: number,
+      now: Date,
+    ) =>
+      withRealm(
+        deps.database.db,
+        realmId,
+        async (tx) => (await sessionRepository(tx).liveById(sessionId, idleSeconds, now)) !== null,
+      );
+    // No CORS scope: unlike /userinfo, a resource server calls this with
+    // its own client credentials, never a browser holding a bearer token,
+    // so there is no Origin this endpoint owes a header to.
+    registerIntrospectRoute(app, {
+      database: deps.database,
+      findRealm,
+      listPublishableKeys,
+      verifyPassword,
+      clientSecretLimiter,
+      loadGrant: loadIntrospectionGrant,
+      isSessionLive: isIntrospectionSessionLive,
+      clock,
+    });
+    // Same no-CORS reasoning as /introspect above: a client revokes its own
+    // token with its own credentials, never a browser bearer token.
+    registerRevokeRoute(app, {
+      database: deps.database,
+      findRealm,
+      listPublishableKeys,
+      verifyPassword,
+      clientSecretLimiter,
+      clock,
+    });
     registerClientRegistrationRoute(app, {
       findRealm,
       withinRealm: (realmId, fn) => withRealm(deps.database.db, realmId, fn),
@@ -470,6 +516,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
             authTime: input.authTime,
             now,
             sessionId: input.sessionId,
+            resource: input.resource,
           });
         }),
     });

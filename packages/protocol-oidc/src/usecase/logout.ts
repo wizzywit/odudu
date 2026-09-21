@@ -1,5 +1,5 @@
 import { type SessionRecord } from '@odudu/authn-flows';
-import { type SigningKeyRecord } from '@odudu/crypto';
+import { AUDIENCE_UNCHECKED, type SigningKeyRecord } from '@odudu/crypto';
 import { type ClientLogoutTarget } from '#/repository/grants';
 import { type RealmLookup } from '#/repository/realm-lookup';
 import { frontChannelLogoutUrl } from '#/service/frontchannel-logout';
@@ -220,10 +220,16 @@ export async function handleLogoutRequest(
     },
     header,
   );
+  // AUDIENCE_UNCHECKED here does not mean this door leaves `aud`
+  // unexamined — §4 requires a disagreeing `client_id`/hint pair told apart
+  // from no usable hint at all, and `subjectOfIdTokenHint` returns `null`
+  // for every failure alike, so a mismatch refused inside verification
+  // would be indistinguishable from an absent hint. `disagreeing`, below,
+  // makes that comparison where the caller can still see which case it is.
   const hint =
     params.idTokenHint === null
       ? null
-      : await subjectOfIdTokenHint(deps, realm.id, issuer, params.idTokenHint);
+      : await subjectOfIdTokenHint(deps, realm.id, issuer, params.idTokenHint, AUDIENCE_UNCHECKED);
   const registered = await registeredUris(deps, realm.id, params.clientId);
 
   // §2: "When both `client_id` and `id_token_hint` are present, the OP MUST

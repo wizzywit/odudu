@@ -266,6 +266,22 @@ this confusion existed for precisely as long as that option could be left
 unsaid. `/userinfo` makes the mirror-image check of the token presented to
 it.
 
+**The hint's `aud` names the client it was issued to, not this server, so
+checking it is a choice, not RFC 7519 §4.1.3's obligation met at last.**
+That obligation binds a principal absent from a present `aud` — the OP
+reading a hint back is not that principal, which is why
+`AUDIENCE_UNCHECKED` existed at all. `/authorize` now checks the hint's
+`aud` against the requesting client's `client_id` anyway, as a deliberate
+additional guard: a hint minted for one client accepted from another is a
+real confusion (the client-a/client-b case this repository's tests
+provision), and OIDC Core gives `/authorize` a principal to check against
+that it did not have to invent. `/logout` declines the same check — it has
+no client of its own to compare against when `client_id` is absent from the
+logout request, and RP-Initiated Logout §2's own `client_id`-vs-`aud`
+comparison already covers the case where one is present. Both callers pass
+their choice to `verifyJwt` explicitly (`ExpectedAudience`), so a reader
+sees the asymmetry in the type rather than having to know it.
+
 **Discovery advertises none of this, deliberately.** OIDC Discovery 1.0 §3
 defines no metadata for `prompt`: `prompt_values_supported` comes from
 Initiating User Registration via OpenID Connect, the extension that adds

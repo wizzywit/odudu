@@ -36,30 +36,32 @@ isolated in the database by PostgreSQL row-level security (ADR 0009). Every
 protocol endpoint lives under `/realms/{realm}/`, so the realm is chosen by
 the URL and never by a header or a parameter.
 
-| Method | Path                                                   | What it is                                                  |
-| ------ | ------------------------------------------------------ | ----------------------------------------------------------- |
-| `GET`  | `/realms/{realm}/.well-known/openid-configuration`     | Discovery document                                          |
-| `GET`  | `/realms/{realm}/protocol/openid-connect/certs`        | JWKS (public signing keys)                                  |
-| `GET`  | `/realms/{realm}/protocol/openid-connect/auth`         | Authorization endpoint                                      |
-| `POST` | `/realms/{realm}/protocol/openid-connect/auth`         | Authorization endpoint (form)                               |
-| `POST` | `/realms/{realm}/login-actions/authenticate`           | Login form submission                                       |
-| `POST` | `/realms/{realm}/login-actions/consent`                | Consent screen submission (allow/deny)                      |
-| `POST` | `/realms/{realm}/login-actions/select-account`         | Account chooser submission                                  |
-| `POST` | `/realms/{realm}/login-actions/required-action`        | Complete a pending required action (enrolment, password)    |
-| `POST` | `/realms/{realm}/login-actions/passkey-challenge`      | Request options for a usernameless passkey assertion        |
-| `GET`  | `/realms/{realm}/login-actions/registration`           | Self-registration form                                      |
-| `POST` | `/realms/{realm}/login-actions/registration`           | Self-registration submission                                |
-| `GET`  | `/realms/{realm}/login-actions/action-token`           | Redeem a mailed action token (verify email, reset password) |
-| `POST` | `/realms/{realm}/login-actions/action-token`           | Submit a new password against a reset-password token        |
-| `GET`  | `/realms/{realm}/login-actions/reset-password`         | Password reset request form                                 |
-| `POST` | `/realms/{realm}/login-actions/reset-password`         | Password reset request submission                           |
-| `POST` | `/realms/{realm}/protocol/openid-connect/token`        | Token endpoint                                              |
-| `GET`  | `/realms/{realm}/protocol/openid-connect/userinfo`     | UserInfo                                                    |
-| `POST` | `/realms/{realm}/protocol/openid-connect/userinfo`     | UserInfo (form)                                             |
-| `GET`  | `/realms/{realm}/protocol/openid-connect/logout`       | RP-initiated logout (`end_session_endpoint`)                |
-| `POST` | `/realms/{realm}/protocol/openid-connect/logout`       | RP-initiated logout (form-serialized), confirmation form    |
-| `POST` | `/realms/{realm}/clients-registrations/openid-connect` | Dynamic client registration (RFC 7591)                      |
-| `GET`  | `/health/live`, `/health/ready`                        | Liveness, readiness                                         |
+| Method | Path                                                       | What it is                                                  |
+| ------ | ---------------------------------------------------------- | ----------------------------------------------------------- |
+| `GET`  | `/realms/{realm}/.well-known/openid-configuration`         | Discovery document                                          |
+| `GET`  | `/realms/{realm}/protocol/openid-connect/certs`            | JWKS (public signing keys)                                  |
+| `GET`  | `/realms/{realm}/protocol/openid-connect/auth`             | Authorization endpoint                                      |
+| `POST` | `/realms/{realm}/protocol/openid-connect/auth`             | Authorization endpoint (form)                               |
+| `POST` | `/realms/{realm}/login-actions/authenticate`               | Login form submission                                       |
+| `POST` | `/realms/{realm}/login-actions/consent`                    | Consent screen submission (allow/deny)                      |
+| `POST` | `/realms/{realm}/login-actions/select-account`             | Account chooser submission                                  |
+| `POST` | `/realms/{realm}/login-actions/required-action`            | Complete a pending required action (enrolment, password)    |
+| `POST` | `/realms/{realm}/login-actions/passkey-challenge`          | Request options for a usernameless passkey assertion        |
+| `GET`  | `/realms/{realm}/login-actions/registration`               | Self-registration form                                      |
+| `POST` | `/realms/{realm}/login-actions/registration`               | Self-registration submission                                |
+| `GET`  | `/realms/{realm}/login-actions/action-token`               | Redeem a mailed action token (verify email, reset password) |
+| `POST` | `/realms/{realm}/login-actions/action-token`               | Submit a new password against a reset-password token        |
+| `GET`  | `/realms/{realm}/login-actions/reset-password`             | Password reset request form                                 |
+| `POST` | `/realms/{realm}/login-actions/reset-password`             | Password reset request submission                           |
+| `POST` | `/realms/{realm}/protocol/openid-connect/token`            | Token endpoint                                              |
+| `POST` | `/realms/{realm}/protocol/openid-connect/token/introspect` | Token introspection (RFC 7662)                              |
+| `POST` | `/realms/{realm}/protocol/openid-connect/revoke`           | Token revocation (RFC 7009)                                 |
+| `GET`  | `/realms/{realm}/protocol/openid-connect/userinfo`         | UserInfo                                                    |
+| `POST` | `/realms/{realm}/protocol/openid-connect/userinfo`         | UserInfo (form)                                             |
+| `GET`  | `/realms/{realm}/protocol/openid-connect/logout`           | RP-initiated logout (`end_session_endpoint`)                |
+| `POST` | `/realms/{realm}/protocol/openid-connect/logout`           | RP-initiated logout (form-serialized), confirmation form    |
+| `POST` | `/realms/{realm}/clients-registrations/openid-connect`     | Dynamic client registration (RFC 7591)                      |
+| `GET`  | `/health/live`, `/health/ready`                            | Liveness, readiness                                         |
 
 `/login-actions/authenticate` is deliberately outside the
 `/protocol/openid-connect/` namespace: that namespace is the OIDC wire
@@ -637,6 +639,8 @@ curl -sS http://localhost:3000/realms/demo/.well-known/openid-configuration
   "issuer": "http://localhost:3000/realms/demo",
   "authorization_endpoint": "http://localhost:3000/realms/demo/protocol/openid-connect/auth",
   "token_endpoint": "http://localhost:3000/realms/demo/protocol/openid-connect/token",
+  "introspection_endpoint": "http://localhost:3000/realms/demo/protocol/openid-connect/token/introspect",
+  "revocation_endpoint": "http://localhost:3000/realms/demo/protocol/openid-connect/revoke",
   "userinfo_endpoint": "http://localhost:3000/realms/demo/protocol/openid-connect/userinfo",
   "jwks_uri": "http://localhost:3000/realms/demo/protocol/openid-connect/certs",
   "end_session_endpoint": "http://localhost:3000/realms/demo/protocol/openid-connect/logout",
@@ -1024,17 +1028,18 @@ authenticates as well, in the one way it is registered for.
 The access token, decoded:
 
 ```json
-{ "alg": "RS256", "kid": "01a0a6cd-e3c9-…", "typ": "at+jwt" }
+{ "alg": "RS256", "kid": "01a0c3a8-078b-…", "typ": "at+jwt" }
 {
   "iss": "http://localhost:3000/realms/demo",
-  "sub": "01a0a6cd-e3cb-…",
+  "sub": "01a0c3a8-078e-…",
   "aud": ["http://localhost:3000/realms/demo"],
   "client_id": "demo-spa",
   "scope": "openid profile email",
-  "iat": 1789504919,
-  "exp": 1789505219,
-  "jti": "01a0a6ce-17ac-…",
-  "sid": "01a0a6ce-1788-…"
+  "iat": 1789988969,
+  "exp": 1789989269,
+  "jti": "01a0c3a8-1bf0-…",
+  "sid": "01a0c3a8-1b89-…",
+  "grant_id": "01a0c3a8-1bf0-71c0-8f30-4ff30a339e1a"
 }
 ```
 
@@ -1043,6 +1048,86 @@ place at `/userinfo`. The issuer is always in `aud`, added to whatever
 resource audiences the client is configured for, because a token that
 cannot be used at the issuer's own endpoints would be unusable for what
 OIDC promised the client.
+
+`grant_id` is a private claim: the `token_grants` row this access token
+was minted from, present on every access token without exception —
+unlike `sid`, absent below on a grant with no session. It is what lets
+introspection (and `/revoke`) name one grant precisely; see
+[docs/protocols/rfc9068.md](protocols/rfc9068.md)'s reading note on
+private claims. Shown here in full rather than truncated, because `jti`
+and `grant_id` are minted close enough together that their first 13
+characters — this document's usual truncation — coincide.
+
+**A `resource` at `/token` narrows what the code already carries, and can
+never widen it.** The same `resource` `/authorize` resolves and stores on
+the code (see its own bullet under
+[What is not implemented](#what-is-not-implemented)) is what `/token`
+derives `aud` from — a `resource` on the token request itself may select
+one value out of what the code carries, but naming one the code does not
+carry refuses with `invalid_target` rather than being ignored, on a public
+client with no secret to authenticate the request. `$CODE` above is
+already spent by the successful redemption, so this needs a fresh one —
+the first three blocks under
+[The shell variables](#the-shell-variables-the-rest-of-this-document-uses),
+run again with a distinct `state`/`nonce` so the two login forms are not
+confused for one:
+
+```bash
+AUTH_SESSION_ID=$(curl -sS --get \
+  --data-urlencode 'response_type=code' \
+  --data-urlencode 'client_id=demo-spa' \
+  --data-urlencode 'redirect_uri=http://localhost:8080/callback' \
+  --data-urlencode 'scope=openid profile email' \
+  --data-urlencode 'state=xyz-124' \
+  --data-urlencode 'nonce=n-0S6_WzA2Mk' \
+  --data-urlencode "code_challenge=$CHALLENGE" \
+  --data-urlencode 'code_challenge_method=S256' \
+  "$BASE/auth" | sed -n '/name="auth_session_id"/{s/.*value="\([^"]*\)".*/\1/p;q;}')
+
+CODE=$(curl -sS -D - -o /dev/null \
+  --data-urlencode "auth_session_id=$AUTH_SESSION_ID" \
+  --data-urlencode 'username=ada' \
+  --data-urlencode 'password=correct-horse-battery' \
+  "$LOGIN" | sed -n 's/.*[?&]code=\([^&[:space:]]*\).*/\1/p' | tr -d '\r')
+
+curl -sS -w '\nHTTP %{http_code}\n' \
+  --data-urlencode 'grant_type=authorization_code' \
+  --data-urlencode "code=$CODE" \
+  --data-urlencode 'redirect_uri=http://localhost:8080/callback' \
+  --data-urlencode 'client_id=demo-spa' \
+  --data-urlencode "code_verifier=$VERIFIER" \
+  --data-urlencode 'resource=https://reports.example' \
+  "$BASE/token"
+```
+
+```
+{"error":"invalid_target"}
+HTTP 400
+```
+
+Redeeming `$CODE` above with the _same_ `resource` a second time, or
+without minting a fresh one first, does not reproduce this: the code is
+already single-use spent by then, and the answer is `invalid_grant`, not
+`invalid_target` — the two are easy to conflate by output shape alone, and
+only a fresh code isolates which one actually fired.
+
+`demo-spa` has no registered `audiences` — every client seeded by this
+document does not, `odudu seed` has no flag for one yet — so its code's
+stored `resource` is `[]`, and no `resource` named at `/token` is ever
+found in it; the ordinary redemption above, naming none, still succeeds
+with `aud` the issuer alone, exactly as it did before this existed. A
+client registered for at least one audience — `audiences`, set directly on
+`client_oidc_config` today, since no seed flag or registration field
+exposes it — would see `resource` narrow `aud` to that one value instead;
+`packages/protocol-oidc/tests/resource-token.int.test.ts` is where that
+case, and the refresh grant's own derivation, are exercised. The refresh
+path narrows from the grant that the original redemption already
+resolved, not from the client's current configuration, so a
+narrowing made when the code was redeemed survives every later refresh; a
+`resource` named on a refresh request itself narrows only that one
+response and is not written back to the grant, so the refresh after it
+returns to the grant's own (already-resolved) audience rather than
+whatever the previous refresh asked for.
 
 Requesting `profile` and `email` grants them (they are in `scope` above)
 without putting `name`, `email` or `email_verified` on this token: an
@@ -1139,14 +1224,15 @@ token that carries it:
 {
   "roles": ["reviewer"],
   "iss": "http://localhost:3000/realms/demo",
-  "sub": "01a0a6cd-e3cb-…",
+  "sub": "01a0c3a8-078e-…",
   "aud": ["http://localhost:3000/realms/demo"],
   "client_id": "demo-spa",
   "scope": "openid roles",
-  "iat": 1789505061,
-  "exp": 1789505361,
-  "jti": "01a0a6d0-445f-…",
-  "sid": "01a0a6d0-4425-…"
+  "iat": 1789988979,
+  "exp": 1789989279,
+  "jti": "01a0c3a8-42dd-…",
+  "sid": "01a0c3a8-429b-…",
+  "grant_id": "01a0c3a8-42dc-…"
 }
 ```
 
@@ -1292,14 +1378,15 @@ through the group) onto the same access token:
   "roles": ["engineering-lead", "reviewer"],
   "groups": ["/engineering/backend"],
   "iss": "http://localhost:3000/realms/demo",
-  "sub": "01a0a215-204a-75a9-b3b1-89bf08b1c76b",
+  "sub": "01a0c3a8-078e-…",
   "aud": ["http://localhost:3000/realms/demo"],
   "client_id": "demo-spa",
   "scope": "openid roles groups",
-  "iat": 1789425720,
-  "exp": 1789426020,
-  "jti": "01a0a215-9c86-…",
-  "sid": "01a0a215-9c61-…"
+  "iat": 1789988992,
+  "exp": 1789989292,
+  "jti": "01a0c3a8-75e2-…",
+  "sid": "01a0c3a8-7582-…",
+  "grant_id": "01a0c3a8-75e2-78d4-bfa7-14fd17cf0d39"
 }
 ```
 
@@ -1440,14 +1527,15 @@ where they name the client:
 ```json
 {
   "iss": "http://localhost:3000/realms/demo",
-  "sub": "01a0a6cd-e3cb-…",
+  "sub": "01a0c3a8-078e-…",
   "aud": ["http://localhost:3000/realms/demo"],
   "client_id": "demo-backend",
   "scope": "openid profile email",
-  "iat": 1789505125,
-  "exp": 1789505425,
-  "jti": "01a0a6d1-3d61-…",
-  "sid": "01a0a6d1-3d1f-…"
+  "iat": 1789988996,
+  "exp": 1789989296,
+  "jti": "01a0c3a8-8538-…",
+  "sid": "01a0c3a8-84e5-…",
+  "grant_id": "01a0c3a8-8538-7cd9-9bb4-f04e04c19955"
 }
 ```
 
@@ -4251,10 +4339,12 @@ that exists.
 `GET`/`POST /realms/{realm}/protocol/openid-connect/logout` implements
 [OpenID Connect RP-Initiated Logout
 1.0](protocols/oidc-rpinitiated.md). Ending a session revokes it and every
-grant whose `session_id` names it — not access tokens, which stay valid to
-their own `exp` regardless (see [What is not
-implemented](#what-is-not-implemented) and README.md's own logout section
-for why).
+grant whose `session_id` names it. The access tokens those grants minted
+are self-contained `at+jwt` JWTs, so a resource server that only checks a
+signature locally keeps accepting one until its own `exp` regardless — but
+[`/introspect`](#token-introspection-and-revocation) reports it inactive
+immediately, which is what closes that gap before `exp`. README.md's own
+logout section has the same account.
 
 A client registers its `post_logout_redirect_uri` values ahead of time.
 `seed client --post-logout-redirect-uri` registers them **as it creates** a
@@ -4346,6 +4436,158 @@ curl -sS \
 
 ```json
 { "error": "invalid_grant" }
+```
+
+### Token introspection and revocation
+
+Local validation cannot see that a session just ended — the access token
+above is still a validly signed JWT until its own `exp` — so the two walks
+below use a freshly seeded realm and confidential client of their own,
+`revokedoc`/`revoke-doc-client`, so a resource server that wants to see a
+revocation before `exp` has something to call. `seed client` has no
+`--audience` flag (see [What is not
+implemented](#what-is-not-implemented)'s "Any admin API" row), so the
+client's own `client_oidc_config.audiences` is set directly, the same way
+[the section above](#rp-initiated-logout) sets `post_logout_redirect_uris`
+directly:
+
+```bash
+docker compose -f infra/docker/compose.yaml exec -T postgres \
+  psql -U odudu -d odudu -c "
+    UPDATE client_oidc_config
+    SET audiences = ARRAY['revoke-doc-client']
+    FROM clients
+    WHERE clients.id = client_oidc_config.client_id AND clients.client_id = 'revoke-doc-client';
+  "
+```
+
+`revoke-doc-client` now names itself in its own `audiences`, which is what
+lets it call `/introspect` for its own tokens — `callerIsAddressed`
+(`packages/protocol-oidc/src/usecase/introspection.ts`) entitles a caller
+through its own `client_id` or any of its registered `audiences`, and this
+client's request for no particular `resource` resolves to exactly that set
+(`resolveAudience`, `packages/protocol-oidc/src/usecase/token-issuance.ts`).
+
+Signing in as `revoke-doc-client` — the same PKCE flow as
+[Path A](#path-a-authorization-code-with-pkce), against this client instead
+of `demo-spa` — and introspecting the access token it receives, while the
+session is still live:
+
+```bash
+curl -sS -u revoke-doc-client:revoke-doc-secret \
+  -X POST "http://localhost:3000/realms/revokedoc/protocol/openid-connect/token/introspect" \
+  --data-urlencode "token=$ACCESS_TOKEN"
+```
+
+```json
+{
+  "active": true,
+  "scope": "openid",
+  "client_id": "revoke-doc-client",
+  "sub": "01a0c46d-…",
+  "aud": ["revoke-doc-client", "http://localhost:3000/realms/revokedoc"],
+  "token_type": "Bearer",
+  "exp": 1790002471,
+  "iat": 1790002171
+}
+```
+
+Ending that session — the same `id_token_hint` logout as above — and
+introspecting the identical, still-unexpired access token again:
+
+```bash
+curl -sS -b cookies.txt --get \
+  --data-urlencode "id_token_hint=$ID_TOKEN" \
+  --data-urlencode "client_id=revoke-doc-client" \
+  --data-urlencode "state=bye-1" \
+  "http://localhost:3000/realms/revokedoc/protocol/openid-connect/logout"
+
+curl -sS -u revoke-doc-client:revoke-doc-secret \
+  -X POST "http://localhost:3000/realms/revokedoc/protocol/openid-connect/token/introspect" \
+  --data-urlencode "token=$ACCESS_TOKEN"
+```
+
+```json
+{ "active": false }
+```
+
+`exp` above is `1790002471`; this second call landed at `1790002187` —
+284 seconds still on the clock, and every one of them made no difference,
+because logout revoked the grant this token names along with the session
+(`tokenGrantRepository(tx).revokeForSession`,
+`packages/protocol-oidc/src/index.ts`'s `endSession`), and introspection
+checks that `revoked_at` before it ever looks at the session
+(`docs/protocols/rfc7662.md`'s §8.2 reading note) — not merely the token's
+own signature. A resource server that only verified the JWT locally would
+still be accepting this token.
+
+`/revoke` (RFC 7009) is the other half — ending a grant deliberately, from
+either side of it, rather than waiting for a session to end one. A fresh
+sign-in, the same way, gives a second, still-live access and refresh token
+pair. Revoking the refresh token:
+
+```bash
+curl -sS -u revoke-doc-client:revoke-doc-secret \
+  -X POST "http://localhost:3000/realms/revokedoc/protocol/openid-connect/revoke" \
+  --data-urlencode "token=$REFRESH_TOKEN"
+```
+
+```
+HTTP/1.1 200 OK
+cache-control: no-store
+content-length: 0
+```
+
+The grant is really gone, not merely marked for it: redeeming the same
+refresh token now fails the same way an unknown one would (RFC 6749 §5.2's
+own rule against distinguishing them),
+
+```bash
+curl -sS -u revoke-doc-client:revoke-doc-secret \
+  -X POST "http://localhost:3000/realms/revokedoc/protocol/openid-connect/token" \
+  --data-urlencode "grant_type=refresh_token" \
+  --data-urlencode "refresh_token=$REFRESH_TOKEN"
+```
+
+```json
+{ "error": "invalid_grant" }
+```
+
+and so does its sibling access token — the two name the same
+`token_grants` row, so revoking either invalidates both
+(`docs/protocols/rfc7009.md`'s "Both revocation directions go through the
+grant, not the token"):
+
+```bash
+curl -sS -u revoke-doc-client:revoke-doc-secret \
+  -X POST "http://localhost:3000/realms/revokedoc/protocol/openid-connect/token/introspect" \
+  --data-urlencode "token=$ACCESS_TOKEN"
+```
+
+```json
+{ "active": false }
+```
+
+Revoking it again is RFC 7009 §2.2's other rule, pinned separately from the
+first `200` above: an already-revoked token is not an error either.
+
+```bash
+curl -sS -u revoke-doc-client:revoke-doc-secret \
+  -X POST "http://localhost:3000/realms/revokedoc/protocol/openid-connect/revoke" \
+  --data-urlencode "token=$REFRESH_TOKEN"
+```
+
+```
+HTTP/1.1 200 OK
+cache-control: no-store
+content-length: 0
+```
+
+And discovery now names the endpoint that did all of this:
+
+```
+"introspection_endpoint": "http://localhost:3000/realms/revokedoc/protocol/openid-connect/token/introspect",
+"revocation_endpoint": "http://localhost:3000/realms/revokedoc/protocol/openid-connect/revoke",
 ```
 
 A second, separate sign-in with **no** `id_token_hint` gets the
@@ -4546,8 +4788,9 @@ a grant under that session. [Back-Channel Logout 1.0](protocols/oidc-backchannel
 asks it to also `POST` a signed Logout Token to every client that
 registered a `backchannel_logout_uri` and held a grant under that session.
 `seed client` has no flag for either URI (see
-[What is not implemented](#what-is-not-implemented)), so a second client is
-seeded and given both directly, the same way `post_logout_redirect_uris`
+[What is not implemented](#what-is-not-implemented)'s "Any admin API"
+row), so a second client is seeded and given both directly, the same way
+`post_logout_redirect_uris`
 was set above:
 
 ```bash
@@ -4789,8 +5032,9 @@ here assigned `'optional'` rather than `'default'`, which is what lets the
 consent screen ([below](#the-consent-screen)) tell it apart from a scope
 pre-approved the moment a client is assigned it (it maps no claims either
 way — see [Discovery](#1-discovery) above). `demo-spa`'s own
-`consent_required` is `false` — `seed client` names no way to set it, so
-every seeded client keeps the column's own default — so the transcript
+`consent_required` is `false` — `seed client` names no way to set it (see
+[What is not implemented](#what-is-not-implemented)'s "Any admin API" row)
+— so every seeded client keeps the column's own default — so the transcript
 below reuses without ever seeing that screen; the consent section
 demonstrates asking, against an anonymously self-registered client, whose
 `consent_required` defaults `true` (ADR 0027, and the registration section
@@ -4867,20 +5111,23 @@ OFFLINE_REFRESH_TOKEN=$(printf '%s' "$OFFLINE_TOKENS" | sed -n 's/.*"refresh_tok
 ```json
 {
   "iss": "http://localhost:3000/realms/demo",
-  "sub": "01a0a6cd-e3cb-…",
+  "sub": "01a0c3a8-078e-…",
   "aud": ["http://localhost:3000/realms/demo"],
   "client_id": "demo-spa",
   "scope": "openid offline_access",
-  "iat": 1789505162,
-  "exp": 1789505462,
-  "jti": "01a0a6d1-cbc5-…"
+  "iat": 1789989000,
+  "exp": 1789989300,
+  "jti": "01a0c3a8-94f5-…",
+  "grant_id": "01a0c3a8-94f5-7b87-baf7-d057e9b1dfb1"
 }
 ```
 
 No `sid` — every other access token in this document carries one
 ([docs/protocols/oidc-backchannel.md](protocols/oidc-backchannel.md) §2.1),
-and this is the one grant here with no session for it to name. The ID
-token, decoded, is missing it the same way, but still carries `amr` and
+and this is the one grant here with no session for it to name. `grant_id`
+carries no such exception; it names the grant itself, not a session, so
+it is on this token exactly as it is on every other. The ID token,
+decoded, is missing `sid` the same way, but still carries `amr` and
 `acr`:
 
 ```json
@@ -5137,16 +5384,17 @@ curl -sS -u demo-backend:demo-backend-secret \
 ```
 
 ```json
-{ "alg": "RS256", "kid": "01a09678-…", "typ": "at+jwt" }
+{ "alg": "RS256", "kid": "01a0c3a8-078b-…", "typ": "at+jwt" }
 {
   "iss": "http://localhost:3000/realms/demo",
-  "sub": "01a0967a-211c-…",
+  "sub": "01a0c3a8-0a62-…",
   "aud": ["http://localhost:3000/realms/demo"],
   "client_id": "demo-backend",
   "scope": "",
-  "iat": 1789231004,
-  "exp": 1789231304,
-  "jti": "01a0967a-7d0d-…"
+  "iat": 1789989007,
+  "exp": 1789989307,
+  "jti": "01a0c3a8-b1b2-…",
+  "grant_id": "01a0c3a8-b1b2-779e-a915-4413650df71a"
 }
 ```
 
@@ -5413,23 +5661,24 @@ wrong in more ways than one.
 **Below the boundary — 302 to the registered `redirect_uri`**, carrying
 `error`, `state` if the request had one, and always `iss`. All verified:
 
-| Request                                | `error`                     | Why                                                                                          |
-| -------------------------------------- | --------------------------- | -------------------------------------------------------------------------------------------- |
-| No `code_challenge`                    | `invalid_request`           | PKCE is mandatory for every client, with no exception (ADR 0016)                             |
-| `code_challenge` of the wrong shape    | `invalid_request`           | RFC 7636 §4.2 fixes it at 43–128 unreserved characters; see below                            |
-| No `code_challenge_method`             | `invalid_request`           | It is not defaulted to `plain`, which is what RFC 7636 §4.3 would have it default to         |
-| `code_challenge_method=plain`          | `invalid_request`           | Only `S256` is accepted; `plain` offers no protection against an intercepted code            |
-| `response_type=token`                  | `unsupported_response_type` | Only the code flow exists; implicit issuance is gone from OAuth 2.1                          |
-| Scope the realm does not define        | `invalid_scope`             | `scopes_supported` is that same list, so discovery and this endpoint cannot disagree         |
-| Scope the client is not assigned       | `invalid_scope`             | Defined by the realm is not granted to every client; refused, never silently dropped         |
-| Repeated `state` (or any other repeat) | `invalid_request`           | Ambiguous, but a trustworthy redirect target exists by now, so the client can be told        |
-| `prompt=none`                          | `login_required`            | For a request carrying no live session cookie; with one it issues a code instead (§3.1.2.3)  |
-| `prompt=none login`                    | `invalid_request`           | `none` with any other value is contradictory (OIDC Core §3.1.2.1)                            |
-| `prompt=` anything undefined           | `invalid_request`           | Better told than silently answered as if it had asked for nothing                            |
-| `request=…`                            | `request_not_supported`     | Request objects are unimplemented, and §3.1.2.6 requires saying so rather than dropping them |
-| `request_uri=…`                        | `request_uri_not_supported` | Same                                                                                         |
-| Unverifiable `id_token_hint`           | `invalid_request`           | A hint this realm's keys did not sign is not a hint from here (OIDC Core §3.1.2.2)           |
-| Another realm's `id_token_hint`        | `invalid_request`           | Same rule: the realm in the URL is the only issuer whose keys are consulted                  |
+| Request                                   | `error`                     | Why                                                                                          |
+| ----------------------------------------- | --------------------------- | -------------------------------------------------------------------------------------------- |
+| No `code_challenge`                       | `invalid_request`           | PKCE is mandatory for every client, with no exception (ADR 0016)                             |
+| `code_challenge` of the wrong shape       | `invalid_request`           | RFC 7636 §4.2 fixes it at 43–128 unreserved characters; see below                            |
+| No `code_challenge_method`                | `invalid_request`           | It is not defaulted to `plain`, which is what RFC 7636 §4.3 would have it default to         |
+| `code_challenge_method=plain`             | `invalid_request`           | Only `S256` is accepted; `plain` offers no protection against an intercepted code            |
+| `response_type=token`                     | `unsupported_response_type` | Only the code flow exists; implicit issuance is gone from OAuth 2.1                          |
+| Scope the realm does not define           | `invalid_scope`             | `scopes_supported` is that same list, so discovery and this endpoint cannot disagree         |
+| Scope the client is not assigned          | `invalid_scope`             | Defined by the realm is not granted to every client; refused, never silently dropped         |
+| Repeated `state` (or any other repeat)    | `invalid_request`           | Ambiguous, but a trustworthy redirect target exists by now, so the client can be told        |
+| `prompt=none`                             | `login_required`            | For a request carrying no live session cookie; with one it issues a code instead (§3.1.2.3)  |
+| `prompt=none login`                       | `invalid_request`           | `none` with any other value is contradictory (OIDC Core §3.1.2.1)                            |
+| `prompt=` anything undefined              | `invalid_request`           | Better told than silently answered as if it had asked for nothing                            |
+| `request=…`                               | `request_not_supported`     | Request objects are unimplemented, and §3.1.2.6 requires saying so rather than dropping them |
+| `request_uri=…`                           | `request_uri_not_supported` | Same                                                                                         |
+| Unverifiable `id_token_hint`              | `invalid_request`           | A hint this realm's keys did not sign is not a hint from here (OIDC Core §3.1.2.2)           |
+| Another realm's `id_token_hint`           | `invalid_request`           | Same rule: the realm in the URL is the only issuer whose keys are consulted                  |
+| `id_token_hint` minted for another client | `invalid_request`           | Its `aud` names a client, and this realm checks it against the one making this request       |
 
 The error redirect for a request that sent no `state` carries only `error`
 and `iss`:
@@ -6046,34 +6295,43 @@ curl -sS -b cookies.txt -o /dev/null -w '%{http_code}\n' \
 ### `id_token_hint`
 
 A hint is checked against the realm's own keys and issuer before anything
-else about the request is acted on (OIDC Core §3.1.2.2). Mint one by
-completing Path A and keeping the `id_token`; mint another by doing the
-same in a second realm:
+else about the request is acted on (OIDC Core §3.1.2.2), and then — at
+`/authorize` only — against the `client_id` making this request: an ID
+Token's `aud` names the client it was issued to, and a hint minted for one
+client is refused from another even though its signature and issuer are
+this realm's own. Mint one by completing Path A and keeping the `id_token`;
+mint another by doing the same for a second client in the same realm, and a
+third by doing the same in a second realm:
 
 ```bash
+odudu seed \
+  --realm demo --client demo-spa-2 \
+  --redirect-uri http://localhost:8080/callback2
+
 odudu seed \
   --realm other --client demo-spa \
   --redirect-uri http://localhost:8080/callback \
   --user ada --password correct-horse-battery --email ada@other.example
 ```
 
-`$ID_TOKEN` from the bootstrap block is a hint this realm issued. Run the
-same block against `/realms/other/` for one it did not:
+`$ID_TOKEN` from the bootstrap block is a hint `demo-spa` can use.
+`$ID_TOKEN2` is Path A run again for `demo-spa-2` against the same realm;
+`$ID_TOKEN3` is Path A run against `/realms/other/` instead:
 
 ```bash
-HINT=$ID_TOKEN
-curl -sS -o /dev/null -D - --get --data-urlencode "id_token_hint=$HINT" \
+curl -sS -o /dev/null -D - --get --data-urlencode "id_token_hint=$ID_TOKEN2" \
   "http://localhost:3000/realms/demo/protocol/openid-connect/auth?$Q" \
   | tr -d '\r' | awk '/^HTTP/{s=$2} /^[Ll]ocation:/{l=$2} END{print s, l}'
 ```
 
-| `id_token_hint`                              | Answer                      |
-| -------------------------------------------- | --------------------------- |
-| `not.a.jwt`                                  | 302 `error=invalid_request` |
-| An ID token issued by the realm `other`      | 302 `error=invalid_request` |
-| An ID token this realm issued                | 200, the login form         |
-| With `prompt=none`, a hint this realm issued | 302 `error=login_required`  |
-| With `prompt=none`, any unusable hint        | 302 `error=invalid_request` |
+| `id_token_hint`                                                        | Answer                      |
+| ---------------------------------------------------------------------- | --------------------------- |
+| `not.a.jwt`                                                            | 302 `error=invalid_request` |
+| An ID token issued by the realm `other`                                | 302 `error=invalid_request` |
+| An ID token this realm issued to `demo-spa-2`, at `demo-spa`'s request | 302 `error=invalid_request` |
+| An ID token this realm issued to `demo-spa`, at `demo-spa`'s request   | 200, the login form         |
+| With `prompt=none`, a hint this realm issued for the requesting client | 302 `error=login_required`  |
+| With `prompt=none`, any unusable hint                                  | 302 `error=invalid_request` |
 
 The last two rows are the ordering. An unusable hint is refused as a
 malformed request rather than answered with the prompt's own
@@ -6081,16 +6339,25 @@ malformed request rather than answered with the prompt's own
 request carrying a hint this server cannot read is not yet a request to
 answer that way.
 
-An access token this realm minted for the same user is refused too, and not
-by any of the rows above: it carries `typ: at+jwt` (RFC 9068 §2.1), and the
-hint check demands a JWT that is not an access token. `/userinfo` makes the
-mirror image of that check of the token presented to it, so neither token
-type can stand in for the other in either direction.
+An access token this realm minted for the same user is refused too, and for
+two independent reasons rather than one: it carries `typ: at+jwt` (RFC 9068
+§2.1), which the hint check demands a JWT not be, _and_ its own `aud` is
+this realm's issuer (RFC 9068 §2.2) rather than the requesting client, which
+the check above now also refuses. Deleting either check on its own still
+leaves this token refused by the other — `docs/protocols/oidc-core.md`'s
+reading note has the reasoning for both. `/userinfo` makes the mirror image
+of the `typ` check of the token presented to it.
 
-The realm row is the point of the whole check. Both tokens are RS256, both
-have the shape of an ID token, and both were signed by this server — by a
-different realm's key. Only the realm named in the URL has its keys
-consulted, so the second is refused exactly like a forgery.
+The realm row is the point of the whole check that predates the client
+check above. Both tokens are RS256, both have the shape of an ID token, and
+both were signed by this server — by a different realm's key. Only the
+realm named in the URL has its keys consulted, so the second is refused
+exactly like a forgery.
+
+`/logout` shares this same signature-and-issuer check on its own
+`id_token_hint`, but not the client check: RP-Initiated Logout §2 gives it
+a different comparison to make instead, against an optional `client_id`
+parameter — see [RP-initiated logout](#rp-initiated-logout) below.
 
 What a valid hint then does is in [The login POST](#the-login-post): it
 names who the response is about, and a different user signing in against
@@ -6499,9 +6766,13 @@ received.
 `/userinfo` or to your own API. It lives 300 seconds. A resource server
 validating it should verify the signature against the realm's JWKS, then
 `typ: at+jwt`, `iss`, `exp`, and that it is named in `aud` — and then check
-`scope` for whatever the call requires. There is no introspection endpoint,
-so this is local validation only; the token stays valid until `exp` even if
-its grant has since been revoked.
+`scope` for whatever the call requires. A resource server named in `aud`
+can instead call `/introspect` (RFC 7662), authenticating with its own
+client credentials, to learn whether the grant behind the token has since
+been revoked or its session has ended — the one check local validation
+alone cannot make before `exp`. A client holding either the access token or
+its refresh token can also end the grant deliberately with `/revoke` (RFC 7009) — see [Token introspection and
+revocation](#token-introspection-and-revocation).
 
 **From a refresh token.** Present it at `/token` when the access token is
 about to expire, and **replace your stored copy with the one that comes
@@ -6575,6 +6846,33 @@ session lifecycle. A citation of either half here means that half.
   with no flow that returns a response in the fragment there is no second
   `response_mode` to offer. `response_modes_supported` states `["query"]`
   rather than being omitted so that the advertisement matches.
+- **`resource` (RFC 8707 §2) is validated, but not yet checked for a query
+  component** (**P3b**, per `rfc8707.md`'s own `deferred: P3b` row for this
+  SHOULD). A single value is checked as an absolute URI with no
+  fragment, against the client's registered `audiences`; two values or one
+  outside that list refuse with `error=invalid_target`, on the same
+  post-boundary redirect every other refusal here uses
+  (`parseResource`, `packages/protocol-oidc/src/service/resource-indicator.ts`).
+  `?resource=` alone, and a repeat where one value is empty
+  (`resource=<uri>&resource=`), both resolve as RFC 6749 §3.1 resolves any
+  other empty-valued parameter here — as omitted — rather than as a
+  refusal or a second value; only two genuinely distinct values are a
+  repeat. Omitting it resolves to the client's whole registered list, and
+  a client
+  with no registered audience — every client in this repository, today —
+  still succeeds with an empty one rather than being refused. `[]` on the
+  stored column has exactly one meaning: the resolved audience is empty,
+  never "not carried" — every door that mints a code resolves and stores
+  the same value: immediate session-reuse at `/authorize`, an ordinary
+  first-time form login, the account chooser, and the consent step, which
+  either a fresh login or a reuse promotion can detour through. The value
+  is parked on the authentication session's own
+  `PendingRequest.resource` between the request and whichever door
+  completes it. `/token` now derives `aud` from this column — see the
+  `resource` paragraph under [step 4](#4-token) of the walkthrough. What is
+  still not there is RFC 8707 §2's SHOULD that a `resource` value carry no
+  query component (**P3b**, `rfc8707.md`'s own `deferred: P3b` row for
+  it), which `parseResource` does not check.
 
 **Login**
 
@@ -6663,11 +6961,6 @@ session lifecycle. A citation of either half here means that half.
 - **No DPoP or other sender-constrained tokens**, mTLS-bound tokens
   included. **P13**, as above: the FAPI 2.0 plan cannot pass without one of
   them.
-- **No `resource` or `audience` request parameter.** A client's audiences
-  are whatever its registration says. RFC 8707 resource indicators are
-  **P3b**, whose exit criterion names them alongside the per-client audience
-  configuration that makes `aud` derived rather than asserted — which is
-  where the deferred clause rows in `docs/protocols/rfc9068.md` point.
 
 **`/userinfo`**
 
@@ -6705,11 +6998,6 @@ session lifecycle. A citation of either half here means that half.
 
 **Endpoints that do not exist at all**
 
-- **Token introspection (RFC 7662) and revocation (RFC 7009).** **P3b**,
-  whose exit criterion names both. Until then a resource server validates
-  access tokens locally against the JWKS, and ending a session or revoking
-  a grant — including through [RP-initiated logout](#rp-initiated-logout) —
-  does not invalidate an already-issued access token before its `exp`.
 - **No administrative way to end somebody else's session.** Listing a
   subject's sessions and ending one is **P4**, with the rest of the admin
   surface, because until there is an admin API there is nowhere to put it.
@@ -6718,7 +7006,19 @@ session lifecycle. A citation of either half here means that half.
   administrative surfaces — the former for a realm's first user, client and
   signing key, the latter for a client a realm has opened itself to — and
   neither can add a user to an existing client, disable anything, rotate a
-  key, or delete anything.
+  key, or delete anything. `seed client` takes `--redirect-uri`,
+  `--post-logout-redirect-uri`, `--web-origin`, `--client-secret` and
+  `--token-endpoint-auth-method`, and nothing for `audiences`,
+  `frontchannel_logout_uri`/`backchannel_logout_uri` or `consent_required`.
+  A second, different gap sits beside it: metadata a flag does set is only
+  settable at creation, so a client already seeded is amended with SQL too.
+  Each site in this document that reaches for SQL instead says so at the
+  point it does it — [Front-channel
+  and back-channel logout](#front-channel-and-back-channel-logout), [Token
+  introspection and revocation](#token-introspection-and-revocation), and
+  [Offline access](#offline-access) — and this is the one row that
+  aggregates all three, rather than each staying an individually honest but
+  uncollected admission.
 - **SAML, LDAP federation, identity brokering, authorization services.**
   P6–P9.
 

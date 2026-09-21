@@ -43,14 +43,14 @@ function decodeProtectedHeaderSafely(token: string): Record<string, unknown> {
   return parsed as Record<string, unknown>;
 }
 
-// RFC 7519 §4.1.3: a principal that finds itself absent from a present `aud`
-// MUST reject the token. A verifier naming no audience checks none, so the
-// obligation used to be switched off by silence — the /userinfo mix-up that
-// accepted another audience's token was one call site forgetting an optional
-// option. Naming an audience is therefore required. A call site that is
-// genuinely not the token's audience — the OP reading an `id_token_hint`,
-// whose `aud` is the requesting client rather than the OP — declares that
-// here, in a value a reader and a grep can both find.
+// RFC 7519 §4.1.3: a principal absent from a present `aud` MUST reject the
+// token. A verifier naming no audience checks none, so the obligation used
+// to be switched off by silence — the /userinfo mix-up that accepted
+// another audience's token was one call site forgetting an optional
+// option. Naming an audience is required, so a call site whose own check
+// cannot be expressed as membership of one fixed string says so here
+// rather than by omission. Both such call sites still check `aud`; each
+// explains how beside its own call.
 export const AUDIENCE_UNCHECKED = Symbol('audience unchecked');
 
 export type ExpectedAudience = string | typeof AUDIENCE_UNCHECKED;

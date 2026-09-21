@@ -5,7 +5,7 @@ import {
   type RequiredAction,
   type SessionRecord,
 } from '@odudu/authn-flows';
-import { AUDIENCE_UNCHECKED, verifyJwt, type SigningKeyRecord } from '@odudu/crypto';
+import { verifyJwt, type ExpectedAudience, type SigningKeyRecord } from '@odudu/crypto';
 import { type ClientRecord } from '@odudu/domain-realm';
 import { isUuid } from '@odudu/kernel';
 import { type ClientOidcConfig } from '#/schema/client-oidc-config';
@@ -15,6 +15,7 @@ import {
   type AuthorizeOutcome,
 } from '#/service/authorize-validation';
 import { normalizeAuthorizeQuery } from '#/service/query-normalization';
+import { parseResource } from '#/service/resource-indicator';
 import {
   decideConsentGate,
   refusedForUnverifiedEmail,
@@ -92,6 +93,10 @@ export interface CompleteReuseInput {
   codeChallenge: string;
   codeChallengeMethod: 'S256';
   authTime: Date;
+  // The audience resolved at /authorize (parseResource against the
+  // client's registered list) — stored on the code so /token derives `aud`
+  // from what was approved rather than re-deriving it.
+  resource: readonly string[];
 }
 
 export interface ResolvedClient {
@@ -205,6 +210,31 @@ function toReusableSession(session: SessionRecord): ReusableSession {
   };
 }
 
+// normalizeAuthorizeQuery folds every repeated key but `resource` down to a
+// single string, which is right for a parameter this server refuses to see
+// twice but wrong for one whose whole rule is "reject two values" — so
+// `resource` is read from the raw query Fastify handed the route, not from
+// the normalized params, the same shape parseResource is typed against.
+function resourceParam(rawParams: unknown): string | string[] | undefined {
+  if (typeof rawParams !== 'object' || rawParams === null || Array.isArray(rawParams)) {
+    return undefined;
+  }
+  const raw = (rawParams as Record<string, unknown>).resource;
+  const sent = Array.isArray(raw) ? raw : [raw];
+  // RFC 6749 §3.1: an empty value is an omitted parameter —
+  // `parameterValue`'s own rule (query-normalization.ts), restated here
+  // because `resource` reads the raw query directly. Without this,
+  // `?resource=` alone refuses the request, and `resource=<uri>&resource=`
+  // reads as two values instead of one. Unlike `parameterValue`, an
+  // unreadable value is dropped, not counted towards a repeat — Fastify's
+  // default parser yields only strings here, so the two never diverge on
+  // a value either could actually see.
+  const present = sent.filter(
+    (entry): entry is string => typeof entry === 'string' && entry !== '',
+  );
+  return present.length > 1 ? present : present[0];
+}
+
 // An unknown or disabled realm is indistinguishable from an unknown or
 // disabled client for the same reason discovery and JWKS already treat them
 // that way: there is no client to trust a redirect_uri against, so this
@@ -272,9 +302,28 @@ export async function handleAuthorizationRequest(
     state: request.state,
   });
 
+  // RFC 8707 §2: resolved against the client's registered audience list
+  // before anything else below the boundary, so a request naming a target
+  // it may not use is refused before a session is ever touched. A client
+  // with no registered audience (every client in this repository, today)
+  // still succeeds with an empty resolved audience — see parseResource.
+  const resourceOutcome = parseResource(resourceParam(rawParams), resolved.config?.audiences ?? []);
+  if (resourceOutcome.kind === 'invalid_target') return reject('invalid_target');
+  const audience = resourceOutcome.audience;
+
   let hintSubject: string | null = null;
   if (outcome.idTokenHint !== null) {
-    const hint = await subjectOfIdTokenHint(deps, realm.id, issuer, outcome.idTokenHint);
+    // Unlike `/logout`, this door has a principal to check the hint's `aud`
+    // against: the client making this very request. A hint minted for
+    // another client is refused here even though its signature and issuer
+    // are this realm's own.
+    const hint = await subjectOfIdTokenHint(
+      deps,
+      realm.id,
+      issuer,
+      outcome.idTokenHint,
+      request.clientId,
+    );
     if (hint === null) return reject('invalid_request');
     hintSubject = hint.subject;
   }
@@ -357,6 +406,7 @@ export async function handleAuthorizationRequest(
         ...(hintSubject !== null ? { idTokenHintSubject: hintSubject } : {}),
         reuseSessionId: resolvedSession.id,
         reuseAuthTime: resolvedSession.authTime.toISOString(),
+        resource: [...audience],
       });
       await deps.markAuthenticated(
         realm.id,
@@ -420,6 +470,7 @@ export async function handleAuthorizationRequest(
       codeChallenge: request.codeChallenge,
       codeChallengeMethod: request.codeChallengeMethod,
       authTime: decision.authTime,
+      resource: audience,
     });
     return { kind: 'reused', code, redirectUri: request.redirectUri, state: request.state };
   }
@@ -437,6 +488,7 @@ export async function handleAuthorizationRequest(
       // Re-checked against whichever session is posted back — see
       // handleSelectAccountSubmission's own withinMaxAge call.
       ...(outcome.maxAge !== null ? { maxAge: outcome.maxAge } : {}),
+      resource: [...audience],
     });
     const rendered = newestPerSubject(decision.candidates);
     const names = await deps.accountDisplayNames(
@@ -478,6 +530,7 @@ export async function handleAuthorizationRequest(
     // this login completes, still sees `prompt=consent` the way it would
     // have at the moment this request first arrived.
     prompt: [...outcome.prompts],
+    resource: [...audience],
   });
   return {
     kind: 'started',
@@ -640,6 +693,10 @@ export async function handleSelectAccountSubmission(
     codeChallenge: pending.codeChallenge,
     codeChallengeMethod: pending.codeChallengeMethod,
     authTime: chosen.createdAt,
+    // Parked on PendingRequest by the /authorize GET that started this
+    // journey — resolved once, against the query it actually carried, not
+    // re-derived here where no query parameters survive.
+    resource: pending.resource ?? [],
   });
   return { kind: 'reused', code, redirectUri: pending.redirectUri, state: pending.state };
 }
@@ -666,28 +723,24 @@ function audiencesOf(claim: unknown): readonly string[] {
 
 // OIDC Core §3.1.2.2: "the OP MUST validate that it was the issuer of the ID
 // Token" — a signature made by one of this realm's keys, over a payload whose
-// `iss` is this realm. Returns the claims it carries, or null for a hint
-// this server cannot recognise as its own. `exp` is enforced by verifyJwt,
-// so a hint past its expiry is refused rather than accepted as §3.1.2.2's
-// SHOULD allows (see the reading note in docs/protocols/oidc-core.md).
-// Exported for `#/usecase/logout.ts`, which validates its own hint the same
-// way rather than a second, looser check.
+// `iss` is this realm; `exp` is enforced by verifyJwt too. Returns the
+// claims it carries, or null for a hint this server cannot recognise as its
+// own. `audience` is a parameter, not a constant — callers differ on
+// whether they check it; see docs/protocols/oidc-core.md's reading note.
+// Exported for `#/usecase/logout.ts`, which shares this check.
 export async function subjectOfIdTokenHint(
   deps: Pick<AuthorizeUsecaseDeps, 'listPublishableKeys'>,
   realmId: string,
   issuer: string,
   hint: string,
+  audience: ExpectedAudience,
 ): Promise<IdTokenHintClaims | null> {
   const keys = await deps.listPublishableKeys(realmId);
   try {
-    // An ID token's `aud` is the client it was issued to, so the OP reading
-    // one back as a hint is not the principal RFC 7519 §4.1.3 addresses and
-    // has no audience of its own to match. §3.1.2.2 asks only that the OP
-    // was its issuer, which `issuer` and the realm's own keys settle.
     const payload = await verifyJwt(hint, {
       keys,
       issuer,
-      audience: AUDIENCE_UNCHECKED,
+      audience,
       // An ID Token has no `typ` of its own — OIDC Core §2 defines none and
       // the ones /token issues carry none — so the honest demand is not
       // "must be an ID Token" but "must not be an access token", which RFC

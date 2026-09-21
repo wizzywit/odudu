@@ -257,11 +257,23 @@ validated against that allowlist, making `aud` derived rather than
 asserted. A `resource` naming something the client did not register is
 `invalid_target`.
 
-The same work closes `AUDIENCE_UNCHECKED` on `id_token_hint` at **both**
-`/authorize` and `/logout` — the second is easy to miss, because
-`handleLogoutRequest` reaches the check through
-`subjectOfIdTokenHint`, which it shares with `/authorize`
-(`packages/protocol-oidc/src/usecase/logout.ts:131`).
+The same work closes `AUDIENCE_UNCHECKED` on `id_token_hint` at
+`/authorize`.
+
+**Amended during execution — `/logout` keeps the symbol, and was already
+correct.** The intent was that both doors check the hint's audience.
+`/logout` always did: `handleLogoutRequest`'s `disagreeing` compares the
+hint's `aud` to `client_id` immediately after verification. Moving that
+comparison inside verification, as this passage originally asked, is not
+available to it. RP-Initiated Logout §4 requires a disagreeing
+`client_id`/hint pair to be told apart from no usable hint at all — the
+first drops the requested `post_logout_redirect_uri`, the second does not —
+and `subjectOfIdTokenHint` collapses every verification failure to `null`,
+so a mismatch refused inside verification is indistinguishable from an
+absent hint. Attempting the move silently reversed the redirect behaviour
+documented in `docs/protocols/oidc-rpinitiated.md`, and was reverted. What
+was genuinely wrong at that call site was the **symbol reading as "nobody
+checks this"**, which is now a comment naming the check that follows.
 
 ### 8.2 Introspection
 
@@ -417,7 +429,8 @@ the request path; token introspection (RFC 7662) scoped by audience and
 consulting session liveness, and revocation (RFC 7009); RFC 8707 `resource`
 indicators, single-valued against the per-client audience allowlist, making
 `aud` derived rather than asserted, with `AUDIENCE_UNCHECKED` closed at
-`/authorize` **and** `/logout`; signed and encrypted UserInfo responses
+`/authorize` and `/logout`'s own audience comparison pinned where §4 needs
+it (see §8.1's amendment); signed and encrypted UserInfo responses
 selected by client registration; the `claims` request parameter parsed in
 full and honoured against the claim registry, including an Essential
 `auth_time` and a `sub` requested with a specific value; `private_key_jwt`

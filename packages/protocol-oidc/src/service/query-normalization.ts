@@ -52,6 +52,14 @@ export function normalizeAuthorizeQuery(raw: unknown): QueryNormalization {
   }
 
   for (const [key, rawValue] of Object.entries(raw)) {
+    // `resource` has its own reader (authorization-request.ts's
+    // resourceParam) and its own repeat rule — RFC 8707 §2 refuses two
+    // values with invalid_target, not with this function's generic
+    // invalid_request for an unrecognised repeat. Folding it into
+    // `repeatedKey` here would answer it with the wrong error before
+    // parseResource ever saw it.
+    if (key === 'resource') continue;
+
     const resolved = parameterValue(rawValue);
     if (resolved.kind === 'absent') continue;
 

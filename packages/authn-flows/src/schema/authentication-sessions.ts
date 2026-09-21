@@ -82,6 +82,13 @@ export interface PendingRequest {
   // its only writer). Absent, the same as `false`, on every session this
   // was never written against.
   rememberMe?: boolean;
+  // The audience `parseResource` resolved at /authorize
+  // (protocol-oidc's resource-indicator.ts), parked so a code minted
+  // once this session completes — however many doors that takes —
+  // stores the same resolved audience a session reuse would have. Every
+  // door this phase starts a session from sets it, `[]` included, so
+  // `[]` already means "resolved to nothing", never "not carried".
+  resource?: string[];
 }
 
 export interface AuthenticationSessionRecord {

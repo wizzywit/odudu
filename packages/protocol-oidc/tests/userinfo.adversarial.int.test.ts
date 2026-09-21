@@ -52,6 +52,11 @@ interface RealmSetup {
   issuer: string;
   client: Client;
   subjectId: string;
+  // The client's own registered `audiences` — what /authorize would store
+  // on a code's `resource` when a request names none, the same default
+  // `issueTokens` below has to mint the code with now that /token derives
+  // `aud` from the code rather than from `config.audiences` directly.
+  audiences: string[];
 }
 
 let primary: RealmSetup;
@@ -123,6 +128,7 @@ async function setupRealm(label: string, audiences: string[] = []): Promise<Real
     issuer: `http://localhost/realms/${realmName}`,
     client: { clientId: 'web-app', dbId: clientId.webAppDbId, secret: 'supersecret' },
     subjectId: clientId.subjectId,
+    audiences,
   };
 }
 
@@ -154,6 +160,7 @@ async function issueTokens(
       codeChallengeMethod: 'S256',
       authTime: new Date(),
       expiresAt: new Date(Date.now() + 60_000),
+      resource: realm.audiences,
     });
   });
 

@@ -165,6 +165,7 @@ describe('handleLoginSubmission — the success path', () => {
       maxSessionsPerBrowser: REALM.maxSessionsPerBrowser,
       browserSessionIds: [],
       authenticators: ['password'],
+      resource: [],
     });
   });
 

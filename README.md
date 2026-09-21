@@ -458,16 +458,26 @@ client that hint was issued to, or neither is used — and it redirects to
 exact, unnormalized match against the client's own registered list —
 refusing the redirect never keeps the session alive, since the two are
 decided independently. **Logout revokes the session row and every grant
-tied to it — not access tokens.** Odudu's access tokens are self-contained
-`at+jwt` JWTs that a resource server verifies without a round trip to
-anywhere, so nothing exists to tell one it has been logged out; a
-logged-out user's access token keeps working until its own `exp`, at most
+tied to it.** Odudu's access tokens are self-contained `at+jwt` JWTs that a
+resource server can verify without a round trip to anywhere, so a resource
+server that only checks the signature locally keeps accepting a logged-out
+user's token until its own `exp`, at most
 `client_oidc_config.access_token_ttl_seconds` (capped at one hour) after it
-was issued. A grant issued with no session — `offline_access` — is
-untouched by a logout, per Back-Channel Logout 1.0 §2.7's second sentence.
-A deployment that needs revocation inside an
-access token's own lifetime is what RFC 7662 introspection is for, landing
-in P3b. **The page a logout with nowhere to redirect renders now frames
+was issued — nothing about the token itself changes. A resource server that
+instead calls `POST /realms/{realm}/protocol/openid-connect/token/introspect`
+(RFC 7662), authenticating with its own client credentials, sees the
+revocation immediately: introspection checks the grant's `revoked_at` and
+the session's own liveness, not merely the token's signature, which is what
+makes a logout real inside an access token's hour. A client can also end a
+grant deliberately with `POST
+/realms/{realm}/protocol/openid-connect/revoke` (RFC 7009) — revoking a
+refresh token invalidates every access token introspection reports for its
+grant, and revoking an access token revokes the refresh token beside it,
+whatever rotation it has since gone through, because both name the same
+`token_grants` row. A grant issued with no session — `offline_access` — is
+untouched by a logout, per Back-Channel Logout 1.0 §2.7's second sentence,
+but is reached by `/revoke` the same way any other grant is. **The page a
+logout with nowhere to redirect renders now frames
 each relying party's `frontchannel_logout_uri`**, per OpenID Connect
 Front-Channel Logout 1.0 §3 — an attempt, not a guarantee: the iframe's
 response is never read back, and a browser may never deliver the framed
@@ -678,8 +688,8 @@ curl -sS http://localhost:3000/realms/demo/.well-known/openid-configuration
 }
 ```
 
-(Five of the twenty members it returns; the other fifteen, and what a client
-does with each, are in the guide.)
+(Five of the twenty-two members it returns; the other seventeen, and what a
+client does with each, are in the guide.)
 
 And this signs ada in and comes back with tokens — the whole
 authorization-code-with-PKCE flow, with `curl` standing in for the browser,
@@ -759,8 +769,8 @@ access token's payload carries it:
 }
 ```
 
-(Trimmed to the claims this section is about; `aud`, `iat`, `exp`, `jti` and
-`sid` are on it too, and
+(Trimmed to the claims this section is about; `aud`, `iat`, `exp`, `jti`,
+`sid` and `grant_id` are on it too, and
 [docs/request-paths.md](docs/request-paths.md#roles-once-a-scope-reaches-it)
 shows the whole payload.)
 
@@ -1044,7 +1054,6 @@ Every row says where it stands, and every row has a phase:
 | An admin API — seeding is the only administrative surface                                              | P4              |
 | Signing-key rotation — the shape exists, the operation does not                                        | P4              |
 | Back-channel logout, and discovery advertisement of front-channel logout                               | P3b             |
-| Token introspection and revocation                                                                     | P3b             |
 | Published images and a release process                                                                 | P12             |
 | Secret management beyond environment variables                                                         | P12             |
 | Backup and restore guidance                                                                            | P12             |

@@ -4,6 +4,14 @@ export interface DiscoveryDocument {
   readonly issuer: string;
   readonly authorization_endpoint: string;
   readonly token_endpoint: string;
+  // RFC 8414 §2's own discovery member for the endpoint RFC 7662 §2
+  // defines; always served once a realm is provisioned, the same way
+  // `end_session_endpoint` below is.
+  readonly introspection_endpoint: string;
+  // RFC 8414 §2's own discovery member for the endpoint RFC 7009 §2
+  // defines; always served once a realm is provisioned, the same way
+  // `introspection_endpoint` above is.
+  readonly revocation_endpoint: string;
   readonly userinfo_endpoint: string;
   readonly jwks_uri: string;
   // OpenID Connect RP-Initiated Logout 1.0 §4's own discovery member —
@@ -71,6 +79,8 @@ export function discoveryDocument(opts: DiscoveryDocumentOptions): DiscoveryDocu
     issuer,
     authorization_endpoint: `${issuer}/protocol/openid-connect/auth`,
     token_endpoint: `${issuer}/protocol/openid-connect/token`,
+    introspection_endpoint: `${issuer}/protocol/openid-connect/token/introspect`,
+    revocation_endpoint: `${issuer}/protocol/openid-connect/revoke`,
     userinfo_endpoint: `${issuer}/protocol/openid-connect/userinfo`,
     jwks_uri: `${issuer}/protocol/openid-connect/certs`,
     end_session_endpoint: `${issuer}/protocol/openid-connect/logout`,

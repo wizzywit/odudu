@@ -25,6 +25,7 @@ interface RawAuthorizationCodeRow {
   consumed_at: string | null;
   grant_id: string | null;
   session_id: string | null;
+  resource: string[];
 }
 
 function toRecord(row: RawAuthorizationCodeRow): AuthorizationCodeRecord {
@@ -44,6 +45,7 @@ function toRecord(row: RawAuthorizationCodeRow): AuthorizationCodeRecord {
     consumedAt: row.consumed_at === null ? null : new Date(row.consumed_at),
     grantId: row.grant_id,
     sessionId: row.session_id,
+    resource: row.resource,
   };
 }
 
@@ -60,6 +62,11 @@ export interface NewAuthorizationCode {
   authTime: Date;
   expiresAt: Date;
   sessionId?: string | null;
+  // The audience resolved at /authorize. `[]` has exactly one meaning —
+  // the resolved audience is empty — the same meaning the column comment
+  // states; every caller resolves one, so there is no "unset" for this
+  // field to mean instead.
+  resource: readonly string[];
 }
 
 export function authorizationCodeRepository(tx: RealmScopedDatabase) {
@@ -68,6 +75,7 @@ export function authorizationCodeRepository(tx: RealmScopedDatabase) {
       await tx.insert(authorizationCodes).values({
         ...input,
         sessionId: input.sessionId ?? null,
+        resource: [...input.resource],
         consumedAt: null,
         grantId: null,
       });

@@ -234,3 +234,29 @@ describe('a repeated response_type renders rather than redirecting', () => {
     });
   });
 });
+
+// `resource` has its own reader (authorization-request.ts's resourceParam)
+// and its own repeat rule (RFC 8707 §2: invalid_target, not this
+// function's generic invalid_request) — this function must not fold it
+// into `repeatedKey` or `params` at all.
+describe('resource is excluded from the generic repeat handling entirely', () => {
+  it('reports no repeatedKey and no params.resource for a repeated resource', () => {
+    const result = normalizeAuthorizeQuery({
+      response_type: 'code',
+      resource: ['https://api.example', 'https://reports.example'],
+    });
+    expect(result).toEqual({
+      kind: 'ok',
+      params: { response_type: 'code' },
+      repeatedKey: null,
+    });
+  });
+
+  it('still reports a genuine repeat of another key alongside a repeated resource', () => {
+    const result = normalizeAuthorizeQuery({
+      state: ['a', 'b'],
+      resource: ['https://api.example', 'https://reports.example'],
+    });
+    expect(result).toMatchObject({ kind: 'ok', repeatedKey: 'state' });
+  });
+});

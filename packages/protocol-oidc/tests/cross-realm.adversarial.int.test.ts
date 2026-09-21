@@ -45,6 +45,11 @@ interface Client {
   clientId: string;
   dbId: string;
   secret: string;
+  // What /authorize would store on a code's `resource` when a request
+  // names none — the same default `issueTokens` below mints codes with,
+  // now that /token derives `aud` from the code rather than from
+  // `config.audiences` directly.
+  audiences: string[];
 }
 
 interface RealmSetup {
@@ -87,7 +92,7 @@ async function insertClient(
     accessTokenTtlSeconds: 300,
     refreshTokenTtlSeconds: 1_209_600,
   });
-  return { clientId, dbId, secret };
+  return { clientId, dbId, secret, audiences };
 }
 
 async function setupRealm(label: string): Promise<RealmSetup> {
@@ -169,6 +174,7 @@ async function issueTokens(
       codeChallengeMethod: 'S256',
       authTime: new Date(),
       expiresAt: new Date(Date.now() + 60_000),
+      resource: client.audiences,
     });
   });
 
@@ -358,6 +364,7 @@ describe('[ODUDU-CROSS-REALM-LEAKAGE-01] cross-realm leakage', () => {
         codeChallengeMethod: 'S256',
         authTime: new Date(),
         expiresAt: new Date(Date.now() + 60_000),
+        resource: [],
       });
     });
 

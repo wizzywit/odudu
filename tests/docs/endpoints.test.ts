@@ -15,6 +15,24 @@ const database: DatabaseHandle = {
   close: () => Promise.resolve(),
 };
 
+// Fastify derives HEAD from every GET route. The documents describe requests a
+// client makes, so HEAD is left out of them and out of the comparison.
+const IMPLIED_BY_GET = 'HEAD';
+
+// `@fastify/cors` registers this catch-all preflight responder itself
+// (`packages/protocol-oidc/src/view/routes/cors.ts`) — plumbing for every
+// route CORS applies to, not a protocol endpoint a client is told to call.
+const CORS_PREFLIGHT_CATCHALL = 'OPTIONS *';
+
+interface Endpoint {
+  readonly method: string;
+  readonly url: string;
+}
+
+function format(endpoint: Endpoint): string {
+  return `${endpoint.method} ${endpoint.url}`;
+}
+
 async function servingApp() {
   const config = loadConfig({
     ODUDU_DATABASE_URL: 'postgres://u:p@localhost:5432/odudu',
@@ -31,28 +49,39 @@ async function servingApp() {
   return app;
 }
 
-// Fastify derives HEAD from every GET route. The documents describe requests a
-// client makes, so HEAD is left out of them and out of the comparison.
-const IMPLIED_BY_GET = 'HEAD';
+// One tree line, e.g. "│   └── /introspect (POST)": `indent` is every
+// 4-character column ahead of the branch marker (`│   ` for an ancestor
+// with siblings still to print, `    ` for one that has finished), `url`
+// is this node's own path segment, and `methods` the comma-joined list.
+const TREE_LINE =
+  /^(?<indent>(?:│ {3}| {4})*)(?:├── |└── )(?<url>\/\S*|\*) \((?<methods>[A-Z, ]+)\)$/u;
 
-interface Endpoint {
-  readonly method: string;
-  readonly url: string;
-}
-
-function format(endpoint: Endpoint): string {
-  return `${endpoint.method} ${endpoint.url}`;
-}
-
+// `printRoutes` renders a tree for people: a route nested under a sibling's
+// own path (`/token/introspect` under `/token`) prints as a child line
+// carrying only its own suffix, `/introspect`, not the full URL. Parsing it
+// with a single-line regex loses that prefix; walking the tree by indent
+// depth and concatenating each node's segment onto its nearest shallower
+// ancestor's reconstructs the real URL regardless of nesting.
 function served(app: Awaited<ReturnType<typeof servingApp>>): Endpoint[] {
   const printed = app.printRoutes({ commonPrefix: false });
-  const endpoints = [...printed.matchAll(/(?<url>\/\S*) \((?<methods>[A-Z, ]+)\)/gu)].flatMap(
-    (match) =>
-      (match.groups?.methods ?? '')
-        .split(', ')
-        .filter((method) => method !== IMPLIED_BY_GET)
-        .map((method) => ({ method, url: match.groups?.url ?? '' })),
-  );
+  const stack: { depth: number; path: string }[] = [];
+  const endpoints: Endpoint[] = [];
+
+  for (const line of printed.split('\n')) {
+    const match = TREE_LINE.exec(line);
+    if (match === null) continue;
+    const depth = (match.groups?.indent ?? '').length / 4;
+    while ((stack[stack.length - 1]?.depth ?? -1) >= depth) stack.pop();
+    const parentPath = stack[stack.length - 1]?.path ?? '';
+    const url = match.groups?.url ?? '';
+    const path = url === '*' ? url : parentPath + url;
+    stack.push({ depth, path });
+
+    for (const method of (match.groups?.methods ?? '').split(', ')) {
+      if (method === IMPLIED_BY_GET) continue;
+      endpoints.push({ method, url: path });
+    }
+  }
 
   // printRoutes renders a tree for people, so its shape is not a contract. A
   // rendering change that stopped matching would otherwise empty this list and
@@ -92,7 +121,7 @@ describe(`the endpoints ${DOCUMENT} lists are the endpoints the server serves`, 
     const claimed = new Set(documented().map(format));
     const undocumented = served(app)
       .map(format)
-      .filter((endpoint) => !claimed.has(endpoint));
+      .filter((endpoint) => endpoint !== CORS_PREFLIGHT_CATCHALL && !claimed.has(endpoint));
 
     expect(
       undocumented,

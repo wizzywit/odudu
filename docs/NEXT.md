@@ -142,9 +142,12 @@ rate limit on `client_secret` attempts at `/token` — RFC 6749 §2.3.1's
 client half, filed as its own row and named in P3a's criterion — is
 closed: `RFC6749-2.3.1-04` covers it, and ADR 0023 carries the amendment.
 The `prompt=select_account` rows above are closed too, as of the same
-increment. And `/authorize` still verifies an `id_token_hint` with
-`AUDIENCE_UNCHECKED`, which the per-client audience configuration P3b's
-criterion names is the place to close.
+increment. `/authorize` passes the requesting client's id into
+`subjectOfIdTokenHint` as the expected audience, closing the gap this
+paragraph used to name; `/logout` was never that gap; it already compared
+`client_id` against the hint's `aud` itself (§2, `disagreeing`) and still
+does — `AUDIENCE_UNCHECKED` there names verification finding no audience
+of its own to check, not the client comparison having none.
 
 ### What each phase found while building it
 
@@ -291,6 +294,40 @@ row-level security rather than a permission error.
 
 ## Recorded decisions with trigger conditions
 
+**No scope means anything in particular at an audience.** RFC 9068 §2.2.3
+requires that a token's `scope` be coherent with its `aud`. P3b gave a client
+the means to narrow `aud` to one resource (RFC 8707's `resource`), but
+narrowing what a token is _restricted to_ says nothing about whether its
+granted scope _suits_ that restriction: a client may ask for `reports:read`
+against `resource=https://api.example` and nothing here objects. The MUST is
+recorded as `accepted:` in `docs/protocols/rfc9068.md` with that reasoning,
+not as covered.
+
+Closing it honestly needs a per-audience scope model — which resources a
+scope is meaningful for — which this server does not have, and which belongs
+to client management rather than to the token surface.
+
+- Trigger: whichever phase gives scopes an audience of their own. Most
+  likely wherever per-resource scope registration lands; until then the row
+  stays `accepted:` and the census counts it as such.
+
+**`/introspect` answers every registered client the same way, regardless of
+which resource it names.** RFC 7662 §2.2 MAY lets a deployment limit which
+scopes from a token a given protected resource sees, and §4 SHOULD asks
+that a protected resource be _specifically authorized_ to call the
+introspection endpoint at all, not merely authenticated. Neither is built:
+any client that authenticates with its own registered secret may call
+`/introspect` for any token, and an entitled caller (per `aud`) always sees
+the token's whole `scope`. Both rows are `gap` in `docs/protocols/rfc7662.md`
+rather than `deferred:`, because no phase has committed to either — the
+design spec's §8.2 names only the audience-scoping mechanism `introspect`
+already implements.
+
+- Trigger: a phase that gives a client a "may introspect" capability
+  distinct from ordinary client authentication, or a per-resource scope
+  model like the one the entry above already needs. Until one exists, both
+  rows stay `gap`.
+
 **Affected-package-only CI.** Turborepo and pnpm both support
 `--filter='...[<ref>]'` — changed packages plus their dependents — so no
 tooling change is needed to adopt it. Not adopted now: CI runs in about 50
@@ -344,6 +381,35 @@ parity argument that already covers it.
   production path and the two need a shared answer. Until then: bound the
   lookup itself (a timeout race, or a resolver library that takes one) and
   have it honour the incoming signal the way the connection already does.
+
+**`/introspect`'s entitlement check sits in a `usecase`, not a `service`.**
+`callerIsAddressed` and `audienceOf`
+(`packages/protocol-oidc/src/usecase/introspection.ts`) are pure domain
+decisions with no orchestration in them — this package's convention puts
+that kind of function in `service/`, alongside `authorization-code-grant.ts`
+and `client-credentials-grant.ts`, where it would get unit tests of its own
+independent of `introspect`'s. The task that built `/introspect` named only
+its usecase and test file; moving the check would add a file beyond that
+scope.
+
+- Trigger: the task that wires `/introspect`'s HTTP route, or any task that
+  next touches `introspection.ts`. Move `callerIsAddressed`/`audienceOf`
+  into `service/` at that point.
+
+**`/introspect`'s session-liveness check cannot express a remembered
+session's own idle window.** `IntrospectionDeps.isSessionLive` takes one
+`idleSeconds` value, mirroring `refresh-rotation.ts`'s older `liveById`
+call — but `sessionRepository.liveByIds` takes the realm's whole
+`SessionLifespans` pair precisely because a remembered session and an
+ordinary one are never measured against the other's window
+(`authn-flows/src/repository/sessions.ts`). Remember-me is in P3b's scope,
+so a remembered session's token can be reported dead after the ordinary
+idle window — shorter than the session's own — passes.
+
+- Trigger: the task that wires `/introspect`'s real `loadGrant`/
+  `isSessionLive` against actual sessions. Thread `SessionLifespans` (or
+  the session's own `remembered` flag) through instead of a bare
+  `idleSeconds`.
 
 ## Deferred from the final review
 

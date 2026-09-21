@@ -256,6 +256,12 @@ async function issueCode(opts: IssueCodeOptions = {}): Promise<{ code: string; c
       codeChallengeMethod: 'S256',
       authTime,
       expiresAt,
+      // Every client in this realm is registered for `[AUDIENCE]` — what
+      // /authorize would store on a code's `resource` when a request names
+      // none, the same default a code minted directly here (bypassing
+      // /authorize) has to carry now that /token derives `aud` from the
+      // code rather than from `config.audiences` directly.
+      resource: [AUDIENCE],
     });
     if (opts.consumedImmediately === true) {
       await authorizationCodeRepository(tx).consume(codeHash);
@@ -826,8 +832,12 @@ describe('[RFC6749-3.2-02] unrecognized token request parameters', () => {
     const res = await postForm(
       [
         ...redemptionParams(code),
+        // `audience` and `assertion` name no parameter this grant reads —
+        // `resource` moved out of this list once RFC 8707 wired it up
+        // (usecase/token-issuance.ts): it is no longer unrecognized, and a
+        // value this code did not carry would refuse the request rather
+        // than being dropped, defeating the point of this test.
         ['audience', 'https://elsewhere.example'],
-        ['resource', 'urn:example:api'],
         ['assertion', 'not-a-parameter-of-this-grant'],
       ],
       basicHeader(webApp),
