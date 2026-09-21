@@ -20,7 +20,8 @@ export interface TlsClientAuthOptions {
   // `ODUDU_TLS_CLIENT_CERT_HEADER` — the name a deployment's own proxy
   // emits the subject under. nginx, Envoy, Apache and HAProxy each use a
   // different one; Odudu does not get to fix it, so it is configuration,
-  // never a constant here (already lower-cased by the config schema).
+  // never a constant here. Any casing: this module lower-cases it before
+  // use, so the invariant does not depend on where the value came from.
   headerName: string;
 }
 
@@ -49,9 +50,12 @@ export function tlsClientSubject(
 ): TlsClientSubjectResult {
   if (!options.trustProxy) return { kind: 'absent' };
 
-  const value = headers[options.headerName];
+  // Node lower-cases what it parses, so the configured name has to match
+  // that however a deployment spelled it.
+  const name = options.headerName.toLowerCase();
+  const value = headers[name];
   if (typeof value !== 'string' || value.length === 0) return { kind: 'absent' };
-  if (countHeaderOccurrences(rawHeaders, options.headerName) > 1) return { kind: 'duplicated' };
+  if (countHeaderOccurrences(rawHeaders, name) > 1) return { kind: 'duplicated' };
 
   return { kind: 'present', subject: value };
 }
