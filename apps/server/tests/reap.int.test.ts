@@ -416,7 +416,7 @@ describe('odudu reap', () => {
     expect(rows.map((row) => row.jti)).toEqual([fixture.assertionJtiLive]);
   });
 
-  // Correction 5's foreign-realm probe, for this table specifically: the
+  // The foreign-realm probe for this table specifically: the
   // generic "scopes each realm's statements by row-level security alone"
   // test below hard-codes authentication_sessions and never runs this
   // table's own DELETE, so it proves nothing about client_assertion_jti.

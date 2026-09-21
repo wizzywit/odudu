@@ -1,9 +1,9 @@
 import { withRealm, type DatabaseHandle } from '@odudu/db';
 import { clientAssertionJti } from '#/schema/client-assertion-jti';
 
-// Takes the pool handle, not a `RealmScopedDatabase`, unlike every other
-// repository in this package: `claim` opens its own `withRealm` inside
-// itself, so a caller's enclosing request transaction is structurally out
+// Takes the pool handle rather than a `RealmScopedDatabase`, so that
+// `claim` opens its own `withRealm` inside
+// itself and a caller's enclosing request transaction is structurally out
 // of reach and an unrelated rollback there can never release a spent jti
 // — the same property `rotateRefreshToken` (usecase/refresh-rotation.ts)
 // gets only because its caller (usecase/token-issuance.ts) remembers to

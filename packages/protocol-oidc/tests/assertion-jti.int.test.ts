@@ -69,9 +69,9 @@ describe('assertionJtiRepository', () => {
   // The boundary that makes the unique constraint composite: a jti is
   // unique per issuer, and two clients may pick the same one. Satisfied
   // only by the client dimension of the key — the realm is the same
-  // realmId both calls run under — so this is the one test that would
-  // fail if the primary key dropped oauth_client_id (mutated in review:
-  // narrowing the key to (realm_id, jti) turns this `true` into a `false`).
+  // realmId both calls run under — so this is the one test that fails if
+  // the primary key drops oauth_client_id: narrowing it to
+  // (realm_id, jti) turns this `true` into a `false`.
   it('admits the same jti from a different client', async () => {
     await assertionJtiRepository(app).claim(realmId, 'client-a', 'jti-1', expiresAt);
     const other = await assertionJtiRepository(app).claim(realmId, 'client-b', 'jti-1', expiresAt);
