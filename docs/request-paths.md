@@ -5484,23 +5484,24 @@ wrong in more ways than one.
 **Below the boundary — 302 to the registered `redirect_uri`**, carrying
 `error`, `state` if the request had one, and always `iss`. All verified:
 
-| Request                                | `error`                     | Why                                                                                          |
-| -------------------------------------- | --------------------------- | -------------------------------------------------------------------------------------------- |
-| No `code_challenge`                    | `invalid_request`           | PKCE is mandatory for every client, with no exception (ADR 0016)                             |
-| `code_challenge` of the wrong shape    | `invalid_request`           | RFC 7636 §4.2 fixes it at 43–128 unreserved characters; see below                            |
-| No `code_challenge_method`             | `invalid_request`           | It is not defaulted to `plain`, which is what RFC 7636 §4.3 would have it default to         |
-| `code_challenge_method=plain`          | `invalid_request`           | Only `S256` is accepted; `plain` offers no protection against an intercepted code            |
-| `response_type=token`                  | `unsupported_response_type` | Only the code flow exists; implicit issuance is gone from OAuth 2.1                          |
-| Scope the realm does not define        | `invalid_scope`             | `scopes_supported` is that same list, so discovery and this endpoint cannot disagree         |
-| Scope the client is not assigned       | `invalid_scope`             | Defined by the realm is not granted to every client; refused, never silently dropped         |
-| Repeated `state` (or any other repeat) | `invalid_request`           | Ambiguous, but a trustworthy redirect target exists by now, so the client can be told        |
-| `prompt=none`                          | `login_required`            | For a request carrying no live session cookie; with one it issues a code instead (§3.1.2.3)  |
-| `prompt=none login`                    | `invalid_request`           | `none` with any other value is contradictory (OIDC Core §3.1.2.1)                            |
-| `prompt=` anything undefined           | `invalid_request`           | Better told than silently answered as if it had asked for nothing                            |
-| `request=…`                            | `request_not_supported`     | Request objects are unimplemented, and §3.1.2.6 requires saying so rather than dropping them |
-| `request_uri=…`                        | `request_uri_not_supported` | Same                                                                                         |
-| Unverifiable `id_token_hint`           | `invalid_request`           | A hint this realm's keys did not sign is not a hint from here (OIDC Core §3.1.2.2)           |
-| Another realm's `id_token_hint`        | `invalid_request`           | Same rule: the realm in the URL is the only issuer whose keys are consulted                  |
+| Request                                   | `error`                     | Why                                                                                          |
+| ----------------------------------------- | --------------------------- | -------------------------------------------------------------------------------------------- |
+| No `code_challenge`                       | `invalid_request`           | PKCE is mandatory for every client, with no exception (ADR 0016)                             |
+| `code_challenge` of the wrong shape       | `invalid_request`           | RFC 7636 §4.2 fixes it at 43–128 unreserved characters; see below                            |
+| No `code_challenge_method`                | `invalid_request`           | It is not defaulted to `plain`, which is what RFC 7636 §4.3 would have it default to         |
+| `code_challenge_method=plain`             | `invalid_request`           | Only `S256` is accepted; `plain` offers no protection against an intercepted code            |
+| `response_type=token`                     | `unsupported_response_type` | Only the code flow exists; implicit issuance is gone from OAuth 2.1                          |
+| Scope the realm does not define           | `invalid_scope`             | `scopes_supported` is that same list, so discovery and this endpoint cannot disagree         |
+| Scope the client is not assigned          | `invalid_scope`             | Defined by the realm is not granted to every client; refused, never silently dropped         |
+| Repeated `state` (or any other repeat)    | `invalid_request`           | Ambiguous, but a trustworthy redirect target exists by now, so the client can be told        |
+| `prompt=none`                             | `login_required`            | For a request carrying no live session cookie; with one it issues a code instead (§3.1.2.3)  |
+| `prompt=none login`                       | `invalid_request`           | `none` with any other value is contradictory (OIDC Core §3.1.2.1)                            |
+| `prompt=` anything undefined              | `invalid_request`           | Better told than silently answered as if it had asked for nothing                            |
+| `request=…`                               | `request_not_supported`     | Request objects are unimplemented, and §3.1.2.6 requires saying so rather than dropping them |
+| `request_uri=…`                           | `request_uri_not_supported` | Same                                                                                         |
+| Unverifiable `id_token_hint`              | `invalid_request`           | A hint this realm's keys did not sign is not a hint from here (OIDC Core §3.1.2.2)           |
+| Another realm's `id_token_hint`           | `invalid_request`           | Same rule: the realm in the URL is the only issuer whose keys are consulted                  |
+| `id_token_hint` minted for another client | `invalid_request`           | Its `aud` names a client, and this realm checks it against the one making this request       |
 
 The error redirect for a request that sent no `state` carries only `error`
 and `iss`:
@@ -6117,34 +6118,43 @@ curl -sS -b cookies.txt -o /dev/null -w '%{http_code}\n' \
 ### `id_token_hint`
 
 A hint is checked against the realm's own keys and issuer before anything
-else about the request is acted on (OIDC Core §3.1.2.2). Mint one by
-completing Path A and keeping the `id_token`; mint another by doing the
-same in a second realm:
+else about the request is acted on (OIDC Core §3.1.2.2), and then — at
+`/authorize` only — against the `client_id` making this request: an ID
+Token's `aud` names the client it was issued to, and a hint minted for one
+client is refused from another even though its signature and issuer are
+this realm's own. Mint one by completing Path A and keeping the `id_token`;
+mint another by doing the same for a second client in the same realm, and a
+third by doing the same in a second realm:
 
 ```bash
+odudu seed \
+  --realm demo --client demo-spa-2 \
+  --redirect-uri http://localhost:8080/callback2
+
 odudu seed \
   --realm other --client demo-spa \
   --redirect-uri http://localhost:8080/callback \
   --user ada --password correct-horse-battery --email ada@other.example
 ```
 
-`$ID_TOKEN` from the bootstrap block is a hint this realm issued. Run the
-same block against `/realms/other/` for one it did not:
+`$ID_TOKEN` from the bootstrap block is a hint `demo-spa` can use.
+`$ID_TOKEN2` is Path A run again for `demo-spa-2` against the same realm;
+`$ID_TOKEN3` is Path A run against `/realms/other/` instead:
 
 ```bash
-HINT=$ID_TOKEN
-curl -sS -o /dev/null -D - --get --data-urlencode "id_token_hint=$HINT" \
+curl -sS -o /dev/null -D - --get --data-urlencode "id_token_hint=$ID_TOKEN2" \
   "http://localhost:3000/realms/demo/protocol/openid-connect/auth?$Q" \
   | tr -d '\r' | awk '/^HTTP/{s=$2} /^[Ll]ocation:/{l=$2} END{print s, l}'
 ```
 
-| `id_token_hint`                              | Answer                      |
-| -------------------------------------------- | --------------------------- |
-| `not.a.jwt`                                  | 302 `error=invalid_request` |
-| An ID token issued by the realm `other`      | 302 `error=invalid_request` |
-| An ID token this realm issued                | 200, the login form         |
-| With `prompt=none`, a hint this realm issued | 302 `error=login_required`  |
-| With `prompt=none`, any unusable hint        | 302 `error=invalid_request` |
+| `id_token_hint`                                                        | Answer                      |
+| ---------------------------------------------------------------------- | --------------------------- |
+| `not.a.jwt`                                                            | 302 `error=invalid_request` |
+| An ID token issued by the realm `other`                                | 302 `error=invalid_request` |
+| An ID token this realm issued to `demo-spa-2`, at `demo-spa`'s request | 302 `error=invalid_request` |
+| An ID token this realm issued to `demo-spa`, at `demo-spa`'s request   | 200, the login form         |
+| With `prompt=none`, a hint this realm issued for the requesting client | 302 `error=login_required`  |
+| With `prompt=none`, any unusable hint                                  | 302 `error=invalid_request` |
 
 The last two rows are the ordering. An unusable hint is refused as a
 malformed request rather than answered with the prompt's own
@@ -6152,16 +6162,25 @@ malformed request rather than answered with the prompt's own
 request carrying a hint this server cannot read is not yet a request to
 answer that way.
 
-An access token this realm minted for the same user is refused too, and not
-by any of the rows above: it carries `typ: at+jwt` (RFC 9068 §2.1), and the
-hint check demands a JWT that is not an access token. `/userinfo` makes the
-mirror image of that check of the token presented to it, so neither token
-type can stand in for the other in either direction.
+An access token this realm minted for the same user is refused too, and for
+two independent reasons rather than one: it carries `typ: at+jwt` (RFC 9068
+§2.1), which the hint check demands a JWT not be, _and_ its own `aud` is
+this realm's issuer (RFC 9068 §2.2) rather than the requesting client, which
+the check above now also refuses. Deleting either check on its own still
+leaves this token refused by the other — `docs/protocols/oidc-core.md`'s
+reading note has the reasoning for both. `/userinfo` makes the mirror image
+of the `typ` check of the token presented to it.
 
-The realm row is the point of the whole check. Both tokens are RS256, both
-have the shape of an ID token, and both were signed by this server — by a
-different realm's key. Only the realm named in the URL has its keys
-consulted, so the second is refused exactly like a forgery.
+The realm row is the point of the whole check that predates the client
+check above. Both tokens are RS256, both have the shape of an ID token, and
+both were signed by this server — by a different realm's key. Only the
+realm named in the URL has its keys consulted, so the second is refused
+exactly like a forgery.
+
+`/logout` shares this same signature-and-issuer check on its own
+`id_token_hint`, but not the client check: RP-Initiated Logout §2 gives it
+a different comparison to make instead, against an optional `client_id`
+parameter — see [RP-initiated logout](#rp-initiated-logout) below.
 
 What a valid hint then does is in [The login POST](#the-login-post): it
 names who the response is about, and a different user signing in against

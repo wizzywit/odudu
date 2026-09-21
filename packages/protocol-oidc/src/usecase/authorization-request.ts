@@ -723,22 +723,11 @@ function audiencesOf(claim: unknown): readonly string[] {
 
 // OIDC Core §3.1.2.2: "the OP MUST validate that it was the issuer of the ID
 // Token" — a signature made by one of this realm's keys, over a payload whose
-// `iss` is this realm. Returns the claims it carries, or null for a hint
-// this server cannot recognise as its own. `exp` is enforced by verifyJwt,
-// so a hint past its expiry is refused rather than accepted as §3.1.2.2's
-// SHOULD allows (see the reading note in docs/protocols/oidc-core.md).
-// Exported for `#/usecase/logout.ts`, which validates its own hint the same
-// way rather than a second, looser check.
-//
-// `audience` is a parameter rather than a constant: an ID Token's `aud` is
-// the client it was issued to, so the OP reading one back is not the
-// principal RFC 7519 §4.1.3 addresses, and §3.1.2.2 asks only that the OP
-// was its issuer. Naming an audience here is a deliberate additional check
-// this server chooses to make, not that obligation being met at last — and
-// callers differ on whether they make it. `/authorize` passes the
-// requesting client's id (RP-Initiated Logout §2 asks the same of
-// `/logout`, which still declines it — see `AUDIENCE_UNCHECKED`'s call site
-// in `#/usecase/logout.ts`).
+// `iss` is this realm; `exp` is enforced by verifyJwt too. Returns the
+// claims it carries, or null for a hint this server cannot recognise as its
+// own. `audience` is a parameter, not a constant — callers differ on
+// whether they check it; see docs/protocols/oidc-core.md's reading note.
+// Exported for `#/usecase/logout.ts`, which shares this check.
 export async function subjectOfIdTokenHint(
   deps: Pick<AuthorizeUsecaseDeps, 'listPublishableKeys'>,
   realmId: string,

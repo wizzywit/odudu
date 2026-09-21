@@ -710,13 +710,13 @@ describe('[OIDC-CORE-3.1.2.2-01] an id_token_hint this server did not issue is r
   // everything §3.1.2.2 asks about the issuer — this realm's key, this
   // realm's `iss` — and is still not an ID Token. RFC 9068 §2.1 gives it
   // `typ: at+jwt` so the two cannot be confused, which is the distinction
-  // /userinfo already relies on in the other direction.
+  // /userinfo already relies on in the other direction. `aud` is overridden
+  // to CLIENT_ID, the same as the paired test below: an access token's own
+  // `aud` (the issuer, RFC 9068 §2.2) would refuse this on its own, leaving
+  // nothing pinning the `typ` refusal this test exists to name.
   it('refuses an access token this realm minted for the same subject', async () => {
-    const hint = await signJwt(await accessTokenClaims(newId()), {
-      key: realmKey,
-      kek: KEK,
-      typ: 'at+jwt',
-    });
+    const claims = { ...(await accessTokenClaims(newId())), aud: CLIENT_ID };
+    const hint = await signJwt(claims, { key: realmKey, kek: KEK, typ: 'at+jwt' });
     expect(await errorOnRedirect(authorizeUrl({ id_token_hint: hint }))).toBe('invalid_request');
   });
 

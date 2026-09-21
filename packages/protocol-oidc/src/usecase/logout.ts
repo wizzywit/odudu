@@ -220,21 +220,14 @@ export async function handleLogoutRequest(
     },
     header,
   );
+  // Unlike /authorize, this door has no principal of its own to check the
+  // hint's `aud` against — RP-Initiated Logout §2's own `client_id`
+  // comparison, against `hint.audiences` below, stands in its place.
+  // Whether that remains the right answer is open.
   const hint =
     params.idTokenHint === null
       ? null
-      : // Unlike /authorize, this door has no principal of its own to check
-        // the hint's `aud` against — RP-Initiated Logout §2's own
-        // `client_id` comparison, against `hint.audiences` below, is what
-        // stands in its place. Left AUDIENCE_UNCHECKED deliberately; a
-        // later task settles whether that stays true.
-        await subjectOfIdTokenHint(
-          deps,
-          realm.id,
-          issuer,
-          params.idTokenHint,
-          AUDIENCE_UNCHECKED,
-        );
+      : await subjectOfIdTokenHint(deps, realm.id, issuer, params.idTokenHint, AUDIENCE_UNCHECKED);
   const registered = await registeredUris(deps, realm.id, params.clientId);
 
   // §2: "When both `client_id` and `id_token_hint` are present, the OP MUST

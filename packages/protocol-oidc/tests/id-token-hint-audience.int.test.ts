@@ -1,10 +1,4 @@
-import {
-  generateSigningKey,
-  signingKeys,
-  signJwt,
-  verifyJwt,
-  type SigningKeyRecord,
-} from '@odudu/crypto';
+import { generateSigningKey, signingKeys, signJwt, type SigningKeyRecord } from '@odudu/crypto';
 import { hashPassword, subjectRepository, userCredentials, users } from '@odudu/domain-identity';
 import {
   createDatabase,
@@ -15,7 +9,7 @@ import {
   type DatabaseHandle,
   type RealmScopedDatabase,
 } from '@odudu/db';
-import { sessionRepository, sessions, provisionRealm } from '@odudu/authn-flows';
+import { sessionRepository, provisionRealm } from '@odudu/authn-flows';
 import { clients, provisionClientDefaults } from '@odudu/domain-realm';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
@@ -31,7 +25,8 @@ import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
 // audience check on it is an additional guard this server chooses to make
 // (sign.ts's AUDIENCE_UNCHECKED comment) rather than an RFC 7519 §4.1.3
 // obligation being met. /authorize now makes that choice against the
-// requesting client; /logout still declines it (a later task's job).
+// requesting client; /logout still declines it — see
+// docs/protocols/oidc-core.md's reading note for why the two differ.
 
 let containerHandle: TestDatabase | undefined;
 let ownerHandle: DatabaseHandle | undefined;
@@ -125,28 +120,6 @@ async function setupRealm(name: string): Promise<{ realmId: string }> {
   return { realmId };
 }
 
-// A realm with a signing key of its own and nothing else — used only as a
-// source of key material genuinely foreign to REALM, for the realm
-// isolation test.
-async function setupBareRealm(name: string): Promise<void> {
-  const realmId = newId();
-  await withRealm(app.db, realmId, async (tx: RealmScopedDatabase) => {
-    await tx.insert(realms).values({ id: realmId, name });
-    await provisionRealm(tx, realmId);
-    const key = await makeSigningKey(realmId);
-    signingKeyOf.set(name, key);
-    await tx.insert(signingKeys).values({
-      id: key.id,
-      realmId,
-      kid: key.kid,
-      alg: key.alg,
-      status: 'active',
-      publicJwk: key.publicJwk,
-      privateJwkEncrypted: key.privateJwkEncrypted,
-    });
-  });
-}
-
 async function subjectIdOf(realmId: string, username: string): Promise<string> {
   const rows = await owner.db
     .select({ subjectId: users.subjectId })
@@ -164,21 +137,12 @@ async function issuerFor(realmName: string): Promise<string> {
   return res.json<{ issuer: string }>().issuer;
 }
 
-// Signs a hint with the *signing realm's* key, but lets the caller name
-// whatever `iss` it wants — the realm isolation test needs a hint whose
-// `iss` claims to be REALM even though the key that signed it is not
-// REALM's, to isolate the key-scoping check from the ordinary iss check.
-async function mintHint(opts: {
-  signingRealmName: string;
-  iss: string;
-  aud: string;
-  sub: string;
-}): Promise<string> {
-  const key = signingKeyOf.get(opts.signingRealmName);
-  if (key === undefined) throw new Error(`no signing key for ${opts.signingRealmName}`);
+async function mintHint(realmName: string, aud: string, sub: string): Promise<string> {
+  const key = signingKeyOf.get(realmName);
+  if (key === undefined) throw new Error(`no signing key for ${realmName}`);
   const now = Math.floor(Date.now() / 1000);
   return signJwt(
-    { iss: opts.iss, aud: opts.aud, sub: opts.sub, iat: now, exp: now + 300 },
+    { iss: await issuerFor(realmName), aud, sub, iat: now, exp: now + 300 },
     { key, kek: KEK },
   );
 }
@@ -296,14 +260,8 @@ describe('/authorize checks an id_token_hint against the requesting client', () 
     const { realmId } = await setupRealm(realmName);
     const subjectId = await subjectIdOf(realmId, USERNAME);
     const cookie = await signIn(realmName);
-    const iss = await issuerFor(realmName);
 
-    const hint = await mintHint({
-      signingRealmName: realmName,
-      iss,
-      aud: CLIENT_A_ID,
-      sub: subjectId,
-    });
+    const hint = await mintHint(realmName, CLIENT_A_ID, subjectId);
 
     const res = await http.inject({
       url: authorizeUrl(realmName, { id_token_hint: hint }),
@@ -320,14 +278,7 @@ describe('/authorize checks an id_token_hint against the requesting client', () 
     const realmName = `hint-aud-wrong-client-${newId()}`;
     const { realmId } = await setupRealm(realmName);
     const subjectId = await subjectIdOf(realmId, USERNAME);
-    const iss = await issuerFor(realmName);
-
-    const hint = await mintHint({
-      signingRealmName: realmName,
-      iss,
-      aud: CLIENT_B_ID,
-      sub: subjectId,
-    });
+    const hint = await mintHint(realmName, CLIENT_B_ID, subjectId);
 
     const res = await http.inject({
       url: authorizeUrl(realmName, { client_id: CLIENT_A_ID, id_token_hint: hint }),
@@ -337,56 +288,12 @@ describe('/authorize checks an id_token_hint against the requesting client', () 
     const location = new URL(locationHeader(res));
     expect(location.searchParams.get('error')).toBe('invalid_request');
   });
-
-  // Realm isolation must be shown, not asserted (CLAUDE.md's transcript
-  // rules): a hint refused only because its `iss` disagrees with REALM
-  // would prove nothing about key scoping, since that check exists
-  // independently of this task. So this hint claims REALM's own issuer —
-  // the one honest thing an attacker holding another realm's key material
-  // could get right — and is signed with a key that verifies perfectly
-  // under BARE_REALM's own key list (asserted below, directly, with
-  // verifyJwt) before it is ever sent to REALM's /authorize.
-  it('refuses a hint from another realm even when its signature verifies', async () => {
-    const realmName = `hint-aud-realm-a-${newId()}`;
-    const bareRealmName = `hint-aud-realm-b-${newId()}`;
-    await setupRealm(realmName);
-    await setupBareRealm(bareRealmName);
-    const iss = await issuerFor(realmName);
-
-    const foreignHint = await mintHint({
-      signingRealmName: bareRealmName,
-      iss,
-      aud: CLIENT_A_ID,
-      sub: 'someone',
-    });
-
-    // The signature genuinely verifies — under the signing realm's own
-    // key, which is the only kind of verification an attacker without
-    // REALM's keys could ever produce.
-    const bareKey = signingKeyOf.get(bareRealmName);
-    if (bareKey === undefined) throw new Error('no signing key for the bare realm');
-    const verified = await verifyJwt(foreignHint, {
-      keys: [bareKey],
-      issuer: iss,
-      audience: CLIENT_A_ID,
-      typ: { refused: 'at+jwt' },
-    });
-    expect(verified.sub).toBe('someone');
-
-    const res = await http.inject({
-      url: authorizeUrl(realmName, { client_id: CLIENT_A_ID, id_token_hint: foreignHint }),
-    });
-
-    expect(res.statusCode).toBe(302);
-    const location = new URL(locationHeader(res));
-    expect(location.searchParams.get('error')).toBe('invalid_request');
-  });
 });
 
 describe('/logout leaves its own id_token_hint audience handling unchanged', () => {
-  // /logout has no principal of its own to check `aud` against (a later
-  // task's job), so a hint naming a client entirely unrelated to the one
-  // logging out must still be honoured here — proven by omitting
+  // /logout has no principal of its own to check `aud` against, so a hint
+  // naming a client entirely unrelated to the one logging out must still
+  // be honoured here — proven by omitting
   // client_id, so RP-Initiated Logout §2's own client_id-vs-hint check
   // (a separate, pre-existing rule) cannot be what is doing the work.
   // Passing CLIENT_A_ID instead of AUDIENCE_UNCHECKED at the /logout call
