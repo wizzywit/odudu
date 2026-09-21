@@ -54,6 +54,11 @@ const REALM_ISSUER_BASE = 'http://localhost';
 let REALM: string;
 let REALM_ID: string;
 let AUDIENCE: string;
+// A second, otherwise-empty realm — enough to answer at `/token` without
+// 404ing, never enough to hold a client `pkj-client`'s assertion could
+// possibly resolve against.
+let REALM_B: string;
+let REALM_B_ID: string;
 
 // This suite's whole point: every refusal is this one body, whatever
 // failed, of the eight branches `authenticatePrivateKeyJwt` has — see
@@ -245,6 +250,24 @@ async function setupRealm(): Promise<void> {
       privateJwkEncrypted: key.privateJwkEncrypted,
     });
   });
+
+  REALM_B = `pkj-b-${newId()}`;
+  REALM_B_ID = newId();
+  await withRealm(app.db, REALM_B_ID, async (tx) => {
+    await tx.insert(realms).values({ id: REALM_B_ID, name: REALM_B });
+    await provisionRealm(tx, REALM_B_ID);
+
+    const key = await generateSigningKey('RS256', KEK);
+    await tx.insert(signingKeys).values({
+      id: newId(),
+      realmId: REALM_B_ID,
+      kid: key.kid,
+      alg: key.alg,
+      status: 'active',
+      publicJwk: key.publicJwk,
+      privateJwkEncrypted: key.privateJwkEncrypted,
+    });
+  });
 }
 
 beforeAll(async () => {
@@ -301,6 +324,7 @@ async function token(input: {
   assertion?: string;
   client?: string;
   auth?: Record<string, string>;
+  realm?: string;
 }): Promise<LightMyRequestResponse> {
   const form = new URLSearchParams();
   form.set('grant_type', 'client_credentials');
@@ -314,7 +338,7 @@ async function token(input: {
 
   return http.inject({
     method: 'POST',
-    url: `/realms/${REALM}/protocol/openid-connect/token`,
+    url: `/realms/${input.realm ?? REALM}/protocol/openid-connect/token`,
     payload: form.toString(),
     headers: { 'content-type': 'application/x-www-form-urlencoded', ...(input.auth ?? {}) },
   });
@@ -431,6 +455,19 @@ describe('[ODUDU-PRIVATE-KEY-JWT-01] private_key_jwt at /token', () => {
     expect(lastLoggedReason()).toBe('assertion failed structural validation');
   });
 
+  // Every non-`unsupported` outcome runs through `authenticatePrivateKeyJwt`
+  // scoped to the realm the request named — `byClientId` is read inside
+  // `withRealm(realm.id, …)`, RLS-enforced — and `aud` embeds that realm's
+  // name via its issuer, so an assertion minted for REALM can never even
+  // parse as valid for REALM_B: `aud` cannot match. That is what this pins.
+  it("refuses REALM's assertion posted to a different realm's /token", async () => {
+    const assertion = await signAssertion(clientKey, 'pkj-client');
+    const res = await token({ assertion, realm: REALM_B });
+    expect(res.statusCode).toBe(401);
+    expect(res.json()).toEqual(REFUSAL);
+    expect(lastLoggedReason()).toBe('assertion failed structural validation');
+  });
+
   it('refuses a client that publishes no keys at all', async () => {
     const assertion = await signAssertion(clientKey, 'no-keys-client');
     const res = await token({ assertion });
@@ -467,6 +504,9 @@ describe('[ODUDU-PRIVATE-KEY-JWT-01] private_key_jwt at /token', () => {
     const res = await token({ assertion, auth: basic('pkj-client', 'secret') });
     expect(res.statusCode).toBe(401);
     expect(res.json()).toEqual(REFUSAL);
+    // This refusal sits upstream of authenticatePrivateKeyJwt's eight, but
+    // shares its logging closure — it must not be the one that logs nothing.
+    expect(lastLoggedReason()).toBe('assertion presented alongside a client_secret');
   });
 
   it('advertises private_key_jwt in token_endpoint_auth_methods_supported', async () => {

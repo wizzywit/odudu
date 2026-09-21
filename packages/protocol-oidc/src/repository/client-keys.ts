@@ -29,14 +29,13 @@ export interface ClientKeySet {
   fetch: (uri: string, realmId: string) => Promise<unknown>;
 }
 
-// What `oidcRoutes` (packages/protocol-oidc/src/index.ts) requires a caller
-// with no opinion on `private_key_jwt` to pass explicitly — the field it
-// backs is required, not defaulted, the same reasoning as
-// `UNLIMITED_CLIENT_SECRET_LIMITER` (service/client-secret-throttle.ts): a
-// jwks_uri-based client simply cannot authenticate through this, and every
-// caller that wires it in says so rather than inheriting it silently. A
-// client with inline `jwks` never reaches this fetcher at all
-// (token-issuance.ts's authenticatePrivateKeyJwt).
+// Closes off only jwks_uri-based clients — an inline-`jwks` client never
+// reaches this fetcher (token-issuance.ts's authenticatePrivateKeyJwt) and
+// still authenticates here with a valid signature over its own registered
+// key. What `oidcRoutes` (index.ts) requires a caller with no opinion on
+// `private_key_jwt` to pass explicitly, required rather than defaulted for
+// the same reason as `UNLIMITED_CLIENT_SECRET_LIMITER`
+// (service/client-secret-throttle.ts): every caller says so.
 export const NO_CLIENT_KEY_FETCHER: ClientKeySet = {
   fetch: () => Promise.reject(new ClientKeySetRefused('no client key fetcher is configured')),
 };

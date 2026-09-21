@@ -402,6 +402,21 @@ scope.
   next touches `introspection.ts`. Move `callerIsAddressed`/`audienceOf`
   into `service/` at that point.
 
+**`/token` enforces no `config.grantTypes` allowlist, for either
+authentication path.** `evaluateClientCredentialsGrant`'s own comment says
+a confidential client with a service subject is granted "regardless of
+what `grant_types` claims", and `token-issuance.ts`'s only read of
+`config.grantTypes` gates whether a _refresh token_ is issued, not which
+grant a request may use. So a client registered for `authorization_code`
+only can still obtain a `client_credentials` token. Pre-existing, and
+identical for `client_secret_*` and `private_key_jwt` clients alike — not
+a gap this task introduced or one specific to the new method.
+
+- Trigger: whichever task next touches grant selection in
+  `usecase/token-issuance.ts`'s `issueTokens`. Add a
+  `config.grantTypes.includes(request.grantType)` check before dispatching
+  to a grant-specific issuance function.
+
 **RFC 7523 has no clause table; its clauses are absent from the
 traceability matrix.** `docs/protocols/rfc7523.md` is a reading-notes-only
 file — the one file in `docs/protocols/` without a `| Clause | Level |
@@ -414,9 +429,11 @@ clause is untracked in the one system built to make that visible, and
 nothing goes red.
 
 - Trigger: before this phase closes. What it takes: §2.2's two request
-  parameters and §3's claim requirements, plus §5's replay guidance — Test
-  IDs are mostly already fillable from `[ODUDU-PRIVATE-KEY-JWT-01]`'s
-  cases (`packages/protocol-oidc/tests/private-key-jwt.int.test.ts`) and
+  parameters and §3's claim requirements — §5 (Security Considerations)
+  stays prose, per `rfc7523.md`'s own header, not a source of further
+  rows. Test IDs are mostly already fillable from
+  `[ODUDU-PRIVATE-KEY-JWT-01]`'s cases
+  (`packages/protocol-oidc/tests/private-key-jwt.int.test.ts`) and
   `service/client-assertion.test.ts`.
 
 **`/introspect`'s session-liveness check cannot express a remembered

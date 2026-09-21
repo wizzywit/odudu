@@ -689,6 +689,25 @@ async function issueClientCredentialsTokens(
   };
 }
 
+// `claimedClientId`, not `clientId`: nothing here is verified until a
+// signature check passes, so the log names it for what it is — the
+// assertion's own say-so — the same distinction `client-assertion.ts` draws
+// in `AssertionOutcome`'s own doc comment. Shared by `authenticatePrivateKeyJwt`
+// below and `issueTokens`'s own both-methods-presented refusal, so that
+// refusal — upstream of the eight branches below and not one of them — logs
+// a reason too, instead of being the one assertion refusal that doesn't.
+function refusePrivateKeyJwt(
+  deps: TokenIssuanceDeps,
+  reason: string,
+  claimedClientId?: string,
+): never {
+  deps.logger.warn(
+    { reason, ...(claimedClientId !== undefined ? { claimedClientId } : {}) },
+    'private_key_jwt authentication refused',
+  );
+  throw invalidClient(WWW_AUTHENTICATE);
+}
+
 // RFC 7523 §2.2 / OIDC Core §9's `private_key_jwt`. Every failure reports
 // the same `invalid_client`, verification runs before the jti is ever
 // claimed, and the timing residual that leaves open is stated rather than
@@ -701,17 +720,8 @@ async function authenticatePrivateKeyJwt(
   outcome: Exclude<AssertionOutcome, { kind: 'unsupported' }>,
   tokenEndpoint: string,
 ): Promise<{ client: ClientRecord; config: ClientOidcConfig }> {
-  // `claimedClientId`, not `clientId`: nothing here is verified until the
-  // signature check below passes, so the log names it for what it is — the
-  // assertion's own say-so — the same distinction `client-assertion.ts`
-  // draws in `AssertionOutcome`'s own doc comment.
-  const fail = (reason: string): never => {
-    deps.logger.warn(
-      { reason, ...(outcome.kind === 'ok' ? { claimedClientId: outcome.claimedClientId } : {}) },
-      'private_key_jwt authentication refused',
-    );
-    throw invalidClient(WWW_AUTHENTICATE);
-  };
+  const fail = (reason: string): never =>
+    refusePrivateKeyJwt(deps, reason, outcome.kind === 'ok' ? outcome.claimedClientId : undefined);
 
   if (outcome.kind !== 'ok') return fail('assertion failed structural validation');
 
@@ -786,7 +796,11 @@ export async function issueTokens(
     assertionOutcome.kind !== 'unsupported' &&
     (basic !== undefined || bodyClientSecret !== undefined)
   ) {
-    throw invalidClient(WWW_AUTHENTICATE);
+    refusePrivateKeyJwt(
+      deps,
+      'assertion presented alongside a client_secret',
+      assertionOutcome.kind === 'ok' ? assertionOutcome.claimedClientId : undefined,
+    );
   }
 
   const { client, config } =
