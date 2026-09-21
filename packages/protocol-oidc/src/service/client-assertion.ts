@@ -5,10 +5,12 @@ import { z } from 'zod';
 // requires.
 export const CLIENT_ASSERTION_TYPE = 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer';
 
-// The replay guard a later task builds has to remember every `jti` it has
-// seen until that assertion's own `exp` passes. A ceiling here is what
-// keeps that memory bounded regardless of what a client requests — an
-// assertion valid for a year would have to be remembered for a year.
+// Replay detection has to remember every `jti` until that assertion's own
+// `exp` passes, so this ceiling is what keeps that memory bounded whatever
+// a client asks for — an assertion valid for a year would have to be
+// remembered for a year. Neither RFC 7523 nor OIDC Core §9 fixes a number;
+// this one is ours, and anything that remembers a `jti` reads it from here
+// rather than choosing its own window.
 export const MAX_ASSERTION_LIFETIME_SECONDS = 300;
 
 export interface ClientAssertionBody {
@@ -37,11 +39,13 @@ export type AssertionOutcome =
   | { readonly kind: 'unsupported' }
   | { readonly kind: 'invalid' };
 
-// RFC 7523 §3's required claims this function can check without the key:
-// `iss`/`sub` (compared to each other, not yet to a real client), `aud`,
-// `exp` and `jti`. Each is refused rather than coerced — a `sub` that is a
-// number or an `aud` that is an array fails the same way a missing field
-// does, never gets converted into the shape this expects.
+// The claims this function can check without the key: `iss`/`sub` (compared
+// to each other, not yet to a real client), `aud`, `exp` and `jti`. Each is
+// refused rather than coerced — a `sub` that is a number or an `aud` that is
+// an array fails the same way a missing field does, never gets converted
+// into the shape this expects. `jti` is required here though RFC 7523 §3
+// lists it as optional — replay detection has nothing to remember without
+// it, as the lifetime ceiling above explains.
 const clientAssertionClaims = z.object({
   iss: z.string().min(1),
   sub: z.string().min(1),
@@ -87,9 +91,10 @@ export function parseClientAssertion(
   if (!parsed.success) return { kind: 'invalid' };
   const claims = parsed.data;
 
-  // RFC 7523 §3: "the Issuer MUST contain the client_id of the OAuth
-  // client" and "the Subject MUST be the client_id of the OAuth client" —
-  // for a client authenticating as itself, the two name the same client.
+  // OIDC Core §9 is what ties both claims to the client for
+  // `private_key_jwt`: the Issuer and the Subject each MUST be the
+  // client_id. RFC 7523 §3 is looser — it asks only that `iss` identify the
+  // issuing entity — so this equality is the OIDC rule, not the RFC's.
   if (claims.iss !== claims.sub) return { kind: 'invalid' };
   if (claims.aud !== expected.audience) return { kind: 'invalid' };
 
