@@ -137,7 +137,7 @@ describe('introspect', () => {
     expect(response).toEqual({ active: false });
   });
 
-  it('answers inactive for a token whose grant was revoked', async () => {
+  it('[RFC7662-4-02] answers inactive for a token whose grant was revoked', async () => {
     const key = await makeSigningKey();
     const token = await mintToken({ sid: 'session-1' }, key);
     const deps = makeDeps({
@@ -226,7 +226,7 @@ describe('introspect', () => {
     expect(isSessionLive).not.toHaveBeenCalled();
   });
 
-  it('answers inactive for a token whose exp has passed', async () => {
+  it('[RFC7662-4-01] answers inactive for a token whose exp has passed', async () => {
     const key = await makeSigningKey();
     const iat = Math.floor(NOW.getTime() / 1000) - 7200;
     const token = await mintToken({ sid: 'session-1', iat, exp: iat + 3600 }, key);
@@ -278,7 +278,7 @@ describe('introspect', () => {
     expect(await introspect(deps, { token, caller }, NOW)).toEqual({ active: false });
   });
 
-  it('answers inactive for a token that does not parse, without saying why', async () => {
+  it('[RFC7662-2.1-02] answers inactive for a token that does not parse, without saying why', async () => {
     const key = await makeSigningKey();
     const deps = makeDeps({ keys: [key] });
 
@@ -287,7 +287,7 @@ describe('introspect', () => {
     expect(response).toEqual({ active: false });
   });
 
-  it('answers inactive for a token signed by another realm', async () => {
+  it('[RFC7662-4-03] answers inactive for a token signed by another realm', async () => {
     const key = await makeSigningKey();
     const foreignKey = await makeSigningKey();
     const foreignToken = await mintToken({ sid: 'session-1' }, foreignKey);
