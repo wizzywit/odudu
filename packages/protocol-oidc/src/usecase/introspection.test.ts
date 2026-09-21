@@ -152,7 +152,7 @@ describe('introspect', () => {
 
   // RFC 7662 §2.2's fused MUST also names "does not exist on this server"
   // as its own condition, distinct from "revoked".
-  it('answers inactive for a token whose grant does not exist', async () => {
+  it('[RFC7662-2.2-04] answers inactive for a token whose grant does not exist', async () => {
     const key = await makeSigningKey();
     const token = await mintToken({ sid: 'session-1' }, key);
     const deps = makeDeps({ keys: [key], loadGrant: () => Promise.resolve(null) });
