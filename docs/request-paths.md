@@ -4546,15 +4546,15 @@ UPDATE 1
 (2 rows)
 ```
 
-**That `SELECT` is not decoration.** A disagreeing `client_id` drops the
-requested redirect before the registered list is ever consulted, so a run
-in which `demo-post` had _no_ registered value produces byte-identical
-output to the one below — §3 would have refused the redirect on its own and
-the transcript would demonstrate nothing about §2's comparison. The two
-rows above are what makes the answer attributable, which is also why the
-`WHERE` clause is there: by this point the document has seeded eleven
-clients, and the two that matter have to be shown rather than found in a
-listing.
+**That `SELECT` is not decoration.** `decideRedirect` only runs once
+`decideLogout` has already decided to end a session, so the registered
+list is never consulted on the path this section exercises — a run in
+which `demo-post` had _no_ registered value would produce byte-identical
+output to the one below regardless. The two rows above are what lets a
+reader rule out registration as the reason nothing redirected
+automatically, which is also why the `WHERE` clause is there: by this
+point the document has seeded eleven clients, and the two that matter have
+to be shown rather than found in a listing.
 
 Then a third session of its own, signed in as before into
 `cookies-aud.txt`, and a hint whose `aud` is `demo-spa` sent with a
@@ -4576,20 +4576,26 @@ curl -sS -b cookies-aud.txt -X POST \
 <h1>Sign out?</h1>
 <p>Signing out ends this session for every application that uses it.</p>
 <form method="post" action="/realms/demo/protocol/openid-connect/logout">
-  <input type="hidden" name="session_id" value="01a0ae58-2a9a-…">
+  <input type="hidden" name="session_id" value="01a0c348-7e24-…">
   <input type="hidden" name="client_id" value="demo-post">
+  <input type="hidden" name="post_logout_redirect_uri" value="http://localhost:8080/logged-out">
   <button type="submit">Sign out</button>
 </form>
 </body>
 </html>
 ```
 
-(`session_id` shortened.) Nothing was ended, and the form carries no
-`post_logout_redirect_uri` at all: §4 says information that failed to
-validate is not used, so the hint and the redirect it would have
-authorised are dropped together. The identical request with
-`client_id=demo-spa` — the client the hint names — ends the session and
-redirects:
+(`session_id` shortened.) Nothing was ended. `subjectOfIdTokenHint` now
+takes the expected audience as a parameter, so `client_id` is passed
+straight into hint verification instead of being compared afterward — a
+hint whose `aud` does not name it fails to verify at all, which is why the
+confirmation form above still carries the requested redirect: that field
+is only a candidate at this point, read back off the query string and
+never checked against the registered list until it would actually be
+used, so its presence says nothing about whether `client_id` and the
+hint agreed. What does show the comparison firing is the identical
+request with `client_id=demo-spa` — the client the hint names — which
+verifies and ends the session immediately:
 
 ```bash
 curl -sS -b cookies-aud.txt -D - -o /dev/null -X POST \

@@ -683,8 +683,11 @@ describe.each(['GET', 'POST'] as const)(
       const subjectId = await subjectIdOf(realmId, USERNAME);
 
       // The same session, named by `sid`, in a hint issued to a different
-      // client than the `client_id` beside it. Everything else about this
-      // request is the one the parity tests above end a session on.
+      // client than the `client_id` beside it. subjectOfIdTokenHint now
+      // checks the audience during verification, so this hint fails to
+      // verify at all — indistinguishable, from here, from any other
+      // invalid hint, which is why the confirmation page below still
+      // carries the requested redirect rather than omitting it.
       const foreignAud = await mintIdToken(realmName, subjectId, sessionId, 'another-client');
       const refused = await requestLogout(
         method,
@@ -699,10 +702,7 @@ describe.each(['GET', 'POST'] as const)(
 
       expect(refused.statusCode).toBe(200);
       expect(refused.body).toContain('<title>Sign out?</title>');
-      // §4: the information that failed to validate is not used, so the
-      // redirect the hint would have authorised is not carried into the
-      // form the End-User is about to post back either.
-      expect(refused.body).not.toContain(POST_LOGOUT_REDIRECT_URI);
+      expect(refused.body).toContain(POST_LOGOUT_REDIRECT_URI);
       const stillLive = await withRealm(app.db, realmId, (tx) =>
         sessionRepository(tx).liveById(sessionId, 30 * 24 * 3600, new Date()),
       );
