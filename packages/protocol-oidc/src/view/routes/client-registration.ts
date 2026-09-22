@@ -53,7 +53,8 @@ function toResponseBody(client: RegisteredClient): Record<string, unknown> {
   };
 }
 
-const BEARER_CHALLENGE = 'Bearer tenant="client-registration"';
+// `realm` is RFC 7235 §4.1's auth-param name, not this project's word.
+const BEARER_CHALLENGE = 'Bearer realm="client-registration"';
 
 export function registerClientRegistrationRoute(
   app: FastifyInstance,

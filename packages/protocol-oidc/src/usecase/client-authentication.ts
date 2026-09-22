@@ -27,7 +27,8 @@ export interface BasicCredentials {
   secret: string;
 }
 
-export const WWW_AUTHENTICATE = 'Basic tenant="token"';
+// `realm` is RFC 7235 §4.1's auth-param name, not this project's word.
+export const WWW_AUTHENTICATE = 'Basic realm="token"';
 
 // RFC 6749 §3.2: a parameter sent with an empty value is treated as if it
 // had been omitted, so `client_secret=` must not count as a second

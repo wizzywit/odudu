@@ -450,6 +450,14 @@ describe('[RFC6750-3-01] WWW-Authenticate on a request with no credentials', () 
     // `error="invalid_token"` a rejected, present token gets below.
     expect(res.headers['www-authenticate']).not.toMatch(/error=/);
   });
+
+  // The auth-param name is RFC 7235 §4.1's `realm`, required for the Bearer
+  // scheme by RFC 6750 §3. It names an HTTP protection space, not anything
+  // this project owns, so no renaming of ours may touch it.
+  it('spells the challenge exactly, auth-param name included', async () => {
+    const res = await userinfo(primary.tenantName, null);
+    expect(res.headers['www-authenticate']).toBe('Bearer realm="userinfo"');
+  });
 });
 
 describe('the shape of every WWW-Authenticate challenge', () => {

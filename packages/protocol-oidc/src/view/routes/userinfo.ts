@@ -8,7 +8,8 @@ import { namesUnsupportedRepresentation } from '#/view/media-type';
 
 const PATH = '/tenants/:tenant/protocol/openid-connect/userinfo';
 
-const CHALLENGE = 'Bearer tenant="userinfo"';
+// `realm` is RFC 7235 §4.1's auth-param name, not this project's word.
+const CHALLENGE = 'Bearer realm="userinfo"';
 
 // The client behind the request is known once the access token's
 // signature verifies — `ok`, `insufficient_scope`, `signing_unavailable`,

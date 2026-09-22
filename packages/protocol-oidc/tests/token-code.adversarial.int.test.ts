@@ -638,6 +638,15 @@ describe('client authentication', () => {
     expect(res.headers['www-authenticate']).toMatch(/Basic/);
   });
 
+  // The auth-param name is RFC 7235 §4.1's `realm`, which RFC 6749 §5.2
+  // inherits for the Basic challenge. It names an HTTP protection space,
+  // not anything this project owns, so no renaming of ours may touch it.
+  it('spells the challenge exactly, auth-param name included', async () => {
+    const { code } = await issueCode();
+    const res = await redeem(code, { secret: 'wrong' });
+    expect(res.headers['www-authenticate']).toBe('Basic realm="token"');
+  });
+
   it('refuses a public client that presents a secret', async () => {
     const { code } = await issueCode({ client: spa });
     const res = await redeem(code, { as: spa, secret: 'anything' });
