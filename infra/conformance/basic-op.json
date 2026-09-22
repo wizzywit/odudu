@@ -2,7 +2,7 @@
   "alias": "odudu-basic-op",
   "description": "odudu Basic OP: authorization_code with PKCE, static client",
   "server": {
-    "discoveryUrl": "https://proxy/realms/conformance/.well-known/openid-configuration"
+    "discoveryUrl": "https://proxy/tenants/conformance/.well-known/openid-configuration"
   },
   "client": {
     "client_id": "conformance-client",
@@ -21,12 +21,12 @@
   },
   "browser": [
     {
-      "match": "https://proxy/realms/conformance/protocol/openid-connect/auth*",
+      "match": "https://proxy/tenants/conformance/protocol/openid-connect/auth*",
       "tasks": [
         {
           "task": "Login",
           "optional": true,
-          "match": "https://proxy/realms/conformance/protocol/openid-connect/auth*",
+          "match": "https://proxy/tenants/conformance/protocol/openid-connect/auth*",
           "commands": [
             ["text", "name", "username", "conformance-user", "optional"],
             ["text", "name", "password", "conformance-password", "optional"],

@@ -2,7 +2,7 @@
   "alias": "odudu-dynamic-op",
   "description": "odudu Dynamic OP: RFC 7591 dynamic registration, private_key_jwt client auth",
   "server": {
-    "discoveryUrl": "https://proxy/realms/conformance/.well-known/openid-configuration"
+    "discoveryUrl": "https://proxy/tenants/conformance/.well-known/openid-configuration"
   },
   "client": {
     "client_name": "odudu-dynamic-op",
@@ -10,12 +10,12 @@
   },
   "browser": [
     {
-      "match": "https://proxy/realms/conformance/protocol/openid-connect/auth*",
+      "match": "https://proxy/tenants/conformance/protocol/openid-connect/auth*",
       "tasks": [
         {
           "task": "Login",
           "optional": true,
-          "match": "https://proxy/realms/conformance/protocol/openid-connect/auth*",
+          "match": "https://proxy/tenants/conformance/protocol/openid-connect/auth*",
           "commands": [
             ["text", "name", "username", "conformance-user", "optional"],
             ["text", "name", "password", "conformance-password", "optional"],
@@ -25,7 +25,7 @@
         {
           "task": "Consent",
           "optional": true,
-          "match": "https://proxy/realms/conformance/login-actions/consent*",
+          "match": "https://proxy/tenants/conformance/login-actions/consent*",
           "commands": [["click", "css", "button[name=decision][value=allow]", "optional"]]
         },
         {

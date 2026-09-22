@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Brings up the OpenID Foundation conformance suite and odudu on a shared
-# docker network, seeds a realm, runs the Config OP discovery plan through
+# docker network, seeds a tenant, runs the Config OP discovery plan through
 # the suite's own HTTP API (no browser, no token — see README.md), and
 # fails the build on any test that does not pass. This is the script the
 # `conformance` job in .github/workflows/verify.yml runs; it is also the
@@ -11,7 +11,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SUITE_TAG="release-v5.1.36"
 SUITE_DIR="${SUITE_DIR:-$(mktemp -d)/conformance-suite}"
 NETWORK=odudu-conformance
-REALM=conformance
+TENANT=conformance
 
 cleanup() {
   docker compose -p odudu-conformance -f "$SCRIPT_DIR/compose.yaml" down -v --remove-orphans || true
@@ -45,7 +45,7 @@ done
 [ "$ready" -eq 1 ] || { echo "odudu did not become ready" >&2; exit 1; }
 
 docker compose -p odudu-conformance -f "$SCRIPT_DIR/compose.yaml" exec -T odudu \
-  node dist/main.js seed --realm "$REALM" --client conformance-client \
+  node dist/main.js seed --tenant "$TENANT" --client conformance-client \
   --client-secret conformance-secret \
   --redirect-uri "https://localhost.emobix.co.uk:8443/test/a/odudu-config-op/callback"
 
