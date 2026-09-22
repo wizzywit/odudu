@@ -161,13 +161,15 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
     // /userinfo's own gate on the `roles` claim: which role ids the token's
     // granted scope reaches, and whether its client bypasses that
     // intersection — the same two facts token issuance reads from the same
-    // tables, so a role withheld from the token cannot resurface here.
+    // tables, so a role withheld from the token cannot resurface here. A
+    // disabled client never bypasses, for the reason given below
+    // resolveClientWebOrigins.
     const resolveRoleReach = (realmId: string, oauthClientId: string, scope: readonly string[]) =>
       withRealm(deps.database.db, realmId, async (tx) => {
         const client = await clientRepository(tx).byClientId(oauthClientId);
         return {
           reachableRoleIds: await reachableRoleIds(tx, scope),
-          fullScopeAllowed: client?.fullScopeAllowed ?? false,
+          fullScopeAllowed: client?.enabled === true && client.fullScopeAllowed,
         };
       });
 

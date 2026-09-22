@@ -508,6 +508,18 @@ idle window — shorter than the session's own — passes.
   the session's own `remembered` flag) through instead of a bare
   `idleSeconds`.
 
+**`/userinfo` honours a disabled client's live access token at all.**
+`usecase/userinfo.ts`'s gate (~line 134) checks `realm?.enabled` only —
+nothing there reads the token's client. `resolveRoleReach` now refuses a
+disabled client's `fullScopeAllowed` bypass, but a disabled client's token
+still authenticates at `/userinfo` and gets an ordinary, correctly narrowed
+response back. Whether disabling a client should also kill its live tokens
+at `/userinfo` is a design question this fix does not answer.
+
+- Trigger: whichever phase next revisits token liveness or client
+  lifecycle — decide there whether `/userinfo` should read `client.enabled`
+  the way `resolveRoleReach` and `resolveClientWebOrigins` do.
+
 ## Deferred from the final review
 
 - **Closed, differently than this item expected.** The snapshots are not
