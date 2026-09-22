@@ -173,7 +173,7 @@ describe('outboxModule', () => {
 
   it('reports a skipped pass as skipped rather than as a pass that sent nothing', async () => {
     const log = recorder();
-    const skipped: SendPendingOutcome = { ran: false, reason: 'no realm was enumerated' };
+    const skipped: SendPendingOutcome = { ran: false, reason: 'no tenant was enumerated' };
     const module = outboxModule(DEPS, recordingPass(skipped).pass);
 
     await module.start?.(context(APP_URL, log.logger));

@@ -42,29 +42,29 @@ const silent: Logger = {
   child: () => silent,
 };
 
-async function seedReapableRealm(): Promise<string> {
-  const realmId = newId();
+async function seedReapableTenant(): Promise<string> {
+  const tenantId = newId();
   const subjectId = newId();
 
   await owner.db.execute(sql`
-    INSERT INTO realms (id, name) VALUES (${realmId}, ${`sched-${realmId}`})
+    INSERT INTO tenants (id, name) VALUES (${tenantId}, ${`sched-${tenantId}`})
   `);
   await owner.db.execute(sql`
-    INSERT INTO subjects (id, realm_id, type) VALUES (${subjectId}, ${realmId}, 'user')
+    INSERT INTO subjects (id, tenant_id, type) VALUES (${subjectId}, ${tenantId}, 'user')
   `);
   for (let index = 0; index < REAPABLE_TOKENS; index += 1) {
     await owner.db.execute(sql`
-      INSERT INTO action_tokens (id, realm_id, subject_id, type, token_hash, expires_at)
-      VALUES (${newId()}, ${realmId}, ${subjectId}, 'verify_email', ${newId()},
+      INSERT INTO action_tokens (id, tenant_id, subject_id, type, token_hash, expires_at)
+      VALUES (${newId()}, ${tenantId}, ${subjectId}, 'verify_email', ${newId()},
               ${new Date(NOW.getTime() - 8 * DAY).toISOString()}::timestamptz)
     `);
   }
-  return realmId;
+  return tenantId;
 }
 
-async function actionTokensLeft(realmId: string): Promise<number> {
+async function actionTokensLeft(tenantId: string): Promise<number> {
   const rows = await owner.db.execute<{ n: string }>(
-    sql`SELECT count(*) AS n FROM action_tokens WHERE realm_id = ${realmId}`,
+    sql`SELECT count(*) AS n FROM action_tokens WHERE tenant_id = ${tenantId}`,
   );
   return Number(rows[0]?.n ?? '-1');
 }
@@ -89,12 +89,12 @@ afterAll(async () => {
 
 describe('two servers reaping on their own schedules', () => {
   // The lock lives in the pass, not in the loop
-  // (`withEachRealmExclusive`), so what is at stake here is whether the
+  // (`withEachTenantExclusive`), so what is at stake here is whether the
   // loop reaches it: one tick of two schedulers against one database must
   // delete each row once and no more. Counted in rows rather than read out
   // of `pg_locks`, because the property is that the work happened once.
   it('delete each expired row once between them, not once each', async () => {
-    const realmId = await seedReapableRealm();
+    const tenantId = await seedReapableTenant();
 
     const passes: Promise<ReapOutcome>[] = [];
     let entered = 0;
@@ -139,6 +139,6 @@ describe('two servers reaping on their own schedules', () => {
       0,
     );
     expect(deleted).toBe(REAPABLE_TOKENS);
-    expect(await actionTokensLeft(realmId)).toBe(0);
+    expect(await actionTokensLeft(tenantId)).toBe(0);
   });
 });

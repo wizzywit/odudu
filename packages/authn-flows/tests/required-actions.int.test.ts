@@ -1,13 +1,13 @@
 import {
   createDatabase,
   MIGRATIONS_DIR,
-  realms,
+  tenants,
   runMigrations,
-  withRealm,
+  withTenant,
   type DatabaseHandle,
-  type RealmScopedDatabase,
+  type TenantScopedDatabase,
 } from '@odudu/db';
-import { expectCrossRealmMethodProbe } from '@odudu/db/testing';
+import { expectCrossTenantMethodProbe } from '@odudu/db/testing';
 import { hashPassword, subjectRepository, userCredentials, users } from '@odudu/domain-identity';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
@@ -68,14 +68,14 @@ const request: PendingRequest = {
 const USERNAME = 'ada';
 const PASSWORD = 'correct horse battery staple';
 
-async function seedRealmAndUser(tx: RealmScopedDatabase, realmId: string): Promise<string> {
-  await tx.insert(realms).values({ id: realmId, name: `realm-${realmId}` });
-  await provisionBrowserFlow(tx, realmId);
-  const subject = await subjectRepository(tx).create({ realmId, type: 'user' });
-  await tx.insert(users).values({ subjectId: subject.id, realmId, username: USERNAME });
+async function seedTenantAndUser(tx: TenantScopedDatabase, tenantId: string): Promise<string> {
+  await tx.insert(tenants).values({ id: tenantId, name: `tenant-${tenantId}` });
+  await provisionBrowserFlow(tx, tenantId);
+  const subject = await subjectRepository(tx).create({ tenantId, type: 'user' });
+  await tx.insert(users).values({ subjectId: subject.id, tenantId, username: USERNAME });
   await tx.insert(userCredentials).values({
     id: newId(),
-    realmId,
+    tenantId,
     subjectId: subject.id,
     type: 'password',
     secretData: { hash: await hashPassword(PASSWORD) },
@@ -85,16 +85,16 @@ async function seedRealmAndUser(tx: RealmScopedDatabase, realmId: string): Promi
 
 describe('a pending required action blocks completion, not authentication', () => {
   it('authenticates correctly, but establishes no session while an action is owed', async () => {
-    const realmId = newId();
+    const tenantId = newId();
 
-    const { authSessionId, subjectId } = await withRealm(app.db, realmId, async (tx) => {
-      const subjectId = await seedRealmAndUser(tx, realmId);
-      await requiredActionRepository(tx).add(realmId, subjectId, 'configure-totp');
-      const { authSessionId } = await startAuthentication(tx, realmId, request);
+    const { authSessionId, subjectId } = await withTenant(app.db, tenantId, async (tx) => {
+      const subjectId = await seedTenantAndUser(tx, tenantId);
+      await requiredActionRepository(tx).add(tenantId, subjectId, 'configure-totp');
+      const { authSessionId } = await startAuthentication(tx, tenantId, request);
       return { authSessionId, subjectId };
     });
 
-    const { outcome, action } = await withRealm(app.db, realmId, async (tx) => {
+    const { outcome, action } = await withTenant(app.db, tenantId, async (tx) => {
       const outcome = await advance(tx, authSessionId, { username: USERNAME, password: PASSWORD });
       const pending =
         outcome.kind === 'success'
@@ -110,7 +110,7 @@ describe('a pending required action blocks completion, not authentication', () =
     // Nothing a completed login would have produced exists: the
     // authentication session survives unconsumed, and no SSO session row
     // was ever created for this subject.
-    const { consumedAt, sessionRows } = await withRealm(app.db, realmId, async (tx) => {
+    const { consumedAt, sessionRows } = await withTenant(app.db, tenantId, async (tx) => {
       const record = await authenticationSessionRepository(tx).byId(authSessionId);
       const rows = await tx.select().from(sessions).where(eq(sessions.subjectId, subjectId));
       return { consumedAt: record?.consumedAt ?? null, sessionRows: rows };
@@ -120,16 +120,16 @@ describe('a pending required action blocks completion, not authentication', () =
   });
 
   it('completes the login once the action is done', async () => {
-    const realmId = newId();
+    const tenantId = newId();
 
-    const { authSessionId, subjectId } = await withRealm(app.db, realmId, async (tx) => {
-      const subjectId = await seedRealmAndUser(tx, realmId);
-      await requiredActionRepository(tx).add(realmId, subjectId, 'update-password');
-      const { authSessionId } = await startAuthentication(tx, realmId, request);
+    const { authSessionId, subjectId } = await withTenant(app.db, tenantId, async (tx) => {
+      const subjectId = await seedTenantAndUser(tx, tenantId);
+      await requiredActionRepository(tx).add(tenantId, subjectId, 'update-password');
+      const { authSessionId } = await startAuthentication(tx, tenantId, request);
       return { authSessionId, subjectId };
     });
 
-    await withRealm(app.db, realmId, async (tx) => {
+    await withTenant(app.db, tenantId, async (tx) => {
       const outcome = await advance(tx, authSessionId, { username: USERNAME, password: PASSWORD });
       if (outcome.kind !== 'success') throw new Error('expected authentication to succeed');
       const pending = await requiredActionRepository(tx).pendingFor(outcome.subjectId);
@@ -141,7 +141,7 @@ describe('a pending required action blocks completion, not authentication', () =
 
       const consumed = await consumeAuthenticationSession(tx, authSessionId);
       expect(consumed).toBe(true);
-      const { sessionId } = await establishSession(tx, realmId, outcome.subjectId, 36_000, [
+      const { sessionId } = await establishSession(tx, tenantId, outcome.subjectId, 36_000, [
         'password',
       ]);
       const established = await sessionRepository(tx).byId(sessionId);
@@ -150,16 +150,16 @@ describe('a pending required action blocks completion, not authentication', () =
   });
 
   it('runs a second pending action before the login can complete', async () => {
-    const realmId = newId();
+    const tenantId = newId();
 
-    const subjectId = await withRealm(app.db, realmId, async (tx) => {
-      const subjectId = await seedRealmAndUser(tx, realmId);
-      await requiredActionRepository(tx).add(realmId, subjectId, 'update-password');
-      await requiredActionRepository(tx).add(realmId, subjectId, 'configure-totp');
+    const subjectId = await withTenant(app.db, tenantId, async (tx) => {
+      const subjectId = await seedTenantAndUser(tx, tenantId);
+      await requiredActionRepository(tx).add(tenantId, subjectId, 'update-password');
+      await requiredActionRepository(tx).add(tenantId, subjectId, 'configure-totp');
       return subjectId;
     });
 
-    await withRealm(app.db, realmId, async (tx) => {
+    await withTenant(app.db, tenantId, async (tx) => {
       const repository = requiredActionRepository(tx);
       expect(nextRequiredAction(await repository.pendingFor(subjectId))).toBe('update-password');
 
@@ -173,11 +173,11 @@ describe('a pending required action blocks completion, not authentication', () =
 });
 
 describe('requiredActionRepository', () => {
-  it("cannot see a foreign realm's pending actions through pendingFor", async () => {
-    await expectCrossRealmMethodProbe(app.db, {
-      seed: async (tx, realmId) => {
-        const subjectId = await seedRealmAndUser(tx, realmId);
-        await requiredActionRepository(tx).add(realmId, subjectId, 'configure-passkey');
+  it("cannot see a foreign tenant's pending actions through pendingFor", async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        const subjectId = await seedTenantAndUser(tx, tenantId);
+        await requiredActionRepository(tx).add(tenantId, subjectId, 'configure-passkey');
         return subjectId;
       },
       verifySeeded: async (tx, subjectId) => {
@@ -191,26 +191,28 @@ describe('requiredActionRepository', () => {
     });
   });
 
-  // Unlike pendingFor and complete, add supplies its own realm_id rather
+  // Unlike pendingFor and complete, add supplies its own tenant_id rather
   // than being filtered by a row that already carries one — its isolation
   // rests entirely on PostgreSQL reusing the policy's USING clause as the
   // INSERT check, since no WITH CHECK is written. This is what proves that
   // reuse actually happens, rather than assuming it from the policy's shape.
-  it('refuses to add a pending action under a realm context that does not match', async () => {
-    const realmA = newId();
-    const realmB = newId();
+  it('refuses to add a pending action under a tenant context that does not match', async () => {
+    const tenantA = newId();
+    const tenantB = newId();
 
-    const subjectA = await withRealm(app.db, realmA, async (tx) => seedRealmAndUser(tx, realmA));
-    await withRealm(app.db, realmB, async (tx) => {
-      await tx.insert(realms).values({ id: realmB, name: `realm-${realmB}` });
+    const subjectA = await withTenant(app.db, tenantA, async (tx) =>
+      seedTenantAndUser(tx, tenantA),
+    );
+    await withTenant(app.db, tenantB, async (tx) => {
+      await tx.insert(tenants).values({ id: tenantB, name: `tenant-${tenantB}` });
     });
 
     let error: unknown;
     try {
-      await withRealm(app.db, realmB, async (tx) =>
-        requiredActionRepository(tx).add(realmA, subjectA, 'configure-totp'),
+      await withTenant(app.db, tenantB, async (tx) =>
+        requiredActionRepository(tx).add(tenantA, subjectA, 'configure-totp'),
       );
-      expect.unreachable('expected the cross-realm insert to be rejected');
+      expect.unreachable('expected the cross-tenant insert to be rejected');
     } catch (caught) {
       error = caught;
     }
@@ -220,17 +222,17 @@ describe('requiredActionRepository', () => {
     expect(cause).toBeInstanceOf(Error);
     expect((cause as Error).message).toContain('row-level security policy');
 
-    const pendingUnderA = await withRealm(app.db, realmA, async (tx) =>
+    const pendingUnderA = await withTenant(app.db, tenantA, async (tx) =>
       requiredActionRepository(tx).pendingFor(subjectA),
     );
     expect(pendingUnderA).toEqual([]);
   });
 
-  it("does not remove a foreign realm's pending action through complete", async () => {
-    await expectCrossRealmMethodProbe(app.db, {
-      seed: async (tx, realmId) => {
-        const subjectId = await seedRealmAndUser(tx, realmId);
-        await requiredActionRepository(tx).add(realmId, subjectId, 'generate-recovery-codes');
+  it("does not remove a foreign tenant's pending action through complete", async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        const subjectId = await seedTenantAndUser(tx, tenantId);
+        await requiredActionRepository(tx).add(tenantId, subjectId, 'generate-recovery-codes');
         return subjectId;
       },
       verifySeeded: async (tx, subjectId) => {
@@ -245,7 +247,7 @@ describe('requiredActionRepository', () => {
         // The delete itself is not expected to throw — RLS filters the row
         // out of its own WHERE, so it silently deletes nothing.
       },
-      verifyRealmAUnaffected: async (tx, subjectId) => {
+      verifyTenantAUnaffected: async (tx, subjectId) => {
         const pending = await requiredActionRepository(tx).pendingFor(subjectId);
         expect(pending).toEqual(['generate-recovery-codes']);
       },
@@ -253,24 +255,24 @@ describe('requiredActionRepository', () => {
   });
 
   it('adding the same action twice does not duplicate it', async () => {
-    const realmId = newId();
-    await withRealm(app.db, realmId, async (tx) => {
-      const subjectId = await seedRealmAndUser(tx, realmId);
+    const tenantId = newId();
+    await withTenant(app.db, tenantId, async (tx) => {
+      const subjectId = await seedTenantAndUser(tx, tenantId);
       const repository = requiredActionRepository(tx);
-      await repository.add(realmId, subjectId, 'configure-totp');
-      await repository.add(realmId, subjectId, 'configure-totp');
+      await repository.add(tenantId, subjectId, 'configure-totp');
+      await repository.add(tenantId, subjectId, 'configure-totp');
       expect(await repository.pendingFor(subjectId)).toEqual(['configure-totp']);
     });
   });
 
   it('refuses an action outside the four required actions', async () => {
-    const realmId = newId();
+    const tenantId = newId();
     let error: unknown;
     try {
-      await withRealm(app.db, realmId, async (tx) => {
-        const subjectId = await seedRealmAndUser(tx, realmId);
+      await withTenant(app.db, tenantId, async (tx) => {
+        const subjectId = await seedTenantAndUser(tx, tenantId);
         await requiredActionRepository(tx).add(
-          realmId,
+          tenantId,
           subjectId,
           'delete-account' as RequiredAction,
         );

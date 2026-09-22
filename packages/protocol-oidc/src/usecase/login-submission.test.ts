@@ -10,8 +10,8 @@ import {
 // refused as malformed and prove nothing about the path under test.
 const AUTH_SESSION_ID = '01a0a998-8326-7900-8fa6-dd06b842b269';
 
-const REALM = {
-  id: 'realm-1',
+const TENANT = {
+  id: 'tenant-1',
   enabled: true,
   verifyEmail: false,
   ssoSessionMaxSeconds: 36_000,
@@ -22,11 +22,11 @@ const REALM = {
   maxSessionsPerBrowser: 25,
 };
 
-const REALM_LIFESPANS = {
-  ssoSessionIdleSeconds: REALM.ssoSessionIdleSeconds,
-  ssoSessionMaxSeconds: REALM.ssoSessionMaxSeconds,
-  rememberMeIdleSeconds: REALM.rememberMeIdleSeconds,
-  rememberMeMaxSeconds: REALM.rememberMeMaxSeconds,
+const TENANT_LIFESPANS = {
+  ssoSessionIdleSeconds: TENANT.ssoSessionIdleSeconds,
+  ssoSessionMaxSeconds: TENANT.ssoSessionMaxSeconds,
+  rememberMeIdleSeconds: TENANT.rememberMeIdleSeconds,
+  rememberMeMaxSeconds: TENANT.rememberMeMaxSeconds,
 };
 
 const PENDING = {
@@ -61,7 +61,7 @@ function harness(): Harness {
   const resetAuthenticationProgress = vi.fn().mockResolvedValue(undefined);
   const recordRememberMe = vi.fn().mockResolvedValue(undefined);
   const deps: LoginSubmissionDeps = {
-    findRealm: vi.fn().mockResolvedValue(REALM),
+    findTenant: vi.fn().mockResolvedValue(TENANT),
     advance,
     loadPendingRequest: vi.fn().mockResolvedValue(PENDING),
     resolveClientId: vi.fn().mockResolvedValue('client-uuid-1'),
@@ -144,14 +144,14 @@ describe('handleLoginSubmission — the success path', () => {
     expect(outcome).toEqual({
       kind: 'redirect',
       location:
-        'https://app.example/callback?code=code-1&state=xyz&iss=https%3A%2F%2Fidp.example%2Frealms%2Facme',
+        'https://app.example/callback?code=code-1&state=xyz&iss=https%3A%2F%2Fidp.example%2Ftenants%2Facme',
       sessionId: 'session-1',
       ephemeralSessionIds: ['session-1'],
       persistentSessionIds: [],
-      persistentMaxAgeSeconds: REALM.rememberMeMaxSeconds,
+      persistentMaxAgeSeconds: TENANT.rememberMeMaxSeconds,
     });
     expect(completeLogin).toHaveBeenCalledWith({
-      realmId: REALM.id,
+      tenantId: TENANT.id,
       authSessionId: AUTH_SESSION_ID,
       subjectId: 'subject-1',
       clientId: 'client-uuid-1',
@@ -161,8 +161,8 @@ describe('handleLoginSubmission — the success path', () => {
       codeChallenge: PENDING.codeChallenge,
       codeChallengeMethod: PENDING.codeChallengeMethod,
       remembered: false,
-      lifespans: REALM_LIFESPANS,
-      maxSessionsPerBrowser: REALM.maxSessionsPerBrowser,
+      lifespans: TENANT_LIFESPANS,
+      maxSessionsPerBrowser: TENANT.maxSessionsPerBrowser,
       browserSessionIds: [],
       authenticators: ['password'],
       resource: [],
@@ -170,7 +170,7 @@ describe('handleLoginSubmission — the success path', () => {
     });
   });
 
-  it('remembers the login when the field is set and the realm allows it', async () => {
+  it('remembers the login when the field is set and the tenant allows it', async () => {
     const { deps, completeLogin } = harness();
     const outcome = await handleLoginSubmission(
       deps,
@@ -190,9 +190,9 @@ describe('handleLoginSubmission — the success path', () => {
     );
   });
 
-  it('ignores the field when the realm does not allow remembering', async () => {
+  it('ignores the field when the tenant does not allow remembering', async () => {
     const { deps, completeLogin } = harness();
-    deps.findRealm = vi.fn().mockResolvedValue({ ...REALM, rememberMeAllowed: false });
+    deps.findTenant = vi.fn().mockResolvedValue({ ...TENANT, rememberMeAllowed: false });
 
     const outcome = await handleLoginSubmission(
       deps,
@@ -216,9 +216,9 @@ describe('handleLoginSubmission — the success path', () => {
   // runs it later, from recordRememberMe's parked value, not this
   // request's own field. The same `remembered` variable feeds both
   // branches today; this only stays true if something keeps asserting it.
-  it('ignores the field on the consent path too, when the realm does not allow remembering', async () => {
+  it('ignores the field on the consent path too, when the tenant does not allow remembering', async () => {
     const { deps, recordRememberMe } = harness();
-    deps.findRealm = vi.fn().mockResolvedValue({ ...REALM, rememberMeAllowed: false });
+    deps.findTenant = vi.fn().mockResolvedValue({ ...TENANT, rememberMeAllowed: false });
     deps.consentContext = vi.fn().mockResolvedValue({
       clientName: 'Test Client',
       consentRequired: true,
@@ -238,14 +238,14 @@ describe('handleLoginSubmission — the success path', () => {
     );
 
     expect(outcome).toMatchObject({ kind: 'consent' });
-    expect(recordRememberMe).toHaveBeenCalledWith(REALM.id, AUTH_SESSION_ID, false);
+    expect(recordRememberMe).toHaveBeenCalledWith(TENANT.id, AUTH_SESSION_ID, false);
   });
 });
 
-describe('handleLoginSubmission — a realm that requires a verified address', () => {
+describe('handleLoginSubmission — a tenant that requires a verified address', () => {
   it('does not complete the login, and issues no code, when the address is not verified', async () => {
     const { deps, completeLogin, checkEmailVerification } = harness();
-    deps.findRealm = vi.fn().mockResolvedValue({ ...REALM, verifyEmail: true });
+    deps.findTenant = vi.fn().mockResolvedValue({ ...TENANT, verifyEmail: true });
     checkEmailVerification.mockResolvedValue({ verified: false, hasEmail: true });
 
     const outcome = await handleLoginSubmission(
@@ -267,7 +267,7 @@ describe('handleLoginSubmission — a realm that requires a verified address', (
 
   it('says so, distinctly, when the account has no address to verify at all', async () => {
     const { deps, checkEmailVerification } = harness();
-    deps.findRealm = vi.fn().mockResolvedValue({ ...REALM, verifyEmail: true });
+    deps.findTenant = vi.fn().mockResolvedValue({ ...TENANT, verifyEmail: true });
     checkEmailVerification.mockResolvedValue({ verified: false, hasEmail: false });
 
     const outcome = await handleLoginSubmission(
@@ -288,7 +288,7 @@ describe('handleLoginSubmission — a realm that requires a verified address', (
 
   it('completes the login once the address is verified', async () => {
     const { deps, checkEmailVerification } = harness();
-    deps.findRealm = vi.fn().mockResolvedValue({ ...REALM, verifyEmail: true });
+    deps.findTenant = vi.fn().mockResolvedValue({ ...TENANT, verifyEmail: true });
     checkEmailVerification.mockResolvedValue({ verified: true, hasEmail: true });
 
     const outcome = await handleLoginSubmission(
@@ -454,7 +454,7 @@ describe('handleLoginSubmission — a hint naming somebody other than who signed
     );
 
     expect(outcome.kind).toBe('error_redirect');
-    expect(resetAuthenticationProgress).toHaveBeenCalledWith('realm-1', AUTH_SESSION_ID);
+    expect(resetAuthenticationProgress).toHaveBeenCalledWith('tenant-1', AUTH_SESSION_ID);
     expect(completeLogin).not.toHaveBeenCalled();
   });
 

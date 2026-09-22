@@ -7,8 +7,8 @@ import {
   type ClientKeyDeps,
 } from '#/repository/client-keys';
 
-const REALM = 'a4f6c1a0-1a1a-4b1a-9c1a-000000000001';
-const OTHER_REALM = 'b4f6c1a0-1a1a-4b1a-9c1a-000000000002';
+const TENANT = 'a4f6c1a0-1a1a-4b1a-9c1a-000000000001';
+const OTHER_TENANT = 'b4f6c1a0-1a1a-4b1a-9c1a-000000000002';
 
 const deps = (overrides: Partial<ClientKeyDeps> = {}): ClientKeyDeps => ({
   lookup: () => Promise.resolve(['93.184.216.34']),
@@ -44,7 +44,7 @@ describe('clientKeySet', () => {
         },
       }),
     );
-    await keys.fetch('https://rp.example/jwks.json', REALM);
+    await keys.fetch('https://rp.example/jwks.json', TENANT);
     expect(connectedTo).toEqual(['93.184.216.34']);
   });
 
@@ -52,7 +52,7 @@ describe('clientKeySet', () => {
     const keys = clientKeySet(
       deps({ request: () => Promise.resolve({ status: 302, contentType: null, body: '' }) }),
     );
-    await expect(keys.fetch('https://rp.example/j', REALM)).rejects.toThrow(/redirect/u);
+    await expect(keys.fetch('https://rp.example/j', TENANT)).rejects.toThrow(/redirect/u);
   });
 
   it('refuses a response that is not JSON', async () => {
@@ -61,7 +61,7 @@ describe('clientKeySet', () => {
         request: () => Promise.resolve({ status: 200, contentType: 'text/html', body: '<html>' }),
       }),
     );
-    await expect(keys.fetch('https://rp.example/j', REALM)).rejects.toThrow(/content type/u);
+    await expect(keys.fetch('https://rp.example/j', TENANT)).rejects.toThrow(/content type/u);
   });
 
   it.each([
@@ -72,7 +72,7 @@ describe('clientKeySet', () => {
     const keys = clientKeySet(
       deps({ request: () => Promise.resolve({ status: 200, contentType, body: '{"keys":[]}' }) }),
     );
-    await expect(keys.fetch('https://rp.example/j', REALM)).resolves.toEqual({ keys: [] });
+    await expect(keys.fetch('https://rp.example/j', TENANT)).resolves.toEqual({ keys: [] });
   });
 
   it('refuses a media type that merely starts with application/json', async () => {
@@ -82,7 +82,7 @@ describe('clientKeySet', () => {
           Promise.resolve({ status: 200, contentType: 'application/jsonish', body: '{}' }),
       }),
     );
-    await expect(keys.fetch('https://rp.example/j', REALM)).rejects.toThrow(/content type/u);
+    await expect(keys.fetch('https://rp.example/j', TENANT)).rejects.toThrow(/content type/u);
   });
 
   it('refuses a body past the cap', async () => {
@@ -96,7 +96,7 @@ describe('clientKeySet', () => {
           }),
       }),
     );
-    await expect(keys.fetch('https://rp.example/j', REALM)).rejects.toThrow(/too large/u);
+    await expect(keys.fetch('https://rp.example/j', TENANT)).rejects.toThrow(/too large/u);
   });
 
   it('serves a second call from the cache inside the TTL', async () => {
@@ -113,12 +113,12 @@ describe('clientKeySet', () => {
         },
       }),
     );
-    await keys.fetch('https://rp.example/j', REALM);
-    await keys.fetch('https://rp.example/j', REALM);
+    await keys.fetch('https://rp.example/j', TENANT);
+    await keys.fetch('https://rp.example/j', TENANT);
     expect(calls).toBe(1);
   });
 
-  it('serves a successful fetch to a second realm from the same cache entry', async () => {
+  it('serves a successful fetch to a second tenant from the same cache entry', async () => {
     let calls = 0;
     const keys = clientKeySet(
       deps({
@@ -132,8 +132,8 @@ describe('clientKeySet', () => {
         },
       }),
     );
-    await keys.fetch('https://rp.example/j', REALM);
-    await expect(keys.fetch('https://rp.example/j', OTHER_REALM)).resolves.toEqual({ keys: [] });
+    await keys.fetch('https://rp.example/j', TENANT);
+    await expect(keys.fetch('https://rp.example/j', OTHER_TENANT)).resolves.toEqual({ keys: [] });
     expect(calls).toBe(1);
   });
 
@@ -157,8 +157,8 @@ describe('clientKeySet', () => {
         },
       }),
     );
-    await keys.fetch('https://rp.example/j', REALM);
-    await keys.fetch('https://rp.example/j', REALM);
+    await keys.fetch('https://rp.example/j', TENANT);
+    await keys.fetch('https://rp.example/j', TENANT);
     expect(calls).toBe(1);
   });
 
@@ -179,8 +179,8 @@ describe('clientKeySet', () => {
     );
 
     const both = Promise.all([
-      keys.fetch('https://rp.example/j', REALM),
-      keys.fetch('https://rp.example/j', REALM),
+      keys.fetch('https://rp.example/j', TENANT),
+      keys.fetch('https://rp.example/j', TENANT),
     ]);
     releaseFetch?.();
     await both;
@@ -198,8 +198,8 @@ describe('clientKeySet', () => {
         },
       }),
     );
-    await expect(keys.fetch('https://rp.example/j', REALM)).rejects.toThrow();
-    await expect(keys.fetch('https://rp.example/j', REALM)).rejects.toThrow();
+    await expect(keys.fetch('https://rp.example/j', TENANT)).rejects.toThrow();
+    await expect(keys.fetch('https://rp.example/j', TENANT)).rejects.toThrow();
     expect(calls).toBe(1);
   });
 
@@ -221,16 +221,16 @@ describe('clientKeySet', () => {
       }),
     );
 
-    await expect(keys.fetch('https://rp.example/j', REALM)).rejects.toThrow();
+    await expect(keys.fetch('https://rp.example/j', TENANT)).rejects.toThrow();
     clock.advance(NEGATIVE_CACHE_TTL_MS + 1);
     // If the failed attempt's in-flight entry were never cleared, this call
     // would still be awaiting that settled-rejected promise and reject too,
     // rather than reaching the network for a second, successful attempt.
-    await expect(keys.fetch('https://rp.example/j', REALM)).resolves.toEqual({ keys: [] });
+    await expect(keys.fetch('https://rp.example/j', TENANT)).resolves.toEqual({ keys: [] });
     expect(calls).toBe(2);
   });
 
-  it('does not let one realm mark a uri failed for another realm', async () => {
+  it('does not let one tenant mark a uri failed for another tenant', async () => {
     let calls = 0;
     const keys = clientKeySet(
       deps({
@@ -240,12 +240,12 @@ describe('clientKeySet', () => {
         },
       }),
     );
-    await expect(keys.fetch('https://rp.example/j', REALM)).rejects.toThrow();
-    await expect(keys.fetch('https://rp.example/j', OTHER_REALM)).rejects.toThrow();
+    await expect(keys.fetch('https://rp.example/j', TENANT)).rejects.toThrow();
+    await expect(keys.fetch('https://rp.example/j', OTHER_TENANT)).rejects.toThrow();
     expect(calls).toBe(2);
   });
 
-  it('records a negative entry for a realm that only joined a failing attempt, not just the one that started it', async () => {
+  it('records a negative entry for a tenant that only joined a failing attempt, not just the one that started it', async () => {
     let calls = 0;
     let releaseFetch: (() => void) | undefined;
     const gate = new Promise<void>((resolve) => {
@@ -262,8 +262,8 @@ describe('clientKeySet', () => {
     );
 
     const raced = Promise.allSettled([
-      keys.fetch('https://rp.example/j', REALM),
-      keys.fetch('https://rp.example/j', OTHER_REALM),
+      keys.fetch('https://rp.example/j', TENANT),
+      keys.fetch('https://rp.example/j', OTHER_TENANT),
     ]);
     releaseFetch?.();
     const [first, second] = await raced;
@@ -272,10 +272,10 @@ describe('clientKeySet', () => {
     expect(second.status).toBe('rejected');
     expect(calls).toBe(1);
 
-    // Both realms raced the same attempt; both must have their own negative
+    // Both tenants raced the same attempt; both must have their own negative
     // entry, or the joiner's next call would reach the network again.
-    await expect(keys.fetch('https://rp.example/j', REALM)).rejects.toThrow();
-    await expect(keys.fetch('https://rp.example/j', OTHER_REALM)).rejects.toThrow();
+    await expect(keys.fetch('https://rp.example/j', TENANT)).rejects.toThrow();
+    await expect(keys.fetch('https://rp.example/j', OTHER_TENANT)).rejects.toThrow();
     expect(calls).toBe(1);
   });
 
@@ -290,7 +290,7 @@ describe('clientKeySet', () => {
       }),
     );
 
-    const first = keys.fetch('https://rp.example/j', REALM).catch(() => undefined);
+    const first = keys.fetch('https://rp.example/j', TENANT).catch(() => undefined);
 
     // A plain `.then()` chain rather than `await` in a loop, so each sample
     // lands on a known microtask tick instead of wherever the probe's own
@@ -301,7 +301,7 @@ describe('clientKeySet', () => {
     const observedAtEachTick: number[] = [];
     for (let tick = 0; tick < 16; tick += 1) {
       chain = chain.then(() => {
-        keys.fetch('https://rp.example/j', REALM).catch(() => undefined);
+        keys.fetch('https://rp.example/j', TENANT).catch(() => undefined);
         observedAtEachTick.push(calls);
       });
     }

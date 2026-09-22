@@ -2,6 +2,8 @@
 
 **Status:** Accepted · 2026-09-18
 
+**Renamed 2026-09-22:** written when a tenant was called a realm; the decision is unchanged.
+
 ## Context
 
 Dynamic client registration accepts `jwks_uri`: a URL an unauthenticated
@@ -84,9 +86,9 @@ them. Checking the address the connection is actually made to, and
 connecting to that address rather than the name, closes this; validating
 the name does not.
 
-**A per-realm egress allowlist.** Configuration nobody would maintain: an
+**A per-tenant egress allowlist.** Configuration nobody would maintain: an
 operator would need to enumerate every relying party's key host in advance,
-per realm, and keep it current as clients rotate `jwks_uri`. The address
+per tenant, and keep it current as clients rotate `jwks_uri`. The address
 ranges a fetch must never reach are fixed and few; a list of ranges it may
 reach is neither fixed nor small.
 

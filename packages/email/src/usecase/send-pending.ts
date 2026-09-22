@@ -1,9 +1,9 @@
 import {
   bypassesRowLevelSecurity,
-  realms,
-  withRealm,
+  tenants,
+  withTenant,
   type DatabaseHandle,
-  type RealmScopedDatabase,
+  type TenantScopedDatabase,
 } from '@odudu/db';
 import { OduduError, type Logger } from '@odudu/kernel';
 import { outboxRepository } from '#/repository/outbox';
@@ -22,8 +22,8 @@ export interface SendPendingDeps {
   /** The serving, row-level-security-constrained connection: every claim and write. */
   readonly database: DatabaseHandle;
   /**
-   * The owner connection, for one thing: listing the realms to visit. The
-   * outbox is scoped by `app.realm_id`, and the realm ids are what a realm
+   * The owner connection, for one thing: listing the tenants to visit. The
+   * outbox is scoped by `app.tenant_id`, and the tenant ids are what a tenant
    * context would have to be built from, so the queue cannot be read to
    * find out whose mail is in it (ADR 0009's amendment of 2026-09-13).
    */
@@ -33,7 +33,7 @@ export interface SendPendingDeps {
 }
 
 export interface SendPendingOptions {
-  /** Messages claimed per realm per pass. */
+  /** Messages claimed per tenant per pass. */
   readonly batchSize: number;
   /** Attempts after which a message is left for an operator to read. */
   readonly maxAttempts: number;
@@ -43,11 +43,11 @@ export interface SendPendingOptions {
 
 /**
  * Why a pass did nothing, distinct from a report of zeros: "sent nothing"
- * and "found no realm to look at" are different facts, and a scheduled job
+ * and "found no tenant to look at" are different facts, and a scheduled job
  * that conflates them reports success for work nobody did.
  */
 export type SendPendingOutcome =
-  | { readonly ran: false; readonly reason: 'no realm was enumerated' }
+  | { readonly ran: false; readonly reason: 'no tenant was enumerated' }
   | { readonly ran: true; readonly sent: number; readonly failed: number };
 
 /** Doubling from the first retry, bounded by `maxAttempts` rather than a ceiling. */
@@ -64,22 +64,22 @@ function describeError(error: unknown): string {
 }
 
 // Both halves of the claim's scoping, checked rather than hoped for. A
-// listing role without the escape reads zero realms from a table carrying
+// listing role without the escape reads zero tenants from a table carrying
 // FORCE ROW LEVEL SECURITY, and the queue then drains never, with nothing
-// to say so; a serving role *with* the escape claims every realm's messages
-// under one realm's context, and writes the results back as that realm's.
+// to say so; a serving role *with* the escape claims every tenant's messages
+// under one tenant's context, and writes the results back as that tenant's.
 async function assertRolesAreRight(deps: SendPendingDeps): Promise<void> {
   if (!(await bypassesRowLevelSecurity(deps.ownerDatabase))) {
     throw new OduduError(
-      'outbox_cannot_enumerate_realms',
-      'the outbox sender must list realms on a connection that bypasses row-level security; ' +
+      'outbox_cannot_enumerate_tenants',
+      'the outbox sender must list tenants on a connection that bypasses row-level security; ' +
         'ODUDU_DATABASE_URL names a role that is neither SUPERUSER nor BYPASSRLS',
     );
   }
   if (await bypassesRowLevelSecurity(deps.database)) {
     throw new OduduError(
       'outbox_serving_role_bypasses_rls',
-      'the outbox sender claims under the realm policy, so its serving connection must be ' +
+      'the outbox sender claims under the tenant policy, so its serving connection must be ' +
         'subject to it; ODUDU_APP_DATABASE_URL names a SUPERUSER or BYPASSRLS role',
     );
   }
@@ -94,13 +94,13 @@ type Delivery = 'sent' | 'failed' | 'duplicate';
 
 async function deliver(
   deps: SendPendingDeps,
-  realmId: string,
+  tenantId: string,
   message: OutboxMessage,
   now: Date,
   options: SendPendingOptions,
 ): Promise<Delivery> {
-  const write = async <T>(fn: (tx: RealmScopedDatabase) => Promise<T>): Promise<T> =>
-    withRealm(deps.database.db, realmId, fn);
+  const write = async <T>(fn: (tx: TenantScopedDatabase) => Promise<T>): Promise<T> =>
+    withTenant(deps.database.db, tenantId, fn);
 
   try {
     await deps.sender.send({
@@ -128,7 +128,7 @@ async function deliver(
 }
 
 /**
- * Hands every message due for an attempt to the transport, one realm at a
+ * Hands every message due for an attempt to the transport, one tenant at a
  * time. Takes its `now` as an argument and holds no timer, so it runs
  * identically from `odudu send-mail`, from the server's own schedule, and
  * from a test (ADR 0024).
@@ -141,18 +141,18 @@ export async function sendPending(
   await assertRolesAreRight(deps);
 
   const rows = await deps.ownerDatabase.db
-    .select({ id: realms.id })
-    .from(realms)
-    .orderBy(realms.id);
+    .select({ id: tenants.id })
+    .from(tenants)
+    .orderBy(tenants.id);
   // Trustworthy, after the check above: an empty list means an empty
   // database and not a filtered read.
-  if (rows.length === 0) return { ran: false, reason: 'no realm was enumerated' };
+  if (rows.length === 0) return { ran: false, reason: 'no tenant was enumerated' };
 
   let sent = 0;
   let failed = 0;
 
-  for (const { id: realmId } of rows) {
-    const claimed = await withRealm(deps.database.db, realmId, (tx) =>
+  for (const { id: tenantId } of rows) {
+    const claimed = await withTenant(deps.database.db, tenantId, (tx) =>
       outboxRepository(tx).claimBatch({
         limit: options.batchSize,
         now,
@@ -166,7 +166,7 @@ export async function sendPending(
       // abandon the rest of the batch. A claimed message left unresolved
       // by a throw here is offered again once its lease elapses.
       try {
-        const delivery = await deliver(deps, realmId, message, now, options);
+        const delivery = await deliver(deps, tenantId, message, now, options);
         if (delivery === 'sent') sent += 1;
         else if (delivery === 'failed') failed += 1;
       } catch (err) {

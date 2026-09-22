@@ -10,7 +10,7 @@ export interface RecoveryCodesOffer {
 
 // Minimal, dependency-free HTML, the same choice #/view/totp-enrolment-html.ts
 // makes: every interpolated value passes through escapeHtml so neither the
-// realm name nor a code opens a reflected-XSS hole.
+// tenant name nor a code opens a reflected-XSS hole.
 function escapeHtml(value: string): string {
   return value
     .replace(/&/g, '&amp;')
@@ -25,12 +25,12 @@ function escapeHtml(value: string): string {
 // administrator — can show them again; the form below carries no code back,
 // only the acknowledgement that the page was seen.
 export function renderRecoveryCodesPage(
-  realm: string,
+  tenant: string,
   authSessionId: string,
   offer: RecoveryCodesOffer,
   error?: string,
 ): RenderedPage {
-  const target = `/realms/${escapeHtml(realm)}/login-actions/required-action?action=generate-recovery-codes`;
+  const target = `/tenants/${escapeHtml(tenant)}/login-actions/required-action?action=generate-recovery-codes`;
   const message = error === undefined ? '' : `<p><strong>${escapeHtml(error)}</strong></p>\n`;
   const replaced = offer.replaced
     ? '<p>These replace the codes issued to this account before now, which no longer work.</p>\n'

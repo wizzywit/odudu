@@ -31,37 +31,37 @@ past the tenth would otherwise be a `429`.
 
 ## The shape of it
 
-A **realm** is a tenant: its own users, clients, signing keys and sessions,
+A **tenant** has its own users, clients, signing keys and sessions,
 isolated in the database by PostgreSQL row-level security (ADR 0009). Every
-protocol endpoint lives under `/realms/{realm}/`, so the realm is chosen by
+protocol endpoint lives under `/tenants/{tenant}/`, so the tenant is chosen by
 the URL and never by a header or a parameter.
 
-| Method | Path                                                       | What it is                                                  |
-| ------ | ---------------------------------------------------------- | ----------------------------------------------------------- |
-| `GET`  | `/realms/{realm}/.well-known/openid-configuration`         | Discovery document                                          |
-| `GET`  | `/realms/{realm}/protocol/openid-connect/certs`            | JWKS (public signing keys)                                  |
-| `GET`  | `/realms/{realm}/protocol/openid-connect/auth`             | Authorization endpoint                                      |
-| `POST` | `/realms/{realm}/protocol/openid-connect/auth`             | Authorization endpoint (form)                               |
-| `POST` | `/realms/{realm}/login-actions/authenticate`               | Login form submission                                       |
-| `POST` | `/realms/{realm}/login-actions/consent`                    | Consent screen submission (allow/deny)                      |
-| `POST` | `/realms/{realm}/login-actions/select-account`             | Account chooser submission                                  |
-| `POST` | `/realms/{realm}/login-actions/required-action`            | Complete a pending required action (enrolment, password)    |
-| `POST` | `/realms/{realm}/login-actions/passkey-challenge`          | Request options for a usernameless passkey assertion        |
-| `GET`  | `/realms/{realm}/login-actions/registration`               | Self-registration form                                      |
-| `POST` | `/realms/{realm}/login-actions/registration`               | Self-registration submission                                |
-| `GET`  | `/realms/{realm}/login-actions/action-token`               | Redeem a mailed action token (verify email, reset password) |
-| `POST` | `/realms/{realm}/login-actions/action-token`               | Submit a new password against a reset-password token        |
-| `GET`  | `/realms/{realm}/login-actions/reset-password`             | Password reset request form                                 |
-| `POST` | `/realms/{realm}/login-actions/reset-password`             | Password reset request submission                           |
-| `POST` | `/realms/{realm}/protocol/openid-connect/token`            | Token endpoint                                              |
-| `POST` | `/realms/{realm}/protocol/openid-connect/token/introspect` | Token introspection (RFC 7662)                              |
-| `POST` | `/realms/{realm}/protocol/openid-connect/revoke`           | Token revocation (RFC 7009)                                 |
-| `GET`  | `/realms/{realm}/protocol/openid-connect/userinfo`         | UserInfo                                                    |
-| `POST` | `/realms/{realm}/protocol/openid-connect/userinfo`         | UserInfo (form)                                             |
-| `GET`  | `/realms/{realm}/protocol/openid-connect/logout`           | RP-initiated logout (`end_session_endpoint`)                |
-| `POST` | `/realms/{realm}/protocol/openid-connect/logout`           | RP-initiated logout (form-serialized), confirmation form    |
-| `POST` | `/realms/{realm}/clients-registrations/openid-connect`     | Dynamic client registration (RFC 7591)                      |
-| `GET`  | `/health/live`, `/health/ready`                            | Liveness, readiness                                         |
+| Method | Path                                                         | What it is                                                  |
+| ------ | ------------------------------------------------------------ | ----------------------------------------------------------- |
+| `GET`  | `/tenants/{tenant}/.well-known/openid-configuration`         | Discovery document                                          |
+| `GET`  | `/tenants/{tenant}/protocol/openid-connect/certs`            | JWKS (public signing keys)                                  |
+| `GET`  | `/tenants/{tenant}/protocol/openid-connect/auth`             | Authorization endpoint                                      |
+| `POST` | `/tenants/{tenant}/protocol/openid-connect/auth`             | Authorization endpoint (form)                               |
+| `POST` | `/tenants/{tenant}/login-actions/authenticate`               | Login form submission                                       |
+| `POST` | `/tenants/{tenant}/login-actions/consent`                    | Consent screen submission (allow/deny)                      |
+| `POST` | `/tenants/{tenant}/login-actions/select-account`             | Account chooser submission                                  |
+| `POST` | `/tenants/{tenant}/login-actions/required-action`            | Complete a pending required action (enrolment, password)    |
+| `POST` | `/tenants/{tenant}/login-actions/passkey-challenge`          | Request options for a usernameless passkey assertion        |
+| `GET`  | `/tenants/{tenant}/login-actions/registration`               | Self-registration form                                      |
+| `POST` | `/tenants/{tenant}/login-actions/registration`               | Self-registration submission                                |
+| `GET`  | `/tenants/{tenant}/login-actions/action-token`               | Redeem a mailed action token (verify email, reset password) |
+| `POST` | `/tenants/{tenant}/login-actions/action-token`               | Submit a new password against a reset-password token        |
+| `GET`  | `/tenants/{tenant}/login-actions/reset-password`             | Password reset request form                                 |
+| `POST` | `/tenants/{tenant}/login-actions/reset-password`             | Password reset request submission                           |
+| `POST` | `/tenants/{tenant}/protocol/openid-connect/token`            | Token endpoint                                              |
+| `POST` | `/tenants/{tenant}/protocol/openid-connect/token/introspect` | Token introspection (RFC 7662)                              |
+| `POST` | `/tenants/{tenant}/protocol/openid-connect/revoke`           | Token revocation (RFC 7009)                                 |
+| `GET`  | `/tenants/{tenant}/protocol/openid-connect/userinfo`         | UserInfo                                                    |
+| `POST` | `/tenants/{tenant}/protocol/openid-connect/userinfo`         | UserInfo (form)                                             |
+| `GET`  | `/tenants/{tenant}/protocol/openid-connect/logout`           | RP-initiated logout (`end_session_endpoint`)                |
+| `POST` | `/tenants/{tenant}/protocol/openid-connect/logout`           | RP-initiated logout (form-serialized), confirmation form    |
+| `POST` | `/tenants/{tenant}/clients-registrations/openid-connect`     | Dynamic client registration (RFC 7591)                      |
+| `GET`  | `/health/live`, `/health/ready`                              | Liveness, readiness                                         |
 
 `/login-actions/authenticate` is deliberately outside the
 `/protocol/openid-connect/` namespace: that namespace is the OIDC wire
@@ -77,12 +77,12 @@ error vocabulary is so uniform below: most refusals come from shared code.
 
 ## Bootstrap
 
-There is no admin API yet, so a realm, its first user and its signing key
+There is no admin API yet, so a tenant, its first user and its signing key
 are created by the server's seed command — the only way to create the
-first of anything. A client is the one exception once a realm opens
+first of anything. A client is the one exception once a tenant opens
 registration to it: `seed client` still works, but
 [dynamic client registration](#dynamic-client-registration) is a second
-door, open to whoever the realm's `client_registration_policy` admits.
+door, open to whoever the tenant's `client_registration_policy` admits.
 
 ### Pick how you are running it
 
@@ -145,7 +145,7 @@ returns when the container has started, which is before it has finished
 applying migrations, and the `dev` script returns the shell immediately for
 the same reason. **The seed command does not run migrations**; it expects a
 schema the server put there on boot, and a seed run in that gap fails with
-`relation "realms" does not exist`.
+`relation "tenants" does not exist`.
 
 Running everything on your host needs the database and the restricted
 serving role to exist before any of this — one `CREATE DATABASE` and one
@@ -158,8 +158,8 @@ that "no Docker at all" meant it.
 
 ### The key that has to be the same on both sides
 
-`ODUDU_KEK` wraps each realm's private signing key. It is read from whichever
-configuration the process holds, so **the thing that seeded a realm and the
+`ODUDU_KEK` wraps each tenant's private signing key. It is read from whichever
+configuration the process holds, so **the thing that seeded a tenant and the
 thing serving it must hold the same value** — and the two files ship
 _different_ ones: `infra/docker/.env.example` carries a throwaway key, and
 the root `.env.example` leaves it empty for you to generate.
@@ -177,7 +177,7 @@ content-type: application/json; charset=utf-8
 {"statusCode":500,"error":"Internal Server Error","message":"Unsupported state or unable to authenticate data"}
 ```
 
-(That response is from a host run serving the realm the compose stack had
+(That response is from a host run serving the tenant the compose stack had
 seeded, with the root `.env` holding a key generated for it rather than the
 stack's.)
 
@@ -185,7 +185,7 @@ That is the private key failing to unwrap, and it names neither the key nor
 the reason. Before seeding anything, copy the `ODUDU_KEK` line from
 `infra/docker/.env` into the root `.env` if you intend to move between the
 two. Changing the value afterwards strands every key already wrapped with
-the old one — a realm seeded under one key cannot be served under another,
+the old one — a tenant seeded under one key cannot be served under another,
 and there is no rotation path yet.
 
 ### A public client, with a user
@@ -195,7 +195,7 @@ what a browser or mobile application should be.
 
 ```bash
 odudu seed \
-  --realm demo --client demo-spa \
+  --tenant demo --client demo-spa \
   --redirect-uri http://localhost:8080/callback \
   --user ada --password correct-horse-battery --email ada@example.com
 ```
@@ -203,14 +203,14 @@ odudu seed \
 ```json
 {
   "created": true,
-  "realm": "demo",
-  "realmId": "01a09678-…",
+  "tenant": "demo",
+  "tenantId": "01a0cb07-…",
   "clientId": "demo-spa",
-  "userSubjectId": "01a09678-…"
+  "userSubjectId": "01a0cb07-…"
 }
 ```
 
-(`realmId` and `userSubjectId` are generated identifiers; shortened here.
+(`tenantId` and `userSubjectId` are generated identifiers; shortened here.
 `userSubjectId` is present whenever `--user` names one, whether this run
 created it or found it already seeded — [Address verification](#address-verification)
 below is what it is for.)
@@ -227,7 +227,7 @@ reports that it changed nothing:
 
 ```bash
 odudu seed \
-  --realm demo --client demo-spa \
+  --tenant demo --client demo-spa \
   --redirect-uri http://localhost:8080/callback \
   --user ada --password correct-horse-battery --email ada@example.com
 ```
@@ -235,10 +235,10 @@ odudu seed \
 ```json
 {
   "created": false,
-  "realm": "demo",
-  "realmId": "01a09678-…",
+  "tenant": "demo",
+  "tenantId": "01a0cb07-…",
   "clientId": "demo-spa",
-  "userSubjectId": "01a09678-…"
+  "userSubjectId": "01a0cb07-…"
 }
 ```
 
@@ -247,7 +247,7 @@ overwriting or silently ignoring the difference:
 
 ```bash
 odudu seed \
-  --realm demo --client demo-spa \
+  --tenant demo --client demo-spa \
   --redirect-uri http://localhost:8080/callback \
   --user ada --password wrong-password --email ada@example.com
 ```
@@ -267,24 +267,24 @@ presenting it. `--token-endpoint-auth-method` picks that way; omitted, it is
 
 ```bash
 odudu seed \
-  --realm demo --client demo-backend --client-secret demo-backend-secret \
+  --tenant demo --client demo-backend --client-secret demo-backend-secret \
   --token-endpoint-auth-method client_secret_basic \
   --redirect-uri http://localhost:8080/callback
 ```
 
 ```json
-{ "created": true, "realm": "demo", "realmId": "01a09678-…", "clientId": "demo-backend" }
+{ "created": true, "tenant": "demo", "tenantId": "01a0cb07-…", "clientId": "demo-backend" }
 ```
 
 ```bash
 odudu seed \
-  --realm demo --client demo-post --client-secret demo-post-secret \
+  --tenant demo --client demo-post --client-secret demo-post-secret \
   --token-endpoint-auth-method client_secret_post \
   --redirect-uri http://localhost:8080/callback
 ```
 
 ```json
-{ "created": true, "realm": "demo", "realmId": "01a09678-…", "clientId": "demo-post" }
+{ "created": true, "tenant": "demo", "tenantId": "01a0cb07-…", "clientId": "demo-post" }
 ```
 
 A confidential client is also given a service-account subject, which is what
@@ -296,7 +296,7 @@ in the body and `demo-backend` must send it in the `Authorization` header.
 Each is refused if it uses the other's method, even with the right secret —
 see the `/token` table in [The branches](#the-branches).
 
-Both seed runs above create the realm's first signing key if it has none.
+Both seed runs above create the tenant's first signing key if it has none.
 `--user` and `--password` go together or not at all, and `--email` needs a
 user to belong to. Seeding never adds a user to a client that already
 exists — it would exit 0 having done nothing, which is worse than refusing.
@@ -316,8 +316,8 @@ without a browser: the browser's only job in that flow is to follow a
 redirect and submit a form, and `curl` does both.
 
 ```bash
-BASE=http://localhost:3000/realms/demo/protocol/openid-connect
-LOGIN=http://localhost:3000/realms/demo/login-actions/authenticate
+BASE=http://localhost:3000/tenants/demo/protocol/openid-connect
+LOGIN=http://localhost:3000/tenants/demo/login-actions/authenticate
 
 VERIFIER=$(openssl rand -hex 32)
 CHALLENGE=$(printf '%s' "$VERIFIER" | openssl dgst -binary -sha256 \
@@ -366,36 +366,36 @@ will take port 3000 and the stack's database with it.
 
 ### Dynamic client registration
 
-This section runs against a realm of its own, so nothing it registers lands
-in `demo`. `seed realm` creates one with every setting at its default:
+This section runs against a tenant of its own, so nothing it registers lands
+in `demo`. `seed tenant` creates one with every setting at its default:
 
 ```bash
-odudu seed realm --name reg-demo
+odudu seed tenant --name reg-demo
 ```
 
 ```json
-{ "command": "realm", "created": true, "realm": "reg-demo", "realmId": "01a0c9a7-4a80-…" }
+{ "command": "tenant", "created": true, "tenant": "reg-demo", "tenantId": "01a0cb08-2747-…" }
 ```
 
 ```bash
 curl -sS -o /dev/null -w '%{http_code}\n' \
-  http://localhost:3000/realms/reg-demo/.well-known/openid-configuration
+  http://localhost:3000/tenants/reg-demo/.well-known/openid-configuration
 ```
 
 ```
 200
 ```
 
-`client_registration_policy` is `disabled` on every realm by default (ADR
-0026). Registering before it is opened, or against a realm that does not
+`client_registration_policy` is `disabled` on every tenant by default (ADR
+0026). Registering before it is opened, or against a tenant that does not
 exist, answers the same way — an enumeration oracle costs nothing to close
 here, the same reasoning discovery and JWKS already apply to a disabled
-realm. The discovery `200` above is what tells the two apart: the first
-refusal below is the closed policy, not an absent realm.
+tenant. The discovery `200` above is what tells the two apart: the first
+refusal below is the closed policy, not an absent tenant.
 
 ```bash
 curl -sS -o /dev/null -w '%{http_code}\n' -X POST \
-  http://localhost:3000/realms/reg-demo/clients-registrations/openid-connect \
+  http://localhost:3000/tenants/reg-demo/clients-registrations/openid-connect \
   -H 'content-type: application/json' \
   -d '{"redirect_uris":["https://rp.example/cb"]}'
 ```
@@ -406,7 +406,7 @@ curl -sS -o /dev/null -w '%{http_code}\n' -X POST \
 
 ```bash
 curl -sS -o /dev/null -w '%{http_code}\n' -X POST \
-  http://localhost:3000/realms/no-such-realm/clients-registrations/openid-connect \
+  http://localhost:3000/tenants/no-such-tenant/clients-registrations/openid-connect \
   -H 'content-type: application/json' \
   -d '{"redirect_uris":["https://rp.example/cb"]}'
 ```
@@ -415,18 +415,18 @@ curl -sS -o /dev/null -w '%{http_code}\n' -X POST \
 404
 ```
 
-Opening it is a realm setting like any other:
+Opening it is a tenant setting like any other:
 
 ```bash
-odudu seed realm --name reg-demo --set client_registration_policy=open
+odudu seed tenant --name reg-demo --set client_registration_policy=open
 ```
 
 ```json
 {
-  "command": "realm",
+  "command": "tenant",
   "created": false,
-  "realm": "reg-demo",
-  "realmId": "01a0c9a7-4a80-…",
+  "tenant": "reg-demo",
+  "tenantId": "01a0cb08-2747-…",
   "settings": ["client_registration_policy"]
 }
 ```
@@ -439,16 +439,16 @@ and returned **exactly once, in this response**. `clients.secret_hash`
 stores its Argon2id hash; there is no way to retrieve the plaintext again.
 
 ```bash
-curl -sS -X POST http://localhost:3000/realms/reg-demo/clients-registrations/openid-connect \
+curl -sS -X POST http://localhost:3000/tenants/reg-demo/clients-registrations/openid-connect \
   -H 'content-type: application/json' \
   -d '{"redirect_uris":["https://rp.example/cb"],"client_name":"Example RP"}'
 ```
 
 ```json
 {
-  "client_id": "01a0c9a7-89bd-…",
-  "client_id_issued_at": 1790089595,
-  "client_secret": "3PrC0YXeq47JaVLQI57gtrFTWrJZy0OkEhJEAfLkpns",
+  "client_id": "01a0cb08-2958-…",
+  "client_id_issued_at": 1790112704,
+  "client_secret": "BvE93j7HNH4luJx0BBMi9k5sPlUXNafEsyCQPKkEPRM",
   "client_secret_expires_at": 0,
   "redirect_uris": ["https://rp.example/cb"],
   "grant_types": ["authorization_code"],
@@ -468,12 +468,12 @@ scheme and no `error` parameter (RFC 6750 §3.1's distinction between an
 absent credential and a rejected one).
 
 ```bash
-odudu seed realm --name reg-demo --set client_registration_policy=token
+odudu seed tenant --name reg-demo --set client_registration_policy=token
 ```
 
 ```bash
 curl -sS -D - -o /dev/null -X POST \
-  http://localhost:3000/realms/reg-demo/clients-registrations/openid-connect \
+  http://localhost:3000/tenants/reg-demo/clients-registrations/openid-connect \
   -H 'content-type: application/json' -d '{"redirect_uris":["https://rp.example/cb"]}' \
   | grep -iE '^HTTP|www-authenticate'
 ```
@@ -491,17 +491,17 @@ answers with the token alone, so `TOKEN=$(odudu seed registration-token …)`
 captures exactly the credential and nothing else.
 
 ```bash
-TOKEN=$(odudu seed registration-token --realm reg-demo --uses 1 --ttl 3600)
+TOKEN=$(odudu seed registration-token --tenant reg-demo --uses 1 --ttl 3600)
 ```
 
 ```
-fUAI7gFGUYH10PdvGXV6Nzi8dkvb4_siXnZgWiSqOgA
+j4B_nsJYIJSe8AgjA9xVsFU28J6L67yYzVinAYXXP4w
 ```
 
 It is stored as its SHA-256 digest, the same shape
 `packages/account/src/repository/action-tokens.ts` uses, and spent by one
 `UPDATE … RETURNING`
-(`packages/domain-realm/src/repository/client-registration-tokens.ts`) so
+(`packages/domain-tenant/src/repository/client-registration-tokens.ts`) so
 two concurrent registrations against a one-use token cannot both win —
 answering the request and consuming the token happen in the one transaction
 that inserts the client, never earlier. Presenting it registers a client
@@ -510,15 +510,15 @@ whose `registration_origin` is `'token'`, with `consent_required` defaulting
 much as `seed client` naming a client directly is.
 
 ```bash
-curl -sS -X POST http://localhost:3000/realms/reg-demo/clients-registrations/openid-connect \
+curl -sS -X POST http://localhost:3000/tenants/reg-demo/clients-registrations/openid-connect \
   -H "authorization: Bearer $TOKEN" -H 'content-type: application/json' \
   -d '{"redirect_uris":["https://rp2.example/cb"],"token_endpoint_auth_method":"none"}'
 ```
 
 ```json
 {
-  "client_id": "01a0c9a7-8d0b-…",
-  "client_id_issued_at": 1790089596,
+  "client_id": "01a0cb08-2c63-…",
+  "client_id_issued_at": 1790112705,
   "redirect_uris": ["https://rp2.example/cb"],
   "grant_types": ["authorization_code"],
   "token_endpoint_auth_method": "none"
@@ -529,17 +529,17 @@ curl -sS -X POST http://localhost:3000/realms/reg-demo/clients-registrations/ope
 generated or returned — RFC 6749 §10.1 gives no client that cannot keep one
 confidential a credential to keep.
 
-A realm at its `max_clients` cap refuses further registration with 403 and
-`invalid_client_metadata`, taken under `SELECT … FOR UPDATE` on the realm
+A tenant at its `max_clients` cap refuses further registration with 403 and
+`invalid_client_metadata`, taken under `SELECT … FOR UPDATE` on the tenant
 row before the count so two concurrent registrations cannot both observe
 room that only one of them will actually get
-(`packages/domain-realm/src/repository/clients.ts`'s `lockCapacity`,
+(`packages/domain-tenant/src/repository/clients.ts`'s `lockCapacity`,
 exercised concurrently in
 `packages/protocol-oidc/tests/client-registration.int.test.ts`).
 
 A registered `backchannel_logout_uri` is stored, echoed back in the
 registration response, and now read: discovery advertises
-`backchannel_logout_supported` and its front-channel twin for every realm
+`backchannel_logout_supported` and its front-channel twin for every tenant
 (see [discovery](#1-discovery) above), and ending a session delivers to it
 (see [front-channel and back-channel logout](#front-channel-and-back-channel-logout)
 below). `userinfo_signed_response_alg` is stored, echoed, and now read: a
@@ -549,11 +549,11 @@ that is not signed — an RFC 7519 §6 unsecured JWT (`alg: "none"`, no
 signature). Both are `application/jwt` and carry `iss` and `aud` (OIDC Core
 §5.3.2 for the "If signed" case; OIDC Registration §2 and Discovery §3 for
 why `none` still serializes as a JWT at all — see the reading note in
-`docs/protocols/oidc-core.md`). Registration refuses a value the _realm's own_ active signing
+`docs/protocols/oidc-core.md`). Registration refuses a value the _tenant's own_ active signing
 key cannot produce, and discovery's `userinfo_signing_alg_values_supported`
-is that same realm's answer — `[key.alg, "none"]` — never a fixed pair
-advertised to every realm regardless of which key it actually holds (a
-realm holds exactly one). `userinfo_encrypted_response_alg` and `_enc` are
+is that same tenant's answer — `[key.alg, "none"]` — never a fixed pair
+advertised to every tenant regardless of which key it actually holds (a
+tenant holds exactly one). `userinfo_encrypted_response_alg` and `_enc` are
 stored, echoed and now read too — see
 [Encrypted and nested UserInfo responses](#encrypted-and-nested-userinfo-responses)
 below for the transcript.
@@ -564,15 +564,15 @@ before any metadata was read, and would demonstrate the credential rather
 than the check:
 
 ```bash
-odudu seed realm --name reg-demo --set client_registration_policy=open
+odudu seed tenant --name reg-demo --set client_registration_policy=open
 ```
 
 ```json
 {
-  "command": "realm",
+  "command": "tenant",
   "created": false,
-  "realm": "reg-demo",
-  "realmId": "01a0c9a7-4a80-…",
+  "tenant": "reg-demo",
+  "tenantId": "01a0cb08-2747-…",
   "settings": ["client_registration_policy"]
 }
 ```
@@ -584,7 +584,7 @@ without an enumerable denylist of dangerous ones. A dotless custom scheme —
 common in the wild, and otherwise harmless — is refused all the same:
 
 ```bash
-curl -sS -X POST http://localhost:3000/realms/reg-demo/clients-registrations/openid-connect \
+curl -sS -X POST http://localhost:3000/tenants/reg-demo/clients-registrations/openid-connect \
   -H 'content-type: application/json' -d '{"redirect_uris":["myapp://cb"]}'
 ```
 
@@ -596,15 +596,15 @@ curl -sS -X POST http://localhost:3000/realms/reg-demo/clients-registrations/ope
 ```
 
 ```bash
-curl -sS -X POST http://localhost:3000/realms/reg-demo/clients-registrations/openid-connect \
+curl -sS -X POST http://localhost:3000/tenants/reg-demo/clients-registrations/openid-connect \
   -H 'content-type: application/json' -d '{"redirect_uris":["com.example.app:/cb"]}'
 ```
 
 ```json
 {
-  "client_id": "01a0c9a7-8ed5-…",
-  "client_id_issued_at": 1790089596,
-  "client_secret": "j9GzJC5do7RCGj9C_qimNqoYxsJMwZ_34ABv3OpYIao",
+  "client_id": "01a0cb08-2e42-…",
+  "client_id_issued_at": 1790112706,
+  "client_secret": "of3NqFMwFsEOjqcvz46q-L18sz4EwP2Cge7LtyRRr8A",
   "client_secret_expires_at": 0,
   "redirect_uris": ["com.example.app:/cb"],
   "grant_types": ["authorization_code"],
@@ -619,7 +619,7 @@ logout page now renders
 the sink a bare `http:` or `javascript:` value would otherwise reach:
 
 ```bash
-curl -sS -X POST http://localhost:3000/realms/reg-demo/clients-registrations/openid-connect \
+curl -sS -X POST http://localhost:3000/tenants/reg-demo/clients-registrations/openid-connect \
   -H 'content-type: application/json' \
   -d '{"redirect_uris":["https://rp.example/cb"],"frontchannel_logout_uri":"http://rp.example/fc"}'
 ```
@@ -639,7 +639,7 @@ redirect URIs satisfies it; a client with none registered has nothing to
 match against and is refused the same way:
 
 ```bash
-curl -sS -X POST http://localhost:3000/realms/reg-demo/clients-registrations/openid-connect \
+curl -sS -X POST http://localhost:3000/tenants/reg-demo/clients-registrations/openid-connect \
   -H 'content-type: application/json' \
   -d '{"redirect_uris":["https://rp.example/cb"],"frontchannel_logout_uri":"https://evil.example/fc"}'
 ```
@@ -656,16 +656,16 @@ echoed back the same way `backchannel_logout_session_required` already is,
 defaulting to `false`:
 
 ```bash
-curl -sS -X POST http://localhost:3000/realms/reg-demo/clients-registrations/openid-connect \
+curl -sS -X POST http://localhost:3000/tenants/reg-demo/clients-registrations/openid-connect \
   -H 'content-type: application/json' \
   -d '{"redirect_uris":["https://rp.example/cb"],"frontchannel_logout_uri":"https://rp.example/fc","frontchannel_logout_session_required":true}'
 ```
 
 ```json
 {
-  "client_id": "01a0c9a7-8f24-…",
-  "client_id_issued_at": 1790089596,
-  "client_secret": "dA-62s9zOvUIQfzkXvQ-mEYvj-gBwc6CkVlbpJWYcNI",
+  "client_id": "01a0cb08-2e9a-…",
+  "client_id_issued_at": 1790112706,
+  "client_secret": "cznVu4B8j-I63JVMDPbEUePpMSyV8EvDiwhOD0HR7Pk",
   "client_secret_expires_at": 0,
   "redirect_uris": ["https://rp.example/cb"],
   "grant_types": ["authorization_code"],
@@ -683,19 +683,19 @@ alike, with no exception and no per-client opt-out (ADR 0016).
 ### 1. Discovery
 
 ```bash
-curl -sS http://localhost:3000/realms/demo/.well-known/openid-configuration
+curl -sS http://localhost:3000/tenants/demo/.well-known/openid-configuration
 ```
 
 ```json
 {
-  "issuer": "http://localhost:3000/realms/demo",
-  "authorization_endpoint": "http://localhost:3000/realms/demo/protocol/openid-connect/auth",
-  "token_endpoint": "http://localhost:3000/realms/demo/protocol/openid-connect/token",
-  "introspection_endpoint": "http://localhost:3000/realms/demo/protocol/openid-connect/token/introspect",
-  "revocation_endpoint": "http://localhost:3000/realms/demo/protocol/openid-connect/revoke",
-  "userinfo_endpoint": "http://localhost:3000/realms/demo/protocol/openid-connect/userinfo",
-  "jwks_uri": "http://localhost:3000/realms/demo/protocol/openid-connect/certs",
-  "end_session_endpoint": "http://localhost:3000/realms/demo/protocol/openid-connect/logout",
+  "issuer": "http://localhost:3000/tenants/demo",
+  "authorization_endpoint": "http://localhost:3000/tenants/demo/protocol/openid-connect/auth",
+  "token_endpoint": "http://localhost:3000/tenants/demo/protocol/openid-connect/token",
+  "introspection_endpoint": "http://localhost:3000/tenants/demo/protocol/openid-connect/token/introspect",
+  "revocation_endpoint": "http://localhost:3000/tenants/demo/protocol/openid-connect/revoke",
+  "userinfo_endpoint": "http://localhost:3000/tenants/demo/protocol/openid-connect/userinfo",
+  "jwks_uri": "http://localhost:3000/tenants/demo/protocol/openid-connect/certs",
+  "end_session_endpoint": "http://localhost:3000/tenants/demo/protocol/openid-connect/logout",
   "response_types_supported": ["code"],
   "response_modes_supported": ["query"],
   "subject_types_supported": ["public"],
@@ -785,20 +785,20 @@ because omitting it would default to `["query", "fragment"]` (OIDC Discovery
 `end_session_endpoint` is RP-Initiated Logout 1.0's own discovery member —
 see [RP-initiated logout](#rp-initiated-logout) below. The four
 `backchannel_logout_*` and `frontchannel_logout_*` members are fixed `true`
-for every realm — see
+for every tenant — see
 [back-channel logout](#front-channel-and-back-channel-logout) below for what
 reads them.
 
-`scopes_supported` is the realm's own scope vocabulary, read from the
+`scopes_supported` is the tenant's own scope vocabulary, read from the
 database rather than compiled in: these eight are what `odudu seed` gives a
-new realm, and a realm that is given another scope advertises it here the
+new tenant, and a tenant that is given another scope advertises it here the
 moment it exists. A scope is seeded only once a claim mapper can answer for
 it, or — `offline_access`'s own exception — once it asks for a grant shape
 rather than for data (see [offline access](#offline-access) below), so this
 list never promises claims nothing returns.
 
 Being advertised is only half of what `/authorize` needs, though — **a scope
-is granted only when the realm defines it _and_ the client is assigned it**,
+is granted only when the tenant defines it _and_ the client is assigned it**,
 and either failure is `invalid_scope`. `odudu seed` assigns all eight to each
 client it creates. The walk-through below asks for three of them — `openid`,
 `profile` and `email` — which is why it is answered; `roles`, `groups`,
@@ -814,7 +814,7 @@ The public keys are a separate fetch, and are what a client verifies an ID
 token against:
 
 ```bash
-curl -sS http://localhost:3000/realms/demo/protocol/openid-connect/certs
+curl -sS http://localhost:3000/tenants/demo/protocol/openid-connect/certs
 ```
 
 ```json
@@ -822,9 +822,9 @@ curl -sS http://localhost:3000/realms/demo/protocol/openid-connect/certs
   "keys": [
     {
       "kty": "RSA",
-      "n": "tLwjOBJotzhf9hx9_b1CYHgZHFQu…",
+      "n": "q-uWf9h3Uiq1LUw08NdRtTipD_fv…",
       "e": "AQAB",
-      "kid": "01a0ae6a-1e60-…",
+      "kid": "01a0cb07-4e73-…",
       "alg": "RS256",
       "use": "sig"
     }
@@ -834,7 +834,7 @@ curl -sS http://localhost:3000/realms/demo/protocol/openid-connect/certs
 
 (`n` and `kid` truncated.) `kid` is what a client matches against the `kid`
 in a token's header; `alg` and `use` say which algorithm the key is for and
-that it is a signature key rather than an encryption one. One realm has one
+that it is a signature key rather than an encryption one. One tenant has one
 active key, so this array has one member.
 
 ### 2. `/authorize`
@@ -860,32 +860,32 @@ curl -sS -D - --get \
   --data-urlencode 'nonce=n-0S6_WzA2Mj' \
   --data-urlencode "code_challenge=$CHALLENGE" \
   --data-urlencode 'code_challenge_method=S256' \
-  'http://localhost:3000/realms/demo/protocol/openid-connect/auth'
+  'http://localhost:3000/tenants/demo/protocol/openid-connect/auth'
 ```
 
 ```
 HTTP/1.1 200 OK
 content-type: text/html
-content-length: 2369
+content-length: 2372
 
 <!doctype html>
 <html lang="en">
 <head><meta charset="utf-8"><title>Sign in</title></head>
 <body>
-<form method="post" action="/realms/demo/login-actions/authenticate">
-  <input type="hidden" name="auth_session_id" value="01a09678-5455-…">
+<form method="post" action="/tenants/demo/login-actions/authenticate">
+  <input type="hidden" name="auth_session_id" value="01a0cb08-f324-…">
   <label>Username <input type="text" name="username" autocomplete="username"></label>
   <label>Password <input type="password" name="password" autocomplete="current-password"></label>
   <button type="submit">Sign in</button>
 </form>
-<form method="post" action="/realms/demo/login-actions/authenticate" id="passkey-form">
-  <input type="hidden" name="auth_session_id" value="01a09678-5455-…">
+<form method="post" action="/tenants/demo/login-actions/authenticate" id="passkey-form">
+  <input type="hidden" name="auth_session_id" value="01a0cb08-f324-…">
   <input type="hidden" name="assertion" id="passkey-assertion">
   <button type="submit" id="passkey-submit">Sign in with a passkey</button>
 </form>
 <p id="passkey-error" hidden></p>
 <noscript><p>Signing in with a passkey needs JavaScript, because only the browser can talk to your authenticator. Use your username and password above.</p></noscript>
-<script nonce="Q2tArwm1PPmjG9DGWoq76g==">
+<script nonce="JGsq3onA180fWL9O8001pg==">
 const form = document.getElementById('passkey-form');
 const field = document.getElementById('passkey-assertion');
 const failure = document.getElementById('passkey-error');
@@ -896,7 +896,7 @@ form.addEventListener('submit', async (event) => {
   event.preventDefault();
   failure.hidden = true;
   try {
-    const offered = await fetch('/realms/demo/login-actions/passkey-challenge', {
+    const offered = await fetch('/tenants/demo/login-actions/passkey-challenge', {
       method: 'POST',
       headers: { 'content-type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({ auth_session_id: form.auth_session_id.value }),
@@ -936,7 +936,7 @@ page and the passkey enrolment page are the two whose policy is not
 `connect-src 'self'`, since its script fetches the challenge:
 
 ```
-content-security-policy: default-src 'none'; frame-ancestors 'none'; form-action 'self'; base-uri 'none'; script-src 'nonce-Q2tArwm1PPmjG9DGWoq76g=='; connect-src 'self'
+content-security-policy: default-src 'none'; frame-ancestors 'none'; form-action 'self'; base-uri 'none'; script-src 'nonce-JGsq3onA180fWL9O8001pg=='; connect-src 'self'
 ```
 
 That `nonce` is the one on the `<script>` element in the body above, minted
@@ -963,7 +963,7 @@ authentication session lives 30 minutes.
 ```bash
 curl -sS -o /dev/null -w '%{http_code}\n' -X POST \
   --data 'response_type=code&client_id=demo-spa&redirect_uri=http%3A%2F%2Flocalhost%3A8080%2Fcallback&scope=openid&state=xyz-123&code_challenge=hUGit6EJl__NDqDG80Q49rMU-3qeOri8dH1TTe49hmI&code_challenge_method=S256' \
-  'http://localhost:3000/realms/demo/protocol/openid-connect/auth'
+  'http://localhost:3000/tenants/demo/protocol/openid-connect/auth'
 ```
 
 ```
@@ -981,14 +981,14 @@ curl -sS -D - -o /dev/null \
   --data-urlencode "auth_session_id=$AUTH_SESSION_ID" \
   --data-urlencode 'username=ada' \
   --data-urlencode 'password=correct-horse-battery' \
-  'http://localhost:3000/realms/demo/login-actions/authenticate'
+  'http://localhost:3000/tenants/demo/login-actions/authenticate'
 ```
 
 ```
 HTTP/1.1 302 Found
-set-cookie: demo-session=01a09678-7150-…; HttpOnly; SameSite=Lax; Path=/
+set-cookie: demo-session=01a0cb09-7b25-…; HttpOnly; SameSite=Lax; Path=/
 set-cookie: demo-session-persistent=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
-location: http://localhost:8080/callback?code=g7v4W3JWm05w…&state=xyz-123&iss=http%3A%2F%2Flocalhost%3A3000%2Frealms%2Fdemo
+location: http://localhost:8080/callback?code=S3Ax4Fi7OrAT…&state=xyz-123&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Fdemo
 content-length: 0
 ```
 
@@ -1013,7 +1013,7 @@ Three things in that response:
   one answered, which is the opening a mix-up attack needs.
 
 The cookie is the SSO session, and it has two clocks rather than one: the
-realm's `sso_session_idle_seconds` (default `1800`) from its last use, and
+tenant's `sso_session_idle_seconds` (default `1800`) from its last use, and
 `sso_session_max_seconds` (default `36000`) from when it was established,
 whichever comes first. It carries `Secure` and the `__Host-` prefix when the
 server is told TLS terminates in front of it (`ODUDU_TLS=true`); on this
@@ -1028,15 +1028,15 @@ code. Immediately: it expires in a minute.
 
 #### A remembered login
 
-The login form renders a `remember_me` checkbox whenever the realm's
+The login form renders a `remember_me` checkbox whenever the tenant's
 `remember_me_allowed` setting is on (off by default):
 
 ```
-<input type="checkbox" name="remember_me" id="remember-me" value="true"> Remember me
+<label><input type="checkbox" name="remember_me" id="remember-me" value="true"> Remember me</label>
 ```
 
 `demo`'s setting was turned on for this run —
-`odudu seed realm --name demo --set remember_me_allowed=true` — since it is
+`odudu seed tenant --name demo --set remember_me_allowed=true` — since it is
 off for every other transcript in this document. Ticking the box and
 submitting the same form puts the new session's id in the **persistent**
 cookie instead:
@@ -1047,28 +1047,28 @@ curl -sS -D - -o /dev/null \
   --data-urlencode 'username=ada' \
   --data-urlencode 'password=correct-horse-battery' \
   --data-urlencode 'remember_me=true' \
-  'http://localhost:3000/realms/demo/login-actions/authenticate'
+  'http://localhost:3000/tenants/demo/login-actions/authenticate'
 ```
 
 ```
 HTTP/1.1 302 Found
 set-cookie: demo-session=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
-set-cookie: demo-session-persistent=01a0ba39-8997-…; HttpOnly; SameSite=Lax; Path=/; Max-Age=2592000
-location: http://localhost:8080/callback?code=r5SsanuPHH-…&state=xyz-123&iss=http%3A%2F%2Flocalhost%3A3000%2Frealms%2Fdemo
+set-cookie: demo-session-persistent=01a0cb09-7e23-…; HttpOnly; SameSite=Lax; Path=/; Max-Age=2592000
+location: http://localhost:8080/callback?code=EgQF5EqNi16q…&state=xyz-123&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Fdemo
 content-length: 0
 ```
 
 (Session id and code truncated.) The two cookies swap roles from the
 ordinary case above: `demo-session` is now the one cleared with
 `Max-Age=0`, and `demo-session-persistent` carries this session's id with
-`Max-Age=2592000` — the realm's `remember_me_max_seconds` (default 30
+`Max-Age=2592000` — the tenant's `remember_me_max_seconds` (default 30
 days), not `sso_session_max_seconds`. The session this establishes is also
 measured against a different idle window while it lives,
 `remember_me_idle_seconds` (default 7 days) rather than
 `sso_session_idle_seconds`.
 
-**The realm setting is the authority, the field is only a request.** A
-realm with `remember_me_allowed` off ignores `remember_me` outright: the
+**The tenant setting is the authority, the field is only a request.** A
+tenant with `remember_me_allowed` off ignores `remember_me` outright: the
 session it establishes lands in the ephemeral cookie exactly as the
 ordinary transcript above shows, with the persistent cookie still sent but
 cleared, `Max-Age=0` — ticking a box the login page never even offered
@@ -1083,7 +1083,7 @@ curl -sS -D - \
   --data-urlencode 'redirect_uri=http://localhost:8080/callback' \
   --data-urlencode 'client_id=demo-spa' \
   --data-urlencode "code_verifier=$VERIFIER" \
-  'http://localhost:3000/realms/demo/protocol/openid-connect/token'
+  'http://localhost:3000/tenants/demo/protocol/openid-connect/token'
 ```
 
 ```
@@ -1095,7 +1095,7 @@ content-type: application/json; charset=utf-8
 {
   "access_token": "eyJhbGciOiJSUzI1NiIs…",
   "id_token": "eyJhbGciOiJSUzI1NiIs…",
-  "refresh_token": "oXh8ADRkl4m7eVdblQ3r…",
+  "refresh_token": "HyqdGK5v2WV2lTarwqmC…",
   "token_type": "Bearer",
   "expires_in": 300,
   "scope": "openid profile email"
@@ -1112,18 +1112,18 @@ authenticates as well, in the one way it is registered for.
 The access token, decoded:
 
 ```json
-{ "alg": "RS256", "kid": "01a0c3a8-078b-…", "typ": "at+jwt" }
+{ "alg": "RS256", "kid": "01a0cb07-4e73-…", "typ": "at+jwt" }
 {
-  "iss": "http://localhost:3000/realms/demo",
-  "sub": "01a0c3a8-078e-…",
-  "aud": ["http://localhost:3000/realms/demo"],
+  "iss": "http://localhost:3000/tenants/demo",
+  "sub": "01a0cb07-4e76-…",
+  "aud": ["http://localhost:3000/tenants/demo"],
   "client_id": "demo-spa",
   "scope": "openid profile email",
-  "iat": 1789988969,
-  "exp": 1789989269,
-  "jti": "01a0c3a8-1bf0-…",
-  "sid": "01a0c3a8-1b89-…",
-  "grant_id": "01a0c3a8-1bf0-71c0-8f30-4ff30a339e1a"
+  "iat": 1790112846,
+  "exp": 1790113146,
+  "jti": "01a0cb0a-51c4-…",
+  "sid": "01a0cb0a-5198-…",
+  "grant_id": "01a0cb0a-51c4-7c7c-88cf-381892eee930"
 }
 ```
 
@@ -1224,20 +1224,19 @@ below](#roles-once-a-scope-reaches-it) shows the symmetric flag that admits
 The ID token, decoded:
 
 ```json
-{ "alg": "RS256", "kid": "01a0a6cd-e3c9-…" }
+{ "alg": "RS256", "kid": "01a0cb07-4e73-…" }
 {
-  "sub": "01a0a6cd-e3cb-…",
+  "sub": "01a0cb07-4e76-…",
   "name": "ada",
   "preferred_username": "ada",
   "email": "ada@example.com",
   "email_verified": false,
-  "iss": "http://localhost:3000/realms/demo",
+  "iss": "http://localhost:3000/tenants/demo",
   "aud": "demo-spa",
-  "iat": 1789504919,
-  "exp": 1789505219,
-  "auth_time": 1789504919,
+  "iat": 1790112846,
+  "exp": 1790113146,
   "nonce": "n-0S6_WzA2Mj",
-  "sid": "01a0a6ce-1788-…",
+  "sid": "01a0cb0a-5198-…",
   "amr": ["pwd"],
   "acr": "1"
 }
@@ -1268,35 +1267,35 @@ RFC 9068 §2.2.3.1 names `roles` as an access token claim, and Odudu adds it
 to the same registry that assembles the ID token and `/userinfo` — but only
 for the roles a granted scope actually reaches. `odudu seed` now has
 subcommands for the whole identity model this needs, run against the same
-realm and user the [Bootstrap](#bootstrap) section above already seeded:
+tenant and user the [Bootstrap](#bootstrap) section above already seeded:
 
 ```bash
-odudu seed role --realm demo --name reviewer
+odudu seed role --tenant demo --name reviewer
 ```
 
 ```json
 {
   "command": "role",
-  "realm": "demo",
-  "realmId": "01a0a1a7-5917-7905-aed4-e278951d1acf",
-  "roleId": "01a0a1a7-7121-7bc5-945f-723c237be90f",
+  "tenant": "demo",
+  "tenantId": "01a0cb07-4e24-73d6-8060-137e69941e60",
+  "roleId": "01a0cb0b-3675-7d1d-a451-c4cffc489424",
   "name": "reviewer",
   "clientId": null
 }
 ```
 
 ```bash
-odudu seed grant-role --realm demo --username ada --role reviewer
-odudu seed map-role --realm demo --scope roles --role reviewer
+odudu seed grant-role --tenant demo --username ada --role reviewer
+odudu seed map-role --tenant demo --scope roles --role reviewer
 ```
 
 ```json
-{ "command": "grant-role", "realm": "demo", "realmId": "01a0a1a7-5917-7905-aed4-e278951d1acf", "username": "ada", "role": "reviewer" }
-{ "command": "map-role", "realm": "demo", "realmId": "01a0a1a7-5917-7905-aed4-e278951d1acf", "scope": "roles", "role": "reviewer" }
+{ "command": "grant-role", "tenant": "demo", "tenantId": "01a0cb07-4e24-73d6-8060-137e69941e60", "username": "ada", "role": "reviewer" }
+{ "command": "map-role", "tenant": "demo", "tenantId": "01a0cb07-4e24-73d6-8060-137e69941e60", "scope": "roles", "role": "reviewer" }
 ```
 
 That gives `ada` a `reviewer` role, mapped to the `roles` scope
-`provisionRealmDefaults` already seeded for the realm — `demo-spa` already
+`provisionTenantDefaults` already seeded for the tenant — `demo-spa` already
 carries `roles` among the default scopes `seed client` assigned it, so no
 `assign-scope` call is needed here; see [`assign-scope` and `default` versus
 `optional`](#assign-scope-and-default-versus-optional) below for when one
@@ -1307,16 +1306,16 @@ token that carries it:
 ```json
 {
   "roles": ["reviewer"],
-  "iss": "http://localhost:3000/realms/demo",
-  "sub": "01a0c3a8-078e-…",
-  "aud": ["http://localhost:3000/realms/demo"],
+  "iss": "http://localhost:3000/tenants/demo",
+  "sub": "01a0cb07-4e76-…",
+  "aud": ["http://localhost:3000/tenants/demo"],
   "client_id": "demo-spa",
   "scope": "openid roles",
-  "iat": 1789988979,
-  "exp": 1789989279,
-  "jti": "01a0c3a8-42dd-…",
-  "sid": "01a0c3a8-429b-…",
-  "grant_id": "01a0c3a8-42dc-…"
+  "iat": 1790112905,
+  "exp": 1790113205,
+  "jti": "01a0cb0b-3ab9-…",
+  "sid": "01a0cb0b-3a9e-…",
+  "grant_id": "01a0cb0b-3ab9-…"
 }
 ```
 
@@ -1325,14 +1324,13 @@ The ID token issued alongside it carries no `roles`, though the same
 
 ```json
 {
-  "sub": "01a0a6cd-e3cb-…",
-  "iss": "http://localhost:3000/realms/demo",
+  "sub": "01a0cb07-4e76-…",
+  "iss": "http://localhost:3000/tenants/demo",
   "aud": "demo-spa",
-  "iat": 1789505061,
-  "exp": 1789505361,
-  "auth_time": 1789505061,
+  "iat": 1790112905,
+  "exp": 1790113205,
   "nonce": "n-0S6_WzA2Mj",
-  "sid": "01a0a6d0-4425-…",
+  "sid": "01a0cb0b-3a9e-…",
   "amr": ["pwd"],
   "acr": "1"
 }
@@ -1349,11 +1347,11 @@ the role the access token carries it presented:
 
 ```bash
 curl -sS -H "Authorization: Bearer $ACCESS_TOKEN" \
-  http://localhost:3000/realms/demo/protocol/openid-connect/userinfo
+  http://localhost:3000/tenants/demo/protocol/openid-connect/userinfo
 ```
 
 ```json
-{ "sub": "01a0a6cd-e3cb-76de-badb-9191bba04d13", "roles": ["reviewer"] }
+{ "sub": "01a0cb07-4e76-7fbe-8d86-b7c083319ef0", "roles": ["reviewer"] }
 ```
 
 A role reaches a token only when it is mapped, this way, to a scope the
@@ -1372,18 +1370,18 @@ a client that does not exist cannot be inserted, let alone granted.
 
 ```bash
 odudu seed client \
-  --realm demo --client-id reports-api --client-secret reports-api-secret \
+  --tenant demo --client-id reports-api --client-secret reports-api-secret \
   --redirect-uri http://localhost:9000/cb
-odudu seed role --realm demo --name reader --client-id reports-api
-odudu seed grant-role --realm demo --username ada --role reports-api:reader
-odudu seed map-role --realm demo --scope roles --role reports-api:reader
+odudu seed role --tenant demo --name reader --client-id reports-api
+odudu seed grant-role --tenant demo --username ada --role reports-api:reader
+odudu seed map-role --tenant demo --scope roles --role reports-api:reader
 ```
 
 ```json
-{ "command": "client", "created": true, "realm": "demo", "realmId": "01a0a1a7-5917-7905-aed4-e278951d1acf", "clientId": "reports-api", "clientDbId": "01a0a1a8-5ef5-78ec-98b5-d4a76a9eb112" }
-{ "command": "role", "realm": "demo", "realmId": "01a0a1a7-5917-7905-aed4-e278951d1acf", "roleId": "01a0a1a8-6128-7224-bb1f-817f9d6a29fa", "name": "reader", "clientId": "reports-api" }
-{ "command": "grant-role", "realm": "demo", "realmId": "01a0a1a7-5917-7905-aed4-e278951d1acf", "username": "ada", "role": "reports-api:reader" }
-{ "command": "map-role", "realm": "demo", "realmId": "01a0a1a7-5917-7905-aed4-e278951d1acf", "scope": "roles", "role": "reports-api:reader" }
+{ "command": "client", "created": true, "tenant": "demo", "tenantId": "01a0cb07-4e24-73d6-8060-137e69941e60", "clientId": "reports-api", "clientDbId": "01a0cb0b-9333-7597-8f47-5889cf21793c" }
+{ "command": "role", "tenant": "demo", "tenantId": "01a0cb07-4e24-73d6-8060-137e69941e60", "roleId": "01a0cb0b-94a9-7bf5-9be5-93c7245e50f4", "name": "reader", "clientId": "reports-api" }
+{ "command": "grant-role", "tenant": "demo", "tenantId": "01a0cb07-4e24-73d6-8060-137e69941e60", "username": "ada", "role": "reports-api:reader" }
+{ "command": "map-role", "tenant": "demo", "tenantId": "01a0cb07-4e24-73d6-8060-137e69941e60", "scope": "roles", "role": "reports-api:reader" }
 ```
 
 A token requested with `scope=openid roles` for `demo-spa` now carries
@@ -1393,26 +1391,26 @@ exactly `clientId:roleName`, which is unambiguous only because
 role with two colons (`a:b:c`) is refused by `grant-role`/`map-role` rather
 than guessed at, since the client half could not contain one either.
 
-`seed client` assigns every realm-default scope — `roles` and `groups`
+`seed client` assigns every tenant-default scope — `roles` and `groups`
 among them — to a client the moment it is created, with assignment kind
-`default`. `seed assign-scope` exists for the scope a realm defines
+`default`. `seed assign-scope` exists for the scope a tenant defines
 _afterwards_ — a resource server's own `reports:read`, say — that a client
 needs added explicitly:
 
 ```bash
-odudu seed scope --realm demo --name reports:read
+odudu seed scope --tenant demo --name reports:read
 odudu seed assign-scope \
-  --realm demo --client-id demo-spa --scope reports:read --assignment optional
+  --tenant demo --client-id demo-spa --scope reports:read --assignment optional
 ```
 
 ```json
-{ "command": "scope", "realm": "demo", "realmId": "01a0a1a7-5917-7905-aed4-e278951d1acf", "scopeId": "01a0a1a8-b176-71db-b143-86b395a7b439", "name": "reports:read" }
-{ "command": "assign-scope", "realm": "demo", "realmId": "01a0a1a7-5917-7905-aed4-e278951d1acf", "clientId": "demo-spa", "scope": "reports:read", "assignment": "optional" }
+{ "command": "scope", "tenant": "demo", "tenantId": "01a0cb07-4e24-73d6-8060-137e69941e60", "scopeId": "01a0cb0b-98f6-72d1-9c9d-06d721bd2f5b", "name": "reports:read" }
+{ "command": "assign-scope", "tenant": "demo", "tenantId": "01a0cb07-4e24-73d6-8060-137e69941e60", "clientId": "demo-spa", "scope": "reports:read", "assignment": "optional" }
 ```
 
 `assign-scope` is safe to run against a scope a client already carries — it
 narrows or widens the existing assignment rather than colliding with it,
-which matters because every realm-default scope is already assigned by the
+which matters because every tenant-default scope is already assigned by the
 time a client exists to run it against.
 
 **"I created a role and it is not in my token."** Three things gate it,
@@ -1434,21 +1432,21 @@ its direct assignments, in the same recursive CTE `groupRepository.mapRole`
 was built for.
 
 ```bash
-odudu seed group --realm demo --name engineering
-odudu seed group --realm demo --name backend --parent /engineering
-odudu seed join-group --realm demo --username ada --group /engineering/backend
-odudu seed role --realm demo --name engineering-lead
-odudu seed map-group-role --realm demo --group /engineering --role engineering-lead
-odudu seed map-role --realm demo --scope roles --role engineering-lead
+odudu seed group --tenant demo --name engineering
+odudu seed group --tenant demo --name backend --parent /engineering
+odudu seed join-group --tenant demo --username ada --group /engineering/backend
+odudu seed role --tenant demo --name engineering-lead
+odudu seed map-group-role --tenant demo --group /engineering --role engineering-lead
+odudu seed map-role --tenant demo --scope roles --role engineering-lead
 ```
 
 ```json
-{ "command": "group", "realm": "demo", "realmId": "01a0a215-1fbe-7b78-b0cc-ecd3b246658d", "groupId": "01a0a215-56ff-70be-ab80-652eabc3a340", "path": "/engineering" }
-{ "command": "group", "realm": "demo", "realmId": "01a0a215-1fbe-7b78-b0cc-ecd3b246658d", "groupId": "01a0a215-5890-7110-b875-db31b1c6673c", "path": "/engineering/backend" }
-{ "command": "join-group", "realm": "demo", "realmId": "01a0a215-1fbe-7b78-b0cc-ecd3b246658d", "username": "ada", "group": "/engineering/backend" }
-{ "command": "role", "realm": "demo", "realmId": "01a0a215-1fbe-7b78-b0cc-ecd3b246658d", "roleId": "01a0a215-5b7b-7477-a72d-4237651a4f6e", "name": "engineering-lead", "clientId": null }
-{ "command": "map-group-role", "realm": "demo", "realmId": "01a0a215-1fbe-7b78-b0cc-ecd3b246658d", "group": "/engineering", "role": "engineering-lead" }
-{ "command": "map-role", "realm": "demo", "realmId": "01a0a215-1fbe-7b78-b0cc-ecd3b246658d", "scope": "roles", "role": "engineering-lead" }
+{ "command": "group", "tenant": "demo", "tenantId": "01a0cb07-4e24-73d6-8060-137e69941e60", "groupId": "01a0cb0b-f688-7ac7-b127-0ced7f7970cd", "path": "/engineering" }
+{ "command": "group", "tenant": "demo", "tenantId": "01a0cb07-4e24-73d6-8060-137e69941e60", "groupId": "01a0cb0b-f7fe-7c92-95c6-ab072a559d88", "path": "/engineering/backend" }
+{ "command": "join-group", "tenant": "demo", "tenantId": "01a0cb07-4e24-73d6-8060-137e69941e60", "username": "ada", "group": "/engineering/backend" }
+{ "command": "role", "tenant": "demo", "tenantId": "01a0cb07-4e24-73d6-8060-137e69941e60", "roleId": "01a0cb0b-fb9e-7d1a-a9e0-1da5dbed5397", "name": "engineering-lead", "clientId": null }
+{ "command": "map-group-role", "tenant": "demo", "tenantId": "01a0cb07-4e24-73d6-8060-137e69941e60", "group": "/engineering", "role": "engineering-lead" }
+{ "command": "map-role", "tenant": "demo", "tenantId": "01a0cb07-4e24-73d6-8060-137e69941e60", "scope": "roles", "role": "engineering-lead" }
 ```
 
 `ada` is joined only to `/engineering/backend`, the _child_; the role is
@@ -1459,18 +1457,18 @@ through the group) onto the same access token:
 
 ```json
 {
-  "roles": ["engineering-lead", "reviewer"],
+  "roles": ["engineering-lead", "reports-api:reader", "reviewer"],
   "groups": ["/engineering/backend"],
-  "iss": "http://localhost:3000/realms/demo",
-  "sub": "01a0c3a8-078e-…",
-  "aud": ["http://localhost:3000/realms/demo"],
+  "iss": "http://localhost:3000/tenants/demo",
+  "sub": "01a0cb07-4e76-…",
+  "aud": ["http://localhost:3000/tenants/demo"],
   "client_id": "demo-spa",
   "scope": "openid roles groups",
-  "iat": 1789988992,
-  "exp": 1789989292,
-  "jti": "01a0c3a8-75e2-…",
-  "sid": "01a0c3a8-7582-…",
-  "grant_id": "01a0c3a8-75e2-78d4-bfa7-14fd17cf0d39"
+  "iat": 1790112956,
+  "exp": 1790113256,
+  "jti": "01a0cb0b-ff48-…",
+  "sid": "01a0cb0b-ff29-…",
+  "grant_id": "01a0cb0b-ff47-7912-969b-83d383a2f5a5"
 }
 ```
 
@@ -1484,12 +1482,12 @@ why `engineering-lead` appears even though nothing ever joined `ada` to
 
 ```bash
 curl -sS -H "Authorization: Bearer $ACCESS_TOKEN" \
-  http://localhost:3000/realms/demo/protocol/openid-connect/userinfo
+  http://localhost:3000/tenants/demo/protocol/openid-connect/userinfo
 ```
 
 ```json
 {
-  "sub": "01a09678-07c1-…",
+  "sub": "01a0cb07-4e76-…",
   "name": "ada",
   "preferred_username": "ada",
   "email": "ada@example.com",
@@ -1503,7 +1501,7 @@ way:
 ```bash
 curl -sS -o /dev/null -w '%{http_code}\n' -X POST \
   --data-urlencode "access_token=$ACCESS_TOKEN" \
-  http://localhost:3000/realms/demo/protocol/openid-connect/userinfo
+  http://localhost:3000/tenants/demo/protocol/openid-connect/userinfo
 ```
 
 ```
@@ -1527,7 +1525,7 @@ above), so `bob` gets his own client:
 
 ```bash
 odudu seed \
-  --realm demo --client demo-second-user \
+  --tenant demo --client demo-second-user \
   --redirect-uri http://localhost:8080/callback \
   --user bob --password another-horse-battery
 ```
@@ -1535,10 +1533,10 @@ odudu seed \
 ```json
 {
   "created": true,
-  "realm": "demo",
-  "realmId": "01a0c949-…",
+  "tenant": "demo",
+  "tenantId": "01a0cb07-…",
   "clientId": "demo-second-user",
-  "userSubjectId": "01a0c949-7006-…"
+  "userSubjectId": "01a0cb0c-b2db-…"
 }
 ```
 
@@ -1550,13 +1548,13 @@ separate bootstrap:
 
 ```bash
 ADA_SUB=$(odudu seed \
-  --realm demo --client demo-spa \
+  --tenant demo --client demo-spa \
   --redirect-uri http://localhost:8080/callback \
   --user ada --password correct-horse-battery --email ada@example.com \
   | sed -n 's/.*"userSubjectId":"\([^"]*\)".*/\1/p')
 
 BOB_SUB=$(odudu seed \
-  --realm demo --client demo-second-user \
+  --tenant demo --client demo-second-user \
   --redirect-uri http://localhost:8080/callback \
   --user bob --password another-horse-battery \
   | sed -n 's/.*"userSubjectId":"\([^"]*\)".*/\1/p')
@@ -1596,7 +1594,7 @@ curl -sS -H "Authorization: Bearer $ACCESS_TOKEN" "$BASE/userinfo"
 ```
 
 ```json
-{ "sub": "01a0c949-49a3-…", "email": "ada@example.com" }
+{ "sub": "01a0cb07-4e76-…", "email": "ada@example.com" }
 ```
 
 Every other scope-granted claim (`name`, `preferred_username`) is left out —
@@ -1606,7 +1604,7 @@ narrow — but `email` was, and it survives. The same request with
 with `email` absent, though `claims` asked for it exactly the same way:
 
 ```json
-{ "sub": "01a0c949-49a3-…" }
+{ "sub": "01a0cb07-4e76-…" }
 ```
 
 An `id_token` member's Essential Claims work the same way at `/token`.
@@ -1628,13 +1626,13 @@ curl -sS --get \
 
 ```json
 {
-  "sub": "01a0c949-49a3-…",
-  "iss": "http://localhost:3000/realms/demo",
+  "sub": "01a0cb07-4e76-…",
+  "iss": "http://localhost:3000/tenants/demo",
   "aud": "demo-spa",
-  "iat": 1790083478,
-  "exp": 1790083778,
-  "auth_time": 1790083478,
-  "sid": "01a0c94a-35c5-…",
+  "iat": 1790113003,
+  "exp": 1790113303,
+  "auth_time": 1790113003,
+  "sid": "01a0cb0c-b85c-…",
   "amr": ["pwd"],
   "acr": "1"
 }
@@ -1646,12 +1644,12 @@ above turn on:
 
 ```json
 {
-  "sub": "01a0c949-49a3-…",
-  "iss": "http://localhost:3000/realms/demo",
+  "sub": "01a0cb07-4e76-…",
+  "iss": "http://localhost:3000/tenants/demo",
   "aud": "demo-spa",
-  "iat": 1790083493,
-  "exp": 1790083793,
-  "sid": "01a0c94a-6ec0-…",
+  "iat": 1790113003,
+  "exp": 1790113303,
+  "sid": "01a0cb0c-b90a-…",
   "amr": ["pwd"],
   "acr": "1"
 }
@@ -1684,7 +1682,7 @@ curl -sS -D - -o /dev/null --get \
 
 ```
 HTTP/1.1 302 Found
-location: http://localhost:8080/callback?code=BfXPWXsPFcv2_q5rzr_9P3fkPtNIs9wZpq-dJynrJfU&state=abc&iss=http%3A%2F%2Flocalhost%3A3000%2Frealms%2Fdemo
+location: http://localhost:8080/callback?code=rtTN9LmGGub6Jk-_CR8x8O2WXGQpQV_Cv287i6ouV5Q&state=abc&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Fdemo
 ```
 
 Naming bob's subject instead — nobody but ada is signed in on this cookie —
@@ -1708,7 +1706,7 @@ curl -sS -D - -o /dev/null --get \
 
 ```
 HTTP/1.1 302 Found
-location: http://localhost:8080/callback?error=login_required&state=abc&iss=http%3A%2F%2Flocalhost%3A3000%2Frealms%2Fdemo
+location: http://localhost:8080/callback?error=login_required&state=abc&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Fdemo
 ```
 
 and without `prompt=none` shows a login form instead of refusing outright —
@@ -1754,7 +1752,7 @@ curl -sS -D - -o /dev/null \
 
 ```
 HTTP/1.1 302 Found
-location: http://localhost:8080/callback?error=login_required&state=abc&iss=http%3A%2F%2Flocalhost%3A3000%2Frealms%2Fdemo
+location: http://localhost:8080/callback?error=login_required&state=abc&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Fdemo
 ```
 
 The account chooser carries the identical constraint at its own POST
@@ -1784,12 +1782,12 @@ curl -sS -D - -o /dev/null --get \
 
 ```
 HTTP/1.1 302 Found
-location: http://localhost:8080/callback?error=invalid_request&state=xyz-123&iss=http%3A%2F%2Flocalhost%3A3000%2Frealms%2Fdemo
+location: http://localhost:8080/callback?error=invalid_request&state=xyz-123&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Fdemo
 ```
 
 Discovery states support for the parameter fixed `true`, the same way it
-states `authorization_response_iss_parameter_supported` — every realm
-honours it the same way, so there is no per-realm derivation:
+states `authorization_response_iss_parameter_supported` — every tenant
+honours it the same way, so there is no per-tenant derivation:
 
 ```json
 { "claims_parameter_supported": true }
@@ -1814,13 +1812,7 @@ curl -sS -H "Authorization: Bearer $ACCESS_TOKEN" "$BASE/userinfo"
 ```
 
 ```json
-{
-  "sub": "01a0c949-…",
-  "name": "ada",
-  "preferred_username": "ada",
-  "email": "ada@example.com",
-  "email_verified": false
-}
+{ "sub": "01a0cb07-4e76-…", "email": "ada@example.com", "email_verified": false }
 ```
 
 Nothing here crosses the consented scope — the narrowing was never a
@@ -1835,39 +1827,57 @@ have that argument).
 
 A client that registers `userinfo_encrypted_response_alg` gets its
 `/userinfo` response encrypted to a key from its own published `jwks` — a
-dynamic registration, since this is per-client data:
+dynamic registration, since this is per-client data. `demo` registers
+nothing until its policy is opened, exactly as
+[dynamic client registration](#dynamic-client-registration) showed for
+`reg-demo`, so that comes first and stays open for
+[the consent screen](#the-consent-screen) below:
 
 ```bash
-curl -sS -X POST http://localhost:3000/realms/demo/clients-registrations/openid-connect \
+odudu seed tenant --name demo --set client_registration_policy=open
+```
+
+```json
+{
+  "command": "tenant",
+  "created": false,
+  "tenant": "demo",
+  "tenantId": "01a0cb07-…",
+  "settings": ["client_registration_policy"]
+}
+```
+
+```bash
+curl -sS -X POST http://localhost:3000/tenants/demo/clients-registrations/openid-connect \
   -H 'content-type: application/json' \
   -d '{
     "redirect_uris": ["https://rp.example/cb"],
     "userinfo_signed_response_alg": "RS256",
     "userinfo_encrypted_response_alg": "RSA-OAEP-256",
     "userinfo_encrypted_response_enc": "A256GCM",
-    "jwks": {"keys": [{"kty":"RSA","n":"q3ggKEy4…","e":"AQAB","use":"enc"}]}
+    "jwks": {"keys": [{"kty":"RSA","n":"lEVM608l…","e":"AQAB","use":"enc"}]}
   }'
 ```
 
 ```json
 {
-  "client_id": "01a0c89c-b853-…",
-  "client_id_issued_at": 1790072109,
-  "client_secret": "Lks7dNvTE86il3NvsurdGTiMTtfvFW0-T0zPFmxxKwY",
+  "client_id": "01a0cb0f-4cad-…",
+  "client_id_issued_at": 1790113176,
+  "client_secret": "oIz1jU-PCDfxXFGLIKxUD-8XZh_6dMRRU5fA-_iYtlk",
   "client_secret_expires_at": 0,
   "redirect_uris": ["https://rp.example/cb"],
   "grant_types": ["authorization_code"],
   "token_endpoint_auth_method": "client_secret_basic",
-  "jwks": { "keys": [{ "kty": "RSA", "n": "q3ggKEy4…", "e": "AQAB", "use": "enc" }] },
+  "jwks": { "keys": [{ "kty": "RSA", "n": "lEVM608l…", "e": "AQAB", "use": "enc" }] },
   "userinfo_signed_response_alg": "RS256",
   "userinfo_encrypted_response_alg": "RSA-OAEP-256",
   "userinfo_encrypted_response_enc": "A256GCM"
 }
 ```
 
-Discovery's two new members are this realm's own answer, the same way
+Discovery's two new members are this tenant's own answer, the same way
 [discovery](#1-discovery) above shows `userinfo_signing_alg_values_supported`
-— except these two never vary by realm, since no server key is involved,
+— except these two never vary by tenant, since no server key is involved,
 only what the installed jose can produce
 (`docs/superpowers/p3b-spike-jwe.md`):
 
@@ -1898,15 +1908,15 @@ with the access token it yields:
 
 ```bash
 curl -sS -D - -H "Authorization: Bearer $ACCESS_TOKEN" \
-  http://localhost:3000/realms/demo/protocol/openid-connect/userinfo
+  http://localhost:3000/tenants/demo/protocol/openid-connect/userinfo
 ```
 
 ```
 HTTP/1.1 200 OK
 content-type: application/jwt
-content-length: 1449
+content-length: 1451
 
-eyJhbGciOiJSU0EtT0FFUC0yNTYiLCJlbmMiOiJBMjU2R0NNIiwiY3R5IjoiSldUIn0.XRRSQ7UaUgLmEjfcEyNU…
+eyJhbGciOiJSU0EtT0FFUC0yNTYiLCJlbmMiOiJBMjU2R0NNIiwiY3R5IjoiSldUIn0.L3PzB5rRx7YMIM1Ldh0gIe…
 ```
 
 Five dot-separated parts, not three — a JWE compact serialization, not a
@@ -1924,15 +1934,15 @@ signed UserInfo response" (`docs/protocols/oidc-core.md`'s reading note),
 now wrapped in encryption:
 
 ```json
-{ "alg": "RS256", "kid": "01a0c89c-6d76-…", "typ": "userinfo+jwt" }
+{ "alg": "RS256", "kid": "01a0cb07-4e73-…", "typ": "userinfo+jwt" }
 {
-  "sub": "01a0c89c-6d7a-…",
+  "sub": "01a0cb07-4e76-…",
   "name": "ada",
   "preferred_username": "ada",
   "email": "ada@example.com",
   "email_verified": false,
-  "iss": "http://localhost:3000/realms/demo",
-  "aud": "01a0c89c-b853-…"
+  "iss": "http://localhost:3000/tenants/demo",
+  "aud": "01a0cb0f-4cad-…"
 }
 ```
 
@@ -1949,25 +1959,25 @@ signs). This one also leaves out `userinfo_encrypted_response_enc`, unlike
 the client above:
 
 ```bash
-curl -sS -X POST http://localhost:3000/realms/demo/clients-registrations/openid-connect \
+curl -sS -X POST http://localhost:3000/tenants/demo/clients-registrations/openid-connect \
   -H 'content-type: application/json' \
   -d '{
     "redirect_uris": ["https://rp2.example/cb"],
     "userinfo_encrypted_response_alg": "RSA-OAEP-256",
-    "jwks": {"keys": [{"kty":"RSA","n":"ko4vxz0c…","e":"AQAB","use":"enc"}]}
+    "jwks": {"keys": [{"kty":"RSA","n":"n9ZADhg2…","e":"AQAB","use":"enc"}]}
   }'
 ```
 
 ```json
 {
-  "client_id": "01a0c89d-a91e-…",
-  "client_id_issued_at": 1790072170,
-  "client_secret": "xCA2nlZCP59SaPQtwsfybM7eT2B7CAdrMsh4bTZR7Xs",
+  "client_id": "01a0cb0f-4d81-…",
+  "client_id_issued_at": 1790113176,
+  "client_secret": "M5PcEC9GpoVyR3HO4PjqRULALZ-I0Br4ywgQspMhWSs",
   "client_secret_expires_at": 0,
   "redirect_uris": ["https://rp2.example/cb"],
   "grant_types": ["authorization_code"],
   "token_endpoint_auth_method": "client_secret_basic",
-  "jwks": { "keys": [{ "kty": "RSA", "n": "ko4vxz0c…", "e": "AQAB", "use": "enc" }] },
+  "jwks": { "keys": [{ "kty": "RSA", "n": "n9ZADhg2…", "e": "AQAB", "use": "enc" }] },
   "userinfo_encrypted_response_alg": "RSA-OAEP-256",
   "userinfo_encrypted_response_enc": "A128CBC-HS256"
 }
@@ -1983,7 +1993,7 @@ HTTP/1.1 200 OK
 content-type: application/jwt
 content-length: 513
 
-eyJhbGciOiJSU0EtT0FFUC0yNTYiLCJlbmMiOiJBMTI4Q0JDLUhTMjU2In0.W7KhorJR_TnzMuNqcst0XbQ4bGqj…
+eyJhbGciOiJSU0EtT0FFUC0yNTYiLCJlbmMiOiJBMTI4Q0JDLUhTMjU2In0.UDGsIw_SCNRpkEdGUXA1-rSjxZGxDQ…
 ```
 
 ```json
@@ -1993,7 +2003,7 @@ eyJhbGciOiJSU0EtT0FFUC0yNTYiLCJlbmMiOiJBMTI4Q0JDLUhTMjU2In0.W7KhorJR_TnzMuNqcst0
 Decrypted:
 
 ```json
-{ "sub": "01a0c89c-6d7a-…" }
+{ "sub": "01a0cb07-4e76-…" }
 ```
 
 (This client requested `scope=openid` alone, hence one claim.)
@@ -2025,9 +2035,9 @@ seconds to connect and 10 seconds total transport
 `DEFAULT_TOTAL_TIMEOUT_MS`). `NEGATIVE_CACHE_TTL_MS` (30 seconds,
 `packages/protocol-oidc/src/repository/client-keys.ts`) means only the
 first request against a given dead `jwks_uri` in that window pays it —
-every other request for that client, **in the same realm**, gets a cached
-refusal instead: the negative cache is keyed by realm and URI together, so
-a second realm pointed at the same dead `jwks_uri` pays the full cost
+every other request for that client, **in the same tenant**, gets a cached
+refusal instead: the negative cache is keyed by tenant and URI together, so
+a second tenant pointed at the same dead `jwks_uri` pays the full cost
 again, independently. `docs/superpowers/p3b-spike-jwe.md`'s "Question 2"
 has the full measurement; `docs/NEXT.md` records that this is now a
 second consumer of the same unbounded lookup.
@@ -2073,12 +2083,12 @@ curl -sS -D - -o /dev/null --get \
   --data-urlencode 'redirect_uri=http://localhost:8080/callback' \
   --data-urlencode 'scope=openid profile email' \
   --data-urlencode 'state=xyz-123' \
-  'http://localhost:3000/realms/demo/protocol/openid-connect/auth'
+  'http://localhost:3000/tenants/demo/protocol/openid-connect/auth'
 ```
 
 ```
 HTTP/1.1 302 Found
-location: http://localhost:8080/callback?error=invalid_request&state=xyz-123&iss=http%3A%2F%2Flocalhost%3A3000%2Frealms%2Fdemo
+location: http://localhost:8080/callback?error=invalid_request&state=xyz-123&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Fdemo
 content-length: 0
 ```
 
@@ -2100,7 +2110,7 @@ curl -sS -D - -u demo-backend:demo-backend-secret \
   --data-urlencode "code=$CODE" \
   --data-urlencode 'redirect_uri=http://localhost:8080/callback' \
   --data-urlencode "code_verifier=$VERIFIER" \
-  'http://localhost:3000/realms/demo/protocol/openid-connect/token'
+  'http://localhost:3000/tenants/demo/protocol/openid-connect/token'
 ```
 
 ```
@@ -2112,7 +2122,7 @@ content-type: application/json; charset=utf-8
 {
   "access_token": "eyJhbGciOiJSUzI1NiIs…",
   "id_token": "eyJhbGciOiJSUzI1NiIs…",
-  "refresh_token": "P4dFlaaDHPJDK9sKMYF3…",
+  "refresh_token": "QBt3F9bUdMxbNZIQF3MD…",
   "token_type": "Bearer",
   "expires_in": 300,
   "scope": "openid profile email"
@@ -2128,33 +2138,32 @@ where they name the client:
 
 ```json
 {
-  "iss": "http://localhost:3000/realms/demo",
-  "sub": "01a0c3a8-078e-…",
-  "aud": ["http://localhost:3000/realms/demo"],
+  "iss": "http://localhost:3000/tenants/demo",
+  "sub": "01a0cb07-4e76-…",
+  "aud": ["http://localhost:3000/tenants/demo"],
   "client_id": "demo-backend",
   "scope": "openid profile email",
-  "iat": 1789988996,
-  "exp": 1789989296,
-  "jti": "01a0c3a8-8538-…",
-  "sid": "01a0c3a8-84e5-…",
-  "grant_id": "01a0c3a8-8538-7cd9-9bb4-f04e04c19955"
+  "iat": 1790113245,
+  "exp": 1790113545,
+  "jti": "01a0cb10-6aed-…",
+  "sid": "01a0cb10-6ab6-…",
+  "grant_id": "01a0cb10-6aed-7396-b2e0-2383f0bb527a"
 }
 ```
 
 ```json
 {
-  "sub": "01a0a6cd-e3cb-…",
+  "sub": "01a0cb07-4e76-…",
   "name": "ada",
   "preferred_username": "ada",
   "email": "ada@example.com",
   "email_verified": false,
-  "iss": "http://localhost:3000/realms/demo",
+  "iss": "http://localhost:3000/tenants/demo",
   "aud": "demo-backend",
-  "iat": 1789505125,
-  "exp": 1789505425,
-  "auth_time": 1789505125,
+  "iat": 1790113245,
+  "exp": 1790113545,
   "nonce": "n-0S6_WzA2Mj",
-  "sid": "01a0a6d1-3d1f-…",
+  "sid": "01a0cb10-6ab6-…",
   "amr": ["pwd"],
   "acr": "1"
 }
@@ -2162,7 +2171,7 @@ where they name the client:
 
 (`sub`, `kid` and `jti` shortened; the headers are as Path A's.) `sub` is
 ada's, the same identifier `demo-spa` was given for her — a subject belongs
-to the realm, not to the client that asked. The service-account subject a
+to the tenant, not to the client that asked. The service-account subject a
 confidential client also carries is a different one, and only
 [`client_credentials`](#path-c-client_credentials) mints tokens for it.
 
@@ -2185,7 +2194,7 @@ curl -sS -D - \
   --data-urlencode 'client_id=demo-post' \
   --data-urlencode 'client_secret=demo-post-secret' \
   --data-urlencode "code_verifier=$VERIFIER" \
-  'http://localhost:3000/realms/demo/protocol/openid-connect/token'
+  'http://localhost:3000/tenants/demo/protocol/openid-connect/token'
 ```
 
 ```
@@ -2197,7 +2206,7 @@ content-type: application/json; charset=utf-8
 {
   "access_token": "eyJhbGciOiJSUzI1NiIs…",
   "id_token": "eyJhbGciOiJSUzI1NiIs…",
-  "refresh_token": "a730HWinJoMIqYtxVjr5…",
+  "refresh_token": "vwguWAm5qJ2mPfXBBVhk…",
   "token_type": "Bearer",
   "expires_in": 300,
   "scope": "openid profile email"
@@ -2213,8 +2222,9 @@ is in
 [Client authentication is by the registered method and no other](#client-authentication-is-by-the-registered-method-and-no-other).
 
 A third method, `private_key_jwt`, is also registered by no client on this
-stack — `seed client` cannot produce one and the demo realm's client
-registration policy is closed — so no transcript for it appears here; see
+stack — `seed client` cannot produce one, and the clients this document
+registers dynamically all leave `token_endpoint_auth_method` at its default
+— so no transcript for it appears here; see
 [What is not implemented](#what-is-not-implemented)'s "Any admin API" row
 for why, and the [`/token`](#token) refusal table for the bytes each of
 its failures answers with.
@@ -2230,7 +2240,7 @@ curl -sS -D - \
   --data-urlencode 'redirect_uri=http://localhost:8080/callback' \
   --data-urlencode 'client_id=demo-backend' \
   --data-urlencode "code_verifier=$VERIFIER" \
-  'http://localhost:3000/realms/demo/protocol/openid-connect/token'
+  'http://localhost:3000/tenants/demo/protocol/openid-connect/token'
 ```
 
 ```
@@ -2253,27 +2263,27 @@ is the reason to be a confidential client.
 `email_verified` is a stored claim, but until now nothing could set it
 truthfully — every ID token and UserInfo response above for `ada` carries
 `"email_verified": false`, and that is still real: nothing verifies an
-address until this section. `GET /realms/{realm}/login-actions/action-token?key=…`
+address until this section. `GET /tenants/{tenant}/login-actions/action-token?key=…`
 is the other half: consuming the link a verification email carries.
 [Self-registration](#self-registration) below is one way to trigger that
 mail, for an address that does not exist yet; `odudu seed
 --send-verification-email` is the other, standing in for the admin
 console's "Send verification email" action against a user who already
-exists — `ada`, seeded back in [Bootstrap](#bootstrap). A realm's `verify_email` is turned on
-with `seed realm --set`, the same way
+exists — `ada`, seeded back in [Bootstrap](#bootstrap). A tenant's `verify_email` is turned on
+with `seed tenant --set`, the same way
 [Self-registration](#self-registration) turns on the other two:
 
 ```bash
-odudu seed realm --name demo --set verify_email=true
+odudu seed tenant --name demo --set verify_email=true
 ```
 
 ```
-{"command":"realm","created":false,"realm":"demo","realmId":"01a0af71-71ad-7759-bf73-acaa420d812a","settings":["verify_email"]}
+{"command":"tenant","created":false,"tenant":"demo","tenantId":"01a0cb07-4e24-73d6-8060-137e69941e60","settings":["verify_email"]}
 ```
 
 ```bash
 odudu seed \
-  --realm demo --client demo-spa \
+  --tenant demo --client demo-spa \
   --redirect-uri http://localhost:8080/callback \
   --user ada --password correct-horse-battery --email ada@example.com \
   --send-verification-email
@@ -2294,7 +2304,7 @@ gets the link:
   "level": 30,
   "to": "ada@example.com",
   "subject": "Verify your demo account",
-  "text": "Confirm your email address for demo by visiting this link:\n\nhttp://localhost:3000/realms/demo/login-actions/action-token?key=FZDLhOiE8AXyz6zzuGlRy4OkoK7ihPSIBoicxqaMWVM\n\nIf you did not request this, you can ignore this message.",
+  "text": "Confirm your email address for demo by visiting this link:\n\nhttp://localhost:3000/tenants/demo/login-actions/action-token?key=9qsTxZgVlA_N8dHLuijG5l7UUex8F4HwGJEanfGXYCk\n\nIf you did not request this, you can ignore this message.",
   "html": "<p>Confirm your email address for demo by visiting <a href=\"…\">…</a>.</p><p>If you did not request this, you can ignore this message.</p>",
   "msg": "captured email — no SMTP host configured"
 }
@@ -2315,7 +2325,7 @@ Following the link once verifies it:
 
 ```bash
 curl -sS -o /dev/null -w '%{http_code}\n' \
-  'http://localhost:3000/realms/demo/login-actions/action-token?key=FZDLhOiE8AXyz6zzuGlRy4OkoK7ihPSIBoicxqaMWVM'
+  'http://localhost:3000/tenants/demo/login-actions/action-token?key=9qsTxZgVlA_N8dHLuijG5l7UUex8F4HwGJEanfGXYCk'
 ```
 
 ```
@@ -2335,7 +2345,7 @@ redemption, and `action_tokens.consumed_at` is now set:
 
 ```bash
 curl -sS -o /dev/null -w '%{http_code}\n' \
-  'http://localhost:3000/realms/demo/login-actions/action-token?key=FZDLhOiE8AXyz6zzuGlRy4OkoK7ihPSIBoicxqaMWVM'
+  'http://localhost:3000/tenants/demo/login-actions/action-token?key=9qsTxZgVlA_N8dHLuijG5l7UUex8F4HwGJEanfGXYCk'
 ```
 
 ```
@@ -2343,7 +2353,7 @@ curl -sS -o /dev/null -w '%{http_code}\n' \
 ```
 
 The same 400 answers a key that never existed, one presented to the wrong
-realm, one past its 12-hour lifespan, or one whose address the user has
+tenant, one past its 12-hour lifespan, or one whose address the user has
 since changed — consumption compares the token's stored `email` against the
 user's current one and refuses on any mismatch, so a verification cannot
 outlive the address it was proving. None of those four are told apart in
@@ -2362,34 +2372,34 @@ this document shares was verified here, not earlier.
 
 ## Self-registration
 
-`GET`/`POST /realms/{realm}/login-actions/registration` is the first way a
-user reaches a realm without an administrator seeding them in. It answers
-only when the realm's `registration_allowed` is on — off by default, like
-`verify_email` and `reset_password_allowed` — so a realm serves nothing at
+`GET`/`POST /tenants/{tenant}/login-actions/registration` is the first way a
+user reaches a tenant without an administrator seeding them in. It answers
+only when the tenant's `registration_allowed` is on — off by default, like
+`verify_email` and `reset_password_allowed` — so a tenant serves nothing at
 all here until an operator turns it on:
 
 ```bash
 odudu seed \
-  --realm register-demo --client register-spa \
+  --tenant register-demo --client register-spa \
   --redirect-uri http://localhost:8080/callback
 curl -sS -o /dev/null -w '%{http_code}\n' \
-  http://localhost:3000/realms/register-demo/login-actions/registration
+  http://localhost:3000/tenants/register-demo/login-actions/registration
 ```
 
 ```
 404
 ```
 
-Both settings this flow needs are realm settings, so one `seed realm --set`
+Both settings this flow needs are tenant settings, so one `seed tenant --set`
 turns them on — repeatable, and applied in one statement:
 
 ```bash
-odudu seed realm --name register-demo \
+odudu seed tenant --name register-demo \
   --set registration_allowed=true --set verify_email=true
 ```
 
 ```
-{"command":"realm","created":false,"realm":"register-demo","realmId":"01a0b044-8f5b-74ec-b550-49e9292e0de9","settings":["registration_allowed","verify_email"]}
+{"command":"tenant","created":false,"tenant":"register-demo","tenantId":"01a0cb12-2131-78a5-9def-e9bcc032180b","settings":["registration_allowed","verify_email"]}
 ```
 
 With both on, posting the form creates the account and, because
@@ -2397,7 +2407,7 @@ With both on, posting the form creates the account and, because
 right away:
 
 ```bash
-curl -sS -X POST http://localhost:3000/realms/register-demo/login-actions/registration \
+curl -sS -X POST http://localhost:3000/tenants/register-demo/login-actions/registration \
   --data-urlencode 'username=ada' \
   --data-urlencode 'email=ada@example.com' \
   --data-urlencode 'password=correct-horse-battery'
@@ -2414,7 +2424,7 @@ curl -sS -X POST http://localhost:3000/realms/register-demo/login-actions/regist
 </html>
 ```
 
-The subject, the `users` row, the password credential and the realm's
+The subject, the `users` row, the password credential and the tenant's
 default roles are all created in one transaction, and the `verify_email`
 token is issued inside that same transaction — the mail goes out only after
 it commits, the same ordering [Address verification](#address-verification)
@@ -2426,7 +2436,7 @@ log instead of an inbox:
   "level": 30,
   "to": "ada@example.com",
   "subject": "Verify your register-demo account",
-  "text": "Confirm your email address for register-demo by visiting this link:\n\nhttp://localhost:3000/realms/register-demo/login-actions/action-token?key=T-KtGmS4CxncUMHktuxL4EVHtBzBQ7fDqL6NzVz05BA\n\nIf you did not request this, you can ignore this message.",
+  "text": "Confirm your email address for register-demo by visiting this link:\n\nhttp://localhost:3000/tenants/register-demo/login-actions/action-token?key=6AkQjYEkoqMGiYpFx63UGAuvitBIEjmNyDMd6w2uN2Y\n\nIf you did not request this, you can ignore this message.",
   "msg": "captured email — no SMTP host configured"
 }
 ```
@@ -2442,7 +2452,7 @@ account they hold the password to. Posting the same form again with a
 forged `Host` proves the header is ignored:
 
 ```bash
-curl -sS -X POST http://localhost:3000/realms/register-demo/login-actions/registration \
+curl -sS -X POST http://localhost:3000/tenants/register-demo/login-actions/registration \
   -H 'Host: evil.example' \
   --data-urlencode 'username=grace' \
   --data-urlencode 'email=grace@example.com' \
@@ -2454,13 +2464,13 @@ curl -sS -X POST http://localhost:3000/realms/register-demo/login-actions/regist
   "level": 30,
   "to": "grace@example.com",
   "subject": "Verify your register-demo account",
-  "text": "Confirm your email address for register-demo by visiting this link:\n\nhttp://localhost:3000/realms/register-demo/login-actions/action-token?key=PNY_QHSdYzzRHsHBUbRs2PtPZyo0JhIENMOAMdJ3q74\n\nIf you did not request this, you can ignore this message.",
+  "text": "Confirm your email address for register-demo by visiting this link:\n\nhttp://localhost:3000/tenants/register-demo/login-actions/action-token?key=QSamH8NlNKgEIxjr7XbuIOZ7fTPqCf6uxDtFZeEIf9E\n\nIf you did not request this, you can ignore this message.",
   "msg": "captured email — no SMTP host configured"
 }
 ```
 
 Still `localhost:3000`, never `evil.example`. When `ODUDU_PUBLIC_BASE_URL`
-is unset and a realm's `verify_email` is on, registration refuses outright
+is unset and a tenant's `verify_email` is on, registration refuses outright
 (500, logged as a misconfiguration) rather than falling back to the
 request in any way.
 
@@ -2480,10 +2490,10 @@ AUTH_SESSION_ID=$(curl -sS --get \
   --data-urlencode 'nonce=abc123' \
   --data-urlencode 'code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM' \
   --data-urlencode 'code_challenge_method=S256' \
-  'http://localhost:3000/realms/register-demo/protocol/openid-connect/auth' \
+  'http://localhost:3000/tenants/register-demo/protocol/openid-connect/auth' \
   | sed -n '/name="auth_session_id"/{s/.*value="\([^"]*\)".*/\1/p;q;}')
 
-curl -sS -i -X POST http://localhost:3000/realms/register-demo/login-actions/authenticate \
+curl -sS -i -X POST http://localhost:3000/tenants/register-demo/login-actions/authenticate \
   --data-urlencode "auth_session_id=$AUTH_SESSION_ID" \
   --data-urlencode 'username=ada' \
   --data-urlencode 'password=correct-horse-battery'
@@ -2510,7 +2520,7 @@ completes:
 
 ```bash
 curl -sS -o /dev/null -w '%{http_code}\n' \
-  'http://localhost:3000/realms/register-demo/login-actions/action-token?key=T-KtGmS4CxncUMHktuxL4EVHtBzBQ7fDqL6NzVz05BA'
+  'http://localhost:3000/tenants/register-demo/login-actions/action-token?key=6AkQjYEkoqMGiYpFx63UGAuvitBIEjmNyDMd6w2uN2Y'
 ```
 
 ```
@@ -2527,10 +2537,10 @@ AUTH_SESSION_ID=$(curl -sS --get \
   --data-urlencode 'nonce=abc123' \
   --data-urlencode 'code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM' \
   --data-urlencode 'code_challenge_method=S256' \
-  'http://localhost:3000/realms/register-demo/protocol/openid-connect/auth' \
+  'http://localhost:3000/tenants/register-demo/protocol/openid-connect/auth' \
   | sed -n '/name="auth_session_id"/{s/.*value="\([^"]*\)".*/\1/p;q;}')
 
-curl -sS -i -X POST http://localhost:3000/realms/register-demo/login-actions/authenticate \
+curl -sS -i -X POST http://localhost:3000/tenants/register-demo/login-actions/authenticate \
   --data-urlencode "auth_session_id=$AUTH_SESSION_ID" \
   --data-urlencode 'username=ada' \
   --data-urlencode 'password=correct-horse-battery'
@@ -2538,17 +2548,17 @@ curl -sS -i -X POST http://localhost:3000/realms/register-demo/login-actions/aut
 
 ```
 HTTP/1.1 302 Found
-set-cookie: register-demo-session=01a0a14e-…; HttpOnly; SameSite=Lax; Path=/
+set-cookie: register-demo-session=01a0cb12-b62e-…; HttpOnly; SameSite=Lax; Path=/
 set-cookie: register-demo-session-persistent=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
-location: http://localhost:8080/callback?code=tGYl5seSh4jl2tU7-0s2eXNgYDVBDrSjT72wXB_X0FQ&state=xyz123&iss=http%3A%2F%2Flocalhost%3A3000%2Frealms%2Fregister-demo
+location: http://localhost:8080/callback?code=8DR6gZGbEKhkDcC7a0dilL9k2gDcZjHo8ZMOuZ6mnqM&state=xyz123&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Fregister-demo
 ```
 
-`users.email` is unique per realm, not globally — `email` alone would be a
+`users.email` is unique per tenant, not globally — `email` alone would be a
 tenancy bug — so a second registration for an address already held **in
-this realm** is refused:
+this tenant** is refused:
 
 ```bash
-curl -sS -X POST http://localhost:3000/realms/register-demo/login-actions/registration \
+curl -sS -X POST http://localhost:3000/tenants/register-demo/login-actions/registration \
   --data-urlencode 'username=carol' \
   --data-urlencode 'email=ada@example.com' \
   --data-urlencode 'password=another-password'
@@ -2567,19 +2577,19 @@ curl -sS -X POST http://localhost:3000/realms/register-demo/login-actions/regist
 </html>
 ```
 
-(400; the same address remains free to register again in a different realm,
+(400; the same address remains free to register again in a different tenant,
 since the uniqueness `packages/db/drizzle/0023_users_email_unique.sql` adds
-is `(realm_id, email)`, not `email` alone.) A duplicate **username** and a
+is `(tenant_id, email)`, not `email` alone.) A duplicate **username** and a
 malformed address are both refused the same way — 400, with a message
 naming which — rather than an unhandled error.
 
-Every realm also carries a password policy, and registration is one of its
+Every tenant also carries a password policy, and registration is one of its
 writers. The default policy only floors the length at 8, so a short
 password is refused with every violation the candidate has, not just the
 first:
 
 ```bash
-curl -sS -X POST http://localhost:3000/realms/register-demo/login-actions/registration \
+curl -sS -X POST http://localhost:3000/tenants/register-demo/login-actions/registration \
   --data-urlencode 'username=ada' \
   --data-urlencode 'email=ada@example.com' \
   --data-urlencode 'password=short'
@@ -2599,7 +2609,9 @@ curl -sS -X POST http://localhost:3000/realms/register-demo/login-actions/regist
 ```
 
 With `password_require_digit` and `password_require_uppercase` also turned
-on for the realm, the same short password now lists all three:
+on for the tenant — `odudu seed tenant --name register-demo --set
+password_require_digit=true --set password_require_uppercase=true` — the
+same short password now lists all three:
 
 ```
 <!doctype html>
@@ -2616,13 +2628,18 @@ on for the realm, the same short password now lists all three:
 </html>
 ```
 
+The two rules above are turned off again before the transcripts below —
+`--set password_require_digit=false --set password_require_uppercase=false`
+— since a policy left on adds "Password must contain a digit." to every
+list that follows and obscures the rule each one is actually about.
+
 `password_not_username` and `password_not_email` (both on by default)
 refuse a password containing the account's own username, or the local part
 of its email address, case-insensitively — matched independently, so a
 password tripping both lists both:
 
 ```bash
-curl -sS -X POST http://localhost:3000/realms/register-demo/login-actions/registration \
+curl -sS -X POST http://localhost:3000/tenants/register-demo/login-actions/registration \
   --data-urlencode 'username=ada' \
   --data-urlencode 'email=ada@example.com' \
   --data-urlencode 'password=myADApassword'
@@ -2647,7 +2664,7 @@ here `carol`'s password contains no part of her own username, but does
 contain the local part of the email address given for the account:
 
 ```bash
-curl -sS -X POST http://localhost:3000/realms/register-demo/login-actions/registration \
+curl -sS -X POST http://localhost:3000/tenants/register-demo/login-actions/registration \
   --data-urlencode 'username=carol' \
   --data-urlencode 'email=ada@example.com' \
   --data-urlencode 'password=myADApassword'
@@ -2668,15 +2685,15 @@ curl -sS -X POST http://localhost:3000/realms/register-demo/login-actions/regist
 
 400 in every case above; no subject, user row or credential is created.
 
-A realm with `verify_email` off skips the mail and the gate above entirely:
+A tenant with `verify_email` off skips the mail and the gate above entirely:
 the account created is usable at the next login, the same way a
 seeded user always has been.
 
 ## Two-factor authentication with TOTP
 
-A realm's `otp_required` decides whether every subject in it is expected to
+A tenant's `otp_required` decides whether every subject in it is expected to
 hold a second factor. It is off by default, like the three account-lifecycle
-settings above: a realm does not acquire a second factor because it was
+settings above: a tenant does not acquire a second factor because it was
 upgraded. Off does not mean "no second factor" — a subject who has enrolled
 one is always asked for it. What `otp_required` adds is everybody else: a
 subject with no TOTP credential is given the `configure-totp` required
@@ -2691,22 +2708,22 @@ became `<meta charset="utf-8" />`, and the markup a reader saw was the
 formatter's rather than the server's. A fenced response block carries no
 language tag for that reason.
 
-`otp_required` is a realm setting, which `seed realm --set` applies:
+`otp_required` is a tenant setting, which `seed tenant --set` applies:
 
 ```bash
 odudu seed \
-  --realm otp-demo --client otp-spa \
+  --tenant otp-demo --client otp-spa \
   --redirect-uri http://localhost:8080/callback \
   --user ada --password correct-horse-battery
-odudu seed realm --name otp-demo --set otp_required=true
+odudu seed tenant --name otp-demo --set otp_required=true
 ```
 
 ```
-{"created":true,"realm":"otp-demo","realmId":"01a0aa5f-…","clientId":"otp-spa","userSubjectId":"01a0aa5f-…"}
-{"command":"realm","created":false,"realm":"otp-demo","realmId":"01a0b044-9629-7e64-8020-b7dd099afa39","settings":["otp_required"]}
+{"created":true,"tenant":"otp-demo","tenantId":"01a0cb14-…","clientId":"otp-spa","userSubjectId":"01a0cb14-…"}
+{"command":"tenant","created":false,"tenant":"otp-demo","tenantId":"01a0cb14-17d8-7995-8f18-71f5eee33e91","settings":["otp_required"]}
 ```
 
-`created` is `false` because the line above it made the realm: `seed realm`
+`created` is `false` because the line above it made the tenant: `seed tenant`
 resolves one or creates it, and `--set` then applies to whichever it found.
 The settings are echoed as they were given.
 
@@ -2718,18 +2735,18 @@ second factor is decided before somebody has said who they are, because
 which account a code belongs to is not knowable until then.
 
 ```bash
-curl -sS 'http://localhost:3000/realms/otp-demo/protocol/openid-connect/auth?response_type=code&client_id=otp-spa&redirect_uri=http%3A%2F%2Flocalhost%3A8080%2Fcallback&scope=openid&state=xyz&code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM&code_challenge_method=S256'
+curl -sS 'http://localhost:3000/tenants/otp-demo/protocol/openid-connect/auth?response_type=code&client_id=otp-spa&redirect_uri=http%3A%2F%2Flocalhost%3A8080%2Fcallback&scope=openid&state=xyz&code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM&code_challenge_method=S256'
 ```
 
-The `auth_session_id` in that form — `01a0ae6e-d754-722b-832f-046df4afaf34`
+The `auth_session_id` in that form — `01a0cb14-1a09-7646-a2be-19b4aff8effe`
 in this run — is what every request below carries. Posting the correct
 password answers 200 with an enrolment page rather than 302 with a code:
 the password was accepted, and the pending action is what stops the login
 from completing (no `set-cookie`, no `code`).
 
 ```bash
-curl -sS -X POST http://localhost:3000/realms/otp-demo/login-actions/authenticate \
-  --data-urlencode 'auth_session_id=01a0ae6e-d754-722b-832f-046df4afaf34' \
+curl -sS -X POST http://localhost:3000/tenants/otp-demo/login-actions/authenticate \
+  --data-urlencode 'auth_session_id=01a0cb14-1a09-7646-a2be-19b4aff8effe' \
   --data-urlencode 'username=ada' \
   --data-urlencode 'password=correct-horse-battery'
 ```
@@ -2742,11 +2759,11 @@ curl -sS -X POST http://localhost:3000/realms/otp-demo/login-actions/authenticat
 <h1>Set up your authenticator</h1>
 <p>Scan this with your authenticator app, or enter the key by hand.</p>
 <svg …>…</svg>
-<p><code>otpauth://totp/otp-demo:ada?secret=BKZJGOJBKZZKQTPLAUMI25NSOZW2XDXT&amp;issuer=otp-demo&amp;algorithm=SHA1&amp;digits=6&amp;period=30</code></p>
-<p>Key: <code>BKZJGOJBKZZKQTPLAUMI25NSOZW2XDXT</code></p>
-<form method="post" action="/realms/otp-demo/login-actions/required-action?action=configure-totp">
-  <input type="hidden" name="auth_session_id" value="01a0ae6e-d754-722b-832f-046df4afaf34">
-  <input type="hidden" name="secret" value="BKZJGOJBKZZKQTPLAUMI25NSOZW2XDXT">
+<p><code>otpauth://totp/otp-demo:ada?secret=4KF3RKE7EPG5TSMGXTHTXPNVN2P3NPP2&amp;issuer=otp-demo&amp;algorithm=SHA1&amp;digits=6&amp;period=30</code></p>
+<p>Key: <code>4KF3RKE7EPG5TSMGXTHTXPNVN2P3NPP2</code></p>
+<form method="post" action="/tenants/otp-demo/login-actions/required-action?action=configure-totp">
+  <input type="hidden" name="auth_session_id" value="01a0cb14-1a09-7646-a2be-19b4aff8effe">
+  <input type="hidden" name="secret" value="4KF3RKE7EPG5TSMGXTHTXPNVN2P3NPP2">
   <label>Code from your app <input type="text" name="code" inputmode="numeric" autocomplete="one-time-code"></label>
   <button type="submit">Confirm</button>
 </form>
@@ -2768,10 +2785,10 @@ that offers a secret. An abandoned enrolment leaves no row behind at all.
 
 ```bash
 curl -sS -X POST \
-  'http://localhost:3000/realms/otp-demo/login-actions/required-action?action=configure-totp' \
-  --data-urlencode 'auth_session_id=01a0ae6e-d754-722b-832f-046df4afaf34' \
-  --data-urlencode 'secret=BKZJGOJBKZZKQTPLAUMI25NSOZW2XDXT' \
-  --data-urlencode 'code=761342'
+  'http://localhost:3000/tenants/otp-demo/login-actions/required-action?action=configure-totp' \
+  --data-urlencode 'auth_session_id=01a0cb14-1a09-7646-a2be-19b4aff8effe' \
+  --data-urlencode 'secret=4KF3RKE7EPG5TSMGXTHTXPNVN2P3NPP2' \
+  --data-urlencode 'code=515303'
 ```
 
 ```
@@ -2779,20 +2796,20 @@ curl -sS -X POST \
 <html lang="en">
 <head><meta charset="utf-8"><title>Sign in</title></head>
 <body>
-<form method="post" action="/realms/otp-demo/login-actions/authenticate">
-  <input type="hidden" name="auth_session_id" value="01a0ae6e-d754-722b-832f-046df4afaf34">
+<form method="post" action="/tenants/otp-demo/login-actions/authenticate">
+  <input type="hidden" name="auth_session_id" value="01a0cb14-1a09-7646-a2be-19b4aff8effe">
   <label>Username <input type="text" name="username" autocomplete="username"></label>
   <label>Password <input type="password" name="password" autocomplete="current-password"></label>
   <button type="submit">Sign in</button>
 </form>
-<form method="post" action="/realms/otp-demo/login-actions/authenticate" id="passkey-form">
-  <input type="hidden" name="auth_session_id" value="01a0ae6e-d754-722b-832f-046df4afaf34">
+<form method="post" action="/tenants/otp-demo/login-actions/authenticate" id="passkey-form">
+  <input type="hidden" name="auth_session_id" value="01a0cb14-1a09-7646-a2be-19b4aff8effe">
   <input type="hidden" name="assertion" id="passkey-assertion">
   <button type="submit" id="passkey-submit">Sign in with a passkey</button>
 </form>
 <p id="passkey-error" hidden></p>
 <noscript><p>Signing in with a passkey needs JavaScript, because only the browser can talk to your authenticator. Use your username and password above.</p></noscript>
-<script nonce="qT07bPZdP0HnQWKs2Fc/vw==">
+<script nonce="dKVAxRYqmhdOX9rznIsqXQ==">
 const form = document.getElementById('passkey-form');
 const field = document.getElementById('passkey-assertion');
 const failure = document.getElementById('passkey-error');
@@ -2803,7 +2820,7 @@ form.addEventListener('submit', async (event) => {
   event.preventDefault();
   failure.hidden = true;
   try {
-    const offered = await fetch('/realms/otp-demo/login-actions/passkey-challenge', {
+    const offered = await fetch('/tenants/otp-demo/login-actions/passkey-challenge', {
       method: 'POST',
       headers: { 'content-type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({ auth_session_id: form.auth_session_id.value }),
@@ -2842,19 +2859,19 @@ than a phone:
 ```bash
 node --input-type=module -e "
 import { totpCode, totpCounter } from './packages/crypto/src/service/totp.ts';
-console.log(totpCode('BKZJGOJBKZZKQTPLAUMI25NSOZW2XDXT', totpCounter(new Date())));
+console.log(totpCode('4KF3RKE7EPG5TSMGXTHTXPNVN2P3NPP2', totpCounter(new Date())));
 "
 ```
 
 ```
-761342
+515303
 ```
 
 ### The same password now answers with a code form
 
 ```bash
-curl -sS -X POST http://localhost:3000/realms/otp-demo/login-actions/authenticate \
-  --data-urlencode 'auth_session_id=01a0ae6e-d754-722b-832f-046df4afaf34' \
+curl -sS -X POST http://localhost:3000/tenants/otp-demo/login-actions/authenticate \
+  --data-urlencode 'auth_session_id=01a0cb14-1a09-7646-a2be-19b4aff8effe' \
   --data-urlencode 'username=ada' \
   --data-urlencode 'password=correct-horse-battery'
 ```
@@ -2864,8 +2881,8 @@ curl -sS -X POST http://localhost:3000/realms/otp-demo/login-actions/authenticat
 <html lang="en">
 <head><meta charset="utf-8"><title>Sign in</title></head>
 <body>
-<form method="post" action="/realms/otp-demo/login-actions/authenticate">
-  <input type="hidden" name="auth_session_id" value="01a0ae6e-d754-722b-832f-046df4afaf34">
+<form method="post" action="/tenants/otp-demo/login-actions/authenticate">
+  <input type="hidden" name="auth_session_id" value="01a0cb14-1a09-7646-a2be-19b4aff8effe">
   <label>Code from your app <input type="text" name="code" inputmode="numeric" autocomplete="one-time-code"></label>
   <label>Or a recovery code <input type="text" name="recovery_code" autocomplete="off"></label>
   <button type="submit">Sign in</button>
@@ -2890,9 +2907,9 @@ answers with the same form again:
 
 ```bash
 curl -sS -o /dev/null -w '%{http_code}\n' -X POST \
-  http://localhost:3000/realms/otp-demo/login-actions/authenticate \
-  --data-urlencode 'auth_session_id=01a0ae6e-d754-722b-832f-046df4afaf34' \
-  --data-urlencode 'code=761342'
+  http://localhost:3000/tenants/otp-demo/login-actions/authenticate \
+  --data-urlencode 'auth_session_id=01a0cb14-1a09-7646-a2be-19b4aff8effe' \
+  --data-urlencode 'code=515303'
 ```
 
 ```
@@ -2906,9 +2923,9 @@ accepted — and the login still does not finish, because enrolling the
 factor owed a recovery path for it:
 
 ```bash
-curl -sS -i -X POST http://localhost:3000/realms/otp-demo/login-actions/authenticate \
-  --data-urlencode 'auth_session_id=01a0ae6e-d754-722b-832f-046df4afaf34' \
-  --data-urlencode 'code=312444'
+curl -sS -i -X POST http://localhost:3000/tenants/otp-demo/login-actions/authenticate \
+  --data-urlencode 'auth_session_id=01a0cb14-1a09-7646-a2be-19b4aff8effe' \
+  --data-urlencode 'code=520954'
 ```
 
 ```
@@ -2916,7 +2933,7 @@ HTTP/1.1 200 OK
 content-type: text/html
 content-security-policy: default-src 'none'; frame-ancestors 'none'; form-action 'self'; base-uri 'none'
 x-frame-options: DENY
-content-length: 1077
+content-length: 1078
 ```
 
 That page is [Recovery codes](#recovery-codes), which is the rest of this
@@ -2925,24 +2942,24 @@ waiting for a code, with the password it already accepted not asked for
 again — and the next code finishes it:
 
 ```bash
-curl -sS -i -X POST http://localhost:3000/realms/otp-demo/login-actions/authenticate \
-  --data-urlencode 'auth_session_id=01a0ae6e-d754-722b-832f-046df4afaf34' \
-  --data-urlencode 'code=112990'
+curl -sS -i -X POST http://localhost:3000/tenants/otp-demo/login-actions/authenticate \
+  --data-urlencode 'auth_session_id=01a0cb14-1a09-7646-a2be-19b4aff8effe' \
+  --data-urlencode 'code=950997'
 ```
 
 ```
 HTTP/1.1 302 Found
-set-cookie: otp-demo-session=01a0ae70-c638-7675-9aee-f74d8702bdb7; HttpOnly; SameSite=Lax; Path=/
+set-cookie: otp-demo-session=01a0cb14-c112-717a-afc9-6d13c1581528; HttpOnly; SameSite=Lax; Path=/
 set-cookie: otp-demo-session-persistent=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
-location: http://localhost:8080/callback?code=n9kNA0HuUqyrNgWAOFiP9rmxsCr9beOHKx_6RYPZgqY&state=xyz&iss=http%3A%2F%2Flocalhost%3A3000%2Frealms%2Fotp-demo
+location: http://localhost:8080/callback?code=qLJc6jy_z9EFISBTU4WLjujP498MmuZ_TvPtCfq9YqQ&state=xyz&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Fotp-demo
 ```
 
 ### What two factors do to the ID token
 
 ```bash
-curl -sS -X POST http://localhost:3000/realms/otp-demo/protocol/openid-connect/token \
+curl -sS -X POST http://localhost:3000/tenants/otp-demo/protocol/openid-connect/token \
   -d grant_type=authorization_code \
-  -d code=n9kNA0HuUqyrNgWAOFiP9rmxsCr9beOHKx_6RYPZgqY \
+  -d code=qLJc6jy_z9EFISBTU4WLjujP498MmuZ_TvPtCfq9YqQ \
   -d client_id=otp-spa \
   --data-urlencode 'redirect_uri=http://localhost:8080/callback' \
   -d code_verifier=dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk
@@ -2953,13 +2970,12 @@ base64url segments):
 
 ```json
 {
-  "sub": "01a0ae6e-a7b2-7709-a51d-1704e4c07460",
-  "iss": "http://localhost:3000/realms/otp-demo",
+  "sub": "01a0cb14-181a-702c-91b0-644f2a59e9e4",
+  "iss": "http://localhost:3000/tenants/otp-demo",
   "aud": "otp-spa",
-  "iat": 1789633021,
-  "exp": 1789633321,
-  "auth_time": 1789633021,
-  "sid": "01a0ae70-c638-7675-9aee-f74d8702bdb7",
+  "iat": 1790113562,
+  "exp": 1790113862,
+  "sid": "01a0cb14-c112-717a-afc9-6d13c1581528",
   "amr": ["otp", "pwd"],
   "acr": "2"
 }
@@ -2982,14 +2998,14 @@ asked again: a new factor does not invalidate a list they have saved, and
 re-issuing would silently retire the copy on their paper.
 
 Every command and response below was executed against the compose stack,
-continuing the same `otp-demo` realm and the same `auth_session_id`.
+continuing the same `otp-demo` tenant and the same `auth_session_id`.
 
 ### The one time the codes are shown
 
 ```bash
-curl -sS -X POST http://localhost:3000/realms/otp-demo/login-actions/authenticate \
-  --data-urlencode 'auth_session_id=01a0ae6e-d754-722b-832f-046df4afaf34' \
-  --data-urlencode 'code=312444'
+curl -sS -X POST http://localhost:3000/tenants/otp-demo/login-actions/authenticate \
+  --data-urlencode 'auth_session_id=01a0cb14-1a09-7646-a2be-19b4aff8effe' \
+  --data-urlencode 'code=520954'
 ```
 
 ```
@@ -3000,19 +3016,19 @@ curl -sS -X POST http://localhost:3000/realms/otp-demo/login-actions/authenticat
 <h1>Save your recovery codes</h1>
 <p>Each of these signs you in once, in place of your second factor, if you lose it. <strong>This is the only time they are shown.</strong> Print them or put them in a password manager before you continue — nobody, including an administrator, can show them to you again.</p>
 <ol>
-  <li><code>YXZ6X-TDJNC</code></li>
-  <li><code>B440Z-WSMPW</code></li>
-  <li><code>J1Z5M-6BMKN</code></li>
-  <li><code>KWNBQ-ZEDN2</code></li>
-  <li><code>4SRQ7-B3J85</code></li>
-  <li><code>WHM1Q-EP5VY</code></li>
-  <li><code>PGVGV-D36JZ</code></li>
-  <li><code>HKBDM-9SPV9</code></li>
-  <li><code>CSW28-1W468</code></li>
-  <li><code>ZWTGZ-5F6BB</code></li>
+  <li><code>B0GFJ-TN627</code></li>
+  <li><code>5K5SK-JJQAD</code></li>
+  <li><code>TX5Y1-AGVHE</code></li>
+  <li><code>2BAEP-FG8H4</code></li>
+  <li><code>58JZS-YMN95</code></li>
+  <li><code>RJ311-Z6554</code></li>
+  <li><code>ZS2KM-WSTXK</code></li>
+  <li><code>DE59V-HMS1Y</code></li>
+  <li><code>TZTD3-1QVP7</code></li>
+  <li><code>6Q9ZN-8QQSZ</code></li>
 </ol>
-<form method="post" action="/realms/otp-demo/login-actions/required-action?action=generate-recovery-codes">
-  <input type="hidden" name="auth_session_id" value="01a0ae6e-d754-722b-832f-046df4afaf34">
+<form method="post" action="/tenants/otp-demo/login-actions/required-action?action=generate-recovery-codes">
+  <input type="hidden" name="auth_session_id" value="01a0cb14-1a09-7646-a2be-19b4aff8effe">
   <button type="submit">I have saved these codes</button>
 </form>
 </body>
@@ -3068,8 +3084,8 @@ page was read, and it is what completes the action:
 
 ```bash
 curl -sS -X POST \
-  'http://localhost:3000/realms/otp-demo/login-actions/required-action?action=generate-recovery-codes' \
-  --data-urlencode 'auth_session_id=01a0ae6e-d754-722b-832f-046df4afaf34'
+  'http://localhost:3000/tenants/otp-demo/login-actions/required-action?action=generate-recovery-codes' \
+  --data-urlencode 'auth_session_id=01a0cb14-1a09-7646-a2be-19b4aff8effe'
 ```
 
 ```
@@ -3077,8 +3093,8 @@ curl -sS -X POST \
 <html lang="en">
 <head><meta charset="utf-8"><title>Sign in</title></head>
 <body>
-<form method="post" action="/realms/otp-demo/login-actions/authenticate">
-  <input type="hidden" name="auth_session_id" value="01a0ae6e-d754-722b-832f-046df4afaf34">
+<form method="post" action="/tenants/otp-demo/login-actions/authenticate">
+  <input type="hidden" name="auth_session_id" value="01a0cb14-1a09-7646-a2be-19b4aff8effe">
   <label>Code from your app <input type="text" name="code" inputmode="numeric" autocomplete="one-time-code"></label>
   <label>Or a recovery code <input type="text" name="recovery_code" autocomplete="off"></label>
   <button type="submit">Sign in</button>
@@ -3100,12 +3116,12 @@ parked and the password form rendered exactly as
 `auth_session_id`:
 
 ```bash
-curl -sS 'http://localhost:3000/realms/otp-demo/protocol/openid-connect/auth?response_type=code&client_id=otp-spa&redirect_uri=http%3A%2F%2Flocalhost%3A8080%2Fcallback&scope=openid&state=xyz&code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM&code_challenge_method=S256' \
+curl -sS 'http://localhost:3000/tenants/otp-demo/protocol/openid-connect/auth?response_type=code&client_id=otp-spa&redirect_uri=http%3A%2F%2Flocalhost%3A8080%2Fcallback&scope=openid&state=xyz&code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM&code_challenge_method=S256' \
   | sed -n '/name="auth_session_id"/{s/.*value="\([^"]*\)".*/\1/p;q;}'
 ```
 
 ```
-01a0ae70-fed7-700e-bff3-7d7640225cf1
+01a0cb15-3f15-7d90-ae60-849e9cb1e156
 ```
 
 The password step runs as always, and answers with the code form — the same
@@ -3113,8 +3129,8 @@ two fields, because nothing about this submission says the authenticator is
 gone:
 
 ```bash
-curl -sS -X POST http://localhost:3000/realms/otp-demo/login-actions/authenticate \
-  --data-urlencode 'auth_session_id=01a0ae70-fed7-700e-bff3-7d7640225cf1' \
+curl -sS -X POST http://localhost:3000/tenants/otp-demo/login-actions/authenticate \
+  --data-urlencode 'auth_session_id=01a0cb15-3f15-7d90-ae60-849e9cb1e156' \
   --data-urlencode 'username=ada' \
   --data-urlencode 'password=correct-horse-battery'
 ```
@@ -3124,8 +3140,8 @@ curl -sS -X POST http://localhost:3000/realms/otp-demo/login-actions/authenticat
 <html lang="en">
 <head><meta charset="utf-8"><title>Sign in</title></head>
 <body>
-<form method="post" action="/realms/otp-demo/login-actions/authenticate">
-  <input type="hidden" name="auth_session_id" value="01a0ae70-fed7-700e-bff3-7d7640225cf1">
+<form method="post" action="/tenants/otp-demo/login-actions/authenticate">
+  <input type="hidden" name="auth_session_id" value="01a0cb15-3f15-7d90-ae60-849e9cb1e156">
   <label>Code from your app <input type="text" name="code" inputmode="numeric" autocomplete="one-time-code"></label>
   <label>Or a recovery code <input type="text" name="recovery_code" autocomplete="off"></label>
   <button type="submit">Sign in</button>
@@ -3137,16 +3153,16 @@ curl -sS -X POST http://localhost:3000/realms/otp-demo/login-actions/authenticat
 The second field is what gets filled:
 
 ```bash
-curl -sS -i -X POST http://localhost:3000/realms/otp-demo/login-actions/authenticate \
-  --data-urlencode 'auth_session_id=01a0ae70-fed7-700e-bff3-7d7640225cf1' \
-  --data-urlencode 'recovery_code=YXZ6X-TDJNC'
+curl -sS -i -X POST http://localhost:3000/tenants/otp-demo/login-actions/authenticate \
+  --data-urlencode 'auth_session_id=01a0cb15-3f15-7d90-ae60-849e9cb1e156' \
+  --data-urlencode 'recovery_code=B0GFJ-TN627'
 ```
 
 ```
 HTTP/1.1 302 Found
-set-cookie: otp-demo-session=01a0ae70-ff5f-784a-8a6a-adf79abfba55; HttpOnly; SameSite=Lax; Path=/
+set-cookie: otp-demo-session=01a0cb15-3fb1-77be-bcfd-3f9ca32ae70a; HttpOnly; SameSite=Lax; Path=/
 set-cookie: otp-demo-session-persistent=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
-location: http://localhost:8080/callback?code=OUzqSEyTjeest7rUe87XGaCgFBYYNy4oEFVgqhkZ_gw&state=xyz&iss=http%3A%2F%2Flocalhost%3A3000%2Frealms%2Fotp-demo
+location: http://localhost:8080/callback?code=zOxWHDFwzAqNIzzrBtz_NYjiMNrYEdqfJtQEYA-92yY&state=xyz&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Fotp-demo
 ```
 
 The same success a password-and-code login gets: a session cookie and a code
@@ -3159,13 +3175,12 @@ The ID token says less about this login than the two-factor one above:
 
 ```json
 {
-  "sub": "01a0ae6e-a7b2-7709-a51d-1704e4c07460",
-  "iss": "http://localhost:3000/realms/otp-demo",
+  "sub": "01a0cb14-181a-702c-91b0-644f2a59e9e4",
+  "iss": "http://localhost:3000/tenants/otp-demo",
   "aud": "otp-spa",
-  "iat": 1789633036,
-  "exp": 1789633336,
-  "auth_time": 1789633036,
-  "sid": "01a0ae70-ff5f-784a-8a6a-adf79abfba55",
+  "iat": 1790113562,
+  "exp": 1790113862,
+  "sid": "01a0cb15-3fb1-77be-bcfd-3f9ca32ae70a",
   "amr": ["pwd"],
   "acr": "2"
 }
@@ -3188,8 +3203,8 @@ shown, so they are not repeated here.
 
 ```bash
 curl -sS -o /dev/null -w '%{http_code}\n' -X POST \
-  http://localhost:3000/realms/otp-demo/login-actions/authenticate \
-  --data-urlencode 'auth_session_id=01a0ae71-2606-741c-a5f2-57a2281c49b1' \
+  http://localhost:3000/tenants/otp-demo/login-actions/authenticate \
+  --data-urlencode 'auth_session_id=01a0cb15-4003-7130-90bd-48389128b119' \
   --data-urlencode 'username=ada' \
   --data-urlencode 'password=correct-horse-battery'
 ```
@@ -3202,9 +3217,9 @@ Then the code that already signed somebody in — typed in lower case with a
 space where the hyphen was:
 
 ```bash
-curl -sS -X POST http://localhost:3000/realms/otp-demo/login-actions/authenticate \
-  --data-urlencode 'auth_session_id=01a0ae71-2606-741c-a5f2-57a2281c49b1' \
-  --data-urlencode 'recovery_code=yxz6x tdjnc'
+curl -sS -X POST http://localhost:3000/tenants/otp-demo/login-actions/authenticate \
+  --data-urlencode 'auth_session_id=01a0cb15-4003-7130-90bd-48389128b119' \
+  --data-urlencode 'recovery_code=b0gfj tn627'
 ```
 
 ```
@@ -3213,8 +3228,8 @@ curl -sS -X POST http://localhost:3000/realms/otp-demo/login-actions/authenticat
 <head><meta charset="utf-8"><title>Sign in</title></head>
 <body>
 <p><strong>You have already used that recovery code. Try another one from your list.</strong></p>
-<form method="post" action="/realms/otp-demo/login-actions/authenticate">
-  <input type="hidden" name="auth_session_id" value="01a0ae71-2606-741c-a5f2-57a2281c49b1">
+<form method="post" action="/tenants/otp-demo/login-actions/authenticate">
+  <input type="hidden" name="auth_session_id" value="01a0cb15-4003-7130-90bd-48389128b119">
   <label>Code from your app <input type="text" name="code" inputmode="numeric" autocomplete="one-time-code"></label>
   <label>Or a recovery code <input type="text" name="recovery_code" autocomplete="off"></label>
   <button type="submit">Sign in</button>
@@ -3230,8 +3245,8 @@ confusable letters onto digits. And the refusal _says_ the code is spent,
 which a wrong code does not:
 
 ```bash
-curl -sS -X POST http://localhost:3000/realms/otp-demo/login-actions/authenticate \
-  --data-urlencode 'auth_session_id=01a0ae71-2606-741c-a5f2-57a2281c49b1' \
+curl -sS -X POST http://localhost:3000/tenants/otp-demo/login-actions/authenticate \
+  --data-urlencode 'auth_session_id=01a0cb15-4003-7130-90bd-48389128b119' \
   --data-urlencode 'recovery_code=ZZZZZ-ZZZZZ'
 ```
 
@@ -3240,8 +3255,8 @@ curl -sS -X POST http://localhost:3000/realms/otp-demo/login-actions/authenticat
 <html lang="en">
 <head><meta charset="utf-8"><title>Sign in</title></head>
 <body>
-<form method="post" action="/realms/otp-demo/login-actions/authenticate">
-  <input type="hidden" name="auth_session_id" value="01a0ae71-2606-741c-a5f2-57a2281c49b1">
+<form method="post" action="/tenants/otp-demo/login-actions/authenticate">
+  <input type="hidden" name="auth_session_id" value="01a0cb15-4003-7130-90bd-48389128b119">
   <label>Code from your app <input type="text" name="code" inputmode="numeric" autocomplete="one-time-code"></label>
   <label>Or a recovery code <input type="text" name="recovery_code" autocomplete="off"></label>
   <button type="submit">Sign in</button>
@@ -3286,32 +3301,32 @@ both would succeed.
 A list that runs out is the lockout recovery codes exist to prevent, so
 spending the last one owes `generate-recovery-codes` again — in the login
 that spent it, not the next one. The section below was captured against a
-realm of its own, `rc8-demo`, with a fresh set of ten spent one login at a
+tenant of its own, `rc8-demo`, with a fresh set of ten spent one login at a
 time; the numbers above belong to `otp-demo` and are untouched by it.
 
 The ninth code signs in the way every earlier one did, with one still
 unspent behind it:
 
 ```bash
-curl -sS -i -X POST http://localhost:3000/realms/rc8-demo/login-actions/authenticate \
-  --data-urlencode 'auth_session_id=01a0affe-4505-72fb-af5d-801eec7c84a7' \
-  --data-urlencode 'recovery_code=D5DPE-F80P0'
+curl -sS -i -X POST http://localhost:3000/tenants/rc8-demo/login-actions/authenticate \
+  --data-urlencode 'auth_session_id=01a0cb17-133e-7710-823e-6c395791f86b' \
+  --data-urlencode 'recovery_code=WPXMH-0CYZ8'
 ```
 
 ```
 HTTP/1.1 302 Found
-set-cookie: rc8-demo-session=01a0affe-4593-74f9-8f9f-47a787713750; HttpOnly; SameSite=Lax; Path=/
+set-cookie: rc8-demo-session=01a0cb17-13e1-7bfb-baad-1fa67310afd0; HttpOnly; SameSite=Lax; Path=/
 set-cookie: rc8-demo-session-persistent=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
-location: http://localhost:8080/callback?code=nUko6-JCypR4FzMWkdnBJybv3iTYZU-cnYKrArKSEVk&state=xyz&iss=http%3A%2F%2Flocalhost%3A3000%2Frealms%2Frc8-demo
+location: http://localhost:8080/callback?code=LQElc84DzT7Xd0vWaaaeQSNYLHTcq-Wo6vSUVa0t71Y&state=xyz&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Frc8-demo
 content-length: 0
 ```
 
 The tenth authenticates just as well, and does not redirect:
 
 ```bash
-curl -sS -i -X POST http://localhost:3000/realms/rc8-demo/login-actions/authenticate \
-  --data-urlencode 'auth_session_id=01a0affe-bd14-7674-b020-ec82770e9521' \
-  --data-urlencode 'recovery_code=V79VD-MDVJ3'
+curl -sS -i -X POST http://localhost:3000/tenants/rc8-demo/login-actions/authenticate \
+  --data-urlencode 'auth_session_id=01a0cb17-4aaa-76f4-b2b4-bc0ebf3f8f58' \
+  --data-urlencode 'recovery_code=5CTVS-N5WEE'
 ```
 
 The codes themselves are elided here — the set shown above is the one this
@@ -3323,7 +3338,7 @@ HTTP/1.1 200 OK
 content-type: text/html
 content-security-policy: default-src 'none'; frame-ancestors 'none'; form-action 'self'; base-uri 'none'
 x-frame-options: DENY
-content-length: 1165
+content-length: 1166
 
 <!doctype html>
 <html lang="en">
@@ -3335,8 +3350,8 @@ content-length: 1165
 <ol>
   …ten of them…
 </ol>
-<form method="post" action="/realms/rc8-demo/login-actions/required-action?action=generate-recovery-codes">
-  <input type="hidden" name="auth_session_id" value="01a0affe-bd14-7674-b020-ec82770e9521">
+<form method="post" action="/tenants/rc8-demo/login-actions/required-action?action=generate-recovery-codes">
+  <input type="hidden" name="auth_session_id" value="01a0cb17-4aaa-76f4-b2b4-bc0ebf3f8f58">
   <button type="submit">I have saved these codes</button>
 </form>
 </body>
@@ -3356,7 +3371,7 @@ docker compose -f infra/docker/compose.yaml exec -T postgres \
   "SELECT count(*) FILTER (WHERE secret_data->>'usedAt' IS NULL) AS unspent
      FROM user_credentials
     WHERE type = 'recovery-code'
-      AND realm_id = (SELECT id FROM realms WHERE name = 'rc8-demo');"
+      AND tenant_id = (SELECT id FROM tenants WHERE name = 'rc8-demo');"
 ```
 
 After the ninth that is `1`, and the login redirected. After the tenth it is
@@ -3381,7 +3396,7 @@ the list gets short. Both are the account console, which is **P4**'s.
 docker compose -f infra/docker/compose.yaml exec -T postgres \
   psql -U odudu -d odudu -c \
   "SELECT index, authenticator, requirement FROM authentication_executions e
-     JOIN realms r ON r.id = e.realm_id WHERE r.name = 'otp-demo' ORDER BY index;"
+     JOIN tenants r ON r.id = e.tenant_id WHERE r.name = 'otp-demo' ORDER BY index;"
 ```
 
 ```
@@ -3398,16 +3413,16 @@ Last, and conditional. It is applicable only to a submission that actually
 carries a code, which is what keeps it out of the way of the OTP step it
 substitutes for rather than competing with it — the same shape as the
 passkey step, which is applicable only to a submission carrying an
-assertion. A realm provisioned before this step existed gets the row from
-migration `0040_recovery_code_execution.sql`, appended so no realm's
+assertion. A tenant provisioned before this step existed gets the row from
+migration `0040_recovery_code_execution.sql`, appended so no tenant's
 existing indexes shift.
 
 ## Enrolling a passkey
 
-`POST /realms/{realm}/login-actions/required-action?action=configure-passkey`
+`POST /tenants/{tenant}/login-actions/required-action?action=configure-passkey`
 enrols a WebAuthn credential for the subject the authentication session is
 bound to, the same way the `configure-totp` submission above enrols a TOTP
-one. Nothing yet asks for the action on its own — there is no realm switch
+one. Nothing yet asks for the action on its own — there is no tenant switch
 for passkeys, the way `otp_required` exists for TOTP — so it becomes pending
 only when something adds it (today: a row in `user_required_actions`).
 Signing in _with_ the credential this enrols is
@@ -3476,8 +3491,8 @@ An enrolled passkey is a first factor on its own. The login page offers it
 beside the password fields, and pressing it asks for nothing typed:
 
 ```
-<form method="post" action="/realms/demo/login-actions/authenticate" id="passkey-form">
-  <input type="hidden" name="auth_session_id" value="01a0ae6a-b69a-…">
+<form method="post" action="/tenants/demo/login-actions/authenticate" id="passkey-form">
+  <input type="hidden" name="auth_session_id" value="01a0cb08-f324-…">
   <input type="hidden" name="assertion" id="passkey-assertion">
   <button type="submit" id="passkey-submit">Sign in with a passkey</button>
 </form>
@@ -3487,7 +3502,7 @@ beside the password fields, and pressing it asks for nothing typed:
 
 That button is on the `/authorize` response shown in
 [`/authorize`](#2-authorize) — it is part of the same page
-as the username and password, so a realm offers both and the person chooses.
+as the username and password, so a tenant offers both and the person chooses.
 It is rendered only where `ODUDU_PUBLIC_BASE_URL` is set; without it there
 is no relying party id and nothing behind the button, so there is no button.
 
@@ -3513,7 +3528,7 @@ behaviour is what it asserts.
 What the flow is, stated rather than shown:
 
 1. The page posts `auth_session_id` to `POST
-/realms/{realm}/login-actions/passkey-challenge` and gets request options
+/tenants/{tenant}/login-actions/passkey-challenge` and gets request options
    back as JSON. They carry a challenge and **no `allowCredentials`**, which
    is what tells the browser to offer every discoverable credential it holds
    rather than a list the server would have needed a username to build.
@@ -3522,12 +3537,12 @@ What the flow is, stated rather than shown:
    overnight still gets a live one, and a rejected attempt can try again
    with no re-render.
 3. The page posts the assertion JSON back to
-   `/realms/{realm}/login-actions/authenticate` in an `assertion` field,
+   `/tenants/{tenant}/login-actions/authenticate` in an `assertion` field,
    with the same `auth_session_id` — the same endpoint the password uses.
 4. **Who is signing in comes from the assertion, before anything is
    verified.** The credential id it carries is what enrolment stored as
-   `lookup_key`, and reading that back is realm-scoped by RLS, so a
-   credential from another realm resolves to nothing rather than to somebody
+   `lookup_key`, and reading that back is tenant-scoped by RLS, so a
+   credential from another tenant resolves to nothing rather than to somebody
    else's subject. Resolution has to come first because verification needs
    the stored public key and counter as inputs.
 5. The server reads and clears the challenge in one statement, then verifies
@@ -3540,7 +3555,7 @@ What the flow is, stated rather than shown:
    both pass, and it happens only after the login is confirmed to be for the
    subject this attempt is already bound to.
 7. The session records `passkey` alone, and the ID token says `amr: ["hwk",
-"user"]`, `acr: "2"`. **A realm with `otp_required` on does not ask for a
+"user"]`, `acr: "2"`. **A tenant with `otp_required` on does not ask for a
    code after a passkey, and does not make the subject enrol one either** —
    enrolment demands a discoverable credential with user verification, so an
    assertion is possession of a key plus a check of who held it. That is two
@@ -3555,35 +3570,35 @@ Refused, each for its own reason:
 - An assertion replayed after a successful login — the challenge it answered
   was cleared by the statement that read it, so there is nothing left to
   verify against.
-- An assertion for a credential enrolled in another realm.
+- An assertion for a credential enrolled in another tenant.
 - An assertion the authenticator did not verify anybody for.
-- An assertion whose credential id names nothing in this realm, which
+- An assertion whose credential id names nothing in this tenant, which
   answers exactly as a wrong password does: `invalid_credentials`.
 
 ## Password reset
 
-`GET`/`POST /realms/{realm}/login-actions/reset-password` is the third
+`GET`/`POST /tenants/{tenant}/login-actions/reset-password` is the third
 account-lifecycle setting, `reset_password_allowed` — off by default, like
-`registration_allowed` and `verify_email` — so a realm serves nothing here
+`registration_allowed` and `verify_email` — so a tenant serves nothing here
 until an operator turns it on:
 
 ```bash
 odudu seed \
-  --realm reset-off-demo --client reset-off-spa \
+  --tenant reset-off-demo --client reset-off-spa \
   --redirect-uri http://localhost:8080/callback
 curl -sS -o /dev/null -w '%{http_code}\n' \
-  http://localhost:3000/realms/reset-off-demo/login-actions/reset-password
+  http://localhost:3000/tenants/reset-off-demo/login-actions/reset-password
 ```
 
 ```
 404
 ```
 
-A separate realm has it on, and a user seeded to reset:
+A separate tenant has it on, and a user seeded to reset:
 
 ```bash
 odudu seed \
-  --realm reset-demo --client reset-spa \
+  --tenant reset-demo --client reset-spa \
   --redirect-uri http://localhost:8080/callback \
   --user ada --password correct-horse-battery --email ada@example.com
 ```
@@ -3591,11 +3606,11 @@ odudu seed \
 The third account-lifecycle setting, turned on the same way as the other two:
 
 ```bash
-odudu seed realm --name reset-demo --set reset_password_allowed=true
+odudu seed tenant --name reset-demo --set reset_password_allowed=true
 ```
 
 ```
-{"command":"realm","created":false,"realm":"reset-demo","realmId":"01a0b044-9968-7dec-ab3b-7141bb9595a0","settings":["reset_password_allowed"]}
+{"command":"tenant","created":false,"tenant":"reset-demo","tenantId":"01a0cb18-11ed-76ca-b9fc-f5244493d7c2","settings":["reset_password_allowed"]}
 ```
 
 The token a request mints is valid for five minutes
@@ -3611,10 +3626,10 @@ that does not must be indistinguishable — same status, same body — while
 mail goes out only for the one that exists. Requesting both proves it:
 
 ```bash
-curl -sS -X POST http://localhost:3000/realms/reset-demo/login-actions/reset-password \
+curl -sS -X POST http://localhost:3000/tenants/reset-demo/login-actions/reset-password \
   --data-urlencode 'email=ada@example.com'
 echo
-curl -sS -X POST http://localhost:3000/realms/reset-demo/login-actions/reset-password \
+curl -sS -X POST http://localhost:3000/tenants/reset-demo/login-actions/reset-password \
   --data-urlencode 'email=nobody@example.com'
 ```
 
@@ -3652,7 +3667,7 @@ moment after both answers had gone out, and there exactly once:
   "level": 30,
   "to": "ada@example.com",
   "subject": "Reset your reset-demo password",
-  "text": "Reset your password for reset-demo by visiting this link:\n\nhttp://localhost:3000/realms/reset-demo/login-actions/action-token?key=NnBkF0L3rKPh1cuzEi8yMK-tzUnMHxKxk3Sfy-8USEk\n\nIf you did not request this, you can ignore this message.",
+  "text": "Reset your password for reset-demo by visiting this link:\n\nhttp://localhost:3000/tenants/reset-demo/login-actions/action-token?key=iad4k852Rw6VvCK8djwZSvU0dzcPMvNXXM3-UjOeRkk\n\nIf you did not request this, you can ignore this message.",
   "html": "<p>Reset your password for reset-demo by visiting <a href=\"…\">…</a>.</p><p>If you did not request this, you can ignore this message.</p>",
   "msg": "captured email — no SMTP host configured"
 }
@@ -3674,7 +3689,7 @@ the same `/login-actions/action-token` endpoint answers with a form instead
 of completing an action:
 
 ```bash
-curl -sS 'http://localhost:3000/realms/reset-demo/login-actions/action-token?key=NnBkF0L3rKPh1cuzEi8yMK-tzUnMHxKxk3Sfy-8USEk'
+curl -sS 'http://localhost:3000/tenants/reset-demo/login-actions/action-token?key=iad4k852Rw6VvCK8djwZSvU0dzcPMvNXXM3-UjOeRkk'
 ```
 
 ```
@@ -3682,8 +3697,8 @@ curl -sS 'http://localhost:3000/realms/reset-demo/login-actions/action-token?key
 <html lang="en">
 <head><meta charset="utf-8"><title>Choose a new password</title></head>
 <body>
-<form method="post" action="/realms/reset-demo/login-actions/action-token">
-  <input type="hidden" name="key" value="NnBkF0L3rKPh1cuzEi8yMK-tzUnMHxKxk3Sfy-8USEk">
+<form method="post" action="/tenants/reset-demo/login-actions/action-token">
+  <input type="hidden" name="key" value="iad4k852Rw6VvCK8djwZSvU0dzcPMvNXXM3-UjOeRkk">
   <label>New password <input type="password" name="password" autocomplete="new-password"></label>
   <button type="submit">Reset password</button>
 </form>
@@ -3691,14 +3706,14 @@ curl -sS 'http://localhost:3000/realms/reset-demo/login-actions/action-token?key
 </html>
 ```
 
-The same realm password policy that binds registration binds this
+The same tenant password policy that binds registration binds this
 submission too. A password that fails it is refused, and the link is left
 alone rather than spent — it is still the same unconsumed token, so trying
 again with a compliant password on the very same link works:
 
 ```bash
-curl -sS -X POST http://localhost:3000/realms/reset-demo/login-actions/action-token \
-  --data-urlencode 'key=NnBkF0L3rKPh1cuzEi8yMK-tzUnMHxKxk3Sfy-8USEk' \
+curl -sS -X POST http://localhost:3000/tenants/reset-demo/login-actions/action-token \
+  --data-urlencode 'key=iad4k852Rw6VvCK8djwZSvU0dzcPMvNXXM3-UjOeRkk' \
   --data-urlencode 'password=weak'
 ```
 
@@ -3717,25 +3732,25 @@ curl -sS -X POST http://localhost:3000/realms/reset-demo/login-actions/action-to
 
 A candidate that satisfies every rule above and is **the password already
 in force** is refused too, by the one rule no candidate decides on its own.
-Every writer of a password resets the realm's `password_max_age_days` clock
+Every writer of a password resets the tenant's `password_max_age_days` clock
 on it — which is what stops an expired password being owed forever — so
 without this, anybody who can read the account's mail could clear an
 expiry without ever changing a password.
 
-This one check ran against a second realm, `reset2-demo`, because the link
+This one check ran against a second tenant, `reset2-demo`, because the link
 above had already been spent by the time it was added; everything else about
 the flow is identical.
 
 ```bash
-curl -sS -i -X POST http://localhost:3000/realms/reset2-demo/login-actions/action-token \
-  --data-urlencode 'key=-1TjjIsV5S88pdO7TquzWplbcirrq-al_JyRDnKV8Hk' \
+curl -sS -i -X POST http://localhost:3000/tenants/reset2-demo/login-actions/action-token \
+  --data-urlencode 'key=5xpkn5Nyp3pJfEbtL6eheyv4Rz5gnDZZbmw_YYPrzNk' \
   --data-urlencode 'password=correct-horse-battery'
 ```
 
 ```
 HTTP/1.1 400 Bad Request
 content-type: text/html
-content-length: 233
+content-length: 237
 
 <!doctype html>
 <html lang="en">
@@ -3749,7 +3764,7 @@ content-length: 233
 </html>
 ```
 
-This is **only** the password in force, not the realm's
+This is **only** the password in force, not the tenant's
 `password_history_depth`: reset redemption keeps no history and reads none,
 so a password retired more than one change ago can be restored through a
 reset and its age starts again. [Password expiry, and changing a
@@ -3759,8 +3774,8 @@ read and written.
 Submitting a compliant password on the `reset-demo` link above sets it:
 
 ```bash
-curl -sS -X POST http://localhost:3000/realms/reset-demo/login-actions/action-token \
-  --data-urlencode 'key=NnBkF0L3rKPh1cuzEi8yMK-tzUnMHxKxk3Sfy-8USEk' \
+curl -sS -X POST http://localhost:3000/tenants/reset-demo/login-actions/action-token \
+  --data-urlencode 'key=iad4k852Rw6VvCK8djwZSvU0dzcPMvNXXM3-UjOeRkk' \
   --data-urlencode 'password=a brand new password'
 ```
 
@@ -3788,10 +3803,10 @@ AUTH_SESSION_ID=$(curl -sS --get \
   --data-urlencode 'nonce=abc123' \
   --data-urlencode 'code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM' \
   --data-urlencode 'code_challenge_method=S256' \
-  'http://localhost:3000/realms/reset-demo/protocol/openid-connect/auth' \
+  'http://localhost:3000/tenants/reset-demo/protocol/openid-connect/auth' \
   | sed -n '/name="auth_session_id"/{s/.*value="\([^"]*\)".*/\1/p;q;}')
 
-curl -sS -i -X POST http://localhost:3000/realms/reset-demo/login-actions/authenticate \
+curl -sS -i -X POST http://localhost:3000/tenants/reset-demo/login-actions/authenticate \
   --data-urlencode "auth_session_id=$AUTH_SESSION_ID" \
   --data-urlencode 'username=ada' \
   --data-urlencode 'password=correct-horse-battery'
@@ -3815,10 +3830,10 @@ AUTH_SESSION_ID=$(curl -sS --get \
   --data-urlencode 'nonce=abc123' \
   --data-urlencode 'code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM' \
   --data-urlencode 'code_challenge_method=S256' \
-  'http://localhost:3000/realms/reset-demo/protocol/openid-connect/auth' \
+  'http://localhost:3000/tenants/reset-demo/protocol/openid-connect/auth' \
   | sed -n '/name="auth_session_id"/{s/.*value="\([^"]*\)".*/\1/p;q;}')
 
-curl -sS -i -X POST http://localhost:3000/realms/reset-demo/login-actions/authenticate \
+curl -sS -i -X POST http://localhost:3000/tenants/reset-demo/login-actions/authenticate \
   --data-urlencode "auth_session_id=$AUTH_SESSION_ID" \
   --data-urlencode 'username=ada' \
   --data-urlencode 'password=a brand new password'
@@ -3826,17 +3841,17 @@ curl -sS -i -X POST http://localhost:3000/realms/reset-demo/login-actions/authen
 
 ```
 HTTP/1.1 302 Found
-set-cookie: reset-demo-session=01a0a184-8d8c-…; HttpOnly; SameSite=Lax; Path=/
+set-cookie: reset-demo-session=01a0cb18-68f6-…; HttpOnly; SameSite=Lax; Path=/
 set-cookie: reset-demo-session-persistent=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
-location: http://localhost:8080/callback?code=GKAk-hPPPzrge0CYcPOL4VV-K7327epL7ce6UtqfCBw&state=xyz123&iss=http%3A%2F%2Flocalhost%3A3000%2Frealms%2Freset-demo
+location: http://localhost:8080/callback?code=IO_8jS6voHd3FYEquHGgvuUlTYOYFKJBc7qJj8SZFBQ&state=xyz123&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Freset-demo
 ```
 
 The same link a second time is refused — minted for one redemption, the
 same as a verify-email token, and `action_tokens.consumed_at` is now set:
 
 ```bash
-curl -sS -o /dev/null -w '%{http_code}\n' -X POST http://localhost:3000/realms/reset-demo/login-actions/action-token \
-  --data-urlencode 'key=NnBkF0L3rKPh1cuzEi8yMK-tzUnMHxKxk3Sfy-8USEk' \
+curl -sS -o /dev/null -w '%{http_code}\n' -X POST http://localhost:3000/tenants/reset-demo/login-actions/action-token \
+  --data-urlencode 'key=iad4k852Rw6VvCK8djwZSvU0dzcPMvNXXM3-UjOeRkk' \
   --data-urlencode 'password=another password'
 ```
 
@@ -3856,47 +3871,47 @@ covering both halves of the flow.
 
 ## Password expiry, and changing a password
 
-A realm's `password_max_age_days` ages a password out. An expired password
+A tenant's `password_max_age_days` ages a password out. An expired password
 is **not** refused: the login authenticates exactly as it always did, and
 the `update-password` required action is what stops it from completing —
 the gate that could rescue a refused login sits downstream of a success, so
 refusing the factor would lock out precisely the accounts the policy exists
 to move along.
 
-The policy is two realm settings, so `seed realm --set` carries both. The
+The policy is two tenant settings, so `seed tenant --set` carries both. The
 `psql` that follows has no alternative and never will: nothing can make a
 password ninety days old in less than ninety days.
 
 ```bash
 odudu seed \
-  --realm expiry-demo --client expiry-spa \
+  --tenant expiry-demo --client expiry-spa \
   --redirect-uri http://localhost:8080/callback \
   --user ada --password correct-horse-battery --email ada@example.com
-odudu seed realm --name expiry-demo \
+odudu seed tenant --name expiry-demo \
   --set password_max_age_days=90 --set password_history_depth=2
 docker compose -f infra/docker/compose.yaml exec -T postgres \
   psql -U odudu -d odudu -c \
   "UPDATE user_credentials SET created_at = now() - interval '100 days'
      WHERE type = 'password'
-       AND realm_id = (SELECT id FROM realms WHERE name = 'expiry-demo');"
+       AND tenant_id = (SELECT id FROM tenants WHERE name = 'expiry-demo');"
 ```
 
 ```
-{"created":true,"realm":"expiry-demo","realmId":"01a0aa95-…","clientId":"expiry-spa","userSubjectId":"01a0aa95-…"}
-{"command":"realm","created":false,"realm":"expiry-demo","realmId":"01a0b044-9ccd-788b-bc5b-5ed0f6235f89","settings":["password_max_age_days","password_history_depth"]}
+{"created":true,"tenant":"expiry-demo","tenantId":"01a0cb18-…","clientId":"expiry-spa","userSubjectId":"01a0cb18-…"}
+{"command":"tenant","created":false,"tenant":"expiry-demo","tenantId":"01a0cb18-dfa9-793d-8839-2241dbc0272b","settings":["password_max_age_days","password_history_depth"]}
 UPDATE 1
 ```
 
 `/authorize` parks the request and renders the ordinary password form; the
-`auth_session_id` in it — `01a0ae72-968d-7973-8e13-139f8614177b` in this
+`auth_session_id` in it — `01a0cb18-e2cb-74a6-935d-8cd50e7ff249` in this
 run — is what every request below carries. The correct password answers
 `200` with a change-password form rather than `302` with a code: it was
 accepted, and the pending action is what holds the login (no `set-cookie`,
 no `code`).
 
 ```bash
-curl -sS -X POST http://localhost:3000/realms/expiry-demo/login-actions/authenticate \
-  --data-urlencode 'auth_session_id=01a0ae72-968d-7973-8e13-139f8614177b' \
+curl -sS -X POST http://localhost:3000/tenants/expiry-demo/login-actions/authenticate \
+  --data-urlencode 'auth_session_id=01a0cb18-e2cb-74a6-935d-8cd50e7ff249' \
   --data-urlencode 'username=ada' \
   --data-urlencode 'password=correct-horse-battery'
 ```
@@ -3908,8 +3923,8 @@ curl -sS -X POST http://localhost:3000/realms/expiry-demo/login-actions/authenti
 <body>
 <h1>Change your password</h1>
 <p>This account needs a new password before you can continue.</p>
-<form method="post" action="/realms/expiry-demo/login-actions/required-action?action=update-password">
-  <input type="hidden" name="auth_session_id" value="01a0ae72-968d-7973-8e13-139f8614177b">
+<form method="post" action="/tenants/expiry-demo/login-actions/required-action?action=update-password">
+  <input type="hidden" name="auth_session_id" value="01a0cb18-e2cb-74a6-935d-8cd50e7ff249">
   <label>New password <input type="password" name="password" autocomplete="new-password"></label>
   <button type="submit">Update password</button>
 </form>
@@ -3917,14 +3932,14 @@ curl -sS -X POST http://localhost:3000/realms/expiry-demo/login-actions/authenti
 </html>
 ```
 
-The candidate is judged by the realm's own policy, the same
+The candidate is judged by the tenant's own policy, the same
 `evaluatePassword` call registration, reset redemption and the seed CLI are
 bound by — `400`, with every rule it broke:
 
 ```bash
 curl -sS -X POST \
-  'http://localhost:3000/realms/expiry-demo/login-actions/required-action?action=update-password' \
-  --data-urlencode 'auth_session_id=01a0ae72-968d-7973-8e13-139f8614177b' \
+  'http://localhost:3000/tenants/expiry-demo/login-actions/required-action?action=update-password' \
+  --data-urlencode 'auth_session_id=01a0cb18-e2cb-74a6-935d-8cd50e7ff249' \
   --data-urlencode 'password=short'
 ```
 
@@ -3936,7 +3951,7 @@ curl -sS -X POST \
 </ul>
 ```
 
-Above a `password_history_depth` of zero, a realm also remembers that many
+Above a `password_history_depth` of zero, a tenant also remembers that many
 retired passwords and refuses the one in force. This is the only rule that
 cannot be decided from the candidate alone — it is up to
 `password_history_depth` Argon2id verifications against stored hashes — and
@@ -3944,8 +3959,8 @@ it is reported as a policy violation like the rest:
 
 ```bash
 curl -sS -X POST \
-  'http://localhost:3000/realms/expiry-demo/login-actions/required-action?action=update-password' \
-  --data-urlencode 'auth_session_id=01a0ae72-968d-7973-8e13-139f8614177b' \
+  'http://localhost:3000/tenants/expiry-demo/login-actions/required-action?action=update-password' \
+  --data-urlencode 'auth_session_id=01a0cb18-e2cb-74a6-935d-8cd50e7ff249' \
   --data-urlencode 'password=correct-horse-battery'
 ```
 
@@ -3969,13 +3984,13 @@ has to run again:
 
 ```bash
 curl -sS -o /dev/null -w '%{http_code}\n' -X POST \
-  'http://localhost:3000/realms/expiry-demo/login-actions/required-action?action=update-password' \
-  --data-urlencode 'auth_session_id=01a0ae72-968d-7973-8e13-139f8614177b' \
+  'http://localhost:3000/tenants/expiry-demo/login-actions/required-action?action=update-password' \
+  --data-urlencode 'auth_session_id=01a0cb18-e2cb-74a6-935d-8cd50e7ff249' \
   --data-urlencode 'password=a-brand-new-passphrase'
 docker compose -f infra/docker/compose.yaml exec -T postgres \
   psql -U odudu -d odudu -c \
   "SELECT type, created_at FROM user_credentials
-     WHERE realm_id = (SELECT id FROM realms WHERE name = 'expiry-demo')
+     WHERE tenant_id = (SELECT id FROM tenants WHERE name = 'expiry-demo')
      ORDER BY type;"
 ```
 
@@ -3983,8 +3998,8 @@ docker compose -f infra/docker/compose.yaml exec -T postgres \
 200
        type       |          created_at
 ------------------+-------------------------------
- password         | 2026-09-17 08:19:09.965794+00
- password-history | 2026-09-17 08:19:09.965794+00
+ password         | 2026-09-22 21:50:01.042495+00
+ password-history | 2026-09-22 21:50:01.042495+00
 (2 rows)
 ```
 
@@ -3995,17 +4010,17 @@ action would be owed again on the very next login. The same session now
 completes:
 
 ```bash
-curl -sS -D - -o /dev/null -X POST http://localhost:3000/realms/expiry-demo/login-actions/authenticate \
-  --data-urlencode 'auth_session_id=01a0ae72-968d-7973-8e13-139f8614177b' \
+curl -sS -D - -o /dev/null -X POST http://localhost:3000/tenants/expiry-demo/login-actions/authenticate \
+  --data-urlencode 'auth_session_id=01a0cb18-e2cb-74a6-935d-8cd50e7ff249' \
   --data-urlencode 'username=ada' \
   --data-urlencode 'password=a-brand-new-passphrase'
 ```
 
 ```
 HTTP/1.1 302 Found
-set-cookie: expiry-demo-session=01a0ae72-bd69-710f-9411-cab81252891d; HttpOnly; SameSite=Lax; Path=/
+set-cookie: expiry-demo-session=01a0cb18-e445-708f-9919-67965d9af518; HttpOnly; SameSite=Lax; Path=/
 set-cookie: expiry-demo-session-persistent=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
-location: http://localhost:8080/callback?code=nwsvY1PSYQ1TgHC03s8D_o0vTxt7JpxLnIDZBi3S3zg&state=xyz&iss=http%3A%2F%2Flocalhost%3A3000%2Frealms%2Fexpiry-demo
+location: http://localhost:8080/callback?code=P1ZeKGbV9OteeKbw_gRs-D5IIiwuRjYVTnOaUOxxTqY&state=xyz&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Fexpiry-demo
 ```
 
 Reset redemption shares only half of this. It refuses the password in
@@ -4020,8 +4035,8 @@ nothing but a reuse check — the old password is simply wrong now, against a
 fresh authentication session:
 
 ```bash
-curl -sS -D - -o /dev/null -X POST http://localhost:3000/realms/expiry-demo/login-actions/authenticate \
-  --data-urlencode 'auth_session_id=01a0aa96-23f2-793d-901e-10a35c97c847' \
+curl -sS -D - -o /dev/null -X POST http://localhost:3000/tenants/expiry-demo/login-actions/authenticate \
+  --data-urlencode 'auth_session_id=01a0cb18-e459-7763-81cd-d40da1538347' \
   --data-urlencode 'username=ada' \
   --data-urlencode 'password=correct-horse-battery'
 ```
@@ -4031,7 +4046,7 @@ HTTP/1.1 200 OK
 ```
 
 No `set-cookie` and no `location`: the login form again, exactly as any
-wrong password renders it. History rows past the realm's depth are deleted
+wrong password renders it. History rows past the tenant's depth are deleted
 outright rather than kept and marked, which is the one exception to
 [ADR 0021](adr/0021-retention-is-bounded-by-the-detection-window.md)'s default in this codebase —
 a retired password nothing will ever compare against is a stored hash that
@@ -4039,15 +4054,15 @@ answers no decision.
 
 ## Brute-force lockout
 
-Five consecutive wrong passwords lock an account, and the realm ships that
-way: the four columns behind it are on in every realm, unlike every other
+Five consecutive wrong passwords lock an account, and the tenant ships that
+way: the four columns behind it are on in every tenant, unlike every other
 credential setting on this page.
 
 ```bash
 docker compose exec -T postgres psql -U odudu -d odudu -c \
   "select brute_force_max_failures, brute_force_lockout_seconds,
           brute_force_max_lockout_seconds, brute_force_failure_reset_seconds
-     from realms where name = 'demo';"
+     from tenants where name = 'demo';"
 ```
 
 ```
@@ -4088,7 +4103,7 @@ post() {
   curl -sS -D /tmp/h.txt -o /tmp/b.txt \
     --data-urlencode "auth_session_id=$SID" \
     --data-urlencode "username=$1" --data-urlencode "password=$2" \
-    'http://localhost:3000/realms/demo/login-actions/authenticate' >/dev/null
+    'http://localhost:3000/tenants/demo/login-actions/authenticate' >/dev/null
   cat /tmp/h.txt /tmp/b.txt | tr -d '\r' \
     | grep -iv '^date:' | grep -iv '^x-request-id:' \
     | sed 's/nonce-[A-Za-z0-9+/=]*/nonce-NONCE/; s/nonce="[^"]*"/nonce="NONCE"/
@@ -4102,14 +4117,14 @@ echo "8  unknown username  $(post nobody wrong-password)"
 ```
 
 ```
-1  wrong password    e90eba8ff7fcad29b7543b3c005a0090
-2  wrong password    e90eba8ff7fcad29b7543b3c005a0090
-3  wrong password    e90eba8ff7fcad29b7543b3c005a0090
-4  wrong password    e90eba8ff7fcad29b7543b3c005a0090
-5  wrong password    e90eba8ff7fcad29b7543b3c005a0090
-6  wrong password    e90eba8ff7fcad29b7543b3c005a0090
-7  right password    e90eba8ff7fcad29b7543b3c005a0090
-8  unknown username  e90eba8ff7fcad29b7543b3c005a0090
+1  wrong password    67fa63f64b43d44caf3b7bf853e11cf6
+2  wrong password    67fa63f64b43d44caf3b7bf853e11cf6
+3  wrong password    67fa63f64b43d44caf3b7bf853e11cf6
+4  wrong password    67fa63f64b43d44caf3b7bf853e11cf6
+5  wrong password    67fa63f64b43d44caf3b7bf853e11cf6
+6  wrong password    67fa63f64b43d44caf3b7bf853e11cf6
+7  right password    67fa63f64b43d44caf3b7bf853e11cf6
+8  unknown username  67fa63f64b43d44caf3b7bf853e11cf6
 ```
 
 The four normalised values vary between responses — `date`, the request id
@@ -4124,25 +4139,25 @@ recorded nothing at all:
 ```bash
 docker compose exec -T postgres psql -U odudu -d odudu -x -c \
   "select subject_id, failure_count, first_failure_at, last_failure_at, locked_until
-     from login_failures f join realms r on r.id = f.realm_id
+     from login_failures f join tenants r on r.id = f.tenant_id
      where r.name = 'demo';"
 ```
 
 ```
 -[ RECORD 1 ]----+-------------------------------------
-subject_id       | 01a0ae6a-1e63-7725-8c7e-bc5ec8910743
+subject_id       | 01a0cb07-4e76-7fbe-8d86-b7c083319ef0
 failure_count    | 7
-first_failure_at | 2026-09-17 08:19:41.626+00
-last_failure_at  | 2026-09-17 08:19:42.109+00
-locked_until     | 2026-09-17 08:23:42.109+00
+first_failure_at | 2026-09-22 21:50:31.894+00
+last_failure_at  | 2026-09-22 21:50:32.303+00
+locked_until     | 2026-09-22 21:54:32.303+00
 ```
 
 One row for `ada`, none for the username nobody holds — and seven failures,
 not eight. `locked_until` is four minutes past the last of them, because the
 count reached seven: a minute at five, two at six, four at seven.
 
-The realm in that `where` clause is not decoration either. `login_failures`
-holds a row per subject across every realm, and the sections above this one
+The tenant in that `where` clause is not decoration either. `login_failures`
+holds a row per subject across every tenant, and the sections above this one
 leave their own behind — the password expiry walkthrough ends on a
 deliberately wrong password, and nothing clears a row but a successful login
 or the [retention pass](#retention-what-odudu-reap-removes). An unscoped
@@ -4157,7 +4172,7 @@ the right one refused, then the same right password once the second lockout
 has run out.
 
 **This run needs an account with no failures behind it**, so it was captured
-against a realm of its own — `lockout-demo`, seeded exactly as
+against a tenant of its own — `lockout-demo`, seeded exactly as
 [Bootstrap](#bootstrap) seeds `demo` — rather than continuing the eight
 submissions above. Those left `ada` at seven failures in `demo`, and five
 more would take the count to twelve and the wait to the fifteen-minute
@@ -4165,7 +4180,7 @@ ceiling: the arithmetic this transcript demonstrates is the arithmetic of a
 run that starts from zero.
 
 ```bash
-LOGIN='http://localhost:3000/realms/lockout-demo/login-actions/authenticate'
+LOGIN='http://localhost:3000/tenants/lockout-demo/login-actions/authenticate'
 for n in 1 2 3 4 5; do
   curl -sS -o /dev/null -w "attempt $n: %{http_code}\n" \
     --data-urlencode "auth_session_id=$SID" \
@@ -4195,9 +4210,9 @@ attempt 5: 200
 status 200, location ''
 --- the same password, 125 seconds later ---
 HTTP/1.1 302 Found
-set-cookie: lockout-demo-session=01a0ae75-c738-7d3c-aca7-8e3240e94e59; HttpOnly; SameSite=Lax; Path=/
+set-cookie: lockout-demo-session=01a0cb1b-7e7a-7bd6-9881-5981156a1260; HttpOnly; SameSite=Lax; Path=/
 set-cookie: lockout-demo-session-persistent=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
-location: http://localhost:8080/callback?code=0xnA-pWgF0pNhoe2f7rVhx5kW8Du6sVsM6avD30z2YY&state=xyz-123&iss=http%3A%2F%2Flocalhost%3A3000%2Frealms%2Flockout-demo
+location: http://localhost:8080/callback?code=5567J8rWmantteNzsWvQcLZdu8TeOViV84osa75F6Bc&state=xyz-123&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Flockout-demo
 ```
 
 (`sid` is the `/authorize` request above with the hidden field read out of
@@ -4225,15 +4240,15 @@ Two things about the run below, since it is the one section that needs the
 default budget rather than the raised one every other transcript here was
 captured with. It was captured against a stack started plainly
 (`docker compose up -d`), and `demo`'s `reset_password_allowed` was turned
-on for it — the route answers `404` in a realm that has it off, and a `404`
+on for it — the route answers `404` in a tenant that has it off, and a `404`
 is not what the ten `200`s below are demonstrating:
 
 ```bash
-odudu seed realm --name demo --set reset_password_allowed=true
+odudu seed tenant --name demo --set reset_password_allowed=true
 ```
 
 ```bash
-RESET='http://localhost:3000/realms/demo/login-actions/reset-password'
+RESET='http://localhost:3000/tenants/demo/login-actions/reset-password'
 for n in $(seq 1 10); do
   curl -sS -o /dev/null -w "request $n: %{http_code}\n" \
     --data-urlencode 'email=ada@example.test' "$RESET"
@@ -4241,7 +4256,7 @@ done
 echo '--- the eleventh, from the same address ---'
 curl -sS -D - -o /dev/null --data-urlencode 'email=ada@example.test' "$RESET" \
   | tr -d '\r' | grep -iE '^(HTTP|retry-after|content-length)'
-echo '--- an address this realm has never seen, still throttled ---'
+echo '--- an address this tenant has never seen, still throttled ---'
 curl -sS -D - -o /dev/null --data-urlencode 'email=nobody@example.test' "$RESET" \
   | tr -d '\r' | grep -iE '^(HTTP|retry-after|content-length)'
 ```
@@ -4261,7 +4276,7 @@ request 10: 200
 HTTP/1.1 429 Too Many Requests
 retry-after: 60
 content-length: 0
---- an address this realm has never seen, still throttled ---
+--- an address this tenant has never seen, still throttled ---
 HTTP/1.1 429 Too Many Requests
 retry-after: 60
 content-length: 0
@@ -4269,7 +4284,7 @@ content-length: 0
 
 Empty body, and the same one either way: the refusal is decided before the
 body is parsed or any account looked up, so it cannot say whether the
-address was one this realm knows. The budget is shared across the three
+address was one this tenant knows. The budget is shared across the three
 routes rather than one per route, the rendered forms are not throttled, and
 neither is `/token` — this one, by origin, is not where `/token`'s own
 budget lives; [the client_secret budget](#the-client_secret-budget-at-token)
@@ -4279,18 +4294,18 @@ below is:
 echo '--- the sign-in submission shares the same budget ---'
 curl -sS -D - -o /dev/null \
   --data-urlencode 'username=ada' --data-urlencode 'password=correct-horse-battery' \
-  'http://localhost:3000/realms/demo/login-actions/authenticate' \
+  'http://localhost:3000/tenants/demo/login-actions/authenticate' \
   | tr -d '\r' | grep -iE '^(HTTP|retry-after)'
 echo '--- the form it submits to is not throttled ---'
 curl -sS -o /dev/null -w "GET the reset form: %{http_code}\n" \
-  'http://localhost:3000/realms/demo/login-actions/reset-password'
+  'http://localhost:3000/tenants/demo/login-actions/reset-password'
 echo '--- and /token is not ---'
 for n in 1 2 3; do
   curl -sS -o /dev/null -w "token request $n: %{http_code}\n" \
     --data-urlencode 'grant_type=authorization_code' --data-urlencode 'code=nope' \
     --data-urlencode 'redirect_uri=http://localhost:8080/callback' \
     --data-urlencode 'client_id=demo-spa' --data-urlencode 'code_verifier=x' \
-    'http://localhost:3000/realms/demo/protocol/openid-connect/token'
+    'http://localhost:3000/tenants/demo/protocol/openid-connect/token'
 done
 ```
 
@@ -4348,7 +4363,7 @@ what earlier sections in this document did to `demo-backend`'s:
 
 ```bash
 odudu seed \
-  --realm demo --client demo-limited --client-secret demo-limited-secret \
+  --tenant demo --client demo-limited --client-secret demo-limited-secret \
   --token-endpoint-auth-method client_secret_basic \
   --redirect-uri http://localhost:8080/callback
 ```
@@ -4358,17 +4373,17 @@ for n in 1 2 3 4 5; do
   curl -sS -o /dev/null -w "attempt $n: %{http_code}\n" \
     -u demo-limited:wrong-secret \
     --data-urlencode 'grant_type=client_credentials' \
-    'http://localhost:3000/realms/demo/protocol/openid-connect/token'
+    'http://localhost:3000/tenants/demo/protocol/openid-connect/token'
 done
 echo '--- the sixth, over budget ---'
 curl -sS -D - -o /dev/null -u demo-limited:wrong-secret \
   --data-urlencode 'grant_type=client_credentials' \
-  'http://localhost:3000/realms/demo/protocol/openid-connect/token' \
+  'http://localhost:3000/tenants/demo/protocol/openid-connect/token' \
   | tr -d '\r' | grep -iE '^(HTTP|retry-after|content-length)'
 echo '--- the right secret, while the budget is spent ---'
 curl -sS -D - -o /dev/null -u demo-limited:demo-limited-secret \
   --data-urlencode 'grant_type=client_credentials' \
-  'http://localhost:3000/realms/demo/protocol/openid-connect/token' \
+  'http://localhost:3000/tenants/demo/protocol/openid-connect/token' \
   | tr -d '\r' | grep -iE '^HTTP'
 ```
 
@@ -4417,12 +4432,12 @@ for n in 1 2 3 4 5; do
   curl -sS -o /dev/null -w "attempt $n: %{http_code}\n" \
     -u nobody-here:anything \
     --data-urlencode 'grant_type=client_credentials' \
-    'http://localhost:3000/realms/demo/protocol/openid-connect/token'
+    'http://localhost:3000/tenants/demo/protocol/openid-connect/token'
 done
 echo '--- the sixth, a client_id nobody registered ---'
 curl -sS -D - -o /dev/null -u nobody-here:anything \
   --data-urlencode 'grant_type=client_credentials' \
-  'http://localhost:3000/realms/demo/protocol/openid-connect/token' \
+  'http://localhost:3000/tenants/demo/protocol/openid-connect/token' \
   | tr -d '\r' | grep -iE '^(HTTP|retry-after|content-length)'
 ```
 
@@ -4460,13 +4475,13 @@ evidence of theft, and revokes the entire family.
 curl -sS --data-urlencode 'grant_type=refresh_token' \
   --data-urlencode "refresh_token=$R1" \
   --data-urlencode 'client_id=demo-spa' \
-  'http://localhost:3000/realms/demo/protocol/openid-connect/token'
+  'http://localhost:3000/tenants/demo/protocol/openid-connect/token'
 ```
 
 ```json
 {
   "access_token": "eyJhbGciOiJSUzI1NiIs…",
-  "refresh_token": "zQMXz6L0kPWtQiJbbFrg…",
+  "refresh_token": "f6MHISD3w9RHfGDjlSerx…",
   "token_type": "Bearer",
   "expires_in": 300,
   "scope": "openid profile email"
@@ -4489,7 +4504,7 @@ Presenting `R1` again, after it has already been rotated into `R2`:
 curl -sS --data-urlencode 'grant_type=refresh_token' \
   --data-urlencode "refresh_token=$R1" \
   --data-urlencode 'client_id=demo-spa' \
-  'http://localhost:3000/realms/demo/protocol/openid-connect/token'
+  'http://localhost:3000/tenants/demo/protocol/openid-connect/token'
 ```
 
 ```json
@@ -4502,7 +4517,7 @@ and now `R2` — the legitimate, current, never-used token — is dead as well:
 curl -sS --data-urlencode 'grant_type=refresh_token' \
   --data-urlencode "refresh_token=$R2" \
   --data-urlencode 'client_id=demo-spa' \
-  'http://localhost:3000/realms/demo/protocol/openid-connect/token'
+  'http://localhost:3000/tenants/demo/protocol/openid-connect/token'
 ```
 
 ```json
@@ -4524,7 +4539,7 @@ else's refresh token is refused **without** consuming it:
 curl -sS -u demo-backend:demo-backend-secret \
   --data-urlencode 'grant_type=refresh_token' \
   --data-urlencode "refresh_token=$RT" \
-  'http://localhost:3000/realms/demo/protocol/openid-connect/token'
+  'http://localhost:3000/tenants/demo/protocol/openid-connect/token'
 ```
 
 ```json
@@ -4539,7 +4554,7 @@ curl -sS --data-urlencode 'grant_type=refresh_token' \
   --data-urlencode "refresh_token=$RT" \
   --data-urlencode 'client_id=demo-spa' \
   --data-urlencode 'scope=openid profile email admin' \
-  'http://localhost:3000/realms/demo/protocol/openid-connect/token'
+  'http://localhost:3000/tenants/demo/protocol/openid-connect/token'
 ```
 
 ```json
@@ -4553,13 +4568,13 @@ curl -sS --data-urlencode 'grant_type=refresh_token' \
   --data-urlencode "refresh_token=$RT" \
   --data-urlencode 'client_id=demo-spa' \
   --data-urlencode 'scope=openid' \
-  'http://localhost:3000/realms/demo/protocol/openid-connect/token'
+  'http://localhost:3000/tenants/demo/protocol/openid-connect/token'
 ```
 
 ```json
 {
   "access_token": "eyJhbGciOiJS…",
-  "refresh_token": "g3Gt1Rvhb8qi…",
+  "refresh_token": "ciZhY-VRY-RK…",
   "token_type": "Bearer",
   "expires_in": 300,
   "scope": "openid"
@@ -4585,7 +4600,7 @@ curl -sS --data-urlencode 'grant_type=authorization_code' \
   --data-urlencode "code=$CODE" \
   --data-urlencode 'redirect_uri=http://localhost:8080/callback' \
   --data-urlencode 'client_id=demo-spa' --data-urlencode "code_verifier=$VERIFIER" \
-  'http://localhost:3000/realms/demo/protocol/openid-connect/token'
+  'http://localhost:3000/tenants/demo/protocol/openid-connect/token'
 ```
 
 ```json
@@ -4704,7 +4719,7 @@ odudu reap
 ### When the pass refuses, or finds nothing to look at
 
 Three answers are not a report of rows, and each says which it is. Before
-any realm exists there is nothing to enumerate, and the pass says so rather
+any tenant exists there is nothing to enumerate, and the pass says so rather
 than reporting a clean sweep of zeros — captured on a stack that had been
 migrated and not yet seeded, so it is the one command in this document that
 answers differently once [Bootstrap](#bootstrap) has been followed:
@@ -4714,7 +4729,7 @@ odudu reap
 ```
 
 ```
-{"ran":false,"reason":"no realm was enumerated"}
+{"ran":false,"reason":"no tenant was enumerated"}
 ```
 
 That is an outcome, not an error: it exits 0, the way a lost lock does.
@@ -4733,7 +4748,7 @@ docker compose exec -T odudu env -u ODUDU_APP_DATABASE_URL node dist/main.js rea
 ```
 
 ```
-reap requires ODUDU_APP_DATABASE_URL: its deletes run under the realm policy, which the owner role the migrations use escapes
+reap requires ODUDU_APP_DATABASE_URL: its deletes run under the tenant policy, which the owner role the migrations use escapes
 ```
 
 The server's own boot guard demands it only in production; this command
@@ -4754,13 +4769,13 @@ docker compose exec -e ODUDU_APP_DATABASE_URL=postgres://odudu:odudu@postgres:54
 ```
 
 ```
-reap deletes under the realm policy, so its serving connection must be subject to it; ODUDU_APP_DATABASE_URL names a SUPERUSER or BYPASSRLS role
+reap deletes under the tenant policy, so its serving connection must be subject to it; ODUDU_APP_DATABASE_URL names a SUPERUSER or BYPASSRLS role
 ```
 
-And symmetrically, `reap must list realms on a connection that bypasses
+And symmetrically, `reap must list tenants on a connection that bypasses
 row-level security; ODUDU_DATABASE_URL names a role that is neither
-SUPERUSER nor BYPASSRLS` — the realms to visit are read on the owner
-connection, `realms` carries `FORCE ROW LEVEL SECURITY`, and a listing role
+SUPERUSER nor BYPASSRLS` — the tenants to visit are read on the owner
+connection, `tenants` carries `FORCE ROW LEVEL SECURITY`, and a listing role
 without the escape reads none of them. Checked against `pg_roles` rather
 than guessed at from an empty result, which is the same fact arriving too
 late to act on.
@@ -4820,7 +4835,7 @@ look at:
 ```bash
 ODUDU_OUTBOX_ENABLED=false docker compose up -d
 curl -sS -o /dev/null -X POST \
-  http://localhost:3000/realms/reset-demo/login-actions/reset-password \
+  http://localhost:3000/tenants/reset-demo/login-actions/reset-password \
   --data-urlencode 'email=ada@example.com'
 docker compose exec -T postgres psql -U odudu -d odudu -q -c \
   'select to_address, attempts, sent_at, next_attempt_at <= now() as due
@@ -4885,7 +4900,7 @@ docker compose exec -T odudu node dist/main.js send-mail
 Running it from more than one place at once is safe, and — unlike
 [`odudu reap`](#retention-what-odudu-reap-removes) — it does not serialise
 them. The claim is a single `UPDATE … WHERE id IN (SELECT … FOR UPDATE SKIP
-LOCKED)` per realm: two senders that meet on one queue take different
+LOCKED)` per tenant: two senders that meet on one queue take different
 messages and both make progress, where a lock would have had one of them do
 nothing. The claim also counts the attempt and pushes `next_attempt_at`
 five minutes out, so a sender killed between the claim and the send costs
@@ -4909,7 +4924,7 @@ no further — and still there, with its error, for
 the sender to discard.
 
 `send-mail` refuses to run at all in the same two configurations `reap`
-does, and for the same reason: its claim is scoped by the realm policy.
+does, and for the same reason: its claim is scoped by the tenant policy.
 With `ODUDU_APP_DATABASE_URL` unset:
 
 ```bash
@@ -4917,7 +4932,7 @@ docker compose exec -T odudu env -u ODUDU_APP_DATABASE_URL node dist/main.js sen
 ```
 
 ```
-odudu send-mail requires ODUDU_APP_DATABASE_URL: it claims under the realm policy, which the owner role the migrations use escapes
+odudu send-mail requires ODUDU_APP_DATABASE_URL: it claims under the tenant policy, which the owner role the migrations use escapes
 ```
 
 and pointed at the owner:
@@ -4928,11 +4943,11 @@ docker compose exec -e ODUDU_APP_DATABASE_URL=postgres://odudu:odudu@postgres:54
 ```
 
 ```
-the outbox sender claims under the realm policy, so its serving connection must be subject to it; ODUDU_APP_DATABASE_URL names a SUPERUSER or BYPASSRLS role
+the outbox sender claims under the tenant policy, so its serving connection must be subject to it; ODUDU_APP_DATABASE_URL names a SUPERUSER or BYPASSRLS role
 ```
 
 Symmetrically, a `ODUDU_DATABASE_URL` role that cannot bypass row-level
-security reads no realms, and the queue would drain never with nothing to
+security reads no tenants, and the queue would drain never with nothing to
 say so; that is refused too. The schedule inside the server is the one
 place that does not refuse per attempt: with no serving connection it
 declines to start at all, warning
@@ -4945,7 +4960,7 @@ that exists.
 
 ## RP-initiated logout
 
-`GET`/`POST /realms/{realm}/protocol/openid-connect/logout` implements
+`GET`/`POST /tenants/{tenant}/protocol/openid-connect/logout` implements
 [OpenID Connect RP-Initiated Logout
 1.0](protocols/oidc-rpinitiated.md). Ending a session revokes it and every
 grant whose `session_id` names it. The access tokens those grants minted
@@ -4988,7 +5003,7 @@ CODE=$(curl -sS -b cookies.txt -D - -o /dev/null --get \
   --data-urlencode 'state=xyz-hint' \
   --data-urlencode "code_challenge=$CHALLENGE" \
   --data-urlencode 'code_challenge_method=S256' \
-  "http://localhost:3000/realms/demo/protocol/openid-connect/auth" \
+  "http://localhost:3000/tenants/demo/protocol/openid-connect/auth" \
   | sed -n 's/.*[Ll]ocation: .*[?&]code=\([^&[:space:]]*\).*/\1/p' | tr -d '\r')
 
 TOKEN_RESPONSE=$(curl -sS \
@@ -4997,7 +5012,7 @@ TOKEN_RESPONSE=$(curl -sS \
   --data-urlencode 'redirect_uri=http://localhost:8080/callback' \
   --data-urlencode 'client_id=demo-spa' \
   --data-urlencode "code_verifier=$VERIFIER" \
-  "http://localhost:3000/realms/demo/protocol/openid-connect/token")
+  "http://localhost:3000/tenants/demo/protocol/openid-connect/token")
 
 ID_TOKEN=$(python3 -c "import json,sys; print(json.load(sys.stdin)['id_token'])" <<< "$TOKEN_RESPONSE")
 REFRESH_TOKEN=$(python3 -c "import json,sys; print(json.load(sys.stdin)['refresh_token'])" <<< "$TOKEN_RESPONSE")
@@ -5008,7 +5023,7 @@ curl -sS -b cookies.txt -D - -o /dev/null \
   --data-urlencode 'client_id=demo-spa' \
   --data-urlencode 'post_logout_redirect_uri=http://localhost:8080/logged-out' \
   --data-urlencode 'state=xyz-bye' \
-  "http://localhost:3000/realms/demo/protocol/openid-connect/logout"
+  "http://localhost:3000/tenants/demo/protocol/openid-connect/logout"
 ```
 
 ```
@@ -5026,7 +5041,7 @@ different, remembered login even though this walkthrough's own login did
 not set one.
 
 The hint names the session the cookie itself belongs to (OIDC Core §3.1.2.2
-validates it — this realm's own keys, this realm's issuer, an access token
+validates it — this tenant's own keys, this tenant's issuer, an access token
 refused by `typ`), so §2's confirmation is skipped and the exact-match
 `post_logout_redirect_uri` is honoured. A `sid` naming a session outside
 this browser's own resolved set — stale, or another browser's — is treated
@@ -5041,7 +5056,7 @@ curl -sS \
   --data-urlencode 'grant_type=refresh_token' \
   --data-urlencode "refresh_token=$REFRESH_TOKEN" \
   --data-urlencode 'client_id=demo-spa' \
-  "http://localhost:3000/realms/demo/protocol/openid-connect/token"
+  "http://localhost:3000/tenants/demo/protocol/openid-connect/token"
 ```
 
 ```json
@@ -5052,7 +5067,7 @@ curl -sS \
 
 Local validation cannot see that a session just ended — the access token
 above is still a validly signed JWT until its own `exp` — so the two walks
-below use a freshly seeded realm and confidential client of their own,
+below use a freshly seeded tenant and confidential client of their own,
 `revokedoc`/`revoke-doc-client`, so a resource server that wants to see a
 revocation before `exp` has something to call. `seed client` has no
 `--audience` flag (see [What is not
@@ -5085,7 +5100,7 @@ session is still live:
 
 ```bash
 curl -sS -u revoke-doc-client:revoke-doc-secret \
-  -X POST "http://localhost:3000/realms/revokedoc/protocol/openid-connect/token/introspect" \
+  -X POST "http://localhost:3000/tenants/revokedoc/protocol/openid-connect/token/introspect" \
   --data-urlencode "token=$ACCESS_TOKEN"
 ```
 
@@ -5094,11 +5109,11 @@ curl -sS -u revoke-doc-client:revoke-doc-secret \
   "active": true,
   "scope": "openid",
   "client_id": "revoke-doc-client",
-  "sub": "01a0c46d-…",
-  "aud": ["revoke-doc-client", "http://localhost:3000/realms/revokedoc"],
+  "sub": "01a0cb1f-5551-…",
+  "aud": ["revoke-doc-client", "http://localhost:3000/tenants/revokedoc"],
   "token_type": "Bearer",
-  "exp": 1790002471,
-  "iat": 1790002171
+  "exp": 1790114523,
+  "iat": 1790114223
 }
 ```
 
@@ -5110,10 +5125,10 @@ curl -sS -b cookies.txt --get \
   --data-urlencode "id_token_hint=$ID_TOKEN" \
   --data-urlencode "client_id=revoke-doc-client" \
   --data-urlencode "state=bye-1" \
-  "http://localhost:3000/realms/revokedoc/protocol/openid-connect/logout"
+  "http://localhost:3000/tenants/revokedoc/protocol/openid-connect/logout"
 
 curl -sS -u revoke-doc-client:revoke-doc-secret \
-  -X POST "http://localhost:3000/realms/revokedoc/protocol/openid-connect/token/introspect" \
+  -X POST "http://localhost:3000/tenants/revokedoc/protocol/openid-connect/token/introspect" \
   --data-urlencode "token=$ACCESS_TOKEN"
 ```
 
@@ -5121,8 +5136,8 @@ curl -sS -u revoke-doc-client:revoke-doc-secret \
 { "active": false }
 ```
 
-`exp` above is `1790002471`; this second call landed at `1790002187` —
-284 seconds still on the clock, and every one of them made no difference,
+`exp` above is `1790114523`; this second call landed at `1790114223` —
+300 seconds still on the clock, and every one of them made no difference,
 because logout revoked the grant this token names along with the session
 (`tokenGrantRepository(tx).revokeForSession`,
 `packages/protocol-oidc/src/index.ts`'s `endSession`), and introspection
@@ -5138,7 +5153,7 @@ pair. Revoking the refresh token:
 
 ```bash
 curl -sS -u revoke-doc-client:revoke-doc-secret \
-  -X POST "http://localhost:3000/realms/revokedoc/protocol/openid-connect/revoke" \
+  -X POST "http://localhost:3000/tenants/revokedoc/protocol/openid-connect/revoke" \
   --data-urlencode "token=$REFRESH_TOKEN"
 ```
 
@@ -5154,7 +5169,7 @@ own rule against distinguishing them),
 
 ```bash
 curl -sS -u revoke-doc-client:revoke-doc-secret \
-  -X POST "http://localhost:3000/realms/revokedoc/protocol/openid-connect/token" \
+  -X POST "http://localhost:3000/tenants/revokedoc/protocol/openid-connect/token" \
   --data-urlencode "grant_type=refresh_token" \
   --data-urlencode "refresh_token=$REFRESH_TOKEN"
 ```
@@ -5170,7 +5185,7 @@ grant, not the token"):
 
 ```bash
 curl -sS -u revoke-doc-client:revoke-doc-secret \
-  -X POST "http://localhost:3000/realms/revokedoc/protocol/openid-connect/token/introspect" \
+  -X POST "http://localhost:3000/tenants/revokedoc/protocol/openid-connect/token/introspect" \
   --data-urlencode "token=$ACCESS_TOKEN"
 ```
 
@@ -5183,7 +5198,7 @@ first `200` above: an already-revoked token is not an error either.
 
 ```bash
 curl -sS -u revoke-doc-client:revoke-doc-secret \
-  -X POST "http://localhost:3000/realms/revokedoc/protocol/openid-connect/revoke" \
+  -X POST "http://localhost:3000/tenants/revokedoc/protocol/openid-connect/revoke" \
   --data-urlencode "token=$REFRESH_TOKEN"
 ```
 
@@ -5196,8 +5211,8 @@ content-length: 0
 And discovery now names the endpoint that did all of this:
 
 ```
-"introspection_endpoint": "http://localhost:3000/realms/revokedoc/protocol/openid-connect/token/introspect",
-"revocation_endpoint": "http://localhost:3000/realms/revokedoc/protocol/openid-connect/revoke",
+"introspection_endpoint": "http://localhost:3000/tenants/revokedoc/protocol/openid-connect/token/introspect",
+"revocation_endpoint": "http://localhost:3000/tenants/revokedoc/protocol/openid-connect/revoke",
 ```
 
 A second, separate sign-in with **no** `id_token_hint` gets the
@@ -5206,7 +5221,7 @@ ended by this `GET` alone:
 
 ```bash
 curl -sS -b cookies2.txt \
-  "http://localhost:3000/realms/demo/protocol/openid-connect/logout"
+  "http://localhost:3000/tenants/demo/protocol/openid-connect/logout"
 ```
 
 ```
@@ -5216,8 +5231,8 @@ curl -sS -b cookies2.txt \
 <body>
 <h1>Sign out?</h1>
 <p>Signing out ends this session for every application that uses it.</p>
-<form method="post" action="/realms/demo/protocol/openid-connect/logout">
-  <input type="hidden" name="session_id" value="01a0a5a7-4d08-…">
+<form method="post" action="/tenants/demo/protocol/openid-connect/logout">
+  <input type="hidden" name="session_id" value="01a0cb1f-cf51-…">
   <button type="submit">Sign out</button>
 </form>
 </body>
@@ -5254,7 +5269,7 @@ curl -sS -b cookies-post.txt -D - -o /dev/null -X POST \
   --data-urlencode 'client_id=demo-spa' \
   --data-urlencode 'post_logout_redirect_uri=http://localhost:8080/logged-out' \
   --data-urlencode 'state=xyz-bye' \
-  "http://localhost:3000/realms/demo/protocol/openid-connect/logout"
+  "http://localhost:3000/tenants/demo/protocol/openid-connect/logout"
 ```
 
 ```
@@ -5275,7 +5290,7 @@ curl -sS \
   --data-urlencode 'grant_type=refresh_token' \
   --data-urlencode "refresh_token=$REFRESH_TOKEN" \
   --data-urlencode 'client_id=demo-spa' \
-  "http://localhost:3000/realms/demo/protocol/openid-connect/token"
+  "http://localhost:3000/tenants/demo/protocol/openid-connect/token"
 ```
 
 ```json
@@ -5346,7 +5361,7 @@ curl -sS -b cookies-aud.txt -X POST \
   --data-urlencode "id_token_hint=$ID_TOKEN" \
   --data-urlencode 'client_id=demo-post' \
   --data-urlencode 'post_logout_redirect_uri=http://localhost:8080/logged-out' \
-  "http://localhost:3000/realms/demo/protocol/openid-connect/logout"
+  "http://localhost:3000/tenants/demo/protocol/openid-connect/logout"
 ```
 
 ```
@@ -5356,8 +5371,8 @@ curl -sS -b cookies-aud.txt -X POST \
 <body>
 <h1>Sign out?</h1>
 <p>Signing out ends this session for every application that uses it.</p>
-<form method="post" action="/realms/demo/protocol/openid-connect/logout">
-  <input type="hidden" name="session_id" value="01a0ae58-2a9a-…">
+<form method="post" action="/tenants/demo/protocol/openid-connect/logout">
+  <input type="hidden" name="session_id" value="01a0cb1f-d286-…">
   <input type="hidden" name="client_id" value="demo-post">
   <button type="submit">Sign out</button>
 </form>
@@ -5377,7 +5392,7 @@ curl -sS -b cookies-aud.txt -D - -o /dev/null -X POST \
   --data-urlencode "id_token_hint=$ID_TOKEN" \
   --data-urlencode 'client_id=demo-spa' \
   --data-urlencode 'post_logout_redirect_uri=http://localhost:8080/logged-out' \
-  "http://localhost:3000/realms/demo/protocol/openid-connect/logout"
+  "http://localhost:3000/tenants/demo/protocol/openid-connect/logout"
 ```
 
 ```
@@ -5405,7 +5420,7 @@ was set above:
 
 ```bash
 odudu seed client \
-  --realm demo --client-id reports-widget --client-secret reports-widget-secret \
+  --tenant demo --client-id reports-widget --client-secret reports-widget-secret \
   --redirect-uri http://localhost:9100/callback
 
 docker compose -f infra/docker/compose.yaml exec -T postgres \
@@ -5441,7 +5456,7 @@ curl -sS -b cookies.txt --get \
   --data-urlencode 'state=xyz-rw' \
   --data-urlencode "code_challenge=$CHALLENGE" \
   --data-urlencode 'code_challenge_method=S256' \
-  "http://localhost:3000/realms/demo/protocol/openid-connect/auth"
+  "http://localhost:3000/tenants/demo/protocol/openid-connect/auth"
 
 curl -sS \
   --data-urlencode 'grant_type=authorization_code' \
@@ -5450,7 +5465,7 @@ curl -sS \
   --data-urlencode 'client_id=reports-widget' \
   --data-urlencode "code_verifier=$VERIFIER" \
   -u reports-widget:reports-widget-secret \
-  "http://localhost:3000/realms/demo/protocol/openid-connect/token"
+  "http://localhost:3000/tenants/demo/protocol/openid-connect/token"
 ```
 
 Ending that session with no `post_logout_redirect_uri` at all — the branch
@@ -5460,7 +5475,7 @@ now frames `reports-widget`:
 ```bash
 curl -sS -b cookies.txt --get \
   --data-urlencode "id_token_hint=$ID_TOKEN" \
-  "http://localhost:3000/realms/demo/protocol/openid-connect/logout"
+  "http://localhost:3000/tenants/demo/protocol/openid-connect/logout"
 ```
 
 ```
@@ -5472,7 +5487,7 @@ content-type: text/html
 content-security-policy: default-src 'none'; frame-ancestors 'none'; form-action 'self'; base-uri 'none'; frame-src http://localhost:9100
 x-frame-options: DENY
 referrer-policy: no-referrer
-content-length: 317
+content-length: 318
 ```
 
 ```
@@ -5482,13 +5497,13 @@ content-length: 317
 <body>
 <h1>Signed out</h1>
 <p>You have been signed out.</p>
-<iframe src="http://localhost:9100/logout?iss=http%3A%2F%2Flocalhost%3A3000%2Frealms%2Fdemo&amp;sid=01a0bc04-3b60-…"></iframe>
+<iframe src="http://localhost:9100/logout?iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Fdemo&amp;sid=01a0cb20-97a7-…"></iframe>
 </body>
 </html>
 ```
 
 (`sid` shortened; it is the session cookie's own id, and `iss` is this
-realm's issuer.) `sid` is present because `reports-widget` registered
+tenant's issuer.) `sid` is present because `reports-widget` registered
 `frontchannel_logout_session_required`; a client that had not would be
 framed with `iss` alone. `demo-spa` itself is not framed here — it
 registered no `frontchannel_logout_uri` at all, and §2's own rule is that a
@@ -5523,7 +5538,7 @@ docker compose -f infra/docker/compose.yaml exec -T postgres \
   psql -U odudu -d odudu -c "
     SELECT c.client_id, d.endpoint, d.attempts, d.delivered_at, d.last_error
     FROM backchannel_logout_deliveries d JOIN clients c ON c.id = d.client_id
-    WHERE c.client_id = 'reports-widget';
+    WHERE c.client_id = 'reports-widget' AND d.endpoint LIKE '%127.0.0.1%';
   "
 ```
 
@@ -5572,7 +5587,7 @@ it set, delivery to a real listener actually happens. Continuing this
 same stack: the container was recreated with
 `ODUDU_ALLOW_PRIVATE_CLIENT_URLS=true` on the environment (`docker compose
 up -d`), a plain Node `https` listener was started on this host's own LAN
-address (`192.168.1.71:9443`, standing in for a relying party — a private
+address (`192.168.1.71:9444`, standing in for a relying party — a private
 address is exactly what this variable exists to admit; a _public_ one
 needs no such override), its self-signed certificate was copied into the
 container (`docker cp cert.pem docker-odudu-1:/tmp/listener-cert.pem`),
@@ -5581,7 +5596,7 @@ and `reports-widget`'s `backchannel_logout_uri` was pointed at it instead:
 ```bash
 docker compose -f infra/docker/compose.yaml exec -T postgres \
   psql -U odudu -d odudu -c "
-    UPDATE client_oidc_config SET backchannel_logout_uri = 'https://192.168.1.71:9443/backchannel'
+    UPDATE client_oidc_config SET backchannel_logout_uri = 'https://192.168.1.71:9444/backchannel'
     FROM clients WHERE clients.id = client_oidc_config.client_id AND clients.client_id = 'reports-widget';
   "
 ```
@@ -5607,21 +5622,31 @@ docker compose -f infra/docker/compose.yaml exec -T \
 The listener's own log shows the request actually arrived:
 
 ```
-POST /backchannel content-type=application/x-www-form-urlencoded body=logout_token=eyJhbGciOiJSUzI1NiIsImtpZCI6IjAxYTBiZDJlLTk4YjctN2JlZS04ODJkLTVkZDg2MjQwNGFjZSIsInR5cCI6ImxvZ291dCtqd3QifQ.eyJpc3MiOiJodHRwOi8vbG9jYWxob3N0OjMwMDAvcmVhbG1zL2RlbW8iLCJhdWQiOiJyZXBvcnRzLXdpZGdldCIsImlhdCI6MTc4OTg4MDU4NSwiZXhwIjoxNzg5ODgwNzA1LCJqdGkiOiIwMWEwYmQzMi00YmE3LTc1YjctYTQ4YS05MWIwMWEyZmU0NWIiLCJzdWIiOiIwMWEwYmQyZS05OGJhLTc0NTEtOWQ5YS1jMDMzZTM3Y2FiNTEiLCJzaWQiOiIwMWEwYmQzMi00YTZhLTc4NjEtYmQzZC1hNTRlYmZlZWE2NGUiLCJldmVudHMiOnsiaHR0cDovL3NjaGVtYXMub3BlbmlkLm5ldC9ldmVudC9iYWNrY2hhbm5lbC1sb2dvdXQiOnt9fX0.hGIXaBd3Coz7k7NOgTPUAEZP1VFDiO9lfry96Soi-KtxbFcFQYvcxlIOPkaLT7Yis0vleyiUIII6EKnuxMZJ1ErNJiTg4ce-CQ7bRZdS1uR2HZZ6J8DTBUkT5sa6ptg-kPXnb92-2m-I_AIH2REEQTjlb6eMF1KYKJLtlt-qTSW11Ql959aAfIRjj9uMKUoYajtIODLcZ8OPh1p-CbIswgeFCloWcUx28U8d4PIKV7-S0Ru3y-rCaGszRLN9MkVJo8PA91Xo_TeqkSeAlUr18a5baA8iW2XJNBIFHwEWt9HBxYFNI8PqNm4TJuCQKa5HqGGlRGbU6L3sNFNSpzYOuQ
+POST /backchannel content-type=application/x-www-form-urlencoded body=logout_token=eyJhbGciOiJSUzI1NiIsImtpZCI6IjAxYTBjYjA3LTRlNzMtN2M1NS04Y2Y2LTRkMTY1OTVmN2EyOCIsInR5cCI6ImxvZ291dCtqd3QifQ.eyJpc3MiOiJodHRwOi8vbG9jYWxob3N0OjMwMDAvdGVuYW50cy9kZW1vIiwiYXVkIjoicmVwb3J0cy13aWRnZXQiLCJpYXQiOjE3OTAxMTQzODcsImV4cCI6MTc5MDExNDUwNywianRpIjoiMDFhMGNiMjEtZDdiOS03YmJiLTgwNGItZDE3NmJmZGYzNjdjIiwic3ViIjoiMDFhMGNiMDctNGU3Ni03ZmJlLThkODYtYjdjMDgzMzE5ZWYwIiwic2lkIjoiMDFhMGNiMjEtZDcxMy03Y2NkLWE2NjktYzAxYzFlYjI4ZWU0IiwiZXZlbnRzIjp7Imh0dHA6Ly9zY2hlbWFzLm9wZW5pZC5uZXQvZXZlbnQvYmFja2NoYW5uZWwtbG9nb3V0Ijp7fX19.kki0ioQoGA1xaiCQz-hRNrKyVjqA815Ke5orwat7vTck6A7Ax_jrx8LSlCSCmzHgx7WRtqE2SiA0HmzUQlUFQh0GPzQ7qTzgCI5jrIPCzRqzWUNIzUKprzDBJL6b_FKe5OY4QgshJAxVBmdXRQxr5QW85-INuO90oFqmHQp_kMd7pXEpZpAVdyzqS8STI5Fkq85f-pvImq1UQcZJNwJx39PqwUEf7sY1Bx2ioiQ0L5hOAHL0M_jxZRGExRecy0uhX4zx6WRY6Yw_8-buClwQVPXq6MtPkaZwMJqFS3ijAR0FjmT-c0TE0hz-EgMRIwz8IOpjDvOrfcrot2vJ2b1lBg
 ```
 
-Its header decodes to `{"alg":"RS256","kid":"01a0bd2e-…","typ":"logout+jwt"}`
-and its payload to `{"iss":"http://localhost:3000/realms/demo","aud":"reports-widget",
-"iat":1789880585,"exp":1789880705,"jti":"01a0bd32-…","sub":"01a0bd2e-…",
-"sid":"01a0bd32-…","events":{"http://schemas.openid.net/event/backchannel-logout":{}}}`
+Its header decodes to `{"alg":"RS256","kid":"01a0cb07-…","typ":"logout+jwt"}`
+and its payload to `{"iss":"http://localhost:3000/tenants/demo","aud":"reports-widget",
+"iat":1790114387,"exp":1790114507,"jti":"01a0cb21-…","sub":"01a0cb07-…",
+"sid":"01a0cb21-…","events":{"http://schemas.openid.net/event/backchannel-logout":{}}}`
 — every §2.4 member the clause table claims, on a token this walkthrough's
 own listener actually received. The queue shows the same thing from the
-other side:
+other side — the same query as above, scoped to this endpoint instead,
+since the refused loopback row is still in the table beside it:
+
+```bash
+docker compose -f infra/docker/compose.yaml exec -T postgres \
+  psql -U odudu -d odudu -c "
+    SELECT c.client_id, d.endpoint, d.attempts, d.delivered_at, d.last_error
+    FROM backchannel_logout_deliveries d JOIN clients c ON c.id = d.client_id
+    WHERE c.client_id = 'reports-widget' AND d.endpoint LIKE '%192.168%';
+  "
+```
 
 ```
    client_id    |               endpoint                | attempts |        delivered_at        | last_error
 ----------------+---------------------------------------+----------+----------------------------+------------
- reports-widget | https://192.168.1.71:9443/backchannel |        1 | 2026-09-20 05:03:18.365+00 |
+ reports-widget | https://192.168.1.71:9444/backchannel |        1 | 2026-09-22 21:59:48.213+00 |
 (1 row)
 ```
 
@@ -5631,12 +5656,12 @@ touching `attempts` the way `markFailed` does.
 Discovery now advertises `backchannel_logout_supported`,
 `backchannel_logout_session_supported`, `frontchannel_logout_supported`
 and `frontchannel_logout_session_supported` — all four unconditionally
-`true` for every realm, since a client opts in per client rather than per
-realm (see [Discovery](#1-discovery) above).
+`true` for every tenant, since a client opts in per client rather than per
+tenant (see [Discovery](#1-discovery) above).
 
 ### Offline access
 
-`offline_access` is a scope, seeded into every realm alongside
+`offline_access` is a scope, seeded into every tenant alongside
 `openid`/`profile`/`email` and assigned to `demo-spa` too — the one scope
 here assigned `'optional'` rather than `'default'`, which is what lets the
 consent screen ([below](#the-consent-screen)) tell it apart from a scope
@@ -5709,7 +5734,7 @@ OFFLINE_REFRESH_TOKEN=$(printf '%s' "$OFFLINE_TOKENS" | sed -n 's/.*"refresh_tok
 {
   "access_token": "eyJhbGciOiJSUzI1NiIs…",
   "id_token": "eyJhbGciOiJSUzI1NiIs…",
-  "refresh_token": "KES5eAgSveeI4Q3mnSv…",
+  "refresh_token": "nAnQ0qDYIZyOInKkB2H…",
   "token_type": "Bearer",
   "expires_in": 300,
   "scope": "openid offline_access"
@@ -5720,15 +5745,15 @@ OFFLINE_REFRESH_TOKEN=$(printf '%s' "$OFFLINE_TOKENS" | sed -n 's/.*"refresh_tok
 
 ```json
 {
-  "iss": "http://localhost:3000/realms/demo",
-  "sub": "01a0c3a8-078e-…",
-  "aud": ["http://localhost:3000/realms/demo"],
+  "iss": "http://localhost:3000/tenants/demo",
+  "sub": "01a0cb07-4e76-…",
+  "aud": ["http://localhost:3000/tenants/demo"],
   "client_id": "demo-spa",
   "scope": "openid offline_access",
-  "iat": 1789989000,
-  "exp": 1789989300,
-  "jti": "01a0c3a8-94f5-…",
-  "grant_id": "01a0c3a8-94f5-7b87-baf7-d057e9b1dfb1"
+  "iat": 1790114491,
+  "exp": 1790114791,
+  "jti": "01a0cb23-6bde-…",
+  "grant_id": "01a0cb23-6bde-7b79-83f6-673a0f0a0226"
 }
 ```
 
@@ -5742,12 +5767,11 @@ decoded, is missing `sid` the same way, but still carries `amr` and
 
 ```json
 {
-  "sub": "01a0a6cd-e3cb-…",
-  "iss": "http://localhost:3000/realms/demo",
+  "sub": "01a0cb07-4e76-…",
+  "iss": "http://localhost:3000/tenants/demo",
   "aud": "demo-spa",
-  "iat": 1789505162,
-  "exp": 1789505462,
-  "auth_time": 1789505162,
+  "iat": 1790114491,
+  "exp": 1790114791,
   "amr": ["pwd"],
   "acr": "1"
 }
@@ -5764,7 +5788,7 @@ way shown above: `GET` for the confirmation page, then the hidden
 `session_id` posted back to confirm.
 
 ```bash
-curl -sS -b cookies-offline.txt "http://localhost:3000/realms/demo/protocol/openid-connect/logout"
+curl -sS -b cookies-offline.txt "http://localhost:3000/tenants/demo/protocol/openid-connect/logout"
 ```
 
 ```
@@ -5774,8 +5798,8 @@ curl -sS -b cookies-offline.txt "http://localhost:3000/realms/demo/protocol/open
 <body>
 <h1>Sign out?</h1>
 <p>Signing out ends this session for every application that uses it.</p>
-<form method="post" action="/realms/demo/protocol/openid-connect/logout">
-  <input type="hidden" name="session_id" value="01a0a5e6-6047-…">
+<form method="post" action="/tenants/demo/protocol/openid-connect/logout">
+  <input type="hidden" name="session_id" value="01a0cb23-6b57-…">
   <button type="submit">Sign out</button>
 </form>
 </body>
@@ -5786,8 +5810,8 @@ curl -sS -b cookies-offline.txt "http://localhost:3000/realms/demo/protocol/open
 
 ```bash
 curl -sS -b cookies-offline.txt -D - \
-  --data-urlencode 'session_id=01a0a5e6-6047-7c21-b8f7-da4b5d908534' \
-  "http://localhost:3000/realms/demo/protocol/openid-connect/logout"
+  --data-urlencode 'session_id=01a0cb23-6b57-7ed4-9d1c-065e8242dda7' \
+  "http://localhost:3000/tenants/demo/protocol/openid-connect/logout"
 ```
 
 ```
@@ -5802,6 +5826,7 @@ cache-control: no-store
 <body>
 <h1>Signed out</h1>
 <p>You have been signed out.</p>
+
 </body>
 </html>
 ```
@@ -5834,7 +5859,7 @@ curl -sS \
 ```json
 {
   "access_token": "eyJhbGciOiJSUzI1NiIs…",
-  "refresh_token": "eycMYvzBLhLjl1zbcQ8…",
+  "refresh_token": "ACz3TGdmqj05ZrH738L…",
   "token_type": "Bearer",
   "expires_in": 300,
   "scope": "openid offline_access"
@@ -5850,7 +5875,7 @@ second case. An offline grant has neither: no session to end, and no idle
 window to outlive, so it is bounded only by its own
 `refresh_token_ttl_seconds` and by retention (see [What is not
 implemented](#what-is-not-implemented)) — nothing about ending a session
-ages it out early. A client is only handed this scope if the realm's
+ages it out early. A client is only handed this scope if the tenant's
 operator assigned it — `demo-spa` has it because `odudu seed` assigns every
 default scope, `offline_access` included, though `'optional'` rather than
 `'default'`; a request for it from a client whose assignment was withdrawn
@@ -5869,25 +5894,28 @@ every anonymously self-registered client (`consent_required` defaults
 `true` there, per [Dynamic client registration](#dynamic-client-registration)
 and ADR 0027) — and for `prompt=consent` on any client at all.
 
-This section continues the same `demo` realm [Bootstrap](#bootstrap) seeded
+This section continues the same `demo` tenant [Bootstrap](#bootstrap) seeded
 and the sections since have been building on, on a stack brought up with
 `docker compose down -v` then `up -d --build` and nothing else — `ada`
 already verified ([Address verification](#address-verification) above) and
 already the subject of an SSO session or two, none of which this section's
 own requests touch. `client_registration_policy` is `disabled` on `demo` by
-default, the same as every realm, so the anonymously self-registered client
-this section needs opens it first:
+default, the same as every tenant, so the anonymously self-registered client
+this section needs it open — asserted again here rather than assumed from
+[the encrypted UserInfo transcript](#encrypted-and-nested-userinfo-responses)
+that first opened it, since seeding a setting already at that value reports
+it unchanged rather than refusing:
 
 ```bash
-odudu seed realm --name demo --set client_registration_policy=open
+odudu seed tenant --name demo --set client_registration_policy=open
 ```
 
 ```json
 {
-  "command": "realm",
+  "command": "tenant",
   "created": false,
-  "realm": "demo",
-  "realmId": "01a0c98c-…",
+  "tenant": "demo",
+  "tenantId": "01a0cb07-…",
   "settings": ["client_registration_policy"]
 }
 ```
@@ -5896,16 +5924,16 @@ Then the client itself, with no credential presented — `registration_origin`
 is `'anonymous'` and `consent_required` defaults `true` on the row it wrote:
 
 ```bash
-curl -sS -X POST http://localhost:3000/realms/demo/clients-registrations/openid-connect \
+curl -sS -X POST http://localhost:3000/tenants/demo/clients-registrations/openid-connect \
   -H 'content-type: application/json' \
   -d '{"redirect_uris":["https://rp.example/cb"],"client_name":"Example RP"}'
 ```
 
 ```json
 {
-  "client_id": "01a0c98f-72f7-…",
-  "client_id_issued_at": 1790088016,
-  "client_secret": "JJr3ZcplNG1ky0wyTa16aRNQGINP7o8DqZpipEjLOl8",
+  "client_id": "01a0cb24-1680-…",
+  "client_id_issued_at": 1790114534,
+  "client_secret": "cZoyBuOje15jvYKEatsOI31DSO4rcPH03I-tRB6_aj8",
   "client_secret_expires_at": 0,
   "redirect_uris": ["https://rp.example/cb"],
   "grant_types": ["authorization_code"],
@@ -5926,21 +5954,21 @@ curl -sS -D - \
   --data-urlencode "auth_session_id=$AUTH_SESSION_ID" \
   --data-urlencode 'username=ada' \
   --data-urlencode 'password=correct-horse-battery' \
-  'http://localhost:3000/realms/demo/login-actions/authenticate'
+  'http://localhost:3000/tenants/demo/login-actions/authenticate'
 ```
 
 ```
 HTTP/1.1 200 OK
 content-type: text/html
-content-length: 663
+content-length: 664
 
 <!doctype html>
 <html lang="en">
 <head><meta charset="utf-8"><title>Allow access?</title></head>
 <body>
 <h1>Example RP is asking for access</h1>
-<form method="post" action="/realms/demo/login-actions/consent">
-  <input type="hidden" name="auth_session_id" value="01a0c990-…">
+<form method="post" action="/tenants/demo/login-actions/consent">
+  <input type="hidden" name="auth_session_id" value="01a0cb24-16e3-…">
   <ul>
   <li>openid</li>
   <li>profile</li>
@@ -5969,14 +5997,14 @@ Allow:
 curl -sS -D - \
   --data-urlencode "auth_session_id=$AUTH_SESSION_ID" \
   --data-urlencode 'decision=allow' \
-  'http://localhost:3000/realms/demo/login-actions/consent'
+  'http://localhost:3000/tenants/demo/login-actions/consent'
 ```
 
 ```
 HTTP/1.1 302 Found
-set-cookie: demo-session=01a0c991-…; HttpOnly; SameSite=Lax; Path=/
+set-cookie: demo-session=01a0cb24-173d-…; HttpOnly; SameSite=Lax; Path=/
 set-cookie: demo-session-persistent=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
-location: https://rp.example/cb?code=kpTtEZbio8Yx…&state=xyz-123&iss=http%3A%2F%2Flocalhost%3A3000%2Frealms%2Fdemo
+location: https://rp.example/cb?code=dt04gc43VMf7…&state=xyz-123&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Fdemo
 content-length: 0
 ```
 
@@ -5989,12 +6017,12 @@ way as above — the one that redeemed a code cannot answer twice.)
 curl -sS -D - \
   --data-urlencode "auth_session_id=$AUTH_SESSION_ID" \
   --data-urlencode 'decision=deny' \
-  'http://localhost:3000/realms/demo/login-actions/consent'
+  'http://localhost:3000/tenants/demo/login-actions/consent'
 ```
 
 ```
 HTTP/1.1 302 Found
-location: https://rp.example/cb?error=access_denied&state=xyz-deny&iss=http%3A%2F%2Flocalhost%3A3000%2Frealms%2Fdemo
+location: https://rp.example/cb?error=access_denied&state=xyz-deny&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Fdemo
 content-length: 0
 ```
 
@@ -6019,21 +6047,21 @@ curl -sS -D - -b cookies-consent.txt --get \
   --data-urlencode 'state=xyz-reuse' \
   --data-urlencode "code_challenge=$CHALLENGE" \
   --data-urlencode 'code_challenge_method=S256' \
-  'http://localhost:3000/realms/demo/protocol/openid-connect/auth'
+  'http://localhost:3000/tenants/demo/protocol/openid-connect/auth'
 ```
 
 ```
 HTTP/1.1 200 OK
 content-type: text/html
-content-length: 663
+content-length: 664
 
 <!doctype html>
 <html lang="en">
 <head><meta charset="utf-8"><title>Allow access?</title></head>
 <body>
 <h1>Example RP is asking for access</h1>
-<form method="post" action="/realms/demo/login-actions/consent">
-  <input type="hidden" name="auth_session_id" value="01a0c991-…">
+<form method="post" action="/tenants/demo/login-actions/consent">
+  <input type="hidden" name="auth_session_id" value="01a0cb24-17c0-…">
   <ul>
   <li>openid</li>
   <li>profile</li>
@@ -6063,12 +6091,12 @@ curl -sS -D - -b cookies-consent.txt --get \
   --data-urlencode 'prompt=none' \
   --data-urlencode "code_challenge=$CHALLENGE" \
   --data-urlencode 'code_challenge_method=S256' \
-  'http://localhost:3000/realms/demo/protocol/openid-connect/auth'
+  'http://localhost:3000/tenants/demo/protocol/openid-connect/auth'
 ```
 
 ```
 HTTP/1.1 302 Found
-location: https://rp.example/cb?error=consent_required&state=xyz-reuse&iss=http%3A%2F%2Flocalhost%3A3000%2Frealms%2Fdemo
+location: https://rp.example/cb?error=consent_required&state=xyz-reuse&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Fdemo
 content-length: 0
 ```
 
@@ -6080,7 +6108,7 @@ authenticates as itself and gets a token for its own service account.
 ```bash
 curl -sS -u demo-backend:demo-backend-secret \
   --data-urlencode 'grant_type=client_credentials' \
-  'http://localhost:3000/realms/demo/protocol/openid-connect/token'
+  'http://localhost:3000/tenants/demo/protocol/openid-connect/token'
 ```
 
 ```json
@@ -6093,17 +6121,17 @@ curl -sS -u demo-backend:demo-backend-secret \
 ```
 
 ```json
-{ "alg": "RS256", "kid": "01a0c3a8-078b-…", "typ": "at+jwt" }
+{ "alg": "RS256", "kid": "01a0cb07-4e73-…", "typ": "at+jwt" }
 {
-  "iss": "http://localhost:3000/realms/demo",
-  "sub": "01a0c3a8-0a62-…",
-  "aud": ["http://localhost:3000/realms/demo"],
+  "iss": "http://localhost:3000/tenants/demo",
+  "sub": "01a0cb07-5383-…",
+  "aud": ["http://localhost:3000/tenants/demo"],
   "client_id": "demo-backend",
   "scope": "",
-  "iat": 1789989007,
-  "exp": 1789989307,
-  "jti": "01a0c3a8-b1b2-…",
-  "grant_id": "01a0c3a8-b1b2-779e-a915-4413650df71a"
+  "iat": 1790114573,
+  "exp": 1790114873,
+  "jti": "01a0cb24-ad9d-…",
+  "grant_id": "01a0cb24-ad9c-7008-a633-66b1c904f789"
 }
 ```
 
@@ -6125,7 +6153,7 @@ for anything, including `openid`, is refused:
 ```bash
 curl -sS -u demo-backend:demo-backend-secret \
   --data-urlencode 'grant_type=client_credentials' --data-urlencode 'scope=openid' \
-  'http://localhost:3000/realms/demo/protocol/openid-connect/token'
+  'http://localhost:3000/tenants/demo/protocol/openid-connect/token'
 ```
 
 ```json
@@ -6152,12 +6180,12 @@ and until this section landed its preflight failed: `/token` and
 never let the page see the response. A preflight (`OPTIONS`) carries no
 client identity — no body, no `Authorization` header, only `Origin`,
 `Access-Control-Request-Method` and `Access-Control-Request-Headers` — so it
-is answered from the **realm's union** of every client's registered
+is answered from the **tenant's union** of every client's registered
 `web_origins`. The real request that follows is answered from **that one
 client's own** origins, resolved once the request names which client it is:
 `client_id` in the form body at `/token`, the `client_id` claim of the
 bearer token at `/userinfo`. An origin the preflight allowed because it
-belongs to a different client in the same realm is, correctly, withheld on
+belongs to a different client in the same tenant is, correctly, withheld on
 the real request — no status code or body changes, the header is just
 absent, and the browser discards the response on its own.
 
@@ -6167,10 +6195,13 @@ documents: every origin gets `Access-Control-Allow-Origin: *` and no `Vary`.
 CORS treatment of any kind — a header there would hand a script read access
 to the login page.
 
-The client-registration CLI has no flag for `web_origins` yet, so the two
-clients below were seeded normally and then given origins with one direct
-`UPDATE` against `client_oidc_config` — the commands after it are otherwise
-exactly what `## Path A` already used, against a second realm seeded for
+`seed client --web-origin` registers origins as it creates a client, but
+the bootstrap `seed` form that also creates a user carries no such flag,
+and neither will add an origin to a client that already exists — so the
+three clients below were seeded normally and then given their origins with
+two direct `UPDATE`s against `client_oidc_config` — the commands after them
+are otherwise
+exactly what `## Path A` already used, against a second tenant seeded for
 this section (`cors-demo`, with clients `demo-spa` at
 `https://demo-spa.example`, `other-app` at `https://other-app.example`, and
 `spa-with-user` — also at `https://demo-spa.example` — carrying the user
@@ -6181,7 +6212,7 @@ the client the real request below will name:
 
 ```bash
 curl -sS -D - -o /dev/null -X OPTIONS \
-  http://localhost:3000/realms/cors-demo/protocol/openid-connect/token \
+  http://localhost:3000/tenants/cors-demo/protocol/openid-connect/token \
   -H "Origin: https://other-app.example" \
   -H "Access-Control-Request-Method: POST"
 ```
@@ -6203,7 +6234,7 @@ simply absent from a response that is otherwise unchanged:
 
 ```bash
 curl -sS -D - -o /dev/null -X POST \
-  http://localhost:3000/realms/cors-demo/protocol/openid-connect/token \
+  http://localhost:3000/tenants/cors-demo/protocol/openid-connect/token \
   -H "Origin: https://other-app.example" \
   -H "Content-Type: application/x-www-form-urlencoded" \
   --data "grant_type=refresh_token&refresh_token=bogus&client_id=demo-spa"
@@ -6240,10 +6271,10 @@ header:
 
 ```bash
 curl -sS -D - -o /dev/null \
-  http://localhost:3000/realms/cors-demo/protocol/openid-connect/userinfo \
+  http://localhost:3000/tenants/cors-demo/protocol/openid-connect/userinfo \
   -H "Authorization: Bearer $ACCESS_TOKEN" -H "Origin: https://demo-spa.example"
 curl -sS -D - -o /dev/null \
-  http://localhost:3000/realms/cors-demo/protocol/openid-connect/userinfo \
+  http://localhost:3000/tenants/cors-demo/protocol/openid-connect/userinfo \
   -H "Authorization: Bearer $ACCESS_TOKEN" -H "Origin: https://other-app.example"
 ```
 
@@ -6264,10 +6295,10 @@ The two public documents, from an origin nothing registered:
 
 ```bash
 curl -sS -D - -o /dev/null \
-  http://localhost:3000/realms/cors-demo/protocol/openid-connect/certs \
+  http://localhost:3000/tenants/cors-demo/protocol/openid-connect/certs \
   -H "Origin: https://anything.example"
 curl -sS -D - -o /dev/null \
-  http://localhost:3000/realms/cors-demo/.well-known/openid-configuration \
+  http://localhost:3000/tenants/cors-demo/.well-known/openid-configuration \
   -H "Origin: https://anything.example"
 ```
 
@@ -6288,7 +6319,7 @@ on). And `/authorize`, which gets nothing:
 
 ```bash
 curl -sS -D - -o /dev/null -X OPTIONS \
-  http://localhost:3000/realms/cors-demo/protocol/openid-connect/auth \
+  http://localhost:3000/tenants/cors-demo/protocol/openid-connect/auth \
   -H "Origin: https://other-app.example" \
   -H "Access-Control-Request-Method: GET"
 ```
@@ -6354,7 +6385,7 @@ header, and every one is 400 except where the status is given.
 | Request                                | Answer                                                          | Why this and not a redirect                                                                                              |
 | -------------------------------------- | --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
 | Unknown or disabled `client_id`        | `invalid_client`, "Unknown or disabled client"                  | No client, so no registration to judge a redirect target against                                                         |
-| Unknown realm in the path              | `invalid_client`, "Unknown or disabled client"                  | Identical answer on purpose: a probe cannot tell a missing realm from a missing client                                   |
+| Unknown tenant in the path             | `invalid_client`, "Unknown or disabled client"                  | Identical answer on purpose: a probe cannot tell a missing tenant from a missing client                                  |
 | `redirect_uri` not registered          | `invalid_request`, "Unregistered redirect URI"                  | Exactly the URI an attacker supplied; redirecting to it is the open redirect                                             |
 | `redirect_uri` absent                  | `invalid_request`, "Unregistered redirect URI"                  | Nowhere to send anything                                                                                                 |
 | Repeated `client_id` or `redirect_uri` | `invalid_request`, "Repeated … parameter"                       | Two values are no more trustworthy than an unregistered one; picking whichever parsed first defeats the check            |
@@ -6377,23 +6408,23 @@ wrong in more ways than one.
 | No `code_challenge_method`                | `invalid_request`           | It is not defaulted to `plain`, which is what RFC 7636 §4.3 would have it default to         |
 | `code_challenge_method=plain`             | `invalid_request`           | Only `S256` is accepted; `plain` offers no protection against an intercepted code            |
 | `response_type=token`                     | `unsupported_response_type` | Only the code flow exists; implicit issuance is gone from OAuth 2.1                          |
-| Scope the realm does not define           | `invalid_scope`             | `scopes_supported` is that same list, so discovery and this endpoint cannot disagree         |
-| Scope the client is not assigned          | `invalid_scope`             | Defined by the realm is not granted to every client; refused, never silently dropped         |
+| Scope the tenant does not define          | `invalid_scope`             | `scopes_supported` is that same list, so discovery and this endpoint cannot disagree         |
+| Scope the client is not assigned          | `invalid_scope`             | Defined by the tenant is not granted to every client; refused, never silently dropped        |
 | Repeated `state` (or any other repeat)    | `invalid_request`           | Ambiguous, but a trustworthy redirect target exists by now, so the client can be told        |
 | `prompt=none`                             | `login_required`            | For a request carrying no live session cookie; with one it issues a code instead (§3.1.2.3)  |
 | `prompt=none login`                       | `invalid_request`           | `none` with any other value is contradictory (OIDC Core §3.1.2.1)                            |
 | `prompt=` anything undefined              | `invalid_request`           | Better told than silently answered as if it had asked for nothing                            |
 | `request=…`                               | `request_not_supported`     | Request objects are unimplemented, and §3.1.2.6 requires saying so rather than dropping them |
 | `request_uri=…`                           | `request_uri_not_supported` | Same                                                                                         |
-| Unverifiable `id_token_hint`              | `invalid_request`           | A hint this realm's keys did not sign is not a hint from here (OIDC Core §3.1.2.2)           |
-| Another realm's `id_token_hint`           | `invalid_request`           | Same rule: the realm in the URL is the only issuer whose keys are consulted                  |
-| `id_token_hint` minted for another client | `invalid_request`           | Its `aud` names a client, and this realm checks it against the one making this request       |
+| Unverifiable `id_token_hint`              | `invalid_request`           | A hint this tenant's keys did not sign is not a hint from here (OIDC Core §3.1.2.2)          |
+| Another tenant's `id_token_hint`          | `invalid_request`           | Same rule: the tenant in the URL is the only issuer whose keys are consulted                 |
+| `id_token_hint` minted for another client | `invalid_request`           | Its `aud` names a client, and this tenant checks it against the one making this request      |
 
 The error redirect for a request that sent no `state` carries only `error`
 and `iss`:
 
 ```
-location: http://localhost:8080/callback?error=invalid_request&iss=http%3A%2F%2Flocalhost%3A3000%2Frealms%2Fdemo
+location: http://localhost:8080/callback?error=invalid_request&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Fdemo
 ```
 
 `iss` is on every authorization response including the errors (RFC 9207 §2):
@@ -6411,7 +6442,7 @@ for u in http://localhost:8080/callback http://localhost:8080/callback/ \
          http://LOCALHOST:8080/callback 'http://localhost:8080/callback#f'; do
   printf '%-40s ' "$u"
   curl -sS -o /dev/null -w '%{http_code}\n' --get --data-urlencode "redirect_uri=$u" \
-    "http://localhost:3000/realms/demo/protocol/openid-connect/auth?response_type=code&client_id=demo-spa&scope=openid&code_challenge=$CHALLENGE&code_challenge_method=S256"
+    "http://localhost:3000/tenants/demo/protocol/openid-connect/auth?response_type=code&client_id=demo-spa&scope=openid&code_challenge=$CHALLENGE&code_challenge_method=S256"
 done
 ```
 
@@ -6439,7 +6470,7 @@ type for rules — mandatory PKCE above all — that are written for strings.
 ```bash
 curl -sS -D - -X POST -H 'content-type: application/json' \
   --data '{"response_type":"code"}' \
-  'http://localhost:3000/realms/demo/protocol/openid-connect/auth'
+  'http://localhost:3000/tenants/demo/protocol/openid-connect/auth'
 ```
 
 ```
@@ -6465,7 +6496,7 @@ same page, byte for byte:
 ```bash
 curl -sS -o /dev/null -w '%{http_code}\n' -X POST -H 'Content-Type:' \
   --data-binary '{"response_type":"code"}' \
-  'http://localhost:3000/realms/demo/protocol/openid-connect/auth'
+  'http://localhost:3000/tenants/demo/protocol/openid-connect/auth'
 ```
 
 ```
@@ -6501,7 +6532,7 @@ for p in none 'none%20login' 'login%20none' 'none%20consent' unheard_of \
          'login%20unheard_of' Login login consent select_account; do
   printf '%-24s ' "prompt=$p"
   curl -sS -o /dev/null -D - \
-    "http://localhost:3000/realms/demo/protocol/openid-connect/auth?$Q&prompt=$p" \
+    "http://localhost:3000/tenants/demo/protocol/openid-connect/auth?$Q&prompt=$p" \
     | tr -d '\r' | awk '/^HTTP/{s=$2} /^[Ll]ocation:/{l=$2} END{print s, l}'
 done
 ```
@@ -6570,20 +6601,20 @@ AUTH_SESSION_ID=$(curl -sS --get \
   --data-urlencode 'state=xyz-live' \
   --data-urlencode "code_challenge=$CHALLENGE" \
   --data-urlencode 'code_challenge_method=S256' \
-  "http://localhost:3000/realms/demo/protocol/openid-connect/auth" \
+  "http://localhost:3000/tenants/demo/protocol/openid-connect/auth" \
   | sed -n '/name="auth_session_id"/{s/.*value="\([^"]*\)".*/\1/p;q;}')
 
 curl -sS -c cookies.txt -o /dev/null \
   --data-urlencode "auth_session_id=$AUTH_SESSION_ID" \
   --data-urlencode 'username=ada' \
   --data-urlencode 'password=correct-horse-battery' \
-  "http://localhost:3000/realms/demo/login-actions/authenticate"
+  "http://localhost:3000/tenants/demo/login-actions/authenticate"
 
 grep session cookies.txt
 ```
 
 ```
-#HttpOnly_localhost	FALSE	/	FALSE	0	demo-session	01a0a540-…
+#HttpOnly_localhost	FALSE	/	FALSE	0	demo-session	01a0cb26-b57e-…
 ```
 
 The second `/authorize`, the cookie attached, no `prompt` at all — a
@@ -6600,12 +6631,12 @@ curl -sS -b cookies.txt -D - -o /dev/null \
   --data-urlencode 'state=xyz-reuse' \
   --data-urlencode "code_challenge=$CHALLENGE" \
   --data-urlencode 'code_challenge_method=S256' \
-  "http://localhost:3000/realms/demo/protocol/openid-connect/auth" \
+  "http://localhost:3000/tenants/demo/protocol/openid-connect/auth" \
   | grep -i '^location'
 ```
 
 ```
-location: http://localhost:8080/callback?code=I81jAkPQ…&state=xyz-reuse&iss=http%3A%2F%2Flocalhost%3A3000%2Frealms%2Fdemo
+location: http://localhost:8080/callback?code=6sjG8C5KEPcu…&state=xyz-reuse&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Fdemo
 ```
 
 A 302 straight to `redirect_uri`, carrying a fresh `code` — no login form,
@@ -6624,12 +6655,12 @@ curl -sS -b cookies.txt -D - -o /dev/null \
   --data-urlencode "code_challenge=$CHALLENGE" \
   --data-urlencode 'code_challenge_method=S256' \
   --data-urlencode 'prompt=none' \
-  "http://localhost:3000/realms/demo/protocol/openid-connect/auth" \
+  "http://localhost:3000/tenants/demo/protocol/openid-connect/auth" \
   | grep -i '^location'
 ```
 
 ```
-location: http://localhost:8080/callback?code=8VtxFh-h…&state=xyz-none&iss=http%3A%2F%2Flocalhost%3A3000%2Frealms%2Fdemo
+location: http://localhost:8080/callback?code=27RbW3OSX0QZ…&state=xyz-none&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Fdemo
 ```
 
 `prompt=login`, the same live cookie attached, forces the form anyway:
@@ -6645,7 +6676,7 @@ curl -sS -b cookies.txt -D - -o /dev/null \
   --data-urlencode "code_challenge=$CHALLENGE" \
   --data-urlencode 'code_challenge_method=S256' \
   --data-urlencode 'prompt=login' \
-  "http://localhost:3000/realms/demo/protocol/openid-connect/auth"
+  "http://localhost:3000/tenants/demo/protocol/openid-connect/auth"
 ```
 
 ```
@@ -6669,30 +6700,34 @@ curl -sS -D - -o /dev/null \
   --data-urlencode "code_challenge=$CHALLENGE" \
   --data-urlencode 'code_challenge_method=S256' \
   --data-urlencode 'prompt=none' \
-  "http://localhost:3000/realms/demo/protocol/openid-connect/auth" \
+  "http://localhost:3000/tenants/demo/protocol/openid-connect/auth" \
   | grep -i '^location'
 ```
 
 ```
-location: http://localhost:8080/callback?error=login_required&state=xyz-000&iss=http%3A%2F%2Flocalhost%3A3000%2Frealms%2Fdemo
+location: http://localhost:8080/callback?error=login_required&state=xyz-000&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Fdemo
 ```
 
 Redeeming a code the reuse redirect issued shows what carrying the session
-forward means for `auth_time`. One more reuse, waited out a little first,
-then redeemed with the same `$VERIFIER` the login above's `$CHALLENGE` was
-built from:
+forward means for `auth_time`. One more reuse, waited out a little first
+and carrying `max_age` — the claim is emitted only for a request that asks
+for it, by `max_age` or by an essential `auth_time`
+([the `claims` request parameter](#the-claims-request-parameter)), so a
+reuse that named neither would have nothing to show — then redeemed with
+the same `$VERIFIER` the login above's `$CHALLENGE` was built from:
 
 ```bash
-sleep 5
+sleep 37
 CODE=$(curl -sS -b cookies.txt --get \
   --data-urlencode 'response_type=code' \
   --data-urlencode 'client_id=demo-spa' \
   --data-urlencode 'redirect_uri=http://localhost:8080/callback' \
   --data-urlencode 'scope=openid' \
   --data-urlencode 'state=xyz-authtime' \
+  --data-urlencode 'max_age=3600' \
   --data-urlencode "code_challenge=$CHALLENGE" \
   --data-urlencode 'code_challenge_method=S256' \
-  "http://localhost:3000/realms/demo/protocol/openid-connect/auth" \
+  "http://localhost:3000/tenants/demo/protocol/openid-connect/auth" \
   | sed -n 's/.*[Ll]ocation: .*[?&]code=\([^&[:space:]]*\).*/\1/p')
 
 curl -sS \
@@ -6701,16 +6736,16 @@ curl -sS \
   --data-urlencode 'redirect_uri=http://localhost:8080/callback' \
   --data-urlencode 'client_id=demo-spa' \
   --data-urlencode "code_verifier=$VERIFIER" \
-  "http://localhost:3000/realms/demo/protocol/openid-connect/token" \
+  "http://localhost:3000/tenants/demo/protocol/openid-connect/token" \
   | python3 -c "import sys,json,base64; t=json.load(sys.stdin)['id_token']; p=t.split('.')[1]; p+='='*(-len(p)%4); c=json.loads(base64.urlsafe_b64decode(p)); print(c['auth_time'], c['iat'])"
 ```
 
 ```
-1789478841 1789478878
+1790114730 1790114767
 ```
 
-`auth_time` is `2026-09-15 13:27:21 UTC`, the login at the top of this
-section; `iat` is `2026-09-15 13:27:58 UTC`, this redemption, 37 seconds
+`auth_time` is `2026-09-22 22:05:30 UTC`, the login at the top of this
+section; `iat` is `2026-09-22 22:06:07 UTC`, this redemption, 37 seconds
 later.
 
 `auth_time` is the login's own moment, not the moment this token was
@@ -6718,7 +6753,7 @@ minted 37 seconds later — the fact a client's own `max_age` check
 (§3.1.3.7) has to be able to rely on.
 
 **Two clocks end a session, and each was moved on its own to see it.** The
-realm's `sso_session_idle_seconds` (default `1800`) runs from the session's
+tenant's `sso_session_idle_seconds` (default `1800`) runs from the session's
 last use and `sso_session_max_seconds` (default `36000`) from when it was
 established; `isSessionLive` treats both boundaries as exclusive, and
 neither can be waited out inside a document. So this moves each one under
@@ -6730,7 +6765,7 @@ that the second run cannot pass for the first:
 docker compose -f infra/docker/compose.yaml exec -T postgres \
   psql -U odudu -d odudu -q -c \
   "update sessions set last_active_at = now() - interval '2000 seconds'
-     where id = '01a0ae80-b889-7dea-9674-f40a09becefc';"
+     where id = '01a0cb26-b57e-7a03-9ea6-2faf76077c35';"
 ```
 
 ```
@@ -6744,7 +6779,7 @@ docker compose -f infra/docker/compose.yaml exec -T postgres \
   "update sessions set last_active_at = now(),
           created_at = now() - interval '40000 seconds',
           expires_at = now() - interval '4000 seconds'
-     where id = '01a0ae80-b889-7dea-9674-f40a09becefc';"
+     where id = '01a0cb26-b57e-7a03-9ea6-2faf76077c35';"
 ```
 
 ```
@@ -6758,35 +6793,35 @@ full because a `psql` statement needs it whole.) A dead session is not an
 error: with no `prompt` the request is answered with the login form, exactly
 as a request carrying no cookie is, and it is `prompt=none` — the client
 saying it will not accept an interaction — that turns the same state into
-`login_required`. A subject a `verify_email` realm has not verified is
+`login_required`. A subject a `verify_email` tenant has not verified is
 refused on the same two terms.
 
 `sessions` also carries `remembered`, a boolean set at establishment and
-never rewritten, and a realm carries `max_sessions_per_browser` (1–32,
+never rewritten, and a tenant carries `max_sessions_per_browser` (1–32,
 default 25) — a CHECK constraint bounding the **setting's own value**, and
 also the ceiling `admitSession` evicts a browser's own least recently
 active sessions down to before establishing a new one, read from the ids
 its cookies already name rather than by subject
 (`packages/authn-flows/src/usecase/session-admission.ts`, ADR 0033).
-`odudu seed realm --set max_sessions_per_browser=10` changes the stored
-value the same way as every other realm setting, and every login after
+`odudu seed tenant --set max_sessions_per_browser=10` changes the stored
+value the same way as every other tenant setting, and every login after
 that is measured against the new ceiling.
 
-A realm also carries the pair a remembered login's session is measured
+A tenant also carries the pair a remembered login's session is measured
 against instead of `sso_session_idle_seconds`/`sso_session_max_seconds`:
 `remember_me_allowed` (boolean, default `false`), `remember_me_idle_seconds`
 (60–31536000, default 604800, one week) and `remember_me_max_seconds`
 (60–31536000, default 2592000, thirty days), each settable the same way —
-`odudu seed realm --set remember_me_idle_seconds=1209600`. Which pair a
+`odudu seed tenant --set remember_me_idle_seconds=1209600`. Which pair a
 session uses is picked by its own `remembered` column
 (`packages/authn-flows/src/service/session-lifespan.ts`), set to `true`
-when a login ticks the `remember_me` checkbox on a realm that allows it —
+when a login ticks the `remember_me` checkbox on a tenant that allows it —
 see [A remembered login](#a-remembered-login) above.
 
 #### The session cap
 
 A cookie jar, `cap-demo` with `max_sessions_per_browser` lowered to 2,
-`odudu seed realm --name cap-demo --set max_sessions_per_browser=2`, three
+`odudu seed tenant --name cap-demo --set max_sessions_per_browser=2`, three
 logins in a row (`prompt=login` on each, so a live session never short-
 circuits the form — see [Signing in again from an existing
 session](#signing-in-again-from-an-existing-session) for what it would do
@@ -6794,26 +6829,26 @@ otherwise):
 
 ```
 HTTP/1.1 302 Found
-set-cookie: cap-demo-session=01a0ba51-2c09-…; HttpOnly; SameSite=Lax; Path=/
+set-cookie: cap-demo-session=01a0cb28-70b2-…; HttpOnly; SameSite=Lax; Path=/
 ```
 
 ```
 HTTP/1.1 302 Found
-set-cookie: cap-demo-session=01a0ba51-2c09-….01a0ba51-2c7c-…; HttpOnly; SameSite=Lax; Path=/
+set-cookie: cap-demo-session=01a0cb28-70b2-….01a0cb28-710c-…; HttpOnly; SameSite=Lax; Path=/
 ```
 
 ```
 HTTP/1.1 302 Found
-set-cookie: cap-demo-session=01a0ba51-2c7c-….01a0ba51-2cf3-…; HttpOnly; SameSite=Lax; Path=/
+set-cookie: cap-demo-session=01a0cb28-710c-….01a0cb28-715b-…; HttpOnly; SameSite=Lax; Path=/
 ```
 
 (Session ids truncated; each response also carried the cleared persistent
 cookie, `Max-Age=0`, omitted here since nothing about it changes.) The
-third login's list still holds two ids, not three: `2c09`, the first
+third login's list still holds two ids, not three: `70b2`, the first
 login's session, is gone, evicted by `admitSession` as the least recently
 active once a third session tried to join a browser already at the cap —
 the second and third logins' own ids are exactly what survive. Nothing
-asked for this browser to end its oldest session; the realm's setting did.
+asked for this browser to end its oldest session; the tenant's setting did.
 
 The three logins above ran one at a time; two genuinely concurrent logins
 from the same browser read the cookie before either has written it, so the
@@ -6836,20 +6871,31 @@ own POST, `login-actions/select-account`, is where a pick is honoured or
 refused.
 
 A second user seeded into `demo` so this browser can hold sessions for two
-subjects at once:
+subjects at once. `demo` has had `verify_email` on since
+[Address verification](#address-verification), and a freshly seeded address
+cannot sign in under it, so that goes back off first — nothing below is
+about verification:
 
 ```bash
-odudu seed user --realm demo --username bob --password another-horse-battery \
-  --email bob@example.com
+odudu seed tenant --name demo --set verify_email=false
+odudu seed user --tenant demo --username carol --password another-horse-battery \
+  --email carol@example.com
 ```
 
 ```json
 {
+  "command": "tenant",
+  "created": false,
+  "tenant": "demo",
+  "tenantId": "01a0cb07-…",
+  "settings": ["verify_email"]
+}
+{
   "command": "user",
-  "realm": "demo",
-  "realmId": "01a0baa4-…",
-  "username": "bob",
-  "userSubjectId": "01a0baa4-…"
+  "tenant": "demo",
+  "tenantId": "01a0cb07-…",
+  "username": "carol",
+  "userSubjectId": "01a0cb29-16b4-…"
 }
 ```
 
@@ -6870,38 +6916,38 @@ AUTH1=$(curl -sS --get \
   --data-urlencode 'state=alice-login' \
   --data-urlencode "code_challenge=$CHALLENGE" \
   --data-urlencode 'code_challenge_method=S256' \
-  "http://localhost:3000/realms/demo/protocol/openid-connect/auth" \
+  "http://localhost:3000/tenants/demo/protocol/openid-connect/auth" \
   | sed -n '/name="auth_session_id"/{s/.*value="\([^"]*\)".*/\1/p;q;}')
 
 curl -sS -c cookies.txt -o /dev/null \
   --data-urlencode "auth_session_id=$AUTH1" \
   --data-urlencode 'username=ada' \
   --data-urlencode 'password=correct-horse-battery' \
-  "http://localhost:3000/realms/demo/login-actions/authenticate"
+  "http://localhost:3000/tenants/demo/login-actions/authenticate"
 
 AUTH2=$(curl -sS -b cookies.txt --get \
   --data-urlencode 'response_type=code' \
   --data-urlencode 'client_id=demo-spa' \
   --data-urlencode 'redirect_uri=http://localhost:8080/callback' \
   --data-urlencode 'scope=openid' \
-  --data-urlencode 'state=bob-login' \
+  --data-urlencode 'state=carol-login' \
   --data-urlencode "code_challenge=$CHALLENGE" \
   --data-urlencode 'code_challenge_method=S256' \
   --data-urlencode 'prompt=login' \
-  "http://localhost:3000/realms/demo/protocol/openid-connect/auth" \
+  "http://localhost:3000/tenants/demo/protocol/openid-connect/auth" \
   | sed -n '/name="auth_session_id"/{s/.*value="\([^"]*\)".*/\1/p;q;}')
 
 curl -sS -b cookies.txt -c cookies.txt -o /dev/null \
   --data-urlencode "auth_session_id=$AUTH2" \
-  --data-urlencode 'username=bob' \
+  --data-urlencode 'username=carol' \
   --data-urlencode 'password=another-horse-battery' \
-  "http://localhost:3000/realms/demo/login-actions/authenticate"
+  "http://localhost:3000/tenants/demo/login-actions/authenticate"
 
 grep session cookies.txt
 ```
 
 ```
-#HttpOnly_localhost	FALSE	/	FALSE	0	demo-session	01a0baa4-73e4-79c2-8aa4-d9c6b73ceef9.01a0baa4-8d3c-7693-9086-0446d49daf22
+#HttpOnly_localhost	FALSE	/	FALSE	0	demo-session	01a0cb29-64de-7524-9fa8-6010a80148bb.01a0cb29-652b-7714-9d32-50e37b35e21a
 ```
 
 A third `/authorize`, the same cookie jar, no `prompt` at all: the browser
@@ -6917,7 +6963,7 @@ curl -sS -b cookies.txt --get \
   --data-urlencode 'state=xyz-select' \
   --data-urlencode "code_challenge=$CHALLENGE" \
   --data-urlencode 'code_challenge_method=S256' \
-  "http://localhost:3000/realms/demo/protocol/openid-connect/auth" -o chooser.html
+  "http://localhost:3000/tenants/demo/protocol/openid-connect/auth" -o chooser.html
 cat chooser.html
 ```
 
@@ -6927,10 +6973,10 @@ cat chooser.html
 <head><meta charset="utf-8"><title>Choose an account</title></head>
 <body>
 <h1>Choose an account</h1>
-<form method="post" action="/realms/demo/login-actions/select-account">
-  <input type="hidden" name="auth_session_id" value="01a0baa4-a055-7f4a-bf3d-9698d36f0d63">
-  <button type="submit" name="session_id" value="01a0baa4-73e4-79c2-8aa4-d9c6b73ceef9">ada</button>
-  <button type="submit" name="session_id" value="01a0baa4-8d3c-7693-9086-0446d49daf22">bob</button>
+<form method="post" action="/tenants/demo/login-actions/select-account">
+  <input type="hidden" name="auth_session_id" value="01a0cb29-6541-7948-968b-a0a487e699f8">
+  <button type="submit" name="session_id" value="01a0cb29-64de-7524-9fa8-6010a80148bb">ada</button>
+  <button type="submit" name="session_id" value="01a0cb29-652b-7714-9d32-50e37b35e21a">carol</button>
   <button type="submit" name="use_other" value="1">Use another account</button>
 </form>
 </body>
@@ -6953,19 +6999,19 @@ ADA_SESSION=$(grep -o 'name="session_id" value="[^"]*">ada' chooser.html \
 curl -sS -b cookies.txt -D - -o /dev/null \
   --data-urlencode "auth_session_id=$AUTH3" \
   --data-urlencode "session_id=$ADA_SESSION" \
-  "http://localhost:3000/realms/demo/login-actions/select-account"
+  "http://localhost:3000/tenants/demo/login-actions/select-account"
 ```
 
 ```
 HTTP/1.1 302 Found
-location: http://localhost:8080/callback?code=wzxlUc1eWVJ7Bh4lfIAJERWArQUKg6UynM0ntrUFGKU&state=xyz-select&iss=http%3A%2F%2Flocalhost%3A3000%2Frealms%2Fdemo
+location: http://localhost:8080/callback?code=eukVsSqoebdy2jsL9zVMafxgPPOGZ3qwQaAc3WK0JNA&state=xyz-select&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Fdemo
 ```
 
 The posted `session_id` is a claim the browser makes, honoured only when it
 names a member of the set this same request's own cookies resolve to — the
 same defence `login-actions/logout`'s confirmation form uses (see
 [RP-initiated logout](#rp-initiated-logout)). A `session_id` naming some
-other live session in the realm — one this browser's cookies never
+other live session in the tenant — one this browser's cookies never
 named — is refused with 400, not honoured merely because the session
 exists:
 
@@ -6973,7 +7019,7 @@ exists:
 curl -sS -b cookies.txt -o /dev/null -w '%{http_code}\n' \
   --data-urlencode "auth_session_id=$AUTH3" \
   --data-urlencode 'session_id=00000000-0000-0000-0000-000000000000' \
-  "http://localhost:3000/realms/demo/login-actions/select-account"
+  "http://localhost:3000/tenants/demo/login-actions/select-account"
 ```
 
 ```
@@ -6994,7 +7040,7 @@ chooser had never rendered:
 curl -sS -b cookies.txt -o /dev/null -w '%{http_code}\n' \
   --data-urlencode "auth_session_id=$AUTH3" \
   --data-urlencode 'use_other=1' \
-  "http://localhost:3000/realms/demo/login-actions/select-account"
+  "http://localhost:3000/tenants/demo/login-actions/select-account"
 ```
 
 ```
@@ -7003,44 +7049,44 @@ curl -sS -b cookies.txt -o /dev/null -w '%{http_code}\n' \
 
 ### `id_token_hint`
 
-A hint is checked against the realm's own keys and issuer before anything
+A hint is checked against the tenant's own keys and issuer before anything
 else about the request is acted on (OIDC Core §3.1.2.2), and then — at
 `/authorize` only — against the `client_id` making this request: an ID
 Token's `aud` names the client it was issued to, and a hint minted for one
 client is refused from another even though its signature and issuer are
-this realm's own. Mint one by completing Path A and keeping the `id_token`;
-mint another by doing the same for a second client in the same realm, and a
-third by doing the same in a second realm:
+this tenant's own. Mint one by completing Path A and keeping the `id_token`;
+mint another by doing the same for a second client in the same tenant, and a
+third by doing the same in a second tenant:
 
 ```bash
 odudu seed \
-  --realm demo --client demo-spa-2 \
+  --tenant demo --client demo-spa-2 \
   --redirect-uri http://localhost:8080/callback2
 
 odudu seed \
-  --realm other --client demo-spa \
+  --tenant other --client demo-spa \
   --redirect-uri http://localhost:8080/callback \
   --user ada --password correct-horse-battery --email ada@other.example
 ```
 
 `$ID_TOKEN` from the bootstrap block is a hint `demo-spa` can use.
-`$ID_TOKEN2` is Path A run again for `demo-spa-2` against the same realm;
-`$ID_TOKEN3` is Path A run against `/realms/other/` instead:
+`$ID_TOKEN2` is Path A run again for `demo-spa-2` against the same tenant;
+`$ID_TOKEN3` is Path A run against `/tenants/other/` instead:
 
 ```bash
 curl -sS -o /dev/null -D - --get --data-urlencode "id_token_hint=$ID_TOKEN2" \
-  "http://localhost:3000/realms/demo/protocol/openid-connect/auth?$Q" \
+  "http://localhost:3000/tenants/demo/protocol/openid-connect/auth?$Q" \
   | tr -d '\r' | awk '/^HTTP/{s=$2} /^[Ll]ocation:/{l=$2} END{print s, l}'
 ```
 
-| `id_token_hint`                                                        | Answer                      |
-| ---------------------------------------------------------------------- | --------------------------- |
-| `not.a.jwt`                                                            | 302 `error=invalid_request` |
-| An ID token issued by the realm `other`                                | 302 `error=invalid_request` |
-| An ID token this realm issued to `demo-spa-2`, at `demo-spa`'s request | 302 `error=invalid_request` |
-| An ID token this realm issued to `demo-spa`, at `demo-spa`'s request   | 200, the login form         |
-| With `prompt=none`, a hint this realm issued for the requesting client | 302 `error=login_required`  |
-| With `prompt=none`, any unusable hint                                  | 302 `error=invalid_request` |
+| `id_token_hint`                                                         | Answer                      |
+| ----------------------------------------------------------------------- | --------------------------- |
+| `not.a.jwt`                                                             | 302 `error=invalid_request` |
+| An ID token issued by the tenant `other`                                | 302 `error=invalid_request` |
+| An ID token this tenant issued to `demo-spa-2`, at `demo-spa`'s request | 302 `error=invalid_request` |
+| An ID token this tenant issued to `demo-spa`, at `demo-spa`'s request   | 200, the login form         |
+| With `prompt=none`, a hint this tenant issued for the requesting client | 302 `error=login_required`  |
+| With `prompt=none`, any unusable hint                                   | 302 `error=invalid_request` |
 
 The last two rows are the ordering. An unusable hint is refused as a
 malformed request rather than answered with the prompt's own
@@ -7048,19 +7094,19 @@ malformed request rather than answered with the prompt's own
 request carrying a hint this server cannot read is not yet a request to
 answer that way.
 
-An access token this realm minted for the same user is refused too, and for
+An access token this tenant minted for the same user is refused too, and for
 two independent reasons rather than one: it carries `typ: at+jwt` (RFC 9068
 §2.1), which the hint check demands a JWT not be, _and_ its own `aud` is
-this realm's issuer (RFC 9068 §2.2) rather than the requesting client, which
+this tenant's issuer (RFC 9068 §2.2) rather than the requesting client, which
 the check above now also refuses. Deleting either check on its own still
 leaves this token refused by the other — `docs/protocols/oidc-core.md`'s
 reading note has the reasoning for both. `/userinfo` makes the mirror image
 of the `typ` check of the token presented to it.
 
-The realm row is the point of the whole check that predates the client
+The tenant row is the point of the whole check that predates the client
 check above. Both tokens are RS256, both have the shape of an ID token, and
-both were signed by this server — by a different realm's key. Only the
-realm named in the URL has its keys consulted, so the second is refused
+both were signed by this server — by a different tenant's key. Only the
+tenant named in the URL has its keys consulted, so the second is refused
 exactly like a forgery.
 
 `/logout` shares this same signature-and-issuer check on its own
@@ -7154,7 +7200,7 @@ The last one, both halves, run against one parked request:
 # bob signs in against a request hinted for ada
 location: …/callback?error=login_required&state=xyz-123&iss=…
 # ada then signs in against the same parked request
-location: …/callback?code=8M123PGvRXNW…&state=xyz-123&iss=…
+location: …/callback?code=hafB3JLce2ju…&state=xyz-123&iss=…
 ```
 
 (Code truncated.)
@@ -7197,7 +7243,7 @@ getting `invalid_request` rather than `invalid_client`.
 | A different client redeeming the code                                                                                                                        | 400    | `invalid_grant`          |
 | Unknown, expired or replayed `refresh_token`                                                                                                                 | 400    | `invalid_grant`          |
 | Another client's `refresh_token`                                                                                                                             | 400    | `invalid_grant`          |
-| Another realm's `code` or `refresh_token`                                                                                                                    | 400    | `invalid_grant`          |
+| Another tenant's `code` or `refresh_token`                                                                                                                   | 400    | `invalid_grant`          |
 | Refresh or `client_credentials` asking for wider scope                                                                                                       | 400    | `invalid_scope`          |
 | Any parameter sent twice, even with identical values                                                                                                         | 400    | `invalid_request`        |
 | A required parameter sent with an empty value                                                                                                                | 400    | `invalid_request`        |
@@ -7237,7 +7283,7 @@ does not depend on the secret being the registered one:
 curl -sS -D - \
   -u 'demo-backend:sec%ret' \
   --data-urlencode 'grant_type=client_credentials' \
-  'http://localhost:3000/realms/demo/protocol/openid-connect/token'
+  'http://localhost:3000/tenants/demo/protocol/openid-connect/token'
 ```
 
 ```
@@ -7287,7 +7333,7 @@ so it makes the clearest demonstration. `demo-backend` is registered
 ```bash
 curl -sS -u demo-backend:demo-backend-secret \
   --data-urlencode 'grant_type=client_credentials' \
-  'http://localhost:3000/realms/demo/protocol/openid-connect/token'
+  'http://localhost:3000/tenants/demo/protocol/openid-connect/token'
 ```
 
 | How the client presents itself                    | Status | Body                         |
@@ -7329,7 +7375,7 @@ attempt:
 
 ```bash
 curl -sS --data "grant_type=authorization_code&grant_type=authorization_code&code=$CODE&redirect_uri=http%3A%2F%2Flocalhost%3A8080%2Fcallback&client_id=demo-spa&code_verifier=$VERIFIER" \
-  'http://localhost:3000/realms/demo/protocol/openid-connect/token'
+  'http://localhost:3000/tenants/demo/protocol/openid-connect/token'
 ```
 
 ```json
@@ -7341,7 +7387,7 @@ curl -sS --data "grant_type=authorization_code&grant_type=authorization_code&cod
 curl -sS --data-urlencode 'grant_type=authorization_code' --data-urlencode "code=$CODE" \
   --data-urlencode 'redirect_uri=http://localhost:8080/callback' \
   --data-urlencode 'client_id=demo-spa' --data-urlencode "code_verifier=$VERIFIER" \
-  'http://localhost:3000/realms/demo/protocol/openid-connect/token'
+  'http://localhost:3000/tenants/demo/protocol/openid-connect/token'
 ```
 
 ```json
@@ -7379,17 +7425,17 @@ own client asking for scope it was never granted, both refused without
 rotating anything, after which the owner's token refreshed normally. That
 transcript is in [Path B](#what-a-replay-does-not-do).
 
-And across realms, where the credential is real but presented at the wrong
+And across tenants, where the credential is real but presented at the wrong
 tenant:
 
-| Presented at realm `demo`                 | Answer                      | Afterwards, at realm `other` |
-| ----------------------------------------- | --------------------------- | ---------------------------- |
-| A `code` issued by realm `other`          | `{"error":"invalid_grant"}` | still redeems                |
-| A `refresh_token` issued by realm `other` | `{"error":"invalid_grant"}` | still refreshes              |
+| Presented at tenant `demo`                 | Answer                      | Afterwards, at tenant `other` |
+| ------------------------------------------ | --------------------------- | ----------------------------- |
+| A `code` issued by tenant `other`          | `{"error":"invalid_grant"}` | still redeems                 |
+| A `refresh_token` issued by tenant `other` | `{"error":"invalid_grant"}` | still refreshes               |
 
-The realm in the URL is the only tenant whose rows the query can see (ADR
+The tenant in the URL is the only tenant whose rows the query can see (ADR
 0009), so the credential is not found rather than found and rejected — and
-nothing in the other realm is touched, which is what the second column
+nothing in the other tenant is touched, which is what the second column
 proves.
 
 ### `/userinfo`
@@ -7402,11 +7448,11 @@ proves.
 | No `Authorization` header                  | 401    | `Bearer realm="userinfo"`                          | No credentials were presented, so no error code (RFC 6750 §3.1)                   |
 | Unparseable or unsigned token              | 401    | `…, error="invalid_token"`                         | —                                                                                 |
 | An ID token presented as the bearer        | 401    | `…, error="invalid_token"`                         | `typ` must be `at+jwt`; the same key signed both, so `typ` is what separates them |
-| Another realm's access token               | 401    | `…, error="invalid_token"`                         | Verified against this realm's keys only, so it is a forgery from here             |
+| Another tenant's access token              | 401    | `…, error="invalid_token"`                         | Verified against this tenant's keys only, so it is a forgery from here            |
 | Token in the header _and_ the body         | 400    | `…, error="invalid_request"`                       | More than one transmission method (RFC 6750 §3.1)                                 |
 | Valid token without `openid` scope         | 403    | `…, error="insufficient_scope"`                    | A distinct answer, so a valid-but-unscoped token is not confused with a bad one   |
 | `POST` with a JSON body                    | 415    | (`accept-post: application/x-www-form-urlencoded`) | RFC 6750 §2.2 fixes the form-encoded method's content type                        |
-| Unknown realm                              | 404    | —                                                  | —                                                                                 |
+| Unknown tenant                             | 404    | —                                                  | —                                                                                 |
 
 Failures here carry no response body: this endpoint answers a machine, and
 reports in headers.
@@ -7419,7 +7465,7 @@ asking to be judged on:
 ```bash
 curl -sS -D - -H "Authorization: Bearer $ACCESS_TOKEN" \
   --data-urlencode "access_token=$ACCESS_TOKEN" \
-  http://localhost:3000/realms/demo/protocol/openid-connect/userinfo
+  http://localhost:3000/tenants/demo/protocol/openid-connect/userinfo
 ```
 
 ```
@@ -7435,7 +7481,7 @@ rather than with a guess at what the body meant:
 ```bash
 curl -sS -D - -X POST -H 'content-type: application/json' \
   --data "{\"access_token\":\"$ACCESS_TOKEN\"}" \
-  http://localhost:3000/realms/demo/protocol/openid-connect/userinfo
+  http://localhost:3000/tenants/demo/protocol/openid-connect/userinfo
 ```
 
 ```
@@ -7444,34 +7490,34 @@ accept-post: application/x-www-form-urlencoded
 content-length: 0
 ```
 
-### Realm resolution
+### Tenant resolution
 
-An unknown realm is 404 at `/token`, `/userinfo`, `/certs` and the discovery
+An unknown tenant is 404 at `/token`, `/userinfo`, `/certs` and the discovery
 document, and a rendered `invalid_client` page at `/authorize`. All five
 run:
 
 ```
-/realms/nope/.well-known/openid-configuration   404
-/realms/nope/protocol/openid-connect/certs      404
-/realms/nope/protocol/openid-connect/token      404
-/realms/nope/protocol/openid-connect/userinfo   404
-/realms/nope/protocol/openid-connect/auth       400   (the rendered page)
+/tenants/nope/.well-known/openid-configuration   404
+/tenants/nope/protocol/openid-connect/certs      404
+/tenants/nope/protocol/openid-connect/token      404
+/tenants/nope/protocol/openid-connect/userinfo   404
+/tenants/nope/protocol/openid-connect/auth       400   (the rendered page)
 ```
 
 `/authorize` is the odd one because it has a page to render and the others
-do not, and its page is the same "Unknown or disabled client" a live realm
+do not, and its page is the same "Unknown or disabled client" a live tenant
 shows for a `client_id` it does not know — so a probe cannot tell a missing
-realm from a missing client.
+tenant from a missing client.
 
-A disabled realm takes the same branch in the same lookup, so it is never
+A disabled tenant takes the same branch in the same lookup, so it is never
 distinguishable from one that never existed; that half was not exercised
-here, because nothing can disable a realm yet.
+here, because nothing can disable a tenant yet.
 
-Realm isolation goes further than the URL, and the credentials prove it:
+Tenant isolation goes further than the URL, and the credentials prove it:
 an authorization code, a refresh token, an access token and an
-`id_token_hint` issued by one realm are each refused by another. The two
+`id_token_hint` issued by one tenant are each refused by another. The two
 that are single-use — the code and the refresh token — were then presented
-again at the realm that issued them, and both still worked, so the refusal
+again at the tenant that issued them, and both still worked, so the refusal
 consumed nothing. Those runs are above, under `/token`, `/userinfo` and
 `id_token_hint` respectively.
 
@@ -7479,7 +7525,7 @@ consumed nothing. Those runs are above, under `/token`, `/userinfo` and
 
 **From a rendered error page at `/authorize`.** The client never sees it.
 Something about the client's registration is wrong — the `client_id`, the
-`redirect_uri`, the realm in the URL. Fix the request, or the registration,
+`redirect_uri`, the tenant in the URL. Fix the request, or the registration,
 and start again. Nothing was created server-side.
 
 **From a redirect carrying `error`.** Match `state` to the request you
@@ -7500,7 +7546,7 @@ received.
 
 **From an access token.** Send it as `Authorization: Bearer …` to
 `/userinfo` or to your own API. It lives 300 seconds. A resource server
-validating it should verify the signature against the realm's JWKS, then
+validating it should verify the signature against the tenant's JWKS, then
 `typ: at+jwt`, `iss`, `exp`, and that it is named in `aud` — and then check
 `scope` for whatever the call requires. A resource server named in `aud`
 can instead call `/introspect` (RFC 7662), authenticating with its own
@@ -7615,7 +7661,7 @@ session lifecycle. A citation of either half here means that half.
 **Login**
 
 - **Password, TOTP, passkey and recovery codes all sign somebody in.**
-  The executor runs a realm's own ordered `authentication_executions`
+  The executor runs a tenant's own ordered `authentication_executions`
   (REQUIRED/ALTERNATIVE/CONDITIONAL/DISABLED) through a registry keyed by
   authenticator name, and a login resumes across steps rather than
   restarting — a satisfied authenticator is never asked for twice, even
@@ -7631,9 +7677,9 @@ session lifecycle. A citation of either half here means that half.
   `recovery-code` is applicable on the same terms — only to a submission
   carrying one — which is how it substitutes for the OTP step instead of
   competing with it ([Recovery codes](#recovery-codes)).
-  What is not there: any way to **change** a realm's flow.
+  What is not there: any way to **change** a tenant's flow.
   `authentication_executions` has an insert and nothing else, so the rows
-  `provisionBrowserFlow` writes are what a realm has for good unless somebody
+  `provisionBrowserFlow` writes are what a tenant has for good unless somebody
   edits the table. A flow editor is **P4**, with the rest of the admin
   surface.
 - **Recovery codes are issued once and shown once.** Ten per subject, each
@@ -7656,21 +7702,21 @@ session lifecycle. A citation of either half here means that half.
   than a fix for it.
 - **The account-lifecycle flows exist, and none of them mails on the
   request path.** Address verification
-  (`GET /realms/{realm}/login-actions/action-token`,
+  (`GET /tenants/{tenant}/login-actions/action-token`,
   [Address verification](#address-verification)), self-registration
-  (`GET`/`POST /realms/{realm}/login-actions/registration`,
+  (`GET`/`POST /tenants/{tenant}/login-actions/registration`,
   [Self-registration](#self-registration)) and password reset
-  (`GET`/`POST /realms/{realm}/login-actions/reset-password`,
+  (`GET`/`POST /tenants/{tenant}/login-actions/reset-password`,
   [Password reset](#password-reset)) all exist now, gated by their own
-  realm setting, each off by default. A realm with `verify_email` on
+  tenant setting, each off by default. A tenant with `verify_email` on
   refuses to complete a login for a self-registered address until it is
   verified — no authorization code, not just a page saying so. Each queues
   its mail in `email_outbox` and answers; a pass of its own sends it
   ([Sending queued mail](#sending-queued-mail-odudu-send-mail)), which is
   what closed the reset endpoint's timing oracle. What is not there yet:
-  per-realm SMTP configuration — the transport is one set of
-  `ODUDU_SMTP_*` variables for the whole server. That is **P4**: it is realm
-  configuration carrying a credential, and the per-realm secret it needs
+  per-tenant SMTP configuration — the transport is one set of
+  `ODUDU_SMTP_*` variables for the whole server. That is **P4**: it is tenant
+  configuration carrying a credential, and the per-tenant secret it needs
   already has a home in the key-encryption interface §5 puts the signing key
   behind.
 
@@ -7721,7 +7767,7 @@ session lifecycle. A citation of either half here means that half.
 - **No admin-configurable protocol mappers.** The claim registry
   (`standardClaimMappers`, the 22 names in `claims_supported`) and the
   role/group claims alongside it are fixed by the server, not by anything a
-  realm operator can add or change. Reconfiguring what a scope maps to —
+  tenant operator can add or change. Reconfiguring what a scope maps to —
   Keycloak's protocol mapper concept — is **P4**'s, alongside the rest of
   the admin surface. `entitlements`, in particular, is deliberately never
   advertised: there is no notion of one in this identity model yet, and
@@ -7743,8 +7789,8 @@ session lifecycle. A citation of either half here means that half.
   surface, because until there is an admin API there is nowhere to put it.
 - **Any admin API.** **P4.** The seed command and
   [dynamic client registration](#dynamic-client-registration) are the only
-  administrative surfaces — the former for a realm's first user, client and
-  signing key, the latter for a client a realm has opened itself to — and
+  administrative surfaces — the former for a tenant's first user, client and
+  signing key, the latter for a client a tenant has opened itself to — and
   neither can add a user to an existing client, disable anything, rotate a
   key, or delete anything. `seed client` takes `--redirect-uri`,
   `--post-logout-redirect-uri`, `--web-origin`, `--client-secret` and
@@ -7755,8 +7801,8 @@ session lifecycle. A citation of either half here means that half.
   there is no `--jwks`/`--jwks-uri` flag and no
   `--tls-client-auth-subject-dn` flag either, so `seed client` cannot
   produce a `private_key_jwt` or `tls_client_auth` client at all; the only
-  route to either is dynamic client registration, on a realm whose
-  `clientRegistrationPolicy` allows it. The demo realm's does not, which is
+  route to either is dynamic client registration, on a tenant whose
+  `clientRegistrationPolicy` allows it. The demo tenant's does not, which is
   why no transcript below exercises `private_key_jwt` or `tls_client_auth`
   the way [Redeeming the code with
   `client_secret_basic`](#redeeming-the-code-with-client_secret_basic) and
@@ -7791,7 +7837,7 @@ session lifecycle. A citation of either half here means that half.
   Operational readiness, appended on 2026-09-14 because none of it had a
   phase. Its position in the table is not a dependency: publishing an image
   waits on nothing, and `README.md` says what can be pulled forward.
-- **Key rotation is not implemented.** A realm has one active signing key,
+- **Key rotation is not implemented.** A tenant has one active signing key,
   created when it is seeded; the shape supports more than one, and the
   operation that would create a second does not exist. **P4**, whose exit
   criterion now names promoting a new key and retiring the one it replaces

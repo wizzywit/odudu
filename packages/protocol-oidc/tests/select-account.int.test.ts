@@ -3,20 +3,20 @@ import { hashPassword, subjectRepository, userCredentials, users } from '@odudu/
 import {
   createDatabase,
   MIGRATIONS_DIR,
-  realms,
+  tenants,
   runMigrations,
-  withRealm,
+  withTenant,
   type DatabaseHandle,
-  type RealmScopedDatabase,
+  type TenantScopedDatabase,
 } from '@odudu/db';
-import { clients, provisionClientDefaults } from '@odudu/domain-realm';
+import { clients, provisionClientDefaults } from '@odudu/domain-tenant';
 import { FakeClock, newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import formbody from '@fastify/formbody';
 import { and, eq } from 'drizzle-orm';
 import Fastify, { type FastifyInstance, type LightMyRequestResponse } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { provisionRealm, sessions } from '@odudu/authn-flows';
+import { provisionTenant, sessions } from '@odudu/authn-flows';
 import { oidcRoutes } from '#/index';
 import { NO_CLIENT_KEY_FETCHER } from '#/repository/client-keys';
 import { UNLIMITED_CLIENT_SECRET_LIMITER } from '#/service/client-secret-throttle';
@@ -58,24 +58,24 @@ const KEK = Buffer.alloc(32, 9);
 
 const signingKeyOf = new Map<string, SigningKeyRecord>();
 
-async function setupRealm(name: string): Promise<{ realmId: string }> {
-  const realmId = newId();
+async function setupTenant(name: string): Promise<{ tenantId: string }> {
+  const tenantId = newId();
   const clientDbId = newId();
-  await withRealm(app.db, realmId, async (tx: RealmScopedDatabase) => {
+  await withTenant(app.db, tenantId, async (tx: TenantScopedDatabase) => {
     // sso_session_idle_seconds raised well past the 30-minute TTL
     // AUTH_SESSION_TTL_MS fixes for an authentication session, so the one
     // expiry test below can advance past the latter without the SSO
     // session itself going idle-expired and confounding the result.
-    await tx.insert(realms).values({
-      id: realmId,
+    await tx.insert(tenants).values({
+      id: tenantId,
       name,
       maxSessionsPerBrowser: 10,
       ssoSessionIdleSeconds: 7_200,
     });
-    await provisionRealm(tx, realmId);
+    await provisionTenant(tx, tenantId);
     await tx.insert(clients).values({
       id: clientDbId,
-      realmId,
+      tenantId,
       clientId: CLIENT_ID,
       name: 'Select-account test client',
       type: 'public',
@@ -83,7 +83,7 @@ async function setupRealm(name: string): Promise<{ realmId: string }> {
     await provisionClientDefaults(tx, clientDbId);
     await clientOidcConfigRepository(tx).create({
       clientId: clientDbId,
-      realmId,
+      tenantId,
       redirectUris: [REDIRECT_URI],
       grantTypes: ['authorization_code'],
       tokenEndpointAuthMethod: 'none',
@@ -96,23 +96,23 @@ async function setupRealm(name: string): Promise<{ realmId: string }> {
       [BOB_USERNAME, BOB_PASSWORD],
       [CAROL_USERNAME, CAROL_PASSWORD],
     ] as const) {
-      const subject = await subjectRepository(tx).create({ realmId, type: 'user' });
-      await tx.insert(users).values({ subjectId: subject.id, realmId, username });
+      const subject = await subjectRepository(tx).create({ tenantId, type: 'user' });
+      await tx.insert(users).values({ subjectId: subject.id, tenantId, username });
       await tx.insert(userCredentials).values({
         id: newId(),
-        realmId,
+        tenantId,
         subjectId: subject.id,
         type: 'password',
         secretData: { hash: await hashPassword(password) },
       });
     }
 
-    // A signing key, so an id_token_hint minted for this realm verifies
+    // A signing key, so an id_token_hint minted for this tenant verifies
     // (OIDC Core §3.1.2.2) the way one issued by /token would.
     const generated = await generateSigningKey('ES256', KEK);
     const key: SigningKeyRecord = {
       id: newId(),
-      realmId,
+      tenantId,
       kid: generated.kid,
       alg: generated.alg,
       status: 'active',
@@ -124,7 +124,7 @@ async function setupRealm(name: string): Promise<{ realmId: string }> {
     signingKeyOf.set(name, key);
     await tx.insert(signingKeys).values({
       id: key.id,
-      realmId,
+      tenantId,
       kid: key.kid,
       alg: key.alg,
       status: 'active',
@@ -132,57 +132,57 @@ async function setupRealm(name: string): Promise<{ realmId: string }> {
       privateJwkEncrypted: key.privateJwkEncrypted,
     });
   });
-  return { realmId };
+  return { tenantId };
 }
 
-async function issuerFor(realmName: string): Promise<string> {
+async function issuerFor(tenantName: string): Promise<string> {
   const res = await http.inject({
-    url: `/realms/${realmName}/.well-known/openid-configuration`,
+    url: `/tenants/${tenantName}/.well-known/openid-configuration`,
   });
   return res.json<{ issuer: string }>().issuer;
 }
 
-async function mintIdToken(realmName: string, sub: string): Promise<string> {
-  const key = signingKeyOf.get(realmName);
-  if (key === undefined) throw new Error(`no signing key for ${realmName}`);
+async function mintIdToken(tenantName: string, sub: string): Promise<string> {
+  const key = signingKeyOf.get(tenantName);
+  if (key === undefined) throw new Error(`no signing key for ${tenantName}`);
   const now = Math.floor(Date.now() / 1000);
   return signJwt(
-    { iss: await issuerFor(realmName), aud: CLIENT_ID, sub, iat: now, exp: now + 300 },
+    { iss: await issuerFor(tenantName), aud: CLIENT_ID, sub, iat: now, exp: now + 300 },
     { key, kek: KEK },
   );
 }
 
-async function subjectIdOf(realmId: string, username: string): Promise<string> {
+async function subjectIdOf(tenantId: string, username: string): Promise<string> {
   const rows = await owner.db
     .select({ subjectId: users.subjectId })
     .from(users)
-    .where(and(eq(users.realmId, realmId), eq(users.username, username)));
+    .where(and(eq(users.tenantId, tenantId), eq(users.username, username)));
   const row = rows[0];
-  if (row === undefined) throw new Error(`no user ${username} in realm ${realmId}`);
+  if (row === undefined) throw new Error(`no user ${username} in tenant ${tenantId}`);
   return row.subjectId;
 }
 
-async function liveSessionIdOf(realmId: string, subjectId: string): Promise<string> {
+async function liveSessionIdOf(tenantId: string, subjectId: string): Promise<string> {
   const rows = await owner.db
     .select({ id: sessions.id })
     .from(sessions)
-    .where(and(eq(sessions.realmId, realmId), eq(sessions.subjectId, subjectId)));
+    .where(and(eq(sessions.tenantId, tenantId), eq(sessions.subjectId, subjectId)));
   const row = rows[0];
   if (row === undefined) throw new Error(`no live session for subject ${subjectId}`);
   return row.id;
 }
 
 // Ordered oldest first, for a subject a test signs in more than once.
-async function liveSessionIdsOf(realmId: string, subjectId: string): Promise<string[]> {
+async function liveSessionIdsOf(tenantId: string, subjectId: string): Promise<string[]> {
   const rows = await owner.db
     .select({ id: sessions.id, createdAt: sessions.createdAt })
     .from(sessions)
-    .where(and(eq(sessions.realmId, realmId), eq(sessions.subjectId, subjectId)));
+    .where(and(eq(sessions.tenantId, tenantId), eq(sessions.subjectId, subjectId)));
   return rows.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime()).map((row) => row.id);
 }
 
 function authorizeUrl(
-  realmName: string,
+  tenantName: string,
   overrides: Record<string, string | undefined> = {},
 ): string {
   const params: Record<string, string | undefined> = {
@@ -199,7 +199,7 @@ function authorizeUrl(
   for (const [key, value] of Object.entries(params)) {
     if (value !== undefined) query.set(key, value);
   }
-  return `/realms/${realmName}/protocol/openid-connect/auth?${query.toString()}`;
+  return `/tenants/${tenantName}/protocol/openid-connect/auth?${query.toString()}`;
 }
 
 function cookieList(res: LightMyRequestResponse): string[] {
@@ -240,7 +240,7 @@ function locationHeader(res: LightMyRequestResponse): string {
 // session for somebody else — a repeat visit that reused it would never
 // submit credentials again, and callers need every login here to.
 async function login(
-  realmName: string,
+  tenantName: string,
   jar: Map<string, string>,
   username: string,
   password: string,
@@ -248,7 +248,7 @@ async function login(
 ): Promise<LightMyRequestResponse> {
   const cookie = cookieHeader(jar);
   const started = await instance.inject({
-    url: authorizeUrl(realmName, { prompt: 'login' }),
+    url: authorizeUrl(tenantName, { prompt: 'login' }),
     headers: cookie.length > 0 ? { cookie } : {},
   });
   if (started.statusCode !== 200) {
@@ -261,7 +261,7 @@ async function login(
   const form = new URLSearchParams({ auth_session_id: authSessionId, username, password });
   const res = await instance.inject({
     method: 'POST',
-    url: `/realms/${realmName}/login-actions/authenticate`,
+    url: `/tenants/${tenantName}/login-actions/authenticate`,
     payload: form.toString(),
     headers: {
       'content-type': 'application/x-www-form-urlencoded',
@@ -274,7 +274,7 @@ async function login(
 }
 
 async function postSelectAccount(
-  realmName: string,
+  tenantName: string,
   jar: Map<string, string>,
   fields: Record<string, string | undefined>,
   instance: FastifyInstance = http,
@@ -285,7 +285,7 @@ async function postSelectAccount(
   }
   return instance.inject({
     method: 'POST',
-    url: `/realms/${realmName}/login-actions/select-account`,
+    url: `/tenants/${tenantName}/login-actions/select-account`,
     payload: params.toString(),
     headers: {
       'content-type': 'application/x-www-form-urlencoded',
@@ -347,14 +347,14 @@ afterAll(async () => {
 
 describe('the account chooser', () => {
   it('shows the chooser when a browser holds two live sessions', async () => {
-    const realmName = `select-two-sessions-${newId()}`;
-    await setupRealm(realmName);
+    const tenantName = `select-two-sessions-${newId()}`;
+    await setupTenant(tenantName);
     const jar = new Map<string, string>();
-    await login(realmName, jar, ALICE_USERNAME, ALICE_PASSWORD);
-    await login(realmName, jar, BOB_USERNAME, BOB_PASSWORD);
+    await login(tenantName, jar, ALICE_USERNAME, ALICE_PASSWORD);
+    await login(tenantName, jar, BOB_USERNAME, BOB_PASSWORD);
 
     const res = await http.inject({
-      url: authorizeUrl(realmName),
+      url: authorizeUrl(tenantName),
       headers: { cookie: cookieHeader(jar) },
     });
 
@@ -363,20 +363,20 @@ describe('the account chooser', () => {
   });
 
   it('lists one button per subject, keeping the newest of two sessions for the same account', async () => {
-    const realmName = `select-dedupe-${newId()}`;
-    const { realmId } = await setupRealm(realmName);
-    const alice = await subjectIdOf(realmId, ALICE_USERNAME);
+    const tenantName = `select-dedupe-${newId()}`;
+    const { tenantId } = await setupTenant(tenantName);
+    const alice = await subjectIdOf(tenantId, ALICE_USERNAME);
     const jar = new Map<string, string>();
-    await login(realmName, jar, ALICE_USERNAME, ALICE_PASSWORD);
-    await login(realmName, jar, ALICE_USERNAME, ALICE_PASSWORD);
-    await login(realmName, jar, BOB_USERNAME, BOB_PASSWORD);
-    const [olderAliceSessionId, newerAliceSessionId] = await liveSessionIdsOf(realmId, alice);
+    await login(tenantName, jar, ALICE_USERNAME, ALICE_PASSWORD);
+    await login(tenantName, jar, ALICE_USERNAME, ALICE_PASSWORD);
+    await login(tenantName, jar, BOB_USERNAME, BOB_PASSWORD);
+    const [olderAliceSessionId, newerAliceSessionId] = await liveSessionIdsOf(tenantId, alice);
     if (olderAliceSessionId === undefined || newerAliceSessionId === undefined) {
       throw new Error("expected two of alice's own live sessions");
     }
 
     const res = await http.inject({
-      url: authorizeUrl(realmName, { prompt: 'select_account' }),
+      url: authorizeUrl(tenantName, { prompt: 'select_account' }),
       headers: { cookie: cookieHeader(jar) },
     });
 
@@ -388,13 +388,13 @@ describe('the account chooser', () => {
   });
 
   it('[OIDC-CORE-3.1.2.1-15] shows the chooser for prompt=select_account with one live session', async () => {
-    const realmName = `select-prompt-${newId()}`;
-    await setupRealm(realmName);
+    const tenantName = `select-prompt-${newId()}`;
+    await setupTenant(tenantName);
     const jar = new Map<string, string>();
-    await login(realmName, jar, ALICE_USERNAME, ALICE_PASSWORD);
+    await login(tenantName, jar, ALICE_USERNAME, ALICE_PASSWORD);
 
     const res = await http.inject({
-      url: authorizeUrl(realmName, { prompt: 'select_account' }),
+      url: authorizeUrl(tenantName, { prompt: 'select_account' }),
       headers: { cookie: cookieHeader(jar) },
     });
 
@@ -409,14 +409,14 @@ describe('the account chooser', () => {
   // a title, so this is asserted twice under two titles rather than once
   // under two brackets.
   it('[OIDC-CORE-3.1.2.1-16] redirects with account_selection_required under prompt=none', async () => {
-    const realmName = `select-prompt-none-${newId()}`;
-    await setupRealm(realmName);
+    const tenantName = `select-prompt-none-${newId()}`;
+    await setupTenant(tenantName);
     const jar = new Map<string, string>();
-    await login(realmName, jar, ALICE_USERNAME, ALICE_PASSWORD);
-    await login(realmName, jar, BOB_USERNAME, BOB_PASSWORD);
+    await login(tenantName, jar, ALICE_USERNAME, ALICE_PASSWORD);
+    await login(tenantName, jar, BOB_USERNAME, BOB_PASSWORD);
 
     const res = await http.inject({
-      url: authorizeUrl(realmName, { prompt: 'none' }),
+      url: authorizeUrl(tenantName, { prompt: 'none' }),
       headers: { cookie: cookieHeader(jar) },
     });
 
@@ -427,14 +427,14 @@ describe('the account chooser', () => {
   });
 
   it('[OIDC-CORE-3.1.2.6-08] returns account_selection_required as the prompt=none error', async () => {
-    const realmName = `select-prompt-none-mayrow-${newId()}`;
-    await setupRealm(realmName);
+    const tenantName = `select-prompt-none-mayrow-${newId()}`;
+    await setupTenant(tenantName);
     const jar = new Map<string, string>();
-    await login(realmName, jar, ALICE_USERNAME, ALICE_PASSWORD);
-    await login(realmName, jar, BOB_USERNAME, BOB_PASSWORD);
+    await login(tenantName, jar, ALICE_USERNAME, ALICE_PASSWORD);
+    await login(tenantName, jar, BOB_USERNAME, BOB_PASSWORD);
 
     const res = await http.inject({
-      url: authorizeUrl(realmName, { prompt: 'none' }),
+      url: authorizeUrl(tenantName, { prompt: 'none' }),
       headers: { cookie: cookieHeader(jar) },
     });
 
@@ -445,29 +445,29 @@ describe('the account chooser', () => {
   });
 
   it('continues the authorization with the chosen session', async () => {
-    const realmName = `select-continue-${newId()}`;
-    const { realmId } = await setupRealm(realmName);
-    const alice = await subjectIdOf(realmId, ALICE_USERNAME);
+    const tenantName = `select-continue-${newId()}`;
+    const { tenantId } = await setupTenant(tenantName);
+    const alice = await subjectIdOf(tenantId, ALICE_USERNAME);
     const jar = new Map<string, string>();
-    await login(realmName, jar, ALICE_USERNAME, ALICE_PASSWORD);
-    await login(realmName, jar, BOB_USERNAME, BOB_PASSWORD);
+    await login(tenantName, jar, ALICE_USERNAME, ALICE_PASSWORD);
+    await login(tenantName, jar, BOB_USERNAME, BOB_PASSWORD);
 
-    const ephemeral = jar.get(`${realmName}-session`);
+    const ephemeral = jar.get(`${tenantName}-session`);
     if (ephemeral === undefined) throw new Error('expected an ephemeral session cookie');
     const sessionIds = ephemeral.split('.').filter((id) => id.length > 0);
-    const aliceSessionId = await liveSessionIdOf(realmId, alice);
+    const aliceSessionId = await liveSessionIdOf(tenantId, alice);
     if (!sessionIds.includes(aliceSessionId)) {
       throw new Error('expected alice session id to be in the browser cookie');
     }
 
     const chooser = await http.inject({
-      url: authorizeUrl(realmName),
+      url: authorizeUrl(tenantName),
       headers: { cookie: cookieHeader(jar) },
     });
     expect(chooser.statusCode).toBe(200);
     const authSessionId = extractAuthSessionId(chooser.body);
 
-    const res = await postSelectAccount(realmName, jar, {
+    const res = await postSelectAccount(tenantName, jar, {
       auth_session_id: authSessionId,
       session_id: aliceSessionId,
     });
@@ -481,14 +481,14 @@ describe('the account chooser', () => {
   // listed: a session excluded from the page for being too old is not a
   // valid choice merely because it is still live and still this browser's.
   it("refuses a chosen session older than the request required, even though it is the browser's own", async () => {
-    const realmName = `select-max-age-${newId()}`;
-    const { realmId } = await setupRealm(realmName);
-    const bob = await subjectIdOf(realmId, BOB_USERNAME);
+    const tenantName = `select-max-age-${newId()}`;
+    const { tenantId } = await setupTenant(tenantName);
+    const bob = await subjectIdOf(tenantId, BOB_USERNAME);
     const jar = new Map<string, string>();
-    await login(realmName, jar, ALICE_USERNAME, ALICE_PASSWORD);
-    await login(realmName, jar, BOB_USERNAME, BOB_PASSWORD);
+    await login(tenantName, jar, ALICE_USERNAME, ALICE_PASSWORD);
+    await login(tenantName, jar, BOB_USERNAME, BOB_PASSWORD);
 
-    const bobSessionId = await liveSessionIdOf(realmId, bob);
+    const bobSessionId = await liveSessionIdOf(tenantId, bob);
     await owner.db
       .update(sessions)
       .set({ createdAt: new Date(Date.now() - 120_000) })
@@ -498,14 +498,14 @@ describe('the account chooser', () => {
     // filter drops him, so the chooser — forced open by prompt=select_account
     // even though only one candidate remains — lists alice only.
     const chooser = await http.inject({
-      url: authorizeUrl(realmName, { prompt: 'select_account', max_age: '60' }),
+      url: authorizeUrl(tenantName, { prompt: 'select_account', max_age: '60' }),
       headers: { cookie: cookieHeader(jar) },
     });
     expect(chooser.statusCode).toBe(200);
     expect(chooser.body).not.toContain(bobSessionId);
     const authSessionId = extractAuthSessionId(chooser.body);
 
-    const res = await postSelectAccount(realmName, jar, {
+    const res = await postSelectAccount(tenantName, jar, {
       auth_session_id: authSessionId,
       session_id: bobSessionId,
     });
@@ -520,15 +520,15 @@ describe('the account chooser', () => {
   // refused the same way, not accepted indefinitely merely because
   // nothing here ever marks the row consumed.
   it('refuses a selection posted after the parked session has expired', async () => {
-    const realmName = `select-expired-${newId()}`;
-    await setupRealm(realmName);
+    const tenantName = `select-expired-${newId()}`;
+    await setupTenant(tenantName);
     fakeClock.set(new Date());
     const jar = new Map<string, string>();
-    await login(realmName, jar, ALICE_USERNAME, ALICE_PASSWORD, httpClocked);
-    await login(realmName, jar, BOB_USERNAME, BOB_PASSWORD, httpClocked);
+    await login(tenantName, jar, ALICE_USERNAME, ALICE_PASSWORD, httpClocked);
+    await login(tenantName, jar, BOB_USERNAME, BOB_PASSWORD, httpClocked);
 
     const chooser = await httpClocked.inject({
-      url: authorizeUrl(realmName),
+      url: authorizeUrl(tenantName),
       headers: { cookie: cookieHeader(jar) },
     });
     expect(chooser.statusCode).toBe(200);
@@ -539,7 +539,7 @@ describe('the account chooser', () => {
     fakeClock.advance(31 * 60_000);
 
     const res = await postSelectAccount(
-      realmName,
+      tenantName,
       jar,
       { auth_session_id: authSessionId, session_id: aliceSessionId },
       httpClocked,
@@ -549,30 +549,30 @@ describe('the account chooser', () => {
   });
 
   // The security case: honouring session_id merely because it names a live
-  // session anywhere in the realm — rather than a member of the set this
+  // session anywhere in the tenant — rather than a member of the set this
   // browser's own cookies resolve to — is a complete authentication bypass.
   it('refuses a chosen session the cookie does not name', async () => {
-    const realmName = `select-stranger-${newId()}`;
-    const { realmId } = await setupRealm(realmName);
+    const tenantName = `select-stranger-${newId()}`;
+    const { tenantId } = await setupTenant(tenantName);
 
     // Carol signs in on a browser of her own; her session is live in the
-    // realm but never reaches the jar below.
+    // tenant but never reaches the jar below.
     const carolJar = new Map<string, string>();
-    await login(realmName, carolJar, CAROL_USERNAME, CAROL_PASSWORD);
-    const carol = await subjectIdOf(realmId, CAROL_USERNAME);
-    const carolSessionId = await liveSessionIdOf(realmId, carol);
+    await login(tenantName, carolJar, CAROL_USERNAME, CAROL_PASSWORD);
+    const carol = await subjectIdOf(tenantId, CAROL_USERNAME);
+    const carolSessionId = await liveSessionIdOf(tenantId, carol);
 
     const jar = new Map<string, string>();
-    await login(realmName, jar, ALICE_USERNAME, ALICE_PASSWORD);
-    await login(realmName, jar, BOB_USERNAME, BOB_PASSWORD);
+    await login(tenantName, jar, ALICE_USERNAME, ALICE_PASSWORD);
+    await login(tenantName, jar, BOB_USERNAME, BOB_PASSWORD);
     const chooser = await http.inject({
-      url: authorizeUrl(realmName),
+      url: authorizeUrl(tenantName),
       headers: { cookie: cookieHeader(jar) },
     });
     expect(chooser.statusCode).toBe(200);
     const authSessionId = extractAuthSessionId(chooser.body);
 
-    const res = await postSelectAccount(realmName, jar, {
+    const res = await postSelectAccount(tenantName, jar, {
       auth_session_id: authSessionId,
       session_id: carolSessionId,
     });
@@ -581,20 +581,20 @@ describe('the account chooser', () => {
   });
 
   it('falls through to the login form when the user asks for another account', async () => {
-    const realmName = `select-use-other-${newId()}`;
-    await setupRealm(realmName);
+    const tenantName = `select-use-other-${newId()}`;
+    await setupTenant(tenantName);
     const jar = new Map<string, string>();
-    await login(realmName, jar, ALICE_USERNAME, ALICE_PASSWORD);
-    await login(realmName, jar, BOB_USERNAME, BOB_PASSWORD);
+    await login(tenantName, jar, ALICE_USERNAME, ALICE_PASSWORD);
+    await login(tenantName, jar, BOB_USERNAME, BOB_PASSWORD);
 
     const chooser = await http.inject({
-      url: authorizeUrl(realmName),
+      url: authorizeUrl(tenantName),
       headers: { cookie: cookieHeader(jar) },
     });
     expect(chooser.statusCode).toBe(200);
     const authSessionId = extractAuthSessionId(chooser.body);
 
-    const res = await postSelectAccount(realmName, jar, {
+    const res = await postSelectAccount(tenantName, jar, {
       auth_session_id: authSessionId,
       use_other: 'true',
     });
@@ -606,16 +606,16 @@ describe('the account chooser', () => {
 
 describe('an id_token_hint narrows the chooser to the subject it names', () => {
   it('reuses the hinted subject rather than rendering the chooser', async () => {
-    const realmName = `select-hint-reuse-${newId()}`;
-    const { realmId } = await setupRealm(realmName);
-    const alice = await subjectIdOf(realmId, ALICE_USERNAME);
+    const tenantName = `select-hint-reuse-${newId()}`;
+    const { tenantId } = await setupTenant(tenantName);
+    const alice = await subjectIdOf(tenantId, ALICE_USERNAME);
     const jar = new Map<string, string>();
-    await login(realmName, jar, ALICE_USERNAME, ALICE_PASSWORD);
-    await login(realmName, jar, BOB_USERNAME, BOB_PASSWORD);
-    const hint = await mintIdToken(realmName, alice);
+    await login(tenantName, jar, ALICE_USERNAME, ALICE_PASSWORD);
+    await login(tenantName, jar, BOB_USERNAME, BOB_PASSWORD);
+    const hint = await mintIdToken(tenantName, alice);
 
     const res = await http.inject({
-      url: authorizeUrl(realmName, { id_token_hint: hint }),
+      url: authorizeUrl(tenantName, { id_token_hint: hint }),
       headers: { cookie: cookieHeader(jar) },
     });
 
@@ -625,16 +625,16 @@ describe('an id_token_hint narrows the chooser to the subject it names', () => {
   });
 
   it('returns a code under prompt=none instead of account_selection_required', async () => {
-    const realmName = `select-hint-prompt-none-${newId()}`;
-    const { realmId } = await setupRealm(realmName);
-    const alice = await subjectIdOf(realmId, ALICE_USERNAME);
+    const tenantName = `select-hint-prompt-none-${newId()}`;
+    const { tenantId } = await setupTenant(tenantName);
+    const alice = await subjectIdOf(tenantId, ALICE_USERNAME);
     const jar = new Map<string, string>();
-    await login(realmName, jar, ALICE_USERNAME, ALICE_PASSWORD);
-    await login(realmName, jar, BOB_USERNAME, BOB_PASSWORD);
-    const hint = await mintIdToken(realmName, alice);
+    await login(tenantName, jar, ALICE_USERNAME, ALICE_PASSWORD);
+    await login(tenantName, jar, BOB_USERNAME, BOB_PASSWORD);
+    const hint = await mintIdToken(tenantName, alice);
 
     const res = await http.inject({
-      url: authorizeUrl(realmName, { id_token_hint: hint, prompt: 'none' }),
+      url: authorizeUrl(tenantName, { id_token_hint: hint, prompt: 'none' }),
       headers: { cookie: cookieHeader(jar) },
     });
 
@@ -651,12 +651,12 @@ describe('the chooser POST against a missing body', () => {
   // reading auth_session_id off it, and instead falls into the ordinary
   // unauthenticated handling an absent auth_session_id already gets.
   it('refuses with the unauthenticated page rather than throwing', async () => {
-    const realmName = `select-empty-body-${newId()}`;
-    await setupRealm(realmName);
+    const tenantName = `select-empty-body-${newId()}`;
+    await setupTenant(tenantName);
 
     const res = await http.inject({
       method: 'POST',
-      url: `/realms/${realmName}/login-actions/select-account`,
+      url: `/tenants/${tenantName}/login-actions/select-account`,
     });
     expect(res.statusCode).toBe(400);
   });

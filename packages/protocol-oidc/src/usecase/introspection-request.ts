@@ -1,4 +1,4 @@
-import { type RealmScopedDatabase } from '@odudu/db';
+import { type TenantScopedDatabase } from '@odudu/db';
 import {
   authenticateClient,
   parseBasicAuth,
@@ -21,7 +21,7 @@ export interface IntrospectionRequestDeps extends IntrospectionDeps, ClientAuthe
 // question `introspect` answers; everything past that point is `{ active:
 // ... }`, never an error.
 export async function respondToIntrospectionRequest(
-  tx: RealmScopedDatabase,
+  tx: TenantScopedDatabase,
   deps: IntrospectionRequestDeps,
   body: Record<string, string | string[] | undefined>,
   authorizationHeader: string | undefined,

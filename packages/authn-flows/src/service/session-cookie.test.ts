@@ -22,7 +22,7 @@ const B = '0192f2a0-0000-7000-8000-000000000002';
 describe('sessionCookies', () => {
   it('writes the ephemeral list with no Max-Age and the persistent list with one', () => {
     const written = sessionCookies({
-      realm: 'demo',
+      tenant: 'demo',
       tls: true,
       ephemeral: [A],
       persistent: [B],
@@ -37,7 +37,7 @@ describe('sessionCookies', () => {
 
   it('drops Secure and the prefix together when TLS is off, and nothing else', () => {
     const written = sessionCookies({
-      realm: 'demo',
+      tenant: 'demo',
       tls: false,
       ephemeral: [A],
       persistent: [],
@@ -49,7 +49,7 @@ describe('sessionCookies', () => {
 
   it('expires a list that has become empty rather than leaving it in the browser', () => {
     const written = sessionCookies({
-      realm: 'demo',
+      tenant: 'demo',
       tls: true,
       ephemeral: [],
       persistent: [B],
@@ -75,7 +75,7 @@ describe('readSessionIds', () => {
     expect(readSessionIds(header, 'demo', true)).toEqual({ ephemeral: [A], persistent: [] });
   });
 
-  it('ignores another realm’s cookie in the same jar', () => {
+  it('ignores another tenant’s cookie in the same jar', () => {
     const header = `__Host-other-session=${B}; __Host-demo-session=${A}`;
     expect(readSessionIds(header, 'demo', true)).toEqual({ ephemeral: [A], persistent: [] });
   });

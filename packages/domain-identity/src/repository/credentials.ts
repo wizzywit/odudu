@@ -1,4 +1,4 @@
-import { type RealmScopedDatabase } from '@odudu/db';
+import { type TenantScopedDatabase } from '@odudu/db';
 import { newId, OduduError } from '@odudu/kernel';
 import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 import {
@@ -13,7 +13,7 @@ import {
 } from '#/service/credential-secret';
 
 export interface NewCredential {
-  realmId: string;
+  tenantId: string;
   subjectId: string;
   type: CredentialType;
   secret: CredentialSecret;
@@ -24,7 +24,7 @@ export interface NewCredential {
 function toRecord(row: typeof userCredentials.$inferSelect): CredentialRecord {
   return {
     id: row.id,
-    realmId: row.realmId,
+    tenantId: row.tenantId,
     subjectId: row.subjectId,
     type: row.type,
     secret: parseCredentialSecret(row.type, row.secretData),
@@ -38,11 +38,11 @@ function toRecord(row: typeof userCredentials.$inferSelect): CredentialRecord {
 // The one place in this package where deleting a row is right. ADR 0021
 // keeps a spent credential because a decision still reads it — a replayed
 // recovery code is refused *as* a spent one. A retired password past the
-// realm's history depth is the opposite: no reuse check will ever compare
+// tenant's history depth is the opposite: no reuse check will ever compare
 // against it again, so the row is a stored password hash that answers
 // nothing, and keeping it is only exposure.
 async function trimPasswordHistory(
-  tx: RealmScopedDatabase,
+  tx: TenantScopedDatabase,
   subjectId: string,
   historyDepth: number,
 ): Promise<void> {
@@ -69,7 +69,7 @@ async function trimPasswordHistory(
     );
 }
 
-export function credentialRepository(tx: RealmScopedDatabase) {
+export function credentialRepository(tx: TenantScopedDatabase) {
   return {
     async passwordFor(subjectId: string): Promise<string | null> {
       const rows = await tx
@@ -104,7 +104,7 @@ export function credentialRepository(tx: RealmScopedDatabase) {
     async insert(input: NewCredential): Promise<void> {
       await tx.insert(userCredentials).values({
         id: newId(),
-        realmId: input.realmId,
+        tenantId: input.tenantId,
         subjectId: input.subjectId,
         type: input.type,
         secretData: serializeCredentialSecret(input.secret),
@@ -249,15 +249,15 @@ export function credentialRepository(tx: RealmScopedDatabase) {
     // Password reset's write: replaces the existing password credential
     // rather than inserting a second one, which is what
     // user_credentials_one_password (0005; a partial unique index as of
-    // 0034) would refuse anyway. RLS is what makes a foreign realm's
+    // 0034) would refuse anyway. RLS is what makes a foreign tenant's
     // subject match zero rows here, the same as every other write in this
     // package — that surfaces as credential_not_found rather than a silent
-    // cross-realm no-op.
+    // cross-tenant no-op.
     async setPassword(subjectId: string, hash: string): Promise<void> {
       const rows = await tx
         .update(userCredentials)
         // created_at dates the password, not the row — see rotatePassword.
-        // A redeemed reset is a new password, so the realm's maximum age
+        // A redeemed reset is a new password, so the tenant's maximum age
         // counts from here and not from the one it replaced.
         .set({
           secretData: serializeCredentialSecret({ kind: 'password', hash }),
@@ -320,13 +320,13 @@ export function credentialRepository(tx: RealmScopedDatabase) {
             sql`${userCredentials.secretData}->>'hash' = ${change.from}`,
           ),
         )
-        .returning({ realmId: userCredentials.realmId });
+        .returning({ tenantId: userCredentials.tenantId });
       const row = rows[0];
       if (row === undefined) return false;
 
       await tx.insert(userCredentials).values({
         id: newId(),
-        realmId: row.realmId,
+        tenantId: row.tenantId,
         subjectId,
         type: 'password-history',
         secretData: serializeCredentialSecret({ kind: 'password-history', hash: change.from }),

@@ -20,7 +20,7 @@
     "@odudu/db": "workspace:*",
     "@odudu/domain-authz": "workspace:*",
     "@odudu/domain-identity": "workspace:*",
-    "@odudu/domain-realm": "workspace:*",
+    "@odudu/domain-tenant": "workspace:*",
     "@odudu/email": "workspace:*",
     "@odudu/kernel": "workspace:*",
     "@odudu/protocol-oidc": "workspace:*",

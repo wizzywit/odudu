@@ -4,7 +4,7 @@ import { isSessionLive } from '#/service/session-liveness';
 const at = (iso: string) => new Date(iso);
 const session = (createdAt: string, lastActiveAt: string, expiresAt: string) => ({
   id: 's',
-  realmId: 'r',
+  tenantId: 'r',
   subjectId: 'u',
   createdAt: at(createdAt),
   lastActiveAt: at(lastActiveAt),

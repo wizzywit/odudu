@@ -2,7 +2,7 @@ import { type RenderedPage } from '@odudu/kernel';
 
 // Minimal, dependency-free HTML, the same choice #/view/recovery-codes-html.ts
 // makes: every interpolated value passes through escapeHtml so neither the
-// realm name nor a policy message opens a reflected-XSS hole.
+// tenant name nor a policy message opens a reflected-XSS hole.
 function escapeHtml(value: string): string {
   return value
     .replace(/&/g, '&amp;')
@@ -13,17 +13,17 @@ function escapeHtml(value: string): string {
 }
 
 // The page a login parks on while `update-password` is owed, and the page a
-// refused candidate comes back to. `violations` is every rule the realm's
+// refused candidate comes back to. `violations` is every rule the tenant's
 // policy reported, listed at once for the reason evaluatePassword collects
 // them all rather than stopping at the first. The hidden auth_session_id is
 // this page's own CSRF defence and what resumes the parked login, exactly
 // as on the enrolment pages beside it.
 export function renderUpdatePasswordPage(
-  realm: string,
+  tenant: string,
   authSessionId: string,
   violations: readonly string[] = [],
 ): RenderedPage {
-  const target = `/realms/${escapeHtml(realm)}/login-actions/required-action?action=update-password`;
+  const target = `/tenants/${escapeHtml(tenant)}/login-actions/required-action?action=update-password`;
   const listed =
     violations.length === 0
       ? ''

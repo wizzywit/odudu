@@ -1,5 +1,5 @@
-import { type RealmScopedDatabase } from '@odudu/db';
-import { clients } from '@odudu/domain-realm';
+import { type TenantScopedDatabase } from '@odudu/db';
+import { clients } from '@odudu/domain-tenant';
 import { eq } from 'drizzle-orm';
 import { clientOidcConfig, type ClientOidcConfig } from '#/schema/client-oidc-config';
 import { expandWebOrigins } from '#/service/web-origin';
@@ -9,7 +9,7 @@ export type { ClientOidcConfig } from '#/schema/client-oidc-config';
 function toRecord(row: typeof clientOidcConfig.$inferSelect): ClientOidcConfig {
   return {
     clientId: row.clientId,
-    realmId: row.realmId,
+    tenantId: row.tenantId,
     redirectUris: row.redirectUris,
     grantTypes: row.grantTypes,
     tokenEndpointAuthMethod:
@@ -73,7 +73,7 @@ export type NewClientOidcConfig = Omit<
   tlsClientAuthSubjectDn?: string | null;
 };
 
-export function clientOidcConfigRepository(tx: RealmScopedDatabase) {
+export function clientOidcConfigRepository(tx: TenantScopedDatabase) {
   return {
     // Keyed by the client's internal id (clients.id), not the OAuth
     // client_id string — callers look up ClientRecord first via
@@ -92,7 +92,7 @@ export function clientOidcConfigRepository(tx: RealmScopedDatabase) {
         .insert(clientOidcConfig)
         .values({
           clientId: input.clientId,
-          realmId: input.realmId,
+          tenantId: input.tenantId,
           redirectUris: input.redirectUris,
           grantTypes: input.grantTypes,
           tokenEndpointAuthMethod: input.tokenEndpointAuthMethod,
@@ -135,11 +135,11 @@ export function clientOidcConfigRepository(tx: RealmScopedDatabase) {
     },
 
     // A CORS preflight carries no client identity, so the only allowlist
-    // available at that moment is the realm's union. The per-client list is
+    // available at that moment is the tenant's union. The per-client list is
     // enforced on the real request, where the client is known. Joined to
     // `clients` and filtered to `enabled`: a client disabled because its
     // origin was compromised must not keep that origin working here.
-    async webOriginsForRealm(): Promise<ReadonlySet<string>> {
+    async webOriginsForTenant(): Promise<ReadonlySet<string>> {
       const rows = await tx
         .select({
           webOrigins: clientOidcConfig.webOrigins,

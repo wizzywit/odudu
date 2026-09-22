@@ -1,5 +1,5 @@
 import { eq, inArray } from 'drizzle-orm';
-import { type RealmScopedDatabase } from '@odudu/db';
+import { type TenantScopedDatabase } from '@odudu/db';
 import { sessions, type SessionRecord } from '#/schema/sessions';
 import { isSessionLive } from '#/service/session-liveness';
 import { lifespanFor, type SessionLifespans } from '#/service/session-lifespan';
@@ -7,7 +7,7 @@ import { lifespanFor, type SessionLifespans } from '#/service/session-lifespan';
 function toRecord(row: typeof sessions.$inferSelect): SessionRecord {
   return {
     id: row.id,
-    realmId: row.realmId,
+    tenantId: row.tenantId,
     subjectId: row.subjectId,
     createdAt: row.createdAt,
     expiresAt: row.expiresAt,
@@ -19,7 +19,7 @@ function toRecord(row: typeof sessions.$inferSelect): SessionRecord {
 
 export interface NewSession {
   id: string;
-  realmId: string;
+  tenantId: string;
   subjectId: string;
   expiresAt: Date;
   authenticators: string[];
@@ -31,8 +31,8 @@ export interface NewSession {
 
 // All persistence for an established SSO session. `byId` is what a later
 // request — /authorize's single-sign-on check, or a logout handler — resolves
-// the `__Host-<realm>-session` cookie's value against.
-export function sessionRepository(tx: RealmScopedDatabase) {
+// the `__Host-<tenant>-session` cookie's value against.
+export function sessionRepository(tx: TenantScopedDatabase) {
   return {
     async byId(id: string): Promise<SessionRecord | null> {
       const rows = await tx.select().from(sessions).where(eq(sessions.id, id));
@@ -51,10 +51,10 @@ export function sessionRepository(tx: RealmScopedDatabase) {
     // window by the record's own `remembered` column — a single idle number
     // here would silently measure a remembered session against the
     // ordinary window, which is the shape `liveByIds` exists to rule out.
-    async liveById(id: string, realm: SessionLifespans, now: Date): Promise<SessionRecord | null> {
+    async liveById(id: string, tenant: SessionLifespans, now: Date): Promise<SessionRecord | null> {
       const record = await this.byId(id);
       if (record === null) return null;
-      const { idleSeconds } = lifespanFor(realm, record.remembered);
+      const { idleSeconds } = lifespanFor(tenant, record.remembered);
       return isSessionLive(record, idleSeconds, now) ? record : null;
     },
 
@@ -80,7 +80,7 @@ export function sessionRepository(tx: RealmScopedDatabase) {
     // against the other's window.
     async liveByIds(
       ids: readonly string[],
-      realm: SessionLifespans,
+      tenant: SessionLifespans,
       now: Date,
     ): Promise<SessionRecord[]> {
       if (ids.length === 0) return [];
@@ -89,7 +89,7 @@ export function sessionRepository(tx: RealmScopedDatabase) {
         .from(sessions)
         .where(inArray(sessions.id, [...ids]));
       return rows.map(toRecord).filter((record) => {
-        const { idleSeconds } = lifespanFor(realm, record.remembered);
+        const { idleSeconds } = lifespanFor(tenant, record.remembered);
         return isSessionLive(record, idleSeconds, now);
       });
     },

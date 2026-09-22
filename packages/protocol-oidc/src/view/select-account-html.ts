@@ -7,7 +7,7 @@ export interface SelectAccountEntry {
 }
 
 export interface SelectAccountInput {
-  realm: string;
+  tenant: string;
   authSessionId: string;
   accounts: readonly SelectAccountEntry[];
 }
@@ -23,7 +23,7 @@ function renderAccount(account: SelectAccountEntry): string {
 // session is refused, and that protects the endpoint rather than any one
 // control. There is no script on this page, so `script` is null.
 export function renderSelectAccountPage(input: SelectAccountInput): RenderedPage {
-  const action = `/realms/${escapeHtml(input.realm)}/login-actions/select-account`;
+  const action = `/tenants/${escapeHtml(input.tenant)}/login-actions/select-account`;
   const accountList = input.accounts.map(renderAccount).join('\n  ');
   return page(
     'Choose an account',

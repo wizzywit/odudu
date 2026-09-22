@@ -12,25 +12,25 @@ import { presentedBearerToken } from '#/service/bearer-token';
 import { type ClaimContext, narrowToRequestedClaims } from '#/service/claims';
 import { narrowByScopeMappings } from '#/service/scope-mapping';
 import { type ClientKeySet } from '#/repository/client-keys';
-import { type RealmLookup } from '#/repository/realm-lookup';
+import { type TenantLookup } from '#/repository/tenant-lookup';
 
 export interface UserinfoGrant {
   readonly revokedAt: Date | null;
 }
 
 export interface UserinfoDeps {
-  findRealm(name: string): Promise<RealmLookup | null>;
-  listPublishableKeys(realmId: string): Promise<SigningKeyRecord[]>;
-  loadClaimContext(realmId: string, subjectId: string): Promise<ClaimContext>;
+  findTenant(name: string): Promise<TenantLookup | null>;
+  listPublishableKeys(tenantId: string): Promise<SigningKeyRecord[]>;
+  loadClaimContext(tenantId: string, subjectId: string): Promise<ClaimContext>;
   claimMappers: ClaimMapperRegistry<ClaimContext>;
   // The same two reads `/introspect` makes (usecase/introspection.ts) —
   // a grant this server revoked, or a session that has since ended, makes
-  // the token no less self-contained but no longer valid either. Realm-
+  // the token no less self-contained but no longer valid either. Tenant-
   // scoped explicitly, like every other lookup below, since this deps
-  // object is built once and reused across realms.
-  loadGrant(realmId: string, grantId: string): Promise<UserinfoGrant | null>;
+  // object is built once and reused across tenants.
+  loadGrant(tenantId: string, grantId: string): Promise<UserinfoGrant | null>;
   isSessionLive(
-    realmId: string,
+    tenantId: string,
     sessionId: string,
     lifespans: SessionLifespans,
     now: Date,
@@ -39,21 +39,21 @@ export interface UserinfoDeps {
   // bypasses that intersection — the same gate token issuance applies, so
   // a role withheld from a token cannot resurface here.
   resolveRoleReach(
-    realmId: string,
+    tenantId: string,
     oauthClientId: string,
     scope: readonly string[],
   ): Promise<{ reachableRoleIds: ReadonlySet<string>; fullScopeAllowed: boolean }>;
   // The real request's CORS decision is checked against this one client's
   // own expanded origins, resolved from the access token's `client_id`
   // claim rather than any credential the preflight could have carried.
-  resolveClientWebOrigins(realmId: string, oauthClientId: string): Promise<ReadonlySet<string>>;
+  resolveClientWebOrigins(tenantId: string, oauthClientId: string): Promise<ReadonlySet<string>>;
   // `null` when the client registered no `userinfo_signed_response_alg` at
   // all, or has none by the time this runs (unknown or disabled client) —
   // both read as "answer in JSON," the response format's default.
-  userinfoSignedResponseAlg(realmId: string, oauthClientId: string): Promise<string | null>;
-  // The realm's active signing key — the same one `/token` signs an access
+  userinfoSignedResponseAlg(tenantId: string, oauthClientId: string): Promise<string | null>;
+  // The tenant's active signing key — the same one `/token` signs an access
   // token or ID Token with, and the only one this server can sign with.
-  activeSigningKey(realmId: string): Promise<SigningKeyRecord>;
+  activeSigningKey(tenantId: string): Promise<SigningKeyRecord>;
   // `'none'` and `'unavailable'` are deliberately not the same value: a
   // client that never registered `userinfo_encrypted_response_alg` reads
   // `'none'` — answer plainly, same as `userinfoSignedResponseAlg`'s
@@ -61,7 +61,7 @@ export interface UserinfoDeps {
   // `'unavailable'` — a registration this server cannot currently honour,
   // refused rather than answered.
   userinfoEncryptionTarget(
-    realmId: string,
+    tenantId: string,
     oauthClientId: string,
   ): Promise<UserinfoEncryptionLookup>;
   // RFC 7523 §2.2's fetcher for a client's jwks_uri — the same one /token
@@ -110,7 +110,7 @@ export type UserinfoOutcome =
   // against; every earlier outcome never got that far.
   | { kind: 'insufficient_scope'; clientId: string | undefined }
   // A client registered `userinfo_signed_response_alg` for an algorithm
-  // this realm's active key no longer carries — see `view/routes/userinfo.ts`
+  // this tenant's active key no longer carries — see `view/routes/userinfo.ts`
   // for how this is answered and logged.
   | {
       kind: 'signing_unavailable';
@@ -150,7 +150,7 @@ function requestedClaimsOf(claim: unknown): string[] {
 // wrong scope.
 export async function resolveUserinfo(
   deps: UserinfoDeps,
-  realmName: string,
+  tenantName: string,
   issuer: string,
   authorizationHeader: string | undefined,
   // Whatever a body parser produced for a POST (OIDC Core §5.3); `undefined`
@@ -158,15 +158,15 @@ export async function resolveUserinfo(
   body: unknown,
   now: Date,
 ): Promise<UserinfoOutcome> {
-  const realm = await deps.findRealm(realmName);
-  if (!realm?.enabled) return { kind: 'not_found' };
+  const tenant = await deps.findTenant(tenantName);
+  if (!tenant?.enabled) return { kind: 'not_found' };
 
   const presented = presentedBearerToken(authorizationHeader, body);
   if (presented.kind === 'ambiguous') return { kind: 'invalid_request' };
   if (presented.kind === 'absent') return { kind: 'missing_credentials' };
   const { token } = presented;
 
-  const keys = await deps.listPublishableKeys(realm.id);
+  const keys = await deps.listPublishableKeys(tenant.id);
 
   let payload;
   try {
@@ -190,7 +190,7 @@ export async function resolveUserinfo(
   if (typeof grantId !== 'string' || grantId.length === 0) {
     return { kind: 'invalid_token', clientId };
   }
-  const grant = await deps.loadGrant(realm.id, grantId);
+  const grant = await deps.loadGrant(tenant.id, grantId);
   if (grant?.revokedAt !== null) return { kind: 'invalid_token', clientId };
 
   // Session liveness is what makes revocation real inside an access
@@ -201,22 +201,22 @@ export async function resolveUserinfo(
   const sessionId = typeof sid === 'string' && sid.length > 0 ? sid : null;
   if (sessionId !== null) {
     const lifespans: SessionLifespans = {
-      ssoSessionIdleSeconds: realm.ssoSessionIdleSeconds,
-      ssoSessionMaxSeconds: realm.ssoSessionMaxSeconds,
-      rememberMeIdleSeconds: realm.rememberMeIdleSeconds,
-      rememberMeMaxSeconds: realm.rememberMeMaxSeconds,
+      ssoSessionIdleSeconds: tenant.ssoSessionIdleSeconds,
+      ssoSessionMaxSeconds: tenant.ssoSessionMaxSeconds,
+      rememberMeIdleSeconds: tenant.rememberMeIdleSeconds,
+      rememberMeMaxSeconds: tenant.rememberMeMaxSeconds,
     };
-    const live = await deps.isSessionLive(realm.id, sessionId, lifespans, now);
+    const live = await deps.isSessionLive(tenant.id, sessionId, lifespans, now);
     if (!live) return { kind: 'invalid_token', clientId };
   }
 
-  const ctx = await deps.loadClaimContext(realm.id, payload.sub);
+  const ctx = await deps.loadClaimContext(tenant.id, payload.sub);
   // A token with no readable client_id reaches no role: the gate fails
   // closed rather than falling back to the subject's full role set.
   const { reachableRoleIds, fullScopeAllowed } =
     clientId === undefined
       ? { reachableRoleIds: new Set<string>(), fullScopeAllowed: false }
-      : await deps.resolveRoleReach(realm.id, clientId, scope);
+      : await deps.resolveRoleReach(tenant.id, clientId, scope);
   const narrowedCtx: ClaimContext = {
     ...ctx,
     roles: narrowByScopeMappings(ctx.roles, reachableRoleIds, fullScopeAllowed),
@@ -229,7 +229,7 @@ export async function resolveUserinfo(
     assembled,
     requested.length === 0 ? [] : [...requested, 'sub'],
   );
-  const signed = await signedBody(deps, realm.id, issuer, clientId, claims);
+  const signed = await signedBody(deps, tenant.id, issuer, clientId, claims);
   if (signed.kind === 'mismatch') {
     return {
       kind: 'signing_unavailable',
@@ -239,7 +239,7 @@ export async function resolveUserinfo(
     };
   }
 
-  const encrypted = await encryptedBody(deps, realm.id, clientId, signed.body);
+  const encrypted = await encryptedBody(deps, tenant.id, clientId, signed.body);
   if (encrypted.kind === 'unavailable') {
     return { kind: 'encryption_unavailable', clientId, reason: encrypted.reason };
   }
@@ -254,14 +254,14 @@ type SignedBodyResult =
 // docs/protocols/oidc-core.md before changing this.
 async function signedBody(
   deps: UserinfoDeps,
-  realmId: string,
+  tenantId: string,
   issuer: string,
   clientId: string | undefined,
   claims: Record<string, unknown>,
 ): Promise<SignedBodyResult> {
   if (clientId === undefined) return { kind: 'body', body: { kind: 'json', claims } };
 
-  const alg = await deps.userinfoSignedResponseAlg(realmId, clientId);
+  const alg = await deps.userinfoSignedResponseAlg(tenantId, clientId);
   if (alg === null) return { kind: 'body', body: { kind: 'json', claims } };
 
   const signedClaims = { ...claims, iss: issuer, aud: clientId };
@@ -269,7 +269,7 @@ async function signedBody(
     return { kind: 'body', body: { kind: 'jwt', token: encodeUnsecuredJwt(signedClaims) } };
   }
 
-  const key = await deps.activeSigningKey(realmId);
+  const key = await deps.activeSigningKey(tenantId);
   if (key.alg !== alg) return { kind: 'mismatch', registeredAlg: alg, activeAlg: key.alg };
   const token = await signJwt(signedClaims, { key, kek: deps.kek, typ: USERINFO_JWT_TYP });
   return { kind: 'body', body: { kind: 'jwt', token } };
@@ -289,13 +289,13 @@ function asJwks(value: unknown): { keys: unknown[] } | null {
 // `encryption_unavailable` on `UserinfoOutcome` for why.
 async function encryptedBody(
   deps: UserinfoDeps,
-  realmId: string,
+  tenantId: string,
   clientId: string | undefined,
   body: UserinfoBody,
 ): Promise<EncryptedBodyResult> {
   if (clientId === undefined) return { kind: 'body', body };
 
-  const lookup = await deps.userinfoEncryptionTarget(realmId, clientId);
+  const lookup = await deps.userinfoEncryptionTarget(tenantId, clientId);
   if (lookup.kind === 'none') return { kind: 'body', body };
   if (lookup.kind === 'unavailable') {
     return { kind: 'unavailable', reason: 'client is disabled' };
@@ -307,7 +307,7 @@ async function encryptedBody(
     jwks = target.jwks;
   } else if (target.jwksUri !== null) {
     try {
-      jwks = await deps.clientKeySet.fetch(target.jwksUri, realmId);
+      jwks = await deps.clientKeySet.fetch(target.jwksUri, tenantId);
     } catch (err) {
       return {
         kind: 'unavailable',

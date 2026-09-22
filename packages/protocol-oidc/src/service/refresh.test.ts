@@ -1,12 +1,12 @@
 import { type SubjectRecord } from '@odudu/domain-identity';
-import { type ClientRecord } from '@odudu/domain-realm';
+import { type ClientRecord } from '@odudu/domain-tenant';
 import { describe, expect, it } from 'vitest';
 import { type TokenGrantRecord } from '#/schema/token-grants';
 import { evaluateRefreshGrant, generateRefreshToken, hashRefreshToken } from '#/service/refresh';
 
 const client: ClientRecord = {
   id: 'client-1',
-  realmId: 'realm-1',
+  tenantId: 'tenant-1',
   clientId: 'web-app',
   name: 'Web app',
   enabled: true,
@@ -20,14 +20,14 @@ const client: ClientRecord = {
 
 const subject: SubjectRecord = {
   id: 'subject-1',
-  realmId: 'realm-1',
+  tenantId: 'tenant-1',
   type: 'user',
   disabledAt: null,
 };
 
 const grant: TokenGrantRecord = {
   id: 'grant-1',
-  realmId: 'realm-1',
+  tenantId: 'tenant-1',
   clientId: client.id,
   subjectId: subject.id,
   scope: 'openid profile',

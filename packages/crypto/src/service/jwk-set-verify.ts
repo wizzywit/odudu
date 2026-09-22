@@ -15,7 +15,7 @@ function isJwkSet(value: unknown): value is { keys: Record<string, unknown>[] } 
   return Array.isArray(value.keys) && value.keys.every(isRecord);
 }
 
-// Verifies a JWT against a raw JWK Set rather than against this realm's own
+// Verifies a JWT against a raw JWK Set rather than against this tenant's own
 // signing keys — the shape RFC 7523 §2.2 `private_key_jwt` needs, where the
 // verifying key belongs to the client, not to Odudu. `false` covers every
 // way this can fail: the value handed in is not a JWK Set, no key in it

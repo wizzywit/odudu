@@ -1,19 +1,19 @@
 import {
   createDatabase,
   MIGRATIONS_DIR,
-  realms,
+  tenants,
   runMigrations,
-  withRealm,
+  withTenant,
   type DatabaseHandle,
 } from '@odudu/db';
-import { clients } from '@odudu/domain-realm';
+import { clients } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
 import { logoutDeliveryRepository, type LogoutDeliveryTransport } from '@odudu/protocol-oidc';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import { sql } from 'drizzle-orm';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import {
-  sendLogoutsAcrossRealms,
+  sendLogoutsAcrossTenants,
   sendLogoutsCommand,
   type LogoutSenderOptions,
 } from '#/cli/send-logouts';
@@ -51,20 +51,20 @@ afterAll(async () => {
   await containerHandle?.stop();
 });
 
-async function seedRealm(): Promise<string> {
+async function seedTenant(): Promise<string> {
   const id = newId();
-  await owner.db.insert(realms).values({ id, name: `send-logouts-${id}` });
+  await owner.db.insert(tenants).values({ id, name: `send-logouts-${id}` });
   return id;
 }
 
 // The FK `backchannel_logout_deliveries_client_fk` points at `clients`, so
 // a delivery needs a real row there even though it carries no FK to
 // `sessions` (packages/protocol-oidc/src/schema/logout-deliveries.ts).
-async function seedClient(realmId: string): Promise<string> {
+async function seedClient(tenantId: string): Promise<string> {
   const id = newId();
   await owner.db.insert(clients).values({
     id,
-    realmId,
+    tenantId,
     clientId: `rp-${id}`,
     name: 'Relying party',
     type: 'public',
@@ -72,14 +72,14 @@ async function seedClient(realmId: string): Promise<string> {
   return id;
 }
 
-async function seedDueDelivery(realmId: string, endpoint: string): Promise<string> {
+async function seedDueDelivery(tenantId: string, endpoint: string): Promise<string> {
   const id = newId();
-  const clientId = await seedClient(realmId);
-  await withRealm(app.db, realmId, (tx) =>
+  const clientId = await seedClient(tenantId);
+  await withTenant(app.db, tenantId, (tx) =>
     logoutDeliveryRepository(tx).enqueue([
       {
         id,
-        realmId,
+        tenantId,
         clientId,
         sessionId: newId(),
         endpoint,
@@ -95,28 +95,28 @@ function respondingWith(status: number): LogoutDeliveryTransport {
   return () => Promise.resolve({ status });
 }
 
-describe('sendLogoutsAcrossRealms', () => {
+describe('sendLogoutsAcrossTenants', () => {
   // Runs first, deliberately, before any other test in this file seeds a
-  // realm: this is the only point at which the shared database is still
-  // empty, which is what the "no realm" branch needs to be reachable at
+  // tenant: this is the only point at which the shared database is still
+  // empty, which is what the "no tenant" branch needs to be reachable at
   // all without paying for a second container.
-  it('reports no realm rather than a report of zeros against an empty database', async () => {
-    const report = await sendLogoutsAcrossRealms(
+  it('reports no tenant rather than a report of zeros against an empty database', async () => {
+    const report = await sendLogoutsAcrossTenants(
       { database: app, ownerDatabase: owner, transport: respondingWith(200) },
       NOW,
       OPTIONS,
     );
 
-    expect(report).toEqual({ ran: false, reason: 'no realm was enumerated' });
+    expect(report).toEqual({ ran: false, reason: 'no tenant was enumerated' });
   });
 
-  it('drains due deliveries across every realm, not only the first', async () => {
-    const realmA = await seedRealm();
-    const realmB = await seedRealm();
-    const idA = await seedDueDelivery(realmA, 'https://rp-a.example/backchannel');
-    const idB = await seedDueDelivery(realmB, 'https://rp-b.example/backchannel');
+  it('drains due deliveries across every tenant, not only the first', async () => {
+    const tenantA = await seedTenant();
+    const tenantB = await seedTenant();
+    const idA = await seedDueDelivery(tenantA, 'https://rp-a.example/backchannel');
+    const idB = await seedDueDelivery(tenantB, 'https://rp-b.example/backchannel');
 
-    const report = await sendLogoutsAcrossRealms(
+    const report = await sendLogoutsAcrossTenants(
       { database: app, ownerDatabase: owner, transport: respondingWith(200) },
       NOW,
       OPTIONS,
@@ -126,27 +126,27 @@ describe('sendLogoutsAcrossRealms', () => {
 
     // A delivered row is never claimable again — its absence here,
     // combined with the count above, is what proves the write landed.
-    const claimableIn = async (realmId: string): Promise<readonly string[]> =>
-      withRealm(app.db, realmId, (tx) =>
+    const claimableIn = async (tenantId: string): Promise<readonly string[]> =>
+      withTenant(app.db, tenantId, (tx) =>
         logoutDeliveryRepository(tx)
           .claimDue({ now: NOW, limit: 10, leaseSeconds: 1 })
           .then((rows) => rows.map((row) => row.id)),
       );
 
-    expect(await claimableIn(realmA)).not.toContain(idA);
-    expect(await claimableIn(realmB)).not.toContain(idB);
+    expect(await claimableIn(tenantA)).not.toContain(idA);
+    expect(await claimableIn(tenantB)).not.toContain(idB);
   });
 
-  // Realms are visited in `realms.id` order, which is not the order they
-  // were created in, so this does not assume which of the two realms the
+  // Tenants are visited in `tenants.id` order, which is not the order they
+  // were created in, so this does not assume which of the two tenants the
   // first transport call lands on — only that both are visited regardless.
-  // If a realm's failure stopped the walk, the other realm's due delivery
+  // If a tenant's failure stopped the walk, the other tenant's due delivery
   // would never be claimed and the report would show one call, not two.
   it('counts a failed delivery without letting it stop the rest of the pass', async () => {
-    const realmC = await seedRealm();
-    const realmD = await seedRealm();
-    await seedDueDelivery(realmC, 'https://rp-c.example/backchannel');
-    await seedDueDelivery(realmD, 'https://rp-d.example/backchannel');
+    const tenantC = await seedTenant();
+    const tenantD = await seedTenant();
+    await seedDueDelivery(tenantC, 'https://rp-c.example/backchannel');
+    await seedDueDelivery(tenantD, 'https://rp-d.example/backchannel');
 
     let calls = 0;
     const transport: LogoutDeliveryTransport = () => {
@@ -156,7 +156,7 @@ describe('sendLogoutsAcrossRealms', () => {
         : Promise.resolve({ status: 200 });
     };
 
-    const report = await sendLogoutsAcrossRealms(
+    const report = await sendLogoutsAcrossTenants(
       { database: app, ownerDatabase: owner, transport },
       NOW,
       OPTIONS,
@@ -168,7 +168,7 @@ describe('sendLogoutsAcrossRealms', () => {
 
   it('refuses to run on a serving connection that bypasses row-level security', async () => {
     await expect(
-      sendLogoutsAcrossRealms(
+      sendLogoutsAcrossTenants(
         { database: owner, ownerDatabase: owner, transport: respondingWith(200) },
         NOW,
         OPTIONS,
@@ -185,7 +185,7 @@ async function lastErrorFor(id: string): Promise<string | null> {
 }
 
 // `sendLogoutsCommand` is what `odudu send-logouts` and the server's own
-// schedule actually call — unlike `sendLogoutsAcrossRealms` above, it
+// schedule actually call — unlike `sendLogoutsAcrossTenants` above, it
 // builds its own transport from `loadConfig()`, which is the only place
 // `ODUDU_ALLOW_PRIVATE_CLIENT_URLS` can reach it from.
 describe('the transport the command builds from configuration', () => {
@@ -203,14 +203,14 @@ describe('the transport the command builds from configuration', () => {
   // on — see the next test. Private-range refusal is the branch the flag
   // actually gates.
   it('refuses a private backchannel_logout_uri by default', async () => {
-    const realmId = await seedRealm();
-    const id = await seedDueDelivery(realmId, 'https://10.255.255.1:9443/backchannel');
+    const tenantId = await seedTenant();
+    const id = await seedDueDelivery(tenantId, 'https://10.255.255.1:9443/backchannel');
 
     process.env.ODUDU_DATABASE_URL = container.adminUrl;
     process.env.ODUDU_APP_DATABASE_URL = appConnectionUrl;
     process.env.ODUDU_KEK = KEK;
 
-    // Not an exact count: `sendLogoutsCommand` walks every realm in the
+    // Not an exact count: `sendLogoutsCommand` walks every tenant in the
     // shared test database, including due deliveries earlier tests in
     // this file left behind against unreachable hostnames. This row's own
     // `last_error` is what proves the refusal, not the report's total.
@@ -224,8 +224,8 @@ describe('the transport the command builds from configuration', () => {
   // Not a case the flag can fix: this is `assertPublicIPv4`'s own
   // unconditional loopback refusal, ahead of the `allowPrivate` read.
   it('refuses a loopback backchannel_logout_uri even with the flag on', async () => {
-    const realmId = await seedRealm();
-    const id = await seedDueDelivery(realmId, 'https://127.0.0.1:9443/backchannel');
+    const tenantId = await seedTenant();
+    const id = await seedDueDelivery(tenantId, 'https://127.0.0.1:9443/backchannel');
 
     process.env.ODUDU_DATABASE_URL = container.adminUrl;
     process.env.ODUDU_APP_DATABASE_URL = appConnectionUrl;

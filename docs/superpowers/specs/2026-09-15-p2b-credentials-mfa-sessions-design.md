@@ -24,12 +24,12 @@ In build order. Each numbered item is several increments; the order is a
 dependency order, not a preference.
 
 1. **The session lifecycle.** `session_id` on the existing `token_grants`,
-   `last_active_at` on `sessions`, realm-configured idle and maximum
+   `last_active_at` on `sessions`, tenant-configured idle and maximum
    lifespans, and the SSO cookie read at `/authorize`.
 2. **RP-initiated logout and offline access.** `end_session_endpoint`, the
    per-client `post_logout_redirect_uris` it matches against, and
    `offline_access` producing a grant no session expiry or logout touches.
-3. **The flow engine.** A flat ordered list of executions per realm with
+3. **The flow engine.** A flat ordered list of executions per tenant with
    `REQUIRED` / `ALTERNATIVE` / `CONDITIONAL` / `DISABLED` semantics,
    replacing `STEPS = ['password']`.
 4. **Credentials and required actions.** The `user_credentials` widening,
@@ -64,7 +64,7 @@ recorded in section 11 of the umbrella spec rather than an omission.
 | Account-console credential management           | P4    | Enrolment here is a required action inside the login flow. Listing, renaming and deleting a credential at leisure is the self-service console, already placed in P4.                                                                                                                                                                              |
 | Administrative session termination              | P4    | P4's exit criterion names it. `sessions` gains `last_active_at` here partly so that list has something worth showing.                                                                                                                                                                                                                             |
 | Signing-key rotation                            | P4    | Settled 2026-09-14. Nothing in this phase needs it.                                                                                                                                                                                                                                                                                               |
-| Per-realm SMTP configuration                    | P4    | Unchanged from P2a: ADR 0015 puts credentials in the environment. The outbox changes _when_ mail is sent, not where the credentials come from.                                                                                                                                                                                                    |
+| Per-tenant SMTP configuration                   | P4    | Unchanged from P2a: ADR 0015 puts credentials in the environment. The outbox changes _when_ mail is sent, not where the credentials come from.                                                                                                                                                                                                    |
 | Step-up authentication driven by `acr`          | —     | Deliberately unplaced in section 11, grouped with DPoP and PAR to be scoped alongside the FAPI 2.0 decision ADR 0016 identifies. This phase _emits_ `acr` and `amr`; honouring a requested value per request is the unplaced part.                                                                                                                |
 
 ## 3. The session, read
@@ -77,8 +77,8 @@ mechanism; this is the behaviour change a relying party can observe.
 Two conditions, both enforced at read time, in `sessionRepository`:
 
 ```
-now < expires_at              -- created_at + the realm's maximum lifespan
-now - last_active_at < idle   -- the realm's idle timeout
+now < expires_at              -- created_at + the tenant's maximum lifespan
+now - last_active_at < idle   -- the tenant's idle timeout
 ```
 
 `expires_at` keeps the meaning it has today — the hard deadline — and stops
@@ -99,7 +99,7 @@ offline grants having no session to touch.
 `docs/NEXT.md` names this trap and it is closed in the same increment as the
 read, not after it. The email-verified login gate lives in
 `login-submission.ts`, reached only through
-`POST /realms/{realm}/login-actions/authenticate`. A cookie that can
+`POST /tenants/{tenant}/login-actions/authenticate`. A cookie that can
 complete an authorization request is a second door into the same decision:
 an unverified self-registered user holding a live session cookie would
 otherwise sign in for free.
@@ -107,7 +107,7 @@ otherwise sign in for free.
 Nothing today would catch it. The existing tests exercise the form POST, and
 the form POST keeps working. So the check moves out of `login-submission`
 into a place both paths call, and the increment carries a test that drives
-the cookie path specifically: a realm with `verify_email` on, an unverified
+the cookie path specifically: a tenant with `verify_email` on, an unverified
 account, a live session row, and an `/authorize` request that must not
 succeed.
 
@@ -144,7 +144,7 @@ path that remembers to apply it.
 **Corrected 2026-09-15, before the plan was written.** This section
 originally specified a new `grants` table, on the reading that the
 refresh-token family had a name in the code and no home. It has had a home
-since P1: `token_grants` (migration 0010) already carries `id`, `realm_id`,
+since P1: `token_grants` (migration 0010) already carries `id`, `tenant_id`,
 `client_id`, `subject_id`, `scope`, `audience`, `created_at` and
 `revoked_at`, `refresh-rotation.ts` already reads it through
 `tokenGrantRepository(tx).byId`, and reuse detection already revokes through
@@ -157,9 +157,9 @@ So the migration is **one column**:
 ```sql
 ALTER TABLE token_grants ADD COLUMN session_id uuid;
 ALTER TABLE token_grants ADD CONSTRAINT token_grants_session_fk
-  FOREIGN KEY (realm_id, session_id) REFERENCES sessions (realm_id, id)
+  FOREIGN KEY (tenant_id, session_id) REFERENCES sessions (tenant_id, id)
   ON DELETE SET NULL;
-CREATE INDEX token_grants_by_session ON token_grants (realm_id, session_id);
+CREATE INDEX token_grants_by_session ON token_grants (tenant_id, session_id);
 ```
 
 `ON DELETE SET NULL` is deliberate and is the one subtlety: reaping a dead
@@ -199,9 +199,9 @@ a much smaller change, and the risk drops accordingly.
 `expires_at` stays, with its meaning narrowed to the maximum-lifespan
 deadline.
 
-### 0028 — realm session lifespans and password policy
+### 0028 — tenant session lifespans and password policy
 
-Columns on `realms`, each `CHECK`-bounded:
+Columns on `tenants`, each `CHECK`-bounded:
 
 - `sso_session_idle_seconds` (default 1800), `sso_session_max_seconds`
   (default 36000), with a constraint that idle does not exceed maximum — an
@@ -217,7 +217,7 @@ Columns on `realms`, each `CHECK`-bounded:
   `brute_force_max_lockout_seconds` (default 900),
   `brute_force_failure_reset_seconds` (default 43200).
 
-Every default is chosen so that **a realm upgraded into this migration
+Every default is chosen so that **a tenant upgraded into this migration
 behaves as it did before**, except where behaving as before is the defect
 the phase exists to fix. Lockout is on by default because "protects any
 endpoint using password authentication against brute-force attacks" is a
@@ -242,13 +242,13 @@ check are one decision seen from two sides:
    secret; they may hold several passkeys and several recovery codes, and
    the old constraint would have refused the second of either.
 4. New columns: `label` (user-supplied, for telling two passkeys apart),
-   `last_used_at`, and `lookup_key` — nullable, unique per realm, holding
+   `last_used_at`, and `lookup_key` — nullable, unique per tenant, holding
    the WebAuthn credential ID.
 
 `lookup_key` is what makes a passwordless login possible at all: a
 discoverable-credential assertion arrives identifying a credential, not a
 user, so the server must resolve a subject from the credential ID through an
-index rather than by scanning `jsonb` across a realm.
+index rather than by scanning `jsonb` across a tenant.
 
 The per-type shape of `secret_data` is a discriminated union parsed with Zod
 at the repository boundary — `unknown` narrowed, never `any`, and never a
@@ -256,19 +256,19 @@ cast. `CredentialRecord.type` stops being the literal `'password'`.
 
 ### 0030 — `authentication_executions`
 
-`(realm_id, index)` unique, `authenticator` text, `requirement` constrained
-to the four values. Provisioned with the default browser flow when a realm
+`(tenant_id, index)` unique, `authenticator` text, `requirement` constrained
+to the four values. Provisioned with the default browser flow when a tenant
 is created, by the same `provision-defaults` path that already seeds client
 scopes.
 
 ### 0031 — `user_required_actions`
 
-`(realm_id, subject_id, action)` unique, with `created_at`. Rows are
+`(tenant_id, subject_id, action)` unique, with `created_at`. Rows are
 consumed when the action completes.
 
 ### 0032 — `login_failures`
 
-`(realm_id, subject_id)` primary key, `failure_count`,
+`(tenant_id, subject_id)` primary key, `failure_count`,
 `first_failure_at`, `last_failure_at`, `locked_until`. Keyed by subject, not
 by username: a lockout that follows a username would let an attacker lock an
 account out of existence by guessing at a username the account no longer
@@ -284,7 +284,7 @@ client metadata.
 
 ### 0034 — `email_outbox`
 
-`id`, `realm_id`, `to_address`, `subject`, `body`, `created_at`,
+`id`, `tenant_id`, `to_address`, `subject`, `body`, `created_at`,
 `sent_at` (nullable), `attempts`, `last_error` (nullable),
 `next_attempt_at`. Claimed by the sender with `FOR UPDATE SKIP LOCKED` so
 two schedulers never send the same message twice.
@@ -299,7 +299,7 @@ requirements.
 
 ### 5.1 Evaluation
 
-Executions for the realm are loaded in `index` order and evaluated as a
+Executions for the tenant are loaded in `index` order and evaluated as a
 single level:
 
 - `DISABLED` — skipped entirely, as though absent.
@@ -309,7 +309,7 @@ single level:
   alternatives _within_ a flow; making the grouping positional rather than
   structural is exactly what lets a flat list express it.
 - `CONDITIONAL` — the authenticator decides its own applicability from the
-  subject's enrolled credentials and the realm's policy, and an inapplicable
+  subject's enrolled credentials and the tenant's policy, and an inapplicable
   step is skipped rather than failed.
 
 Nesting is P4's (section 13). A flat list is a valid single-level tree, so
@@ -325,7 +325,7 @@ the rows P2b writes are rows P4 extends.
 
 A passkey or a password gets you through the first group. The conditional
 OTP step applies when the subject has a TOTP credential enrolled, or the
-realm requires one — and **not after a passkey**, because a passkey
+tenant requires one — and **not after a passkey**, because a passkey
 assertion is already two factors and demanding a second is a policy this
 phase does not hold.
 
@@ -347,7 +347,7 @@ gathered by the caller) does not change.
 
 ### 6.1 Password policy
 
-One service in `domain-identity` evaluates a candidate against a realm's
+One service in `domain-identity` evaluates a candidate against a tenant's
 policy and returns **every** violation, not the first. A form that rejects a
 password one rule at a time is a form that takes four attempts to satisfy.
 
@@ -405,8 +405,8 @@ generation. Consumed by deleting nothing — a used code is marked used, so a
 replay is distinguishable from an unknown code, which is the same reasoning
 ADR 0021 applies to every other single-use credential in the schema.
 
-They are in this phase because a realm that requires TOTP and has no
-recovery path is a realm that locks a user out permanently: there is no
+They are in this phase because a tenant that requires TOTP and has no
+recovery path is a tenant that locks a user out permanently: there is no
 admin API until P4. The migration and the required-action surface are
 already being built here, so the cost is a fourth type rather than a
 mechanism.
@@ -420,12 +420,12 @@ code is issued. Pages render server-side, in the style
 verification.
 
 Actions in P2b: `configure-totp`, `configure-passkey`, `update-password`,
-`generate-recovery-codes`. Each is added by policy — a realm requiring OTP
+`generate-recovery-codes`. Each is added by policy — a tenant requiring OTP
 adds `configure-totp` to a subject with no TOTP credential; a password past
 `password_max_age_days` adds `update-password` — and removed on completion.
 
-This mechanism is what makes a realm-level requirement expressible at all.
-Without it, "this realm requires OTP" can only mean "OTP is offered to
+This mechanism is what makes a tenant-level requirement expressible at all.
+Without it, "this tenant requires OTP" can only mean "OTP is offered to
 whoever already has it", and the `CONDITIONAL` step in section 5.2 would
 have nothing to require.
 
@@ -436,7 +436,7 @@ have nothing to require.
 Per OpenID Connect RP-Initiated Logout 1.0, advertised in discovery. The
 request carries `id_token_hint`, `client_id`,
 `post_logout_redirect_uri` and `state`; the hint is validated the way
-`/authorize` already validates one — this realm's keys, this realm's `iss`,
+`/authorize` already validates one — this tenant's keys, this tenant's `iss`,
 with an access token refused by `typ`.
 
 A `post_logout_redirect_uri` is matched against the client's registrations
@@ -516,7 +516,7 @@ second sentence.
 
 ### 7.3 `offline_access`
 
-A realm-owned client scope, following P2a's model, which a client must be
+A tenant-owned client scope, following P2a's model, which a client must be
 assigned and must request. Granting it produces a grant with no
 `session_id`; its refresh token is bounded by the client's own refresh TTL
 and by the retention rules in section 8, and by nothing about a session.
@@ -542,15 +542,15 @@ rule lives in the command, where a test drives it directly.
 **A row is deletable once no decision can read it.** Applied per table, that
 is:
 
-| Table                     | Deletable when                                                                                                                                                            |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `authentication_sessions` | expired or consumed, plus a short grace — nothing reads a spent one except to refuse it, and the parked request dies with it                                              |
-| `authorization_codes`     | the grant family it produced is past its own retention, **not** when the code expires                                                                                     |
-| `refresh_tokens`          | the grant family is past its retention                                                                                                                                    |
-| `grants`                  | `created_at` plus the realm's detection window, which is the maximum family life: the refresh TTL for a session grant, and an explicit offline ceiling for an offline one |
-| `sessions`                | past `expires_at` plus a grace, and no live grant references it                                                                                                           |
-| `action_tokens`           | consumed or expired, plus a stated window, so a replayed link is still distinguishable from one that never existed                                                        |
-| `email_outbox`            | sent, plus a stated window; a permanently failed message is kept until an operator has had a chance to see it                                                             |
+| Table                     | Deletable when                                                                                                                                                             |
+| ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `authentication_sessions` | expired or consumed, plus a short grace — nothing reads a spent one except to refuse it, and the parked request dies with it                                               |
+| `authorization_codes`     | the grant family it produced is past its own retention, **not** when the code expires                                                                                      |
+| `refresh_tokens`          | the grant family is past its retention                                                                                                                                     |
+| `grants`                  | `created_at` plus the tenant's detection window, which is the maximum family life: the refresh TTL for a session grant, and an explicit offline ceiling for an offline one |
+| `sessions`                | past `expires_at` plus a grace, and no live grant references it                                                                                                            |
+| `action_tokens`           | consumed or expired, plus a stated window, so a replayed link is still distinguishable from one that never existed                                                         |
+| `email_outbox`            | sent, plus a stated window; a permanently failed message is kept until an operator has had a chance to see it                                                              |
 
 ADR 0021 gets an amendment fixing the window numbers and recording the
 `grants`-dated derivation, rather than a new ADR: the decision is unchanged,
@@ -578,8 +578,8 @@ rows.
 Two mechanisms, because there are two authorities.
 
 **Account lockout is in Postgres.** `login_failures` counts failures per
-`(realm, subject)` and sets `locked_until` with backoff doubling to the
-realm's ceiling; the counter resets after
+`(tenant, subject)` and sets `locked_until` with backoff doubling to the
+tenant's ceiling; the counter resets after
 `brute_force_failure_reset_seconds` of quiet, or on a successful login. It
 is in the database because it must survive a restart and be shared by every
 instance — a lockout an attacker can clear by waiting for a deploy is not a
@@ -623,7 +623,7 @@ of not being:
 2. **`jsonb` conversion of `secret_data`** against a database carrying real
    Argon2id PHC strings, run forwards on a seeded database, including a
    string containing characters that make a naive `to_jsonb` call interesting.
-3. **Postgres advisory locks inside `withRealm`.** The wrapper sets realm
+3. **Postgres advisory locks inside `withTenant`.** The wrapper sets tenant
    context with `set_config(..., true)` — the bindable form of `SET LOCAL` —
    on a pooled connection. Whether a session-scoped advisory lock behaves as
    the reaper needs it to inside that transaction, and whether the
@@ -638,7 +638,7 @@ of not being:
 
 Unchanged in discipline from P2a: tests precede implementation, integration
 tests run against real PostgreSQL through Testcontainers, every repository
-method is probed with a foreign `realm_id`, and `SET LOCAL` never `SET`.
+method is probed with a foreign `tenant_id`, and `SET LOCAL` never `SET`.
 
 Specific to this phase:
 
@@ -658,7 +658,7 @@ Specific to this phase:
 
 `tests/docs/` grows checks for the claims this phase adds to
 `docs/request-paths.md` that can be checked — the discovery document
-advertising `end_session_endpoint`, and the lifespan defaults a realm is
+advertising `end_session_endpoint`, and the lifespan defaults a tenant is
 provisioned with.
 
 ## 12. Traceability
@@ -855,10 +855,10 @@ tripped over it.
 **Corrected during execution.**
 
 3. **Three migrations were never numbered** (`authentication_sessions.satisfied`,
-   `sessions.authenticators`, `realms.otp_required`), described in prose as
+   `sessions.authenticators`, `tenants.otp_required`), described in prose as
    though schema followed from description, and three more were not
    foreseen at all (`authorization_codes.session_id`, the retention indexes,
-   and splitting the session columns from the realm columns because they
+   and splitting the session columns from the tenant columns because they
    land in different tables). §4 sketched nine; nineteen shipped, 0026–0044 — the last of them
    after the phase's own review, closing the second-factor bypass.
 4. **A repository method with no file.** Task 19's file list omitted
@@ -895,7 +895,7 @@ tripped over it.
     unprovable; it lives in
     `packages/protocol-oidc/tests/login.adversarial.int.test.ts`.
 12. **A lock the dependency had already absorbed.** Task 26's scheduler was
-    specified as "interval, jitter, lock, call"; `withEachRealmExclusive`
+    specified as "interval, jitter, lock, call"; `withEachTenantExclusive`
     takes `pg_try_advisory_xact_lock` as its transaction's first statement,
     so a second key would have weakened the guarantee rather than added one.
 13. **A convention with no instance in the repository.** The dispatch's
@@ -906,7 +906,7 @@ tripped over it.
 14. **Two migration numbers already taken** (Task 5's `0029`, Task 13's
     `0034`), because the spec numbered migrations before the task order
     existed.
-15. **Helpers and fixtures that do not exist.** `seedRealm` and
+15. **Helpers and fixtures that do not exist.** `seedTenant` and
     `testDatabase` in `@odudu/testkit` (Task 1), `issueAndRotateOnce` and
     `presentRefreshToken` (Task 25), `@odudu/db/testing` as the integration
     harness (Task 16) — each named as though it were already there.
@@ -916,7 +916,7 @@ tripped over it.
     A wrong expectation in a test is the one defect that ships as evidence.
 17. **A signature that could not do the job**, three times: `reap(db, …)`
     and `sendPending(db, …)` each need two connections, since the deletes
-    and claims run under the realm policy and the realm enumeration must
+    and claims run under the tenant policy and the tenant enumeration must
     escape it; `ReapReport` as a return type would have reported a skipped
     pass as a pass of zeros.
 18. **An ordering that was backwards.** Task 25's "grants before the tokens

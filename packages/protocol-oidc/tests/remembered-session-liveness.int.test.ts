@@ -3,14 +3,14 @@ import { hashPassword, subjectRepository, userCredentials, users } from '@odudu/
 import {
   createDatabase,
   MIGRATIONS_DIR,
-  realms,
+  tenants,
   runMigrations,
-  withRealm,
+  withTenant,
   type DatabaseHandle,
-  type RealmScopedDatabase,
+  type TenantScopedDatabase,
 } from '@odudu/db';
-import { provisionRealm, sessions } from '@odudu/authn-flows';
-import { clients, provisionClientDefaults } from '@odudu/domain-realm';
+import { provisionTenant, sessions } from '@odudu/authn-flows';
+import { clients, provisionClientDefaults } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import formbody from '@fastify/formbody';
@@ -22,8 +22,8 @@ import { NO_CLIENT_KEY_FETCHER } from '#/repository/client-keys';
 import { UNLIMITED_CLIENT_SECRET_LIMITER } from '#/service/client-secret-throttle';
 import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
 
-// A realm's ordinary idle window defaults to 1800s and its remember-me idle
-// window to 604_800s (packages/db/src/schema/realms.ts). This file backs a
+// A tenant's ordinary idle window defaults to 1800s and its remember-me idle
+// window to 604_800s (packages/db/src/schema/tenants.ts). This file backs a
 // live session's `last_active_at` 100_000_000ms (~27.8h) into the past —
 // past the ordinary window, comfortably inside the remembered one — the
 // same offset offline-access.int.test.ts's idleOutEverySession uses to put
@@ -54,17 +54,17 @@ const KEK = Buffer.alloc(32, 41);
 const VERIFIER = 'dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk';
 const CHALLENGE = 'E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM';
 
-async function setupRealm(name: string): Promise<void> {
-  const realmId = newId();
-  const issuer = `http://localhost/realms/${name}`;
-  await withRealm(app.db, realmId, async (tx: RealmScopedDatabase) => {
-    await tx.insert(realms).values({ id: realmId, name, rememberMeAllowed: true });
-    await provisionRealm(tx, realmId);
+async function setupTenant(name: string): Promise<void> {
+  const tenantId = newId();
+  const issuer = `http://localhost/tenants/${name}`;
+  await withTenant(app.db, tenantId, async (tx: TenantScopedDatabase) => {
+    await tx.insert(tenants).values({ id: tenantId, name, rememberMeAllowed: true });
+    await provisionTenant(tx, tenantId);
 
     const clientDbId = newId();
     await tx.insert(clients).values({
       id: clientDbId,
-      realmId,
+      tenantId,
       clientId: CLIENT_ID,
       name: 'remembered liveness test client',
       type: 'confidential',
@@ -73,7 +73,7 @@ async function setupRealm(name: string): Promise<void> {
     await provisionClientDefaults(tx, clientDbId);
     await clientOidcConfigRepository(tx).create({
       clientId: clientDbId,
-      realmId,
+      tenantId,
       redirectUris: [REDIRECT_URI],
       grantTypes: ['authorization_code', 'refresh_token'],
       tokenEndpointAuthMethod: 'client_secret_basic',
@@ -85,11 +85,11 @@ async function setupRealm(name: string): Promise<void> {
       refreshTokenTtlSeconds: 1_209_600,
     });
 
-    const subject = await subjectRepository(tx).create({ realmId, type: 'user' });
-    await tx.insert(users).values({ subjectId: subject.id, realmId, username: USERNAME });
+    const subject = await subjectRepository(tx).create({ tenantId, type: 'user' });
+    await tx.insert(users).values({ subjectId: subject.id, tenantId, username: USERNAME });
     await tx.insert(userCredentials).values({
       id: newId(),
-      realmId,
+      tenantId,
       subjectId: subject.id,
       type: 'password',
       secretData: { hash: await hashPassword(PASSWORD) },
@@ -98,7 +98,7 @@ async function setupRealm(name: string): Promise<void> {
     const generated = await generateSigningKey('ES256', KEK);
     const key: SigningKeyRecord = {
       id: newId(),
-      realmId,
+      tenantId,
       kid: generated.kid,
       alg: generated.alg,
       status: 'active',
@@ -109,7 +109,7 @@ async function setupRealm(name: string): Promise<void> {
     };
     await tx.insert(signingKeys).values({
       id: key.id,
-      realmId,
+      tenantId,
       kid: key.kid,
       alg: key.alg,
       status: 'active',
@@ -130,7 +130,7 @@ function locationHeader(res: LightMyRequestResponse): string {
   return location;
 }
 
-function authorizeUrl(realmName: string): string {
+function authorizeUrl(tenantName: string): string {
   const params = new URLSearchParams({
     response_type: 'code',
     client_id: CLIENT_ID,
@@ -140,17 +140,17 @@ function authorizeUrl(realmName: string): string {
     code_challenge: CHALLENGE,
     code_challenge_method: 'S256',
   });
-  return `/realms/${realmName}/protocol/openid-connect/auth?${params.toString()}`;
+  return `/tenants/${tenantName}/protocol/openid-connect/auth?${params.toString()}`;
 }
 
 // Signs in, optionally asking to be remembered, and redeems the resulting
 // code — returning the session id (from the ephemeral cookie, which every
 // login carries regardless of remember_me) and the issued tokens.
 async function completeFlow(
-  realmName: string,
+  tenantName: string,
   opts: { remember: boolean },
 ): Promise<{ sessionId: string; access_token: string; refresh_token: string }> {
-  const authorize = await http.inject({ url: authorizeUrl(realmName) });
+  const authorize = await http.inject({ url: authorizeUrl(tenantName) });
   if (authorize.statusCode !== 200) {
     throw new Error(
       `expected /authorize to render the login form, got ${String(authorize.statusCode)}`,
@@ -168,7 +168,7 @@ async function completeFlow(
   });
   const submitted = await http.inject({
     method: 'POST',
-    url: `/realms/${realmName}/login-actions/authenticate`,
+    url: `/tenants/${tenantName}/login-actions/authenticate`,
     payload: form.toString(),
     headers: { 'content-type': 'application/x-www-form-urlencoded' },
   });
@@ -181,7 +181,7 @@ async function completeFlow(
   // would hold two IDs for one login otherwise. An ordinary login is the
   // opposite. Either way exactly one of the two carries a non-empty value.
   const ephemeral = cookieList(submitted).find(
-    (c) => c.startsWith(`${realmName}-session=`) && !c.includes('-persistent'),
+    (c) => c.startsWith(`${tenantName}-session=`) && !c.includes('-persistent'),
   );
   const persistent = cookieList(submitted).find((c) => c.includes('-session-persistent='));
   const fromEphemeral = ephemeral?.split('=')[1]?.split(';')[0];
@@ -203,7 +203,7 @@ async function completeFlow(
   });
   const redeemed = await http.inject({
     method: 'POST',
-    url: `/realms/${realmName}/protocol/openid-connect/token`,
+    url: `/tenants/${tenantName}/protocol/openid-connect/token`,
     payload: tokenForm.toString(),
     headers: {
       'content-type': 'application/x-www-form-urlencoded',
@@ -224,11 +224,11 @@ async function idleOutSession(sessionId: string): Promise<void> {
     .where(eq(sessions.id, sessionId));
 }
 
-async function introspect(realmName: string, token: string): Promise<{ active: boolean }> {
+async function introspect(tenantName: string, token: string): Promise<{ active: boolean }> {
   const form = new URLSearchParams({ token });
   const res = await http.inject({
     method: 'POST',
-    url: `/realms/${realmName}/protocol/openid-connect/token/introspect`,
+    url: `/tenants/${tenantName}/protocol/openid-connect/token/introspect`,
     payload: form.toString(),
     headers: {
       'content-type': 'application/x-www-form-urlencoded',
@@ -241,11 +241,11 @@ async function introspect(realmName: string, token: string): Promise<{ active: b
   return res.json<{ active: boolean }>();
 }
 
-async function refresh(realmName: string, refreshToken: string): Promise<LightMyRequestResponse> {
+async function refresh(tenantName: string, refreshToken: string): Promise<LightMyRequestResponse> {
   const form = new URLSearchParams({ grant_type: 'refresh_token', refresh_token: refreshToken });
   return http.inject({
     method: 'POST',
-    url: `/realms/${realmName}/protocol/openid-connect/token`,
+    url: `/tenants/${tenantName}/protocol/openid-connect/token`,
     payload: form.toString(),
     headers: {
       'content-type': 'application/x-www-form-urlencoded',
@@ -290,56 +290,56 @@ afterAll(async () => {
 
 describe('a remembered session past the ordinary idle window', () => {
   it('introspects its access token as active', async () => {
-    const realmName = `remembered-introspect-${newId()}`;
-    await setupRealm(realmName);
-    const { sessionId, access_token: accessToken } = await completeFlow(realmName, {
+    const tenantName = `remembered-introspect-${newId()}`;
+    await setupTenant(tenantName);
+    const { sessionId, access_token: accessToken } = await completeFlow(tenantName, {
       remember: true,
     });
 
     await idleOutSession(sessionId);
 
-    const response = await introspect(realmName, accessToken);
+    const response = await introspect(tenantName, accessToken);
     expect(response.active).toBe(true);
   });
 
   it('still redeems a session-bound refresh token', async () => {
-    const realmName = `remembered-refresh-${newId()}`;
-    await setupRealm(realmName);
-    const { sessionId, refresh_token: refreshToken } = await completeFlow(realmName, {
+    const tenantName = `remembered-refresh-${newId()}`;
+    await setupTenant(tenantName);
+    const { sessionId, refresh_token: refreshToken } = await completeFlow(tenantName, {
       remember: true,
     });
 
     await idleOutSession(sessionId);
 
-    const response = await refresh(realmName, refreshToken);
+    const response = await refresh(tenantName, refreshToken);
     expect(response.statusCode).toBe(200);
   });
 });
 
 describe('an ordinary (non-remembered) session past the ordinary idle window', () => {
   it('still introspects its access token as inactive', async () => {
-    const realmName = `ordinary-introspect-${newId()}`;
-    await setupRealm(realmName);
-    const { sessionId, access_token: accessToken } = await completeFlow(realmName, {
+    const tenantName = `ordinary-introspect-${newId()}`;
+    await setupTenant(tenantName);
+    const { sessionId, access_token: accessToken } = await completeFlow(tenantName, {
       remember: false,
     });
 
     await idleOutSession(sessionId);
 
-    const response = await introspect(realmName, accessToken);
+    const response = await introspect(tenantName, accessToken);
     expect(response.active).toBe(false);
   });
 
   it('still refuses a session-bound refresh', async () => {
-    const realmName = `ordinary-refresh-${newId()}`;
-    await setupRealm(realmName);
-    const { sessionId, refresh_token: refreshToken } = await completeFlow(realmName, {
+    const tenantName = `ordinary-refresh-${newId()}`;
+    await setupTenant(tenantName);
+    const { sessionId, refresh_token: refreshToken } = await completeFlow(tenantName, {
       remember: false,
     });
 
     await idleOutSession(sessionId);
 
-    const response = await refresh(realmName, refreshToken);
+    const response = await refresh(tenantName, refreshToken);
     expect(response.statusCode).toBe(400);
   });
 });

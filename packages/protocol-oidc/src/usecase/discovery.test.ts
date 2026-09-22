@@ -4,33 +4,33 @@ import { resolveDiscoveryDocument } from '#/usecase/discovery';
 const claimNames = () => ['sub', 'name', 'email', 'email_verified'];
 // Rows come back from client_scopes in no particular order, so this returns
 // them out of order deliberately.
-const scopesForRealm = () => Promise.resolve(['profile', 'openid', 'email']);
+const scopesForTenant = () => Promise.resolve(['profile', 'openid', 'email']);
 const activeSigningKeyAlg = () => Promise.resolve('RS256');
 const userinfoEncryptionAlgSupported = ['RSA-OAEP-256'];
 const userinfoEncryptionEncSupported = ['A128CBC-HS256'];
 
 describe('resolveDiscoveryDocument', () => {
-  it('returns null for an unknown realm', async () => {
+  it('returns null for an unknown tenant', async () => {
     const doc = await resolveDiscoveryDocument(
       {
-        findRealm: () => Promise.resolve(null),
+        findTenant: () => Promise.resolve(null),
         claimNames,
-        scopesForRealm,
+        scopesForTenant,
         activeSigningKeyAlg,
         userinfoEncryptionAlgSupported,
         userinfoEncryptionEncSupported,
         trustProxy: false,
       },
-      'no-such-realm',
+      'no-such-tenant',
       'https://idp.example',
     );
     expect(doc).toBeNull();
   });
 
-  it('returns null for a disabled realm', async () => {
+  it('returns null for a disabled tenant', async () => {
     const doc = await resolveDiscoveryDocument(
       {
-        findRealm: () =>
+        findTenant: () =>
           Promise.resolve({
             id: 'r1',
             enabled: false,
@@ -44,22 +44,22 @@ describe('resolveDiscoveryDocument', () => {
             clientRegistrationPolicy: 'disabled',
           }),
         claimNames,
-        scopesForRealm,
+        scopesForTenant,
         activeSigningKeyAlg,
         userinfoEncryptionAlgSupported,
         userinfoEncryptionEncSupported,
         trustProxy: false,
       },
-      'disabled-realm',
+      'disabled-tenant',
       'https://idp.example',
     );
     expect(doc).toBeNull();
   });
 
-  it('builds the document under the resolved issuer for an enabled realm', async () => {
+  it('builds the document under the resolved issuer for an enabled tenant', async () => {
     const doc = await resolveDiscoveryDocument(
       {
-        findRealm: () =>
+        findTenant: () =>
           Promise.resolve({
             id: 'r1',
             enabled: true,
@@ -73,7 +73,7 @@ describe('resolveDiscoveryDocument', () => {
             clientRegistrationPolicy: 'disabled',
           }),
         claimNames,
-        scopesForRealm,
+        scopesForTenant,
         activeSigningKeyAlg,
         userinfoEncryptionAlgSupported,
         userinfoEncryptionEncSupported,
@@ -82,13 +82,13 @@ describe('resolveDiscoveryDocument', () => {
       'acme',
       'https://idp.example',
     );
-    expect(doc?.issuer).toBe('https://idp.example/realms/acme');
+    expect(doc?.issuer).toBe('https://idp.example/tenants/acme');
   });
 
-  it('builds scopes_supported from the realm, in a stable order', async () => {
+  it('builds scopes_supported from the tenant, in a stable order', async () => {
     const doc = await resolveDiscoveryDocument(
       {
-        findRealm: () =>
+        findTenant: () =>
           Promise.resolve({
             id: 'r1',
             enabled: true,
@@ -102,7 +102,7 @@ describe('resolveDiscoveryDocument', () => {
             clientRegistrationPolicy: 'disabled',
           }),
         claimNames,
-        scopesForRealm,
+        scopesForTenant,
         activeSigningKeyAlg,
         userinfoEncryptionAlgSupported,
         userinfoEncryptionEncSupported,
@@ -117,7 +117,7 @@ describe('resolveDiscoveryDocument', () => {
   it('builds claims_supported from the claim mapper registry, not a literal', async () => {
     const doc = await resolveDiscoveryDocument(
       {
-        findRealm: () =>
+        findTenant: () =>
           Promise.resolve({
             id: 'r1',
             enabled: true,
@@ -131,7 +131,7 @@ describe('resolveDiscoveryDocument', () => {
             clientRegistrationPolicy: 'disabled',
           }),
         claimNames,
-        scopesForRealm,
+        scopesForTenant,
         activeSigningKeyAlg,
         userinfoEncryptionAlgSupported,
         userinfoEncryptionEncSupported,
@@ -156,7 +156,7 @@ describe('resolveDiscoveryDocument', () => {
     async (clientRegistrationPolicy) => {
       const doc = await resolveDiscoveryDocument(
         {
-          findRealm: () =>
+          findTenant: () =>
             Promise.resolve({
               id: 'r1',
               enabled: true,
@@ -170,7 +170,7 @@ describe('resolveDiscoveryDocument', () => {
               clientRegistrationPolicy,
             }),
           claimNames,
-          scopesForRealm,
+          scopesForTenant,
           activeSigningKeyAlg,
           userinfoEncryptionAlgSupported,
           userinfoEncryptionEncSupported,
@@ -180,7 +180,7 @@ describe('resolveDiscoveryDocument', () => {
         'https://idp.example',
       );
       expect(doc?.registration_endpoint).toBe(
-        'https://idp.example/realms/acme/clients-registrations/openid-connect',
+        'https://idp.example/tenants/acme/clients-registrations/openid-connect',
       );
     },
   );
@@ -194,7 +194,7 @@ describe('resolveDiscoveryDocument', () => {
     async (trustProxy) => {
       const doc = await resolveDiscoveryDocument(
         {
-          findRealm: () =>
+          findTenant: () =>
             Promise.resolve({
               id: 'r1',
               enabled: true,
@@ -208,7 +208,7 @@ describe('resolveDiscoveryDocument', () => {
               clientRegistrationPolicy: 'disabled',
             }),
           claimNames,
-          scopesForRealm,
+          scopesForTenant,
           activeSigningKeyAlg,
           userinfoEncryptionAlgSupported,
           userinfoEncryptionEncSupported,
@@ -223,10 +223,10 @@ describe('resolveDiscoveryDocument', () => {
     },
   );
 
-  it('advertises the realm active key alg plus none, never a fixed pair', async () => {
+  it('advertises the tenant active key alg plus none, never a fixed pair', async () => {
     const doc = await resolveDiscoveryDocument(
       {
-        findRealm: () =>
+        findTenant: () =>
           Promise.resolve({
             id: 'r1',
             enabled: true,
@@ -240,7 +240,7 @@ describe('resolveDiscoveryDocument', () => {
             clientRegistrationPolicy: 'disabled',
           }),
         claimNames,
-        scopesForRealm,
+        scopesForTenant,
         activeSigningKeyAlg: () => Promise.resolve('ES256'),
         userinfoEncryptionAlgSupported,
         userinfoEncryptionEncSupported,
@@ -252,10 +252,10 @@ describe('resolveDiscoveryDocument', () => {
     expect(doc?.userinfo_signing_alg_values_supported).toEqual(['ES256', 'none']);
   });
 
-  it('advertises the caller-supplied encryption alg/enc values, unlike signing, unconditioned on the realm', async () => {
+  it('advertises the caller-supplied encryption alg/enc values, unlike signing, unconditioned on the tenant', async () => {
     const doc = await resolveDiscoveryDocument(
       {
-        findRealm: () =>
+        findTenant: () =>
           Promise.resolve({
             id: 'r1',
             enabled: true,
@@ -269,7 +269,7 @@ describe('resolveDiscoveryDocument', () => {
             clientRegistrationPolicy: 'disabled',
           }),
         claimNames,
-        scopesForRealm,
+        scopesForTenant,
         activeSigningKeyAlg: () => Promise.resolve(null),
         userinfoEncryptionAlgSupported,
         userinfoEncryptionEncSupported,
@@ -282,10 +282,10 @@ describe('resolveDiscoveryDocument', () => {
     expect(doc?.userinfo_encryption_enc_values_supported).toEqual(userinfoEncryptionEncSupported);
   });
 
-  it('advertises only none for a realm with no active signing key yet', async () => {
+  it('advertises only none for a tenant with no active signing key yet', async () => {
     const doc = await resolveDiscoveryDocument(
       {
-        findRealm: () =>
+        findTenant: () =>
           Promise.resolve({
             id: 'r1',
             enabled: true,
@@ -299,7 +299,7 @@ describe('resolveDiscoveryDocument', () => {
             clientRegistrationPolicy: 'disabled',
           }),
         claimNames,
-        scopesForRealm,
+        scopesForTenant,
         activeSigningKeyAlg: () => Promise.resolve(null),
         userinfoEncryptionAlgSupported,
         userinfoEncryptionEncSupported,
@@ -314,7 +314,7 @@ describe('resolveDiscoveryDocument', () => {
   it('omits registration_endpoint while the policy is disabled', async () => {
     const doc = await resolveDiscoveryDocument(
       {
-        findRealm: () =>
+        findTenant: () =>
           Promise.resolve({
             id: 'r1',
             enabled: true,
@@ -328,7 +328,7 @@ describe('resolveDiscoveryDocument', () => {
             clientRegistrationPolicy: 'disabled',
           }),
         claimNames,
-        scopesForRealm,
+        scopesForTenant,
         activeSigningKeyAlg,
         userinfoEncryptionAlgSupported,
         userinfoEncryptionEncSupported,

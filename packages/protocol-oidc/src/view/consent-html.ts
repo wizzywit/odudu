@@ -2,7 +2,7 @@ import { type RenderedPage } from '@odudu/kernel';
 import { escapeHtml, page } from '#/view/document';
 
 export interface ConsentPageInput {
-  realm: string;
+  tenant: string;
   authSessionId: string;
   // Self-asserted by the client at registration (RFC 7591 §5) — escaped
   // like every other interpolated value, the client's name most of all.
@@ -40,7 +40,7 @@ function renderOptionalScope(scope: string, granted: ReadonlySet<string>): strin
 // control. There is no script on this page, so `script` is null and
 // `default-src 'none'` describes it exactly.
 export function renderConsentPage(input: ConsentPageInput): RenderedPage {
-  const action = `/realms/${escapeHtml(input.realm)}/login-actions/consent`;
+  const action = `/tenants/${escapeHtml(input.tenant)}/login-actions/consent`;
   const granted = new Set(input.alreadyGranted);
   const defaultList = input.defaultScopes.map(renderDefaultScope).join('\n  ');
   const optionalList = input.optionalScopes

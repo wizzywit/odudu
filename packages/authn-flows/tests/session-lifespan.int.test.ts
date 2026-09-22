@@ -1,13 +1,13 @@
 import {
   createDatabase,
   MIGRATIONS_DIR,
-  realms,
+  tenants,
   runMigrations,
-  withRealm,
+  withTenant,
   type DatabaseHandle,
-  type RealmScopedDatabase,
+  type TenantScopedDatabase,
 } from '@odudu/db';
-import { expectCrossRealmMethodProbe } from '@odudu/db/testing';
+import { expectCrossTenantMethodProbe } from '@odudu/db/testing';
 import { subjectRepository } from '@odudu/domain-identity';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
@@ -49,20 +49,20 @@ afterAll(async () => {
   await containerHandle?.stop();
 });
 
-async function seedRealm(tx: RealmScopedDatabase, realmId: string): Promise<void> {
-  await tx.insert(realms).values({ id: realmId, name: `realm-${realmId}` });
+async function seedTenant(tx: TenantScopedDatabase, tenantId: string): Promise<void> {
+  await tx.insert(tenants).values({ id: tenantId, name: `tenant-${tenantId}` });
 }
 
 async function createSession(
-  tx: RealmScopedDatabase,
-  realmId: string,
+  tx: TenantScopedDatabase,
+  tenantId: string,
   lastActiveAt: Date,
 ): Promise<string> {
-  const subject = await subjectRepository(tx).create({ realmId, type: 'user' });
+  const subject = await subjectRepository(tx).create({ tenantId, type: 'user' });
   const id = newId();
   await sessionRepository(tx).create({
     id,
-    realmId,
+    tenantId,
     subjectId: subject.id,
     expiresAt: new Date(Date.now() + 36_000_000),
     authenticators: [],
@@ -73,24 +73,24 @@ async function createSession(
 
 describe('session lifespans', () => {
   it('does not return an idled-out session from liveById', async () => {
-    const realmId = newId();
-    const id = await withRealm(app.db, realmId, async (tx) => {
-      await seedRealm(tx, realmId);
-      return createSession(tx, realmId, new Date(Date.now() - 3_600_000));
+    const tenantId = newId();
+    const id = await withTenant(app.db, tenantId, async (tx) => {
+      await seedTenant(tx, tenantId);
+      return createSession(tx, tenantId, new Date(Date.now() - 3_600_000));
     });
-    await withRealm(app.db, realmId, async (tx) => {
+    await withTenant(app.db, tenantId, async (tx) => {
       expect(await sessionRepository(tx).liveById(id, LIFESPANS, new Date())).toBeNull();
       expect(await sessionRepository(tx).byId(id)).not.toBeNull();
     });
   });
 
   it('returns a recently used session and moves last_active_at on touch', async () => {
-    const realmId = newId();
-    const id = await withRealm(app.db, realmId, async (tx) => {
-      await seedRealm(tx, realmId);
-      return createSession(tx, realmId, new Date(Date.now() - 60_000));
+    const tenantId = newId();
+    const id = await withTenant(app.db, tenantId, async (tx) => {
+      await seedTenant(tx, tenantId);
+      return createSession(tx, tenantId, new Date(Date.now() - 60_000));
     });
-    await withRealm(app.db, realmId, async (tx) => {
+    await withTenant(app.db, tenantId, async (tx) => {
       const live = await sessionRepository(tx).liveById(id, LIFESPANS, new Date());
       expect(live).not.toBeNull();
       const now = new Date();
@@ -100,11 +100,11 @@ describe('session lifespans', () => {
     });
   });
 
-  it('cannot read a foreign realm’s session through liveById', async () => {
-    await expectCrossRealmMethodProbe(app.db, {
-      seed: async (tx, realmId) => {
-        await seedRealm(tx, realmId);
-        return createSession(tx, realmId, new Date());
+  it('cannot read a foreign tenant’s session through liveById', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        await seedTenant(tx, tenantId);
+        return createSession(tx, tenantId, new Date());
       },
       verifySeeded: async (tx, id) => {
         expect(await sessionRepository(tx).liveById(id, LIFESPANS, new Date())).not.toBeNull();
@@ -116,21 +116,21 @@ describe('session lifespans', () => {
     });
   });
 
-  it('cannot touch a foreign realm’s session, and leaves it unaffected', async () => {
-    await expectCrossRealmMethodProbe(app.db, {
-      seed: async (tx, realmId) => {
-        await seedRealm(tx, realmId);
-        return createSession(tx, realmId, new Date());
+  it('cannot touch a foreign tenant’s session, and leaves it unaffected', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        await seedTenant(tx, tenantId);
+        return createSession(tx, tenantId, new Date());
       },
       verifySeeded: async (tx, id) => {
         expect(await sessionRepository(tx).byId(id)).not.toBeNull();
       },
       attempt: async (tx, id) => sessionRepository(tx).touch(id, new Date()),
       expectBlocked: () => {
-        // A cross-realm touch is a no-op: RLS matches zero rows, not an
+        // A cross-tenant touch is a no-op: RLS matches zero rows, not an
         // error, the same answer every other write in this package gives.
       },
-      verifyRealmAUnaffected: async (tx, id) => {
+      verifyTenantAUnaffected: async (tx, id) => {
         const untouched = await sessionRepository(tx).byId(id);
         expect(Date.now() - (untouched?.lastActiveAt.getTime() ?? 0)).toBeLessThan(60_000);
       },

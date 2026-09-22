@@ -1,5 +1,5 @@
 import {
-  realms,
+  tenants,
   createDatabase,
   MIGRATIONS_DIR,
   runMigrations,
@@ -87,15 +87,15 @@ function buildTestApp(): FastifyInstance {
   });
 }
 
-async function setRealmSettings(
-  realmId: string,
+async function setTenantSettings(
+  tenantId: string,
   settings: {
     registrationAllowed?: boolean;
     verifyEmail?: boolean;
     resetPasswordAllowed?: boolean;
   },
 ): Promise<void> {
-  await owner.db.update(realms).set(settings).where(eq(realms.id, realmId));
+  await owner.db.update(tenants).set(settings).where(eq(tenants.id, tenantId));
 }
 
 function formPost(
@@ -113,7 +113,10 @@ function formPost(
   });
 }
 
-async function extractAuthSessionId(instance: FastifyInstance, realmName: string): Promise<string> {
+async function extractAuthSessionId(
+  instance: FastifyInstance,
+  tenantName: string,
+): Promise<string> {
   const query = new URLSearchParams({
     response_type: 'code',
     client_id: 'throttle-app',
@@ -124,7 +127,7 @@ async function extractAuthSessionId(instance: FastifyInstance, realmName: string
     code_challenge_method: 'S256',
   });
   const res = await instance.inject({
-    url: `/realms/${realmName}/protocol/openid-connect/auth?${query.toString()}`,
+    url: `/tenants/${tenantName}/protocol/openid-connect/auth?${query.toString()}`,
   });
   const match = /name="auth_session_id" value="([^"]*)"/.exec(res.body);
   const value = match?.[1];
@@ -134,19 +137,19 @@ async function extractAuthSessionId(instance: FastifyInstance, realmName: string
 
 describe('the per-origin throttle on the routes that cost CPU', () => {
   it('refuses the eleventh registration from one origin, and leaves another origin alone', async () => {
-    const realmName = `throttle-${newId()}`;
+    const tenantName = `throttle-${newId()}`;
     const seeded = await seed({
-      realm: realmName,
+      tenant: tenantName,
       clientId: 'throttle-app',
       redirectUris: [REDIRECT_URI],
     });
-    await setRealmSettings(seeded.realmId, { registrationAllowed: true, verifyEmail: false });
+    await setTenantSettings(seeded.tenantId, { registrationAllowed: true, verifyEmail: false });
 
     const app = buildTestApp();
     await app.ready();
 
     try {
-      const url = `/realms/${realmName}/login-actions/registration`;
+      const url = `/tenants/${tenantName}/login-actions/registration`;
       const allowed: number[] = [];
       for (let attempt = 0; attempt < DEFAULT_THROTTLE.limit; attempt += 1) {
         const res = await formPost(
@@ -188,9 +191,9 @@ describe('the per-origin throttle on the routes that cost CPU', () => {
   });
 
   it('leaves /token unthrottled while throttling the login form beside it', async () => {
-    const realmName = `throttle-${newId()}`;
+    const tenantName = `throttle-${newId()}`;
     await seed({
-      realm: realmName,
+      tenant: tenantName,
       clientId: 'throttle-app',
       clientSecret: 'throttle-secret',
       redirectUris: [REDIRECT_URI],
@@ -203,17 +206,17 @@ describe('the per-origin throttle on the routes that cost CPU', () => {
     await app.ready();
 
     try {
-      const authSessionId = await extractAuthSessionId(app, realmName);
+      const authSessionId = await extractAuthSessionId(app, tenantName);
       const login = await formPost(
         app,
-        `/realms/${realmName}/login-actions/authenticate`,
+        `/tenants/${tenantName}/login-actions/authenticate`,
         { auth_session_id: authSessionId, username: 'ada', password: PASSWORD },
         ORIGIN,
       );
       const code = new URL(String(login.headers.location)).searchParams.get('code');
       if (code === null) throw new Error('no authorization code issued');
 
-      const tokenUrl = `/realms/${realmName}/protocol/openid-connect/token`;
+      const tokenUrl = `/tenants/${tenantName}/protocol/openid-connect/token`;
       const basic = Buffer.from('throttle-app:throttle-secret').toString('base64');
       const exchange = (grantCode: string) =>
         app.inject({
@@ -246,7 +249,7 @@ describe('the per-origin throttle on the routes that cost CPU', () => {
 
       // And the throttle is live on this same app, so "never 429" above is
       // an exemption rather than a hook that never fires.
-      const loginUrl = `/realms/${realmName}/login-actions/authenticate`;
+      const loginUrl = `/tenants/${tenantName}/login-actions/authenticate`;
       const afterwards: number[] = [];
       for (let attempt = 0; attempt < DEFAULT_THROTTLE.limit; attempt += 1) {
         afterwards.push((await formPost(app, loginUrl, { username: 'ada' }, ORIGIN)).statusCode);
@@ -258,22 +261,22 @@ describe('the per-origin throttle on the routes that cost CPU', () => {
   });
 
   it('refuses a reset request without saying whether the address was one it knows', async () => {
-    const realmName = `throttle-${newId()}`;
+    const tenantName = `throttle-${newId()}`;
     const seeded = await seed({
-      realm: realmName,
+      tenant: tenantName,
       clientId: 'throttle-app',
       redirectUris: [REDIRECT_URI],
       username: 'ada',
       password: PASSWORD,
       email: EMAIL,
     });
-    await setRealmSettings(seeded.realmId, { resetPasswordAllowed: true });
+    await setTenantSettings(seeded.tenantId, { resetPasswordAllowed: true });
 
     const app = buildTestApp();
     await app.ready();
 
     try {
-      const url = `/realms/${realmName}/login-actions/reset-password`;
+      const url = `/tenants/${tenantName}/login-actions/reset-password`;
       for (let attempt = 0; attempt < DEFAULT_THROTTLE.limit; attempt += 1) {
         const res = await formPost(app, url, { email: EMAIL }, ORIGIN);
         expect(res.statusCode).toBe(200);
@@ -302,19 +305,19 @@ describe('the per-origin throttle on the routes that cost CPU', () => {
   });
 
   it('leaves the rendered forms alone, throttling only the submissions', async () => {
-    const realmName = `throttle-${newId()}`;
+    const tenantName = `throttle-${newId()}`;
     const seeded = await seed({
-      realm: realmName,
+      tenant: tenantName,
       clientId: 'throttle-app',
       redirectUris: [REDIRECT_URI],
     });
-    await setRealmSettings(seeded.realmId, { registrationAllowed: true });
+    await setTenantSettings(seeded.tenantId, { registrationAllowed: true });
 
     const app = buildTestApp();
     await app.ready();
 
     try {
-      const url = `/realms/${realmName}/login-actions/registration`;
+      const url = `/tenants/${tenantName}/login-actions/registration`;
       const gets: number[] = [];
       for (let attempt = 0; attempt < DEFAULT_THROTTLE.limit * 2; attempt += 1) {
         gets.push((await app.inject({ method: 'GET', url, remoteAddress: ORIGIN })).statusCode);
@@ -338,9 +341,9 @@ describe('the per-origin throttle on the routes that cost CPU', () => {
   // password. So a 429 in this burst can only be the throttle, and every
   // 200 in it is one mechanism or the other refusing the credential.
   it('answers 429 where the throttle refuses and 200 where the lockout does', async () => {
-    const realmName = `throttle-${newId()}`;
+    const tenantName = `throttle-${newId()}`;
     await seed({
-      realm: realmName,
+      tenant: tenantName,
       clientId: 'throttle-app',
       redirectUris: [REDIRECT_URI],
       username: 'ada',
@@ -352,10 +355,10 @@ describe('the per-origin throttle on the routes that cost CPU', () => {
     await app.ready();
 
     try {
-      const url = `/realms/${realmName}/login-actions/authenticate`;
+      const url = `/tenants/${tenantName}/login-actions/authenticate`;
       const statuses: number[] = [];
       for (let attempt = 0; attempt <= DEFAULT_THROTTLE.limit; attempt += 1) {
-        const authSessionId = await extractAuthSessionId(app, realmName);
+        const authSessionId = await extractAuthSessionId(app, tenantName);
         const res = await formPost(
           app,
           url,

@@ -1,4 +1,4 @@
-import { type DatabaseHandle, type RealmScopedDatabase } from '@odudu/db';
+import { type DatabaseHandle, type TenantScopedDatabase } from '@odudu/db';
 import { PASSWORD_TOO_LONG, readPasswordField } from '@odudu/kernel';
 import { type FastifyInstance } from 'fastify';
 import { peekActionToken } from '#/usecase/action-token';
@@ -21,13 +21,13 @@ import {
   sendVerificationHtml,
 } from '#/view/verification-html';
 
-export interface ActionTokenRealmLookup {
+export interface ActionTokenTenantLookup {
   readonly id: string;
   readonly enabled: boolean;
   // The kill switch: an operator who turns this off during an incident
   // means every outstanding reset-password link to stop working too, not
   // only the request form. A verify-email link is unaffected — redeeming
-  // one is gated on realm.enabled alone, the same as before this flag
+  // one is gated on tenant.enabled alone, the same as before this flag
   // existed.
   readonly resetPasswordAllowed: boolean;
   readonly passwordPolicy: PasswordPolicy;
@@ -35,18 +35,18 @@ export interface ActionTokenRealmLookup {
 
 export interface ActionTokenRouteDeps {
   readonly database: DatabaseHandle;
-  readonly findRealm: (name: string) => Promise<ActionTokenRealmLookup | null>;
-  readonly getCurrentEmail: (tx: RealmScopedDatabase, subjectId: string) => Promise<string | null>;
-  readonly markVerified: (tx: RealmScopedDatabase, subjectId: string) => Promise<void>;
+  readonly findTenant: (name: string) => Promise<ActionTokenTenantLookup | null>;
+  readonly getCurrentEmail: (tx: TenantScopedDatabase, subjectId: string) => Promise<string | null>;
+  readonly markVerified: (tx: TenantScopedDatabase, subjectId: string) => Promise<void>;
   // Injected for the same reason getCurrentEmail and markVerified are:
   // @odudu/account never imports @odudu/domain-identity, where hashPassword
   // and the credentials table live.
   readonly setPassword: (
-    tx: RealmScopedDatabase,
+    tx: TenantScopedDatabase,
     subjectId: string,
     newPassword: string,
   ) => Promise<void>;
-  readonly getUsername: (tx: RealmScopedDatabase, subjectId: string) => Promise<string>;
+  readonly getUsername: (tx: TenantScopedDatabase, subjectId: string) => Promise<string>;
   readonly evaluatePassword: (
     candidate: string,
     policy: PasswordPolicy,
@@ -56,11 +56,14 @@ export interface ActionTokenRouteDeps {
   // completePasswordReset in #/usecase/reset-password.ts, which explains
   // what each one closes.
   readonly unchangedPasswordViolations: (
-    tx: RealmScopedDatabase,
+    tx: TenantScopedDatabase,
     subjectId: string,
     candidate: string,
   ) => Promise<PolicyViolation[]>;
-  readonly clearPasswordUpdateAction: (tx: RealmScopedDatabase, subjectId: string) => Promise<void>;
+  readonly clearPasswordUpdateAction: (
+    tx: TenantScopedDatabase,
+    subjectId: string,
+  ) => Promise<void>;
 }
 
 // @fastify/formbody parses a repeated query or body field into an array; a
@@ -80,17 +83,17 @@ function firstNonEmptyString(value: string | string[] | undefined): string | und
 // same namespace choice login.ts documents for /login-actions/authenticate.
 export function registerActionTokenRoute(app: FastifyInstance, deps: ActionTokenRouteDeps): void {
   app.get<{
-    Params: { realm: string };
+    Params: { tenant: string };
     Querystring: Record<string, string | string[] | undefined>;
-  }>('/realms/:realm/login-actions/action-token', async (request, reply) => {
+  }>('/tenants/:tenant/login-actions/action-token', async (request, reply) => {
     const key = firstString(request.query.key);
-    const realm = key === undefined ? null : await deps.findRealm(request.params.realm);
+    const tenant = key === undefined ? null : await deps.findTenant(request.params.tenant);
 
-    // A disabled realm refuses here the same way it refuses at /token,
+    // A disabled tenant refuses here the same way it refuses at /token,
     // /userinfo, discovery and login: consuming a token is a write against
-    // that realm's users table, and disabling a realm is meant to stop all
+    // that tenant's users table, and disabling a tenant is meant to stop all
     // of those, not just the ones a client can see.
-    if (key === undefined || !realm?.enabled) {
+    if (key === undefined || !tenant?.enabled) {
       return sendVerificationHtml(reply, 400, renderVerificationFailedPage());
     }
 
@@ -99,22 +102,22 @@ export function registerActionTokenRoute(app: FastifyInstance, deps: ActionToken
     // that decision. A verify-email link consumes on this same GET, the
     // way it always has — peeking first only tells the two branches apart,
     // it never changes the verify-email one's behaviour.
-    const peeked = await peekActionToken({ database: deps.database, realmId: realm.id }, key);
+    const peeked = await peekActionToken({ database: deps.database, tenantId: tenant.id }, key);
     if (peeked.kind === 'invalid') {
       return sendVerificationHtml(reply, 400, renderVerificationFailedPage());
     }
 
     if (peeked.type === 'reset_password') {
-      if (!realm.resetPasswordAllowed) {
+      if (!tenant.resetPasswordAllowed) {
         return sendVerificationHtml(reply, 400, renderResetLinkFailedPage());
       }
-      return sendVerificationHtml(reply, 200, renderResetPasswordForm(request.params.realm, key));
+      return sendVerificationHtml(reply, 200, renderResetPasswordForm(request.params.tenant, key));
     }
 
     const result = await completeEmailVerification(
       {
         database: deps.database,
-        realmId: realm.id,
+        tenantId: tenant.id,
         getCurrentEmail: deps.getCurrentEmail,
         markVerified: deps.markVerified,
       },
@@ -128,15 +131,15 @@ export function registerActionTokenRoute(app: FastifyInstance, deps: ActionToken
   });
 
   app.post<{
-    Params: { realm: string };
+    Params: { tenant: string };
     Body: Record<string, string | string[] | undefined>;
-  }>('/realms/:realm/login-actions/action-token', async (request, reply) => {
+  }>('/tenants/:tenant/login-actions/action-token', async (request, reply) => {
     const body = request.body;
     const key = firstNonEmptyString(body.key);
     const candidate = readPasswordField(body.password);
-    const realm = key === undefined ? null : await deps.findRealm(request.params.realm);
+    const tenant = key === undefined ? null : await deps.findTenant(request.params.tenant);
 
-    if (key === undefined || !realm?.enabled || !realm.resetPasswordAllowed) {
+    if (key === undefined || !tenant?.enabled || !tenant.resetPasswordAllowed) {
       return sendVerificationHtml(reply, 400, renderResetLinkFailedPage());
     }
 
@@ -166,9 +169,9 @@ export function registerActionTokenRoute(app: FastifyInstance, deps: ActionToken
     const result = await completePasswordReset(
       {
         database: deps.database,
-        realmId: realm.id,
+        tenantId: tenant.id,
         setPassword: deps.setPassword,
-        passwordPolicy: realm.passwordPolicy,
+        passwordPolicy: tenant.passwordPolicy,
         evaluatePassword: deps.evaluatePassword,
         getUsername: deps.getUsername,
         unchangedPasswordViolations: deps.unchangedPasswordViolations,

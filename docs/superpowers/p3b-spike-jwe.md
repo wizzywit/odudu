@@ -287,7 +287,7 @@ unreachable), added directly to that `/userinfo` request's latency, with the
 DNS portion having no ceiling this codebase imposes.** That full cost is
 paid by whichever request is first and unlucky. `NEGATIVE_CACHE_TTL_MS`
 (30_000 ms, same file) means every other request for that client, in any
-realm sharing the same `jwks_uri`, gets a cached rejection in that window
+tenant sharing the same `jwks_uri`, gets a cached rejection in that window
 instead of repeating the fetch — concurrent requests during the _first_
 attempt also share it via the `inFlight` map rather than each paying the
 cost separately. The 30-second window is a request-latency risk, not a

@@ -3,14 +3,14 @@ import { hashPassword, subjectRepository, userCredentials, users } from '@odudu/
 import {
   createDatabase,
   MIGRATIONS_DIR,
-  realms,
+  tenants,
   runMigrations,
-  withRealm,
+  withTenant,
   type DatabaseHandle,
-  type RealmScopedDatabase,
+  type TenantScopedDatabase,
 } from '@odudu/db';
-import { provisionRealm } from '@odudu/authn-flows';
-import { clients, provisionClientDefaults } from '@odudu/domain-realm';
+import { provisionTenant } from '@odudu/authn-flows';
+import { clients, provisionClientDefaults } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import formbody from '@fastify/formbody';
@@ -47,14 +47,14 @@ const AUDIENCE = 'https://api.example';
 const VERIFIER = 'dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk';
 const CHALLENGE = 'E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM';
 
-async function setupRealm(name: string, realmId: string): Promise<void> {
+async function setupTenant(name: string, tenantId: string): Promise<void> {
   const clientDbId = newId();
-  await withRealm(app.db, realmId, async (tx: RealmScopedDatabase) => {
-    await tx.insert(realms).values({ id: realmId, name });
-    await provisionRealm(tx, realmId);
+  await withTenant(app.db, tenantId, async (tx: TenantScopedDatabase) => {
+    await tx.insert(tenants).values({ id: tenantId, name });
+    await provisionTenant(tx, tenantId);
     await tx.insert(clients).values({
       id: clientDbId,
-      realmId,
+      tenantId,
       clientId: CLIENT_ID,
       name: 'grant_id claim test client',
       type: 'confidential',
@@ -63,7 +63,7 @@ async function setupRealm(name: string, realmId: string): Promise<void> {
     await provisionClientDefaults(tx, clientDbId);
     await clientOidcConfigRepository(tx).create({
       clientId: clientDbId,
-      realmId,
+      tenantId,
       redirectUris: [REDIRECT_URI],
       grantTypes: ['authorization_code', 'refresh_token'],
       tokenEndpointAuthMethod: 'client_secret_basic',
@@ -71,21 +71,21 @@ async function setupRealm(name: string, realmId: string): Promise<void> {
       accessTokenTtlSeconds: 300,
       refreshTokenTtlSeconds: 1_209_600,
     });
-    const subject = await subjectRepository(tx).create({ realmId, type: 'user' });
-    await tx.insert(users).values({ subjectId: subject.id, realmId, username: USERNAME });
+    const subject = await subjectRepository(tx).create({ tenantId, type: 'user' });
+    await tx.insert(users).values({ subjectId: subject.id, tenantId, username: USERNAME });
     await tx.insert(userCredentials).values({
       id: newId(),
-      realmId,
+      tenantId,
       subjectId: subject.id,
       type: 'password',
       secretData: { hash: await hashPassword(PASSWORD) },
     });
 
     const ccClientDbId = newId();
-    const serviceSubject = await subjectRepository(tx).create({ realmId, type: 'service' });
+    const serviceSubject = await subjectRepository(tx).create({ tenantId, type: 'service' });
     await tx.insert(clients).values({
       id: ccClientDbId,
-      realmId,
+      tenantId,
       clientId: CC_CLIENT_ID,
       name: 'grant_id claim client_credentials client',
       type: 'confidential',
@@ -95,7 +95,7 @@ async function setupRealm(name: string, realmId: string): Promise<void> {
     await provisionClientDefaults(tx, ccClientDbId);
     await clientOidcConfigRepository(tx).create({
       clientId: ccClientDbId,
-      realmId,
+      tenantId,
       redirectUris: [],
       grantTypes: ['client_credentials'],
       tokenEndpointAuthMethod: 'client_secret_basic',
@@ -108,7 +108,7 @@ async function setupRealm(name: string, realmId: string): Promise<void> {
     const generated = await generateSigningKey('ES256', KEK);
     const key: SigningKeyRecord = {
       id: newId(),
-      realmId,
+      tenantId,
       kid: generated.kid,
       alg: generated.alg,
       status: 'active',
@@ -119,7 +119,7 @@ async function setupRealm(name: string, realmId: string): Promise<void> {
     };
     await tx.insert(signingKeys).values({
       id: key.id,
-      realmId,
+      tenantId,
       kid: key.kid,
       alg: key.alg,
       status: 'active',
@@ -129,7 +129,7 @@ async function setupRealm(name: string, realmId: string): Promise<void> {
   });
 }
 
-function authorizeUrl(realmName: string): string {
+function authorizeUrl(tenantName: string): string {
   const params = new URLSearchParams({
     response_type: 'code',
     client_id: CLIENT_ID,
@@ -139,7 +139,7 @@ function authorizeUrl(realmName: string): string {
     code_challenge: CHALLENGE,
     code_challenge_method: 'S256',
   });
-  return `/realms/${realmName}/protocol/openid-connect/auth?${params.toString()}`;
+  return `/tenants/${tenantName}/protocol/openid-connect/auth?${params.toString()}`;
 }
 
 function setCookieValue(res: LightMyRequestResponse): string | undefined {
@@ -161,7 +161,7 @@ function jwtPayload(token: string): Record<string, unknown> {
 }
 
 async function redeemCode(
-  realmName: string,
+  tenantName: string,
   code: string,
 ): Promise<{ access_token: string; refresh_token: string }> {
   const form = new URLSearchParams({
@@ -172,7 +172,7 @@ async function redeemCode(
   });
   const res = await http.inject({
     method: 'POST',
-    url: `/realms/${realmName}/protocol/openid-connect/token`,
+    url: `/tenants/${tenantName}/protocol/openid-connect/token`,
     payload: form.toString(),
     headers: {
       'content-type': 'application/x-www-form-urlencoded',
@@ -186,9 +186,9 @@ async function redeemCode(
 }
 
 async function completeAuthorizationCodeFlow(
-  realmName: string,
+  tenantName: string,
 ): Promise<{ accessToken: string; refreshToken: string }> {
-  const authorize = await http.inject({ url: authorizeUrl(realmName) });
+  const authorize = await http.inject({ url: authorizeUrl(tenantName) });
   if (authorize.statusCode !== 200) {
     throw new Error(
       `expected /authorize to render the login form, got ${String(authorize.statusCode)}`,
@@ -205,7 +205,7 @@ async function completeAuthorizationCodeFlow(
   });
   const submitted = await http.inject({
     method: 'POST',
-    url: `/realms/${realmName}/login-actions/authenticate`,
+    url: `/tenants/${tenantName}/login-actions/authenticate`,
     payload: form.toString(),
     headers: { 'content-type': 'application/x-www-form-urlencoded' },
   });
@@ -216,15 +216,15 @@ async function completeAuthorizationCodeFlow(
   const code = new URL(locationHeader(submitted)).searchParams.get('code');
   if (code === null) throw new Error('expected a code on the login redirect');
 
-  const redeemed = await redeemCode(realmName, code);
+  const redeemed = await redeemCode(tenantName, code);
   return { accessToken: redeemed.access_token, refreshToken: redeemed.refresh_token };
 }
 
-async function refresh(realmName: string, refreshToken: string): Promise<{ accessToken: string }> {
+async function refresh(tenantName: string, refreshToken: string): Promise<{ accessToken: string }> {
   const form = new URLSearchParams({ grant_type: 'refresh_token', refresh_token: refreshToken });
   const res = await http.inject({
     method: 'POST',
-    url: `/realms/${realmName}/protocol/openid-connect/token`,
+    url: `/tenants/${tenantName}/protocol/openid-connect/token`,
     payload: form.toString(),
     headers: {
       'content-type': 'application/x-www-form-urlencoded',
@@ -237,11 +237,11 @@ async function refresh(realmName: string, refreshToken: string): Promise<{ acces
   return { accessToken: res.json<{ access_token: string }>().access_token };
 }
 
-async function clientCredentials(realmName: string): Promise<{ accessToken: string }> {
+async function clientCredentials(tenantName: string): Promise<{ accessToken: string }> {
   const form = new URLSearchParams({ grant_type: 'client_credentials', scope: 'reports:read' });
   const res = await http.inject({
     method: 'POST',
-    url: `/realms/${realmName}/protocol/openid-connect/token`,
+    url: `/tenants/${tenantName}/protocol/openid-connect/token`,
     payload: form.toString(),
     headers: {
       'content-type': 'application/x-www-form-urlencoded',
@@ -292,15 +292,15 @@ afterAll(async () => {
 
 describe('the grant_id claim', () => {
   it('names the exact token_grants row the authorization_code redemption wrote', async () => {
-    const realmId = newId();
-    const realmName = `grant-id-claim-${realmId}`;
-    await setupRealm(realmName, realmId);
+    const tenantId = newId();
+    const tenantName = `grant-id-claim-${tenantId}`;
+    await setupTenant(tenantName, tenantId);
 
-    const { accessToken } = await completeAuthorizationCodeFlow(realmName);
+    const { accessToken } = await completeAuthorizationCodeFlow(tenantName);
     const grantId = jwtPayload(accessToken).grant_id;
     expect(typeof grantId).toBe('string');
 
-    const row = await withRealm(app.db, realmId, (tx) =>
+    const row = await withTenant(app.db, tenantId, (tx) =>
       tokenGrantRepository(tx).byId(grantId as string),
     );
     expect(row).not.toBeNull();
@@ -309,19 +309,19 @@ describe('the grant_id claim', () => {
   });
 
   it('keeps grant_id stable across a refresh, against the one row that still exists', async () => {
-    const realmId = newId();
-    const realmName = `grant-id-claim-refresh-${realmId}`;
-    await setupRealm(realmName, realmId);
+    const tenantId = newId();
+    const tenantName = `grant-id-claim-refresh-${tenantId}`;
+    await setupTenant(tenantName, tenantId);
 
-    const first = await completeAuthorizationCodeFlow(realmName);
+    const first = await completeAuthorizationCodeFlow(tenantName);
     const firstGrantId = jwtPayload(first.accessToken).grant_id;
 
-    const rotated = await refresh(realmName, first.refreshToken);
+    const rotated = await refresh(tenantName, first.refreshToken);
     const rotatedGrantId = jwtPayload(rotated.accessToken).grant_id;
 
     expect(rotatedGrantId).toBe(firstGrantId);
 
-    const row = await withRealm(app.db, realmId, (tx) =>
+    const row = await withTenant(app.db, tenantId, (tx) =>
       tokenGrantRepository(tx).byId(rotatedGrantId as string),
     );
     expect(row).not.toBeNull();
@@ -329,18 +329,18 @@ describe('the grant_id claim', () => {
   });
 
   it('gives two client_credentials issuances for the same client two distinct rows', async () => {
-    const realmId = newId();
-    const realmName = `grant-id-claim-cc-${realmId}`;
-    await setupRealm(realmName, realmId);
+    const tenantId = newId();
+    const tenantName = `grant-id-claim-cc-${tenantId}`;
+    await setupTenant(tenantName, tenantId);
 
-    const first = await clientCredentials(realmName);
-    const second = await clientCredentials(realmName);
+    const first = await clientCredentials(tenantName);
+    const second = await clientCredentials(tenantName);
     const firstGrantId = jwtPayload(first.accessToken).grant_id;
     const secondGrantId = jwtPayload(second.accessToken).grant_id;
 
     expect(firstGrantId).not.toBe(secondGrantId);
 
-    const [firstRow, secondRow] = await withRealm(app.db, realmId, async (tx) => [
+    const [firstRow, secondRow] = await withTenant(app.db, tenantId, async (tx) => [
       await tokenGrantRepository(tx).byId(firstGrantId as string),
       await tokenGrantRepository(tx).byId(secondGrantId as string),
     ]);

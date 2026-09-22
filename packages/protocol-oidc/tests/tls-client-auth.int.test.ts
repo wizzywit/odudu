@@ -1,17 +1,17 @@
 import formbody from '@fastify/formbody';
-import { provisionRealm } from '@odudu/authn-flows';
+import { provisionTenant } from '@odudu/authn-flows';
 import { generateSigningKey, signingKeys } from '@odudu/crypto';
 import {
   createDatabase,
   MIGRATIONS_DIR,
-  realms,
+  tenants,
   runMigrations,
-  withRealm,
+  withTenant,
   type DatabaseHandle,
-  type RealmScopedDatabase,
+  type TenantScopedDatabase,
 } from '@odudu/db';
 import { hashPassword, subjectRepository } from '@odudu/domain-identity';
-import { clients } from '@odudu/domain-realm';
+import { clients } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import Fastify, {
@@ -46,35 +46,35 @@ const SUBJECT_DN = 'CN=client-a,O=Example';
 const COMMA_SUBJECT_DN = 'CN=client-b,O=Example\\, Inc.';
 const HEADER = 'x-ssl-client-s-dn';
 
-let REALM: string;
-let REALM_ID: string;
-// A second, otherwise-independent realm — the probe of whether
+let TENANT: string;
+let TENANT_ID: string;
+// A second, otherwise-independent tenant — the probe of whether
 // `authenticateTlsClientAuth`'s `clientRepository(tx).byClientId` lookup is
-// genuinely realm-scoped (via `tx`'s `SET LOCAL app.realm_id`) or could
-// somehow reach across realms, the same shape private-key-jwt.int.test.ts
+// genuinely tenant-scoped (via `tx`'s `SET LOCAL app.tenant_id`) or could
+// somehow reach across tenants, the same shape private-key-jwt.int.test.ts
 // uses for `private_key_jwt`.
-let REALM_B: string;
-let REALM_B_ID: string;
+let TENANT_B: string;
+let TENANT_B_ID: string;
 let serviceSubjectId: string;
 let logLines: unknown[] = [];
 
 async function createClient(
-  tx: RealmScopedDatabase,
+  tx: TenantScopedDatabase,
   input: {
     clientId: string;
     method: 'tls_client_auth' | 'client_secret_basic';
     subjectDn?: string;
     enabled?: boolean;
     type?: 'public' | 'confidential';
-    realmId?: string;
+    tenantId?: string;
     serviceSubjectId?: string;
   },
 ): Promise<void> {
   const dbId = newId();
-  const realmId = input.realmId ?? REALM_ID;
+  const tenantId = input.tenantId ?? TENANT_ID;
   await tx.insert(clients).values({
     id: dbId,
-    realmId,
+    tenantId,
     clientId: input.clientId,
     name: input.clientId,
     type: input.type ?? 'confidential',
@@ -89,7 +89,7 @@ async function createClient(
   });
   await clientOidcConfigRepository(tx).create({
     clientId: dbId,
-    realmId,
+    tenantId,
     redirectUris: [],
     grantTypes: ['client_credentials'],
     tokenEndpointAuthMethod: input.method,
@@ -140,22 +140,22 @@ beforeAll(async () => {
   appHandle = createDatabase(appUrl, { max: 5 });
   app = appHandle;
 
-  REALM = `tca-${newId()}`;
-  REALM_ID = newId();
+  TENANT = `tca-${newId()}`;
+  TENANT_ID = newId();
 
-  await withRealm(app.db, REALM_ID, async (tx) => {
-    await tx.insert(realms).values({
-      id: REALM_ID,
-      name: REALM,
+  await withTenant(app.db, TENANT_ID, async (tx) => {
+    await tx.insert(tenants).values({
+      id: TENANT_ID,
+      name: TENANT,
       // Open so the registration-gating test below can reach
       // registerClient at all — every other test in this file registers
       // clients directly and never touches this policy.
       clientRegistrationPolicy: 'open',
     });
-    await provisionRealm(tx, REALM_ID);
+    await provisionTenant(tx, TENANT_ID);
 
     const serviceSubject = await subjectRepository(tx).create({
-      realmId: REALM_ID,
+      tenantId: TENANT_ID,
       type: 'service',
     });
     serviceSubjectId = serviceSubject.id;
@@ -190,7 +190,7 @@ beforeAll(async () => {
     const key = await generateSigningKey('RS256', KEK);
     await tx.insert(signingKeys).values({
       id: newId(),
-      realmId: REALM_ID,
+      tenantId: TENANT_ID,
       kid: key.kid,
       alg: key.alg,
       status: 'active',
@@ -199,33 +199,33 @@ beforeAll(async () => {
     });
   });
 
-  REALM_B = `tca-b-${newId()}`;
-  REALM_B_ID = newId();
-  await withRealm(app.db, REALM_B_ID, async (tx) => {
-    await tx.insert(realms).values({ id: REALM_B_ID, name: REALM_B });
-    await provisionRealm(tx, REALM_B_ID);
+  TENANT_B = `tca-b-${newId()}`;
+  TENANT_B_ID = newId();
+  await withTenant(app.db, TENANT_B_ID, async (tx) => {
+    await tx.insert(tenants).values({ id: TENANT_B_ID, name: TENANT_B });
+    await provisionTenant(tx, TENANT_B_ID);
 
     const serviceSubjectB = await subjectRepository(tx).create({
-      realmId: REALM_B_ID,
+      tenantId: TENANT_B_ID,
       type: 'service',
     });
 
-    // Same OAuth client_id string as REALM's own `tls-client`, a
+    // Same OAuth client_id string as TENANT's own `tls-client`, a
     // deliberately *different* registered subject — if the lookup in
-    // `authenticateTlsClientAuth` ever escaped realm scoping, REALM's
+    // `authenticateTlsClientAuth` ever escaped tenant scoping, TENANT's
     // matching header would authenticate here too, against the wrong row.
     await createClient(tx, {
       clientId: 'tls-client',
       method: 'tls_client_auth',
-      subjectDn: 'CN=realm-b-client',
-      realmId: REALM_B_ID,
+      subjectDn: 'CN=tenant-b-client',
+      tenantId: TENANT_B_ID,
       serviceSubjectId: serviceSubjectB.id,
     });
 
     const keyB = await generateSigningKey('RS256', KEK);
     await tx.insert(signingKeys).values({
       id: newId(),
-      realmId: REALM_B_ID,
+      tenantId: TENANT_B_ID,
       kid: keyB.kid,
       alg: keyB.alg,
       status: 'active',
@@ -269,7 +269,7 @@ function lastLoggedReason(): string | undefined {
 
 async function token(input: {
   server?: FastifyInstance;
-  realm?: string;
+  tenant?: string;
   client?: string;
   headers?: Record<string, string>;
   extraForm?: Record<string, string>;
@@ -283,7 +283,7 @@ async function token(input: {
   if (server === undefined) throw new Error('server not ready');
   return server.inject({
     method: 'POST',
-    url: `/realms/${input.realm ?? REALM}/protocol/openid-connect/token`,
+    url: `/tenants/${input.tenant ?? TENANT}/protocol/openid-connect/token`,
     payload: form.toString(),
     headers: { 'content-type': 'application/x-www-form-urlencoded', ...(input.headers ?? {}) },
   });
@@ -423,7 +423,7 @@ describe('tls_client_auth at /token', () => {
         client_id: 'tls-client',
       }).toString();
       const request = [
-        `POST /realms/${REALM}/protocol/openid-connect/token HTTP/1.1`,
+        `POST /tenants/${TENANT}/protocol/openid-connect/token HTTP/1.1`,
         `Host: ${url.host}`,
         'Content-Type: application/x-www-form-urlencoded',
         `Content-Length: ${String(Buffer.byteLength(body))}`,
@@ -461,7 +461,7 @@ describe('tls_client_auth at /token', () => {
     try {
       const res = await custom.inject({
         method: 'POST',
-        url: `/realms/${REALM}/protocol/openid-connect/token`,
+        url: `/tenants/${TENANT}/protocol/openid-connect/token`,
         payload: new URLSearchParams({
           grant_type: 'client_credentials',
           client_id: 'tls-client',
@@ -481,14 +481,14 @@ describe('tls_client_auth at /token', () => {
     }
   });
 
-  // Realm-scoping probe: same OAuth client_id string in both realms, a
+  // Tenant-scoping probe: same OAuth client_id string in both tenants, a
   // different registered subject in each — RLS (`tx`'s `SET LOCAL
-  // app.realm_id`) is what makes `clientRepository(tx).byClientId` in
-  // `authenticateTlsClientAuth` see only the row for the realm named in
+  // app.tenant_id`) is what makes `clientRepository(tx).byClientId` in
+  // `authenticateTlsClientAuth` see only the row for the tenant named in
   // the URL, never the other one.
-  it("[ODUDU-TLS-CLIENT-AUTH-REALM-ISOLATION-01] realm B's client is unreachable through REALM's own matching header", async () => {
+  it("[ODUDU-TLS-CLIENT-AUTH-TENANT-ISOLATION-01] tenant B's client is unreachable through TENANT's own matching header", async () => {
     const res = await token({
-      realm: REALM_B,
+      tenant: TENANT_B,
       client: 'tls-client',
       headers: certHeader(SUBJECT_DN),
     });
@@ -497,11 +497,11 @@ describe('tls_client_auth at /token', () => {
     expect(lastLoggedReason()).toBe('certificate subject does not match the registered value');
   });
 
-  it("[ODUDU-TLS-CLIENT-AUTH-REALM-ISOLATION-01] realm B's own client authenticates against realm B's own registered subject", async () => {
+  it("[ODUDU-TLS-CLIENT-AUTH-TENANT-ISOLATION-01] tenant B's own client authenticates against tenant B's own registered subject", async () => {
     const res = await token({
-      realm: REALM_B,
+      tenant: TENANT_B,
       client: 'tls-client',
-      headers: certHeader('CN=realm-b-client'),
+      headers: certHeader('CN=tenant-b-client'),
     });
     expect(res.statusCode).toBe(200);
   });
@@ -514,7 +514,7 @@ describe('tls_client_auth at /token', () => {
     if (untrusted === undefined) throw new Error('server not ready');
     const res = await untrusted.inject({
       method: 'POST',
-      url: `/realms/${REALM}/clients-registrations/openid-connect`,
+      url: `/tenants/${TENANT}/clients-registrations/openid-connect`,
       payload: JSON.stringify({
         redirect_uris: [],
         grant_types: ['client_credentials'],
@@ -531,7 +531,7 @@ describe('tls_client_auth at /token', () => {
     if (trusted === undefined) throw new Error('server not ready');
     const registration = await trusted.inject({
       method: 'POST',
-      url: `/realms/${REALM}/clients-registrations/openid-connect`,
+      url: `/tenants/${TENANT}/clients-registrations/openid-connect`,
       payload: JSON.stringify({
         redirect_uris: [],
         grant_types: ['client_credentials'],

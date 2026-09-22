@@ -1,4 +1,4 @@
-// A realm role is bare, a client role is qualified by its owning client.
+// A tenant role is bare, a client role is qualified by its owning client.
 // The database refuses `:` in a role name, so the qualified form cannot be
 // ambiguous and this join needs no escaping.
 export function qualifiedRoleName(

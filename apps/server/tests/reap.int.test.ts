@@ -2,7 +2,7 @@ import {
   createDatabase,
   MIGRATIONS_DIR,
   runMigrations,
-  withEachRealmExclusive,
+  withEachTenantExclusive,
   type DatabaseHandle,
 } from '@odudu/db';
 import { newId } from '@odudu/kernel';
@@ -62,8 +62,8 @@ interface BruteForce {
 }
 
 interface Fixture {
-  readonly realm: string;
-  readonly realmId: string;
+  readonly tenant: string;
+  readonly tenantId: string;
   readonly staleGrantId: string;
   readonly youngGrantId: string;
   readonly boundSessionId: string;
@@ -83,12 +83,12 @@ interface Fixture {
   readonly assertionJtiLive: string;
 }
 
-// One realm carrying, for every reaped table, a row that is eligible and a
+// One tenant carrying, for every reaped table, a row that is eligible and a
 // row that is not. The two halves are what make a pass that deletes
 // everything and a pass that deletes nothing both fail.
 async function seedFixture(brute?: BruteForce): Promise<Fixture> {
-  const realm = `reap-${newId()}`;
-  const realmId = newId();
+  const tenant = `reap-${newId()}`;
+  const tenantId = newId();
   const clientId = newId();
   const subjectId = newId();
   const staleFailureSubject = newId();
@@ -108,97 +108,97 @@ async function seedFixture(brute?: BruteForce): Promise<Fixture> {
   const logoutAbandonedLongAgoId = newId();
   const logoutAbandonedYesterdayId = newId();
   const logoutStillRetryingId = newId();
-  const assertionJtiStale = `jti-stale-${realmId}`;
-  const assertionJtiLive = `jti-live-${realmId}`;
+  const assertionJtiStale = `jti-stale-${tenantId}`;
+  const assertionJtiLive = `jti-live-${tenantId}`;
 
   await owner.db.execute(sql`
-    INSERT INTO realms (id, name, brute_force_lockout_seconds,
+    INSERT INTO tenants (id, name, brute_force_lockout_seconds,
                         brute_force_max_lockout_seconds, brute_force_failure_reset_seconds)
-    VALUES (${realmId}, ${realm}, ${brute?.lockoutSeconds ?? 60},
+    VALUES (${tenantId}, ${tenant}, ${brute?.lockoutSeconds ?? 60},
             ${brute?.maxLockoutSeconds ?? 900}, ${brute?.failureResetSeconds ?? 43_200})
   `);
   await owner.db.execute(sql`
-    INSERT INTO subjects (id, realm_id, type) VALUES
-      (${subjectId}, ${realmId}, 'user'),
-      (${staleFailureSubject}, ${realmId}, 'user'),
-      (${lockedSubject}, ${realmId}, 'user')
+    INSERT INTO subjects (id, tenant_id, type) VALUES
+      (${subjectId}, ${tenantId}, 'user'),
+      (${staleFailureSubject}, ${tenantId}, 'user'),
+      (${lockedSubject}, ${tenantId}, 'user')
   `);
   await owner.db.execute(sql`
-    INSERT INTO clients (id, realm_id, client_id, name, type)
-    VALUES (${clientId}, ${realmId}, 'app', 'App', 'public')
+    INSERT INTO clients (id, tenant_id, client_id, name, type)
+    VALUES (${clientId}, ${tenantId}, 'app', 'App', 'public')
   `);
 
   // The session the young grant is bound to is itself long past its grace:
   // what keeps it is the grant, not its own expiry.
   await owner.db.execute(sql`
-    INSERT INTO sessions (id, realm_id, subject_id, expires_at) VALUES
-      (${boundSessionId}, ${realmId}, ${subjectId}, ${at(-2 * DAY)}::timestamptz),
-      (${orphanSessionId}, ${realmId}, ${subjectId}, ${at(-2 * DAY)}::timestamptz)
+    INSERT INTO sessions (id, tenant_id, subject_id, expires_at) VALUES
+      (${boundSessionId}, ${tenantId}, ${subjectId}, ${at(-2 * DAY)}::timestamptz),
+      (${orphanSessionId}, ${tenantId}, ${subjectId}, ${at(-2 * DAY)}::timestamptz)
   `);
 
   await owner.db.execute(sql`
-    INSERT INTO token_grants (id, realm_id, client_id, subject_id, scope, created_at, session_id)
+    INSERT INTO token_grants (id, tenant_id, client_id, subject_id, scope, created_at, session_id)
     VALUES
-      (${staleGrantId}, ${realmId}, ${clientId}, ${subjectId}, 'openid',
+      (${staleGrantId}, ${tenantId}, ${clientId}, ${subjectId}, 'openid',
        ${at(-40 * DAY)}::timestamptz, NULL),
-      (${youngGrantId}, ${realmId}, ${clientId}, ${subjectId}, 'openid',
+      (${youngGrantId}, ${tenantId}, ${clientId}, ${subjectId}, 'openid',
        ${at(-1 * HOUR)}::timestamptz, ${boundSessionId})
   `);
 
   await owner.db.execute(sql`
-    INSERT INTO refresh_tokens (token_hash, realm_id, grant_id, expires_at, used_at) VALUES
-      (${`rt-stale-${realmId}`}, ${realmId}, ${staleGrantId},
+    INSERT INTO refresh_tokens (token_hash, tenant_id, grant_id, expires_at, used_at) VALUES
+      (${`rt-stale-${tenantId}`}, ${tenantId}, ${staleGrantId},
        ${at(-39 * DAY)}::timestamptz, ${at(-39 * DAY)}::timestamptz),
-      (${`rt-live-${realmId}`}, ${realmId}, ${youngGrantId},
+      (${`rt-live-${tenantId}`}, ${tenantId}, ${youngGrantId},
        ${at(1 * HOUR)}::timestamptz, NULL)
   `);
 
   await owner.db.execute(sql`
-    INSERT INTO authorization_codes (code_hash, realm_id, client_id, subject_id, redirect_uri,
+    INSERT INTO authorization_codes (code_hash, tenant_id, client_id, subject_id, redirect_uri,
                                      scope, code_challenge, code_challenge_method, auth_time,
                                      expires_at, consumed_at, grant_id)
     VALUES
-      (${`code-stale-${realmId}`}, ${realmId}, ${clientId}, ${subjectId},
+      (${`code-stale-${tenantId}`}, ${tenantId}, ${clientId}, ${subjectId},
        'https://app.example/cb', 'openid', 'challenge', 'S256', ${at(-40 * DAY)}::timestamptz,
        ${at(-40 * DAY)}::timestamptz, ${at(-40 * DAY)}::timestamptz, ${staleGrantId}),
-      (${`code-young-${realmId}`}, ${realmId}, ${clientId}, ${subjectId},
+      (${`code-young-${tenantId}`}, ${tenantId}, ${clientId}, ${subjectId},
        'https://app.example/cb', 'openid', 'challenge', 'S256', ${at(-10 * MINUTE)}::timestamptz,
        ${at(-10 * MINUTE)}::timestamptz, NULL, NULL)
   `);
 
   await owner.db.execute(sql`
-    INSERT INTO authentication_sessions (id, realm_id, pending_request, expires_at, consumed_at)
+    INSERT INTO authentication_sessions (id, tenant_id, pending_request, expires_at, consumed_at)
     VALUES
-      (${newId()}, ${realmId}, '{}'::jsonb, ${at(-2 * HOUR)}::timestamptz, NULL),
-      (${newId()}, ${realmId}, '{}'::jsonb, ${at(1 * HOUR)}::timestamptz, NULL)
+      (${newId()}, ${tenantId}, '{}'::jsonb, ${at(-2 * HOUR)}::timestamptz, NULL),
+      (${newId()}, ${tenantId}, '{}'::jsonb, ${at(1 * HOUR)}::timestamptz, NULL)
   `);
 
   await owner.db.execute(sql`
-    INSERT INTO action_tokens (id, realm_id, subject_id, type, token_hash, expires_at, consumed_at)
+    INSERT INTO action_tokens (id, tenant_id, subject_id, type, token_hash, expires_at, consumed_at)
     VALUES
-      (${newId()}, ${realmId}, ${subjectId}, 'verify_email', ${`at-stale-${realmId}`},
+      (${newId()}, ${tenantId}, ${subjectId}, 'verify_email', ${`at-stale-${tenantId}`},
        ${at(-8 * DAY)}::timestamptz, NULL),
-      (${newId()}, ${realmId}, ${subjectId}, 'verify_email', ${`at-live-${realmId}`},
+      (${newId()}, ${tenantId}, ${subjectId}, 'verify_email', ${`at-live-${tenantId}`},
        ${at(1 * HOUR)}::timestamptz, NULL)
   `);
 
   await owner.db.execute(sql`
-    INSERT INTO client_registration_tokens (id, realm_id, token_hash, remaining_uses, expires_at)
+    INSERT INTO client_registration_tokens (id, tenant_id, token_hash, remaining_uses, expires_at)
     VALUES
-      (${newId()}, ${realmId}, ${`crt-stale-${realmId}`}, 1, ${at(-8 * DAY)}::timestamptz),
-      (${newId()}, ${realmId}, ${`crt-live-${realmId}`}, 1, ${at(1 * HOUR)}::timestamptz)
+      (${newId()}, ${tenantId}, ${`crt-stale-${tenantId}`}, 1, ${at(-8 * DAY)}::timestamptz),
+      (${newId()}, ${tenantId}, ${`crt-live-${tenantId}`}, 1, ${at(1 * HOUR)}::timestamptz)
   `);
 
-  // One row past both bounds, one still holding a lock. In a realm whose
+  // One row past both bounds, one still holding a lock. In a tenant whose
   // lockout can outlast its quiet period, the second is the row a pass
   // keyed on the quiet period alone would delete, unlocking the account.
   await owner.db.execute(sql`
-    INSERT INTO login_failures (realm_id, subject_id, failure_count, first_failure_at,
+    INSERT INTO login_failures (tenant_id, subject_id, failure_count, first_failure_at,
                                 last_failure_at, locked_until)
     VALUES
-      (${realmId}, ${staleFailureSubject}, 3, ${at(-2 * DAY)}::timestamptz,
+      (${tenantId}, ${staleFailureSubject}, 3, ${at(-2 * DAY)}::timestamptz,
        ${at(-1 * DAY)}::timestamptz, ${at(-1 * DAY)}::timestamptz),
-      (${realmId}, ${lockedSubject}, 9, ${at(-2 * DAY)}::timestamptz,
+      (${tenantId}, ${lockedSubject}, 9, ${at(-2 * DAY)}::timestamptz,
        ${at(-1 * DAY)}::timestamptz, ${at(1 * HOUR)}::timestamptz)
   `);
 
@@ -210,22 +210,22 @@ async function seedFixture(brute?: BruteForce): Promise<Fixture> {
   // resolved — a spent budget with no error on file, which no transport
   // ever refused — are none of its business.
   await owner.db.execute(sql`
-    INSERT INTO email_outbox (id, realm_id, to_address, subject, body_text, body_html,
+    INSERT INTO email_outbox (id, tenant_id, to_address, subject, body_text, body_html,
                               created_at, next_attempt_at, sent_at, attempts, last_error)
     VALUES
-      (${sentLongAgoId}, ${realmId}, 'ada@example.test', 'Sent', 't', '<p>t</p>',
+      (${sentLongAgoId}, ${tenantId}, 'ada@example.test', 'Sent', 't', '<p>t</p>',
        ${at(-9 * DAY)}::timestamptz, ${at(-9 * DAY)}::timestamptz, ${at(-8 * DAY)}::timestamptz,
        1, NULL),
-      (${sentYesterdayId}, ${realmId}, 'ada@example.test', 'Sent', 't', '<p>t</p>',
+      (${sentYesterdayId}, ${tenantId}, 'ada@example.test', 'Sent', 't', '<p>t</p>',
        ${at(-2 * DAY)}::timestamptz, ${at(-2 * DAY)}::timestamptz, ${at(-1 * DAY)}::timestamptz,
        1, NULL),
-      (${failedLongAgoId}, ${realmId}, 'ada@example.test', 'Failed', 't', '<p>t</p>',
+      (${failedLongAgoId}, ${tenantId}, 'ada@example.test', 'Failed', 't', '<p>t</p>',
        ${at(-40 * DAY)}::timestamptz, ${at(-31 * DAY)}::timestamptz, NULL, 5, 'no such mailbox'),
-      (${failedYesterdayId}, ${realmId}, 'ada@example.test', 'Failed', 't', '<p>t</p>',
+      (${failedYesterdayId}, ${tenantId}, 'ada@example.test', 'Failed', 't', '<p>t</p>',
        ${at(-3 * DAY)}::timestamptz, ${at(-1 * DAY)}::timestamptz, NULL, 5, 'no such mailbox'),
-      (${neverAttemptedId}, ${realmId}, 'ada@example.test', 'Waiting', 't', '<p>t</p>',
+      (${neverAttemptedId}, ${tenantId}, 'ada@example.test', 'Waiting', 't', '<p>t</p>',
        ${at(-60 * DAY)}::timestamptz, ${at(-60 * DAY)}::timestamptz, NULL, 0, NULL),
-      (${abandonedId}, ${realmId}, 'ada@example.test', 'Abandoned', 't', '<p>t</p>',
+      (${abandonedId}, ${tenantId}, 'ada@example.test', 'Abandoned', 't', '<p>t</p>',
        ${at(-60 * DAY)}::timestamptz, ${at(-40 * DAY)}::timestamptz, NULL, 5, NULL)
   `);
 
@@ -234,23 +234,23 @@ async function seedFixture(brute?: BruteForce): Promise<Fixture> {
   // an error on file) long ago, abandoned yesterday, and one still inside
   // its retry budget however old it is.
   await owner.db.execute(sql`
-    INSERT INTO backchannel_logout_deliveries (id, realm_id, client_id, session_id, endpoint,
+    INSERT INTO backchannel_logout_deliveries (id, tenant_id, client_id, session_id, endpoint,
                                                logout_token, created_at, next_attempt_at,
                                                delivered_at, attempts, last_error)
     VALUES
-      (${logoutDeliveredLongAgoId}, ${realmId}, ${clientId}, ${newId()},
+      (${logoutDeliveredLongAgoId}, ${tenantId}, ${clientId}, ${newId()},
        'https://rp.example/backchannel', 'token', ${at(-9 * DAY)}::timestamptz,
        ${at(-9 * DAY)}::timestamptz, ${at(-9 * DAY)}::timestamptz, 1, NULL),
-      (${logoutDeliveredYesterdayId}, ${realmId}, ${clientId}, ${newId()},
+      (${logoutDeliveredYesterdayId}, ${tenantId}, ${clientId}, ${newId()},
        'https://rp.example/backchannel', 'token', ${at(-2 * DAY)}::timestamptz,
        ${at(-2 * DAY)}::timestamptz, ${at(-1 * DAY)}::timestamptz, 1, NULL),
-      (${logoutAbandonedLongAgoId}, ${realmId}, ${clientId}, ${newId()},
+      (${logoutAbandonedLongAgoId}, ${tenantId}, ${clientId}, ${newId()},
        'https://rp.example/backchannel', 'token', ${at(-40 * DAY)}::timestamptz,
        ${at(-31 * DAY)}::timestamptz, NULL, 5, 'logout delivery refused with status 400'),
-      (${logoutAbandonedYesterdayId}, ${realmId}, ${clientId}, ${newId()},
+      (${logoutAbandonedYesterdayId}, ${tenantId}, ${clientId}, ${newId()},
        'https://rp.example/backchannel', 'token', ${at(-3 * DAY)}::timestamptz,
        ${at(-1 * DAY)}::timestamptz, NULL, 5, 'logout delivery refused with status 400'),
-      (${logoutStillRetryingId}, ${realmId}, ${clientId}, ${newId()},
+      (${logoutStillRetryingId}, ${tenantId}, ${clientId}, ${newId()},
        'https://rp.example/backchannel', 'token', ${at(-400 * DAY)}::timestamptz,
        ${at(-399 * DAY)}::timestamptz, NULL, 4, 'logout delivery failed with status 503')
   `);
@@ -258,15 +258,15 @@ async function seedFixture(brute?: BruteForce): Promise<Fixture> {
   // One jti already past the exp its own claim carried, one still short of
   // it — no separate policy window, so age alone decides.
   await owner.db.execute(sql`
-    INSERT INTO client_assertion_jti (realm_id, oauth_client_id, jti, expires_at)
+    INSERT INTO client_assertion_jti (tenant_id, oauth_client_id, jti, expires_at)
     VALUES
-      (${realmId}, 'app', ${assertionJtiStale}, ${at(-1 * MINUTE)}::timestamptz),
-      (${realmId}, 'app', ${assertionJtiLive}, ${at(1 * HOUR)}::timestamptz)
+      (${tenantId}, 'app', ${assertionJtiStale}, ${at(-1 * MINUTE)}::timestamptz),
+      (${tenantId}, 'app', ${assertionJtiLive}, ${at(1 * HOUR)}::timestamptz)
   `);
 
   return {
-    realm,
-    realmId,
+    tenant,
+    tenantId,
     staleGrantId,
     youngGrantId,
     boundSessionId,
@@ -301,16 +301,16 @@ const RELATIONS: Record<TableName, SQL> = {
   sessions: sql.raw('sessions'),
 };
 
-async function countRows(realmId: string, table: TableName): Promise<number> {
+async function countRows(tenantId: string, table: TableName): Promise<number> {
   const rows = await owner.db.execute<{ n: string }>(
-    sql`SELECT count(*) AS n FROM ${RELATIONS[table]} WHERE realm_id = ${realmId}`,
+    sql`SELECT count(*) AS n FROM ${RELATIONS[table]} WHERE tenant_id = ${tenantId}`,
   );
   return Number(rows[0]?.n ?? '-1');
 }
 
-async function counts(realmId: string): Promise<Record<TableName, number>> {
+async function counts(tenantId: string): Promise<Record<TableName, number>> {
   const result = {} as Record<TableName, number>;
-  for (const table of REAP_ORDER) result[table] = await countRows(realmId, table);
+  for (const table of REAP_ORDER) result[table] = await countRows(tenantId, table);
   return result;
 }
 
@@ -318,9 +318,9 @@ function runPass(now: Date = NOW, policy: RetentionPolicy = POLICY): Promise<Rea
   return reap({ database: appDb, ownerDatabase: owner }, now, policy);
 }
 
-async function codeExists(realmId: string): Promise<boolean> {
+async function codeExists(tenantId: string): Promise<boolean> {
   const rows = await owner.db.execute<{ n: string }>(sql`
-    SELECT count(*) AS n FROM authorization_codes WHERE code_hash = ${`code-stale-${realmId}`}
+    SELECT count(*) AS n FROM authorization_codes WHERE code_hash = ${`code-stale-${tenantId}`}
   `);
   return rows[0]?.n === '1';
 }
@@ -350,7 +350,7 @@ afterAll(async () => {
 });
 
 describe('odudu reap', () => {
-  // First, and deliberately: the report is summed over every realm in the
+  // First, and deliberately: the report is summed over every tenant in the
   // database, so this is the only point at which it can be compared to an
   // exact expectation.
   it('deletes every eligible row, counts each one, and then has nothing left to do', async () => {
@@ -373,7 +373,7 @@ describe('odudu reap', () => {
     // Reported by this pass, not by the ON DELETE CASCADE from
     // token_grants: a cascade would have emptied refresh_tokens while the
     // report claimed nothing had happened there.
-    expect(await counts(fixture.realmId)).toEqual({
+    expect(await counts(fixture.tenantId)).toEqual({
       refresh_tokens: 1,
       authorization_codes: 1,
       token_grants: 1,
@@ -411,21 +411,21 @@ describe('odudu reap', () => {
     await runPass();
 
     const rows = await owner.db.execute<{ jti: string }>(
-      sql`SELECT jti FROM client_assertion_jti WHERE realm_id = ${fixture.realmId}`,
+      sql`SELECT jti FROM client_assertion_jti WHERE tenant_id = ${fixture.tenantId}`,
     );
     expect(rows.map((row) => row.jti)).toEqual([fixture.assertionJtiLive]);
   });
 
-  // The foreign-realm probe for this table specifically: the
-  // generic "scopes each realm's statements by row-level security alone"
+  // The foreign-tenant probe for this table specifically: the
+  // generic "scopes each tenant's statements by row-level security alone"
   // test below hard-codes authentication_sessions and never runs this
   // table's own DELETE, so it proves nothing about client_assertion_jti.
-  it('scopes the client_assertion_jti delete to one realm by row-level security alone', async () => {
+  it('scopes the client_assertion_jti delete to one tenant by row-level security alone', async () => {
     const mine = await seedFixture();
     const theirs = await seedFixture();
 
-    const before = await countRows(theirs.realmId, 'client_assertion_jti');
-    const pass = await withEachRealmExclusive(appDb.db, REAP_LOCK_KEY, [mine.realmId], (tx) =>
+    const before = await countRows(theirs.tenantId, 'client_assertion_jti');
+    const pass = await withEachTenantExclusive(appDb.db, REAP_LOCK_KEY, [mine.tenantId], (tx) =>
       tx.execute(sql`
         DELETE FROM client_assertion_jti
          WHERE expires_at < ${NOW.toISOString()}::timestamptz
@@ -434,8 +434,8 @@ describe('odudu reap', () => {
     expect(pass.acquired).toBe(true);
 
     // Only mine's stale row is gone; the live one it seeded stays.
-    expect(await countRows(mine.realmId, 'client_assertion_jti')).toBe(1);
-    expect(await countRows(theirs.realmId, 'client_assertion_jti')).toBe(before);
+    expect(await countRows(mine.tenantId, 'client_assertion_jti')).toBe(1);
+    expect(await countRows(theirs.tenantId, 'client_assertion_jti')).toBe(before);
 
     await runPass();
   });
@@ -451,7 +451,7 @@ describe('odudu reap', () => {
     await runPass();
 
     const rows = await owner.db.execute<{ id: string }>(
-      sql`SELECT id FROM email_outbox WHERE realm_id = ${fixture.realmId} ORDER BY created_at`,
+      sql`SELECT id FROM email_outbox WHERE tenant_id = ${fixture.tenantId} ORDER BY created_at`,
     );
     expect(rows.map((row) => row.id).sort()).toEqual(
       [
@@ -472,7 +472,7 @@ describe('odudu reap', () => {
     await runPass();
 
     const rows = await owner.db.execute<{ id: string }>(sql`
-      SELECT id FROM backchannel_logout_deliveries WHERE realm_id = ${fixture.realmId}
+      SELECT id FROM backchannel_logout_deliveries WHERE tenant_id = ${fixture.tenantId}
        ORDER BY created_at
     `);
     expect(rows.map((row) => row.id).sort()).toEqual(
@@ -506,9 +506,9 @@ describe('odudu reap', () => {
     const fixture = await seedFixture();
     const id = newId();
     await owner.db.execute(sql`
-      INSERT INTO email_outbox (id, realm_id, to_address, subject, body_text, body_html,
+      INSERT INTO email_outbox (id, tenant_id, to_address, subject, body_text, body_html,
                                 created_at, next_attempt_at, attempts)
-      VALUES (${id}, ${fixture.realmId}, 'ada@example.test', 'Retrying', 't', '<p>t</p>',
+      VALUES (${id}, ${fixture.tenantId}, 'ada@example.test', 'Retrying', 't', '<p>t</p>',
               ${at(-400 * DAY)}::timestamptz, ${at(-399 * DAY)}::timestamptz, 4)
     `);
 
@@ -525,7 +525,7 @@ describe('odudu reap', () => {
     await runPass();
 
     const sessions = await owner.db.execute<{ id: string }>(
-      sql`SELECT id FROM sessions WHERE realm_id = ${fixture.realmId}`,
+      sql`SELECT id FROM sessions WHERE tenant_id = ${fixture.tenantId}`,
     );
     expect(sessions.map((row) => row.id)).toEqual([fixture.boundSessionId]);
 
@@ -546,14 +546,14 @@ describe('odudu reap', () => {
     // the session becomes deletable only because the grant went first.
     const deleted = ran(await runPass(new Date(NOW.getTime() + 8 * DAY)));
     expect(deleted.token_grants).toBeGreaterThanOrEqual(1);
-    expect(await countRows(fixture.realmId, 'token_grants')).toBe(0);
-    expect(await countRows(fixture.realmId, 'sessions')).toBe(0);
-    expect(await countRows(fixture.realmId, 'refresh_tokens')).toBe(0);
+    expect(await countRows(fixture.tenantId, 'token_grants')).toBe(0);
+    expect(await countRows(fixture.tenantId, 'sessions')).toBe(0);
+    expect(await countRows(fixture.tenantId, 'refresh_tokens')).toBe(0);
   });
 
   // The CHECK in packages/db/drizzle/0041_login_failures.sql relates
   // max_lockout_seconds to lockout_seconds and bounds failure_reset_seconds,
-  // but relates neither to the other: a realm that locks for a day and
+  // but relates neither to the other: a tenant that locks for a day and
   // forgets failures after a minute is legal, and there the quiet period
   // alone would delete the row holding the lock.
   it('keeps a locked-out account whose quiet period has already elapsed', async () => {
@@ -567,7 +567,7 @@ describe('odudu reap', () => {
 
     const rows = await owner.db.execute<{ locked: boolean }>(sql`
       SELECT locked_until > ${NOW.toISOString()}::timestamptz AS locked
-        FROM login_failures WHERE realm_id = ${fixture.realmId}
+        FROM login_failures WHERE tenant_id = ${fixture.tenantId}
     `);
     expect(rows.map((row) => row.locked)).toEqual([true]);
   });
@@ -579,14 +579,14 @@ describe('odudu reap', () => {
     const fixture = await seedFixture();
     const spentId = newId();
     await owner.db.execute(sql`
-      INSERT INTO client_registration_tokens (id, realm_id, token_hash, remaining_uses,
+      INSERT INTO client_registration_tokens (id, tenant_id, token_hash, remaining_uses,
                                               created_at, expires_at)
-      VALUES (${spentId}, ${fixture.realmId}, ${`crt-spent-${fixture.realmId}`}, 0,
+      VALUES (${spentId}, ${fixture.tenantId}, ${`crt-spent-${fixture.tenantId}`}, 0,
               ${at(-1 * HOUR)}::timestamptz, ${at(1 * DAY)}::timestamptz)
     `);
 
     await runPass();
-    expect(await countRows(fixture.realmId, 'client_registration_tokens')).toBeGreaterThanOrEqual(
+    expect(await countRows(fixture.tenantId, 'client_registration_tokens')).toBeGreaterThanOrEqual(
       1,
     );
     const rows = await owner.db.execute<{ n: string }>(
@@ -610,24 +610,24 @@ describe('odudu reap', () => {
 
     await runPass(new Date(NOW.getTime() + 2 * HOUR));
 
-    expect(await countRows(fixture.realmId, 'login_failures')).toBe(0);
+    expect(await countRows(fixture.tenantId, 'login_failures')).toBe(0);
   });
 
-  // No DELETE in the pass carries a realm_id predicate: the scoping is
-  // realms_isolation, on the connection the statements run on. A pass over
-  // one realm must therefore leave every other realm untouched.
-  it('scopes each realm’s statements by row-level security alone', async () => {
+  // No DELETE in the pass carries a tenant_id predicate: the scoping is
+  // tenants_isolation, on the connection the statements run on. A pass over
+  // one tenant must therefore leave every other tenant untouched.
+  it('scopes each tenant’s statements by row-level security alone', async () => {
     const mine = await seedFixture();
     const theirs = await seedFixture();
 
-    const before = await counts(theirs.realmId);
-    const pass = await withEachRealmExclusive(appDb.db, REAP_LOCK_KEY, [mine.realmId], (tx) =>
+    const before = await counts(theirs.tenantId);
+    const pass = await withEachTenantExclusive(appDb.db, REAP_LOCK_KEY, [mine.tenantId], (tx) =>
       tx.execute(sql`DELETE FROM authentication_sessions`),
     );
     expect(pass.acquired).toBe(true);
 
-    expect(await countRows(mine.realmId, 'authentication_sessions')).toBe(0);
-    expect(await counts(theirs.realmId)).toEqual(before);
+    expect(await countRows(mine.tenantId, 'authentication_sessions')).toBe(0);
+    expect(await counts(theirs.tenantId)).toEqual(before);
 
     await runPass();
   });
@@ -668,20 +668,20 @@ describe('odudu reap', () => {
     const fixture = await seedFixture();
 
     await runPass(NOW, patient);
-    expect(await countRows(fixture.realmId, 'token_grants')).toBe(1);
-    expect(await codeExists(fixture.realmId)).toBe(true);
+    expect(await countRows(fixture.tenantId, 'token_grants')).toBe(1);
+    expect(await codeExists(fixture.tenantId)).toBe(true);
 
     // Its own window has elapsed too now, and the family it named is long
     // gone: nothing can read this row, which is the whole test of whether it
     // may be deleted.
     await runPass(new Date(NOW.getTime() + 500 * DAY), patient);
-    expect(await codeExists(fixture.realmId)).toBe(false);
+    expect(await codeExists(fixture.tenantId)).toBe(false);
   });
 
-  // The enumeration is the one read on the owner connection, and `realms`
+  // The enumeration is the one read on the owner connection, and `tenants`
   // carries FORCE ROW LEVEL SECURITY: a role without the exemption reads no
-  // realms and would reap none of them silently.
-  it('refuses to run on a connection that cannot enumerate realms', async () => {
+  // tenants and would reap none of them silently.
+  it('refuses to run on a connection that cannot enumerate tenants', async () => {
     await expect(reap({ database: appDb, ownerDatabase: appDb }, NOW, POLICY)).rejects.toThrow(
       /bypasses row-level security/u,
     );
@@ -690,9 +690,9 @@ describe('odudu reap', () => {
   // The other half of the same property. The container's owner is a
   // superuser, so handing it in as the serving connection is exactly the
   // configuration an operator reaches by pointing ODUDU_APP_DATABASE_URL at
-  // the owner: every DELETE unscoped, with app.realm_id bound and nothing
+  // the owner: every DELETE unscoped, with app.tenant_id bound and nothing
   // enforcing it.
-  it('refuses to delete on a connection that escapes the realm policy', async () => {
+  it('refuses to delete on a connection that escapes the tenant policy', async () => {
     await expect(reap({ database: owner, ownerDatabase: owner }, NOW, POLICY)).rejects.toThrow(
       /must be subject to it/u,
     );
@@ -719,7 +719,7 @@ describe('odudu reap', () => {
         NOW,
         POLICY,
       );
-      expect(outcome).toEqual({ ran: false, reason: 'no realm was enumerated' });
+      expect(outcome).toEqual({ ran: false, reason: 'no tenant was enumerated' });
     } finally {
       await emptyServing.close();
       await emptyOwner.close();

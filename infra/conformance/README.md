@@ -33,7 +33,7 @@ configuration path around it; a plain-HTTP value is a hard `error()`, not
 a warning.
 
 Then reproduced it directly against a running odudu, pointed at
-`http://odudu:3000/realms/conformance/.well-known/openid-configuration`
+`http://odudu:3000/tenants/conformance/.well-known/openid-configuration`
 (reachable — this was not a network-error false negative). The suite's own
 log:
 
@@ -74,7 +74,7 @@ every issuer in the product used to be built from, strips the port
 unconditionally, including when reading `X-Forwarded-Host` under
 `trustProxy`. Verified directly against the odudu container:
 `X-Forwarded-Host: myhost.example:9999` with `X-Forwarded-Proto: https`
-came back as issuer `https://myhost.example/realms/...`, port silently
+came back as issuer `https://myhost.example/tenants/...`, port silently
 dropped — so any deployment terminating TLS on a non-default port
 advertised endpoint URLs nobody could reach. Every issuer now comes from
 one definition built on `request.host`, which keeps the port
@@ -412,7 +412,7 @@ fails for any reason other than the authorization endpoint answering
 `error=invalid_request` to a request carrying no PKCE parameters is a
 real defect in odudu or in this harness, and is to be treated as one.
 
-Ran to completion against a seeded `conformance` realm (client
+Ran to completion against a seeded `conformance` tenant (client
 `conformance-client` / `conformance-secret`, user `conformance-user` /
 `conformance-password`), plan id `zhhmzqbbCArGd`, suite `5.1.36`, on
 2026-09-12. Export committed at
@@ -447,6 +447,7 @@ below and unaffected by anything in this section.
 
 **1 of 30 (`oidcc-ensure-post-request-succeeds`) was a real, unrelated
 gap**: the authorization endpoint did not accept `POST` at all —
+quoted as served, from before the tenant path replaced `/realms/`:
 
 ```
 404 {"message":"Route POST:/realms/conformance/protocol/openid-connect/auth not found"}
@@ -599,7 +600,8 @@ document does not advertise.
 > profile expects those requests to succeed.
 
 Confirmed directly from the suite's own request/response log for the
-first module (`oidcc-server`):
+first module (`oidcc-server`), quoted as logged, from before the tenant
+path replaced `/realms/`:
 
 ```
 request_uri: https://proxy/realms/conformance/protocol/openid-connect/auth?client_id=conformance-client&redirect_uri=...&scope=openid&state=...&nonce=...&response_type=code
@@ -622,7 +624,7 @@ come from, not a change here.
 does not own changing.** P3a's exit criterion, written for this reason,
 is "the plan runs reproducibly with every divergence confirmed as a
 recorded decision" — verbatim the treatment ADR 0016 already gives Basic
-OP. Ran against a realm seeded `client_registration_policy=open`
+OP. Ran against a tenant seeded `client_registration_policy=open`
 (`run-dynamic-op.sh`), `response_type=code` the one variant dimension the
 plan leaves open, plan id `4JhQ5ffOdtF1Q`, suite `5.1.36`, on
 2026-09-19. Export committed at

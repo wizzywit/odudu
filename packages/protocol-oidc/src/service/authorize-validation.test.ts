@@ -1,5 +1,5 @@
 import { discoveryDocument } from '@odudu/contracts';
-import { type ClientRecord } from '@odudu/domain-realm';
+import { type ClientRecord } from '@odudu/domain-tenant';
 import { describe, expect, it } from 'vitest';
 import { validateAuthorizationRequest } from '#/service/authorize-validation';
 import { type ClientOidcConfig } from '#/schema/client-oidc-config';
@@ -11,7 +11,7 @@ function omit<T extends Record<string, unknown>, K extends keyof T>(obj: T, key:
 
 const client: ClientRecord = {
   id: 'a2f0b7a2-6e8e-4c9a-9b6f-1d1f9a6a9f01',
-  realmId: 'e1c1c1c1-6e8e-4c9a-9b6f-1d1f9a6a9f02',
+  tenantId: 'e1c1c1c1-6e8e-4c9a-9b6f-1d1f9a6a9f02',
   clientId: 'oauth-client-1',
   name: 'A confidential client',
   enabled: true,
@@ -25,7 +25,7 @@ const client: ClientRecord = {
 
 const config: ClientOidcConfig = {
   clientId: client.id,
-  realmId: client.realmId,
+  tenantId: client.tenantId,
   redirectUris: ['https://app.example/callback'],
   grantTypes: ['authorization_code', 'refresh_token'],
   tokenEndpointAuthMethod: 'client_secret_basic',
@@ -49,11 +49,11 @@ const config: ClientOidcConfig = {
 };
 
 // One list stands for both halves of the rule these tests exercise: the
-// scopes the realm defines, and the ones this client is assigned. Tests that
+// scopes the tenant defines, and the ones this client is assigned. Tests that
 // need the halves to differ build their own sets.
-const REALM_SCOPES = ['openid', 'profile', 'email'];
-const KNOWN = new Set(REALM_SCOPES);
-const ASSIGNED = new Set(REALM_SCOPES);
+const TENANT_SCOPES = ['openid', 'profile', 'email'];
+const KNOWN = new Set(TENANT_SCOPES);
+const ASSIGNED = new Set(TENANT_SCOPES);
 
 function validate(
   p: Record<string, string | undefined>,
@@ -155,7 +155,7 @@ describe('an unsupported response mode is refused, not silently changed', () => 
     const advertised = discoveryDocument({
       issuer: 'https://idp.example',
       claimsSupported: [],
-      scopesSupported: REALM_SCOPES,
+      scopesSupported: TENANT_SCOPES,
       userinfoSigningAlgSupported: ['none'],
       userinfoEncryptionAlgSupported: [],
       userinfoEncryptionEncSupported: [],
@@ -226,14 +226,14 @@ describe('scope acceptance', () => {
 
   // Discovery and validation no longer share an import, so the only thing
   // keeping the advertised list and the accepted one in agreement is that
-  // the caller reads the realm once and hands the same list to both. This
+  // the caller reads the tenant once and hands the same list to both. This
   // is that arrangement, asserted.
   it('accepts exactly what discovery advertises as scopes_supported, and nothing beyond it', () => {
-    const realmScopes = ['openid', 'profile', 'email', 'reports:read'];
+    const tenantScopes = ['openid', 'profile', 'email', 'reports:read'];
     const advertised = discoveryDocument({
       issuer: 'https://idp.example',
       claimsSupported: [],
-      scopesSupported: realmScopes,
+      scopesSupported: tenantScopes,
       userinfoSigningAlgSupported: ['none'],
       userinfoEncryptionAlgSupported: [],
       userinfoEncryptionEncSupported: [],
@@ -263,14 +263,14 @@ describe('scope acceptance', () => {
   });
 
   // Two different refusals wear the same error code, and only one of them is
-  // about the realm's vocabulary: `reports:read` here is a scope the realm
+  // about the tenant's vocabulary: `reports:read` here is a scope the tenant
   // defines and this client has simply not been assigned.
-  it('rejects a scope the realm defines but the client is not assigned', () => {
+  it('rejects a scope the tenant defines but the client is not assigned', () => {
     const outcome = validateAuthorizationRequest(
       { ...params, scope: 'openid reports:read' },
       client,
       config,
-      new Set([...REALM_SCOPES, 'reports:read']),
+      new Set([...TENANT_SCOPES, 'reports:read']),
       ASSIGNED,
     );
     expect(outcome).toMatchObject({ kind: 'redirect', error: 'invalid_scope' });
@@ -281,15 +281,15 @@ describe('scope acceptance', () => {
       { ...params, scope: 'openid reports:read' },
       client,
       config,
-      new Set([...REALM_SCOPES, 'reports:read']),
-      new Set([...REALM_SCOPES, 'reports:read']),
+      new Set([...TENANT_SCOPES, 'reports:read']),
+      new Set([...TENANT_SCOPES, 'reports:read']),
     );
     expect(outcome).toMatchObject({ kind: 'ok' });
   });
 });
 
 describe('[RFC6749-3.3-03] an omitted scope resolves to the documented default', () => {
-  it('parks openid, the one scope every realm supports, when the request names none', () => {
+  it('parks openid, the one scope every tenant supports, when the request names none', () => {
     const outcome = validate(omit(params, 'scope'), client, config);
     expect(outcome).toMatchObject({ kind: 'ok' });
     if (outcome.kind !== 'ok') throw new Error('expected ok');
@@ -333,7 +333,7 @@ describe('prompt and id_token_hint reach the usecase through the validated outco
     const outcome = validate({ ...params, id_token_hint: 'not.a.jwt' }, client, config);
     if (outcome.kind !== 'ok') throw new Error('expected the request to validate');
     // Whether the hint is one this server issued is not decidable here: it
-    // takes the realm's keys, which this layer has no way to reach.
+    // takes the tenant's keys, which this layer has no way to reach.
     expect(outcome.idTokenHint).toBe('not.a.jwt');
   });
 

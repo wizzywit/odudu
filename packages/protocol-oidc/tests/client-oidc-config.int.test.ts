@@ -1,15 +1,15 @@
 import {
   createDatabase,
   MIGRATIONS_DIR,
-  realms,
+  tenants,
   runMigrations,
-  withRealm,
+  withTenant,
   type DatabaseHandle,
-  type RealmScopedDatabase,
+  type TenantScopedDatabase,
 } from '@odudu/db';
-import { expectCrossRealmMethodProbe, expectRealmIsolation } from '@odudu/db/testing';
-import { provisionRealm } from '@odudu/authn-flows';
-import { clients, provisionClientDefaults } from '@odudu/domain-realm';
+import { expectCrossTenantMethodProbe, expectTenantIsolation } from '@odudu/db/testing';
+import { provisionTenant } from '@odudu/authn-flows';
+import { clients, provisionClientDefaults } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -42,16 +42,16 @@ afterAll(async () => {
   await containerHandle?.stop();
 });
 
-async function seedRealmAndClient(
-  tx: RealmScopedDatabase,
-  realmId: string,
+async function seedTenantAndClient(
+  tx: TenantScopedDatabase,
+  tenantId: string,
   clientId: string,
 ): Promise<void> {
-  await tx.insert(realms).values({ id: realmId, name: `realm-${realmId}` });
-  await provisionRealm(tx, realmId);
+  await tx.insert(tenants).values({ id: tenantId, name: `tenant-${tenantId}` });
+  await provisionTenant(tx, tenantId);
   await tx.insert(clients).values({
     id: clientId,
-    realmId,
+    tenantId,
     clientId: `oauth-client-${clientId}`,
     name: 'A client',
     type: 'confidential',
@@ -62,14 +62,14 @@ async function seedRealmAndClient(
 
 describe('clientOidcConfigRepository', () => {
   it('creates and finds a config by the client id', async () => {
-    const realmId = newId();
+    const tenantId = newId();
     const clientId = newId();
 
-    const created = await withRealm(app.db, realmId, async (tx) => {
-      await seedRealmAndClient(tx, realmId, clientId);
+    const created = await withTenant(app.db, tenantId, async (tx) => {
+      await seedTenantAndClient(tx, tenantId, clientId);
       return clientOidcConfigRepository(tx).create({
         clientId,
-        realmId,
+        tenantId,
         redirectUris: ['https://app.example/callback'],
         grantTypes: ['authorization_code', 'refresh_token'],
         tokenEndpointAuthMethod: 'client_secret_basic',
@@ -84,7 +84,7 @@ describe('clientOidcConfigRepository', () => {
     // no consent screen, no key material, no logout URIs.
     expect(created.consentRequired).toBe(false);
 
-    const found = await withRealm(app.db, realmId, async (tx) =>
+    const found = await withTenant(app.db, tenantId, async (tx) =>
       clientOidcConfigRepository(tx).byClientId(clientId),
     );
 
@@ -95,14 +95,14 @@ describe('clientOidcConfigRepository', () => {
   });
 
   it('returns null when no config matches', async () => {
-    const realmId = newId();
+    const tenantId = newId();
 
-    await withRealm(app.db, realmId, async (tx) => {
-      await tx.insert(realms).values({ id: realmId, name: `realm-${realmId}` });
-      await provisionRealm(tx, realmId);
+    await withTenant(app.db, tenantId, async (tx) => {
+      await tx.insert(tenants).values({ id: tenantId, name: `tenant-${tenantId}` });
+      await provisionTenant(tx, tenantId);
     });
 
-    const found = await withRealm(app.db, realmId, async (tx) =>
+    const found = await withTenant(app.db, tenantId, async (tx) =>
       clientOidcConfigRepository(tx).byClientId(newId()),
     );
 
@@ -110,14 +110,14 @@ describe('clientOidcConfigRepository', () => {
   });
 
   it('allows a client_credentials-only client to have no redirect URIs', async () => {
-    const realmId = newId();
+    const tenantId = newId();
     const clientId = newId();
 
-    const created = await withRealm(app.db, realmId, async (tx) => {
-      await seedRealmAndClient(tx, realmId, clientId);
+    const created = await withTenant(app.db, tenantId, async (tx) => {
+      await seedTenantAndClient(tx, tenantId, clientId);
       return clientOidcConfigRepository(tx).create({
         clientId,
-        realmId,
+        tenantId,
         redirectUris: [],
         grantTypes: ['client_credentials'],
         tokenEndpointAuthMethod: 'client_secret_basic',
@@ -131,16 +131,16 @@ describe('clientOidcConfigRepository', () => {
   });
 
   it('rejects a redirect-capable client with no redirect URIs', async () => {
-    const realmId = newId();
+    const tenantId = newId();
     const clientId = newId();
 
     let error: unknown;
     try {
-      await withRealm(app.db, realmId, async (tx) => {
-        await seedRealmAndClient(tx, realmId, clientId);
+      await withTenant(app.db, tenantId, async (tx) => {
+        await seedTenantAndClient(tx, tenantId, clientId);
         await clientOidcConfigRepository(tx).create({
           clientId,
-          realmId,
+          tenantId,
           redirectUris: [],
           grantTypes: ['authorization_code'],
           tokenEndpointAuthMethod: 'client_secret_basic',
@@ -164,16 +164,16 @@ describe('clientOidcConfigRepository', () => {
     // Pins the exact-array-equality reading of client_oidc_config_redirect_uris_present:
     // grant_types = ARRAY['client_credentials'] is false once refresh_token joins the
     // array, so this combination still requires at least one redirect URI.
-    const realmId = newId();
+    const tenantId = newId();
     const clientId = newId();
 
     let error: unknown;
     try {
-      await withRealm(app.db, realmId, async (tx) => {
-        await seedRealmAndClient(tx, realmId, clientId);
+      await withTenant(app.db, tenantId, async (tx) => {
+        await seedTenantAndClient(tx, tenantId, clientId);
         await clientOidcConfigRepository(tx).create({
           clientId,
-          realmId,
+          tenantId,
           redirectUris: [],
           grantTypes: ['client_credentials', 'refresh_token'],
           tokenEndpointAuthMethod: 'client_secret_basic',
@@ -193,15 +193,15 @@ describe('clientOidcConfigRepository', () => {
     expect((cause as Error).message).toContain('client_oidc_config_redirect_uris_present');
   });
 
-  it('isolates configs by realm', async () => {
-    await expectRealmIsolation(app.db, {
+  it('isolates configs by tenant', async () => {
+    await expectTenantIsolation(app.db, {
       table: 'client_oidc_config',
-      seed: async (tx, realmId) => {
+      seed: async (tx, tenantId) => {
         const clientId = newId();
-        await seedRealmAndClient(tx, realmId, clientId);
+        await seedTenantAndClient(tx, tenantId, clientId);
         await clientOidcConfigRepository(tx).create({
           clientId,
-          realmId,
+          tenantId,
           redirectUris: ['https://app.example/callback'],
           grantTypes: ['authorization_code'],
           tokenEndpointAuthMethod: 'client_secret_basic',
@@ -213,14 +213,14 @@ describe('clientOidcConfigRepository', () => {
     });
   });
 
-  it('cannot find a config by client id under a different realm context', async () => {
-    await expectCrossRealmMethodProbe(app.db, {
-      seed: async (tx, realmId) => {
+  it('cannot find a config by client id under a different tenant context', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
         const clientId = newId();
-        await seedRealmAndClient(tx, realmId, clientId);
+        await seedTenantAndClient(tx, tenantId, clientId);
         await clientOidcConfigRepository(tx).create({
           clientId,
-          realmId,
+          tenantId,
           redirectUris: ['https://app.example/callback'],
           grantTypes: ['authorization_code'],
           tokenEndpointAuthMethod: 'client_secret_basic',
@@ -241,14 +241,14 @@ describe('clientOidcConfigRepository', () => {
     });
   });
 
-  it('cannot read post_logout_redirect_uris for a client under a different realm context', async () => {
-    await expectCrossRealmMethodProbe(app.db, {
-      seed: async (tx, realmId) => {
+  it('cannot read post_logout_redirect_uris for a client under a different tenant context', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
         const clientId = newId();
-        await seedRealmAndClient(tx, realmId, clientId);
+        await seedTenantAndClient(tx, tenantId, clientId);
         await clientOidcConfigRepository(tx).create({
           clientId,
-          realmId,
+          tenantId,
           redirectUris: ['https://app.example/callback'],
           grantTypes: ['authorization_code'],
           tokenEndpointAuthMethod: 'client_secret_basic',

@@ -1,7 +1,7 @@
 # @odudu/db
 
-The connection pool, the realm-scoped transaction helper (`withRealm`), the
-migration runner, and the `realms` table.
+The connection pool, the tenant-scoped transaction helper (`withTenant`), the
+migration runner, and the `tenants` table.
 
 ## SQL is the source of truth for the schema
 
@@ -13,9 +13,9 @@ what produces it, and nothing generates them.
 This is not the arrangement drizzle-kit assumes, so three things follow.
 
 **There is no `db:generate`.** It was a script that reported "1 tables /
-realms / No schema changes, nothing to migrate" for a repository with
+tenants / No schema changes, nothing to migrate" for a repository with
 twelve tables: `drizzle.config.ts` pointed at `src/schema/index.ts`, which
-re-exports `realms` and nothing else, because the other eleven tables are
+re-exports `tenants` and nothing else, because the other eleven tables are
 declared in the packages that own them and importing those here would
 invert the dependency (`@odudu/db` sits underneath all of them). A
 generator that is blind to eleven of twelve tables does not detect drift;
@@ -24,7 +24,7 @@ its generated SQL with fifteen hand-written migrations whose RLS policies,
 CHECK constraints and guarded DO blocks it cannot express — and declaring
 the policies so that it could is the thing that fails 42710 against every
 database that already carries them (see the comment in
-`src/schema/realms.ts`). The script and its config file are gone.
+`src/schema/tenants.ts`). The script and its config file are gone.
 
 **`drizzle/meta/` is not maintained.** Snapshots exist for two of fifteen
 journalled migrations. `runMigrations` reads `_journal.json` and the `.sql`

@@ -3,14 +3,14 @@ import { hashPassword, subjectRepository, userCredentials, users } from '@odudu/
 import {
   createDatabase,
   MIGRATIONS_DIR,
-  realms,
+  tenants,
   runMigrations,
-  withRealm,
+  withTenant,
   type DatabaseHandle,
-  type RealmScopedDatabase,
+  type TenantScopedDatabase,
 } from '@odudu/db';
-import { provisionRealm, requiredActionRepository } from '@odudu/authn-flows';
-import { clients, provisionClientDefaults } from '@odudu/domain-realm';
+import { provisionTenant, requiredActionRepository } from '@odudu/authn-flows';
+import { clients, provisionClientDefaults } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import formbody from '@fastify/formbody';
@@ -37,8 +37,8 @@ let owner: DatabaseHandle;
 let app: DatabaseHandle;
 let http: FastifyInstance;
 
-let REALM: string;
-let REALM_ID: string;
+let TENANT: string;
+let TENANT_ID: string;
 
 const CLIENT_ID = 'claims-client';
 const CLIENT_SECRET = 'claims-client-secret';
@@ -69,19 +69,19 @@ let aliceSubjectId: string;
 let bobSubjectId: string;
 let frankSubjectId: string;
 
-async function setupRealm(): Promise<void> {
-  REALM = `claims-parameter-${newId()}`;
-  const realmId = newId();
-  REALM_ID = realmId;
+async function setupTenant(): Promise<void> {
+  TENANT = `claims-parameter-${newId()}`;
+  const tenantId = newId();
+  TENANT_ID = tenantId;
 
-  await withRealm(app.db, realmId, async (tx: RealmScopedDatabase) => {
-    await tx.insert(realms).values({ id: realmId, name: REALM });
-    await provisionRealm(tx, realmId);
+  await withTenant(app.db, tenantId, async (tx: TenantScopedDatabase) => {
+    await tx.insert(tenants).values({ id: tenantId, name: TENANT });
+    await provisionTenant(tx, tenantId);
 
     const clientDbId = newId();
     await tx.insert(clients).values({
       id: clientDbId,
-      realmId,
+      tenantId,
       clientId: CLIENT_ID,
       name: 'Claims parameter test client',
       type: 'confidential',
@@ -90,7 +90,7 @@ async function setupRealm(): Promise<void> {
     await provisionClientDefaults(tx, clientDbId);
     await clientOidcConfigRepository(tx).create({
       clientId: clientDbId,
-      realmId,
+      tenantId,
       redirectUris: [REDIRECT_URI],
       grantTypes: ['authorization_code'],
       tokenEndpointAuthMethod: 'client_secret_basic',
@@ -99,29 +99,29 @@ async function setupRealm(): Promise<void> {
       refreshTokenTtlSeconds: 1_209_600,
     });
 
-    const alice = await subjectRepository(tx).create({ realmId, type: 'user' });
+    const alice = await subjectRepository(tx).create({ tenantId, type: 'user' });
     aliceSubjectId = alice.id;
     await tx.insert(users).values({
       subjectId: alice.id,
-      realmId,
+      tenantId,
       username: ALICE_USERNAME,
       email: ALICE_EMAIL,
       emailVerified: true,
     });
     await tx.insert(userCredentials).values({
       id: newId(),
-      realmId,
+      tenantId,
       subjectId: alice.id,
       type: 'password',
       secretData: { hash: await hashPassword(ALICE_PASSWORD) },
     });
 
-    const bob = await subjectRepository(tx).create({ realmId, type: 'user' });
+    const bob = await subjectRepository(tx).create({ tenantId, type: 'user' });
     bobSubjectId = bob.id;
-    await tx.insert(users).values({ subjectId: bob.id, realmId, username: BOB_USERNAME });
+    await tx.insert(users).values({ subjectId: bob.id, tenantId, username: BOB_USERNAME });
     await tx.insert(userCredentials).values({
       id: newId(),
-      realmId,
+      tenantId,
       subjectId: bob.id,
       type: 'password',
       secretData: { hash: await hashPassword(BOB_PASSWORD) },
@@ -133,12 +133,12 @@ async function setupRealm(): Promise<void> {
       [ERIN_USERNAME, ERIN_PASSWORD],
       [FRANK_USERNAME, FRANK_PASSWORD],
     ] as const) {
-      const subject = await subjectRepository(tx).create({ realmId, type: 'user' });
+      const subject = await subjectRepository(tx).create({ tenantId, type: 'user' });
       if (username === FRANK_USERNAME) frankSubjectId = subject.id;
-      await tx.insert(users).values({ subjectId: subject.id, realmId, username });
+      await tx.insert(users).values({ subjectId: subject.id, tenantId, username });
       await tx.insert(userCredentials).values({
         id: newId(),
-        realmId,
+        tenantId,
         subjectId: subject.id,
         type: 'password',
         secretData: { hash: await hashPassword(password) },
@@ -148,7 +148,7 @@ async function setupRealm(): Promise<void> {
     const key = await generateSigningKey('RS256', KEK);
     await tx.insert(signingKeys).values({
       id: newId(),
-      realmId,
+      tenantId,
       kid: key.kid,
       alg: key.alg,
       status: 'active',
@@ -173,7 +173,7 @@ function authorizeUrl(overrides: Record<string, string | undefined> = {}): strin
   for (const [key, value] of Object.entries(params)) {
     if (value !== undefined) query.set(key, value);
   }
-  return `/realms/${REALM}/protocol/openid-connect/auth?${query.toString()}`;
+  return `/tenants/${TENANT}/protocol/openid-connect/auth?${query.toString()}`;
 }
 
 function locationHeader(res: LightMyRequestResponse): string {
@@ -214,7 +214,7 @@ async function formLogin(
   const form = new URLSearchParams({ auth_session_id: sessionId, username, password });
   const login = await http.inject({
     method: 'POST',
-    url: `/realms/${REALM}/login-actions/authenticate`,
+    url: `/tenants/${TENANT}/login-actions/authenticate`,
     payload: form.toString(),
     headers: { 'content-type': 'application/x-www-form-urlencoded' },
   });
@@ -245,7 +245,7 @@ async function signInAdditional(
   const form = new URLSearchParams({ auth_session_id: sessionId, username, password });
   const login = await http.inject({
     method: 'POST',
-    url: `/realms/${REALM}/login-actions/authenticate`,
+    url: `/tenants/${TENANT}/login-actions/authenticate`,
     payload: form.toString(),
     headers: { 'content-type': 'application/x-www-form-urlencoded', cookie: existingCookie },
   });
@@ -264,7 +264,7 @@ async function redeemCode(code: string): Promise<LightMyRequestResponse> {
   });
   return http.inject({
     method: 'POST',
-    url: `/realms/${REALM}/protocol/openid-connect/token`,
+    url: `/tenants/${TENANT}/protocol/openid-connect/token`,
     payload: form.toString(),
     headers: {
       'content-type': 'application/x-www-form-urlencoded',
@@ -314,7 +314,7 @@ async function userinfoAfter(overrides: {
   if (accessToken === undefined) throw new Error('expected an access_token');
 
   const res = await http.inject({
-    url: `/realms/${REALM}/protocol/openid-connect/userinfo`,
+    url: `/tenants/${TENANT}/protocol/openid-connect/userinfo`,
     headers: { authorization: `Bearer ${accessToken}` },
   });
   expect(res.statusCode).toBe(200);
@@ -344,7 +344,7 @@ async function chooseAccountSelf(
   const form = new URLSearchParams({ auth_session_id: authSessionId, session_id: sessionId });
   const chosen = await http.inject({
     method: 'POST',
-    url: `/realms/${REALM}/login-actions/select-account`,
+    url: `/tenants/${TENANT}/login-actions/select-account`,
     payload: form.toString(),
     headers: { 'content-type': 'application/x-www-form-urlencoded', cookie },
   });
@@ -378,7 +378,7 @@ async function completeThroughConsent(
     const form = new URLSearchParams({ auth_session_id: authSessionId, username, password });
     const login = await http.inject({
       method: 'POST',
-      url: `/realms/${REALM}/login-actions/authenticate`,
+      url: `/tenants/${TENANT}/login-actions/authenticate`,
       payload: form.toString(),
       headers: { 'content-type': 'application/x-www-form-urlencoded' },
     });
@@ -391,7 +391,7 @@ async function completeThroughConsent(
   const consentForm = new URLSearchParams({ auth_session_id: consentSessionId, decision: 'allow' });
   const consented = await http.inject({
     method: 'POST',
-    url: `/realms/${REALM}/login-actions/consent`,
+    url: `/tenants/${TENANT}/login-actions/consent`,
     payload: consentForm.toString(),
     headers: {
       'content-type': 'application/x-www-form-urlencoded',
@@ -428,7 +428,7 @@ async function completeThroughRequiredAction(
   });
   const owed = await http.inject({
     method: 'POST',
-    url: `/realms/${REALM}/login-actions/authenticate`,
+    url: `/tenants/${TENANT}/login-actions/authenticate`,
     payload: loginForm.toString(),
     headers: { 'content-type': 'application/x-www-form-urlencoded' },
   });
@@ -441,7 +441,7 @@ async function completeThroughRequiredAction(
   });
   const changed = await http.inject({
     method: 'POST',
-    url: `/realms/${REALM}/login-actions/required-action?action=update-password`,
+    url: `/tenants/${TENANT}/login-actions/required-action?action=update-password`,
     payload: actionForm.toString(),
     headers: { 'content-type': 'application/x-www-form-urlencoded' },
   });
@@ -456,7 +456,7 @@ async function completeThroughRequiredAction(
   });
   const finished = await http.inject({
     method: 'POST',
-    url: `/realms/${REALM}/login-actions/authenticate`,
+    url: `/tenants/${TENANT}/login-actions/authenticate`,
     payload: secondLogin.toString(),
     headers: { 'content-type': 'application/x-www-form-urlencoded' },
   });
@@ -478,7 +478,7 @@ beforeAll(async () => {
   appHandle = createDatabase(appUrl, { max: 5 });
   app = appHandle;
 
-  await setupRealm();
+  await setupTenant();
 
   http = Fastify();
   await http.register(formbody);
@@ -579,7 +579,7 @@ describe('[OIDC-CORE-3.1.2.2-07] a claims-requested sub decides who may complete
     });
     const signedIn = await http.inject({
       method: 'POST',
-      url: `/realms/${REALM}/login-actions/authenticate`,
+      url: `/tenants/${TENANT}/login-actions/authenticate`,
       payload: form.toString(),
       headers: { 'content-type': 'application/x-www-form-urlencoded' },
     });
@@ -635,7 +635,7 @@ describe('[OIDC-CORE-3.1.2.2-07] a claims-requested sub decides who may complete
     const form = new URLSearchParams({ auth_session_id: authSessionId, session_id: bobSessionId });
     const chosen = await http.inject({
       method: 'POST',
-      url: `/realms/${REALM}/login-actions/select-account`,
+      url: `/tenants/${TENANT}/login-actions/select-account`,
       payload: form.toString(),
       headers: { 'content-type': 'application/x-www-form-urlencoded', cookie: jar },
     });
@@ -740,8 +740,8 @@ describe('the claims request reaches the code through every door that mints one'
   });
 
   it('is carried through the required-action detour', async () => {
-    await withRealm(app.db, REALM_ID, (tx) =>
-      requiredActionRepository(tx).add(REALM_ID, frankSubjectId, 'update-password'),
+    await withTenant(app.db, TENANT_ID, (tx) =>
+      requiredActionRepository(tx).add(TENANT_ID, frankSubjectId, 'update-password'),
     );
     const newPassword = 'a considerably better passphrase than before';
     const code = await completeThroughRequiredAction(FRANK_USERNAME, FRANK_PASSWORD, newPassword, {

@@ -63,7 +63,7 @@ export function relyingPartyOrigin(publicBaseUrl: string): string {
 
 export interface PasskeyRegistrationRequest {
   publicBaseUrl: string;
-  realmName: string;
+  tenantName: string;
   username: string;
   // The WebAuthn user handle, which a discoverable credential returns
   // instead of a username. The subject id, so a later assertion has a
@@ -83,7 +83,7 @@ export async function passkeyRegistrationOptions(
   request: PasskeyRegistrationRequest,
 ): Promise<PasskeyRegistrationOffer> {
   const options = await generateRegistrationOptions({
-    rpName: request.realmName,
+    rpName: request.tenantName,
     rpID: relyingPartyId(request.publicBaseUrl),
     userName: request.username,
     userID: new TextEncoder().encode(request.userHandle),
@@ -252,7 +252,7 @@ export function parseAuthenticationResponse(value: unknown): AuthenticationRespo
 // whose credential this is has to be settled before any signature is
 // checked — and the only thing available that early is the raw response's
 // own id. That is the value enrolment stored as `lookup_key`, which is what
-// makes a realm-scoped read of it the resolution step.
+// makes a tenant-scoped read of it the resolution step.
 export function assertedCredentialId(value: unknown): string | null {
   return parseAuthenticationResponse(value)?.id ?? null;
 }

@@ -7,7 +7,7 @@
 ## 1. What this phase is
 
 Everything a client needs in order to exist, describe itself and be
-approved by a user: dynamic client registration under a realm policy, the
+approved by a user: dynamic client registration under a tenant policy, the
 client metadata the rest of P3 reads, and a consent screen with a grant
 recorded behind it. The exit criterion is section 12.
 
@@ -62,7 +62,7 @@ Each gets an ADR. The numbers continue from 0025.
 
 | #    | Decision                                                                         |
 | ---- | -------------------------------------------------------------------------------- |
-| 0026 | Client registration is a three-state realm policy, closed by default             |
+| 0026 | Client registration is a three-state tenant policy, closed by default            |
 | 0027 | Consent is required by default for anonymously registered clients only           |
 | 0028 | A client-supplied URL the server fetches is bounded before the socket, not after |
 | 0029 | A page's headers have one authority; transport stays out of `kernel`             |
@@ -73,30 +73,30 @@ Each gets an ADR. The numbers continue from 0025.
 ### 4.1 Where things live
 
 The repository already splits clients along a line this phase follows:
-`domain-realm` owns `clients`, `client_scopes` and realm settings;
+`domain-tenant` owns `clients`, `client_scopes` and tenant settings;
 `protocol-oidc` owns `client_oidc_config`. The domain owns the client, the
 protocol owns its OIDC metadata.
 
 verified: `grep -rln "pgTable('clients'" packages/*/src` →
-`packages/domain-realm/src/schema/clients.ts`, 2026-09-18.
+`packages/domain-tenant/src/schema/clients.ts`, 2026-09-18.
 
-| New thing                            | Package                       | Why                                                                                                                                                                                                                                                                                                                               |
-| ------------------------------------ | ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `consents`, `consent_scopes`         | `domain-realm`                | Consent is what a subject authorized a client to do. It is not wire-shaped and outlives OIDC. `CLAUDE.md` forbids protocol packages importing each other, so consent placed in `protocol-oidc` would be unreadable to P5's agent layer and P9's authorization services. It references `client_scopes`, which `domain-realm` owns. |
-| `client_registration_tokens`         | `domain-realm`                | An initial access token is a realm's credential for creating clients, not an OAuth artefact.                                                                                                                                                                                                                                      |
-| Registration endpoint, usecase, DTOs | `protocol-oidc`               | An OAuth endpoint advertised in discovery. It orchestrates a `domain-realm` client write and a `protocol-oidc` config write.                                                                                                                                                                                                      |
-| `consent-html.ts`                    | `protocol-oidc/src/view/`     | `CLAUDE.md`: pages belonging to the protocol endpoints themselves live there, beside login, error and logout. Consent is an `/authorize` step.                                                                                                                                                                                    |
-| `pageHeaders`                        | `packages/kernel/src/page.ts` | Where `RenderedPage` already lives, and the one module all three page-owning packages may import.                                                                                                                                                                                                                                 |
+| New thing                            | Package                       | Why                                                                                                                                                                                                                                                                                                                                |
+| ------------------------------------ | ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `consents`, `consent_scopes`         | `domain-tenant`               | Consent is what a subject authorized a client to do. It is not wire-shaped and outlives OIDC. `CLAUDE.md` forbids protocol packages importing each other, so consent placed in `protocol-oidc` would be unreadable to P5's agent layer and P9's authorization services. It references `client_scopes`, which `domain-tenant` owns. |
+| `client_registration_tokens`         | `domain-tenant`               | An initial access token is a tenant's credential for creating clients, not an OAuth artefact.                                                                                                                                                                                                                                      |
+| Registration endpoint, usecase, DTOs | `protocol-oidc`               | An OAuth endpoint advertised in discovery. It orchestrates a `domain-tenant` client write and a `protocol-oidc` config write.                                                                                                                                                                                                      |
+| `consent-html.ts`                    | `protocol-oidc/src/view/`     | `CLAUDE.md`: pages belonging to the protocol endpoints themselves live there, beside login, error and logout. Consent is an `/authorize` step.                                                                                                                                                                                     |
+| `pageHeaders`                        | `packages/kernel/src/page.ts` | Where `RenderedPage` already lives, and the one module all three page-owning packages may import.                                                                                                                                                                                                                                  |
 
 A cross-table foreign key does not force a package import. `token_grants`
 lives in `protocol-oidc` and references `subjects`, which `domain-identity`
 owns; the same idiom applies here, so the package graph is unchanged.
 
-verified: `sed -n '/"dependencies"/,/}/p' packages/domain-realm/package.json`
+verified: `sed -n '/"dependencies"/,/}/p' packages/domain-tenant/package.json`
 → `@odudu/db`, `@odudu/kernel`, `drizzle-orm` only, 2026-09-18. The comment
-at `packages/domain-realm/src/service/client.ts:2` states the constraint
-directly: the Argon2id comparator is injected because "domain-realm must
-not depend on domain-identity". Anything P3a adds to `domain-realm` that
+at `packages/domain-tenant/src/service/client.ts:2` states the constraint
+directly: the Argon2id comparator is injected because "domain-tenant must
+not depend on domain-identity". Anything P3a adds to `domain-tenant` that
 needs a `domain-identity` capability injects it the same way.
 
 ### 4.2 Migrations
@@ -116,19 +116,19 @@ verified: `ls packages/db/drizzle/ | tail -1` → `0044_authentication_sessions_
 A CHECK forbids `jwks` and `jwks_uri` both being present. RFC 7591 §2 makes
 them mutually exclusive, and this repository's idiom is that a rule no
 writer may bypass lives at the database — the same reasoning
-`realm-settings.ts` gives for leaving ranges to CHECK constraints.
+`tenant-settings.ts` gives for leaving ranges to CHECK constraints.
 
 **`clients` gains `registration_origin`**, `text NOT NULL DEFAULT 'seeded'`
 with a CHECK of `('seeded', 'anonymous', 'token')`. Section 5.3 explains
 why the value is three-way rather than a boolean.
 
-**`realms` gains two settings.** `client_registration_policy text NOT NULL
+**`tenants` gains two settings.** `client_registration_policy text NOT NULL
 DEFAULT 'disabled'` with a CHECK of `('disabled', 'open', 'token')`, and
 `max_clients integer NOT NULL DEFAULT 200` with a CHECK of `>= 0`.
 
 Both names go into the `SETTINGS` map in
-`packages/domain-realm/src/service/realm-settings.ts:9`, which makes
-`odudu seed realm --set client_registration_policy=token` work with no CLI
+`packages/domain-tenant/src/service/tenant-settings.ts:9`, which makes
+`odudu seed tenant --set client_registration_policy=token` work with no CLI
 change. That is the payoff of that map existing, and the reason the policy
 is one three-valued column rather than a pair of booleans.
 
@@ -137,8 +137,8 @@ is one three-valued column rather than a pair of booleans.
 **`client_registration_tokens`**, per section 5.2.
 
 Every new table gets `ENABLE ROW LEVEL SECURITY`, `FORCE ROW LEVEL
-SECURITY` and an isolation policy on `realm_id`, and every repository
-method against it is probed with a foreign `realm_id`.
+SECURITY` and an isolation policy on `tenant_id`, and every repository
+method against it is probed with a foreign `tenant_id`.
 
 ### 4.3 The rule that keeps the split honest
 
@@ -163,13 +163,13 @@ shape to copy.
 
 ## 5. The registration endpoint
 
-Path: `POST /realms/{realm}/clients-registrations/openid-connect`, with
+Path: `POST /tenants/{tenant}/clients-registrations/openid-connect`, with
 RFC 7592 management under `/{client_id}` if section 11's second spike says
 the plan requires it.
 
 RFC 7591 fixes no path and discovery advertises `registration_endpoint`, so
 the path is ours. Plain `/register` is rejected because it would sit
-confusingly beside `/realms/{realm}/login-actions/registration`, which is
+confusingly beside `/tenants/{tenant}/login-actions/registration`, which is
 **user** self-registration and already exists.
 
 verified: `grep -rn "login-actions/registration" packages apps` →
@@ -186,9 +186,9 @@ endpoint SHOULD allow registration requests with no authorization".
 
 `token` requires an initial access token presented as a bearer credential.
 
-Defaulting to `disabled` matches every realm toggle P2a and P2b added —
+Defaulting to `disabled` matches every tenant toggle P2a and P2b added —
 `registration_allowed`, `verify_email`, `reset_password_allowed` are all
-`DEFAULT false`, under a migration comment saying a realm "does not acquire
+`DEFAULT false`, under a migration comment saying a tenant "does not acquire
 a public registration endpoint because it was upgraded". It also converges
 with Keycloak, whose Trusted Hosts policy ships with no trusted hosts,
 which its documentation says makes "anonymous client registration de-facto
@@ -196,7 +196,7 @@ disabled".
 
 ### 5.2 Initial access tokens
 
-`client_registration_tokens (id, realm_id, token_hash, created_at,
+`client_registration_tokens (id, tenant_id, token_hash, created_at,
 expires_at, remaining_uses)`, with `UNIQUE (token_hash)` and a CHECK of
 `remaining_uses >= 0`.
 
@@ -213,16 +213,16 @@ password, and it has to be found by its hash. `remaining_uses` replaces
 decremented in the same transaction as the client insert, so concurrent
 registrations cannot overspend one token.
 
-Issued by `odudu seed registration-token --realm <r> --uses <n> --ttl
+Issued by `odudu seed registration-token --tenant <r> --uses <n> --ttl
 <seconds>` and printed once. The CLI is the issuing surface because there
-is no admin API until P4 — the same position `seed realm --set` already
+is no admin API until P4 — the same position `seed tenant --set` already
 accepts.
 
 ### 5.3 What is validated, and what the defaults are
 
 The server assigns `client_id`; a client cannot propose one. RFC 7591 §2:
 it "SHOULD NOT be currently valid for any other registered client", which
-`clients_client_id_unique (realm_id, client_id)` already enforces.
+`clients_client_id_unique (tenant_id, client_id)` already enforces.
 
 **Redirect URIs are validated at registration, as a MUST.** RFC 7591 §5:
 "registered redirection URI values MUST be one of: A remote web site
@@ -255,9 +255,9 @@ default is derived from it rather than being a second flag to keep in sync,
 and the value is worth recording for audit regardless. An operator may
 still override `consent_required` per client.
 
-**`max_clients` bounds the realm.** RFC 7591 §5: registration requests "MAY
+**`max_clients` bounds the tenant.** RFC 7591 §5: registration requests "MAY
 be rate-limited or otherwise limited to prevent a denial-of-service attack
-on the client registration endpoint." A per-realm cap is the concrete form,
+on the client registration endpoint." A per-tenant cap is the concrete form,
 matching Keycloak's `Max Clients Limit` (200 by default).
 
 **The cap is taken under a lock, not with a bare `COUNT`.** A count followed
@@ -265,8 +265,8 @@ by an insert is two statements with a gap: two concurrent registrations read
 the same total, both find room, and both insert — so the cap a
 denial-of-service bound exists to hold is the one thing that fails under the
 load it is meant to bound. The registration transaction issues
-`SELECT max_clients FROM realms WHERE id = $1 FOR UPDATE` first, which
-serialises registrations **per realm** and leaves other realms concurrent.
+`SELECT max_clients FROM tenants WHERE id = $1 FOR UPDATE` first, which
+serialises registrations **per tenant** and leaves other tenants concurrent.
 The cost is one row lock on a path that is neither hot nor latency
 sensitive; a counter column maintained by trigger would buy concurrency this
 endpoint has no use for and add a second thing that can disagree with
@@ -315,8 +315,8 @@ unit-testable with no network. The fetcher around it is the thin part.
 
 ### 7.1 The model
 
-`consents (id, realm_id, subject_id, client_id, created_at, updated_at)`
-with `UNIQUE (realm_id, subject_id, client_id)`, and `consent_scopes
+`consents (id, tenant_id, subject_id, client_id, created_at, updated_at)`
+with `UNIQUE (tenant_id, subject_id, client_id)`, and `consent_scopes
 (consent_id, client_scope_id, granted_at)`.
 
 One row per subject-client pair with the granted scopes hanging off it, so
@@ -468,7 +468,7 @@ that goes."
 So: a second `slidingWindow` instance from `apps/server/src/throttle.ts` —
 the existing primitive, already bounded by `MAX_THROTTLE_KEYS` against the
 memory-exhaustion vector that a caller-chosen key creates — keyed by
-`realm:client_id` rather than by origin.
+`tenant:client_id` rather than by origin.
 
 Three properties make it honest rather than decorative.
 
@@ -538,8 +538,8 @@ the plan's increment ordering is fixed.
 
 The OIDF Dynamic OP plan runs reproducibly with every divergence confirmed
 as a recorded decision; dynamic client registration (RFC 7591)
-behind a per-realm setting closed by default, with initial access tokens
-and a per-realm client cap; the client metadata later clauses read —
+behind a per-tenant setting closed by default, with initial access tokens
+and a per-tenant client cap; the client metadata later clauses read —
 `jwks` or `jwks_uri` with the boundary of section 6 stated and tested,
 front- and back-channel logout URIs, audiences, a consent flag — registered
 and validated but advertised nowhere in discovery; a consent screen a user
@@ -547,7 +547,7 @@ can refuse, with per-scope choice over `optional` scopes and a recorded
 grant it can be asked against again; a rate limit on `client_secret`
 attempts at `/token`, keyed by client; a single authority for a page's
 headers, enforced by a test, with every renderer returning the contract
-P4b will theme; cross-realm RLS probes green.
+P4b will theme; cross-tenant RLS probes green.
 
 Estimate: 55–80 hours.
 

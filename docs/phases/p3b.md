@@ -82,7 +82,7 @@ The variants, in rising order of danger:
 a comment is the highest-risk prose in this repository.** Five separate
 correction passes each introduced a fresh false reason, twice inside the
 very comment being corrected — including a ceiling comment made false by
-the commit asked to fix it (the key changed from a URI to a realm-and-URI
+the commit asked to fix it (the key changed from a URI to a tenant-and-URI
 pair, so "1000 distinct URIs" stopped being the bound), and a
 claim-by-exclusion ("unlike every other repository in this package")
 refuted by a sibling file in the same directory. A review pass that reads
@@ -93,7 +93,7 @@ that pass is itself the most productive source of them.
 until late.** Pressing twenty-four times on "a stated reason must be true"
 and never once on "write none where none is needed" is a complete
 instruction to justify harder. Comment density on this phase's files reached
-28–50% against a 24.4% repository baseline, with one fact — "a realm holds
+28–50% against a 24.4% repository baseline, with one fact — "a tenant holds
 exactly one active signing key" — stated seven times across five files.
 The order is: **first ask whether the comment is needed, then make what
 survives true.** Stating only the second half produces the first half's
@@ -133,7 +133,7 @@ of.
   six were untested when the count said six of six.
 - **The remembered-session idle window was threaded through one of two
   callers.** `sessionRepository.liveByIds` (session listing) took the
-  realm's whole `SessionLifespans` pair, with a comment explaining exactly
+  tenant's whole `SessionLifespans` pair, with a comment explaining exactly
   why a bare `idleSeconds` cannot express a remembered session's own
   window; `liveById`, the sibling `/introspect`, `/token` and refresh
   rotation all called, kept the bare `idleSeconds` for eleven commits after
@@ -171,7 +171,7 @@ prompted a grep, and the fourth was found the same way, one review later.
   disabled client still had its `frontchannel_logout_uri` framed and still
   received a signed Logout Token on its `backchannel_logout_uri`. Found at
   the whole-branch review, against the same sibling this family always
-  reads: `webOriginsForRealm`, ten lines below in a different file. The
+  reads: `webOriginsForTenant`, ten lines below in a different file. The
   pre-existing `postLogoutRedirectUris` lookup (P3a) had the identical gap,
   closed in the same change.
 
@@ -241,7 +241,7 @@ Each of these was written as fact and disproved by execution.
   not a predicate lock: under READ COMMITTED a blocked statement re-qualifies
   only the rows its original scan found, so a row another transaction
   inserted meanwhile is invisible. Measured at cap 3, five runs each:
-  realm-row lock `[3,3,3,3,3]`, session-row lock `[4,4,4,4,4]`, no lock
+  tenant-row lock `[3,3,3,3,3]`, session-row lock `[4,4,4,4,4]`, no lock
   `[4,4,4,4,4]`. The lock the plan specified performs identically to none.
   ADR 0033 carries it.
 - **The replay `jti` was to be claimed before the signature was verified.**
@@ -352,13 +352,13 @@ the one that paid.
   401 with no logged reason. Counting duplicates from `rawHeaders` makes no
   assumption about encoding.
 - **A complete defect chain, each step individually reasonable.** Discovery
-  advertised `RS256` and `ES256` to every realm, justified by "every realm
+  advertised `RS256` and `ES256` to every tenant, justified by "every tenant
   signs with the same two algorithms" — false, and disproved by a partial
-  unique index in the same schema: a realm signs with exactly one. A client
+  unique index in the same schema: a tenant signs with exactly one. A client
   read the advertisement, registered the other, and every `/userinfo`
   request answered a raw 500 that neither it nor the resource server could
   fix. Closed at the earliest point — refuse the mismatch at registration,
-  advertise per realm — so the 500 became unreachable rather than
+  advertise per tenant — so the 500 became unreachable rather than
   better-worded.
 - **A configurability feature that breaks on the natural spelling of its own
   default.** The configurable certificate-header name was compared
@@ -392,15 +392,15 @@ turned up, one of them new to `CLAUDE.md`'s list:
   `invalid_target` shown. Now recorded in `CLAUDE.md` alongside the other
   three.
 - **A policy switched on and never switched back.** The dynamic client
-  registration section moved the realm to the `token` policy and then showed
+  registration section moved the tenant to the `token` policy and then showed
   five later unauthenticated registrations succeeding; replayed live they
   answer `401`. Nothing had ever flagged the section as derived, so nobody
   re-ran it. Re-captured at this pass, with the policy reopened where the
   transcript needs it.
 - **A precondition asserted rather than shown.** The same section's two
-  `404`s — a closed policy and an absent realm — are byte-identical, so the
+  `404`s — a closed policy and an absent tenant — are byte-identical, so the
   transcript proved nothing about which check fired. It now creates its own
-  realm and shows discovery answering `200` for it first.
+  tenant and shows discovery answering `200` for it first.
 - **A derived section got the behaviour right and the bytes wrong.** The
   consent walkthrough, replayed against a live stack, differed in exactly
   three ways: a missing `charset=utf-8`, an unescaped `iss` on a redirect

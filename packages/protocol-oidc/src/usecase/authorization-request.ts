@@ -6,10 +6,10 @@ import {
   type SessionRecord,
 } from '@odudu/authn-flows';
 import { verifyJwt, TYP_ABSENT, type ExpectedAudience, type SigningKeyRecord } from '@odudu/crypto';
-import { type ClientRecord } from '@odudu/domain-realm';
+import { type ClientRecord } from '@odudu/domain-tenant';
 import { isUuid } from '@odudu/kernel';
 import { type ClientOidcConfig } from '#/schema/client-oidc-config';
-import { type RealmLookup } from '#/repository/realm-lookup';
+import { type TenantLookup } from '#/repository/tenant-lookup';
 import {
   validateAuthorizationRequest,
   type AuthorizeOutcome,
@@ -33,7 +33,7 @@ export type AuthorizationRequestOutcome =
   | { kind: 'render'; error: string; description: string }
   | { kind: 'redirect'; redirectUri: string; error: string; state: string | null }
   // `form` names what the rendered login page should ask for first —
-  // whatever the realm's flow would offer nobody has submitted anything
+  // whatever the tenant's flow would offer nobody has submitted anything
   // yet (authn-flows' initialChallenge).
   | { kind: 'started'; authSessionId: string; form: string; rememberMeAllowed: boolean }
   // Session reuse: a code issued with no page ever rendered and no fresh
@@ -88,7 +88,7 @@ export interface SelectAccountCandidate {
 export type ReusableSession = ResolvedSession & { authenticators: string[] };
 
 export interface CompleteReuseInput {
-  realmId: string;
+  tenantId: string;
   sessionId: string;
   subjectId: string;
   clientId: string;
@@ -118,20 +118,20 @@ export interface ResolvedClient {
 }
 
 export interface AuthorizeUsecaseDeps extends ConsentGateDeps {
-  findRealm(name: string): Promise<RealmLookup | null>;
-  // The realm's own signing keys, which is the whole of "did this server
+  findTenant(name: string): Promise<TenantLookup | null>;
+  // The tenant's own signing keys, which is the whole of "did this server
   // issue that ID Token?" (OIDC Core §3.1.2.2). The same set /jwks
   // publishes and /userinfo verifies against, so a hint minted with a key
   // that has since rotated out of publication is no longer honoured.
-  listPublishableKeys(realmId: string): Promise<SigningKeyRecord[]>;
-  // Scoped to the resolved realm by the caller composing this dependency
+  listPublishableKeys(tenantId: string): Promise<SigningKeyRecord[]>;
+  // Scoped to the resolved tenant by the caller composing this dependency
   // (index.ts), the same way listPublishableKeys is for the JWKS route.
-  resolveClient(realmId: string, oauthClientId: string): Promise<ResolvedClient>;
+  resolveClient(tenantId: string, oauthClientId: string): Promise<ResolvedClient>;
   // Shared with the discovery usecase, so a scope this endpoint accepts is
   // one the discovery document advertises and vice versa.
-  scopesForRealm(realmId: string): Promise<readonly string[]>;
+  scopesForTenant(tenantId: string): Promise<readonly string[]>;
   startAuthentication(
-    realmId: string,
+    tenantId: string,
     request: Extract<AuthorizeOutcome, { kind: 'ok' }>['request'],
   ): Promise<{ authSessionId: string }>;
   // Reads back the request a 'select' outcome parked — the chooser's POST
@@ -141,18 +141,18 @@ export interface AuthorizeUsecaseDeps extends ConsentGateDeps {
   // never bound to a subject, so it carries its own liveness check
   // (expired or already consumed answers null) rather than relying on
   // authenticatedSession's, which this session could never pass.
-  loadPendingRequest(realmId: string, authSessionId: string): Promise<PendingRequest | null>;
-  // What the realm's flow would ask for first, decided before any
+  loadPendingRequest(tenantId: string, authSessionId: string): Promise<PendingRequest | null>;
+  // What the tenant's flow would ask for first, decided before any
   // authentication session exists — also the honest way to notice a flow
   // with no applicable execution at all: OIDC Core §3.1.2.1's `prompt=login`
   // MUST, "an error is returned if reauthentication cannot be performed".
-  initialChallenge(realmId: string): Promise<AuthenticatorResult>;
+  initialChallenge(tenantId: string): Promise<AuthenticatorResult>;
   // The browser's session cookies, resolved to their live rows (never
   // trusted for anything but that lookup) — sessionRepository(tx).liveByIds
-  // scoped to the realm's own idle window. decideReuse decides over the
+  // scoped to the tenant's own idle window. decideReuse decides over the
   // whole set resolved here, which may belong to more than one subject.
   resolveSessions(
-    realm: {
+    tenant: {
       id: string;
       name: string;
       ssoSessionIdleSeconds: number;
@@ -178,7 +178,7 @@ export interface AuthorizeUsecaseDeps extends ConsentGateDeps {
   // reuse path's way of giving a consent decision something to park the
   // request on and resume, without a single factor actually running.
   markAuthenticated(
-    realmId: string,
+    tenantId: string,
     authSessionId: string,
     subjectId: string,
     authenticators: readonly string[],
@@ -190,7 +190,7 @@ export interface AuthorizeUsecaseDeps extends ConsentGateDeps {
   // signature can rule out) is left off the returned map, and the caller
   // falls back to the subject id itself.
   accountDisplayNames(
-    realmId: string,
+    tenantId: string,
     subjectIds: readonly string[],
   ): Promise<ReadonlyMap<string, string>>;
   now(): Date;
@@ -244,16 +244,16 @@ function resourceParam(rawParams: unknown): string | string[] | undefined {
   return present.length > 1 ? present : present[0];
 }
 
-// An unknown or disabled realm is indistinguishable from an unknown or
+// An unknown or disabled tenant is indistinguishable from an unknown or
 // disabled client for the same reason discovery and JWKS already treat them
 // that way: there is no client to trust a redirect_uri against, so this
 // renders exactly like the client half of the §4.1.2.1 boundary rather than
 // inventing a second error path.
 export async function handleAuthorizationRequest(
   deps: AuthorizeUsecaseDeps,
-  realmName: string,
+  tenantName: string,
   rawParams: unknown,
-  // This realm's issuer identifier, as the discovery document states it: the
+  // This tenant's issuer identifier, as the discovery document states it: the
   // `iss` an id_token_hint has to carry to have come from here.
   issuer: string,
   // The browser's raw `Cookie` header, read by the route and trusted for
@@ -265,9 +265,9 @@ export async function handleAuthorizationRequest(
   if (normalized.kind === 'render') return normalized;
   const { params, repeatedKey } = normalized;
 
-  const realm = await deps.findRealm(realmName);
+  const tenant = await deps.findTenant(tenantName);
   const noScopes: ReadonlySet<string> = new Set();
-  if (!realm?.enabled) {
+  if (!tenant?.enabled) {
     const outcome = validateAuthorizationRequest(
       params,
       null,
@@ -288,13 +288,13 @@ export async function handleAuthorizationRequest(
   const resolved: ResolvedClient =
     oauthClientId === undefined
       ? { client: null, config: null, scopes: [] }
-      : await deps.resolveClient(realm.id, oauthClientId);
+      : await deps.resolveClient(tenant.id, oauthClientId);
 
   const outcome = validateAuthorizationRequest(
     params,
     resolved.client,
     resolved.config,
-    new Set(await deps.scopesForRealm(realm.id)),
+    new Set(await deps.scopesForTenant(tenant.id)),
     new Set(resolved.scopes),
     repeatedKey,
   );
@@ -350,10 +350,10 @@ export async function handleAuthorizationRequest(
     // Unlike `/logout`, this door has a principal to check the hint's `aud`
     // against: the client making this very request. A hint minted for
     // another client is refused here even though its signature and issuer
-    // are this realm's own.
+    // are this tenant's own.
     const hint = await subjectOfIdTokenHint(
       deps,
-      realm.id,
+      tenant.id,
       issuer,
       outcome.idTokenHint,
       request.clientId,
@@ -369,12 +369,12 @@ export async function handleAuthorizationRequest(
   // than in sequence (docs/protocols/oidc-core.md's reading note has why).
   const sessions = await deps.resolveSessions(
     {
-      id: realm.id,
-      name: realmName,
-      ssoSessionIdleSeconds: realm.ssoSessionIdleSeconds,
-      ssoSessionMaxSeconds: realm.ssoSessionMaxSeconds,
-      rememberMeIdleSeconds: realm.rememberMeIdleSeconds,
-      rememberMeMaxSeconds: realm.rememberMeMaxSeconds,
+      id: tenant.id,
+      name: tenantName,
+      ssoSessionIdleSeconds: tenant.ssoSessionIdleSeconds,
+      ssoSessionMaxSeconds: tenant.ssoSessionMaxSeconds,
+      rememberMeIdleSeconds: tenant.rememberMeIdleSeconds,
+      rememberMeMaxSeconds: tenant.rememberMeMaxSeconds,
     },
     header,
   );
@@ -424,7 +424,7 @@ export async function handleAuthorizationRequest(
     // live cookie must not sign in for free.
     const refusal = await refusedForUnverifiedEmail(
       deps,
-      { id: realm.id, verifyEmail: realm.verifyEmail },
+      { id: tenant.id, verifyEmail: tenant.verifyEmail },
       decision.subjectId,
     );
     if (refusal !== null) return reject('login_required');
@@ -436,7 +436,7 @@ export async function handleAuthorizationRequest(
     // subject something to resume without a single factor actually
     // running again.
     const promoteToParkedRequest = async (): Promise<string> => {
-      const { authSessionId } = await deps.startAuthentication(realm.id, {
+      const { authSessionId } = await deps.startAuthentication(tenant.id, {
         ...request,
         prompt: [...outcome.prompts],
         ...(hintSubject !== null ? { idTokenHintSubject: hintSubject } : {}),
@@ -447,7 +447,7 @@ export async function handleAuthorizationRequest(
         claims,
       });
       await deps.markAuthenticated(
-        realm.id,
+        tenant.id,
         authSessionId,
         decision.subjectId,
         resolvedSession.authenticators,
@@ -460,7 +460,7 @@ export async function handleAuthorizationRequest(
     // cookie must not buy a subject out of an action a password login
     // would still owe (an admin-forced reset, unacknowledged recovery
     // codes, pending enrolment).
-    const action = nextRequiredAction(await deps.pendingActions(realm.id, decision.subjectId));
+    const action = nextRequiredAction(await deps.pendingActions(tenant.id, decision.subjectId));
     if (action !== null) {
       // §3.1.2.1: `prompt=none` MUST NOT display any UI, required-action
       // page included — refused before a session is parked, the same as
@@ -478,7 +478,7 @@ export async function handleAuthorizationRequest(
     // through with no form and no gate of its own.
     const gate = await decideConsentGate(
       deps,
-      realm.id,
+      tenant.id,
       resolved.client.id,
       decision.subjectId,
       request.scope,
@@ -498,7 +498,7 @@ export async function handleAuthorizationRequest(
     }
 
     const { code } = await deps.completeReuse({
-      realmId: realm.id,
+      tenantId: tenant.id,
       sessionId: resolvedSession.id,
       subjectId: decision.subjectId,
       clientId: resolved.client.id,
@@ -520,7 +520,7 @@ export async function handleAuthorizationRequest(
     // handleSelectAccountSubmission binds the session once a choice is
     // posted back and membership against the browser's own cookies is
     // proven.
-    const { authSessionId } = await deps.startAuthentication(realm.id, {
+    const { authSessionId } = await deps.startAuthentication(tenant.id, {
       ...request,
       prompt: [...outcome.prompts],
       ...(hintSubject !== null ? { idTokenHintSubject: hintSubject } : {}),
@@ -533,7 +533,7 @@ export async function handleAuthorizationRequest(
     });
     const rendered = newestPerSubject(decision.candidates);
     const names = await deps.accountDisplayNames(
-      realm.id,
+      tenant.id,
       rendered.map((candidate) => candidate.subjectId),
     );
     return {
@@ -546,12 +546,12 @@ export async function handleAuthorizationRequest(
     };
   }
 
-  // A realm whose flow has no applicable execution at all cannot
+  // A tenant whose flow has no applicable execution at all cannot
   // authenticate anyone — the state OIDC Core §3.1.2.1 means by
   // "reauthentication cannot be performed" under `prompt=login`. Checked
   // before a session is started: nothing is parked and nothing rendered
   // for a login that could never succeed.
-  const initial = await deps.initialChallenge(realm.id);
+  const initial = await deps.initialChallenge(tenant.id);
   if (initial.kind !== 'challenge') {
     if (initial.kind === 'success') {
       throw new Error('unreachable: initialChallenge succeeded with no input submitted');
@@ -559,7 +559,7 @@ export async function handleAuthorizationRequest(
     return reject('login_required');
   }
 
-  const { authSessionId } = await deps.startAuthentication(realm.id, {
+  const { authSessionId } = await deps.startAuthentication(tenant.id, {
     ...request,
     // `prompt=login` needs nothing parked: authentication is unconditional
     // (§3.1.2.3's reauthentication is what this server does for every
@@ -579,7 +579,7 @@ export async function handleAuthorizationRequest(
     kind: 'started',
     authSessionId,
     form: initial.form,
-    rememberMeAllowed: realm.rememberMeAllowed,
+    rememberMeAllowed: tenant.rememberMeAllowed,
   };
 }
 
@@ -605,7 +605,7 @@ export interface SelectAccountAnswer {
 // for the one decideReuse would have picked unassisted.
 export async function handleSelectAccountSubmission(
   deps: AuthorizeUsecaseDeps,
-  realmName: string,
+  tenantName: string,
   authSessionId: string | undefined,
   answer: SelectAccountAnswer,
   header: string | undefined,
@@ -614,18 +614,18 @@ export async function handleSelectAccountSubmission(
     return { kind: 'unauthenticated' };
   }
 
-  const realm = await deps.findRealm(realmName);
-  if (!realm?.enabled) {
+  const tenant = await deps.findTenant(tenantName);
+  if (!tenant?.enabled) {
     return { kind: 'unauthenticated' };
   }
 
-  const pending: PendingRequest | null = await deps.loadPendingRequest(realm.id, authSessionId);
+  const pending: PendingRequest | null = await deps.loadPendingRequest(tenant.id, authSessionId);
   if (pending === null) {
     return { kind: 'unauthenticated' };
   }
 
   if (answer.useOther) {
-    const initial = await deps.initialChallenge(realm.id);
+    const initial = await deps.initialChallenge(tenant.id);
     if (initial.kind !== 'challenge') {
       if (initial.kind === 'success') {
         throw new Error('unreachable: initialChallenge succeeded with no input submitted');
@@ -644,19 +644,19 @@ export async function handleSelectAccountSubmission(
       kind: 'started',
       authSessionId,
       form: initial.form,
-      rememberMeAllowed: realm.rememberMeAllowed,
+      rememberMeAllowed: tenant.rememberMeAllowed,
     };
   }
 
-  const realmShape = {
-    id: realm.id,
-    name: realmName,
-    ssoSessionIdleSeconds: realm.ssoSessionIdleSeconds,
-    ssoSessionMaxSeconds: realm.ssoSessionMaxSeconds,
-    rememberMeIdleSeconds: realm.rememberMeIdleSeconds,
-    rememberMeMaxSeconds: realm.rememberMeMaxSeconds,
+  const tenantShape = {
+    id: tenant.id,
+    name: tenantName,
+    ssoSessionIdleSeconds: tenant.ssoSessionIdleSeconds,
+    ssoSessionMaxSeconds: tenant.ssoSessionMaxSeconds,
+    rememberMeIdleSeconds: tenant.rememberMeIdleSeconds,
+    rememberMeMaxSeconds: tenant.rememberMeMaxSeconds,
   };
-  const sessions = await deps.resolveSessions(realmShape, header);
+  const sessions = await deps.resolveSessions(tenantShape, header);
   const chosen = sessions.find((session) => session.id === answer.sessionId);
   // Membership alone is not enough: decideReuse's own candidate filter
   // (session-reuse.ts's withinMaxAge) already excluded anything older than
@@ -667,7 +667,7 @@ export async function handleSelectAccountSubmission(
     return { kind: 'invalid_selection' };
   }
 
-  const resolvedClient = await deps.resolveClient(realm.id, pending.clientId);
+  const resolvedClient = await deps.resolveClient(tenant.id, pending.clientId);
   if (resolvedClient.client === null) {
     return { kind: 'unauthenticated' };
   }
@@ -693,20 +693,20 @@ export async function handleSelectAccountSubmission(
 
   const refusal = await refusedForUnverifiedEmail(
     deps,
-    { id: realm.id, verifyEmail: realm.verifyEmail },
+    { id: tenant.id, verifyEmail: tenant.verifyEmail },
     chosen.subjectId,
   );
   if (refusal !== null) return reject('login_required');
 
-  const action = nextRequiredAction(await deps.pendingActions(realm.id, chosen.subjectId));
+  const action = nextRequiredAction(await deps.pendingActions(tenant.id, chosen.subjectId));
   if (action !== null) {
-    await deps.markAuthenticated(realm.id, authSessionId, chosen.subjectId, chosen.authenticators);
+    await deps.markAuthenticated(tenant.id, authSessionId, chosen.subjectId, chosen.authenticators);
     return { kind: 'required_action', authSessionId, subjectId: chosen.subjectId, action };
   }
 
   const gate = await decideConsentGate(
     deps,
-    realm.id,
+    tenant.id,
     client.id,
     chosen.subjectId,
     pending.scope,
@@ -714,7 +714,7 @@ export async function handleSelectAccountSubmission(
   );
   if (gate.kind === 'refuse') return reject('consent_required');
   if (gate.kind === 'ask') {
-    await deps.markAuthenticated(realm.id, authSessionId, chosen.subjectId, chosen.authenticators);
+    await deps.markAuthenticated(tenant.id, authSessionId, chosen.subjectId, chosen.authenticators);
     return {
       kind: 'consent',
       authSessionId,
@@ -731,7 +731,7 @@ export async function handleSelectAccountSubmission(
   // than inferred — repeatable for the same reason, gated by pendingSession's
   // own expiry check above rather than by single use.
   const { code } = await deps.completeReuse({
-    realmId: realm.id,
+    tenantId: tenant.id,
     sessionId: chosen.id,
     subjectId: chosen.subjectId,
     clientId: client.id,
@@ -771,20 +771,20 @@ function audiencesOf(claim: unknown): readonly string[] {
 }
 
 // OIDC Core §3.1.2.2: "the OP MUST validate that it was the issuer of the ID
-// Token" — a signature made by one of this realm's keys, over a payload whose
-// `iss` is this realm; `exp` is enforced by verifyJwt too. Returns the
+// Token" — a signature made by one of this tenant's keys, over a payload whose
+// `iss` is this tenant; `exp` is enforced by verifyJwt too. Returns the
 // claims it carries, or null for a hint this server cannot recognise as its
 // own. `audience` is a parameter, not a constant — callers differ on
 // whether they check it; see docs/protocols/oidc-core.md's reading note.
 // Exported for `#/usecase/logout.ts`, which shares this check.
 export async function subjectOfIdTokenHint(
   deps: Pick<AuthorizeUsecaseDeps, 'listPublishableKeys'>,
-  realmId: string,
+  tenantId: string,
   issuer: string,
   hint: string,
   audience: ExpectedAudience,
 ): Promise<IdTokenHintClaims | null> {
-  const keys = await deps.listPublishableKeys(realmId);
+  const keys = await deps.listPublishableKeys(tenantId);
   try {
     const payload = await verifyJwt(hint, {
       keys,

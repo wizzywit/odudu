@@ -13,7 +13,7 @@ do. §1 (Introduction), §2 (OpenID Provider Issuer Discovery, which is
 WebFinger-based and itself OPTIONAL), §5 (String Operations), §6
 (Implementation Considerations), §7 (Security Considerations) and §8–9
 (IANA, References) are out of this table's scope: §2 because Odudu's
-issuer is fixed by the realm's path (design spec §6) and never resolved
+issuer is fixed by the tenant's path (design spec §6) and never resolved
 by WebFinger, the rest because they impose nothing beyond what §3–4
 already state or are non-normative.
 
@@ -50,9 +50,9 @@ values that make later conformance testing predictable:
   which would advertise a mode the authorization endpoint refuses.
 - `subject_types_supported: ["public"]` — pairwise subject identifiers are
   not part of this phase's scope; only `public` is offered.
-- `registration_endpoint` is published once a realm's
+- `registration_endpoint` is published once a tenant's
   `client_registration_policy` is not `disabled`, and omitted entirely for
-  a realm where it is — never published pointing at an endpoint that would
+  a tenant where it is — never published pointing at an endpoint that would
   answer 404 (`packages/protocol-oidc/src/usecase/discovery.ts`, ADR 0026).
 - `scopes_supported` always lists `openid`, per §3's unconditional
   requirement that the server support the `openid` scope value.
@@ -63,7 +63,7 @@ values that make later conformance testing predictable:
 | ------ | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 3      | MUST   | `issuer` is a URL using the https scheme with no query or fragment components, asserted as the OP's Issuer Identifier                                                                    | `OIDC-DISCOVERY-3-01`   | covered                                                                                                                                                                                                                                                                                                             |
 | 3      | MUST   | the `issuer` value is identical to the `iss` claim value in ID Tokens issued from this issuer                                                                                            | `OIDC-DISCOVERY-3-02`   | covered                                                                                                                                                                                                                                                                                                             |
-| 3      | MUST   | if OpenID Provider Issuer Discovery is supported, `issuer` is identical to the value WebFinger returns                                                                                   | —                       | n/a: Odudu does not implement WebFinger-based issuer discovery (§2); a realm's issuer is fixed by its path, not resolved per end-user                                                                                                                                                                               |
+| 3      | MUST   | if OpenID Provider Issuer Discovery is supported, `issuer` is identical to the value WebFinger returns                                                                                   | —                       | n/a: Odudu does not implement WebFinger-based issuer discovery (§2); a tenant's issuer is fixed by its path, not resolved per end-user                                                                                                                                                                              |
 | 3      | MUST   | `authorization_endpoint` is REQUIRED, and uses the https scheme (may contain port, path, and query components)                                                                           | `OIDC-DISCOVERY-3-01`   | covered                                                                                                                                                                                                                                                                                                             |
 | 3      | MUST   | `token_endpoint` uses the https scheme (may contain port, path, and query components)                                                                                                    | `OIDC-DISCOVERY-3-01`   | covered                                                                                                                                                                                                                                                                                                             |
 | 3      | MUST   | `token_endpoint` is REQUIRED, since Odudu does not use the Implicit Flow                                                                                                                 | `OIDC-DISCOVERY-3-01`   | covered                                                                                                                                                                                                                                                                                                             |

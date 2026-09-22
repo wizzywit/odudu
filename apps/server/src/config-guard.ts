@@ -69,7 +69,7 @@ export function assertProductionNoPrivateClientUrls(config: Config): void {
  * that id comes from `ODUDU_PUBLIC_BASE_URL` alone — never from `Host` or
  * `X-Forwarded-Host`, which the client controls. A credential registered
  * against the wrong domain is unusable and silently so: the browser simply
- * never offers it. Since `configure-passkey` is reachable in every realm,
+ * never offers it. Since `configure-passkey` is reachable in every tenant,
  * production boot refuses to proceed without a base URL a relying party id
  * can be derived from. Outside production the value stays optional and
  * passkey enrolment reports itself unsupported instead.

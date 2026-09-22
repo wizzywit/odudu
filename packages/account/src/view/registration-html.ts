@@ -1,8 +1,8 @@
 import { type RenderedPage } from '@odudu/kernel';
 import { escapeHtml, page } from '#/view/document';
 
-export function renderRegistrationForm(realm: string): RenderedPage {
-  const action = `/realms/${escapeHtml(realm)}/login-actions/registration`;
+export function renderRegistrationForm(tenant: string): RenderedPage {
+  const action = `/tenants/${escapeHtml(tenant)}/login-actions/registration`;
   return page(
     'Create account',
     `<form method="post" action="${action}">
@@ -28,7 +28,7 @@ ${items}
   );
 }
 
-// The word "verify" only appears here when the realm actually requires it —
+// The word "verify" only appears here when the tenant actually requires it —
 // the whole point is that an unverified account cannot sign in yet, so the
 // page must not claim otherwise.
 export function renderRegistrationSucceededPage(verifyEmailRequired: boolean): RenderedPage {

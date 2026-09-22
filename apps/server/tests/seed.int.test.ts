@@ -3,9 +3,9 @@ import { signingKeys } from '@odudu/crypto';
 import {
   createDatabase,
   MIGRATIONS_DIR,
-  realms,
+  tenants,
   runMigrations,
-  withRealm,
+  withTenant,
   type DatabaseHandle,
 } from '@odudu/db';
 import { subjects, users } from '@odudu/domain-identity';
@@ -13,8 +13,8 @@ import {
   clientRegistrationTokenRepository,
   clients,
   clientScopeRepository,
-  REALM_DEFAULT_SCOPE_NAMES,
-} from '@odudu/domain-realm';
+  TENANT_DEFAULT_SCOPE_NAMES,
+} from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
 import { clientOidcConfigRepository } from '@odudu/protocol-oidc';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
@@ -51,52 +51,53 @@ afterAll(async () => {
   await containerHandle?.stop();
 });
 
-// Every helper below scopes by realmId: this container's owner is a
+// Every helper below scopes by tenantId: this container's owner is a
 // superuser and so escapes RLS even under FORCE, and each test seeds its own
-// realm, so an unscoped count would
-// pick up every realm this file has already seeded rather than just the
+// tenant, so an unscoped count would
+// pick up every tenant this file has already seeded rather than just the
 // one under test.
-async function countClients(realmId: string): Promise<number> {
-  const rows = await owner.db.select().from(clients).where(eq(clients.realmId, realmId));
+async function countClients(tenantId: string): Promise<number> {
+  const rows = await owner.db.select().from(clients).where(eq(clients.tenantId, tenantId));
   return rows.length;
 }
 
-async function countSigningKeys(realmId: string): Promise<number> {
-  const rows = await owner.db.select().from(signingKeys).where(eq(signingKeys.realmId, realmId));
+async function countSigningKeys(tenantId: string): Promise<number> {
+  const rows = await owner.db.select().from(signingKeys).where(eq(signingKeys.tenantId, tenantId));
   return rows.length;
 }
 
-async function clientType(realmId: string, clientId: string): Promise<string> {
+async function clientType(tenantId: string, clientId: string): Promise<string> {
   const rows = await owner.db
     .select({ type: clients.type })
     .from(clients)
-    .where(and(eq(clients.realmId, realmId), eq(clients.clientId, clientId)));
+    .where(and(eq(clients.tenantId, tenantId), eq(clients.clientId, clientId)));
   const row = rows[0];
-  if (row === undefined) throw new Error(`no client ${clientId} in realm ${realmId}`);
+  if (row === undefined) throw new Error(`no client ${clientId} in tenant ${tenantId}`);
   return row.type;
 }
 
-async function tokenEndpointAuthMethod(realmId: string, oauthClientId: string): Promise<string> {
-  return withRealm(owner.db, realmId, async (tx) => {
+async function tokenEndpointAuthMethod(tenantId: string, oauthClientId: string): Promise<string> {
+  return withTenant(owner.db, tenantId, async (tx) => {
     const clientRows = await tx
       .select()
       .from(clients)
-      .where(and(eq(clients.realmId, realmId), eq(clients.clientId, oauthClientId)));
+      .where(and(eq(clients.tenantId, tenantId), eq(clients.clientId, oauthClientId)));
     const clientRow = clientRows[0];
-    if (clientRow === undefined) throw new Error(`no client ${oauthClientId} in realm ${realmId}`);
+    if (clientRow === undefined)
+      throw new Error(`no client ${oauthClientId} in tenant ${tenantId}`);
     const config = await clientOidcConfigRepository(tx).byClientId(clientRow.id);
     if (config === null) throw new Error(`no oidc config for client ${oauthClientId}`);
     return config.tokenEndpointAuthMethod;
   });
 }
 
-async function serviceSubjectType(realmId: string, clientId: string): Promise<string | null> {
+async function serviceSubjectType(tenantId: string, clientId: string): Promise<string | null> {
   const clientRows = await owner.db
     .select({ serviceSubjectId: clients.serviceSubjectId })
     .from(clients)
-    .where(and(eq(clients.realmId, realmId), eq(clients.clientId, clientId)));
+    .where(and(eq(clients.tenantId, tenantId), eq(clients.clientId, clientId)));
   const clientRow = clientRows[0];
-  if (clientRow === undefined) throw new Error(`no client ${clientId} in realm ${realmId}`);
+  if (clientRow === undefined) throw new Error(`no client ${clientId} in tenant ${tenantId}`);
   if (clientRow.serviceSubjectId === null) return null;
 
   const subjectRows = await owner.db
@@ -108,24 +109,25 @@ async function serviceSubjectType(realmId: string, clientId: string): Promise<st
   return subjectRow.type;
 }
 
-async function seededEmail(realmId: string, username: string): Promise<string | null> {
+async function seededEmail(tenantId: string, username: string): Promise<string | null> {
   const rows = await owner.db
     .select({ email: users.email })
     .from(users)
-    .where(and(eq(users.realmId, realmId), eq(users.username, username)));
+    .where(and(eq(users.tenantId, tenantId), eq(users.username, username)));
   const row = rows[0];
-  if (row === undefined) throw new Error(`no user ${username} in realm ${realmId}`);
+  if (row === undefined) throw new Error(`no user ${username} in tenant ${tenantId}`);
   return row.email;
 }
 
-async function assignedScopes(realmId: string, oauthClientId: string): Promise<string[]> {
-  return withRealm(owner.db, realmId, async (tx) => {
+async function assignedScopes(tenantId: string, oauthClientId: string): Promise<string[]> {
+  return withTenant(owner.db, tenantId, async (tx) => {
     const clientRows = await tx
       .select()
       .from(clients)
-      .where(and(eq(clients.realmId, realmId), eq(clients.clientId, oauthClientId)));
+      .where(and(eq(clients.tenantId, tenantId), eq(clients.clientId, oauthClientId)));
     const clientRow = clientRows[0];
-    if (clientRow === undefined) throw new Error(`no client ${oauthClientId} in realm ${realmId}`);
+    if (clientRow === undefined)
+      throw new Error(`no client ${oauthClientId} in tenant ${tenantId}`);
     const scopes = await clientScopeRepository(tx).forClient(clientRow.id);
     return scopes.map((scope) => scope.name).sort();
   });
@@ -134,7 +136,7 @@ async function assignedScopes(realmId: string, oauthClientId: string): Promise<s
 function uniqueOptions(): SeedOptions {
   const suffix = newId();
   return {
-    realm: `acme-${suffix}`,
+    tenant: `acme-${suffix}`,
     clientId: 'web-app',
     clientSecret: 's3cret',
     redirectUris: ['https://app.example/callback'],
@@ -144,24 +146,24 @@ function uniqueOptions(): SeedOptions {
 }
 
 describe('seed', () => {
-  it('creates a realm, a client, a user and a signing key', async () => {
+  it('creates a tenant, a client, a user and a signing key', async () => {
     const options = uniqueOptions();
 
     const result = await seed(options);
 
-    expect(result).toMatchObject({ created: true, realm: options.realm, clientId: 'web-app' });
-    expect(await countSigningKeys(result.realmId)).toBe(1);
+    expect(result).toMatchObject({ created: true, tenant: options.tenant, clientId: 'web-app' });
+    expect(await countSigningKeys(result.tenantId)).toBe(1);
   });
 
   // /authorize refuses a scope the client is not assigned, so a seeded
   // client that got none would refuse `openid` on its very first request.
-  it('assigns the realm vocabulary to the client it creates', async () => {
+  it('assigns the tenant vocabulary to the client it creates', async () => {
     const options = uniqueOptions();
 
     const result = await seed(options);
 
-    expect(await assignedScopes(result.realmId, result.clientId)).toEqual(
-      [...REALM_DEFAULT_SCOPE_NAMES].sort(),
+    expect(await assignedScopes(result.tenantId, result.clientId)).toEqual(
+      [...TENANT_DEFAULT_SCOPE_NAMES].sort(),
     );
   });
 
@@ -170,14 +172,14 @@ describe('seed', () => {
 
     const first = await seed(options);
     await expect(seed(options)).resolves.toMatchObject({ created: false });
-    expect(await countClients(first.realmId)).toBe(1);
-    expect(await countSigningKeys(first.realmId)).toBe(1);
+    expect(await countClients(first.tenantId)).toBe(1);
+    expect(await countSigningKeys(first.tenantId)).toBe(1);
   });
 
   it('creates a public client when no secret is given', async () => {
     const options = uniqueOptions();
     const publicOptions: SeedOptions = {
-      realm: options.realm,
+      tenant: options.tenant,
       clientId: options.clientId,
       redirectUris: options.redirectUris,
       username: 'ada',
@@ -186,7 +188,7 @@ describe('seed', () => {
 
     const result = await seed(publicOptions);
 
-    expect(await clientType(result.realmId, result.clientId)).toBe('public');
+    expect(await clientType(result.tenantId, result.clientId)).toBe('public');
   });
 
   it('refuses a redirect URI that is not absolute', async () => {
@@ -233,7 +235,7 @@ describe('seed', () => {
 
     const result = await seed({ ...options, email: 'ada@example.com' });
 
-    expect(await seededEmail(result.realmId, 'ada')).toBe('ada@example.com');
+    expect(await seededEmail(result.tenantId, 'ada')).toBe('ada@example.com');
   });
 
   it('leaves the seeded user without an email when none is given', async () => {
@@ -241,7 +243,7 @@ describe('seed', () => {
 
     const result = await seed(options);
 
-    expect(await seededEmail(result.realmId, 'ada')).toBeNull();
+    expect(await seededEmail(result.tenantId, 'ada')).toBeNull();
   });
 
   it('refuses an address the email claim could not carry', async () => {
@@ -265,7 +267,7 @@ describe('seed', () => {
 
     const result = await seed(options);
 
-    expect(await tokenEndpointAuthMethod(result.realmId, result.clientId)).toBe(
+    expect(await tokenEndpointAuthMethod(result.tenantId, result.clientId)).toBe(
       'client_secret_basic',
     );
   });
@@ -275,7 +277,7 @@ describe('seed', () => {
 
     const result = await seed({ ...options, tokenEndpointAuthMethod: 'client_secret_post' });
 
-    expect(await tokenEndpointAuthMethod(result.realmId, result.clientId)).toBe(
+    expect(await tokenEndpointAuthMethod(result.tenantId, result.clientId)).toBe(
       'client_secret_post',
     );
   });
@@ -283,7 +285,7 @@ describe('seed', () => {
   it('refuses tokenEndpointAuthMethod given without a client secret', async () => {
     const options = uniqueOptions();
     const publicOptions: SeedOptions = {
-      realm: options.realm,
+      tenant: options.tenant,
       clientId: options.clientId,
       redirectUris: options.redirectUris,
       tokenEndpointAuthMethod: 'client_secret_post',
@@ -338,13 +340,13 @@ describe('seed: service-account subject', () => {
 
     const result = await seed(options);
 
-    expect(await serviceSubjectType(result.realmId, result.clientId)).toBe('service');
+    expect(await serviceSubjectType(result.tenantId, result.clientId)).toBe('service');
   });
 
   it('creates a public client with no service-account subject', async () => {
     const options = uniqueOptions();
     const publicOptions: SeedOptions = {
-      realm: options.realm,
+      tenant: options.tenant,
       clientId: options.clientId,
       redirectUris: options.redirectUris,
       username: 'ada',
@@ -353,12 +355,15 @@ describe('seed: service-account subject', () => {
 
     const result = await seed(publicOptions);
 
-    expect(await serviceSubjectType(result.realmId, result.clientId)).toBeNull();
+    expect(await serviceSubjectType(result.tenantId, result.clientId)).toBeNull();
   });
 });
 
-async function actionTokenCount(realmId: string): Promise<number> {
-  const rows = await owner.db.select().from(actionTokens).where(eq(actionTokens.realmId, realmId));
+async function actionTokenCount(tenantId: string): Promise<number> {
+  const rows = await owner.db
+    .select()
+    .from(actionTokens)
+    .where(eq(actionTokens.tenantId, tenantId));
   return rows.length;
 }
 
@@ -374,7 +379,7 @@ describe('seed: --send-verification-email', () => {
   it('omits userSubjectId when no user was seeded', async () => {
     const options = uniqueOptions();
     const noUserOptions: SeedOptions = {
-      realm: options.realm,
+      tenant: options.tenant,
       clientId: options.clientId,
       redirectUris: options.redirectUris,
     };
@@ -392,11 +397,11 @@ describe('seed: --send-verification-email', () => {
     const withEmail: SeedOptions = { ...options, email: 'ada@example.com' };
 
     const result = await seed(withEmail);
-    expect(await actionTokenCount(result.realmId)).toBe(0);
+    expect(await actionTokenCount(result.tenantId)).toBe(0);
 
     await seed({ ...withEmail, sendVerificationEmail: true });
 
-    expect(await actionTokenCount(result.realmId)).toBe(1);
+    expect(await actionTokenCount(result.tenantId)).toBe(1);
   });
 
   it('accepts an explicit --issuer-base and still issues the token', async () => {
@@ -411,13 +416,13 @@ describe('seed: --send-verification-email', () => {
       issuerBase: 'https://idp.example.test',
     });
 
-    expect(await actionTokenCount(result.realmId)).toBe(1);
+    expect(await actionTokenCount(result.tenantId)).toBe(1);
   });
 
   it('refuses sendVerificationEmail for a username never seeded with this client', async () => {
     const options = uniqueOptions();
     const noUserOptions: SeedOptions = {
-      realm: options.realm,
+      tenant: options.tenant,
       clientId: options.clientId,
       redirectUris: options.redirectUris,
     };
@@ -436,27 +441,27 @@ describe('seed: --send-verification-email', () => {
   });
 });
 
-describe('seed realm --set', () => {
-  async function realmSettings(realmId: string) {
+describe('seed tenant --set', () => {
+  async function tenantSettings(tenantId: string) {
     const rows = await owner.db
       .select({
-        otpRequired: realms.otpRequired,
-        registrationAllowed: realms.registrationAllowed,
-        passwordMaxAgeDays: realms.passwordMaxAgeDays,
-        displayName: realms.displayName,
+        otpRequired: tenants.otpRequired,
+        registrationAllowed: tenants.registrationAllowed,
+        passwordMaxAgeDays: tenants.passwordMaxAgeDays,
+        displayName: tenants.displayName,
       })
-      .from(realms)
-      .where(eq(realms.id, realmId));
+      .from(tenants)
+      .where(eq(tenants.id, tenantId));
     const row = rows[0];
-    if (row === undefined) throw new Error(`no realm ${realmId}`);
+    if (row === undefined) throw new Error(`no tenant ${tenantId}`);
     return row;
   }
 
-  it('applies settings to the realm it creates, and reports which', async () => {
+  it('applies settings to the tenant it creates, and reports which', async () => {
     const name = `set-${newId()}`;
 
     const result = await seed([
-      'realm',
+      'tenant',
       '--name',
       name,
       '--set',
@@ -465,11 +470,11 @@ describe('seed realm --set', () => {
       'password_max_age_days=90',
     ]);
 
-    expect(result).toMatchObject({ command: 'realm', created: true, realm: name });
+    expect(result).toMatchObject({ command: 'tenant', created: true, tenant: name });
     // Echoed as they were given, not as the columns are spelled.
     expect(result).toMatchObject({ settings: ['otp_required', 'password_max_age_days'] });
-    if (result.command !== 'realm') throw new Error('expected the realm command');
-    expect(await realmSettings(result.realmId)).toMatchObject({
+    if (result.command !== 'tenant') throw new Error('expected the tenant command');
+    expect(await tenantSettings(result.tenantId)).toMatchObject({
       otpRequired: true,
       passwordMaxAgeDays: 90,
     });
@@ -478,22 +483,22 @@ describe('seed realm --set', () => {
   // Settings are configuration rather than identity, so a second call
   // changes them — unlike `seed client`, which refuses an existing client
   // rather than quietly widening a redirect allowlist.
-  it('changes a setting on a realm that already exists, leaving the rest alone', async () => {
+  it('changes a setting on a tenant that already exists, leaving the rest alone', async () => {
     const name = `set-${newId()}`;
-    const created = await seed(['realm', '--name', name, '--set', 'registration_allowed=true']);
-    if (created.command !== 'realm') throw new Error('expected the realm command');
+    const created = await seed(['tenant', '--name', name, '--set', 'registration_allowed=true']);
+    if (created.command !== 'tenant') throw new Error('expected the tenant command');
 
-    const again = await seed(['realm', '--name', name, '--set', 'otp_required=true']);
+    const again = await seed(['tenant', '--name', name, '--set', 'otp_required=true']);
 
-    expect(again).toMatchObject({ created: false, realmId: created.realmId });
-    expect(await realmSettings(created.realmId)).toMatchObject({
+    expect(again).toMatchObject({ created: false, tenantId: created.tenantId });
+    expect(await tenantSettings(created.tenantId)).toMatchObject({
       registrationAllowed: true,
       otpRequired: true,
     });
   });
 
   it('omits the settings key entirely when no --set was given', async () => {
-    const result = await seed(['realm', '--name', `set-${newId()}`]);
+    const result = await seed(['tenant', '--name', `set-${newId()}`]);
 
     expect(result).not.toHaveProperty('settings');
   });
@@ -504,11 +509,11 @@ describe('seed realm --set', () => {
     const name = `set-${newId()}`;
 
     await expect(
-      seed(['realm', '--name', name, '--set', 'password_max_age_days=4000']),
+      seed(['tenant', '--name', name, '--set', 'password_max_age_days=4000']),
     ).rejects.toThrow();
 
-    const rows = await owner.db.select().from(realms).where(eq(realms.name, name));
-    // The realm itself was created before the setting was applied, so the
+    const rows = await owner.db.select().from(tenants).where(eq(tenants.name, name));
+    // The tenant itself was created before the setting was applied, so the
     // refusal leaves it at the column default rather than at 4000.
     expect(rows[0]?.passwordMaxAgeDays).toBe(0);
   });
@@ -516,32 +521,32 @@ describe('seed realm --set', () => {
   it('cannot write a client cap the database refuses', async () => {
     const name = `set-${newId()}`;
 
-    await expect(seed(['realm', '--name', name, '--set', 'max_clients=-1'])).rejects.toThrow();
+    await expect(seed(['tenant', '--name', name, '--set', 'max_clients=-1'])).rejects.toThrow();
   });
 
   it('cannot write a registration policy the database refuses', async () => {
     const name = `set-${newId()}`;
 
     await expect(
-      seed(['realm', '--name', name, '--set', 'client_registration_policy=nonsense']),
+      seed(['tenant', '--name', name, '--set', 'client_registration_policy=nonsense']),
     ).rejects.toThrow();
   });
 
   it('refuses a setting name it does not know, and names the ones it does', async () => {
     await expect(
-      seed(['realm', '--name', `set-${newId()}`, '--set', 'otp_requried=true']),
-    ).rejects.toThrow(/unknown realm setting "otp_requried".*otp_required/su);
+      seed(['tenant', '--name', `set-${newId()}`, '--set', 'otp_requried=true']),
+    ).rejects.toThrow(/unknown tenant setting "otp_requried".*otp_required/su);
   });
 
   it('refuses a value of the wrong shape', async () => {
     await expect(
-      seed(['realm', '--name', `set-${newId()}`, '--set', 'otp_required=yes']),
+      seed(['tenant', '--name', `set-${newId()}`, '--set', 'otp_required=yes']),
     ).rejects.toThrow(/expects a boolean/u);
     await expect(
-      seed(['realm', '--name', `set-${newId()}`, '--set', 'password_max_age_days=ninety']),
+      seed(['tenant', '--name', `set-${newId()}`, '--set', 'password_max_age_days=ninety']),
     ).rejects.toThrow(/expects an integer/u);
     await expect(
-      seed(['realm', '--name', `set-${newId()}`, '--set', 'otp_required']),
+      seed(['tenant', '--name', `set-${newId()}`, '--set', 'otp_required']),
     ).rejects.toThrow(/expects name=value/u);
   });
 });
@@ -553,8 +558,8 @@ describe('seed client --post-logout-redirect-uri', () => {
 
     await seed([
       'client',
-      '--realm',
-      options.realm,
+      '--tenant',
+      options.tenant,
       '--client-id',
       'logout-spa',
       '--public',
@@ -564,14 +569,15 @@ describe('seed client --post-logout-redirect-uri', () => {
       'https://app.example/logged-out',
     ]);
 
-    const realmId = (await owner.db.select().from(realms).where(eq(realms.name, options.realm)))[0]
-      ?.id;
-    if (realmId === undefined) throw new Error('expected the seeded realm');
-    const stored = await withRealm(owner.db, realmId, async (tx) => {
+    const tenantId = (
+      await owner.db.select().from(tenants).where(eq(tenants.name, options.tenant))
+    )[0]?.id;
+    if (tenantId === undefined) throw new Error('expected the seeded tenant');
+    const stored = await withTenant(owner.db, tenantId, async (tx) => {
       const rows = await tx
         .select()
         .from(clients)
-        .where(and(eq(clients.realmId, realmId), eq(clients.clientId, 'logout-spa')));
+        .where(and(eq(clients.tenantId, tenantId), eq(clients.clientId, 'logout-spa')));
       const client = rows[0];
       if (client === undefined) throw new Error('expected the seeded client');
       return clientOidcConfigRepository(tx).byClientId(client.id);
@@ -586,8 +592,8 @@ describe('seed client --post-logout-redirect-uri', () => {
     await expect(
       seed([
         'client',
-        '--realm',
-        options.realm,
+        '--tenant',
+        options.tenant,
         '--client-id',
         'relative-spa',
         '--public',
@@ -605,15 +611,15 @@ describe('seed registration-token', () => {
 
     const result = await seed([
       'registration-token',
-      '--realm',
-      options.realm,
+      '--tenant',
+      options.tenant,
       '--uses',
       '1',
       '--ttl',
       '600',
     ]);
 
-    expect(result).toMatchObject({ command: 'registration-token', realm: options.realm });
+    expect(result).toMatchObject({ command: 'registration-token', tenant: options.tenant });
     if (result.command !== 'registration-token') throw new Error('expected registration-token');
     expect(result.token).toMatch(/^[A-Za-z0-9_-]{43}$/u);
   });
@@ -624,8 +630,8 @@ describe('seed registration-token', () => {
 
     const result = await seed([
       'registration-token',
-      '--realm',
-      options.realm,
+      '--tenant',
+      options.tenant,
       '--uses',
       '1',
       '--ttl',
@@ -633,24 +639,25 @@ describe('seed registration-token', () => {
     ]);
     if (result.command !== 'registration-token') throw new Error('expected registration-token');
 
-    const realmId = (await owner.db.select().from(realms).where(eq(realms.name, options.realm)))[0]
-      ?.id;
-    if (realmId === undefined) throw new Error('expected the seeded realm');
+    const tenantId = (
+      await owner.db.select().from(tenants).where(eq(tenants.name, options.tenant))
+    )[0]?.id;
+    if (tenantId === undefined) throw new Error('expected the seeded tenant');
 
-    const first = await withRealm(owner.db, realmId, (tx) =>
-      clientRegistrationTokenRepository(tx).spend(realmId, result.token),
+    const first = await withTenant(owner.db, tenantId, (tx) =>
+      clientRegistrationTokenRepository(tx).spend(tenantId, result.token),
     );
-    const second = await withRealm(owner.db, realmId, (tx) =>
-      clientRegistrationTokenRepository(tx).spend(realmId, result.token),
+    const second = await withTenant(owner.db, tenantId, (tx) =>
+      clientRegistrationTokenRepository(tx).spend(tenantId, result.token),
     );
 
     expect(first).toBe(true);
     expect(second).toBe(false);
   });
 
-  it('refuses a realm that does not exist', async () => {
+  it('refuses a tenant that does not exist', async () => {
     await expect(
-      seed(['registration-token', '--realm', `no-such-${newId()}`, '--uses', '1', '--ttl', '600']),
-    ).rejects.toThrow(/no realm named/u);
+      seed(['registration-token', '--tenant', `no-such-${newId()}`, '--uses', '1', '--ttl', '600']),
+    ).rejects.toThrow(/no tenant named/u);
   });
 });

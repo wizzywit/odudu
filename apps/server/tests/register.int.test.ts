@@ -1,9 +1,9 @@
 import {
-  realms,
+  tenants,
   createDatabase,
   MIGRATIONS_DIR,
   runMigrations,
-  withRealm,
+  withTenant,
   type DatabaseHandle,
 } from '@odudu/db';
 import { effectiveRoles, roleRepository } from '@odudu/domain-authz';
@@ -108,14 +108,17 @@ function buildTestApp(): FastifyInstance {
   });
 }
 
-async function setRealmSettings(
-  realmId: string,
+async function setTenantSettings(
+  tenantId: string,
   settings: { registrationAllowed?: boolean; verifyEmail?: boolean },
 ): Promise<void> {
-  await owner.db.update(realms).set(settings).where(eq(realms.id, realmId));
+  await owner.db.update(tenants).set(settings).where(eq(tenants.id, tenantId));
 }
 
-async function extractAuthSessionId(instance: FastifyInstance, realmName: string): Promise<string> {
+async function extractAuthSessionId(
+  instance: FastifyInstance,
+  tenantName: string,
+): Promise<string> {
   const query = new URLSearchParams({
     response_type: 'code',
     client_id: 'register-spa',
@@ -127,7 +130,7 @@ async function extractAuthSessionId(instance: FastifyInstance, realmName: string
     code_challenge_method: 'S256',
   });
   const res = await instance.inject({
-    url: `/realms/${realmName}/protocol/openid-connect/auth?${query.toString()}`,
+    url: `/tenants/${tenantName}/protocol/openid-connect/auth?${query.toString()}`,
   });
   const match = /name="auth_session_id" value="([^"]*)"/.exec(res.body);
   const value = match?.[1];
@@ -137,15 +140,15 @@ async function extractAuthSessionId(instance: FastifyInstance, realmName: string
 
 async function attemptLogin(
   instance: FastifyInstance,
-  realmName: string,
+  tenantName: string,
   username: string,
   password: string,
 ) {
-  const authSessionId = await extractAuthSessionId(instance, realmName);
+  const authSessionId = await extractAuthSessionId(instance, tenantName);
   const loginForm = new URLSearchParams({ auth_session_id: authSessionId, username, password });
   return instance.inject({
     method: 'POST',
-    url: `/realms/${realmName}/login-actions/authenticate`,
+    url: `/tenants/${tenantName}/login-actions/authenticate`,
     payload: loginForm.toString(),
     headers: { 'content-type': 'application/x-www-form-urlencoded' },
   });
@@ -153,14 +156,14 @@ async function attemptLogin(
 
 async function registerAccount(
   instance: FastifyInstance,
-  realmName: string,
+  tenantName: string,
   input: { username: string; email: string; password: string },
   extraHeaders: Record<string, string> = {},
 ): Promise<number> {
   const form = new URLSearchParams(input);
   const res = await instance.inject({
     method: 'POST',
-    url: `/realms/${realmName}/login-actions/registration`,
+    url: `/tenants/${tenantName}/login-actions/registration`,
     payload: form.toString(),
     headers: { 'content-type': 'application/x-www-form-urlencoded', ...extraHeaders },
   });
@@ -183,16 +186,16 @@ beforeEach(async () => {
 
 describe('self-registration, through the real composition root', () => {
   it('refuses to complete a login until the address is verified, and lets it through once it is', async () => {
-    const realmName = `register-${newId()}`;
+    const tenantName = `register-${newId()}`;
     const seeded = await seed({
-      realm: realmName,
+      tenant: tenantName,
       clientId: 'register-spa',
       redirectUris: [REDIRECT_URI],
     });
-    await setRealmSettings(seeded.realmId, { registrationAllowed: true, verifyEmail: true });
-    await withRealm(appDb.db, seeded.realmId, (tx) =>
+    await setTenantSettings(seeded.tenantId, { registrationAllowed: true, verifyEmail: true });
+    await withTenant(appDb.db, seeded.tenantId, (tx) =>
       roleRepository(tx).create({
-        realmId: seeded.realmId,
+        tenantId: seeded.tenantId,
         name: 'offline_access',
         defaultForNewSubjects: true,
       }),
@@ -203,7 +206,7 @@ describe('self-registration, through the real composition root', () => {
     await app.ready();
 
     try {
-      const registered = await registerAccount(app, realmName, {
+      const registered = await registerAccount(app, tenantName, {
         username: 'ada',
         email: 'ada@example.test',
         password: 'correct horse battery staple',
@@ -216,18 +219,18 @@ describe('self-registration, through the real composition root', () => {
       // default-role-assignment loop were deleted: packages/account's tests
       // exercise a copy of that loop against a fake createAccount, not the
       // real composition root this file builds.
-      const registeredSubject = await withRealm(appDb.db, seeded.realmId, (tx) =>
+      const registeredSubject = await withTenant(appDb.db, seeded.tenantId, (tx) =>
         userRepository(tx).byUsername('ada'),
       );
       if (registeredSubject === null) throw new Error('registered user not found');
-      const roles = await withRealm(appDb.db, seeded.realmId, (tx) =>
+      const roles = await withTenant(appDb.db, seeded.tenantId, (tx) =>
         effectiveRoles(tx, registeredSubject.subject.id),
       );
       expect(roles.map((role) => role.name)).toEqual(['offline_access']);
 
       const beforeVerification = await attemptLogin(
         app,
-        realmName,
+        tenantName,
         'ada',
         'correct horse battery staple',
       );
@@ -242,13 +245,13 @@ describe('self-registration, through the real composition root', () => {
       const key = extractVerificationKey(message);
       const redeemRes = await app.inject({
         method: 'GET',
-        url: `/realms/${realmName}/login-actions/action-token?key=${key}`,
+        url: `/tenants/${tenantName}/login-actions/action-token?key=${key}`,
       });
       expect(redeemRes.statusCode).toBe(200);
 
       const afterVerification = await attemptLogin(
         app,
-        realmName,
+        tenantName,
         'ada',
         'correct horse battery staple',
       );
@@ -258,21 +261,21 @@ describe('self-registration, through the real composition root', () => {
     }
   });
 
-  it('completes a login immediately when the realm does not require verification', async () => {
-    const realmName = `register-${newId()}`;
+  it('completes a login immediately when the tenant does not require verification', async () => {
+    const tenantName = `register-${newId()}`;
     const seeded = await seed({
-      realm: realmName,
+      tenant: tenantName,
       clientId: 'register-spa',
       redirectUris: [REDIRECT_URI],
     });
-    await setRealmSettings(seeded.realmId, { registrationAllowed: true, verifyEmail: false });
+    await setTenantSettings(seeded.tenantId, { registrationAllowed: true, verifyEmail: false });
 
     const sender = capturingSender();
     const app = buildTestApp();
     await app.ready();
 
     try {
-      const registered = await registerAccount(app, realmName, {
+      const registered = await registerAccount(app, tenantName, {
         username: 'grace',
         email: 'grace@example.test',
         password: 'correct horse battery staple',
@@ -281,7 +284,7 @@ describe('self-registration, through the real composition root', () => {
       await drainOutbox(sender);
       expect(sender.sent).toHaveLength(0);
 
-      const login = await attemptLogin(app, realmName, 'grace', 'correct horse battery staple');
+      const login = await attemptLogin(app, tenantName, 'grace', 'correct horse battery staple');
       expect(login.headers.location).toContain('code=');
     } finally {
       await app.close();
@@ -296,13 +299,13 @@ describe('self-registration, through the real composition root', () => {
   // an address they do not control against an account they hold the
   // password to.
   it('ignores a forged Host header and mails a link at the configured public base url', async () => {
-    const realmName = `register-${newId()}`;
+    const tenantName = `register-${newId()}`;
     const seeded = await seed({
-      realm: realmName,
+      tenant: tenantName,
       clientId: 'register-spa',
       redirectUris: [REDIRECT_URI],
     });
-    await setRealmSettings(seeded.realmId, { registrationAllowed: true, verifyEmail: true });
+    await setTenantSettings(seeded.tenantId, { registrationAllowed: true, verifyEmail: true });
 
     const sender = capturingSender();
     const app = buildTestApp();
@@ -311,7 +314,7 @@ describe('self-registration, through the real composition root', () => {
     try {
       const registered = await registerAccount(
         app,
-        realmName,
+        tenantName,
         { username: 'ada', email: 'ada@example.test', password: 'correct horse battery staple' },
         { host: 'evil.example' },
       );
@@ -320,7 +323,7 @@ describe('self-registration, through the real composition root', () => {
       await drainOutbox(sender);
       const message = sender.sent[0];
       if (message === undefined) throw new Error('no verification mail sent');
-      expect(message.text).toContain(`${PUBLIC_BASE_URL}/realms/${realmName}/`);
+      expect(message.text).toContain(`${PUBLIC_BASE_URL}/tenants/${tenantName}/`);
       expect(message.text).not.toContain('evil.example');
     } finally {
       await app.close();

@@ -20,7 +20,7 @@ function testUser(
 ): NonNullable<ClaimContext['user']> {
   return {
     subjectId,
-    realmId: 'realm-1',
+    tenantId: 'tenant-1',
     username: 'alice',
     email: null,
     emailVerified: false,
@@ -267,7 +267,7 @@ describe('[OIDC-CORE-5.4-02] phone mapper', () => {
 });
 
 describe('roles claim', () => {
-  it('emits realm roles bare and client roles qualified', async () => {
+  it('emits tenant roles bare and client roles qualified', async () => {
     const claims = await standardClaimMappers().assemble(['openid', 'roles'], roleGroupCtx);
     expect(claims.roles).toEqual(['admin', 'reports-api:reader']);
   });

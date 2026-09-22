@@ -1,14 +1,14 @@
-import { realms } from '@odudu/db';
+import { tenants } from '@odudu/db';
 import { integer, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 
 // Policies are written as hand-authored SQL in packages/db/drizzle/, never
-// declared with pgPolicy() — see realms.ts in @odudu/db for why a
+// declared with pgPolicy() — see tenants.ts in @odudu/db for why a
 // declarative policy would collide with a database that already carries it.
 export const backchannelLogoutDeliveries = pgTable('backchannel_logout_deliveries', {
   id: uuid('id').primaryKey(),
-  realmId: uuid('realm_id')
+  tenantId: uuid('tenant_id')
     .notNull()
-    .references(() => realms.id, { onDelete: 'cascade' }),
+    .references(() => tenants.id, { onDelete: 'cascade' }),
   clientId: uuid('client_id').notNull(),
   // Named for dedupe, not reference — see migration
   // 0052_backchannel_logout_deliveries_session.sql for why this carries no
@@ -28,7 +28,7 @@ export const backchannelLogoutDeliveries = pgTable('backchannel_logout_deliverie
 
 export interface LogoutDelivery {
   readonly id: string;
-  readonly realmId: string;
+  readonly tenantId: string;
   readonly clientId: string;
   readonly endpoint: string;
   readonly logoutToken: string;

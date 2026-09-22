@@ -2,6 +2,8 @@
 
 **Status:** Accepted · 2026-09-20
 
+**Renamed 2026-09-22:** written when a tenant was called a realm; the decision is unchanged.
+
 ## Context
 
 Front-channel logout (OpenID Connect Front-Channel Logout 1.0) asks the OP
@@ -43,7 +45,7 @@ A page loaded inside a frame can navigate the top-level window — a framed
 document is not sandboxed against that by default. Framing a registered
 `frontchannel_logout_uri` therefore hands that relying party's page a
 top-navigation primitive for the duration this OP's logout page is on
-screen. In a realm with anonymous dynamic client registration enabled, that
+screen. In a tenant with anonymous dynamic client registration enabled, that
 primitive is handed to a client nobody vetted. This is accepted, not
 mitigated: the risk belongs to the front-channel logout mechanism itself,
 which exists to let an RP run its own code as a reaction to the OP ending a

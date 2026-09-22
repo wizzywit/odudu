@@ -27,8 +27,8 @@ module.exports = {
         '@odudu/domain-identity, so an edge back from a domain package would be a cycle waiting ' +
         'to happen and puts a login concern underneath the identities it authenticates. A domain ' +
         'package that needs to provision a flow is provisioned by its own caller instead — see ' +
-        'provisionBrowserFlow in @odudu/authn-flows and provisionRealmDefaults in ' +
-        '@odudu/domain-realm, called side by side by whatever stands up a realm.',
+        'provisionBrowserFlow in @odudu/authn-flows and provisionTenantDefaults in ' +
+        '@odudu/domain-tenant, called side by side by whatever stands up a tenant.',
       from: { path: '(^|/)packages/(?:domain-[^/]+|account|email)/' },
       to: { path: '(^|/)packages/authn-flows/' },
     },

@@ -1,4 +1,4 @@
-import { type RealmScopedDatabase } from '@odudu/db';
+import { type TenantScopedDatabase } from '@odudu/db';
 import { eq, sql } from 'drizzle-orm';
 import { refreshTokens, type RefreshTokenRecord } from '#/schema/refresh-tokens';
 
@@ -10,7 +10,7 @@ export type { RefreshTokenRecord } from '#/schema/refresh-tokens';
 // columns are typed `string` here rather than `Date`.
 interface RawRefreshTokenRow {
   token_hash: string;
-  realm_id: string;
+  tenant_id: string;
   grant_id: string;
   issued_at: string;
   expires_at: string;
@@ -21,7 +21,7 @@ interface RawRefreshTokenRow {
 function toRecord(row: RawRefreshTokenRow): RefreshTokenRecord {
   return {
     tokenHash: row.token_hash,
-    realmId: row.realm_id,
+    tenantId: row.tenant_id,
     grantId: row.grant_id,
     issuedAt: new Date(row.issued_at),
     expiresAt: new Date(row.expires_at),
@@ -32,19 +32,19 @@ function toRecord(row: RawRefreshTokenRow): RefreshTokenRecord {
 
 export interface NewRefreshToken {
   tokenHash: string;
-  realmId: string;
+  tenantId: string;
   grantId: string;
   expiresAt: Date;
 }
 
-export function refreshTokenRepository(tx: RealmScopedDatabase) {
+export function refreshTokenRepository(tx: TenantScopedDatabase) {
   return {
     async create(input: NewRefreshToken): Promise<RefreshTokenRecord> {
       const rows = await tx
         .insert(refreshTokens)
         .values({
           tokenHash: input.tokenHash,
-          realmId: input.realmId,
+          tenantId: input.tenantId,
           grantId: input.grantId,
           expiresAt: input.expiresAt,
           usedAt: null,
@@ -57,7 +57,7 @@ export function refreshTokenRepository(tx: RealmScopedDatabase) {
       }
       return {
         tokenHash: row.tokenHash,
-        realmId: row.realmId,
+        tenantId: row.tenantId,
         grantId: row.grantId,
         issuedAt: row.issuedAt,
         expiresAt: row.expiresAt,

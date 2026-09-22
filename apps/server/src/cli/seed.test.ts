@@ -3,13 +3,13 @@ import { seed } from '#/cli/seed';
 
 // These assertions all happen before the seed command opens a database
 // connection, so they need no Postgres — packages/db's Testcontainers
-// setup covers the create/idempotency/conflict behaviour once a realm id
+// setup covers the create/idempotency/conflict behaviour once a tenant id
 // is in play (apps/server/tests/seed.int.test.ts).
 describe('seed option validation', () => {
   it('refuses a redirect URI that is not absolute', async () => {
     await expect(
       seed({
-        realm: 'acme',
+        tenant: 'acme',
         clientId: 'web-app',
         redirectUris: ['/callback'],
       }),
@@ -19,7 +19,7 @@ describe('seed option validation', () => {
   it('refuses a username given without a password', async () => {
     await expect(
       seed({
-        realm: 'acme',
+        tenant: 'acme',
         clientId: 'web-app',
         redirectUris: ['https://app.example/callback'],
         username: 'ada',
@@ -30,7 +30,7 @@ describe('seed option validation', () => {
   it('refuses a password given without a username', async () => {
     await expect(
       seed({
-        realm: 'acme',
+        tenant: 'acme',
         clientId: 'web-app',
         redirectUris: ['https://app.example/callback'],
         password: 'pw',
@@ -41,7 +41,7 @@ describe('seed option validation', () => {
   it('refuses an email with nobody to attach it to', async () => {
     await expect(
       seed({
-        realm: 'acme',
+        tenant: 'acme',
         clientId: 'web-app',
         redirectUris: ['https://app.example/callback'],
         email: 'ada@example.com',
@@ -52,7 +52,7 @@ describe('seed option validation', () => {
   it('refuses sendVerificationEmail with no address to send to', async () => {
     await expect(
       seed({
-        realm: 'acme',
+        tenant: 'acme',
         clientId: 'web-app',
         redirectUris: ['https://app.example/callback'],
         username: 'ada',

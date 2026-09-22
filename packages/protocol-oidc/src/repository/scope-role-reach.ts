@@ -1,12 +1,12 @@
-import { type RealmScopedDatabase } from '@odudu/db';
+import { type TenantScopedDatabase } from '@odudu/db';
 import { roleRepository } from '@odudu/domain-authz';
-import { clientScopeRepository, type ClientScopeRecord } from '@odudu/domain-realm';
+import { clientScopeRepository, type ClientScopeRecord } from '@odudu/domain-tenant';
 
 // A granted scope name with no matching client_scopes row resolves to
 // nothing rather than erroring — the same "missing means absent"
 // `resolveScope` already assumes.
 async function resolveClientScopes(
-  tx: RealmScopedDatabase,
+  tx: TenantScopedDatabase,
   grantedScope: readonly string[],
 ): Promise<ClientScopeRecord[]> {
   const found: ClientScopeRecord[] = [];
@@ -21,7 +21,7 @@ async function resolveClientScopes(
 // a mapping edited between requests must take effect on the next one, not
 // the next login.
 export async function reachableRoleIds(
-  tx: RealmScopedDatabase,
+  tx: TenantScopedDatabase,
   grantedScope: readonly string[],
 ): Promise<ReadonlySet<string>> {
   const scopes = await resolveClientScopes(tx, grantedScope);
@@ -32,7 +32,7 @@ export async function reachableRoleIds(
 // access token (`client_scopes.include_in_access_token`) — symmetric with
 // the ID token's `include_in_id_token` gate, and read the same way.
 export async function accessTokenEligibleScope(
-  tx: RealmScopedDatabase,
+  tx: TenantScopedDatabase,
   grantedScope: readonly string[],
 ): Promise<string[]> {
   const scopes = await resolveClientScopes(tx, grantedScope);

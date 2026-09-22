@@ -2,6 +2,8 @@
 
 **Status:** Accepted · 2026-09-13
 
+**Renamed 2026-09-22:** written when a tenant was called a realm; the decision is unchanged.
+
 ## Context
 
 Refresh tokens rotate: presenting one marks it used, in one atomic UPDATE,
@@ -13,7 +15,7 @@ The first implementation rotated first and decided afterwards, from the
 rotated record: whether the presenting client owned the token, whether the
 subject was still enabled, whether the requested scope had widened. That
 order made a refresh token a weapon. Rotation marks the presented token
-used and commits, so **any** client able to authenticate at the realm could
+used and commits, so **any** client able to authenticate at the tenant could
 present a refresh token belonging to another client, be refused, and still
 have burned it. The owner's next legitimate refresh then presented a token
 already marked used, was detected as reuse, and revoked the owner's entire

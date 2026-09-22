@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { registerClient, type ClientRegistrationDeps } from '#/usecase/client-registration';
-import { type RealmLookup } from '#/repository/realm-lookup';
+import { type TenantLookup } from '#/repository/tenant-lookup';
 
-const REALM: RealmLookup = {
+const TENANT: TenantLookup = {
   id: 'r1',
   enabled: true,
   verifyEmail: false,
@@ -17,21 +17,21 @@ const REALM: RealmLookup = {
 
 const MINIMAL_METADATA = { redirect_uris: ['https://rp.example/cb'] };
 
-// A `withinRealm` that fails the test if it is ever called — used to prove
+// A `withinTenant` that fails the test if it is ever called — used to prove
 // an early refusal (404, 401) never opens a transaction, which is what
 // tells `not_found` and `unauthorized` apart from a version that always
 // opens one and only decides inside it. A version of `registerClient` that
 // opened the transaction regardless and decided the outcome inside it
 // would still return the right `kind`, but would fail every test below
 // that uses this fake.
-const explodingWithinRealm: ClientRegistrationDeps['withinRealm'] = () => {
-  throw new Error('withinRealm must not be called for this outcome');
+const explodingWithinTenant: ClientRegistrationDeps['withinTenant'] = () => {
+  throw new Error('withinTenant must not be called for this outcome');
 };
 
 function deps(overrides: Partial<ClientRegistrationDeps> = {}): ClientRegistrationDeps {
   return {
-    findRealm: () => Promise.resolve(REALM),
-    withinRealm: explodingWithinRealm,
+    findTenant: () => Promise.resolve(TENANT),
+    withinTenant: explodingWithinTenant,
     hashClientSecret: (secret) => Promise.resolve(`hashed:${secret}`),
     now: () => new Date('2026-09-18T00:00:00Z'),
     tlsClientAuthEnabled: false,
@@ -39,20 +39,20 @@ function deps(overrides: Partial<ClientRegistrationDeps> = {}): ClientRegistrati
   };
 }
 
-describe('registerClient — realm resolution', () => {
-  it('answers not_found for an unknown realm without opening a transaction', async () => {
+describe('registerClient — tenant resolution', () => {
+  it('answers not_found for an unknown tenant without opening a transaction', async () => {
     const outcome = await registerClient(
-      deps({ findRealm: () => Promise.resolve(null) }),
-      'no-such-realm',
+      deps({ findTenant: () => Promise.resolve(null) }),
+      'no-such-tenant',
       undefined,
       MINIMAL_METADATA,
     );
     expect(outcome).toEqual({ kind: 'not_found' });
   });
 
-  it('answers not_found for a disabled realm without opening a transaction', async () => {
+  it('answers not_found for a disabled tenant without opening a transaction', async () => {
     const outcome = await registerClient(
-      deps({ findRealm: () => Promise.resolve({ ...REALM, enabled: false }) }),
+      deps({ findTenant: () => Promise.resolve({ ...TENANT, enabled: false }) }),
       'acme',
       undefined,
       MINIMAL_METADATA,
@@ -61,12 +61,12 @@ describe('registerClient — realm resolution', () => {
   });
 
   // Discriminates from a version that reads the policy only for discovery
-  // and lets every realm register: the fixture's realm is enabled, and the
+  // and lets every tenant register: the fixture's tenant is enabled, and the
   // only thing that says "closed" is the policy column.
-  it('answers not_found when the policy is disabled, even for an enabled realm', async () => {
+  it('answers not_found when the policy is disabled, even for an enabled tenant', async () => {
     const outcome = await registerClient(
       deps({
-        findRealm: () => Promise.resolve({ ...REALM, clientRegistrationPolicy: 'disabled' }),
+        findTenant: () => Promise.resolve({ ...TENANT, clientRegistrationPolicy: 'disabled' }),
       }),
       'acme',
       undefined,
@@ -79,7 +79,7 @@ describe('registerClient — realm resolution', () => {
 describe('registerClient — the token policy', () => {
   it('answers unauthorized with no Authorization header, before touching the database', async () => {
     const outcome = await registerClient(
-      deps({ findRealm: () => Promise.resolve({ ...REALM, clientRegistrationPolicy: 'token' }) }),
+      deps({ findTenant: () => Promise.resolve({ ...TENANT, clientRegistrationPolicy: 'token' }) }),
       'acme',
       undefined,
       MINIMAL_METADATA,
@@ -92,7 +92,7 @@ describe('registerClient — the token policy', () => {
   // either, and must be refused the same way as no header at all.
   it('answers unauthorized for a non-Bearer Authorization header', async () => {
     const outcome = await registerClient(
-      deps({ findRealm: () => Promise.resolve({ ...REALM, clientRegistrationPolicy: 'token' }) }),
+      deps({ findTenant: () => Promise.resolve({ ...TENANT, clientRegistrationPolicy: 'token' }) }),
       'acme',
       'Basic dXNlcjpwYXNz',
       MINIMAL_METADATA,
@@ -101,12 +101,12 @@ describe('registerClient — the token policy', () => {
   });
 
   it('opens a transaction once a bearer token is presented', async () => {
-    let realmIdSeen: string | undefined;
+    let tenantIdSeen: string | undefined;
     const outcome = await registerClient(
       deps({
-        findRealm: () => Promise.resolve({ ...REALM, clientRegistrationPolicy: 'token' }),
-        withinRealm: <T>(realmId: string) => {
-          realmIdSeen = realmId;
+        findTenant: () => Promise.resolve({ ...TENANT, clientRegistrationPolicy: 'token' }),
+        withinTenant: <T>(tenantId: string) => {
+          tenantIdSeen = tenantId;
           return Promise.resolve({ kind: 'invalid_token' }) as unknown as Promise<T>;
         },
       }),
@@ -114,15 +114,15 @@ describe('registerClient — the token policy', () => {
       'Bearer some-token',
       MINIMAL_METADATA,
     );
-    expect(realmIdSeen).toBe('r1');
+    expect(tenantIdSeen).toBe('r1');
     expect(outcome).toEqual({ kind: 'invalid_token' });
   });
 });
 
 describe('registerClient — metadata validation', () => {
   // Discriminates from a version that validates metadata inside the
-  // transaction: an invalid body must never reach withinRealm, the same
-  // property the realm-resolution tests establish for 404 and 401.
+  // transaction: an invalid body must never reach withinTenant, the same
+  // property the tenant-resolution tests establish for 404 and 401.
   it('answers invalid_metadata before opening a transaction', async () => {
     const outcome = await registerClient(deps(), 'acme', undefined, {
       redirect_uris: ['not a url'],
@@ -134,7 +134,7 @@ describe('registerClient — metadata validation', () => {
     }
   });
 
-  // The one field parseClientMetadata always refuses regardless of realm
+  // The one field parseClientMetadata always refuses regardless of tenant
   // policy: proves this usecase does not re-open the door client-metadata.ts
   // already closed.
   it('refuses a client-proposed client_id', async () => {
@@ -168,7 +168,7 @@ describe('registerClient — metadata validation', () => {
 });
 
 describe('registerClient — a presented token in the open policy', () => {
-  // Proves the open policy still opens a transaction and hands the realm
+  // Proves the open policy still opens a transaction and hands the tenant
   // id through when a token is presented — the actual spend/anonymous
   // decision runs inside that transaction against the real repository, and
   // is covered by the integration suite, which is the only place a
@@ -177,9 +177,9 @@ describe('registerClient — a presented token in the open policy', () => {
     let called = false;
     const outcome = await registerClient(
       deps({
-        withinRealm: <T>(realmId: string) => {
+        withinTenant: <T>(tenantId: string) => {
           called = true;
-          expect(realmId).toBe('r1');
+          expect(tenantId).toBe('r1');
           return Promise.resolve({ kind: 'invalid_token' }) as unknown as Promise<T>;
         },
       }),

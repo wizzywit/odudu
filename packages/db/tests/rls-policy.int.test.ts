@@ -3,7 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createDatabase, type DatabaseHandle } from '#/client';
 import { MIGRATIONS_DIR, runMigrations } from '#/migrate';
 
-// Tables that legitimately have no realm-scoped RLS policy. Kept explicit and
+// Tables that legitimately have no tenant-scoped RLS policy. Kept explicit and
 // short: drizzle's own migration bookkeeping table lives in the "drizzle"
 // schema today (out of scope of the `public`-only query below), but it is
 // listed here too in case that ever changes, so this test stays a red flag
@@ -79,9 +79,9 @@ describe('row-level security coverage', () => {
     }
   });
 
-  it('every policy on a checked table actually filters by app.realm_id', async () => {
+  it('every policy on a checked table actually filters by app.tenant_id', async () => {
     // Counting policies (test above) passes for a policy that exists but
-    // never references app.realm_id — e.g. `USING (true)` — which forces
+    // never references app.tenant_id — e.g. `USING (true)` — which forces
     // RLS and satisfies "at least one policy" while filtering nothing.
     // Inspecting pg_policies.qual is what tells a decorative policy apart
     // from one that actually scopes rows to a tenant.
@@ -114,8 +114,8 @@ describe('row-level security coverage', () => {
       expect.soft(tablePolicies.length, `${table}: has at least one policy`).toBeGreaterThan(0);
       for (const policy of tablePolicies) {
         expect
-          .soft(policy.qual ?? '', `${table}.${policy.policyname}: qual references app.realm_id`)
-          .toContain('app.realm_id');
+          .soft(policy.qual ?? '', `${table}.${policy.policyname}: qual references app.tenant_id`)
+          .toContain('app.tenant_id');
       }
     }
   });

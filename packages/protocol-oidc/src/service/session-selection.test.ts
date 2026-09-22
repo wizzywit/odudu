@@ -5,7 +5,7 @@ import { type SessionRecord } from '@odudu/authn-flows';
 function session(id: string, lastActiveAt: Date): SessionRecord {
   return {
     id,
-    realmId: 'realm-1',
+    tenantId: 'tenant-1',
     subjectId: 'subject-1',
     createdAt: lastActiveAt,
     expiresAt: new Date('2100-01-01'),

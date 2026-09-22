@@ -2,16 +2,30 @@
 
 ## Start here
 
-**P0, P1, P2a, P2b, P3a and P3b are complete. P4 — the admin API and
-consoles — is next**, and needs its own brainstorm and spec: nothing below
-is a P4 plan, only what it inherits and what is still open. Phases are
-section 11 of
+**P0, P1, P2a, P2b, P3a and P3b are complete, and the tenant rename is done.
+P4 — the admin API and consoles — is next**, and needs its own brainstorm and
+spec: nothing below is a P4 plan, only what it inherits and what is still
+open. Phases are section 11 of
 [the umbrella spec](superpowers/specs/2026-09-10-odudu-design.md).
+
+**The tenant rename changed the wire.** What was called a `realm` is a
+tenant everywhere: the path is `/tenants/{tenant}/…`, so the issuer — and
+with it `iss` in every ID token, access token and Logout Token, the RFC 9207
+authorization-response parameter, and the value `/userinfo` verifies against
+— moved with it. The table is `tenants`, its foreign keys are `tenant_id`,
+and the row-level-security GUC is `app.tenant_id`. The CLI flag is
+`--tenant` and the subcommand `seed tenant`. Migrations
+`0057_rename_realm_to_tenant.sql` and `0058_rename_realm_constraint_names.sql`
+carry the schema; the first drops and recreates all 31 policies, because a
+column rename does not rewrite the GUC literal inside them. Nothing has been
+deployed, so there is no transition to describe — a hard cutover is the only
+reason this was simple, and a deployed system would need two issuers per
+tenant for a published window instead.
 
 P3b shipped the session set — a browser's cookie holds a list of session
 ids rather than one, bounded per browser by `max_sessions_per_browser`
 (ADR 0033), with `prompt=select_account` rendering a chooser over it and a
-realm's "remember me" selecting a second pair of idle and maximum
+tenant's "remember me" selecting a second pair of idle and maximum
 lifespans. Ending a session now reaches the relying parties that hold it:
 front-channel through iframes the logout page declares (ADR 0034), and
 back-channel through a queue, a signed Logout Token per registered client
@@ -35,6 +49,8 @@ reason is false.
 The running records, split out of this file on 2026-09-17: P2b reached
 1,873 lines here, of which the part describing where the project stood was 58.
 
+- [Renaming the tenant concept](phases/tenant-rename.md) — not a phase; a
+  cross-cutting rename between P3b and P4, kept here for the same reason
 - [P3b — sessions, logout and the token surface](phases/p3b.md)
 - [P3a — clients, dynamic registration and consent](phases/p3a.md)
 - [P2b — credentials, MFA and the session lifecycle](phases/p2b.md)
@@ -73,27 +89,27 @@ algorithms, `tls_client_auth_subject_dn` — is settable at creation by one
 door and by `psql` otherwise. `docs/request-paths.md` says so at each site
 that reaches for SQL, and aggregates it under "Any admin API".
 
-**Realm settings already have a command, and its validation is reusable.**
-`odudu seed realm --name <realm> --set <name>=<value>` applies any of the
-realm settings by column name. The name-to-column map and the coercion live
-in `packages/domain-realm/src/service/realm-settings.ts` rather than in the
+**Tenant settings already have a command, and its validation is reusable.**
+`odudu seed tenant --name <tenant> --set <name>=<value>` applies any of the
+tenant settings by column name. The name-to-column map and the coercion live
+in `packages/domain-tenant/src/service/tenant-settings.ts` rather than in the
 CLI, so P4's admin API inherits them rather than growing a second copy.
 Ranges are deliberately not there — they are CHECK constraints, and a policy
 no writer may bypass belongs at the database.
 
 **An asymmetry worth deciding about rather than inheriting by accident.**
-`seed realm --set` changes an existing realm; `seed client` will not change
+`seed tenant --set` changes an existing tenant; `seed client` will not change
 an existing client, because a re-run that quietly widened a registered
 redirect list is how an allowlist grows by accident. An admin API that
 treats both the same way would be wrong in one of the two directions.
 
 **Signing-key rotation now has a consistency obligation it did not have
-before.** A realm holds exactly one active signing key
+before.** A tenant holds exactly one active signing key
 (`signing_keys_one_active`), and P3b made two things depend on that:
 discovery advertises `userinfo_signing_alg_values_supported` as that
-realm's own `[key.alg, "none"]`, and registration refuses a
+tenant's own `[key.alg, "none"]`, and registration refuses a
 `userinfo_signed_response_alg` the active key cannot produce. Rotating a
-realm to a key with a different algorithm therefore strands every client
+tenant to a key with a different algorithm therefore strands every client
 registered against the old one — `/userinfo` answers 500 for them, with a
 log line naming client, registered algorithm and active key. P4 owns
 rotation and owes that case an answer.
@@ -181,7 +197,7 @@ which grant a request may use.
   Add `config.grantTypes.includes(request.grantType)` before dispatching.
 
 **`/userinfo` and `/introspect` both honour a disabled client's live access
-token.** `resolveUserinfo` now checks the realm, the token's own grant
+token.** `resolveUserinfo` now checks the tenant, the token's own grant
 (`revoked_at`) and its session's liveness, and `introspect` checks the
 identical pair — neither reads `client.enabled`, so disabling a client
 after a token was issued to it revokes nothing: the grant stays live,
@@ -224,7 +240,7 @@ between the pre-flight and the authoritative read — which no test drives.
 ### The session set
 
 **The cap is per browser, and admits `cap + (k - 1)` under `k` concurrent
-logins.** The candidate list is fixed before the realm-row lock and
+logins.** The candidate list is fixed before the tenant-row lock and
 identical across racers from one browser, so once the first evicts, the
 remaining `k - 1` insert unconditionally. Accepted: the cap is a size guard
 with 4.4x headroom, not a security boundary. The consequence that is not
@@ -343,13 +359,33 @@ on the grounds that P13 is the next phase to rework client authentication.
 
 ## Deferred from the final review
 
+- Six migration-filename citations under `docs/superpowers/plans/` name
+  files that do not exist. All six are dangling at `a039685` too, so none
+  arrived with the rename, and there are none in `packages`, `apps`,
+  `tools`, `tests`, `infra` or `README.md`. A plan is archived scaffolding,
+  which is the argument for leaving them; a citation that resolves nowhere
+  is the argument against.
+- `docs/protocols/rfc6750.md`'s row "`scope` appears at most once" is
+  vacuous. It is cited to a name-agnostic grammar test, and the server emits
+  no `scope` auth-param anywhere, so the row is true and holds nothing.
+  Choosing between rewording it and emitting a `scope` is a coverage
+  judgement, not a fix.
+- The two `user_credentials` counts at `docs/request-paths.md:3052` and
+  `:3282` are unscoped, and correct only in document order — the
+  neighbouring query of the same kind is scoped. Re-scoping them needs a
+  re-run against a live stack, which is why they were not changed in place.
+- `docs/request-paths.md` places token exchange (RFC 8693) in **P5**, and
+  P5's exit criterion names property-based attenuation, atomic budgets and
+  CIBA — not RFC 8693. Attenuation arguably implies it; the criterion does
+  not say so, so the work can be skipped with nothing going red. Either the
+  criterion names the RFC or the item moves.
 - `tests/lint/production-guard-order.test.ts` compares source offsets and
   breaks on a rename or a helper extraction. A reasonable stopgap for the
   still-positional server-boot path, but its narrowness should be visible to
   whoever reads it next.
 - Fifteen tests share one clause id, `[RFC8705-2.1-03]`, while pinning
   different requirements — a disabled client, a public client, the
-  one-method rule, the duplicate header, realm isolation, several of them
+  one-method rule, the duplicate header, tenant isolation, several of them
   not §2.1 at all. The undifferentiated id is the real defect; the missing
   table that surfaced it was fixed.
 - `session-cookie.ts` hand-rolls a case-sensitive UUID regex while the test

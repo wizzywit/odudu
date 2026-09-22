@@ -1,5 +1,5 @@
 import formbody from '@fastify/formbody';
-import { provisionRealm } from '@odudu/authn-flows';
+import { provisionTenant } from '@odudu/authn-flows';
 import {
   generateSigningKey,
   signJwt,
@@ -10,14 +10,14 @@ import {
 import {
   createDatabase,
   MIGRATIONS_DIR,
-  realms,
+  tenants,
   runMigrations,
-  withRealm,
+  withTenant,
   type DatabaseHandle,
-  type RealmScopedDatabase,
+  type TenantScopedDatabase,
 } from '@odudu/db';
 import { hashPassword, subjectRepository } from '@odudu/domain-identity';
-import { clients } from '@odudu/domain-realm';
+import { clients } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import Fastify, {
@@ -49,16 +49,16 @@ const NOW = new Date('2026-09-21T00:00:00Z');
 // The Host `http.inject` sends when a request names none — `view/issuer.ts`
 // derives the audience an assertion must carry from exactly this, so the
 // fixture computes it the same way rather than asserting a literal.
-const REALM_ISSUER_BASE = 'http://localhost';
+const TENANT_ISSUER_BASE = 'http://localhost';
 
-let REALM: string;
-let REALM_ID: string;
+let TENANT: string;
+let TENANT_ID: string;
 let AUDIENCE: string;
-// A second, otherwise-empty realm — enough to answer at `/token` without
+// A second, otherwise-empty tenant — enough to answer at `/token` without
 // 404ing, never enough to hold a client `pkj-client`'s assertion could
 // possibly resolve against.
-let REALM_B: string;
-let REALM_B_ID: string;
+let TENANT_B: string;
+let TENANT_B_ID: string;
 
 // This suite's whole point: every refusal is this one body, whatever
 // failed, of the eight branches `authenticatePrivateKeyJwt` has — see
@@ -72,7 +72,7 @@ async function buildClientKey(): Promise<SigningKeyRecord> {
   const generated = await generateSigningKey('RS256', KEK);
   return {
     id: newId(),
-    realmId: REALM_ID,
+    tenantId: TENANT_ID,
     kid: generated.kid,
     alg: generated.alg,
     status: 'active',
@@ -142,7 +142,7 @@ const lookup = (hostname: string): Promise<readonly string[]> =>
   Promise.resolve(hostname === 'private-uri-client.example' ? ['127.0.0.1'] : ['93.184.216.34']);
 
 async function createClient(
-  tx: RealmScopedDatabase,
+  tx: TenantScopedDatabase,
   input: {
     clientId: string;
     method: 'private_key_jwt' | 'client_secret_basic';
@@ -154,7 +154,7 @@ async function createClient(
   const dbId = newId();
   await tx.insert(clients).values({
     id: dbId,
-    realmId: REALM_ID,
+    tenantId: TENANT_ID,
     clientId: input.clientId,
     name: input.clientId,
     type: 'confidential',
@@ -168,7 +168,7 @@ async function createClient(
   });
   await clientOidcConfigRepository(tx).create({
     clientId: dbId,
-    realmId: REALM_ID,
+    tenantId: TENANT_ID,
     redirectUris: [],
     grantTypes: ['client_credentials'],
     tokenEndpointAuthMethod: input.method,
@@ -180,21 +180,21 @@ async function createClient(
   });
 }
 
-async function setupRealm(): Promise<void> {
-  REALM = `pkj-${newId()}`;
-  REALM_ID = newId();
-  AUDIENCE = `${REALM_ISSUER_BASE}/realms/${REALM}/protocol/openid-connect/token`;
+async function setupTenant(): Promise<void> {
+  TENANT = `pkj-${newId()}`;
+  TENANT_ID = newId();
+  AUDIENCE = `${TENANT_ISSUER_BASE}/tenants/${TENANT}/protocol/openid-connect/token`;
 
   clientKey = await buildClientKey();
   inlineKey = await buildClientKey();
   strangerKey = await buildClientKey();
 
-  await withRealm(app.db, REALM_ID, async (tx) => {
-    await tx.insert(realms).values({ id: REALM_ID, name: REALM });
-    await provisionRealm(tx, REALM_ID);
+  await withTenant(app.db, TENANT_ID, async (tx) => {
+    await tx.insert(tenants).values({ id: TENANT_ID, name: TENANT });
+    await provisionTenant(tx, TENANT_ID);
 
     const serviceSubject = await subjectRepository(tx).create({
-      realmId: REALM_ID,
+      tenantId: TENANT_ID,
       type: 'service',
     });
     serviceSubjectId = serviceSubject.id;
@@ -242,7 +242,7 @@ async function setupRealm(): Promise<void> {
     const key = await generateSigningKey('RS256', KEK);
     await tx.insert(signingKeys).values({
       id: newId(),
-      realmId: REALM_ID,
+      tenantId: TENANT_ID,
       kid: key.kid,
       alg: key.alg,
       status: 'active',
@@ -251,16 +251,16 @@ async function setupRealm(): Promise<void> {
     });
   });
 
-  REALM_B = `pkj-b-${newId()}`;
-  REALM_B_ID = newId();
-  await withRealm(app.db, REALM_B_ID, async (tx) => {
-    await tx.insert(realms).values({ id: REALM_B_ID, name: REALM_B });
-    await provisionRealm(tx, REALM_B_ID);
+  TENANT_B = `pkj-b-${newId()}`;
+  TENANT_B_ID = newId();
+  await withTenant(app.db, TENANT_B_ID, async (tx) => {
+    await tx.insert(tenants).values({ id: TENANT_B_ID, name: TENANT_B });
+    await provisionTenant(tx, TENANT_B_ID);
 
     const key = await generateSigningKey('RS256', KEK);
     await tx.insert(signingKeys).values({
       id: newId(),
-      realmId: REALM_B_ID,
+      tenantId: TENANT_B_ID,
       kid: key.kid,
       alg: key.alg,
       status: 'active',
@@ -282,7 +282,7 @@ beforeAll(async () => {
   appHandle = createDatabase(appUrl, { max: 5 });
   app = appHandle;
 
-  await setupRealm();
+  await setupTenant();
 
   const logger: FastifyBaseLogger = pino(
     { level: 'info' },
@@ -324,7 +324,7 @@ async function token(input: {
   assertion?: string;
   client?: string;
   auth?: Record<string, string>;
-  realm?: string;
+  tenant?: string;
 }): Promise<LightMyRequestResponse> {
   const form = new URLSearchParams();
   form.set('grant_type', 'client_credentials');
@@ -338,14 +338,14 @@ async function token(input: {
 
   return http.inject({
     method: 'POST',
-    url: `/realms/${input.realm ?? REALM}/protocol/openid-connect/token`,
+    url: `/tenants/${input.tenant ?? TENANT}/protocol/openid-connect/token`,
     payload: form.toString(),
     headers: { 'content-type': 'application/x-www-form-urlencoded', ...(input.auth ?? {}) },
   });
 }
 
 async function discovery(): Promise<{ token_endpoint_auth_methods_supported: string[] }> {
-  const res = await http.inject({ url: `/realms/${REALM}/.well-known/openid-configuration` });
+  const res = await http.inject({ url: `/tenants/${TENANT}/.well-known/openid-configuration` });
   return res.json<{ token_endpoint_auth_methods_supported: string[] }>();
 }
 
@@ -456,13 +456,13 @@ describe('[ODUDU-PRIVATE-KEY-JWT-01] private_key_jwt at /token', () => {
   });
 
   // Every non-`unsupported` outcome runs through `authenticatePrivateKeyJwt`
-  // scoped to the realm the request named — `byClientId` is read inside
-  // `withRealm(realm.id, …)`, RLS-enforced — and `aud` embeds that realm's
-  // name via its issuer, so an assertion minted for REALM can never even
-  // parse as valid for REALM_B: `aud` cannot match. That is what this pins.
-  it("refuses REALM's assertion posted to a different realm's /token", async () => {
+  // scoped to the tenant the request named — `byClientId` is read inside
+  // `withTenant(tenant.id, …)`, RLS-enforced — and `aud` embeds that tenant's
+  // name via its issuer, so an assertion minted for TENANT can never even
+  // parse as valid for TENANT_B: `aud` cannot match. That is what this pins.
+  it("refuses TENANT's assertion posted to a different tenant's /token", async () => {
     const assertion = await signAssertion(clientKey, 'pkj-client');
-    const res = await token({ assertion, realm: REALM_B });
+    const res = await token({ assertion, tenant: TENANT_B });
     expect(res.statusCode).toBe(401);
     expect(res.json()).toEqual(REFUSAL);
     expect(lastLoggedReason()).toBe('assertion failed structural validation');

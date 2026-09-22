@@ -3,14 +3,14 @@ import { hashPassword, subjectRepository, userCredentials, users } from '@odudu/
 import {
   createDatabase,
   MIGRATIONS_DIR,
-  realms,
+  tenants,
   runMigrations,
-  withRealm,
+  withTenant,
   type DatabaseHandle,
-  type RealmScopedDatabase,
+  type TenantScopedDatabase,
 } from '@odudu/db';
-import { provisionRealm } from '@odudu/authn-flows';
-import { clients, provisionClientDefaults } from '@odudu/domain-realm';
+import { provisionTenant } from '@odudu/authn-flows';
+import { clients, provisionClientDefaults } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import formbody from '@fastify/formbody';
@@ -42,15 +42,15 @@ const KEK = Buffer.alloc(32, 9);
 const VERIFIER = 'dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk';
 const CHALLENGE = 'E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM';
 
-async function setupRealm(name: string): Promise<void> {
-  const realmId = newId();
+async function setupTenant(name: string): Promise<void> {
+  const tenantId = newId();
   const clientDbId = newId();
-  await withRealm(app.db, realmId, async (tx: RealmScopedDatabase) => {
-    await tx.insert(realms).values({ id: realmId, name });
-    await provisionRealm(tx, realmId);
+  await withTenant(app.db, tenantId, async (tx: TenantScopedDatabase) => {
+    await tx.insert(tenants).values({ id: tenantId, name });
+    await provisionTenant(tx, tenantId);
     await tx.insert(clients).values({
       id: clientDbId,
-      realmId,
+      tenantId,
       clientId: CLIENT_ID,
       name: 'sid claim test client',
       type: 'confidential',
@@ -59,7 +59,7 @@ async function setupRealm(name: string): Promise<void> {
     await provisionClientDefaults(tx, clientDbId);
     await clientOidcConfigRepository(tx).create({
       clientId: clientDbId,
-      realmId,
+      tenantId,
       redirectUris: [REDIRECT_URI],
       grantTypes: ['authorization_code', 'refresh_token'],
       tokenEndpointAuthMethod: 'client_secret_basic',
@@ -67,11 +67,11 @@ async function setupRealm(name: string): Promise<void> {
       accessTokenTtlSeconds: 300,
       refreshTokenTtlSeconds: 1_209_600,
     });
-    const subject = await subjectRepository(tx).create({ realmId, type: 'user' });
-    await tx.insert(users).values({ subjectId: subject.id, realmId, username: USERNAME });
+    const subject = await subjectRepository(tx).create({ tenantId, type: 'user' });
+    await tx.insert(users).values({ subjectId: subject.id, tenantId, username: USERNAME });
     await tx.insert(userCredentials).values({
       id: newId(),
-      realmId,
+      tenantId,
       subjectId: subject.id,
       type: 'password',
       secretData: { hash: await hashPassword(PASSWORD) },
@@ -80,7 +80,7 @@ async function setupRealm(name: string): Promise<void> {
     const generated = await generateSigningKey('ES256', KEK);
     const key: SigningKeyRecord = {
       id: newId(),
-      realmId,
+      tenantId,
       kid: generated.kid,
       alg: generated.alg,
       status: 'active',
@@ -91,7 +91,7 @@ async function setupRealm(name: string): Promise<void> {
     };
     await tx.insert(signingKeys).values({
       id: key.id,
-      realmId,
+      tenantId,
       kid: key.kid,
       alg: key.alg,
       status: 'active',
@@ -101,7 +101,7 @@ async function setupRealm(name: string): Promise<void> {
   });
 }
 
-function authorizeUrl(realmName: string, scope = 'openid'): string {
+function authorizeUrl(tenantName: string, scope = 'openid'): string {
   const params = new URLSearchParams({
     response_type: 'code',
     client_id: CLIENT_ID,
@@ -111,7 +111,7 @@ function authorizeUrl(realmName: string, scope = 'openid'): string {
     code_challenge: CHALLENGE,
     code_challenge_method: 'S256',
   });
-  return `/realms/${realmName}/protocol/openid-connect/auth?${params.toString()}`;
+  return `/tenants/${tenantName}/protocol/openid-connect/auth?${params.toString()}`;
 }
 
 // Two cookies travel on a successful login now (session-cookie.ts, the one
@@ -137,7 +137,7 @@ function jwtPayload(token: string): Record<string, unknown> {
 }
 
 async function redeemCode(
-  realmName: string,
+  tenantName: string,
   code: string,
 ): Promise<{ access_token: string; id_token: string; refresh_token: string }> {
   const form = new URLSearchParams({
@@ -148,7 +148,7 @@ async function redeemCode(
   });
   const res = await http.inject({
     method: 'POST',
-    url: `/realms/${realmName}/protocol/openid-connect/token`,
+    url: `/tenants/${tenantName}/protocol/openid-connect/token`,
     payload: form.toString(),
     headers: {
       'content-type': 'application/x-www-form-urlencoded',
@@ -166,10 +166,10 @@ async function redeemCode(
 // id the login established (the cookie's own value) to compare `sid`
 // against.
 async function completeAuthorizationCodeFlow(
-  realmName: string,
+  tenantName: string,
   scope = 'openid',
 ): Promise<{ accessToken: string; idToken: string; refreshToken: string; sessionId: string }> {
-  const authorize = await http.inject({ url: authorizeUrl(realmName, scope) });
+  const authorize = await http.inject({ url: authorizeUrl(tenantName, scope) });
   if (authorize.statusCode !== 200) {
     throw new Error(
       `expected /authorize to render the login form, got ${String(authorize.statusCode)}`,
@@ -186,7 +186,7 @@ async function completeAuthorizationCodeFlow(
   });
   const submitted = await http.inject({
     method: 'POST',
-    url: `/realms/${realmName}/login-actions/authenticate`,
+    url: `/tenants/${tenantName}/login-actions/authenticate`,
     payload: form.toString(),
     headers: { 'content-type': 'application/x-www-form-urlencoded' },
   });
@@ -199,7 +199,7 @@ async function completeAuthorizationCodeFlow(
   const code = new URL(locationHeader(submitted)).searchParams.get('code');
   if (code === null) throw new Error('expected a code on the login redirect');
 
-  const redeemed = await redeemCode(realmName, code);
+  const redeemed = await redeemCode(tenantName, code);
   return {
     accessToken: redeemed.access_token,
     idToken: redeemed.id_token,
@@ -208,11 +208,11 @@ async function completeAuthorizationCodeFlow(
   };
 }
 
-async function refresh(realmName: string, refreshToken: string): Promise<{ accessToken: string }> {
+async function refresh(tenantName: string, refreshToken: string): Promise<{ accessToken: string }> {
   const form = new URLSearchParams({ grant_type: 'refresh_token', refresh_token: refreshToken });
   const res = await http.inject({
     method: 'POST',
-    url: `/realms/${realmName}/protocol/openid-connect/token`,
+    url: `/tenants/${tenantName}/protocol/openid-connect/token`,
     payload: form.toString(),
     headers: {
       'content-type': 'application/x-www-form-urlencoded',
@@ -261,21 +261,21 @@ afterAll(async () => {
 
 describe('the sid claim', () => {
   it('[OIDC-BACKCHANNEL-2.1-01] carries the session id in both the access token and the ID token', async () => {
-    const realmName = `sid-claim-${newId()}`;
-    await setupRealm(realmName);
+    const tenantName = `sid-claim-${newId()}`;
+    await setupTenant(tenantName);
 
-    const { accessToken, idToken, sessionId } = await completeAuthorizationCodeFlow(realmName);
+    const { accessToken, idToken, sessionId } = await completeAuthorizationCodeFlow(tenantName);
 
     expect(jwtPayload(accessToken).sid).toBe(sessionId);
     expect(jwtPayload(idToken).sid).toBe(sessionId);
   });
 
   it('omits sid entirely for an offline grant, which has no session', async () => {
-    const realmName = `sid-claim-offline-${newId()}`;
-    await setupRealm(realmName);
+    const tenantName = `sid-claim-offline-${newId()}`;
+    await setupTenant(tenantName);
 
     const { accessToken, idToken } = await completeAuthorizationCodeFlow(
-      realmName,
+      tenantName,
       'openid offline_access',
     );
 
@@ -284,11 +284,11 @@ describe('the sid claim', () => {
   });
 
   it('keeps sid stable across a refresh', async () => {
-    const realmName = `sid-claim-refresh-${newId()}`;
-    await setupRealm(realmName);
+    const tenantName = `sid-claim-refresh-${newId()}`;
+    await setupTenant(tenantName);
 
-    const first = await completeAuthorizationCodeFlow(realmName);
-    const refreshed = await refresh(realmName, first.refreshToken);
+    const first = await completeAuthorizationCodeFlow(tenantName);
+    const refreshed = await refresh(tenantName, first.refreshToken);
 
     expect(jwtPayload(refreshed.accessToken).sid).toBe(first.sessionId);
   });

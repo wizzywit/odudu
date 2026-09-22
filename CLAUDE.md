@@ -335,7 +335,7 @@ the markup: `default-src 'none'` blocks an inline script **silently**, so
 such a page looks broken rather than refused, and a nonce named in a header
 that the markup does not carry fails exactly the same way. ADR 0018's
 amendment has the reasoning. Every interpolated value passes through the
-renderer's own `escapeHtml`, realm names and secrets included.
+renderer's own `escapeHtml`, tenant names and secrets included.
 
 ## Layering
 
@@ -375,8 +375,8 @@ import each other.
 - Test-driven. Tests precede implementation.
 - Integration tests run against real PostgreSQL via Testcontainers, never a
   mock.
-- Every repository method is probed with a foreign `realm_id`.
-- `SET LOCAL`, never `SET`, for realm context. A session-scoped setting
+- Every repository method is probed with a foreign `tenant_id`.
+- `SET LOCAL`, never `SET`, for tenant context. A session-scoped setting
   leaks between pooled requests.
 - Every increment ends with CI green **on a pushed commit with a pull
   request open** (see "CI runs on the branch"), branch merged, and `docs/NEXT.md`

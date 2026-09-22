@@ -3,7 +3,7 @@ import { generateSigningKey, signJwt, verifyJwt, type SigningKeyRecord } from '@
 import { introspect, type IntrospectionDeps } from '#/usecase/introspection';
 
 const KEK = new Uint8Array(32).fill(7);
-const ISSUER = 'https://op.example/realms/demo';
+const ISSUER = 'https://op.example/tenants/demo';
 const NOW = new Date('2026-09-21T10:00:00Z');
 
 // Pins the same clock into both `introspect`'s own `now` argument and
@@ -23,7 +23,7 @@ async function makeSigningKey(): Promise<SigningKeyRecord> {
   const generated = await generateSigningKey('RS256', KEK);
   return {
     id: 'key-1',
-    realmId: 'realm-1',
+    tenantId: 'tenant-1',
     kid: generated.kid,
     alg: generated.alg,
     status: 'active',
@@ -292,11 +292,11 @@ describe('introspect', () => {
     expect(response).toEqual({ active: false });
   });
 
-  it('[RFC7662-4-03] answers inactive for a token signed by another realm', async () => {
+  it('[RFC7662-4-03] answers inactive for a token signed by another tenant', async () => {
     const key = await makeSigningKey();
     const foreignKey = await makeSigningKey();
     const foreignToken = await mintToken({ sid: 'session-1' }, foreignKey);
-    // Proof this token is genuinely valid under its own realm's keys, not
+    // Proof this token is genuinely valid under its own tenant's keys, not
     // merely malformed — the only thing that distinguishes it from the
     // live-token fixture above is which key signed it.
     await expect(
@@ -316,14 +316,14 @@ describe('introspect', () => {
   });
 
   // The test above pins unknown-`kid` isolation, not issuer isolation — a
-  // token from an actually foreign realm also carries that realm's own
+  // token from an actually foreign tenant also carries that tenant's own
   // `iss`. This one is refused there instead, before any key lookup:
   // `verifyJwt`'s `issuer` option is `ISSUER`, so a token minted under a
   // different issuer fails `jwtVerify`'s own `iss` check.
   it('answers inactive for a token issued by another issuer', async () => {
     const key = await makeSigningKey();
     const foreignIssuerToken = await mintToken(
-      { iss: 'https://op.example/realms/other', sid: 'session-1' },
+      { iss: 'https://op.example/tenants/other', sid: 'session-1' },
       key,
     );
     const deps = makeDeps({ keys: [key] });

@@ -22,15 +22,15 @@ describe('isPasswordAuthMethod', () => {
 });
 
 describe('clientSecretLimiterKey', () => {
-  it('keeps two realms with the same client_id apart', () => {
-    expect(clientSecretLimiterKey('realm-a', 'shared-client')).not.toBe(
-      clientSecretLimiterKey('realm-b', 'shared-client'),
+  it('keeps two tenants with the same client_id apart', () => {
+    expect(clientSecretLimiterKey('tenant-a', 'shared-client')).not.toBe(
+      clientSecretLimiterKey('tenant-b', 'shared-client'),
     );
   });
 
-  it('keeps two clients in the same realm apart', () => {
-    expect(clientSecretLimiterKey('realm-a', 'client-1')).not.toBe(
-      clientSecretLimiterKey('realm-a', 'client-2'),
+  it('keeps two clients in the same tenant apart', () => {
+    expect(clientSecretLimiterKey('tenant-a', 'client-1')).not.toBe(
+      clientSecretLimiterKey('tenant-a', 'client-2'),
     );
   });
 });

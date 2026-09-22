@@ -103,9 +103,9 @@ describe('the connection the command reaps on', () => {
   });
 
   // Demanded in every environment, not only production. The owner has to
-  // bypass row-level security for the realm enumeration to work at all, so a
+  // bypass row-level security for the tenant enumeration to work at all, so a
   // fallback to it would run every DELETE with the policy switched off — one
-  // unscoped pass per realm, and no error to say so.
+  // unscoped pass per tenant, and no error to say so.
   it('refuses to reap without a serving connection to reap on', async () => {
     process.env.ODUDU_DATABASE_URL = MINIMAL.ODUDU_DATABASE_URL;
     process.env.ODUDU_KEK = MINIMAL.ODUDU_KEK;

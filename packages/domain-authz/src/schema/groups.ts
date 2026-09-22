@@ -1,14 +1,14 @@
 import { pgTable, primaryKey, text, timestamp, uuid } from 'drizzle-orm/pg-core';
-import { realms } from '@odudu/db';
+import { tenants } from '@odudu/db';
 import { roles } from '#/schema/roles';
 
 // Policies are hand-authored SQL in packages/db/drizzle/, never declared
-// with pgPolicy() — see clients.ts in @odudu/domain-realm for why.
+// with pgPolicy() — see clients.ts in @odudu/domain-tenant for why.
 export const groups = pgTable('groups', {
   id: uuid('id').primaryKey(),
-  realmId: uuid('realm_id')
+  tenantId: uuid('tenant_id')
     .notNull()
-    .references(() => realms.id, { onDelete: 'cascade' }),
+    .references(() => tenants.id, { onDelete: 'cascade' }),
   parentId: uuid('parent_id'),
   name: text('name').notNull(),
   // Denormalized and maintained only by groupRepository: `/engineering` for
@@ -21,7 +21,7 @@ export const groups = pgTable('groups', {
 
 export interface GroupRecord {
   id: string;
-  realmId: string;
+  tenantId: string;
   parentId: string | null;
   name: string;
   path: string;
@@ -31,7 +31,7 @@ export interface GroupRecord {
 export const groupRoles = pgTable(
   'group_roles',
   {
-    realmId: uuid('realm_id').notNull(),
+    tenantId: uuid('tenant_id').notNull(),
     groupId: uuid('group_id')
       .notNull()
       .references(() => groups.id, { onDelete: 'cascade' }),
@@ -45,7 +45,7 @@ export const groupRoles = pgTable(
 export const subjectGroups = pgTable(
   'subject_groups',
   {
-    realmId: uuid('realm_id').notNull(),
+    tenantId: uuid('tenant_id').notNull(),
     // References subjects(id), owned by @odudu/domain-identity. Plain
     // column for the same reason as roles.clientId in @odudu/domain-authz's
     // own roles schema.

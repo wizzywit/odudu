@@ -26,10 +26,10 @@ wrong-realm allow-origin: null
 
 Conclusion: `verified: @fastify/cors 11.2.0 delegator resolves preflight
 asynchronously` — the async delegator function ran for both `OPTIONS`
-preflights, returned `https://app.example` for the realm whose simulated
+preflights, returned `https://app.example` for the tenant whose simulated
 database lookup allowed it, and returned no `access-control-allow-origin`
-header at all for the same origin against a different realm, so
-`packages/protocol-oidc/src/view/routes/cors.ts` can read the realm-wide
+header at all for the same origin against a different tenant, so
+`packages/protocol-oidc/src/view/routes/cors.ts` can read the tenant-wide
 origin union from PostgreSQL inside this delegator on every request instead
 of adding a bespoke `onRequest` hook.
 

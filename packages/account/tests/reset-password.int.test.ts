@@ -1,11 +1,11 @@
 import {
   createDatabase,
   MIGRATIONS_DIR,
-  realms,
+  tenants,
   runMigrations,
-  withRealm,
+  withTenant,
   type DatabaseHandle,
-  type RealmScopedDatabase,
+  type TenantScopedDatabase,
 } from '@odudu/db';
 import {
   credentialRepository,
@@ -31,7 +31,7 @@ import Fastify, { type FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { registerActionTokenRoute } from '#/view/routes/action-token';
 import { actionTokenRepository } from '#/repository/action-tokens';
-import { realmSettingsRepository } from '#/repository/realm-settings';
+import { tenantSettingsRepository } from '#/repository/tenant-settings';
 import { registerResetPasswordRoute } from '#/view/routes/reset-password';
 import { actionTokens } from '#/schema/action-tokens';
 
@@ -96,7 +96,7 @@ function keyFromLink(link: string): string {
 // root's findByEmail closure — apps/server/src/app.ts wires this exact
 // shape against userRepository.byEmail — is stood in for here.
 async function findByEmail(
-  tx: RealmScopedDatabase,
+  tx: TenantScopedDatabase,
   email: string,
 ): Promise<{ subjectId: string; email: string } | null> {
   const user = await userRepository(tx).byEmail(email);
@@ -109,19 +109,19 @@ async function findByEmail(
 // root's job on its behalf, the same way register.int.test.ts's
 // createAccount does.
 async function createAccount(
-  tx: RealmScopedDatabase,
-  realmId: string,
+  tx: TenantScopedDatabase,
+  tenantId: string,
   input: { username: string; email: string; password: string },
 ): Promise<{ subjectId: string }> {
-  const subject = await subjectRepository(tx).create({ realmId, type: 'user' });
+  const subject = await subjectRepository(tx).create({ tenantId, type: 'user' });
   await userRepository(tx).create({
     subjectId: subject.id,
-    realmId,
+    tenantId,
     username: input.username,
     email: input.email,
   });
   await credentialRepository(tx).insert({
-    realmId,
+    tenantId,
     subjectId: subject.id,
     type: 'password',
     secret: { kind: 'password', hash: await hashPassword(input.password) },
@@ -129,27 +129,27 @@ async function createAccount(
   return { subjectId: subject.id };
 }
 
-interface SeededRealm {
-  realmId: string;
-  realmName: string;
+interface SeededTenant {
+  tenantId: string;
+  tenantName: string;
 }
 
-async function seedRealm(
+async function seedTenant(
   name: string,
   settings: { resetPasswordAllowed: boolean },
-): Promise<SeededRealm> {
-  const realmId = newId();
-  await owner.db.insert(realms).values({
-    id: realmId,
+): Promise<SeededTenant> {
+  const tenantId = newId();
+  await owner.db.insert(tenants).values({
+    id: tenantId,
     name,
     resetPasswordAllowed: settings.resetPasswordAllowed,
   });
-  return { realmId, realmName: name };
+  return { tenantId, tenantName: name };
 }
 
-async function seedAda(realmId: string): Promise<void> {
-  await withRealm(app.db, realmId, (tx) =>
-    createAccount(tx, realmId, {
+async function seedAda(tenantId: string): Promise<void> {
+  await withTenant(app.db, tenantId, (tx) =>
+    createAccount(tx, tenantId, {
       username: 'ada',
       email: 'ada@example.test',
       password: 'correct horse battery',
@@ -162,11 +162,11 @@ async function seedAda(realmId: string): Promise<void> {
 // lets a test tell "the reset actually changed the credential" apart from
 // "the request merely returned 200".
 async function passwordWorksFor(
-  realmId: string,
+  tenantId: string,
   username: string,
   password: string,
 ): Promise<boolean> {
-  return withRealm(app.db, realmId, async (tx) => {
+  return withTenant(app.db, tenantId, async (tx) => {
     const found = await userRepository(tx).byUsername(username);
     if (found === null) return false;
     const stored = await credentialRepository(tx).passwordFor(found.subject.id);
@@ -175,12 +175,12 @@ async function passwordWorksFor(
   });
 }
 
-async function rawSelectAllActionTokens(realmId: string) {
-  return withRealm(app.db, realmId, (tx) => tx.select().from(actionTokens));
+async function rawSelectAllActionTokens(tenantId: string) {
+  return withTenant(app.db, tenantId, (tx) => tx.select().from(actionTokens));
 }
 
-async function outboxRows(realmId: string) {
-  return withRealm(app.db, realmId, (tx) => tx.select().from(emailOutbox));
+async function outboxRows(tenantId: string) {
+  return withTenant(app.db, tenantId, (tx) => tx.select().from(emailOutbox));
 }
 
 const OUTBOX_OPTIONS: SendPendingOptions = {
@@ -211,13 +211,13 @@ function buildHttpApp(): FastifyInstance {
   instance.register(formbody);
   registerResetPasswordRoute(instance, {
     database: app,
-    findRealm: (name) => realmSettingsRepository(owner.db).byName(name),
+    findTenant: (name) => tenantSettingsRepository(owner.db).byName(name),
     publicBaseUrl: 'https://idp.example.test',
     findByEmail,
   });
   registerActionTokenRoute(instance, {
     database: app,
-    findRealm: (name) => realmSettingsRepository(owner.db).byName(name),
+    findTenant: (name) => tenantSettingsRepository(owner.db).byName(name),
     getCurrentEmail: async (tx, subjectId) =>
       (await userRepository(tx).bySubjectId(subjectId))?.email ?? null,
     markVerified: async (tx, subjectId) => {
@@ -252,13 +252,13 @@ beforeEach(async () => {
 });
 
 async function requestReset(
-  realmName: string,
+  tenantName: string,
   email: string,
 ): Promise<{ statusCode: number; body: string }> {
   const form = new URLSearchParams({ email });
   const res = await httpApp.inject({
     method: 'POST',
-    url: `/realms/${realmName}/login-actions/reset-password`,
+    url: `/tenants/${tenantName}/login-actions/reset-password`,
     payload: form.toString(),
     headers: { 'content-type': 'application/x-www-form-urlencoded' },
   });
@@ -297,13 +297,13 @@ beforeEach(async () => {
 
 describe('password reset', () => {
   it('answers identically for a known and an unknown address', async () => {
-    const { realmId, realmName } = await seedRealm(`realm-${newId()}`, {
+    const { tenantId, tenantName } = await seedTenant(`tenant-${newId()}`, {
       resetPasswordAllowed: true,
     });
-    await seedAda(realmId);
+    await seedAda(tenantId);
 
-    const known = await requestReset(realmName, 'ada@example.test');
-    const unknown = await requestReset(realmName, 'nobody@example.test');
+    const known = await requestReset(tenantName, 'ada@example.test');
+    const unknown = await requestReset(tenantName, 'nobody@example.test');
 
     expect(unknown.statusCode).toBe(known.statusCode);
     expect(unknown.body).toBe(known.body);
@@ -311,27 +311,27 @@ describe('password reset', () => {
   });
 
   it('sends mail only for the address that exists', async () => {
-    const { realmId, realmName } = await seedRealm(`realm-${newId()}`, {
+    const { tenantId, tenantName } = await seedTenant(`tenant-${newId()}`, {
       resetPasswordAllowed: true,
     });
-    await seedAda(realmId);
+    await seedAda(tenantId);
 
-    await requestReset(realmName, 'nobody@example.test');
+    await requestReset(tenantName, 'nobody@example.test');
     expect(sender.sent).toHaveLength(0);
-    expect(await outboxRows(realmId)).toHaveLength(0);
+    expect(await outboxRows(tenantId)).toHaveLength(0);
 
-    await requestReset(realmName, 'ada@example.test');
+    await requestReset(tenantName, 'ada@example.test');
     expect(sender.sent).toHaveLength(1);
-    expect(await outboxRows(realmId)).toHaveLength(1);
+    expect(await outboxRows(tenantId)).toHaveLength(1);
   });
 
   it('renders a set-password form for an unconsumed reset link, without consuming it', async () => {
-    const { realmId, realmName } = await seedRealm(`realm-${newId()}`, {
+    const { tenantId, tenantName } = await seedTenant(`tenant-${newId()}`, {
       resetPasswordAllowed: true,
     });
-    await seedAda(realmId);
+    await seedAda(tenantId);
 
-    await requestReset(realmName, 'ada@example.test');
+    await requestReset(tenantName, 'ada@example.test');
     const message = sender.sent[0];
     if (message === undefined) throw new Error('no mail sent');
     const link = extractLink(message);
@@ -346,12 +346,12 @@ describe('password reset', () => {
   });
 
   it('sets a new password the user can then log in with', async () => {
-    const { realmId, realmName } = await seedRealm(`realm-${newId()}`, {
+    const { tenantId, tenantName } = await seedTenant(`tenant-${newId()}`, {
       resetPasswordAllowed: true,
     });
-    await seedAda(realmId);
+    await seedAda(tenantId);
 
-    await requestReset(realmName, 'ada@example.test');
+    await requestReset(tenantName, 'ada@example.test');
     const message = sender.sent[0];
     if (message === undefined) throw new Error('no mail sent');
     const link = extractLink(message);
@@ -359,16 +359,16 @@ describe('password reset', () => {
     const submitted = await submitNewPassword(link, 'a new password');
     expect(submitted.statusCode).toBe(200);
 
-    expect(await passwordWorksFor(realmId, 'ada', 'a new password')).toBe(true);
+    expect(await passwordWorksFor(tenantId, 'ada', 'a new password')).toBe(true);
   });
 
-  it('refuses a password that fails the realm policy, without spending the link', async () => {
-    const { realmId, realmName } = await seedRealm(`realm-${newId()}`, {
+  it('refuses a password that fails the tenant policy, without spending the link', async () => {
+    const { tenantId, tenantName } = await seedTenant(`tenant-${newId()}`, {
       resetPasswordAllowed: true,
     });
-    await seedAda(realmId);
+    await seedAda(tenantId);
 
-    await requestReset(realmName, 'ada@example.test');
+    await requestReset(tenantName, 'ada@example.test');
     const message = sender.sent[0];
     if (message === undefined) throw new Error('no mail sent');
     const link = extractLink(message);
@@ -376,37 +376,37 @@ describe('password reset', () => {
     const rejected = await submitNewPassword(link, 'short');
     expect(rejected.statusCode).toBe(400);
     expect(rejected.body).toContain('at least');
-    expect(await passwordWorksFor(realmId, 'ada', 'correct horse battery')).toBe(true);
+    expect(await passwordWorksFor(tenantId, 'ada', 'correct horse battery')).toBe(true);
 
     // The link is still the same unconsumed token: a compliant password on
     // the very same link now succeeds.
     const retried = await submitNewPassword(link, 'a compliant password');
     expect(retried.statusCode).toBe(200);
-    expect(await passwordWorksFor(realmId, 'ada', 'a compliant password')).toBe(true);
+    expect(await passwordWorksFor(tenantId, 'ada', 'a compliant password')).toBe(true);
   });
 
   it('stops the old password working', async () => {
-    const { realmId, realmName } = await seedRealm(`realm-${newId()}`, {
+    const { tenantId, tenantName } = await seedTenant(`tenant-${newId()}`, {
       resetPasswordAllowed: true,
     });
-    await seedAda(realmId);
+    await seedAda(tenantId);
 
-    await requestReset(realmName, 'ada@example.test');
+    await requestReset(tenantName, 'ada@example.test');
     const message = sender.sent[0];
     if (message === undefined) throw new Error('no mail sent');
     await submitNewPassword(extractLink(message), 'a new password');
 
-    expect(await passwordWorksFor(realmId, 'ada', 'correct horse battery')).toBe(false);
-    expect(await passwordWorksFor(realmId, 'ada', 'a new password')).toBe(true);
+    expect(await passwordWorksFor(tenantId, 'ada', 'correct horse battery')).toBe(false);
+    expect(await passwordWorksFor(tenantId, 'ada', 'a new password')).toBe(true);
   });
 
   it('refuses a reset link a second time', async () => {
-    const { realmId, realmName } = await seedRealm(`realm-${newId()}`, {
+    const { tenantId, tenantName } = await seedTenant(`tenant-${newId()}`, {
       resetPasswordAllowed: true,
     });
-    await seedAda(realmId);
+    await seedAda(tenantId);
 
-    await requestReset(realmName, 'ada@example.test');
+    await requestReset(tenantName, 'ada@example.test');
     const message = sender.sent[0];
     if (message === undefined) throw new Error('no mail sent');
     const link = extractLink(message);
@@ -417,18 +417,18 @@ describe('password reset', () => {
     const second = await submitNewPassword(link, 'second password');
     expect(second.statusCode).toBe(400);
 
-    expect(await passwordWorksFor(realmId, 'ada', 'second password')).toBe(false);
-    expect(await passwordWorksFor(realmId, 'ada', 'first password')).toBe(true);
+    expect(await passwordWorksFor(tenantId, 'ada', 'second password')).toBe(false);
+    expect(await passwordWorksFor(tenantId, 'ada', 'first password')).toBe(true);
   });
 
   it('kills a sibling reset link for the same subject once one is completed', async () => {
-    const { realmId, realmName } = await seedRealm(`realm-${newId()}`, {
+    const { tenantId, tenantName } = await seedTenant(`tenant-${newId()}`, {
       resetPasswordAllowed: true,
     });
-    await seedAda(realmId);
+    await seedAda(tenantId);
 
-    await requestReset(realmName, 'ada@example.test');
-    await requestReset(realmName, 'ada@example.test');
+    await requestReset(tenantName, 'ada@example.test');
+    await requestReset(tenantName, 'ada@example.test');
     expect(sender.sent).toHaveLength(2);
     const [firstMessage, secondMessage] = sender.sent;
     if (firstMessage === undefined || secondMessage === undefined) {
@@ -443,27 +443,27 @@ describe('password reset', () => {
 
     const attemptSecond = await submitNewPassword(secondLink, 'second password');
     expect(attemptSecond.statusCode).toBe(400);
-    expect(await passwordWorksFor(realmId, 'ada', 'second password')).toBe(false);
-    expect(await passwordWorksFor(realmId, 'ada', 'first password')).toBe(true);
+    expect(await passwordWorksFor(tenantId, 'ada', 'second password')).toBe(false);
+    expect(await passwordWorksFor(tenantId, 'ada', 'first password')).toBe(true);
   });
 
   it('refuses a verify_email token presented to the reset-password submission', async () => {
-    const { realmId, realmName } = await seedRealm(`realm-${newId()}`, {
+    const { tenantId, tenantName } = await seedTenant(`tenant-${newId()}`, {
       resetPasswordAllowed: true,
     });
-    await seedAda(realmId);
+    await seedAda(tenantId);
 
     // No verify_email flow is wired in this file's httpApp, so a token of
     // that type is seeded directly, the same idiom
     // packages/account/tests/action-tokens.int.test.ts uses.
-    const subjectId = await withRealm(app.db, realmId, async (tx) => {
+    const subjectId = await withTenant(app.db, tenantId, async (tx) => {
       const found = await userRepository(tx).byUsername('ada');
       if (found === null) throw new Error('ada not found');
       return found.subject.id;
     });
-    const { token } = await withRealm(app.db, realmId, (tx) =>
+    const { token } = await withTenant(app.db, tenantId, (tx) =>
       actionTokenRepository(tx).issue({
-        realmId,
+        tenantId,
         subjectId,
         type: 'verify_email',
         ttlSeconds: 3600,
@@ -472,55 +472,55 @@ describe('password reset', () => {
 
     const res = await httpApp.inject({
       method: 'POST',
-      url: `/realms/${realmName}/login-actions/action-token`,
+      url: `/tenants/${tenantName}/login-actions/action-token`,
       payload: new URLSearchParams({ key: token, password: 'whatever' }).toString(),
       headers: { 'content-type': 'application/x-www-form-urlencoded' },
     });
     expect(res.statusCode).toBe(400);
-    expect(await passwordWorksFor(realmId, 'ada', 'whatever')).toBe(false);
+    expect(await passwordWorksFor(tenantId, 'ada', 'whatever')).toBe(false);
   });
 
-  it('is not served when the realm has not enabled it', async () => {
-    const { realmName } = await seedRealm(`realm-${newId()}`, { resetPasswordAllowed: false });
+  it('is not served when the tenant has not enabled it', async () => {
+    const { tenantName } = await seedTenant(`tenant-${newId()}`, { resetPasswordAllowed: false });
 
     const res = await httpApp.inject({
-      url: `/realms/${realmName}/login-actions/reset-password`,
+      url: `/tenants/${tenantName}/login-actions/reset-password`,
     });
     expect(res.statusCode).toBe(404);
   });
 
   it('refuses the submission itself, not just the form, when reset is off', async () => {
-    const { realmName } = await seedRealm(`realm-${newId()}`, { resetPasswordAllowed: false });
+    const { tenantName } = await seedTenant(`tenant-${newId()}`, { resetPasswordAllowed: false });
 
-    const res = await requestReset(realmName, 'ada@example.test');
+    const res = await requestReset(tenantName, 'ada@example.test');
     expect(res.statusCode).toBe(404);
   });
 
-  it('refuses the form once the realm has been disabled', async () => {
-    const { realmId, realmName } = await seedRealm(`realm-${newId()}`, {
+  it('refuses the form once the tenant has been disabled', async () => {
+    const { tenantId, tenantName } = await seedTenant(`tenant-${newId()}`, {
       resetPasswordAllowed: true,
     });
-    await owner.db.update(realms).set({ enabled: false }).where(eq(realms.id, realmId));
+    await owner.db.update(tenants).set({ enabled: false }).where(eq(tenants.id, tenantId));
 
     const res = await httpApp.inject({
-      url: `/realms/${realmName}/login-actions/reset-password`,
+      url: `/tenants/${tenantName}/login-actions/reset-password`,
     });
     expect(res.statusCode).toBe(404);
   });
 
-  it('refuses the submission once the realm has been disabled', async () => {
-    const { realmId, realmName } = await seedRealm(`realm-${newId()}`, {
+  it('refuses the submission once the tenant has been disabled', async () => {
+    const { tenantId, tenantName } = await seedTenant(`tenant-${newId()}`, {
       resetPasswordAllowed: true,
     });
-    await owner.db.update(realms).set({ enabled: false }).where(eq(realms.id, realmId));
+    await owner.db.update(tenants).set({ enabled: false }).where(eq(tenants.id, tenantId));
 
-    const res = await requestReset(realmName, 'ada@example.test');
+    const res = await requestReset(tenantName, 'ada@example.test');
     expect(res.statusCode).toBe(404);
   });
 
-  it('rejects a request naming a realm that does not exist, on the form and on the submission', async () => {
+  it('rejects a request naming a tenant that does not exist, on the form and on the submission', async () => {
     const formRes = await httpApp.inject({
-      url: '/realms/does-not-exist/login-actions/reset-password',
+      url: '/tenants/does-not-exist/login-actions/reset-password',
     });
     expect(formRes.statusCode).toBe(404);
 
@@ -529,42 +529,42 @@ describe('password reset', () => {
   });
 
   it('closes redemption once reset_password_allowed is turned off, for both the form and the submission', async () => {
-    const { realmId, realmName } = await seedRealm(`realm-${newId()}`, {
+    const { tenantId, tenantName } = await seedTenant(`tenant-${newId()}`, {
       resetPasswordAllowed: true,
     });
-    await seedAda(realmId);
+    await seedAda(tenantId);
 
-    await requestReset(realmName, 'ada@example.test');
+    await requestReset(tenantName, 'ada@example.test');
     const message = sender.sent[0];
     if (message === undefined) throw new Error('no mail sent');
     const link = extractLink(message);
 
     await owner.db
-      .update(realms)
+      .update(tenants)
       .set({ resetPasswordAllowed: false })
-      .where(eq(realms.id, realmId));
+      .where(eq(tenants.id, tenantId));
 
     const form = await getResetForm(link);
     expect(form.statusCode).toBe(400);
 
     const submitted = await submitNewPassword(link, 'a new password');
     expect(submitted.statusCode).toBe(400);
-    expect(await passwordWorksFor(realmId, 'ada', 'a new password')).toBe(false);
+    expect(await passwordWorksFor(tenantId, 'ada', 'a new password')).toBe(false);
   });
 
   it('a verify_email link still redeems while reset_password_allowed is off', async () => {
-    const { realmId, realmName } = await seedRealm(`realm-${newId()}`, {
+    const { tenantId, tenantName } = await seedTenant(`tenant-${newId()}`, {
       resetPasswordAllowed: false,
     });
-    await seedAda(realmId);
-    const subjectId = await withRealm(app.db, realmId, async (tx) => {
+    await seedAda(tenantId);
+    const subjectId = await withTenant(app.db, tenantId, async (tx) => {
       const found = await userRepository(tx).byUsername('ada');
       if (found === null) throw new Error('ada not found');
       return found.subject.id;
     });
-    const { token } = await withRealm(app.db, realmId, (tx) =>
+    const { token } = await withTenant(app.db, tenantId, (tx) =>
       actionTokenRepository(tx).issue({
-        realmId,
+        tenantId,
         subjectId,
         type: 'verify_email',
         email: 'ada@example.test',
@@ -574,18 +574,18 @@ describe('password reset', () => {
 
     const res = await httpApp.inject({
       method: 'GET',
-      url: `/realms/${realmName}/login-actions/action-token?key=${token}`,
+      url: `/tenants/${tenantName}/login-actions/action-token?key=${token}`,
     });
     expect(res.statusCode).toBe(200);
   });
 
   it('rejects a POST missing only the password as a distinct, non-misleading refusal', async () => {
-    const { realmId, realmName } = await seedRealm(`realm-${newId()}`, {
+    const { tenantId, tenantName } = await seedTenant(`tenant-${newId()}`, {
       resetPasswordAllowed: true,
     });
-    await seedAda(realmId);
+    await seedAda(tenantId);
 
-    await requestReset(realmName, 'ada@example.test');
+    await requestReset(tenantName, 'ada@example.test');
     const message = sender.sent[0];
     if (message === undefined) throw new Error('no mail sent');
     const link = extractLink(message);
@@ -600,10 +600,10 @@ describe('password reset', () => {
   });
 
   it('keeps a refused message, with its error, and answers the fixed 200 regardless', async () => {
-    const { realmId, realmName } = await seedRealm(`realm-${newId()}`, {
+    const { tenantId, tenantName } = await seedTenant(`tenant-${newId()}`, {
       resetPasswordAllowed: true,
     });
-    await seedAda(realmId);
+    await seedAda(tenantId);
 
     const throwingSender: EmailSender = {
       send: () => Promise.reject(new Error('mail transport unavailable')),
@@ -611,7 +611,7 @@ describe('password reset', () => {
 
     const known = await httpApp.inject({
       method: 'POST',
-      url: `/realms/${realmName}/login-actions/reset-password`,
+      url: `/tenants/${tenantName}/login-actions/reset-password`,
       payload: new URLSearchParams({ email: 'ada@example.test' }).toString(),
       headers: { 'content-type': 'application/x-www-form-urlencoded' },
     });
@@ -622,24 +622,24 @@ describe('password reset', () => {
     // because the transport is spoken to long after the answer went out.
     // The token is stored and the message kept, with the reason readable.
     expect(known.statusCode).toBe(200);
-    expect(await rawSelectAllActionTokens(realmId)).toHaveLength(1);
-    const queued = await outboxRows(realmId);
+    expect(await rawSelectAllActionTokens(tenantId)).toHaveLength(1);
+    const queued = await outboxRows(tenantId);
     expect(queued).toHaveLength(1);
     expect(queued[0]?.sentAt).toBeNull();
     expect(queued[0]?.lastError).toBe('mail transport unavailable');
   });
 
   it('refuses when no public base url is configured, identically for a known and an unknown address', async () => {
-    const { realmId, realmName } = await seedRealm(`realm-${newId()}`, {
+    const { tenantId, tenantName } = await seedTenant(`tenant-${newId()}`, {
       resetPasswordAllowed: true,
     });
-    await seedAda(realmId);
+    await seedAda(tenantId);
 
     const instance = Fastify();
     await instance.register(formbody);
     registerResetPasswordRoute(instance, {
       database: app,
-      findRealm: (name) => realmSettingsRepository(owner.db).byName(name),
+      findTenant: (name) => tenantSettingsRepository(owner.db).byName(name),
       publicBaseUrl: undefined,
       findByEmail,
     });
@@ -649,7 +649,7 @@ describe('password reset', () => {
       const form = new URLSearchParams({ email });
       const res = await instance.inject({
         method: 'POST',
-        url: `/realms/${realmName}/login-actions/reset-password`,
+        url: `/tenants/${tenantName}/login-actions/reset-password`,
         payload: form.toString(),
         headers: { 'content-type': 'application/x-www-form-urlencoded' },
       });
@@ -666,11 +666,11 @@ describe('password reset', () => {
   });
 
   it('refuses a submission missing the email field as a 400', async () => {
-    const { realmName } = await seedRealm(`realm-${newId()}`, { resetPasswordAllowed: true });
+    const { tenantName } = await seedTenant(`tenant-${newId()}`, { resetPasswordAllowed: true });
 
     const res = await httpApp.inject({
       method: 'POST',
-      url: `/realms/${realmName}/login-actions/reset-password`,
+      url: `/tenants/${tenantName}/login-actions/reset-password`,
       payload: '',
       headers: { 'content-type': 'application/x-www-form-urlencoded' },
     });

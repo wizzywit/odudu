@@ -1,5 +1,5 @@
 import {
-  realms,
+  tenants,
   createDatabase,
   MIGRATIONS_DIR,
   runMigrations,
@@ -108,27 +108,30 @@ function buildTestApp(): FastifyInstance {
   });
 }
 
-async function setResetPasswordAllowed(realmId: string, allowed: boolean): Promise<void> {
+async function setResetPasswordAllowed(tenantId: string, allowed: boolean): Promise<void> {
   await owner.db
-    .update(realms)
+    .update(tenants)
     .set({ resetPasswordAllowed: allowed })
-    .where(eq(realms.id, realmId));
+    .where(eq(tenants.id, tenantId));
 }
 
-async function setPasswordMaxAgeDays(realmId: string, days: number): Promise<void> {
-  await owner.db.update(realms).set({ passwordMaxAgeDays: days }).where(eq(realms.id, realmId));
+async function setPasswordMaxAgeDays(tenantId: string, days: number): Promise<void> {
+  await owner.db.update(tenants).set({ passwordMaxAgeDays: days }).where(eq(tenants.id, tenantId));
 }
 
 // created_at is written by the database's own now(), so standing a password
-// in the past is the only way to make the realm's maximum age bite.
-async function agePassword(realmId: string, days: number): Promise<void> {
+// in the past is the only way to make the tenant's maximum age bite.
+async function agePassword(tenantId: string, days: number): Promise<void> {
   await owner.db
     .update(userCredentials)
     .set({ createdAt: sql`now() - ${`${String(days)} days`}::interval` })
-    .where(and(eq(userCredentials.realmId, realmId), eq(userCredentials.type, 'password')));
+    .where(and(eq(userCredentials.tenantId, tenantId), eq(userCredentials.type, 'password')));
 }
 
-async function extractAuthSessionId(instance: FastifyInstance, realmName: string): Promise<string> {
+async function extractAuthSessionId(
+  instance: FastifyInstance,
+  tenantName: string,
+): Promise<string> {
   const query = new URLSearchParams({
     response_type: 'code',
     client_id: 'reset-spa',
@@ -140,7 +143,7 @@ async function extractAuthSessionId(instance: FastifyInstance, realmName: string
     code_challenge_method: 'S256',
   });
   const res = await instance.inject({
-    url: `/realms/${realmName}/protocol/openid-connect/auth?${query.toString()}`,
+    url: `/tenants/${tenantName}/protocol/openid-connect/auth?${query.toString()}`,
   });
   const match = /name="auth_session_id" value="([^"]*)"/.exec(res.body);
   const value = match?.[1];
@@ -148,8 +151,8 @@ async function extractAuthSessionId(instance: FastifyInstance, realmName: string
   return value;
 }
 
-async function attemptLogin(instance: FastifyInstance, realmName: string, password: string) {
-  const authSessionId = await extractAuthSessionId(instance, realmName);
+async function attemptLogin(instance: FastifyInstance, tenantName: string, password: string) {
+  const authSessionId = await extractAuthSessionId(instance, tenantName);
   const loginForm = new URLSearchParams({
     auth_session_id: authSessionId,
     username: 'ada',
@@ -157,7 +160,7 @@ async function attemptLogin(instance: FastifyInstance, realmName: string, passwo
   });
   return instance.inject({
     method: 'POST',
-    url: `/realms/${realmName}/login-actions/authenticate`,
+    url: `/tenants/${tenantName}/login-actions/authenticate`,
     payload: loginForm.toString(),
     headers: { 'content-type': 'application/x-www-form-urlencoded' },
   });
@@ -165,14 +168,14 @@ async function attemptLogin(instance: FastifyInstance, realmName: string, passwo
 
 async function requestReset(
   instance: FastifyInstance,
-  realmName: string,
+  tenantName: string,
   email: string,
   extraHeaders: Record<string, string> = {},
 ) {
   const form = new URLSearchParams({ email });
   return instance.inject({
     method: 'POST',
-    url: `/realms/${realmName}/login-actions/reset-password`,
+    url: `/tenants/${tenantName}/login-actions/reset-password`,
     payload: form.toString(),
     headers: { 'content-type': 'application/x-www-form-urlencoded', ...extraHeaders },
   });
@@ -206,23 +209,23 @@ beforeEach(async () => {
 
 describe('password reset, through the real composition root', () => {
   it('lets the new password sign in and refuses the old one, all the way to an authorization code', async () => {
-    const realmName = `reset-${newId()}`;
+    const tenantName = `reset-${newId()}`;
     const seeded = await seed({
-      realm: realmName,
+      tenant: tenantName,
       clientId: 'reset-spa',
       redirectUris: [REDIRECT_URI],
       username: 'ada',
       password: PASSWORD,
       email: EMAIL,
     });
-    await setResetPasswordAllowed(seeded.realmId, true);
+    await setResetPasswordAllowed(seeded.tenantId, true);
 
     const sender = capturingSender();
     const app = buildTestApp();
     await app.ready();
 
     try {
-      const requested = await requestReset(app, realmName, EMAIL);
+      const requested = await requestReset(app, tenantName, EMAIL);
       expect(requested.statusCode).toBe(200);
       await drainOutbox(sender);
       const message = sender.sent[0];
@@ -232,11 +235,11 @@ describe('password reset, through the real composition root', () => {
       const submitted = await submitNewPassword(app, link, 'a brand new password');
       expect(submitted.statusCode).toBe(200);
 
-      const withOldPassword = await attemptLogin(app, realmName, PASSWORD);
+      const withOldPassword = await attemptLogin(app, tenantName, PASSWORD);
       expect(withOldPassword.statusCode).toBe(200);
       expect(withOldPassword.headers.location).toBeUndefined();
 
-      const withNewPassword = await attemptLogin(app, realmName, 'a brand new password');
+      const withNewPassword = await attemptLogin(app, tenantName, 'a brand new password');
       expect(withNewPassword.headers.location).toContain('code=');
     } finally {
       await app.close();
@@ -250,29 +253,29 @@ describe('password reset, through the real composition root', () => {
   // primitive by itself, not merely proof of an address. Mirrors
   // register.int.test.ts's equivalent test for the verify_email link.
   it('ignores a forged Host header and mails the reset link at the configured public base url', async () => {
-    const realmName = `reset-${newId()}`;
+    const tenantName = `reset-${newId()}`;
     const seeded = await seed({
-      realm: realmName,
+      tenant: tenantName,
       clientId: 'reset-spa',
       redirectUris: [REDIRECT_URI],
       username: 'ada',
       password: PASSWORD,
       email: EMAIL,
     });
-    await setResetPasswordAllowed(seeded.realmId, true);
+    await setResetPasswordAllowed(seeded.tenantId, true);
 
     const sender = capturingSender();
     const app = buildTestApp();
     await app.ready();
 
     try {
-      const requested = await requestReset(app, realmName, EMAIL, { host: 'evil.example' });
+      const requested = await requestReset(app, tenantName, EMAIL, { host: 'evil.example' });
       expect(requested.statusCode).toBe(200);
 
       await drainOutbox(sender);
       const message = sender.sent[0];
       if (message === undefined) throw new Error('no reset mail sent');
-      expect(message.text).toContain(`${PUBLIC_BASE_URL}/realms/${realmName}/`);
+      expect(message.text).toContain(`${PUBLIC_BASE_URL}/tenants/${tenantName}/`);
       expect(message.text).not.toContain('evil.example');
     } finally {
       await app.close();
@@ -285,24 +288,24 @@ describe('password reset, through the real composition root', () => {
   // mails, one completed: the second must already be dead, not merely
   // eligible to become dead the next time someone tries a stale link.
   it('kills a sibling reset link once one of them is completed', async () => {
-    const realmName = `reset-${newId()}`;
+    const tenantName = `reset-${newId()}`;
     const seeded = await seed({
-      realm: realmName,
+      tenant: tenantName,
       clientId: 'reset-spa',
       redirectUris: [REDIRECT_URI],
       username: 'ada',
       password: PASSWORD,
       email: EMAIL,
     });
-    await setResetPasswordAllowed(seeded.realmId, true);
+    await setResetPasswordAllowed(seeded.tenantId, true);
 
     const sender = capturingSender();
     const app = buildTestApp();
     await app.ready();
 
     try {
-      await requestReset(app, realmName, EMAIL);
-      await requestReset(app, realmName, EMAIL);
+      await requestReset(app, tenantName, EMAIL);
+      await requestReset(app, tenantName, EMAIL);
       await drainOutbox(sender);
       expect(sender.sent).toHaveLength(2);
 
@@ -323,9 +326,9 @@ describe('password reset, through the real composition root', () => {
       const attemptSecond = await submitNewPassword(app, secondLink, 'second new password');
       expect(attemptSecond.statusCode).toBe(400);
 
-      const withFirstPassword = await attemptLogin(app, realmName, 'first new password');
+      const withFirstPassword = await attemptLogin(app, tenantName, 'first new password');
       expect(withFirstPassword.headers.location).toContain('code=');
-      const withSecondPassword = await attemptLogin(app, realmName, 'second new password');
+      const withSecondPassword = await attemptLogin(app, tenantName, 'second new password');
       expect(withSecondPassword.headers.location).toBeUndefined();
     } finally {
       await app.close();
@@ -333,29 +336,29 @@ describe('password reset, through the real composition root', () => {
   });
 
   it('refuses to redeem an outstanding link once reset_password_allowed is turned off', async () => {
-    const realmName = `reset-${newId()}`;
+    const tenantName = `reset-${newId()}`;
     const seeded = await seed({
-      realm: realmName,
+      tenant: tenantName,
       clientId: 'reset-spa',
       redirectUris: [REDIRECT_URI],
       username: 'ada',
       password: PASSWORD,
       email: EMAIL,
     });
-    await setResetPasswordAllowed(seeded.realmId, true);
+    await setResetPasswordAllowed(seeded.tenantId, true);
 
     const sender = capturingSender();
     const app = buildTestApp();
     await app.ready();
 
     try {
-      await requestReset(app, realmName, EMAIL);
+      await requestReset(app, tenantName, EMAIL);
       await drainOutbox(sender);
       const message = sender.sent[0];
       if (message === undefined) throw new Error('no reset mail sent');
       const link = extractLink(message);
 
-      await setResetPasswordAllowed(seeded.realmId, false);
+      await setResetPasswordAllowed(seeded.tenantId, false);
 
       const getForm = await app.inject({ url: new URL(link).pathname + new URL(link).search });
       expect(getForm.statusCode).toBe(400);
@@ -366,9 +369,9 @@ describe('password reset, through the real composition root', () => {
       // The redemption was refused, not merely delayed: the password the
       // link would have set never takes effect, and the original one still
       // signs in.
-      const withOldPassword = await attemptLogin(app, realmName, PASSWORD);
+      const withOldPassword = await attemptLogin(app, tenantName, PASSWORD);
       expect(withOldPassword.headers.location).toContain('code=');
-      const withAttemptedNewPassword = await attemptLogin(app, realmName, 'a brand new password');
+      const withAttemptedNewPassword = await attemptLogin(app, tenantName, 'a brand new password');
       expect(withAttemptedNewPassword.headers.location).toBeUndefined();
     } finally {
       await app.close();
@@ -379,20 +382,20 @@ describe('password reset, through the real composition root', () => {
   // password being owed forever — and it is also what would let expiry be
   // evaded, if a reset could set the password already in force straight
   // back. Anybody who can read the account's mail would otherwise clear a
-  // realm's password_max_age_days without ever changing a password.
+  // tenant's password_max_age_days without ever changing a password.
   it('refuses a reset to the password already in force, and does not burn the link doing it', async () => {
-    const realmName = `reset-${newId()}`;
+    const tenantName = `reset-${newId()}`;
     const seeded = await seed({
-      realm: realmName,
+      tenant: tenantName,
       clientId: 'reset-spa',
       redirectUris: [REDIRECT_URI],
       username: 'ada',
       password: PASSWORD,
       email: EMAIL,
     });
-    await setResetPasswordAllowed(seeded.realmId, true);
-    await setPasswordMaxAgeDays(seeded.realmId, 1);
-    await agePassword(seeded.realmId, 7);
+    await setResetPasswordAllowed(seeded.tenantId, true);
+    await setPasswordMaxAgeDays(seeded.tenantId, 1);
+    await agePassword(seeded.tenantId, 7);
 
     const sender = capturingSender();
     const app = buildTestApp();
@@ -401,12 +404,12 @@ describe('password reset, through the real composition root', () => {
     try {
       // The login authenticates and stops short of a code: update-password
       // is owed, which is the state the evasion below would clear.
-      const expired = await attemptLogin(app, realmName, PASSWORD);
+      const expired = await attemptLogin(app, tenantName, PASSWORD);
       expect(expired.statusCode).toBe(200);
       expect(expired.body).toContain('Change your password');
       expect(expired.headers.location).toBeUndefined();
 
-      await requestReset(app, realmName, EMAIL);
+      await requestReset(app, tenantName, EMAIL);
       await drainOutbox(sender);
       const message = sender.sent[0];
       if (message === undefined) throw new Error('no reset mail sent');
@@ -418,7 +421,7 @@ describe('password reset, through the real composition root', () => {
 
       // Still expired, so still owed: nothing about the refused redemption
       // moved the clock.
-      const stillExpired = await attemptLogin(app, realmName, PASSWORD);
+      const stillExpired = await attemptLogin(app, tenantName, PASSWORD);
       expect(stillExpired.body).toContain('Change your password');
       expect(stillExpired.headers.location).toBeUndefined();
 
@@ -429,7 +432,7 @@ describe('password reset, through the real composition root', () => {
 
       // The action the expired password owed is gone, so the new password
       // reaches a code rather than being asked for a third one.
-      const withNewPassword = await attemptLogin(app, realmName, 'a brand new password');
+      const withNewPassword = await attemptLogin(app, tenantName, 'a brand new password');
       expect(withNewPassword.body).not.toContain('Change your password');
       expect(withNewPassword.headers.location).toContain('code=');
     } finally {

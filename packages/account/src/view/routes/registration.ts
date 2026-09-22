@@ -1,4 +1,4 @@
-import { type DatabaseHandle, type RealmScopedDatabase } from '@odudu/db';
+import { type DatabaseHandle, type TenantScopedDatabase } from '@odudu/db';
 import { PASSWORD_TOO_LONG, readPasswordField } from '@odudu/kernel';
 import { type FastifyInstance } from 'fastify';
 import {
@@ -15,7 +15,7 @@ import {
 } from '#/view/registration-html';
 import { sendVerificationHtml } from '#/view/verification-html';
 
-export interface RegistrationRealmLookup {
+export interface RegistrationTenantLookup {
   readonly id: string;
   readonly name: string;
   readonly displayName: string | null;
@@ -27,18 +27,18 @@ export interface RegistrationRealmLookup {
 
 export interface RegistrationRouteDeps {
   readonly database: DatabaseHandle;
-  readonly findRealm: (name: string) => Promise<RegistrationRealmLookup | null>;
+  readonly findTenant: (name: string) => Promise<RegistrationTenantLookup | null>;
   // Operator configuration (ODUDU_PUBLIC_BASE_URL), never anything read off
   // the request: `request.host` is the client-controlled Host header, and
   // building a mailed link from it would let an attacker point a
   // verification link at a host they control — the account-takeover
   // primitive email verification exists to close. Undefined when unset; a
-  // realm with verify_email on then refuses to register rather than
+  // tenant with verify_email on then refuses to register rather than
   // building a link some other way.
   readonly publicBaseUrl: string | undefined;
   readonly createAccount: (
-    tx: RealmScopedDatabase,
-    realmId: string,
+    tx: TenantScopedDatabase,
+    tenantId: string,
     input: NewAccountInput,
   ) => Promise<CreateAccountResult>;
   readonly evaluatePassword: (
@@ -60,35 +60,35 @@ function firstNonEmptyString(value: string | string[] | undefined): string | und
   return value;
 }
 
-function realmIsOpenForRegistration(
-  realm: RegistrationRealmLookup | null,
-): realm is RegistrationRealmLookup {
-  return realm !== null && realm.enabled && realm.registrationAllowed;
+function tenantIsOpenForRegistration(
+  tenant: RegistrationTenantLookup | null,
+): tenant is RegistrationTenantLookup {
+  return tenant !== null && tenant.enabled && tenant.registrationAllowed;
 }
 
 // Not under /protocol/openid-connect/: this is Odudu's own account UI, the
 // same namespace choice login.ts documents for /login-actions/authenticate.
-// A realm with registration_allowed off (the default) serves nothing here
+// A tenant with registration_allowed off (the default) serves nothing here
 // at all — 404, not a page saying registration is closed, the same way a
-// disabled realm's action-token route refuses rather than explaining.
+// disabled tenant's action-token route refuses rather than explaining.
 export function registerRegistrationRoute(app: FastifyInstance, deps: RegistrationRouteDeps): void {
-  app.get<{ Params: { realm: string } }>(
-    '/realms/:realm/login-actions/registration',
+  app.get<{ Params: { tenant: string } }>(
+    '/tenants/:tenant/login-actions/registration',
     async (request, reply) => {
-      const realm = await deps.findRealm(request.params.realm);
-      if (!realmIsOpenForRegistration(realm)) {
+      const tenant = await deps.findTenant(request.params.tenant);
+      if (!tenantIsOpenForRegistration(tenant)) {
         return reply.code(404).send();
       }
-      return sendVerificationHtml(reply, 200, renderRegistrationForm(request.params.realm));
+      return sendVerificationHtml(reply, 200, renderRegistrationForm(request.params.tenant));
     },
   );
 
   app.post<{
-    Params: { realm: string };
+    Params: { tenant: string };
     Body: Record<string, string | string[] | undefined>;
-  }>('/realms/:realm/login-actions/registration', async (request, reply) => {
-    const realm = await deps.findRealm(request.params.realm);
-    if (!realmIsOpenForRegistration(realm)) {
+  }>('/tenants/:tenant/login-actions/registration', async (request, reply) => {
+    const tenant = await deps.findTenant(request.params.tenant);
+    if (!tenantIsOpenForRegistration(tenant)) {
       return reply.code(404).send();
     }
 
@@ -118,13 +118,13 @@ export function registerRegistrationRoute(app: FastifyInstance, deps: Registrati
     const outcome = await register(
       {
         database: deps.database,
-        realmId: realm.id,
-        realmName: realm.name,
-        realmDisplayName: realm.displayName ?? realm.name,
+        tenantId: tenant.id,
+        tenantName: tenant.name,
+        tenantDisplayName: tenant.displayName ?? tenant.name,
         issuerBase: deps.publicBaseUrl,
-        verifyEmailEnabled: realm.verifyEmail,
+        verifyEmailEnabled: tenant.verifyEmail,
         createAccount: deps.createAccount,
-        passwordPolicy: realm.passwordPolicy,
+        passwordPolicy: tenant.passwordPolicy,
         evaluatePassword: deps.evaluatePassword,
       },
       { username, email, password },
@@ -160,7 +160,7 @@ export function registerRegistrationRoute(app: FastifyInstance, deps: Registrati
     }
     if (outcome.kind === 'misconfigured') {
       request.log.error(
-        { realm: realm.name },
+        { tenant: tenant.name },
         'registration refused: verify_email is on but ODUDU_PUBLIC_BASE_URL is unset',
       );
       return sendVerificationHtml(
@@ -170,6 +170,6 @@ export function registerRegistrationRoute(app: FastifyInstance, deps: Registrati
       );
     }
 
-    return sendVerificationHtml(reply, 201, renderRegistrationSucceededPage(realm.verifyEmail));
+    return sendVerificationHtml(reply, 201, renderRegistrationSucceededPage(tenant.verifyEmail));
   });
 }

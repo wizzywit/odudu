@@ -77,7 +77,7 @@ export function outboxModule(deps: OutboxModuleDeps, pass: OutboxPass = sendPend
           ctx.logger.warn(
             {},
             'not sending queued mail: ODUDU_APP_DATABASE_URL is unset, and the pass ' +
-              'claims under the realm policy the owner role escapes — set it, or set ' +
+              'claims under the tenant policy the owner role escapes — set it, or set ' +
               'ODUDU_OUTBOX_ENABLED=false to say the schedule lives elsewhere',
           );
         }

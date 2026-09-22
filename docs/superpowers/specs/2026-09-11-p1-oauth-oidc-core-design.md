@@ -135,7 +135,7 @@ cannot be inlined into an ESM bundle, so it must be marked external in
 ### 2.5 JWT access tokens under RFC 9068
 
 **Decision.** Access tokens are JWTs carrying `typ: at+jwt` and RFC 9068's
-required claims, signed by the realm key and verifiable offline against
+required claims, signed by the tenant key and verifiable offline against
 `/jwks`. Refresh tokens are opaque handles.
 
 Opaque access tokens can only be validated through introspection, which is
@@ -158,7 +158,7 @@ every resource-server call a round trip.
 ### 2.6 A bootstrap seed CLI
 
 Clients are now P1's, but the admin API is P4 and dynamic registration is
-P3. Something must create the first realm, client and user.
+P3. Something must create the first tenant, client and user.
 
 **Decision.** A seed subcommand in `apps/server`, running through the real
 repository layer, usable in compose, in CI, and by a self-hoster.
@@ -228,7 +228,7 @@ is waste.
 P1 creates six of the packages named in umbrella spec section 3:
 
 ```
-kernel <- contracts, crypto, db <- domain-realm, domain-identity
+kernel <- contracts, crypto, db <- domain-tenant, domain-identity
                                         ^
                      authn-flows, protocol-oidc <- server
 ```
@@ -237,7 +237,7 @@ kernel <- contracts, crypto, db <- domain-realm, domain-identity
 | ----------------- | ---------------------------------------------------------- |
 | `contracts`       | Zod schemas and types for the API boundary                 |
 | `crypto`          | JWS, JWKS, `kid` resolution, KEK-wrapped keys, Argon2id    |
-| `domain-realm`    | realms, clients                                            |
+| `domain-tenant`   | tenants, clients                                           |
 | `domain-identity` | subjects, users, credentials                               |
 | `authn-flows`     | the persisted executor and the password authenticator      |
 | `protocol-oidc`   | five endpoints, the eight-stage pipeline, its schema slice |
@@ -250,18 +250,18 @@ A client carries `redirect_uris`, `grant_types` and
 which is what allows SAML to arrive in P8 without touching the identity
 model.
 
-**Decision.** Split. `domain-realm` owns a protocol-agnostic `clients`
+**Decision.** Split. `domain-tenant` owns a protocol-agnostic `clients`
 row; `protocol-oidc` owns `client_oidc_config` keyed to it. At P8,
 `protocol-saml` adds a parallel configuration table and the identity model
 is untouched.
 
-**Rejected — one wide table in `domain-realm`.** Cheaper now, makes the
+**Rejected — one wide table in `domain-tenant`.** Cheaper now, makes the
 domain package protocol-aware, and is the specific outcome the rule exists
 to prevent. It is also Keycloak's shape: one `client` table with a
 `protocol` discriminator.
 
 **Rejected — the whole client in `protocol-oidc`.** Honest about the
-vocabulary, but P4's realm administration could then not list clients
+vocabulary, but P4's tenant administration could then not list clients
 without importing a protocol package.
 
 Cost of the split: one join, one extra table.
@@ -269,15 +269,15 @@ Cost of the split: one join, one extra table.
 ## 4. Data model
 
 Eleven new tables. Every one carries `ENABLE` and `FORCE ROW LEVEL
-SECURITY`, a policy, and a foreign-`realm_id` probe in the adversarial
+SECURITY`, a policy, and a foreign-`tenant_id` probe in the adversarial
 suite — the standing obligation `docs/NEXT.md` records from P0, which P1
 is the first phase to owe.
 
-**`domain-realm`**
+**`domain-tenant`**
 
-- `clients` — `(id, realm_id, client_id, name, enabled, type, secret_hash,
+- `clients` — `(id, tenant_id, client_id, name, enabled, type, secret_hash,
 created_at)`, `type` in `{ public, confidential }`, unique on
-  `(realm_id, client_id)`
+  `(tenant_id, client_id)`
 
 **`protocol-oidc`**
 
@@ -305,12 +305,12 @@ created_at)`, `type` in `{ public, confidential }`, unique on
 **`authn-flows`**
 
 - `authentication_sessions` — resumable executor state
-- `sessions` — the browser SSO session behind `__Host-<realm>-session`
+- `sessions` — the browser SSO session behind `__Host-<tenant>-session`
 
 ### Three decisions inside the model
 
-**`realm_id` on every table, even where derivable.** `client_oidc_config`
-could reach its realm through `clients`, and `refresh_tokens` through
+**`tenant_id` on every table, even where derivable.** `client_oidc_config`
+could reach its tenant through `clients`, and `refresh_tokens` through
 `token_grants`. Carrying the column anyway keeps every policy predicate
 identical and join-free. A policy containing a join is a policy that gets
 written wrong. Cost: one denormalized column, and foreign keys that
@@ -346,7 +346,7 @@ Within `protocol-oidc`:
 | view       | five route handlers, ajv validation, response serialization | 2      |
 | usecase    | `AuthorizationRequest` and `TokenIssuance` orchestrators    | 1–8    |
 | service    | PKCE, exact redirect match, scope intersection, grant rules | 3,4,5  |
-| repository | codes, grants, refresh families, realm-bound transactions   | 7      |
+| repository | codes, grants, refresh families, tenant-bound transactions  | 7      |
 | adapter    | Drizzle                                                     | —      |
 
 Stage 6 (signing) is `crypto`'s service. Stage 8 (audit) goes through
@@ -379,8 +379,8 @@ bug.
 
 ### Request context
 
-Every request runs inside a transaction with `SET LOCAL app.realm_id`,
-realm resolved from the path, on P0's machinery.
+Every request runs inside a transaction with `SET LOCAL app.tenant_id`,
+tenant resolved from the path, on P0's machinery.
 
 ## 6. Specification traceability
 
@@ -443,7 +443,7 @@ cover:
 - audience confusion between clients
 - refresh token reuse, revoking the entire family
 - session fixation and CSRF on `/authorize`
-- cross-realm leakage, probed on every new repository method
+- cross-tenant leakage, probed on every new repository method
 
 Full mix-up belongs to P6; RFC 9207's
 `iss` parameter in authorization responses, and
@@ -470,9 +470,9 @@ exist.
    client. The Basic OP plan does not exercise this grant, so without an
    explicit criterion it would be the one grant with no external proof.
 6. All P1 adversarial corpus entries green
-7. Every new table carries an RLS policy and a foreign-`realm_id` probe
+7. Every new table carries an RLS policy and a foreign-`tenant_id` probe
 8. `infra/docker/smoke.sh` green and extended: the seed CLI provisions a
-   realm, client and user, and a full code+PKCE exchange completes against
+   tenant, client and user, and a full code+PKCE exchange completes against
    the running stack
 
 **Criterion 2 amended 2026-09-12, after counting the rows it quantifies
@@ -529,7 +529,7 @@ does not currently have, and that lands before the conformance increment.
 ### The known landmine
 
 `docs/NEXT.md` defers this explicitly: `meta/0002_snapshot.json` records
-`policies: {}` while `realms_isolation` exists in every migrated database,
+`policies: {}` while `tenants_isolation` exists in every migrated database,
 so declaring `pgPolicy(...)` makes `drizzle-kit generate` emit a
 `CREATE POLICY` that fails with 42710 against an existing database. P1
 adds eleven policies. The divergence is resolved before the first new
@@ -546,7 +546,7 @@ each independently mergeable and each ending green.
 3. resolve the snapshot divergence; establish the RLS pattern for new
    tables
 4. `crypto` — keys, KEK, JWKS, `kid`, signing
-5. `domain-realm` clients; `domain-identity` subjects, users, credentials,
+5. `domain-tenant` clients; `domain-identity` subjects, users, credentials,
    Argon2id
 6. `authn-flows` — executor, password authenticator, sessions
 7. discovery and `/jwks`

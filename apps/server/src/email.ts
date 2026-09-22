@@ -2,7 +2,7 @@ import { capturingSender, smtpSender, type EmailSender } from '@odudu/email';
 import { type Config } from '@odudu/kernel';
 import { type Logger as PinoLogger } from 'pino';
 
-// A realm with verify_email off needs no mail at all, and the compose
+// A tenant with verify_email off needs no mail at all, and the compose
 // stack serves plain HTTP on loopback with nothing to relay through — so an
 // unset ODUDU_SMTP_HOST selects the capturing adapter rather than refusing
 // to boot. loadConfig's own check already refuses ODUDU_SMTP_HOST without

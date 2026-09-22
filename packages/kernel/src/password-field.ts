@@ -5,13 +5,13 @@
  * denying more than 128; this is double the point at which denial becomes
  * permissible, and still bounds the attacker-controlled input to the key
  * derivation at about a kilobyte of UTF-8. ADR 0023 says why the limit
- * lives here rather than in the realm's password policy.
+ * lives here rather than in the tenant's password policy.
  */
 export const MAX_PASSWORD_LENGTH = 256;
 
 /**
  * Shaped like `@odudu/domain-identity`'s `PolicyViolation` so a page can
- * list it beside the realm's own rules, without a domain package owning a
+ * list it beside the tenant's own rules, without a domain package owning a
  * limit that exists to bound work rather than to shape passwords.
  */
 export const PASSWORD_TOO_LONG = {

@@ -1,4 +1,4 @@
-import { type RealmScopedDatabase } from '@odudu/db';
+import { type TenantScopedDatabase } from '@odudu/db';
 import { sql } from 'drizzle-orm';
 import { z } from 'zod';
 
@@ -29,7 +29,7 @@ const effectiveRoleRowsSchema = z.array(effectiveRoleRowSchema);
 // data was cancelled by a statement timeout — see
 // docs/superpowers/p2a-spike-log.md.
 export async function effectiveRoles(
-  tx: RealmScopedDatabase,
+  tx: TenantScopedDatabase,
   subjectId: string,
 ): Promise<readonly EffectiveRole[]> {
   const result = await tx.execute(sql`

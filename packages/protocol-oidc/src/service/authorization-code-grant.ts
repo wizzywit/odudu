@@ -1,4 +1,4 @@
-import { type ClientRecord } from '@odudu/domain-realm';
+import { type ClientRecord } from '@odudu/domain-tenant';
 import { type AuthorizationCodeRecord } from '#/schema/authorization-codes';
 import { verifyPkce } from '#/service/pkce';
 

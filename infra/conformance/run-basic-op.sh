@@ -14,7 +14,7 @@ SUITE_DIR="${SUITE_DIR:-$(mktemp -d)/conformance-suite}"
 OUT_DIR="${OUT_DIR:-$(mktemp -d)}"
 mkdir -p "$OUT_DIR"
 NETWORK=odudu-conformance
-REALM=conformance
+TENANT=conformance
 
 cleanup() {
   docker compose -p odudu-conformance -f "$SCRIPT_DIR/compose.yaml" down -v --remove-orphans || true
@@ -48,7 +48,7 @@ done
 [ "$ready" -eq 1 ] || { echo "odudu did not become ready" >&2; exit 1; }
 
 docker compose -p odudu-conformance -f "$SCRIPT_DIR/compose.yaml" exec -T odudu \
-  node dist/main.js seed --realm "$REALM" \
+  node dist/main.js seed --tenant "$TENANT" \
   --client conformance-client --client-secret conformance-secret \
   --redirect-uri "https://localhost.emobix.co.uk:8443/test/a/odudu-basic-op/callback" \
   --user conformance-user --password conformance-password
@@ -59,7 +59,7 @@ docker compose -p odudu-conformance -f "$SCRIPT_DIR/compose.yaml" exec -T odudu 
 # rejects a Basic header from a client registered for client_secret_post,
 # and would answer invalid_client at the token endpoint otherwise.
 docker compose -p odudu-conformance -f "$SCRIPT_DIR/compose.yaml" exec -T odudu \
-  node dist/main.js seed --realm "$REALM" \
+  node dist/main.js seed --tenant "$TENANT" \
   --client conformance-client-2 --client-secret conformance-secret-2 \
   --token-endpoint-auth-method client_secret_basic \
   --redirect-uri "https://localhost.emobix.co.uk:8443/test/a/odudu-basic-op/callback"
@@ -70,7 +70,7 @@ docker compose -p odudu-conformance -f "$SCRIPT_DIR/compose.yaml" exec -T odudu 
 # client with the client2 slot would make one of the two slots unusable
 # whichever method it were registered with.
 docker compose -p odudu-conformance -f "$SCRIPT_DIR/compose.yaml" exec -T odudu \
-  node dist/main.js seed --realm "$REALM" \
+  node dist/main.js seed --tenant "$TENANT" \
   --client conformance-client-post --client-secret conformance-secret-post \
   --token-endpoint-auth-method client_secret_post \
   --redirect-uri "https://localhost.emobix.co.uk:8443/test/a/odudu-basic-op/callback"

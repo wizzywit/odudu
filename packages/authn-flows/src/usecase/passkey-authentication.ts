@@ -1,4 +1,4 @@
-import { type RealmScopedDatabase } from '@odudu/db';
+import { type TenantScopedDatabase } from '@odudu/db';
 import { authenticationSessionRepository } from '#/repository/authentication-sessions';
 import { passkeyAuthenticationOptions, type PasskeyAuthenticationOffer } from '#/service/webauthn';
 
@@ -14,7 +14,7 @@ export interface BeginPasskeyAuthentication {
 // discoverable credentials it holds, and who that turns out to be is
 // settled when the assertion arrives.
 export async function beginPasskeyAuthentication(
-  tx: RealmScopedDatabase,
+  tx: TenantScopedDatabase,
   input: BeginPasskeyAuthentication,
 ): Promise<PasskeyAuthenticationOffer> {
   const offer = await passkeyAuthenticationOptions(input.publicBaseUrl);

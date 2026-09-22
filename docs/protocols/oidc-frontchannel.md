@@ -84,7 +84,7 @@ anything for the risk `http` reopens.
 ### What "covered" reads through, for the rows P3b closed
 
 `tokenGrantRepository(tx).clientsForSession` (§3's tracking row) reads
-`token_grants`' own `(realm_id, session_id)` index; nothing separate is
+`token_grants`' own `(tenant_id, session_id)` index; nothing separate is
 kept, because the grants already are the record. `frontChannelLogoutUrl`
 (§2's `iss`/`sid` rows, `packages/protocol-oidc/src/service/frontchannel-logout.ts`)
 sets `iss` unconditionally before it ever considers `sid`, so the MUST that

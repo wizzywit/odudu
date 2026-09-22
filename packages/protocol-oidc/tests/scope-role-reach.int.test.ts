@@ -1,14 +1,14 @@
 import {
   createDatabase,
   MIGRATIONS_DIR,
-  realms,
+  tenants,
   runMigrations,
-  withRealm,
+  withTenant,
   type DatabaseHandle,
-  type RealmScopedDatabase,
+  type TenantScopedDatabase,
 } from '@odudu/db';
 import { roleRepository } from '@odudu/domain-authz';
-import { clientScopeRepository } from '@odudu/domain-realm';
+import { clientScopeRepository } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -41,17 +41,17 @@ afterAll(async () => {
   await containerHandle?.stop();
 });
 
-async function seedRealm(tx: RealmScopedDatabase, realmId: string): Promise<void> {
-  await tx.insert(realms).values({ id: realmId, name: `realm-${realmId}` });
+async function seedTenant(tx: TenantScopedDatabase, tenantId: string): Promise<void> {
+  await tx.insert(tenants).values({ id: tenantId, name: `tenant-${tenantId}` });
 }
 
 describe('reachableRoleIds', () => {
-  it('finds the role a granted scope reaches in the same realm', async () => {
-    const realmId = newId();
-    await withRealm(app.db, realmId, async (tx) => {
-      await seedRealm(tx, realmId);
-      const scope = await clientScopeRepository(tx).create({ realmId, name: 'reports:read' });
-      const role = await roleRepository(tx).create({ realmId, name: 'reports-reader' });
+  it('finds the role a granted scope reaches in the same tenant', async () => {
+    const tenantId = newId();
+    await withTenant(app.db, tenantId, async (tx) => {
+      await seedTenant(tx, tenantId);
+      const scope = await clientScopeRepository(tx).create({ tenantId, name: 'reports:read' });
+      const role = await roleRepository(tx).create({ tenantId, name: 'reports-reader' });
       await roleRepository(tx).mapToClientScope(scope.id, role.id);
 
       const found = await reachableRoleIds(tx, ['reports:read']);
@@ -59,44 +59,44 @@ describe('reachableRoleIds', () => {
     });
   });
 
-  it('reaches nothing for a scope name the realm never defined', async () => {
-    const realmId = newId();
-    await withRealm(app.db, realmId, async (tx) => {
-      await seedRealm(tx, realmId);
+  it('reaches nothing for a scope name the tenant never defined', async () => {
+    const tenantId = newId();
+    await withTenant(app.db, tenantId, async (tx) => {
+      await seedTenant(tx, tenantId);
       const found = await reachableRoleIds(tx, ['no-such-scope']);
       expect(found).toEqual(new Set());
     });
   });
 
-  // Not `expectCrossRealmMethodProbe`: that helper never gives realm B a
-  // `realms` row of its own (every existing probe only reads under realm
-  // B, never inserts), and this test needs realm B to hold a same-named
+  // Not `expectCrossTenantMethodProbe`: that helper never gives tenant B a
+  // `tenants` row of its own (every existing probe only reads under tenant
+  // B, never inserts), and this test needs tenant B to hold a same-named
   // `client_scopes` row so an empty result can only come from RLS hiding
-  // realm A's `client_scope_roles` mapping — not from 'reports:read'
-  // simply not existing in realm B.
-  it('does not find another realm’s scope-to-role mapping', async () => {
-    const realmA = newId();
-    const realmB = newId();
+  // tenant A's `client_scope_roles` mapping — not from 'reports:read'
+  // simply not existing in tenant B.
+  it('does not find another tenant’s scope-to-role mapping', async () => {
+    const tenantA = newId();
+    const tenantB = newId();
 
-    const roleAId = await withRealm(app.db, realmA, async (tx) => {
-      await seedRealm(tx, realmA);
+    const roleAId = await withTenant(app.db, tenantA, async (tx) => {
+      await seedTenant(tx, tenantA);
       const scope = await clientScopeRepository(tx).create({
-        realmId: realmA,
+        tenantId: tenantA,
         name: 'reports:read',
       });
-      const role = await roleRepository(tx).create({ realmId: realmA, name: 'reports-reader' });
+      const role = await roleRepository(tx).create({ tenantId: tenantA, name: 'reports-reader' });
       await roleRepository(tx).mapToClientScope(scope.id, role.id);
       return role.id;
     });
 
-    await withRealm(app.db, realmA, async (tx) => {
+    await withTenant(app.db, tenantA, async (tx) => {
       const found = await reachableRoleIds(tx, ['reports:read']);
       expect(found).toEqual(new Set([roleAId]));
     });
 
-    await withRealm(app.db, realmB, async (tx) => {
-      await seedRealm(tx, realmB);
-      await clientScopeRepository(tx).create({ realmId: realmB, name: 'reports:read' });
+    await withTenant(app.db, tenantB, async (tx) => {
+      await seedTenant(tx, tenantB);
+      await clientScopeRepository(tx).create({ tenantId: tenantB, name: 'reports:read' });
 
       const found = await reachableRoleIds(tx, ['reports:read']);
       expect(found).toEqual(new Set());
