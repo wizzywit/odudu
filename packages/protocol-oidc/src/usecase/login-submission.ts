@@ -12,6 +12,7 @@ import { isUuid } from '@odudu/kernel';
 import { authorizationCodeRepository } from '#/repository/codes';
 import { type RealmLookup } from '#/repository/realm-lookup';
 import { generateAuthorizationCode, hashAuthorizationCode } from '#/service/authorization-code';
+import { EMPTY_CLAIMS_REQUEST, type ClaimsRequest } from '#/service/claims-request';
 import { decideConsent } from '#/service/consent';
 import { realmIssuer } from '#/service/issuer';
 import { type PromptValue } from '#/service/prompt';
@@ -50,6 +51,9 @@ export interface IssueAuthorizationCodeInput {
   // resolved audience is empty, never "not carried"; see the schema
   // column's own comment.
   resource: readonly string[];
+  // The `claims` request parameter, carried the same way `resource` is
+  // (`EMPTY_CLAIMS_REQUEST`'s own comment states what absent means).
+  claims: ClaimsRequest;
 }
 
 // Returns the raw code exactly once; only its hash is ever persisted.
@@ -72,6 +76,7 @@ export async function issueAuthorizationCode(
     expiresAt: new Date(input.now.getTime() + AUTHORIZATION_CODE_TTL_MS),
     sessionId: input.sessionId,
     resource: input.resource,
+    claims: input.claims,
   });
   return { code };
 }
@@ -183,6 +188,9 @@ export interface CompleteLoginInput {
   // have. `[]` already means "resolved to nothing" — see the field's own
   // comment on `PendingRequest`.
   resource: readonly string[];
+  // The `claims` request parameter parked on `PendingRequest.claims` and
+  // read back here, for the same reason `resource` is.
+  claims: ClaimsRequest;
 }
 
 export type CompleteLoginOutcome =
@@ -382,7 +390,8 @@ export async function completeAuthorizedLogin(
   // Whether to remember this login — already gated against
   // `realm.rememberMeAllowed` by the caller (handleLoginSubmission), never
   // an unauthenticated request's own say-so. Consent-submission.ts's call
-  // carries no such choice and passes `false`.
+  // reads no field of its own; it passes the value parked on the request
+  // by the original login (`pending.rememberMe ?? false`).
   rememberMeRequested = false,
 ): Promise<LoginSubmissionOutcome> {
   // A session reuse a consent decision promoted (PendingRequest carries
@@ -426,6 +435,7 @@ export async function completeAuthorizedLogin(
     authenticators,
     ...(reuseSession !== undefined ? { reuseSession } : {}),
     resource: pending.resource ?? [],
+    claims: pending.claims ?? EMPTY_CLAIMS_REQUEST,
   });
 
   // A second submission of the same auth_session_id — a back-button press,
@@ -566,6 +576,18 @@ export async function handleLoginSubmission(
     // attempt is bound to the subject who just authenticated, and every
     // factor they satisfied is recorded against them, so the right End-User
     // could not sign in against this parked request until both are cleared.
+    await deps.resetAuthenticationProgress(realm.id, authSessionId);
+    return {
+      kind: 'error_redirect',
+      location: errorRedirect(pending, realmName, issuerBase, 'login_required'),
+    };
+  }
+
+  // OIDC Core §3.1.2.2: the same check for `claims`' own `id_token.sub` —
+  // the /authorize filter only governs a *reuse*, not the form this door
+  // renders regardless of how it came out.
+  const claimsSubject = pending.claimsSubject;
+  if (claimsSubject !== undefined && claimsSubject !== result.subjectId) {
     await deps.resetAuthenticationProgress(realm.id, authSessionId);
     return {
       kind: 'error_redirect',

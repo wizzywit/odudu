@@ -84,14 +84,17 @@ null` or its script value — a page that adds a frame later widens that one
 - The logout page's own use of `frames` (built from the session's front-
   channel logout URIs) inherits the deduplication and the derivation for
   free; it needs no policy logic of its own.
-- Framing happens only on the branch that renders the logged-out page —
-  never on the redirect RP-Initiated Logout 1.0 issues once a
-  `post_logout_redirect_uri` matches. That is the common case, so a
-  session ended with a redirect notifies no relying party by this
-  mechanism at all today. Rendering the frames first and navigating
+- Framing happens on both branches that render a page — the logged-out
+  page, and the page a refused `post_logout_redirect_uri` renders instead
+  of honouring it — and never on the redirect RP-Initiated Logout 1.0
+  issues once a `post_logout_redirect_uri` matches. That is the common
+  case, so a session ended with a redirect notifies no relying party by
+  this mechanism at all today. Rendering the frames first and navigating
   afterward was not weighed against this: the question is open, not
-  answered, and is P3b's to pick up rather than something this decision
-  closed.
+  answered, and is tracked in `docs/NEXT.md`'s "Front-channel logout on a
+  redirecting session end" — P3b closes without picking it up, so it
+  passes to whichever phase's trigger fires there, rather than being
+  something this decision closed.
 
 ## Alternatives rejected
 

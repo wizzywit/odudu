@@ -1,4 +1,4 @@
-import { sessionRepository } from '@odudu/authn-flows';
+import { sessionRepository, type SessionLifespans } from '@odudu/authn-flows';
 import {
   signJwt,
   signingKeyRepository,
@@ -21,7 +21,7 @@ import { acrFor, amrFor } from '#/service/acr';
 import { hashAuthorizationCode } from '#/service/authorization-code';
 import { evaluateAuthorizationCodeGrant } from '#/service/authorization-code-grant';
 import { parseClientAssertion, type AssertionOutcome } from '#/service/client-assertion';
-import { type ClaimContext } from '#/service/claims';
+import { type ClaimContext, narrowToRequestedClaims } from '#/service/claims';
 import { evaluateClientCredentialsGrant } from '#/service/client-credentials-grant';
 import {
   invalidClient,
@@ -61,10 +61,11 @@ export interface TokenIssuanceDeps extends ClientAuthenticationDeps {
   issuer: string;
   kek: Uint8Array;
   clock: Clock;
-  // The realm's own idle window — the same one /authorize's resolveSessions
-  // checks a browser's sessions against — so a session-bound refresh dies
-  // exactly when the session it is bound to would (refresh-rotation.ts).
-  idleSeconds: number;
+  // The realm's own lifespan pair — the same one /authorize's
+  // resolveSessions checks a browser's sessions against — so a
+  // session-bound refresh dies exactly when the session it is bound to
+  // would, ordinary or remembered alike (refresh-rotation.ts).
+  lifespans: SessionLifespans;
   // Shared with /userinfo: the ID token's claims beyond the envelope
   // (`iss`/`aud`/`iat`/`exp`/`nonce`/`auth_time`) come from the same
   // registry, so a claim present in one can never be missing from the
@@ -291,6 +292,10 @@ async function mintAccessToken(
     // The id the caller has already generated for the grant this token
     // belongs to — see the `grant_id` comment below.
     grantId: string;
+    // The `claims` parameter's `userinfo` member, embedded so `/userinfo`
+    // (no code left to consult) can narrow the same way. Absent for a
+    // grant not minted from a code.
+    requestedUserinfoClaims?: readonly string[];
   },
   key: SigningKeyRecord,
   now: Date,
@@ -331,6 +336,9 @@ async function mintAccessToken(
     // no combination of the other claims identifies one row uniquely. See
     // docs/protocols/rfc9068.md's reading note on private claims.
     grant_id: input.grantId,
+    ...(input.requestedUserinfoClaims !== undefined && input.requestedUserinfoClaims.length > 0
+      ? { requested_userinfo_claims: input.requestedUserinfoClaims }
+      : {}),
   });
   const accessToken = await signJwt(accessTokenClaims, { key, kek: deps.kek, typ: 'at+jwt' });
   return { accessToken, audience, iat, exp };
@@ -397,6 +405,7 @@ async function issueAuthorizationCodeTokens(
       accessTokenScope,
       sessionId,
       grantId,
+      requestedUserinfoClaims: Object.keys(code.claims.userinfo),
     },
     key,
     now,
@@ -422,7 +431,14 @@ async function issueAuthorizationCodeTokens(
     // arrives through it too, so there is exactly one place that decides
     // what a subject's `openid`/`profile`/`email` scopes produce, not one
     // for the ID token and a second for /userinfo.
-    const userClaims = await deps.claimMappers.assemble(idTokenScope, narrowedContext);
+    const assembledClaims = await deps.claimMappers.assemble(idTokenScope, narrowedContext);
+    // `auth_time` never comes from `standardClaimMappers` (the envelope
+    // sets it below), so it is excluded here — otherwise a `max_age`-only
+    // request, naming nothing else, would narrow away every other claim.
+    const requestedIdTokenClaims = Object.keys(code.claims.idToken).filter(
+      (name) => name !== 'auth_time',
+    );
+    const userClaims = narrowToRequestedClaims(assembledClaims, requestedIdTokenClaims);
     // What actually authenticated this login, read off the session the
     // code's own login established (or, for a reused session, established
     // originally) — `amr`/`acr` state what ran, never what the subject
@@ -446,7 +462,12 @@ async function issueAuthorizationCodeTokens(
       aud: client.clientId,
       iat,
       exp,
-      auth_time: Math.floor(code.authTime.getTime() / 1000),
+      // OIDC Core §2/§15.1: required for an Essential Claim or a `max_age`
+      // request, both folded into this one flag at /authorize — otherwise
+      // left out (authorization-request.ts's `claims` synthesis).
+      ...(code.claims.idToken.auth_time?.essential === true
+        ? { auth_time: Math.floor(code.authTime.getTime() / 1000) }
+        : {}),
       ...(code.nonce !== null ? { nonce: code.nonce } : {}),
       ...(sessionId !== null ? { sid: sessionId } : {}),
       ...(amr.length > 0 ? { amr } : {}),
@@ -558,7 +579,7 @@ async function issueRefreshTokens(
       presentedHash,
       now,
       config.refreshTokenTtlSeconds,
-      deps.idleSeconds,
+      deps.lifespans,
     ),
   );
   if (outcome.kind !== 'rotated') throw invalidGrant();

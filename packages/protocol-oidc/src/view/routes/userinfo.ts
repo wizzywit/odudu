@@ -1,3 +1,4 @@
+import { type Clock, systemClock } from '@odudu/kernel';
 import { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
 import { corsHeadersForRequest } from '#/service/cors';
 import { FORM_MEDIA_TYPE } from '#/service/media-type';
@@ -9,10 +10,13 @@ const PATH = '/realms/:realm/protocol/openid-connect/userinfo';
 
 const CHALLENGE = 'Bearer realm="userinfo"';
 
-// The client behind the request is known only once the access token
-// verifies (`ok`, `insufficient_scope`); every earlier outcome — no
-// realm, no credentials, an unparseable or invalid token — has no client
-// to check the origin against, so the header is withheld the same way an
+// The client behind the request is known once the access token's
+// signature verifies — `ok`, `insufficient_scope`, `signing_unavailable`,
+// `encryption_unavailable`, and now `invalid_token` too, whenever the
+// refusal comes from something the payload said (a missing `sub`, an
+// unknown `grant_id`, a revoked grant, a dead session) rather than from
+// the signature itself. Every outcome before that point has no client to
+// check the origin against, so the header is withheld the same way an
 // origin outside that client's own list would be.
 async function corsHeadersFor(
   deps: UserinfoDeps,
@@ -20,7 +24,13 @@ async function corsHeadersFor(
   outcome: UserinfoOutcome,
 ): Promise<Record<string, string>> {
   const clientId =
-    outcome.kind === 'ok' || outcome.kind === 'insufficient_scope' ? outcome.clientId : undefined;
+    outcome.kind === 'ok' ||
+    outcome.kind === 'insufficient_scope' ||
+    outcome.kind === 'signing_unavailable' ||
+    outcome.kind === 'encryption_unavailable' ||
+    outcome.kind === 'invalid_token'
+      ? outcome.clientId
+      : undefined;
   if (clientId === undefined) return corsHeadersForRequest(request.headers.origin, new Set());
 
   const realm = await deps.findRealm(request.params.realm);
@@ -31,6 +41,7 @@ async function corsHeadersFor(
 
 async function respondToUserinfoRequest(
   deps: UserinfoDeps,
+  clock: Clock,
   request: FastifyRequest<{ Params: { realm: string } }>,
   body: unknown,
   reply: FastifyReply,
@@ -42,6 +53,7 @@ async function respondToUserinfoRequest(
     issuer,
     request.headers.authorization,
     body,
+    clock.now(),
   );
   const corsHeaders = await corsHeadersFor(deps, request, outcome);
 
@@ -68,17 +80,50 @@ async function respondToUserinfoRequest(
         .code(403)
         .header('www-authenticate', `${CHALLENGE}, error="insufficient_scope"`)
         .send();
+    // Not the token's fault, so no `WWW-Authenticate` challenge; no body
+    // either — logged below instead, for whoever operates this realm.
+    case 'signing_unavailable':
+      request.log.warn(
+        {
+          client_id: outcome.clientId,
+          userinfo_signed_response_alg: outcome.registeredAlg,
+          active_signing_key_alg: outcome.activeAlg,
+        },
+        'userinfo: registered signing algorithm does not match the active signing key',
+      );
+      return reply.headers(corsHeaders).code(500).send();
+    // Same shape as signing_unavailable, for the same reason (see
+    // `encryption_unavailable` on `UserinfoOutcome`).
+    case 'encryption_unavailable':
+      request.log.warn(
+        { client_id: outcome.clientId, reason: outcome.reason },
+        'userinfo: could not encrypt the response for the registered client',
+      );
+      return reply.headers(corsHeaders).code(500).send();
     case 'ok':
-      return reply.headers(corsHeaders).code(200).send(outcome.claims);
+      if (outcome.body.kind === 'jwt') {
+        return reply
+          .headers(corsHeaders)
+          .code(200)
+          .header('content-type', 'application/jwt')
+          .send(outcome.body.token);
+      }
+      return reply.headers(corsHeaders).code(200).send(outcome.body.claims);
   }
 }
 
-export function registerUserinfoRoute(app: FastifyInstance, deps: UserinfoDeps): void {
+export interface UserinfoRouteDeps extends UserinfoDeps {
+  clock?: Clock;
+}
+
+export function registerUserinfoRoute(app: FastifyInstance, deps: UserinfoRouteDeps): void {
+  const clock = deps.clock ?? systemClock;
+
   // OIDC Core §5.3 requires both methods. A GET has no body to read a token
   // from, so the two differ only in what they hand the resolver; everything
   // after that is one path.
   app.get<{ Params: { realm: string } }>(PATH, (request, reply) =>
-    respondToUserinfoRequest(deps, request, undefined, reply),
+    respondToUserinfoRequest(deps, clock, request, undefined, reply),
   );
 
   // RFC 6750 §2.2 fixes the form-encoded body method's content type. Any
@@ -96,6 +141,6 @@ export function registerUserinfoRoute(app: FastifyInstance, deps: UserinfoDeps):
         }
       },
     },
-    (request, reply) => respondToUserinfoRequest(deps, request, request.body, reply),
+    (request, reply) => respondToUserinfoRequest(deps, clock, request, request.body, reply),
   );
 }

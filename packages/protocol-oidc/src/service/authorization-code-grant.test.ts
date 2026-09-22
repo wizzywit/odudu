@@ -36,6 +36,7 @@ const record: AuthorizationCodeRecord = {
   grantId: null,
   sessionId: null,
   resource: [],
+  claims: { idToken: {}, userinfo: {} },
 };
 
 describe('evaluateAuthorizationCodeGrant', () => {

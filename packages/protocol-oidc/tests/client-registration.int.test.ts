@@ -8,6 +8,7 @@ import {
   type RealmScopedDatabase,
 } from '@odudu/db';
 import { provisionRealm } from '@odudu/authn-flows';
+import { generateSigningKey, signingKeys } from '@odudu/crypto';
 import { clientRegistrationTokenRepository, clients } from '@odudu/domain-realm';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
@@ -31,6 +32,7 @@ let http: FastifyInstance;
 
 const URL_FOR = (realm: string) => `/realms/${realm}/clients-registrations/openid-connect`;
 const MINIMAL = { redirect_uris: ['https://rp.example/cb'] };
+const KEK = Buffer.alloc(32, 7);
 
 async function seedRealm(
   tx: RealmScopedDatabase,
@@ -82,7 +84,7 @@ beforeAll(async () => {
     oidcRoutes({
       database: app,
       ownerDatabase: owner,
-      kek: Buffer.alloc(32, 7),
+      kek: KEK,
       clientSecretLimiter: UNLIMITED_CLIENT_SECRET_LIMITER,
       clientKeySet: NO_CLIENT_KEY_FETCHER,
     }),
@@ -353,14 +355,112 @@ describe('[ODUDU-CLIENT-REGISTRATION-CAP-01] the realm client cap', () => {
   });
 });
 
-describe('[ODUDU-CLIENT-REGISTRATION-SEAM-01] the P3a/P3b seam', () => {
-  // The seam that remains: `backchannel_logout_uri` is stored and now read
-  // (discovery advertises the capability unconditionally, and ending a
-  // session delivers to it — docs/protocols/oidc-backchannel.md), but
-  // `userinfo_signed_response_alg` is stored with nothing downstream of it
-  // yet, and discovery advertises no capability for it.
-  it('stores userinfo metadata without advertising it, unlike backchannel_logout_uri', async () => {
+describe('[ODUDU-CLIENT-REGISTRATION-SEAM-01] the P3a/P3b seam, now closed', () => {
+  // `backchannel_logout_uri`, `userinfo_signed_response_alg` and
+  // `userinfo_encrypted_response_alg`/`_enc` are all stored, read and
+  // advertised in discovery (`/userinfo` signs and encrypts — see
+  // `userinfo-signed.int.test.ts` and `userinfo-encrypted.int.test.ts`).
+  it('advertises signing and encryption, and stores both', async () => {
     const realmName = `seam-${newId()}`;
+    const realmId = newId();
+    await withRealm(app.db, realmId, async (tx) => {
+      await seedRealm(tx, realmId, { name: realmName, policy: 'open' });
+      const key = await generateSigningKey('RS256', KEK);
+      await tx.insert(signingKeys).values({
+        id: newId(),
+        realmId,
+        kid: key.kid,
+        alg: key.alg,
+        status: 'active',
+        publicJwk: key.publicJwk,
+        privateJwkEncrypted: key.privateJwkEncrypted,
+      });
+    });
+
+    const res = await http.inject({
+      method: 'POST',
+      url: URL_FOR(realmName),
+      payload: {
+        ...MINIMAL,
+        backchannel_logout_uri: 'https://rp.example/bc',
+        userinfo_signed_response_alg: 'RS256',
+        userinfo_encrypted_response_alg: 'RSA-OAEP-256',
+      },
+    });
+    expect(res.statusCode).toBe(201);
+    const body = res.json<Record<string, unknown>>();
+    expect(body.backchannel_logout_uri).toBe('https://rp.example/bc');
+    expect(body.userinfo_signed_response_alg).toBe('RS256');
+    expect(body.userinfo_encrypted_response_alg).toBe('RSA-OAEP-256');
+    // OIDC Dynamic Client Registration §2's own default, applied because
+    // `_enc` was never sent.
+    expect(body.userinfo_encrypted_response_enc).toBe('A128CBC-HS256');
+
+    const doc = await discovery(realmName);
+    expect(doc.backchannel_logout_supported).toBe(true);
+    // This realm's own active key, not a fixed pair every realm gets —
+    // it holds exactly one (`signing_keys_one_active`).
+    expect(doc.userinfo_signing_alg_values_supported).toEqual(['RS256', 'none']);
+    // Fixed by the installed jose, not by this realm's own data — unlike
+    // signing above, every realm advertises the same set.
+    expect(doc.userinfo_encryption_alg_values_supported).toEqual([
+      'RSA-OAEP-256',
+      'ECDH-ES',
+      'ECDH-ES+A128KW',
+      'ECDH-ES+A192KW',
+      'ECDH-ES+A256KW',
+    ]);
+    expect(doc.userinfo_encryption_enc_values_supported).toEqual([
+      'A128CBC-HS256',
+      'A192CBC-HS384',
+      'A256CBC-HS512',
+      'A128GCM',
+      'A192GCM',
+      'A256GCM',
+    ]);
+  });
+
+  // docs/superpowers/p3b-spike-jwe.md: RSA1_5 is removed from the
+  // installed jose entirely — a registration that admitted it would
+  // succeed today and fail every /userinfo request from then on.
+  it('refuses a userinfo_encrypted_response_alg no installed jose can produce', async () => {
+    const realmName = `seam-enc-refuse-${newId()}`;
+    const realmId = newId();
+    await withRealm(app.db, realmId, (tx) =>
+      seedRealm(tx, realmId, { name: realmName, policy: 'open' }),
+    );
+
+    const res = await http.inject({
+      method: 'POST',
+      url: URL_FOR(realmName),
+      payload: { ...MINIMAL, userinfo_encrypted_response_alg: 'RSA1_5' },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json<{ error: string }>().error).toBe('invalid_client_metadata');
+  });
+
+  // Unlike RSA1_5 above, jose *can* produce RSA-OAEP from a bare client
+  // JWK; this server excludes it anyway because it specifies SHA-1 for
+  // its OAEP hash (`@odudu/crypto`'s `JWE_ALGS_PERMITTED`). This pins the
+  // server's own narrowing rather than jose's own refusal.
+  it('refuses a userinfo_encrypted_response_alg jose can produce but this server excludes', async () => {
+    const realmName = `seam-enc-refuse-oaep-${newId()}`;
+    const realmId = newId();
+    await withRealm(app.db, realmId, (tx) =>
+      seedRealm(tx, realmId, { name: realmName, policy: 'open' }),
+    );
+
+    const res = await http.inject({
+      method: 'POST',
+      url: URL_FOR(realmName),
+      payload: { ...MINIMAL, userinfo_encrypted_response_alg: 'RSA-OAEP' },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json<{ error: string }>().error).toBe('invalid_client_metadata');
+  });
+
+  it('refuses a userinfo_encrypted_response_enc outside the JWA registry', async () => {
+    const realmName = `seam-enc-value-refuse-${newId()}`;
     const realmId = newId();
     await withRealm(app.db, realmId, (tx) =>
       seedRealm(tx, realmId, { name: realmName, policy: 'open' }),
@@ -371,23 +471,95 @@ describe('[ODUDU-CLIENT-REGISTRATION-SEAM-01] the P3a/P3b seam', () => {
       url: URL_FOR(realmName),
       payload: {
         ...MINIMAL,
-        backchannel_logout_uri: 'https://rp.example/bc',
-        userinfo_signed_response_alg: 'RS256',
+        userinfo_encrypted_response_alg: 'RSA-OAEP-256',
+        userinfo_encrypted_response_enc: 'not-a-real-enc',
       },
     });
-    expect(res.statusCode).toBe(201);
-    const body = res.json<Record<string, unknown>>();
-    expect(body.backchannel_logout_uri).toBe('https://rp.example/bc');
-    expect(body.userinfo_signed_response_alg).toBe('RS256');
+    expect(res.statusCode).toBe(400);
+    expect(res.json<{ error: string }>().error).toBe('invalid_client_metadata');
+  });
 
-    const doc = await discovery(realmName);
-    expect(doc.backchannel_logout_supported).toBe(true);
-    for (const key of [
-      'userinfo_signing_alg_values_supported',
-      'userinfo_encryption_alg_values_supported',
-    ]) {
-      expect(doc).not.toHaveProperty(key);
-    }
+  // OIDC Dynamic Client Registration §2: "When userinfo_encrypted_response_enc
+  // is included, userinfo_encrypted_response_alg MUST also be provided" —
+  // refused here rather than left to the DB's
+  // client_oidc_config_userinfo_enc_needs_alg constraint, which would
+  // otherwise turn this into an unrelated 500.
+  it('refuses userinfo_encrypted_response_enc registered with no _alg', async () => {
+    const realmName = `seam-enc-no-alg-${newId()}`;
+    const realmId = newId();
+    await withRealm(app.db, realmId, (tx) =>
+      seedRealm(tx, realmId, { name: realmName, policy: 'open' }),
+    );
+
+    const res = await http.inject({
+      method: 'POST',
+      url: URL_FOR(realmName),
+      payload: { ...MINIMAL, userinfo_encrypted_response_enc: 'A256GCM' },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json<{ error: string }>().error).toBe('invalid_client_metadata');
+  });
+
+  it('refuses a userinfo_signed_response_alg this server cannot produce', async () => {
+    const realmName = `seam-refuse-${newId()}`;
+    const realmId = newId();
+    await withRealm(app.db, realmId, (tx) =>
+      seedRealm(tx, realmId, { name: realmName, policy: 'open' }),
+    );
+
+    const res = await http.inject({
+      method: 'POST',
+      url: URL_FOR(realmName),
+      payload: { ...MINIMAL, userinfo_signed_response_alg: 'ES512' },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json<{ error: string }>().error).toBe('invalid_client_metadata');
+  });
+
+  // A permitted value (client-metadata.ts's own enum admits it) that this
+  // realm's own active key still cannot produce.
+  it('refuses a permitted algorithm this realm cannot produce, at registration', async () => {
+    const realmName = `seam-key-mismatch-${newId()}`;
+    const realmId = newId();
+    await withRealm(app.db, realmId, async (tx) => {
+      await seedRealm(tx, realmId, { name: realmName, policy: 'open' });
+      const key = await generateSigningKey('RS256', KEK);
+      await tx.insert(signingKeys).values({
+        id: newId(),
+        realmId,
+        kid: key.kid,
+        alg: key.alg,
+        status: 'active',
+        publicJwk: key.publicJwk,
+        privateJwkEncrypted: key.privateJwkEncrypted,
+      });
+    });
+
+    const res = await http.inject({
+      method: 'POST',
+      url: URL_FOR(realmName),
+      payload: { ...MINIMAL, userinfo_signed_response_alg: 'ES256' },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json<{ error: string }>().error).toBe('invalid_client_metadata');
+  });
+
+  // No active key at all: the realm can honour neither RS256 nor ES256, so
+  // this is the same refusal as a mismatch, not an unguarded exception.
+  it('refuses a signing algorithm on a realm with no active key, rather than 500', async () => {
+    const realmName = `seam-no-key-${newId()}`;
+    const realmId = newId();
+    await withRealm(app.db, realmId, (tx) =>
+      seedRealm(tx, realmId, { name: realmName, policy: 'open' }),
+    );
+
+    const res = await http.inject({
+      method: 'POST',
+      url: URL_FOR(realmName),
+      payload: { ...MINIMAL, userinfo_signed_response_alg: 'RS256' },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json<{ error: string }>().error).toBe('invalid_client_metadata');
   });
 });
 

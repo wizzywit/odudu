@@ -44,6 +44,7 @@ const KEK = Buffer.alloc(32, 31);
 interface RpClientSpec {
   hostname: string;
   backchannelLogoutUri: string | null;
+  enabled?: boolean;
 }
 
 const RP_ONE: RpClientSpec = {
@@ -57,6 +58,11 @@ const RP_NO_BACKCHANNEL: RpClientSpec = {
 const RP_NEVER_USED: RpClientSpec = {
   hostname: 'rp-never-used.example',
   backchannelLogoutUri: 'https://rp-never-used.example/backchannel',
+};
+const RP_DISABLED: RpClientSpec = {
+  hostname: 'rp-disabled.example',
+  backchannelLogoutUri: 'https://rp-disabled.example/backchannel',
+  enabled: false,
 };
 
 // One realm, one client for signing in, and a client per relying party
@@ -104,6 +110,7 @@ async function setupRealm(
         name: spec.hostname,
         type: 'confidential',
         secretHash: await hashPassword('unused-secret'),
+        enabled: spec.enabled ?? true,
       });
       await provisionClientDefaults(tx, rpClientDbId);
       await clientOidcConfigRepository(tx).create({
@@ -353,6 +360,22 @@ describe('ending a session enqueues its back-channel deliveries', () => {
     expect((await pendingFor(realmId)).map((d) => d.clientId)).not.toContain(
       RP_NO_BACKCHANNEL.hostname,
     );
+  });
+
+  it('enqueues nothing for a disabled client, even one that registered a back-channel URI', async () => {
+    const realmName = `logout-enqueue-disabled-${newId()}`;
+    const { realmId, subjectId, rpClientIds } = await setupRealm(realmName, [RP_DISABLED]);
+    const cookie = await signIn(realmName);
+    const sessionId = sessionIdFromCookie(cookie);
+    const rpDisabledId = rpClientIds.get(RP_DISABLED.hostname);
+    if (rpDisabledId === undefined) throw new Error('expected the disabled RP client to exist');
+
+    await grantUnderSession(realmId, rpDisabledId, subjectId, sessionId);
+
+    const res = await confirmLogout(realmName, cookie, sessionId);
+    expect(res.statusCode).toBe(200);
+
+    expect((await pendingFor(realmId)).map((d) => d.clientId)).not.toContain(RP_DISABLED.hostname);
   });
 
   it('enqueues in the same transaction that ends the session', async () => {

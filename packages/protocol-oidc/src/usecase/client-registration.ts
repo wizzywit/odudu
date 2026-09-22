@@ -1,3 +1,4 @@
+import { signingKeyRepository } from '@odudu/crypto';
 import { type RealmScopedDatabase } from '@odudu/db';
 import { subjectRepository } from '@odudu/domain-identity';
 import {
@@ -74,13 +75,35 @@ async function performRegistration(
     return { kind: 'at_capacity' };
   }
 
+  // Checked in the same transaction the realm's key lives in, so discovery
+  // and registration cannot disagree; `null` (no active key) is a mismatch too.
+  if (
+    metadata.userinfoSignedResponseAlg !== null &&
+    metadata.userinfoSignedResponseAlg !== 'none'
+  ) {
+    const activeAlg: string | null = await signingKeyRepository(tx)
+      .active()
+      .then(
+        (key) => key.alg,
+        () => null,
+      );
+    if (activeAlg !== metadata.userinfoSignedResponseAlg) {
+      return {
+        kind: 'invalid_metadata',
+        error: 'invalid_client_metadata',
+        description: `userinfo_signed_response_alg ${metadata.userinfoSignedResponseAlg} does not match this realm's active signing key (${activeAlg ?? 'none'})`,
+      };
+    }
+  }
+
   // jwks_uri is validated for shape only, by parseClientMetadata
   // (assertFetchableUrl) — never dereferenced here. The key is not needed
   // until `authenticatePrivateKeyJwt` (usecase/token-issuance.ts) fetches
   // it at request time; dereferencing at registration would make a
   // registration's success depend on a socket to a host the registrant
   // does not control being up at that instant, and never again — the
-  // opposite of what a registration is for. See docs/NEXT.md.
+  // opposite of what a registration is for. docs/phases/p3a.md records the
+  // registration-time attempt that was reverted, and why.
   const type = clientType(metadata.tokenEndpointAuthMethod);
 
   let serviceSubjectId: string | null = null;

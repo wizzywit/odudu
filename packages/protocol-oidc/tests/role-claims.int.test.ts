@@ -124,6 +124,12 @@ async function setFullScopeAllowed(realm: Realm): Promise<void> {
   );
 }
 
+async function disableClient(realm: Realm): Promise<void> {
+  await withRealm(app.db, realm.realmId, (tx) =>
+    tx.execute(sql`update clients set enabled = false where id = ${realm.clientDbId}`),
+  );
+}
+
 async function setIncludeInAccessToken(
   realm: Realm,
   scopeName: string,
@@ -158,6 +164,7 @@ async function completeCodeFlow(realm: Realm, scope: string): Promise<TokenSet> 
       authTime: new Date(),
       expiresAt: new Date(Date.now() + 60_000),
       resource: [],
+      claims: { idToken: {}, userinfo: {} },
     });
   });
 
@@ -296,6 +303,17 @@ describe('roles in an issued token', () => {
     await giveSubjectRole(realm, 'admin'); // held, mapped to no scope
 
     const { accessToken } = await completeCodeFlow(realm, 'openid roles');
+    expect(await userinfo(realm, accessToken)).not.toHaveProperty('roles');
+  });
+
+  it('narrows a disabled full-scope client’s live token at userinfo', async () => {
+    const realm = await seedRealm('userinfo-disabled-full-scope');
+    await setFullScopeAllowed(realm);
+    await giveSubjectRole(realm, 'admin'); // held, mapped to no scope, but full_scope_allowed
+
+    const { accessToken } = await completeCodeFlow(realm, 'openid roles');
+    await disableClient(realm);
+
     expect(await userinfo(realm, accessToken)).not.toHaveProperty('roles');
   });
 

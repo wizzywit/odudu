@@ -74,13 +74,23 @@ ${iframes}`,
 // The session still ended — RP-Initiated Logout 1.0's redirect rule (§3) is
 // about the redirect alone, and refusing it must not look like refusing the
 // logout itself, or an attacker's unmatched redirect_uri would be a way to
-// keep a session alive.
-export function renderLogoutRedirectRefusedPage(): RenderedPage {
+// keep a session alive. Frames each relying party's front-channel logout
+// URI exactly as `renderLoggedOutPage` does — this page renders too, rather
+// than redirecting, so the same iframe opportunity applies.
+export function renderLogoutRedirectRefusedPage(
+  frontChannelLogoutUrls: readonly string[] = [],
+): RenderedPage {
+  const iframes = frontChannelLogoutUrls
+    .map((url) => `<iframe src="${escapeHtml(url)}"></iframe>`)
+    .join('\n');
   return page(
     'Signed out',
     `<h1>Signed out</h1>
 <p>You have been signed out, but the address given to return to afterward is
-not one this client has registered, so it has not been used.</p>`,
+not one this client has registered, so it has not been used.</p>
+${iframes}`,
+    null,
+    frontChannelLogoutUrls.map((url) => new URL(url).origin),
   );
 }
 

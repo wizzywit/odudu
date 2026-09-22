@@ -12,6 +12,7 @@ export type ErrorCode =
   | 'jwt_unknown_key'
   | 'jwt_alg_mismatch'
   | 'jwt_typ_mismatch'
+  | 'jwe_alg_unsupported'
   | 'claim_mapper_duplicate'
   | 'invalid_email'
   | 'seed_invalid_options'

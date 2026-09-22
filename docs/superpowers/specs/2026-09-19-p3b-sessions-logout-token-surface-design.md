@@ -279,14 +279,46 @@ checks this"**, which is now a comment naming the check that follows.
 
 `/introspect` authenticates the caller with the client-authentication
 machinery `/token` already has, including the `client_secret` rate limit
-ADR 0023 governs. A token is described only when the caller's own
-`client_id` appears in its `aud`; anything else answers
-`{"active": false}`.
+ADR 0023 governs. A token is described only when the caller is one of the
+parties its `aud` names; anything else answers `{"active": false}`.
+
+**Amended during execution — a `client_id` alone cannot be the test.** This
+passage first said a token is described when the caller's own `client_id`
+appears in its `aud`. Read literally that describes nothing to anybody:
+`aud` is built from `client_oidc_config.audiences`, which are RFC 8707
+resource URIs, while an introspecting caller authenticates with client
+credentials and is identified by a `client_id` — two namespaces that never
+intersect. The rule implemented instead is that the token's `aud` intersects
+the caller's identity, where that identity is its `client_id` **or** any
+value in its own registered `audiences`: a resource server is a client whose
+`audiences` name the resources it serves, and the `client_id` half is kept so
+a deployment that registers audiences as client ids still works.
+`docs/protocols/rfc7662.md`'s "The caller's identity: `client_id` against
+resource URIs" carries it, and the negative test uses a caller matching on
+neither half.
+
+Neither endpoint reaches a `private_key_jwt` or `tls_client_auth` client:
+`authenticateClient` reads a Basic header or a body `client_secret` and
+nothing else. Accepted rather than deferred — no clause in RFC 7662 or
+RFC 7009 requires a particular set of methods, and closing it is a change to
+`/token`'s dispatch rather than to either endpoint.
 
 `active` consults **session liveness**, not only the grant's `revoked_at`.
 That is what makes revocation real inside an access token's hour: an
 `at+jwt` is self-contained and nothing consults anything before accepting
 one, which `docs/NEXT.md` records as the gap introspection exists to close.
+
+**Amended after the whole-branch review — this section enumerated one door
+onto the token, not both.** `/userinfo` accepts the identical self-contained
+`at+jwt`, on the OP's own behalf rather than a third-party resource
+server's, and this section never asked whether it made the same two checks.
+It did not, until the review found it: `resolveUserinfo` verified signature
+and claims and went straight to the claim mappers, so a token `/introspect`
+already reported `active: false` for still returned the End-User's full
+claim set until its own `exp`. Fixed to consult `loadGrant`'s `revokedAt`
+and `isSessionLive` exactly as this section describes, and to answer
+`invalid_token` rather than the claims when either fails — see
+`packages/protocol-oidc/src/usecase/userinfo.ts`'s `resolveUserinfo`.
 
 ### 8.3 Revocation
 

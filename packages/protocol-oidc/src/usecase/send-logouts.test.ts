@@ -239,4 +239,17 @@ describe('sendLogouts', () => {
 
     expect(await sendLogouts(deps, NOW)).toEqual({ delivered: 0, failed: 0 });
   });
+
+  // markDelivered's own boolean is how the repository reports "a concurrent
+  // pass already recorded this row" — a 200 this pass genuinely got, so
+  // counting it as `failed` would be as wrong as counting it as a second
+  // `delivered`.
+  it('counts neither delivered nor failed when a concurrent pass already recorded the row', async () => {
+    const deps = buildDeps([row()], transportWith(200));
+    deps.markDelivered = () => Promise.resolve(false);
+
+    const result = await sendLogouts(deps, NOW);
+
+    expect(result).toEqual({ delivered: 0, failed: 0 });
+  });
 });

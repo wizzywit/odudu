@@ -23,8 +23,9 @@ import {
   resetAuthenticationProgress,
   sessionRepository,
   startAuthentication,
+  type SessionLifespans,
 } from '@odudu/authn-flows';
-import { signingKeyRepository, signJwt } from '@odudu/crypto';
+import { JWE_ALGS_PERMITTED, signingKeyRepository, signJwt } from '@odudu/crypto';
 import { effectiveGroupPaths, effectiveRoles } from '@odudu/domain-authz';
 import { withRealm, type DatabaseHandle } from '@odudu/db';
 import { hashPassword, userRepository, verifyPassword } from '@odudu/domain-identity';
@@ -39,6 +40,10 @@ import { realmLookupRepository } from '#/repository/realm-lookup';
 import { reachableRoleIds } from '#/repository/scope-role-reach';
 import { standardClaimMappers } from '#/service/claims';
 import { type ClientSecretLimiter } from '#/service/client-secret-throttle';
+import {
+  USERINFO_ENCRYPTION_ENC_DEFAULT,
+  USERINFO_ENCRYPTION_ENCS_PERMITTED,
+} from '#/service/client-metadata';
 import { logoutTokenClaims, LOGOUT_TOKEN_TYP } from '#/service/logout-token';
 import { DEFAULT_TLS_CLIENT_SUBJECT_HEADER } from '#/service/tls-client-auth';
 import { expandWebOrigins } from '#/service/web-origin';
@@ -157,13 +162,15 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
     // /userinfo's own gate on the `roles` claim: which role ids the token's
     // granted scope reaches, and whether its client bypasses that
     // intersection — the same two facts token issuance reads from the same
-    // tables, so a role withheld from the token cannot resurface here.
+    // tables, so a role withheld from the token cannot resurface here. A
+    // disabled client never bypasses, for the reason given at
+    // `resolveClientWebOrigins` below.
     const resolveRoleReach = (realmId: string, oauthClientId: string, scope: readonly string[]) =>
       withRealm(deps.database.db, realmId, async (tx) => {
         const client = await clientRepository(tx).byClientId(oauthClientId);
         return {
           reachableRoleIds: await reachableRoleIds(tx, scope),
-          fullScopeAllowed: client?.fullScopeAllowed ?? false,
+          fullScopeAllowed: client?.enabled === true && client.fullScopeAllowed,
         };
       });
 
@@ -181,6 +188,58 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
         const config = await clientOidcConfigRepository(tx).byClientId(client.id);
         if (config === null) return new Set<string>();
         return expandWebOrigins(config.webOrigins, config.redirectUris);
+      });
+
+    // /userinfo's own answer to "should this response be a JWT": an unknown
+    // or disabled client, or one that never registered
+    // `userinfo_signed_response_alg`, all read as `null` — the response
+    // format's default, JSON — the same way an unrecognised `client_id`
+    // reads as no CORS origins above rather than an error.
+    const userinfoSignedResponseAlg = (realmId: string, oauthClientId: string) =>
+      withRealm(deps.database.db, realmId, async (tx) => {
+        const client = await clientRepository(tx).byClientId(oauthClientId);
+        if (!client?.enabled) return null;
+        const config = await clientOidcConfigRepository(tx).byClientId(client.id);
+        return config?.userinfoSignedResponseAlg ?? null;
+      });
+
+    // /userinfo's answer to "should this response be encrypted" — see
+    // `UserinfoDeps.userinfoEncryptionTarget` (usecase/userinfo.ts) for
+    // what `'none'` versus `'unavailable'` means. Registration is checked
+    // before `enabled`, so a disabled client that did register reaches
+    // `'unavailable'` rather than `'none'`.
+    const userinfoEncryptionTarget = (realmId: string, oauthClientId: string) =>
+      withRealm(deps.database.db, realmId, async (tx) => {
+        const client = await clientRepository(tx).byClientId(oauthClientId);
+        if (client === null) return { kind: 'none' } as const;
+        const config = await clientOidcConfigRepository(tx).byClientId(client.id);
+        if (config?.userinfoEncryptedResponseAlg == null) return { kind: 'none' } as const;
+        if (!client.enabled) return { kind: 'unavailable' } as const;
+        return {
+          kind: 'target',
+          target: {
+            alg: config.userinfoEncryptedResponseAlg,
+            enc: config.userinfoEncryptedResponseEnc ?? USERINFO_ENCRYPTION_ENC_DEFAULT,
+            jwks: config.jwks,
+            jwksUri: config.jwksUri,
+          },
+        } as const;
+      });
+
+    // The same key /token signs an access token or ID Token with —
+    // `signingKeyRepository(tx).active()`, not a second selection rule.
+    const activeSigningKey = (realmId: string) =>
+      withRealm(deps.database.db, realmId, (tx) => signingKeyRepository(tx).active());
+
+    // `null` rather than thrown: a realm provisioned before its first
+    // signing key still gets a discovery document.
+    const activeSigningKeyAlg = (realmId: string) =>
+      withRealm(deps.database.db, realmId, async (tx) => {
+        try {
+          return (await signingKeyRepository(tx).active()).alg;
+        } catch {
+          return null;
+        }
       });
 
     // One definition, read by discovery for scopes_supported and by
@@ -328,6 +387,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
           now,
           sessionId,
           resource: input.resource,
+          claims: input.claims,
         });
         return { kind: 'issued', sessionId, code };
       });
@@ -336,6 +396,9 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
       findRealm,
       claimNames: () => claimMappers.claimNames(),
       scopesForRealm,
+      activeSigningKeyAlg,
+      userinfoEncryptionAlgSupported: JWE_ALGS_PERMITTED,
+      userinfoEncryptionEncSupported: USERINFO_ENCRYPTION_ENCS_PERMITTED,
       trustProxy: deps.trustProxy ?? false,
     });
     registerJwksRoute(app, { findRealm, listPublishableKeys });
@@ -351,13 +414,13 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
     const isIntrospectionSessionLive = (
       realmId: string,
       sessionId: string,
-      idleSeconds: number,
+      lifespans: SessionLifespans,
       now: Date,
     ) =>
       withRealm(
         deps.database.db,
         realmId,
-        async (tx) => (await sessionRepository(tx).liveById(sessionId, idleSeconds, now)) !== null,
+        async (tx) => (await sessionRepository(tx).liveById(sessionId, lifespans, now)) !== null,
       );
     // No CORS scope: unlike /userinfo, a resource server calls this with
     // its own client credentials, never a browser holding a bearer token,
@@ -542,6 +605,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
             now,
             sessionId: input.sessionId,
             resource: input.resource,
+            claims: input.claims,
           });
         }),
     });
@@ -628,13 +692,14 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
       listPublishableKeys,
       now: () => clock.now(),
       // Resolved from the OAuth client_id to that client's own registered
-      // list — an unknown or unspecified client yields none, refusing any
-      // redirect rather than resolving one with no client to trust it
-      // against (RP-Initiated Logout 1.0 §3).
+      // list — an unknown, disabled or unspecified client yields none,
+      // refusing any redirect rather than resolving one with no client (or
+      // no longer-trusted client) to trust it against (RP-Initiated Logout
+      // 1.0 §3).
       postLogoutRedirectUris: (realmId, oauthClientId) =>
         withRealm(deps.database.db, realmId, async (tx) => {
           const client = await clientRepository(tx).byClientId(oauthClientId);
-          if (client === null) return [];
+          if (!client?.enabled) return [];
           return clientOidcConfigRepository(tx).postLogoutRedirectUris(client.id);
         }),
       resolveSessions,
@@ -726,6 +791,14 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
         claimMappers,
         resolveRoleReach,
         resolveClientWebOrigins,
+        userinfoSignedResponseAlg,
+        activeSigningKey,
+        userinfoEncryptionTarget,
+        clientKeySet,
+        kek: deps.kek,
+        loadGrant: loadIntrospectionGrant,
+        isSessionLive: isIntrospectionSessionLive,
+        clock,
       });
     });
 

@@ -5,7 +5,7 @@ import {
   type RequiredAction,
   type SessionRecord,
 } from '@odudu/authn-flows';
-import { verifyJwt, type ExpectedAudience, type SigningKeyRecord } from '@odudu/crypto';
+import { verifyJwt, TYP_ABSENT, type ExpectedAudience, type SigningKeyRecord } from '@odudu/crypto';
 import { type ClientRecord } from '@odudu/domain-realm';
 import { isUuid } from '@odudu/kernel';
 import { type ClientOidcConfig } from '#/schema/client-oidc-config';
@@ -14,6 +14,11 @@ import {
   validateAuthorizationRequest,
   type AuthorizeOutcome,
 } from '#/service/authorize-validation';
+import {
+  EMPTY_CLAIMS_REQUEST,
+  parseClaimsRequest,
+  type ClaimsRequest,
+} from '#/service/claims-request';
 import { normalizeAuthorizeQuery } from '#/service/query-normalization';
 import { parseResource } from '#/service/resource-indicator';
 import {
@@ -97,6 +102,10 @@ export interface CompleteReuseInput {
   // client's registered list) — stored on the code so /token derives `aud`
   // from what was approved rather than re-deriving it.
   resource: readonly string[];
+  // The `claims` request parameter (OIDC Core §5.5), parsed at /authorize
+  // — stored on the code so /token and /userinfo apply the same request,
+  // never one re-derived downstream.
+  claims: ClaimsRequest;
 }
 
 export interface ResolvedClient {
@@ -311,6 +320,31 @@ export async function handleAuthorizationRequest(
   if (resourceOutcome.kind === 'invalid_target') return reject('invalid_target');
   const audience = resourceOutcome.audience;
 
+  // OIDC Core §5.5. Parsed below the §4.1.2.1 boundary, same as `resource`
+  // above: a malformed parameter is reported at the client's own
+  // redirect_uri, not rendered.
+  const claimsOutcome = parseClaimsRequest(params.claims);
+  if (claimsOutcome.kind === 'invalid') return reject('invalid_request');
+  // §2 and §15.1 both require `auth_time` when `max_age` was used, not only
+  // when requested as an Essential Claim — folded in here so token issuance
+  // asks one question (`token-issuance.ts` excludes `auth_time` from what
+  // this synthesis could otherwise narrow away).
+  const claims: ClaimsRequest =
+    outcome.maxAge === null
+      ? claimsOutcome.request
+      : {
+          ...claimsOutcome.request,
+          idToken: {
+            ...claimsOutcome.request.idToken,
+            auth_time: { ...claimsOutcome.request.idToken.auth_time, essential: true },
+          },
+        };
+
+  // OIDC Core §3.1.2.2: a `sub` in the `claims` parameter's `id_token`
+  // member names a specific End-User, the same constraint `id_token_hint`
+  // is below — combined with it in `candidateSessions`.
+  const claimsSubject = claims.idToken.sub?.value ?? null;
+
   let hintSubject: string | null = null;
   if (outcome.idTokenHint !== null) {
     // Unlike `/logout`, this door has a principal to check the hint's `aud`
@@ -345,16 +379,15 @@ export async function handleAuthorizationRequest(
     header,
   );
   const resolvedSessions = sessions.map(toReusableSession);
-  // A hint names one subject, so only that subject's sessions are reusable
-  // or offered by the chooser here — this is what lets a hinted subject
-  // reuse a live session instead of facing a chooser for other subjects on
-  // the same browser, and what makes prompt=none answer from it rather
-  // than account_selection_required. The chooser POST's own membership
-  // check (handleSelectAccountSubmission) is a separate, later question.
-  const candidateSessions =
-    hintSubject === null
-      ? resolvedSessions
-      : resolvedSessions.filter((session) => session.subjectId === hintSubject);
+  // A hint, or a `claims` request's `sub`, names one subject, so only that
+  // subject's sessions are reusable or offered by the chooser — both
+  // constraints apply together when both are present. The chooser POST's
+  // own membership check (handleSelectAccountSubmission) is separate.
+  const candidateSessions = resolvedSessions.filter(
+    (session) =>
+      (hintSubject === null || session.subjectId === hintSubject) &&
+      (claimsSubject === null || session.subjectId === claimsSubject),
+  );
   const decision = decideReuse({
     sessions: candidateSessions,
     prompts: outcome.prompts,
@@ -382,6 +415,9 @@ export async function handleAuthorizationRequest(
     if (hintSubject !== null && hintSubject !== decision.subjectId) {
       throw new Error('unreachable: decideReuse reused a session the hint filter excluded');
     }
+    if (claimsSubject !== null && claimsSubject !== decision.subjectId) {
+      throw new Error('unreachable: decideReuse reused a session the claims sub filter excluded');
+    }
 
     // The second door into the same decision handleLoginSubmission's
     // password path guards — an unverified subject that happens to hold a
@@ -404,9 +440,11 @@ export async function handleAuthorizationRequest(
         ...request,
         prompt: [...outcome.prompts],
         ...(hintSubject !== null ? { idTokenHintSubject: hintSubject } : {}),
+        ...(claimsSubject !== null ? { claimsSubject } : {}),
         reuseSessionId: resolvedSession.id,
         reuseAuthTime: resolvedSession.authTime.toISOString(),
         resource: [...audience],
+        claims,
       });
       await deps.markAuthenticated(
         realm.id,
@@ -471,6 +509,7 @@ export async function handleAuthorizationRequest(
       codeChallengeMethod: request.codeChallengeMethod,
       authTime: decision.authTime,
       resource: audience,
+      claims,
     });
     return { kind: 'reused', code, redirectUri: request.redirectUri, state: request.state };
   }
@@ -485,10 +524,12 @@ export async function handleAuthorizationRequest(
       ...request,
       prompt: [...outcome.prompts],
       ...(hintSubject !== null ? { idTokenHintSubject: hintSubject } : {}),
+      ...(claimsSubject !== null ? { claimsSubject } : {}),
       // Re-checked against whichever session is posted back — see
       // handleSelectAccountSubmission's own withinMaxAge call.
       ...(outcome.maxAge !== null ? { maxAge: outcome.maxAge } : {}),
       resource: [...audience],
+      claims,
     });
     const rendered = newestPerSubject(decision.candidates);
     const names = await deps.accountDisplayNames(
@@ -526,11 +567,13 @@ export async function handleAuthorizationRequest(
     // signs in is the one it identifies can only be judged once they have,
     // which is the login submission, so it travels with the parked request.
     ...(hintSubject !== null ? { idTokenHintSubject: hintSubject } : {}),
+    ...(claimsSubject !== null ? { claimsSubject } : {}),
     // Carried forward so handleLoginSubmission's own consent gate, once
     // this login completes, still sees `prompt=consent` the way it would
     // have at the moment this request first arrived.
     prompt: [...outcome.prompts],
     resource: [...audience],
+    claims,
   });
   return {
     kind: 'started',
@@ -642,6 +685,11 @@ export async function handleSelectAccountSubmission(
   if (pending.idTokenHintSubject !== undefined && pending.idTokenHintSubject !== chosen.subjectId) {
     return reject('login_required');
   }
+  // The same check for a `claims` `sub`: a choice posted back is a claim,
+  // not a re-application of the filter that narrowed the chooser page.
+  if (pending.claimsSubject !== undefined && pending.claimsSubject !== chosen.subjectId) {
+    return reject('login_required');
+  }
 
   const refusal = await refusedForUnverifiedEmail(
     deps,
@@ -697,6 +745,7 @@ export async function handleSelectAccountSubmission(
     // journey — resolved once, against the query it actually carried, not
     // re-derived here where no query parameters survive.
     resource: pending.resource ?? [],
+    claims: pending.claims ?? EMPTY_CLAIMS_REQUEST,
   });
   return { kind: 'reused', code, redirectUri: pending.redirectUri, state: pending.state };
 }
@@ -741,12 +790,12 @@ export async function subjectOfIdTokenHint(
       keys,
       issuer,
       audience,
-      // An ID Token has no `typ` of its own — OIDC Core §2 defines none and
-      // the ones /token issues carry none — so the honest demand is not
-      // "must be an ID Token" but "must not be an access token", which RFC
-      // 9068 §2.1's `at+jwt` names exactly. /userinfo makes the mirror image
-      // of this check of the token presented to it.
-      typ: { refused: 'at+jwt' },
+      // An ID Token has no `typ` of its own (OIDC Core §2), so a hint is
+      // read as one only when its header carries none at all —
+      // `{refused: 'at+jwt'}` once denylisted only the one confusion this
+      // server had already made once; `TYP_ABSENT` closes the shape rather
+      // than the instance (docs/protocols/oidc-core.md's reading note).
+      typ: TYP_ABSENT,
     });
     if (typeof payload.sub !== 'string' || payload.sub.length === 0) return null;
     return {

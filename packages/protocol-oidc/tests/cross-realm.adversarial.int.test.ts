@@ -176,6 +176,7 @@ async function issueTokens(
       authTime: new Date(),
       expiresAt: new Date(Date.now() + 60_000),
       resource: client.audiences,
+      claims: { idToken: {}, userinfo: {} },
     });
   });
 
@@ -367,6 +368,7 @@ describe('[ODUDU-CROSS-REALM-LEAKAGE-01] cross-realm leakage', () => {
         authTime: new Date(),
         expiresAt: new Date(Date.now() + 60_000),
         resource: [],
+        claims: { idToken: {}, userinfo: {} },
       });
     });
 

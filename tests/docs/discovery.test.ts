@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
+import { JWE_ALGS_PERMITTED } from '../../packages/crypto/src/index.js';
 import { REALM_DEFAULT_SCOPE_NAMES } from '../../packages/domain-realm/src/usecase/provision-defaults.js';
 import { standardClaimMappers } from '../../packages/protocol-oidc/src/service/claims.js';
+import { USERINFO_ENCRYPTION_ENCS_PERMITTED } from '../../packages/protocol-oidc/src/service/client-metadata.js';
 import { resolveDiscoveryDocument } from '../../packages/protocol-oidc/src/usecase/discovery.js';
 import { jsonAfter, loadDocument } from './markdown.js';
 
@@ -31,6 +33,14 @@ async function serverDiscoveryDocument(): Promise<Record<string, unknown>> {
       // What `seed realm` puts in a realm, so the document is checked against
       // the vocabulary a freshly seeded stack actually serves.
       scopesForRealm: () => Promise.resolve(REALM_DEFAULT_SCOPE_NAMES),
+      // `seed bootstrap` generates a realm's first signing key as RS256
+      // (apps/server/src/cli/seed.ts) — the same key a freshly seeded
+      // stack's `/userinfo` would sign with.
+      activeSigningKeyAlg: () => Promise.resolve('RS256'),
+      // Fixed by the installed jose, not by anything `seed` writes — the
+      // same two call sites `usecase/discovery.ts`'s own reading note names.
+      userinfoEncryptionAlgSupported: JWE_ALGS_PERMITTED,
+      userinfoEncryptionEncSupported: USERINFO_ENCRYPTION_ENCS_PERMITTED,
       // ODUDU_TRUST_PROXY defaults false, and docs/request-paths.md's own
       // transcript was captured against a stack that never set it — see
       // this same value's effect on token_endpoint_auth_methods_supported.
@@ -53,9 +63,16 @@ const NUMBER_WORDS: ReadonlyMap<string, number> = new Map([
   ['fifteen', 15],
   ['sixteen', 16],
   ['seventeen', 17],
+  ['eighteen', 18],
   ['twenty', 20],
   ['twenty-one', 21],
   ['twenty-two', 22],
+  ['twenty-three', 23],
+  ['twenty-four', 24],
+  ['twenty-five', 25],
+  ['twenty-six', 26],
+  ['twenty-seven', 27],
+  ['twenty-eight', 28],
 ]);
 
 function spelled(word: string, context: string): number {

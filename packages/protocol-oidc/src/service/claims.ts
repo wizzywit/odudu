@@ -175,6 +175,22 @@ const groupsMapper: ClaimMapper<ClaimContext> = {
   },
 };
 
+// OIDC Core §5.5: once a `claims` request member names anything, the
+// response narrows to it — never widening past what `assemble` already
+// limited to scope. Empty `requested` leaves `claims` untouched.
+export function narrowToRequestedClaims(
+  claims: Record<string, unknown>,
+  requested: readonly string[],
+): Record<string, unknown> {
+  if (requested.length === 0) return claims;
+  const keep = new Set(requested);
+  const narrowed: Record<string, unknown> = {};
+  for (const [name, value] of Object.entries(claims)) {
+    if (keep.has(name)) narrowed[name] = value;
+  }
+  return narrowed;
+}
+
 // Registered mappers, not a switch: the plugin system's registry is what
 // both `/userinfo` and ID token issuance assemble claims through, so a
 // third-party mapper added later reaches both the same way these do.

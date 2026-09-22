@@ -1,4 +1,11 @@
-import { importJWK, jwtVerify, SignJWT, type JWTHeaderParameters, type JWTPayload } from 'jose';
+import {
+  importJWK,
+  jwtVerify,
+  SignJWT,
+  UnsecuredJWT,
+  type JWTHeaderParameters,
+  type JWTPayload,
+} from 'jose';
 import { OduduError } from '@odudu/kernel';
 import { unwrapPrivateJwk } from '#/service/kek';
 import { type SigningKeyRecord } from '#/schema/signing-keys';
@@ -14,6 +21,17 @@ export async function signJwt(
   if (opts.typ !== undefined) header.typ = opts.typ;
 
   return new SignJWT(payload).setProtectedHeader(header).sign(privateKey);
+}
+
+// RFC 7519 §6's Unsecured JWT: `alg: "none"`, no `kid` (there is no key),
+// and no signature segment. OIDC Registration §2 makes the JWT
+// serialization conditional only on `userinfo_signed_response_alg` being
+// specified at all, not on its value being a real algorithm, and OIDC
+// Discovery §3 says `none` MAY be among `userinfo_signing_alg_values_
+// supported` — so a client that registers `"none"` still gets a JWT, not
+// the JSON case wearing three dots.
+export function encodeUnsecuredJwt(payload: JWTPayload): string {
+  return new UnsecuredJWT(payload).encode();
 }
 
 function decodeProtectedHeaderSafely(token: string): Record<string, unknown> {
@@ -55,20 +73,35 @@ export const AUDIENCE_UNCHECKED = Symbol('audience unchecked');
 
 export type ExpectedAudience = string | typeof AUDIENCE_UNCHECKED;
 
-// RFC 9068 §2.1 gives an access token `typ: at+jwt` so that it cannot be
-// taken for another kind of JWT, while an OIDC Core §2 ID Token carries no
-// `typ` at all. A verifier that names neither inherits the confusion: an
-// access token was honoured as an `id_token_hint` for exactly as long as
-// this option was optional and that call site said nothing. So a policy is
-// required, in one of three forms — the `typ` that must be there, a `typ`
-// that must not be (all a reader of ID Tokens can honestly demand), or this
-// symbol, which declines the check in a value a grep can find.
+// RFC 9068 §2.1 gives an access token `typ: at+jwt`; an OIDC Core §2 ID
+// Token carries none. A verifier naming neither inherits the confusion —
+// an access token was honoured as an `id_token_hint` for exactly as long as
+// this was optional. A policy is required: the `typ` that must be there, a
+// `typ` that must not be, `TYP_ABSENT` (see below), or this symbol, which
+// declines the check in a value a grep can find.
 export const TYP_UNCHECKED = Symbol('typ unchecked');
 
-export type ExpectedTyp = string | { refused: string } | typeof TYP_UNCHECKED;
+// A reader that demands this treats *any* explicitly-typed JWT as foreign,
+// including one this codebase mints later for a purpose nobody has named
+// yet — a denylist of one `refused` value only ever covers the confusions
+// already discovered (`{refused: 'at+jwt'}` did not, and could not, cover
+// `userinfo+jwt`; see docs/protocols/oidc-core.md's reading note).
+export const TYP_ABSENT = Symbol('typ must be absent');
+
+export type ExpectedTyp = string | { refused: string } | typeof TYP_UNCHECKED | typeof TYP_ABSENT;
 
 function checkTyp(headerTyp: unknown, expected: ExpectedTyp): void {
   if (expected === TYP_UNCHECKED) return;
+
+  if (expected === TYP_ABSENT) {
+    if (headerTyp !== undefined) {
+      throw new OduduError(
+        'jwt_typ_mismatch',
+        `typ ${JSON.stringify(headerTyp)} is not accepted here`,
+      );
+    }
+    return;
+  }
 
   if (typeof expected === 'string') {
     if (headerTyp !== expected) {
@@ -116,9 +149,18 @@ export async function verifyJwt(
   checkTyp(header.typ, opts.typ);
 
   const publicKey = await importJWK(record.publicJwk, record.alg);
+  // `exp` REQUIRED — RFC 9068 §2.2 for the access tokens this function
+  // reads, OIDC Core §2 for the ID Tokens it reads as `id_token_hint`s;
+  // RFC 7519 §4.1.4 itself, both profiles' shared source for the claim's
+  // definition, leaves it OPTIONAL. `jwtVerify` only validates an `exp`
+  // that is present, so an omitted one verifies as non-expiring unless
+  // named here. A response this server signs but does not mint as a token
+  // (a signed UserInfo response) carries none, and must not verify as if
+  // it did.
   const { payload } = await jwtVerify(token, publicKey, {
     algorithms: [record.alg],
     issuer: opts.issuer,
+    requiredClaims: ['exp'],
     ...(typeof opts.audience === 'string' ? { audience: opts.audience } : {}),
   });
 

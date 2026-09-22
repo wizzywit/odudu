@@ -1,6 +1,6 @@
 import { type RealmScopedDatabase } from '@odudu/db';
 import { clients } from '@odudu/domain-realm';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { clientOidcConfig } from '#/schema/client-oidc-config';
 import { tokenGrants, type TokenGrantRecord } from '#/schema/token-grants';
 
@@ -106,12 +106,11 @@ export function tokenGrantRepository(tx: RealmScopedDatabase) {
     },
 
     // Front-Channel §2 and Back-Channel §2.3's "set of logged-in RPs": the
-    // distinct clients that hold a grant issued under this session. No
-    // tracking to maintain — the grants are already the record, and
-    // token_grants' (realm_id, session_id) index is what this reads
-    // through. `token_grants.client_id` and `client_oidc_config.client_id`
-    // are both the clients table's surrogate id, never the OAuth client_id
-    // string, so the join needs no third table.
+    // distinct clients that hold a grant issued under this session.
+    // `token_grants.client_id` and `client_oidc_config.client_id` are both
+    // the clients table's surrogate id, never the OAuth client_id string,
+    // so the join needs no third table. Filtered to `enabled`, the same way
+    // `webOriginsForRealm` (client-oidc-config.ts) is.
     async clientsForSession(sessionId: string): Promise<ClientLogoutTarget[]> {
       const rows = await tx
         .selectDistinct({
@@ -125,7 +124,7 @@ export function tokenGrantRepository(tx: RealmScopedDatabase) {
         .from(tokenGrants)
         .innerJoin(clientOidcConfig, eq(clientOidcConfig.clientId, tokenGrants.clientId))
         .innerJoin(clients, eq(clients.id, tokenGrants.clientId))
-        .where(eq(tokenGrants.sessionId, sessionId));
+        .where(and(eq(tokenGrants.sessionId, sessionId), eq(clients.enabled, true)));
       return rows;
     },
   };

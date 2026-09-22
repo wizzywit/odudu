@@ -10,7 +10,7 @@ import {
   type RealmScopedDatabase,
 } from '@odudu/db';
 import { expectRealmIsolation } from '@odudu/db/testing';
-import { provisionRealm } from '@odudu/authn-flows';
+import { provisionRealm, type SessionLifespans } from '@odudu/authn-flows';
 import { clients, provisionClientDefaults } from '@odudu/domain-realm';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
@@ -45,6 +45,13 @@ let REALM_ID: string;
 const REDIRECT_URI = 'https://app.example/callback';
 const AUDIENCE = 'https://api.example';
 const KEK = Buffer.alloc(32, 7);
+
+const LIFESPANS: SessionLifespans = {
+  ssoSessionIdleSeconds: 1_800,
+  ssoSessionMaxSeconds: 36_000,
+  rememberMeIdleSeconds: 604_800,
+  rememberMeMaxSeconds: 2_592_000,
+};
 
 // RFC 7636 Appendix B worked example.
 const VERIFIER = 'dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk';
@@ -192,6 +199,7 @@ async function issueInitialRefreshToken(
       authTime: new Date(),
       expiresAt: new Date(Date.now() + 60_000),
       resource: [],
+      claims: { idToken: {}, userinfo: {} },
     });
   });
 
@@ -391,8 +399,8 @@ describe('atomic refresh rotation', () => {
     const now = new Date();
 
     const results = await Promise.allSettled([
-      withRealm(app.db, REALM_ID, (tx) => rotateRefreshToken(tx, hash, now, 1_209_600, 1_800)),
-      withRealm(app.db, REALM_ID, (tx) => rotateRefreshToken(tx, hash, now, 1_209_600, 1_800)),
+      withRealm(app.db, REALM_ID, (tx) => rotateRefreshToken(tx, hash, now, 1_209_600, LIFESPANS)),
+      withRealm(app.db, REALM_ID, (tx) => rotateRefreshToken(tx, hash, now, 1_209_600, LIFESPANS)),
     ]);
 
     const rotated = results.filter((r) => r.status === 'fulfilled' && r.value.kind === 'rotated');

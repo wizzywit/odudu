@@ -393,6 +393,13 @@
       "when": 1789049381698,
       "tag": "0055_client_tls_client_auth_subject_dn",
       "breakpoints": true
+    },
+    {
+      "idx": 56,
+      "version": "7",
+      "when": 1789049381699,
+      "tag": "0056_authorization_codes_claims",
+      "breakpoints": true
     }
   ]
 }

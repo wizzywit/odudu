@@ -366,11 +366,32 @@ will take port 3000 and the stack's database with it.
 
 ### Dynamic client registration
 
+This section runs against a realm of its own, so nothing it registers lands
+in `demo`. `seed realm` creates one with every setting at its default:
+
+```bash
+odudu seed realm --name reg-demo
+```
+
+```json
+{ "command": "realm", "created": true, "realm": "reg-demo", "realmId": "01a0c9a7-4a80-…" }
+```
+
+```bash
+curl -sS -o /dev/null -w '%{http_code}\n' \
+  http://localhost:3000/realms/reg-demo/.well-known/openid-configuration
+```
+
+```
+200
+```
+
 `client_registration_policy` is `disabled` on every realm by default (ADR
 0026). Registering before it is opened, or against a realm that does not
 exist, answers the same way — an enumeration oracle costs nothing to close
 here, the same reasoning discovery and JWKS already apply to a disabled
-realm:
+realm. The discovery `200` above is what tells the two apart: the first
+refusal below is the closed policy, not an absent realm.
 
 ```bash
 curl -sS -o /dev/null -w '%{http_code}\n' -X POST \
@@ -405,7 +426,7 @@ odudu seed realm --name reg-demo --set client_registration_policy=open
   "command": "realm",
   "created": false,
   "realm": "reg-demo",
-  "realmId": "01a0b605-…",
+  "realmId": "01a0c9a7-4a80-…",
   "settings": ["client_registration_policy"]
 }
 ```
@@ -425,9 +446,9 @@ curl -sS -X POST http://localhost:3000/realms/reg-demo/clients-registrations/ope
 
 ```json
 {
-  "client_id": "01a0b605-7708-…",
-  "client_id_issued_at": 1789760206,
-  "client_secret": "bvHXg71rJLarigim4vtlUMm5KwV9QmAmxDSx-Mfz76U",
+  "client_id": "01a0c9a7-89bd-…",
+  "client_id_issued_at": 1790089595,
+  "client_secret": "3PrC0YXeq47JaVLQI57gtrFTWrJZy0OkEhJEAfLkpns",
   "client_secret_expires_at": 0,
   "redirect_uris": ["https://rp.example/cb"],
   "grant_types": ["authorization_code"],
@@ -474,7 +495,7 @@ TOKEN=$(odudu seed registration-token --realm reg-demo --uses 1 --ttl 3600)
 ```
 
 ```
-w0aDvT8i3ajvn00gKiCGMwHjeSujSS2LBbn0H_xRy6U
+fUAI7gFGUYH10PdvGXV6Nzi8dkvb4_siXnZgWiSqOgA
 ```
 
 It is stored as its SHA-256 digest, the same shape
@@ -496,8 +517,8 @@ curl -sS -X POST http://localhost:3000/realms/reg-demo/clients-registrations/ope
 
 ```json
 {
-  "client_id": "01a0b605-9e5d-…",
-  "client_id_issued_at": 1789760216,
+  "client_id": "01a0c9a7-8d0b-…",
+  "client_id_issued_at": 1790089596,
   "redirect_uris": ["https://rp2.example/cb"],
   "grant_types": ["authorization_code"],
   "token_endpoint_auth_method": "none"
@@ -521,10 +542,40 @@ registration response, and now read: discovery advertises
 `backchannel_logout_supported` and its front-channel twin for every realm
 (see [discovery](#1-discovery) above), and ending a session delivers to it
 (see [front-channel and back-channel logout](#front-channel-and-back-channel-logout)
-below). `userinfo_signed_response_alg` is stored and echoed the same way,
-but `userinfo_signing_alg_values_supported` stays absent from discovery and
-nothing signs a `/userinfo` response — that capability is still P3b's to
-build.
+below). `userinfo_signed_response_alg` is stored, echoed, and now read: a
+client that registers `RS256` or `ES256` gets a signed `/userinfo`
+response, and one that registers `none` gets a JWT `/userinfo` response
+that is not signed — an RFC 7519 §6 unsecured JWT (`alg: "none"`, no
+signature). Both are `application/jwt` and carry `iss` and `aud` (OIDC Core
+§5.3.2 for the "If signed" case; OIDC Registration §2 and Discovery §3 for
+why `none` still serializes as a JWT at all — see the reading note in
+`docs/protocols/oidc-core.md`). Registration refuses a value the _realm's own_ active signing
+key cannot produce, and discovery's `userinfo_signing_alg_values_supported`
+is that same realm's answer — `[key.alg, "none"]` — never a fixed pair
+advertised to every realm regardless of which key it actually holds (a
+realm holds exactly one). `userinfo_encrypted_response_alg` and `_enc` are
+stored, echoed and now read too — see
+[Encrypted and nested UserInfo responses](#encrypted-and-nested-userinfo-responses)
+below for the transcript.
+
+The metadata checks below are shown anonymously, so the policy goes back to
+`open` first — under `token` every one of them would answer the `401` above
+before any metadata was read, and would demonstrate the credential rather
+than the check:
+
+```bash
+odudu seed realm --name reg-demo --set client_registration_policy=open
+```
+
+```json
+{
+  "command": "realm",
+  "created": false,
+  "realm": "reg-demo",
+  "realmId": "01a0c9a7-4a80-…",
+  "settings": ["client_registration_policy"]
+}
+```
 
 A non-HTTP `redirect_uri` has to look like RFC 8252 §7.1's reverse-DNS
 custom scheme (ADR 0032): the scheme names at least one `.`, which is what
@@ -551,9 +602,9 @@ curl -sS -X POST http://localhost:3000/realms/reg-demo/clients-registrations/ope
 
 ```json
 {
-  "client_id": "01a0b707-…",
-  "client_id_issued_at": 1789777116,
-  "client_secret": "Iv4li0N-PWbQ0hno_SR04d6sEZnkxvUlI9RWaDYCW6k",
+  "client_id": "01a0c9a7-8ed5-…",
+  "client_id_issued_at": 1790089596,
+  "client_secret": "j9GzJC5do7RCGj9C_qimNqoYxsJMwZ_34ABv3OpYIao",
   "client_secret_expires_at": 0,
   "redirect_uris": ["com.example.app:/cb"],
   "grant_types": ["authorization_code"],
@@ -562,9 +613,10 @@ curl -sS -X POST http://localhost:3000/realms/reg-demo/clients-registrations/ope
 ```
 
 `frontchannel_logout_uri` gets the same https/absolute/no-fragment policy
-`backchannel_logout_uri` already had — it is destined for an iframe `src`
-once P3b renders it, the sink a bare `http:` or `javascript:` value would
-otherwise reach:
+`backchannel_logout_uri` already had — it is the `src` of an iframe the
+logout page now renders
+([front-channel and back-channel logout](#front-channel-and-back-channel-logout)),
+the sink a bare `http:` or `javascript:` value would otherwise reach:
 
 ```bash
 curl -sS -X POST http://localhost:3000/realms/reg-demo/clients-registrations/openid-connect \
@@ -611,9 +663,9 @@ curl -sS -X POST http://localhost:3000/realms/reg-demo/clients-registrations/ope
 
 ```json
 {
-  "client_id": "01a0bbd5-5d46-…",
-  "client_id_issued_at": 1789857717,
-  "client_secret": "YkEhHefxvt6UTSiXLhdYVr3nPd42kK5R588HAqEai-Y",
+  "client_id": "01a0c9a7-8f24-…",
+  "client_id_issued_at": 1790089596,
+  "client_secret": "dA-62s9zOvUIQfzkXvQ-mEYvj-gBwc6CkVlbpJWYcNI",
   "client_secret_expires_at": 0,
   "redirect_uris": ["https://rp.example/cb"],
   "grant_types": ["authorization_code"],
@@ -648,6 +700,22 @@ curl -sS http://localhost:3000/realms/demo/.well-known/openid-configuration
   "response_modes_supported": ["query"],
   "subject_types_supported": ["public"],
   "id_token_signing_alg_values_supported": ["RS256", "ES256"],
+  "userinfo_signing_alg_values_supported": ["RS256", "none"],
+  "userinfo_encryption_alg_values_supported": [
+    "RSA-OAEP-256",
+    "ECDH-ES",
+    "ECDH-ES+A128KW",
+    "ECDH-ES+A192KW",
+    "ECDH-ES+A256KW"
+  ],
+  "userinfo_encryption_enc_values_supported": [
+    "A128CBC-HS256",
+    "A192CBC-HS384",
+    "A256CBC-HS512",
+    "A128GCM",
+    "A192GCM",
+    "A256GCM"
+  ],
   "code_challenge_methods_supported": ["S256"],
   "grant_types_supported": ["authorization_code", "refresh_token", "client_credentials"],
   "token_endpoint_auth_methods_supported": [
@@ -656,7 +724,18 @@ curl -sS http://localhost:3000/realms/demo/.well-known/openid-configuration
     "none",
     "private_key_jwt"
   ],
+  "introspection_endpoint_auth_methods_supported": [
+    "client_secret_basic",
+    "client_secret_post",
+    "none"
+  ],
+  "revocation_endpoint_auth_methods_supported": [
+    "client_secret_basic",
+    "client_secret_post",
+    "none"
+  ],
   "authorization_response_iss_parameter_supported": true,
+  "claims_parameter_supported": true,
   "backchannel_logout_supported": true,
   "backchannel_logout_session_supported": true,
   "frontchannel_logout_supported": true,
@@ -1434,6 +1513,524 @@ curl -sS -o /dev/null -w '%{http_code}\n' -X POST \
 The claims come from the same registry the ID token's claims came from, so
 one can never carry a claim the other omits for the same subject and scope.
 The client must check that `sub` here matches the ID token's `sub`.
+
+### The `claims` request parameter
+
+§5.5's `claims` parameter narrows a response to what it names, never widens
+one past what `scope` already granted — the parameter is not a path around
+consent. This section reuses [the shell variables above](#the-shell-variables-the-rest-of-this-document-uses)
+(`$BASE`, `$LOGIN`, `$VERIFIER`, `$CHALLENGE`, ada's own seeded credentials)
+against the same stack, plus one more subject seeded the same documented
+way — `odudu seed` refuses to add a second user to `demo-spa` once it
+exists ("Seeding never adds a user to a client that already exists"
+above), so `bob` gets his own client:
+
+```bash
+odudu seed \
+  --realm demo --client demo-second-user \
+  --redirect-uri http://localhost:8080/callback \
+  --user bob --password another-horse-battery
+```
+
+```json
+{
+  "created": true,
+  "realm": "demo",
+  "realmId": "01a0c949-…",
+  "clientId": "demo-second-user",
+  "userSubjectId": "01a0c949-7006-…"
+}
+```
+
+`$ADA_SUB` and `$BOB_SUB` (used below) and `$COOKIE` are captured the same
+way [the shell variables above](#the-shell-variables-the-rest-of-this-document-uses)
+capture `$AUTH_SESSION_ID`/`$CODE` — re-running `odudu seed` for ada is
+idempotent (`"created": false`, same `userSubjectId`), so this needs no
+separate bootstrap:
+
+```bash
+ADA_SUB=$(odudu seed \
+  --realm demo --client demo-spa \
+  --redirect-uri http://localhost:8080/callback \
+  --user ada --password correct-horse-battery --email ada@example.com \
+  | sed -n 's/.*"userSubjectId":"\([^"]*\)".*/\1/p')
+
+BOB_SUB=$(odudu seed \
+  --realm demo --client demo-second-user \
+  --redirect-uri http://localhost:8080/callback \
+  --user bob --password another-horse-battery \
+  | sed -n 's/.*"userSubjectId":"\([^"]*\)".*/\1/p')
+
+AUTH_SESSION_ID=$(curl -sS --get \
+  --data-urlencode 'response_type=code' \
+  --data-urlencode 'client_id=demo-spa' \
+  --data-urlencode 'redirect_uri=http://localhost:8080/callback' \
+  --data-urlencode 'scope=openid' \
+  --data-urlencode 'state=xyz-123' \
+  --data-urlencode "code_challenge=$CHALLENGE" \
+  --data-urlencode 'code_challenge_method=S256' \
+  "$BASE/auth" | sed -n '/name="auth_session_id"/{s/.*value="\([^"]*\)".*/\1/p;q;}')
+
+COOKIE=$(curl -sS -D - -o /dev/null \
+  --data-urlencode "auth_session_id=$AUTH_SESSION_ID" \
+  --data-urlencode 'username=ada' \
+  --data-urlencode 'password=correct-horse-battery' \
+  "$LOGIN" | sed -n 's/^[Ss]et-[Cc]ookie: \([^;]*\);.*/\1/p' | paste -sd'; ' -)
+```
+
+Requesting `email` with `scope=openid email` returns it:
+
+```bash
+curl -sS --get \
+  --data-urlencode 'response_type=code' \
+  --data-urlencode 'client_id=demo-spa' \
+  --data-urlencode 'redirect_uri=http://localhost:8080/callback' \
+  --data-urlencode 'scope=openid email' \
+  --data-urlencode 'state=xyz-123' \
+  --data-urlencode "code_challenge=$CHALLENGE" \
+  --data-urlencode 'code_challenge_method=S256' \
+  --data-urlencode 'claims={"userinfo":{"email":null}}' \
+  "$BASE/auth"
+# … sign in as ada, redeem the code, then:
+curl -sS -H "Authorization: Bearer $ACCESS_TOKEN" "$BASE/userinfo"
+```
+
+```json
+{ "sub": "01a0c949-49a3-…", "email": "ada@example.com" }
+```
+
+Every other scope-granted claim (`name`, `preferred_username`) is left out —
+the `profile` scope was never asked for here, so this response was already
+narrow — but `email` was, and it survives. The same request with
+`scope=openid` alone — `email` never granted by scope this time — answers
+with `email` absent, though `claims` asked for it exactly the same way:
+
+```json
+{ "sub": "01a0c949-49a3-…" }
+```
+
+An `id_token` member's Essential Claims work the same way at `/token`.
+Requesting `auth_time` as essential:
+
+```bash
+curl -sS --get \
+  --data-urlencode 'response_type=code' \
+  --data-urlencode 'client_id=demo-spa' \
+  --data-urlencode 'redirect_uri=http://localhost:8080/callback' \
+  --data-urlencode 'scope=openid' \
+  --data-urlencode 'state=xyz-123' \
+  --data-urlencode "code_challenge=$CHALLENGE" \
+  --data-urlencode 'code_challenge_method=S256' \
+  --data-urlencode 'claims={"id_token":{"auth_time":{"essential":true}}}' \
+  "$BASE/auth"
+# … sign in, redeem the code, then decode $ID_TOKEN
+```
+
+```json
+{
+  "sub": "01a0c949-49a3-…",
+  "iss": "http://localhost:3000/realms/demo",
+  "aud": "demo-spa",
+  "iat": 1790083478,
+  "exp": 1790083778,
+  "auth_time": 1790083478,
+  "sid": "01a0c94a-35c5-…",
+  "amr": ["pwd"],
+  "acr": "1"
+}
+```
+
+A request carrying neither `max_age` nor an essential `auth_time` request
+gets no `auth_time` claim at all — §2's MAY, not the MUST the two triggers
+above turn on:
+
+```json
+{
+  "sub": "01a0c949-49a3-…",
+  "iss": "http://localhost:3000/realms/demo",
+  "aud": "demo-spa",
+  "iat": 1790083493,
+  "exp": 1790083793,
+  "sid": "01a0c94a-6ec0-…",
+  "amr": ["pwd"],
+  "acr": "1"
+}
+```
+
+The `id_token` member's `sub` is different from every other claim there:
+OIDC Core §3.1.2.2 reads it as naming a specific End-User this request must
+be answered for, not a claim to narrow the response to — and unlike every
+other claim here, this constraint is enforced twice: once at /authorize, in
+the same candidate-session filter `id_token_hint` already narrows, and again
+wherever a login can happen _after_ that filter ran, because the filter only
+governs a session reuse, not a form or a chooser the request can still
+produce. With a live SSO session for ada (`$COOKIE`, `$ADA_SUB` and
+`$BOB_SUB`, assigned above), naming her own subject serves the request
+straight through:
+
+```bash
+curl -sS -D - -o /dev/null --get \
+  --data-urlencode 'response_type=code' \
+  --data-urlencode 'client_id=demo-spa' \
+  --data-urlencode 'redirect_uri=http://localhost:8080/callback' \
+  --data-urlencode 'scope=openid' \
+  --data-urlencode 'state=abc' \
+  --data-urlencode "code_challenge=$CHALLENGE" \
+  --data-urlencode 'code_challenge_method=S256' \
+  --data-urlencode "claims={\"id_token\":{\"sub\":{\"value\":\"$ADA_SUB\"}}}" \
+  -H "Cookie: $COOKIE" \
+  "$BASE/auth"
+```
+
+```
+HTTP/1.1 302 Found
+location: http://localhost:8080/callback?code=BfXPWXsPFcv2_q5rzr_9P3fkPtNIs9wZpq-dJynrJfU&state=abc&iss=http%3A%2F%2Flocalhost%3A3000%2Frealms%2Fdemo
+```
+
+Naming bob's subject instead — nobody but ada is signed in on this cookie —
+refuses under `prompt=none` rather than silently answering for the wrong
+End-User:
+
+```bash
+curl -sS -D - -o /dev/null --get \
+  --data-urlencode 'response_type=code' \
+  --data-urlencode 'client_id=demo-spa' \
+  --data-urlencode 'redirect_uri=http://localhost:8080/callback' \
+  --data-urlencode 'scope=openid' \
+  --data-urlencode 'state=abc' \
+  --data-urlencode "code_challenge=$CHALLENGE" \
+  --data-urlencode 'code_challenge_method=S256' \
+  --data-urlencode 'prompt=none' \
+  --data-urlencode "claims={\"id_token\":{\"sub\":{\"value\":\"$BOB_SUB\"}}}" \
+  -H "Cookie: $COOKIE" \
+  "$BASE/auth"
+```
+
+```
+HTTP/1.1 302 Found
+location: http://localhost:8080/callback?error=login_required&state=abc&iss=http%3A%2F%2Flocalhost%3A3000%2Frealms%2Fdemo
+```
+
+and without `prompt=none` shows a login form instead of refusing outright —
+reassigning `$AUTH_SESSION_ID` to the one this specific form carries, for
+the sign-in attempt below:
+
+```bash
+STARTED=$(curl -sS --get \
+  --data-urlencode 'response_type=code' \
+  --data-urlencode 'client_id=demo-spa' \
+  --data-urlencode 'redirect_uri=http://localhost:8080/callback' \
+  --data-urlencode 'scope=openid' \
+  --data-urlencode 'state=abc' \
+  --data-urlencode "code_challenge=$CHALLENGE" \
+  --data-urlencode 'code_challenge_method=S256' \
+  --data-urlencode "claims={\"id_token\":{\"sub\":{\"value\":\"$BOB_SUB\"}}}" \
+  -H "Cookie: $COOKIE" \
+  "$BASE/auth")
+echo "$STARTED" | grep -o 'name="password"'
+AUTH_SESSION_ID=$(printf '%s' "$STARTED" | sed -n '/name="auth_session_id"/{s/.*value="\([^"]*\)".*/\1/p;q;}')
+```
+
+```
+name="password"
+```
+
+That form is not itself the enforcement — only where it starts. Somebody
+still has to sign in, and the request named bob: ada signing in at the very
+form this request produced is refused, not completed as ada.
+`packages/authn-flows/src/schema/authentication-sessions.ts`'s
+`PendingRequest.claimsSubject` is what makes this possible — parked the same
+way `idTokenHintSubject` already is, and re-checked at the same door,
+`packages/protocol-oidc/src/usecase/login-submission.ts`'s
+`handleLoginSubmission`, once a password actually identifies somebody:
+
+```bash
+curl -sS -D - -o /dev/null \
+  --data-urlencode "auth_session_id=$AUTH_SESSION_ID" \
+  --data-urlencode 'username=ada' \
+  --data-urlencode 'password=correct-horse-battery' \
+  "$LOGIN"
+```
+
+```
+HTTP/1.1 302 Found
+location: http://localhost:8080/callback?error=login_required&state=abc&iss=http%3A%2F%2Flocalhost%3A3000%2Frealms%2Fdemo
+```
+
+The account chooser carries the identical constraint at its own POST
+(`handleSelectAccountSubmission`) — a `session_id` the chooser page never
+offered is refused the same way, even when it names a session that really
+is live on the same browser. `claims-parameter.int.test.ts`'s own two tests
+for this ("refuses when a different subject actually signs in at the form
+the sub rule produced", "refuses when the chooser is asked to complete as a
+session the sub rule excluded") drive both doors; this transcript shows the
+first live.
+
+A `claims` parameter that is not valid JSON is refused the same way any
+other malformed request parameter is, at the client's own `redirect_uri`:
+
+```bash
+curl -sS -D - -o /dev/null --get \
+  --data-urlencode 'response_type=code' \
+  --data-urlencode 'client_id=demo-spa' \
+  --data-urlencode 'redirect_uri=http://localhost:8080/callback' \
+  --data-urlencode 'scope=openid' \
+  --data-urlencode 'state=xyz-123' \
+  --data-urlencode "code_challenge=$CHALLENGE" \
+  --data-urlencode 'code_challenge_method=S256' \
+  --data-urlencode 'claims={' \
+  "$BASE/auth"
+```
+
+```
+HTTP/1.1 302 Found
+location: http://localhost:8080/callback?error=invalid_request&state=xyz-123&iss=http%3A%2F%2Flocalhost%3A3000%2Frealms%2Fdemo
+```
+
+Discovery states support for the parameter fixed `true`, the same way it
+states `authorization_response_iss_parameter_supported` — every realm
+honours it the same way, so there is no per-realm derivation:
+
+```json
+{ "claims_parameter_supported": true }
+```
+
+**The narrowing above is per-authorization-code, not per-grant.** Only the
+code minted at /authorize carries the `claims` request onto the access token
+it produces — `requested_userinfo_claims`, a third private access-token
+claim alongside `grant_id` and `sid` (see
+[docs/protocols/rfc9068.md](protocols/rfc9068.md)'s reading note above);
+a `refresh_token` redemption mints a new access token with none, so
+`/userinfo` answers from the full scope-granted set again, silently. Same
+code, redeeming the request above and then refreshing:
+
+```bash
+curl -sS \
+  --data-urlencode 'grant_type=refresh_token' \
+  --data-urlencode "refresh_token=$REFRESH_TOKEN" \
+  --data-urlencode 'client_id=demo-spa' "$BASE/token"
+# then, with the new access token:
+curl -sS -H "Authorization: Bearer $ACCESS_TOKEN" "$BASE/userinfo"
+```
+
+```json
+{
+  "sub": "01a0c949-…",
+  "name": "ada",
+  "preferred_username": "ada",
+  "email": "ada@example.com",
+  "email_verified": false
+}
+```
+
+Nothing here crosses the consented scope — the narrowing was never a
+confidentiality boundary, only the client asking for less than scope would
+give — so this is a consistency gap, not a security one; recorded in
+`docs/NEXT.md` rather than fixed here, alongside the question the gap
+actually depends on: whether narrowing scope-granted claims away is the
+right reading of §5.5 at all (`docs/protocols/oidc-core.md`'s own §5.5 rows
+have that argument).
+
+### Encrypted and nested UserInfo responses
+
+A client that registers `userinfo_encrypted_response_alg` gets its
+`/userinfo` response encrypted to a key from its own published `jwks` — a
+dynamic registration, since this is per-client data:
+
+```bash
+curl -sS -X POST http://localhost:3000/realms/demo/clients-registrations/openid-connect \
+  -H 'content-type: application/json' \
+  -d '{
+    "redirect_uris": ["https://rp.example/cb"],
+    "userinfo_signed_response_alg": "RS256",
+    "userinfo_encrypted_response_alg": "RSA-OAEP-256",
+    "userinfo_encrypted_response_enc": "A256GCM",
+    "jwks": {"keys": [{"kty":"RSA","n":"q3ggKEy4…","e":"AQAB","use":"enc"}]}
+  }'
+```
+
+```json
+{
+  "client_id": "01a0c89c-b853-…",
+  "client_id_issued_at": 1790072109,
+  "client_secret": "Lks7dNvTE86il3NvsurdGTiMTtfvFW0-T0zPFmxxKwY",
+  "client_secret_expires_at": 0,
+  "redirect_uris": ["https://rp.example/cb"],
+  "grant_types": ["authorization_code"],
+  "token_endpoint_auth_method": "client_secret_basic",
+  "jwks": { "keys": [{ "kty": "RSA", "n": "q3ggKEy4…", "e": "AQAB", "use": "enc" }] },
+  "userinfo_signed_response_alg": "RS256",
+  "userinfo_encrypted_response_alg": "RSA-OAEP-256",
+  "userinfo_encrypted_response_enc": "A256GCM"
+}
+```
+
+Discovery's two new members are this realm's own answer, the same way
+[discovery](#1-discovery) above shows `userinfo_signing_alg_values_supported`
+— except these two never vary by realm, since no server key is involved,
+only what the installed jose can produce
+(`docs/superpowers/p3b-spike-jwe.md`):
+
+```json
+{
+  "userinfo_encryption_alg_values_supported": [
+    "RSA-OAEP-256",
+    "ECDH-ES",
+    "ECDH-ES+A128KW",
+    "ECDH-ES+A192KW",
+    "ECDH-ES+A256KW"
+  ],
+  "userinfo_encryption_enc_values_supported": [
+    "A128CBC-HS256",
+    "A192CBC-HS384",
+    "A256CBC-HS512",
+    "A128GCM",
+    "A192GCM",
+    "A256GCM"
+  ]
+}
+```
+
+Completing the same authorization code walk-through above against this
+client (a dynamically-registered client needs its consent screen answered —
+[the consent screen](#the-consent-screen) below) and calling `/userinfo`
+with the access token it yields:
+
+```bash
+curl -sS -D - -H "Authorization: Bearer $ACCESS_TOKEN" \
+  http://localhost:3000/realms/demo/protocol/openid-connect/userinfo
+```
+
+```
+HTTP/1.1 200 OK
+content-type: application/jwt
+content-length: 1449
+
+eyJhbGciOiJSU0EtT0FFUC0yNTYiLCJlbmMiOiJBMjU2R0NNIiwiY3R5IjoiSldUIn0.XRRSQ7UaUgLmEjfcEyNU…
+```
+
+Five dot-separated parts, not three — a JWE compact serialization, not a
+JWT. Its protected header, decoded:
+
+```json
+{ "alg": "RSA-OAEP-256", "enc": "A256GCM", "cty": "JWT" }
+```
+
+`cty: "JWT"` is the only signal the plaintext is itself a JWT rather than
+JSON — decrypting with the private key matching the registered `jwks`
+(`jose.compactDecrypt`) and reading that plaintext back shows a complete
+`userinfo+jwt` response in its own right, the same shape described in "A
+signed UserInfo response" (`docs/protocols/oidc-core.md`'s reading note),
+now wrapped in encryption:
+
+```json
+{ "alg": "RS256", "kid": "01a0c89c-6d76-…", "typ": "userinfo+jwt" }
+{
+  "sub": "01a0c89c-6d7a-…",
+  "name": "ada",
+  "preferred_username": "ada",
+  "email": "ada@example.com",
+  "email_verified": false,
+  "iss": "http://localhost:3000/realms/demo",
+  "aud": "01a0c89c-b853-…"
+}
+```
+
+Sign then encrypt, never the reverse: OIDC Core §5.3.2 only ever describes
+this nesting, and this is what proves the order rather than merely trusting
+`cty` — a JWE wrapping raw JSON with a `cty: "JWT"` header slapped on by
+mistake would decrypt to something that is not a valid JWS at all.
+
+A client that registers `userinfo_encrypted_response_alg` with no
+`userinfo_signed_response_alg` gets the claims encrypted directly, with no
+signing and no nesting — no `cty`, and the plaintext is the claims JSON,
+carrying no `iss`/`aud` (those are added only when something actually
+signs). This one also leaves out `userinfo_encrypted_response_enc`, unlike
+the client above:
+
+```bash
+curl -sS -X POST http://localhost:3000/realms/demo/clients-registrations/openid-connect \
+  -H 'content-type: application/json' \
+  -d '{
+    "redirect_uris": ["https://rp2.example/cb"],
+    "userinfo_encrypted_response_alg": "RSA-OAEP-256",
+    "jwks": {"keys": [{"kty":"RSA","n":"ko4vxz0c…","e":"AQAB","use":"enc"}]}
+  }'
+```
+
+```json
+{
+  "client_id": "01a0c89d-a91e-…",
+  "client_id_issued_at": 1790072170,
+  "client_secret": "xCA2nlZCP59SaPQtwsfybM7eT2B7CAdrMsh4bTZR7Xs",
+  "client_secret_expires_at": 0,
+  "redirect_uris": ["https://rp2.example/cb"],
+  "grant_types": ["authorization_code"],
+  "token_endpoint_auth_method": "client_secret_basic",
+  "jwks": { "keys": [{ "kty": "RSA", "n": "ko4vxz0c…", "e": "AQAB", "use": "enc" }] },
+  "userinfo_encrypted_response_alg": "RSA-OAEP-256",
+  "userinfo_encrypted_response_enc": "A128CBC-HS256"
+}
+```
+
+`_enc` was never sent, and the response carries `A128CBC-HS256` — the
+default applying, unlike the client above, whose `A256GCM` was sent
+explicitly and never defaulted. Completing the same walk-through and
+calling `/userinfo`:
+
+```
+HTTP/1.1 200 OK
+content-type: application/jwt
+content-length: 513
+
+eyJhbGciOiJSU0EtT0FFUC0yNTYiLCJlbmMiOiJBMTI4Q0JDLUhTMjU2In0.W7KhorJR_TnzMuNqcst0XbQ4bGqj…
+```
+
+```json
+{ "alg": "RSA-OAEP-256", "enc": "A128CBC-HS256" }
+```
+
+Decrypted:
+
+```json
+{ "sub": "01a0c89c-6d7a-…" }
+```
+
+(This client requested `scope=openid` alone, hence one claim.)
+
+A client whose key cannot be retrieved or selected — a dead `jwks_uri`, an
+empty JWKS, two equally good candidates, or one the `kty`/`use`/`alg`
+filters reject — never falls back to the JSON or signed form it would
+otherwise have gotten: `/userinfo` answers 500 with no body at all, the
+same shape `docs/protocols/oidc-core.md`'s signing-mismatch case uses, and
+for the same reason — answering in clear text would publish exactly what
+the client asked to have protected.
+`packages/protocol-oidc/tests/userinfo-encrypted.int.test.ts` exercises all
+four causes; running one such request against this stack is not reproduced
+here because reaching the "no candidate" and "ambiguous" cases needs no
+network at all, and the "dead `jwks_uri`" case is a timing property, not a
+fixed transcript.
+
+**What a dead `jwks_uri` costs, on this path specifically.** Until this
+task, `clientKeySet.fetch` (the same fetcher, shared with `/token`'s
+`private_key_jwt` authentication) only ever sat on a misconfigured client's
+own request. Here it sits between a resource server's `/userinfo` call and
+the answer it is waiting on, for a client the resource server has no
+visibility into. A first, cold request against a dead `jwks_uri` pays: an
+unbounded DNS lookup this codebase does not bound itself (`node:dns`'s
+`lookup`, no timeout wrapped around it — the OS resolver's own retry
+behaviour is what actually bounds it), then, if that resolves, up to 5
+seconds to connect and 10 seconds total transport
+(`apps/server/src/client-key-transport.ts`'s `DEFAULT_CONNECT_TIMEOUT_MS`/
+`DEFAULT_TOTAL_TIMEOUT_MS`). `NEGATIVE_CACHE_TTL_MS` (30 seconds,
+`packages/protocol-oidc/src/repository/client-keys.ts`) means only the
+first request against a given dead `jwks_uri` in that window pays it —
+every other request for that client, **in the same realm**, gets a cached
+refusal instead: the negative cache is keyed by realm and URI together, so
+a second realm pointed at the same dead `jwks_uri` pays the full cost
+again, independently. `docs/superpowers/p3b-spike-jwe.md`'s "Question 2"
+has the full measurement; `docs/NEXT.md` records that this is now a
+second consumer of the same unbounded lookup.
 
 ## Path A, as a confidential client
 
@@ -4355,7 +4952,8 @@ grant whose `session_id` names it. The access tokens those grants minted
 are self-contained `at+jwt` JWTs, so a resource server that only checks a
 signature locally keeps accepting one until its own `exp` regardless — but
 [`/introspect`](#token-introspection-and-revocation) reports it inactive
-immediately, which is what closes that gap before `exp`. README.md's own
+immediately, and `/userinfo` refuses it outright with `invalid_token`,
+which is what closes that gap before `exp` for both doors. README.md's own
 logout section has the same account.
 
 A client registers its `post_logout_redirect_uri` values ahead of time.
@@ -5271,34 +5869,70 @@ every anonymously self-registered client (`consent_required` defaults
 `true` there, per [Dynamic client registration](#dynamic-client-registration)
 and ADR 0027) — and for `prompt=consent` on any client at all.
 
-**This section is derived, not observed** — every other block in this
-document is a command actually run against the compose stack; reproducing
-that here would mean replaying the whole document's transcript from the
-top to reach the same `demo` realm state this section wants to start from,
-which the time available for this pass did not allow. What follows is
-read off the implementation
-(`packages/protocol-oidc/src/usecase/login-submission.ts`'s
-`decideConsentGate`, `packages/protocol-oidc/src/usecase/authorization-request.ts`'s
-own gate on the reuse path, and `packages/protocol-oidc/src/view/consent-html.ts`)
-and the integration suite that exercises exactly these requests
-(`packages/protocol-oidc/tests/consent.int.test.ts`, ten cases, all
-passing) — not invented, but not a byte-for-byte transcript either. A
-later pass that re-derives this section from a real run should replace
-this note along with it.
+This section continues the same `demo` realm [Bootstrap](#bootstrap) seeded
+and the sections since have been building on, on a stack brought up with
+`docker compose down -v` then `up -d --build` and nothing else — `ada`
+already verified ([Address verification](#address-verification) above) and
+already the subject of an SSO session or two, none of which this section's
+own requests touch. `client_registration_policy` is `disabled` on `demo` by
+default, the same as every realm, so the anonymously self-registered client
+this section needs opens it first:
+
+```bash
+odudu seed realm --name demo --set client_registration_policy=open
+```
+
+```json
+{
+  "command": "realm",
+  "created": false,
+  "realm": "demo",
+  "realmId": "01a0c98c-…",
+  "settings": ["client_registration_policy"]
+}
+```
+
+Then the client itself, with no credential presented — `registration_origin`
+is `'anonymous'` and `consent_required` defaults `true` on the row it wrote:
+
+```bash
+curl -sS -X POST http://localhost:3000/realms/demo/clients-registrations/openid-connect \
+  -H 'content-type: application/json' \
+  -d '{"redirect_uris":["https://rp.example/cb"],"client_name":"Example RP"}'
+```
+
+```json
+{
+  "client_id": "01a0c98f-72f7-…",
+  "client_id_issued_at": 1790088016,
+  "client_secret": "JJr3ZcplNG1ky0wyTa16aRNQGINP7o8DqZpipEjLOl8",
+  "client_secret_expires_at": 0,
+  "redirect_uris": ["https://rp.example/cb"],
+  "grant_types": ["authorization_code"],
+  "token_endpoint_auth_method": "client_secret_basic",
+  "client_name": "Example RP"
+}
+```
 
 A client that requires consent renders the screen once the credentials
 that would otherwise complete the login have been accepted — after the
 same required-action gate `/authorize`'s form path always enforced, and
-before a code is ever issued:
+before a code is ever issued. PKCE and the parked request are the same
+shape [the login POST](#3-the-login-post) uses, against this new client and
+`scope=openid profile offline_access`:
 
-```
-POST /realms/demo/login-actions/authenticate
-auth_session_id=…&username=ada&password=correct-horse-battery
+```bash
+curl -sS -D - \
+  --data-urlencode "auth_session_id=$AUTH_SESSION_ID" \
+  --data-urlencode 'username=ada' \
+  --data-urlencode 'password=correct-horse-battery' \
+  'http://localhost:3000/realms/demo/login-actions/authenticate'
 ```
 
 ```
 HTTP/1.1 200 OK
-content-type: text/html; charset=utf-8
+content-type: text/html
+content-length: 663
 
 <!doctype html>
 <html lang="en">
@@ -5306,8 +5940,11 @@ content-type: text/html; charset=utf-8
 <body>
 <h1>Example RP is asking for access</h1>
 <form method="post" action="/realms/demo/login-actions/consent">
-  <input type="hidden" name="auth_session_id" value="…">
-  <ul><li>openid</li><li>profile</li></ul>
+  <input type="hidden" name="auth_session_id" value="01a0c990-…">
+  <ul>
+  <li>openid</li>
+  <li>profile</li>
+  </ul>
   <label><input type="checkbox" name="scope" value="offline_access"> offline_access — grants ongoing access, even while you are not present</label>
   <button type="submit" name="decision" value="allow">Allow</button>
   <button type="submit" name="decision" value="deny">Deny</button>
@@ -5325,32 +5962,40 @@ was already assigned it without asking.
 Declining the optional scope narrows what the eventual token carries —
 `scope` in the token response omits `offline_access`, not merely "the flow
 completed" — and the client's answer is what gets recorded, so the same
-request does not ask again:
+request does not ask again. Leaving the checkbox unticked and pressing
+Allow:
 
-```
-POST /realms/demo/login-actions/consent
-auth_session_id=…&decision=allow
+```bash
+curl -sS -D - \
+  --data-urlencode "auth_session_id=$AUTH_SESSION_ID" \
+  --data-urlencode 'decision=allow' \
+  'http://localhost:3000/realms/demo/login-actions/consent'
 ```
 
 ```
 HTTP/1.1 302 Found
-set-cookie: demo-session=…; HttpOnly; SameSite=Lax; Path=/
+set-cookie: demo-session=01a0c991-…; HttpOnly; SameSite=Lax; Path=/
 set-cookie: demo-session-persistent=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
-location: https://rp.example/cb?code=…&state=xyz-123&iss=http://localhost:3000/realms/demo
+location: https://rp.example/cb?code=kpTtEZbio8Yx…&state=xyz-123&iss=http%3A%2F%2Flocalhost%3A3000%2Frealms%2Fdemo
+content-length: 0
 ```
 
 Pressing Deny instead answers exactly where a client-side `access_denied`
 always does — the request's own `redirect_uri`, not a page — with nothing
-established and no code issued:
+established and no code issued. (A fresh parked request, logged in the same
+way as above — the one that redeemed a code cannot answer twice.)
 
-```
-POST /realms/demo/login-actions/consent
-auth_session_id=…&decision=deny
+```bash
+curl -sS -D - \
+  --data-urlencode "auth_session_id=$AUTH_SESSION_ID" \
+  --data-urlencode 'decision=deny' \
+  'http://localhost:3000/realms/demo/login-actions/consent'
 ```
 
 ```
 HTTP/1.1 302 Found
-location: https://rp.example/cb?error=access_denied&state=xyz-123&iss=http://localhost:3000/realms/demo
+location: https://rp.example/cb?error=access_denied&state=xyz-deny&iss=http%3A%2F%2Flocalhost%3A3000%2Frealms%2Fdemo
+content-length: 0
 ```
 
 The gate applies to a live SSO session exactly as it does to a fresh
@@ -5361,18 +6006,70 @@ consent recorded, renders this same screen again rather than reusing the
 session straight through to a code — `packages/protocol-oidc/tests/consent.int.test.ts`'s
 `asks for consent on a reused SSO session, not only on a fresh login` is
 the case that would ship broken if the gate lived only on the form path.
-Under `prompt=none`, that same reused-but-under-consented session is
-refused rather than asked, since `prompt=none` forbids the interaction a
-consent screen is:
+The cookie from Allow above (`openid profile`, `offline_access` declined)
+asking again with `offline_access` in scope, this time with no login form
+in between — the session is still live:
+
+```bash
+curl -sS -D - -b cookies-consent.txt --get \
+  --data-urlencode 'response_type=code' \
+  --data-urlencode "client_id=$CLIENT_ID" \
+  --data-urlencode 'redirect_uri=https://rp.example/cb' \
+  --data-urlencode 'scope=openid profile offline_access' \
+  --data-urlencode 'state=xyz-reuse' \
+  --data-urlencode "code_challenge=$CHALLENGE" \
+  --data-urlencode 'code_challenge_method=S256' \
+  'http://localhost:3000/realms/demo/protocol/openid-connect/auth'
+```
 
 ```
-GET /realms/demo/protocol/openid-connect/auth?…&prompt=none
-Cookie: demo-session=…
+HTTP/1.1 200 OK
+content-type: text/html
+content-length: 663
+
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Allow access?</title></head>
+<body>
+<h1>Example RP is asking for access</h1>
+<form method="post" action="/realms/demo/login-actions/consent">
+  <input type="hidden" name="auth_session_id" value="01a0c991-…">
+  <ul>
+  <li>openid</li>
+  <li>profile</li>
+  </ul>
+  <label><input type="checkbox" name="scope" value="offline_access"> offline_access — grants ongoing access, even while you are not present</label>
+  <button type="submit" name="decision" value="allow">Allow</button>
+  <button type="submit" name="decision" value="deny">Deny</button>
+</form>
+</body>
+</html>
+```
+
+(Same markup GET produced above, byte-for-byte other than the fresh
+`auth_session_id` — a second `/authorize`, not a POST, is what got here,
+because the SSO cookie skipped the login form entirely.) Under
+`prompt=none`, that same reused-but-under-consented session is refused
+rather than asked, since `prompt=none` forbids the interaction a consent
+screen is:
+
+```bash
+curl -sS -D - -b cookies-consent.txt --get \
+  --data-urlencode 'response_type=code' \
+  --data-urlencode "client_id=$CLIENT_ID" \
+  --data-urlencode 'redirect_uri=https://rp.example/cb' \
+  --data-urlencode 'scope=openid profile offline_access' \
+  --data-urlencode 'state=xyz-reuse' \
+  --data-urlencode 'prompt=none' \
+  --data-urlencode "code_challenge=$CHALLENGE" \
+  --data-urlencode 'code_challenge_method=S256' \
+  'http://localhost:3000/realms/demo/protocol/openid-connect/auth'
 ```
 
 ```
 HTTP/1.1 302 Found
-location: https://rp.example/cb?error=consent_required&state=xyz-123&iss=http://localhost:3000/realms/demo
+location: https://rp.example/cb?error=consent_required&state=xyz-reuse&iss=http%3A%2F%2Flocalhost%3A3000%2Frealms%2Fdemo
+content-length: 0
 ```
 
 ## Path C: `client_credentials`
@@ -6885,9 +7582,10 @@ session lifecycle. A citation of either half here means that half.
   with no flow that returns a response in the fragment there is no second
   `response_mode` to offer. `response_modes_supported` states `["query"]`
   rather than being omitted so that the advertisement matches.
-- **`resource` (RFC 8707 §2) is validated, but not yet checked for a query
-  component** (**P3b**, per `rfc8707.md`'s own `deferred: P3b` row for this
-  SHOULD). A single value is checked as an absolute URI with no
+- **`resource` (RFC 8707 §2) is validated, and deliberately not checked for
+  a query component** — a decision, recorded at `rfc8707.md`'s "A query
+  component: the allowlist refuses it, the parser does not". A single value
+  is checked as an absolute URI with no
   fragment, against the client's registered `audiences`; two values or one
   outside that list refuse with `error=invalid_target`, on the same
   post-boundary redirect every other refusal here uses
@@ -6908,10 +7606,11 @@ session lifecycle. A citation of either half here means that half.
   is parked on the authentication session's own
   `PendingRequest.resource` between the request and whichever door
   completes it. `/token` now derives `aud` from this column — see the
-  `resource` paragraph under [step 4](#4-token) of the walkthrough. What is
-  still not there is RFC 8707 §2's SHOULD that a `resource` value carry no
-  query component (**P3b**, `rfc8707.md`'s own `deferred: P3b` row for
-  it), which `parseResource` does not check.
+  `resource` paragraph under [step 4](#4-token) of the walkthrough. What
+  `parseResource` does not check is RFC 8707 §2's SHOULD that a `resource`
+  value carry no query component — the registered-audience allowlist is
+  what bounds the value instead, so the only query-bearing `resource` the
+  server can accept is one an operator registered itself.
 
 **Login**
 
@@ -7006,29 +7705,15 @@ session lifecycle. A citation of either half here means that half.
   only reads a Basic header or a body `client_secret`; a client registered
   for either assertion-based method presents neither and is refused every
   time. `private_key_jwt` introduced the gap; `tls_client_auth` inherited
-  it. P3b owns both RFCs, so this is P3b's to close — recorded with a
-  trigger in `docs/NEXT.md`, "Recorded decisions with trigger conditions".
+  it. A decision, not a gap in either RFC: neither requires a particular
+  set of client-authentication methods, and closing it extends `/token`'s
+  assertion and certificate dispatch to two more routes rather than
+  changing introspection or revocation — `rfc7662.md`'s "Only the two
+  password methods reach this endpoint" carries the reasoning, and
+  `docs/NEXT.md` the trigger.
 
 **`/userinfo`**
 
-- **No signed or encrypted UserInfo responses. JSON only.** Not a
-  conformance gap: OIDC Core §5.3.2 requires the claims to be "returned as
-  the members of a JSON object unless a signed or encrypted response was
-  requested during Client Registration". A client can now request one —
-  `userinfo_signed_response_alg`, `userinfo_encrypted_response_alg` and
-  `userinfo_encrypted_response_enc` are registration metadata
-  ([Dynamic client registration](#dynamic-client-registration)) and are
-  stored — but `/userinfo` reads none of the three yet and answers JSON
-  regardless of what a client registered. Delivering on what is already
-  stored is **P3b**, whose exit criterion names signed and encrypted
-  UserInfo responses for that reason.
-- **No `claims` request parameter.** A decision: §5.5 says "Support for the
-  `claims` parameter is OPTIONAL", and the two ID Token clauses that depend
-  on it are deferred to **P3b**. P3a built the per-client machinery and
-  consent screen the parameter needs, but P3a's own criterion never named
-  the parameter itself and nothing in its plan built it, so it moves to
-  P3b, filed beside the signed and encrypted UserInfo responses above,
-  which read the same per-client registration data.
 - **No aggregated or distributed claims.** A decision, and the specification
   is explicit: §5.6.2 says "Normal Claims MUST be supported. Support for
   Aggregated Claims and Distributed Claims is OPTIONAL." No phase is owed
@@ -7042,6 +7727,14 @@ session lifecycle. A citation of either half here means that half.
   advertised: there is no notion of one in this identity model yet, and
   `packages/protocol-oidc/tests/claims-supported.int.test.ts` fails the
   build if it appears in a live discovery response.
+- **A client disabled after a token was issued to it does not lose that
+  token's `/userinfo` claims.** `resolveUserinfo` now refuses a token whose
+  grant this server revoked or whose session has ended, but neither of
+  those is stamped when an operator disables the client itself — the
+  grant is untouched. `docs/NEXT.md` records the open decision: whichever
+  phase next revisits client lifecycle decides whether `/userinfo` should
+  read `client.enabled` the way `resolveRoleReach` and
+  `resolveClientWebOrigins` do.
 
 **Endpoints that do not exist at all**
 
