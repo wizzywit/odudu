@@ -266,6 +266,11 @@ describe('[ODUDU-CLIENT-REGISTRATION-TOKEN-01] the token policy', () => {
     const res = await http.inject({ method: 'POST', url: URL_FOR(tenantName), payload: MINIMAL });
     expect(res.statusCode).toBe(401);
     expect(res.headers['www-authenticate']).toMatch(/^Bearer/u);
+    // The auth-param name is RFC 7235 §4.1's `realm`, required for the
+    // Bearer scheme by RFC 6750 §3. It names an HTTP protection space, not
+    // anything this project owns, so no renaming of ours may touch it — and
+    // a regex anchored at `Bearer` cannot tell that it has been.
+    expect(res.headers['www-authenticate']).toBe('Bearer realm="client-registration"');
   });
 
   it('refuses a spent or foreign token the same way', async () => {
