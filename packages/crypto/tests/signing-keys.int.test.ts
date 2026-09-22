@@ -118,7 +118,9 @@ describe('signingKeyRepository', () => {
     // inspects.
     let error: unknown;
     try {
-      await withTenant(app.db, tenantId, async (tx) => insertKey(tx, tenantId, { status: 'active' }));
+      await withTenant(app.db, tenantId, async (tx) =>
+        insertKey(tx, tenantId, { status: 'active' }),
+      );
       expect.unreachable('expected the second active insert to be rejected');
     } catch (caught) {
       error = caught;

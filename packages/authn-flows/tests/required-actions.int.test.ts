@@ -200,7 +200,9 @@ describe('requiredActionRepository', () => {
     const tenantA = newId();
     const tenantB = newId();
 
-    const subjectA = await withTenant(app.db, tenantA, async (tx) => seedTenantAndUser(tx, tenantA));
+    const subjectA = await withTenant(app.db, tenantA, async (tx) =>
+      seedTenantAndUser(tx, tenantA),
+    );
     await withTenant(app.db, tenantB, async (tx) => {
       await tx.insert(tenants).values({ id: tenantB, name: `tenant-${tenantB}` });
     });

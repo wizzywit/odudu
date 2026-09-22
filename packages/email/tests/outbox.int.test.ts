@@ -140,7 +140,9 @@ describe('the outbox repository', () => {
 
     // The claim is a lease: the same message is not offered again until it
     // elapses, so a sender that dies mid-send costs that wait and no more.
-    const again = await withTenant(app.db, tenantId, (tx) => outboxRepository(tx).claimBatch(CLAIM));
+    const again = await withTenant(app.db, tenantId, (tx) =>
+      outboxRepository(tx).claimBatch(CLAIM),
+    );
     expect(again).toHaveLength(0);
     const row = await rowById(id);
     expect(row?.nextAttemptAt).toEqual(new Date(NOW.getTime() + OUTBOX_CLAIM_LEASE_SECONDS * 1000));
@@ -217,7 +219,9 @@ describe('the outbox repository', () => {
   it('records a delivery once, and says which call was the one that did', async () => {
     const id = await enqueue();
 
-    const first = await withTenant(app.db, tenantId, (tx) => outboxRepository(tx).markSent(id, NOW));
+    const first = await withTenant(app.db, tenantId, (tx) =>
+      outboxRepository(tx).markSent(id, NOW),
+    );
     const second = await withTenant(app.db, tenantId, (tx) =>
       outboxRepository(tx).markSent(id, new Date(NOW.getTime() + MINUTE)),
     );
@@ -343,7 +347,8 @@ describe('a foreign tenant cannot reach a queued message', () => {
         const rows = await tx.select().from(emailOutbox).where(eq(emailOutbox.id, id));
         expect(rows[0]?.lastError).toBeNull();
       },
-      attempt: (tx, id) => outboxRepository(tx).markFailed(id, 'written from the wrong tenant', NOW),
+      attempt: (tx, id) =>
+        outboxRepository(tx).markFailed(id, 'written from the wrong tenant', NOW),
       expectBlocked: () => undefined,
       verifyTenantAUnaffected: async (tx, id) => {
         const rows = await tx.select().from(emailOutbox).where(eq(emailOutbox.id, id));

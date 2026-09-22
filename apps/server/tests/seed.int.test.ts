@@ -83,7 +83,8 @@ async function tokenEndpointAuthMethod(tenantId: string, oauthClientId: string):
       .from(clients)
       .where(and(eq(clients.tenantId, tenantId), eq(clients.clientId, oauthClientId)));
     const clientRow = clientRows[0];
-    if (clientRow === undefined) throw new Error(`no client ${oauthClientId} in tenant ${tenantId}`);
+    if (clientRow === undefined)
+      throw new Error(`no client ${oauthClientId} in tenant ${tenantId}`);
     const config = await clientOidcConfigRepository(tx).byClientId(clientRow.id);
     if (config === null) throw new Error(`no oidc config for client ${oauthClientId}`);
     return config.tokenEndpointAuthMethod;
@@ -125,7 +126,8 @@ async function assignedScopes(tenantId: string, oauthClientId: string): Promise<
       .from(clients)
       .where(and(eq(clients.tenantId, tenantId), eq(clients.clientId, oauthClientId)));
     const clientRow = clientRows[0];
-    if (clientRow === undefined) throw new Error(`no client ${oauthClientId} in tenant ${tenantId}`);
+    if (clientRow === undefined)
+      throw new Error(`no client ${oauthClientId} in tenant ${tenantId}`);
     const scopes = await clientScopeRepository(tx).forClient(clientRow.id);
     return scopes.map((scope) => scope.name).sort();
   });
@@ -358,7 +360,10 @@ describe('seed: service-account subject', () => {
 });
 
 async function actionTokenCount(tenantId: string): Promise<number> {
-  const rows = await owner.db.select().from(actionTokens).where(eq(actionTokens.tenantId, tenantId));
+  const rows = await owner.db
+    .select()
+    .from(actionTokens)
+    .where(eq(actionTokens.tenantId, tenantId));
   return rows.length;
 }
 
@@ -564,8 +569,9 @@ describe('seed client --post-logout-redirect-uri', () => {
       'https://app.example/logged-out',
     ]);
 
-    const tenantId = (await owner.db.select().from(tenants).where(eq(tenants.name, options.tenant)))[0]
-      ?.id;
+    const tenantId = (
+      await owner.db.select().from(tenants).where(eq(tenants.name, options.tenant))
+    )[0]?.id;
     if (tenantId === undefined) throw new Error('expected the seeded tenant');
     const stored = await withTenant(owner.db, tenantId, async (tx) => {
       const rows = await tx
@@ -633,8 +639,9 @@ describe('seed registration-token', () => {
     ]);
     if (result.command !== 'registration-token') throw new Error('expected registration-token');
 
-    const tenantId = (await owner.db.select().from(tenants).where(eq(tenants.name, options.tenant)))[0]
-      ?.id;
+    const tenantId = (
+      await owner.db.select().from(tenants).where(eq(tenants.name, options.tenant))
+    )[0]?.id;
     if (tenantId === undefined) throw new Error('expected the seeded tenant');
 
     const first = await withTenant(owner.db, tenantId, (tx) =>

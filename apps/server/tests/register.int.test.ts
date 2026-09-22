@@ -115,7 +115,10 @@ async function setTenantSettings(
   await owner.db.update(tenants).set(settings).where(eq(tenants.id, tenantId));
 }
 
-async function extractAuthSessionId(instance: FastifyInstance, tenantName: string): Promise<string> {
+async function extractAuthSessionId(
+  instance: FastifyInstance,
+  tenantName: string,
+): Promise<string> {
   const query = new URLSearchParams({
     response_type: 'code',
     client_id: 'register-spa',

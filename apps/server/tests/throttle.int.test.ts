@@ -113,7 +113,10 @@ function formPost(
   });
 }
 
-async function extractAuthSessionId(instance: FastifyInstance, tenantName: string): Promise<string> {
+async function extractAuthSessionId(
+  instance: FastifyInstance,
+  tenantName: string,
+): Promise<string> {
   const query = new URLSearchParams({
     response_type: 'code',
     client_id: 'throttle-app',

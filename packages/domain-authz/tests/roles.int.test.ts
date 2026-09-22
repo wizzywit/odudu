@@ -186,7 +186,9 @@ describe('create', () => {
       ),
     ).toMatch(/row-level security/i);
 
-    const found = await withTenant(app.db, tenantA, (tx) => roleRepository(tx).byName('admin', null));
+    const found = await withTenant(app.db, tenantA, (tx) =>
+      roleRepository(tx).byName('admin', null),
+    );
     expect(found).toBeNull();
   });
 });
@@ -359,7 +361,9 @@ describe('mapToClientScope', () => {
     const tenantId = newId();
     await withTenant(app.db, tenantId, (tx) => seedTenant(tx, tenantId));
     const role = await create({ name: 'member', tenantId });
-    const clientScopeId = await withTenant(app.db, tenantId, (tx) => insertClientScope(tx, tenantId));
+    const clientScopeId = await withTenant(app.db, tenantId, (tx) =>
+      insertClientScope(tx, tenantId),
+    );
 
     await expect(
       withTenant(app.db, tenantId, (tx) =>
@@ -394,7 +398,9 @@ describe('idsForClientScopes', () => {
     const tenantId = newId();
     await withTenant(app.db, tenantId, (tx) => seedTenant(tx, tenantId));
     const role = await create({ name: 'member', tenantId });
-    const clientScopeId = await withTenant(app.db, tenantId, (tx) => insertClientScope(tx, tenantId));
+    const clientScopeId = await withTenant(app.db, tenantId, (tx) =>
+      insertClientScope(tx, tenantId),
+    );
     await withTenant(app.db, tenantId, (tx) =>
       roleRepository(tx).mapToClientScope(clientScopeId, role.id),
     );

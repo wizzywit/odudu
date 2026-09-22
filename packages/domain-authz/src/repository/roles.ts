@@ -33,7 +33,10 @@ export interface NewRole {
 }
 
 async function tenantOfRole(tx: TenantScopedDatabase, roleId: string): Promise<string> {
-  const rows = await tx.select({ tenantId: roles.tenantId }).from(roles).where(eq(roles.id, roleId));
+  const rows = await tx
+    .select({ tenantId: roles.tenantId })
+    .from(roles)
+    .where(eq(roles.id, roleId));
   const row = rows[0];
   if (row === undefined) {
     throw new OduduError('role_not_found', `no role with id ${roleId}`);

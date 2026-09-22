@@ -88,7 +88,9 @@ beforeEach(async () => {
 });
 
 async function issue(input: Omit<IssueActionToken, 'tenantId'>): Promise<{ token: string }> {
-  return withTenant(app.db, tenantId, (tx) => actionTokenRepository(tx).issue({ tenantId, ...input }));
+  return withTenant(app.db, tenantId, (tx) =>
+    actionTokenRepository(tx).issue({ tenantId, ...input }),
+  );
 }
 
 async function consume(token: string, type: ActionTokenType) {
@@ -203,7 +205,9 @@ describe('peek', () => {
       ttlSeconds: TEST_TTL_SECONDS,
     });
 
-    const peeked = await withTenant(app.db, tenantId, (tx) => actionTokenRepository(tx).peek(token));
+    const peeked = await withTenant(app.db, tenantId, (tx) =>
+      actionTokenRepository(tx).peek(token),
+    );
     expect(peeked).toMatchObject({ subjectId: subject, type: 'reset_password' });
 
     // Still redeemable: peek must not have consumed it.
@@ -218,14 +222,18 @@ describe('peek', () => {
     });
     await consume(token, 'reset_password');
 
-    const peeked = await withTenant(app.db, tenantId, (tx) => actionTokenRepository(tx).peek(token));
+    const peeked = await withTenant(app.db, tenantId, (tx) =>
+      actionTokenRepository(tx).peek(token),
+    );
     expect(peeked).toBeNull();
   });
 
   it('reports nothing for an expired token', async () => {
     const { token } = await issue({ subjectId: subject, type: 'reset_password', ttlSeconds: -1 });
 
-    const peeked = await withTenant(app.db, tenantId, (tx) => actionTokenRepository(tx).peek(token));
+    const peeked = await withTenant(app.db, tenantId, (tx) =>
+      actionTokenRepository(tx).peek(token),
+    );
     expect(peeked).toBeNull();
   });
 

@@ -111,7 +111,10 @@ export interface CompletePasswordResetDeps {
   // link, and must not be asked for a third password on their next login.
   // Injected because user_required_actions belongs to @odudu/authn-flows,
   // which @odudu/account does not depend on either.
-  readonly clearPasswordUpdateAction: (tx: TenantScopedDatabase, subjectId: string) => Promise<void>;
+  readonly clearPasswordUpdateAction: (
+    tx: TenantScopedDatabase,
+    subjectId: string,
+  ) => Promise<void>;
 }
 
 export type CompletePasswordResetResult =

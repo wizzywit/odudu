@@ -236,7 +236,9 @@ describe('enrolling a passkey', () => {
     });
     expect(refused).toEqual({ kind: 'rejected', reason: 'invalid_response' });
     expect(
-      await withTenant(app.db, tenantId, (tx) => requiredActionRepository(tx).pendingFor(subjectId)),
+      await withTenant(app.db, tenantId, (tx) =>
+        requiredActionRepository(tx).pendingFor(subjectId),
+      ),
     ).toEqual(['configure-passkey']);
 
     const offer = await begin(tenantId, authSessionId, subjectId);
@@ -250,7 +252,9 @@ describe('enrolling a passkey', () => {
     // a second factor nobody can produce any more is the lockout recovery
     // codes exist to prevent.
     expect(
-      await withTenant(app.db, tenantId, (tx) => requiredActionRepository(tx).pendingFor(subjectId)),
+      await withTenant(app.db, tenantId, (tx) =>
+        requiredActionRepository(tx).pendingFor(subjectId),
+      ),
     ).toEqual(['generate-recovery-codes']);
   });
 
@@ -296,7 +300,9 @@ describe('a response is answerable once', () => {
     const offer = await begin(tenantId, authSessionId, subjectId);
     const response = registrationResponse({ challenge: offer.options.challenge });
 
-    expect((await complete(tenantId, { subjectId, authSessionId, response })).kind).toBe('enrolled');
+    expect((await complete(tenantId, { subjectId, authSessionId, response })).kind).toBe(
+      'enrolled',
+    );
 
     // The challenge went with the first verification, so there is nothing
     // left for the second to be checked against — the refusal comes from
@@ -384,7 +390,9 @@ describe('a response is answerable once', () => {
       challenge: first.options.challenge,
       credentialId: storedCredentialId,
     });
-    expect((await complete(tenantId, { subjectId, authSessionId, response })).kind).toBe('enrolled');
+    expect((await complete(tenantId, { subjectId, authSessionId, response })).kind).toBe(
+      'enrolled',
+    );
 
     // A fresh challenge, so the replay guard is not what refuses this —
     // the response is re-signed against the new one, carrying the same

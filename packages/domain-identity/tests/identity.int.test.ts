@@ -144,7 +144,9 @@ describe('userRepository', () => {
       return subject.id;
     });
 
-    const found = await withTenant(app.db, tenantId, async (tx) => userRepository(tx).byEmail(email));
+    const found = await withTenant(app.db, tenantId, async (tx) =>
+      userRepository(tx).byEmail(email),
+    );
     expect(found?.subjectId).toBe(subjectId);
   });
 

@@ -128,7 +128,10 @@ async function agePassword(tenantId: string, days: number): Promise<void> {
     .where(and(eq(userCredentials.tenantId, tenantId), eq(userCredentials.type, 'password')));
 }
 
-async function extractAuthSessionId(instance: FastifyInstance, tenantName: string): Promise<string> {
+async function extractAuthSessionId(
+  instance: FastifyInstance,
+  tenantName: string,
+): Promise<string> {
   const query = new URLSearchParams({
     response_type: 'code',
     client_id: 'reset-spa',

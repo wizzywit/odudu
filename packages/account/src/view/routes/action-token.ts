@@ -60,7 +60,10 @@ export interface ActionTokenRouteDeps {
     subjectId: string,
     candidate: string,
   ) => Promise<PolicyViolation[]>;
-  readonly clearPasswordUpdateAction: (tx: TenantScopedDatabase, subjectId: string) => Promise<void>;
+  readonly clearPasswordUpdateAction: (
+    tx: TenantScopedDatabase,
+    subjectId: string,
+  ) => Promise<void>;
 }
 
 // @fastify/formbody parses a repeated query or body field into an array; a

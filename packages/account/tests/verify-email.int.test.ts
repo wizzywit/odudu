@@ -299,7 +299,10 @@ describe('address verification', () => {
     await drainOutbox();
     const message = sender.sent[0];
     if (message === undefined) throw new Error('no mail sent');
-    const link = extractLink(message).replace(`/tenants/${tenantName}/`, '/tenants/does-not-exist/');
+    const link = extractLink(message).replace(
+      `/tenants/${tenantName}/`,
+      '/tenants/does-not-exist/',
+    );
 
     const res = await httpApp.inject({ method: 'GET', url: link });
     expect(res.statusCode).toBe(400);

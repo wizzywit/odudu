@@ -288,9 +288,13 @@ describe('self-registration', () => {
     // The refused registration must not have touched the address it
     // collided with — 'ada' still resolves to exactly the account created
     // by the first request, not a row the second one partially wrote.
-    const stillAda = await withTenant(app.db, tenantId, (tx) => userRepository(tx).byUsername('ada'));
+    const stillAda = await withTenant(app.db, tenantId, (tx) =>
+      userRepository(tx).byUsername('ada'),
+    );
     expect(stillAda?.user.email).toBe('ada@example.test');
-    const grace = await withTenant(app.db, tenantId, (tx) => userRepository(tx).byUsername('grace'));
+    const grace = await withTenant(app.db, tenantId, (tx) =>
+      userRepository(tx).byUsername('grace'),
+    );
     expect(grace).toBeNull();
   });
 
@@ -475,7 +479,9 @@ describe('self-registration', () => {
     expect(queued).toHaveLength(1);
     expect(queued[0]?.sentAt).toBeNull();
     expect(queued[0]?.lastError).toBe('mail transport unavailable');
-    const created = await withTenant(app.db, tenantId, (tx) => userRepository(tx).byUsername('ada'));
+    const created = await withTenant(app.db, tenantId, (tx) =>
+      userRepository(tx).byUsername('ada'),
+    );
     expect(created).not.toBeNull();
   });
 

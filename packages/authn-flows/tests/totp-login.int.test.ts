@@ -357,11 +357,13 @@ describe('a factor with work left after it is written down, and one that finishe
     await withTenant(app.db, tenantId, (tx) =>
       advance(tx, first, { username: 'ada', password: PASSWORD }, clock),
     );
-    expect(await withTenant(app.db, tenantId, (tx) => advance(tx, first, { code }, clock))).toEqual({
-      kind: 'success',
-      subjectId,
-      authenticators: ['password', 'otp'],
-    });
+    expect(await withTenant(app.db, tenantId, (tx) => advance(tx, first, { code }, clock))).toEqual(
+      {
+        kind: 'success',
+        subjectId,
+        authenticators: ['password', 'otp'],
+      },
+    );
 
     const second = await start(tenantId, clock);
     await withTenant(app.db, tenantId, (tx) =>

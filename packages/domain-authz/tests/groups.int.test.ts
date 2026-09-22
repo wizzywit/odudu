@@ -98,7 +98,9 @@ async function tenantFixture(): Promise<TenantFixture> {
   return {
     tenantId,
     createGroup: (name, parentId) =>
-      withTenant(app.db, tenantId, (tx) => groupRepository(tx).create({ tenantId, name, parentId })),
+      withTenant(app.db, tenantId, (tx) =>
+        groupRepository(tx).create({ tenantId, name, parentId }),
+      ),
     reparent: (groupId, newParentId) =>
       withTenant(app.db, tenantId, (tx) => groupRepository(tx).reparent(groupId, newParentId)),
     byPath: (path) => withTenant(app.db, tenantId, (tx) => groupRepository(tx).byPath(path)),

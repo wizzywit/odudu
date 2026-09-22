@@ -1033,7 +1033,11 @@ async function runRoleCommand(
   return withTenant(runtimeDb, tenantId, async (tx) => {
     const clientDbId =
       ownerClientId === undefined ? null : await requireClientDbId(tx, ownerClientId);
-    const role = await roleRepository(tx).create({ tenantId, name: roleName, clientId: clientDbId });
+    const role = await roleRepository(tx).create({
+      tenantId,
+      name: roleName,
+      clientId: clientDbId,
+    });
     return {
       command: 'role',
       tenant: tenantName,
