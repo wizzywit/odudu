@@ -58,17 +58,20 @@ function describeError(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+// A concurrent pass having already recorded this row's own delivery is
+// not this pass's failure — it is excluded from both tallies, the same
+// way a row nobody claimed is.
 async function deliverOne(
   deps: SendLogoutsDeps,
   row: ClaimedLogoutDelivery,
   now: Date,
-): Promise<'delivered' | 'failed'> {
+): Promise<'delivered' | 'failed' | 'already_recorded'> {
   const signal = AbortSignal.timeout(deps.responseTimeoutMs);
   try {
     const response = await deps.transport(row.endpoint, row.logoutToken, signal);
     if (response.status >= 200 && response.status < 300) {
-      await deps.markDelivered(row.id, now);
-      return 'delivered';
+      const recorded = await deps.markDelivered(row.id, now);
+      return recorded ? 'delivered' : 'already_recorded';
     }
     const status = String(response.status);
     if (isUnrecoverable(response.status)) {
@@ -100,7 +103,7 @@ export async function sendLogouts(deps: SendLogoutsDeps, now: Date): Promise<Sen
   for (const row of claimed) {
     const outcome = await deliverOne(deps, row, now);
     if (outcome === 'delivered') delivered += 1;
-    else failed += 1;
+    else if (outcome === 'failed') failed += 1;
   }
 
   return { delivered, failed };
