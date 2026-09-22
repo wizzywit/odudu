@@ -613,11 +613,11 @@ Endpoint returns a content-type header identifying the response format" and
 "the content-type is `application/json` when the response body is a plain
 JSON object" are four rows over one fact, and all four cite
 `OIDC-CORE-5.4-01`, which reads the content-type and the parsed body of a
-real UserInfo response. Each row's
-"unless a different format was registered" escape is unreachable here: signed
-and encrypted UserInfo responses need per-client registration data that does
-not exist until P3a, which registers it, and those rows are `deferred: P3b`
-immediately below, where the response is signed or encrypted.
+real UserInfo response for a client that registered neither signing nor
+encryption. Each row's "unless a different format was registered" escape is
+exercised by the signed and encrypted cases below — `OIDC-CORE-5.3.2-02`,
+`-03` and `-04` — not by `OIDC-CORE-5.4-01` itself, which only ever sees the
+plain case.
 
 ### A signed UserInfo response: `aud`, `none`, `typ`, and the algorithm that was never selectable
 
@@ -706,6 +706,58 @@ with the client, the registered algorithm and the active key's algorithm.
 Registration reads the same active-key query, so a realm with no active
 key at all is a mismatch too (every algorithm is unproducible), refused
 the same way as a real mismatch rather than left to throw.
+
+### An encrypted UserInfo response: no fallback, no silent key choice
+
+`usecase/userinfo.ts`'s `encryptedBody` wraps whatever `signedBody` produced
+— `docs/superpowers/p3b-spike-jwe.md` is the authority behind every decision
+here.
+
+**The permitted `alg`/`enc` sets are narrowed the way signing's already
+is.** `service/client-metadata.ts` admits `userinfo_encrypted_response_alg`
+only from `@odudu/crypto`'s `JWE_ALGS_PERMITTED` — `RSA1_5` is excluded
+because the installed jose removed it, and `RSA-OAEP` because it only
+succeeds against a key generated specifically for it, not a bare client
+JWK. `userinfo_encrypted_response_enc` is narrowed to the full six
+registered values, since the spike found none the library fails to
+produce; `_enc` without `_alg` is refused at registration (the same
+constraint `client_oidc_config_userinfo_enc_needs_alg` would otherwise
+enforce as an unrelated 500), and `_enc` omitted with `_alg` present
+defaults to `A128CBC-HS256` (OIDC Dynamic Client Registration §2's own
+default). Discovery's `userinfo_encryption_alg_values_supported` and
+`_enc_values_supported` advertise the same two sets — fixed by the
+installed jose, not by any realm's own data, unlike
+`userinfo_signing_alg_values_supported` above.
+
+**Key selection either finds exactly one candidate or refuses.** No
+candidate, two equally good ones, or a candidate the `use`/`alg`/`kty`
+filters reject all reach the same refusal — `selectEncryptionKey`
+(`@odudu/crypto`) returns `null` for all three, and `encryptedBody` never
+distinguishes them in its response, only in its logged reason. Picking
+between two ambiguous keys on the client's behalf would mean guessing which
+private key must stay live to decrypt a given response; OIDC Core §10.2.1
+permits the encrypting party to choose but only requires it to announce the
+choice via `kid` — refusing is the honest reading when the client gave
+nothing to announce.
+
+**A key that cannot be retrieved or selected is a 500, never a JSON
+fallback.** This is the same `clientKeySet` `/token`'s `private_key_jwt`
+authentication already dereferences, consulted here for the first time on
+the response path a resource server is waiting on rather than the request
+path of the client that misconfigured itself. Answering in clear text
+because the fetch failed would publish exactly what the client registered
+encryption to protect — `view/routes/userinfo.ts` answers with no body and
+no `WWW-Authenticate` challenge (this token is fine; the realm's client
+configuration is not), logging the reason for an operator the way a signing
+mismatch does.
+
+**Sign then encrypt, never the reverse.** When both are registered,
+`encryptedBody` receives the JWS `signedBody` already produced and encrypts
+that compact string with `cty: "JWT"`, never the other nesting — OIDC Core
+§5.3.2 only ever describes signing first. When only encryption is
+registered, the plaintext is the claims JSON directly, with no `iss`/`aud`
+added: those are `signedBody`'s own addition, conditioned on signing having
+happened, not on the response being a JWT at all.
 
 ### §15.1's `auth_time`, answered unconditionally
 
@@ -958,9 +1010,9 @@ Odudu never uses one, so nothing in `acrFor`'s output can violate it.
 | 5.3.2   | MUST   | the UserInfo Endpoint returns a content-type header identifying the response format                                                                                                                                                                                                            | `OIDC-CORE-5.4-01`     | covered                                                                                                                                                                                                                                                                                                                               |
 | 5.3.2   | MUST   | the content-type is `application/json` when the response body is a plain JSON object                                                                                                                                                                                                           | `OIDC-CORE-5.4-01`     | covered                                                                                                                                                                                                                                                                                                                               |
 | 5.3.2   | SHOULD | the response body is encoded using UTF-8                                                                                                                                                                                                                                                       | —                      | gap                                                                                                                                                                                                                                                                                                                                   |
-| 5.3.2   | MUST   | when signed or encrypted, the UserInfo Response's content-type is `application/jwt`                                                                                                                                                                                                            | —                      | deferred: P3b — the signed half is covered (`OIDC-CORE-5.3.2-02`); `/userinfo` does not yet read `userinfo_encrypted_response_alg`/`_enc` (stored, not consumed — spike: `docs/superpowers/p3b-spike-jwe.md`)                                                                                                                         |
-| 5.3.2   | MAY    | the UserInfo Response is encrypted without also being signed                                                                                                                                                                                                                                   | —                      | deferred: P3b — `/userinfo` does not yet read `userinfo_encrypted_response_alg`/`_enc` (stored, not consumed — spike: `docs/superpowers/p3b-spike-jwe.md`)                                                                                                                                                                            |
-| 5.3.2   | MUST   | when both signing and encryption are requested, the response is signed then encrypted, producing a Nested JWT                                                                                                                                                                                  | —                      | deferred: P3b — `/userinfo` does not yet read `userinfo_encrypted_response_alg`/`_enc` (stored, not consumed — spike: `docs/superpowers/p3b-spike-jwe.md`)                                                                                                                                                                            |
+| 5.3.2   | MUST   | when signed or encrypted, the UserInfo Response's content-type is `application/jwt`                                                                                                                                                                                                            | `OIDC-CORE-5.3.2-03`   | covered                                                                                                                                                                                                                                                                                                                               |
+| 5.3.2   | MAY    | the UserInfo Response is encrypted without also being signed                                                                                                                                                                                                                                   | `OIDC-CORE-5.3.2-03`   | covered                                                                                                                                                                                                                                                                                                                               |
+| 5.3.2   | MUST   | when both signing and encryption are requested, the response is signed then encrypted, producing a Nested JWT                                                                                                                                                                                  | `OIDC-CORE-5.3.2-04`   | covered                                                                                                                                                                                                                                                                                                                               |
 | 5.3.2   | MUST   | a signed UserInfo Response contains `iss` and `aud` as members                                                                                                                                                                                                                                 | `OIDC-CORE-5.3.2-02`   | covered                                                                                                                                                                                                                                                                                                                               |
 | 5.3.2   | MUST   | in a signed UserInfo Response, `iss` is the OP's issuer identifier URL                                                                                                                                                                                                                         | `OIDC-CORE-5.3.2-02`   | covered                                                                                                                                                                                                                                                                                                                               |
 | 5.3.2   | MUST   | in a signed UserInfo Response, `aud` is or includes the RP's client ID                                                                                                                                                                                                                         | `OIDC-CORE-5.3.2-02`   | covered                                                                                                                                                                                                                                                                                                                               |

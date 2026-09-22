@@ -27,6 +27,10 @@ export interface DiscoveryDocument {
   // OIDC Discovery §3: the JWS `alg` values a client may register in
   // `userinfo_signed_response_alg` — this realm's own active key's algorithm.
   readonly userinfo_signing_alg_values_supported: readonly string[];
+  // OIDC Discovery §3: the JWE `alg`/`enc` values a client may register in
+  // `userinfo_encrypted_response_alg`/`_enc`.
+  readonly userinfo_encryption_alg_values_supported: readonly string[];
+  readonly userinfo_encryption_enc_values_supported: readonly string[];
   readonly code_challenge_methods_supported: readonly string[];
   readonly grant_types_supported: readonly string[];
   readonly token_endpoint_auth_methods_supported: readonly string[];
@@ -68,6 +72,10 @@ export interface DiscoveryDocumentOptions {
   // What `userinfo_signed_response_alg` this realm can actually honour:
   // its active key's algorithm, plus `none` (OIDC Discovery §3).
   readonly userinfoSigningAlgSupported: readonly string[];
+  // What `userinfo_encrypted_response_alg`/`_enc` this server can honour —
+  // fixed by the installed jose, not by any realm's own data.
+  readonly userinfoEncryptionAlgSupported: readonly string[];
+  readonly userinfoEncryptionEncSupported: readonly string[];
   // Whether the realm's client_registration_policy is not 'disabled' — the
   // endpoint's path is fixed the same way every other one here is, so the
   // caller states only whether it exists, never its URL.
@@ -108,6 +116,8 @@ export function discoveryDocument(opts: DiscoveryDocumentOptions): DiscoveryDocu
     subject_types_supported: ['public'],
     id_token_signing_alg_values_supported: ['RS256', 'ES256'],
     userinfo_signing_alg_values_supported: opts.userinfoSigningAlgSupported,
+    userinfo_encryption_alg_values_supported: opts.userinfoEncryptionAlgSupported,
+    userinfo_encryption_enc_values_supported: opts.userinfoEncryptionEncSupported,
     code_challenge_methods_supported: ['S256'],
     grant_types_supported: ['authorization_code', 'refresh_token', 'client_credentials'],
     // Built from the same constant `authenticateClient` validates against

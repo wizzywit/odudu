@@ -24,7 +24,7 @@ import {
   sessionRepository,
   startAuthentication,
 } from '@odudu/authn-flows';
-import { signingKeyRepository, signJwt } from '@odudu/crypto';
+import { JWE_ALGS_PERMITTED, signingKeyRepository, signJwt } from '@odudu/crypto';
 import { effectiveGroupPaths, effectiveRoles } from '@odudu/domain-authz';
 import { withRealm, type DatabaseHandle } from '@odudu/db';
 import { hashPassword, userRepository, verifyPassword } from '@odudu/domain-identity';
@@ -39,6 +39,10 @@ import { realmLookupRepository } from '#/repository/realm-lookup';
 import { reachableRoleIds } from '#/repository/scope-role-reach';
 import { standardClaimMappers } from '#/service/claims';
 import { type ClientSecretLimiter } from '#/service/client-secret-throttle';
+import {
+  USERINFO_ENCRYPTION_ENC_DEFAULT,
+  USERINFO_ENCRYPTION_ENCS_PERMITTED,
+} from '#/service/client-metadata';
 import { logoutTokenClaims, LOGOUT_TOKEN_TYP } from '#/service/logout-token';
 import { DEFAULT_TLS_CLIENT_SUBJECT_HEADER } from '#/service/tls-client-auth';
 import { expandWebOrigins } from '#/service/web-origin';
@@ -194,6 +198,27 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
         if (!client?.enabled) return null;
         const config = await clientOidcConfigRepository(tx).byClientId(client.id);
         return config?.userinfoSignedResponseAlg ?? null;
+      });
+
+    // /userinfo's answer to "should this response be encrypted": an
+    // unknown or disabled client, or one that never registered
+    // `userinfo_encrypted_response_alg`, all read as `null` — the same
+    // "no opinion, answer plainly" default `userinfoSignedResponseAlg`
+    // above resolves to. `enc` falls back to
+    // USERINFO_ENCRYPTION_ENC_DEFAULT only for a row written before that
+    // default existed at registration time.
+    const userinfoEncryptionTarget = (realmId: string, oauthClientId: string) =>
+      withRealm(deps.database.db, realmId, async (tx) => {
+        const client = await clientRepository(tx).byClientId(oauthClientId);
+        if (!client?.enabled) return null;
+        const config = await clientOidcConfigRepository(tx).byClientId(client.id);
+        if (config?.userinfoEncryptedResponseAlg == null) return null;
+        return {
+          alg: config.userinfoEncryptedResponseAlg,
+          enc: config.userinfoEncryptedResponseEnc ?? USERINFO_ENCRYPTION_ENC_DEFAULT,
+          jwks: config.jwks,
+          jwksUri: config.jwksUri,
+        };
       });
 
     // The same key /token signs an access token or ID Token with —
@@ -366,6 +391,8 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
       claimNames: () => claimMappers.claimNames(),
       scopesForRealm,
       activeSigningKeyAlg,
+      userinfoEncryptionAlgSupported: JWE_ALGS_PERMITTED,
+      userinfoEncryptionEncSupported: USERINFO_ENCRYPTION_ENCS_PERMITTED,
       trustProxy: deps.trustProxy ?? false,
     });
     registerJwksRoute(app, { findRealm, listPublishableKeys });
@@ -758,6 +785,8 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
         resolveClientWebOrigins,
         userinfoSignedResponseAlg,
         activeSigningKey,
+        userinfoEncryptionTarget,
+        clientKeySet,
         kek: deps.kek,
       });
     });

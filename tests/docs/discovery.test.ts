@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
+import { JWE_ALGS_PERMITTED } from '../../packages/crypto/src/index.js';
 import { REALM_DEFAULT_SCOPE_NAMES } from '../../packages/domain-realm/src/usecase/provision-defaults.js';
 import { standardClaimMappers } from '../../packages/protocol-oidc/src/service/claims.js';
+import { USERINFO_ENCRYPTION_ENCS_PERMITTED } from '../../packages/protocol-oidc/src/service/client-metadata.js';
 import { resolveDiscoveryDocument } from '../../packages/protocol-oidc/src/usecase/discovery.js';
 import { jsonAfter, loadDocument } from './markdown.js';
 
@@ -35,6 +37,10 @@ async function serverDiscoveryDocument(): Promise<Record<string, unknown>> {
       // (apps/server/src/cli/seed.ts) — the same key a freshly seeded
       // stack's `/userinfo` would sign with.
       activeSigningKeyAlg: () => Promise.resolve('RS256'),
+      // Fixed by the installed jose, not by anything `seed` writes — the
+      // same two call sites `usecase/discovery.ts`'s own reading note names.
+      userinfoEncryptionAlgSupported: JWE_ALGS_PERMITTED,
+      userinfoEncryptionEncSupported: USERINFO_ENCRYPTION_ENCS_PERMITTED,
       // ODUDU_TRUST_PROXY defaults false, and docs/request-paths.md's own
       // transcript was captured against a stack that never set it — see
       // this same value's effect on token_endpoint_auth_methods_supported.
@@ -62,6 +68,8 @@ const NUMBER_WORDS: ReadonlyMap<string, number> = new Map([
   ['twenty-one', 21],
   ['twenty-two', 22],
   ['twenty-three', 23],
+  ['twenty-four', 24],
+  ['twenty-five', 25],
 ]);
 
 function spelled(word: string, context: string): number {

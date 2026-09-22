@@ -15,6 +15,15 @@ export interface DiscoveryUsecaseDeps {
   // This realm's active signing key's own algorithm, `null` for a realm
   // provisioned before a key was ever generated for it.
   activeSigningKeyAlg(realmId: string): Promise<string | null>;
+  // What `userinfo_encrypted_response_alg`/`_enc` a client may register —
+  // unlike signing, this never varies per realm (no server key is
+  // involved, only the installed jose's own capability), so the caller
+  // passes the same narrowed set every time rather than this package
+  // reading it from a realm. @odudu/crypto's JWE_ALGS_PERMITTED and
+  // service/client-metadata.ts's USERINFO_ENCRYPTION_ENCS_PERMITTED are
+  // the two call sites this must never drift from.
+  userinfoEncryptionAlgSupported: readonly string[];
+  userinfoEncryptionEncSupported: readonly string[];
   // Whether this deployment's `ODUDU_TRUST_PROXY` is on — server config,
   // not realm data, so it is read once per process the way `/token`'s own
   // `trustProxy` dep is, not resolved per realm. Gates
@@ -44,6 +53,8 @@ export async function resolveDiscoveryDocument(
     scopesSupported,
     // `none` always belongs: it needs no key (OIDC Discovery §3).
     userinfoSigningAlgSupported: activeAlg === null ? ['none'] : [activeAlg, 'none'],
+    userinfoEncryptionAlgSupported: deps.userinfoEncryptionAlgSupported,
+    userinfoEncryptionEncSupported: deps.userinfoEncryptionEncSupported,
     clientRegistrationEnabled: realm.clientRegistrationPolicy !== 'disabled',
     tlsClientAuthEnabled: deps.trustProxy,
   });

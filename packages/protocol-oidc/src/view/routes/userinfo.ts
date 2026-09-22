@@ -22,7 +22,8 @@ async function corsHeadersFor(
   const clientId =
     outcome.kind === 'ok' ||
     outcome.kind === 'insufficient_scope' ||
-    outcome.kind === 'signing_unavailable'
+    outcome.kind === 'signing_unavailable' ||
+    outcome.kind === 'encryption_unavailable'
       ? outcome.clientId
       : undefined;
   if (clientId === undefined) return corsHeadersForRequest(request.headers.origin, new Set());
@@ -82,6 +83,15 @@ async function respondToUserinfoRequest(
           active_signing_key_alg: outcome.activeAlg,
         },
         'userinfo: registered signing algorithm does not match the active signing key',
+      );
+      return reply.headers(corsHeaders).code(500).send();
+    // Same shape as signing_unavailable: not the token's fault, no body —
+    // answering in clear text because a key could not be selected would
+    // publish exactly what the client asked to have protected.
+    case 'encryption_unavailable':
+      request.log.warn(
+        { client_id: outcome.clientId, reason: outcome.reason },
+        'userinfo: could not encrypt the response for the registered client',
       );
       return reply.headers(corsHeaders).code(500).send();
     case 'ok':

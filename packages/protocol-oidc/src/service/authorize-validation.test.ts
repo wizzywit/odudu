@@ -157,6 +157,8 @@ describe('an unsupported response mode is refused, not silently changed', () => 
       claimsSupported: [],
       scopesSupported: REALM_SCOPES,
       userinfoSigningAlgSupported: ['none'],
+      userinfoEncryptionAlgSupported: [],
+      userinfoEncryptionEncSupported: [],
     }).response_modes_supported;
 
     for (const mode of advertised) {
@@ -233,6 +235,8 @@ describe('scope acceptance', () => {
       claimsSupported: [],
       scopesSupported: realmScopes,
       userinfoSigningAlgSupported: ['none'],
+      userinfoEncryptionAlgSupported: [],
+      userinfoEncryptionEncSupported: [],
     }).scopes_supported;
     if (advertised === undefined) throw new Error('the document advertised no scopes');
     const fromDiscovery = new Set(advertised);

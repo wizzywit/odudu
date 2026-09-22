@@ -355,13 +355,12 @@ describe('[ODUDU-CLIENT-REGISTRATION-CAP-01] the realm client cap', () => {
   });
 });
 
-describe('[ODUDU-CLIENT-REGISTRATION-SEAM-01] the P3a/P3b seam', () => {
-  // The seam that remains: `backchannel_logout_uri` and
-  // `userinfo_signed_response_alg` are both stored, read, and advertised in
-  // discovery now (`/userinfo` signs — see `userinfo-signed.int.test.ts`).
-  // `userinfo_encrypted_response_alg`/`_enc` are still stored with nothing
-  // downstream of them, and discovery advertises no capability for either.
-  it('advertises signing but not encryption, and stores both', async () => {
+describe('[ODUDU-CLIENT-REGISTRATION-SEAM-01] the P3a/P3b seam, now closed', () => {
+  // `backchannel_logout_uri`, `userinfo_signed_response_alg` and
+  // `userinfo_encrypted_response_alg`/`_enc` are all stored, read and
+  // advertised in discovery (`/userinfo` signs and encrypts — see
+  // `userinfo-signed.int.test.ts` and `userinfo-encrypted.int.test.ts`).
+  it('advertises signing and encryption, and stores both', async () => {
     const realmName = `seam-${newId()}`;
     const realmId = newId();
     await withRealm(app.db, realmId, async (tx) => {
@@ -385,19 +384,100 @@ describe('[ODUDU-CLIENT-REGISTRATION-SEAM-01] the P3a/P3b seam', () => {
         ...MINIMAL,
         backchannel_logout_uri: 'https://rp.example/bc',
         userinfo_signed_response_alg: 'RS256',
+        userinfo_encrypted_response_alg: 'RSA-OAEP-256',
       },
     });
     expect(res.statusCode).toBe(201);
     const body = res.json<Record<string, unknown>>();
     expect(body.backchannel_logout_uri).toBe('https://rp.example/bc');
     expect(body.userinfo_signed_response_alg).toBe('RS256');
+    expect(body.userinfo_encrypted_response_alg).toBe('RSA-OAEP-256');
+    // OIDC Dynamic Client Registration §2's own default, applied because
+    // `_enc` was never sent.
+    expect(body.userinfo_encrypted_response_enc).toBe('A128CBC-HS256');
 
     const doc = await discovery(realmName);
     expect(doc.backchannel_logout_supported).toBe(true);
     // This realm's own active key, not a fixed pair every realm gets —
     // it holds exactly one (`signing_keys_one_active`).
     expect(doc.userinfo_signing_alg_values_supported).toEqual(['RS256', 'none']);
-    expect(doc).not.toHaveProperty('userinfo_encryption_alg_values_supported');
+    // Fixed by the installed jose, not by this realm's own data — unlike
+    // signing above, every realm advertises the same set.
+    expect(doc.userinfo_encryption_alg_values_supported).toEqual([
+      'RSA-OAEP-256',
+      'ECDH-ES',
+      'ECDH-ES+A128KW',
+      'ECDH-ES+A192KW',
+      'ECDH-ES+A256KW',
+    ]);
+    expect(doc.userinfo_encryption_enc_values_supported).toEqual([
+      'A128CBC-HS256',
+      'A192CBC-HS384',
+      'A256CBC-HS512',
+      'A128GCM',
+      'A192GCM',
+      'A256GCM',
+    ]);
+  });
+
+  // docs/superpowers/p3b-spike-jwe.md: RSA1_5 is removed from the
+  // installed jose entirely — a registration that admitted it would
+  // succeed today and fail every /userinfo request from then on.
+  it('refuses a userinfo_encrypted_response_alg no installed jose can produce', async () => {
+    const realmName = `seam-enc-refuse-${newId()}`;
+    const realmId = newId();
+    await withRealm(app.db, realmId, (tx) =>
+      seedRealm(tx, realmId, { name: realmName, policy: 'open' }),
+    );
+
+    const res = await http.inject({
+      method: 'POST',
+      url: URL_FOR(realmName),
+      payload: { ...MINIMAL, userinfo_encrypted_response_alg: 'RSA1_5' },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json<{ error: string }>().error).toBe('invalid_client_metadata');
+  });
+
+  it('refuses a userinfo_encrypted_response_enc outside the JWA registry', async () => {
+    const realmName = `seam-enc-value-refuse-${newId()}`;
+    const realmId = newId();
+    await withRealm(app.db, realmId, (tx) =>
+      seedRealm(tx, realmId, { name: realmName, policy: 'open' }),
+    );
+
+    const res = await http.inject({
+      method: 'POST',
+      url: URL_FOR(realmName),
+      payload: {
+        ...MINIMAL,
+        userinfo_encrypted_response_alg: 'RSA-OAEP-256',
+        userinfo_encrypted_response_enc: 'not-a-real-enc',
+      },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json<{ error: string }>().error).toBe('invalid_client_metadata');
+  });
+
+  // OIDC Dynamic Client Registration §2: "When userinfo_encrypted_response_enc
+  // is included, userinfo_encrypted_response_alg MUST also be provided" —
+  // refused here rather than left to the DB's
+  // client_oidc_config_userinfo_enc_needs_alg constraint, which would
+  // otherwise turn this into an unrelated 500.
+  it('refuses userinfo_encrypted_response_enc registered with no _alg', async () => {
+    const realmName = `seam-enc-no-alg-${newId()}`;
+    const realmId = newId();
+    await withRealm(app.db, realmId, (tx) =>
+      seedRealm(tx, realmId, { name: realmName, policy: 'open' }),
+    );
+
+    const res = await http.inject({
+      method: 'POST',
+      url: URL_FOR(realmName),
+      payload: { ...MINIMAL, userinfo_encrypted_response_enc: 'A256GCM' },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json<{ error: string }>().error).toBe('invalid_client_metadata');
   });
 
   it('refuses a userinfo_signed_response_alg this server cannot produce', async () => {

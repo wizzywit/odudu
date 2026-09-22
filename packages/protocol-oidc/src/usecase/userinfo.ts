@@ -1,8 +1,16 @@
-import { encodeUnsecuredJwt, signJwt, verifyJwt, type SigningKeyRecord } from '@odudu/crypto';
+import {
+  encodeUnsecuredJwt,
+  encryptCompact,
+  selectEncryptionKey,
+  signJwt,
+  verifyJwt,
+  type SigningKeyRecord,
+} from '@odudu/crypto';
 import { type ClaimMapperRegistry } from '@odudu/kernel';
 import { presentedBearerToken } from '#/service/bearer-token';
 import { type ClaimContext } from '#/service/claims';
 import { narrowByScopeMappings } from '#/service/scope-mapping';
+import { type ClientKeySet } from '#/repository/client-keys';
 import { type RealmLookup } from '#/repository/realm-lookup';
 
 export interface UserinfoDeps {
@@ -29,7 +37,28 @@ export interface UserinfoDeps {
   // The realm's active signing key — the same one `/token` signs an access
   // token or ID Token with, and the only one this server can sign with.
   activeSigningKey(realmId: string): Promise<SigningKeyRecord>;
+  // `null` when the client registered no `userinfo_encrypted_response_alg`
+  // — the response is not encrypted. `jwks`/`jwksUri` are the client's own
+  // published keys, by value or by reference (never both,
+  // client_oidc_config_one_key_source) — the same fields
+  // `authenticatePrivateKeyJwt` (usecase/token-issuance.ts) reads.
+  userinfoEncryptionTarget(
+    realmId: string,
+    oauthClientId: string,
+  ): Promise<UserinfoEncryptionTarget | null>;
+  // RFC 7523 §2.2's fetcher for a client's jwks_uri — the same one /token
+  // dereferences a private_key_jwt client's key with. Consulted here for
+  // the first time on the /userinfo response path; docs/superpowers/p3b-spike-jwe.md's
+  // Question 2 measured what a dead jwks_uri costs on it.
+  clientKeySet: ClientKeySet;
   kek: Uint8Array;
+}
+
+export interface UserinfoEncryptionTarget {
+  alg: string;
+  enc: string;
+  jwks: unknown;
+  jwksUri: string | null;
 }
 
 export type UserinfoBody =
@@ -63,6 +92,13 @@ export type UserinfoOutcome =
       registeredAlg: string;
       activeAlg: string;
     }
+  // A client registered `userinfo_encrypted_response_alg` and this response
+  // could not be encrypted for it — an unreachable jwks_uri, or a JWKS that
+  // names no encryption key unambiguously (see `view/routes/userinfo.ts`
+  // for how this is answered and logged). Answering in clear text here
+  // would publish exactly what the client asked to have protected, so this
+  // is a refusal, never a fallback to `ok`.
+  | { kind: 'encryption_unavailable'; clientId: string | undefined; reason: string }
   | { kind: 'ok'; body: UserinfoBody; clientId: string | undefined };
 
 function scopesOf(scopeClaim: unknown): string[] {
@@ -126,16 +162,21 @@ export async function resolveUserinfo(
     roles: narrowByScopeMappings(ctx.roles, reachableRoleIds, fullScopeAllowed),
   };
   const claims = await deps.claimMappers.assemble(scope, narrowedCtx);
-  const result = await signedBody(deps, realm.id, issuer, clientId, claims);
-  if (result.kind === 'mismatch') {
+  const signed = await signedBody(deps, realm.id, issuer, clientId, claims);
+  if (signed.kind === 'mismatch') {
     return {
       kind: 'signing_unavailable',
       clientId,
-      registeredAlg: result.registeredAlg,
-      activeAlg: result.activeAlg,
+      registeredAlg: signed.registeredAlg,
+      activeAlg: signed.activeAlg,
     };
   }
-  return { kind: 'ok', body: result.body, clientId };
+
+  const encrypted = await encryptedBody(deps, realm.id, clientId, signed.body);
+  if (encrypted.kind === 'unavailable') {
+    return { kind: 'encryption_unavailable', clientId, reason: encrypted.reason };
+  }
+  return { kind: 'ok', body: encrypted.body, clientId };
 }
 
 type SignedBodyResult =
@@ -165,4 +206,71 @@ async function signedBody(
   if (key.alg !== alg) return { kind: 'mismatch', registeredAlg: alg, activeAlg: key.alg };
   const token = await signJwt(signedClaims, { key, kek: deps.kek, typ: USERINFO_JWT_TYP });
   return { kind: 'body', body: { kind: 'jwt', token } };
+}
+
+type EncryptedBodyResult =
+  { kind: 'body'; body: UserinfoBody } | { kind: 'unavailable'; reason: string };
+
+function asJwks(value: unknown): { keys: unknown[] } | null {
+  if (typeof value !== 'object' || value === null) return null;
+  const keys = (value as Record<string, unknown>).keys;
+  return Array.isArray(keys) ? { keys } : null;
+}
+
+// OIDC Core §5.3.2; see "docs/superpowers/p3b-spike-jwe.md" before changing
+// this. Wraps whatever signedBody produced: the signed JWS compact string,
+// nested with `cty: "JWT"`, when both were registered, or the plain claims
+// JSON when only encryption was — never the reverse nesting, and never a
+// fallback to the unencrypted form the client asked not to receive.
+async function encryptedBody(
+  deps: UserinfoDeps,
+  realmId: string,
+  clientId: string | undefined,
+  body: UserinfoBody,
+): Promise<EncryptedBodyResult> {
+  if (clientId === undefined) return { kind: 'body', body };
+
+  const target = await deps.userinfoEncryptionTarget(realmId, clientId);
+  if (target === null) return { kind: 'body', body };
+
+  let jwks: unknown;
+  if (target.jwks !== null) {
+    jwks = target.jwks;
+  } else if (target.jwksUri !== null) {
+    try {
+      jwks = await deps.clientKeySet.fetch(target.jwksUri, realmId);
+    } catch (err) {
+      return {
+        kind: 'unavailable',
+        reason: err instanceof Error ? err.message : 'jwks_uri fetch failed',
+      };
+    }
+  } else {
+    return { kind: 'unavailable', reason: 'client publishes no keys to encrypt for' };
+  }
+
+  const parsed = asJwks(jwks);
+  if (parsed === null) {
+    return { kind: 'unavailable', reason: 'client keys did not answer with a JWK Set' };
+  }
+
+  // No candidate, two equally good ones, or one the filters reject — all
+  // three read the same here (docs/superpowers/p3b-spike-jwe.md's Step 2):
+  // an ambiguous or absent choice is not this server's to make silently.
+  const key = selectEncryptionKey(parsed, target.alg);
+  if (key === null) {
+    return { kind: 'unavailable', reason: 'no unambiguous encryption key in the client JWKS' };
+  }
+
+  const nested = body.kind === 'jwt';
+  const payload = nested ? body.token : JSON.stringify(body.claims);
+  try {
+    const token = await encryptCompact(payload, key, target.alg, target.enc, { nested });
+    return { kind: 'body', body: { kind: 'jwt', token } };
+  } catch (err) {
+    return {
+      kind: 'unavailable',
+      reason: err instanceof Error ? err.message : 'encryption failed',
+    };
+  }
 }

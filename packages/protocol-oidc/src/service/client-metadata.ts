@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { JWE_ALGS_PERMITTED } from '@odudu/crypto';
 import { assertFetchableUrl, RemoteAddressRefused } from '#/service/remote-address';
 
 // The RFC 7591 §3.2.2 error codes this validator returns. `error` doubles
@@ -55,6 +56,30 @@ const AUTH_METHODS_PERMITTED = new Set([
 // whichever algorithm the realm's active key happened to carry.
 export const USERINFO_SIGNING_ALGS_PERMITTED = ['RS256', 'ES256', 'none'] as const;
 const USERINFO_SIGNING_ALGS = new Set<string>(USERINFO_SIGNING_ALGS_PERMITTED);
+
+// docs/superpowers/p3b-spike-jwe.md: what the installed jose can produce
+// against a client-published asymmetric key. @odudu/crypto's
+// JWE_ALGS_PERMITTED is the same narrowing `encryptCompact` enforces, so a
+// value this validator admits can never fail there for being unproduceable.
+const USERINFO_ENCRYPTION_ALGS = new Set<string>(JWE_ALGS_PERMITTED);
+
+// The spike found no `enc` value the installed jose fails to produce
+// against any permitted `alg` — this is the full JWA registry, not a
+// narrowing.
+export const USERINFO_ENCRYPTION_ENCS_PERMITTED = [
+  'A128CBC-HS256',
+  'A192CBC-HS384',
+  'A256CBC-HS512',
+  'A128GCM',
+  'A192GCM',
+  'A256GCM',
+] as const;
+const USERINFO_ENCRYPTION_ENCS = new Set<string>(USERINFO_ENCRYPTION_ENCS_PERMITTED);
+
+// OIDC Dynamic Client Registration §2: this is the default `enc` when
+// `_alg` is registered with no `_enc`.
+// verified: curl -s https://openid.net/specs/openid-connect-registration-1_0.html
+export const USERINFO_ENCRYPTION_ENC_DEFAULT = 'A128CBC-HS256';
 
 // RFC 7591 §2: the server assigns these, so a client stating one for itself
 // is refused rather than silently overridden — silent override is how a
@@ -232,6 +257,37 @@ export function parseClientMetadata(
     );
   }
 
+  const userinfoEncryptedResponseAlg = metadata.userinfo_encrypted_response_alg ?? null;
+  if (
+    userinfoEncryptedResponseAlg !== null &&
+    !USERINFO_ENCRYPTION_ALGS.has(userinfoEncryptedResponseAlg)
+  ) {
+    return invalid(
+      'invalid_client_metadata',
+      `userinfo_encrypted_response_alg must not be ${userinfoEncryptedResponseAlg}`,
+    );
+  }
+
+  const providedEnc = metadata.userinfo_encrypted_response_enc ?? null;
+  if (providedEnc !== null && !USERINFO_ENCRYPTION_ENCS.has(providedEnc)) {
+    return invalid(
+      'invalid_client_metadata',
+      `userinfo_encrypted_response_enc must not be ${providedEnc}`,
+    );
+  }
+  // client_oidc_config_userinfo_enc_needs_alg (migration
+  // 0045_client_registration_metadata.sql) enforces this at the row level;
+  // refused here too, so a client gets invalid_client_metadata rather than
+  // an unrelated 500 from a constraint it never sees.
+  if (providedEnc !== null && userinfoEncryptedResponseAlg === null) {
+    return invalid(
+      'invalid_client_metadata',
+      'userinfo_encrypted_response_enc requires userinfo_encrypted_response_alg',
+    );
+  }
+  const userinfoEncryptedResponseEnc =
+    userinfoEncryptedResponseAlg === null ? null : (providedEnc ?? USERINFO_ENCRYPTION_ENC_DEFAULT);
+
   const redirectUris = metadata.redirect_uris ?? [];
   const badRedirectUri = redirectUris.find((uri) => !isValidRedirectUri(uri));
   if (badRedirectUri !== undefined) {
@@ -302,8 +358,8 @@ export function parseClientMetadata(
       backchannelLogoutSessionRequired: metadata.backchannel_logout_session_required ?? false,
       frontchannelLogoutSessionRequired: metadata.frontchannel_logout_session_required ?? false,
       userinfoSignedResponseAlg,
-      userinfoEncryptedResponseAlg: metadata.userinfo_encrypted_response_alg ?? null,
-      userinfoEncryptedResponseEnc: metadata.userinfo_encrypted_response_enc ?? null,
+      userinfoEncryptedResponseAlg,
+      userinfoEncryptedResponseEnc,
       tlsClientAuthSubjectDn: tlsClientAuthSubjectDn.length > 0 ? tlsClientAuthSubjectDn : null,
     },
   };

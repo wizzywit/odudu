@@ -532,8 +532,10 @@ why `none` still serializes as a JWT at all — see the reading note in
 key cannot produce, and discovery's `userinfo_signing_alg_values_supported`
 is that same realm's answer — `[key.alg, "none"]` — never a fixed pair
 advertised to every realm regardless of which key it actually holds (a
-realm holds exactly one). `userinfo_encrypted_response_alg` and `_enc`
-remain unread — still P3b's to build.
+realm holds exactly one). `userinfo_encrypted_response_alg` and `_enc` are
+stored, echoed and now read too — see
+[Encrypted and nested UserInfo responses](#encrypted-and-nested-userinfo-responses)
+below for the transcript.
 
 A non-HTTP `redirect_uri` has to look like RFC 8252 §7.1's reverse-DNS
 custom scheme (ADR 0032): the scheme names at least one `.`, which is what
@@ -658,6 +660,21 @@ curl -sS http://localhost:3000/realms/demo/.well-known/openid-configuration
   "subject_types_supported": ["public"],
   "id_token_signing_alg_values_supported": ["RS256", "ES256"],
   "userinfo_signing_alg_values_supported": ["RS256", "none"],
+  "userinfo_encryption_alg_values_supported": [
+    "RSA-OAEP-256",
+    "ECDH-ES",
+    "ECDH-ES+A128KW",
+    "ECDH-ES+A192KW",
+    "ECDH-ES+A256KW"
+  ],
+  "userinfo_encryption_enc_values_supported": [
+    "A128CBC-HS256",
+    "A192CBC-HS384",
+    "A256CBC-HS512",
+    "A128GCM",
+    "A192GCM",
+    "A256GCM"
+  ],
   "code_challenge_methods_supported": ["S256"],
   "grant_types_supported": ["authorization_code", "refresh_token", "client_credentials"],
   "token_endpoint_auth_methods_supported": [
@@ -1444,6 +1461,157 @@ curl -sS -o /dev/null -w '%{http_code}\n' -X POST \
 The claims come from the same registry the ID token's claims came from, so
 one can never carry a claim the other omits for the same subject and scope.
 The client must check that `sub` here matches the ID token's `sub`.
+
+### Encrypted and nested UserInfo responses
+
+A client that registers `userinfo_encrypted_response_alg` gets its
+`/userinfo` response encrypted to a key from its own published `jwks` — a
+dynamic registration, since this is per-client data:
+
+```bash
+curl -sS -X POST http://localhost:3000/realms/demo/clients-registrations/openid-connect \
+  -H 'content-type: application/json' \
+  -d '{
+    "redirect_uris": ["https://rp.example/cb"],
+    "userinfo_signed_response_alg": "RS256",
+    "userinfo_encrypted_response_alg": "RSA-OAEP-256",
+    "userinfo_encrypted_response_enc": "A256GCM",
+    "jwks": {"keys": [{"kty":"RSA","n":"q3ggKEy4…","e":"AQAB","use":"enc"}]}
+  }'
+```
+
+```json
+{
+  "client_id": "01a0c89c-b853-…",
+  "client_id_issued_at": 1790072109,
+  "client_secret": "Lks7dNvTE86il3NvsurdGTiMTtfvFW0-T0zPFmxxKwY",
+  "client_secret_expires_at": 0,
+  "redirect_uris": ["https://rp.example/cb"],
+  "grant_types": ["authorization_code"],
+  "token_endpoint_auth_method": "client_secret_basic",
+  "jwks": { "keys": [{ "kty": "RSA", "n": "q3ggKEy4…", "e": "AQAB", "use": "enc" }] },
+  "userinfo_signed_response_alg": "RS256",
+  "userinfo_encrypted_response_alg": "RSA-OAEP-256",
+  "userinfo_encrypted_response_enc": "A256GCM"
+}
+```
+
+Discovery's two new members are this realm's own answer, the same way
+[discovery](#1-discovery) above shows `userinfo_signing_alg_values_supported`
+— except these two never vary by realm, since no server key is involved,
+only what the installed jose can produce
+(`docs/superpowers/p3b-spike-jwe.md`):
+
+```json
+{
+  "userinfo_encryption_alg_values_supported": [
+    "RSA-OAEP-256",
+    "ECDH-ES",
+    "ECDH-ES+A128KW",
+    "ECDH-ES+A192KW",
+    "ECDH-ES+A256KW"
+  ],
+  "userinfo_encryption_enc_values_supported": [
+    "A128CBC-HS256",
+    "A192CBC-HS384",
+    "A256CBC-HS512",
+    "A128GCM",
+    "A192GCM",
+    "A256GCM"
+  ]
+}
+```
+
+Completing the same authorization code walk-through above against this
+client (a dynamically-registered client needs its consent screen answered —
+[the consent screen](#the-consent-screen) below) and calling `/userinfo`
+with the access token it yields:
+
+```bash
+curl -sS -D - -H "Authorization: Bearer $ACCESS_TOKEN" \
+  http://localhost:3000/realms/demo/protocol/openid-connect/userinfo
+```
+
+```
+HTTP/1.1 200 OK
+content-type: application/jwt
+content-length: 1449
+
+eyJhbGciOiJSU0EtT0FFUC0yNTYiLCJlbmMiOiJBMjU2R0NNIiwiY3R5IjoiSldUIn0.XRRSQ7UaUgLmEjfcEyNU…
+```
+
+Five dot-separated parts, not three — a JWE compact serialization, not a
+JWT. Its protected header, decoded:
+
+```json
+{ "alg": "RSA-OAEP-256", "enc": "A256GCM", "cty": "JWT" }
+```
+
+`cty: "JWT"` is the only signal the plaintext is itself a JWT rather than
+JSON — decrypting with the private key matching the registered `jwks`
+(`jose.compactDecrypt`) and reading that plaintext back confirms it is
+exactly the signed response the [plain `/userinfo`](#5-userinfo) walk-through
+above produced, header and all:
+
+```json
+{ "alg": "RS256", "kid": "01a0c89c-6d76-…", "typ": "userinfo+jwt" }
+{
+  "sub": "01a0c89c-6d7a-…",
+  "name": "ada",
+  "preferred_username": "ada",
+  "email": "ada@example.com",
+  "email_verified": false,
+  "iss": "http://localhost:3000/realms/demo",
+  "aud": "01a0c89c-b853-…"
+}
+```
+
+Sign then encrypt, never the reverse: OIDC Core §5.3.2 only ever describes
+this nesting, and this is what proves the order rather than merely trusting
+`cty` — a JWE wrapping raw JSON with a `cty: "JWT"` header slapped on by
+mistake would decrypt to something that is not a valid JWS at all.
+
+A client that registers `userinfo_encrypted_response_alg` with no
+`userinfo_signed_response_alg` gets the claims encrypted directly, with no
+signing and no nesting — no `cty`, and the plaintext is the claims JSON,
+carrying no `iss`/`aud` (those are added only when something actually
+signs):
+
+```
+HTTP/1.1 200 OK
+content-type: application/jwt
+
+eyJhbGciOiJSU0EtT0FFUC0yNTYiLCJlbmMiOiJBMTI4Q0JDLUhTMjU2In0.W7KhorJR_TnzMuNqcst0XbQ4bGqj…
+```
+
+```json
+{ "alg": "RSA-OAEP-256", "enc": "A128CBC-HS256" }
+```
+
+Decrypted:
+
+```json
+{ "sub": "01a0c89c-6d7a-…" }
+```
+
+(This client requested `scope=openid` alone, hence one claim.) `_enc` was
+never sent at registration for this one either, so this is
+`USERINFO_ENCRYPTION_ENC_DEFAULT` a second time, against a different `alg`
+— OIDC Dynamic Client Registration §2's default applies independently of
+which permitted `alg` is registered alongside it.
+
+A client whose key cannot be retrieved or selected — a dead `jwks_uri`, an
+empty JWKS, two equally good candidates, or one the `kty`/`use`/`alg`
+filters reject — never falls back to the JSON or signed form it would
+otherwise have gotten: `/userinfo` answers 500 with no body at all, the
+same shape `docs/protocols/oidc-core.md`'s signing-mismatch case uses, and
+for the same reason — answering in clear text would publish exactly what
+the client asked to have protected.
+`packages/protocol-oidc/tests/userinfo-encrypted.int.test.ts` exercises all
+four causes; running one such request against this stack is not reproduced
+here because reaching the "no candidate" and "ambiguous" cases needs no
+network at all, and the "dead `jwks_uri`" case is a timing property (a
+transport timeout), not a fixed transcript.
 
 ## Path A, as a confidential client
 
@@ -7021,23 +7189,13 @@ session lifecycle. A citation of either half here means that half.
 
 **`/userinfo`**
 
-- **No encrypted UserInfo responses.** Signing is read now: a client
-  registering `userinfo_signed_response_alg` (`RS256`, `ES256`, or `none`,
-  narrowed at registration) gets a JWT `/userinfo` response —
-  `application/jwt`, carrying `iss` and `aud` — instead of JSON. Encryption
-  is the remaining half: `userinfo_encrypted_response_alg` and
-  `userinfo_encrypted_response_enc` are registration metadata
-  ([Dynamic client registration](#dynamic-client-registration)) and are
-  stored, but `/userinfo` reads neither yet and never produces an encrypted
-  or nested (signed-then-encrypted) response. Delivering on what is already
-  stored is **P3b**, whose exit criterion names encrypted UserInfo responses
-  for that reason.
 - **No `claims` request parameter.** A decision: §5.5 says "Support for the
   `claims` parameter is OPTIONAL", and the two ID Token clauses that depend
   on it are deferred to **P3b**. P3a built the per-client machinery and
   consent screen the parameter needs, but P3a's own criterion never named
   the parameter itself and nothing in its plan built it, so it moves to
-  P3b, filed beside the signed and encrypted UserInfo responses above,
+  P3b, filed beside the signed and encrypted UserInfo responses
+  ([Encrypted and nested UserInfo responses](#encrypted-and-nested-userinfo-responses)),
   which read the same per-client registration data.
 - **No aggregated or distributed claims.** A decision, and the specification
   is explicit: §5.6.2 says "Normal Claims MUST be supported. Support for

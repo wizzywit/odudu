@@ -8,12 +8,19 @@ const SCOPES_SUPPORTED = ['openid', 'profile', 'email'];
 // Stands in for one realm's active signing key's own algorithm plus
 // `none` — the caller's per-realm answer this package never derives itself.
 const USERINFO_SIGNING_ALG_SUPPORTED = ['RS256', 'none'];
+// Stands in for @odudu/crypto's JWE_ALGS_PERMITTED and
+// service/client-metadata.ts's USERINFO_ENCRYPTION_ENCS_PERMITTED — fixed
+// by the installed jose, never realm data.
+const USERINFO_ENCRYPTION_ALG_SUPPORTED = ['RSA-OAEP-256', 'ECDH-ES'];
+const USERINFO_ENCRYPTION_ENC_SUPPORTED = ['A128CBC-HS256', 'A256GCM'];
 
 const doc = discoveryDocument({
   issuer: 'https://idp.example/realms/acme',
   claimsSupported: CLAIMS_SUPPORTED,
   scopesSupported: SCOPES_SUPPORTED,
   userinfoSigningAlgSupported: USERINFO_SIGNING_ALG_SUPPORTED,
+  userinfoEncryptionAlgSupported: USERINFO_ENCRYPTION_ALG_SUPPORTED,
+  userinfoEncryptionEncSupported: USERINFO_ENCRYPTION_ENC_SUPPORTED,
 });
 
 describe('[OIDC-DISCOVERY-3-01] the discovery document', () => {
@@ -23,6 +30,11 @@ describe('[OIDC-DISCOVERY-3-01] the discovery document', () => {
 
   it('advertises S256 and never plain', () => {
     expect(doc.code_challenge_methods_supported).toEqual(['S256']);
+  });
+
+  it('advertises the caller-supplied userinfo encryption alg/enc values verbatim', () => {
+    expect(doc.userinfo_encryption_alg_values_supported).toEqual(USERINFO_ENCRYPTION_ALG_SUPPORTED);
+    expect(doc.userinfo_encryption_enc_values_supported).toEqual(USERINFO_ENCRYPTION_ENC_SUPPORTED);
   });
 
   // Omitting this member does not mean "no opinion": OIDC Discovery §3
@@ -58,6 +70,8 @@ describe('[OIDC-DISCOVERY-3-01] the discovery document', () => {
       claimsSupported: CLAIMS_SUPPORTED,
       scopesSupported: SCOPES_SUPPORTED,
       userinfoSigningAlgSupported: USERINFO_SIGNING_ALG_SUPPORTED,
+      userinfoEncryptionAlgSupported: USERINFO_ENCRYPTION_ALG_SUPPORTED,
+      userinfoEncryptionEncSupported: USERINFO_ENCRYPTION_ENC_SUPPORTED,
       tlsClientAuthEnabled: true,
     });
     expect([...withTls.token_endpoint_auth_methods_supported].sort()).toEqual([
@@ -79,6 +93,8 @@ describe('[OIDC-DISCOVERY-3-01] the discovery document', () => {
       claimsSupported: CLAIMS_SUPPORTED,
       scopesSupported: SCOPES_SUPPORTED,
       userinfoSigningAlgSupported: USERINFO_SIGNING_ALG_SUPPORTED,
+      userinfoEncryptionAlgSupported: USERINFO_ENCRYPTION_ALG_SUPPORTED,
+      userinfoEncryptionEncSupported: USERINFO_ENCRYPTION_ENC_SUPPORTED,
     });
     expect(trimmed.issuer).toBe('https://idp.example/realms/acme');
   });
@@ -134,6 +150,8 @@ describe('[OIDC-DISCOVERY-3-01] the discovery document', () => {
       claimsSupported: CLAIMS_SUPPORTED,
       scopesSupported: SCOPES_SUPPORTED,
       userinfoSigningAlgSupported: USERINFO_SIGNING_ALG_SUPPORTED,
+      userinfoEncryptionAlgSupported: USERINFO_ENCRYPTION_ALG_SUPPORTED,
+      userinfoEncryptionEncSupported: USERINFO_ENCRYPTION_ENC_SUPPORTED,
       clientRegistrationEnabled: true,
     });
     expect(withRegistration.registration_endpoint).toBe(
@@ -161,6 +179,8 @@ describe('[OIDC-DISCOVERY-4.2-01] a metadata claim with zero elements', () => {
       claimsSupported: [],
       scopesSupported: [],
       userinfoSigningAlgSupported: USERINFO_SIGNING_ALG_SUPPORTED,
+      userinfoEncryptionAlgSupported: USERINFO_ENCRYPTION_ALG_SUPPORTED,
+      userinfoEncryptionEncSupported: USERINFO_ENCRYPTION_ENC_SUPPORTED,
     });
     for (const member of ['claims_supported', 'scopes_supported']) {
       expect(Object.keys(empty)).not.toContain(member);
