@@ -1,13 +1,13 @@
-import { provisionRealm, requiredActionRepository } from '@odudu/authn-flows';
+import { provisionTenant, requiredActionRepository } from '@odudu/authn-flows';
 import { generateSigningKey, signingKeys } from '@odudu/crypto';
 import {
   createDatabase,
   MIGRATIONS_DIR,
-  realms,
+  tenants,
   runMigrations,
-  withRealm,
+  withTenant,
   type DatabaseHandle,
-  type RealmScopedDatabase,
+  type TenantScopedDatabase,
 } from '@odudu/db';
 import {
   credentialRepository,
@@ -56,15 +56,15 @@ const CHALLENGE = 'E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM';
 const PUBLIC_BASE_URL = 'https://id.example.com';
 const RP_ID = 'id.example.com';
 
-async function setupRealm(name: string): Promise<string> {
-  const realmId = newId();
+async function setupTenant(name: string): Promise<string> {
+  const tenantId = newId();
   const clientDbId = newId();
-  await withRealm(app.db, realmId, async (tx: RealmScopedDatabase) => {
-    await tx.insert(realms).values({ id: realmId, name });
-    await provisionRealm(tx, realmId);
+  await withTenant(app.db, tenantId, async (tx: TenantScopedDatabase) => {
+    await tx.insert(tenants).values({ id: tenantId, name });
+    await provisionTenant(tx, tenantId);
     await tx.insert(clients).values({
       id: clientDbId,
-      realmId,
+      tenantId,
       clientId: CLIENT_ID,
       name: 'passkey enrolment test client',
       type: 'public',
@@ -72,7 +72,7 @@ async function setupRealm(name: string): Promise<string> {
     await provisionClientDefaults(tx, clientDbId);
     await clientOidcConfigRepository(tx).create({
       clientId: clientDbId,
-      realmId,
+      tenantId,
       redirectUris: [REDIRECT_URI],
       grantTypes: ['authorization_code'],
       tokenEndpointAuthMethod: 'none',
@@ -80,10 +80,10 @@ async function setupRealm(name: string): Promise<string> {
       accessTokenTtlSeconds: 300,
       refreshTokenTtlSeconds: 1_209_600,
     });
-    const subject = await subjectRepository(tx).create({ realmId, type: 'user' });
-    await tx.insert(users).values({ subjectId: subject.id, realmId, username: USERNAME });
+    const subject = await subjectRepository(tx).create({ tenantId, type: 'user' });
+    await tx.insert(users).values({ subjectId: subject.id, tenantId, username: USERNAME });
     await credentialRepository(tx).insert({
-      realmId,
+      tenantId,
       subjectId: subject.id,
       type: 'password',
       secret: { kind: 'password', hash: await hashPassword(PASSWORD) },
@@ -92,7 +92,7 @@ async function setupRealm(name: string): Promise<string> {
     const generated = await generateSigningKey('ES256', KEK);
     await tx.insert(signingKeys).values({
       id: newId(),
-      realmId,
+      tenantId,
       kid: generated.kid,
       alg: generated.alg,
       status: 'active',
@@ -100,10 +100,10 @@ async function setupRealm(name: string): Promise<string> {
       privateJwkEncrypted: generated.privateJwkEncrypted,
     });
   });
-  return realmId;
+  return tenantId;
 }
 
-function authorizeUrl(realmName: string): string {
+function authorizeUrl(tenantName: string): string {
   const params = new URLSearchParams({
     response_type: 'code',
     client_id: CLIENT_ID,
@@ -113,11 +113,11 @@ function authorizeUrl(realmName: string): string {
     code_challenge: CHALLENGE,
     code_challenge_method: 'S256',
   });
-  return `/realms/${realmName}/protocol/openid-connect/auth?${params.toString()}`;
+  return `/tenants/${tenantName}/protocol/openid-connect/auth?${params.toString()}`;
 }
 
-async function startAuthSession(realmName: string): Promise<string> {
-  const authorize = await http.inject({ url: authorizeUrl(realmName) });
+async function startAuthSession(tenantName: string): Promise<string> {
+  const authorize = await http.inject({ url: authorizeUrl(tenantName) });
   expect(authorize.statusCode).toBe(200);
   const match = /name="auth_session_id" value="([^"]*)"/.exec(authorize.body);
   const authSessionId = match?.[1];
@@ -134,13 +134,13 @@ function post(url: string, fields: Record<string, string>): Promise<LightMyReque
   });
 }
 
-function login(realmName: string, fields: Record<string, string>) {
-  return post(`/realms/${realmName}/login-actions/authenticate`, fields);
+function login(tenantName: string, fields: Record<string, string>) {
+  return post(`/tenants/${tenantName}/login-actions/authenticate`, fields);
 }
 
-function enrolmentPost(realmName: string, fields: Record<string, string>) {
+function enrolmentPost(tenantName: string, fields: Record<string, string>) {
   return post(
-    `/realms/${realmName}/login-actions/required-action?action=configure-passkey`,
+    `/tenants/${tenantName}/login-actions/required-action?action=configure-passkey`,
     fields,
   );
 }
@@ -149,10 +149,10 @@ function enrolmentPost(realmName: string, fields: Record<string, string>) {
 // get past the enrolment has to get past this too: the page is shown once
 // on the next login, and the acknowledgement clears the action.
 async function acknowledgeRecoveryCodes(
-  realmName: string,
+  tenantName: string,
   authSessionId: string,
 ): Promise<string[]> {
-  const shown = await login(realmName, {
+  const shown = await login(tenantName, {
     auth_session_id: authSessionId,
     username: USERNAME,
     password: PASSWORD,
@@ -163,7 +163,7 @@ async function acknowledgeRecoveryCodes(
     ...shown.body.matchAll(/<code>([0-9A-HJKMNP-TV-Z]{5}-[0-9A-HJKMNP-TV-Z]{5})<\/code>/gu),
   ].map((match) => match[1] ?? '');
   const acknowledged = await post(
-    `/realms/${realmName}/login-actions/required-action?action=generate-recovery-codes`,
+    `/tenants/${tenantName}/login-actions/required-action?action=generate-recovery-codes`,
     { auth_session_id: authSessionId },
   );
   expect(acknowledged.statusCode).toBe(200);
@@ -186,8 +186,8 @@ function credentialFor(challenge: string, overrides: { userVerified?: boolean } 
   );
 }
 
-async function subjectIdOf(realmId: string): Promise<string> {
-  return withRealm(app.db, realmId, async (tx) => {
+async function subjectIdOf(tenantId: string): Promise<string> {
+  return withTenant(app.db, tenantId, async (tx) => {
     const rows = await tx.select().from(users);
     const row = rows[0];
     if (row === undefined) throw new Error('expected the seeded user');
@@ -195,8 +195,8 @@ async function subjectIdOf(realmId: string): Promise<string> {
   });
 }
 
-function storedPasskeys(realmId: string, subjectId: string) {
-  return withRealm(app.db, realmId, (tx) =>
+function storedPasskeys(tenantId: string, subjectId: string) {
+  return withTenant(app.db, tenantId, (tx) =>
     credentialRepository(tx).listFor(subjectId, 'webauthn'),
   );
 }
@@ -204,10 +204,10 @@ function storedPasskeys(realmId: string, subjectId: string) {
 // A second factor for this subject, so the login form's next step is the
 // code form — a login page with no script of its own. Never answered, so
 // the secret only has to be well shaped.
-function enrolTotp(realmId: string, subjectId: string) {
-  return withRealm(app.db, realmId, (tx) =>
+function enrolTotp(tenantId: string, subjectId: string) {
+  return withTenant(app.db, tenantId, (tx) =>
     credentialRepository(tx).insert({
-      realmId,
+      tenantId,
       subjectId,
       type: 'totp',
       secret: { kind: 'totp', secret: 'GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ', digits: 6, lastStep: 0 },
@@ -215,9 +215,9 @@ function enrolTotp(realmId: string, subjectId: string) {
   );
 }
 
-function oweAPasskey(realmId: string, subjectId: string) {
-  return withRealm(app.db, realmId, (tx) =>
-    requiredActionRepository(tx).add(realmId, subjectId, 'configure-passkey'),
+function oweAPasskey(tenantId: string, subjectId: string) {
+  return withTenant(app.db, tenantId, (tx) =>
+    requiredActionRepository(tx).add(tenantId, subjectId, 'configure-passkey'),
   );
 }
 
@@ -258,15 +258,15 @@ afterAll(async () => {
 
 describe('enrolling a passkey over HTTP', () => {
   it('[WEBAUTHN2-7.1.21-01] offers the ceremony, stores nothing until it verifies, and resumes the login', async () => {
-    const realmName = `passkey-enrol-${newId()}`;
-    const realmId = await setupRealm(realmName);
-    const subjectId = await subjectIdOf(realmId);
-    await oweAPasskey(realmId, subjectId);
-    const authSessionId = await startAuthSession(realmName);
+    const tenantName = `passkey-enrol-${newId()}`;
+    const tenantId = await setupTenant(tenantName);
+    const subjectId = await subjectIdOf(tenantId);
+    await oweAPasskey(tenantId, subjectId);
+    const authSessionId = await startAuthSession(tenantName);
 
     // The password is right and the login still does not finish: no
     // cookie, no redirect, the enrolment page instead.
-    const owed = await login(realmName, {
+    const owed = await login(tenantName, {
       auth_session_id: authSessionId,
       username: USERNAME,
       password: PASSWORD,
@@ -275,24 +275,24 @@ describe('enrolling a passkey over HTTP', () => {
     expect(owed.headers['set-cookie']).toBeUndefined();
     expect(owed.body).toContain('navigator.credentials.create');
     expect(owed.body).toContain(`"id":"${RP_ID}"`);
-    expect(await storedPasskeys(realmId, subjectId)).toEqual([]);
+    expect(await storedPasskeys(tenantId, subjectId)).toEqual([]);
 
     // A response the browser could not have produced: refused, nothing
     // stored, and the page comes back to be tried again.
-    const refused = await enrolmentPost(realmName, {
+    const refused = await enrolmentPost(tenantName, {
       auth_session_id: authSessionId,
       credential: '{"id":"nope"}',
     });
     expect(refused.statusCode).toBe(200);
     expect(refused.body).toContain('Add a passkey');
-    expect(await storedPasskeys(realmId, subjectId)).toEqual([]);
+    expect(await storedPasskeys(tenantId, subjectId)).toEqual([]);
 
     // The re-render issues its own challenge, since the refused one was
     // spent by the attempt that failed.
     const retryChallenge = offeredChallenge(refused.body);
     expect(retryChallenge).not.toBe(offeredChallenge(owed.body));
 
-    const enrolled = await enrolmentPost(realmName, {
+    const enrolled = await enrolmentPost(tenantName, {
       auth_session_id: authSessionId,
       credential: credentialFor(retryChallenge),
       label: 'Work laptop',
@@ -300,24 +300,28 @@ describe('enrolling a passkey over HTTP', () => {
     expect(enrolled.statusCode).toBe(200);
     expect(enrolled.body).toContain('name="password"');
 
-    const stored = await storedPasskeys(realmId, subjectId);
+    const stored = await storedPasskeys(tenantId, subjectId);
     expect(stored).toHaveLength(1);
     expect(stored[0]?.label).toBe('Work laptop');
     expect(stored[0]?.lookupKey).toBeTruthy();
     // The passkey is enrolled, and the recovery path for it is owed in its
     // place: losing the authenticator is the lockout this prevents.
     expect(
-      await withRealm(app.db, realmId, (tx) => requiredActionRepository(tx).pendingFor(subjectId)),
+      await withTenant(app.db, tenantId, (tx) =>
+        requiredActionRepository(tx).pendingFor(subjectId),
+      ),
     ).toEqual(['generate-recovery-codes']);
 
-    const codes = await acknowledgeRecoveryCodes(realmName, authSessionId);
+    const codes = await acknowledgeRecoveryCodes(tenantName, authSessionId);
     expect(codes).toHaveLength(10);
     expect(
-      await withRealm(app.db, realmId, (tx) => requiredActionRepository(tx).pendingFor(subjectId)),
+      await withTenant(app.db, tenantId, (tx) =>
+        requiredActionRepository(tx).pendingFor(subjectId),
+      ),
     ).toEqual([]);
 
     // Nothing is owed now, so the same password finishes the login.
-    const completed = await login(realmName, {
+    const completed = await login(tenantName, {
       auth_session_id: authSessionId,
       username: USERNAME,
       password: PASSWORD,
@@ -337,13 +341,13 @@ describe('enrolling a passkey over HTTP', () => {
   // button does nothing. The nonce in the header has to be the nonce on the
   // element, or this page cannot work in a browser.
   it('serves the page with a policy that licenses its own script and no other', async () => {
-    const realmName = `passkey-csp-${newId()}`;
-    const realmId = await setupRealm(realmName);
-    const subjectId = await subjectIdOf(realmId);
-    await oweAPasskey(realmId, subjectId);
-    const authSessionId = await startAuthSession(realmName);
+    const tenantName = `passkey-csp-${newId()}`;
+    const tenantId = await setupTenant(tenantName);
+    const subjectId = await subjectIdOf(tenantId);
+    await oweAPasskey(tenantId, subjectId);
+    const authSessionId = await startAuthSession(tenantName);
 
-    const owed = await login(realmName, {
+    const owed = await login(tenantName, {
       auth_session_id: authSessionId,
       username: USERNAME,
       password: PASSWORD,
@@ -357,32 +361,32 @@ describe('enrolling a passkey over HTTP', () => {
   });
 
   it('refuses to enrol anything for a subject who owes no action', async () => {
-    const realmName = `passkey-unasked-${newId()}`;
-    const realmId = await setupRealm(realmName);
-    const subjectId = await subjectIdOf(realmId);
-    const authSessionId = await startAuthSession(realmName);
+    const tenantName = `passkey-unasked-${newId()}`;
+    const tenantId = await setupTenant(tenantName);
+    const subjectId = await subjectIdOf(tenantId);
+    const authSessionId = await startAuthSession(tenantName);
 
-    const signedIn = await login(realmName, {
+    const signedIn = await login(tenantName, {
       auth_session_id: authSessionId,
       username: USERNAME,
       password: PASSWORD,
     });
     expect(signedIn.statusCode).toBe(302);
 
-    const refused = await enrolmentPost(realmName, {
+    const refused = await enrolmentPost(tenantName, {
       auth_session_id: authSessionId,
       credential: credentialFor('a-challenge-nobody-issued'),
     });
 
     expect(refused.statusCode).toBe(400);
-    expect(await storedPasskeys(realmId, subjectId)).toEqual([]);
+    expect(await storedPasskeys(tenantId, subjectId)).toEqual([]);
   });
 
   it('refuses a submission carrying no authentication session', async () => {
-    const realmName = `passkey-nosession-${newId()}`;
-    await setupRealm(realmName);
+    const tenantName = `passkey-nosession-${newId()}`;
+    await setupTenant(tenantName);
 
-    const refused = await enrolmentPost(realmName, {
+    const refused = await enrolmentPost(tenantName, {
       credential: credentialFor('a-challenge-nobody-issued'),
     });
 
@@ -393,46 +397,46 @@ describe('enrolling a passkey over HTTP', () => {
   // asks for user verification, so a response without it is refused rather
   // than stored as a factor that looks like two and is one.
   it('refuses a response whose authenticator verified nobody', async () => {
-    const realmName = `passkey-nouv-${newId()}`;
-    const realmId = await setupRealm(realmName);
-    const subjectId = await subjectIdOf(realmId);
-    await oweAPasskey(realmId, subjectId);
-    const authSessionId = await startAuthSession(realmName);
+    const tenantName = `passkey-nouv-${newId()}`;
+    const tenantId = await setupTenant(tenantName);
+    const subjectId = await subjectIdOf(tenantId);
+    await oweAPasskey(tenantId, subjectId);
+    const authSessionId = await startAuthSession(tenantName);
 
-    const owed = await login(realmName, {
+    const owed = await login(tenantName, {
       auth_session_id: authSessionId,
       username: USERNAME,
       password: PASSWORD,
     });
     expect(owed.body).toContain('"userVerification":"required"');
 
-    const refused = await enrolmentPost(realmName, {
+    const refused = await enrolmentPost(tenantName, {
       auth_session_id: authSessionId,
       credential: credentialFor(offeredChallenge(owed.body), { userVerified: false }),
     });
 
     expect(refused.statusCode).toBe(200);
     expect(refused.body).toContain('Add a passkey');
-    expect(await storedPasskeys(realmId, subjectId)).toEqual([]);
+    expect(await storedPasskeys(tenantId, subjectId)).toEqual([]);
   });
 
   // A response is answerable once, and the page it came from is gone: the
   // challenge went with the verification that accepted it.
   it('refuses a replay of the response that already enrolled', async () => {
-    const realmName = `passkey-replay-${newId()}`;
-    const realmId = await setupRealm(realmName);
-    const subjectId = await subjectIdOf(realmId);
-    await oweAPasskey(realmId, subjectId);
-    const authSessionId = await startAuthSession(realmName);
+    const tenantName = `passkey-replay-${newId()}`;
+    const tenantId = await setupTenant(tenantName);
+    const subjectId = await subjectIdOf(tenantId);
+    await oweAPasskey(tenantId, subjectId);
+    const authSessionId = await startAuthSession(tenantName);
 
-    const owed = await login(realmName, {
+    const owed = await login(tenantName, {
       auth_session_id: authSessionId,
       username: USERNAME,
       password: PASSWORD,
     });
     const credential = credentialFor(offeredChallenge(owed.body));
 
-    const first = await enrolmentPost(realmName, {
+    const first = await enrolmentPost(tenantName, {
       auth_session_id: authSessionId,
       credential,
     });
@@ -441,32 +445,32 @@ describe('enrolling a passkey over HTTP', () => {
     // The action is done, so this submission is refused by the gate before
     // the challenge is even consulted — and the credential count proves
     // nothing was written twice either way.
-    const replay = await enrolmentPost(realmName, {
+    const replay = await enrolmentPost(tenantName, {
       auth_session_id: authSessionId,
       credential,
     });
 
     expect(replay.statusCode).toBe(400);
-    expect(await storedPasskeys(realmId, subjectId)).toHaveLength(1);
+    expect(await storedPasskeys(tenantId, subjectId)).toHaveLength(1);
   });
 });
 
 // One authenticator carried across both ceremonies, so the assertion below
 // is checked against the public key the enrolment above really stored.
 async function enrolAPasskey(
-  realmName: string,
-  realmId: string,
+  tenantName: string,
+  tenantId: string,
   subjectId: string,
 ): Promise<SoftwareAuthenticator> {
   const authenticator = softwareAuthenticator();
-  await oweAPasskey(realmId, subjectId);
-  const authSessionId = await startAuthSession(realmName);
-  const owed = await login(realmName, {
+  await oweAPasskey(tenantId, subjectId);
+  const authSessionId = await startAuthSession(tenantName);
+  const owed = await login(tenantName, {
     auth_session_id: authSessionId,
     username: USERNAME,
     password: PASSWORD,
   });
-  const enrolled = await enrolmentPost(realmName, {
+  const enrolled = await enrolmentPost(tenantName, {
     auth_session_id: authSessionId,
     credential: JSON.stringify(
       authenticator.registration({
@@ -478,22 +482,22 @@ async function enrolAPasskey(
     ),
   });
   expect(enrolled.statusCode).toBe(200);
-  expect(await storedPasskeys(realmId, subjectId)).toHaveLength(1);
-  await acknowledgeRecoveryCodes(realmName, authSessionId);
+  expect(await storedPasskeys(tenantId, subjectId)).toHaveLength(1);
+  await acknowledgeRecoveryCodes(tenantName, authSessionId);
   return authenticator;
 }
 
 describe('signing in with a passkey over HTTP', () => {
   it('[WEBAUTHN2-7-01] takes no username at all: options, an assertion, a code', async () => {
-    const realmName = `passkey-login-${newId()}`;
-    const realmId = await setupRealm(realmName);
-    const subjectId = await subjectIdOf(realmId);
-    const authenticator = await enrolAPasskey(realmName, realmId, subjectId);
+    const tenantName = `passkey-login-${newId()}`;
+    const tenantId = await setupTenant(tenantName);
+    const subjectId = await subjectIdOf(tenantId);
+    const authenticator = await enrolAPasskey(tenantName, tenantId, subjectId);
 
     // A fresh attempt. The login page offers the button beside the
     // password, and the button asks for options rather than carrying them.
-    const authSessionId = await startAuthSession(realmName);
-    const offered = await post(`/realms/${realmName}/login-actions/passkey-challenge`, {
+    const authSessionId = await startAuthSession(tenantName);
+    const offered = await post(`/tenants/${tenantName}/login-actions/passkey-challenge`, {
       auth_session_id: authSessionId,
     });
     expect(offered.statusCode).toBe(200);
@@ -501,7 +505,7 @@ describe('signing in with a passkey over HTTP', () => {
     const challenge = offeredChallenge(JSON.stringify(options));
     expect(JSON.stringify(options)).not.toContain('allowCredentials');
 
-    const signedIn = await login(realmName, {
+    const signedIn = await login(tenantName, {
       auth_session_id: authSessionId,
       assertion: JSON.stringify(
         authenticator.assertion({
@@ -516,9 +520,9 @@ describe('signing in with a passkey over HTTP', () => {
     // No username was sent, and the response is the same success a password
     // login gets: a session cookie and a code on the redirect.
     expect(signedIn.statusCode).toBe(302);
-    expect(String(signedIn.headers['set-cookie'])).toContain(`${realmName}-session=`);
+    expect(String(signedIn.headers['set-cookie'])).toContain(`${tenantName}-session=`);
     expect(String(signedIn.headers.location)).toContain('code=');
-    const stored = await storedPasskeys(realmId, subjectId);
+    const stored = await storedPasskeys(tenantId, subjectId);
     expect(stored[0]?.secret).toMatchObject({ counter: 2 });
   });
 
@@ -526,9 +530,9 @@ describe('signing in with a passkey over HTTP', () => {
   // value Postgres cannot parse as a uuid would raise rather than update
   // nothing. Refused as a bad request, never 500.
   it('refuses a malformed authentication session id, and one nobody offered', async () => {
-    const realmName = `passkey-badsession-${newId()}`;
-    await setupRealm(realmName);
-    const url = `/realms/${realmName}/login-actions/passkey-challenge`;
+    const tenantName = `passkey-badsession-${newId()}`;
+    await setupTenant(tenantName);
+    const url = `/tenants/${tenantName}/login-actions/passkey-challenge`;
 
     for (const malformed of ['not-a-uuid', `${newId()}\n${newId()}`, `${newId()}' or '1'='1`, '']) {
       const refused = await post(url, { auth_session_id: malformed });
@@ -545,10 +549,10 @@ describe('signing in with a passkey over HTTP', () => {
   });
 
   it('[WEBAUTHN2-7.2.2-01] offers the button on the login page, with no username field of its own', async () => {
-    const realmName = `passkey-button-${newId()}`;
-    await setupRealm(realmName);
+    const tenantName = `passkey-button-${newId()}`;
+    await setupTenant(tenantName);
 
-    const page = await http.inject({ url: authorizeUrl(realmName) });
+    const page = await http.inject({ url: authorizeUrl(tenantName) });
 
     expect(page.body).toContain('Sign in with a passkey');
     expect(page.body).toContain('navigator.credentials.get');
@@ -572,15 +576,15 @@ describe('signing in with a passkey over HTTP', () => {
   // A page with no script of its own must not be served a policy licensing
   // one: a directive that licenses nothing has stopped describing the page.
   it('sends no script-src on a login page that renders no script', async () => {
-    const realmName = `passkey-otpform-${newId()}`;
-    const realmId = await setupRealm(realmName);
-    const subjectId = await subjectIdOf(realmId);
-    await enrolTotp(realmId, subjectId);
-    const authSessionId = await startAuthSession(realmName);
+    const tenantName = `passkey-otpform-${newId()}`;
+    const tenantId = await setupTenant(tenantName);
+    const subjectId = await subjectIdOf(tenantId);
+    await enrolTotp(tenantId, subjectId);
+    const authSessionId = await startAuthSession(tenantName);
 
     // The password is right, so the next step is the code form, which has
     // no passkey button and therefore no script.
-    const codeForm = await login(realmName, {
+    const codeForm = await login(tenantName, {
       auth_session_id: authSessionId,
       username: USERNAME,
       password: PASSWORD,
@@ -597,11 +601,11 @@ describe('signing in with a passkey over HTTP', () => {
   // attempt, it would take the ALTERNATIVE group away from the password and
   // refuse a login nobody could complete.
   it('treats an empty assertion field as no attempt at all', async () => {
-    const realmName = `passkey-noscript-${newId()}`;
-    await setupRealm(realmName);
-    const authSessionId = await startAuthSession(realmName);
+    const tenantName = `passkey-noscript-${newId()}`;
+    await setupTenant(tenantName);
+    const authSessionId = await startAuthSession(tenantName);
 
-    const signedIn = await login(realmName, {
+    const signedIn = await login(tenantName, {
       auth_session_id: authSessionId,
       assertion: '',
       username: USERNAME,
@@ -613,10 +617,10 @@ describe('signing in with a passkey over HTTP', () => {
   });
 
   it('tells a reader with no JavaScript why the button cannot work', async () => {
-    const realmName = `passkey-noscript-msg-${newId()}`;
-    await setupRealm(realmName);
+    const tenantName = `passkey-noscript-msg-${newId()}`;
+    await setupTenant(tenantName);
 
-    const page = await http.inject({ url: authorizeUrl(realmName) });
+    const page = await http.inject({ url: authorizeUrl(tenantName) });
 
     expect(page.body).toContain('<noscript>');
   });
@@ -624,10 +628,10 @@ describe('signing in with a passkey over HTTP', () => {
 
 describe('a deployment that cannot name a relying party', () => {
   it('reports the action as one it cannot complete, rather than guessing a domain', async () => {
-    const realmName = `passkey-unconfigured-${newId()}`;
-    const realmId = await setupRealm(realmName);
-    const subjectId = await subjectIdOf(realmId);
-    await oweAPasskey(realmId, subjectId);
+    const tenantName = `passkey-unconfigured-${newId()}`;
+    const tenantId = await setupTenant(tenantName);
+    const subjectId = await subjectIdOf(tenantId);
+    await oweAPasskey(tenantId, subjectId);
 
     // The same routes with no publicBaseUrl — the shape of a deployment
     // that never set ODUDU_PUBLIC_BASE_URL. Outside production the boot
@@ -646,13 +650,13 @@ describe('a deployment that cannot name a relying party', () => {
       );
       await unconfigured.ready();
 
-      const authorize = await unconfigured.inject({ url: authorizeUrl(realmName) });
+      const authorize = await unconfigured.inject({ url: authorizeUrl(tenantName) });
       const authSessionId = /name="auth_session_id" value="([^"]*)"/.exec(authorize.body)?.[1];
       if (authSessionId === undefined) throw new Error('no auth_session_id');
 
       const owed = await unconfigured.inject({
         method: 'POST',
-        url: `/realms/${realmName}/login-actions/authenticate`,
+        url: `/tenants/${tenantName}/login-actions/authenticate`,
         payload: new URLSearchParams({
           auth_session_id: authSessionId,
           username: USERNAME,
@@ -664,7 +668,7 @@ describe('a deployment that cannot name a relying party', () => {
       expect(owed.statusCode).toBe(200);
       expect(owed.body).not.toContain('navigator.credentials.create');
       expect(owed.body).toContain('configure-passkey');
-      expect(await storedPasskeys(realmId, subjectId)).toEqual([]);
+      expect(await storedPasskeys(tenantId, subjectId)).toEqual([]);
     } finally {
       await unconfigured.close();
     }

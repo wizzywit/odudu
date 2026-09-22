@@ -10,7 +10,7 @@ import { tenants } from '@odudu/db';
 // revokes as one statement — see refresh_tokens_by_grant in the migration.
 export const refreshTokens = pgTable('refresh_tokens', {
   tokenHash: text('token_hash').primaryKey(),
-  realmId: uuid('tenant_id')
+  tenantId: uuid('tenant_id')
     .notNull()
     .references(() => tenants.id, { onDelete: 'cascade' }),
   grantId: uuid('grant_id').notNull(),
@@ -24,7 +24,7 @@ export const refreshTokens = pgTable('refresh_tokens', {
 
 export interface RefreshTokenRecord {
   tokenHash: string;
-  realmId: string;
+  tenantId: string;
   grantId: string;
   issuedAt: Date;
   expiresAt: Date;

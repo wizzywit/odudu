@@ -3,14 +3,14 @@ import { hashPassword, subjectRepository, userCredentials, users } from '@odudu/
 import {
   createDatabase,
   MIGRATIONS_DIR,
-  realms,
+  tenants,
   runMigrations,
-  withRealm,
+  withTenant,
   type DatabaseHandle,
-  type RealmScopedDatabase,
+  type TenantScopedDatabase,
 } from '@odudu/db';
-import { expectRealmIsolation } from '@odudu/db/testing';
-import { provisionRealm } from '@odudu/authn-flows';
+import { expectTenantIsolation } from '@odudu/db/testing';
+import { provisionTenant } from '@odudu/authn-flows';
 import { clients, provisionClientDefaults } from '@odudu/domain-tenant';
 import { FakeClock, newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
@@ -46,8 +46,8 @@ const CLIENT_SECRET = 'login-adversarial-secret';
 const REDIRECT_URI = 'https://app.example/callback';
 const USERNAME = 'ada';
 const PASSWORD = 'correct horse battery staple';
-// A second End-User in every realm, so "the End-User who authenticated" can
-// be told apart from "some other End-User of the same realm".
+// A second End-User in every tenant, so "the End-User who authenticated" can
+// be told apart from "some other End-User of the same tenant".
 const OTHER_USERNAME = 'grace';
 const OTHER_PASSWORD = 'a different passphrase entirely';
 const KEK = Buffer.alloc(32, 7);
@@ -58,8 +58,8 @@ const KEK = Buffer.alloc(32, 7);
 const VERIFIER = 'dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk';
 const CHALLENGE = 'E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM';
 
-let REALM: string;
-let REALM_BETA: string;
+let TENANT: string;
+let TENANT_BETA: string;
 
 async function buildHttp(deps: {
   database: DatabaseHandle;
@@ -83,21 +83,21 @@ async function buildHttp(deps: {
   return instance;
 }
 
-// One realm per call, which every test here relies on for a reason worth
-// naming: a realm ships with the account lockout on (five consecutive wrong
+// One tenant per call, which every test here relies on for a reason worth
+// naming: a tenant ships with the account lockout on (five consecutive wrong
 // passwords, `brute_force_max_failures`), so a suite that submits more than
-// four against a *shared* realm starts failing somewhere that looks
-// unrelated. Share a realm here and raise that column on it, or keep taking
+// four against a *shared* tenant starts failing somewhere that looks
+// unrelated. Share a tenant here and raise that column on it, or keep taking
 // a fresh one.
-async function setupLoginRealm(name: string): Promise<string> {
-  const realmId = newId();
+async function setupLoginTenant(name: string): Promise<string> {
+  const tenantId = newId();
   const clientDbId = newId();
-  await withRealm(app.db, realmId, async (tx: RealmScopedDatabase) => {
-    await tx.insert(realms).values({ id: realmId, name });
-    await provisionRealm(tx, realmId);
+  await withTenant(app.db, tenantId, async (tx: TenantScopedDatabase) => {
+    await tx.insert(tenants).values({ id: tenantId, name });
+    await provisionTenant(tx, tenantId);
     await tx.insert(clients).values({
       id: clientDbId,
-      realmId,
+      tenantId,
       clientId: CLIENT_ID,
       name: 'Login adversarial client',
       type: 'confidential',
@@ -106,7 +106,7 @@ async function setupLoginRealm(name: string): Promise<string> {
     await provisionClientDefaults(tx, clientDbId);
     await clientOidcConfigRepository(tx).create({
       clientId: clientDbId,
-      realmId,
+      tenantId,
       redirectUris: [REDIRECT_URI],
       grantTypes: ['authorization_code'],
       tokenEndpointAuthMethod: 'client_secret_basic',
@@ -118,23 +118,23 @@ async function setupLoginRealm(name: string): Promise<string> {
       [USERNAME, PASSWORD],
       [OTHER_USERNAME, OTHER_PASSWORD],
     ] as const) {
-      const subject = await subjectRepository(tx).create({ realmId, type: 'user' });
-      await tx.insert(users).values({ subjectId: subject.id, realmId, username });
+      const subject = await subjectRepository(tx).create({ tenantId, type: 'user' });
+      await tx.insert(users).values({ subjectId: subject.id, tenantId, username });
       await tx.insert(userCredentials).values({
         id: newId(),
-        realmId,
+        tenantId,
         subjectId: subject.id,
         type: 'password',
         secretData: { hash: await hashPassword(password) },
       });
     }
 
-    // Every realm gets a signing key: an id_token_hint is only a hint this
+    // Every tenant gets a signing key: an id_token_hint is only a hint this
     // server issued if one of these keys signed it (OIDC Core §3.1.2.2).
     const generated = await generateSigningKey('ES256', KEK);
     const key: SigningKeyRecord = {
       id: newId(),
-      realmId,
+      tenantId,
       kid: generated.kid,
       alg: generated.alg,
       status: 'active',
@@ -146,7 +146,7 @@ async function setupLoginRealm(name: string): Promise<string> {
     signingKeyOf.set(name, key);
     await tx.insert(signingKeys).values({
       id: key.id,
-      realmId,
+      tenantId,
       kid: key.kid,
       alg: key.alg,
       status: 'active',
@@ -159,26 +159,26 @@ async function setupLoginRealm(name: string): Promise<string> {
 
 const signingKeyOf = new Map<string, SigningKeyRecord>();
 
-async function subjectIdOf(realmName: string, username: string = USERNAME): Promise<string> {
-  const realmId = await realmIdByName(realmName);
-  if (realmId === undefined) throw new Error(`no realm ${realmName}`);
+async function subjectIdOf(tenantName: string, username: string = USERNAME): Promise<string> {
+  const tenantId = await tenantIdByName(tenantName);
+  if (tenantId === undefined) throw new Error(`no tenant ${tenantName}`);
   const rows = await owner.db
     .select({ subjectId: users.subjectId })
     .from(users)
-    .where(and(eq(users.realmId, realmId), eq(users.username, username)));
+    .where(and(eq(users.tenantId, tenantId), eq(users.username, username)));
   const row = rows[0];
-  if (row === undefined) throw new Error(`no user ${username} in ${realmName}`);
+  if (row === undefined) throw new Error(`no user ${username} in ${tenantName}`);
   return row.subjectId;
 }
 
-// An ID Token of the shape /token issues, signed by the realm's own key.
-async function mintIdToken(realmName: string, sub: string): Promise<string> {
-  const key = signingKeyOf.get(realmName);
-  if (key === undefined) throw new Error(`no signing key for ${realmName}`);
+// An ID Token of the shape /token issues, signed by the tenant's own key.
+async function mintIdToken(tenantName: string, sub: string): Promise<string> {
+  const key = signingKeyOf.get(tenantName);
+  if (key === undefined) throw new Error(`no signing key for ${tenantName}`);
   const now = Math.floor(Date.now() / 1000);
   return signJwt(
     {
-      iss: await issuerFor(http, realmName),
+      iss: await issuerFor(http, tenantName),
       aud: CLIENT_ID,
       sub,
       iat: now,
@@ -189,7 +189,7 @@ async function mintIdToken(realmName: string, sub: string): Promise<string> {
 }
 
 function authorizeUrl(
-  realmName: string,
+  tenantName: string,
   overrides: Record<string, string | undefined> = {},
 ): string {
   const params: Record<string, string | undefined> = {
@@ -206,15 +206,15 @@ function authorizeUrl(
   for (const [key, value] of Object.entries(params)) {
     if (value !== undefined) query.set(key, value);
   }
-  return `/realms/${realmName}/protocol/openid-connect/auth?${query.toString()}`;
+  return `/tenants/${tenantName}/protocol/openid-connect/auth?${query.toString()}`;
 }
 
 async function startAuthSession(
   instance: FastifyInstance,
-  realmName: string,
+  tenantName: string,
   overrides: Record<string, string | undefined> = {},
 ): Promise<string> {
-  const res = await instance.inject({ url: authorizeUrl(realmName, overrides) });
+  const res = await instance.inject({ url: authorizeUrl(tenantName, overrides) });
   if (res.statusCode !== 200) {
     throw new Error(`expected /authorize to render the login form, got ${String(res.statusCode)}`);
   }
@@ -228,7 +228,7 @@ async function startAuthSession(
 
 interface SubmitLoginOptions {
   instance?: FastifyInstance;
-  realmName?: string;
+  tenantName?: string;
   username?: string;
   password?: string;
   // undefined: mint a fresh, live auth_session_id via /authorize.
@@ -248,10 +248,10 @@ interface SubmitLoginOptions {
 
 async function submitLogin(opts: SubmitLoginOptions): Promise<LightMyRequestResponse> {
   const instance = opts.instance ?? http;
-  const realmName = opts.realmName ?? REALM;
+  const tenantName = opts.tenantName ?? TENANT;
   const authSessionId =
     opts.csrf === undefined
-      ? await startAuthSession(instance, realmName, opts.authorize ?? {})
+      ? await startAuthSession(instance, tenantName, opts.authorize ?? {})
       : opts.csrf;
 
   const form = new URLSearchParams();
@@ -262,7 +262,7 @@ async function submitLogin(opts: SubmitLoginOptions): Promise<LightMyRequestResp
 
   return instance.inject({
     method: 'POST',
-    url: `/realms/${realmName}/login-actions/authenticate`,
+    url: `/tenants/${tenantName}/login-actions/authenticate`,
     payload: form.toString(),
     headers: {
       'content-type': 'application/x-www-form-urlencoded',
@@ -287,9 +287,9 @@ function setCookieValue(res: LightMyRequestResponse): string | undefined {
   return values.find((value) => !value.includes('-persistent='))?.split(';')[0];
 }
 
-async function issuerFor(instance: FastifyInstance, realmName: string): Promise<string> {
+async function issuerFor(instance: FastifyInstance, tenantName: string): Promise<string> {
   const res = await instance.inject({
-    url: `/realms/${realmName}/.well-known/openid-configuration`,
+    url: `/tenants/${tenantName}/.well-known/openid-configuration`,
   });
   return res.json<{ issuer: string }>().issuer;
 }
@@ -312,18 +312,21 @@ async function timingOfIssuedCode(
   return rows[0];
 }
 
-async function realmIdByName(name: string): Promise<string | undefined> {
-  const rows = await owner.db.select({ id: realms.id }).from(realms).where(eq(realms.name, name));
+async function tenantIdByName(name: string): Promise<string | undefined> {
+  const rows = await owner.db
+    .select({ id: tenants.id })
+    .from(tenants)
+    .where(eq(tenants.name, name));
   return rows[0]?.id;
 }
 
-async function countAuthorizationCodes(realmName: string): Promise<number> {
-  const realmId = await realmIdByName(realmName);
-  if (realmId === undefined) return 0;
+async function countAuthorizationCodes(tenantName: string): Promise<number> {
+  const tenantId = await tenantIdByName(tenantName);
+  if (tenantId === undefined) return 0;
   const rows = await owner.db
     .select({ codeHash: authorizationCodes.codeHash })
     .from(authorizationCodes)
-    .where(eq(authorizationCodes.realmId, realmId));
+    .where(eq(authorizationCodes.tenantId, tenantId));
   return rows.length;
 }
 
@@ -331,7 +334,7 @@ const GOOD = { username: USERNAME, password: PASSWORD };
 const OTHER_USER = { username: OTHER_USERNAME, password: OTHER_PASSWORD };
 
 // Carries a completed journey the rest of the way: redeem the code the
-// login redirect delivered, at the realm's own Token Endpoint, as the
+// login redirect delivered, at the tenant's own Token Endpoint, as the
 // client the request named.
 interface TokenResponseBody {
   access_token?: string;
@@ -339,7 +342,7 @@ interface TokenResponseBody {
   token_type?: string;
 }
 
-async function redeemCode(realmName: string, code: string): Promise<LightMyRequestResponse> {
+async function redeemCode(tenantName: string, code: string): Promise<LightMyRequestResponse> {
   const form = new URLSearchParams({
     grant_type: 'authorization_code',
     code,
@@ -348,7 +351,7 @@ async function redeemCode(realmName: string, code: string): Promise<LightMyReque
   });
   return http.inject({
     method: 'POST',
-    url: `/realms/${realmName}/protocol/openid-connect/token`,
+    url: `/tenants/${tenantName}/protocol/openid-connect/token`,
     payload: form.toString(),
     headers: {
       'content-type': 'application/x-www-form-urlencoded',
@@ -370,13 +373,13 @@ function subjectOf(token: string): unknown {
 // One whole journey — park the request, sign somebody in, redeem what comes
 // back — reduced to the two facts the tokens carry about who it was for.
 async function signInAndRedeem(
-  realmName: string,
+  tenantName: string,
   credentials: { username: string; password: string },
   opts: { cookie?: string } = {},
 ): Promise<{ code: string; cookie: string | undefined; tokens: TokenResponseBody }> {
   const res = await submitLogin({
     ...credentials,
-    realmName,
+    tenantName,
     authorize: { code_challenge: CHALLENGE },
     ...(opts.cookie !== undefined ? { cookie: opts.cookie } : {}),
   });
@@ -384,7 +387,7 @@ async function signInAndRedeem(
   const code = new URL(locationHeader(res)).searchParams.get('code');
   if (code === null) throw new Error('expected a code on the login redirect');
 
-  const redeemed = await redeemCode(realmName, code);
+  const redeemed = await redeemCode(tenantName, code);
   expect(redeemed.statusCode).toBe(200);
   return {
     code,
@@ -405,8 +408,8 @@ beforeAll(async () => {
   appHandle = createDatabase(appUrl, { max: 5 });
   app = appHandle;
 
-  REALM = await setupLoginRealm(`acme-${newId()}`);
-  REALM_BETA = await setupLoginRealm(`beta-${newId()}`);
+  TENANT = await setupLoginTenant(`acme-${newId()}`);
+  TENANT_BETA = await setupLoginTenant(`beta-${newId()}`);
 
   http = await buildHttp({ database: app, tls: false });
   httpApp = http;
@@ -429,29 +432,29 @@ afterAll(async () => {
 
 describe('[OIDC-CORE-3.1.2.5-01] a successful login produces a code and a redirect', () => {
   it('redirects to the registered redirect_uri with code, state and iss', async () => {
-    const realmName = await setupLoginRealm(`acme-success-${newId()}`);
-    const res = await submitLogin({ ...GOOD, realmName });
+    const tenantName = await setupLoginTenant(`acme-success-${newId()}`);
+    const res = await submitLogin({ ...GOOD, tenantName });
     expect(res.statusCode).toBe(302);
     const location = new URL(locationHeader(res));
     expect(location.origin + location.pathname).toBe('https://app.example/callback');
     expect(location.searchParams.get('code')).toBeTruthy();
     expect(location.searchParams.get('state')).toBe('xyz 123');
-    expect(location.searchParams.get('iss')).toBe(await issuerFor(http, realmName));
+    expect(location.searchParams.get('iss')).toBe(await issuerFor(http, tenantName));
   });
 
   it('never puts the raw code in the database', async () => {
-    const realmName = await setupLoginRealm(`acme-rawcode-${newId()}`);
-    const res = await submitLogin({ ...GOOD, realmName });
+    const tenantName = await setupLoginTenant(`acme-rawcode-${newId()}`);
+    const res = await submitLogin({ ...GOOD, tenantName });
     const code = new URL(locationHeader(res)).searchParams.get('code');
     expect(code).toBeTruthy();
 
-    const realmId = await realmIdByName(realmName);
-    if (realmId === undefined) throw new Error('expected the realm just created to exist');
+    const tenantId = await tenantIdByName(tenantName);
+    if (tenantId === undefined) throw new Error('expected the tenant just created to exist');
 
     const rows = await owner.db
       .select({ codeHash: authorizationCodes.codeHash })
       .from(authorizationCodes)
-      .where(eq(authorizationCodes.realmId, realmId));
+      .where(eq(authorizationCodes.tenantId, tenantId));
 
     expect(rows.map((r) => r.codeHash)).not.toContain(code);
     expect(rows).toHaveLength(1);
@@ -460,8 +463,8 @@ describe('[OIDC-CORE-3.1.2.5-01] a successful login produces a code and a redire
 
 describe('[RFC6749-4.1.2-03] a granted authorization code expires shortly after issuance', () => {
   it('stores an expires_at exactly 60 seconds after auth_time', async () => {
-    const realmName = await setupLoginRealm(`acme-expiry-${newId()}`);
-    const res = await submitLogin({ ...GOOD, realmName });
+    const tenantName = await setupLoginTenant(`acme-expiry-${newId()}`);
+    const res = await submitLogin({ ...GOOD, tenantName });
     const code = new URL(locationHeader(res)).searchParams.get('code');
     if (code === null) throw new Error('expected a code on the redirect');
 
@@ -493,10 +496,10 @@ describe('[OIDC-CORE-15.1-05] auth_time comes back whichever way a client asks f
   ])(
     'returns the End-User’s authentication time for a request carrying $name',
     async ({ authorize }) => {
-      const realmName = await setupLoginRealm(`acme-authtime-${newId()}`);
+      const tenantName = await setupLoginTenant(`acme-authtime-${newId()}`);
       const res = await submitLogin({
         ...GOOD,
-        realmName,
+        tenantName,
         authorize: { ...authorize, code_challenge: CHALLENGE },
       });
       expect(res.statusCode).toBe(302);
@@ -506,7 +509,7 @@ describe('[OIDC-CORE-15.1-05] auth_time comes back whichever way a client asks f
       const timing = await timingOfIssuedCode(code);
       if (timing === undefined) throw new Error('expected the issued code to be stored');
 
-      const redeemed = await redeemCode(realmName, code);
+      const redeemed = await redeemCode(tenantName, code);
       expect(redeemed.statusCode).toBe(200);
       const { id_token: idToken } = redeemed.json<{ id_token?: string }>();
       if (idToken === undefined) throw new Error('expected an id_token');
@@ -519,12 +522,12 @@ describe('[OIDC-CORE-15.1-05] auth_time comes back whichever way a client asks f
 });
 
 describe('[RFC9207-2-01] the iss parameter equals the discovery issuer exactly', () => {
-  it('matches the realm discovery document issuer', async () => {
-    const realmName = await setupLoginRealm(`acme-iss-${newId()}`);
+  it('matches the tenant discovery document issuer', async () => {
+    const tenantName = await setupLoginTenant(`acme-iss-${newId()}`);
     const doc = (
-      await http.inject({ url: `/realms/${realmName}/.well-known/openid-configuration` })
+      await http.inject({ url: `/tenants/${tenantName}/.well-known/openid-configuration` })
     ).json<{ issuer: string }>();
-    const res = await submitLogin({ ...GOOD, realmName });
+    const res = await submitLogin({ ...GOOD, tenantName });
     const location = new URL(locationHeader(res));
     expect(location.searchParams.get('iss')).toBe(doc.issuer);
   });
@@ -536,7 +539,7 @@ describe('[OIDC-CORE-3.1.2.1-05] the login form cannot be driven cross-site', ()
   });
 
   it("rejects a submission carrying another session's CSRF token", async () => {
-    const foreignSessionId = await startAuthSession(http, REALM_BETA);
+    const foreignSessionId = await startAuthSession(http, TENANT_BETA);
     expect((await submitLogin({ ...GOOD, csrf: foreignSessionId })).statusCode).toBe(400);
   });
 
@@ -588,7 +591,7 @@ describe('the session cookie', () => {
   it('carries Secure and the __Host- prefix only when TLS is on', async () => {
     const tlsRes = await submitLogin({ ...GOOD, instance: httpTls });
     const tlsCookie = String(tlsRes.headers['set-cookie']);
-    expect(tlsCookie).toMatch(new RegExp(`^__Host-${REALM}-session=.*Secure`));
+    expect(tlsCookie).toMatch(new RegExp(`^__Host-${TENANT}-session=.*Secure`));
 
     const plainRes = await submitLogin(GOOD);
     const plainCookie = String(plainRes.headers['set-cookie']);
@@ -599,78 +602,78 @@ describe('the session cookie', () => {
 
 describe('failed and abandoned logins', () => {
   it('re-challenges on a wrong password without issuing a code', async () => {
-    const realmName = await setupLoginRealm(`acme-wrongpw-${newId()}`);
-    const res = await submitLogin({ ...GOOD, password: 'wrong', realmName });
+    const tenantName = await setupLoginTenant(`acme-wrongpw-${newId()}`);
+    const res = await submitLogin({ ...GOOD, password: 'wrong', tenantName });
     expect(res.statusCode).toBe(200);
-    expect(await countAuthorizationCodes(realmName)).toBe(0);
+    expect(await countAuthorizationCodes(tenantName)).toBe(0);
   });
 
   it('fails an expired authentication session without issuing a code', async () => {
-    const realmName = await setupLoginRealm(`acme-expired-${newId()}`);
-    const authSessionId = await startAuthSession(httpExpiry, realmName);
+    const tenantName = await setupLoginTenant(`acme-expired-${newId()}`);
+    const authSessionId = await startAuthSession(httpExpiry, tenantName);
     expiryClock.advance(31 * 60_000);
 
     const res = await submitLogin({
       ...GOOD,
       instance: httpExpiry,
-      realmName,
+      tenantName,
       csrf: authSessionId,
     });
     expect(res.statusCode).toBe(400);
-    expect(await countAuthorizationCodes(realmName)).toBe(0);
+    expect(await countAuthorizationCodes(tenantName)).toBe(0);
   });
 });
 
 describe('the authentication session is single-use', () => {
   it('rejects a second submission of the same auth_session_id and issues no second code', async () => {
-    const realmName = await setupLoginRealm(`acme-reuse-${newId()}`);
-    const authSessionId = await startAuthSession(http, realmName);
+    const tenantName = await setupLoginTenant(`acme-reuse-${newId()}`);
+    const authSessionId = await startAuthSession(http, tenantName);
 
-    const first = await submitLogin({ ...GOOD, realmName, csrf: authSessionId });
+    const first = await submitLogin({ ...GOOD, tenantName, csrf: authSessionId });
     expect(first.statusCode).toBe(302);
-    expect(await countAuthorizationCodes(realmName)).toBe(1);
+    expect(await countAuthorizationCodes(tenantName)).toBe(1);
 
-    const second = await submitLogin({ ...GOOD, realmName, csrf: authSessionId });
+    const second = await submitLogin({ ...GOOD, tenantName, csrf: authSessionId });
     expect(second.statusCode).toBe(400);
-    expect(await countAuthorizationCodes(realmName)).toBe(1);
+    expect(await countAuthorizationCodes(tenantName)).toBe(1);
   });
 
   it('produces exactly one code from two concurrent submissions of the same auth_session_id', async () => {
-    const realmName = await setupLoginRealm(`acme-race-${newId()}`);
-    const authSessionId = await startAuthSession(http, realmName);
+    const tenantName = await setupLoginTenant(`acme-race-${newId()}`);
+    const authSessionId = await startAuthSession(http, tenantName);
 
     const [first, second] = await Promise.all([
-      submitLogin({ ...GOOD, realmName, csrf: authSessionId }),
-      submitLogin({ ...GOOD, realmName, csrf: authSessionId }),
+      submitLogin({ ...GOOD, tenantName, csrf: authSessionId }),
+      submitLogin({ ...GOOD, tenantName, csrf: authSessionId }),
     ]);
 
     const statusCodes = [first.statusCode, second.statusCode].sort();
     expect(statusCodes).toEqual([302, 400]);
-    expect(await countAuthorizationCodes(realmName)).toBe(1);
+    expect(await countAuthorizationCodes(tenantName)).toBe(1);
   });
 });
 
-describe('realm isolation', () => {
-  it('isolates authorization_codes by realm', async () => {
-    await expectRealmIsolation(app.db, {
+describe('tenant isolation', () => {
+  it('isolates authorization_codes by tenant', async () => {
+    await expectTenantIsolation(app.db, {
       table: 'authorization_codes',
-      seed: async (tx, realmId) => {
+      seed: async (tx, tenantId) => {
         const clientDbId = newId();
-        await tx.insert(realms).values({ id: realmId, name: `probe-${realmId}` });
-        await provisionRealm(tx, realmId);
+        await tx.insert(tenants).values({ id: tenantId, name: `probe-${tenantId}` });
+        await provisionTenant(tx, tenantId);
         await tx.insert(clients).values({
           id: clientDbId,
-          realmId,
-          clientId: `probe-client-${realmId}`,
+          tenantId,
+          clientId: `probe-client-${tenantId}`,
           name: 'Isolation probe client',
           type: 'confidential',
           secretHash: 'hashed:secret',
         });
         await provisionClientDefaults(tx, clientDbId);
-        const subject = await subjectRepository(tx).create({ realmId, type: 'user' });
+        const subject = await subjectRepository(tx).create({ tenantId, type: 'user' });
         await authorizationCodeRepository(tx).create({
           codeHash: hashAuthorizationCode(generateAuthorizationCode()),
-          realmId,
+          tenantId,
           clientId: clientDbId,
           subjectId: subject.id,
           redirectUri: REDIRECT_URI,
@@ -697,13 +700,13 @@ describe('realm isolation', () => {
 // being met by construction the way it was before session reuse existed.
 describe('[OIDC-CORE-3.1.2.3-03] prompt=login authenticates again despite a live session', () => {
   it('renders a fresh login form for a request carrying the session cookie just set', async () => {
-    const realmName = await setupLoginRealm(`acme-prompt-login-${newId()}`);
-    const loggedIn = await submitLogin({ ...GOOD, realmName });
+    const tenantName = await setupLoginTenant(`acme-prompt-login-${newId()}`);
+    const loggedIn = await submitLogin({ ...GOOD, tenantName });
     const cookie = setCookieValue(loggedIn);
     if (cookie === undefined) throw new Error('expected a session cookie to be set');
 
     const res = await http.inject({
-      url: authorizeUrl(realmName, { prompt: 'login' }),
+      url: authorizeUrl(tenantName, { prompt: 'login' }),
       headers: { cookie },
     });
 
@@ -715,14 +718,14 @@ describe('[OIDC-CORE-3.1.2.3-03] prompt=login authenticates again despite a live
   });
 
   it('issues a code only once that second authentication is completed', async () => {
-    const realmName = await setupLoginRealm(`acme-prompt-login-code-${newId()}`);
-    await submitLogin({ ...GOOD, realmName });
-    expect(await countAuthorizationCodes(realmName)).toBe(1);
+    const tenantName = await setupLoginTenant(`acme-prompt-login-code-${newId()}`);
+    await submitLogin({ ...GOOD, tenantName });
+    expect(await countAuthorizationCodes(tenantName)).toBe(1);
 
-    const res = await submitLogin({ ...GOOD, realmName, authorize: { prompt: 'login' } });
+    const res = await submitLogin({ ...GOOD, tenantName, authorize: { prompt: 'login' } });
     expect(res.statusCode).toBe(302);
     expect(new URL(locationHeader(res)).searchParams.get('code')).toBeTruthy();
-    expect(await countAuthorizationCodes(realmName)).toBe(2);
+    expect(await countAuthorizationCodes(tenantName)).toBe(2);
   });
 });
 
@@ -734,10 +737,10 @@ describe('[OIDC-CORE-3.1.2.3-03] prompt=login authenticates again despite a live
 // whoever actually signed in.
 describe('[OIDC-CORE-3.1.2.1-09] an id_token_hint names who the response is about', () => {
   it('issues a code when the End-User who signs in is the one the hint identifies', async () => {
-    const realmName = await setupLoginRealm(`acme-hint-match-${newId()}`);
-    const hint = await mintIdToken(realmName, await subjectIdOf(realmName));
+    const tenantName = await setupLoginTenant(`acme-hint-match-${newId()}`);
+    const hint = await mintIdToken(tenantName, await subjectIdOf(tenantName));
 
-    const res = await submitLogin({ ...GOOD, realmName, authorize: { id_token_hint: hint } });
+    const res = await submitLogin({ ...GOOD, tenantName, authorize: { id_token_hint: hint } });
 
     expect(res.statusCode).toBe(302);
     const location = new URL(locationHeader(res));
@@ -746,10 +749,10 @@ describe('[OIDC-CORE-3.1.2.1-09] an id_token_hint names who the response is abou
   });
 
   it('answers login_required when somebody else signs in, and issues nothing', async () => {
-    const realmName = await setupLoginRealm(`acme-hint-mismatch-${newId()}`);
-    const hint = await mintIdToken(realmName, newId());
+    const tenantName = await setupLoginTenant(`acme-hint-mismatch-${newId()}`);
+    const hint = await mintIdToken(tenantName, newId());
 
-    const res = await submitLogin({ ...GOOD, realmName, authorize: { id_token_hint: hint } });
+    const res = await submitLogin({ ...GOOD, tenantName, authorize: { id_token_hint: hint } });
 
     expect(res.statusCode).toBe(302);
     const location = new URL(locationHeader(res));
@@ -757,36 +760,36 @@ describe('[OIDC-CORE-3.1.2.1-09] an id_token_hint names who the response is abou
     expect(location.searchParams.get('error')).toBe('login_required');
     expect(location.searchParams.get('code')).toBeNull();
     expect(location.searchParams.get('state')).toBe('xyz 123');
-    expect(location.searchParams.get('iss')).toBe(await issuerFor(http, realmName));
+    expect(location.searchParams.get('iss')).toBe(await issuerFor(http, tenantName));
     // The authentication succeeded and was still not turned into anything:
     // no code for the client, and no SSO session cookie for a login the
     // client's own request said it did not want.
-    expect(await countAuthorizationCodes(realmName)).toBe(0);
+    expect(await countAuthorizationCodes(tenantName)).toBe(0);
     expect(res.headers['set-cookie']).toBeUndefined();
   });
 
   it('lets the hinted end-user retry against the same parked request afterward', async () => {
-    const realmName = await setupLoginRealm(`acme-hint-retry-${newId()}`);
-    const hint = await mintIdToken(realmName, await subjectIdOf(realmName));
-    const authSessionId = await startAuthSession(http, realmName, { id_token_hint: hint });
+    const tenantName = await setupLoginTenant(`acme-hint-retry-${newId()}`);
+    const hint = await mintIdToken(tenantName, await subjectIdOf(tenantName));
+    const authSessionId = await startAuthSession(http, tenantName, { id_token_hint: hint });
 
     // Somebody else signs in first, against the same parked request the
     // hint names ada for — the session is left unconsumed specifically so
     // this can happen (login-submission.ts's error_redirect branch).
-    const mismatch = await submitLogin({ ...OTHER_USER, realmName, csrf: authSessionId });
+    const mismatch = await submitLogin({ ...OTHER_USER, tenantName, csrf: authSessionId });
     expect(mismatch.statusCode).toBe(302);
     expect(new URL(locationHeader(mismatch)).searchParams.get('error')).toBe('login_required');
-    expect(await countAuthorizationCodes(realmName)).toBe(0);
+    expect(await countAuthorizationCodes(tenantName)).toBe(0);
 
     // The end-user the hint actually names now signs in against the exact
     // same auth_session_id, and it still works — the transcript
     // docs/request-paths.md's "The login POST" section documents.
-    const retry = await submitLogin({ ...GOOD, realmName, csrf: authSessionId });
+    const retry = await submitLogin({ ...GOOD, tenantName, csrf: authSessionId });
     expect(retry.statusCode).toBe(302);
     const location = new URL(locationHeader(retry));
     expect(location.searchParams.get('code')).toBeTruthy();
     expect(location.searchParams.get('error')).toBeNull();
-    expect(await countAuthorizationCodes(realmName)).toBe(1);
+    expect(await countAuthorizationCodes(tenantName)).toBe(1);
   });
 });
 
@@ -800,29 +803,29 @@ describe('[OIDC-CORE-3.1.2.1-09] an id_token_hint names who the response is abou
 // `packages/protocol-oidc/tests/session-reuse.int.test.ts`'s territory.
 describe('[OIDC-CORE-3.1.2.3-04] an unauthenticated request is answered by authenticating', () => {
   it('serves the login form and grants nothing to a request carrying no session', async () => {
-    const realmName = await setupLoginRealm(`acme-authn-fresh-${newId()}`);
-    const res = await http.inject({ url: authorizeUrl(realmName) });
+    const tenantName = await setupLoginTenant(`acme-authn-fresh-${newId()}`);
+    const res = await http.inject({ url: authorizeUrl(tenantName) });
 
     expect(res.statusCode).toBe(200);
     expect(res.body).toContain('name="auth_session_id"');
     expect(res.headers.location).toBeUndefined();
     expect(res.headers['set-cookie']).toBeUndefined();
-    expect(await countAuthorizationCodes(realmName)).toBe(0);
+    expect(await countAuthorizationCodes(tenantName)).toBe(0);
   });
 
   it('grants nothing until the credentials presented actually verify', async () => {
-    const realmName = await setupLoginRealm(`acme-authn-verify-${newId()}`);
+    const tenantName = await setupLoginTenant(`acme-authn-verify-${newId()}`);
 
-    const wrong = await submitLogin({ ...GOOD, password: 'not the passphrase', realmName });
+    const wrong = await submitLogin({ ...GOOD, password: 'not the passphrase', tenantName });
     expect(wrong.statusCode).toBe(200);
     expect(wrong.headers.location).toBeUndefined();
     expect(wrong.headers['set-cookie']).toBeUndefined();
-    expect(await countAuthorizationCodes(realmName)).toBe(0);
+    expect(await countAuthorizationCodes(tenantName)).toBe(0);
 
-    const right = await submitLogin({ ...GOOD, realmName });
+    const right = await submitLogin({ ...GOOD, tenantName });
     expect(right.statusCode).toBe(302);
     expect(new URL(locationHeader(right)).searchParams.get('code')).toBeTruthy();
-    expect(await countAuthorizationCodes(realmName)).toBe(1);
+    expect(await countAuthorizationCodes(tenantName)).toBe(1);
   });
 });
 
@@ -834,12 +837,12 @@ describe('[OIDC-CORE-3.1.2.3-04] an unauthenticated request is answered by authe
 // `sub` of the tokens two different End-Users' journeys produce.
 describe('[OIDC-CORE-3.1.2.2-05] the tokens name the End-User who authenticated', () => {
   it('names the End-User who signed in, not the one whose session was presented', async () => {
-    const realmName = await setupLoginRealm(`acme-two-users-${newId()}`);
-    const ada = await subjectIdOf(realmName, USERNAME);
-    const grace = await subjectIdOf(realmName, OTHER_USERNAME);
+    const tenantName = await setupLoginTenant(`acme-two-users-${newId()}`);
+    const ada = await subjectIdOf(tenantName, USERNAME);
+    const grace = await subjectIdOf(tenantName, OTHER_USERNAME);
     expect(ada).not.toBe(grace);
 
-    const first = await signInAndRedeem(realmName, GOOD);
+    const first = await signInAndRedeem(tenantName, GOOD);
     expect(subjectOf(first.tokens.id_token ?? '')).toBe(ada);
 
     // Grace's journey runs while Ada's session cookie is being presented —
@@ -847,7 +850,7 @@ describe('[OIDC-CORE-3.1.2.2-05] the tokens name the End-User who authenticated'
     // than whoever is signing in.
     if (first.cookie === undefined)
       throw new Error('expected a session cookie from the first login');
-    const second = await signInAndRedeem(realmName, OTHER_USER, { cookie: first.cookie });
+    const second = await signInAndRedeem(tenantName, OTHER_USER, { cookie: first.cookie });
 
     expect(subjectOf(second.tokens.id_token ?? '')).toBe(grace);
     expect(subjectOf(second.tokens.access_token ?? '')).toBe(grace);
@@ -859,22 +862,22 @@ describe('[OIDC-CORE-3.1.2.2-05] the tokens name the End-User who authenticated'
   // reverse order they were started: the binding that survives is each
   // journey's own authentication, not the order or the other journey.
   it('keeps two concurrently parked journeys bound to their own End-Users', async () => {
-    const realmName = await setupLoginRealm(`acme-interleaved-${newId()}`);
-    const ada = await subjectIdOf(realmName, USERNAME);
-    const grace = await subjectIdOf(realmName, OTHER_USERNAME);
+    const tenantName = await setupLoginTenant(`acme-interleaved-${newId()}`);
+    const ada = await subjectIdOf(tenantName, USERNAME);
+    const grace = await subjectIdOf(tenantName, OTHER_USERNAME);
 
-    const adaSession = await startAuthSession(http, realmName, { code_challenge: CHALLENGE });
-    const graceSession = await startAuthSession(http, realmName, { code_challenge: CHALLENGE });
+    const adaSession = await startAuthSession(http, tenantName, { code_challenge: CHALLENGE });
+    const graceSession = await startAuthSession(http, tenantName, { code_challenge: CHALLENGE });
 
-    const graceRes = await submitLogin({ ...OTHER_USER, realmName, csrf: graceSession });
-    const adaRes = await submitLogin({ ...GOOD, realmName, csrf: adaSession });
+    const graceRes = await submitLogin({ ...OTHER_USER, tenantName, csrf: graceSession });
+    const adaRes = await submitLogin({ ...GOOD, tenantName, csrf: adaSession });
 
     const graceCode = new URL(locationHeader(graceRes)).searchParams.get('code');
     const adaCode = new URL(locationHeader(adaRes)).searchParams.get('code');
     if (graceCode === null || adaCode === null) throw new Error('expected a code on each redirect');
 
-    const graceTokens = (await redeemCode(realmName, graceCode)).json<TokenResponseBody>();
-    const adaTokens = (await redeemCode(realmName, adaCode)).json<TokenResponseBody>();
+    const graceTokens = (await redeemCode(tenantName, graceCode)).json<TokenResponseBody>();
+    const adaTokens = (await redeemCode(tenantName, adaCode)).json<TokenResponseBody>();
 
     expect(subjectOf(graceTokens.id_token ?? '')).toBe(grace);
     expect(subjectOf(adaTokens.id_token ?? '')).toBe(ada);
@@ -891,8 +894,8 @@ describe('[OIDC-CORE-3.1.2.2-05] the tokens name the End-User who authenticated'
 // cacheable by anything in between.
 describe('[OIDC-CORE-16.4-01] an access token reaches nothing but the token response', () => {
   it('keeps the authorization response to code, state and iss', async () => {
-    const realmName = await setupLoginRealm(`acme-exposure-redirect-${newId()}`);
-    const res = await submitLogin({ ...GOOD, realmName });
+    const tenantName = await setupLoginTenant(`acme-exposure-redirect-${newId()}`);
+    const res = await submitLogin({ ...GOOD, tenantName });
     const returned = new URL(locationHeader(res));
 
     expect([...returned.searchParams.keys()].sort()).toEqual(['code', 'iss', 'state']);
@@ -900,16 +903,16 @@ describe('[OIDC-CORE-16.4-01] an access token reaches nothing but the token resp
   });
 
   it('sets no cookie on the token response and forbids it being stored', async () => {
-    const realmName = await setupLoginRealm(`acme-exposure-token-${newId()}`);
+    const tenantName = await setupLoginTenant(`acme-exposure-token-${newId()}`);
     const res = await submitLogin({
       ...GOOD,
-      realmName,
+      tenantName,
       authorize: { code_challenge: CHALLENGE },
     });
     const code = new URL(locationHeader(res)).searchParams.get('code');
     if (code === null) throw new Error('expected a code on the login redirect');
 
-    const redeemed = await redeemCode(realmName, code);
+    const redeemed = await redeemCode(tenantName, code);
     expect(redeemed.statusCode).toBe(200);
     expect(redeemed.headers['set-cookie']).toBeUndefined();
     expect(redeemed.headers['cache-control']).toBe('no-store');
@@ -917,8 +920,8 @@ describe('[OIDC-CORE-16.4-01] an access token reaches nothing but the token resp
   });
 
   it('puts no access token in any redirect or rendered page of a later journey', async () => {
-    const realmName = await setupLoginRealm(`acme-exposure-later-${newId()}`);
-    const issued = await signInAndRedeem(realmName, GOOD);
+    const tenantName = await setupLoginTenant(`acme-exposure-later-${newId()}`);
+    const issued = await signInAndRedeem(tenantName, GOOD);
     const accessToken = issued.tokens.access_token;
     if (accessToken === undefined) throw new Error('expected an access token');
 
@@ -927,13 +930,13 @@ describe('[OIDC-CORE-16.4-01] an access token reaches nothing but the token resp
     // produces, and the redirect a fresh submission leads to, are both
     // searched for the token that already exists.
     const reused = await http.inject({
-      url: authorizeUrl(realmName),
+      url: authorizeUrl(tenantName),
       ...(issued.cookie !== undefined ? { headers: { cookie: issued.cookie } } : {}),
     });
     expect(reused.body).not.toContain(accessToken);
     expect(String(reused.headers.location)).not.toContain(accessToken);
 
-    const next = await submitLogin({ ...GOOD, realmName });
+    const next = await submitLogin({ ...GOOD, tenantName });
     expect(locationHeader(next)).not.toContain(accessToken);
     expect(next.body).not.toContain(accessToken);
     expect(String(next.headers['set-cookie'])).not.toContain(accessToken);
@@ -946,8 +949,8 @@ describe('[OIDC-CORE-16.4-01] an access token reaches nothing but the token resp
 // credentials to the client's redirection URI.
 describe('[OIDC-CORE-16.22-01] the redirect to the redirection URI is never a 307', () => {
   it('answers a completed login with 302, not 307 or 308', async () => {
-    const realmName = await setupLoginRealm(`acme-307-success-${newId()}`);
-    const res = await submitLogin({ ...GOOD, realmName });
+    const tenantName = await setupLoginTenant(`acme-307-success-${newId()}`);
+    const res = await submitLogin({ ...GOOD, tenantName });
 
     expect(locationHeader(res)).toContain(REDIRECT_URI);
     expect(res.statusCode).toBe(302);
@@ -955,9 +958,9 @@ describe('[OIDC-CORE-16.22-01] the redirect to the redirection URI is never a 30
   });
 
   it('answers a login that ends in an error redirect with 302 too', async () => {
-    const realmName = await setupLoginRealm(`acme-307-error-${newId()}`);
-    const hint = await mintIdToken(realmName, newId());
-    const res = await submitLogin({ ...GOOD, realmName, authorize: { id_token_hint: hint } });
+    const tenantName = await setupLoginTenant(`acme-307-error-${newId()}`);
+    const hint = await mintIdToken(tenantName, newId());
+    const res = await submitLogin({ ...GOOD, tenantName, authorize: { id_token_hint: hint } });
 
     expect(new URL(locationHeader(res)).searchParams.get('error')).toBe('login_required');
     expect(res.statusCode).toBe(302);
@@ -982,8 +985,8 @@ describe('[OIDC-CORE-3.1.2.3-05] no page the login handler renders can be framed
   }
 
   it('refuses framing on the form a wrong password re-challenges with', async () => {
-    const realmName = await setupLoginRealm(`acme-framing-rechallenge-${newId()}`);
-    const res = await submitLogin({ ...GOOD, password: 'wrong', realmName });
+    const tenantName = await setupLoginTenant(`acme-framing-rechallenge-${newId()}`);
+    const res = await submitLogin({ ...GOOD, password: 'wrong', tenantName });
     expect(res.statusCode).toBe(200);
     expectRefusesFraming(res, 'the re-challenge form');
   });
@@ -1018,18 +1021,18 @@ describe('[RFC6749-2.3.1-03] a locked account is refused in bytes nothing can be
   // retrying a rejected form does: the id is in the page, so comparing
   // responses from two different sessions would compare two different forms.
   async function attemptsAgainstOneSession(
-    realmName: string,
+    tenantName: string,
   ): Promise<(credentials: { username: string; password: string }) => Promise<unknown>> {
-    const csrf = await startAuthSession(http, realmName);
+    const csrf = await startAuthSession(http, tenantName);
     return async (credentials) =>
-      comparable(await submitLogin({ ...credentials, realmName, csrf }));
+      comparable(await submitLogin({ ...credentials, tenantName, csrf }));
   }
 
-  // Five, and not a number this realm was configured with: the default is
+  // Five, and not a number this tenant was configured with: the default is
   // the whole point — a MUST that ships switched off is not held.
   it('locks after the default five failures and answers as a wrong password does', async () => {
-    const realmName = await setupLoginRealm(`acme-lockout-${newId()}`);
-    const attempt = await attemptsAgainstOneSession(realmName);
+    const tenantName = await setupLoginTenant(`acme-lockout-${newId()}`);
+    const attempt = await attemptsAgainstOneSession(tenantName);
 
     const wrongPassword = await attempt({ username: USERNAME, password: 'wrong' });
     for (let i = 0; i < 4; i++) await attempt({ username: USERNAME, password: 'wrong' });
@@ -1043,8 +1046,8 @@ describe('[RFC6749-2.3.1-03] a locked account is refused in bytes nothing can be
   // three states the server distinguishes internally are one state on the
   // wire.
   it('answers an unknown username with those same bytes, locked or not', async () => {
-    const realmName = await setupLoginRealm(`acme-lockout-unknown-${newId()}`);
-    const attempt = await attemptsAgainstOneSession(realmName);
+    const tenantName = await setupLoginTenant(`acme-lockout-unknown-${newId()}`);
+    const attempt = await attemptsAgainstOneSession(tenantName);
 
     const wrongPassword = await attempt({ username: USERNAME, password: 'wrong' });
     expect(await attempt({ username: 'nobody-here', password: 'wrong' })).toEqual(wrongPassword);
@@ -1058,27 +1061,27 @@ describe('[RFC6749-2.3.1-03] a locked account is refused in bytes nothing can be
   // Nothing is issued, which is the half a page comparison cannot see: a
   // locked account must not reach the redirect, the cookie or the code.
   it('issues nothing for the right password while the account is locked', async () => {
-    const realmName = await setupLoginRealm(`acme-lockout-issues-${newId()}`);
-    const attempt = await attemptsAgainstOneSession(realmName);
+    const tenantName = await setupLoginTenant(`acme-lockout-issues-${newId()}`);
+    const attempt = await attemptsAgainstOneSession(tenantName);
     for (let i = 0; i < 5; i++) await attempt({ username: USERNAME, password: 'wrong' });
 
-    const res = await submitLogin({ ...GOOD, realmName });
+    const res = await submitLogin({ ...GOOD, tenantName });
 
     expect(res.statusCode).toBe(200);
     expect(res.headers.location).toBeUndefined();
     expect(res.headers['set-cookie']).toBeUndefined();
-    expect(await countAuthorizationCodes(realmName)).toBe(0);
+    expect(await countAuthorizationCodes(tenantName)).toBe(0);
   });
 
-  // A lockout is one account's, not the realm's: an attacker who can lock
+  // A lockout is one account's, not the tenant's: an attacker who can lock
   // out the account they are guessing at must not be able to lock out
   // everybody else by doing it.
-  it('leaves every other account in the realm signable-into', async () => {
-    const realmName = await setupLoginRealm(`acme-lockout-neighbour-${newId()}`);
-    const attempt = await attemptsAgainstOneSession(realmName);
+  it('leaves every other account in the tenant signable-into', async () => {
+    const tenantName = await setupLoginTenant(`acme-lockout-neighbour-${newId()}`);
+    const attempt = await attemptsAgainstOneSession(tenantName);
     for (let i = 0; i < 6; i++) await attempt({ username: USERNAME, password: 'wrong' });
 
-    const res = await submitLogin({ ...OTHER_USER, realmName });
+    const res = await submitLogin({ ...OTHER_USER, tenantName });
 
     expect(res.statusCode).toBe(302);
     expect(new URL(locationHeader(res)).searchParams.get('code')).not.toBeNull();

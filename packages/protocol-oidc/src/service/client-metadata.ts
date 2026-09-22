@@ -53,7 +53,7 @@ const AUTH_METHODS_PERMITTED = new Set([
 // Discovery §3's own value for an unsigned-but-JWT-serialized response
 // (`docs/protocols/oidc-core.md`'s reading note has the exact clauses). A
 // value outside this set used to be accepted and silently answered with
-// whichever algorithm the realm's active key happened to carry.
+// whichever algorithm the tenant's active key happened to carry.
 export const USERINFO_SIGNING_ALGS_PERMITTED = ['RS256', 'ES256', 'none'] as const;
 const USERINFO_SIGNING_ALGS = new Set<string>(USERINFO_SIGNING_ALGS_PERMITTED);
 

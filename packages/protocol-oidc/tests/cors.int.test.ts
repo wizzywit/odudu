@@ -2,13 +2,13 @@ import { generateSigningKey, signJwt, signingKeyRepository, signingKeys } from '
 import {
   createDatabase,
   MIGRATIONS_DIR,
-  realms,
+  tenants,
   runMigrations,
-  withRealm,
+  withTenant,
   type DatabaseHandle,
-  type RealmScopedDatabase,
+  type TenantScopedDatabase,
 } from '@odudu/db';
-import { provisionRealm } from '@odudu/authn-flows';
+import { provisionTenant } from '@odudu/authn-flows';
 import { subjectRepository } from '@odudu/domain-identity';
 import { clients, provisionClientDefaults } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
@@ -34,8 +34,8 @@ let http: FastifyInstance;
 
 const KEK = Buffer.alloc(32, 7);
 
-let REALM: string;
-let REALM_ID: string;
+let TENANT: string;
+let TENANT_ID: string;
 
 async function seedClient(input: {
   clientId: string;
@@ -43,10 +43,10 @@ async function seedClient(input: {
   enabled?: boolean;
 }): Promise<string> {
   const dbId = newId();
-  await withRealm(app.db, REALM_ID, async (tx: RealmScopedDatabase) => {
+  await withTenant(app.db, TENANT_ID, async (tx: TenantScopedDatabase) => {
     await tx.insert(clients).values({
       id: dbId,
-      realmId: REALM_ID,
+      tenantId: TENANT_ID,
       clientId: input.clientId,
       name: input.clientId,
       type: 'public',
@@ -55,7 +55,7 @@ async function seedClient(input: {
     await provisionClientDefaults(tx, dbId);
     await clientOidcConfigRepository(tx).create({
       clientId: dbId,
-      realmId: REALM_ID,
+      tenantId: TENANT_ID,
       redirectUris: ['https://app.example/callback'],
       grantTypes: ['authorization_code'],
       tokenEndpointAuthMethod: 'none',
@@ -87,15 +87,15 @@ async function mintAccessToken(
   clientId: string,
   clientDbId: string,
 ): Promise<{ token: string; grantId: string }> {
-  const key = await withRealm(app.db, REALM_ID, (tx) => signingKeyRepository(tx).active());
-  const issuer = `http://localhost/realms/${REALM}`;
+  const key = await withTenant(app.db, TENANT_ID, (tx) => signingKeyRepository(tx).active());
+  const issuer = `http://localhost/tenants/${TENANT}`;
   const now = Math.floor(Date.now() / 1000);
   const grantId = newId();
-  const subjectId = await withRealm(app.db, REALM_ID, async (tx) => {
-    const subject = await subjectRepository(tx).create({ realmId: REALM_ID, type: 'user' });
+  const subjectId = await withTenant(app.db, TENANT_ID, async (tx) => {
+    const subject = await subjectRepository(tx).create({ tenantId: TENANT_ID, type: 'user' });
     await tokenGrantRepository(tx).create({
       id: grantId,
-      realmId: REALM_ID,
+      tenantId: TENANT_ID,
       clientId: clientDbId,
       subjectId: subject.id,
       scope: 'openid',
@@ -133,15 +133,15 @@ beforeAll(async () => {
   appHandle = createDatabase(appUrl, { max: 5 });
   app = appHandle;
 
-  REALM = `cors-${newId()}`;
-  REALM_ID = newId();
-  await withRealm(app.db, REALM_ID, async (tx) => {
-    await tx.insert(realms).values({ id: REALM_ID, name: REALM });
-    await provisionRealm(tx, REALM_ID);
+  TENANT = `cors-${newId()}`;
+  TENANT_ID = newId();
+  await withTenant(app.db, TENANT_ID, async (tx) => {
+    await tx.insert(tenants).values({ id: TENANT_ID, name: TENANT });
+    await provisionTenant(tx, TENANT_ID);
     const key = await generateSigningKey('RS256', KEK);
     await tx.insert(signingKeys).values({
       id: newId(),
-      realmId: REALM_ID,
+      tenantId: TENANT_ID,
       kid: key.kid,
       alg: key.alg,
       status: 'active',
@@ -172,7 +172,7 @@ afterAll(async () => {
   await containerHandle?.stop();
 });
 
-describe('preflight is answered from the realm, the request from the client', () => {
+describe('preflight is answered from the tenant, the request from the client', () => {
   it('allows at preflight an origin that belongs to another client, then withholds it on the real request', async () => {
     const clientA = `app-a-${newId()}`;
     await seedClient({ clientId: clientA, webOrigins: ['https://a.example'] });
@@ -180,14 +180,14 @@ describe('preflight is answered from the realm, the request from the client', ()
 
     const preflight = await http.inject({
       method: 'OPTIONS',
-      url: `/realms/${REALM}/protocol/openid-connect/token`,
+      url: `/tenants/${TENANT}/protocol/openid-connect/token`,
       headers: { origin: 'https://b.example', 'access-control-request-method': 'POST' },
     });
     expect(preflight.headers['access-control-allow-origin']).toBe('https://b.example');
 
     const actual = await http.inject({
       method: 'POST',
-      url: `/realms/${REALM}/protocol/openid-connect/token`,
+      url: `/tenants/${TENANT}/protocol/openid-connect/token`,
       headers: {
         origin: 'https://b.example',
         'content-type': 'application/x-www-form-urlencoded',
@@ -204,7 +204,7 @@ describe('preflight is answered from the realm, the request from the client', ()
 
     const actual = await http.inject({
       method: 'POST',
-      url: `/realms/${REALM}/protocol/openid-connect/token`,
+      url: `/tenants/${TENANT}/protocol/openid-connect/token`,
       headers: {
         origin: 'https://c.example',
         'content-type': 'application/x-www-form-urlencoded',
@@ -222,7 +222,7 @@ describe('preflight is answered from the realm, the request from the client', ()
 
     const own = await http.inject({
       method: 'GET',
-      url: `/realms/${REALM}/protocol/openid-connect/userinfo`,
+      url: `/tenants/${TENANT}/protocol/openid-connect/userinfo`,
       headers: { origin: 'https://d.example', authorization: `Bearer ${accessToken}` },
     });
     expect(own.statusCode).toBe(200);
@@ -231,7 +231,7 @@ describe('preflight is answered from the realm, the request from the client', ()
 
     const foreign = await http.inject({
       method: 'GET',
-      url: `/realms/${REALM}/protocol/openid-connect/userinfo`,
+      url: `/tenants/${TENANT}/protocol/openid-connect/userinfo`,
       headers: { origin: 'https://not-d.example', authorization: `Bearer ${accessToken}` },
     });
     expect(foreign.statusCode).toBe(200);
@@ -247,11 +247,13 @@ describe('preflight is answered from the realm, the request from the client', ()
     const clientE = `app-e-${newId()}`;
     const clientDbId = await seedClient({ clientId: clientE, webOrigins: ['https://e.example'] });
     const { token: accessToken, grantId } = await mintAccessToken(clientE, clientDbId);
-    await withRealm(app.db, REALM_ID, (tx) => tokenGrantRepository(tx).revoke(grantId, new Date()));
+    await withTenant(app.db, TENANT_ID, (tx) =>
+      tokenGrantRepository(tx).revoke(grantId, new Date()),
+    );
 
     const res = await http.inject({
       method: 'GET',
-      url: `/realms/${REALM}/protocol/openid-connect/userinfo`,
+      url: `/tenants/${TENANT}/protocol/openid-connect/userinfo`,
       headers: { origin: 'https://e.example', authorization: `Bearer ${accessToken}` },
     });
     expect(res.statusCode).toBe(401);
@@ -270,7 +272,7 @@ describe('preflight is answered from the realm, the request from the client', ()
 
     const preflight = await http.inject({
       method: 'OPTIONS',
-      url: `/realms/${REALM}/protocol/openid-connect/token`,
+      url: `/tenants/${TENANT}/protocol/openid-connect/token`,
       headers: { origin: 'https://disabled.example', 'access-control-request-method': 'POST' },
     });
     expect(preflight.headers['access-control-allow-origin']).toBeUndefined();
@@ -286,7 +288,7 @@ describe('preflight is answered from the realm, the request from the client', ()
 
     const actual = await http.inject({
       method: 'POST',
-      url: `/realms/${REALM}/protocol/openid-connect/token`,
+      url: `/tenants/${TENANT}/protocol/openid-connect/token`,
       headers: {
         origin: 'https://disabled-real.example',
         'content-type': 'application/x-www-form-urlencoded',
@@ -299,10 +301,10 @@ describe('preflight is answered from the realm, the request from the client', ()
 
   it('never sets allow-credentials on any endpoint', async () => {
     for (const url of [
-      `/realms/${REALM}/protocol/openid-connect/token`,
-      `/realms/${REALM}/protocol/openid-connect/userinfo`,
-      `/realms/${REALM}/protocol/openid-connect/certs`,
-      `/realms/${REALM}/.well-known/openid-configuration`,
+      `/tenants/${TENANT}/protocol/openid-connect/token`,
+      `/tenants/${TENANT}/protocol/openid-connect/userinfo`,
+      `/tenants/${TENANT}/protocol/openid-connect/certs`,
+      `/tenants/${TENANT}/.well-known/openid-configuration`,
     ]) {
       const res = await http.inject({
         method: 'OPTIONS',
@@ -316,7 +318,7 @@ describe('preflight is answered from the realm, the request from the client', ()
   it('sets no CORS header on the authorization endpoint', async () => {
     const res = await http.inject({
       method: 'OPTIONS',
-      url: `/realms/${REALM}/protocol/openid-connect/auth`,
+      url: `/tenants/${TENANT}/protocol/openid-connect/auth`,
       headers: { origin: 'https://a.example', 'access-control-request-method': 'GET' },
     });
     expect(res.headers['access-control-allow-origin']).toBeUndefined();
@@ -325,7 +327,7 @@ describe('preflight is answered from the realm, the request from the client', ()
   it('answers the certs and discovery documents with a bare wildcard and no Vary', async () => {
     const certs = await http.inject({
       method: 'GET',
-      url: `/realms/${REALM}/protocol/openid-connect/certs`,
+      url: `/tenants/${TENANT}/protocol/openid-connect/certs`,
       headers: { origin: 'https://anything.example' },
     });
     expect(certs.headers['access-control-allow-origin']).toBe('*');
@@ -333,7 +335,7 @@ describe('preflight is answered from the realm, the request from the client', ()
 
     const discovery = await http.inject({
       method: 'GET',
-      url: `/realms/${REALM}/.well-known/openid-configuration`,
+      url: `/tenants/${TENANT}/.well-known/openid-configuration`,
       headers: { origin: 'https://anything.example' },
     });
     expect(discovery.headers['access-control-allow-origin']).toBe('*');

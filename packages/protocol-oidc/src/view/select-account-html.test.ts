@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { renderSelectAccountPage } from '#/view/select-account-html';
 
 const base = {
-  realm: 'demo',
+  tenant: 'demo',
   authSessionId: 'a-session',
   accounts: [
     { sessionId: 's1', displayName: 'alice@example.test' },

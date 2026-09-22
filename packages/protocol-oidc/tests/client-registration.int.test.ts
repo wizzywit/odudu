@@ -1,13 +1,13 @@
 import {
   createDatabase,
   MIGRATIONS_DIR,
-  realms,
+  tenants,
   runMigrations,
-  withRealm,
+  withTenant,
   type DatabaseHandle,
-  type RealmScopedDatabase,
+  type TenantScopedDatabase,
 } from '@odudu/db';
-import { provisionRealm } from '@odudu/authn-flows';
+import { provisionTenant } from '@odudu/authn-flows';
 import { generateSigningKey, signingKeys } from '@odudu/crypto';
 import { clientRegistrationTokenRepository, clients } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
@@ -30,39 +30,39 @@ let owner: DatabaseHandle;
 let app: DatabaseHandle;
 let http: FastifyInstance;
 
-const URL_FOR = (realm: string) => `/realms/${realm}/clients-registrations/openid-connect`;
+const URL_FOR = (tenant: string) => `/tenants/${tenant}/clients-registrations/openid-connect`;
 const MINIMAL = { redirect_uris: ['https://rp.example/cb'] };
 const KEK = Buffer.alloc(32, 7);
 
-async function seedRealm(
-  tx: RealmScopedDatabase,
+async function seedTenant(
+  tx: TenantScopedDatabase,
   id: string,
   opts: { name: string; policy?: 'disabled' | 'open' | 'token'; maxClients?: number } = {
     name: id,
   },
 ): Promise<void> {
-  await tx.insert(realms).values({ id, name: opts.name });
-  await provisionRealm(tx, id);
+  await tx.insert(tenants).values({ id, name: opts.name });
+  await provisionTenant(tx, id);
   if (opts.policy !== undefined || opts.maxClients !== undefined) {
     await tx
-      .update(realms)
+      .update(tenants)
       .set({
         ...(opts.policy === undefined ? {} : { clientRegistrationPolicy: opts.policy }),
         ...(opts.maxClients === undefined ? {} : { maxClients: opts.maxClients }),
       })
-      .where(eq(realms.id, id));
+      .where(eq(tenants.id, id));
   }
 }
 
-async function mintToken(realmId: string, uses = 1, ttlSeconds = 3600): Promise<string> {
-  const { token } = await withRealm(app.db, realmId, (tx) =>
-    clientRegistrationTokenRepository(tx).mint({ realmId, uses, ttlSeconds }),
+async function mintToken(tenantId: string, uses = 1, ttlSeconds = 3600): Promise<string> {
+  const { token } = await withTenant(app.db, tenantId, (tx) =>
+    clientRegistrationTokenRepository(tx).mint({ tenantId, uses, ttlSeconds }),
   );
   return token;
 }
 
-async function discovery(realm: string): Promise<Record<string, unknown>> {
-  const res = await http.inject({ url: `/realms/${realm}/.well-known/openid-configuration` });
+async function discovery(tenant: string): Promise<Record<string, unknown>> {
+  const res = await http.inject({ url: `/tenants/${tenant}/.well-known/openid-configuration` });
   return res.json<Record<string, unknown>>();
 }
 
@@ -99,29 +99,29 @@ afterAll(async () => {
   await containerHandle?.stop();
 });
 
-describe('[ODUDU-CLIENT-REGISTRATION-DISABLED-01] a realm that has not opened registration', () => {
+describe('[ODUDU-CLIENT-REGISTRATION-DISABLED-01] a tenant that has not opened registration', () => {
   it('refuses registration with 404', async () => {
-    const realmName = `closed-${newId()}`;
-    const realmId = newId();
-    await withRealm(app.db, realmId, (tx) => seedRealm(tx, realmId, { name: realmName }));
+    const tenantName = `closed-${newId()}`;
+    const tenantId = newId();
+    await withTenant(app.db, tenantId, (tx) => seedTenant(tx, tenantId, { name: tenantName }));
 
-    const res = await http.inject({ method: 'POST', url: URL_FOR(realmName), payload: MINIMAL });
+    const res = await http.inject({ method: 'POST', url: URL_FOR(tenantName), payload: MINIMAL });
     expect(res.statusCode).toBe(404);
   });
 
   it('omits registration_endpoint from discovery', async () => {
-    const realmName = `closed-disc-${newId()}`;
-    const realmId = newId();
-    await withRealm(app.db, realmId, (tx) => seedRealm(tx, realmId, { name: realmName }));
+    const tenantName = `closed-disc-${newId()}`;
+    const tenantId = newId();
+    await withTenant(app.db, tenantId, (tx) => seedTenant(tx, tenantId, { name: tenantName }));
 
-    const doc = await discovery(realmName);
+    const doc = await discovery(tenantName);
     expect(doc).not.toHaveProperty('registration_endpoint');
   });
 
-  it('answers 404 for an unknown realm the same way', async () => {
+  it('answers 404 for an unknown tenant the same way', async () => {
     const res = await http.inject({
       method: 'POST',
-      url: URL_FOR('no-such-realm'),
+      url: URL_FOR('no-such-tenant'),
       payload: MINIMAL,
     });
     expect(res.statusCode).toBe(404);
@@ -130,18 +130,18 @@ describe('[ODUDU-CLIENT-REGISTRATION-DISABLED-01] a realm that has not opened re
 
 describe('[ODUDU-CLIENT-REGISTRATION-OPEN-01] the open policy', () => {
   it('registers a client, assigns its id, and advertises registration_endpoint', async () => {
-    const realmName = `open-${newId()}`;
-    const realmId = newId();
-    await withRealm(app.db, realmId, (tx) =>
-      seedRealm(tx, realmId, { name: realmName, policy: 'open' }),
+    const tenantName = `open-${newId()}`;
+    const tenantId = newId();
+    await withTenant(app.db, tenantId, (tx) =>
+      seedTenant(tx, tenantId, { name: tenantName, policy: 'open' }),
     );
 
-    const doc = await discovery(realmName);
+    const doc = await discovery(tenantName);
     expect(doc.registration_endpoint).toBe(
-      `http://localhost/realms/${realmName}/clients-registrations/openid-connect`,
+      `http://localhost/tenants/${tenantName}/clients-registrations/openid-connect`,
     );
 
-    const res = await http.inject({ method: 'POST', url: URL_FOR(realmName), payload: MINIMAL });
+    const res = await http.inject({ method: 'POST', url: URL_FOR(tenantName), payload: MINIMAL });
     expect(res.statusCode).toBe(201);
     const body = res.json<{ client_id: string; client_id_issued_at: number }>();
     expect(body.client_id).toBeTruthy();
@@ -153,15 +153,15 @@ describe('[ODUDU-CLIENT-REGISTRATION-OPEN-01] the open policy', () => {
   // route-existence for the 400 case, distinct from the 404 a missing route
   // would also answer.
   it('never echoes a proposed client_id, and refuses the request instead', async () => {
-    const realmName = `open-propose-${newId()}`;
-    const realmId = newId();
-    await withRealm(app.db, realmId, (tx) =>
-      seedRealm(tx, realmId, { name: realmName, policy: 'open' }),
+    const tenantName = `open-propose-${newId()}`;
+    const tenantId = newId();
+    await withTenant(app.db, tenantId, (tx) =>
+      seedTenant(tx, tenantId, { name: tenantName, policy: 'open' }),
     );
 
     const res = await http.inject({
       method: 'POST',
-      url: URL_FOR(realmName),
+      url: URL_FOR(tenantName),
       payload: { ...MINIMAL, client_id: 'i-picked-this' },
     });
     expect(res.statusCode).toBe(400);
@@ -169,17 +169,17 @@ describe('[ODUDU-CLIENT-REGISTRATION-OPEN-01] the open policy', () => {
   });
 
   it('marks an anonymous registration as requiring consent, with origin anonymous', async () => {
-    const realmName = `open-anon-${newId()}`;
-    const realmId = newId();
-    await withRealm(app.db, realmId, (tx) =>
-      seedRealm(tx, realmId, { name: realmName, policy: 'open' }),
+    const tenantName = `open-anon-${newId()}`;
+    const tenantId = newId();
+    await withTenant(app.db, tenantId, (tx) =>
+      seedTenant(tx, tenantId, { name: tenantName, policy: 'open' }),
     );
 
-    const res = await http.inject({ method: 'POST', url: URL_FOR(realmName), payload: MINIMAL });
+    const res = await http.inject({ method: 'POST', url: URL_FOR(tenantName), payload: MINIMAL });
     expect(res.statusCode).toBe(201);
     const { client_id: oauthClientId } = res.json<{ client_id: string }>();
 
-    await withRealm(app.db, realmId, async (tx) => {
+    await withTenant(app.db, tenantId, async (tx) => {
       const [row] = await tx.select().from(clients).where(eq(clients.clientId, oauthClientId));
       expect(row?.registrationOrigin).toBe('anonymous');
       const config = await clientOidcConfigRepository(tx).byClientId(row?.id ?? '');
@@ -188,23 +188,23 @@ describe('[ODUDU-CLIENT-REGISTRATION-OPEN-01] the open policy', () => {
   });
 
   it('a token still registers under the open policy, with origin token and no default consent', async () => {
-    const realmName = `open-token-${newId()}`;
-    const realmId = newId();
-    await withRealm(app.db, realmId, (tx) =>
-      seedRealm(tx, realmId, { name: realmName, policy: 'open' }),
+    const tenantName = `open-token-${newId()}`;
+    const tenantId = newId();
+    await withTenant(app.db, tenantId, (tx) =>
+      seedTenant(tx, tenantId, { name: tenantName, policy: 'open' }),
     );
-    const token = await mintToken(realmId);
+    const token = await mintToken(tenantId);
 
     const res = await http.inject({
       method: 'POST',
-      url: URL_FOR(realmName),
+      url: URL_FOR(tenantName),
       payload: MINIMAL,
       headers: { authorization: `Bearer ${token}` },
     });
     expect(res.statusCode).toBe(201);
     const { client_id: oauthClientId } = res.json<{ client_id: string }>();
 
-    await withRealm(app.db, realmId, async (tx) => {
+    await withTenant(app.db, tenantId, async (tx) => {
       const [row] = await tx.select().from(clients).where(eq(clients.clientId, oauthClientId));
       expect(row?.registrationOrigin).toBe('token');
       const config = await clientOidcConfigRepository(tx).byClientId(row?.id ?? '');
@@ -213,15 +213,15 @@ describe('[ODUDU-CLIENT-REGISTRATION-OPEN-01] the open policy', () => {
   });
 
   it('a public client (token_endpoint_auth_method none) is issued no secret', async () => {
-    const realmName = `open-public-${newId()}`;
-    const realmId = newId();
-    await withRealm(app.db, realmId, (tx) =>
-      seedRealm(tx, realmId, { name: realmName, policy: 'open' }),
+    const tenantName = `open-public-${newId()}`;
+    const tenantId = newId();
+    await withTenant(app.db, tenantId, (tx) =>
+      seedTenant(tx, tenantId, { name: tenantName, policy: 'open' }),
     );
 
     const res = await http.inject({
       method: 'POST',
-      url: URL_FOR(realmName),
+      url: URL_FOR(tenantName),
       payload: { ...MINIMAL, token_endpoint_auth_method: 'none' },
     });
     expect(res.statusCode).toBe(201);
@@ -231,13 +231,13 @@ describe('[ODUDU-CLIENT-REGISTRATION-OPEN-01] the open policy', () => {
   });
 
   it('a confidential client is issued a secret once, hashed at rest', async () => {
-    const realmName = `open-conf-${newId()}`;
-    const realmId = newId();
-    await withRealm(app.db, realmId, (tx) =>
-      seedRealm(tx, realmId, { name: realmName, policy: 'open' }),
+    const tenantName = `open-conf-${newId()}`;
+    const tenantId = newId();
+    await withTenant(app.db, tenantId, (tx) =>
+      seedTenant(tx, tenantId, { name: tenantName, policy: 'open' }),
     );
 
-    const res = await http.inject({ method: 'POST', url: URL_FOR(realmName), payload: MINIMAL });
+    const res = await http.inject({ method: 'POST', url: URL_FOR(tenantName), payload: MINIMAL });
     expect(res.statusCode).toBe(201);
     const body = res.json<{
       client_id: string;
@@ -247,7 +247,7 @@ describe('[ODUDU-CLIENT-REGISTRATION-OPEN-01] the open policy', () => {
     expect(typeof body.client_secret).toBe('string');
     expect(body.client_secret_expires_at).toBe(0);
 
-    await withRealm(app.db, realmId, async (tx) => {
+    await withTenant(app.db, tenantId, async (tx) => {
       const [row] = await tx.select().from(clients).where(eq(clients.clientId, body.client_id));
       expect(row?.secretHash).not.toBe(body.client_secret);
       expect(row?.secretHash).toBeTruthy();
@@ -257,27 +257,27 @@ describe('[ODUDU-CLIENT-REGISTRATION-OPEN-01] the open policy', () => {
 
 describe('[ODUDU-CLIENT-REGISTRATION-TOKEN-01] the token policy', () => {
   it('refuses an unauthenticated registration with 401 and a Bearer challenge', async () => {
-    const realmName = `token-${newId()}`;
-    const realmId = newId();
-    await withRealm(app.db, realmId, (tx) =>
-      seedRealm(tx, realmId, { name: realmName, policy: 'token' }),
+    const tenantName = `token-${newId()}`;
+    const tenantId = newId();
+    await withTenant(app.db, tenantId, (tx) =>
+      seedTenant(tx, tenantId, { name: tenantName, policy: 'token' }),
     );
 
-    const res = await http.inject({ method: 'POST', url: URL_FOR(realmName), payload: MINIMAL });
+    const res = await http.inject({ method: 'POST', url: URL_FOR(tenantName), payload: MINIMAL });
     expect(res.statusCode).toBe(401);
     expect(res.headers['www-authenticate']).toMatch(/^Bearer/u);
   });
 
   it('refuses a spent or foreign token the same way', async () => {
-    const realmName = `token-bad-${newId()}`;
-    const realmId = newId();
-    await withRealm(app.db, realmId, (tx) =>
-      seedRealm(tx, realmId, { name: realmName, policy: 'token' }),
+    const tenantName = `token-bad-${newId()}`;
+    const tenantId = newId();
+    await withTenant(app.db, tenantId, (tx) =>
+      seedTenant(tx, tenantId, { name: tenantName, policy: 'token' }),
     );
 
     const res = await http.inject({
       method: 'POST',
-      url: URL_FOR(realmName),
+      url: URL_FOR(tenantName),
       payload: MINIMAL,
       headers: { authorization: 'Bearer not-a-real-token' },
     });
@@ -286,16 +286,16 @@ describe('[ODUDU-CLIENT-REGISTRATION-TOKEN-01] the token policy', () => {
   });
 
   it('registers with a valid token, consuming it', async () => {
-    const realmName = `token-ok-${newId()}`;
-    const realmId = newId();
-    await withRealm(app.db, realmId, (tx) =>
-      seedRealm(tx, realmId, { name: realmName, policy: 'token' }),
+    const tenantName = `token-ok-${newId()}`;
+    const tenantId = newId();
+    await withTenant(app.db, tenantId, (tx) =>
+      seedTenant(tx, tenantId, { name: tenantName, policy: 'token' }),
     );
-    const token = await mintToken(realmId, 1);
+    const token = await mintToken(tenantId, 1);
 
     const first = await http.inject({
       method: 'POST',
-      url: URL_FOR(realmName),
+      url: URL_FOR(tenantName),
       payload: MINIMAL,
       headers: { authorization: `Bearer ${token}` },
     });
@@ -305,7 +305,7 @@ describe('[ODUDU-CLIENT-REGISTRATION-TOKEN-01] the token policy', () => {
     // spent — discriminates from a check that only looks at expiry.
     const second = await http.inject({
       method: 'POST',
-      url: URL_FOR(realmName),
+      url: URL_FOR(tenantName),
       payload: MINIMAL,
       headers: { authorization: `Bearer ${token}` },
     });
@@ -313,15 +313,15 @@ describe('[ODUDU-CLIENT-REGISTRATION-TOKEN-01] the token policy', () => {
   });
 });
 
-describe('[ODUDU-CLIENT-REGISTRATION-CAP-01] the realm client cap', () => {
-  it('refuses once the realm is at its client cap', async () => {
-    const realmName = `cap-${newId()}`;
-    const realmId = newId();
-    await withRealm(app.db, realmId, (tx) =>
-      seedRealm(tx, realmId, { name: realmName, policy: 'open', maxClients: 0 }),
+describe('[ODUDU-CLIENT-REGISTRATION-CAP-01] the tenant client cap', () => {
+  it('refuses once the tenant is at its client cap', async () => {
+    const tenantName = `cap-${newId()}`;
+    const tenantId = newId();
+    await withTenant(app.db, tenantId, (tx) =>
+      seedTenant(tx, tenantId, { name: tenantName, policy: 'open', maxClients: 0 }),
     );
 
-    const res = await http.inject({ method: 'POST', url: URL_FOR(realmName), payload: MINIMAL });
+    const res = await http.inject({ method: 'POST', url: URL_FOR(tenantName), payload: MINIMAL });
     expect(res.statusCode).toBe(403);
     expect(res.json<{ error: string }>().error).toBe('invalid_client_metadata');
   });
@@ -334,22 +334,22 @@ describe('[ODUDU-CLIENT-REGISTRATION-CAP-01] the realm client cap', () => {
   // its own transaction), so a version without the FOR UPDATE lock can
   // observe the cap as not-yet-reached in both and let both through.
   it('does not let two concurrent registrations exceed the cap', async () => {
-    const realmName = `cap-race-${newId()}`;
-    const realmId = newId();
-    await withRealm(app.db, realmId, (tx) =>
-      seedRealm(tx, realmId, { name: realmName, policy: 'open', maxClients: 1 }),
+    const tenantName = `cap-race-${newId()}`;
+    const tenantId = newId();
+    await withTenant(app.db, tenantId, (tx) =>
+      seedTenant(tx, tenantId, { name: tenantName, policy: 'open', maxClients: 1 }),
     );
 
     const [first, second] = await Promise.all([
-      http.inject({ method: 'POST', url: URL_FOR(realmName), payload: MINIMAL }),
-      http.inject({ method: 'POST', url: URL_FOR(realmName), payload: MINIMAL }),
+      http.inject({ method: 'POST', url: URL_FOR(tenantName), payload: MINIMAL }),
+      http.inject({ method: 'POST', url: URL_FOR(tenantName), payload: MINIMAL }),
     ]);
 
     const statuses = [first.statusCode, second.statusCode].sort();
     expect(statuses).toEqual([201, 403]);
 
-    const count = await withRealm(app.db, realmId, async (tx) =>
-      tx.select().from(clients).where(eq(clients.realmId, realmId)),
+    const count = await withTenant(app.db, tenantId, async (tx) =>
+      tx.select().from(clients).where(eq(clients.tenantId, tenantId)),
     );
     expect(count.length).toBe(1);
   });
@@ -361,14 +361,14 @@ describe('[ODUDU-CLIENT-REGISTRATION-SEAM-01] the P3a/P3b seam, now closed', () 
   // advertised in discovery (`/userinfo` signs and encrypts — see
   // `userinfo-signed.int.test.ts` and `userinfo-encrypted.int.test.ts`).
   it('advertises signing and encryption, and stores both', async () => {
-    const realmName = `seam-${newId()}`;
-    const realmId = newId();
-    await withRealm(app.db, realmId, async (tx) => {
-      await seedRealm(tx, realmId, { name: realmName, policy: 'open' });
+    const tenantName = `seam-${newId()}`;
+    const tenantId = newId();
+    await withTenant(app.db, tenantId, async (tx) => {
+      await seedTenant(tx, tenantId, { name: tenantName, policy: 'open' });
       const key = await generateSigningKey('RS256', KEK);
       await tx.insert(signingKeys).values({
         id: newId(),
-        realmId,
+        tenantId,
         kid: key.kid,
         alg: key.alg,
         status: 'active',
@@ -379,7 +379,7 @@ describe('[ODUDU-CLIENT-REGISTRATION-SEAM-01] the P3a/P3b seam, now closed', () 
 
     const res = await http.inject({
       method: 'POST',
-      url: URL_FOR(realmName),
+      url: URL_FOR(tenantName),
       payload: {
         ...MINIMAL,
         backchannel_logout_uri: 'https://rp.example/bc',
@@ -396,13 +396,13 @@ describe('[ODUDU-CLIENT-REGISTRATION-SEAM-01] the P3a/P3b seam, now closed', () 
     // `_enc` was never sent.
     expect(body.userinfo_encrypted_response_enc).toBe('A128CBC-HS256');
 
-    const doc = await discovery(realmName);
+    const doc = await discovery(tenantName);
     expect(doc.backchannel_logout_supported).toBe(true);
-    // This realm's own active key, not a fixed pair every realm gets —
+    // This tenant's own active key, not a fixed pair every tenant gets —
     // it holds exactly one (`signing_keys_one_active`).
     expect(doc.userinfo_signing_alg_values_supported).toEqual(['RS256', 'none']);
-    // Fixed by the installed jose, not by this realm's own data — unlike
-    // signing above, every realm advertises the same set.
+    // Fixed by the installed jose, not by this tenant's own data — unlike
+    // signing above, every tenant advertises the same set.
     expect(doc.userinfo_encryption_alg_values_supported).toEqual([
       'RSA-OAEP-256',
       'ECDH-ES',
@@ -424,15 +424,15 @@ describe('[ODUDU-CLIENT-REGISTRATION-SEAM-01] the P3a/P3b seam, now closed', () 
   // installed jose entirely — a registration that admitted it would
   // succeed today and fail every /userinfo request from then on.
   it('refuses a userinfo_encrypted_response_alg no installed jose can produce', async () => {
-    const realmName = `seam-enc-refuse-${newId()}`;
-    const realmId = newId();
-    await withRealm(app.db, realmId, (tx) =>
-      seedRealm(tx, realmId, { name: realmName, policy: 'open' }),
+    const tenantName = `seam-enc-refuse-${newId()}`;
+    const tenantId = newId();
+    await withTenant(app.db, tenantId, (tx) =>
+      seedTenant(tx, tenantId, { name: tenantName, policy: 'open' }),
     );
 
     const res = await http.inject({
       method: 'POST',
-      url: URL_FOR(realmName),
+      url: URL_FOR(tenantName),
       payload: { ...MINIMAL, userinfo_encrypted_response_alg: 'RSA1_5' },
     });
     expect(res.statusCode).toBe(400);
@@ -444,15 +444,15 @@ describe('[ODUDU-CLIENT-REGISTRATION-SEAM-01] the P3a/P3b seam, now closed', () 
   // its OAEP hash (`@odudu/crypto`'s `JWE_ALGS_PERMITTED`). This pins the
   // server's own narrowing rather than jose's own refusal.
   it('refuses a userinfo_encrypted_response_alg jose can produce but this server excludes', async () => {
-    const realmName = `seam-enc-refuse-oaep-${newId()}`;
-    const realmId = newId();
-    await withRealm(app.db, realmId, (tx) =>
-      seedRealm(tx, realmId, { name: realmName, policy: 'open' }),
+    const tenantName = `seam-enc-refuse-oaep-${newId()}`;
+    const tenantId = newId();
+    await withTenant(app.db, tenantId, (tx) =>
+      seedTenant(tx, tenantId, { name: tenantName, policy: 'open' }),
     );
 
     const res = await http.inject({
       method: 'POST',
-      url: URL_FOR(realmName),
+      url: URL_FOR(tenantName),
       payload: { ...MINIMAL, userinfo_encrypted_response_alg: 'RSA-OAEP' },
     });
     expect(res.statusCode).toBe(400);
@@ -460,15 +460,15 @@ describe('[ODUDU-CLIENT-REGISTRATION-SEAM-01] the P3a/P3b seam, now closed', () 
   });
 
   it('refuses a userinfo_encrypted_response_enc outside the JWA registry', async () => {
-    const realmName = `seam-enc-value-refuse-${newId()}`;
-    const realmId = newId();
-    await withRealm(app.db, realmId, (tx) =>
-      seedRealm(tx, realmId, { name: realmName, policy: 'open' }),
+    const tenantName = `seam-enc-value-refuse-${newId()}`;
+    const tenantId = newId();
+    await withTenant(app.db, tenantId, (tx) =>
+      seedTenant(tx, tenantId, { name: tenantName, policy: 'open' }),
     );
 
     const res = await http.inject({
       method: 'POST',
-      url: URL_FOR(realmName),
+      url: URL_FOR(tenantName),
       payload: {
         ...MINIMAL,
         userinfo_encrypted_response_alg: 'RSA-OAEP-256',
@@ -485,15 +485,15 @@ describe('[ODUDU-CLIENT-REGISTRATION-SEAM-01] the P3a/P3b seam, now closed', () 
   // client_oidc_config_userinfo_enc_needs_alg constraint, which would
   // otherwise turn this into an unrelated 500.
   it('refuses userinfo_encrypted_response_enc registered with no _alg', async () => {
-    const realmName = `seam-enc-no-alg-${newId()}`;
-    const realmId = newId();
-    await withRealm(app.db, realmId, (tx) =>
-      seedRealm(tx, realmId, { name: realmName, policy: 'open' }),
+    const tenantName = `seam-enc-no-alg-${newId()}`;
+    const tenantId = newId();
+    await withTenant(app.db, tenantId, (tx) =>
+      seedTenant(tx, tenantId, { name: tenantName, policy: 'open' }),
     );
 
     const res = await http.inject({
       method: 'POST',
-      url: URL_FOR(realmName),
+      url: URL_FOR(tenantName),
       payload: { ...MINIMAL, userinfo_encrypted_response_enc: 'A256GCM' },
     });
     expect(res.statusCode).toBe(400);
@@ -501,15 +501,15 @@ describe('[ODUDU-CLIENT-REGISTRATION-SEAM-01] the P3a/P3b seam, now closed', () 
   });
 
   it('refuses a userinfo_signed_response_alg this server cannot produce', async () => {
-    const realmName = `seam-refuse-${newId()}`;
-    const realmId = newId();
-    await withRealm(app.db, realmId, (tx) =>
-      seedRealm(tx, realmId, { name: realmName, policy: 'open' }),
+    const tenantName = `seam-refuse-${newId()}`;
+    const tenantId = newId();
+    await withTenant(app.db, tenantId, (tx) =>
+      seedTenant(tx, tenantId, { name: tenantName, policy: 'open' }),
     );
 
     const res = await http.inject({
       method: 'POST',
-      url: URL_FOR(realmName),
+      url: URL_FOR(tenantName),
       payload: { ...MINIMAL, userinfo_signed_response_alg: 'ES512' },
     });
     expect(res.statusCode).toBe(400);
@@ -517,16 +517,16 @@ describe('[ODUDU-CLIENT-REGISTRATION-SEAM-01] the P3a/P3b seam, now closed', () 
   });
 
   // A permitted value (client-metadata.ts's own enum admits it) that this
-  // realm's own active key still cannot produce.
-  it('refuses a permitted algorithm this realm cannot produce, at registration', async () => {
-    const realmName = `seam-key-mismatch-${newId()}`;
-    const realmId = newId();
-    await withRealm(app.db, realmId, async (tx) => {
-      await seedRealm(tx, realmId, { name: realmName, policy: 'open' });
+  // tenant's own active key still cannot produce.
+  it('refuses a permitted algorithm this tenant cannot produce, at registration', async () => {
+    const tenantName = `seam-key-mismatch-${newId()}`;
+    const tenantId = newId();
+    await withTenant(app.db, tenantId, async (tx) => {
+      await seedTenant(tx, tenantId, { name: tenantName, policy: 'open' });
       const key = await generateSigningKey('RS256', KEK);
       await tx.insert(signingKeys).values({
         id: newId(),
-        realmId,
+        tenantId,
         kid: key.kid,
         alg: key.alg,
         status: 'active',
@@ -537,25 +537,25 @@ describe('[ODUDU-CLIENT-REGISTRATION-SEAM-01] the P3a/P3b seam, now closed', () 
 
     const res = await http.inject({
       method: 'POST',
-      url: URL_FOR(realmName),
+      url: URL_FOR(tenantName),
       payload: { ...MINIMAL, userinfo_signed_response_alg: 'ES256' },
     });
     expect(res.statusCode).toBe(400);
     expect(res.json<{ error: string }>().error).toBe('invalid_client_metadata');
   });
 
-  // No active key at all: the realm can honour neither RS256 nor ES256, so
+  // No active key at all: the tenant can honour neither RS256 nor ES256, so
   // this is the same refusal as a mismatch, not an unguarded exception.
-  it('refuses a signing algorithm on a realm with no active key, rather than 500', async () => {
-    const realmName = `seam-no-key-${newId()}`;
-    const realmId = newId();
-    await withRealm(app.db, realmId, (tx) =>
-      seedRealm(tx, realmId, { name: realmName, policy: 'open' }),
+  it('refuses a signing algorithm on a tenant with no active key, rather than 500', async () => {
+    const tenantName = `seam-no-key-${newId()}`;
+    const tenantId = newId();
+    await withTenant(app.db, tenantId, (tx) =>
+      seedTenant(tx, tenantId, { name: tenantName, policy: 'open' }),
     );
 
     const res = await http.inject({
       method: 'POST',
-      url: URL_FOR(realmName),
+      url: URL_FOR(tenantName),
       payload: { ...MINIMAL, userinfo_signed_response_alg: 'RS256' },
     });
     expect(res.statusCode).toBe(400);
@@ -565,15 +565,15 @@ describe('[ODUDU-CLIENT-REGISTRATION-SEAM-01] the P3a/P3b seam, now closed', () 
 
 describe('[RFC6749-2-01] client registration captures client type, redirect URIs, and any other information the authorization server requires', () => {
   it('stores the client type, redirect_uris and client_name a registration submits', async () => {
-    const realmName = `rfc-captures-${newId()}`;
-    const realmId = newId();
-    await withRealm(app.db, realmId, (tx) =>
-      seedRealm(tx, realmId, { name: realmName, policy: 'open' }),
+    const tenantName = `rfc-captures-${newId()}`;
+    const tenantId = newId();
+    await withTenant(app.db, tenantId, (tx) =>
+      seedTenant(tx, tenantId, { name: tenantName, policy: 'open' }),
     );
 
     const res = await http.inject({
       method: 'POST',
-      url: URL_FOR(realmName),
+      url: URL_FOR(tenantName),
       payload: {
         redirect_uris: ['https://rp.example/cb'],
         client_name: 'Captured RP',
@@ -583,7 +583,7 @@ describe('[RFC6749-2-01] client registration captures client type, redirect URIs
     expect(res.statusCode).toBe(201);
     const { client_id: oauthClientId } = res.json<{ client_id: string }>();
 
-    await withRealm(app.db, realmId, async (tx) => {
+    await withTenant(app.db, tenantId, async (tx) => {
       const [row] = await tx.select().from(clients).where(eq(clients.clientId, oauthClientId));
       expect(row?.type).toBe('public');
       expect(row?.name).toBe('Captured RP');
@@ -595,21 +595,21 @@ describe('[RFC6749-2-01] client registration captures client type, redirect URIs
 
 describe('[RFC6749-2.3.2-01] a mapping between client identifier and authentication scheme is defined when using a non-password scheme', () => {
   it('stores the token_endpoint_auth_method a confidential client requested', async () => {
-    const realmName = `rfc-auth-scheme-${newId()}`;
-    const realmId = newId();
-    await withRealm(app.db, realmId, (tx) =>
-      seedRealm(tx, realmId, { name: realmName, policy: 'open' }),
+    const tenantName = `rfc-auth-scheme-${newId()}`;
+    const tenantId = newId();
+    await withTenant(app.db, tenantId, (tx) =>
+      seedTenant(tx, tenantId, { name: tenantName, policy: 'open' }),
     );
 
     const res = await http.inject({
       method: 'POST',
-      url: URL_FOR(realmName),
+      url: URL_FOR(tenantName),
       payload: { ...MINIMAL, token_endpoint_auth_method: 'client_secret_post' },
     });
     expect(res.statusCode).toBe(201);
     const { client_id: oauthClientId } = res.json<{ client_id: string }>();
 
-    await withRealm(app.db, realmId, async (tx) => {
+    await withTenant(app.db, tenantId, async (tx) => {
       const [row] = await tx.select().from(clients).where(eq(clients.clientId, oauthClientId));
       const config = await clientOidcConfigRepository(tx).byClientId(row?.id ?? '');
       expect(config?.tokenEndpointAuthMethod).toBe('client_secret_post');
@@ -624,22 +624,22 @@ describe('[ODUDU-CLIENT-REGISTRATION-JWKS-URI-01] a registered jwks_uri', () => 
   // (RFC 2606) never resolves, so a version that does dereference it fails
   // on the network call itself, not on an assertion.
   it('registers even when the host cannot resolve, never dereferencing it', async () => {
-    const realmName = `jwks-uri-${newId()}`;
-    const realmId = newId();
-    await withRealm(app.db, realmId, (tx) =>
-      seedRealm(tx, realmId, { name: realmName, policy: 'open' }),
+    const tenantName = `jwks-uri-${newId()}`;
+    const tenantId = newId();
+    await withTenant(app.db, tenantId, (tx) =>
+      seedTenant(tx, tenantId, { name: tenantName, policy: 'open' }),
     );
 
     const res = await http.inject({
       method: 'POST',
-      url: URL_FOR(realmName),
+      url: URL_FOR(tenantName),
       payload: { ...MINIMAL, jwks_uri: 'https://nonexistent.invalid/jwks.json' },
     });
     expect(res.statusCode).toBe(201);
     const body = res.json<{ client_id: string; jwks_uri: string }>();
     expect(body.jwks_uri).toBe('https://nonexistent.invalid/jwks.json');
 
-    await withRealm(app.db, realmId, async (tx) => {
+    await withTenant(app.db, tenantId, async (tx) => {
       const [row] = await tx.select().from(clients).where(eq(clients.clientId, body.client_id));
       const config = await clientOidcConfigRepository(tx).byClientId(row?.id ?? '');
       expect(config?.jwksUri).toBe('https://nonexistent.invalid/jwks.json');

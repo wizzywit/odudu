@@ -12,9 +12,9 @@ export function isPasswordAuthMethod(
   return method === 'client_secret_basic' || method === 'client_secret_post';
 }
 
-/** ADR 0023's client-authentication limit is per client, not per realm or global. */
-export function clientSecretLimiterKey(realmId: string, oauthClientId: string): string {
-  return `${realmId}:${oauthClientId}`;
+/** ADR 0023's client-authentication limit is per client, not per tenant or global. */
+export function clientSecretLimiterKey(tenantId: string, oauthClientId: string): string {
+  return `${tenantId}:${oauthClientId}`;
 }
 
 /**

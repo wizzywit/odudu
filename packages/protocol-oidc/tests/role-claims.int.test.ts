@@ -3,13 +3,13 @@ import { hashPassword, subjectRepository, users } from '@odudu/domain-identity';
 import {
   createDatabase,
   MIGRATIONS_DIR,
-  realms,
+  tenants,
   runMigrations,
-  withRealm,
+  withTenant,
   type DatabaseHandle,
-  type RealmScopedDatabase,
+  type TenantScopedDatabase,
 } from '@odudu/db';
-import { provisionRealm } from '@odudu/authn-flows';
+import { provisionTenant } from '@odudu/authn-flows';
 import { clientScopeRepository, clients, provisionClientDefaults } from '@odudu/domain-tenant';
 import { roleRepository, type RoleRecord } from '@odudu/domain-authz';
 import { newId } from '@odudu/kernel';
@@ -42,28 +42,28 @@ const REDIRECT_URI = 'https://app.example/callback';
 const VERIFIER = 'dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk';
 const CHALLENGE = 'E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM';
 
-interface Realm {
-  realmName: string;
-  realmId: string;
+interface Tenant {
+  tenantName: string;
+  tenantId: string;
   clientDbId: string;
   subjectId: string;
 }
 
-async function seedRealm(label: string): Promise<Realm> {
-  const realmName = `role-claims-${label}-${newId()}`;
-  const realmId = newId();
+async function seedTenant(label: string): Promise<Tenant> {
+  const tenantName = `role-claims-${label}-${newId()}`;
+  const tenantId = newId();
   const clientDbId = newId();
 
-  const subjectId = await withRealm(app.db, realmId, async (tx: RealmScopedDatabase) => {
-    await tx.insert(realms).values({ id: realmId, name: realmName });
-    await provisionRealm(tx, realmId);
+  const subjectId = await withTenant(app.db, tenantId, async (tx: TenantScopedDatabase) => {
+    await tx.insert(tenants).values({ id: tenantId, name: tenantName });
+    await provisionTenant(tx, tenantId);
 
-    const subject = await subjectRepository(tx).create({ realmId, type: 'user' });
-    await tx.insert(users).values({ subjectId: subject.id, realmId, username: `alice-${label}` });
+    const subject = await subjectRepository(tx).create({ tenantId, type: 'user' });
+    await tx.insert(users).values({ subjectId: subject.id, tenantId, username: `alice-${label}` });
 
     await tx.insert(clients).values({
       id: clientDbId,
-      realmId,
+      tenantId,
       clientId: 'web-app',
       name: 'Web app',
       type: 'confidential',
@@ -73,7 +73,7 @@ async function seedRealm(label: string): Promise<Realm> {
 
     await clientOidcConfigRepository(tx).create({
       clientId: clientDbId,
-      realmId,
+      tenantId,
       redirectUris: [REDIRECT_URI],
       grantTypes: ['authorization_code'],
       tokenEndpointAuthMethod: 'client_secret_basic',
@@ -85,7 +85,7 @@ async function seedRealm(label: string): Promise<Realm> {
     const key = await generateSigningKey('RS256', KEK);
     await tx.insert(signingKeys).values({
       id: newId(),
-      realmId,
+      tenantId,
       kid: key.kid,
       alg: key.alg,
       status: 'active',
@@ -96,48 +96,48 @@ async function seedRealm(label: string): Promise<Realm> {
     return subject.id;
   });
 
-  return { realmName, realmId, clientDbId, subjectId };
+  return { tenantName, tenantId, clientDbId, subjectId };
 }
 
-// A realm role held by the realm's subject, with no scope mapping unless
+// A tenant role held by the tenant's subject, with no scope mapping unless
 // mapRoleToScope adds one — the "held but not reachable" fixture every
 // negative assertion below depends on.
-async function giveSubjectRole(realm: Realm, name: string): Promise<RoleRecord> {
-  return withRealm(app.db, realm.realmId, async (tx) => {
-    const role = await roleRepository(tx).create({ realmId: realm.realmId, name });
-    await roleRepository(tx).assignToSubject(realm.subjectId, role.id);
+async function giveSubjectRole(tenant: Tenant, name: string): Promise<RoleRecord> {
+  return withTenant(app.db, tenant.tenantId, async (tx) => {
+    const role = await roleRepository(tx).create({ tenantId: tenant.tenantId, name });
+    await roleRepository(tx).assignToSubject(tenant.subjectId, role.id);
     return role;
   });
 }
 
-async function mapRoleToScope(realm: Realm, role: RoleRecord, scopeName: string): Promise<void> {
-  await withRealm(app.db, realm.realmId, async (tx) => {
+async function mapRoleToScope(tenant: Tenant, role: RoleRecord, scopeName: string): Promise<void> {
+  await withTenant(app.db, tenant.tenantId, async (tx) => {
     const scope = await clientScopeRepository(tx).byName(scopeName);
     if (scope === null) throw new Error(`no client scope named ${scopeName}`);
     await roleRepository(tx).mapToClientScope(scope.id, role.id);
   });
 }
 
-async function setFullScopeAllowed(realm: Realm): Promise<void> {
-  await withRealm(app.db, realm.realmId, (tx) =>
-    tx.execute(sql`update clients set full_scope_allowed = true where id = ${realm.clientDbId}`),
+async function setFullScopeAllowed(tenant: Tenant): Promise<void> {
+  await withTenant(app.db, tenant.tenantId, (tx) =>
+    tx.execute(sql`update clients set full_scope_allowed = true where id = ${tenant.clientDbId}`),
   );
 }
 
-async function disableClient(realm: Realm): Promise<void> {
-  await withRealm(app.db, realm.realmId, (tx) =>
-    tx.execute(sql`update clients set enabled = false where id = ${realm.clientDbId}`),
+async function disableClient(tenant: Tenant): Promise<void> {
+  await withTenant(app.db, tenant.tenantId, (tx) =>
+    tx.execute(sql`update clients set enabled = false where id = ${tenant.clientDbId}`),
   );
 }
 
 async function setIncludeInAccessToken(
-  realm: Realm,
+  tenant: Tenant,
   scopeName: string,
   value: boolean,
 ): Promise<void> {
-  await withRealm(app.db, realm.realmId, (tx) =>
+  await withTenant(app.db, tenant.tenantId, (tx) =>
     tx.execute(
-      sql`update client_scopes set include_in_access_token = ${value} where realm_id = ${realm.realmId} and name = ${scopeName}`,
+      sql`update client_scopes set include_in_access_token = ${value} where tenant_id = ${tenant.tenantId} and name = ${scopeName}`,
     ),
   );
 }
@@ -147,15 +147,15 @@ interface TokenSet {
   idToken: string | undefined;
 }
 
-async function completeCodeFlow(realm: Realm, scope: string): Promise<TokenSet> {
+async function completeCodeFlow(tenant: Tenant, scope: string): Promise<TokenSet> {
   const code = generateAuthorizationCode();
 
-  await withRealm(app.db, realm.realmId, async (tx) => {
+  await withTenant(app.db, tenant.tenantId, async (tx) => {
     await authorizationCodeRepository(tx).create({
       codeHash: hashAuthorizationCode(code),
-      realmId: realm.realmId,
-      clientId: realm.clientDbId,
-      subjectId: realm.subjectId,
+      tenantId: tenant.tenantId,
+      clientId: tenant.clientDbId,
+      subjectId: tenant.subjectId,
       redirectUri: REDIRECT_URI,
       scope,
       nonce: null,
@@ -176,7 +176,7 @@ async function completeCodeFlow(realm: Realm, scope: string): Promise<TokenSet> 
 
   const res = await http.inject({
     method: 'POST',
-    url: `/realms/${realm.realmName}/protocol/openid-connect/token`,
+    url: `/tenants/${tenant.tenantName}/protocol/openid-connect/token`,
     payload: form.toString(),
     headers: {
       'content-type': 'application/x-www-form-urlencoded',
@@ -188,10 +188,10 @@ async function completeCodeFlow(realm: Realm, scope: string): Promise<TokenSet> 
   return { accessToken: body.access_token, idToken: body.id_token };
 }
 
-async function userinfo(realm: Realm, accessToken: string): Promise<Record<string, unknown>> {
+async function userinfo(tenant: Tenant, accessToken: string): Promise<Record<string, unknown>> {
   const res = await http.inject({
     method: 'GET',
-    url: `/realms/${realm.realmName}/protocol/openid-connect/userinfo`,
+    url: `/tenants/${tenant.tenantName}/protocol/openid-connect/userinfo`,
     headers: { authorization: `Bearer ${accessToken}` },
   });
   expect(res.statusCode).toBe(200);
@@ -241,108 +241,108 @@ afterAll(async () => {
 
 describe('roles in an issued token', () => {
   it('withholds a held role that the client scopes do not reach', async () => {
-    const realm = await seedRealm('unmapped');
-    await giveSubjectRole(realm, 'admin'); // held, but mapped to no scope
+    const tenant = await seedTenant('unmapped');
+    await giveSubjectRole(tenant, 'admin'); // held, but mapped to no scope
 
-    const { accessToken } = await completeCodeFlow(realm, 'openid roles');
+    const { accessToken } = await completeCodeFlow(tenant, 'openid roles');
     expect(decode(accessToken)).not.toHaveProperty('roles');
   });
 
   it('withholds the roles claim entirely when nothing is mapped', async () => {
-    const realm = await seedRealm('nothing-mapped');
+    const tenant = await seedTenant('nothing-mapped');
     // Two held roles, neither mapped to anything — not just the one role
     // the previous test leaves unmapped, so an implementation that only
     // drops a single excess role rather than intersecting the whole set
     // still fails this one.
-    await giveSubjectRole(realm, 'admin');
-    await giveSubjectRole(realm, 'member');
+    await giveSubjectRole(tenant, 'admin');
+    await giveSubjectRole(tenant, 'member');
 
-    const { accessToken } = await completeCodeFlow(realm, 'openid roles');
+    const { accessToken } = await completeCodeFlow(tenant, 'openid roles');
     expect(decode(accessToken)).not.toHaveProperty('roles');
   });
 
   it('emits a role once its scope is mapped', async () => {
-    const realm = await seedRealm('mapped');
-    const admin = await giveSubjectRole(realm, 'admin');
-    await mapRoleToScope(realm, admin, 'roles');
+    const tenant = await seedTenant('mapped');
+    const admin = await giveSubjectRole(tenant, 'admin');
+    await mapRoleToScope(tenant, admin, 'roles');
 
-    const { accessToken } = await completeCodeFlow(realm, 'openid roles');
+    const { accessToken } = await completeCodeFlow(tenant, 'openid roles');
     expect(decode(accessToken).roles).toEqual(['admin']);
   });
 
   it('passes every held role through when the client has full scope', async () => {
-    const realm = await seedRealm('full-scope');
-    await setFullScopeAllowed(realm);
-    await giveSubjectRole(realm, 'admin'); // held, mapped to no scope, but full_scope_allowed
+    const tenant = await seedTenant('full-scope');
+    await setFullScopeAllowed(tenant);
+    await giveSubjectRole(tenant, 'admin'); // held, mapped to no scope, but full_scope_allowed
 
-    const { accessToken } = await completeCodeFlow(realm, 'openid roles');
+    const { accessToken } = await completeCodeFlow(tenant, 'openid roles');
     expect(decode(accessToken).roles).toEqual(['admin']);
   });
 
   it('keeps roles out of the ID token, which the browser sees', async () => {
-    const realm = await seedRealm('id-token');
-    const admin = await giveSubjectRole(realm, 'admin');
-    await mapRoleToScope(realm, admin, 'roles');
+    const tenant = await seedTenant('id-token');
+    const admin = await giveSubjectRole(tenant, 'admin');
+    await mapRoleToScope(tenant, admin, 'roles');
 
-    const { idToken } = await completeCodeFlow(realm, 'openid roles');
+    const { idToken } = await completeCodeFlow(tenant, 'openid roles');
     if (idToken === undefined) throw new Error('expected an id_token');
     expect(decode(idToken)).not.toHaveProperty('roles');
   });
 
   it('returns them from userinfo on the same gate', async () => {
-    const realm = await seedRealm('userinfo');
-    const admin = await giveSubjectRole(realm, 'admin');
-    await mapRoleToScope(realm, admin, 'roles');
+    const tenant = await seedTenant('userinfo');
+    const admin = await giveSubjectRole(tenant, 'admin');
+    await mapRoleToScope(tenant, admin, 'roles');
 
-    const { accessToken } = await completeCodeFlow(realm, 'openid roles');
-    expect((await userinfo(realm, accessToken)).roles).toEqual(['admin']);
+    const { accessToken } = await completeCodeFlow(tenant, 'openid roles');
+    expect((await userinfo(tenant, accessToken)).roles).toEqual(['admin']);
   });
 
   it('withholds an unmapped role from userinfo too', async () => {
-    const realm = await seedRealm('userinfo-unmapped');
-    await giveSubjectRole(realm, 'admin'); // held, mapped to no scope
+    const tenant = await seedTenant('userinfo-unmapped');
+    await giveSubjectRole(tenant, 'admin'); // held, mapped to no scope
 
-    const { accessToken } = await completeCodeFlow(realm, 'openid roles');
-    expect(await userinfo(realm, accessToken)).not.toHaveProperty('roles');
+    const { accessToken } = await completeCodeFlow(tenant, 'openid roles');
+    expect(await userinfo(tenant, accessToken)).not.toHaveProperty('roles');
   });
 
   it('narrows a disabled full-scope client’s live token at userinfo', async () => {
-    const realm = await seedRealm('userinfo-disabled-full-scope');
-    await setFullScopeAllowed(realm);
-    await giveSubjectRole(realm, 'admin'); // held, mapped to no scope, but full_scope_allowed
+    const tenant = await seedTenant('userinfo-disabled-full-scope');
+    await setFullScopeAllowed(tenant);
+    await giveSubjectRole(tenant, 'admin'); // held, mapped to no scope, but full_scope_allowed
 
-    const { accessToken } = await completeCodeFlow(realm, 'openid roles');
-    await disableClient(realm);
+    const { accessToken } = await completeCodeFlow(tenant, 'openid roles');
+    await disableClient(tenant);
 
-    expect(await userinfo(realm, accessToken)).not.toHaveProperty('roles');
+    expect(await userinfo(tenant, accessToken)).not.toHaveProperty('roles');
   });
 
   it('lets a mapper claim overwrite no registered claim', async () => {
-    const realm = await seedRealm('claim-order');
-    const admin = await giveSubjectRole(realm, 'admin');
-    await mapRoleToScope(realm, admin, 'roles');
+    const tenant = await seedTenant('claim-order');
+    const admin = await giveSubjectRole(tenant, 'admin');
+    await mapRoleToScope(tenant, admin, 'roles');
 
-    const { accessToken } = await completeCodeFlow(realm, 'openid roles');
+    const { accessToken } = await completeCodeFlow(tenant, 'openid roles');
     const payload = decode(accessToken);
-    expect(payload.sub).toBe(realm.subjectId);
-    expect(payload.iss).toContain(realm.realmName);
+    expect(payload.sub).toBe(tenant.subjectId);
+    expect(payload.iss).toContain(tenant.tenantName);
   });
 
   it('reaches the ID token when the scope says so, not just when it is withheld', async () => {
-    const realm = await seedRealm('id-token-positive');
+    const tenant = await seedTenant('id-token-positive');
 
     // `profile`'s `include_in_id_token` default is true (unlike `roles`),
     // so its claim must actually land — the `roles`/`groups` tests above
     // only prove the gate can withhold, never that it lets a claim through.
-    const { idToken } = await completeCodeFlow(realm, 'openid profile');
+    const { idToken } = await completeCodeFlow(tenant, 'openid profile');
     if (idToken === undefined) throw new Error('expected an id_token');
     expect(decode(idToken).name).toBe(`alice-id-token-positive`);
   });
 
   it('withholds profile and email from the access token by default', async () => {
-    const realm = await seedRealm('access-token-pii-default');
+    const tenant = await seedTenant('access-token-pii-default');
 
-    const { accessToken } = await completeCodeFlow(realm, 'openid profile email');
+    const { accessToken } = await completeCodeFlow(tenant, 'openid profile email');
     const payload = decode(accessToken);
     expect(payload).not.toHaveProperty('name');
     expect(payload).not.toHaveProperty('email');
@@ -350,17 +350,17 @@ describe('roles in an issued token', () => {
   });
 
   it('carries sub on the access token regardless of the openid scope’s access-token flag', async () => {
-    const realm = await seedRealm('access-token-sub-always');
+    const tenant = await seedTenant('access-token-sub-always');
 
-    const { accessToken } = await completeCodeFlow(realm, 'openid');
-    expect(decode(accessToken).sub).toBe(realm.subjectId);
+    const { accessToken } = await completeCodeFlow(tenant, 'openid');
+    expect(decode(accessToken).sub).toBe(tenant.subjectId);
   });
 
-  it('lets profile reach the access token once a realm opts it in', async () => {
-    const realm = await seedRealm('access-token-pii-opt-in');
-    await setIncludeInAccessToken(realm, 'profile', true);
+  it('lets profile reach the access token once a tenant opts it in', async () => {
+    const tenant = await seedTenant('access-token-pii-opt-in');
+    await setIncludeInAccessToken(tenant, 'profile', true);
 
-    const { accessToken } = await completeCodeFlow(realm, 'openid profile');
+    const { accessToken } = await completeCodeFlow(tenant, 'openid profile');
     expect(decode(accessToken).name).toBe('alice-access-token-pii-opt-in');
   });
 });

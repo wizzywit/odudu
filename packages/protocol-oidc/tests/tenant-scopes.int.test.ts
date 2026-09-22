@@ -1,12 +1,12 @@
 import {
   createDatabase,
   MIGRATIONS_DIR,
-  realms,
+  tenants,
   runMigrations,
-  withRealm,
+  withTenant,
   type DatabaseHandle,
 } from '@odudu/db';
-import { provisionRealm } from '@odudu/authn-flows';
+import { provisionTenant } from '@odudu/authn-flows';
 import { clientScopeRepository, clients, provisionClientDefaults } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
@@ -27,22 +27,22 @@ let owner: DatabaseHandle;
 let app: DatabaseHandle;
 let http: FastifyInstance;
 
-const REALM = 'demo';
+const TENANT = 'demo';
 const CLIENT_ID = 'app-a';
 const REDIRECT_URI = 'https://app.example/callback';
 
-let realmId: string;
+let tenantId: string;
 let clientRowId: string;
 
 async function createScope(name: string): Promise<string> {
-  return withRealm(app.db, realmId, async (tx) => {
-    const scope = await clientScopeRepository(tx).create({ realmId, name });
+  return withTenant(app.db, tenantId, async (tx) => {
+    const scope = await clientScopeRepository(tx).create({ tenantId, name });
     return scope.id;
   });
 }
 
 async function assignScope(scopeId: string): Promise<void> {
-  await withRealm(app.db, realmId, (tx) =>
+  await withTenant(app.db, tenantId, (tx) =>
     clientScopeRepository(tx).assign(clientRowId, scopeId, 'optional'),
   );
 }
@@ -57,7 +57,7 @@ function authorizeWith(scope: string): Promise<LightMyRequestResponse> {
     code_challenge_method: 'S256',
   });
   return http.inject({
-    url: `/realms/${REALM}/protocol/openid-connect/auth?${query.toString()}`,
+    url: `/tenants/${TENANT}/protocol/openid-connect/auth?${query.toString()}`,
   });
 }
 
@@ -92,23 +92,23 @@ beforeAll(async () => {
   );
   await http.ready();
 
-  realmId = newId();
+  tenantId = newId();
   clientRowId = newId();
-  await withRealm(app.db, realmId, async (tx) => {
-    await tx.insert(realms).values({ id: realmId, name: REALM });
-    await provisionRealm(tx, realmId);
+  await withTenant(app.db, tenantId, async (tx) => {
+    await tx.insert(tenants).values({ id: tenantId, name: TENANT });
+    await provisionTenant(tx, tenantId);
     await tx.insert(clients).values({
       id: clientRowId,
-      realmId,
+      tenantId,
       clientId: CLIENT_ID,
-      name: 'Realm scopes test client',
+      name: 'Tenant scopes test client',
       type: 'public',
       secretHash: null,
     });
     await provisionClientDefaults(tx, clientRowId);
     await clientOidcConfigRepository(tx).create({
       clientId: clientRowId,
-      realmId,
+      tenantId,
       redirectUris: [REDIRECT_URI],
       grantTypes: ['authorization_code'],
       tokenEndpointAuthMethod: 'none',
@@ -127,15 +127,15 @@ afterAll(async () => {
 });
 
 async function servedScopes(): Promise<string[]> {
-  const res = await http.inject({ url: `/realms/${REALM}/.well-known/openid-configuration` });
+  const res = await http.inject({ url: `/tenants/${TENANT}/.well-known/openid-configuration` });
   return res.json<{ scopes_supported: string[] }>().scopes_supported;
 }
 
 describe('[OIDC-DISCOVERY-3-01] the served discovery document', () => {
-  // §3 requires the server to support the `openid` scope value, and a realm's
+  // §3 requires the server to support the `openid` scope value, and a tenant's
   // vocabulary is now the only thing that can make that true: if `openid`
   // left the set provisionTenantDefaults seeds, this is what would notice.
-  it('lists openid for a realm provisioned with nothing but the defaults', async () => {
+  it('lists openid for a tenant provisioned with nothing but the defaults', async () => {
     expect(await servedScopes()).toContain('openid');
   });
 });
@@ -147,7 +147,7 @@ describe('[OIDC-DISCOVERY-3-01] the served discovery document', () => {
 describe('what discovery advertises is what /authorize accepts', () => {
   it('accepts every served scope this client is assigned', async () => {
     const served = new Set(await servedScopes());
-    const assigned = await withRealm(app.db, realmId, async (tx) =>
+    const assigned = await withTenant(app.db, tenantId, async (tx) =>
       (await clientScopeRepository(tx).forClient(clientRowId)).map((scope) => scope.name),
     );
     const grantable = assigned.filter((name) => served.has(name));
@@ -169,28 +169,28 @@ describe('what discovery advertises is what /authorize accepts', () => {
   });
 });
 
-describe('scopes come from the realm', () => {
-  it('advertises exactly the scopes the realm defines', async () => {
+describe('scopes come from the tenant', () => {
+  it('advertises exactly the scopes the tenant defines', async () => {
     await createScope('reports:advertised');
 
     const res = await http.inject({
-      url: `/realms/${REALM}/.well-known/openid-configuration`,
+      url: `/tenants/${TENANT}/.well-known/openid-configuration`,
     });
     const advertised = res.json<{ scopes_supported: string[] }>().scopes_supported;
-    const defined = await withRealm(app.db, realmId, async (tx) =>
-      (await clientScopeRepository(tx).allForRealm()).map((scope) => scope.name),
+    const defined = await withTenant(app.db, tenantId, async (tx) =>
+      (await clientScopeRepository(tx).allForTenant()).map((scope) => scope.name),
     );
 
     expect(advertised).toContain('reports:advertised');
     expect([...advertised].sort()).toEqual([...defined].sort());
   });
 
-  it('refuses a scope the realm has never heard of', async () => {
+  it('refuses a scope the tenant has never heard of', async () => {
     const res = await authorizeWith('openid nonsense');
     expect(errorOf(res)).toBe('invalid_scope');
   });
 
-  it('refuses a scope the realm defines but this client is not assigned', async () => {
+  it('refuses a scope the tenant defines but this client is not assigned', async () => {
     await createScope('reports:unassigned');
 
     const res = await authorizeWith('openid reports:unassigned');

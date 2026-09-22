@@ -1,6 +1,6 @@
 import { type SessionLifespans } from '@odudu/authn-flows';
 import { type SigningKeyRecord } from '@odudu/crypto';
-import { withRealm, type DatabaseHandle } from '@odudu/db';
+import { withTenant, type DatabaseHandle } from '@odudu/db';
 import { type Clock, systemClock } from '@odudu/kernel';
 import { type FastifyInstance } from 'fastify';
 import { type IntrospectionGrant } from '#/usecase/introspection';
@@ -10,29 +10,29 @@ import {
   respondToIntrospectionRequest,
   type IntrospectionRequestDeps,
 } from '#/usecase/introspection-request';
-import { realmIssuerFor } from '#/view/issuer';
+import { tenantIssuerFor } from '#/view/issuer';
 
 export interface IntrospectRouteDeps {
   database: DatabaseHandle;
-  findRealm(name: string): Promise<
+  findTenant(name: string): Promise<
     | ({
         id: string;
         enabled: boolean;
       } & SessionLifespans)
     | null
   >;
-  listPublishableKeys(realmId: string): Promise<SigningKeyRecord[]>;
+  listPublishableKeys(tenantId: string): Promise<SigningKeyRecord[]>;
   verifyPassword: (hash: string, secret: string) => Promise<boolean>;
   // Reused, never re-implemented — see #/usecase/client-authentication.ts.
   clientSecretLimiter: ClientSecretLimiter;
   // Built at the composition root (index.ts), the same way every other
   // repository-backed lookup this package's routes consume is — a route
   // never imports a repository (dependency-cruiser's no-view-to-repository
-  // rule; see token.ts's own `findRealm` comment for the same rule stated
+  // rule; see token.ts's own `findTenant` comment for the same rule stated
   // where /token obeys it).
-  loadGrant(realmId: string, grantId: string): Promise<IntrospectionGrant | null>;
+  loadGrant(tenantId: string, grantId: string): Promise<IntrospectionGrant | null>;
   isSessionLive(
-    realmId: string,
+    tenantId: string,
     sessionId: string,
     lifespans: SessionLifespans,
     now: Date,
@@ -44,35 +44,35 @@ export function registerIntrospectRoute(app: FastifyInstance, deps: IntrospectRo
   const clock = deps.clock ?? systemClock;
 
   app.post<{
-    Params: { realm: string };
+    Params: { tenant: string };
     Body: Record<string, string | string[] | undefined>;
-  }>('/realms/:realm/protocol/openid-connect/token/introspect', async (request, reply) => {
-    const realm = await deps.findRealm(request.params.realm);
-    if (!realm?.enabled) return reply.code(404).send();
+  }>('/tenants/:tenant/protocol/openid-connect/token/introspect', async (request, reply) => {
+    const tenant = await deps.findTenant(request.params.tenant);
+    if (!tenant?.enabled) return reply.code(404).send();
 
-    const issuer = realmIssuerFor(request, request.params.realm);
+    const issuer = tenantIssuerFor(request, request.params.tenant);
     const now = clock.now();
-    const keys = await deps.listPublishableKeys(realm.id);
+    const keys = await deps.listPublishableKeys(tenant.id);
 
     const requestDeps: IntrospectionRequestDeps = {
-      realmId: realm.id,
+      tenantId: tenant.id,
       verifyPassword: deps.verifyPassword,
       clientSecretLimiter: deps.clientSecretLimiter,
       issuer,
       keys,
       lifespans: {
-        ssoSessionIdleSeconds: realm.ssoSessionIdleSeconds,
-        ssoSessionMaxSeconds: realm.ssoSessionMaxSeconds,
-        rememberMeIdleSeconds: realm.rememberMeIdleSeconds,
-        rememberMeMaxSeconds: realm.rememberMeMaxSeconds,
+        ssoSessionIdleSeconds: tenant.ssoSessionIdleSeconds,
+        ssoSessionMaxSeconds: tenant.ssoSessionMaxSeconds,
+        rememberMeIdleSeconds: tenant.rememberMeIdleSeconds,
+        rememberMeMaxSeconds: tenant.rememberMeMaxSeconds,
       },
-      loadGrant: (grantId) => deps.loadGrant(realm.id, grantId),
+      loadGrant: (grantId) => deps.loadGrant(tenant.id, grantId),
       isSessionLive: (sessionId, lifespans, sessionNow) =>
-        deps.isSessionLive(realm.id, sessionId, lifespans, sessionNow),
+        deps.isSessionLive(tenant.id, sessionId, lifespans, sessionNow),
     };
 
     try {
-      const response = await withRealm(deps.database.db, realm.id, (tx) =>
+      const response = await withTenant(deps.database.db, tenant.id, (tx) =>
         respondToIntrospectionRequest(
           tx,
           requestDeps,

@@ -8,7 +8,7 @@ const CHALLENGE = 'E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM';
 
 const client: ClientRecord = {
   id: 'client-1',
-  realmId: 'realm-1',
+  tenantId: 'tenant-1',
   clientId: 'web-app',
   name: 'Web app',
   enabled: true,
@@ -22,7 +22,7 @@ const client: ClientRecord = {
 
 const record: AuthorizationCodeRecord = {
   codeHash: 'hash-1',
-  realmId: 'realm-1',
+  tenantId: 'tenant-1',
   clientId: client.id,
   subjectId: 'subject-1',
   redirectUri: 'https://app.example/callback',

@@ -1,13 +1,13 @@
 import {
   createDatabase,
   MIGRATIONS_DIR,
-  realms,
+  tenants,
   runMigrations,
-  withRealm,
+  withTenant,
   type DatabaseHandle,
-  type RealmScopedDatabase,
+  type TenantScopedDatabase,
 } from '@odudu/db';
-import { provisionRealm } from '@odudu/authn-flows';
+import { provisionTenant } from '@odudu/authn-flows';
 import { clients, provisionClientDefaults } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
@@ -41,17 +41,17 @@ afterAll(async () => {
   await containerHandle?.stop();
 });
 
-async function seedRealmAndClient(
-  tx: RealmScopedDatabase,
-  realmId: string,
+async function seedTenantAndClient(
+  tx: TenantScopedDatabase,
+  tenantId: string,
   clientId: string,
   enabled = true,
 ): Promise<void> {
-  await tx.insert(realms).values({ id: realmId, name: `realm-${realmId}` });
-  await provisionRealm(tx, realmId);
+  await tx.insert(tenants).values({ id: tenantId, name: `tenant-${tenantId}` });
+  await provisionTenant(tx, tenantId);
   await tx.insert(clients).values({
     id: clientId,
-    realmId,
+    tenantId,
     clientId: `oauth-client-${clientId}`,
     name: 'A client',
     type: 'confidential',
@@ -62,14 +62,14 @@ async function seedRealmAndClient(
 }
 
 async function insertConfigWithWebOrigins(webOrigins: string[]): Promise<unknown> {
-  const realmId = newId();
+  const tenantId = newId();
   const clientId = newId();
 
-  return withRealm(app.db, realmId, async (tx) => {
-    await seedRealmAndClient(tx, realmId, clientId);
+  return withTenant(app.db, tenantId, async (tx) => {
+    await seedTenantAndClient(tx, tenantId, clientId);
     return clientOidcConfigRepository(tx).create({
       clientId,
-      realmId,
+      tenantId,
       redirectUris: ['https://app.example/callback'],
       grantTypes: ['authorization_code'],
       tokenEndpointAuthMethod: 'client_secret_basic',
@@ -82,17 +82,17 @@ async function insertConfigWithWebOrigins(webOrigins: string[]): Promise<unknown
 }
 
 async function seedClientWithOrigins(
-  realmId: string,
+  tenantId: string,
   webOrigins: string[],
   enabled = true,
-  realmAlreadyExists = false,
+  tenantAlreadyExists = false,
 ): Promise<void> {
   const clientId = newId();
-  await withRealm(app.db, realmId, async (tx) => {
-    if (realmAlreadyExists) {
+  await withTenant(app.db, tenantId, async (tx) => {
+    if (tenantAlreadyExists) {
       await tx.insert(clients).values({
         id: clientId,
-        realmId,
+        tenantId,
         clientId: `oauth-client-${clientId}`,
         name: 'A client',
         type: 'confidential',
@@ -101,11 +101,11 @@ async function seedClientWithOrigins(
       });
       await provisionClientDefaults(tx, clientId);
     } else {
-      await seedRealmAndClient(tx, realmId, clientId, enabled);
+      await seedTenantAndClient(tx, tenantId, clientId, enabled);
     }
     await clientOidcConfigRepository(tx).create({
       clientId,
-      realmId,
+      tenantId,
       redirectUris: ['https://app.example/callback'],
       grantTypes: ['authorization_code'],
       tokenEndpointAuthMethod: 'client_secret_basic',
@@ -147,26 +147,26 @@ describe('client_oidc_config_web_origins_shape', () => {
   });
 });
 
-describe('clientOidcConfigRepository(tx).webOriginsForRealm', () => {
-  it('returns no origins from another realm', async () => {
-    const realmA = newId();
-    const realmB = newId();
-    await seedClientWithOrigins(realmA, ['https://a.example']);
-    await seedClientWithOrigins(realmB, ['https://b.example']);
+describe('clientOidcConfigRepository(tx).webOriginsForTenant', () => {
+  it('returns no origins from another tenant', async () => {
+    const tenantA = newId();
+    const tenantB = newId();
+    await seedClientWithOrigins(tenantA, ['https://a.example']);
+    await seedClientWithOrigins(tenantB, ['https://b.example']);
 
-    const inA = await withRealm(app.db, realmA, (tx) =>
-      clientOidcConfigRepository(tx).webOriginsForRealm(),
+    const inA = await withTenant(app.db, tenantA, (tx) =>
+      clientOidcConfigRepository(tx).webOriginsForTenant(),
     );
     expect([...inA]).toEqual(['https://a.example']);
   });
 
   it('excludes a disabled client from the union', async () => {
-    const realmId = newId();
-    await seedClientWithOrigins(realmId, ['https://enabled.example']);
-    await seedClientWithOrigins(realmId, ['https://disabled.example'], false, true);
+    const tenantId = newId();
+    await seedClientWithOrigins(tenantId, ['https://enabled.example']);
+    await seedClientWithOrigins(tenantId, ['https://disabled.example'], false, true);
 
-    const union = await withRealm(app.db, realmId, (tx) =>
-      clientOidcConfigRepository(tx).webOriginsForRealm(),
+    const union = await withTenant(app.db, tenantId, (tx) =>
+      clientOidcConfigRepository(tx).webOriginsForTenant(),
     );
     expect([...union]).toEqual(['https://enabled.example']);
   });

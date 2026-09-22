@@ -3,13 +3,13 @@ import { hashPassword, subjectRepository, userCredentials, users } from '@odudu/
 import {
   createDatabase,
   MIGRATIONS_DIR,
-  realms,
+  tenants,
   runMigrations,
-  withRealm,
+  withTenant,
   type DatabaseHandle,
-  type RealmScopedDatabase,
+  type TenantScopedDatabase,
 } from '@odudu/db';
-import { provisionRealm } from '@odudu/authn-flows';
+import { provisionTenant } from '@odudu/authn-flows';
 import { clients, provisionClientDefaults } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
@@ -53,22 +53,22 @@ interface Client {
   audiences: string[];
 }
 
-interface RealmSetup {
-  realmName: string;
-  realmId: string;
+interface TenantSetup {
+  tenantName: string;
+  tenantId: string;
   issuer: string;
   subjectId: string;
 }
 
-let realmA: RealmSetup;
-let realmB: RealmSetup;
+let tenantA: TenantSetup;
+let tenantB: TenantSetup;
 let sharedApp: { a: Client; b: Client };
 let audienceA: Client;
 let audienceB: Client;
 
 async function insertClient(
-  tx: RealmScopedDatabase,
-  realmId: string,
+  tx: TenantScopedDatabase,
+  tenantId: string,
   clientId: string,
   secret: string,
   audiences: string[] = [],
@@ -76,7 +76,7 @@ async function insertClient(
   const dbId = newId();
   await tx.insert(clients).values({
     id: dbId,
-    realmId,
+    tenantId,
     clientId,
     name: clientId,
     type: 'confidential',
@@ -85,7 +85,7 @@ async function insertClient(
   await provisionClientDefaults(tx, dbId);
   await clientOidcConfigRepository(tx).create({
     clientId: dbId,
-    realmId,
+    tenantId,
     redirectUris: [REDIRECT_URI],
     grantTypes: ['authorization_code', 'refresh_token'],
     tokenEndpointAuthMethod: 'client_secret_basic',
@@ -96,19 +96,19 @@ async function insertClient(
   return { clientId, dbId, secret, audiences };
 }
 
-async function setupRealm(label: string): Promise<RealmSetup> {
-  const realmName = `cross-realm-${label}-${newId()}`;
-  const realmId = newId();
+async function setupTenant(label: string): Promise<TenantSetup> {
+  const tenantName = `cross-tenant-${label}-${newId()}`;
+  const tenantId = newId();
 
-  const subjectId = await withRealm(app.db, realmId, async (tx: RealmScopedDatabase) => {
-    await tx.insert(realms).values({ id: realmId, name: realmName });
-    await provisionRealm(tx, realmId);
+  const subjectId = await withTenant(app.db, tenantId, async (tx: TenantScopedDatabase) => {
+    await tx.insert(tenants).values({ id: tenantId, name: tenantName });
+    await provisionTenant(tx, tenantId);
 
-    const subject = await subjectRepository(tx).create({ realmId, type: 'user' });
-    await tx.insert(users).values({ subjectId: subject.id, realmId, username: USERNAME });
+    const subject = await subjectRepository(tx).create({ tenantId, type: 'user' });
+    await tx.insert(users).values({ subjectId: subject.id, tenantId, username: USERNAME });
     await tx.insert(userCredentials).values({
       id: newId(),
-      realmId,
+      tenantId,
       subjectId: subject.id,
       type: 'password',
       secretData: { hash: await hashPassword(PASSWORD) },
@@ -117,7 +117,7 @@ async function setupRealm(label: string): Promise<RealmSetup> {
     const key = await generateSigningKey('RS256', KEK);
     await tx.insert(signingKeys).values({
       id: newId(),
-      realmId,
+      tenantId,
       kid: key.kid,
       alg: key.alg,
       status: 'active',
@@ -131,14 +131,14 @@ async function setupRealm(label: string): Promise<RealmSetup> {
   // light-my-request sends `Host: localhost:80`; the scheme's default port
   // is insignificant and never appears in an issuer
   // (packages/protocol-oidc/src/view/issuer.ts).
-  return { realmName, realmId, issuer: `http://localhost/realms/${realmName}`, subjectId };
+  return { tenantName, tenantId, issuer: `http://localhost/tenants/${tenantName}`, subjectId };
 }
 
 function basicAuth(client: Client): string {
   return `Basic ${Buffer.from(`${client.clientId}:${client.secret}`).toString('base64')}`;
 }
 
-function authorizeUrl(realmName: string, client: Client): string {
+function authorizeUrl(tenantName: string, client: Client): string {
   const query = new URLSearchParams({
     response_type: 'code',
     client_id: client.clientId,
@@ -148,26 +148,26 @@ function authorizeUrl(realmName: string, client: Client): string {
     code_challenge: CHALLENGE,
     code_challenge_method: 'S256',
   });
-  return `/realms/${realmName}/protocol/openid-connect/auth?${query.toString()}`;
+  return `/tenants/${tenantName}/protocol/openid-connect/auth?${query.toString()}`;
 }
 
 // Issues an authorization code directly against the repository (as the
 // other adversarial suites do, bypassing /authorize's login UI) and
 // redeems it through the real /token endpoint.
 async function issueTokens(
-  realm: RealmSetup,
+  tenant: TenantSetup,
   client: Client,
   scope: string,
 ): Promise<{ accessToken: string; idToken: string | undefined; refreshToken: string | undefined }> {
   const code = generateAuthorizationCode();
   const codeHash = hashAuthorizationCode(code);
 
-  await withRealm(app.db, realm.realmId, async (tx) => {
+  await withTenant(app.db, tenant.tenantId, async (tx) => {
     await authorizationCodeRepository(tx).create({
       codeHash,
-      realmId: realm.realmId,
+      tenantId: tenant.tenantId,
       clientId: client.dbId,
-      subjectId: realm.subjectId,
+      subjectId: tenant.subjectId,
       redirectUri: REDIRECT_URI,
       scope,
       nonce: null,
@@ -188,7 +188,7 @@ async function issueTokens(
 
   const res = await http.inject({
     method: 'POST',
-    url: `/realms/${realm.realmName}/protocol/openid-connect/token`,
+    url: `/tenants/${tenant.tenantName}/protocol/openid-connect/token`,
     payload: form.toString(),
     headers: {
       'content-type': 'application/x-www-form-urlencoded',
@@ -204,20 +204,20 @@ async function issueTokens(
   };
 }
 
-async function realmSigningKeys(realmId: string) {
-  return withRealm(app.db, realmId, (tx) => signingKeyRepository(tx).listPublishable());
+async function tenantSigningKeys(tenantId: string) {
+  return withTenant(app.db, tenantId, (tx) => signingKeyRepository(tx).listPublishable());
 }
 
 // Stands in for a protected API validating a bearer token it received:
 // the only thing it should trust is `verifyJwt`'s own audience check.
 async function verifyAsResourceServer(
-  realm: RealmSetup,
+  tenant: TenantSetup,
   token: string,
   audience: string,
 ): Promise<boolean> {
-  const keys = await realmSigningKeys(realm.realmId);
+  const keys = await tenantSigningKeys(tenant.tenantId);
   try {
-    await verifyJwt(token, { keys, issuer: realm.issuer, audience, typ: 'at+jwt' });
+    await verifyJwt(token, { keys, issuer: tenant.issuer, audience, typ: 'at+jwt' });
     return true;
   } catch {
     return false;
@@ -243,21 +243,21 @@ function redeemForm(
 }
 
 async function redeemAt(
-  realmName: string,
+  tenantName: string,
   code: string,
   client: Client,
 ): Promise<LightMyRequestResponse> {
   const { payload, headers } = redeemForm(code, client);
   return http.inject({
     method: 'POST',
-    url: `/realms/${realmName}/protocol/openid-connect/token`,
+    url: `/tenants/${tenantName}/protocol/openid-connect/token`,
     payload,
     headers,
   });
 }
 
 async function refreshAt(
-  realmName: string,
+  tenantName: string,
   refreshToken: string,
   client: Client,
 ): Promise<LightMyRequestResponse> {
@@ -266,7 +266,7 @@ async function refreshAt(
   form.set('refresh_token', refreshToken);
   return http.inject({
     method: 'POST',
-    url: `/realms/${realmName}/protocol/openid-connect/token`,
+    url: `/tenants/${tenantName}/protocol/openid-connect/token`,
     payload: form.toString(),
     headers: {
       'content-type': 'application/x-www-form-urlencoded',
@@ -301,27 +301,27 @@ beforeAll(async () => {
   await http.ready();
   httpApp = http;
 
-  realmA = await setupRealm('a');
-  realmB = await setupRealm('b');
+  tenantA = await setupTenant('a');
+  tenantB = await setupTenant('b');
 
-  // Same client_id and secret registered in both realms, so that a
-  // cross-realm redemption attempt authenticates as the client (stage 2)
+  // Same client_id and secret registered in both tenants, so that a
+  // cross-tenant redemption attempt authenticates as the client (stage 2)
   // and fails only because the code or refresh token itself is invisible
-  // under realm B's RLS context (stage 3) — proving realm isolation, not
+  // under tenant B's RLS context (stage 3) — proving tenant isolation, not
   // merely a client lookup failure.
-  const clientA = await withRealm(app.db, realmA.realmId, (tx) =>
-    insertClient(tx, realmA.realmId, 'shared-app', 'sharedsecret'),
+  const clientA = await withTenant(app.db, tenantA.tenantId, (tx) =>
+    insertClient(tx, tenantA.tenantId, 'shared-app', 'sharedsecret'),
   );
-  const clientB = await withRealm(app.db, realmB.realmId, (tx) =>
-    insertClient(tx, realmB.realmId, 'shared-app', 'sharedsecret'),
+  const clientB = await withTenant(app.db, tenantB.tenantId, (tx) =>
+    insertClient(tx, tenantB.tenantId, 'shared-app', 'sharedsecret'),
   );
   sharedApp = { a: clientA, b: clientB };
 
-  audienceA = await withRealm(app.db, realmA.realmId, (tx) =>
-    insertClient(tx, realmA.realmId, 'app-a', 'app-a-secret', ['https://api-a.example']),
+  audienceA = await withTenant(app.db, tenantA.tenantId, (tx) =>
+    insertClient(tx, tenantA.tenantId, 'app-a', 'app-a-secret', ['https://api-a.example']),
   );
-  audienceB = await withRealm(app.db, realmA.realmId, (tx) =>
-    insertClient(tx, realmA.realmId, 'app-b', 'app-b-secret', ['https://api-b.example']),
+  audienceB = await withTenant(app.db, tenantA.tenantId, (tx) =>
+    insertClient(tx, tenantA.tenantId, 'app-b', 'app-b-secret', ['https://api-b.example']),
   );
 }, 120_000);
 
@@ -334,32 +334,32 @@ afterAll(async () => {
 
 describe('audience confusion between clients', () => {
   it('[RFC9068-5-01] refuses an access token minted for another client’s audience', async () => {
-    const { accessToken: tokenForA } = await issueTokens(realmA, audienceA, 'openid');
-    expect(await verifyAsResourceServer(realmA, tokenForA, 'https://api-a.example')).toBe(true);
-    expect(await verifyAsResourceServer(realmA, tokenForA, 'https://api-b.example')).toBe(false);
+    const { accessToken: tokenForA } = await issueTokens(tenantA, audienceA, 'openid');
+    expect(await verifyAsResourceServer(tenantA, tokenForA, 'https://api-a.example')).toBe(true);
+    expect(await verifyAsResourceServer(tenantA, tokenForA, 'https://api-b.example')).toBe(false);
 
-    const { accessToken: tokenForB } = await issueTokens(realmA, audienceB, 'openid');
-    expect(await verifyAsResourceServer(realmA, tokenForB, 'https://api-b.example')).toBe(true);
-    expect(await verifyAsResourceServer(realmA, tokenForB, 'https://api-a.example')).toBe(false);
+    const { accessToken: tokenForB } = await issueTokens(tenantA, audienceB, 'openid');
+    expect(await verifyAsResourceServer(tenantA, tokenForB, 'https://api-b.example')).toBe(true);
+    expect(await verifyAsResourceServer(tenantA, tokenForB, 'https://api-a.example')).toBe(false);
   });
 
   it('refuses a token whose audience is the client rather than an API', async () => {
-    const { idToken } = await issueTokens(realmA, audienceA, 'openid');
+    const { idToken } = await issueTokens(tenantA, audienceA, 'openid');
     if (idToken === undefined) throw new Error('expected an id_token');
-    expect(await verifyAsResourceServer(realmA, idToken, 'https://api-a.example')).toBe(false);
+    expect(await verifyAsResourceServer(tenantA, idToken, 'https://api-a.example')).toBe(false);
   });
 });
 
-describe('[ODUDU-CROSS-REALM-LEAKAGE-01] cross-realm leakage', () => {
-  it('cannot redeem realm A code at realm B token endpoint', async () => {
+describe('[ODUDU-CROSS-TENANT-LEAKAGE-01] cross-tenant leakage', () => {
+  it('cannot redeem tenant A code at tenant B token endpoint', async () => {
     const code = generateAuthorizationCode();
     const codeHash = hashAuthorizationCode(code);
-    await withRealm(app.db, realmA.realmId, async (tx) => {
+    await withTenant(app.db, tenantA.tenantId, async (tx) => {
       await authorizationCodeRepository(tx).create({
         codeHash,
-        realmId: realmA.realmId,
+        tenantId: tenantA.tenantId,
         clientId: sharedApp.a.dbId,
-        subjectId: realmA.subjectId,
+        subjectId: tenantA.subjectId,
         redirectUri: REDIRECT_URI,
         scope: 'openid',
         nonce: null,
@@ -372,38 +372,38 @@ describe('[ODUDU-CROSS-REALM-LEAKAGE-01] cross-realm leakage', () => {
       });
     });
 
-    const atB = await redeemAt(realmB.realmName, code, sharedApp.b);
+    const atB = await redeemAt(tenantB.tenantName, code, sharedApp.b);
     expect(atB.statusCode).toBe(400);
     expect(atB.json<{ error: string }>().error).toBe('invalid_grant');
 
-    const atA = await redeemAt(realmA.realmName, code, sharedApp.a);
+    const atA = await redeemAt(tenantA.tenantName, code, sharedApp.a);
     expect(atA.statusCode).toBe(200);
   });
 
-  it('cannot use a realm A session to authorize in realm B', async () => {
+  it('cannot use a tenant A session to authorize in tenant B', async () => {
     // /authorize always renders a fresh challenge regardless of any cookie
     // presented, but that is true today only because no code path reads a
     // session cookie at all — there is no single-sign-on flow yet. Unlike
-    // its siblings above, this assertion does not prove cross-realm
+    // its siblings above, this assertion does not prove cross-tenant
     // isolation of anything; it is a regression guard that will start
     // meaning something once a cookie-read path exists at /authorize.
     const res = await http.inject({
-      url: authorizeUrl(realmB.realmName, sharedApp.b),
-      cookies: { [`${realmA.realmName}-session`]: newId() },
+      url: authorizeUrl(tenantB.tenantName, sharedApp.b),
+      cookies: { [`${tenantA.tenantName}-session`]: newId() },
     });
     expect(res.statusCode).toBe(200);
     expect(res.body).toContain('password');
   });
 
-  it('cannot refresh a realm A token at realm B', async () => {
-    const { refreshToken } = await issueTokens(realmA, sharedApp.a, 'openid');
+  it('cannot refresh a tenant A token at tenant B', async () => {
+    const { refreshToken } = await issueTokens(tenantA, sharedApp.a, 'openid');
     if (refreshToken === undefined) throw new Error('expected a refresh_token');
 
-    const atB = await refreshAt(realmB.realmName, refreshToken, sharedApp.b);
+    const atB = await refreshAt(tenantB.tenantName, refreshToken, sharedApp.b);
     expect(atB.statusCode).toBe(400);
     expect(atB.json<{ error: string }>().error).toBe('invalid_grant');
 
-    const atA = await refreshAt(realmA.realmName, refreshToken, sharedApp.a);
+    const atA = await refreshAt(tenantA.tenantName, refreshToken, sharedApp.a);
     expect(atA.statusCode).toBe(200);
   });
 });

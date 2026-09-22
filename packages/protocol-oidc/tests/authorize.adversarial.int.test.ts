@@ -1,13 +1,13 @@
 import {
   createDatabase,
   MIGRATIONS_DIR,
-  realms,
+  tenants,
   runMigrations,
-  withRealm,
+  withTenant,
   type DatabaseHandle,
-  type RealmScopedDatabase,
+  type TenantScopedDatabase,
 } from '@odudu/db';
-import { authenticationSessions, provisionRealm } from '@odudu/authn-flows';
+import { authenticationSessions, provisionTenant } from '@odudu/authn-flows';
 import {
   generateSigningKey,
   signingKeys,
@@ -37,24 +37,24 @@ let owner: DatabaseHandle;
 let app: DatabaseHandle;
 let http: FastifyInstance;
 
-const REALM = 'acme';
+const TENANT = 'acme';
 const CLIENT_ID = 'authorize-adversarial-client';
 const REDIRECT_URI = 'https://app.example/callback';
 const KEK = Buffer.alloc(32, 7);
 
-let realmId: string;
-// A second realm, named so that the name itself is markup.
-const MARKUP_REALM = 'esc"><script>alert(1)<x';
-// The realm's own active signing key, and one that is structurally identical
-// but was never given to the realm — the difference between a hint this
+let tenantId: string;
+// A second tenant, named so that the name itself is markup.
+const MARKUP_TENANT = 'esc"><script>alert(1)<x';
+// The tenant's own active signing key, and one that is structurally identical
+// but was never given to the tenant — the difference between a hint this
 // server issued and a hint somebody else minted (OIDC Core §3.1.2.2).
-let realmKey: SigningKeyRecord;
+let tenantKey: SigningKeyRecord;
 let foreignKey: SigningKeyRecord;
 
-function asRecord(generated: GeneratedSigningKey, forRealmId: string): SigningKeyRecord {
+function asRecord(generated: GeneratedSigningKey, forTenantId: string): SigningKeyRecord {
   return {
     id: newId(),
-    realmId: forRealmId,
+    tenantId: forTenantId,
     kid: generated.kid,
     alg: generated.alg,
     status: 'active',
@@ -66,7 +66,7 @@ function asRecord(generated: GeneratedSigningKey, forRealmId: string): SigningKe
 }
 
 async function issuer(): Promise<string> {
-  const res = await http.inject({ url: `/realms/${REALM}/.well-known/openid-configuration` });
+  const res = await http.inject({ url: `/tenants/${TENANT}/.well-known/openid-configuration` });
   return res.json<{ issuer: string }>().issuer;
 }
 
@@ -74,7 +74,7 @@ async function issuer(): Promise<string> {
 // `aud` the client, `sub` the End-User.
 async function mintIdToken(
   claims: { iss: string; sub: string; exp?: number },
-  key: SigningKeyRecord = realmKey,
+  key: SigningKeyRecord = tenantKey,
 ): Promise<string> {
   const now = Math.floor(Date.now() / 1000);
   return signJwt(
@@ -113,7 +113,7 @@ async function countAuthenticationSessions(): Promise<number> {
   const rows = await owner.db
     .select({ id: authenticationSessions.id })
     .from(authenticationSessions)
-    .where(eq(authenticationSessions.realmId, realmId));
+    .where(eq(authenticationSessions.tenantId, tenantId));
   return rows.length;
 }
 
@@ -137,7 +137,7 @@ function authorizeUrl(overrides: Record<string, string | undefined> = {}): strin
   for (const [key, value] of Object.entries(params)) {
     if (value !== undefined) query.set(key, value);
   }
-  return `/realms/${REALM}/protocol/openid-connect/auth?${query.toString()}`;
+  return `/tenants/${TENANT}/protocol/openid-connect/auth?${query.toString()}`;
 }
 
 // OIDC Core §3.1.2 requires the Authorization Endpoint to support both GET
@@ -151,7 +151,7 @@ function postAuthorize(overrides: Record<string, string | undefined> = {}) {
   }
   return http.inject({
     method: 'POST',
-    url: `/realms/${REALM}/protocol/openid-connect/auth`,
+    url: `/tenants/${TENANT}/protocol/openid-connect/auth`,
     headers: { 'content-type': 'application/x-www-form-urlencoded' },
     payload: body.toString(),
   });
@@ -160,7 +160,7 @@ function postAuthorize(overrides: Record<string, string | undefined> = {}) {
 function postAuthorizeRaw(payload: string, headers: Record<string, string>) {
   return http.inject({
     method: 'POST',
-    url: `/realms/${REALM}/protocol/openid-connect/auth`,
+    url: `/tenants/${TENANT}/protocol/openid-connect/auth`,
     headers,
     payload,
   });
@@ -203,14 +203,14 @@ beforeAll(async () => {
   );
   await http.ready();
 
-  realmId = newId();
+  tenantId = newId();
   const clientId = newId();
-  await withRealm(app.db, realmId, async (tx: RealmScopedDatabase) => {
-    await tx.insert(realms).values({ id: realmId, name: REALM });
-    await provisionRealm(tx, realmId);
+  await withTenant(app.db, tenantId, async (tx: TenantScopedDatabase) => {
+    await tx.insert(tenants).values({ id: tenantId, name: TENANT });
+    await provisionTenant(tx, tenantId);
     await tx.insert(clients).values({
       id: clientId,
-      realmId,
+      tenantId,
       clientId: CLIENT_ID,
       name: 'Adversarial test client',
       type: 'confidential',
@@ -219,7 +219,7 @@ beforeAll(async () => {
     await provisionClientDefaults(tx, clientId);
     await clientOidcConfigRepository(tx).create({
       clientId,
-      realmId,
+      tenantId,
       redirectUris: [REDIRECT_URI],
       grantTypes: ['authorization_code'],
       tokenEndpointAuthMethod: 'client_secret_basic',
@@ -228,35 +228,35 @@ beforeAll(async () => {
       refreshTokenTtlSeconds: 1_209_600,
     });
 
-    realmKey = asRecord(await generateSigningKey('ES256', KEK), realmId);
+    tenantKey = asRecord(await generateSigningKey('ES256', KEK), tenantId);
     await tx.insert(signingKeys).values({
-      id: realmKey.id,
-      realmId,
-      kid: realmKey.kid,
-      alg: realmKey.alg,
+      id: tenantKey.id,
+      tenantId,
+      kid: tenantKey.kid,
+      alg: tenantKey.alg,
       status: 'active',
-      publicJwk: realmKey.publicJwk,
-      privateJwkEncrypted: realmKey.privateJwkEncrypted,
+      publicJwk: tenantKey.publicJwk,
+      privateJwkEncrypted: tenantKey.privateJwkEncrypted,
     });
   });
 
   // Never inserted anywhere: a key this server has no record of, standing in
   // for every other issuer's keys at once.
-  foreignKey = asRecord(await generateSigningKey('ES256', KEK), realmId);
+  foreignKey = asRecord(await generateSigningKey('ES256', KEK), tenantId);
 
-  // A realm whose own name is markup. The login form interpolates the realm
-  // into its `action`, which makes the realm name the one request-derived
+  // A tenant whose own name is markup. The login form interpolates the tenant
+  // into its `action`, which makes the tenant name the one request-derived
   // value that reaches a rendered page at all — see the `escapeHtml` note in
   // view/authorize-html.ts. The payload omits `/` so that the name survives
   // a URL path segment intact.
   const markupClientId = newId();
-  const markupRealmId = newId();
-  await withRealm(app.db, markupRealmId, async (tx: RealmScopedDatabase) => {
-    await tx.insert(realms).values({ id: markupRealmId, name: MARKUP_REALM });
-    await provisionRealm(tx, markupRealmId);
+  const markupTenantId = newId();
+  await withTenant(app.db, markupTenantId, async (tx: TenantScopedDatabase) => {
+    await tx.insert(tenants).values({ id: markupTenantId, name: MARKUP_TENANT });
+    await provisionTenant(tx, markupTenantId);
     await tx.insert(clients).values({
       id: markupClientId,
-      realmId: markupRealmId,
+      tenantId: markupTenantId,
       clientId: CLIENT_ID,
       name: 'Adversarial test client',
       type: 'confidential',
@@ -265,7 +265,7 @@ beforeAll(async () => {
     await provisionClientDefaults(tx, markupClientId);
     await clientOidcConfigRepository(tx).create({
       clientId: markupClientId,
-      realmId: markupRealmId,
+      tenantId: markupTenantId,
       redirectUris: [REDIRECT_URI],
       grantTypes: ['authorization_code'],
       tokenEndpointAuthMethod: 'client_secret_basic',
@@ -311,9 +311,9 @@ describe('[RFC6749-4.1.2.1-04] returns state unchanged on a redirected error', (
 // path, where the attacker steers the victim into a failing request at the
 // honest server and has the response delivered as if it came from theirs.
 describe('[RFC9207-2-02] an error authorization response carries iss too', () => {
-  it('sets iss on the error redirect to the realm discovery issuer', async () => {
+  it('sets iss on the error redirect to the tenant discovery issuer', async () => {
     const doc = (
-      await http.inject({ url: `/realms/${REALM}/.well-known/openid-configuration` })
+      await http.inject({ url: `/tenants/${TENANT}/.well-known/openid-configuration` })
     ).json<{ issuer: string }>();
     const res = await http.inject({ url: authorizeUrl({ response_type: 'token' }) });
 
@@ -450,7 +450,7 @@ describe('the success path starts an authentication session and renders the logi
     const res = await http.inject({ url: authorizeUrl() });
     expect(res.statusCode).toBe(200);
     expect(res.headers['content-type']).toContain('text/html');
-    expect(res.body).toContain(`/realms/${REALM}/login-actions/authenticate`);
+    expect(res.body).toContain(`/tenants/${TENANT}/login-actions/authenticate`);
     expect(res.body).toContain('name="auth_session_id"');
   });
 });
@@ -493,13 +493,13 @@ describe('[OIDC-CORE-3.1.2-01] POST at the authorization endpoint behaves exactl
     expect(postRes.statusCode).toBe(getRes.statusCode);
     expect(postRes.statusCode).toBe(200);
     expect(postRes.headers['content-type']).toBe(getRes.headers['content-type']);
-    expect(postRes.body).toContain(`/realms/${REALM}/login-actions/authenticate`);
+    expect(postRes.body).toContain(`/tenants/${TENANT}/login-actions/authenticate`);
     expect(postRes.body).toContain('name="auth_session_id"');
   });
 
   it('renders what a parameterless GET renders when the body is absent', async () => {
     const getRes = await http.inject({
-      url: `/realms/${REALM}/protocol/openid-connect/auth`,
+      url: `/tenants/${TENANT}/protocol/openid-connect/auth`,
     });
     const postRes = await postAuthorizeRaw('', { 'content-length': '0' });
 
@@ -511,7 +511,7 @@ describe('[OIDC-CORE-3.1.2-01] POST at the authorization endpoint behaves exactl
 
   it('renders what a parameterless GET renders for an empty form body', async () => {
     const getRes = await http.inject({
-      url: `/realms/${REALM}/protocol/openid-connect/auth`,
+      url: `/tenants/${TENANT}/protocol/openid-connect/auth`,
     });
     const postRes = await postAuthorizeRaw('', {
       'content-type': 'application/x-www-form-urlencoded',
@@ -686,7 +686,7 @@ describe('[OIDC-CORE-3.1.2.1-08] an undefined prompt value is refused rather tha
 });
 
 // OIDC Core §3.1.2.2: "the OP MUST validate that it was the issuer of that ID
-// Token". Signature and `iss`, against the realm's own keys — the same two
+// Token". Signature and `iss`, against the tenant's own keys — the same two
 // checks /userinfo makes of an access token.
 describe('[OIDC-CORE-3.1.2.2-01] an id_token_hint this server did not issue is refused', () => {
   it('refuses a hint that is not a JWT at all', async () => {
@@ -695,30 +695,30 @@ describe('[OIDC-CORE-3.1.2.2-01] an id_token_hint this server did not issue is r
     );
   });
 
-  it('refuses a well-formed hint signed by a key this realm does not publish', async () => {
+  it('refuses a well-formed hint signed by a key this tenant does not publish', async () => {
     const hint = await mintIdToken({ iss: await issuer(), sub: newId() }, foreignKey);
     expect(await errorOnRedirect(authorizeUrl({ id_token_hint: hint }))).toBe('invalid_request');
   });
 
-  // The signature alone is not the check: a token minted by this realm's key
+  // The signature alone is not the check: a token minted by this tenant's key
   // but claiming another issuer was not issued by this OP either, and a
   // signature-only check would accept it.
-  it('refuses a hint signed by this realm but claiming another issuer', async () => {
-    const hint = await mintIdToken({ iss: 'https://another.example/realms/acme', sub: newId() });
+  it('refuses a hint signed by this tenant but claiming another issuer', async () => {
+    const hint = await mintIdToken({ iss: 'https://another.example/tenants/acme', sub: newId() });
     expect(await errorOnRedirect(authorizeUrl({ id_token_hint: hint }))).toBe('invalid_request');
   });
 
-  // An access token this realm minted for the same End-User satisfies
-  // everything §3.1.2.2 asks about the issuer — this realm's key, this
-  // realm's `iss` — and is still not an ID Token. RFC 9068 §2.1 gives it
+  // An access token this tenant minted for the same End-User satisfies
+  // everything §3.1.2.2 asks about the issuer — this tenant's key, this
+  // tenant's `iss` — and is still not an ID Token. RFC 9068 §2.1 gives it
   // `typ: at+jwt` so the two cannot be confused, which is the distinction
   // /userinfo already relies on in the other direction. `aud` is overridden
   // to CLIENT_ID, the same as the paired test below: an access token's own
   // `aud` (the issuer, RFC 9068 §2.2) would refuse this on its own, leaving
   // nothing pinning the `typ` refusal this test exists to name.
-  it('refuses an access token this realm minted for the same subject', async () => {
+  it('refuses an access token this tenant minted for the same subject', async () => {
     const claims = { ...(await accessTokenClaims(newId())), aud: CLIENT_ID };
-    const hint = await signJwt(claims, { key: realmKey, kek: KEK, typ: 'at+jwt' });
+    const hint = await signJwt(claims, { key: tenantKey, kek: KEK, typ: 'at+jwt' });
     expect(await errorOnRedirect(authorizeUrl({ id_token_hint: hint }))).toBe('invalid_request');
   });
 
@@ -730,7 +730,7 @@ describe('[OIDC-CORE-3.1.2.2-01] an id_token_hint this server did not issue is r
   // test unable to isolate `typ` as the one thing that changed.
   it('honours the same claims when they carry no at+jwt typ', async () => {
     const claims = { ...(await accessTokenClaims(newId())), aud: CLIENT_ID };
-    const hint = await signJwt(claims, { key: realmKey, kek: KEK });
+    const hint = await signJwt(claims, { key: tenantKey, kek: KEK });
     const res = await http.inject({ url: authorizeUrl({ id_token_hint: hint }) });
     expect(res.statusCode).toBe(200);
   });
@@ -739,7 +739,7 @@ describe('[OIDC-CORE-3.1.2.2-01] an id_token_hint this server did not issue is r
     const now = Math.floor(Date.now() / 1000);
     const hint = await signJwt(
       { iss: await issuer(), aud: CLIENT_ID, iat: now, exp: now + 300 },
-      { key: realmKey, kek: KEK },
+      { key: tenantKey, kek: KEK },
     );
     expect(await errorOnRedirect(authorizeUrl({ id_token_hint: hint }))).toBe('invalid_request');
   });
@@ -820,10 +820,10 @@ async function answerTo(url: string): Promise<Answer> {
   return { kind: 'render', status: res.statusCode, body: res.body };
 }
 
-// A request URL naming a realm that does not exist, built from a valid one
-// so that the realm is the only thing wrong with it.
-function unknownRealmUrl(): string {
-  return authorizeUrl().replace(`/realms/${REALM}/`, `/realms/no-such-realm-${newId()}/`);
+// A request URL naming a tenant that does not exist, built from a valid one
+// so that the tenant is the only thing wrong with it.
+function unknownTenantUrl(): string {
+  return authorizeUrl().replace(`/tenants/${TENANT}/`, `/tenants/no-such-tenant-${newId()}/`);
 }
 
 interface ErrorCase {
@@ -835,7 +835,7 @@ interface ErrorCase {
 // boundary, where no redirect_uri has been established as belonging to a
 // real client and sending the user agent anywhere would be an open redirect.
 const RENDERED_ERROR_CASES: ErrorCase[] = [
-  { name: 'an unknown realm', url: unknownRealmUrl },
+  { name: 'an unknown tenant', url: unknownTenantUrl },
   { name: 'an unknown client_id', url: () => authorizeUrl({ client_id: 'no-such-client' }) },
   { name: 'no client_id at all', url: () => authorizeUrl({ client_id: undefined }) },
   {
@@ -1419,7 +1419,7 @@ describe('[RFC6749-10.14-01] a hostile state is returned encoded, never as marku
   it('renders no page containing the hostile state as markup', async () => {
     for (const url of [
       authorizeUrl({ redirect_uri: 'https://evil.example/cb', state: HOSTILE }),
-      `${unknownRealmUrl()}&state=${encodeURIComponent(HOSTILE)}`,
+      `${unknownTenantUrl()}&state=${encodeURIComponent(HOSTILE)}`,
     ]) {
       const res = await http.inject({ url });
       expect(res.statusCode).toBe(400);
@@ -1435,22 +1435,22 @@ describe('[RFC6749-10.14-01] a hostile state is returned encoded, never as marku
     expect(res.body).not.toContain(HOSTILE);
   });
 
-  // The realm name is the one value a request supplies that does reach a
-  // rendered page: the login form's `action` is built from it. A realm named
+  // The tenant name is the one value a request supplies that does reach a
+  // rendered page: the login form's `action` is built from it. A tenant named
   // in markup is what makes this endpoint's escaping observable at all.
-  it('escapes the realm name the login form interpolates into its action', async () => {
+  it('escapes the tenant name the login form interpolates into its action', async () => {
     const query = new URLSearchParams();
     for (const [key, value] of Object.entries(authorizeParams())) {
       if (value !== undefined) query.set(key, value);
     }
     const res = await http.inject({
-      url: `/realms/${encodeURIComponent(MARKUP_REALM)}/protocol/openid-connect/auth?${query.toString()}`,
+      url: `/tenants/${encodeURIComponent(MARKUP_TENANT)}/protocol/openid-connect/auth?${query.toString()}`,
     });
 
     expect(res.statusCode).toBe(200);
     expect(res.body).toContain('name="auth_session_id"');
     expect(res.body).not.toContain('<script>');
-    expect(res.body).not.toContain(MARKUP_REALM);
+    expect(res.body).not.toContain(MARKUP_TENANT);
     expect(res.body).toContain('&lt;script&gt;');
     expect(res.body).toContain('&quot;&gt;');
   });

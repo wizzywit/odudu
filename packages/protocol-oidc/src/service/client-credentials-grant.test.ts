@@ -4,7 +4,7 @@ import { evaluateClientCredentialsGrant } from '#/service/client-credentials-gra
 
 const confidentialClient: ClientRecord = {
   id: 'client-1',
-  realmId: 'realm-1',
+  tenantId: 'tenant-1',
   clientId: 'batch-job',
   name: 'Batch job',
   enabled: true,

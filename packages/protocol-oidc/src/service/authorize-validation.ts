@@ -12,7 +12,7 @@ export type AuthorizeOutcome =
       // What the request asks about interacting with the End-User, and the
       // hint naming who the End-User is meant to be. Both are answered after
       // this function returns — `none` by refusing to authenticate anybody,
-      // the hint by a signature check against the realm's own keys — because
+      // the hint by a signature check against the tenant's own keys — because
       // neither is decidable from the request parameters alone.
       prompts: ReadonlySet<PromptValue>;
       idTokenHint: string | null;
@@ -34,18 +34,18 @@ export type AuthorizeOutcome =
 // (OIDC Discovery §3) and promise what this rejects.
 const SUPPORTED_RESPONSE_MODE = 'query';
 
-// A scope unknown to the realm and a scope the realm defines but this client
+// A scope unknown to the tenant and a scope the tenant defines but this client
 // is not assigned are both invalid_scope: RFC 6749 §3.3 lets the server
 // refuse rather than silently narrow, and a client told nothing is a client
 // that believes it holds a scope it does not.
 function scopesAreGrantable(
   scope: string | undefined,
-  knownToRealm: ReadonlySet<string>,
+  knownToTenant: ReadonlySet<string>,
   assignedToClient: ReadonlySet<string>,
 ): boolean {
   const tokens = (scope ?? 'openid').split(' ').filter((token) => token.length > 0);
   if (tokens.length === 0) return false;
-  return tokens.every((token) => knownToRealm.has(token) && assignedToClient.has(token));
+  return tokens.every((token) => knownToTenant.has(token) && assignedToClient.has(token));
 }
 
 // §3.1.2.1: "the value is a JSON number". A query parameter is text, and
@@ -85,7 +85,7 @@ export function validateAuthorizationRequest(
   params: Record<string, string | undefined>,
   client: ClientRecord | null,
   config: ClientOidcConfig | null,
-  // The realm's own scope vocabulary, and the subset of it this client is
+  // The tenant's own scope vocabulary, and the subset of it this client is
   // assigned. Discovery advertises the first of these, from the same read,
   // so what is advertised and what is accepted cannot drift apart.
   knownScopes: ReadonlySet<string>,

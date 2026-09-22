@@ -3,16 +3,16 @@ import { type FastifyInstance, type FastifyRequest } from 'fastify';
 import { corsHeadersForPreflight } from '#/service/cors';
 
 // Matches only the two endpoints whose real request is enforced against a
-// resolved client rather than the realm — a preflight carries no client
+// resolved client rather than the tenant — a preflight carries no client
 // identity, so this is also the only pattern this plugin ever answers.
-const TOKEN_OR_USERINFO_PATH = /^\/realms\/([^/]+)\/protocol\/openid-connect\/(?:token|userinfo)$/;
+const TOKEN_OR_USERINFO_PATH = /^\/tenants\/([^/]+)\/protocol\/openid-connect\/(?:token|userinfo)$/;
 
 export interface CorsRouteDeps {
-  findRealm(name: string): Promise<{ id: string; enabled: boolean } | null>;
-  webOriginsForRealm(realmId: string): Promise<ReadonlySet<string>>;
+  findTenant(name: string): Promise<{ id: string; enabled: boolean } | null>;
+  webOriginsForTenant(tenantId: string): Promise<ReadonlySet<string>>;
 }
 
-// Answers the preflight for /token and /userinfo from the realm's union of
+// Answers the preflight for /token and /userinfo from the tenant's union of
 // every enabled client's origins, via `@fastify/cors`'s async delegator
 // (docs/superpowers/p2a-spike-log.md). The real request on those two routes
 // sets its own header once the client is resolved — see their route
@@ -39,13 +39,13 @@ async function resolvePreflight(
   const match = TOKEN_OR_USERINFO_PATH.exec(path);
   if (match === null) return { origin: false };
 
-  const realmName = match[1];
-  if (realmName === undefined) return { origin: false };
+  const tenantName = match[1];
+  if (tenantName === undefined) return { origin: false };
 
-  const realm = await deps.findRealm(decodeURIComponent(realmName));
-  if (!realm?.enabled) return { origin: false };
+  const tenant = await deps.findTenant(decodeURIComponent(tenantName));
+  if (!tenant?.enabled) return { origin: false };
 
-  const allowed = await deps.webOriginsForRealm(realm.id);
+  const allowed = await deps.webOriginsForTenant(tenant.id);
   const headers = corsHeadersForPreflight(request.headers.origin, allowed);
   const origin = headers?.['access-control-allow-origin'];
   if (origin === undefined) return { origin: false };

@@ -10,7 +10,7 @@ import { type ClaimsRequest } from '#/service/claims-request';
 // redeemable.
 export const authorizationCodes = pgTable('authorization_codes', {
   codeHash: text('code_hash').primaryKey(),
-  realmId: uuid('tenant_id')
+  tenantId: uuid('tenant_id')
     .notNull()
     .references(() => tenants.id, { onDelete: 'cascade' }),
   clientId: uuid('client_id').notNull(),
@@ -52,7 +52,7 @@ export const authorizationCodes = pgTable('authorization_codes', {
 // owns (expiresAt, consumedAt, grantId).
 export interface AuthorizationCodeRecord {
   codeHash: string;
-  realmId: string;
+  tenantId: string;
   clientId: string;
   subjectId: string;
   redirectUri: string;

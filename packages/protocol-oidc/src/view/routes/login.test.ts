@@ -5,8 +5,8 @@ import { registerLoginRoute, type LoginRouteDeps } from '#/view/routes/login';
 
 const AUTH_SESSION_ID = '01a0a998-8326-7900-8fa6-dd06b842b269';
 
-const REALM = {
-  id: 'realm-1',
+const TENANT = {
+  id: 'tenant-1',
   enabled: true,
   verifyEmail: false,
   ssoSessionMaxSeconds: 36_000,
@@ -36,7 +36,7 @@ const PENDING = {
 function deps(): LoginRouteDeps {
   return {
     tls: false,
-    findRealm: vi.fn().mockResolvedValue(REALM),
+    findTenant: vi.fn().mockResolvedValue(TENANT),
     advance: vi
       .fn()
       .mockResolvedValue({ kind: 'success', subjectId: 'subject-1', authenticators: ['password'] }),
@@ -52,7 +52,7 @@ function deps(): LoginRouteDeps {
     resolveSessions: vi.fn().mockResolvedValue([
       {
         id: 'remembered-session',
-        realmId: REALM.id,
+        tenantId: TENANT.id,
         subjectId: 'subject-1',
         createdAt: new Date('2026-01-01T00:00:00Z'),
         expiresAt: new Date('2100-01-01T00:00:00Z'),
@@ -84,7 +84,7 @@ describe('the login route, on a successful login', () => {
 
     const res = await app.inject({
       method: 'POST',
-      url: '/realms/acme/login-actions/authenticate',
+      url: '/tenants/acme/login-actions/authenticate',
       payload: new URLSearchParams({
         auth_session_id: AUTH_SESSION_ID,
         username: 'ada',

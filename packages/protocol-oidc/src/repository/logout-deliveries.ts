@@ -1,4 +1,4 @@
-import { type RealmScopedDatabase } from '@odudu/db';
+import { type TenantScopedDatabase } from '@odudu/db';
 import { and, eq, isNull, sql } from 'drizzle-orm';
 import { backchannelLogoutDeliveries, type LogoutDelivery } from '#/schema/logout-deliveries';
 
@@ -10,7 +10,7 @@ export const BACKCHANNEL_LOGOUT_RETRY_BACKOFF_SECONDS = 60;
 
 export interface EnqueueDelivery {
   readonly id: string;
-  readonly realmId: string;
+  readonly tenantId: string;
   readonly clientId: string;
   readonly sessionId: string;
   readonly endpoint: string;
@@ -31,20 +31,20 @@ export interface ClaimDue {
 
 interface ClaimedRow extends Record<string, unknown> {
   id: string;
-  realm_id: string;
+  tenant_id: string;
   client_id: string;
   endpoint: string;
   logout_token: string;
   attempts: number;
 }
 
-export function logoutDeliveryRepository(tx: RealmScopedDatabase) {
+export function logoutDeliveryRepository(tx: TenantScopedDatabase) {
   return {
     /**
      * Written in the transaction that ends the session, so a token the
      * database durably stored and a delivery nothing will ever send cannot
      * come apart. `ON CONFLICT DO NOTHING` against
-     * `backchannel_logout_deliveries_dedupe` (realm_id, session_id,
+     * `backchannel_logout_deliveries_dedupe` (tenant_id, session_id,
      * client_id) is what makes a session ending twice — sequentially or in
      * a genuine race — enqueue at most once per client: the loser of the
      * race gets a no-op insert rather than a duplicate row or an error.
@@ -58,7 +58,7 @@ export function logoutDeliveryRepository(tx: RealmScopedDatabase) {
         .values(
           deliveries.map((delivery) => ({
             id: delivery.id,
-            realmId: delivery.realmId,
+            tenantId: delivery.tenantId,
             clientId: delivery.clientId,
             sessionId: delivery.sessionId,
             endpoint: delivery.endpoint,
@@ -93,12 +93,12 @@ export function logoutDeliveryRepository(tx: RealmScopedDatabase) {
             ORDER BY next_attempt_at
             LIMIT ${input.limit}::integer
             FOR UPDATE SKIP LOCKED)
-        RETURNING id, realm_id, client_id, endpoint, logout_token, attempts
+        RETURNING id, tenant_id, client_id, endpoint, logout_token, attempts
       `);
 
       return rows.map((row) => ({
         id: row.id,
-        realmId: row.realm_id,
+        tenantId: row.tenant_id,
         clientId: row.client_id,
         endpoint: row.endpoint,
         logoutToken: row.logout_token,

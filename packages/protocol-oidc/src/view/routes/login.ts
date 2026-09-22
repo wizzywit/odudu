@@ -28,12 +28,12 @@ export interface LoginRouteDeps extends LoginSubmissionDeps {
   // What to render on a rejected attempt — asked directly rather than
   // threaded through LoginSubmissionOutcome, so handleLoginSubmission stays
   // as unaware of the flow's requirements as its own tests assume.
-  pendingChallenge(realmId: string, authSessionId: string): Promise<AuthenticatorResult>;
+  pendingChallenge(tenantId: string, authSessionId: string): Promise<AuthenticatorResult>;
   // The secret a configure-totp page shows. Asked for only when that action
   // is the one owed, so a login with nothing pending pays nothing for it.
   beginTotpEnrolment(
-    realmName: string,
-    realmId: string,
+    tenantName: string,
+    tenantId: string,
     subjectId: string,
   ): Promise<TotpEnrolmentOffer>;
   // The creation options a configure-passkey page hands the browser, and
@@ -41,24 +41,24 @@ export interface LoginRouteDeps extends LoginSubmissionDeps {
   // can be derived, in which case the page that names the action without a
   // form to satisfy it is the honest answer.
   beginPasskeyEnrolment?(
-    realmName: string,
-    realmId: string,
+    tenantName: string,
+    tenantId: string,
     subjectId: string,
     authSessionId: string,
   ): Promise<PasskeyEnrolmentOffer>;
   // The ten codes a generate-recovery-codes page shows, written as hashes
   // before it renders. Asked for only when that action is the one owed.
-  beginRecoveryCodes(realmId: string, subjectId: string): Promise<RecoveryCodesOffer>;
+  beginRecoveryCodes(tenantId: string, subjectId: string): Promise<RecoveryCodesOffer>;
   // The request options the passkey button asks for, and the challenge it
   // parks on this attempt. Absent for the same reason the enrolment half is.
   beginPasskeyAuthentication?(
-    realmId: string,
+    tenantId: string,
     authSessionId: string,
   ): Promise<PasskeyAuthenticationOffer>;
 }
 
 // pendingChallenge runs in its own transaction, separate from the advance()
-// call that produced the reject — a realm whose executions change in that
+// call that produced the reject — a tenant whose executions change in that
 // window (or a session that expires in it) can make pendingChallenge answer
 // something other than a challenge. 'password' is what to fall back to,
 // since it is the step every flow this server provisions starts with.
@@ -91,11 +91,11 @@ export function registerLoginRoute(app: FastifyInstance, deps: LoginRouteDeps): 
   // does not hand a stale one to an authenticator, and a rejected attempt
   // needs no fresh render to try a passkey again.
   const beginPasskeyAuthentication = deps.beginPasskeyAuthentication?.bind(deps);
-  app.post<{ Params: { realm: string }; Body: Record<string, string | string[] | undefined> }>(
-    '/realms/:realm/login-actions/passkey-challenge',
+  app.post<{ Params: { tenant: string }; Body: Record<string, string | string[] | undefined> }>(
+    '/tenants/:tenant/login-actions/passkey-challenge',
     async (request, reply) => {
       const authSessionId = firstString(request.body.auth_session_id);
-      const realm = await deps.findRealm(request.params.realm);
+      const tenant = await deps.findTenant(request.params.tenant);
       // No existence check on the attempt, deliberately: the id is the
       // unguessable value that CSRF-protects this whole path, and parking a
       // challenge against an id no row has updates nothing. An assertion
@@ -108,19 +108,19 @@ export function registerLoginRoute(app: FastifyInstance, deps: LoginRouteDeps): 
         beginPasskeyAuthentication === undefined ||
         authSessionId === undefined ||
         !isUuid(authSessionId) ||
-        realm === null
+        tenant === null
       ) {
         return reply.code(400).send({ error: 'invalid_request' });
       }
-      const offer = await beginPasskeyAuthentication(realm.id, authSessionId);
+      const offer = await beginPasskeyAuthentication(tenant.id, authSessionId);
       return reply.code(200).send(offer.options);
     },
   );
 
   app.post<{
-    Params: { realm: string };
+    Params: { tenant: string };
     Body: Record<string, string | string[] | undefined>;
-  }>('/realms/:realm/login-actions/authenticate', async (request, reply) => {
+  }>('/tenants/:tenant/login-actions/authenticate', async (request, reply) => {
     const body = request.body;
     const authSessionId = firstString(body.auth_session_id);
     const username = firstString(body.username);
@@ -139,14 +139,14 @@ export function registerLoginRoute(app: FastifyInstance, deps: LoginRouteDeps): 
     const code = firstString(body.code);
     const recoveryCode = firstString(body.recovery_code);
     const assertion = firstString(body.assertion);
-    // Whether the checkbox was ticked, exactly as submitted — the realm's
+    // Whether the checkbox was ticked, exactly as submitted — the tenant's
     // rememberMeAllowed is what decides whether this does anything at all;
     // see login-submission.ts's gate.
     const rememberMe = firstString(body.remember_me) === 'true';
 
     const outcome = await handleLoginSubmission(
       deps,
-      request.params.realm,
+      request.params.tenant,
       issuerBaseFor(request),
       authSessionId,
       {
@@ -186,24 +186,24 @@ export function registerLoginRoute(app: FastifyInstance, deps: LoginRouteDeps): 
     }
 
     if (outcome.kind === 'reject') {
-      // The realm was already resolved once, inside handleLoginSubmission,
+      // The tenant was already resolved once, inside handleLoginSubmission,
       // to produce this very outcome — resolved again here rather than
       // threading its id back out through LoginSubmissionOutcome, which
       // would leak flow-engine concerns into a type login-submission's own
       // tests assert the shape of.
-      const realm = await deps.findRealm(request.params.realm);
+      const tenant = await deps.findTenant(request.params.tenant);
       const pending =
-        realm === null ? null : await deps.pendingChallenge(realm.id, outcome.authSessionId);
+        tenant === null ? null : await deps.pendingChallenge(tenant.id, outcome.authSessionId);
       const form = pending?.kind === 'challenge' ? pending.form : FALLBACK_FORM;
       return sendHtml(
         reply,
         200,
         renderLoginForm(
-          request.params.realm,
+          request.params.tenant,
           outcome.authSessionId,
           form,
           deps.passkeyLogin ?? false,
-          realm?.rememberMeAllowed ?? false,
+          tenant?.rememberMeAllowed ?? false,
           outcome.reason,
         ),
       );
@@ -221,7 +221,7 @@ export function registerLoginRoute(app: FastifyInstance, deps: LoginRouteDeps): 
       return sendRequiredActionPage(
         reply,
         deps,
-        request.params.realm,
+        request.params.tenant,
         outcome.authSessionId,
         outcome.subjectId,
         outcome.action,
@@ -235,7 +235,7 @@ export function registerLoginRoute(app: FastifyInstance, deps: LoginRouteDeps): 
         reply,
         200,
         renderConsentPage({
-          realm: request.params.realm,
+          tenant: request.params.tenant,
           authSessionId: outcome.authSessionId,
           clientName: outcome.clientName,
           defaultScopes: outcome.defaultScopes,
@@ -246,7 +246,7 @@ export function registerLoginRoute(app: FastifyInstance, deps: LoginRouteDeps): 
     }
 
     const written = sessionCookies({
-      realm: request.params.realm,
+      tenant: request.params.tenant,
       tls: deps.tls,
       ephemeral: outcome.ephemeralSessionIds,
       persistent: outcome.persistentSessionIds,

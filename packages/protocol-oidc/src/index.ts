@@ -27,7 +27,7 @@ import {
 } from '@odudu/authn-flows';
 import { JWE_ALGS_PERMITTED, signingKeyRepository, signJwt } from '@odudu/crypto';
 import { effectiveGroupPaths, effectiveRoles } from '@odudu/domain-authz';
-import { withRealm, type DatabaseHandle } from '@odudu/db';
+import { withTenant, type DatabaseHandle } from '@odudu/db';
 import { hashPassword, userRepository, verifyPassword } from '@odudu/domain-identity';
 import { clientRepository, clientScopeRepository, consentRepository } from '@odudu/domain-tenant';
 import { newId, systemClock, type Clock } from '@odudu/kernel';
@@ -36,7 +36,7 @@ import { type ClientKeySet } from '#/repository/client-keys';
 import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
 import { tokenGrantRepository, type ClientLogoutTarget } from '#/repository/grants';
 import { logoutDeliveryRepository } from '#/repository/logout-deliveries';
-import { realmLookupRepository } from '#/repository/realm-lookup';
+import { tenantLookupRepository } from '#/repository/tenant-lookup';
 import { reachableRoleIds } from '#/repository/scope-role-reach';
 import { standardClaimMappers } from '#/service/claims';
 import { type ClientSecretLimiter } from '#/service/client-secret-throttle';
@@ -69,10 +69,10 @@ import { registerUserinfoRoute } from '#/view/routes/userinfo';
 
 export interface OidcRoutesDeps {
   database: DatabaseHandle;
-  // The owner (RLS-bypassing) connection — see repository/realm-lookup.ts
-  // for why resolving {realm} by name needs it and why that is safe.
+  // The owner (RLS-bypassing) connection — see repository/tenant-lookup.ts
+  // for why resolving {tenant} by name needs it and why that is safe.
   ownerDatabase: DatabaseHandle;
-  // Unwraps the private half of the realm's active signing key so /token
+  // Unwraps the private half of the tenant's active signing key so /token
   // can sign access and ID tokens. Required, not defaulted: there is no
   // safe placeholder for a key-encryption key.
   kek: Uint8Array;
@@ -127,12 +127,12 @@ function hasBackchannelLogoutUri(
 }
 
 // The plugin apps/server registers. Discovery and JWKS both read the
-// resolved realm's own tenant data — its scope vocabulary and its
-// publishable keys — once realm context is established for the resolved
-// realm id.
+// resolved tenant's own tenant data — its scope vocabulary and its
+// publishable keys — once tenant context is established for the resolved
+// tenant id.
 export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
   return (app) => {
-    const findRealm = (name: string) => realmLookupRepository(deps.ownerDatabase.db).byName(name);
+    const findTenant = (name: string) => tenantLookupRepository(deps.ownerDatabase.db).byName(name);
     const clock = deps.clock ?? systemClock;
     const tls = deps.tls ?? false;
     const clientSecretLimiter = deps.clientSecretLimiter;
@@ -145,8 +145,8 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
     // never run itself — resolved here, once per issuance, alongside the
     // user row and the subject's direct group memberships, and handed to
     // the mappers as data.
-    const loadClaimContext = (realmId: string, subjectId: string) =>
-      withRealm(deps.database.db, realmId, async (tx) => ({
+    const loadClaimContext = (tenantId: string, subjectId: string) =>
+      withTenant(deps.database.db, tenantId, async (tx) => ({
         subjectId,
         user: await userRepository(tx).bySubjectId(subjectId),
         roles: await effectiveRoles(tx, subjectId),
@@ -156,8 +156,8 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
     // The keys /jwks publishes, and the ones an `id_token_hint` is checked
     // against at /authorize — one definition, so a client trusting the
     // published set and this server judging a hint cannot disagree.
-    const listPublishableKeys = (realmId: string) =>
-      withRealm(deps.database.db, realmId, (tx) => signingKeyRepository(tx).listPublishable());
+    const listPublishableKeys = (tenantId: string) =>
+      withTenant(deps.database.db, tenantId, (tx) => signingKeyRepository(tx).listPublishable());
 
     // /userinfo's own gate on the `roles` claim: which role ids the token's
     // granted scope reaches, and whether its client bypasses that
@@ -165,8 +165,8 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
     // tables, so a role withheld from the token cannot resurface here. A
     // disabled client never bypasses, for the reason given at
     // `resolveClientWebOrigins` below.
-    const resolveRoleReach = (realmId: string, oauthClientId: string, scope: readonly string[]) =>
-      withRealm(deps.database.db, realmId, async (tx) => {
+    const resolveRoleReach = (tenantId: string, oauthClientId: string, scope: readonly string[]) =>
+      withTenant(deps.database.db, tenantId, async (tx) => {
         const client = await clientRepository(tx).byClientId(oauthClientId);
         return {
           reachableRoleIds: await reachableRoleIds(tx, scope),
@@ -178,8 +178,8 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
     // the request is for, this is the same lookup either way — an unknown
     // or foreign client_id resolves to an empty set, so the caller withholds
     // the header instead of treating it as an error.
-    const resolveClientWebOrigins = (realmId: string, oauthClientId: string) =>
-      withRealm(deps.database.db, realmId, async (tx) => {
+    const resolveClientWebOrigins = (tenantId: string, oauthClientId: string) =>
+      withTenant(deps.database.db, tenantId, async (tx) => {
         const client = await clientRepository(tx).byClientId(oauthClientId);
         // A disabled client's origin must stop working the same way a
         // disabled client's tokens do — the CORS allowlist is not a second,
@@ -195,8 +195,8 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
     // `userinfo_signed_response_alg`, all read as `null` — the response
     // format's default, JSON — the same way an unrecognised `client_id`
     // reads as no CORS origins above rather than an error.
-    const userinfoSignedResponseAlg = (realmId: string, oauthClientId: string) =>
-      withRealm(deps.database.db, realmId, async (tx) => {
+    const userinfoSignedResponseAlg = (tenantId: string, oauthClientId: string) =>
+      withTenant(deps.database.db, tenantId, async (tx) => {
         const client = await clientRepository(tx).byClientId(oauthClientId);
         if (!client?.enabled) return null;
         const config = await clientOidcConfigRepository(tx).byClientId(client.id);
@@ -208,8 +208,8 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
     // what `'none'` versus `'unavailable'` means. Registration is checked
     // before `enabled`, so a disabled client that did register reaches
     // `'unavailable'` rather than `'none'`.
-    const userinfoEncryptionTarget = (realmId: string, oauthClientId: string) =>
-      withRealm(deps.database.db, realmId, async (tx) => {
+    const userinfoEncryptionTarget = (tenantId: string, oauthClientId: string) =>
+      withTenant(deps.database.db, tenantId, async (tx) => {
         const client = await clientRepository(tx).byClientId(oauthClientId);
         if (client === null) return { kind: 'none' } as const;
         const config = await clientOidcConfigRepository(tx).byClientId(client.id);
@@ -228,13 +228,13 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
 
     // The same key /token signs an access token or ID Token with —
     // `signingKeyRepository(tx).active()`, not a second selection rule.
-    const activeSigningKey = (realmId: string) =>
-      withRealm(deps.database.db, realmId, (tx) => signingKeyRepository(tx).active());
+    const activeSigningKey = (tenantId: string) =>
+      withTenant(deps.database.db, tenantId, (tx) => signingKeyRepository(tx).active());
 
-    // `null` rather than thrown: a realm provisioned before its first
+    // `null` rather than thrown: a tenant provisioned before its first
     // signing key still gets a discovery document.
-    const activeSigningKeyAlg = (realmId: string) =>
-      withRealm(deps.database.db, realmId, async (tx) => {
+    const activeSigningKeyAlg = (tenantId: string) =>
+      withTenant(deps.database.db, tenantId, async (tx) => {
         try {
           return (await signingKeyRepository(tx).active()).alg;
         } catch {
@@ -245,16 +245,16 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
     // One definition, read by discovery for scopes_supported and by
     // /authorize for what it will accept, so the advertised list and the
     // accepted one cannot drift apart.
-    const scopesForRealm = (realmId: string): Promise<readonly string[]> =>
-      withRealm(deps.database.db, realmId, async (tx) =>
-        (await clientScopeRepository(tx).allForRealm()).map((scope) => scope.name),
+    const scopesForTenant = (tenantId: string): Promise<readonly string[]> =>
+      withTenant(deps.database.db, tenantId, async (tx) =>
+        (await clientScopeRepository(tx).allForTenant()).map((scope) => scope.name),
       );
 
     // The one definition of "is this subject's address verified", read by
     // both doors into completing a login: the password form and a reused
     // SSO session cookie.
-    const checkEmailVerification = (realmId: string, subjectId: string) =>
-      withRealm(deps.database.db, realmId, async (tx) => {
+    const checkEmailVerification = (tenantId: string, subjectId: string) =>
+      withTenant(deps.database.db, tenantId, async (tx) => {
         const user = await userRepository(tx).bySubjectId(subjectId);
         return {
           verified: user?.emailVerified ?? false,
@@ -267,7 +267,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
     // set with a fresh login, and by logout's membership check — never
     // trusted for anything but that lookup.
     const resolveSessions = (
-      realm: {
+      tenant: {
         id: string;
         name: string;
         ssoSessionIdleSeconds: number;
@@ -277,9 +277,9 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
       },
       header: string | undefined,
     ) => {
-      const ids = readSessionIds(header, realm.name, tls);
-      return withRealm(deps.database.db, realm.id, (tx) =>
-        sessionRepository(tx).liveByIds([...ids.ephemeral, ...ids.persistent], realm, clock.now()),
+      const ids = readSessionIds(header, tenant.name, tls);
+      return withTenant(deps.database.db, tenant.id, (tx) =>
+        sessionRepository(tx).liveByIds([...ids.ephemeral, ...ids.persistent], tenant, clock.now()),
       );
     };
 
@@ -291,8 +291,8 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
     // One definition for every door that can issue a code: the form path,
     // the consent POST, and (via completeAuthorizedLogin) whichever of the
     // two a reuse's own consent gate promoted itself into.
-    const resolveClientId = (realmId: string, oauthClientId: string) =>
-      withRealm(deps.database.db, realmId, async (tx) => {
+    const resolveClientId = (tenantId: string, oauthClientId: string) =>
+      withTenant(deps.database.db, tenantId, async (tx) => {
         const client = await clientRepository(tx).byClientId(oauthClientId);
         return client === null ? null : client.id;
       });
@@ -304,8 +304,8 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
     // assignment — named, not just counted, so the page can list them and
     // the POST can turn a ticked name back into the id consent_scopes
     // stores.
-    const consentContext = (realmId: string, clientId: string) =>
-      withRealm(deps.database.db, realmId, async (tx) => {
+    const consentContext = (tenantId: string, clientId: string) =>
+      withTenant(deps.database.db, tenantId, async (tx) => {
         const [client, config, assignments] = await Promise.all([
           clientRepository(tx).byId(clientId),
           clientOidcConfigRepository(tx).byClientId(clientId),
@@ -327,9 +327,9 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
         };
       });
 
-    const grantedScopeIds = (realmId: string, subjectId: string, clientId: string) =>
-      withRealm(deps.database.db, realmId, (tx) =>
-        consentRepository(tx).grantedScopeIds(realmId, subjectId, clientId),
+    const grantedScopeIds = (tenantId: string, subjectId: string, clientId: string) =>
+      withTenant(deps.database.db, tenantId, (tx) =>
+        consentRepository(tx).grantedScopeIds(tenantId, subjectId, clientId),
       );
 
     // One transaction: the conditional consume, and — only if it actually
@@ -339,7 +339,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
     // the form path and the consent POST — completeAuthorizedLogin is the
     // only caller of either.
     const completeLogin = (input: CompleteLoginInput): Promise<CompleteLoginOutcome> =>
-      withRealm(deps.database.db, input.realmId, async (tx) => {
+      withTenant(deps.database.db, input.tenantId, async (tx) => {
         const now = clock.now();
         const consumed = await consumeAuthenticationSession(tx, input.authSessionId, clock);
         if (!consumed) return { kind: 'already_consumed' };
@@ -360,7 +360,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
           const admitted = await admitSession(
             tx,
             {
-              realmId: input.realmId,
+              tenantId: input.tenantId,
               subjectId: input.subjectId,
               authenticators: input.authenticators,
               remembered: input.remembered,
@@ -375,7 +375,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
         }
 
         const { code } = await issueAuthorizationCode(tx, {
-          realmId: input.realmId,
+          tenantId: input.tenantId,
           clientId: input.clientId,
           subjectId: input.subjectId,
           redirectUri: input.redirectUri,
@@ -393,33 +393,33 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
       });
 
     registerDiscoveryRoute(app, {
-      findRealm,
+      findTenant,
       claimNames: () => claimMappers.claimNames(),
-      scopesForRealm,
+      scopesForTenant,
       activeSigningKeyAlg,
       userinfoEncryptionAlgSupported: JWE_ALGS_PERMITTED,
       userinfoEncryptionEncSupported: USERINFO_ENCRYPTION_ENCS_PERMITTED,
       trustProxy: deps.trustProxy ?? false,
     });
-    registerJwksRoute(app, { findRealm, listPublishableKeys });
+    registerJwksRoute(app, { findTenant, listPublishableKeys });
     // Introspection's two grant/session reads, resolved here rather than in
     // the route — a route never imports a repository (dependency-cruiser's
-    // no-view-to-repository rule; see token.ts's own `findRealm` comment for
+    // no-view-to-repository rule; see token.ts's own `findTenant` comment for
     // the same rule stated where /token obeys it).
-    const loadIntrospectionGrant = (realmId: string, grantId: string) =>
-      withRealm(deps.database.db, realmId, async (tx) => {
+    const loadIntrospectionGrant = (tenantId: string, grantId: string) =>
+      withTenant(deps.database.db, tenantId, async (tx) => {
         const grant = await tokenGrantRepository(tx).byId(grantId);
         return grant === null ? null : { revokedAt: grant.revokedAt };
       });
     const isIntrospectionSessionLive = (
-      realmId: string,
+      tenantId: string,
       sessionId: string,
       lifespans: SessionLifespans,
       now: Date,
     ) =>
-      withRealm(
+      withTenant(
         deps.database.db,
-        realmId,
+        tenantId,
         async (tx) => (await sessionRepository(tx).liveById(sessionId, lifespans, now)) !== null,
       );
     // No CORS scope: unlike /userinfo, a resource server calls this with
@@ -427,7 +427,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
     // so there is no Origin this endpoint owes a header to.
     registerIntrospectRoute(app, {
       database: deps.database,
-      findRealm,
+      findTenant,
       listPublishableKeys,
       verifyPassword,
       clientSecretLimiter,
@@ -439,15 +439,15 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
     // token with its own credentials, never a browser bearer token.
     registerRevokeRoute(app, {
       database: deps.database,
-      findRealm,
+      findTenant,
       listPublishableKeys,
       verifyPassword,
       clientSecretLimiter,
       clock,
     });
     registerClientRegistrationRoute(app, {
-      findRealm,
-      withinRealm: (realmId, fn) => withRealm(deps.database.db, realmId, fn),
+      findTenant,
+      withinTenant: (tenantId, fn) => withTenant(deps.database.db, tenantId, fn),
       hashClientSecret: hashPassword,
       now: () => clock.now(),
       tlsClientAuthEnabled: deps.trustProxy ?? false,
@@ -455,13 +455,15 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
     // One definition for both doors onto the enrolment page: the login
     // submission that discovers the action is owed, and the enrolment
     // submission that has to re-render it after a wrong code.
-    const startTotpEnrolment = (realmName: string, realmId: string, subjectId: string) =>
-      withRealm(deps.database.db, realmId, (tx) => beginTotpEnrolment(tx, realmName, subjectId));
+    const startTotpEnrolment = (tenantName: string, tenantId: string, subjectId: string) =>
+      withTenant(deps.database.db, tenantId, (tx) => beginTotpEnrolment(tx, tenantName, subjectId));
 
     // One definition for the same two doors: the login that discovers the
     // action is owed, and the acknowledgement that has to re-render it.
-    const startRecoveryCodes = (realmId: string, subjectId: string) =>
-      withRealm(deps.database.db, realmId, (tx) => beginRecoveryCodes(tx, { realmId, subjectId }));
+    const startRecoveryCodes = (tenantId: string, subjectId: string) =>
+      withTenant(deps.database.db, tenantId, (tx) =>
+        beginRecoveryCodes(tx, { tenantId, subjectId }),
+      );
 
     // Both halves of passkey enrolment exist only where a relying party can
     // be derived; where it cannot, the routes have nothing to call and say
@@ -472,14 +474,14 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
         ? {}
         : {
             beginPasskeyEnrolment: (
-              realmName: string,
-              realmId: string,
+              tenantName: string,
+              tenantId: string,
               subjectId: string,
               authSessionId: string,
             ) =>
-              withRealm(deps.database.db, realmId, (tx) =>
+              withTenant(deps.database.db, tenantId, (tx) =>
                 beginPasskeyEnrolment(tx, {
-                  realmName,
+                  tenantName,
                   publicBaseUrl,
                   authSessionId,
                   subjectId,
@@ -491,8 +493,8 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
       publicBaseUrl === undefined
         ? {}
         : {
-            beginPasskeyAuthentication: (realmId: string, authSessionId: string) =>
-              withRealm(deps.database.db, realmId, (tx) =>
+            beginPasskeyAuthentication: (tenantId: string, authSessionId: string) =>
+              withTenant(deps.database.db, tenantId, (tx) =>
                 beginPasskeyAuthentication(tx, { publicBaseUrl, authSessionId }),
               ),
           };
@@ -502,48 +504,48 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
         ? {}
         : {
             completePasskeyEnrolment: (input: {
-              realmId: string;
+              tenantId: string;
               subjectId: string;
               authSessionId: string;
               response: unknown;
               label?: string;
             }) =>
-              withRealm(deps.database.db, input.realmId, (tx) =>
+              withTenant(deps.database.db, input.tenantId, (tx) =>
                 completePasskeyEnrolment(tx, { ...input, publicBaseUrl }),
               ),
           };
 
-    const pendingChallengeFor = (realmId: string, authSessionId: string) =>
-      withRealm(deps.database.db, realmId, (tx) => pendingChallenge(tx, authSessionId, clock));
+    const pendingChallengeFor = (tenantId: string, authSessionId: string) =>
+      withTenant(deps.database.db, tenantId, (tx) => pendingChallenge(tx, authSessionId, clock));
 
     // One definition for both readers: the login gate that discovers an
     // action is owed, and the required-action route that will not act on
     // one that is not.
-    const pendingActions = (realmId: string, subjectId: string) =>
-      withRealm(deps.database.db, realmId, (tx) =>
+    const pendingActions = (tenantId: string, subjectId: string) =>
+      withTenant(deps.database.db, tenantId, (tx) =>
         requiredActionRepository(tx).pendingFor(subjectId),
       );
 
     registerAuthorizeRoute(app, {
-      findRealm,
+      findTenant,
       tls,
       ...passkeyLogin,
       listPublishableKeys,
-      scopesForRealm,
-      resolveClient: (realmId, oauthClientId) =>
-        withRealm(deps.database.db, realmId, async (tx): Promise<ResolvedClient> => {
+      scopesForTenant,
+      resolveClient: (tenantId, oauthClientId) =>
+        withTenant(deps.database.db, tenantId, async (tx): Promise<ResolvedClient> => {
           const client = await clientRepository(tx).byClientId(oauthClientId);
           if (client === null) return { client: null, config: null, scopes: [] };
           const config = await clientOidcConfigRepository(tx).byClientId(client.id);
           const assigned = await clientScopeRepository(tx).forClient(client.id);
           return { client, config, scopes: assigned.map((scope) => scope.name) };
         }),
-      startAuthentication: (realmId, request) =>
-        withRealm(deps.database.db, realmId, (tx) =>
-          startAuthentication(tx, realmId, request, clock),
+      startAuthentication: (tenantId, request) =>
+        withTenant(deps.database.db, tenantId, (tx) =>
+          startAuthentication(tx, tenantId, request, clock),
         ),
-      initialChallenge: (realmId) =>
-        withRealm(deps.database.db, realmId, (tx) => initialChallenge(tx, realmId)),
+      initialChallenge: (tenantId) =>
+        withTenant(deps.database.db, tenantId, (tx) => initialChallenge(tx, tenantId)),
       now: () => clock.now(),
       resolveSessions,
       checkEmailVerification,
@@ -559,14 +561,14 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
       // subject, so authenticatedSession's own liveness check cannot gate
       // it — pendingSession applies the same expiry/consumed checks to a
       // session that has not yet been authenticated.
-      loadPendingRequest: (realmId, authSessionId) =>
-        withRealm(deps.database.db, realmId, (tx) => pendingSession(tx, authSessionId, clock)),
+      loadPendingRequest: (tenantId, authSessionId) =>
+        withTenant(deps.database.db, tenantId, (tx) => pendingSession(tx, authSessionId, clock)),
       // The chooser's label for each candidate: preferred_username falling
       // back to username, the same fallback #/service/claims.ts uses for
       // the preferred_username claim itself — never email, which the
       // chooser must not print on a shared device.
-      accountDisplayNames: (realmId, subjectIds) =>
-        withRealm(deps.database.db, realmId, async (tx) => {
+      accountDisplayNames: (tenantId, subjectIds) =>
+        withTenant(deps.database.db, tenantId, async (tx) => {
           const names = new Map<string, string>();
           for (const subjectId of new Set(subjectIds)) {
             const user = await userRepository(tx).bySubjectId(subjectId);
@@ -579,21 +581,21 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
       // gate and decideConsentGate's 'ask' branch both need to park the
       // request on and render a page against, with no factor actually
       // running.
-      markAuthenticated: (realmId, authSessionId, subjectId, authenticators) =>
-        withRealm(deps.database.db, realmId, (tx) =>
+      markAuthenticated: (tenantId, authSessionId, subjectId, authenticators) =>
+        withTenant(deps.database.db, tenantId, (tx) =>
           markSessionAuthenticated(tx, authSessionId, subjectId, authenticators, clock),
         ),
       // Touch and issue in one transaction: a reused session is a session
       // being used, and there is no reason for the two writes this makes to
       // land in separate ones.
       completeReuse: (input) =>
-        withRealm(deps.database.db, input.realmId, async (tx) => {
+        withTenant(deps.database.db, input.tenantId, async (tx) => {
           const now = clock.now();
           await sessionRepository(tx).touch(input.sessionId, now);
           // `now`, not `input.authTime`: the code's 60s TTL counts from this
           // issuance, however long ago the session's own login was.
           return issueAuthorizationCode(tx, {
-            realmId: input.realmId,
+            tenantId: input.tenantId,
             clientId: input.clientId,
             subjectId: input.subjectId,
             redirectUri: input.redirectUri,
@@ -611,49 +613,51 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
     });
 
     registerRequiredActionRoute(app, {
-      findRealm,
+      findTenant,
       ...passkeyLogin,
       beginTotpEnrolment: startTotpEnrolment,
       ...passkeyEnrolment,
       ...passkeySubmission,
       pendingChallenge: pendingChallengeFor,
       pendingActions,
-      authenticatedSubject: (realmId, authSessionId) =>
-        withRealm(deps.database.db, realmId, (tx) =>
+      authenticatedSubject: (tenantId, authSessionId) =>
+        withTenant(deps.database.db, tenantId, (tx) =>
           authenticatedSubject(tx, authSessionId, clock),
         ),
       completeTotpEnrolment: (input) =>
-        withRealm(deps.database.db, input.realmId, (tx) => completeTotpEnrolment(tx, input, clock)),
+        withTenant(deps.database.db, input.tenantId, (tx) =>
+          completeTotpEnrolment(tx, input, clock),
+        ),
       beginRecoveryCodes: startRecoveryCodes,
       completeRecoveryCodes: (input) =>
-        withRealm(deps.database.db, input.realmId, (tx) => completeRecoveryCodes(tx, input)),
+        withTenant(deps.database.db, input.tenantId, (tx) => completeRecoveryCodes(tx, input)),
       completeUpdatePassword: (input) =>
-        withRealm(deps.database.db, input.realmId, (tx) => completeUpdatePassword(tx, input)),
+        withTenant(deps.database.db, input.tenantId, (tx) => completeUpdatePassword(tx, input)),
     });
     registerLoginRoute(app, {
-      findRealm,
+      findTenant,
       tls,
       ...passkeyLogin,
       ...passkeyAssertion,
       beginTotpEnrolment: startTotpEnrolment,
       beginRecoveryCodes: startRecoveryCodes,
       ...passkeyEnrolment,
-      resetAuthenticationProgress: (realmId, authSessionId) =>
-        withRealm(deps.database.db, realmId, (tx) =>
+      resetAuthenticationProgress: (tenantId, authSessionId) =>
+        withTenant(deps.database.db, tenantId, (tx) =>
           resetAuthenticationProgress(tx, authSessionId),
         ),
-      recordRememberMe: (realmId, authSessionId, remembered) =>
-        withRealm(deps.database.db, realmId, (tx) =>
+      recordRememberMe: (tenantId, authSessionId, remembered) =>
+        withTenant(deps.database.db, tenantId, (tx) =>
           recordRememberMe(tx, authSessionId, remembered),
         ),
-      advance: (realmId, authSessionId, input) =>
-        withRealm(deps.database.db, realmId, (tx) =>
+      advance: (tenantId, authSessionId, input) =>
+        withTenant(deps.database.db, tenantId, (tx) =>
           advance(tx, authSessionId, input, clock, {
             ...(publicBaseUrl === undefined ? {} : { publicBaseUrl }),
           }),
         ),
-      loadPendingRequest: (realmId, authSessionId) =>
-        withRealm(deps.database.db, realmId, (tx) => loadPendingRequest(tx, authSessionId)),
+      loadPendingRequest: (tenantId, authSessionId) =>
+        withTenant(deps.database.db, tenantId, (tx) => loadPendingRequest(tx, authSessionId)),
       pendingChallenge: pendingChallengeFor,
       checkEmailVerification,
       pendingActions,
@@ -664,14 +668,14 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
       resolveSessions,
     });
     registerConsentRoute(app, {
-      findRealm,
+      findTenant,
       tls,
-      authenticatedSession: (realmId, authSessionId) =>
-        withRealm(deps.database.db, realmId, (tx) =>
+      authenticatedSession: (tenantId, authSessionId) =>
+        withTenant(deps.database.db, tenantId, (tx) =>
           authenticatedSession(tx, authSessionId, clock),
         ),
-      loadPendingRequest: (realmId, authSessionId) =>
-        withRealm(deps.database.db, realmId, (tx) => loadPendingRequest(tx, authSessionId)),
+      loadPendingRequest: (tenantId, authSessionId) =>
+        withTenant(deps.database.db, tenantId, (tx) => loadPendingRequest(tx, authSessionId)),
       checkEmailVerification,
       pendingActions,
       beginTotpEnrolment: startTotpEnrolment,
@@ -679,15 +683,15 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
       ...passkeyEnrolment,
       resolveClientId,
       consentContext,
-      recordConsent: (realmId, subjectId, clientId, scopeIds) =>
-        withRealm(deps.database.db, realmId, (tx) =>
-          consentRepository(tx).record(realmId, subjectId, clientId, [...scopeIds]),
+      recordConsent: (tenantId, subjectId, clientId, scopeIds) =>
+        withTenant(deps.database.db, tenantId, (tx) =>
+          consentRepository(tx).record(tenantId, subjectId, clientId, [...scopeIds]),
         ),
       completeLogin,
       resolveSessions,
     });
     registerLogoutRoute(app, {
-      findRealm,
+      findTenant,
       tls,
       listPublishableKeys,
       now: () => clock.now(),
@@ -696,8 +700,8 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
       // refusing any redirect rather than resolving one with no client (or
       // no longer-trusted client) to trust it against (RP-Initiated Logout
       // 1.0 §3).
-      postLogoutRedirectUris: (realmId, oauthClientId) =>
-        withRealm(deps.database.db, realmId, async (tx) => {
+      postLogoutRedirectUris: (tenantId, oauthClientId) =>
+        withTenant(deps.database.db, tenantId, async (tx) => {
           const client = await clientRepository(tx).byClientId(oauthClientId);
           if (!client?.enabled) return [];
           return clientOidcConfigRepository(tx).postLogoutRedirectUris(client.id);
@@ -711,8 +715,8 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
       // concurrent logouts on the same session both reach here and both
       // attempt to enqueue; logoutDeliveryRepository.enqueue's own comment
       // is why that yields one delivery, not two.
-      endSession: (realmId, sessionId, subjectId, now, issuer) =>
-        withRealm(deps.database.db, realmId, async (tx) => {
+      endSession: (tenantId, sessionId, subjectId, now, issuer) =>
+        withTenant(deps.database.db, tenantId, async (tx) => {
           await sessionRepository(tx).end(sessionId, now);
           await tokenGrantRepository(tx).revokeForSession(sessionId, now);
 
@@ -736,7 +740,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
               );
               return {
                 id: newId(),
-                realmId,
+                tenantId,
                 clientId: target.clientId,
                 sessionId,
                 endpoint: target.backchannelLogoutUri,
@@ -750,8 +754,8 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
       // Front-Channel Logout 1.0 §3's "set of logged-in RPs" — read after
       // endSession above has already revoked the session's grants, since
       // revoking one only stamps revoked_at rather than removing it.
-      clientsForSession: (realmId, sessionId) =>
-        withRealm(deps.database.db, realmId, (tx) =>
+      clientsForSession: (tenantId, sessionId) =>
+        withTenant(deps.database.db, tenantId, (tx) =>
           tokenGrantRepository(tx).clientsForSession(sessionId),
         ),
     });
@@ -763,15 +767,15 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
     // login-actions routes, which must carry no CORS treatment at all.
     app.register((scope) => {
       registerCors(scope, {
-        findRealm,
-        webOriginsForRealm: (realmId) =>
-          withRealm(deps.database.db, realmId, (tx) =>
-            clientOidcConfigRepository(tx).webOriginsForRealm(),
+        findTenant,
+        webOriginsForTenant: (tenantId) =>
+          withTenant(deps.database.db, tenantId, (tx) =>
+            clientOidcConfigRepository(tx).webOriginsForTenant(),
           ),
       });
       registerTokenRoute(scope, {
         database: deps.database,
-        findRealm,
+        findTenant,
         kek: deps.kek,
         clock,
         verifyPassword,
@@ -784,9 +788,11 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
         tlsClientCertHeader: deps.tlsClientCertHeader ?? DEFAULT_TLS_CLIENT_SUBJECT_HEADER,
       });
       registerUserinfoRoute(scope, {
-        findRealm,
-        listPublishableKeys: (realmId) =>
-          withRealm(deps.database.db, realmId, (tx) => signingKeyRepository(tx).listPublishable()),
+        findTenant,
+        listPublishableKeys: (tenantId) =>
+          withTenant(deps.database.db, tenantId, (tx) =>
+            signingKeyRepository(tx).listPublishable(),
+          ),
         loadClaimContext,
         claimMappers,
         resolveRoleReach,
@@ -809,7 +815,11 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
 export { assertionJtiRepository } from '#/repository/assertion-jti';
 export { clientOidcConfigRepository } from '#/repository/client-oidc-config';
 export { type ClientOidcConfig } from '#/schema/client-oidc-config';
-export { realmLookupRepository, type NewRealm, type RealmLookup } from '#/repository/realm-lookup';
+export {
+  tenantLookupRepository,
+  type NewTenant,
+  type TenantLookup,
+} from '#/repository/tenant-lookup';
 export {
   clientKeySet,
   ClientKeySetRefused,

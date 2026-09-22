@@ -7,14 +7,14 @@ import {
   type SessionLifespans,
   type SessionRecord,
 } from '@odudu/authn-flows';
-import { type RealmScopedDatabase } from '@odudu/db';
+import { type TenantScopedDatabase } from '@odudu/db';
 import { isUuid } from '@odudu/kernel';
 import { authorizationCodeRepository } from '#/repository/codes';
-import { type RealmLookup } from '#/repository/realm-lookup';
+import { type TenantLookup } from '#/repository/tenant-lookup';
 import { generateAuthorizationCode, hashAuthorizationCode } from '#/service/authorization-code';
 import { EMPTY_CLAIMS_REQUEST, type ClaimsRequest } from '#/service/claims-request';
 import { decideConsent } from '#/service/consent';
-import { realmIssuer } from '#/service/issuer';
+import { tenantIssuer } from '#/service/issuer';
 import { type PromptValue } from '#/service/prompt';
 
 // A code lives 60 seconds: it is redeemed by a backend within a second or
@@ -23,7 +23,7 @@ import { type PromptValue } from '#/service/prompt';
 const AUTHORIZATION_CODE_TTL_MS = 60_000;
 
 export interface IssueAuthorizationCodeInput {
-  realmId: string;
+  tenantId: string;
   clientId: string;
   subjectId: string;
   redirectUri: string;
@@ -58,13 +58,13 @@ export interface IssueAuthorizationCodeInput {
 
 // Returns the raw code exactly once; only its hash is ever persisted.
 export async function issueAuthorizationCode(
-  tx: RealmScopedDatabase,
+  tx: TenantScopedDatabase,
   input: IssueAuthorizationCodeInput,
 ): Promise<{ code: string }> {
   const code = generateAuthorizationCode();
   await authorizationCodeRepository(tx).create({
     codeHash: hashAuthorizationCode(code),
-    realmId: input.realmId,
+    tenantId: input.tenantId,
     clientId: input.clientId,
     subjectId: input.subjectId,
     redirectUri: input.redirectUri,
@@ -89,12 +89,12 @@ export type LoginSubmissionOutcome =
   // their own credential, on an attempt already bound to them, and "try the
   // next one" is the difference between that and abandoning the list.
   | { kind: 'reject'; authSessionId: string; reason?: string }
-  // The password was right, but the realm requires a verified address and
+  // The password was right, but the tenant requires a verified address and
   // this one is not yet. Nothing is established and no code is issued; the
   // authentication session is left unconsumed so the same session can
   // retry once the address is verified. `hasEmail` is false for an account
   // with no address at all (every seeded-without-email account, once a
-  // realm turns verify_email on) — the rendered page must not tell that
+  // tenant turns verify_email on) — the rendered page must not tell that
   // user mail was sent, since none was.
   | { kind: 'unverified'; authSessionId: string; hasEmail: boolean }
   // Authentication succeeded, but a required action is still owed. Nothing
@@ -145,7 +145,7 @@ export type LoginSubmissionOutcome =
 // transaction: consume the authentication session, then act on the result,
 // with nothing else in between to roll back separately.
 export interface CompleteLoginInput {
-  realmId: string;
+  tenantId: string;
   authSessionId: string;
   subjectId: string;
   clientId: string;
@@ -154,13 +154,13 @@ export interface CompleteLoginInput {
   nonce: string | null;
   codeChallenge: string;
   codeChallengeMethod: 'S256';
-  // Whether this login was remembered — the realm-gated decision the
+  // Whether this login was remembered — the tenant-gated decision the
   // caller already made (see login-submission.ts's own gate on
   // `rememberMeAllowed`), carried onto the session admitSession creates.
   // Ignored when `reuseSession` is present: a reuse keeps whichever value
   // its own session was established with.
   remembered: boolean;
-  // The realm's lifespan pair and cap, carried through so admitSession
+  // The tenant's lifespan pair and cap, carried through so admitSession
   // (packages/authn-flows/src/usecase/session-admission.ts, ADR 0033)
   // never needs a lookup of its own inside the transaction it runs in.
   lifespans: SessionLifespans;
@@ -200,17 +200,17 @@ export type CompleteLoginOutcome =
   { kind: 'already_consumed' } | { kind: 'issued'; sessionId: string; code: string };
 
 // The gate is a property of completing a login, not of submitting a form.
-// A realm requiring a verified address refuses a cookie-borne login for an
+// A tenant requiring a verified address refuses a cookie-borne login for an
 // unverified subject exactly as it refuses a password one; an unverified
 // account that happens to hold a live session would otherwise sign in
 // without ever passing the check.
 export async function refusedForUnverifiedEmail(
   deps: Pick<LoginSubmissionDeps, 'checkEmailVerification'>,
-  realm: { id: string; verifyEmail: boolean },
+  tenant: { id: string; verifyEmail: boolean },
   subjectId: string,
 ): Promise<{ hasEmail: boolean } | null> {
-  if (!realm.verifyEmail) return null;
-  const status = await deps.checkEmailVerification(realm.id, subjectId);
+  if (!tenant.verifyEmail) return null;
+  const status = await deps.checkEmailVerification(tenant.id, subjectId);
   return status.verified ? null : { hasEmail: status.hasEmail };
 }
 
@@ -229,9 +229,9 @@ export interface ConsentContext {
 }
 
 export interface ConsentGateDeps {
-  consentContext(realmId: string, clientId: string): Promise<ConsentContext>;
+  consentContext(tenantId: string, clientId: string): Promise<ConsentContext>;
   grantedScopeIds(
-    realmId: string,
+    tenantId: string,
     subjectId: string,
     clientId: string,
   ): Promise<ReadonlySet<string>>;
@@ -256,14 +256,14 @@ export type ConsentGateOutcome =
 // as ids, translated to names here before decideConsent ever sees them.
 export async function decideConsentGate(
   deps: ConsentGateDeps,
-  realmId: string,
+  tenantId: string,
   clientId: string,
   subjectId: string,
   requestedScope: string,
   prompt: readonly string[] | undefined,
 ): Promise<ConsentGateOutcome> {
-  const context = await deps.consentContext(realmId, clientId);
-  const grantedIds = await deps.grantedScopeIds(realmId, subjectId, clientId);
+  const context = await deps.consentContext(tenantId, clientId);
+  const grantedIds = await deps.grantedScopeIds(tenantId, subjectId, clientId);
   const grantedScopes = [...context.scopeIdByName]
     .filter(([, id]) => grantedIds.has(id))
     .map(([name]) => name);
@@ -292,16 +292,16 @@ export async function decideConsentGate(
 }
 
 export interface LoginSubmissionDeps extends ConsentGateDeps {
-  findRealm(name: string): Promise<RealmLookup | null>;
-  advance(realmId: string, authSessionId: string, input: AdvanceInput): Promise<AdvanceOutcome>;
-  loadPendingRequest(realmId: string, authSessionId: string): Promise<PendingRequest | null>;
-  resolveClientId(realmId: string, oauthClientId: string): Promise<string | null>;
-  // Read only when the realm's verify_email is on: the cost of an extra
-  // lookup on every login is not worth paying for realms that never turn
+  findTenant(name: string): Promise<TenantLookup | null>;
+  advance(tenantId: string, authSessionId: string, input: AdvanceInput): Promise<AdvanceOutcome>;
+  loadPendingRequest(tenantId: string, authSessionId: string): Promise<PendingRequest | null>;
+  resolveClientId(tenantId: string, oauthClientId: string): Promise<string | null>;
+  // Read only when the tenant's verify_email is on: the cost of an extra
+  // lookup on every login is not worth paying for tenants that never turn
   // it on. `hasEmail` lets the unverified page tell a null-address account
   // apart from an unverified one instead of claiming mail it never sent.
   checkEmailVerification(
-    realmId: string,
+    tenantId: string,
     subjectId: string,
   ): Promise<{ verified: boolean; hasEmail: boolean }>;
   // Every action this subject still owes, read fresh on every submission —
@@ -310,27 +310,27 @@ export interface LoginSubmissionDeps extends ConsentGateDeps {
   // auth_session_id is resubmitted, not cached from an earlier attempt.
   // That route reads the same set, and refuses to act on an action it does
   // not find there.
-  pendingActions(realmId: string, subjectId: string): Promise<readonly RequiredAction[]>;
+  pendingActions(tenantId: string, subjectId: string): Promise<readonly RequiredAction[]>;
   // Unbinds the authentication session from the subject who just
   // authenticated and forgets the factors they satisfied — see the
   // id_token_hint branch below, its only caller.
-  resetAuthenticationProgress(realmId: string, authSessionId: string): Promise<void>;
+  resetAuthenticationProgress(tenantId: string, authSessionId: string): Promise<void>;
   // Parks the already-gated `remembered` decision on the authentication
   // session, read back by consent-submission.ts's own PendingRequest —
   // the only door that completes a login without asking `remember_me`
   // itself. See handleLoginSubmission's 'consent' branch, its only caller.
-  recordRememberMe(realmId: string, authSessionId: string, remembered: boolean): Promise<void>;
+  recordRememberMe(tenantId: string, authSessionId: string, remembered: boolean): Promise<void>;
   // Consumes the authentication session and, only if that succeeds,
   // establishes the SSO session and issues the authorization code — all in
   // the one transaction this name promises. See index.ts for the wiring
-  // that makes it one `withRealm` call rather than three.
+  // that makes it one `withTenant` call rather than three.
   completeLogin(input: CompleteLoginInput): Promise<CompleteLoginOutcome>;
   // The browser's own live session set, resolved from its two cookies —
   // the same authority /authorize and logout resolve through (index.ts).
   // completeAuthorizedLogin reads it to add a login to the set rather than
   // replace it.
   resolveSessions(
-    realm: {
+    tenant: {
       id: string;
       name: string;
       ssoSessionIdleSeconds: number;
@@ -348,14 +348,14 @@ export interface LoginSubmissionDeps extends ConsentGateDeps {
 // whose 'deny' answer is the same shape of response.
 export function errorRedirect(
   pending: PendingRequest,
-  realmName: string,
+  tenantName: string,
   issuerBase: string,
   error: string,
 ): string {
   const location = new URL(pending.redirectUri);
   location.searchParams.set('error', error);
   if (pending.state !== null) location.searchParams.set('state', pending.state);
-  location.searchParams.set('iss', realmIssuer(issuerBase, realmName));
+  location.searchParams.set('iss', tenantIssuer(issuerBase, tenantName));
   return location.toString();
 }
 
@@ -368,7 +368,7 @@ export function errorRedirect(
 // caller already needed it before reaching this tail.
 export async function completeAuthorizedLogin(
   deps: Pick<LoginSubmissionDeps, 'completeLogin' | 'resolveSessions'>,
-  realm: {
+  tenant: {
     id: string;
     name: string;
     ssoSessionMaxSeconds: number;
@@ -388,7 +388,7 @@ export async function completeAuthorizedLogin(
   // /authorize and logout resolve through.
   header: string | undefined,
   // Whether to remember this login — already gated against
-  // `realm.rememberMeAllowed` by the caller (handleLoginSubmission), never
+  // `tenant.rememberMeAllowed` by the caller (handleLoginSubmission), never
   // an unauthenticated request's own say-so. Consent-submission.ts's call
   // reads no field of its own; it passes the value parked on the request
   // by the original login (`pending.rememberMe ?? false`).
@@ -403,10 +403,10 @@ export async function completeAuthorizedLogin(
       : undefined;
 
   const lifespans = {
-    ssoSessionIdleSeconds: realm.ssoSessionIdleSeconds,
-    ssoSessionMaxSeconds: realm.ssoSessionMaxSeconds,
-    rememberMeIdleSeconds: realm.rememberMeIdleSeconds,
-    rememberMeMaxSeconds: realm.rememberMeMaxSeconds,
+    ssoSessionIdleSeconds: tenant.ssoSessionIdleSeconds,
+    ssoSessionMaxSeconds: tenant.ssoSessionMaxSeconds,
+    rememberMeIdleSeconds: tenant.rememberMeIdleSeconds,
+    rememberMeMaxSeconds: tenant.rememberMeMaxSeconds,
   };
 
   // Read before completing the login: admitSession evicts from exactly
@@ -414,12 +414,12 @@ export async function completeAuthorizedLogin(
   // never a subject-wide read, since the cap is per browser and a browser
   // can hold sessions for more than one subject.
   const before = await deps.resolveSessions(
-    { id: realm.id, name: realm.name, ...lifespans },
+    { id: tenant.id, name: tenant.name, ...lifespans },
     header,
   );
 
   const completed = await deps.completeLogin({
-    realmId: realm.id,
+    tenantId: tenant.id,
     authSessionId,
     subjectId,
     clientId,
@@ -430,7 +430,7 @@ export async function completeAuthorizedLogin(
     codeChallengeMethod: pending.codeChallengeMethod,
     remembered: rememberMeRequested,
     lifespans,
-    maxSessionsPerBrowser: realm.maxSessionsPerBrowser,
+    maxSessionsPerBrowser: tenant.maxSessionsPerBrowser,
     browserSessionIds: before.map((session) => session.id),
     authenticators,
     ...(reuseSession !== undefined ? { reuseSession } : {}),
@@ -450,7 +450,7 @@ export async function completeAuthorizedLogin(
   const location = new URL(pending.redirectUri);
   location.searchParams.set('code', code);
   if (pending.state !== null) location.searchParams.set('state', pending.state);
-  location.searchParams.set('iss', realmIssuer(issuerBase, realm.name));
+  location.searchParams.set('iss', tenantIssuer(issuerBase, tenant.name));
 
   // The browser's other live sessions, joined with this one, split by the
   // cookie each already belongs to — not by which cookie the request
@@ -459,7 +459,7 @@ export async function completeAuthorizedLogin(
   // just made is already reflected: an evicted id reads dead here and is
   // dropped rather than carried forward into a cookie.
   const existing = await deps.resolveSessions(
-    { id: realm.id, name: realm.name, ...lifespans },
+    { id: tenant.id, name: tenant.name, ...lifespans },
     header,
   );
   const survivors = existing.filter((session) => session.id !== sessionId);
@@ -484,7 +484,7 @@ export async function completeAuthorizedLogin(
     // sessions this login never touched — never this login's own
     // `rememberMeRequested`, which says nothing about a survivor already
     // in the list.
-    persistentMaxAgeSeconds: realm.rememberMeMaxSeconds,
+    persistentMaxAgeSeconds: tenant.rememberMeMaxSeconds,
   };
 }
 
@@ -498,7 +498,7 @@ export async function completeAuthorizedLogin(
 // outcome that lets the same session retry.
 export async function handleLoginSubmission(
   deps: LoginSubmissionDeps,
-  realmName: string,
+  tenantName: string,
   issuerBase: string,
   authSessionId: string | undefined,
   input: AdvanceInput,
@@ -510,9 +510,9 @@ export async function handleLoginSubmission(
   header: string | undefined,
   // The login form's `remember_me` checkbox, as submitted — a request from
   // an unauthenticated browser, not an authority. Gated below against
-  // `realm.rememberMeAllowed` before it can do anything; a realm that has
+  // `tenant.rememberMeAllowed` before it can do anything; a tenant that has
   // not turned the feature on ignores this entirely; see the module's
-  // security note on why the realm setting, not the field, decides.
+  // security note on why the tenant setting, not the field, decides.
   rememberMe = false,
 ): Promise<LoginSubmissionOutcome> {
   // A value that is not shaped like a uuid names no session and never
@@ -523,18 +523,18 @@ export async function handleLoginSubmission(
     return { kind: 'unauthenticated' };
   }
 
-  const realm = await deps.findRealm(realmName);
-  if (!realm?.enabled) {
+  const tenant = await deps.findTenant(tenantName);
+  if (!tenant?.enabled) {
     return { kind: 'unauthenticated' };
   }
 
-  // The realm setting is the authority; the field is a request. A realm
+  // The tenant setting is the authority; the field is a request. A tenant
   // with rememberMeAllowed false ignores `remember_me` entirely — this is
   // the one place that gate is applied, computed once here so every path
   // past it — direct completion or a detour through consent — agrees.
-  const remembered = rememberMe && realm.rememberMeAllowed;
+  const remembered = rememberMe && tenant.rememberMeAllowed;
 
-  const result = await deps.advance(realm.id, authSessionId, input);
+  const result = await deps.advance(tenant.id, authSessionId, input);
 
   if (result.kind === 'failure' && result.reason === 'authentication_session_expired') {
     return { kind: 'unauthenticated' };
@@ -549,7 +549,7 @@ export async function handleLoginSubmission(
     };
   }
 
-  const refusal = await refusedForUnverifiedEmail(deps, realm, result.subjectId);
+  const refusal = await refusedForUnverifiedEmail(deps, tenant, result.subjectId);
   if (refusal !== null) {
     return { kind: 'unverified', authSessionId, hasEmail: refusal.hasEmail };
   }
@@ -558,7 +558,7 @@ export async function handleLoginSubmission(
   // — never the request body. Resubmitting a wider scope or a different
   // redirect_uri with the form changes nothing: this is what is bound to
   // the code below.
-  const pending = await deps.loadPendingRequest(realm.id, authSessionId);
+  const pending = await deps.loadPendingRequest(tenant.id, authSessionId);
   if (pending === null) {
     return { kind: 'unauthenticated' };
   }
@@ -576,10 +576,10 @@ export async function handleLoginSubmission(
     // attempt is bound to the subject who just authenticated, and every
     // factor they satisfied is recorded against them, so the right End-User
     // could not sign in against this parked request until both are cleared.
-    await deps.resetAuthenticationProgress(realm.id, authSessionId);
+    await deps.resetAuthenticationProgress(tenant.id, authSessionId);
     return {
       kind: 'error_redirect',
-      location: errorRedirect(pending, realmName, issuerBase, 'login_required'),
+      location: errorRedirect(pending, tenantName, issuerBase, 'login_required'),
     };
   }
 
@@ -588,10 +588,10 @@ export async function handleLoginSubmission(
   // renders regardless of how it came out.
   const claimsSubject = pending.claimsSubject;
   if (claimsSubject !== undefined && claimsSubject !== result.subjectId) {
-    await deps.resetAuthenticationProgress(realm.id, authSessionId);
+    await deps.resetAuthenticationProgress(tenant.id, authSessionId);
     return {
       kind: 'error_redirect',
-      location: errorRedirect(pending, realmName, issuerBase, 'login_required'),
+      location: errorRedirect(pending, tenantName, issuerBase, 'login_required'),
     };
   }
 
@@ -602,12 +602,12 @@ export async function handleLoginSubmission(
   // it. Nothing is established and nothing is issued until the action is
   // done, and the authentication session is deliberately left unconsumed
   // so the same parked request survives the detour.
-  const action = nextRequiredAction(await deps.pendingActions(realm.id, result.subjectId));
+  const action = nextRequiredAction(await deps.pendingActions(tenant.id, result.subjectId));
   if (action !== null) {
     return { kind: 'required_action', authSessionId, subjectId: result.subjectId, action };
   }
 
-  const clientId = await deps.resolveClientId(realm.id, pending.clientId);
+  const clientId = await deps.resolveClientId(tenant.id, pending.clientId);
   if (clientId === null) {
     return { kind: 'unauthenticated' };
   }
@@ -620,7 +620,7 @@ export async function handleLoginSubmission(
   // unconsumed so the consent POST resumes this same parked request.
   const gate = await decideConsentGate(
     deps,
-    realm.id,
+    tenant.id,
     clientId,
     result.subjectId,
     pending.scope,
@@ -629,7 +629,7 @@ export async function handleLoginSubmission(
   if (gate.kind === 'refuse') {
     return {
       kind: 'error_redirect',
-      location: errorRedirect(pending, realmName, issuerBase, 'consent_required'),
+      location: errorRedirect(pending, tenantName, issuerBase, 'consent_required'),
     };
   }
   if (gate.kind === 'ask') {
@@ -638,7 +638,7 @@ export async function handleLoginSubmission(
     // reads no `remember_me` field of its own. Parked on the authentication
     // session, alongside everything else the detour must not lose, so that
     // door can still honour a choice this one already gated.
-    await deps.recordRememberMe(realm.id, authSessionId, remembered);
+    await deps.recordRememberMe(tenant.id, authSessionId, remembered);
     return {
       kind: 'consent',
       authSessionId,
@@ -652,13 +652,13 @@ export async function handleLoginSubmission(
   return completeAuthorizedLogin(
     deps,
     {
-      id: realm.id,
-      name: realmName,
-      ssoSessionMaxSeconds: realm.ssoSessionMaxSeconds,
-      ssoSessionIdleSeconds: realm.ssoSessionIdleSeconds,
-      rememberMeIdleSeconds: realm.rememberMeIdleSeconds,
-      rememberMeMaxSeconds: realm.rememberMeMaxSeconds,
-      maxSessionsPerBrowser: realm.maxSessionsPerBrowser,
+      id: tenant.id,
+      name: tenantName,
+      ssoSessionMaxSeconds: tenant.ssoSessionMaxSeconds,
+      ssoSessionIdleSeconds: tenant.ssoSessionIdleSeconds,
+      rememberMeIdleSeconds: tenant.rememberMeIdleSeconds,
+      rememberMeMaxSeconds: tenant.rememberMeMaxSeconds,
+      maxSessionsPerBrowser: tenant.maxSessionsPerBrowser,
     },
     issuerBase,
     authSessionId,

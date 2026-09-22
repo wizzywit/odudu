@@ -6,11 +6,11 @@ import { tenants } from '@odudu/db';
 // declarative policy would collide with a database that already carries it.
 // One row per redemption of an authorization code (and, later, per
 // client_credentials issuance): the record a refresh token or a revocation
-// call points back at. `token_grants_realm_id_unique` on (realm_id, id)
+// call points back at. `token_grants_tenant_id_unique` on (tenant_id, id)
 // exists so the refresh-token table can carry a composite foreign key.
 export const tokenGrants = pgTable('token_grants', {
   id: uuid('id').primaryKey(),
-  realmId: uuid('tenant_id')
+  tenantId: uuid('tenant_id')
     .notNull()
     .references(() => tenants.id, { onDelete: 'cascade' }),
   clientId: uuid('client_id').notNull(),
@@ -20,7 +20,7 @@ export const tokenGrants = pgTable('token_grants', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   revokedAt: timestamp('revoked_at', { withTimezone: true }),
   // Null means an offline grant: nothing expires it and no logout ends it.
-  // The composite foreign key to sessions(realm_id, id) and its ON DELETE
+  // The composite foreign key to sessions(tenant_id, id) and its ON DELETE
   // SET NULL live only in packages/db/drizzle/0026_token_grants_session.sql
   // — see this file's own note above on why FKs are hand-authored here.
   sessionId: uuid('session_id'),
@@ -28,7 +28,7 @@ export const tokenGrants = pgTable('token_grants', {
 
 export interface TokenGrantRecord {
   id: string;
-  realmId: string;
+  tenantId: string;
   clientId: string;
   subjectId: string;
   scope: string;

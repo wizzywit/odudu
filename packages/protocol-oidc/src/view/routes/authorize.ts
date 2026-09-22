@@ -9,7 +9,7 @@ import {
 import { renderAuthorizeErrorPage, renderLoginForm } from '#/view/authorize-html';
 import { renderConsentPage } from '#/view/consent-html';
 import { sendHtml } from '#/view/html-response';
-import { realmIssuerFor } from '#/view/issuer';
+import { tenantIssuerFor } from '#/view/issuer';
 import { namesUnsupportedRepresentation } from '#/view/media-type';
 import {
   sendRequiredActionPage,
@@ -17,14 +17,14 @@ import {
 } from '#/view/routes/required-action-response';
 import { renderSelectAccountPage } from '#/view/select-account-html';
 
-const PATH = '/realms/:realm/protocol/openid-connect/auth';
+const PATH = '/tenants/:tenant/protocol/openid-connect/auth';
 
-// Omits RequiredActionResponseDeps's own `findRealm`: AuthorizeUsecaseDeps
+// Omits RequiredActionResponseDeps's own `findTenant`: AuthorizeUsecaseDeps
 // already declares one — see consent.ts's identical comment for why
 // TypeScript needs the omission even though the two signatures are
 // structurally compatible.
 export interface AuthorizeRouteDeps
-  extends AuthorizeUsecaseDeps, Omit<RequiredActionResponseDeps, 'findRealm'> {
+  extends AuthorizeUsecaseDeps, Omit<RequiredActionResponseDeps, 'findTenant'> {
   tls: boolean;
   // Whether this deployment can offer a passkey login at all — see
   // renderLoginForm in #/view/authorize-html.
@@ -37,7 +37,7 @@ export interface AuthorizeRouteDeps
 // way — and from there the response is identical.
 async function renderAuthorizationOutcome(
   deps: AuthorizeRouteDeps,
-  realm: string,
+  tenant: string,
   issuer: string,
   outcome: AuthorizationRequestOutcome,
   reply: FastifyReply,
@@ -75,7 +75,7 @@ async function renderAuthorizationOutcome(
     return sendRequiredActionPage(
       reply,
       deps,
-      realm,
+      tenant,
       outcome.authSessionId,
       outcome.subjectId,
       outcome.action,
@@ -91,7 +91,7 @@ async function renderAuthorizationOutcome(
       reply,
       200,
       renderSelectAccountPage({
-        realm,
+        tenant,
         authSessionId: outcome.authSessionId,
         accounts: outcome.accounts,
       }),
@@ -106,7 +106,7 @@ async function renderAuthorizationOutcome(
       reply,
       200,
       renderConsentPage({
-        realm,
+        tenant,
         authSessionId: outcome.authSessionId,
         clientName: outcome.clientName,
         defaultScopes: outcome.defaultScopes,
@@ -120,7 +120,7 @@ async function renderAuthorizationOutcome(
     reply,
     200,
     renderLoginForm(
-      realm,
+      tenant,
       outcome.authSessionId,
       outcome.form,
       deps.passkeyLogin ?? false,
@@ -137,7 +137,7 @@ async function renderAuthorizationOutcome(
 // produced, and normalizeAuthorizeQuery turns them back into strings.
 async function respondToAuthorizationRequest(
   deps: AuthorizeRouteDeps,
-  realm: string,
+  tenant: string,
   params: unknown,
   issuer: string,
   // The browser's raw `Cookie` header, passed through untouched: the
@@ -146,8 +146,8 @@ async function respondToAuthorizationRequest(
   header: string | undefined,
   reply: FastifyReply,
 ): Promise<FastifyReply> {
-  const outcome = await handleAuthorizationRequest(deps, realm, params, issuer, header);
-  return renderAuthorizationOutcome(deps, realm, issuer, outcome, reply);
+  const outcome = await handleAuthorizationRequest(deps, tenant, params, issuer, header);
+  return renderAuthorizationOutcome(deps, tenant, issuer, outcome, reply);
 }
 
 function firstString(value: string | string[] | undefined): string | undefined {
@@ -159,7 +159,7 @@ function firstString(value: string | string[] | undefined): string | undefined {
 // actions, never under /protocol/openid-connect/.
 async function respondToSelectAccountSubmission(
   deps: AuthorizeRouteDeps,
-  realm: string,
+  tenant: string,
   body: Record<string, string | string[] | undefined> | undefined,
   issuer: string,
   header: string | undefined,
@@ -172,7 +172,7 @@ async function respondToSelectAccountSubmission(
   const fields = body ?? {};
   const outcome = await handleSelectAccountSubmission(
     deps,
-    realm,
+    tenant,
     firstString(fields.auth_session_id),
     {
       sessionId: firstString(fields.session_id),
@@ -194,7 +194,7 @@ async function respondToSelectAccountSubmission(
 
   // The security case: the posted session_id names no member of the set
   // this browser's own cookies resolve to. Refused, never honoured merely
-  // because it names some live session in the realm — see
+  // because it names some live session in the tenant — see
   // handleSelectAccountSubmission's own comment on why.
   if (outcome.kind === 'invalid_selection') {
     return sendHtml(
@@ -207,16 +207,16 @@ async function respondToSelectAccountSubmission(
     );
   }
 
-  return renderAuthorizationOutcome(deps, realm, issuer, outcome, reply);
+  return renderAuthorizationOutcome(deps, tenant, issuer, outcome, reply);
 }
 
 export function registerAuthorizeRoute(app: FastifyInstance, deps: AuthorizeRouteDeps): void {
-  app.get<{ Params: { realm: string } }>(PATH, (request, reply) =>
+  app.get<{ Params: { tenant: string } }>(PATH, (request, reply) =>
     respondToAuthorizationRequest(
       deps,
-      request.params.realm,
+      request.params.tenant,
       request.query,
-      realmIssuerFor(request, request.params.realm),
+      tenantIssuerFor(request, request.params.tenant),
       request.headers.cookie,
       reply,
     ),
@@ -229,7 +229,7 @@ export function registerAuthorizeRoute(app: FastifyInstance, deps: AuthorizeRout
   // trust and there is nowhere to redirect an error to. The test is the
   // media type, not whether a body arrived (see media-type.ts): an empty
   // JSON request names the same unsupported representation a full one does.
-  app.post<{ Params: { realm: string } }>(
+  app.post<{ Params: { tenant: string } }>(
     PATH,
     {
       onRequest: async (request, reply) => {
@@ -248,23 +248,23 @@ export function registerAuthorizeRoute(app: FastifyInstance, deps: AuthorizeRout
     (request, reply) =>
       respondToAuthorizationRequest(
         deps,
-        request.params.realm,
+        request.params.tenant,
         request.body,
-        realmIssuerFor(request, request.params.realm),
+        tenantIssuerFor(request, request.params.tenant),
         request.headers.cookie,
         reply,
       ),
   );
 
   app.post<{
-    Params: { realm: string };
+    Params: { tenant: string };
     Body: Record<string, string | string[] | undefined> | undefined;
-  }>('/realms/:realm/login-actions/select-account', (request, reply) =>
+  }>('/tenants/:tenant/login-actions/select-account', (request, reply) =>
     respondToSelectAccountSubmission(
       deps,
-      request.params.realm,
+      request.params.tenant,
       request.body,
-      realmIssuerFor(request, request.params.realm),
+      tenantIssuerFor(request, request.params.tenant),
       request.headers.cookie,
       reply,
     ),

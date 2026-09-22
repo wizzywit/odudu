@@ -2,13 +2,13 @@ import { subjectRepository } from '@odudu/domain-identity';
 import {
   createDatabase,
   MIGRATIONS_DIR,
-  realms,
+  tenants,
   runMigrations,
   type DatabaseHandle,
-  type RealmScopedDatabase,
+  type TenantScopedDatabase,
 } from '@odudu/db';
-import { expectCrossRealmMethodProbe } from '@odudu/db/testing';
-import { provisionRealm } from '@odudu/authn-flows';
+import { expectCrossTenantMethodProbe } from '@odudu/db/testing';
+import { provisionTenant } from '@odudu/authn-flows';
 import { clients, provisionClientDefaults } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
@@ -44,23 +44,23 @@ afterAll(async () => {
   await containerHandle?.stop();
 });
 
-async function issueRefreshToken(tx: RealmScopedDatabase, realmId: string): Promise<string> {
-  await tx.insert(realms).values({ id: realmId, name: `realm-${realmId}` });
-  await provisionRealm(tx, realmId);
+async function issueRefreshToken(tx: TenantScopedDatabase, tenantId: string): Promise<string> {
+  await tx.insert(tenants).values({ id: tenantId, name: `tenant-${tenantId}` });
+  await provisionTenant(tx, tenantId);
   const clientDbId = newId();
   await tx.insert(clients).values({
     id: clientDbId,
-    realmId,
-    clientId: `client-${realmId}`,
+    tenantId,
+    clientId: `client-${tenantId}`,
     name: 'A client',
     type: 'confidential',
     secretHash: 'hashed:secret',
   });
   await provisionClientDefaults(tx, clientDbId);
-  const subject = await subjectRepository(tx).create({ realmId, type: 'user' });
+  const subject = await subjectRepository(tx).create({ tenantId, type: 'user' });
   const grant = await tokenGrantRepository(tx).create({
     id: newId(),
-    realmId,
+    tenantId,
     clientId: clientDbId,
     subjectId: subject.id,
     scope: 'openid',
@@ -70,7 +70,7 @@ async function issueRefreshToken(tx: RealmScopedDatabase, realmId: string): Prom
   const tokenHash = hashRefreshToken(generateRefreshToken());
   await refreshTokenRepository(tx).create({
     tokenHash,
-    realmId,
+    tenantId,
     grantId: grant.id,
     expiresAt: new Date(Date.now() + 1_209_600_000),
   });
@@ -78,9 +78,9 @@ async function issueRefreshToken(tx: RealmScopedDatabase, realmId: string): Prom
 }
 
 describe('refreshTokenRepository', () => {
-  it('cannot find a refresh token by hash under a different realm context', async () => {
-    await expectCrossRealmMethodProbe(app.db, {
-      seed: async (tx, realmId) => issueRefreshToken(tx, realmId),
+  it('cannot find a refresh token by hash under a different tenant context', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => issueRefreshToken(tx, tenantId),
       verifySeeded: async (tx, tokenHash) => {
         const found = await refreshTokenRepository(tx).byHash(tokenHash);
         expect(found).not.toBeNull();
@@ -92,9 +92,9 @@ describe('refreshTokenRepository', () => {
     });
   });
 
-  it('cannot consume a refresh token under a different realm context, and leaves it unused', async () => {
-    await expectCrossRealmMethodProbe(app.db, {
-      seed: async (tx, realmId) => issueRefreshToken(tx, realmId),
+  it('cannot consume a refresh token under a different tenant context, and leaves it unused', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => issueRefreshToken(tx, tenantId),
       verifySeeded: async (tx, tokenHash) => {
         const found = await refreshTokenRepository(tx).byHash(tokenHash);
         expect(found?.usedAt).toBeNull();
@@ -103,16 +103,16 @@ describe('refreshTokenRepository', () => {
       expectBlocked: (result) => {
         expect(result).toBeNull();
       },
-      verifyRealmAUnaffected: async (tx, tokenHash) => {
+      verifyTenantAUnaffected: async (tx, tokenHash) => {
         const found = await refreshTokenRepository(tx).byHash(tokenHash);
         expect(found?.usedAt).toBeNull();
       },
     });
   });
 
-  it('does not attach a replacement to a refresh token under a different realm context', async () => {
-    await expectCrossRealmMethodProbe(app.db, {
-      seed: async (tx, realmId) => issueRefreshToken(tx, realmId),
+  it('does not attach a replacement to a refresh token under a different tenant context', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => issueRefreshToken(tx, tenantId),
       verifySeeded: async (tx, tokenHash) => {
         const found = await refreshTokenRepository(tx).byHash(tokenHash);
         expect(found?.replacedBy).toBeNull();
@@ -122,7 +122,7 @@ describe('refreshTokenRepository', () => {
       expectBlocked: (result) => {
         expect(result).toBeUndefined();
       },
-      verifyRealmAUnaffected: async (tx, tokenHash) => {
+      verifyTenantAUnaffected: async (tx, tokenHash) => {
         const found = await refreshTokenRepository(tx).byHash(tokenHash);
         expect(found?.replacedBy).toBeNull();
       },

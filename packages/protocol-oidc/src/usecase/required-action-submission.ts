@@ -7,7 +7,7 @@ import {
   type UpdatePasswordOutcome,
 } from '@odudu/authn-flows';
 import { isUuid } from '@odudu/kernel';
-import { type RealmLookup } from '#/repository/realm-lookup';
+import { type TenantLookup } from '#/repository/tenant-lookup';
 
 export type RequiredActionOutcome =
   // No live authentication session, or one whose authentication has not
@@ -26,7 +26,7 @@ export type RequiredActionOutcome =
   | { kind: 'unsupported'; action: string }
   // The action is done and the parked login is waiting; the caller resumes it.
   | { kind: 'completed'; authSessionId: string }
-  // The candidate password did not satisfy the realm's policy. Every rule
+  // The candidate password did not satisfy the tenant's policy. Every rule
   // it broke is carried, not just the first, so the form it goes back to
   // can list them at once.
   | { kind: 'password_rejected'; authSessionId: string; violations: readonly string[] }
@@ -44,7 +44,7 @@ export interface RequiredActionSubmission {
   secret: string | undefined;
   code: string | undefined;
   // The candidate for the update-password action. Judged against the
-  // realm's policy where it is written, never here.
+  // tenant's policy where it is written, never here.
   password: string | undefined;
   // The JSON navigator.credentials.create() produced, as the passkey page's
   // hidden field carried it back, and the name the user gave it.
@@ -53,20 +53,20 @@ export interface RequiredActionSubmission {
 }
 
 export interface RequiredActionSubmissionDeps {
-  findRealm(name: string): Promise<RealmLookup | null>;
+  findTenant(name: string): Promise<TenantLookup | null>;
   // The subject a *finished* authentication bound to this session, null
   // otherwise. This submission carries no credentials of its own, so that is
   // the whole of what says whose account is being changed — and the subject
   // binding alone would not do, since the first factor writes it while later
   // ones are still outstanding. A required action blocks a login's
   // completion, never its factors.
-  authenticatedSubject(realmId: string, authSessionId: string): Promise<string | null>;
+  authenticatedSubject(tenantId: string, authSessionId: string): Promise<string | null>;
   // Read fresh on every submission, never cached from the login that
   // rendered the page: an action completed in another tab has to be gone
   // by the time this one is submitted.
-  pendingActions(realmId: string, subjectId: string): Promise<readonly RequiredAction[]>;
+  pendingActions(tenantId: string, subjectId: string): Promise<readonly RequiredAction[]>;
   completeTotpEnrolment(input: {
-    realmId: string;
+    tenantId: string;
     subjectId: string;
     secret: string;
     code: string;
@@ -75,14 +75,14 @@ export interface RequiredActionSubmissionDeps {
   // was seen. It carries no code back — the page that displayed them wrote
   // their hashes, and this submission only says the page was read.
   completeRecoveryCodes(input: {
-    realmId: string;
+    tenantId: string;
     subjectId: string;
   }): Promise<RecoveryCodesOutcome>;
-  // The fourth writer of a password in a realm, bound by the same policy as
+  // The fourth writer of a password in a tenant, bound by the same policy as
   // registration, reset redemption and the seed CLI — and the only one that
   // refuses a password the subject has had before.
   completeUpdatePassword(input: {
-    realmId: string;
+    tenantId: string;
     subjectId: string;
     password: string;
   }): Promise<UpdatePasswordOutcome>;
@@ -91,7 +91,7 @@ export interface RequiredActionSubmissionDeps {
   // unusable and silently so, so the action is reported unsupported rather
   // than attempted.
   completePasskeyEnrolment?(input: {
-    realmId: string;
+    tenantId: string;
     subjectId: string;
     authSessionId: string;
     response: unknown;
@@ -113,7 +113,7 @@ function parseJson(value: string | undefined): unknown {
 
 export async function handleRequiredActionSubmission(
   deps: RequiredActionSubmissionDeps,
-  realmName: string,
+  tenantName: string,
   submission: RequiredActionSubmission,
 ): Promise<RequiredActionOutcome> {
   const { authSessionId, action } = submission;
@@ -124,10 +124,10 @@ export async function handleRequiredActionSubmission(
     return { kind: 'unauthenticated' };
   }
 
-  const realm = await deps.findRealm(realmName);
-  if (!realm?.enabled) return { kind: 'unauthenticated' };
+  const tenant = await deps.findTenant(tenantName);
+  if (!tenant?.enabled) return { kind: 'unauthenticated' };
 
-  const subjectId = await deps.authenticatedSubject(realm.id, authSessionId);
+  const subjectId = await deps.authenticatedSubject(tenant.id, authSessionId);
   if (subjectId === null) return { kind: 'unauthenticated' };
 
   // The gate, before any action-specific handling and for every action this
@@ -137,22 +137,22 @@ export async function handleRequiredActionSubmission(
   // not mere membership — the order nextRequiredAction imposes is what keeps
   // an expired password from enrolling a second factor, and a submission
   // naming a later action would otherwise walk straight past it.
-  const owed = await deps.pendingActions(realm.id, subjectId);
+  const owed = await deps.pendingActions(tenant.id, subjectId);
   if (action === undefined || action !== nextRequiredAction(owed)) {
     return { kind: 'not_owed', action: action ?? '' };
   }
 
   if (action === 'configure-passkey') {
-    return completePasskey(deps, realm.id, subjectId, authSessionId, submission);
+    return completePasskey(deps, tenant.id, subjectId, authSessionId, submission);
   }
 
   if (action === 'generate-recovery-codes') {
-    return acknowledgeRecoveryCodes(deps, realm.id, subjectId, authSessionId);
+    return acknowledgeRecoveryCodes(deps, tenant.id, subjectId, authSessionId);
   }
 
   if (action === 'update-password') {
     const changed = await deps.completeUpdatePassword({
-      realmId: realm.id,
+      tenantId: tenant.id,
       subjectId,
       password: submission.password ?? '',
     });
@@ -177,7 +177,7 @@ export async function handleRequiredActionSubmission(
   // against a RequiredAction, so an unrecognised string never reaches here
   // and the four the order names are the four handled.
   const outcome = await deps.completeTotpEnrolment({
-    realmId: realm.id,
+    tenantId: tenant.id,
     subjectId,
     secret: submission.secret ?? '',
     code: submission.code ?? '',
@@ -204,11 +204,11 @@ export async function handleRequiredActionSubmission(
 // rejection re-renders it with a fresh set.
 async function acknowledgeRecoveryCodes(
   deps: RequiredActionSubmissionDeps,
-  realmId: string,
+  tenantId: string,
   subjectId: string,
   authSessionId: string,
 ): Promise<RequiredActionOutcome> {
-  const outcome = await deps.completeRecoveryCodes({ realmId, subjectId });
+  const outcome = await deps.completeRecoveryCodes({ tenantId, subjectId });
   if (outcome.kind === 'acknowledged') return { kind: 'completed', authSessionId };
   return {
     kind: 'rejected',
@@ -224,7 +224,7 @@ async function acknowledgeRecoveryCodes(
 // challenge because the page it is rendered on issues one.
 async function completePasskey(
   deps: RequiredActionSubmissionDeps,
-  realmId: string,
+  tenantId: string,
   subjectId: string,
   authSessionId: string,
   submission: RequiredActionSubmission,
@@ -233,7 +233,7 @@ async function completePasskey(
   if (enrol === undefined) return { kind: 'unsupported', action: 'configure-passkey' };
 
   const outcome = await enrol({
-    realmId,
+    tenantId,
     subjectId,
     authSessionId,
     response: parseJson(submission.credential),

@@ -8,13 +8,13 @@ import {
 import {
   createDatabase,
   MIGRATIONS_DIR,
-  realms,
+  tenants,
   runMigrations,
-  withRealm,
+  withTenant,
   type DatabaseHandle,
-  type RealmScopedDatabase,
+  type TenantScopedDatabase,
 } from '@odudu/db';
-import { provisionRealm, requiredActionRepository } from '@odudu/authn-flows';
+import { provisionTenant, requiredActionRepository } from '@odudu/authn-flows';
 import { clients, provisionClientDefaults } from '@odudu/domain-tenant';
 import { FakeClock, newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
@@ -47,15 +47,15 @@ const CHALLENGE = 'E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM';
 // read it too, so "the next time step" is exact rather than a 30-second wait.
 const clock = new FakeClock(new Date('2031-01-01T00:00:00.000Z'));
 
-async function setupRealm(name: string, otpRequired: boolean): Promise<string> {
-  const realmId = newId();
+async function setupTenant(name: string, otpRequired: boolean): Promise<string> {
+  const tenantId = newId();
   const clientDbId = newId();
-  await withRealm(app.db, realmId, async (tx: RealmScopedDatabase) => {
-    await tx.insert(realms).values({ id: realmId, name, otpRequired });
-    await provisionRealm(tx, realmId);
+  await withTenant(app.db, tenantId, async (tx: TenantScopedDatabase) => {
+    await tx.insert(tenants).values({ id: tenantId, name, otpRequired });
+    await provisionTenant(tx, tenantId);
     await tx.insert(clients).values({
       id: clientDbId,
-      realmId,
+      tenantId,
       clientId: CLIENT_ID,
       name: 'totp enrolment test client',
       type: 'public',
@@ -63,7 +63,7 @@ async function setupRealm(name: string, otpRequired: boolean): Promise<string> {
     await provisionClientDefaults(tx, clientDbId);
     await clientOidcConfigRepository(tx).create({
       clientId: clientDbId,
-      realmId,
+      tenantId,
       redirectUris: [REDIRECT_URI],
       grantTypes: ['authorization_code'],
       tokenEndpointAuthMethod: 'none',
@@ -71,10 +71,10 @@ async function setupRealm(name: string, otpRequired: boolean): Promise<string> {
       accessTokenTtlSeconds: 300,
       refreshTokenTtlSeconds: 1_209_600,
     });
-    const subject = await subjectRepository(tx).create({ realmId, type: 'user' });
-    await tx.insert(users).values({ subjectId: subject.id, realmId, username: USERNAME });
+    const subject = await subjectRepository(tx).create({ tenantId, type: 'user' });
+    await tx.insert(users).values({ subjectId: subject.id, tenantId, username: USERNAME });
     await credentialRepository(tx).insert({
-      realmId,
+      tenantId,
       subjectId: subject.id,
       type: 'password',
       secret: { kind: 'password', hash: await hashPassword(PASSWORD) },
@@ -83,7 +83,7 @@ async function setupRealm(name: string, otpRequired: boolean): Promise<string> {
     const generated = await generateSigningKey('ES256', KEK);
     await tx.insert(signingKeys).values({
       id: newId(),
-      realmId,
+      tenantId,
       kid: generated.kid,
       alg: generated.alg,
       status: 'active',
@@ -91,10 +91,10 @@ async function setupRealm(name: string, otpRequired: boolean): Promise<string> {
       privateJwkEncrypted: generated.privateJwkEncrypted,
     });
   });
-  return realmId;
+  return tenantId;
 }
 
-function authorizeUrl(realmName: string): string {
+function authorizeUrl(tenantName: string): string {
   const params = new URLSearchParams({
     response_type: 'code',
     client_id: CLIENT_ID,
@@ -104,11 +104,11 @@ function authorizeUrl(realmName: string): string {
     code_challenge: CHALLENGE,
     code_challenge_method: 'S256',
   });
-  return `/realms/${realmName}/protocol/openid-connect/auth?${params.toString()}`;
+  return `/tenants/${tenantName}/protocol/openid-connect/auth?${params.toString()}`;
 }
 
-async function startAuthSession(realmName: string): Promise<string> {
-  const authorize = await http.inject({ url: authorizeUrl(realmName) });
+async function startAuthSession(tenantName: string): Promise<string> {
+  const authorize = await http.inject({ url: authorizeUrl(tenantName) });
   expect(authorize.statusCode).toBe(200);
   const match = /name="auth_session_id" value="([^"]*)"/.exec(authorize.body);
   const authSessionId = match?.[1];
@@ -125,13 +125,13 @@ function post(url: string, fields: Record<string, string>): Promise<LightMyReque
   });
 }
 
-function login(realmName: string, fields: Record<string, string>) {
-  return post(`/realms/${realmName}/login-actions/authenticate`, fields);
+function login(tenantName: string, fields: Record<string, string>) {
+  return post(`/tenants/${tenantName}/login-actions/authenticate`, fields);
 }
 
-function enrolmentPost(realmName: string, action: string, fields: Record<string, string>) {
+function enrolmentPost(tenantName: string, action: string, fields: Record<string, string>) {
   return post(
-    `/realms/${realmName}/login-actions/required-action?action=${encodeURIComponent(action)}`,
+    `/tenants/${tenantName}/login-actions/required-action?action=${encodeURIComponent(action)}`,
     fields,
   );
 }
@@ -143,8 +143,8 @@ function offeredSecret(body: string): string {
   return secret;
 }
 
-async function subjectIdOf(realmId: string): Promise<string> {
-  return withRealm(app.db, realmId, async (tx) => {
+async function subjectIdOf(tenantId: string): Promise<string> {
+  return withTenant(app.db, tenantId, async (tx) => {
     const rows = await tx.select().from(users);
     const row = rows[0];
     if (row === undefined) throw new Error('expected the seeded user');
@@ -160,8 +160,8 @@ function offeredCodes(body: string): string[] {
   return codes;
 }
 
-function storedTotp(realmId: string, subjectId: string) {
-  return withRealm(app.db, realmId, (tx) => credentialRepository(tx).listFor(subjectId, 'totp'));
+function storedTotp(tenantId: string, subjectId: string) {
+  return withTenant(app.db, tenantId, (tx) => credentialRepository(tx).listFor(subjectId, 'totp'));
 }
 
 beforeAll(async () => {
@@ -199,16 +199,16 @@ afterAll(async () => {
   await containerHandle?.stop();
 });
 
-describe('enrolling the second factor a realm asked for', () => {
+describe('enrolling the second factor a tenant asked for', () => {
   it('offers a secret, stores it only once a code proves it, and finishes the login', async () => {
-    const realmName = `totp-enrol-${newId()}`;
-    const realmId = await setupRealm(realmName, true);
-    const subjectId = await subjectIdOf(realmId);
-    const authSessionId = await startAuthSession(realmName);
+    const tenantName = `totp-enrol-${newId()}`;
+    const tenantId = await setupTenant(tenantName, true);
+    const subjectId = await subjectIdOf(tenantId);
+    const authSessionId = await startAuthSession(tenantName);
 
     // The password is right and the login still does not finish: no cookie,
     // no redirect, an enrolment page instead.
-    const owed = await login(realmName, {
+    const owed = await login(tenantName, {
       auth_session_id: authSessionId,
       username: USERNAME,
       password: PASSWORD,
@@ -217,35 +217,37 @@ describe('enrolling the second factor a realm asked for', () => {
     expect(owed.headers['set-cookie']).toBeUndefined();
     expect(owed.body).toContain('otpauth://totp/');
     const secret = offeredSecret(owed.body);
-    expect(await storedTotp(realmId, subjectId)).toEqual([]);
+    expect(await storedTotp(tenantId, subjectId)).toEqual([]);
 
-    const wrong = await enrolmentPost(realmName, 'configure-totp', {
+    const wrong = await enrolmentPost(tenantName, 'configure-totp', {
       auth_session_id: authSessionId,
       secret,
       code: '000000',
     });
     expect(wrong.statusCode).toBe(200);
     expect(wrong.body).toContain('Set up your authenticator');
-    expect(await storedTotp(realmId, subjectId)).toEqual([]);
+    expect(await storedTotp(tenantId, subjectId)).toEqual([]);
 
-    const enrolled = await enrolmentPost(realmName, 'configure-totp', {
+    const enrolled = await enrolmentPost(tenantName, 'configure-totp', {
       auth_session_id: authSessionId,
       secret,
       code: totpCode(secret, totpCounter(clock.now())),
     });
     expect(enrolled.statusCode).toBe(200);
     expect(enrolled.body).toContain('name="password"');
-    expect(await storedTotp(realmId, subjectId)).toHaveLength(1);
+    expect(await storedTotp(tenantId, subjectId)).toHaveLength(1);
     // The factor is enrolled and a recovery path for it is now owed: a
     // second factor nobody can produce any more is a locked-out account.
     expect(
-      await withRealm(app.db, realmId, (tx) => requiredActionRepository(tx).pendingFor(subjectId)),
+      await withTenant(app.db, tenantId, (tx) =>
+        requiredActionRepository(tx).pendingFor(subjectId),
+      ),
     ).toEqual(['generate-recovery-codes']);
 
     // The enrolment's own code spent its time step, so the login's second
     // factor needs the next one.
     clock.advance(31_000);
-    const secondFactor = await login(realmName, {
+    const secondFactor = await login(tenantName, {
       auth_session_id: authSessionId,
       username: USERNAME,
       password: PASSWORD,
@@ -258,7 +260,7 @@ describe('enrolling the second factor a realm asked for', () => {
 
     // The second factor is satisfied, so now the owed action is reached:
     // the codes, shown once, with no cookie and no code issued.
-    const codesOwed = await login(realmName, {
+    const codesOwed = await login(tenantName, {
       auth_session_id: authSessionId,
       code: totpCode(secret, totpCounter(clock.now())),
     });
@@ -267,7 +269,7 @@ describe('enrolling the second factor a realm asked for', () => {
     expect(codesOwed.body).toContain('Save your recovery codes');
     expect(codesOwed.body).toContain('only time they are shown');
 
-    const acknowledged = await enrolmentPost(realmName, 'generate-recovery-codes', {
+    const acknowledged = await enrolmentPost(tenantName, 'generate-recovery-codes', {
       auth_session_id: authSessionId,
     });
     expect(acknowledged.statusCode).toBe(200);
@@ -276,13 +278,15 @@ describe('enrolling the second factor a realm asked for', () => {
     expect(acknowledged.body).toContain('name="code"');
     expect(acknowledged.body).not.toContain('name="username"');
     expect(
-      await withRealm(app.db, realmId, (tx) => requiredActionRepository(tx).pendingFor(subjectId)),
+      await withTenant(app.db, tenantId, (tx) =>
+        requiredActionRepository(tx).pendingFor(subjectId),
+      ),
     ).toEqual([]);
 
     // The code above spent its time step, so the login's second factor
     // needs the next one (RFC 6238 §5.2).
     clock.advance(31_000);
-    const completed = await login(realmName, {
+    const completed = await login(tenantName, {
       auth_session_id: authSessionId,
       code: totpCode(secret, totpCounter(clock.now())),
     });
@@ -298,14 +302,14 @@ describe('enrolling the second factor a realm asked for', () => {
   // every later login and survives the password reset that ends the
   // compromise.
   it('refuses to enrol anything for a subject who owes no action', async () => {
-    const realmName = `totp-unasked-${newId()}`;
-    const realmId = await setupRealm(realmName, false);
-    const subjectId = await subjectIdOf(realmId);
-    const authSessionId = await startAuthSession(realmName);
+    const tenantName = `totp-unasked-${newId()}`;
+    const tenantId = await setupTenant(tenantName, false);
+    const subjectId = await subjectIdOf(tenantId);
+    const authSessionId = await startAuthSession(tenantName);
 
     // A login that completed: nothing is pending, and the attempt is bound
     // to the subject who just authenticated.
-    const signedIn = await login(realmName, {
+    const signedIn = await login(tenantName, {
       auth_session_id: authSessionId,
       username: USERNAME,
       password: PASSWORD,
@@ -313,21 +317,21 @@ describe('enrolling the second factor a realm asked for', () => {
     expect(signedIn.statusCode).toBe(302);
 
     const secret = 'GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ';
-    const refused = await enrolmentPost(realmName, 'configure-totp', {
+    const refused = await enrolmentPost(tenantName, 'configure-totp', {
       auth_session_id: authSessionId,
       secret,
       code: totpCode(secret, totpCounter(clock.now())),
     });
 
     expect(refused.statusCode).toBe(400);
-    expect(await storedTotp(realmId, subjectId)).toEqual([]);
+    expect(await storedTotp(tenantId, subjectId)).toEqual([]);
   });
 
   it('refuses a submission carrying no authentication session', async () => {
-    const realmName = `totp-nosession-${newId()}`;
-    await setupRealm(realmName, true);
+    const tenantName = `totp-nosession-${newId()}`;
+    await setupTenant(tenantName, true);
 
-    const refused = await enrolmentPost(realmName, 'configure-totp', {
+    const refused = await enrolmentPost(tenantName, 'configure-totp', {
       secret: 'GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ',
       code: '000000',
     });
@@ -339,11 +343,11 @@ describe('enrolling the second factor a realm asked for', () => {
   // on a `uuid` comparison against a value it cannot parse, and this
   // endpoint takes the field from a form too.
   it('refuses a malformed authentication session id as unknown, not as a server fault', async () => {
-    const realmName = `totp-badsession-${newId()}`;
-    await setupRealm(realmName, true);
+    const tenantName = `totp-badsession-${newId()}`;
+    await setupTenant(tenantName, true);
 
     for (const malformed of ['not-a-uuid', `${newId()}\n${newId()}`, `${newId()}' or '1'='1`]) {
-      const refused = await enrolmentPost(realmName, 'configure-totp', {
+      const refused = await enrolmentPost(tenantName, 'configure-totp', {
         auth_session_id: malformed,
         secret: 'GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ',
         code: '000000',
@@ -355,20 +359,20 @@ describe('enrolling the second factor a realm asked for', () => {
   });
 
   it('refuses an owed action it has no submission for', async () => {
-    const realmName = `totp-unsupported-${newId()}`;
-    const realmId = await setupRealm(realmName, false);
-    const subjectId = await subjectIdOf(realmId);
-    await withRealm(app.db, realmId, (tx) =>
-      requiredActionRepository(tx).add(realmId, subjectId, 'configure-passkey'),
+    const tenantName = `totp-unsupported-${newId()}`;
+    const tenantId = await setupTenant(tenantName, false);
+    const subjectId = await subjectIdOf(tenantId);
+    await withTenant(app.db, tenantId, (tx) =>
+      requiredActionRepository(tx).add(tenantId, subjectId, 'configure-passkey'),
     );
-    const authSessionId = await startAuthSession(realmName);
-    await login(realmName, {
+    const authSessionId = await startAuthSession(tenantName);
+    await login(tenantName, {
       auth_session_id: authSessionId,
       username: USERNAME,
       password: PASSWORD,
     });
 
-    const refused = await enrolmentPost(realmName, 'configure-passkey', {
+    const refused = await enrolmentPost(tenantName, 'configure-passkey', {
       auth_session_id: authSessionId,
     });
 
@@ -381,51 +385,51 @@ describe('enrolling the second factor a realm asked for', () => {
 // them apart, and this is the one path that shows it does.
 describe('signing in with a recovery code instead of the second factor', () => {
   it('spends a code once, then says that code is spent', async () => {
-    const realmName = `recovery-${newId()}`;
-    const realmId = await setupRealm(realmName, true);
-    const subjectId = await subjectIdOf(realmId);
-    const enrolling = await startAuthSession(realmName);
+    const tenantName = `recovery-${newId()}`;
+    const tenantId = await setupTenant(tenantName, true);
+    const subjectId = await subjectIdOf(tenantId);
+    const enrolling = await startAuthSession(tenantName);
 
-    const owed = await login(realmName, {
+    const owed = await login(tenantName, {
       auth_session_id: enrolling,
       username: USERNAME,
       password: PASSWORD,
     });
     const secret = offeredSecret(owed.body);
-    await enrolmentPost(realmName, 'configure-totp', {
+    await enrolmentPost(tenantName, 'configure-totp', {
       auth_session_id: enrolling,
       secret,
       code: totpCode(secret, totpCounter(clock.now())),
     });
     clock.advance(31_000);
-    await login(realmName, { auth_session_id: enrolling, username: USERNAME, password: PASSWORD });
-    const shown = await login(realmName, {
+    await login(tenantName, { auth_session_id: enrolling, username: USERNAME, password: PASSWORD });
+    const shown = await login(tenantName, {
       auth_session_id: enrolling,
       code: totpCode(secret, totpCounter(clock.now())),
     });
     const codes = offeredCodes(shown.body);
     expect(codes).toHaveLength(10);
-    await enrolmentPost(realmName, 'generate-recovery-codes', { auth_session_id: enrolling });
+    await enrolmentPost(tenantName, 'generate-recovery-codes', { auth_session_id: enrolling });
 
     // A fresh attempt: the authenticator is gone, and the code form's second
     // field is the way back in.
-    const authSessionId = await startAuthSession(realmName);
-    await login(realmName, {
+    const authSessionId = await startAuthSession(tenantName);
+    await login(tenantName, {
       auth_session_id: authSessionId,
       username: USERNAME,
       password: PASSWORD,
     });
-    const signedIn = await login(realmName, {
+    const signedIn = await login(tenantName, {
       auth_session_id: authSessionId,
       recovery_code: codes[0] ?? '',
     });
     expect(signedIn.statusCode).toBe(302);
-    expect(String(signedIn.headers['set-cookie'])).toContain(`${realmName}-session=`);
+    expect(String(signedIn.headers['set-cookie'])).toContain(`${tenantName}-session=`);
     expect(String(signedIn.headers.location)).toContain('code=');
 
-    const replay = await startAuthSession(realmName);
-    await login(realmName, { auth_session_id: replay, username: USERNAME, password: PASSWORD });
-    const refused = await login(realmName, {
+    const replay = await startAuthSession(tenantName);
+    await login(tenantName, { auth_session_id: replay, username: USERNAME, password: PASSWORD });
+    const refused = await login(tenantName, {
       auth_session_id: replay,
       recovery_code: codes[0] ?? '',
     });
@@ -435,14 +439,14 @@ describe('signing in with a recovery code instead of the second factor', () => {
 
     // An unknown code says nothing of the sort: which codes a list holds is
     // not something a wrong guess should report on.
-    const unknown = await login(realmName, {
+    const unknown = await login(tenantName, {
       auth_session_id: replay,
       recovery_code: 'ZZZZZ-ZZZZZ',
     });
     expect(unknown.statusCode).toBe(200);
     expect(unknown.body).not.toContain('already used');
     expect(
-      await withRealm(app.db, realmId, (tx) =>
+      await withTenant(app.db, tenantId, (tx) =>
         credentialRepository(tx).listFor(subjectId, 'recovery-code'),
       ),
     ).toHaveLength(10);

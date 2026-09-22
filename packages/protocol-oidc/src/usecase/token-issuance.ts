@@ -5,7 +5,7 @@ import {
   verifyJwtAgainstJwkSet,
   type SigningKeyRecord,
 } from '@odudu/crypto';
-import { withRealm, type DatabaseHandle, type RealmScopedDatabase } from '@odudu/db';
+import { withTenant, type DatabaseHandle, type TenantScopedDatabase } from '@odudu/db';
 import { subjectRepository } from '@odudu/domain-identity';
 import { clientRepository, clientScopeRepository, type ClientRecord } from '@odudu/domain-tenant';
 import { type ClaimMapperRegistry, type Clock, newId } from '@odudu/kernel';
@@ -61,7 +61,7 @@ export interface TokenIssuanceDeps extends ClientAuthenticationDeps {
   issuer: string;
   kek: Uint8Array;
   clock: Clock;
-  // The realm's own lifespan pair — the same one /authorize's
+  // The tenant's own lifespan pair — the same one /authorize's
   // resolveSessions checks a browser's sessions against — so a
   // session-bound refresh dies exactly when the session it is bound to
   // would, ordinary or remembered alike (refresh-rotation.ts).
@@ -71,7 +71,7 @@ export interface TokenIssuanceDeps extends ClientAuthenticationDeps {
   // registry, so a claim present in one can never be missing from the
   // other for the same subject and scope.
   claimMappers: ClaimMapperRegistry<ClaimContext>;
-  loadClaimContext(realmId: string, subjectId: string): Promise<ClaimContext>;
+  loadClaimContext(tenantId: string, subjectId: string): Promise<ClaimContext>;
   // RFC 7523 §2.2's fetcher for a client's jwks_uri — the dereference
   // `usecase/client-registration.ts` deliberately never performs (P3a
   // reverted that). private_key_jwt authentication is the one caller.
@@ -210,7 +210,7 @@ function parseStructure(body: Record<string, string | string[] | undefined>): St
 // revokes. Every way it can fail converges on the same `invalid_grant`, so
 // a caller probing them cannot learn which check failed (RFC 6749 §5.2).
 async function redeemAuthorizationCode(
-  tx: RealmScopedDatabase,
+  tx: TenantScopedDatabase,
   deps: TokenIssuanceDeps,
   request: Extract<StructuredRequest, { grantType: 'authorization_code' }>,
   client: ClientRecord,
@@ -226,7 +226,7 @@ async function redeemAuthorizationCode(
     const grantId = existing?.grantId;
     if (grantId !== null && grantId !== undefined) {
       const revokedAt = deps.clock.now();
-      await withRealm(deps.database.db, deps.realmId, (revokeTx) =>
+      await withTenant(deps.database.db, deps.tenantId, (revokeTx) =>
         tokenGrantRepository(revokeTx).revoke(grantId, revokedAt),
       );
     }
@@ -285,7 +285,7 @@ async function mintAccessToken(
     // actually admits — not every granted scope, or an access token bound
     // for a resource server named in `aud` would carry the end-user's
     // profile and email by default (RFC 9068 §2.2 draws no line here; the
-    // realm's own scope definitions do).
+    // tenant's own scope definitions do).
     accessTokenScope: string[];
     // The grant's session, if it has one — see the `sid` comment below.
     sessionId: string | null;
@@ -345,7 +345,7 @@ async function mintAccessToken(
 }
 
 async function issueAuthorizationCodeTokens(
-  tx: RealmScopedDatabase,
+  tx: TenantScopedDatabase,
   deps: TokenIssuanceDeps,
   request: Extract<StructuredRequest, { grantType: 'authorization_code' }>,
   client: ClientRecord,
@@ -368,7 +368,7 @@ async function issueAuthorizationCodeTokens(
 
   // Loaded once per issuance and shared by the access token below and the
   // ID token that follows it — see loadClaimContext's own doc comment.
-  const claimContext = await deps.loadClaimContext(deps.realmId, code.subjectId);
+  const claimContext = await deps.loadClaimContext(deps.tenantId, code.subjectId);
   const reachable = await reachableRoleIds(tx, scope);
   const accessTokenScope = await accessTokenEligibleScope(tx, scope);
 
@@ -482,7 +482,7 @@ async function issueAuthorizationCodeTokens(
   // recorded one, unless the resolved scope asked for an offline grant.
   const grant = await tokenGrantRepository(tx).create({
     id: grantId,
-    realmId: deps.realmId,
+    tenantId: deps.tenantId,
     clientId: client.id,
     subjectId: code.subjectId,
     scope: scope.join(' '),
@@ -501,7 +501,7 @@ async function issueAuthorizationCodeTokens(
     refreshToken = generateRefreshToken();
     await refreshTokenRepository(tx).create({
       tokenHash: hashRefreshToken(refreshToken),
-      realmId: deps.realmId,
+      tenantId: deps.tenantId,
       grantId: grant.id,
       expiresAt: new Date(now.getTime() + config.refreshTokenTtlSeconds * 1000),
     });
@@ -524,7 +524,7 @@ async function issueAuthorizationCodeTokens(
 // only *after* rotation let any authenticated client burn another's token —
 // ADR 0019.
 async function evaluatePresentedRefreshToken(
-  tx: RealmScopedDatabase,
+  tx: TenantScopedDatabase,
   request: Extract<StructuredRequest, { grantType: 'refresh_token' }>,
   client: ClientRecord,
   presentedHash: string,
@@ -555,14 +555,14 @@ async function evaluatePresentedRefreshToken(
 }
 
 // Stage 3 (and everything after) for `refresh_token`. Rotation runs in its
-// own transaction via `withRealm`, because reuse detection and family
+// own transaction via `withTenant`, because reuse detection and family
 // revocation must survive a request ending in `invalid_grant`, which rolls
 // the enclosing `tx` back. Everything after it is read-only against settled
 // state. The grant decision taken here is the one that governs — it reads
 // the grant inside the transaction that rotated the token, where the
 // earlier one (ADR 0019) could not see a revocation landing between them.
 async function issueRefreshTokens(
-  tx: RealmScopedDatabase,
+  tx: TenantScopedDatabase,
   deps: TokenIssuanceDeps,
   request: Extract<StructuredRequest, { grantType: 'refresh_token' }>,
   client: ClientRecord,
@@ -573,7 +573,7 @@ async function issueRefreshTokens(
 
   await evaluatePresentedRefreshToken(tx, request, client, presentedHash);
 
-  const outcome = await withRealm(deps.database.db, deps.realmId, (rotationTx) =>
+  const outcome = await withTenant(deps.database.db, deps.tenantId, (rotationTx) =>
     rotateRefreshToken(
       rotationTx,
       presentedHash,
@@ -595,7 +595,7 @@ async function issueRefreshTokens(
 
   const scope = [...decision.scope];
   const key = await signingKeyRepository(tx).active();
-  const claimContext = await deps.loadClaimContext(deps.realmId, grant.subjectId);
+  const claimContext = await deps.loadClaimContext(deps.tenantId, grant.subjectId);
   const reachable = await reachableRoleIds(tx, scope);
   const accessTokenScope = await accessTokenEligibleScope(tx, scope);
 
@@ -644,7 +644,7 @@ async function issueRefreshTokens(
 // service-account subject, so there is no refresh token (nothing to avoid
 // re-involving) and no ID token (nobody authenticated).
 async function issueClientCredentialsTokens(
-  tx: RealmScopedDatabase,
+  tx: TenantScopedDatabase,
   deps: TokenIssuanceDeps,
   request: Extract<StructuredRequest, { grantType: 'client_credentials' }>,
   client: ClientRecord,
@@ -667,7 +667,7 @@ async function issueClientCredentialsTokens(
   const scope = [...decision.scope];
   const now = deps.clock.now();
   const key = await signingKeyRepository(tx).active();
-  const claimContext = await deps.loadClaimContext(deps.realmId, serviceSubjectId);
+  const claimContext = await deps.loadClaimContext(deps.tenantId, serviceSubjectId);
   const reachable = await reachableRoleIds(tx, scope);
   const accessTokenScope = await accessTokenEligibleScope(tx, scope);
 
@@ -706,7 +706,7 @@ async function issueClientCredentialsTokens(
 
   await tokenGrantRepository(tx).create({
     id: grantId,
-    realmId: deps.realmId,
+    tenantId: deps.tenantId,
     clientId: client.id,
     subjectId: serviceSubjectId,
     scope: scope.join(' '),
@@ -747,7 +747,7 @@ function refusePrivateKeyJwt(
 // those holds. The specific reason goes to `deps.logger`; only an operator
 // reads it.
 async function authenticatePrivateKeyJwt(
-  tx: RealmScopedDatabase,
+  tx: TenantScopedDatabase,
   deps: TokenIssuanceDeps,
   outcome: Exclude<AssertionOutcome, { kind: 'unsupported' }>,
   tokenEndpoint: string,
@@ -776,7 +776,7 @@ async function authenticatePrivateKeyJwt(
     jwks = config.jwks;
   } else if (config.jwksUri !== null) {
     try {
-      jwks = await deps.clientKeySet.fetch(config.jwksUri, deps.realmId);
+      jwks = await deps.clientKeySet.fetch(config.jwksUri, deps.tenantId);
     } catch (err) {
       return fail(err instanceof Error ? err.message : 'jwks_uri fetch failed');
     }
@@ -792,7 +792,7 @@ async function authenticatePrivateKeyJwt(
   if (!verified) return fail('assertion signature did not verify');
 
   const claimed = await assertionJtiRepository(deps.database).claim(
-    deps.realmId,
+    deps.tenantId,
     outcome.claimedClientId,
     outcome.jti,
     outcome.expiresAt,
@@ -828,7 +828,7 @@ function refuseTlsClientAuth(
 // nothing here may assume a property of the client that some other
 // function established.
 async function authenticateTlsClientAuth(
-  tx: RealmScopedDatabase,
+  tx: TenantScopedDatabase,
   deps: TokenIssuanceDeps,
   certificateSubject: string,
   claimedClientId: string | undefined,
@@ -892,7 +892,7 @@ async function authenticateTlsClientAuth(
 }
 
 export async function issueTokens(
-  tx: RealmScopedDatabase,
+  tx: TenantScopedDatabase,
   deps: TokenIssuanceDeps,
   body: Record<string, string | string[] | undefined>,
   authorizationHeader: string | undefined,
@@ -910,7 +910,7 @@ export async function issueTokens(
 ): Promise<TokenResponse> {
   const request = parseStructure(body);
   // OIDC Core §9: the audience a private_key_jwt assertion must name is
-  // this realm's own token endpoint — the same string discovery.ts's
+  // this tenant's own token endpoint — the same string discovery.ts's
   // token_endpoint publishes (contracts/discovery.ts).
   const tokenEndpoint = `${deps.issuer}/protocol/openid-connect/token`;
   const assertionOutcome = parseClientAssertion(body, deps.clock.now(), {

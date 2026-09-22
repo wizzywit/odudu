@@ -3,11 +3,11 @@ import { hashPassword, subjectRepository, userCredentials, users } from '@odudu/
 import {
   createDatabase,
   MIGRATIONS_DIR,
-  realms,
+  tenants,
   runMigrations,
-  withRealm,
+  withTenant,
   type DatabaseHandle,
-  type RealmScopedDatabase,
+  type TenantScopedDatabase,
 } from '@odudu/db';
 import { clients, provisionClientDefaults } from '@odudu/domain-tenant';
 import { FakeClock, newId } from '@odudu/kernel';
@@ -20,7 +20,7 @@ import {
   authenticationSessions,
   requiredActionRepository,
   sessions,
-  provisionRealm,
+  provisionTenant,
 } from '@odudu/authn-flows';
 import { oidcRoutes } from '#/index';
 import { NO_CLIENT_KEY_FETCHER } from '#/repository/client-keys';
@@ -66,15 +66,15 @@ const CHALLENGE = 'E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM';
 
 const signingKeyOf = new Map<string, SigningKeyRecord>();
 
-async function setupRealm(name: string): Promise<string> {
-  const realmId = newId();
+async function setupTenant(name: string): Promise<string> {
+  const tenantId = newId();
   const clientDbId = newId();
-  await withRealm(app.db, realmId, async (tx: RealmScopedDatabase) => {
-    await tx.insert(realms).values({ id: realmId, name });
-    await provisionRealm(tx, realmId);
+  await withTenant(app.db, tenantId, async (tx: TenantScopedDatabase) => {
+    await tx.insert(tenants).values({ id: tenantId, name });
+    await provisionTenant(tx, tenantId);
     await tx.insert(clients).values({
       id: clientDbId,
-      realmId,
+      tenantId,
       clientId: CLIENT_ID,
       name: 'Session reuse test client',
       type: 'confidential',
@@ -83,7 +83,7 @@ async function setupRealm(name: string): Promise<string> {
     await provisionClientDefaults(tx, clientDbId);
     await clientOidcConfigRepository(tx).create({
       clientId: clientDbId,
-      realmId,
+      tenantId,
       redirectUris: [REDIRECT_URI],
       grantTypes: ['authorization_code'],
       tokenEndpointAuthMethod: 'client_secret_basic',
@@ -95,23 +95,23 @@ async function setupRealm(name: string): Promise<string> {
       [USERNAME, PASSWORD],
       [OTHER_USERNAME, OTHER_PASSWORD],
     ] as const) {
-      const subject = await subjectRepository(tx).create({ realmId, type: 'user' });
-      await tx.insert(users).values({ subjectId: subject.id, realmId, username });
+      const subject = await subjectRepository(tx).create({ tenantId, type: 'user' });
+      await tx.insert(users).values({ subjectId: subject.id, tenantId, username });
       await tx.insert(userCredentials).values({
         id: newId(),
-        realmId,
+        tenantId,
         subjectId: subject.id,
         type: 'password',
         secretData: { hash: await hashPassword(password) },
       });
     }
 
-    // A signing key, so an id_token_hint minted for this realm verifies
+    // A signing key, so an id_token_hint minted for this tenant verifies
     // (OIDC Core §3.1.2.2) the way one issued by /token would.
     const generated = await generateSigningKey('ES256', KEK);
     const key: SigningKeyRecord = {
       id: newId(),
-      realmId,
+      tenantId,
       kid: generated.kid,
       alg: generated.alg,
       status: 'active',
@@ -123,7 +123,7 @@ async function setupRealm(name: string): Promise<string> {
     signingKeyOf.set(name, key);
     await tx.insert(signingKeys).values({
       id: key.id,
-      realmId,
+      tenantId,
       kid: key.kid,
       alg: key.alg,
       status: 'active',
@@ -131,42 +131,42 @@ async function setupRealm(name: string): Promise<string> {
       privateJwkEncrypted: key.privateJwkEncrypted,
     });
   });
-  return realmId;
+  return tenantId;
 }
 
-async function subjectIdOf(realmId: string, username: string): Promise<string> {
+async function subjectIdOf(tenantId: string, username: string): Promise<string> {
   const rows = await owner.db
     .select({ subjectId: users.subjectId })
     .from(users)
-    .where(and(eq(users.realmId, realmId), eq(users.username, username)));
+    .where(and(eq(users.tenantId, tenantId), eq(users.username, username)));
   const row = rows[0];
-  if (row === undefined) throw new Error(`no user ${username} in realm ${realmId}`);
+  if (row === undefined) throw new Error(`no user ${username} in tenant ${tenantId}`);
   return row.subjectId;
 }
 
-async function issuerFor(instance: FastifyInstance, realmName: string): Promise<string> {
+async function issuerFor(instance: FastifyInstance, tenantName: string): Promise<string> {
   const res = await instance.inject({
-    url: `/realms/${realmName}/.well-known/openid-configuration`,
+    url: `/tenants/${tenantName}/.well-known/openid-configuration`,
   });
   return res.json<{ issuer: string }>().issuer;
 }
 
 async function mintIdToken(
   instance: FastifyInstance,
-  realmName: string,
+  tenantName: string,
   sub: string,
 ): Promise<string> {
-  const key = signingKeyOf.get(realmName);
-  if (key === undefined) throw new Error(`no signing key for ${realmName}`);
+  const key = signingKeyOf.get(tenantName);
+  if (key === undefined) throw new Error(`no signing key for ${tenantName}`);
   const now = Math.floor(Date.now() / 1000);
   return signJwt(
-    { iss: await issuerFor(instance, realmName), aud: CLIENT_ID, sub, iat: now, exp: now + 300 },
+    { iss: await issuerFor(instance, tenantName), aud: CLIENT_ID, sub, iat: now, exp: now + 300 },
     { key, kek: KEK },
   );
 }
 
 function authorizeUrl(
-  realmName: string,
+  tenantName: string,
   overrides: Record<string, string | undefined> = {},
 ): string {
   const params: Record<string, string | undefined> = {
@@ -183,15 +183,15 @@ function authorizeUrl(
   for (const [key, value] of Object.entries(params)) {
     if (value !== undefined) query.set(key, value);
   }
-  return `/realms/${realmName}/protocol/openid-connect/auth?${query.toString()}`;
+  return `/tenants/${tenantName}/protocol/openid-connect/auth?${query.toString()}`;
 }
 
 async function startAuthSession(
   instance: FastifyInstance,
-  realmName: string,
+  tenantName: string,
   overrides: Record<string, string | undefined> = {},
 ): Promise<string> {
-  const res = await instance.inject({ url: authorizeUrl(realmName, overrides) });
+  const res = await instance.inject({ url: authorizeUrl(tenantName, overrides) });
   if (res.statusCode !== 200) {
     throw new Error(`expected /authorize to render the login form, got ${String(res.statusCode)}`);
   }
@@ -219,7 +219,7 @@ function locationHeader(res: LightMyRequestResponse): string {
 
 async function submitCredentials(
   instance: FastifyInstance,
-  realmName: string,
+  tenantName: string,
   authSessionId: string,
   username: string,
   password: string,
@@ -227,7 +227,7 @@ async function submitCredentials(
   const form = new URLSearchParams({ auth_session_id: authSessionId, username, password });
   return instance.inject({
     method: 'POST',
-    url: `/realms/${realmName}/login-actions/authenticate`,
+    url: `/tenants/${tenantName}/login-actions/authenticate`,
     payload: form.toString(),
     headers: { 'content-type': 'application/x-www-form-urlencoded' },
   });
@@ -236,12 +236,12 @@ async function submitCredentials(
 // Signs USERNAME/PASSWORD in against a fresh authorization request and
 // returns the SSO session cookie the login redirect set.
 async function signIn(
-  realmName: string,
+  tenantName: string,
   instance: FastifyInstance = http,
   overrides: Record<string, string | undefined> = {},
 ): Promise<string> {
-  const authSessionId = await startAuthSession(instance, realmName, overrides);
-  const res = await submitCredentials(instance, realmName, authSessionId, USERNAME, PASSWORD);
+  const authSessionId = await startAuthSession(instance, tenantName, overrides);
+  const res = await submitCredentials(instance, tenantName, authSessionId, USERNAME, PASSWORD);
   expect(res.statusCode).toBe(302);
   const cookie = setCookieValue(res);
   if (cookie === undefined) throw new Error('expected a set-cookie header from a successful login');
@@ -250,7 +250,7 @@ async function signIn(
 
 async function redeemCode(
   instance: FastifyInstance,
-  realmName: string,
+  tenantName: string,
   code: string,
 ): Promise<LightMyRequestResponse> {
   const form = new URLSearchParams({
@@ -261,7 +261,7 @@ async function redeemCode(
   });
   return instance.inject({
     method: 'POST',
-    url: `/realms/${realmName}/protocol/openid-connect/token`,
+    url: `/tenants/${tenantName}/protocol/openid-connect/token`,
     payload: form.toString(),
     headers: {
       'content-type': 'application/x-www-form-urlencoded',
@@ -341,13 +341,13 @@ afterAll(async () => {
 
 describe('a live session cookie completes an authorization request', () => {
   it('redirects to redirect_uri with code and iss, with no login page rendered', async () => {
-    const realmId = newId();
-    const realmName = `reuse-${realmId}`;
-    await setupRealm(realmName);
-    const cookie = await signIn(realmName);
+    const tenantId = newId();
+    const tenantName = `reuse-${tenantId}`;
+    await setupTenant(tenantName);
+    const cookie = await signIn(tenantName);
 
     const res = await http.inject({
-      url: authorizeUrl(realmName),
+      url: authorizeUrl(tenantName),
       headers: { cookie },
     });
 
@@ -362,13 +362,13 @@ describe('a live session cookie completes an authorization request', () => {
   });
 
   it('also succeeds under prompt=none, which is the point of prompt=none', async () => {
-    const realmId = newId();
-    const realmName = `reuse-none-${realmId}`;
-    await setupRealm(realmName);
-    const cookie = await signIn(realmName);
+    const tenantId = newId();
+    const tenantName = `reuse-none-${tenantId}`;
+    await setupTenant(tenantName);
+    const cookie = await signIn(tenantName);
 
     const res = await http.inject({
-      url: authorizeUrl(realmName, { prompt: 'none' }),
+      url: authorizeUrl(tenantName, { prompt: 'none' }),
       headers: { cookie },
     });
 
@@ -383,20 +383,20 @@ describe('a live session cookie completes an authorization request', () => {
   // (authorization-request.ts) would leave the suite green without these:
   // nothing else redeems a reuse-issued code or checks whose it was.
   it('redeems to the session subject, not the other seeded user', async () => {
-    const realmName = `reuse-subject-${newId()}`;
-    const realmId = await setupRealm(realmName);
-    const ada = await subjectIdOf(realmId, USERNAME);
-    const grace = await subjectIdOf(realmId, OTHER_USERNAME);
-    const cookie = await signIn(realmName);
+    const tenantName = `reuse-subject-${newId()}`;
+    const tenantId = await setupTenant(tenantName);
+    const ada = await subjectIdOf(tenantId, USERNAME);
+    const grace = await subjectIdOf(tenantId, OTHER_USERNAME);
+    const cookie = await signIn(tenantName);
 
     const res = await http.inject({
-      url: authorizeUrl(realmName, { code_challenge: CHALLENGE }),
+      url: authorizeUrl(tenantName, { code_challenge: CHALLENGE }),
       headers: { cookie },
     });
     const code = new URL(locationHeader(res)).searchParams.get('code');
     if (code === null) throw new Error('expected a code on the reuse redirect');
 
-    const redeemed = await redeemCode(http, realmName, code);
+    const redeemed = await redeemCode(http, tenantName, code);
     expect(redeemed.statusCode).toBe(200);
     const sub = jwtPayload(redeemed.json<{ id_token: string }>().id_token).sub;
     expect(sub).toBe(ada);
@@ -411,14 +411,14 @@ describe('a live session cookie completes an authorization request', () => {
     // grace an actual chance to sign in, rather than an immediate refusal
     // that could never have been satisfied merely by the right person
     // trying.
-    const realmName = `reuse-hint-mismatch-${newId()}`;
-    const realmId = await setupRealm(realmName);
-    const grace = await subjectIdOf(realmId, OTHER_USERNAME);
-    const cookie = await signIn(realmName); // a live session for ada
+    const tenantName = `reuse-hint-mismatch-${newId()}`;
+    const tenantId = await setupTenant(tenantName);
+    const grace = await subjectIdOf(tenantId, OTHER_USERNAME);
+    const cookie = await signIn(tenantName); // a live session for ada
 
-    const hint = await mintIdToken(http, realmName, grace);
+    const hint = await mintIdToken(http, tenantName, grace);
     const res = await http.inject({
-      url: authorizeUrl(realmName, { id_token_hint: hint }),
+      url: authorizeUrl(tenantName, { id_token_hint: hint }),
       headers: { cookie },
     });
 
@@ -431,7 +431,7 @@ describe('a live session cookie completes an authorization request', () => {
     // reaches instead of the reuse path's.
     const wrongSubject = await submitCredentials(
       http,
-      realmName,
+      tenantName,
       authSessionId,
       USERNAME,
       PASSWORD,
@@ -443,14 +443,14 @@ describe('a live session cookie completes an authorization request', () => {
   });
 
   it('reuses when an id_token_hint names the session subject itself', async () => {
-    const realmName = `reuse-hint-match-${newId()}`;
-    const realmId = await setupRealm(realmName);
-    const ada = await subjectIdOf(realmId, USERNAME);
-    const cookie = await signIn(realmName);
+    const tenantName = `reuse-hint-match-${newId()}`;
+    const tenantId = await setupTenant(tenantName);
+    const ada = await subjectIdOf(tenantId, USERNAME);
+    const cookie = await signIn(tenantName);
 
-    const hint = await mintIdToken(http, realmName, ada);
+    const hint = await mintIdToken(http, tenantName, ada);
     const res = await http.inject({
-      url: authorizeUrl(realmName, { id_token_hint: hint }),
+      url: authorizeUrl(tenantName, { id_token_hint: hint }),
       headers: { cookie },
     });
 
@@ -461,10 +461,10 @@ describe('a live session cookie completes an authorization request', () => {
   });
 
   it('moves last_active_at on a successful reuse', async () => {
-    const realmId = newId();
-    const realmName = `reuse-touch-${realmId}`;
-    await setupRealm(realmName);
-    const cookie = await signIn(realmName);
+    const tenantId = newId();
+    const tenantName = `reuse-touch-${tenantId}`;
+    await setupTenant(tenantName);
+    const cookie = await signIn(tenantName);
 
     const before = await sessionRowFor(cookie);
     expect(before).toBeDefined();
@@ -472,7 +472,7 @@ describe('a live session cookie completes an authorization request', () => {
     // Real time must actually advance between the two reads.
     await new Promise((resolve) => setTimeout(resolve, 20));
 
-    const res = await http.inject({ url: authorizeUrl(realmName), headers: { cookie } });
+    const res = await http.inject({ url: authorizeUrl(tenantName), headers: { cookie } });
     expect(res.statusCode).toBe(302);
 
     const after = await sessionRowFor(cookie);
@@ -482,17 +482,17 @@ describe('a live session cookie completes an authorization request', () => {
 });
 
 describe('the verified-email gate applies to a reused session too', () => {
-  it('refuses a live cookie for an unverified subject once the realm requires verification', async () => {
-    const realmName = `reuse-unverified-${newId()}`;
-    const realmId = await setupRealm(realmName);
+  it('refuses a live cookie for an unverified subject once the tenant requires verification', async () => {
+    const tenantName = `reuse-unverified-${newId()}`;
+    const tenantId = await setupTenant(tenantName);
     // Signed in while verify_email is off, so the password path never
     // checked the gate — an unverified account can still hold a live
     // session, exactly the state the reuse path must not trust for free.
-    const cookie = await signIn(realmName);
+    const cookie = await signIn(tenantName);
 
-    await owner.db.update(realms).set({ verifyEmail: true }).where(eq(realms.id, realmId));
+    await owner.db.update(tenants).set({ verifyEmail: true }).where(eq(tenants.id, tenantId));
 
-    const res = await http.inject({ url: authorizeUrl(realmName), headers: { cookie } });
+    const res = await http.inject({ url: authorizeUrl(tenantName), headers: { cookie } });
 
     expect(res.statusCode).toBe(302);
     const location = new URL(locationHeader(res));
@@ -501,13 +501,13 @@ describe('the verified-email gate applies to a reused session too', () => {
   });
 
   it('does not touch the session it refused to reuse for', async () => {
-    const realmName = `reuse-unverified-touch-${newId()}`;
-    const realmId = await setupRealm(realmName);
-    const cookie = await signIn(realmName);
-    await owner.db.update(realms).set({ verifyEmail: true }).where(eq(realms.id, realmId));
+    const tenantName = `reuse-unverified-touch-${newId()}`;
+    const tenantId = await setupTenant(tenantName);
+    const cookie = await signIn(tenantName);
+    await owner.db.update(tenants).set({ verifyEmail: true }).where(eq(tenants.id, tenantId));
     const before = await sessionRowFor(cookie);
 
-    const res = await http.inject({ url: authorizeUrl(realmName), headers: { cookie } });
+    const res = await http.inject({ url: authorizeUrl(tenantName), headers: { cookie } });
     expect(res.statusCode).toBe(302);
 
     const after = await sessionRowFor(cookie);
@@ -523,15 +523,15 @@ describe('the required-action gate applies to a reused session too', () => {
   // this time — the reuse path has to owe the same action the login form
   // would still be showing.
   it('refuses to reuse a live cookie while a password reset is owed, rendering the action instead', async () => {
-    const realmName = `reuse-required-action-${newId()}`;
-    const realmId = await setupRealm(realmName);
-    const subjectId = await subjectIdOf(realmId, USERNAME);
-    const cookie = await signIn(realmName);
-    await withRealm(app.db, realmId, (tx) =>
-      requiredActionRepository(tx).add(realmId, subjectId, 'update-password'),
+    const tenantName = `reuse-required-action-${newId()}`;
+    const tenantId = await setupTenant(tenantName);
+    const subjectId = await subjectIdOf(tenantId, USERNAME);
+    const cookie = await signIn(tenantName);
+    await withTenant(app.db, tenantId, (tx) =>
+      requiredActionRepository(tx).add(tenantId, subjectId, 'update-password'),
     );
 
-    const res = await http.inject({ url: authorizeUrl(realmName), headers: { cookie } });
+    const res = await http.inject({ url: authorizeUrl(tenantName), headers: { cookie } });
 
     // A 200 carrying the required-action page, not the 302 a completed
     // reuse would answer with — no code, no set-cookie, since nothing new
@@ -542,16 +542,16 @@ describe('the required-action gate applies to a reused session too', () => {
   });
 
   it('does not touch the session it refused to reuse for', async () => {
-    const realmName = `reuse-required-action-touch-${newId()}`;
-    const realmId = await setupRealm(realmName);
-    const subjectId = await subjectIdOf(realmId, USERNAME);
-    const cookie = await signIn(realmName);
-    await withRealm(app.db, realmId, (tx) =>
-      requiredActionRepository(tx).add(realmId, subjectId, 'update-password'),
+    const tenantName = `reuse-required-action-touch-${newId()}`;
+    const tenantId = await setupTenant(tenantName);
+    const subjectId = await subjectIdOf(tenantId, USERNAME);
+    const cookie = await signIn(tenantName);
+    await withTenant(app.db, tenantId, (tx) =>
+      requiredActionRepository(tx).add(tenantId, subjectId, 'update-password'),
     );
     const before = await sessionRowFor(cookie);
 
-    const res = await http.inject({ url: authorizeUrl(realmName), headers: { cookie } });
+    const res = await http.inject({ url: authorizeUrl(tenantName), headers: { cookie } });
     expect(res.statusCode).toBe(200);
 
     const after = await sessionRowFor(cookie);
@@ -564,12 +564,12 @@ describe('the required-action gate applies to a reused session too', () => {
   // this gate's sibling above already renders under prompt=none, not the
   // 200 HTML the same subject gets without it.
   it('refuses under prompt=none rather than rendering the required-action page', async () => {
-    const realmName = `reuse-required-action-none-${newId()}`;
-    const realmId = await setupRealm(realmName);
-    const subjectId = await subjectIdOf(realmId, USERNAME);
-    const cookie = await signIn(realmName);
-    await withRealm(app.db, realmId, (tx) =>
-      requiredActionRepository(tx).add(realmId, subjectId, 'update-password'),
+    const tenantName = `reuse-required-action-none-${newId()}`;
+    const tenantId = await setupTenant(tenantName);
+    const subjectId = await subjectIdOf(tenantId, USERNAME);
+    const cookie = await signIn(tenantName);
+    await withTenant(app.db, tenantId, (tx) =>
+      requiredActionRepository(tx).add(tenantId, subjectId, 'update-password'),
     );
     // signIn() already parked and consumed one authentication session for
     // this subject; the assertion below is that the prompt=none request
@@ -579,13 +579,13 @@ describe('the required-action gate applies to a reused session too', () => {
       .from(authenticationSessions)
       .where(
         and(
-          eq(authenticationSessions.realmId, realmId),
+          eq(authenticationSessions.tenantId, tenantId),
           eq(authenticationSessions.subjectId, subjectId),
         ),
       );
 
     const res = await http.inject({
-      url: authorizeUrl(realmName, { prompt: 'none' }),
+      url: authorizeUrl(tenantName, { prompt: 'none' }),
       headers: { cookie },
     });
 
@@ -600,7 +600,7 @@ describe('the required-action gate applies to a reused session too', () => {
       .from(authenticationSessions)
       .where(
         and(
-          eq(authenticationSessions.realmId, realmId),
+          eq(authenticationSessions.tenantId, tenantId),
           eq(authenticationSessions.subjectId, subjectId),
         ),
       );
@@ -610,13 +610,13 @@ describe('the required-action gate applies to a reused session too', () => {
 
 describe('a session cookie that cannot be reused', () => {
   it('starts a fresh authentication under prompt=login even with a live session', async () => {
-    const realmId = newId();
-    const realmName = `reuse-login-${realmId}`;
-    await setupRealm(realmName);
-    const cookie = await signIn(realmName);
+    const tenantId = newId();
+    const tenantName = `reuse-login-${tenantId}`;
+    await setupTenant(tenantName);
+    const cookie = await signIn(tenantName);
 
     const res = await http.inject({
-      url: authorizeUrl(realmName, { prompt: 'login' }),
+      url: authorizeUrl(tenantName, { prompt: 'login' }),
       headers: { cookie },
     });
 
@@ -625,13 +625,13 @@ describe('a session cookie that cannot be reused', () => {
   });
 
   it('is ignored for an unknown or garbage cookie value', async () => {
-    const realmId = newId();
-    const realmName = `reuse-garbage-${realmId}`;
-    await setupRealm(realmName);
+    const tenantId = newId();
+    const tenantName = `reuse-garbage-${tenantId}`;
+    await setupTenant(tenantName);
 
     const res = await http.inject({
-      url: authorizeUrl(realmName),
-      headers: { cookie: `${realmName}-session=not-a-real-session-id` },
+      url: authorizeUrl(tenantName),
+      headers: { cookie: `${tenantName}-session=not-a-real-session-id` },
     });
 
     expect(res.statusCode).toBe(200);
@@ -640,21 +640,21 @@ describe('a session cookie that cannot be reused', () => {
 });
 
 // OIDC Core §3.1.2.1/§15.1: max_age decides, rather than prompt alone,
-// whether a live session still counts. Both tests share one realm and one
+// whether a live session still counts. Both tests share one tenant and one
 // controllable clock so "exceeded" and "within" are exact, not timing luck.
 describe('[OIDC-CORE-3.1.2.1-10] max_age decides whether a live session still counts', () => {
   it('reauthenticates when max_age is exceeded despite a live session', async () => {
-    const realmName = `reuse-maxage-exceeded-${newId()}`;
-    await setupRealm(realmName);
+    const tenantName = `reuse-maxage-exceeded-${newId()}`;
+    await setupTenant(tenantName);
     // Sessions record their creation time from the real database clock
     // (`created_at`'s own default), not from this file's fake one — synced
     // to real time immediately before login so the two agree.
     fakeClock.set(new Date());
-    const cookie = await signIn(realmName, httpClocked);
+    const cookie = await signIn(tenantName, httpClocked);
 
     fakeClock.advance(10_000);
     const res = await httpClocked.inject({
-      url: authorizeUrl(realmName, { max_age: '5' }),
+      url: authorizeUrl(tenantName, { max_age: '5' }),
       headers: { cookie },
     });
 
@@ -663,10 +663,10 @@ describe('[OIDC-CORE-3.1.2.1-10] max_age decides whether a live session still co
   });
 
   it('[OIDC-CORE-2-08] reuses within max_age, carrying the original auth_time forward', async () => {
-    const realmName = `reuse-maxage-within-${newId()}`;
-    await setupRealm(realmName);
+    const tenantName = `reuse-maxage-within-${newId()}`;
+    await setupTenant(tenantName);
     fakeClock.set(new Date());
-    const cookie = await signIn(realmName, httpClocked, { code_challenge: CHALLENGE });
+    const cookie = await signIn(tenantName, httpClocked, { code_challenge: CHALLENGE });
     // The ground truth for auth_time is the session row's own created_at
     // (real database time), not this file's fake clock.
     const authTime = (await sessionRowFor(cookie))?.createdAt;
@@ -674,7 +674,7 @@ describe('[OIDC-CORE-3.1.2.1-10] max_age decides whether a live session still co
 
     fakeClock.advance(120_000);
     const res = await httpClocked.inject({
-      url: authorizeUrl(realmName, { max_age: '3600', code_challenge: CHALLENGE }),
+      url: authorizeUrl(tenantName, { max_age: '3600', code_challenge: CHALLENGE }),
       headers: { cookie },
     });
 
@@ -682,7 +682,7 @@ describe('[OIDC-CORE-3.1.2.1-10] max_age decides whether a live session still co
     const code = new URL(locationHeader(res)).searchParams.get('code');
     if (code === null) throw new Error('expected a code on the reuse redirect');
 
-    const redeemed = await redeemCode(httpClocked, realmName, code);
+    const redeemed = await redeemCode(httpClocked, tenantName, code);
     expect(redeemed.statusCode).toBe(200);
     const idToken = redeemed.json<{ id_token: string }>().id_token;
     const payload = jwtPayload(idToken);
@@ -703,9 +703,9 @@ describe('[OIDC-CORE-3.1.2.1-10] max_age decides whether a live session still co
 // now()`).
 describe("a reused session's code expires from its own issuance, not the session's login", () => {
   it('redeems, and still carries the original auth_time, when reused minutes after login', async () => {
-    const realmName = `reuse-backdated-${newId()}`;
-    await setupRealm(realmName);
-    const cookie = await signIn(realmName, http, { code_challenge: CHALLENGE });
+    const tenantName = `reuse-backdated-${newId()}`;
+    await setupTenant(tenantName);
+    const cookie = await signIn(tenantName, http, { code_challenge: CHALLENGE });
     const sessionId = cookie.split('=')[1];
     if (sessionId === undefined) throw new Error('expected a session id in the cookie');
 
@@ -713,14 +713,14 @@ describe("a reused session's code expires from its own issuance, not the session
     await owner.db.update(sessions).set({ createdAt: backdated }).where(eq(sessions.id, sessionId));
 
     const res = await http.inject({
-      url: authorizeUrl(realmName, { code_challenge: CHALLENGE, max_age: '3600' }),
+      url: authorizeUrl(tenantName, { code_challenge: CHALLENGE, max_age: '3600' }),
       headers: { cookie },
     });
     expect(res.statusCode).toBe(302);
     const code = new URL(locationHeader(res)).searchParams.get('code');
     if (code === null) throw new Error('expected a code on the reuse redirect');
 
-    const redeemed = await redeemCode(http, realmName, code);
+    const redeemed = await redeemCode(http, tenantName, code);
     expect(redeemed.statusCode).toBe(200);
     const payload = jwtPayload(redeemed.json<{ id_token: string }>().id_token);
     expect(payload.auth_time).toBe(Math.floor(backdated.getTime() / 1000));

@@ -6,7 +6,7 @@ import { integer, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 // declarative policy would collide with a database that already carries it.
 export const backchannelLogoutDeliveries = pgTable('backchannel_logout_deliveries', {
   id: uuid('id').primaryKey(),
-  realmId: uuid('tenant_id')
+  tenantId: uuid('tenant_id')
     .notNull()
     .references(() => tenants.id, { onDelete: 'cascade' }),
   clientId: uuid('client_id').notNull(),
@@ -28,7 +28,7 @@ export const backchannelLogoutDeliveries = pgTable('backchannel_logout_deliverie
 
 export interface LogoutDelivery {
   readonly id: string;
-  readonly realmId: string;
+  readonly tenantId: string;
   readonly clientId: string;
   readonly endpoint: string;
   readonly logoutToken: string;

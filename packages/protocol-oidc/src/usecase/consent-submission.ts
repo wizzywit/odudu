@@ -5,7 +5,7 @@ import {
   type SessionRecord,
 } from '@odudu/authn-flows';
 import { isUuid } from '@odudu/kernel';
-import { type RealmLookup } from '#/repository/realm-lookup';
+import { type TenantLookup } from '#/repository/tenant-lookup';
 import {
   completeAuthorizedLogin,
   errorRedirect,
@@ -42,24 +42,24 @@ export type ConsentSubmissionOutcome =
     };
 
 export interface ConsentSubmissionDeps {
-  findRealm(name: string): Promise<RealmLookup | null>;
+  findTenant(name: string): Promise<TenantLookup | null>;
   // What handleLoginSubmission's gate already established when it parked
   // this request: who, and with which factors. A session that never
   // finished authenticating, or that has already been consumed, answers
   // null — the same refusal a missing or expired one gets.
   authenticatedSession(
-    realmId: string,
+    tenantId: string,
     authSessionId: string,
   ): Promise<{ subjectId: string; authenticators: string[] } | null>;
-  loadPendingRequest(realmId: string, authSessionId: string): Promise<PendingRequest | null>;
-  resolveClientId(realmId: string, oauthClientId: string): Promise<string | null>;
-  consentContext(realmId: string, clientId: string): Promise<ConsentContext>;
+  loadPendingRequest(tenantId: string, authSessionId: string): Promise<PendingRequest | null>;
+  resolveClientId(tenantId: string, oauthClientId: string): Promise<string | null>;
+  consentContext(tenantId: string, clientId: string): Promise<ConsentContext>;
   // Replaces the client's recorded grant for this subject with exactly the
   // scopes ticked (plus every default, which carries no checkbox) — see
   // consentRepository.record's own comment for why this is a replace, not
   // a merge.
   recordConsent(
-    realmId: string,
+    tenantId: string,
     subjectId: string,
     clientId: string,
     scopeIds: readonly string[],
@@ -69,7 +69,7 @@ export interface ConsentSubmissionDeps {
   // form path — see login-submission.ts's LoginSubmissionDeps for the
   // full comment.
   resolveSessions(
-    realm: {
+    tenant: {
       id: string;
       name: string;
       ssoSessionIdleSeconds: number;
@@ -83,10 +83,10 @@ export interface ConsentSubmissionDeps {
   // pre-consent gates — see refusedForUnverifiedEmail and nextRequiredAction
   // below, this endpoint's only callers of either.
   checkEmailVerification(
-    realmId: string,
+    tenantId: string,
     subjectId: string,
   ): Promise<{ verified: boolean; hasEmail: boolean }>;
-  pendingActions(realmId: string, subjectId: string): Promise<readonly RequiredAction[]>;
+  pendingActions(tenantId: string, subjectId: string): Promise<readonly RequiredAction[]>;
 }
 
 // The route's whole answer to "what did the person tick and press" — never
@@ -103,7 +103,7 @@ export interface ConsentAnswer {
 // one — this endpoint has no lesser CSRF defence than the login form does.
 export async function handleConsentSubmission(
   deps: ConsentSubmissionDeps,
-  realmName: string,
+  tenantName: string,
   issuerBase: string,
   authSessionId: string | undefined,
   answer: ConsentAnswer,
@@ -116,8 +116,8 @@ export async function handleConsentSubmission(
     return { kind: 'unauthenticated' };
   }
 
-  const realm = await deps.findRealm(realmName);
-  if (!realm?.enabled) {
+  const tenant = await deps.findTenant(tenantName);
+  if (!tenant?.enabled) {
     return { kind: 'unauthenticated' };
   }
 
@@ -127,7 +127,7 @@ export async function handleConsentSubmission(
   // `authenticated_at` — so `authenticatedSession` below already answers
   // null for exactly that attempt, refusing before either of this
   // function's own two checks would run.
-  const authenticated = await deps.authenticatedSession(realm.id, authSessionId);
+  const authenticated = await deps.authenticatedSession(tenant.id, authSessionId);
   if (authenticated === null) {
     return { kind: 'unauthenticated' };
   }
@@ -138,7 +138,7 @@ export async function handleConsentSubmission(
   // decision=allow posted straight at this endpoint cannot skip what the
   // form path never let it skip. See refusedForUnverifiedEmail's own
   // comment for why this sits ahead of everything else.
-  const emailRefusal = await refusedForUnverifiedEmail(deps, realm, subjectId);
+  const emailRefusal = await refusedForUnverifiedEmail(deps, tenant, subjectId);
   if (emailRefusal !== null) {
     return { kind: 'unverified', authSessionId, hasEmail: emailRefusal.hasEmail };
   }
@@ -146,7 +146,7 @@ export async function handleConsentSubmission(
   // The only source of scope, redirect_uri, nonce, state and
   // code_challenge — never the request body, for the same reason
   // handleLoginSubmission never reads them from the form.
-  const pending = await deps.loadPendingRequest(realm.id, authSessionId);
+  const pending = await deps.loadPendingRequest(tenant.id, authSessionId);
   if (pending === null) {
     return { kind: 'unauthenticated' };
   }
@@ -154,12 +154,12 @@ export async function handleConsentSubmission(
   // The second gate handleLoginSubmission clears before 'consent': a
   // required action owed by this subject, checked before the client is even
   // resolved, mirroring where the form path checks it.
-  const action = nextRequiredAction(await deps.pendingActions(realm.id, subjectId));
+  const action = nextRequiredAction(await deps.pendingActions(tenant.id, subjectId));
   if (action !== null) {
     return { kind: 'required_action', authSessionId, subjectId, action };
   }
 
-  const clientId = await deps.resolveClientId(realm.id, pending.clientId);
+  const clientId = await deps.resolveClientId(tenant.id, pending.clientId);
   if (clientId === null) {
     return { kind: 'unauthenticated' };
   }
@@ -171,11 +171,11 @@ export async function handleConsentSubmission(
   if (answer.decision !== 'allow') {
     return {
       kind: 'error_redirect',
-      location: errorRedirect(pending, realmName, issuerBase, 'access_denied'),
+      location: errorRedirect(pending, tenantName, issuerBase, 'access_denied'),
     };
   }
 
-  const context = await deps.consentContext(realm.id, clientId);
+  const context = await deps.consentContext(tenant.id, clientId);
   const optionalSet = new Set(context.optionalScopes);
   const tickedSet = new Set(answer.scopes);
   const requested = pending.scope.split(' ').filter((scope) => scope.length > 0);
@@ -200,7 +200,7 @@ export async function handleConsentSubmission(
   const recordedIds = recordedNames
     .map((name) => context.scopeIdByName.get(name))
     .filter((id): id is string => id !== undefined);
-  await deps.recordConsent(realm.id, subjectId, clientId, recordedIds);
+  await deps.recordConsent(tenant.id, subjectId, clientId, recordedIds);
 
   // completeAuthorizedLogin's return type covers every LoginSubmissionOutcome
   // member for the form path's sake; from here it can only ever produce
@@ -209,13 +209,13 @@ export async function handleConsentSubmission(
   return completeAuthorizedLogin(
     deps,
     {
-      id: realm.id,
-      name: realmName,
-      ssoSessionMaxSeconds: realm.ssoSessionMaxSeconds,
-      ssoSessionIdleSeconds: realm.ssoSessionIdleSeconds,
-      rememberMeIdleSeconds: realm.rememberMeIdleSeconds,
-      rememberMeMaxSeconds: realm.rememberMeMaxSeconds,
-      maxSessionsPerBrowser: realm.maxSessionsPerBrowser,
+      id: tenant.id,
+      name: tenantName,
+      ssoSessionMaxSeconds: tenant.ssoSessionMaxSeconds,
+      ssoSessionIdleSeconds: tenant.ssoSessionIdleSeconds,
+      rememberMeIdleSeconds: tenant.rememberMeIdleSeconds,
+      rememberMeMaxSeconds: tenant.rememberMeMaxSeconds,
+      maxSessionsPerBrowser: tenant.maxSessionsPerBrowser,
     },
     issuerBase,
     authSessionId,

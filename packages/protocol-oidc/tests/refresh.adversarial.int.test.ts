@@ -3,14 +3,14 @@ import { hashPassword, subjectRepository, subjects } from '@odudu/domain-identit
 import {
   createDatabase,
   MIGRATIONS_DIR,
-  realms,
+  tenants,
   runMigrations,
-  withRealm,
+  withTenant,
   type DatabaseHandle,
-  type RealmScopedDatabase,
+  type TenantScopedDatabase,
 } from '@odudu/db';
-import { expectRealmIsolation } from '@odudu/db/testing';
-import { provisionRealm, type SessionLifespans } from '@odudu/authn-flows';
+import { expectTenantIsolation } from '@odudu/db/testing';
+import { provisionTenant, type SessionLifespans } from '@odudu/authn-flows';
 import { clients, provisionClientDefaults } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
@@ -39,8 +39,8 @@ let owner: DatabaseHandle;
 let app: DatabaseHandle;
 let http: FastifyInstance;
 
-let REALM: string;
-let REALM_ID: string;
+let TENANT: string;
+let TENANT_ID: string;
 
 const REDIRECT_URI = 'https://app.example/callback';
 const AUDIENCE = 'https://api.example';
@@ -67,21 +67,21 @@ let webApp: Client;
 let otherApp: Client;
 let subjectId: string;
 
-async function setupRealm(): Promise<void> {
-  REALM = `refresh-adversarial-${newId()}`;
-  REALM_ID = newId();
+async function setupTenant(): Promise<void> {
+  TENANT = `refresh-adversarial-${newId()}`;
+  TENANT_ID = newId();
 
-  await withRealm(app.db, REALM_ID, async (tx: RealmScopedDatabase) => {
-    await tx.insert(realms).values({ id: REALM_ID, name: REALM });
-    await provisionRealm(tx, REALM_ID);
+  await withTenant(app.db, TENANT_ID, async (tx: TenantScopedDatabase) => {
+    await tx.insert(tenants).values({ id: TENANT_ID, name: TENANT });
+    await provisionTenant(tx, TENANT_ID);
 
-    const subject = await subjectRepository(tx).create({ realmId: REALM_ID, type: 'user' });
+    const subject = await subjectRepository(tx).create({ tenantId: TENANT_ID, type: 'user' });
     subjectId = subject.id;
 
     const webAppDbId = newId();
     await tx.insert(clients).values({
       id: webAppDbId,
-      realmId: REALM_ID,
+      tenantId: TENANT_ID,
       clientId: 'web-app',
       name: 'Web app',
       type: 'confidential',
@@ -90,7 +90,7 @@ async function setupRealm(): Promise<void> {
     await provisionClientDefaults(tx, webAppDbId);
     await clientOidcConfigRepository(tx).create({
       clientId: webAppDbId,
-      realmId: REALM_ID,
+      tenantId: TENANT_ID,
       redirectUris: [REDIRECT_URI],
       grantTypes: ['authorization_code', 'refresh_token'],
       tokenEndpointAuthMethod: 'client_secret_basic',
@@ -103,7 +103,7 @@ async function setupRealm(): Promise<void> {
     const otherAppDbId = newId();
     await tx.insert(clients).values({
       id: otherAppDbId,
-      realmId: REALM_ID,
+      tenantId: TENANT_ID,
       clientId: 'other-app',
       name: 'Other app',
       type: 'confidential',
@@ -112,7 +112,7 @@ async function setupRealm(): Promise<void> {
     await provisionClientDefaults(tx, otherAppDbId);
     await clientOidcConfigRepository(tx).create({
       clientId: otherAppDbId,
-      realmId: REALM_ID,
+      tenantId: TENANT_ID,
       redirectUris: ['https://other.example/callback'],
       grantTypes: ['authorization_code', 'refresh_token'],
       tokenEndpointAuthMethod: 'client_secret_basic',
@@ -125,7 +125,7 @@ async function setupRealm(): Promise<void> {
     const key = await generateSigningKey('RS256', KEK);
     await tx.insert(signingKeys).values({
       id: newId(),
-      realmId: REALM_ID,
+      tenantId: TENANT_ID,
       kid: key.kid,
       alg: key.alg,
       status: 'active',
@@ -147,7 +147,7 @@ beforeAll(async () => {
   appHandle = createDatabase(appUrl, { max: 5 });
   app = appHandle;
 
-  await setupRealm();
+  await setupTenant();
 
   http = Fastify();
   await http.register(formbody);
@@ -185,10 +185,10 @@ async function issueInitialRefreshToken(
   const code = generateAuthorizationCode();
   const codeHash = hashAuthorizationCode(code);
 
-  await withRealm(app.db, REALM_ID, async (tx) => {
+  await withTenant(app.db, TENANT_ID, async (tx) => {
     await authorizationCodeRepository(tx).create({
       codeHash,
-      realmId: REALM_ID,
+      tenantId: TENANT_ID,
       clientId: webApp.dbId,
       subjectId,
       redirectUri: REDIRECT_URI,
@@ -211,7 +211,7 @@ async function issueInitialRefreshToken(
 
   const res = await http.inject({
     method: 'POST',
-    url: `/realms/${REALM}/protocol/openid-connect/token`,
+    url: `/tenants/${TENANT}/protocol/openid-connect/token`,
     payload: form.toString(),
     headers: {
       'content-type': 'application/x-www-form-urlencoded',
@@ -227,7 +227,7 @@ async function issueInitialRefreshToken(
   // The redemption bound this code to the grant its refresh token belongs
   // to; reading it back through the repository (rather than raw SQL) keeps
   // this helper honest about what the production code actually persists.
-  const record = await withRealm(app.db, REALM_ID, (tx) =>
+  const record = await withTenant(app.db, TENANT_ID, (tx) =>
     authorizationCodeRepository(tx).byHash(codeHash),
   );
   const grantId = record?.grantId;
@@ -252,7 +252,7 @@ async function refresh(token: string, opts: RefreshOptions = {}): Promise<LightM
 
   return http.inject({
     method: 'POST',
-    url: `/realms/${REALM}/protocol/openid-connect/token`,
+    url: `/tenants/${TENANT}/protocol/openid-connect/token`,
     payload: form.toString(),
     headers: {
       'content-type': 'application/x-www-form-urlencoded',
@@ -380,7 +380,7 @@ describe('[RFC6749-10.4-01] refresh token rotation and reuse detection', () => {
 
     const res = await http.inject({
       method: 'POST',
-      url: `/realms/${REALM}/protocol/openid-connect/token`,
+      url: `/tenants/${TENANT}/protocol/openid-connect/token`,
       payload: form.toString(),
       headers: {
         'content-type': 'application/x-www-form-urlencoded',
@@ -399,8 +399,12 @@ describe('atomic refresh rotation', () => {
     const now = new Date();
 
     const results = await Promise.allSettled([
-      withRealm(app.db, REALM_ID, (tx) => rotateRefreshToken(tx, hash, now, 1_209_600, LIFESPANS)),
-      withRealm(app.db, REALM_ID, (tx) => rotateRefreshToken(tx, hash, now, 1_209_600, LIFESPANS)),
+      withTenant(app.db, TENANT_ID, (tx) =>
+        rotateRefreshToken(tx, hash, now, 1_209_600, LIFESPANS),
+      ),
+      withTenant(app.db, TENANT_ID, (tx) =>
+        rotateRefreshToken(tx, hash, now, 1_209_600, LIFESPANS),
+      ),
     ]);
 
     const rotated = results.filter((r) => r.status === 'fulfilled' && r.value.kind === 'rotated');
@@ -408,29 +412,29 @@ describe('atomic refresh rotation', () => {
   });
 });
 
-describe('realm isolation', () => {
-  it('isolates refresh_tokens by realm', async () => {
-    await expectRealmIsolation(app.db, {
+describe('tenant isolation', () => {
+  it('isolates refresh_tokens by tenant', async () => {
+    await expectTenantIsolation(app.db, {
       table: 'refresh_tokens',
-      seed: async (tx, realmId) => {
-        await tx.insert(realms).values({ id: realmId, name: `probe-${realmId}` });
-        await provisionRealm(tx, realmId);
+      seed: async (tx, tenantId) => {
+        await tx.insert(tenants).values({ id: tenantId, name: `probe-${tenantId}` });
+        await provisionTenant(tx, tenantId);
         const clientDbId = newId();
         await tx.insert(clients).values({
           id: clientDbId,
-          realmId,
-          clientId: `probe-client-${realmId}`,
+          tenantId,
+          clientId: `probe-client-${tenantId}`,
           name: 'Isolation probe client',
           type: 'confidential',
           secretHash: 'hashed:secret',
         });
         await provisionClientDefaults(tx, clientDbId);
-        const subject = await subjectRepository(tx).create({ realmId, type: 'user' });
+        const subject = await subjectRepository(tx).create({ tenantId, type: 'user' });
         const grantRows = await tx
           .insert(tokenGrants)
           .values({
             id: newId(),
-            realmId,
+            tenantId,
             clientId: clientDbId,
             subjectId: subject.id,
             scope: 'openid',
@@ -440,8 +444,8 @@ describe('realm isolation', () => {
         const grant = grantRows[0];
         if (grant === undefined) throw new Error('expected an inserted token grant');
         await tx.insert(refreshTokens).values({
-          tokenHash: `probe-hash-${realmId}`,
-          realmId,
+          tokenHash: `probe-hash-${tenantId}`,
+          tenantId,
           grantId: grant.id,
           expiresAt: new Date(Date.now() + 60_000),
         });
@@ -449,26 +453,26 @@ describe('realm isolation', () => {
     });
   });
 
-  it('isolates token_grants by realm', async () => {
-    await expectRealmIsolation(app.db, {
+  it('isolates token_grants by tenant', async () => {
+    await expectTenantIsolation(app.db, {
       table: 'token_grants',
-      seed: async (tx, realmId) => {
+      seed: async (tx, tenantId) => {
         const clientDbId = newId();
-        await tx.insert(realms).values({ id: realmId, name: `probe-${realmId}` });
-        await provisionRealm(tx, realmId);
+        await tx.insert(tenants).values({ id: tenantId, name: `probe-${tenantId}` });
+        await provisionTenant(tx, tenantId);
         await tx.insert(clients).values({
           id: clientDbId,
-          realmId,
-          clientId: `probe-client-${realmId}`,
+          tenantId,
+          clientId: `probe-client-${tenantId}`,
           name: 'Isolation probe client',
           type: 'confidential',
           secretHash: 'hashed:secret',
         });
         await provisionClientDefaults(tx, clientDbId);
-        const subject = await subjectRepository(tx).create({ realmId, type: 'user' });
+        const subject = await subjectRepository(tx).create({ tenantId, type: 'user' });
         await tx.insert(tokenGrants).values({
           id: newId(),
-          realmId,
+          tenantId,
           clientId: clientDbId,
           subjectId: subject.id,
           scope: 'openid',
@@ -490,7 +494,7 @@ async function postToken(
     .join('&');
   return http.inject({
     method: 'POST',
-    url: `/realms/${REALM}/protocol/openid-connect/token`,
+    url: `/tenants/${TENANT}/protocol/openid-connect/token`,
     payload: body,
     headers: { 'content-type': 'application/x-www-form-urlencoded', ...headers },
   });
@@ -643,7 +647,7 @@ describe('[RFC6749-6-07] the presented refresh token is validated', () => {
 // leaves behind: rotation marks the presented token used, and a token burned
 // on behalf of a client that does not own it makes the owner's next refresh
 // look like reuse — which revokes the whole family. Any client registered in
-// this realm can authenticate, so learning one refresh token would otherwise
+// this tenant can authenticate, so learning one refresh token would otherwise
 // be enough to end the session it belongs to.
 describe('[ODUDU-REFRESH-CROSS-CLIENT-DOS-01] a refresh token burned by a client that does not own it', () => {
   it('leaves the token unspent and the owning client refreshing normally', async () => {
@@ -697,11 +701,11 @@ describe('[ODUDU-REFRESH-CROSS-CLIENT-DOS-01] a refresh token burned by a client
 describe('[ODUDU-REFRESH-TTL-FLOOR-01] a refresh token TTL that expires on issue', () => {
   async function provisioningError(refreshTokenTtlSeconds: number): Promise<string> {
     try {
-      await withRealm(app.db, REALM_ID, async (tx) => {
+      await withTenant(app.db, TENANT_ID, async (tx) => {
         const clientDbId = newId();
         await tx.insert(clients).values({
           id: clientDbId,
-          realmId: REALM_ID,
+          tenantId: TENANT_ID,
           clientId: `ttl-probe-${clientDbId}`,
           name: 'TTL probe',
           type: 'confidential',
@@ -710,7 +714,7 @@ describe('[ODUDU-REFRESH-TTL-FLOOR-01] a refresh token TTL that expires on issue
         await provisionClientDefaults(tx, clientDbId);
         await clientOidcConfigRepository(tx).create({
           clientId: clientDbId,
-          realmId: REALM_ID,
+          tenantId: TENANT_ID,
           redirectUris: [REDIRECT_URI],
           grantTypes: ['authorization_code', 'refresh_token'],
           tokenEndpointAuthMethod: 'client_secret_basic',

@@ -2,11 +2,11 @@ import { hashPassword, subjectRepository, userCredentials, users } from '@odudu/
 import {
   createDatabase,
   MIGRATIONS_DIR,
-  realms,
+  tenants,
   runMigrations,
-  withRealm,
+  withTenant,
   type DatabaseHandle,
-  type RealmScopedDatabase,
+  type TenantScopedDatabase,
 } from '@odudu/db';
 import { clients, provisionClientDefaults } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
@@ -15,7 +15,7 @@ import formbody from '@fastify/formbody';
 import { eq } from 'drizzle-orm';
 import Fastify, { type FastifyInstance, type LightMyRequestResponse } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { provisionRealm, sessions } from '@odudu/authn-flows';
+import { provisionTenant, sessions } from '@odudu/authn-flows';
 import { oidcRoutes } from '#/index';
 import { NO_CLIENT_KEY_FETCHER } from '#/repository/client-keys';
 import { UNLIMITED_CLIENT_SECRET_LIMITER } from '#/service/client-secret-throttle';
@@ -43,20 +43,20 @@ const USERNAME = 'ada';
 const PASSWORD = 'correct horse battery staple';
 const REMEMBER_ME_MAX_SECONDS = 2_592_000;
 
-async function setupRealm(name: string): Promise<string> {
-  const realmId = newId();
+async function setupTenant(name: string): Promise<string> {
+  const tenantId = newId();
   const clientDbId = newId();
-  await withRealm(app.db, realmId, async (tx: RealmScopedDatabase) => {
-    await tx.insert(realms).values({
-      id: realmId,
+  await withTenant(app.db, tenantId, async (tx: TenantScopedDatabase) => {
+    await tx.insert(tenants).values({
+      id: tenantId,
       name,
       rememberMeAllowed: true,
       rememberMeMaxSeconds: REMEMBER_ME_MAX_SECONDS,
     });
-    await provisionRealm(tx, realmId);
+    await provisionTenant(tx, tenantId);
     await tx.insert(clients).values({
       id: clientDbId,
-      realmId,
+      tenantId,
       clientId: CLIENT_ID,
       name: 'Remember-me consent test client',
       type: 'public',
@@ -64,7 +64,7 @@ async function setupRealm(name: string): Promise<string> {
     await provisionClientDefaults(tx, clientDbId);
     await clientOidcConfigRepository(tx).create({
       clientId: clientDbId,
-      realmId,
+      tenantId,
       redirectUris: [REDIRECT_URI],
       grantTypes: ['authorization_code'],
       tokenEndpointAuthMethod: 'none',
@@ -76,20 +76,20 @@ async function setupRealm(name: string): Promise<string> {
       // one that establishes the session — the consent POST has to be.
       consentRequired: true,
     });
-    const subject = await subjectRepository(tx).create({ realmId, type: 'user' });
-    await tx.insert(users).values({ subjectId: subject.id, realmId, username: USERNAME });
+    const subject = await subjectRepository(tx).create({ tenantId, type: 'user' });
+    await tx.insert(users).values({ subjectId: subject.id, tenantId, username: USERNAME });
     await tx.insert(userCredentials).values({
       id: newId(),
-      realmId,
+      tenantId,
       subjectId: subject.id,
       type: 'password',
       secretData: { hash: await hashPassword(PASSWORD) },
     });
   });
-  return realmId;
+  return tenantId;
 }
 
-function authorizeUrl(realmName: string): string {
+function authorizeUrl(tenantName: string): string {
   const params = new URLSearchParams({
     response_type: 'code',
     client_id: CLIENT_ID,
@@ -99,11 +99,11 @@ function authorizeUrl(realmName: string): string {
     code_challenge: 'a'.repeat(43),
     code_challenge_method: 'S256',
   });
-  return `/realms/${realmName}/protocol/openid-connect/auth?${params.toString()}`;
+  return `/tenants/${tenantName}/protocol/openid-connect/auth?${params.toString()}`;
 }
 
-async function startAuthSession(realmName: string): Promise<string> {
-  const res = await http.inject({ url: authorizeUrl(realmName) });
+async function startAuthSession(tenantName: string): Promise<string> {
+  const res = await http.inject({ url: authorizeUrl(tenantName) });
   if (res.statusCode !== 200) {
     throw new Error(`expected /authorize to render the login form, got ${String(res.statusCode)}`);
   }
@@ -154,10 +154,10 @@ afterAll(async () => {
 
 describe('remember me, carried across a consent-requiring client', () => {
   it('remembers the login even though consent completes it, not the login form', async () => {
-    const realmName = `realm-${newId()}`;
-    await setupRealm(realmName);
+    const tenantName = `tenant-${newId()}`;
+    await setupTenant(tenantName);
 
-    const authSessionId = await startAuthSession(realmName);
+    const authSessionId = await startAuthSession(tenantName);
     const loginForm = new URLSearchParams({
       auth_session_id: authSessionId,
       username: USERNAME,
@@ -166,7 +166,7 @@ describe('remember me, carried across a consent-requiring client', () => {
     });
     const loginRes = await http.inject({
       method: 'POST',
-      url: `/realms/${realmName}/login-actions/authenticate`,
+      url: `/tenants/${tenantName}/login-actions/authenticate`,
       payload: loginForm.toString(),
       headers: { 'content-type': 'application/x-www-form-urlencoded' },
     });
@@ -181,7 +181,7 @@ describe('remember me, carried across a consent-requiring client', () => {
     const consentForm = new URLSearchParams({ auth_session_id: authSessionId, decision: 'allow' });
     const consentRes = await http.inject({
       method: 'POST',
-      url: `/realms/${realmName}/login-actions/consent`,
+      url: `/tenants/${tenantName}/login-actions/consent`,
       payload: consentForm.toString(),
       headers: { 'content-type': 'application/x-www-form-urlencoded' },
     });
@@ -190,7 +190,7 @@ describe('remember me, carried across a consent-requiring client', () => {
     const cookies = cookieList(consentRes);
     const persistent = cookies.find((c) => c.includes('-session-persistent='));
     const ephemeral = cookies.find(
-      (c) => c.startsWith(`${realmName}-session=`) && !c.includes('-persistent'),
+      (c) => c.startsWith(`${tenantName}-session=`) && !c.includes('-persistent'),
     );
     if (persistent === undefined || ephemeral === undefined) {
       throw new Error(`expected both cookies, got: ${cookies.join(' | ')}`);

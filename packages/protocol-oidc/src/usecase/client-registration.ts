@@ -1,5 +1,5 @@
 import { signingKeyRepository } from '@odudu/crypto';
-import { type RealmScopedDatabase } from '@odudu/db';
+import { type TenantScopedDatabase } from '@odudu/db';
 import { subjectRepository } from '@odudu/domain-identity';
 import {
   clientRegistrationTokenRepository,
@@ -10,16 +10,16 @@ import {
 import { newId } from '@odudu/kernel';
 import { randomBytes } from 'node:crypto';
 import { clientOidcConfigRepository, type ClientOidcConfig } from '#/repository/client-oidc-config';
-import { type RealmLookup } from '#/repository/realm-lookup';
+import { type TenantLookup } from '#/repository/tenant-lookup';
 import { extractBearerToken } from '#/service/bearer-token';
 import { parseClientMetadata, type ClientMetadata } from '#/service/client-metadata';
 
 export interface ClientRegistrationDeps {
-  findRealm(name: string): Promise<RealmLookup | null>;
-  // Everything past realm resolution runs inside one realm-scoped
+  findTenant(name: string): Promise<TenantLookup | null>;
+  // Everything past tenant resolution runs inside one tenant-scoped
   // transaction: spending the token, taking the cap under its lock, and
   // the two inserts. A failure anywhere rolls all of it back together.
-  withinRealm<T>(realmId: string, fn: (tx: RealmScopedDatabase) => Promise<T>): Promise<T>;
+  withinTenant<T>(tenantId: string, fn: (tx: TenantScopedDatabase) => Promise<T>): Promise<T>;
   hashClientSecret(secret: string): Promise<string>;
   now(): Date;
   // Gates `tls_client_auth` registrations the same way `/token` gates
@@ -59,23 +59,23 @@ function clientType(tokenEndpointAuthMethod: string): 'public' | 'confidential' 
   return tokenEndpointAuthMethod === 'none' ? 'public' : 'confidential';
 }
 
-// One transaction, entered only once the realm is known to accept
-// registrations at all — a disabled realm and an unknown one both stop at
+// One transaction, entered only once the tenant is known to accept
+// registrations at all — a disabled tenant and an unknown one both stop at
 // `not_found` before any transaction opens.
 async function performRegistration(
   deps: ClientRegistrationDeps,
-  tx: RealmScopedDatabase,
-  realmId: string,
+  tx: TenantScopedDatabase,
+  tenantId: string,
   metadata: ClientMetadata,
   origin: ClientRecord['registrationOrigin'],
   now: Date,
 ): Promise<ClientRegistrationOutcome> {
-  const capacity = await clientRepository(tx).lockCapacity(realmId);
+  const capacity = await clientRepository(tx).lockCapacity(tenantId);
   if (capacity.count >= capacity.maxClients) {
     return { kind: 'at_capacity' };
   }
 
-  // Checked in the same transaction the realm's key lives in, so discovery
+  // Checked in the same transaction the tenant's key lives in, so discovery
   // and registration cannot disagree; `null` (no active key) is a mismatch too.
   if (
     metadata.userinfoSignedResponseAlg !== null &&
@@ -91,7 +91,7 @@ async function performRegistration(
       return {
         kind: 'invalid_metadata',
         error: 'invalid_client_metadata',
-        description: `userinfo_signed_response_alg ${metadata.userinfoSignedResponseAlg} does not match this realm's active signing key (${activeAlg ?? 'none'})`,
+        description: `userinfo_signed_response_alg ${metadata.userinfoSignedResponseAlg} does not match this tenant's active signing key (${activeAlg ?? 'none'})`,
       };
     }
   }
@@ -108,7 +108,7 @@ async function performRegistration(
 
   let serviceSubjectId: string | null = null;
   if (type === 'confidential') {
-    const serviceSubject = await subjectRepository(tx).create({ realmId, type: 'service' });
+    const serviceSubject = await subjectRepository(tx).create({ tenantId, type: 'service' });
     serviceSubjectId = serviceSubject.id;
   }
 
@@ -117,7 +117,7 @@ async function performRegistration(
 
   const oauthClientId = newId();
   const client = await clientRepository(tx).create({
-    realmId,
+    tenantId,
     clientId: oauthClientId,
     name: metadata.clientName ?? oauthClientId,
     type,
@@ -130,7 +130,7 @@ async function performRegistration(
 
   await clientOidcConfigRepository(tx).create({
     clientId: client.id,
-    realmId,
+    tenantId,
     audiences: [],
     accessTokenTtlSeconds: 300,
     refreshTokenTtlSeconds: 1_209_600,
@@ -167,17 +167,17 @@ async function performRegistration(
 
 export async function registerClient(
   deps: ClientRegistrationDeps,
-  realmName: string,
+  tenantName: string,
   authorizationHeader: string | undefined,
   body: unknown,
 ): Promise<ClientRegistrationOutcome> {
-  const realm = await deps.findRealm(realmName);
-  if (!realm?.enabled || realm.clientRegistrationPolicy === 'disabled') {
+  const tenant = await deps.findTenant(tenantName);
+  if (!tenant?.enabled || tenant.clientRegistrationPolicy === 'disabled') {
     return { kind: 'not_found' };
   }
 
   const presentedToken = extractBearerToken(authorizationHeader);
-  if (realm.clientRegistrationPolicy === 'token' && presentedToken === undefined) {
+  if (tenant.clientRegistrationPolicy === 'token' && presentedToken === undefined) {
     return { kind: 'unauthorized' };
   }
 
@@ -186,18 +186,18 @@ export async function registerClient(
     return { kind: 'invalid_metadata', error: parsed.error, description: parsed.description };
   }
 
-  return deps.withinRealm(realm.id, async (tx) => {
+  return deps.withinTenant(tenant.id, async (tx) => {
     // A presented token is honoured or refused outright — never silently
     // downgraded to an anonymous registration, which would let a client
     // that got its credential wrong believe it registered with the
     // authorization it thought it had.
     let origin: ClientRecord['registrationOrigin'] = 'anonymous';
     if (presentedToken !== undefined) {
-      const spent = await clientRegistrationTokenRepository(tx).spend(realm.id, presentedToken);
+      const spent = await clientRegistrationTokenRepository(tx).spend(tenant.id, presentedToken);
       if (!spent) return { kind: 'invalid_token' };
       origin = 'token';
     }
 
-    return performRegistration(deps, tx, realm.id, parsed.metadata, origin, deps.now());
+    return performRegistration(deps, tx, tenant.id, parsed.metadata, origin, deps.now());
   });
 }

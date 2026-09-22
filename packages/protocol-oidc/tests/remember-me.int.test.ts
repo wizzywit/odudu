@@ -2,11 +2,11 @@ import { hashPassword, subjectRepository, userCredentials, users } from '@odudu/
 import {
   createDatabase,
   MIGRATIONS_DIR,
-  realms,
+  tenants,
   runMigrations,
-  withRealm,
+  withTenant,
   type DatabaseHandle,
-  type RealmScopedDatabase,
+  type TenantScopedDatabase,
 } from '@odudu/db';
 import { clients, provisionClientDefaults } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
@@ -15,17 +15,17 @@ import formbody from '@fastify/formbody';
 import { eq } from 'drizzle-orm';
 import Fastify, { type FastifyInstance, type LightMyRequestResponse } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { provisionRealm, sessions } from '@odudu/authn-flows';
+import { provisionTenant, sessions } from '@odudu/authn-flows';
 import { oidcRoutes } from '#/index';
 import { NO_CLIENT_KEY_FETCHER } from '#/repository/client-keys';
 import { UNLIMITED_CLIENT_SECRET_LIMITER } from '#/service/client-secret-throttle';
 import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
 
-// The realm setting is the authority behind `remember_me`; the field in the
+// The tenant setting is the authority behind `remember_me`; the field in the
 // login form body is only ever a request. These three cases are the whole
-// of that gate: a realm that allows it honours a ticked box in the
+// of that gate: a tenant that allows it honours a ticked box in the
 // persistent cookie, an ordinary login never touches that cookie, and a
-// realm that does not allow it ignores the field entirely — no matter what
+// tenant that does not allow it ignores the field entirely — no matter what
 // the browser sends.
 
 let containerHandle: TestDatabase | undefined;
@@ -44,20 +44,20 @@ const USERNAME = 'ada';
 const PASSWORD = 'correct horse battery staple';
 const REMEMBER_ME_MAX_SECONDS = 2_592_000;
 
-async function setupRealm(name: string, rememberMeAllowed: boolean): Promise<string> {
-  const realmId = newId();
+async function setupTenant(name: string, rememberMeAllowed: boolean): Promise<string> {
+  const tenantId = newId();
   const clientDbId = newId();
-  await withRealm(app.db, realmId, async (tx: RealmScopedDatabase) => {
-    await tx.insert(realms).values({
-      id: realmId,
+  await withTenant(app.db, tenantId, async (tx: TenantScopedDatabase) => {
+    await tx.insert(tenants).values({
+      id: tenantId,
       name,
       rememberMeAllowed,
       rememberMeMaxSeconds: REMEMBER_ME_MAX_SECONDS,
     });
-    await provisionRealm(tx, realmId);
+    await provisionTenant(tx, tenantId);
     await tx.insert(clients).values({
       id: clientDbId,
-      realmId,
+      tenantId,
       clientId: CLIENT_ID,
       name: 'Remember-me test client',
       type: 'public',
@@ -65,7 +65,7 @@ async function setupRealm(name: string, rememberMeAllowed: boolean): Promise<str
     await provisionClientDefaults(tx, clientDbId);
     await clientOidcConfigRepository(tx).create({
       clientId: clientDbId,
-      realmId,
+      tenantId,
       redirectUris: [REDIRECT_URI],
       grantTypes: ['authorization_code'],
       tokenEndpointAuthMethod: 'none',
@@ -73,20 +73,20 @@ async function setupRealm(name: string, rememberMeAllowed: boolean): Promise<str
       accessTokenTtlSeconds: 300,
       refreshTokenTtlSeconds: 1_209_600,
     });
-    const subject = await subjectRepository(tx).create({ realmId, type: 'user' });
-    await tx.insert(users).values({ subjectId: subject.id, realmId, username: USERNAME });
+    const subject = await subjectRepository(tx).create({ tenantId, type: 'user' });
+    await tx.insert(users).values({ subjectId: subject.id, tenantId, username: USERNAME });
     await tx.insert(userCredentials).values({
       id: newId(),
-      realmId,
+      tenantId,
       subjectId: subject.id,
       type: 'password',
       secretData: { hash: await hashPassword(PASSWORD) },
     });
   });
-  return realmId;
+  return tenantId;
 }
 
-function authorizeUrl(realmName: string): string {
+function authorizeUrl(tenantName: string): string {
   const params = new URLSearchParams({
     response_type: 'code',
     client_id: CLIENT_ID,
@@ -96,11 +96,11 @@ function authorizeUrl(realmName: string): string {
     code_challenge: 'a'.repeat(43),
     code_challenge_method: 'S256',
   });
-  return `/realms/${realmName}/protocol/openid-connect/auth?${params.toString()}`;
+  return `/tenants/${tenantName}/protocol/openid-connect/auth?${params.toString()}`;
 }
 
-async function startAuthSession(realmName: string): Promise<string> {
-  const res = await http.inject({ url: authorizeUrl(realmName) });
+async function startAuthSession(tenantName: string): Promise<string> {
+  const res = await http.inject({ url: authorizeUrl(tenantName) });
   if (res.statusCode !== 200) {
     throw new Error(`expected /authorize to render the login form, got ${String(res.statusCode)}`);
   }
@@ -116,10 +116,10 @@ function cookieList(res: LightMyRequestResponse): string[] {
 }
 
 async function postLogin(
-  realmName: string,
+  tenantName: string,
   extra: Record<string, string> = {},
 ): Promise<LightMyRequestResponse> {
-  const authSessionId = await startAuthSession(realmName);
+  const authSessionId = await startAuthSession(tenantName);
   const form = new URLSearchParams({
     auth_session_id: authSessionId,
     username: USERNAME,
@@ -128,7 +128,7 @@ async function postLogin(
   });
   return http.inject({
     method: 'POST',
-    url: `/realms/${realmName}/login-actions/authenticate`,
+    url: `/tenants/${tenantName}/login-actions/authenticate`,
     payload: form.toString(),
     headers: { 'content-type': 'application/x-www-form-urlencoded' },
   });
@@ -178,18 +178,18 @@ afterAll(async () => {
   await containerHandle?.stop();
 });
 
-describe('a realm that allows remembering', () => {
+describe('a tenant that allows remembering', () => {
   it('carries a remembered login in the persistent cookie, with Max-Age', async () => {
-    const realmName = `realm-${newId()}`;
-    await setupRealm(realmName, true);
+    const tenantName = `tenant-${newId()}`;
+    await setupTenant(tenantName, true);
 
-    const res = await postLogin(realmName, { remember_me: 'true' });
+    const res = await postLogin(tenantName, { remember_me: 'true' });
 
     expect(res.statusCode).toBe(302);
     const cookies = cookieList(res);
     const persistent = cookies.find((c) => c.includes('-session-persistent='));
     const ephemeral = cookies.find(
-      (c) => c.startsWith(`${realmName}-session=`) && !c.includes('-persistent'),
+      (c) => c.startsWith(`${tenantName}-session=`) && !c.includes('-persistent'),
     );
     if (persistent === undefined || ephemeral === undefined) {
       throw new Error(`expected both cookies, got: ${cookies.join(' | ')}`);
@@ -200,15 +200,15 @@ describe('a realm that allows remembering', () => {
   });
 
   it('carries an ordinary login in the ephemeral cookie, with no Max-Age', async () => {
-    const realmName = `realm-${newId()}`;
-    await setupRealm(realmName, true);
+    const tenantName = `tenant-${newId()}`;
+    await setupTenant(tenantName, true);
 
-    const res = await postLogin(realmName);
+    const res = await postLogin(tenantName);
 
     expect(res.statusCode).toBe(302);
     const cookies = cookieList(res);
     const ephemeral = cookies.find(
-      (c) => c.startsWith(`${realmName}-session=`) && !c.includes('-persistent'),
+      (c) => c.startsWith(`${tenantName}-session=`) && !c.includes('-persistent'),
     );
     if (ephemeral === undefined) {
       throw new Error(`expected an ephemeral cookie, got: ${cookies.join(' | ')}`);
@@ -218,18 +218,18 @@ describe('a realm that allows remembering', () => {
   });
 });
 
-describe('a realm that does not allow remembering', () => {
+describe('a tenant that does not allow remembering', () => {
   it('refuses to remember a login even when the field asks for it', async () => {
-    const realmName = `realm-${newId()}`;
-    await setupRealm(realmName, false);
+    const tenantName = `tenant-${newId()}`;
+    await setupTenant(tenantName, false);
 
-    const res = await postLogin(realmName, { remember_me: 'true' });
+    const res = await postLogin(tenantName, { remember_me: 'true' });
 
     expect(res.statusCode).toBe(302);
     const cookies = cookieList(res);
     const persistent = cookies.find((c) => c.includes('-session-persistent='));
     const ephemeral = cookies.find(
-      (c) => c.startsWith(`${realmName}-session=`) && !c.includes('-persistent'),
+      (c) => c.startsWith(`${tenantName}-session=`) && !c.includes('-persistent'),
     );
     if (persistent === undefined || ephemeral === undefined) {
       throw new Error(`expected both cookies, got: ${cookies.join(' | ')}`);

@@ -2,13 +2,13 @@ import { PRIVATE_JWK_MEMBERS, signingKeys } from '@odudu/crypto';
 import {
   createDatabase,
   MIGRATIONS_DIR,
-  realms,
+  tenants,
   runMigrations,
-  withRealm,
+  withTenant,
   type DatabaseHandle,
-  type RealmScopedDatabase,
+  type TenantScopedDatabase,
 } from '@odudu/db';
-import { provisionRealm } from '@odudu/authn-flows';
+import { provisionTenant } from '@odudu/authn-flows';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import Fastify, { type FastifyInstance } from 'fastify';
@@ -29,13 +29,13 @@ let http: FastifyInstance;
 
 const PUBLIC_JWK = { kty: 'RSA', n: 'n-value', e: 'AQAB' };
 
-async function seedRealm(
-  tx: RealmScopedDatabase,
+async function seedTenant(
+  tx: TenantScopedDatabase,
   id: string,
   opts: { name: string; enabled?: boolean },
 ): Promise<void> {
-  await tx.insert(realms).values({ id, name: opts.name, enabled: opts.enabled ?? true });
-  await provisionRealm(tx, id);
+  await tx.insert(tenants).values({ id, name: opts.name, enabled: opts.enabled ?? true });
+  await provisionTenant(tx, id);
 }
 
 beforeAll(async () => {
@@ -64,11 +64,11 @@ beforeAll(async () => {
   await http.ready();
 
   const acmeId = newId();
-  await withRealm(app.db, acmeId, async (tx) => {
-    await seedRealm(tx, acmeId, { name: 'acme' });
+  await withTenant(app.db, acmeId, async (tx) => {
+    await seedTenant(tx, acmeId, { name: 'acme' });
     await tx.insert(signingKeys).values({
       id: newId(),
-      realmId: acmeId,
+      tenantId: acmeId,
       kid: 'k1',
       alg: 'RS256',
       status: 'active',
@@ -78,8 +78,8 @@ beforeAll(async () => {
   });
 
   const disabledId = newId();
-  await withRealm(app.db, disabledId, async (tx) => {
-    await seedRealm(tx, disabledId, { name: 'disabled-realm', enabled: false });
+  await withTenant(app.db, disabledId, async (tx) => {
+    await seedTenant(tx, disabledId, { name: 'disabled-tenant', enabled: false });
   });
 }, 120_000);
 
@@ -90,35 +90,35 @@ afterAll(async () => {
   await containerHandle?.stop();
 });
 
-describe('[ODUDU-DISCOVERY-REALM-404-01] unknown and disabled realms are indistinguishable', () => {
-  it.each(['no-such-realm', 'disabled-realm'])('returns 404 for %s', async (realm) => {
-    const res = await http.inject({ url: `/realms/${realm}/.well-known/openid-configuration` });
+describe('[ODUDU-DISCOVERY-TENANT-404-01] unknown and disabled tenants are indistinguishable', () => {
+  it.each(['no-such-tenant', 'disabled-tenant'])('returns 404 for %s', async (tenant) => {
+    const res = await http.inject({ url: `/tenants/${tenant}/.well-known/openid-configuration` });
     expect(res.statusCode).toBe(404);
   });
 });
 
 describe('[OIDC-DISCOVERY-4-01] the discovery document is served at the well-known path', () => {
-  it('returns 200 with application/json for an enabled realm', async () => {
-    const res = await http.inject({ url: '/realms/acme/.well-known/openid-configuration' });
+  it('returns 200 with application/json for an enabled tenant', async () => {
+    const res = await http.inject({ url: '/tenants/acme/.well-known/openid-configuration' });
     expect(res.statusCode).toBe(200);
     expect(res.headers['content-type']).toContain('application/json');
-    expect(res.json<{ issuer: string }>().issuer).toMatch(/\/realms\/acme$/);
+    expect(res.json<{ issuer: string }>().issuer).toMatch(/\/tenants\/acme$/);
   });
 
   it('rejects a POST to the discovery path', async () => {
     const res = await http.inject({
       method: 'POST',
-      url: '/realms/acme/.well-known/openid-configuration',
+      url: '/tenants/acme/.well-known/openid-configuration',
     });
     expect(res.statusCode).not.toBe(200);
   });
 });
 
 describe('[OIDC-RPINITIATED-2.1-01] end_session_endpoint is advertised', () => {
-  it("names this realm's logout endpoint", async () => {
-    const res = await http.inject({ url: '/realms/acme/.well-known/openid-configuration' });
+  it("names this tenant's logout endpoint", async () => {
+    const res = await http.inject({ url: '/tenants/acme/.well-known/openid-configuration' });
     expect(res.json<{ end_session_endpoint: string }>().end_session_endpoint).toBe(
-      'http://localhost/realms/acme/protocol/openid-connect/logout',
+      'http://localhost/tenants/acme/protocol/openid-connect/logout',
     );
   });
 
@@ -128,7 +128,7 @@ describe('[OIDC-RPINITIATED-2.1-01] end_session_endpoint is advertised', () => {
   // agreement, so a rename on one side would otherwise advertise a 404
   // with every other test still green.
   it('is a path the router actually answers, not a 404', async () => {
-    const discovery = await http.inject({ url: '/realms/acme/.well-known/openid-configuration' });
+    const discovery = await http.inject({ url: '/tenants/acme/.well-known/openid-configuration' });
     const { end_session_endpoint: endSessionEndpoint } = discovery.json<{
       end_session_endpoint: string;
     }>();
@@ -139,7 +139,7 @@ describe('[OIDC-RPINITIATED-2.1-01] end_session_endpoint is advertised', () => {
 
 describe('[OIDC-BACKCHANNEL-2.1-02] back-channel logout is advertised', () => {
   it('advertises support, with session support', async () => {
-    const res = await http.inject({ url: '/realms/acme/.well-known/openid-configuration' });
+    const res = await http.inject({ url: '/tenants/acme/.well-known/openid-configuration' });
     const document = res.json<{
       backchannel_logout_supported: boolean;
       backchannel_logout_session_supported: boolean;
@@ -151,7 +151,7 @@ describe('[OIDC-BACKCHANNEL-2.1-02] back-channel logout is advertised', () => {
 
 describe('[OIDC-FRONTCHANNEL-3-01] front-channel logout is advertised', () => {
   it('advertises support, with session support', async () => {
-    const res = await http.inject({ url: '/realms/acme/.well-known/openid-configuration' });
+    const res = await http.inject({ url: '/tenants/acme/.well-known/openid-configuration' });
     const document = res.json<{
       frontchannel_logout_supported: boolean;
       frontchannel_logout_session_supported: boolean;
@@ -163,7 +163,7 @@ describe('[OIDC-FRONTCHANNEL-3-01] front-channel logout is advertised', () => {
 
 describe('[RFC7517-4-02] the published key set carries no private material', () => {
   it('never emits a private or symmetric member', async () => {
-    const res = await http.inject({ url: '/realms/acme/protocol/openid-connect/certs' });
+    const res = await http.inject({ url: '/tenants/acme/protocol/openid-connect/certs' });
     expect(res.statusCode).toBe(200);
     for (const key of res.json<{ keys: Record<string, unknown>[] }>().keys) {
       for (const member of PRIVATE_JWK_MEMBERS) {
@@ -172,8 +172,8 @@ describe('[RFC7517-4-02] the published key set carries no private material', () 
     }
   });
 
-  it('returns 404 for an unknown realm rather than an empty key set', async () => {
-    const res = await http.inject({ url: '/realms/no-such-realm/protocol/openid-connect/certs' });
+  it('returns 404 for an unknown tenant rather than an empty key set', async () => {
+    const res = await http.inject({ url: '/tenants/no-such-tenant/protocol/openid-connect/certs' });
     expect(res.statusCode).toBe(404);
   });
 });

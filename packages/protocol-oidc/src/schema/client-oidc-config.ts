@@ -12,7 +12,7 @@ export const clientOidcConfig = pgTable('client_oidc_config', {
   clientId: uuid('client_id')
     .primaryKey()
     .references(() => clients.id, { onDelete: 'cascade' }),
-  realmId: uuid('tenant_id').notNull(),
+  tenantId: uuid('tenant_id').notNull(),
   redirectUris: text('redirect_uris').array().notNull(),
   grantTypes: text('grant_types').array().notNull(),
   tokenEndpointAuthMethod: text('token_endpoint_auth_method').notNull(),
@@ -20,7 +20,7 @@ export const clientOidcConfig = pgTable('client_oidc_config', {
   accessTokenTtlSeconds: integer('access_token_ttl_seconds').notNull().default(300),
   refreshTokenTtlSeconds: integer('refresh_token_ttl_seconds').notNull().default(1_209_600),
   // The ceiling on what client_credentials may request — resource-server
-  // scopes (e.g. `reports:read`), not the OIDC vocabulary the realm's
+  // scopes (e.g. `reports:read`), not the OIDC vocabulary the tenant's
   // client_scopes carry, since this grant has no consent screen and no
   // authorization request to intersect against.
   clientCredentialsScopes: text('client_credentials_scopes').array().notNull().default([]),
@@ -63,7 +63,7 @@ export const clientOidcConfig = pgTable('client_oidc_config', {
 // protocol can add its own configuration table without touching the domain.
 export interface ClientOidcConfig {
   clientId: string;
-  realmId: string;
+  tenantId: string;
   redirectUris: string[];
   grantTypes: string[];
   tokenEndpointAuthMethod: TokenEndpointAuthMethod;

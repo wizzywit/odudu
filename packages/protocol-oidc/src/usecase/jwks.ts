@@ -1,5 +1,5 @@
 import { assembleJwks } from '@odudu/crypto';
-import { type RealmLookup } from '#/repository/realm-lookup';
+import { type TenantLookup } from '#/repository/tenant-lookup';
 
 export interface PublishableKey {
   kid: string;
@@ -8,16 +8,16 @@ export interface PublishableKey {
 }
 
 export interface JwksUsecaseDeps {
-  findRealm(name: string): Promise<RealmLookup | null>;
-  listPublishableKeys(realmId: string): Promise<PublishableKey[]>;
+  findTenant(name: string): Promise<TenantLookup | null>;
+  listPublishableKeys(tenantId: string): Promise<PublishableKey[]>;
 }
 
 export async function resolveJwks(
   deps: JwksUsecaseDeps,
-  realmName: string,
+  tenantName: string,
 ): Promise<{ keys: Record<string, unknown>[] } | null> {
-  const realm = await deps.findRealm(realmName);
-  if (!realm?.enabled) return null;
-  const keys = await deps.listPublishableKeys(realm.id);
+  const tenant = await deps.findTenant(tenantName);
+  if (!tenant?.enabled) return null;
+  const keys = await deps.listPublishableKeys(tenant.id);
   return assembleJwks(keys);
 }

@@ -1,7 +1,7 @@
 import { type SessionRecord } from '@odudu/authn-flows';
 import { AUDIENCE_UNCHECKED, type SigningKeyRecord } from '@odudu/crypto';
 import { type ClientLogoutTarget } from '#/repository/grants';
-import { type RealmLookup } from '#/repository/realm-lookup';
+import { type TenantLookup } from '#/repository/tenant-lookup';
 import { frontChannelLogoutUrl } from '#/service/frontchannel-logout';
 import { mostRecentlyActive } from '#/service/session-selection';
 import { subjectOfIdTokenHint } from '#/usecase/authorization-request';
@@ -101,20 +101,20 @@ export type LogoutOutcome =
     };
 
 export interface LogoutUsecaseDeps {
-  findRealm(name: string): Promise<RealmLookup | null>;
+  findTenant(name: string): Promise<TenantLookup | null>;
   // Shared with /authorize's own hint validation via subjectOfIdTokenHint —
-  // this realm's own keys, this realm's issuer.
-  listPublishableKeys(realmId: string): Promise<SigningKeyRecord[]>;
+  // this tenant's own keys, this tenant's issuer.
+  listPublishableKeys(tenantId: string): Promise<SigningKeyRecord[]>;
   // Resolved from an OAuth `client_id` to that client's registered
   // post_logout_redirect_uris; an unknown or unspecified client yields an
   // empty list, refusing any redirect rather than resolving one with no
   // client to trust it against (§3).
-  postLogoutRedirectUris(realmId: string, oauthClientId: string): Promise<readonly string[]>;
+  postLogoutRedirectUris(tenantId: string, oauthClientId: string): Promise<readonly string[]>;
   // The browser's session cookies, resolved to their live rows exactly the
   // way /authorize resolves them — never trusted for anything but that
   // lookup.
   resolveSessions(
-    realm: {
+    tenant: {
       id: string;
       name: string;
       ssoSessionIdleSeconds: number;
@@ -133,7 +133,7 @@ export interface LogoutUsecaseDeps {
   // that was never written. Access tokens are not touched — see README.md's
   // logout section for why not.
   endSession(
-    realmId: string,
+    tenantId: string,
     sessionId: string,
     subjectId: string,
     now: Date,
@@ -142,7 +142,7 @@ export interface LogoutUsecaseDeps {
   // Front-Channel Logout 1.0 §3's "set of logged-in RPs": the distinct
   // clients holding a grant issued under this session, with enough of each
   // one's logout metadata to build a front-channel logout URL for it.
-  clientsForSession(realmId: string, sessionId: string): Promise<ClientLogoutTarget[]>;
+  clientsForSession(tenantId: string, sessionId: string): Promise<ClientLogoutTarget[]>;
   now(): Date;
 }
 
@@ -157,11 +157,11 @@ function hasFrontChannelLogoutUri(
 // load, so there is nothing here for that branch to use.
 async function frontChannelLogoutUrls(
   deps: LogoutUsecaseDeps,
-  realmId: string,
+  tenantId: string,
   issuer: string,
   sessionId: string,
 ): Promise<readonly string[]> {
-  const targets = await deps.clientsForSession(realmId, sessionId);
+  const targets = await deps.clientsForSession(tenantId, sessionId);
   const urls = targets
     .filter(hasFrontChannelLogoutUri)
     .map((target) =>
@@ -177,11 +177,11 @@ async function frontChannelLogoutUrls(
 
 async function registeredUris(
   deps: LogoutUsecaseDeps,
-  realmId: string,
+  tenantId: string,
   clientId: string | null,
 ): Promise<readonly string[]> {
   if (clientId === null) return [];
-  return deps.postLogoutRedirectUris(realmId, clientId);
+  return deps.postLogoutRedirectUris(tenantId, clientId);
 }
 
 // decideLogout decides over one session, while a browser may hold several.
@@ -208,22 +208,22 @@ function toLogoutSession(session: SessionRecord | null): LogoutSession | null {
 // is posted back to handleLogoutConfirmation.
 export async function handleLogoutRequest(
   deps: LogoutUsecaseDeps,
-  realmName: string,
+  tenantName: string,
   issuer: string,
   header: string | undefined,
   params: LogoutRequestParams,
 ): Promise<LogoutOutcome> {
-  const realm = await deps.findRealm(realmName);
-  if (!realm?.enabled) return { kind: 'not_found' };
+  const tenant = await deps.findTenant(tenantName);
+  if (!tenant?.enabled) return { kind: 'not_found' };
 
   const sessions = await deps.resolveSessions(
     {
-      id: realm.id,
-      name: realmName,
-      ssoSessionIdleSeconds: realm.ssoSessionIdleSeconds,
-      ssoSessionMaxSeconds: realm.ssoSessionMaxSeconds,
-      rememberMeIdleSeconds: realm.rememberMeIdleSeconds,
-      rememberMeMaxSeconds: realm.rememberMeMaxSeconds,
+      id: tenant.id,
+      name: tenantName,
+      ssoSessionIdleSeconds: tenant.ssoSessionIdleSeconds,
+      ssoSessionMaxSeconds: tenant.ssoSessionMaxSeconds,
+      rememberMeIdleSeconds: tenant.rememberMeIdleSeconds,
+      rememberMeMaxSeconds: tenant.rememberMeMaxSeconds,
     },
     header,
   );
@@ -236,8 +236,8 @@ export async function handleLogoutRequest(
   const hint =
     params.idTokenHint === null
       ? null
-      : await subjectOfIdTokenHint(deps, realm.id, issuer, params.idTokenHint, AUDIENCE_UNCHECKED);
-  const registered = await registeredUris(deps, realm.id, params.clientId);
+      : await subjectOfIdTokenHint(deps, tenant.id, issuer, params.idTokenHint, AUDIENCE_UNCHECKED);
+  const registered = await registeredUris(deps, tenant.id, params.clientId);
 
   // §2: "When both `client_id` and `id_token_hint` are present, the OP MUST
   // verify that the Client Identifier matches the one used when issuing the
@@ -272,13 +272,13 @@ export async function handleLogoutRequest(
   // matched redirect with nothing to end (see its own comment) — there is
   // no session row to touch.
   if (session !== null) {
-    await deps.endSession(realm.id, session.id, session.subjectId, deps.now(), issuer);
+    await deps.endSession(tenant.id, session.id, session.subjectId, deps.now(), issuer);
   }
 
   if (decision.kind === 'end') {
     const frontChannel =
       session !== null && decision.redirectTo === null
-        ? await frontChannelLogoutUrls(deps, realm.id, issuer, session.id)
+        ? await frontChannelLogoutUrls(deps, tenant.id, issuer, session.id)
         : [];
     return {
       kind: 'end',
@@ -292,7 +292,7 @@ export async function handleLogoutRequest(
   // session branch (see the comment above), but the type still admits
   // `null` here.
   const refusedFrontChannel =
-    session !== null ? await frontChannelLogoutUrls(deps, realm.id, issuer, session.id) : [];
+    session !== null ? await frontChannelLogoutUrls(deps, tenant.id, issuer, session.id) : [];
   return {
     kind: 'render',
     error: decision.error,
@@ -320,22 +320,22 @@ export interface LogoutConfirmationParams {
 // does on the immediate path.
 export async function handleLogoutConfirmation(
   deps: LogoutUsecaseDeps,
-  realmName: string,
+  tenantName: string,
   issuer: string,
   header: string | undefined,
   params: LogoutConfirmationParams,
 ): Promise<LogoutOutcome> {
-  const realm = await deps.findRealm(realmName);
-  if (!realm?.enabled) return { kind: 'not_found' };
+  const tenant = await deps.findTenant(tenantName);
+  if (!tenant?.enabled) return { kind: 'not_found' };
 
   const sessions = await deps.resolveSessions(
     {
-      id: realm.id,
-      name: realmName,
-      ssoSessionIdleSeconds: realm.ssoSessionIdleSeconds,
-      ssoSessionMaxSeconds: realm.ssoSessionMaxSeconds,
-      rememberMeIdleSeconds: realm.rememberMeIdleSeconds,
-      rememberMeMaxSeconds: realm.rememberMeMaxSeconds,
+      id: tenant.id,
+      name: tenantName,
+      ssoSessionIdleSeconds: tenant.ssoSessionIdleSeconds,
+      ssoSessionMaxSeconds: tenant.ssoSessionMaxSeconds,
+      rememberMeIdleSeconds: tenant.rememberMeIdleSeconds,
+      rememberMeMaxSeconds: tenant.rememberMeMaxSeconds,
     },
     header,
   );
@@ -345,7 +345,7 @@ export async function handleLogoutConfirmation(
   }
   const session: LogoutSession = { id: confirmed.id, subjectId: confirmed.subjectId };
 
-  const registered = await registeredUris(deps, realm.id, params.clientId);
+  const registered = await registeredUris(deps, tenant.id, params.clientId);
   // Forcing sid to the session's own id trivially satisfies decideLogout's
   // match — consent was already given by posting this form, so only the
   // redirect rule is still live.
@@ -357,12 +357,12 @@ export async function handleLogoutConfirmation(
     registered,
   });
 
-  await deps.endSession(realm.id, session.id, session.subjectId, deps.now(), issuer);
+  await deps.endSession(tenant.id, session.id, session.subjectId, deps.now(), issuer);
 
   if (decision.kind === 'end') {
     const frontChannel =
       decision.redirectTo === null
-        ? await frontChannelLogoutUrls(deps, realm.id, issuer, session.id)
+        ? await frontChannelLogoutUrls(deps, tenant.id, issuer, session.id)
         : [];
     return {
       kind: 'end',
@@ -373,7 +373,7 @@ export async function handleLogoutConfirmation(
     };
   }
   if (decision.kind === 'render') {
-    const refusedFrontChannel = await frontChannelLogoutUrls(deps, realm.id, issuer, session.id);
+    const refusedFrontChannel = await frontChannelLogoutUrls(deps, tenant.id, issuer, session.id);
     return {
       kind: 'render',
       error: decision.error,

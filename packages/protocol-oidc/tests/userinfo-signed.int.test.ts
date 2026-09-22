@@ -3,13 +3,13 @@ import { hashPassword, subjectRepository, users } from '@odudu/domain-identity';
 import {
   createDatabase,
   MIGRATIONS_DIR,
-  realms,
+  tenants,
   runMigrations,
-  withRealm,
+  withTenant,
   type DatabaseHandle,
-  type RealmScopedDatabase,
+  type TenantScopedDatabase,
 } from '@odudu/db';
-import { provisionRealm } from '@odudu/authn-flows';
+import { provisionTenant } from '@odudu/authn-flows';
 import { clients, provisionClientDefaults } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
@@ -60,36 +60,36 @@ interface Client {
   secret: string;
 }
 
-interface RealmSetup {
-  realmName: string;
-  realmId: string;
+interface TenantSetup {
+  tenantName: string;
+  tenantId: string;
   issuer: string;
   client: Client;
   subjectId: string;
 }
 
-let realm: RealmSetup;
+let tenant: TenantSetup;
 let plainClient: Client;
 let signingClient: Client;
 let noneClient: Client;
 let mismatchClient: Client;
 
-function userinfoUrl(realmName: string): string {
-  return `/realms/${realmName}/protocol/openid-connect/userinfo`;
+function userinfoUrl(tenantName: string): string {
+  return `/tenants/${tenantName}/protocol/openid-connect/userinfo`;
 }
 
-// Registers a second client in the same realm with a given
-// `userinfo_signed_response_alg`, sharing the realm's subject and signing
+// Registers a second client in the same tenant with a given
+// `userinfo_signed_response_alg`, sharing the tenant's subject and signing
 // key so only the client under test varies between assertions.
 async function registerClient(
   clientId: string,
   userinfoSignedResponseAlg: string | null,
 ): Promise<Client> {
   const dbId = newId();
-  await withRealm(app.db, realm.realmId, async (tx: RealmScopedDatabase) => {
+  await withTenant(app.db, tenant.tenantId, async (tx: TenantScopedDatabase) => {
     await tx.insert(clients).values({
       id: dbId,
-      realmId: realm.realmId,
+      tenantId: tenant.tenantId,
       clientId,
       name: clientId,
       type: 'confidential',
@@ -98,7 +98,7 @@ async function registerClient(
     await provisionClientDefaults(tx, dbId);
     await clientOidcConfigRepository(tx).create({
       clientId: dbId,
-      realmId: realm.realmId,
+      tenantId: tenant.tenantId,
       redirectUris: [REDIRECT_URI],
       grantTypes: ['authorization_code'],
       tokenEndpointAuthMethod: 'client_secret_basic',
@@ -119,12 +119,12 @@ async function issueAccessToken(client: Client): Promise<string> {
   const code = generateAuthorizationCode();
   const codeHash = hashAuthorizationCode(code);
 
-  await withRealm(app.db, realm.realmId, async (tx) => {
+  await withTenant(app.db, tenant.tenantId, async (tx) => {
     await authorizationCodeRepository(tx).create({
       codeHash,
-      realmId: realm.realmId,
+      tenantId: tenant.tenantId,
       clientId: client.dbId,
-      subjectId: realm.subjectId,
+      subjectId: tenant.subjectId,
       redirectUri: REDIRECT_URI,
       scope: 'openid email',
       nonce: null,
@@ -145,7 +145,7 @@ async function issueAccessToken(client: Client): Promise<string> {
 
   const res = await http.inject({
     method: 'POST',
-    url: `/realms/${realm.realmName}/protocol/openid-connect/token`,
+    url: `/tenants/${tenant.tenantName}/protocol/openid-connect/token`,
     payload: form.toString(),
     headers: {
       'content-type': 'application/x-www-form-urlencoded',
@@ -160,7 +160,7 @@ async function userinfo(client: Client): Promise<LightMyRequestResponse> {
   const accessToken = await issueAccessToken(client);
   return http.inject({
     method: 'GET',
-    url: userinfoUrl(realm.realmName),
+    url: userinfoUrl(tenant.tenantName),
     headers: { authorization: `Bearer ${accessToken}` },
   });
 }
@@ -206,17 +206,17 @@ beforeAll(async () => {
   await http.ready();
   httpApp = http;
 
-  const realmName = `userinfo-signed-${newId()}`;
-  const realmId = newId();
+  const tenantName = `userinfo-signed-${newId()}`;
+  const tenantId = newId();
 
-  const { webAppDbId, subjectId } = await withRealm(app.db, realmId, async (tx) => {
-    await tx.insert(realms).values({ id: realmId, name: realmName });
-    await provisionRealm(tx, realmId);
+  const { webAppDbId, subjectId } = await withTenant(app.db, tenantId, async (tx) => {
+    await tx.insert(tenants).values({ id: tenantId, name: tenantName });
+    await provisionTenant(tx, tenantId);
 
-    const subject = await subjectRepository(tx).create({ realmId, type: 'user' });
+    const subject = await subjectRepository(tx).create({ tenantId, type: 'user' });
     await tx.insert(users).values({
       subjectId: subject.id,
-      realmId,
+      tenantId,
       username: 'alice',
       email: 'alice@example.com',
       emailVerified: true,
@@ -225,7 +225,7 @@ beforeAll(async () => {
     const dbId = newId();
     await tx.insert(clients).values({
       id: dbId,
-      realmId,
+      tenantId,
       clientId: 'plain-client',
       name: 'Plain client',
       type: 'confidential',
@@ -234,7 +234,7 @@ beforeAll(async () => {
     await provisionClientDefaults(tx, dbId);
     await clientOidcConfigRepository(tx).create({
       clientId: dbId,
-      realmId,
+      tenantId,
       redirectUris: [REDIRECT_URI],
       grantTypes: ['authorization_code'],
       tokenEndpointAuthMethod: 'client_secret_basic',
@@ -246,7 +246,7 @@ beforeAll(async () => {
     const key = await generateSigningKey('RS256', KEK);
     await tx.insert(signingKeys).values({
       id: newId(),
-      realmId,
+      tenantId,
       kid: key.kid,
       alg: key.alg,
       status: 'active',
@@ -257,23 +257,23 @@ beforeAll(async () => {
     return { webAppDbId: dbId, subjectId: subject.id };
   });
 
-  realm = {
-    realmName,
-    realmId,
+  tenant = {
+    tenantName,
+    tenantId,
     // light-my-request sends `Host: localhost:80`; the scheme's default
     // port is insignificant and never appears in an issuer
     // (packages/protocol-oidc/src/view/issuer.ts).
-    issuer: `http://localhost/realms/${realmName}`,
+    issuer: `http://localhost/tenants/${tenantName}`,
     client: { clientId: 'plain-client', dbId: webAppDbId, secret: 'supersecret' },
     subjectId,
   };
-  plainClient = realm.client;
+  plainClient = tenant.client;
   signingClient = await registerClient('signing-client', 'RS256');
   noneClient = await registerClient('none-client', 'none');
   // A permitted value (client-metadata.ts's own enum admits it) the
-  // realm's one active key — generated RS256 above — cannot honour. Written
+  // tenant's one active key — generated RS256 above — cannot honour. Written
   // straight to the repository: the registration endpoint's own narrowing
-  // is asserted separately in client-registration.int.test.ts, and a realm
+  // is asserted separately in client-registration.int.test.ts, and a tenant
   // can only ever hold one active key (`signing_keys_one_active`), so this
   // is not a contrived shape — it is what a key rotation to a different
   // algorithm leaves behind for a client that registered under the old one.
@@ -303,7 +303,7 @@ describe('the UserInfo response format follows client registration', () => {
   it('[OIDC-CORE-5.3.2-02] signs with iss as the issuer and aud as the client', async () => {
     const response = await userinfo(signingClient);
     const claims = decode(response.rawPayload);
-    expect(claims.iss).toBe(realm.issuer);
+    expect(claims.iss).toBe(tenant.issuer);
     expect(claims.aud).toBe(signingClient.clientId);
   });
 
@@ -318,20 +318,20 @@ describe('the UserInfo response format follows client registration', () => {
     expect(header.typ).toBe('userinfo+jwt');
   });
 
-  it('verifies against the realm-published JWKS under a real kid', async () => {
+  it('verifies against the tenant-published JWKS under a real kid', async () => {
     const response = await userinfo(signingClient);
     const header = decodeHeader(response.rawPayload);
     expect(typeof header.kid).toBe('string');
 
     const certsRes = await http.inject({
       method: 'GET',
-      url: `/realms/${realm.realmName}/protocol/openid-connect/certs`,
+      url: `/tenants/${tenant.tenantName}/protocol/openid-connect/certs`,
     });
     expect(certsRes.statusCode).toBe(200);
     const jwks: unknown = certsRes.json();
 
     const verified = await verifyJwtAgainstJwkSet(response.body, jwks, {
-      issuer: realm.issuer,
+      issuer: tenant.issuer,
       audience: signingClient.clientId,
       now: new Date(),
     });
@@ -360,13 +360,13 @@ describe('the UserInfo response format follows client registration', () => {
     expect(parts).toHaveLength(3);
     expect(parts[2]).toBe('');
     const claims = decode(response.rawPayload);
-    expect(claims.iss).toBe(realm.issuer);
+    expect(claims.iss).toBe(tenant.issuer);
     expect(claims.aud).toBe(noneClient.clientId);
-    expect(claims.sub).toBe(realm.subjectId);
+    expect(claims.sub).toBe(tenant.subjectId);
   });
 
   // The narrowed enum (client-metadata.ts) only closes the registration
-  // side; a realm's active key can still not match a value that was valid
+  // side; a tenant's active key can still not match a value that was valid
   // when it was registered. Silently answering with the key's own algorithm
   // under the client's chosen name is the defect this closes — refusing is
   // the honest minimum (docs/protocols/oidc-core.md's reading note).

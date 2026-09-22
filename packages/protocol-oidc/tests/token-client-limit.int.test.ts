@@ -3,13 +3,13 @@ import { hashPassword, subjectRepository } from '@odudu/domain-identity';
 import {
   createDatabase,
   MIGRATIONS_DIR,
-  realms,
+  tenants,
   runMigrations,
-  withRealm,
+  withTenant,
   type DatabaseHandle,
-  type RealmScopedDatabase,
+  type TenantScopedDatabase,
 } from '@odudu/db';
-import { provisionRealm } from '@odudu/authn-flows';
+import { provisionTenant } from '@odudu/authn-flows';
 import { clients, provisionClientDefaults } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
@@ -31,8 +31,8 @@ let owner: DatabaseHandle;
 let app: DatabaseHandle;
 let http: FastifyInstance;
 
-let REALM: string;
-let REALM_ID: string;
+let TENANT: string;
+let TENANT_ID: string;
 
 const KEK = Buffer.alloc(32, 19);
 
@@ -58,18 +58,18 @@ function clientSecretLimiter(): ClientSecretLimiter {
   };
 }
 
-async function setupRealm(): Promise<void> {
-  REALM = `token-client-limit-${newId()}`;
-  REALM_ID = newId();
+async function setupTenant(): Promise<void> {
+  TENANT = `token-client-limit-${newId()}`;
+  TENANT_ID = newId();
 
-  await withRealm(app.db, REALM_ID, async (tx: RealmScopedDatabase) => {
-    await tx.insert(realms).values({ id: REALM_ID, name: REALM });
-    await provisionRealm(tx, REALM_ID);
+  await withTenant(app.db, TENANT_ID, async (tx: TenantScopedDatabase) => {
+    await tx.insert(tenants).values({ id: TENANT_ID, name: TENANT });
+    await provisionTenant(tx, TENANT_ID);
 
     const key = await generateSigningKey('RS256', KEK);
     await tx.insert(signingKeys).values({
       id: newId(),
-      realmId: REALM_ID,
+      tenantId: TENANT_ID,
       kid: key.kid,
       alg: key.alg,
       status: 'active',
@@ -91,7 +91,7 @@ beforeAll(async () => {
   appHandle = createDatabase(appUrl, { max: 5 });
   app = appHandle;
 
-  await setupRealm();
+  await setupTenant();
 
   http = Fastify();
   await http.register(formbody);
@@ -120,7 +120,7 @@ async function withSecret(clientId: string, secret: string): Promise<LightMyRequ
   form.set('grant_type', 'client_credentials');
   return http.inject({
     method: 'POST',
-    url: `/realms/${REALM}/protocol/openid-connect/token`,
+    url: `/tenants/${TENANT}/protocol/openid-connect/token`,
     payload: form.toString(),
     headers: {
       'content-type': 'application/x-www-form-urlencoded',
@@ -217,15 +217,15 @@ describe('[RFC6749-2.3.1-04] the client_secret budget at /token', () => {
 // so the client_credentials grant a healthy request exercises can actually
 // succeed, not just authenticate.
 async function registerFreshClient(clientId: string, secret: string): Promise<void> {
-  await withRealm(app.db, REALM_ID, async (tx: RealmScopedDatabase) => {
+  await withTenant(app.db, TENANT_ID, async (tx: TenantScopedDatabase) => {
     const serviceSubject = await subjectRepository(tx).create({
-      realmId: REALM_ID,
+      tenantId: TENANT_ID,
       type: 'service',
     });
     const clientDbId = newId();
     await tx.insert(clients).values({
       id: clientDbId,
-      realmId: REALM_ID,
+      tenantId: TENANT_ID,
       clientId,
       name: clientId,
       type: 'confidential',
@@ -235,7 +235,7 @@ async function registerFreshClient(clientId: string, secret: string): Promise<vo
     await provisionClientDefaults(tx, clientDbId);
     await clientOidcConfigRepository(tx).create({
       clientId: clientDbId,
-      realmId: REALM_ID,
+      tenantId: TENANT_ID,
       redirectUris: [],
       grantTypes: ['client_credentials'],
       tokenEndpointAuthMethod: 'client_secret_basic',

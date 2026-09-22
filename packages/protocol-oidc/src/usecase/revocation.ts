@@ -1,5 +1,5 @@
 import { AUDIENCE_UNCHECKED, verifyJwt, type SigningKeyRecord } from '@odudu/crypto';
-import { type RealmScopedDatabase } from '@odudu/db';
+import { type TenantScopedDatabase } from '@odudu/db';
 import { tokenGrantRepository } from '#/repository/grants';
 import { refreshTokenRepository } from '#/repository/refresh';
 import { invalidGrant } from '#/service/errors';
@@ -24,7 +24,7 @@ export interface RevocationDeps extends ClientAuthenticationDeps {
 // hold" and "not a token this server signed" — RFC 7009 §2.2 does not
 // distinguish them, so neither does this.
 async function resolveGrantId(
-  tx: RealmScopedDatabase,
+  tx: TenantScopedDatabase,
   deps: RevocationDeps,
   token: string,
 ): Promise<string | undefined> {
@@ -52,7 +52,7 @@ async function resolveGrantId(
 // client, is refused with `invalid_grant`. Every other outcome — unknown,
 // already revoked, freshly revoked — returns normally.
 export async function respondToRevocationRequest(
-  tx: RealmScopedDatabase,
+  tx: TenantScopedDatabase,
   deps: RevocationDeps,
   body: Record<string, string | string[] | undefined>,
   authorizationHeader: string | undefined,

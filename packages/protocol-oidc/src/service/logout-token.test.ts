@@ -12,7 +12,7 @@ async function makeSigningKey(): Promise<SigningKeyRecord> {
   const generated = await generateSigningKey('RS256', KEK);
   return {
     id: 'key-1',
-    realmId: 'realm-1',
+    tenantId: 'tenant-1',
     kid: generated.kid,
     alg: generated.alg,
     status: 'active',
@@ -25,7 +25,7 @@ async function makeSigningKey(): Promise<SigningKeyRecord> {
 
 describe('logoutTokenClaims', () => {
   const claims = logoutTokenClaims({
-    issuer: 'https://op.example/realms/demo',
+    issuer: 'https://op.example/tenants/demo',
     audience: 'rp-one',
     subject: 'subject-1',
     sessionId: 'session-1',
@@ -33,7 +33,7 @@ describe('logoutTokenClaims', () => {
   });
 
   it('[OIDC-BACKCHANNEL-2.4-01] carries iss, the Issuer Identifier', () => {
-    expect(claims.iss).toBe('https://op.example/realms/demo');
+    expect(claims.iss).toBe('https://op.example/tenants/demo');
   });
 
   it('[OIDC-BACKCHANNEL-2.4-02] carries aud', () => {
@@ -52,7 +52,7 @@ describe('logoutTokenClaims', () => {
   it('[OIDC-BACKCHANNEL-2.4-05] carries a jti unique to each token minted', () => {
     expect(claims.jti).toMatch(/^[0-9a-f-]{36}$/u);
     const other = logoutTokenClaims({
-      issuer: 'https://op.example/realms/demo',
+      issuer: 'https://op.example/tenants/demo',
       audience: 'rp-one',
       subject: 'subject-1',
       sessionId: 'session-1',
@@ -81,7 +81,7 @@ describe('signing a logout token', () => {
   it('[OIDC-BACKCHANNEL-2.4-09] carries typ: logout+jwt in the header, not the payload', async () => {
     const key = await makeSigningKey();
     const claims = logoutTokenClaims({
-      issuer: 'https://op.example/realms/demo',
+      issuer: 'https://op.example/tenants/demo',
       audience: 'rp-one',
       subject: 'subject-1',
       sessionId: 'session-1',

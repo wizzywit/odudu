@@ -1,19 +1,19 @@
 import Fastify from 'fastify';
 import { describe, expect, it } from 'vitest';
-import { issuerBaseFor, realmIssuerFor } from '#/view/issuer';
+import { issuerBaseFor, tenantIssuerFor } from '#/view/issuer';
 
 async function probe(
   options: { trustProxy: boolean },
   headers: Record<string, string>,
-): Promise<{ base: string; realmIssuer: string }> {
+): Promise<{ base: string; tenantIssuer: string }> {
   const app = Fastify(options);
   app.get('/probe', (request) => ({
     base: issuerBaseFor(request),
-    realmIssuer: realmIssuerFor(request, 'acme'),
+    tenantIssuer: tenantIssuerFor(request, 'acme'),
   }));
   try {
     const res = await app.inject({ url: '/probe', headers });
-    return res.json<{ base: string; realmIssuer: string }>();
+    return res.json<{ base: string; tenantIssuer: string }>();
   } finally {
     await app.close();
   }
@@ -53,9 +53,9 @@ describe('[ODUDU-ISSUER-01] the issuer names the authority a client actually rea
     expect(base).toBe('http://idp.example:8443');
   });
 
-  it('appends the realm path to the same base', async () => {
-    const { base, realmIssuer } = await probe({ trustProxy: false }, { host: 'idp.example:8443' });
-    expect(realmIssuer).toBe(`${base}/realms/acme`);
+  it('appends the tenant path to the same base', async () => {
+    const { base, tenantIssuer } = await probe({ trustProxy: false }, { host: 'idp.example:8443' });
+    expect(tenantIssuer).toBe(`${base}/tenants/acme`);
   });
 });
 
@@ -83,7 +83,7 @@ describe('[ODUDU-ISSUER-02] the scheme default port never appears in the issuer'
       { host: 'idp.example', 'x-forwarded-proto': 'https' },
     );
     expect(explicit.base).toBe(implicit.base);
-    expect(explicit.realmIssuer).toBe(implicit.realmIssuer);
+    expect(explicit.tenantIssuer).toBe(implicit.tenantIssuer);
   });
 
   it('drops :80 from an http authority', async () => {
@@ -179,8 +179,8 @@ describe('[ODUDU-ISSUER-02] the scheme default port never appears in the issuer'
         (host) => probe({ trustProxy: true }, { host, 'x-forwarded-proto': 'https' }),
       ),
     );
-    expect(new Set(spellings.map((s) => s.realmIssuer))).toEqual(
-      new Set(['https://idp.example/realms/acme']),
+    expect(new Set(spellings.map((s) => s.tenantIssuer))).toEqual(
+      new Set(['https://idp.example/tenants/acme']),
     );
   });
 
@@ -188,8 +188,8 @@ describe('[ODUDU-ISSUER-02] the scheme default port never appears in the issuer'
   // which is the same authority as a bare `localhost` and must spell the
   // same.
   it('names a portless authority when no Host header is sent', async () => {
-    const { base, realmIssuer } = await probe({ trustProxy: false }, {});
+    const { base, tenantIssuer } = await probe({ trustProxy: false }, {});
     expect(base).toBe('http://localhost');
-    expect(realmIssuer).toBe('http://localhost/realms/acme');
+    expect(tenantIssuer).toBe('http://localhost/tenants/acme');
   });
 });

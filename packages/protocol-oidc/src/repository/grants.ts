@@ -1,4 +1,4 @@
-import { type RealmScopedDatabase } from '@odudu/db';
+import { type TenantScopedDatabase } from '@odudu/db';
 import { clients } from '@odudu/domain-tenant';
 import { and, eq } from 'drizzle-orm';
 import { clientOidcConfig } from '#/schema/client-oidc-config';
@@ -25,7 +25,7 @@ export interface ClientLogoutTarget {
 function toRecord(row: typeof tokenGrants.$inferSelect): TokenGrantRecord {
   return {
     id: row.id,
-    realmId: row.realmId,
+    tenantId: row.tenantId,
     clientId: row.clientId,
     subjectId: row.subjectId,
     scope: row.scope,
@@ -43,7 +43,7 @@ export interface NewTokenGrant {
   // introspection or revocation can later name *this* row rather than a
   // sibling that happens to share client, subject and session.
   id: string;
-  realmId: string;
+  tenantId: string;
   clientId: string;
   subjectId: string;
   scope: string;
@@ -51,14 +51,14 @@ export interface NewTokenGrant {
   sessionId?: string | null;
 }
 
-export function tokenGrantRepository(tx: RealmScopedDatabase) {
+export function tokenGrantRepository(tx: TenantScopedDatabase) {
   return {
     async create(input: NewTokenGrant): Promise<TokenGrantRecord> {
       const rows = await tx
         .insert(tokenGrants)
         .values({
           id: input.id,
-          realmId: input.realmId,
+          tenantId: input.tenantId,
           clientId: input.clientId,
           subjectId: input.subjectId,
           scope: input.scope,
@@ -110,7 +110,7 @@ export function tokenGrantRepository(tx: RealmScopedDatabase) {
     // `token_grants.client_id` and `client_oidc_config.client_id` are both
     // the clients table's surrogate id, never the OAuth client_id string,
     // so the join needs no third table. Filtered to `enabled`, the same way
-    // `webOriginsForRealm` (client-oidc-config.ts) is.
+    // `webOriginsForTenant` (client-oidc-config.ts) is.
     async clientsForSession(sessionId: string): Promise<ClientLogoutTarget[]> {
       const rows = await tx
         .selectDistinct({

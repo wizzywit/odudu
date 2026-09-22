@@ -9,8 +9,8 @@ import {
 // refused as malformed and prove nothing about the path under test.
 const AUTH_SESSION_ID = '01a0a998-8326-7900-8fa6-dd06b842b269';
 
-const REALM = {
-  id: 'realm-1',
+const TENANT = {
+  id: 'tenant-1',
   enabled: true,
   verifyEmail: false,
   ssoSessionMaxSeconds: 36_000,
@@ -29,7 +29,7 @@ const SUBMISSION = {
 
 interface Harness {
   deps: RequiredActionSubmissionDeps;
-  findRealm: Mock;
+  findTenant: Mock;
   authenticatedSubject: Mock;
   pendingActions: Mock;
   completeTotpEnrolment: Mock;
@@ -39,7 +39,7 @@ interface Harness {
 }
 
 function harness(): Harness {
-  const findRealm = vi.fn().mockResolvedValue(REALM);
+  const findTenant = vi.fn().mockResolvedValue(TENANT);
   const authenticatedSubject = vi.fn().mockResolvedValue('subject-1');
   const pendingActions = vi.fn().mockResolvedValue(['configure-totp']);
   const completeTotpEnrolment = vi.fn().mockResolvedValue({ kind: 'enrolled' });
@@ -50,7 +50,7 @@ function harness(): Harness {
   const completeUpdatePassword = vi.fn().mockResolvedValue({ kind: 'updated' });
   return {
     deps: {
-      findRealm,
+      findTenant,
       authenticatedSubject,
       pendingActions,
       completeTotpEnrolment,
@@ -58,7 +58,7 @@ function harness(): Harness {
       completeRecoveryCodes,
       completeUpdatePassword,
     },
-    findRealm,
+    findTenant,
     authenticatedSubject,
     pendingActions,
     completeTotpEnrolment,
@@ -118,9 +118,9 @@ describe('handleRequiredActionSubmission — who is allowed to act', () => {
     expect(completeTotpEnrolment).not.toHaveBeenCalled();
   });
 
-  it('refuses a submission against a disabled realm', async () => {
-    const { deps, findRealm } = harness();
-    findRealm.mockResolvedValue({ ...REALM, enabled: false });
+  it('refuses a submission against a disabled tenant', async () => {
+    const { deps, findTenant } = harness();
+    findTenant.mockResolvedValue({ ...TENANT, enabled: false });
 
     expect(await handleRequiredActionSubmission(deps, 'acme', SUBMISSION)).toEqual({
       kind: 'unauthenticated',
@@ -236,7 +236,7 @@ describe('handleRequiredActionSubmission — who is allowed to act', () => {
 
     expect(outcome).toEqual({ kind: 'completed', authSessionId: AUTH_SESSION_ID });
     expect(completeRecoveryCodes).toHaveBeenCalledWith({
-      realmId: 'realm-1',
+      tenantId: 'tenant-1',
       subjectId: 'subject-1',
     });
   });
@@ -268,10 +268,10 @@ describe('handleRequiredActionSubmission — who is allowed to act', () => {
     const { deps, pendingActions } = harness();
     pendingActions.mockResolvedValue(['configure-passkey']);
     const withoutPasskeys: RequiredActionSubmissionDeps = {
-      findRealm: (name) => deps.findRealm(name),
-      authenticatedSubject: (realmId, authSessionId) =>
-        deps.authenticatedSubject(realmId, authSessionId),
-      pendingActions: (realmId, subjectId) => deps.pendingActions(realmId, subjectId),
+      findTenant: (name) => deps.findTenant(name),
+      authenticatedSubject: (tenantId, authSessionId) =>
+        deps.authenticatedSubject(tenantId, authSessionId),
+      pendingActions: (tenantId, subjectId) => deps.pendingActions(tenantId, subjectId),
       completeTotpEnrolment: (input) => deps.completeTotpEnrolment(input),
       completeRecoveryCodes: (input) => deps.completeRecoveryCodes(input),
       completeUpdatePassword: (input) => deps.completeUpdatePassword(input),
@@ -294,7 +294,7 @@ describe('handleRequiredActionSubmission — enrolling the owed factor', () => {
 
     expect(outcome).toEqual({ kind: 'completed', authSessionId: AUTH_SESSION_ID });
     expect(completeTotpEnrolment).toHaveBeenCalledWith({
-      realmId: 'realm-1',
+      tenantId: 'tenant-1',
       subjectId: 'subject-1',
       secret: SUBMISSION.secret,
       code: SUBMISSION.code,
@@ -340,13 +340,13 @@ describe('handleRequiredActionSubmission — changing an owed password', () => {
 
     expect(outcome).toEqual({ kind: 'completed', authSessionId: AUTH_SESSION_ID });
     expect(completeUpdatePassword).toHaveBeenCalledWith({
-      realmId: 'realm-1',
+      tenantId: 'tenant-1',
       subjectId: 'subject-1',
       password: 'correct horse battery staple',
     });
   });
 
-  it('carries every rule the realm policy reported back to the same attempt', async () => {
+  it('carries every rule the tenant policy reported back to the same attempt', async () => {
     const { deps, pendingActions, completeUpdatePassword } = harness();
     pendingActions.mockResolvedValue(['update-password']);
     completeUpdatePassword.mockResolvedValue({
@@ -392,7 +392,7 @@ describe('handleRequiredActionSubmission — changing an owed password', () => {
   });
 
   // A form submitted with the field empty is judged, not special-cased: the
-  // realm's own minimum length is what refuses it, and the page it comes
+  // tenant's own minimum length is what refuses it, and the page it comes
   // back to says so.
   it('judges a missing password field against the policy rather than accepting it', async () => {
     const { deps, pendingActions, completeUpdatePassword } = harness();
@@ -404,7 +404,7 @@ describe('handleRequiredActionSubmission — changing an owed password', () => {
     });
 
     expect(completeUpdatePassword).toHaveBeenCalledWith({
-      realmId: 'realm-1',
+      tenantId: 'tenant-1',
       subjectId: 'subject-1',
       password: '',
     });
@@ -425,7 +425,7 @@ describe('handleRequiredActionSubmission — enrolling a passkey', () => {
 
     expect(outcome).toEqual({ kind: 'completed', authSessionId: AUTH_SESSION_ID });
     expect(completePasskeyEnrolment).toHaveBeenCalledWith({
-      realmId: 'realm-1',
+      tenantId: 'tenant-1',
       subjectId: 'subject-1',
       authSessionId: AUTH_SESSION_ID,
       response: { id: 'abc' },

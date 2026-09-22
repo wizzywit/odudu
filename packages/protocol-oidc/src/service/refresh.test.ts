@@ -6,7 +6,7 @@ import { evaluateRefreshGrant, generateRefreshToken, hashRefreshToken } from '#/
 
 const client: ClientRecord = {
   id: 'client-1',
-  realmId: 'realm-1',
+  tenantId: 'tenant-1',
   clientId: 'web-app',
   name: 'Web app',
   enabled: true,
@@ -20,14 +20,14 @@ const client: ClientRecord = {
 
 const subject: SubjectRecord = {
   id: 'subject-1',
-  realmId: 'realm-1',
+  tenantId: 'tenant-1',
   type: 'user',
   disabledAt: null,
 };
 
 const grant: TokenGrantRecord = {
   id: 'grant-1',
-  realmId: 'realm-1',
+  tenantId: 'tenant-1',
   clientId: client.id,
   subjectId: subject.id,
   scope: 'openid profile',

@@ -1,5 +1,5 @@
 import { type SessionLifespans } from '@odudu/authn-flows';
-import { withRealm, type DatabaseHandle } from '@odudu/db';
+import { withTenant, type DatabaseHandle } from '@odudu/db';
 import { type ClaimMapperRegistry, type Clock } from '@odudu/kernel';
 import { type FastifyInstance } from 'fastify';
 import { corsHeadersForRequest } from '#/service/cors';
@@ -7,17 +7,17 @@ import { type ClaimContext } from '#/service/claims';
 import { type ClientSecretLimiter } from '#/service/client-secret-throttle';
 import { TokenError, TokenRateLimited } from '#/service/errors';
 import { issueTokens, type ClientKeySet, type TokenResponse } from '#/usecase/token-issuance';
-import { realmIssuerFor } from '#/view/issuer';
+import { tenantIssuerFor } from '#/view/issuer';
 
 export interface TokenRouteDeps {
   database: DatabaseHandle;
-  // Shaped like repository/realm-lookup.ts's RealmLookup, not imported from
+  // Shaped like repository/tenant-lookup.ts's TenantLookup, not imported from
   // it: view never reaches into repository (dependency-cruiser's
   // no-view-to-repository rule). The full lifespan pair is read here for
   // the same reason /authorize's own resolveSessions reads it — a
   // session-bound refresh dies exactly when the session it is bound to
   // would, ordinary or remembered alike (refresh-rotation.ts).
-  findRealm(name: string): Promise<
+  findTenant(name: string): Promise<
     | ({
         id: string;
         enabled: boolean;
@@ -31,12 +31,12 @@ export interface TokenRouteDeps {
   // for the same subject and scope come from the same registry, so one can
   // never carry a claim the other omits.
   claimMappers: ClaimMapperRegistry<ClaimContext>;
-  loadClaimContext(realmId: string, subjectId: string): Promise<ClaimContext>;
+  loadClaimContext(tenantId: string, subjectId: string): Promise<ClaimContext>;
   // The real request's CORS decision, unlike the preflight's, is checked
   // against this one client's own expanded origins — resolved to an empty
-  // set for a client_id this realm does not have, so the header is simply
+  // set for a client_id this tenant does not have, so the header is simply
   // withheld rather than turning into an error.
-  resolveClientWebOrigins(realmId: string, oauthClientId: string): Promise<ReadonlySet<string>>;
+  resolveClientWebOrigins(tenantId: string, oauthClientId: string): Promise<ReadonlySet<string>>;
   // ADR 0023's client-authentication budget, per client_id. See
   // token-issuance.ts's TokenIssuanceDeps for what it counts.
   clientSecretLimiter: ClientSecretLimiter;
@@ -58,41 +58,41 @@ function readClientId(body: Record<string, string | string[] | undefined>): stri
 
 export function registerTokenRoute(app: FastifyInstance, deps: TokenRouteDeps): void {
   app.post<{
-    Params: { realm: string };
+    Params: { tenant: string };
     Body: Record<string, string | string[] | undefined>;
-  }>('/realms/:realm/protocol/openid-connect/token', async (request, reply) => {
-    const realm = await deps.findRealm(request.params.realm);
-    if (!realm?.enabled) return reply.code(404).send();
+  }>('/tenants/:tenant/protocol/openid-connect/token', async (request, reply) => {
+    const tenant = await deps.findTenant(request.params.tenant);
+    if (!tenant?.enabled) return reply.code(404).send();
 
     const clientId = readClientId(request.body);
     const allowedOrigins =
       clientId === undefined
         ? new Set<string>()
-        : await deps.resolveClientWebOrigins(realm.id, clientId);
+        : await deps.resolveClientWebOrigins(tenant.id, clientId);
     const corsHeaders = corsHeadersForRequest(request.headers.origin, allowedOrigins);
 
-    const issuer = realmIssuerFor(request, request.params.realm);
+    const issuer = tenantIssuerFor(request, request.params.tenant);
 
     try {
-      const response: TokenResponse = await withRealm(deps.database.db, realm.id, (tx) =>
+      const response: TokenResponse = await withTenant(deps.database.db, tenant.id, (tx) =>
         issueTokens(
           tx,
           {
             database: deps.database,
-            realmId: realm.id,
+            tenantId: tenant.id,
             issuer,
             kek: deps.kek,
             clock: deps.clock,
             lifespans: {
-              ssoSessionIdleSeconds: realm.ssoSessionIdleSeconds,
-              ssoSessionMaxSeconds: realm.ssoSessionMaxSeconds,
-              rememberMeIdleSeconds: realm.rememberMeIdleSeconds,
-              rememberMeMaxSeconds: realm.rememberMeMaxSeconds,
+              ssoSessionIdleSeconds: tenant.ssoSessionIdleSeconds,
+              ssoSessionMaxSeconds: tenant.ssoSessionMaxSeconds,
+              rememberMeIdleSeconds: tenant.rememberMeIdleSeconds,
+              rememberMeMaxSeconds: tenant.rememberMeMaxSeconds,
             },
             verifyPassword: deps.verifyPassword,
             clientSecretLimiter: deps.clientSecretLimiter,
             claimMappers: deps.claimMappers,
-            loadClaimContext: (realmId, subjectId) => deps.loadClaimContext(realmId, subjectId),
+            loadClaimContext: (tenantId, subjectId) => deps.loadClaimContext(tenantId, subjectId),
             clientKeySet: deps.clientKeySet,
             logger: request.log,
             trustProxy: deps.trustProxy,

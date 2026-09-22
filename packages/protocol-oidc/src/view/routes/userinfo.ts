@@ -3,12 +3,12 @@ import { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fa
 import { corsHeadersForRequest } from '#/service/cors';
 import { FORM_MEDIA_TYPE } from '#/service/media-type';
 import { resolveUserinfo, type UserinfoDeps, type UserinfoOutcome } from '#/usecase/userinfo';
-import { realmIssuerFor } from '#/view/issuer';
+import { tenantIssuerFor } from '#/view/issuer';
 import { namesUnsupportedRepresentation } from '#/view/media-type';
 
-const PATH = '/realms/:realm/protocol/openid-connect/userinfo';
+const PATH = '/tenants/:tenant/protocol/openid-connect/userinfo';
 
-const CHALLENGE = 'Bearer realm="userinfo"';
+const CHALLENGE = 'Bearer tenant="userinfo"';
 
 // The client behind the request is known once the access token's
 // signature verifies — `ok`, `insufficient_scope`, `signing_unavailable`,
@@ -20,7 +20,7 @@ const CHALLENGE = 'Bearer realm="userinfo"';
 // origin outside that client's own list would be.
 async function corsHeadersFor(
   deps: UserinfoDeps,
-  request: FastifyRequest<{ Params: { realm: string } }>,
+  request: FastifyRequest<{ Params: { tenant: string } }>,
   outcome: UserinfoOutcome,
 ): Promise<Record<string, string>> {
   const clientId =
@@ -33,23 +33,23 @@ async function corsHeadersFor(
       : undefined;
   if (clientId === undefined) return corsHeadersForRequest(request.headers.origin, new Set());
 
-  const realm = await deps.findRealm(request.params.realm);
+  const tenant = await deps.findTenant(request.params.tenant);
   const allowed =
-    realm === null ? new Set<string>() : await deps.resolveClientWebOrigins(realm.id, clientId);
+    tenant === null ? new Set<string>() : await deps.resolveClientWebOrigins(tenant.id, clientId);
   return corsHeadersForRequest(request.headers.origin, allowed);
 }
 
 async function respondToUserinfoRequest(
   deps: UserinfoDeps,
   clock: Clock,
-  request: FastifyRequest<{ Params: { realm: string } }>,
+  request: FastifyRequest<{ Params: { tenant: string } }>,
   body: unknown,
   reply: FastifyReply,
 ): Promise<FastifyReply> {
-  const issuer = realmIssuerFor(request, request.params.realm);
+  const issuer = tenantIssuerFor(request, request.params.tenant);
   const outcome = await resolveUserinfo(
     deps,
-    request.params.realm,
+    request.params.tenant,
     issuer,
     request.headers.authorization,
     body,
@@ -81,7 +81,7 @@ async function respondToUserinfoRequest(
         .header('www-authenticate', `${CHALLENGE}, error="insufficient_scope"`)
         .send();
     // Not the token's fault, so no `WWW-Authenticate` challenge; no body
-    // either — logged below instead, for whoever operates this realm.
+    // either — logged below instead, for whoever operates this tenant.
     case 'signing_unavailable':
       request.log.warn(
         {
@@ -122,7 +122,7 @@ export function registerUserinfoRoute(app: FastifyInstance, deps: UserinfoRouteD
   // OIDC Core §5.3 requires both methods. A GET has no body to read a token
   // from, so the two differ only in what they hand the resolver; everything
   // after that is one path.
-  app.get<{ Params: { realm: string } }>(PATH, (request, reply) =>
+  app.get<{ Params: { tenant: string } }>(PATH, (request, reply) =>
     respondToUserinfoRequest(deps, clock, request, undefined, reply),
   );
 
@@ -132,7 +132,7 @@ export function registerUserinfoRoute(app: FastifyInstance, deps: UserinfoRouteD
   // `/authorize` applies, through the same media-type test. Unlike
   // `/authorize`, the refusal has no body: this endpoint answers a machine
   // in JSON and reports every other failure in headers alone.
-  app.post<{ Params: { realm: string } }>(
+  app.post<{ Params: { tenant: string } }>(
     PATH,
     {
       onRequest: async (request, reply) => {

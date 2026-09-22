@@ -4,14 +4,14 @@ import { hashPassword, subjectRepository, subjects } from '@odudu/domain-identit
 import {
   createDatabase,
   MIGRATIONS_DIR,
-  realms,
+  tenants,
   runMigrations,
-  withRealm,
+  withTenant,
   type DatabaseHandle,
-  type RealmScopedDatabase,
+  type TenantScopedDatabase,
 } from '@odudu/db';
-import { expectRealmIsolation } from '@odudu/db/testing';
-import { provisionRealm } from '@odudu/authn-flows';
+import { expectTenantIsolation } from '@odudu/db/testing';
+import { provisionTenant } from '@odudu/authn-flows';
 import { clients, provisionClientDefaults } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
@@ -38,8 +38,8 @@ let owner: DatabaseHandle;
 let app: DatabaseHandle;
 let http: FastifyInstance;
 
-let REALM: string;
-let REALM_ID: string;
+let TENANT: string;
+let TENANT_ID: string;
 
 const REDIRECT_URI = 'https://app.example/callback';
 const SECOND_REGISTERED_URI = 'https://app.example/other-callback';
@@ -70,21 +70,21 @@ let subjectId: string;
 // the Basic payload, and the `%` that introduces an escape.
 const ODD_SECRET = 'p:ss%word';
 
-async function setupTokenRealm(): Promise<void> {
-  REALM = `token-adversarial-${newId()}`;
-  REALM_ID = newId();
+async function setupTokenTenant(): Promise<void> {
+  TENANT = `token-adversarial-${newId()}`;
+  TENANT_ID = newId();
 
-  await withRealm(app.db, REALM_ID, async (tx: RealmScopedDatabase) => {
-    await tx.insert(realms).values({ id: REALM_ID, name: REALM });
-    await provisionRealm(tx, REALM_ID);
+  await withTenant(app.db, TENANT_ID, async (tx: TenantScopedDatabase) => {
+    await tx.insert(tenants).values({ id: TENANT_ID, name: TENANT });
+    await provisionTenant(tx, TENANT_ID);
 
-    const subject = await subjectRepository(tx).create({ realmId: REALM_ID, type: 'user' });
+    const subject = await subjectRepository(tx).create({ tenantId: TENANT_ID, type: 'user' });
     subjectId = subject.id;
 
     const webAppDbId = newId();
     await tx.insert(clients).values({
       id: webAppDbId,
-      realmId: REALM_ID,
+      tenantId: TENANT_ID,
       clientId: 'web-app',
       name: 'Web app',
       type: 'confidential',
@@ -93,7 +93,7 @@ async function setupTokenRealm(): Promise<void> {
     await provisionClientDefaults(tx, webAppDbId);
     await clientOidcConfigRepository(tx).create({
       clientId: webAppDbId,
-      realmId: REALM_ID,
+      tenantId: TENANT_ID,
       redirectUris: [REDIRECT_URI, SECOND_REGISTERED_URI],
       grantTypes: ['authorization_code'],
       tokenEndpointAuthMethod: 'client_secret_basic',
@@ -106,7 +106,7 @@ async function setupTokenRealm(): Promise<void> {
     const otherAppDbId = newId();
     await tx.insert(clients).values({
       id: otherAppDbId,
-      realmId: REALM_ID,
+      tenantId: TENANT_ID,
       clientId: 'other-app',
       name: 'Other app',
       type: 'confidential',
@@ -115,7 +115,7 @@ async function setupTokenRealm(): Promise<void> {
     await provisionClientDefaults(tx, otherAppDbId);
     await clientOidcConfigRepository(tx).create({
       clientId: otherAppDbId,
-      realmId: REALM_ID,
+      tenantId: TENANT_ID,
       redirectUris: ['https://other.example/callback'],
       grantTypes: ['authorization_code'],
       tokenEndpointAuthMethod: 'client_secret_basic',
@@ -128,7 +128,7 @@ async function setupTokenRealm(): Promise<void> {
     const spaDbId = newId();
     await tx.insert(clients).values({
       id: spaDbId,
-      realmId: REALM_ID,
+      tenantId: TENANT_ID,
       clientId: 'spa',
       name: 'Public SPA',
       type: 'public',
@@ -137,7 +137,7 @@ async function setupTokenRealm(): Promise<void> {
     await provisionClientDefaults(tx, spaDbId);
     await clientOidcConfigRepository(tx).create({
       clientId: spaDbId,
-      realmId: REALM_ID,
+      tenantId: TENANT_ID,
       redirectUris: [REDIRECT_URI],
       grantTypes: ['authorization_code'],
       tokenEndpointAuthMethod: 'none',
@@ -150,7 +150,7 @@ async function setupTokenRealm(): Promise<void> {
     const postAppDbId = newId();
     await tx.insert(clients).values({
       id: postAppDbId,
-      realmId: REALM_ID,
+      tenantId: TENANT_ID,
       clientId: 'post-app',
       name: 'client_secret_post app',
       type: 'confidential',
@@ -159,7 +159,7 @@ async function setupTokenRealm(): Promise<void> {
     await provisionClientDefaults(tx, postAppDbId);
     await clientOidcConfigRepository(tx).create({
       clientId: postAppDbId,
-      realmId: REALM_ID,
+      tenantId: TENANT_ID,
       redirectUris: [REDIRECT_URI],
       grantTypes: ['authorization_code'],
       tokenEndpointAuthMethod: 'client_secret_post',
@@ -172,7 +172,7 @@ async function setupTokenRealm(): Promise<void> {
     const refreshAppDbId = newId();
     await tx.insert(clients).values({
       id: refreshAppDbId,
-      realmId: REALM_ID,
+      tenantId: TENANT_ID,
       clientId: 'refresh-app',
       name: 'Refresh-capable app',
       type: 'confidential',
@@ -181,7 +181,7 @@ async function setupTokenRealm(): Promise<void> {
     await provisionClientDefaults(tx, refreshAppDbId);
     await clientOidcConfigRepository(tx).create({
       clientId: refreshAppDbId,
-      realmId: REALM_ID,
+      tenantId: TENANT_ID,
       redirectUris: [REDIRECT_URI],
       grantTypes: ['authorization_code', 'refresh_token'],
       tokenEndpointAuthMethod: 'client_secret_basic',
@@ -194,7 +194,7 @@ async function setupTokenRealm(): Promise<void> {
     const oddSecretAppDbId = newId();
     await tx.insert(clients).values({
       id: oddSecretAppDbId,
-      realmId: REALM_ID,
+      tenantId: TENANT_ID,
       clientId: 'odd-secret-app',
       name: 'App with a secret needing escapes',
       type: 'confidential',
@@ -203,7 +203,7 @@ async function setupTokenRealm(): Promise<void> {
     await provisionClientDefaults(tx, oddSecretAppDbId);
     await clientOidcConfigRepository(tx).create({
       clientId: oddSecretAppDbId,
-      realmId: REALM_ID,
+      tenantId: TENANT_ID,
       redirectUris: [REDIRECT_URI],
       grantTypes: ['authorization_code'],
       tokenEndpointAuthMethod: 'client_secret_basic',
@@ -216,7 +216,7 @@ async function setupTokenRealm(): Promise<void> {
     const key = await generateSigningKey('RS256', KEK);
     await tx.insert(signingKeys).values({
       id: newId(),
-      realmId: REALM_ID,
+      tenantId: TENANT_ID,
       kid: key.kid,
       alg: key.alg,
       status: 'active',
@@ -244,10 +244,10 @@ async function issueCode(opts: IssueCodeOptions = {}): Promise<{ code: string; c
   const authTime = new Date(Date.now() + (opts.authTimeOffsetMs ?? 0));
   const expiresAt = new Date(authTime.getTime() + (opts.ttlMs ?? 60_000));
 
-  await withRealm(app.db, REALM_ID, async (tx) => {
+  await withTenant(app.db, TENANT_ID, async (tx) => {
     await authorizationCodeRepository(tx).create({
       codeHash,
-      realmId: REALM_ID,
+      tenantId: TENANT_ID,
       clientId: client.dbId,
       subjectId,
       redirectUri: opts.redirectUri ?? REDIRECT_URI,
@@ -257,7 +257,7 @@ async function issueCode(opts: IssueCodeOptions = {}): Promise<{ code: string; c
       codeChallengeMethod: 'S256',
       authTime,
       expiresAt,
-      // Every client in this realm is registered for `[AUDIENCE]` — what
+      // Every client in this tenant is registered for `[AUDIENCE]` — what
       // /authorize would store on a code's `resource` when a request names
       // none, the same default a code minted directly here (bypassing
       // /authorize) has to carry now that /token derives `aud` from the
@@ -324,14 +324,14 @@ async function redeem(code: string, opts: RedeemOptions = {}): Promise<LightMyRe
 
   return http.inject({
     method: 'POST',
-    url: `/realms/${REALM}/protocol/openid-connect/token`,
+    url: `/tenants/${TENANT}/protocol/openid-connect/token`,
     payload: form.toString(),
     headers,
   });
 }
 
 function tokenUrl(): string {
-  return `/realms/${REALM}/protocol/openid-connect/token`;
+  return `/tenants/${TENANT}/protocol/openid-connect/token`;
 }
 
 function basicHeader(client: Client): Record<string, string> {
@@ -393,7 +393,7 @@ async function refreshWith(refreshToken: string, client: Client): Promise<LightM
 
   return http.inject({
     method: 'POST',
-    url: `/realms/${REALM}/protocol/openid-connect/token`,
+    url: `/tenants/${TENANT}/protocol/openid-connect/token`,
     payload: form.toString(),
     headers,
   });
@@ -443,7 +443,7 @@ beforeAll(async () => {
   appHandle = createDatabase(appUrl, { max: 5 });
   app = appHandle;
 
-  await setupTokenRealm();
+  await setupTokenTenant();
 
   http = Fastify();
   await http.register(formbody);
@@ -803,8 +803,8 @@ describe('atomic code consumption', () => {
     const { codeHash } = await issueCode();
 
     const results = await Promise.allSettled([
-      withRealm(app.db, REALM_ID, async (tx) => consumeAuthorizationCode(tx, codeHash)),
-      withRealm(app.db, REALM_ID, async (tx) => consumeAuthorizationCode(tx, codeHash)),
+      withTenant(app.db, TENANT_ID, async (tx) => consumeAuthorizationCode(tx, codeHash)),
+      withTenant(app.db, TENANT_ID, async (tx) => consumeAuthorizationCode(tx, codeHash)),
     ]);
 
     const consumed = results.filter((r) => r.status === 'fulfilled' && r.value !== null);
@@ -815,7 +815,7 @@ describe('atomic code consumption', () => {
 // Every test below pairs the assertion with the request that differs from
 // it in exactly one way and succeeds. Without that pair a 400 proves only
 // that something was wrong with the request — a mistyped URL answers 404
-// and a stale realm answers 404 just as readily as the rule under test.
+// and a stale tenant answers 404 just as readily as the rule under test.
 describe('[RFC6749-3.2-01] the token endpoint is POST-only', () => {
   it('answers POST at the URL that every other method is refused at', async () => {
     const { code } = await issueCode();
@@ -1122,7 +1122,7 @@ describe('[RFC6749-10.5-02] an authenticable client is authenticated and the cod
 const WELL_KNOWN_SUFFIX = '/.well-known/openid-configuration';
 
 function wellKnownUrl(): string {
-  return `http://localhost/realms/${REALM}${WELL_KNOWN_SUFFIX}`;
+  return `http://localhost/tenants/${TENANT}${WELL_KNOWN_SUFFIX}`;
 }
 
 async function discoveryDocumentOf(): Promise<Record<string, unknown>> {
@@ -1152,7 +1152,7 @@ async function redeemedAccessToken(opts: IssueCodeOptions = {}): Promise<string>
 }
 
 describe('the issuer identifier is one string wherever it appears', () => {
-  it('[OIDC-DISCOVERY-3-02] is byte-identical to the iss of an ID Token from the same realm', async () => {
+  it('[OIDC-DISCOVERY-3-02] is byte-identical to the iss of an ID Token from the same tenant', async () => {
     const issuer = await discoveryIssuer();
     expect(typeof issuer).toBe('string');
     expect(decodePayload(await redeemedIdToken()).iss).toBe(issuer);
@@ -1166,11 +1166,11 @@ describe('the issuer identifier is one string wherever it appears', () => {
 });
 
 async function publishedJwk(kid: string): Promise<JsonWebKey> {
-  const res = await http.inject({ url: `/realms/${REALM}/protocol/openid-connect/certs` });
+  const res = await http.inject({ url: `/tenants/${TENANT}/protocol/openid-connect/certs` });
   expect(res.statusCode).toBe(200);
   const { keys } = res.json<{ keys: (JsonWebKey & { kid?: string })[] }>();
   const jwk = keys.find((candidate) => candidate.kid === kid);
-  if (jwk === undefined) throw new Error(`the realm publishes no key ${kid}`);
+  if (jwk === undefined) throw new Error(`the tenant publishes no key ${kid}`);
   return jwk;
 }
 
@@ -1193,21 +1193,21 @@ async function activeSigningKeyAlg(): Promise<string> {
   const rows = await owner.db
     .select({ alg: signingKeys.alg })
     .from(signingKeys)
-    .where(eq(signingKeys.realmId, REALM_ID));
+    .where(eq(signingKeys.tenantId, TENANT_ID));
   const alg = rows[0]?.alg;
-  if (alg === undefined) throw new Error('the realm holds no signing key');
+  if (alg === undefined) throw new Error('the tenant holds no signing key');
   return alg;
 }
 
 describe('a JWT access token as RFC 9068 §2.1 requires it', () => {
-  it('[RFC9068-2.1-02] carries a signature that verifies under the key the realm publishes', async () => {
+  it('[RFC9068-2.1-02] carries a signature that verifies under the key the tenant publishes', async () => {
     const accessToken = await redeemedAccessToken();
     const kid = decodeHeader(accessToken).kid;
     expect(typeof kid).toBe('string');
     expect(rs256SignatureIsValid(accessToken, await publishedJwk(String(kid)))).toBe(true);
   });
 
-  it('[RFC9068-2.1-03] names the realm key algorithm, which no key may spell none', async () => {
+  it('[RFC9068-2.1-03] names the tenant key algorithm, which no key may spell none', async () => {
     const accessToken = await redeemedAccessToken();
     const alg = await activeSigningKeyAlg();
     expect(decodeHeader(accessToken).alg).toBe(alg);
@@ -1220,10 +1220,10 @@ describe('a JWT access token as RFC 9068 §2.1 requires it', () => {
     // not `active`: signing_keys_one_active refuses any second active key
     // whatever its alg, and an assertion it answers proves nothing about the
     // algorithm at all.
-    const stored = await withRealm(app.db, REALM_ID, (tx) =>
+    const stored = await withTenant(app.db, TENANT_ID, (tx) =>
       tx.insert(signingKeys).values({
         id: newId(),
-        realmId: REALM_ID,
+        tenantId: TENANT_ID,
         kid: `unsigned-${newId()}`,
         alg: 'none',
         status: 'retired',
@@ -1238,10 +1238,10 @@ describe('a JWT access token as RFC 9068 §2.1 requires it', () => {
   });
 
   // "Include RS256 among their supported signature algorithms" is a claim
-  // about both ends at once, so both ends answer it here: the realm mints an
+  // about both ends at once, so both ends answer it here: the tenant mints an
   // RS256 access token, and the resource server this same deployment runs
   // accepts it.
-  it('[RFC9068-2.1-05] is minted under RS256 by this realm and accepted under RS256 by its resource server', async () => {
+  it('[RFC9068-2.1-05] is minted under RS256 by this tenant and accepted under RS256 by its resource server', async () => {
     expect(await activeSigningKeyAlg()).toBe('RS256');
 
     const accessToken = await redeemedAccessToken();
@@ -1260,7 +1260,7 @@ describe('a JWT access token as RFC 9068 §2.1 requires it', () => {
 async function userinfo(token: string): Promise<LightMyRequestResponse> {
   return http.inject({
     method: 'GET',
-    url: `/realms/${REALM}/protocol/openid-connect/userinfo`,
+    url: `/tenants/${TENANT}/protocol/openid-connect/userinfo`,
     headers: { authorization: `Bearer ${token}` },
   });
 }
@@ -1269,8 +1269,8 @@ function base64urlJson(value: Record<string, unknown>): string {
   return Buffer.from(JSON.stringify(value)).toString('base64url');
 }
 
-// The claims an access token of this realm carries, built from the values
-// the realm was seeded with rather than lifted off a genuine token, so a
+// The claims an access token of this tenant carries, built from the values
+// the tenant was seeded with rather than lifted off a genuine token, so a
 // forgery differs from the real thing in its signature and nothing else.
 async function accessTokenClaims(): Promise<Record<string, unknown>> {
   const issuer = String(await discoveryIssuer());
@@ -1287,7 +1287,7 @@ async function accessTokenClaims(): Promise<Record<string, unknown>> {
   };
 }
 
-describe('the userinfo endpoint validates a token against the keys this realm publishes', () => {
+describe('the userinfo endpoint validates a token against the keys this tenant publishes', () => {
   it('[RFC9068-4-06] refuses a token whose header names alg none', async () => {
     const kid = String(decodeHeader(await redeemedAccessToken()).kid);
     const header = base64urlJson({ alg: 'none', kid, typ: 'at+jwt' });
@@ -1305,7 +1305,7 @@ describe('the userinfo endpoint validates a token against the keys this realm pu
     const foreign = await generateSigningKey('RS256', KEK);
     const impersonating: SigningKeyRecord = {
       id: newId(),
-      realmId: REALM_ID,
+      tenantId: TENANT_ID,
       kid: String(decodeHeader(genuine).kid),
       alg: foreign.alg,
       status: 'active',
@@ -1380,13 +1380,13 @@ describe('the claims OIDC Core §2 makes REQUIRED of an ID Token', () => {
     // value comes from, not of one token: `sub` is the subjects row's
     // primary key, so two subjects cannot share one and a retired subject's
     // identifier cannot be handed to a new one.
-    const second = await withRealm(app.db, REALM_ID, (tx) =>
-      subjectRepository(tx).create({ realmId: REALM_ID, type: 'user' }),
+    const second = await withTenant(app.db, TENANT_ID, (tx) =>
+      subjectRepository(tx).create({ tenantId: TENANT_ID, type: 'user' }),
     );
     expect(second.id).not.toBe(subjectId);
 
-    const reassigned = await withRealm(app.db, REALM_ID, (tx) =>
-      tx.insert(subjects).values({ id: subjectId, realmId: REALM_ID, type: 'user' }),
+    const reassigned = await withTenant(app.db, TENANT_ID, (tx) =>
+      tx.insert(subjects).values({ id: subjectId, tenantId: TENANT_ID, type: 'user' }),
     ).then(
       () => true,
       () => false,
@@ -1428,7 +1428,7 @@ describe('the claims OIDC Core §2 makes REQUIRED of an ID Token', () => {
     expect(rs256SignatureIsValid(idToken, await publishedJwk(String(kid)))).toBe(true);
   });
 
-  it('[OIDC-CORE-2-06] names the realm key algorithm in alg, which no key may spell none', async () => {
+  it('[OIDC-CORE-2-06] names the tenant key algorithm in alg, which no key may spell none', async () => {
     const alg = await activeSigningKeyAlg();
     expect(decodeHeader(await redeemedIdToken()).alg).toBe(alg);
     expect(alg).not.toBe('none');
@@ -1439,10 +1439,10 @@ describe('the claims OIDC Core §2 makes REQUIRED of an ID Token', () => {
     // unsigned ID Token would have to be minted from — and the row is offered
     // as `retired` so that signing_keys_one_active, which refuses any second
     // active key whatever its alg, cannot be what turns it away.
-    const stored = await withRealm(app.db, REALM_ID, (tx) =>
+    const stored = await withTenant(app.db, TENANT_ID, (tx) =>
       tx.insert(signingKeys).values({
         id: newId(),
-        realmId: REALM_ID,
+        tenantId: TENANT_ID,
         kid: `unsigned-id-token-${newId()}`,
         alg: 'none',
         status: 'retired',
@@ -1546,7 +1546,7 @@ describe('[OIDC-CORE-3.1.3.4-01] every Token Error Response is JSON, with 400 un
 });
 
 // §15.1 makes RS256 mandatory to implement for every OP. Both halves of
-// "supports": what the realm actually signs an ID Token with, and what the
+// "supports": what the tenant actually signs an ID Token with, and what the
 // discovery document tells a client it can expect.
 describe('[OIDC-CORE-15.1-04] the OP signs ID Tokens with RS256', () => {
   it('mints an ID Token under RS256 verifiable with an RSA key, and advertises RS256', async () => {
@@ -1581,27 +1581,27 @@ describe('what an issued access token is restricted to', () => {
   });
 });
 
-describe('realm isolation', () => {
-  it('isolates token_grants by realm', async () => {
-    await expectRealmIsolation(app.db, {
+describe('tenant isolation', () => {
+  it('isolates token_grants by tenant', async () => {
+    await expectTenantIsolation(app.db, {
       table: 'token_grants',
-      seed: async (tx, realmId) => {
+      seed: async (tx, tenantId) => {
         const clientDbId = newId();
-        await tx.insert(realms).values({ id: realmId, name: `probe-${realmId}` });
-        await provisionRealm(tx, realmId);
+        await tx.insert(tenants).values({ id: tenantId, name: `probe-${tenantId}` });
+        await provisionTenant(tx, tenantId);
         await tx.insert(clients).values({
           id: clientDbId,
-          realmId,
-          clientId: `probe-client-${realmId}`,
+          tenantId,
+          clientId: `probe-client-${tenantId}`,
           name: 'Isolation probe client',
           type: 'confidential',
           secretHash: 'hashed:secret',
         });
         await provisionClientDefaults(tx, clientDbId);
-        const subject = await subjectRepository(tx).create({ realmId, type: 'user' });
+        const subject = await subjectRepository(tx).create({ tenantId, type: 'user' });
         await tx.insert(tokenGrants).values({
           id: newId(),
-          realmId,
+          tenantId,
           clientId: clientDbId,
           subjectId: subject.id,
           scope: 'openid',

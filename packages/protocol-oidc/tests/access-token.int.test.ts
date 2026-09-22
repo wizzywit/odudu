@@ -3,13 +3,13 @@ import { hashPassword, subjectRepository, users } from '@odudu/domain-identity';
 import {
   createDatabase,
   MIGRATIONS_DIR,
-  realms,
+  tenants,
   runMigrations,
-  withRealm,
+  withTenant,
   type DatabaseHandle,
-  type RealmScopedDatabase,
+  type TenantScopedDatabase,
 } from '@odudu/db';
-import { provisionRealm } from '@odudu/authn-flows';
+import { provisionTenant } from '@odudu/authn-flows';
 import { clients, provisionClientDefaults } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
@@ -46,28 +46,28 @@ const CHALLENGE = 'E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM';
 // these assertions instead of moving them.
 const CEILING_SECONDS = 3600;
 
-interface RealmSetup {
-  realmName: string;
-  realmId: string;
+interface TenantSetup {
+  tenantName: string;
+  tenantId: string;
   clientDbId: string;
   subjectId: string;
 }
 
-async function seedRealm(label: string): Promise<RealmSetup> {
-  const realmName = `access-token-${label}-${newId()}`;
-  const realmId = newId();
+async function seedTenant(label: string): Promise<TenantSetup> {
+  const tenantName = `access-token-${label}-${newId()}`;
+  const tenantId = newId();
   const clientDbId = newId();
 
-  const subjectId = await withRealm(app.db, realmId, async (tx: RealmScopedDatabase) => {
-    await tx.insert(realms).values({ id: realmId, name: realmName });
-    await provisionRealm(tx, realmId);
+  const subjectId = await withTenant(app.db, tenantId, async (tx: TenantScopedDatabase) => {
+    await tx.insert(tenants).values({ id: tenantId, name: tenantName });
+    await provisionTenant(tx, tenantId);
 
-    const subject = await subjectRepository(tx).create({ realmId, type: 'user' });
-    await tx.insert(users).values({ subjectId: subject.id, realmId, username: `alice-${label}` });
+    const subject = await subjectRepository(tx).create({ tenantId, type: 'user' });
+    await tx.insert(users).values({ subjectId: subject.id, tenantId, username: `alice-${label}` });
 
     await tx.insert(clients).values({
       id: clientDbId,
-      realmId,
+      tenantId,
       clientId: 'web-app',
       name: 'Web app',
       type: 'confidential',
@@ -78,7 +78,7 @@ async function seedRealm(label: string): Promise<RealmSetup> {
     const key = await generateSigningKey('RS256', KEK);
     await tx.insert(signingKeys).values({
       id: newId(),
-      realmId,
+      tenantId,
       kid: key.kid,
       alg: key.alg,
       status: 'active',
@@ -89,14 +89,14 @@ async function seedRealm(label: string): Promise<RealmSetup> {
     return subject.id;
   });
 
-  return { realmName, realmId, clientDbId, subjectId };
+  return { tenantName, tenantId, clientDbId, subjectId };
 }
 
-async function provision(realm: RealmSetup, accessTokenTtlSeconds: number): Promise<void> {
-  await withRealm(app.db, realm.realmId, async (tx) => {
+async function provision(tenant: TenantSetup, accessTokenTtlSeconds: number): Promise<void> {
+  await withTenant(app.db, tenant.tenantId, async (tx) => {
     await clientOidcConfigRepository(tx).create({
-      clientId: realm.clientDbId,
-      realmId: realm.realmId,
+      clientId: tenant.clientDbId,
+      tenantId: tenant.tenantId,
       redirectUris: [REDIRECT_URI],
       grantTypes: ['authorization_code'],
       tokenEndpointAuthMethod: 'client_secret_basic',
@@ -110,9 +110,9 @@ async function provision(realm: RealmSetup, accessTokenTtlSeconds: number): Prom
 // Every way a client can be brought into existence with a given TTL, so the
 // assertions below are about what the server will hold rather than about the
 // one writer this suite happens to call.
-async function provisioningError(realm: RealmSetup, ttl: number): Promise<string> {
+async function provisioningError(tenant: TenantSetup, ttl: number): Promise<string> {
   try {
-    await provision(realm, ttl);
+    await provision(tenant, ttl);
   } catch (caught) {
     const cause = caught instanceof Error ? caught.cause : null;
     return cause instanceof Error ? cause.message : String(caught);
@@ -127,15 +127,15 @@ interface IssuedToken {
 
 // Issues an authorization code directly (bypassing /authorize's login UI, as
 // the other suites here do) and redeems it through the real /token endpoint.
-async function issueAccessToken(realm: RealmSetup): Promise<IssuedToken> {
+async function issueAccessToken(tenant: TenantSetup): Promise<IssuedToken> {
   const code = generateAuthorizationCode();
 
-  await withRealm(app.db, realm.realmId, async (tx) => {
+  await withTenant(app.db, tenant.tenantId, async (tx) => {
     await authorizationCodeRepository(tx).create({
       codeHash: hashAuthorizationCode(code),
-      realmId: realm.realmId,
-      clientId: realm.clientDbId,
-      subjectId: realm.subjectId,
+      tenantId: tenant.tenantId,
+      clientId: tenant.clientDbId,
+      subjectId: tenant.subjectId,
       redirectUri: REDIRECT_URI,
       scope: 'openid',
       nonce: null,
@@ -156,7 +156,7 @@ async function issueAccessToken(realm: RealmSetup): Promise<IssuedToken> {
 
   const res = await http.inject({
     method: 'POST',
-    url: `/realms/${realm.realmName}/protocol/openid-connect/token`,
+    url: `/tenants/${tenant.tenantName}/protocol/openid-connect/token`,
     payload: form.toString(),
     headers: {
       'content-type': 'application/x-www-form-urlencoded',
@@ -182,7 +182,7 @@ function numericClaim(payload: Record<string, unknown>, name: string): number {
   return value;
 }
 
-let longestLived: RealmSetup;
+let longestLived: TenantSetup;
 
 beforeAll(async () => {
   containerHandle = await startTestDatabase();
@@ -210,7 +210,7 @@ beforeAll(async () => {
   await http.ready();
   httpApp = http;
 
-  longestLived = await seedRealm('ceiling');
+  longestLived = await seedTenant('ceiling');
   await provision(longestLived, CEILING_SECONDS);
 }, 120_000);
 
@@ -231,17 +231,17 @@ afterAll(async () => {
 // that does exist expires in an hour.
 describe('[RFC6750-5.2-02] the lifetime of an access token is bounded by the server', () => {
   it('will not hold a client whose access token TTL exceeds one hour', async () => {
-    const realm = await seedRealm('over-ceiling');
-    const message = await provisioningError(realm, CEILING_SECONDS + 1);
+    const tenant = await seedTenant('over-ceiling');
+    const message = await provisioningError(tenant, CEILING_SECONDS + 1);
     expect(message).toContain('client_oidc_config_access_token_ttl_ceiling');
   });
 
   it('will not hold a client whose access tokens expire on issue or before it', async () => {
-    const realm = await seedRealm('zero-ttl');
-    expect(await provisioningError(realm, 0)).toContain(
+    const tenant = await seedTenant('zero-ttl');
+    expect(await provisioningError(tenant, 0)).toContain(
       'client_oidc_config_access_token_ttl_ceiling',
     );
-    expect(await provisioningError(realm, -1)).toContain(
+    expect(await provisioningError(tenant, -1)).toContain(
       'client_oidc_config_access_token_ttl_ceiling',
     );
   });

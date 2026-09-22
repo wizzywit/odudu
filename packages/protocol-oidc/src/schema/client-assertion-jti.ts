@@ -8,12 +8,12 @@ import { pgTable, primaryKey, text, timestamp, uuid } from 'drizzle-orm/pg-core'
 export const clientAssertionJti = pgTable(
   'client_assertion_jti',
   {
-    realmId: uuid('tenant_id')
+    tenantId: uuid('tenant_id')
       .notNull()
       .references(() => tenants.id, { onDelete: 'cascade' }),
     oauthClientId: text('oauth_client_id').notNull(),
     jti: text('jti').notNull(),
     expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
   },
-  (table) => [primaryKey({ columns: [table.realmId, table.oauthClientId, table.jti] })],
+  (table) => [primaryKey({ columns: [table.tenantId, table.oauthClientId, table.jti] })],
 ).enableRLS();
