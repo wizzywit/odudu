@@ -138,10 +138,10 @@ about the _first_ journey — its coverage was attributed to a test that
 drives the second, and a mutation at door one left every test in the file
 green.
 
-## "Disabled" treated as "absent" — three instances, two deliverables
+## "Disabled" treated as "absent" — four instances, three deliverables
 
-Each was a security hole, and the third was found only because the second
-prompted a grep.
+Each was a security hole, the third was found only because the second
+prompted a grep, and the fourth was found the same way, one review later.
 
 - A **disabled client authenticated by `private_key_jwt`** and received
   tokens. `authenticatePrivateKeyJwt` never consulted `client.enabled`; the
@@ -154,6 +154,14 @@ prompted a grep.
 - A **disabled client kept its `fullScopeAllowed` bypass at `/userinfo`**,
   so tokens it issued before being disabled still reached the unmapped role
   set.
+- A **disabled client stayed a logout target.** `clientsForSession`
+  (`repository/grants.ts`) joined `clients` with no `enabled` filter, so a
+  disabled client still had its `frontchannel_logout_uri` framed and still
+  received a signed Logout Token on its `backchannel_logout_uri`. Found at
+  the whole-branch review, against the same sibling this family always
+  reads: `webOriginsForRealm`, ten lines below in a different file. The
+  pre-existing `postLogoutRedirectUris` lookup (P3a) had the identical gap,
+  closed in the same change.
 
 The third is the instructive one: **the principle was already written down
 ten lines below the gap.** `resolveClientWebOrigins` carries "a disabled

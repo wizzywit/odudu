@@ -44,6 +44,7 @@ interface RpClientSpec {
   hostname: string;
   frontchannelLogoutUri: string | null;
   frontchannelLogoutSessionRequired: boolean;
+  enabled?: boolean;
 }
 
 const RP_ONE: RpClientSpec = {
@@ -78,6 +79,12 @@ const RP_MALFORMED: RpClientSpec = {
   hostname: 'rp-malformed.example',
   frontchannelLogoutUri: 'not a url at all',
   frontchannelLogoutSessionRequired: false,
+};
+const RP_DISABLED: RpClientSpec = {
+  hostname: 'rp-disabled.example',
+  frontchannelLogoutUri: 'https://rp-disabled.example/logout',
+  frontchannelLogoutSessionRequired: false,
+  enabled: false,
 };
 
 const signingKeyOf = new Map<string, SigningKeyRecord>();
@@ -128,6 +135,7 @@ async function setupRealm(
         name: spec.hostname,
         type: 'confidential',
         secretHash: await hashPassword('unused-secret'),
+        enabled: spec.enabled ?? true,
       });
       await provisionClientDefaults(tx, rpClientDbId);
       await clientOidcConfigRepository(tx).create({
@@ -459,5 +467,28 @@ describe('the logout page frames each relying party that used the session', () =
     expect(res.statusCode).toBe(200);
     expect(res.body).toContain('<iframe src="https://rp-one.example/logout?');
     expect(res.body).not.toContain('rp-malformed.example');
+  });
+
+  it('does not frame a disabled client, even one that registered a front-channel logout URI', async () => {
+    const realmName = `frontchannel-disabled-${newId()}`;
+    const { realmId, subjectId, rpClientIds } = await setupRealm(realmName, [RP_ONE, RP_DISABLED]);
+    const cookie = await signIn(realmName);
+    const sessionId = sessionIdFromCookie(cookie);
+
+    const rpOneId = rpClientIds.get(RP_ONE.hostname);
+    const rpDisabledId = rpClientIds.get(RP_DISABLED.hostname);
+    if (rpOneId === undefined || rpDisabledId === undefined) {
+      throw new Error('expected both RP clients to have been provisioned');
+    }
+    await grantUnderSession(realmId, rpOneId, subjectId, sessionId);
+    await grantUnderSession(realmId, rpDisabledId, subjectId, sessionId);
+
+    const hint = await mintIdToken(realmName, subjectId, sessionId);
+    const res = await http.inject({ url: logoutUrl(realmName, hint), headers: { cookie } });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toContain('<iframe src="https://rp-one.example/logout?');
+    expect(res.body).not.toContain('rp-disabled.example');
+    expect(String(res.headers['content-security-policy'])).not.toContain('rp-disabled.example');
   });
 });

@@ -692,13 +692,14 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
       listPublishableKeys,
       now: () => clock.now(),
       // Resolved from the OAuth client_id to that client's own registered
-      // list — an unknown or unspecified client yields none, refusing any
-      // redirect rather than resolving one with no client to trust it
-      // against (RP-Initiated Logout 1.0 §3).
+      // list — an unknown, disabled or unspecified client yields none,
+      // refusing any redirect rather than resolving one with no client (or
+      // no longer-trusted client) to trust it against (RP-Initiated Logout
+      // 1.0 §3).
       postLogoutRedirectUris: (realmId, oauthClientId) =>
         withRealm(deps.database.db, realmId, async (tx) => {
           const client = await clientRepository(tx).byClientId(oauthClientId);
-          if (client === null) return [];
+          if (!client?.enabled) return [];
           return clientOidcConfigRepository(tx).postLogoutRedirectUris(client.id);
         }),
       resolveSessions,

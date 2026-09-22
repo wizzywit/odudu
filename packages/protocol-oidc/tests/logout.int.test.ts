@@ -925,3 +925,59 @@ describe('[ODUDU-LOGOUT-NOSESSION-REDIRECT-01] a matched redirect is honoured ev
     expect(res.body).toContain('<title>Already signed out</title>');
   });
 });
+
+describe('a disabled client is not a logout target', () => {
+  it("does not honour a disabled client's registered post_logout_redirect_uri", async () => {
+    const realmName = `logout-disabled-redirect-${newId()}`;
+    const { realmId } = await setupRealm(realmName);
+    const cookie = await signIn(realmName);
+    const sessionId = sessionIdFromCookie(cookie);
+
+    const disabledClientId = 'logout-disabled-client';
+    const disabledRedirect = 'https://disabled.example/after-logout';
+    await withRealm(app.db, realmId, async (tx: RealmScopedDatabase) => {
+      const dbId = newId();
+      await tx.insert(clients).values({
+        id: dbId,
+        realmId,
+        clientId: disabledClientId,
+        name: 'Disabled logout client',
+        type: 'confidential',
+        secretHash: await hashPassword('unused-secret'),
+        enabled: false,
+      });
+      await provisionClientDefaults(tx, dbId);
+      await clientOidcConfigRepository(tx).create({
+        clientId: dbId,
+        realmId,
+        redirectUris: ['https://disabled.example/callback'],
+        grantTypes: ['authorization_code'],
+        tokenEndpointAuthMethod: 'client_secret_basic',
+        audiences: [],
+        accessTokenTtlSeconds: 300,
+        refreshTokenTtlSeconds: 1_209_600,
+        postLogoutRedirectUris: [disabledRedirect],
+      });
+    });
+
+    // The confirmation form's own POST, which needs no id_token_hint —
+    // decideLogout only asks the redirect rule of a confirmed session, and
+    // that rule is exactly what reads the disabled client's own list.
+    const res = await http.inject({
+      method: 'POST',
+      url: `/realms/${realmName}/protocol/openid-connect/logout`,
+      payload: new URLSearchParams({
+        session_id: sessionId,
+        client_id: disabledClientId,
+        post_logout_redirect_uri: disabledRedirect,
+      }).toString(),
+      headers: { 'content-type': 'application/x-www-form-urlencoded', cookie },
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.body).toContain('the address given to return to afterward');
+
+    const row = await sessionRowFor(sessionId);
+    expect(row?.expiresAt.getTime()).toBeLessThanOrEqual(Date.now());
+  });
+});
