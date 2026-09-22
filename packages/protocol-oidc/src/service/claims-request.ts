@@ -1,9 +1,9 @@
 import { z } from 'zod';
 
-// A GET /authorize query parameter, so this is a browser-URL-length budget
-// rather than a body-size one — comfortably above any legitimate §5.5
-// document, far below the 200,000-key request the size check exists to
-// refuse before it ever reaches JSON.parse.
+// Chosen, not specified: comfortably above any legitimate §5.5 document and
+// far below the sort of input the size check exists to refuse before it
+// reaches JSON.parse. `/authorize` takes this parameter by GET or POST, so
+// no transport ceiling bounds it for us.
 export const MAX_CLAIMS_PARAMETER_BYTES = 8192;
 
 export interface ClaimRequestEntry {
