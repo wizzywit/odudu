@@ -61,28 +61,42 @@ const RECORDS: readonly string[] = [
   'packages/authn-flows/tests/migrate-backfill.int.test.ts',
 ];
 
+// A directory entry ends in a slash; anything else is the file itself, so a
+// neighbour whose name merely starts the same way is not one of these.
+function isOrIsUnder(file: string, record: string): boolean {
+  return record.endsWith('/') ? file.startsWith(record) : file === record;
+}
+
 // A migration's filename is frozen once `meta/_journal.json` records its
-// stem, so every citation of one spells it as the file is named — with the
-// numeric prefix or, in prose, without it.
-function migrationNames(): RegExp {
+// stem, so a citation spells it as the file is named: numbered, with or
+// without the extension the journal's tag drops. The stem alone is also the
+// table the migration created, so it is allowed only inside backticks,
+// where a document is naming the file rather than the identifier.
+function migrationNames(): RegExp[] {
   const stems = readdirSync(path.join(REPO_ROOT, 'packages/db/drizzle'))
     .filter((name) => name.endsWith('.sql') && name.toLowerCase().includes(WORD))
     .map((name) => name.replace(/\.sql$/u, ''));
   if (stems.length === 0) throw new Error('no migration filename carries the old name any more');
-  return new RegExp(
-    stems
-      .flatMap((stem) => [stem, stem.replace(/^\d+_/u, '')])
-      .sort((a, b) => b.length - a.length)
-      .join('|'),
-    'giu',
-  );
+  const byLength = (a: string, b: string): number => b.length - a.length;
+  return [
+    new RegExp(`(?:${[...stems].sort(byLength).join('|')})(?:\\.sql)?`, 'giu'),
+    new RegExp(
+      '`(?:' +
+        stems
+          .map((stem) => stem.replace(/^\d+_/u, ''))
+          .sort(byLength)
+          .join('|') +
+        ')`',
+      'giu',
+    ),
+  ];
 }
 
 // Each pattern is one occurrence that is allowed to stand. They are cut out
 // of the line, and the question is asked again of what is left, so a
 // legitimate token never vouches for the rest of the line it sits on.
 const ALLOWED_OCCURRENCES: readonly RegExp[] = [
-  migrationNames(),
+  ...migrationNames(),
   // RFC 7235 §4.1's auth-param, which names an HTTP protection space and
   // not a tenant. The lookbehind keeps `data-`-style prefixes out.
   new RegExp(`(?<![\\w-])${WORD}="`, 'giu'),
@@ -91,7 +105,7 @@ const ALLOWED_OCCURRENCES: readonly RegExp[] = [
   new RegExp('`' + WORD + '`', 'giu'),
   // Keycloak's role claim, named where a document says what Odudu emits
   // instead.
-  new RegExp(`${WORD}_access`, 'giu'),
+  new RegExp(`(?<!\\w)${WORD}_access\\b`, 'giu'),
   // The one line each ADR written before the rename carries.
   new RegExp(
     `\\*\\*Renamed 2026-09-22:\\*\\* written when a tenant was called a ${WORD}; ` +
@@ -158,7 +172,7 @@ describe('the rename left nothing of the old name behind', () => {
   it('finds the word only where it is deliberate', () => {
     const found = grepForTheOldName()
       .map(parse)
-      .filter((hit) => !RECORDS.some((record) => hit.file.startsWith(record)))
+      .filter((hit) => !RECORDS.some((record) => isOrIsUnder(hit.file, record)))
       .filter((hit) => !comparesWithKeycloak(hit))
       .filter((hit) => survivesTheAllowedOccurrences(hit.text))
       .map((hit) => `${hit.file}:${String(hit.line)}:${hit.text}`);
