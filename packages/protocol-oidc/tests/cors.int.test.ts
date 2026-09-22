@@ -83,7 +83,10 @@ function tokenRequestFor(clientId: string): string {
 // has, and a token with no such row is exactly what that check exists to
 // refuse. `sessionId: null` here is the same shape a `client_credentials`
 // token's grant has — no End-User, so no session to carry.
-async function mintAccessToken(clientId: string, clientDbId: string): Promise<string> {
+async function mintAccessToken(
+  clientId: string,
+  clientDbId: string,
+): Promise<{ token: string; grantId: string }> {
   const key = await withRealm(app.db, REALM_ID, (tx) => signingKeyRepository(tx).active());
   const issuer = `http://localhost/realms/${REALM}`;
   const now = Math.floor(Date.now() / 1000);
@@ -101,7 +104,7 @@ async function mintAccessToken(clientId: string, clientDbId: string): Promise<st
     });
     return subject.id;
   });
-  return signJwt(
+  const token = await signJwt(
     {
       iss: issuer,
       sub: subjectId,
@@ -115,6 +118,7 @@ async function mintAccessToken(clientId: string, clientDbId: string): Promise<st
     },
     { key, kek: KEK, typ: 'at+jwt' },
   );
+  return { token, grantId };
 }
 
 beforeAll(async () => {
@@ -214,7 +218,7 @@ describe('preflight is answered from the realm, the request from the client', ()
   it("echoes the origin back on the real /userinfo request when it is the resolved client's own", async () => {
     const clientD = `app-d-${newId()}`;
     const clientDbId = await seedClient({ clientId: clientD, webOrigins: ['https://d.example'] });
-    const accessToken = await mintAccessToken(clientD, clientDbId);
+    const { token: accessToken } = await mintAccessToken(clientD, clientDbId);
 
     const own = await http.inject({
       method: 'GET',
@@ -233,6 +237,27 @@ describe('preflight is answered from the realm, the request from the client', ()
     expect(foreign.statusCode).toBe(200);
     expect(foreign.headers['access-control-allow-origin']).toBeUndefined();
     expect(foreign.headers.vary).toBe('Origin');
+  });
+
+  // N1: a revoked grant's invalid_token refusal is still reached with a
+  // verified client_id, so a single-page app whose user has just logged out
+  // gets a readable 401 in the browser rather than an opaque CORS failure —
+  // the origin is echoed exactly as it is on a 200.
+  it("still echoes the origin on a revoked grant's 401 invalid_token refusal", async () => {
+    const clientE = `app-e-${newId()}`;
+    const clientDbId = await seedClient({ clientId: clientE, webOrigins: ['https://e.example'] });
+    const { token: accessToken, grantId } = await mintAccessToken(clientE, clientDbId);
+    await withRealm(app.db, REALM_ID, (tx) => tokenGrantRepository(tx).revoke(grantId, new Date()));
+
+    const res = await http.inject({
+      method: 'GET',
+      url: `/realms/${REALM}/protocol/openid-connect/userinfo`,
+      headers: { origin: 'https://e.example', authorization: `Bearer ${accessToken}` },
+    });
+    expect(res.statusCode).toBe(401);
+    expect(res.headers['www-authenticate']).toMatch(/error="invalid_token"/);
+    expect(res.headers['access-control-allow-origin']).toBe('https://e.example');
+    expect(res.headers.vary).toBe('Origin');
   });
 
   it('excludes a disabled client from the preflight union', async () => {

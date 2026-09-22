@@ -99,7 +99,12 @@ export type UserinfoOutcome =
   // The token arrived by more than one method, or twice by one. RFC 6750
   // §3.1 gives this `invalid_request`, and §3.1's HTTP 400.
   | { kind: 'invalid_request' }
-  | { kind: 'invalid_token' }
+  // `clientId` is `undefined` only for the one refusal reached before the
+  // signature verifies (nothing in the payload is trustworthy yet); every
+  // other invalid_token — a missing `sub`, a missing or unknown `grant_id`,
+  // a revoked grant, a dead session — is reached with a verified, readable
+  // `client_id` claim, and carries it so CORS can still answer.
+  | { kind: 'invalid_token'; clientId: string | undefined }
   // clientId is set here and on `ok` because both are reached only once the
   // token verifies — it names the client CORS checks the response's origin
   // against; every earlier outcome never got that far.
@@ -167,7 +172,7 @@ export async function resolveUserinfo(
   try {
     payload = await verifyJwt(token, { keys, issuer, audience: issuer, typ: 'at+jwt' });
   } catch {
-    return { kind: 'invalid_token' };
+    return { kind: 'invalid_token', clientId: undefined };
   }
 
   const clientId = typeof payload.client_id === 'string' ? payload.client_id : undefined;
@@ -176,15 +181,17 @@ export async function resolveUserinfo(
   if (!scope.includes('openid')) return { kind: 'insufficient_scope', clientId };
 
   if (typeof payload.sub !== 'string' || payload.sub.length === 0) {
-    return { kind: 'invalid_token' };
+    return { kind: 'invalid_token', clientId };
   }
 
   // A token minted before `grant_id` existed carries none — fail closed
   // rather than skip the check, mirroring `/introspect`.
   const grantId = payload.grant_id;
-  if (typeof grantId !== 'string' || grantId.length === 0) return { kind: 'invalid_token' };
+  if (typeof grantId !== 'string' || grantId.length === 0) {
+    return { kind: 'invalid_token', clientId };
+  }
   const grant = await deps.loadGrant(realm.id, grantId);
-  if (grant?.revokedAt !== null) return { kind: 'invalid_token' };
+  if (grant?.revokedAt !== null) return { kind: 'invalid_token', clientId };
 
   // Session liveness is what makes revocation real inside an access
   // token's hour (design spec §8.2) — the same check `/introspect` and
@@ -200,7 +207,7 @@ export async function resolveUserinfo(
       rememberMeMaxSeconds: realm.rememberMeMaxSeconds,
     };
     const live = await deps.isSessionLive(realm.id, sessionId, lifespans, now);
-    if (!live) return { kind: 'invalid_token' };
+    if (!live) return { kind: 'invalid_token', clientId };
   }
 
   const ctx = await deps.loadClaimContext(realm.id, payload.sub);

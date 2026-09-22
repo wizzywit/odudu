@@ -10,10 +10,13 @@ const PATH = '/realms/:realm/protocol/openid-connect/userinfo';
 
 const CHALLENGE = 'Bearer realm="userinfo"';
 
-// The client behind the request is known only once the access token
-// verifies (`ok`, `insufficient_scope`); every earlier outcome — no
-// realm, no credentials, an unparseable or invalid token — has no client
-// to check the origin against, so the header is withheld the same way an
+// The client behind the request is known once the access token's
+// signature verifies — `ok`, `insufficient_scope`, `signing_unavailable`,
+// `encryption_unavailable`, and now `invalid_token` too, whenever the
+// refusal comes from something the payload said (a missing `sub`, an
+// unknown `grant_id`, a revoked grant, a dead session) rather than from
+// the signature itself. Every outcome before that point has no client to
+// check the origin against, so the header is withheld the same way an
 // origin outside that client's own list would be.
 async function corsHeadersFor(
   deps: UserinfoDeps,
@@ -24,7 +27,8 @@ async function corsHeadersFor(
     outcome.kind === 'ok' ||
     outcome.kind === 'insufficient_scope' ||
     outcome.kind === 'signing_unavailable' ||
-    outcome.kind === 'encryption_unavailable'
+    outcome.kind === 'encryption_unavailable' ||
+    outcome.kind === 'invalid_token'
       ? outcome.clientId
       : undefined;
   if (clientId === undefined) return corsHeadersForRequest(request.headers.origin, new Set());
