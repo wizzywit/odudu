@@ -96,23 +96,21 @@ describe('the recovery-code backfill, run by a schema owner that is not a superu
     const tenantId = newId();
 
     await runMigrations(owned.db, await migrationsThrough(BEFORE_THE_BACKFILL));
-    await withTenant(owned.db, tenantId, async (tx) => {
-      // Raw, and named down to the two columns this schema is old enough to
-      // have: `tenants`' typed view describes the head of the migration set,
-      // so `tx.insert(tenants)` names every column a later migration adds
-      // and cannot write to the partially-migrated database this suite is
-      // about.
+    // This phase predates 0057_rename_realm_to_tenant.sql: the live policy
+    // still filters on app.realm_id and the columns are still realm_id, so
+    // it sets the historical GUC itself rather than through withTenant,
+    // which only knows today's app.tenant_id, and writes raw SQL rather
+    // than through the current, already-renamed typed schema.
+    await owned.db.transaction(async (tx) => {
+      await tx.execute(sql`select set_config('app.realm_id', ${tenantId}, true)`);
       await tx.execute(
         sql`insert into realms (id, name) values (${tenantId}, ${`tenant-${tenantId}`})`,
       );
       for (const [index, authenticator] of ['passkey', 'password', 'otp'].entries()) {
-        await tx.insert(authenticationExecutions).values({
-          id: newId(),
-          tenantId,
-          index,
-          authenticator,
-          requirement: authenticator === 'otp' ? 'conditional' : 'alternative',
-        });
+        await tx.execute(
+          sql`insert into authentication_executions (id, realm_id, index, authenticator, requirement)
+              values (${newId()}, ${tenantId}, ${index}, ${authenticator}, ${authenticator === 'otp' ? 'conditional' : 'alternative'})`,
+        );
       }
     });
 
