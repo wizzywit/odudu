@@ -119,6 +119,22 @@ describe('selectEncryptionKey', () => {
     expect(selectEncryptionKey(jwks, 'RSA-OAEP-256')?.kid).toBe('enc-2');
   });
 
+  it('excludes a candidate whose key_ops rules out encryption', async () => {
+    const { publicJwk } = await rsaOaep256Pair();
+    const jwks = {
+      keys: [{ ...publicJwk, kid: 'enc-1', use: 'enc', key_ops: ['sign', 'verify'] }],
+    };
+    expect(selectEncryptionKey(jwks, 'RSA-OAEP-256')).toBeNull();
+  });
+
+  it('admits a candidate whose key_ops names an encryption-shaped op', async () => {
+    const { publicJwk } = await rsaOaep256Pair();
+    const jwks = {
+      keys: [{ ...publicJwk, kid: 'enc-1', use: 'enc', key_ops: ['encrypt'] }],
+    };
+    expect(selectEncryptionKey(jwks, 'RSA-OAEP-256')?.kid).toBe('enc-1');
+  });
+
   it('excludes an OKP key on the wrong curve from an ECDH-ES selection', async () => {
     const { publicKey: ed25519Key } = await generateKeyPair('EdDSA', {
       crv: 'Ed25519',
