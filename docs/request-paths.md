@@ -724,6 +724,8 @@ curl -sS http://localhost:3000/realms/demo/.well-known/openid-configuration
     "none",
     "private_key_jwt"
   ],
+  "introspection_endpoint_auth_methods_supported": ["client_secret_basic", "client_secret_post"],
+  "revocation_endpoint_auth_methods_supported": ["client_secret_basic", "client_secret_post"],
   "authorization_response_iss_parameter_supported": true,
   "claims_parameter_supported": true,
   "backchannel_logout_supported": true,
