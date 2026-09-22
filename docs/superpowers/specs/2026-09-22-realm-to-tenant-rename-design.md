@@ -153,9 +153,11 @@ suites, not writing them.
 **6.2 Domain packages.** `domain-realm` (renamed to `domain-tenant`),
 `domain-identity`, `account`, `authn-flows`.
 
-**6.3 Protocol packages and the wire.** `protocol-oidc`, `contracts`, its
-fourteen route registrations, the six page embeddings of a path — five form
-actions and one `fetch` URL — and `realmIssuer`. This is the increment where `iss` changes. The integration suites
+**6.3 Protocol packages and the wire.** `protocol-oidc`, `contracts`, the
+fourteen distinct paths its routes register — seventeen handlers, because
+`/userinfo`, `/authorize` and `/logout` each take two methods — the six page
+embeddings of a path, five form actions and one `fetch` URL, and
+`realmIssuer`. This is the increment where `iss` changes. The integration suites
 are the detector for a missed string literal, because a broken form action is
 invisible to the type checker.
 
@@ -193,6 +195,10 @@ and permanent, so the test is built in two parts:
   §5.5, both emitted and named; `realm_access`; a migration's filename,
   numbered or in backticks; and the single dated line each pre-rename ADR
   carries.
+- **A prose unit naming Keycloak**, in Markdown under `docs/` only. This is
+  the one exemption that clears a line rather than a token, because the
+  sentence naming the other product is rarely the sentence carrying the
+  word. It is what admits §5.5's comparative passages.
 
 A rename that is 99% done is a repository that says two things, which is
 worse than either name alone.
