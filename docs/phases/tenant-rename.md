@@ -1,4 +1,4 @@
-# P4a — renaming the tenant concept
+# Renaming the tenant concept
 
 What this work found, and specifically what turned out to be **wrong**. In
 the shape the earlier notes established: this file is the running record the
@@ -6,11 +6,26 @@ specs and the umbrella spec's close note do not keep. What shipped is a
 rename; what it means for anyone deploying or consuming the server is in
 [docs/NEXT.md](../NEXT.md).
 
+This is not a phase of the roadmap. It delivers no exit criterion in section
+11 of [the umbrella spec](../superpowers/specs/2026-09-10-odudu-design.md);
+it is a cross-cutting rename that happened between phases, kept here because
+this directory is where a running record belongs.
+
 The concept a tenant is was previously called a `realm`, Keycloak's word for
 it. Nothing about the model, the schema's shape or the protocol surface
 changed. The design spec for the change is the one document in this
 repository still written in the old vocabulary throughout, because it names
 what is being renamed from; `tests/lint/` allows it that, by whole file.
+
+**That check constrains this note, and the constraint is worth knowing
+before you wonder about its prose.** No committed file may spell the old
+stem except in the forms the test allows — chiefly a numbered migration
+filename. So this note names current identifiers where it discusses old
+ones, calls the old word "the word it replaced", and **cannot link the
+rename design spec at all**, because that document's own filename carries
+the stem and a link is file content like any other. The same is why this
+file is not named after the rename in the obvious way: a filename nothing
+may cite is a document nothing may reach.
 
 ## The shape of this work's defects
 

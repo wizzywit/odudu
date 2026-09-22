@@ -2,8 +2,8 @@
 
 ## Start here
 
-**P0, P1, P2a, P2b, P3a, P3b and the tenant rename (P4a) are complete. P4 —
-the admin API and consoles — is next**, and needs its own brainstorm and
+**P0, P1, P2a, P2b, P3a and P3b are complete, and the tenant rename is done.
+P4 — the admin API and consoles — is next**, and needs its own brainstorm and
 spec: nothing below is a P4 plan, only what it inherits and what is still
 open. Phases are section 11 of
 [the umbrella spec](superpowers/specs/2026-09-10-odudu-design.md).
@@ -49,7 +49,8 @@ reason is false.
 The running records, split out of this file on 2026-09-17: P2b reached
 1,873 lines here, of which the part describing where the project stood was 58.
 
-- [P4a — renaming the tenant concept](phases/p4a.md)
+- [Renaming the tenant concept](phases/tenant-rename.md) — not a phase; a
+  cross-cutting rename between P3b and P4, kept here for the same reason
 - [P3b — sessions, logout and the token surface](phases/p3b.md)
 - [P3a — clients, dynamic registration and consent](phases/p3a.md)
 - [P2b — credentials, MFA and the session lifecycle](phases/p2b.md)
