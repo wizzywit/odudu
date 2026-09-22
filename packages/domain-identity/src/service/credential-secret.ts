@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 // password and totp: one per subject (partial unique index, migration
 // 0034). webauthn and recovery-code: many. password-history: retired
-// hashes kept for the realm's password-history depth, never verified
+// hashes kept for the tenant's password-history depth, never verified
 // against for login. Declared here, not in the schema, so this service
 // stays a leaf that nothing but zod depends on — the schema imports it
 // instead of the other way around.

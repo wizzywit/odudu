@@ -9,7 +9,7 @@ export { type CredentialType } from '#/service/credential-secret';
 // recovery codes — would be impossible to express in fixed columns.
 export const userCredentials = pgTable('user_credentials', {
   id: uuid('id').primaryKey(),
-  realmId: uuid('tenant_id').notNull(),
+  tenantId: uuid('tenant_id').notNull(),
   subjectId: uuid('subject_id')
     .notNull()
     .references(() => subjects.id, { onDelete: 'cascade' }),
@@ -20,7 +20,7 @@ export const userCredentials = pgTable('user_credentials', {
   secretData: jsonb('secret_data').notNull(),
   label: text('label'),
   lastUsedAt: timestamp('last_used_at', { withTimezone: true }),
-  // A WebAuthn credential id. Unique per realm (migration 0034) so a
+  // A WebAuthn credential id. Unique per tenant (migration 0034) so a
   // passwordless assertion, which names a credential rather than a user,
   // can resolve its subject through an index instead of scanning jsonb.
   lookupKey: text('lookup_key'),
@@ -29,7 +29,7 @@ export const userCredentials = pgTable('user_credentials', {
 
 export interface CredentialRecord {
   id: string;
-  realmId: string;
+  tenantId: string;
   subjectId: string;
   type: CredentialType;
   secret: CredentialSecret;

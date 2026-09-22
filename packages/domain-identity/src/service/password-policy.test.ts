@@ -40,10 +40,10 @@ describe('evaluatePassword', () => {
     ]);
   });
 
-  // The maximum is not a realm setting, so a realm cannot configure its way
+  // The maximum is not a tenant setting, so a tenant cannot configure its way
   // past it; readPasswordField refuses the same length at every form read,
   // and this is what binds the writers that read no form.
-  it('refuses a password longer than the maximum, whatever the realm says', () => {
+  it('refuses a password longer than the maximum, whatever the tenant says', () => {
     expect(evaluatePassword('a'.repeat(MAX_PASSWORD_LENGTH), base, ada)).toEqual([]);
     expect(
       evaluatePassword('a'.repeat(MAX_PASSWORD_LENGTH + 1), base, ada).map((v) => v.rule),

@@ -9,7 +9,7 @@ import { integer, pgTable, primaryKey, timestamp, uuid } from 'drizzle-orm/pg-co
 export const loginFailures = pgTable(
   'login_failures',
   {
-    realmId: uuid('tenant_id').notNull(),
+    tenantId: uuid('tenant_id').notNull(),
     subjectId: uuid('subject_id').notNull(),
     failureCount: integer('failure_count').notNull().default(0),
     // The start of the run of failures the count belongs to, reset when a
@@ -21,5 +21,5 @@ export const loginFailures = pgTable(
     lastFailureAt: timestamp('last_failure_at', { withTimezone: true }),
     lockedUntil: timestamp('locked_until', { withTimezone: true }),
   },
-  (table) => [primaryKey({ columns: [table.realmId, table.subjectId] })],
+  (table) => [primaryKey({ columns: [table.tenantId, table.subjectId] })],
 ).enableRLS();

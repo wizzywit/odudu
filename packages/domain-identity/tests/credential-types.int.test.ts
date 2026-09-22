@@ -1,13 +1,13 @@
 import {
   createDatabase,
   MIGRATIONS_DIR,
-  realms,
+  tenants,
   runMigrations,
-  withRealm,
+  withTenant,
   type DatabaseHandle,
-  type RealmScopedDatabase,
+  type TenantScopedDatabase,
 } from '@odudu/db';
-import { expectCrossRealmMethodProbe } from '@odudu/db/testing';
+import { expectCrossTenantMethodProbe } from '@odudu/db/testing';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -43,31 +43,31 @@ afterAll(async () => {
   await containerHandle?.stop();
 });
 
-async function seedRealm(tx: RealmScopedDatabase, realmId: string): Promise<void> {
-  await tx.insert(realms).values({ id: realmId, name: `realm-${realmId}` });
+async function seedTenant(tx: TenantScopedDatabase, tenantId: string): Promise<void> {
+  await tx.insert(tenants).values({ id: tenantId, name: `tenant-${tenantId}` });
 }
 
-async function seedSubject(tx: RealmScopedDatabase, realmId: string): Promise<string> {
-  await seedRealm(tx, realmId);
-  const subject = await subjectRepository(tx).create({ realmId, type: 'user' });
+async function seedSubject(tx: TenantScopedDatabase, tenantId: string): Promise<string> {
+  await seedTenant(tx, tenantId);
+  const subject = await subjectRepository(tx).create({ tenantId, type: 'user' });
   return subject.id;
 }
 
 describe('credentialRepository — widened credential types', () => {
   it('an existing password row survives with its PHC string exactly, and a login against it still works', async () => {
-    const realmId = newId();
+    const tenantId = newId();
     const plain = 'correct horse battery staple';
     const hash = await hashPassword(plain);
 
-    const subjectId = await withRealm(app.db, realmId, async (tx) => {
-      const subject = await seedSubject(tx, realmId);
+    const subjectId = await withTenant(app.db, tenantId, async (tx) => {
+      const subject = await seedSubject(tx, tenantId);
       // The shape migration 0034 produces for a row that predates it:
       // {"hash": "<phc>"}, no "kind" field. Written directly, not through
       // insert(), to stand in for a row this migration converted rather
       // than one created after it.
       await tx.insert(userCredentials).values({
         id: newId(),
-        realmId,
+        tenantId,
         subjectId: subject,
         type: 'password',
         secretData: { hash },
@@ -75,7 +75,7 @@ describe('credentialRepository — widened credential types', () => {
       return subject;
     });
 
-    const stored = await withRealm(app.db, realmId, (tx) =>
+    const stored = await withTenant(app.db, tenantId, (tx) =>
       credentialRepository(tx).passwordFor(subjectId),
     );
 
@@ -84,38 +84,38 @@ describe('credentialRepository — widened credential types', () => {
   });
 
   it('inserts two passkeys for one subject', async () => {
-    const realmId = newId();
-    const subjectId = await withRealm(app.db, realmId, (tx) => seedSubject(tx, realmId));
+    const tenantId = newId();
+    const subjectId = await withTenant(app.db, tenantId, (tx) => seedSubject(tx, tenantId));
 
-    await withRealm(app.db, realmId, async (tx) => {
+    await withTenant(app.db, tenantId, async (tx) => {
       await credentialRepository(tx).insert({
-        realmId,
+        tenantId,
         subjectId,
         type: 'webauthn',
         secret: { kind: 'webauthn', publicKey: 'pk-1', counter: 0, transports: ['internal'] },
-        lookupKey: `cred-1-${realmId}`,
+        lookupKey: `cred-1-${tenantId}`,
       });
       await credentialRepository(tx).insert({
-        realmId,
+        tenantId,
         subjectId,
         type: 'webauthn',
         secret: { kind: 'webauthn', publicKey: 'pk-2', counter: 0, transports: ['usb'] },
-        lookupKey: `cred-2-${realmId}`,
+        lookupKey: `cred-2-${tenantId}`,
       });
     });
 
-    const passkeys = await withRealm(app.db, realmId, (tx) =>
+    const passkeys = await withTenant(app.db, tenantId, (tx) =>
       credentialRepository(tx).listFor(subjectId, 'webauthn'),
     );
     expect(passkeys).toHaveLength(2);
   });
 
   it('refuses a second password credential for one subject', async () => {
-    const realmId = newId();
-    const subjectId = await withRealm(app.db, realmId, async (tx) => {
-      const subject = await seedSubject(tx, realmId);
+    const tenantId = newId();
+    const subjectId = await withTenant(app.db, tenantId, async (tx) => {
+      const subject = await seedSubject(tx, tenantId);
       await credentialRepository(tx).insert({
-        realmId,
+        tenantId,
         subjectId: subject,
         type: 'password',
         secret: { kind: 'password', hash: await hashPassword('first') },
@@ -124,9 +124,9 @@ describe('credentialRepository — widened credential types', () => {
     });
 
     await expect(
-      withRealm(app.db, realmId, async (tx) =>
+      withTenant(app.db, tenantId, async (tx) =>
         credentialRepository(tx).insert({
-          realmId,
+          tenantId,
           subjectId,
           type: 'password',
           secret: { kind: 'password', hash: await hashPassword('second') },
@@ -138,11 +138,11 @@ describe('credentialRepository — widened credential types', () => {
   });
 
   it('refuses a second totp credential for one subject', async () => {
-    const realmId = newId();
-    const subjectId = await withRealm(app.db, realmId, async (tx) => {
-      const subject = await seedSubject(tx, realmId);
+    const tenantId = newId();
+    const subjectId = await withTenant(app.db, tenantId, async (tx) => {
+      const subject = await seedSubject(tx, tenantId);
       await credentialRepository(tx).insert({
-        realmId,
+        tenantId,
         subjectId: subject,
         type: 'totp',
         secret: { kind: 'totp', secret: 'JBSWY3DPEHPK3PXP', digits: 6, lastStep: 0 },
@@ -151,9 +151,9 @@ describe('credentialRepository — widened credential types', () => {
     });
 
     await expect(
-      withRealm(app.db, realmId, async (tx) =>
+      withTenant(app.db, tenantId, async (tx) =>
         credentialRepository(tx).insert({
-          realmId,
+          tenantId,
           subjectId,
           type: 'totp',
           secret: { kind: 'totp', secret: 'ANOTHERSECRETKEY', digits: 6, lastStep: 0 },
@@ -164,14 +164,14 @@ describe('credentialRepository — widened credential types', () => {
     });
   });
 
-  it('refuses two passkeys with the same lookup_key in one realm', async () => {
-    const realmId = newId();
+  it('refuses two passkeys with the same lookup_key in one tenant', async () => {
+    const tenantId = newId();
     const lookupKey = `shared-cred-${newId()}`;
 
-    await withRealm(app.db, realmId, async (tx) => {
-      const subject = await seedSubject(tx, realmId);
+    await withTenant(app.db, tenantId, async (tx) => {
+      const subject = await seedSubject(tx, tenantId);
       await credentialRepository(tx).insert({
-        realmId,
+        tenantId,
         subjectId: subject,
         type: 'webauthn',
         secret: { kind: 'webauthn', publicKey: 'pk-1', counter: 0, transports: ['internal'] },
@@ -180,10 +180,10 @@ describe('credentialRepository — widened credential types', () => {
     });
 
     await expect(
-      withRealm(app.db, realmId, async (tx) => {
-        const subject = await subjectRepository(tx).create({ realmId, type: 'user' });
+      withTenant(app.db, tenantId, async (tx) => {
+        const subject = await subjectRepository(tx).create({ tenantId, type: 'user' });
         await credentialRepository(tx).insert({
-          realmId,
+          tenantId,
           subjectId: subject.id,
           type: 'webauthn',
           secret: { kind: 'webauthn', publicKey: 'pk-2', counter: 0, transports: ['usb'] },
@@ -195,15 +195,15 @@ describe('credentialRepository — widened credential types', () => {
     });
   });
 
-  it('accepts the same lookup_key in two different realms', async () => {
-    const realmA = newId();
-    const realmB = newId();
-    const lookupKey = `cross-realm-cred-${newId()}`;
+  it('accepts the same lookup_key in two different tenants', async () => {
+    const tenantA = newId();
+    const tenantB = newId();
+    const lookupKey = `cross-tenant-cred-${newId()}`;
 
-    await withRealm(app.db, realmA, async (tx) => {
-      const subject = await seedSubject(tx, realmA);
+    await withTenant(app.db, tenantA, async (tx) => {
+      const subject = await seedSubject(tx, tenantA);
       await credentialRepository(tx).insert({
-        realmId: realmA,
+        tenantId: tenantA,
         subjectId: subject,
         type: 'webauthn',
         secret: { kind: 'webauthn', publicKey: 'pk-a', counter: 0, transports: ['internal'] },
@@ -212,10 +212,10 @@ describe('credentialRepository — widened credential types', () => {
     });
 
     await expect(
-      withRealm(app.db, realmB, async (tx) => {
-        const subject = await seedSubject(tx, realmB);
+      withTenant(app.db, tenantB, async (tx) => {
+        const subject = await seedSubject(tx, tenantB);
         await credentialRepository(tx).insert({
-          realmId: realmB,
+          tenantId: tenantB,
           subjectId: subject,
           type: 'webauthn',
           secret: { kind: 'webauthn', publicKey: 'pk-b', counter: 0, transports: ['usb'] },
@@ -225,16 +225,16 @@ describe('credentialRepository — widened credential types', () => {
     ).resolves.toBeUndefined();
   });
 
-  it('finds no passkeys under a different realm context', async () => {
-    await expectCrossRealmMethodProbe(app.db, {
-      seed: async (tx, realmId) => {
-        const subject = await seedSubject(tx, realmId);
+  it('finds no passkeys under a different tenant context', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        const subject = await seedSubject(tx, tenantId);
         await credentialRepository(tx).insert({
-          realmId,
+          tenantId,
           subjectId: subject,
           type: 'webauthn',
           secret: { kind: 'webauthn', publicKey: 'pk', counter: 0, transports: ['internal'] },
-          lookupKey: `probe-${realmId}`,
+          lookupKey: `probe-${tenantId}`,
         });
         return subject;
       },
@@ -249,13 +249,13 @@ describe('credentialRepository — widened credential types', () => {
     });
   });
 
-  it('cannot resolve a lookup_key under a different realm context', async () => {
-    await expectCrossRealmMethodProbe(app.db, {
-      seed: async (tx, realmId) => {
-        const subject = await seedSubject(tx, realmId);
-        const lookupKey = `probe-lookup-${realmId}`;
+  it('cannot resolve a lookup_key under a different tenant context', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        const subject = await seedSubject(tx, tenantId);
+        const lookupKey = `probe-lookup-${tenantId}`;
         await credentialRepository(tx).insert({
-          realmId,
+          tenantId,
           subjectId: subject,
           type: 'webauthn',
           secret: { kind: 'webauthn', publicKey: 'pk', counter: 0, transports: ['internal'] },
@@ -274,19 +274,19 @@ describe('credentialRepository — widened credential types', () => {
     });
   });
 
-  it('cannot mark a credential used under a different realm context', async () => {
-    await expectCrossRealmMethodProbe(app.db, {
-      seed: async (tx, realmId) => {
-        const subject = await seedSubject(tx, realmId);
+  it('cannot mark a credential used under a different tenant context', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        const subject = await seedSubject(tx, tenantId);
         const [row] = await tx
           .insert(userCredentials)
           .values({
             id: newId(),
-            realmId,
+            tenantId,
             subjectId: subject,
             type: 'webauthn',
             secretData: { publicKey: 'pk', counter: 0, transports: ['internal'] },
-            lookupKey: `probe-mark-${realmId}`,
+            lookupKey: `probe-mark-${tenantId}`,
           })
           .returning();
         if (row === undefined) throw new Error('expected the seeded row back');
@@ -309,21 +309,21 @@ describe('credentialRepository — widened credential types', () => {
     });
   });
 
-  it('cannot delete a credential under a different realm context', async () => {
+  it('cannot delete a credential under a different tenant context', async () => {
     interface Seeded {
       id: string;
       lookupKey: string;
     }
 
-    await expectCrossRealmMethodProbe<Seeded>(app.db, {
-      seed: async (tx, realmId) => {
-        const subject = await seedSubject(tx, realmId);
-        const lookupKey = `probe-delete-${realmId}`;
+    await expectCrossTenantMethodProbe<Seeded>(app.db, {
+      seed: async (tx, tenantId) => {
+        const subject = await seedSubject(tx, tenantId);
+        const lookupKey = `probe-delete-${tenantId}`;
         const [row] = await tx
           .insert(userCredentials)
           .values({
             id: newId(),
-            realmId,
+            tenantId,
             subjectId: subject,
             type: 'webauthn',
             secretData: { publicKey: 'pk', counter: 0, transports: ['internal'] },
@@ -348,7 +348,7 @@ describe('credentialRepository — widened credential types', () => {
       expectBlocked: (result) => {
         expect(result).toBe('blocked');
       },
-      verifyRealmAUnaffected: async (tx, seeded) => {
+      verifyTenantAUnaffected: async (tx, seeded) => {
         const found = await credentialRepository(tx).byLookupKey(seeded.lookupKey);
         expect(found).not.toBeNull();
       },
@@ -356,13 +356,13 @@ describe('credentialRepository — widened credential types', () => {
   });
 
   it('spends a time step on a totp credential without disturbing its secret', async () => {
-    const realmId = newId();
+    const tenantId = newId();
     const usedAt = new Date('2026-09-16T12:00:00.000Z');
 
-    const { subjectId, credentialId } = await withRealm(app.db, realmId, async (tx) => {
-      const subject = await seedSubject(tx, realmId);
+    const { subjectId, credentialId } = await withTenant(app.db, tenantId, async (tx) => {
+      const subject = await seedSubject(tx, tenantId);
       await credentialRepository(tx).insert({
-        realmId,
+        tenantId,
         subjectId: subject,
         type: 'totp',
         secret: { kind: 'totp', secret: 'JBSWY3DPEHPK3PXP', digits: 6, lastStep: 0 },
@@ -372,12 +372,12 @@ describe('credentialRepository — widened credential types', () => {
       return { subjectId: subject, credentialId: stored.id };
     });
 
-    const spent = await withRealm(app.db, realmId, (tx) =>
+    const spent = await withTenant(app.db, tenantId, (tx) =>
       credentialRepository(tx).recordTotpUse(credentialId, 58_612_800, usedAt),
     );
     expect(spent).toBe(true);
 
-    const [after] = await withRealm(app.db, realmId, (tx) =>
+    const [after] = await withTenant(app.db, tenantId, (tx) =>
       credentialRepository(tx).listFor(subjectId, 'totp'),
     );
     expect(after?.secret).toEqual({
@@ -389,12 +389,12 @@ describe('credentialRepository — widened credential types', () => {
     expect(after?.lastUsedAt).toEqual(usedAt);
   });
 
-  it('cannot spend a time step under a different realm context', async () => {
-    await expectCrossRealmMethodProbe(app.db, {
-      seed: async (tx, realmId) => {
-        const subject = await seedSubject(tx, realmId);
+  it('cannot spend a time step under a different tenant context', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        const subject = await seedSubject(tx, tenantId);
         await credentialRepository(tx).insert({
-          realmId,
+          tenantId,
           subjectId: subject,
           type: 'totp',
           secret: { kind: 'totp', secret: 'JBSWY3DPEHPK3PXP', digits: 6, lastStep: 7 },
@@ -414,7 +414,7 @@ describe('credentialRepository — widened credential types', () => {
         // updated and the call reports the step as unspent.
         expect(result).toBe(false);
       },
-      verifyRealmAUnaffected: async (tx, seeded) => {
+      verifyTenantAUnaffected: async (tx, seeded) => {
         const [found] = await credentialRepository(tx).listFor(seeded.subjectId, 'totp');
         expect(found?.secret).toMatchObject({ lastStep: 7 });
       },
@@ -427,11 +427,11 @@ describe('credentialRepository — widened credential types', () => {
   // same code serialize on the row, and only the first finds a lastStep
   // below the step it is spending.
   it('spends a time step exactly once when two transactions race for it', async () => {
-    const realmId = newId();
-    const { credentialId } = await withRealm(app.db, realmId, async (tx) => {
-      const subject = await seedSubject(tx, realmId);
+    const tenantId = newId();
+    const { credentialId } = await withTenant(app.db, tenantId, async (tx) => {
+      const subject = await seedSubject(tx, tenantId);
       await credentialRepository(tx).insert({
-        realmId,
+        tenantId,
         subjectId: subject,
         type: 'totp',
         secret: { kind: 'totp', secret: 'JBSWY3DPEHPK3PXP', digits: 6, lastStep: 0 },
@@ -442,7 +442,7 @@ describe('credentialRepository — widened credential types', () => {
     });
 
     const spend = () =>
-      withRealm(app.db, realmId, (tx) =>
+      withTenant(app.db, tenantId, (tx) =>
         credentialRepository(tx).recordTotpUse(credentialId, 58_612_801, new Date()),
       );
     const [first, second] = await Promise.all([spend(), spend()]);
@@ -451,11 +451,11 @@ describe('credentialRepository — widened credential types', () => {
   });
 
   it('refuses a step it has already spent', async () => {
-    const realmId = newId();
-    const credentialId = await withRealm(app.db, realmId, async (tx) => {
-      const subject = await seedSubject(tx, realmId);
+    const tenantId = newId();
+    const credentialId = await withTenant(app.db, tenantId, async (tx) => {
+      const subject = await seedSubject(tx, tenantId);
       await credentialRepository(tx).insert({
-        realmId,
+        tenantId,
         subjectId: subject,
         type: 'totp',
         secret: { kind: 'totp', secret: 'JBSWY3DPEHPK3PXP', digits: 6, lastStep: 58_612_802 },
@@ -465,7 +465,7 @@ describe('credentialRepository — widened credential types', () => {
       return stored.id;
     });
 
-    const again = await withRealm(app.db, realmId, (tx) =>
+    const again = await withTenant(app.db, tenantId, (tx) =>
       credentialRepository(tx).recordTotpUse(credentialId, 58_612_802, new Date()),
     );
 
@@ -473,14 +473,14 @@ describe('credentialRepository — widened credential types', () => {
   });
 
   async function seedPasskey(
-    tx: RealmScopedDatabase,
-    realmId: string,
+    tx: TenantScopedDatabase,
+    tenantId: string,
     counter: number,
   ): Promise<{ subjectId: string; id: string; lookupKey: string }> {
-    const subject = await seedSubject(tx, realmId);
+    const subject = await seedSubject(tx, tenantId);
     const lookupKey = `credential-${newId()}`;
     await credentialRepository(tx).insert({
-      realmId,
+      tenantId,
       subjectId: subject,
       type: 'webauthn',
       lookupKey,
@@ -491,24 +491,24 @@ describe('credentialRepository — widened credential types', () => {
     return { subjectId: subject, id: stored.id, lookupKey };
   }
 
-  function counterOf(realmId: string, subjectId: string): Promise<number | undefined> {
-    return withRealm(app.db, realmId, async (tx) => {
+  function counterOf(tenantId: string, subjectId: string): Promise<number | undefined> {
+    return withTenant(app.db, tenantId, async (tx) => {
       const [found] = await credentialRepository(tx).listFor(subjectId, 'webauthn');
       return found?.secret.kind === 'webauthn' ? found.secret.counter : undefined;
     });
   }
 
   it('advances a webauthn counter, leaving the public key alone', async () => {
-    const realmId = newId();
+    const tenantId = newId();
     const usedAt = new Date('2026-09-16T12:00:00.000Z');
-    const seeded = await withRealm(app.db, realmId, (tx) => seedPasskey(tx, realmId, 3));
+    const seeded = await withTenant(app.db, tenantId, (tx) => seedPasskey(tx, tenantId, 3));
 
-    const advanced = await withRealm(app.db, realmId, (tx) =>
+    const advanced = await withTenant(app.db, tenantId, (tx) =>
       credentialRepository(tx).advanceWebauthnCounter(seeded.id, 4, usedAt),
     );
 
     expect(advanced).toBe(true);
-    const [after] = await withRealm(app.db, realmId, (tx) =>
+    const [after] = await withTenant(app.db, tenantId, (tx) =>
       credentialRepository(tx).listFor(seeded.subjectId, 'webauthn'),
     );
     expect(after?.secret).toEqual({
@@ -523,40 +523,40 @@ describe('credentialRepository — widened credential types', () => {
   // WebAuthn §6.1.1: a counter that did not move means two authenticators
   // are answering for one credential.
   it('refuses a counter that did not increase', async () => {
-    const realmId = newId();
-    const seeded = await withRealm(app.db, realmId, (tx) => seedPasskey(tx, realmId, 5));
+    const tenantId = newId();
+    const seeded = await withTenant(app.db, tenantId, (tx) => seedPasskey(tx, tenantId, 5));
 
-    const same = await withRealm(app.db, realmId, (tx) =>
+    const same = await withTenant(app.db, tenantId, (tx) =>
       credentialRepository(tx).advanceWebauthnCounter(seeded.id, 5, new Date()),
     );
-    const backwards = await withRealm(app.db, realmId, (tx) =>
+    const backwards = await withTenant(app.db, tenantId, (tx) =>
       credentialRepository(tx).advanceWebauthnCounter(seeded.id, 4, new Date()),
     );
 
     expect([same, backwards]).toEqual([false, false]);
-    expect(await counterOf(realmId, seeded.subjectId)).toBe(5);
+    expect(await counterOf(tenantId, seeded.subjectId)).toBe(5);
   });
 
   // The exception §6.1.1 allows: an authenticator that never counts reports
   // zero forever, and refusing it refuses a conformant device.
   it('accepts zero from a credential whose counter is already zero', async () => {
-    const realmId = newId();
-    const seeded = await withRealm(app.db, realmId, (tx) => seedPasskey(tx, realmId, 0));
+    const tenantId = newId();
+    const seeded = await withTenant(app.db, tenantId, (tx) => seedPasskey(tx, tenantId, 0));
 
-    const advanced = await withRealm(app.db, realmId, (tx) =>
+    const advanced = await withTenant(app.db, tenantId, (tx) =>
       credentialRepository(tx).advanceWebauthnCounter(seeded.id, 0, new Date()),
     );
 
     expect(advanced).toBe(true);
-    expect(await counterOf(realmId, seeded.subjectId)).toBe(0);
+    expect(await counterOf(tenantId, seeded.subjectId)).toBe(0);
   });
 
   it('advances a webauthn counter exactly once when two assertions race for it', async () => {
-    const realmId = newId();
-    const seeded = await withRealm(app.db, realmId, (tx) => seedPasskey(tx, realmId, 1));
+    const tenantId = newId();
+    const seeded = await withTenant(app.db, tenantId, (tx) => seedPasskey(tx, tenantId, 1));
 
     const advance = () =>
-      withRealm(app.db, realmId, (tx) =>
+      withTenant(app.db, tenantId, (tx) =>
         credentialRepository(tx).advanceWebauthnCounter(seeded.id, 2, new Date()),
       );
     const [first, second] = await Promise.all([advance(), advance()]);
@@ -564,9 +564,9 @@ describe('credentialRepository — widened credential types', () => {
     expect([first, second].filter(Boolean)).toHaveLength(1);
   });
 
-  it('cannot advance a webauthn counter under a different realm context', async () => {
-    await expectCrossRealmMethodProbe(app.db, {
-      seed: async (tx, realmId) => seedPasskey(tx, realmId, 2),
+  it('cannot advance a webauthn counter under a different tenant context', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => seedPasskey(tx, tenantId, 2),
       verifySeeded: async (tx, seeded) => {
         const [found] = await credentialRepository(tx).listFor(seeded.subjectId, 'webauthn');
         expect(found?.secret).toMatchObject({ counter: 2 });
@@ -578,28 +578,28 @@ describe('credentialRepository — widened credential types', () => {
         // updated and the call reports the counter as unadvanced.
         expect(result).toBe(false);
       },
-      verifyRealmAUnaffected: async (tx, seeded) => {
+      verifyTenantAUnaffected: async (tx, seeded) => {
         const [found] = await credentialRepository(tx).listFor(seeded.subjectId, 'webauthn');
         expect(found?.secret).toMatchObject({ counter: 2 });
       },
     });
   });
 
-  it('refuses to insert a credential whose declared realm does not match the transaction realm', async () => {
-    const realmA = newId();
-    const realmB = newId();
+  it('refuses to insert a credential whose declared tenant does not match the transaction tenant', async () => {
+    const tenantA = newId();
+    const tenantB = newId();
 
-    const subjectId = await withRealm(app.db, realmA, (tx) => seedSubject(tx, realmA));
+    const subjectId = await withTenant(app.db, tenantA, (tx) => seedSubject(tx, tenantA));
 
     await expect(
-      withRealm(app.db, realmB, async (tx) => {
-        await seedRealm(tx, realmB);
+      withTenant(app.db, tenantB, async (tx) => {
+        await seedTenant(tx, tenantB);
         await credentialRepository(tx).insert({
-          realmId: realmA,
+          tenantId: tenantA,
           subjectId,
           type: 'webauthn',
           secret: { kind: 'webauthn', publicKey: 'pk', counter: 0, transports: ['internal'] },
-          lookupKey: `mismatched-realm-${realmA}`,
+          lookupKey: `mismatched-tenant-${tenantA}`,
         });
       }),
     ).rejects.toThrow();

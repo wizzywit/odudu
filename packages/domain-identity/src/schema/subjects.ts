@@ -6,7 +6,7 @@ import { tenants } from '@odudu/db';
 // declarative policy would collide with a database that already carries it.
 export const subjects = pgTable('subjects', {
   id: uuid('id').primaryKey(),
-  realmId: uuid('tenant_id')
+  tenantId: uuid('tenant_id')
     .notNull()
     .references(() => tenants.id, { onDelete: 'cascade' }),
   type: text('type').notNull(),
@@ -19,7 +19,7 @@ export const subjects = pgTable('subjects', {
 // them, rather than needing a schema change when agent_instance arrives.
 export interface SubjectRecord {
   id: string;
-  realmId: string;
+  tenantId: string;
   type: 'user' | 'service' | 'agent_instance';
   disabledAt: Date | null;
 }

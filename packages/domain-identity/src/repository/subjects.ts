@@ -1,4 +1,4 @@
-import { type RealmScopedDatabase } from '@odudu/db';
+import { type TenantScopedDatabase } from '@odudu/db';
 import { newId } from '@odudu/kernel';
 import { eq } from 'drizzle-orm';
 import { subjects, type SubjectRecord } from '#/schema/subjects';
@@ -8,18 +8,18 @@ export type { SubjectRecord } from '#/schema/subjects';
 function toRecord(row: typeof subjects.$inferSelect): SubjectRecord {
   return {
     id: row.id,
-    realmId: row.realmId,
+    tenantId: row.tenantId,
     type: row.type as SubjectRecord['type'],
     disabledAt: row.disabledAt,
   };
 }
 
 export interface NewSubject {
-  realmId: string;
+  tenantId: string;
   type: SubjectRecord['type'];
 }
 
-export function subjectRepository(tx: RealmScopedDatabase) {
+export function subjectRepository(tx: TenantScopedDatabase) {
   return {
     async byId(id: string): Promise<SubjectRecord | null> {
       const rows = await tx.select().from(subjects).where(eq(subjects.id, id));
@@ -32,7 +32,7 @@ export function subjectRepository(tx: RealmScopedDatabase) {
     async create(input: NewSubject): Promise<SubjectRecord> {
       const rows = await tx
         .insert(subjects)
-        .values({ id: newId(), realmId: input.realmId, type: input.type })
+        .values({ id: newId(), tenantId: input.tenantId, type: input.type })
         .returning();
       const row = rows[0];
       if (row === undefined) {

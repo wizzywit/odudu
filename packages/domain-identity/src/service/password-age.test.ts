@@ -9,7 +9,7 @@ function at(offsetMs: number): Date {
 }
 
 describe('passwordExpired', () => {
-  it('never expires a password in a realm whose maximum age is zero', () => {
+  it('never expires a password in a tenant whose maximum age is zero', () => {
     expect(passwordExpired({ createdAt: CREATED_AT }, 0, at(3650 * DAY_MS))).toBe(false);
   });
 

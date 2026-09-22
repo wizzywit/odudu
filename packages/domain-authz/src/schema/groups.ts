@@ -6,7 +6,7 @@ import { roles } from '#/schema/roles';
 // with pgPolicy() — see clients.ts in @odudu/domain-tenant for why.
 export const groups = pgTable('groups', {
   id: uuid('id').primaryKey(),
-  realmId: uuid('tenant_id')
+  tenantId: uuid('tenant_id')
     .notNull()
     .references(() => tenants.id, { onDelete: 'cascade' }),
   parentId: uuid('parent_id'),
@@ -21,7 +21,7 @@ export const groups = pgTable('groups', {
 
 export interface GroupRecord {
   id: string;
-  realmId: string;
+  tenantId: string;
   parentId: string | null;
   name: string;
   path: string;
@@ -31,7 +31,7 @@ export interface GroupRecord {
 export const groupRoles = pgTable(
   'group_roles',
   {
-    realmId: uuid('tenant_id').notNull(),
+    tenantId: uuid('tenant_id').notNull(),
     groupId: uuid('group_id')
       .notNull()
       .references(() => groups.id, { onDelete: 'cascade' }),
@@ -45,7 +45,7 @@ export const groupRoles = pgTable(
 export const subjectGroups = pgTable(
   'subject_groups',
   {
-    realmId: uuid('tenant_id').notNull(),
+    tenantId: uuid('tenant_id').notNull(),
     // References subjects(id), owned by @odudu/domain-identity. Plain
     // column for the same reason as roles.clientId in @odudu/domain-authz's
     // own roles schema.

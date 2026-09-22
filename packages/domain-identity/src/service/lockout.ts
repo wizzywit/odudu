@@ -1,6 +1,6 @@
-// The realm's brute-force switches, as the lockout arithmetic reads them
+// The tenant's brute-force switches, as the lockout arithmetic reads them
 // (packages/db/drizzle/0041_login_failures.sql holds the columns and the
-// bounds a realm cannot configure its way out of).
+// bounds a tenant cannot configure its way out of).
 export interface LockoutPolicy {
   // How many consecutive failures the account tolerates before the next
   // one locks it.

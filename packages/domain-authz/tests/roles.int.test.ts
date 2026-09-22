@@ -1,13 +1,13 @@
 import {
   createDatabase,
   MIGRATIONS_DIR,
-  realms,
+  tenants,
   runMigrations,
-  withRealm,
+  withTenant,
   type DatabaseHandle,
-  type RealmScopedDatabase,
+  type TenantScopedDatabase,
 } from '@odudu/db';
-import { expectCrossRealmMethodProbe } from '@odudu/db/testing';
+import { expectCrossTenantMethodProbe } from '@odudu/db/testing';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import { eq, sql } from 'drizzle-orm';
@@ -42,34 +42,34 @@ afterAll(async () => {
   await containerHandle?.stop();
 });
 
-async function seedRealm(tx: RealmScopedDatabase, realmId: string): Promise<void> {
-  await tx.insert(realms).values({ id: realmId, name: `realm-${realmId}` });
+async function seedTenant(tx: TenantScopedDatabase, tenantId: string): Promise<void> {
+  await tx.insert(tenants).values({ id: tenantId, name: `tenant-${tenantId}` });
 }
 
 // @odudu/domain-authz never imports @odudu/domain-tenant or
 // @odudu/domain-identity, so fixtures for their tables are inserted with raw
 // SQL rather than through those packages' schemas.
-async function insertClient(tx: RealmScopedDatabase, realmId: string): Promise<string> {
+async function insertClient(tx: TenantScopedDatabase, tenantId: string): Promise<string> {
   const id = newId();
   await tx.execute(sql`
-    insert into clients (id, realm_id, client_id, name, type, secret_hash)
-    values (${id}, ${realmId}, ${`client-${id}`}, 'A client', 'public', null)
+    insert into clients (id, tenant_id, client_id, name, type, secret_hash)
+    values (${id}, ${tenantId}, ${`client-${id}`}, 'A client', 'public', null)
   `);
   return id;
 }
 
-async function insertSubject(tx: RealmScopedDatabase, realmId: string): Promise<string> {
+async function insertSubject(tx: TenantScopedDatabase, tenantId: string): Promise<string> {
   const id = newId();
   await tx.execute(sql`
-    insert into subjects (id, realm_id, type) values (${id}, ${realmId}, 'user')
+    insert into subjects (id, tenant_id, type) values (${id}, ${tenantId}, 'user')
   `);
   return id;
 }
 
-async function insertClientScope(tx: RealmScopedDatabase, realmId: string): Promise<string> {
+async function insertClientScope(tx: TenantScopedDatabase, tenantId: string): Promise<string> {
   const id = newId();
   await tx.execute(sql`
-    insert into client_scopes (id, realm_id, name) values (${id}, ${realmId}, ${`scope-${id}`})
+    insert into client_scopes (id, tenant_id, name) values (${id}, ${tenantId}, ${`scope-${id}`})
   `);
   return id;
 }
@@ -92,22 +92,22 @@ async function causeMessage(promise: Promise<unknown>): Promise<string> {
 
 interface CreateOptions {
   name: string;
-  realmId?: string;
+  tenantId?: string;
   clientId?: string | null;
   defaultForNewSubjects?: boolean;
 }
 
-// A call that names an existing realmId assumes the caller already seeded
-// it; a call with no realmId gets a fresh, freshly seeded realm of its own,
+// A call that names an existing tenantId assumes the caller already seeded
+// it; a call with no tenantId gets a fresh, freshly seeded tenant of its own,
 // so each test's roles are isolated from every other test's by default.
 async function create(opts: CreateOptions): Promise<RoleRecord> {
-  const realmId = opts.realmId ?? newId();
-  if (opts.realmId === undefined) {
-    await withRealm(app.db, realmId, (tx) => seedRealm(tx, realmId));
+  const tenantId = opts.tenantId ?? newId();
+  if (opts.tenantId === undefined) {
+    await withTenant(app.db, tenantId, (tx) => seedTenant(tx, tenantId));
   }
-  return withRealm(app.db, realmId, (tx) =>
+  return withTenant(app.db, tenantId, (tx) =>
     roleRepository(tx).create({
-      realmId,
+      tenantId,
       name: opts.name,
       clientId: opts.clientId ?? null,
       ...(opts.defaultForNewSubjects !== undefined
@@ -128,32 +128,32 @@ describe('role names', () => {
     expect(await causeMessage(create({ name: '' }))).toContain('roles_name_has_no_colon');
   });
 
-  it('permits the same name as a realm role and as a client role', async () => {
-    const realmId = newId();
-    await withRealm(app.db, realmId, (tx) => seedRealm(tx, realmId));
-    const clientId = await withRealm(app.db, realmId, (tx) => insertClient(tx, realmId));
+  it('permits the same name as a tenant role and as a client role', async () => {
+    const tenantId = newId();
+    await withTenant(app.db, tenantId, (tx) => seedTenant(tx, tenantId));
+    const clientId = await withTenant(app.db, tenantId, (tx) => insertClient(tx, tenantId));
 
-    await expect(create({ name: 'reader', realmId, clientId: null })).resolves.toBeDefined();
-    await expect(create({ name: 'reader', realmId, clientId })).resolves.toBeDefined();
+    await expect(create({ name: 'reader', tenantId, clientId: null })).resolves.toBeDefined();
+    await expect(create({ name: 'reader', tenantId, clientId })).resolves.toBeDefined();
   });
 
-  it('refuses two realm roles of the same name', async () => {
-    const realmId = newId();
-    await withRealm(app.db, realmId, (tx) => seedRealm(tx, realmId));
-    await create({ name: 'admin', realmId, clientId: null });
+  it('refuses two tenant roles of the same name', async () => {
+    const tenantId = newId();
+    await withTenant(app.db, tenantId, (tx) => seedTenant(tx, tenantId));
+    await create({ name: 'admin', tenantId, clientId: null });
 
-    expect(await causeMessage(create({ name: 'admin', realmId, clientId: null }))).toContain(
-      'roles_realm_name',
+    expect(await causeMessage(create({ name: 'admin', tenantId, clientId: null }))).toContain(
+      'roles_tenant_name',
     );
   });
 
   it('refuses two client roles of the same name for the same client', async () => {
-    const realmId = newId();
-    await withRealm(app.db, realmId, (tx) => seedRealm(tx, realmId));
-    const clientId = await withRealm(app.db, realmId, (tx) => insertClient(tx, realmId));
-    await create({ name: 'reader', realmId, clientId });
+    const tenantId = newId();
+    await withTenant(app.db, tenantId, (tx) => seedTenant(tx, tenantId));
+    const clientId = await withTenant(app.db, tenantId, (tx) => insertClient(tx, tenantId));
+    await create({ name: 'reader', tenantId, clientId });
 
-    expect(await causeMessage(create({ name: 'reader', realmId, clientId }))).toContain(
+    expect(await causeMessage(create({ name: 'reader', tenantId, clientId }))).toContain(
       'roles_client_name',
     );
   });
@@ -172,42 +172,42 @@ describe('create', () => {
     expect(role.createdAt).toBeInstanceOf(Date);
   });
 
-  it('refuses to create a role claiming another realm’s id, and leaves that realm untouched', async () => {
-    const realmA = newId();
-    const realmB = newId();
-    await withRealm(app.db, realmA, (tx) => seedRealm(tx, realmA));
-    await withRealm(app.db, realmB, (tx) => seedRealm(tx, realmB));
+  it('refuses to create a role claiming another tenant’s id, and leaves that tenant untouched', async () => {
+    const tenantA = newId();
+    const tenantB = newId();
+    await withTenant(app.db, tenantA, (tx) => seedTenant(tx, tenantA));
+    await withTenant(app.db, tenantB, (tx) => seedTenant(tx, tenantB));
 
     expect(
       await causeMessage(
-        withRealm(app.db, realmB, (tx) =>
-          roleRepository(tx).create({ realmId: realmA, name: 'admin' }),
+        withTenant(app.db, tenantB, (tx) =>
+          roleRepository(tx).create({ tenantId: tenantA, name: 'admin' }),
         ),
       ),
     ).toMatch(/row-level security/i);
 
-    const found = await withRealm(app.db, realmA, (tx) => roleRepository(tx).byName('admin', null));
+    const found = await withTenant(app.db, tenantA, (tx) => roleRepository(tx).byName('admin', null));
     expect(found).toBeNull();
   });
 });
 
 describe('byName', () => {
-  it('finds a role created in the realm', async () => {
-    const realmId = newId();
-    await withRealm(app.db, realmId, (tx) => seedRealm(tx, realmId));
-    await create({ name: 'admin', realmId });
+  it('finds a role created in the tenant', async () => {
+    const tenantId = newId();
+    await withTenant(app.db, tenantId, (tx) => seedTenant(tx, tenantId));
+    await create({ name: 'admin', tenantId });
 
-    const found = await withRealm(app.db, realmId, (tx) =>
+    const found = await withTenant(app.db, tenantId, (tx) =>
       roleRepository(tx).byName('admin', null),
     );
     expect(found?.name).toBe('admin');
   });
 
-  it('does not find another realm’s role by name', async () => {
-    await expectCrossRealmMethodProbe(app.db, {
-      seed: async (tx, realmId) => {
-        await seedRealm(tx, realmId);
-        await roleRepository(tx).create({ realmId, name: 'admin' });
+  it('does not find another tenant’s role by name', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        await seedTenant(tx, tenantId);
+        await roleRepository(tx).create({ tenantId, name: 'admin' });
       },
       verifySeeded: async (tx) => {
         const found = await roleRepository(tx).byName('admin', null);
@@ -221,30 +221,30 @@ describe('byName', () => {
   });
 });
 
-describe('defaultsForRealm', () => {
+describe('defaultsForTenant', () => {
   it('returns only roles marked default for new subjects', async () => {
-    const realmId = newId();
-    await withRealm(app.db, realmId, (tx) => seedRealm(tx, realmId));
-    await create({ name: 'member', realmId, defaultForNewSubjects: true });
-    await create({ name: 'admin', realmId, defaultForNewSubjects: false });
+    const tenantId = newId();
+    await withTenant(app.db, tenantId, (tx) => seedTenant(tx, tenantId));
+    await create({ name: 'member', tenantId, defaultForNewSubjects: true });
+    await create({ name: 'admin', tenantId, defaultForNewSubjects: false });
 
-    const defaults = await withRealm(app.db, realmId, (tx) =>
-      roleRepository(tx).defaultsForRealm(),
+    const defaults = await withTenant(app.db, tenantId, (tx) =>
+      roleRepository(tx).defaultsForTenant(),
     );
     expect(defaults.map((role) => role.name)).toEqual(['member']);
   });
 
-  it('does not return another realm’s default roles', async () => {
-    await expectCrossRealmMethodProbe(app.db, {
-      seed: async (tx, realmId) => {
-        await seedRealm(tx, realmId);
-        await roleRepository(tx).create({ realmId, name: 'member', defaultForNewSubjects: true });
+  it('does not return another tenant’s default roles', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        await seedTenant(tx, tenantId);
+        await roleRepository(tx).create({ tenantId, name: 'member', defaultForNewSubjects: true });
       },
       verifySeeded: async (tx) => {
-        const defaults = await roleRepository(tx).defaultsForRealm();
+        const defaults = await roleRepository(tx).defaultsForTenant();
         expect(defaults.map((role) => role.name)).toContain('member');
       },
-      attempt: async (tx) => roleRepository(tx).defaultsForRealm(),
+      attempt: async (tx) => roleRepository(tx).defaultsForTenant(),
       expectBlocked: (result) => {
         expect(result).toEqual([]);
       },
@@ -254,69 +254,69 @@ describe('defaultsForRealm', () => {
 
 describe('composites', () => {
   it('refuses a role that includes itself', async () => {
-    const realmId = newId();
-    await withRealm(app.db, realmId, (tx) => seedRealm(tx, realmId));
-    const role = await create({ name: 'admin', realmId });
+    const tenantId = newId();
+    await withTenant(app.db, tenantId, (tx) => seedTenant(tx, tenantId));
+    const role = await create({ name: 'admin', tenantId });
 
     expect(
       await causeMessage(
-        withRealm(app.db, realmId, (tx) => roleRepository(tx).addComposite(role.id, role.id)),
+        withTenant(app.db, tenantId, (tx) => roleRepository(tx).addComposite(role.id, role.id)),
       ),
     ).toContain('role_composites_not_self');
   });
 
   it('refuses a two-node cycle the CHECK cannot see', async () => {
-    const realmId = newId();
-    await withRealm(app.db, realmId, (tx) => seedRealm(tx, realmId));
-    const a = await create({ name: 'a', realmId });
-    const b = await create({ name: 'b', realmId });
+    const tenantId = newId();
+    await withTenant(app.db, tenantId, (tx) => seedTenant(tx, tenantId));
+    const a = await create({ name: 'a', tenantId });
+    const b = await create({ name: 'b', tenantId });
 
-    await withRealm(app.db, realmId, (tx) => roleRepository(tx).addComposite(a.id, b.id));
+    await withTenant(app.db, tenantId, (tx) => roleRepository(tx).addComposite(a.id, b.id));
     await expect(
-      withRealm(app.db, realmId, (tx) => roleRepository(tx).addComposite(b.id, a.id)),
+      withTenant(app.db, tenantId, (tx) => roleRepository(tx).addComposite(b.id, a.id)),
     ).rejects.toThrow(/would create a cycle/);
   });
 
   it('refuses a three-node cycle the immediate-reverse check would miss', async () => {
-    const realmId = newId();
-    await withRealm(app.db, realmId, (tx) => seedRealm(tx, realmId));
-    const a = await create({ name: 'a', realmId });
-    const b = await create({ name: 'b', realmId });
-    const c = await create({ name: 'c', realmId });
+    const tenantId = newId();
+    await withTenant(app.db, tenantId, (tx) => seedTenant(tx, tenantId));
+    const a = await create({ name: 'a', tenantId });
+    const b = await create({ name: 'b', tenantId });
+    const c = await create({ name: 'c', tenantId });
 
-    await withRealm(app.db, realmId, (tx) => roleRepository(tx).addComposite(a.id, b.id));
-    await withRealm(app.db, realmId, (tx) => roleRepository(tx).addComposite(b.id, c.id));
+    await withTenant(app.db, tenantId, (tx) => roleRepository(tx).addComposite(a.id, b.id));
+    await withTenant(app.db, tenantId, (tx) => roleRepository(tx).addComposite(b.id, c.id));
     await expect(
-      withRealm(app.db, realmId, (tx) => roleRepository(tx).addComposite(c.id, a.id)),
+      withTenant(app.db, tenantId, (tx) => roleRepository(tx).addComposite(c.id, a.id)),
     ).rejects.toThrow(/would create a cycle/);
   });
 
   it('permits a non-cyclic composite', async () => {
-    const realmId = newId();
-    await withRealm(app.db, realmId, (tx) => seedRealm(tx, realmId));
-    const a = await create({ name: 'a', realmId });
-    const b = await create({ name: 'b', realmId });
+    const tenantId = newId();
+    await withTenant(app.db, tenantId, (tx) => seedTenant(tx, tenantId));
+    const a = await create({ name: 'a', tenantId });
+    const b = await create({ name: 'b', tenantId });
 
     await expect(
-      withRealm(app.db, realmId, (tx) => roleRepository(tx).addComposite(a.id, b.id)),
+      withTenant(app.db, tenantId, (tx) => roleRepository(tx).addComposite(a.id, b.id)),
     ).resolves.toBeUndefined();
   });
 
-  it('cannot attach another realm’s role as a composite, and leaves that realm’s graph unchanged', async () => {
-    const realmA = newId();
-    const realmB = newId();
-    await withRealm(app.db, realmA, (tx) => seedRealm(tx, realmA));
-    await withRealm(app.db, realmB, (tx) => seedRealm(tx, realmB));
-    const roleA = await create({ name: 'shared', realmId: realmA });
-    const roleB = await create({ name: 'container', realmId: realmB });
+  it('cannot attach another tenant’s role as a composite, and leaves that tenant’s graph unchanged', async () => {
+    const tenantA = newId();
+    const tenantB = newId();
+    await withTenant(app.db, tenantA, (tx) => seedTenant(tx, tenantA));
+    await withTenant(app.db, tenantB, (tx) => seedTenant(tx, tenantB));
+    const roleA = await create({ name: 'shared', tenantId: tenantA });
+    const roleB = await create({ name: 'container', tenantId: tenantB });
 
     expect(
       await causeMessage(
-        withRealm(app.db, realmB, (tx) => roleRepository(tx).addComposite(roleB.id, roleA.id)),
+        withTenant(app.db, tenantB, (tx) => roleRepository(tx).addComposite(roleB.id, roleA.id)),
       ),
     ).toContain('role_composites_child_fk');
 
-    const composites = await withRealm(app.db, realmA, (tx) =>
+    const composites = await withTenant(app.db, tenantA, (tx) =>
       tx.select().from(roleComposites).where(eq(roleComposites.childRoleId, roleA.id)),
     );
     expect(composites).toEqual([]);
@@ -324,30 +324,30 @@ describe('composites', () => {
 });
 
 describe('assignToSubject', () => {
-  it('assigns a role to a subject in the same realm', async () => {
-    const realmId = newId();
-    await withRealm(app.db, realmId, (tx) => seedRealm(tx, realmId));
-    const role = await create({ name: 'member', realmId });
-    const subjectId = await withRealm(app.db, realmId, (tx) => insertSubject(tx, realmId));
+  it('assigns a role to a subject in the same tenant', async () => {
+    const tenantId = newId();
+    await withTenant(app.db, tenantId, (tx) => seedTenant(tx, tenantId));
+    const role = await create({ name: 'member', tenantId });
+    const subjectId = await withTenant(app.db, tenantId, (tx) => insertSubject(tx, tenantId));
 
     await expect(
-      withRealm(app.db, realmId, (tx) => roleRepository(tx).assignToSubject(subjectId, role.id)),
+      withTenant(app.db, tenantId, (tx) => roleRepository(tx).assignToSubject(subjectId, role.id)),
     ).resolves.toBeUndefined();
   });
 
-  it('cannot assign another realm’s role to a subject, and leaves that role unassigned', async () => {
-    const realmA = newId();
-    const realmB = newId();
-    await withRealm(app.db, realmA, (tx) => seedRealm(tx, realmA));
-    await withRealm(app.db, realmB, (tx) => seedRealm(tx, realmB));
-    const roleA = await create({ name: 'admin', realmId: realmA });
-    const subjectB = await withRealm(app.db, realmB, (tx) => insertSubject(tx, realmB));
+  it('cannot assign another tenant’s role to a subject, and leaves that role unassigned', async () => {
+    const tenantA = newId();
+    const tenantB = newId();
+    await withTenant(app.db, tenantA, (tx) => seedTenant(tx, tenantA));
+    await withTenant(app.db, tenantB, (tx) => seedTenant(tx, tenantB));
+    const roleA = await create({ name: 'admin', tenantId: tenantA });
+    const subjectB = await withTenant(app.db, tenantB, (tx) => insertSubject(tx, tenantB));
 
     await expect(
-      withRealm(app.db, realmB, (tx) => roleRepository(tx).assignToSubject(subjectB, roleA.id)),
+      withTenant(app.db, tenantB, (tx) => roleRepository(tx).assignToSubject(subjectB, roleA.id)),
     ).rejects.toThrow(/no role with id/);
 
-    const assignments = await withRealm(app.db, realmA, (tx) =>
+    const assignments = await withTenant(app.db, tenantA, (tx) =>
       tx.select().from(subjectRoles).where(eq(subjectRoles.roleId, roleA.id)),
     );
     expect(assignments).toEqual([]);
@@ -355,34 +355,34 @@ describe('assignToSubject', () => {
 });
 
 describe('mapToClientScope', () => {
-  it('maps a role to a client scope in the same realm', async () => {
-    const realmId = newId();
-    await withRealm(app.db, realmId, (tx) => seedRealm(tx, realmId));
-    const role = await create({ name: 'member', realmId });
-    const clientScopeId = await withRealm(app.db, realmId, (tx) => insertClientScope(tx, realmId));
+  it('maps a role to a client scope in the same tenant', async () => {
+    const tenantId = newId();
+    await withTenant(app.db, tenantId, (tx) => seedTenant(tx, tenantId));
+    const role = await create({ name: 'member', tenantId });
+    const clientScopeId = await withTenant(app.db, tenantId, (tx) => insertClientScope(tx, tenantId));
 
     await expect(
-      withRealm(app.db, realmId, (tx) =>
+      withTenant(app.db, tenantId, (tx) =>
         roleRepository(tx).mapToClientScope(clientScopeId, role.id),
       ),
     ).resolves.toBeUndefined();
   });
 
-  it('cannot map another realm’s role to a client scope, and leaves that role unmapped', async () => {
-    const realmA = newId();
-    const realmB = newId();
-    await withRealm(app.db, realmA, (tx) => seedRealm(tx, realmA));
-    await withRealm(app.db, realmB, (tx) => seedRealm(tx, realmB));
-    const roleA = await create({ name: 'admin', realmId: realmA });
-    const clientScopeB = await withRealm(app.db, realmB, (tx) => insertClientScope(tx, realmB));
+  it('cannot map another tenant’s role to a client scope, and leaves that role unmapped', async () => {
+    const tenantA = newId();
+    const tenantB = newId();
+    await withTenant(app.db, tenantA, (tx) => seedTenant(tx, tenantA));
+    await withTenant(app.db, tenantB, (tx) => seedTenant(tx, tenantB));
+    const roleA = await create({ name: 'admin', tenantId: tenantA });
+    const clientScopeB = await withTenant(app.db, tenantB, (tx) => insertClientScope(tx, tenantB));
 
     await expect(
-      withRealm(app.db, realmB, (tx) =>
+      withTenant(app.db, tenantB, (tx) =>
         roleRepository(tx).mapToClientScope(clientScopeB, roleA.id),
       ),
     ).rejects.toThrow(/no role with id/);
 
-    const mappings = await withRealm(app.db, realmA, (tx) =>
+    const mappings = await withTenant(app.db, tenantA, (tx) =>
       tx.select().from(clientScopeRoles).where(eq(clientScopeRoles.roleId, roleA.id)),
     );
     expect(mappings).toEqual([]);
@@ -390,27 +390,27 @@ describe('mapToClientScope', () => {
 });
 
 describe('idsForClientScopes', () => {
-  it('finds the role a client scope in the same realm is mapped to', async () => {
-    const realmId = newId();
-    await withRealm(app.db, realmId, (tx) => seedRealm(tx, realmId));
-    const role = await create({ name: 'member', realmId });
-    const clientScopeId = await withRealm(app.db, realmId, (tx) => insertClientScope(tx, realmId));
-    await withRealm(app.db, realmId, (tx) =>
+  it('finds the role a client scope in the same tenant is mapped to', async () => {
+    const tenantId = newId();
+    await withTenant(app.db, tenantId, (tx) => seedTenant(tx, tenantId));
+    const role = await create({ name: 'member', tenantId });
+    const clientScopeId = await withTenant(app.db, tenantId, (tx) => insertClientScope(tx, tenantId));
+    await withTenant(app.db, tenantId, (tx) =>
       roleRepository(tx).mapToClientScope(clientScopeId, role.id),
     );
 
-    const found = await withRealm(app.db, realmId, (tx) =>
+    const found = await withTenant(app.db, tenantId, (tx) =>
       roleRepository(tx).idsForClientScopes([clientScopeId]),
     );
     expect(found).toEqual(new Set([role.id]));
   });
 
-  it('does not find another realm’s mapping', async () => {
-    await expectCrossRealmMethodProbe(app.db, {
-      seed: async (tx, realmId) => {
-        await seedRealm(tx, realmId);
-        const role = await roleRepository(tx).create({ realmId, name: 'admin' });
-        const clientScopeId = await insertClientScope(tx, realmId);
+  it('does not find another tenant’s mapping', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        await seedTenant(tx, tenantId);
+        const role = await roleRepository(tx).create({ tenantId, name: 'admin' });
+        const clientScopeId = await insertClientScope(tx, tenantId);
         await roleRepository(tx).mapToClientScope(clientScopeId, role.id);
         return { roleId: role.id, clientScopeId };
       },

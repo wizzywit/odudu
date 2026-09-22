@@ -1,4 +1,4 @@
-import { type RealmScopedDatabase } from '@odudu/db';
+import { type TenantScopedDatabase } from '@odudu/db';
 import { newId, OduduError } from '@odudu/kernel';
 import { and, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { z } from 'zod';
@@ -15,7 +15,7 @@ export type { RoleRecord } from '#/schema/roles';
 function toRecord(row: typeof roles.$inferSelect): RoleRecord {
   return {
     id: row.id,
-    realmId: row.realmId,
+    tenantId: row.tenantId,
     clientId: row.clientId,
     name: row.name,
     description: row.description,
@@ -25,20 +25,20 @@ function toRecord(row: typeof roles.$inferSelect): RoleRecord {
 }
 
 export interface NewRole {
-  realmId: string;
+  tenantId: string;
   name: string;
   clientId?: string | null;
   description?: string | null;
   defaultForNewSubjects?: boolean;
 }
 
-async function realmOfRole(tx: RealmScopedDatabase, roleId: string): Promise<string> {
-  const rows = await tx.select({ realmId: roles.realmId }).from(roles).where(eq(roles.id, roleId));
+async function tenantOfRole(tx: TenantScopedDatabase, roleId: string): Promise<string> {
+  const rows = await tx.select({ tenantId: roles.tenantId }).from(roles).where(eq(roles.id, roleId));
   const row = rows[0];
   if (row === undefined) {
     throw new OduduError('role_not_found', `no role with id ${roleId}`);
   }
-  return row.realmId;
+  return row.tenantId;
 }
 
 // tx.execute() returns driver rows as unknown structure; parsing narrows
@@ -54,7 +54,7 @@ const closureRowsSchema = z.array(closureRowSchema);
 // against PostgreSQL 17 to terminate on a cyclic graph, where the identical
 // query with UNION ALL was cancelled by a statement timeout — see
 // docs/superpowers/p2a-spike-log.md.
-async function closureFrom(tx: RealmScopedDatabase, startId: string): Promise<Set<string>> {
+async function closureFrom(tx: TenantScopedDatabase, startId: string): Promise<Set<string>> {
   const result = await tx.execute(sql`
     WITH RECURSIVE closure(role_id) AS (
       SELECT child_role_id AS role_id FROM role_composites WHERE parent_role_id = ${startId}
@@ -68,14 +68,14 @@ async function closureFrom(tx: RealmScopedDatabase, startId: string): Promise<Se
   return new Set(closureRowsSchema.parse(result).map((row) => row.role_id));
 }
 
-export function roleRepository(tx: RealmScopedDatabase) {
+export function roleRepository(tx: TenantScopedDatabase) {
   return {
     async create(input: NewRole): Promise<RoleRecord> {
       const rows = await tx
         .insert(roles)
         .values({
           id: newId(),
-          realmId: input.realmId,
+          tenantId: input.tenantId,
           clientId: input.clientId ?? null,
           name: input.name,
           description: input.description ?? null,
@@ -109,24 +109,24 @@ export function roleRepository(tx: RealmScopedDatabase) {
       if (reachable.has(parentRoleId)) {
         throw new OduduError('role_composite_cycle', 'would create a cycle');
       }
-      const realmId = await realmOfRole(tx, parentRoleId);
-      await tx.insert(roleComposites).values({ realmId, parentRoleId, childRoleId });
+      const tenantId = await tenantOfRole(tx, parentRoleId);
+      await tx.insert(roleComposites).values({ tenantId, parentRoleId, childRoleId });
     },
 
-    // realm_id is not a caller-supplied argument: it is read back from the
-    // role being assigned, the same realm RLS already scopes both the role
+    // tenant_id is not a caller-supplied argument: it is read back from the
+    // role being assigned, the same tenant RLS already scopes both the role
     // and the subject to.
     async assignToSubject(subjectId: string, roleId: string): Promise<void> {
-      const realmId = await realmOfRole(tx, roleId);
-      await tx.insert(subjectRoles).values({ realmId, subjectId, roleId });
+      const tenantId = await tenantOfRole(tx, roleId);
+      await tx.insert(subjectRoles).values({ tenantId, subjectId, roleId });
     },
 
     async mapToClientScope(clientScopeId: string, roleId: string): Promise<void> {
-      const realmId = await realmOfRole(tx, roleId);
-      await tx.insert(clientScopeRoles).values({ realmId, clientScopeId, roleId });
+      const tenantId = await tenantOfRole(tx, roleId);
+      await tx.insert(clientScopeRoles).values({ tenantId, clientScopeId, roleId });
     },
 
-    async defaultsForRealm(): Promise<RoleRecord[]> {
+    async defaultsForTenant(): Promise<RoleRecord[]> {
       const rows = await tx.select().from(roles).where(eq(roles.defaultForNewSubjects, true));
       return rows.map(toRecord);
     },

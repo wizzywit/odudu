@@ -5,7 +5,7 @@ import { tenants } from '@odudu/db';
 // with pgPolicy() — see clients.ts in @odudu/domain-tenant for why.
 export const roles = pgTable('roles', {
   id: uuid('id').primaryKey(),
-  realmId: uuid('tenant_id')
+  tenantId: uuid('tenant_id')
     .notNull()
     .references(() => tenants.id, { onDelete: 'cascade' }),
   // References clients(id), owned by @odudu/domain-tenant. Declared as a
@@ -20,11 +20,11 @@ export const roles = pgTable('roles', {
 
 // Lives beside the table, not in the repository, so that `service` can
 // reference the shape of a role without depending on the repository that
-// reads it. `clientId` null means a realm role; non-null means a role
+// reads it. `clientId` null means a tenant role; non-null means a role
 // scoped to that client, qualified by qualifiedRoleName.
 export interface RoleRecord {
   id: string;
-  realmId: string;
+  tenantId: string;
   clientId: string | null;
   name: string;
   description: string | null;
@@ -35,7 +35,7 @@ export interface RoleRecord {
 export const roleComposites = pgTable(
   'role_composites',
   {
-    realmId: uuid('tenant_id').notNull(),
+    tenantId: uuid('tenant_id').notNull(),
     parentRoleId: uuid('parent_role_id')
       .notNull()
       .references(() => roles.id, { onDelete: 'cascade' }),
@@ -49,7 +49,7 @@ export const roleComposites = pgTable(
 export const subjectRoles = pgTable(
   'subject_roles',
   {
-    realmId: uuid('tenant_id').notNull(),
+    tenantId: uuid('tenant_id').notNull(),
     // References subjects(id), owned by @odudu/domain-identity. Plain
     // column for the same reason as roles.clientId above.
     subjectId: uuid('subject_id').notNull(),
@@ -63,7 +63,7 @@ export const subjectRoles = pgTable(
 export const clientScopeRoles = pgTable(
   'client_scope_roles',
   {
-    realmId: uuid('tenant_id').notNull(),
+    tenantId: uuid('tenant_id').notNull(),
     // References client_scopes(id), owned by @odudu/domain-tenant. Plain
     // column for the same reason as roles.clientId above.
     clientScopeId: uuid('client_scope_id').notNull(),
