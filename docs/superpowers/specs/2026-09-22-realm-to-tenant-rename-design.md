@@ -115,9 +115,11 @@ increment, so it is **updated first and watched to fail**, then the migration
 lands and it is watched to pass. Updating it alongside the migration would let a
 wrong policy and a wrong expectation agree with each other.
 
-The increment ends by re-running every repository's foreign-tenant probe. Those
-already exist as a stated non-negotiable; this is re-running a suite, not
-writing one.
+The increment ends by re-running `packages/db`'s own probes. Every other
+package's foreign-tenant probes run with that package, because they cannot
+compile until it is renamed; the full sweep is the last step of the rename.
+Those probes already exist as a stated non-negotiable — this is re-running
+suites, not writing them.
 
 **6.2 Domain packages.** `domain-realm` (renamed to `domain-tenant`),
 `domain-identity`, `account`, `authn-flows`.
