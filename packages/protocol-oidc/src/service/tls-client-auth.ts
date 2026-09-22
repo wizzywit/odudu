@@ -28,13 +28,9 @@ export interface TlsClientAuthOptions {
 export type TlsClientSubjectResult =
   { kind: 'absent' } | { kind: 'duplicated' } | { kind: 'present'; subject: string };
 
-// A header sent twice, or appended to by a proxy that did not strip a
-// caller-supplied copy first, must never resolve to either value. Not
-// `headers[name]`: Node's http parser joins most repeats (this header
-// included) into one ", "-separated string, indistinguishable from an
-// ordinary comma-bearing DN — see `tlsClientAuthSubjectMatches`'s comment,
-// and the false version of this reasoning this file used to carry.
-// `rawHeaders` (Node's flat, duplicate-preserving pairs) counts exactly.
+// Node joins repeated headers into one ", "-separated value, which an
+// ordinary comma-bearing DN is indistinguishable from, so duplicates are
+// counted from the raw pairs rather than read off `headers[name]`.
 function countHeaderOccurrences(rawHeaders: readonly string[], name: string): number {
   let count = 0;
   for (let index = 0; index < rawHeaders.length; index += 2) {
