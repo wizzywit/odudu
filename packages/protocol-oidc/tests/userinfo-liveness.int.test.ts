@@ -325,3 +325,92 @@ describe('[ODUDU-USERINFO-LIVENESS-01] /userinfo consults the grant and the sess
     expect(res.json<{ sub: string }>().sub).toBe(realm.subjectId);
   });
 });
+
+// The blind spot between "no session because it is offline" and "no
+// session because there is no End-User at all": issueClientCredentialsTokens
+// (token-issuance.ts) still writes a real token_grants row, with
+// sessionId: null and a genuine grant_id — the same shape offline_access
+// has — so the C1 check above must treat it identically rather than
+// refusing it for lacking a session it was never going to have.
+describe('[ODUDU-USERINFO-LIVENESS-02] client_credentials at /userinfo', () => {
+  const CC_CLIENT_ID = 'userinfo-liveness-cc-client';
+  const CC_CLIENT_SECRET = 'userinfo-liveness-cc-secret';
+
+  async function setupClientCredentialsRealm(name: string): Promise<{ realmName: string }> {
+    const realmId = newId();
+    await withRealm(app.db, realmId, async (tx: RealmScopedDatabase) => {
+      await tx.insert(realms).values({ id: realmId, name });
+      await provisionRealm(tx, realmId);
+
+      const serviceSubject = await subjectRepository(tx).create({ realmId, type: 'service' });
+      const clientDbId = newId();
+      await tx.insert(clients).values({
+        id: clientDbId,
+        realmId,
+        clientId: CC_CLIENT_ID,
+        name: 'client_credentials liveness test client',
+        type: 'confidential',
+        secretHash: await hashPassword(CC_CLIENT_SECRET),
+        serviceSubjectId: serviceSubject.id,
+      });
+      await provisionClientDefaults(tx, clientDbId);
+      await clientOidcConfigRepository(tx).create({
+        clientId: clientDbId,
+        realmId,
+        redirectUris: [],
+        grantTypes: ['client_credentials'],
+        tokenEndpointAuthMethod: 'client_secret_basic',
+        audiences: [],
+        accessTokenTtlSeconds: 300,
+        refreshTokenTtlSeconds: 1_209_600,
+        // A realm's own choice to let this client request `openid` — RFC
+        // 6749 draws no line here, and this is what makes the request
+        // below reach /userinfo's `openid`-scope gate at all.
+        clientCredentialsScopes: ['openid'],
+      });
+
+      const generated = await generateSigningKey('ES256', KEK);
+      await tx.insert(signingKeys).values({
+        id: newId(),
+        realmId,
+        kid: generated.kid,
+        alg: generated.alg,
+        status: 'active',
+        publicJwk: generated.publicJwk,
+        privateJwkEncrypted: generated.privateJwkEncrypted,
+      });
+    });
+    return { realmName: name };
+  }
+
+  async function requestClientCredentialsToken(realmName: string): Promise<string> {
+    const form = new URLSearchParams({ grant_type: 'client_credentials', scope: 'openid' });
+    const res = await http.inject({
+      method: 'POST',
+      url: `/realms/${realmName}/protocol/openid-connect/token`,
+      payload: form.toString(),
+      headers: {
+        'content-type': 'application/x-www-form-urlencoded',
+        authorization: `Basic ${Buffer.from(`${CC_CLIENT_ID}:${CC_CLIENT_SECRET}`).toString('base64')}`,
+      },
+    });
+    if (res.statusCode !== 200) {
+      throw new Error(
+        `expected /token to issue a client_credentials token, got ${String(res.statusCode)}`,
+      );
+    }
+    return res.json<{ access_token: string }>().access_token;
+  }
+
+  it('answers 200: a real grant with no session, minted with no End-User at all', async () => {
+    const realm = await setupClientCredentialsRealm(`userinfo-cc-${newId()}`);
+    const token = await requestClientCredentialsToken(realm.realmName);
+    const payload = decodePayload(token);
+    expect(payload.sid).toBeUndefined();
+    expect(typeof payload.grant_id).toBe('string');
+
+    const res = await userinfo(realm.realmName, token);
+    expect(res.statusCode).toBe(200);
+    expect(res.json<{ sub: string }>().sub).toBe(payload.sub);
+  });
+});

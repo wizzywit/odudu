@@ -9,6 +9,7 @@ import {
   type RealmScopedDatabase,
 } from '@odudu/db';
 import { provisionRealm } from '@odudu/authn-flows';
+import { subjectRepository } from '@odudu/domain-identity';
 import { clients, provisionClientDefaults } from '@odudu/domain-realm';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
@@ -19,6 +20,7 @@ import { oidcRoutes } from '#/index';
 import { NO_CLIENT_KEY_FETCHER } from '#/repository/client-keys';
 import { UNLIMITED_CLIENT_SECRET_LIMITER } from '#/service/client-secret-throttle';
 import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
+import { tokenGrantRepository } from '#/repository/grants';
 
 let containerHandle: TestDatabase | undefined;
 let ownerHandle: DatabaseHandle | undefined;
@@ -75,21 +77,41 @@ function tokenRequestFor(clientId: string): string {
 
 // Mints an access token directly, bypassing the full authorization_code
 // flow: /userinfo's CORS decision reads `client_id` from the token's own
-// claims, which is all this needs to exercise it.
-async function mintAccessToken(clientId: string): Promise<string> {
+// claims, which is all this needs to exercise it. Still has to carry a
+// `grant_id` naming a real `token_grants` row — /userinfo now consults it
+// (loadGrant/isSessionLive, the C1 fix) the same way /introspect always
+// has, and a token with no such row is exactly what that check exists to
+// refuse. `sessionId: null` here is the same shape a `client_credentials`
+// token's grant has — no End-User, so no session to carry.
+async function mintAccessToken(clientId: string, clientDbId: string): Promise<string> {
   const key = await withRealm(app.db, REALM_ID, (tx) => signingKeyRepository(tx).active());
   const issuer = `http://localhost/realms/${REALM}`;
   const now = Math.floor(Date.now() / 1000);
+  const grantId = newId();
+  const subjectId = await withRealm(app.db, REALM_ID, async (tx) => {
+    const subject = await subjectRepository(tx).create({ realmId: REALM_ID, type: 'user' });
+    await tokenGrantRepository(tx).create({
+      id: grantId,
+      realmId: REALM_ID,
+      clientId: clientDbId,
+      subjectId: subject.id,
+      scope: 'openid',
+      audience: [issuer],
+      sessionId: null,
+    });
+    return subject.id;
+  });
   return signJwt(
     {
       iss: issuer,
-      sub: newId(),
+      sub: subjectId,
       aud: [issuer],
       client_id: clientId,
       scope: 'openid',
       iat: now,
       exp: now + 300,
       jti: newId(),
+      grant_id: grantId,
     },
     { key, kek: KEK, typ: 'at+jwt' },
   );
@@ -191,8 +213,8 @@ describe('preflight is answered from the realm, the request from the client', ()
 
   it("echoes the origin back on the real /userinfo request when it is the resolved client's own", async () => {
     const clientD = `app-d-${newId()}`;
-    await seedClient({ clientId: clientD, webOrigins: ['https://d.example'] });
-    const accessToken = await mintAccessToken(clientD);
+    const clientDbId = await seedClient({ clientId: clientD, webOrigins: ['https://d.example'] });
+    const accessToken = await mintAccessToken(clientD, clientDbId);
 
     const own = await http.inject({
       method: 'GET',
