@@ -137,7 +137,7 @@ async function defaultLookup(hostname: string): Promise<readonly string[]> {
  * Posts a Logout Token to a relying party's back-channel endpoint, pinning
  * the connection to a checked address the way `clientKeySet` does for a
  * `jwks_uri` (ADR 0028) — `backchannel_logout_uri` is client-registered and
- * never re-validated for address afterwards, so in a realm with open
+ * never re-validated for address afterwards, so in a tenant with open
  * registration it is exactly as attacker-influenced.
  */
 export function createLogoutDeliveryTransport(

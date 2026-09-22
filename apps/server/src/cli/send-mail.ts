@@ -20,12 +20,12 @@ export async function sendMailCommand(): Promise<SendPendingOutcome> {
   const appUrl = config.ODUDU_APP_DATABASE_URL;
   // Demanded in every environment, not only production: the claim is
   // scoped by a policy the owner role escapes, so falling back to the
-  // owner would claim every realm's messages under one realm's context and
-  // write the results back as that realm's.
+  // owner would claim every tenant's messages under one tenant's context and
+  // write the results back as that tenant's.
   if (appUrl === undefined) {
     throw new OduduError(
       'outbox_requires_app_database_url',
-      'odudu send-mail requires ODUDU_APP_DATABASE_URL: it claims under the realm policy, ' +
+      'odudu send-mail requires ODUDU_APP_DATABASE_URL: it claims under the tenant policy, ' +
         'which the owner role the migrations use escapes',
     );
   }

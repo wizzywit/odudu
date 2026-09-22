@@ -3,7 +3,7 @@ import { type Config, type OduduModule } from '@odudu/kernel';
 import { type LogoutDeliveryTransport } from '@odudu/protocol-oidc';
 import {
   logoutSenderOptionsFromConfig,
-  sendLogoutsAcrossRealms,
+  sendLogoutsAcrossTenants,
   type LogoutSenderDeps,
   type LogoutSenderOptions,
   type LogoutSenderReport,
@@ -59,7 +59,7 @@ export type LogoutSenderPass = (
 
 export function logoutSenderModule(
   deps: LogoutSenderModuleDeps,
-  pass: LogoutSenderPass = sendLogoutsAcrossRealms,
+  pass: LogoutSenderPass = sendLogoutsAcrossTenants,
 ): OduduModule {
   let scheduler: Scheduler | undefined;
 
@@ -80,7 +80,7 @@ export function logoutSenderModule(
           ctx.logger.warn(
             {},
             'not delivering back-channel logouts: ODUDU_APP_DATABASE_URL is unset, and the ' +
-              'pass claims under the realm policy the owner role escapes — set it, or set ' +
+              'pass claims under the tenant policy the owner role escapes — set it, or set ' +
               'ODUDU_LOGOUT_SENDER_ENABLED=false to say the schedule lives elsewhere',
           );
         }

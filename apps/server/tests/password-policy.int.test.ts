@@ -1,7 +1,7 @@
 import {
   createDatabase,
   MIGRATIONS_DIR,
-  realms,
+  tenants,
   runMigrations,
   type DatabaseHandle,
 } from '@odudu/db';
@@ -25,7 +25,7 @@ import { createLogger } from '#/logger';
 
 // register.int.test.ts and reset-password.int.test.ts (packages/account)
 // each carry their own weak-password case against a fake
-// createAccount/setPassword. Neither can prove the *same* realm policy
+// createAccount/setPassword. Neither can prove the *same* tenant policy
 // binds every writer: the seed CLI and the change-password required
 // action are not @odudu/account's to reach — it depends on neither
 // @odudu/authn-flows nor apps/server. This file, not
@@ -106,24 +106,24 @@ function buildTestApp(): FastifyInstance {
   });
 }
 
-async function setRealmSettings(
-  realmId: string,
+async function setTenantSettings(
+  tenantId: string,
   settings: {
     registrationAllowed?: boolean;
     resetPasswordAllowed?: boolean;
     passwordMaxAgeDays?: number;
   },
 ): Promise<void> {
-  await owner.db.update(realms).set(settings).where(eq(realms.id, realmId));
+  await owner.db.update(tenants).set(settings).where(eq(tenants.id, tenantId));
 }
 
 // created_at is written by the database's own now(), so standing a password
-// in the past is the only way to make the realm's maximum age bite.
-async function agePassword(realmId: string, days: number): Promise<void> {
+// in the past is the only way to make the tenant's maximum age bite.
+async function agePassword(tenantId: string, days: number): Promise<void> {
   await owner.db
     .update(userCredentials)
     .set({ createdAt: sql`now() - ${`${String(days)} days`}::interval` })
-    .where(and(eq(userCredentials.realmId, realmId), eq(userCredentials.type, 'password')));
+    .where(and(eq(userCredentials.tenantId, tenantId), eq(userCredentials.type, 'password')));
 }
 
 async function formPost(app: FastifyInstance, url: string, fields: Record<string, string>) {
@@ -137,7 +137,7 @@ async function formPost(app: FastifyInstance, url: string, fields: Record<string
 
 // The login form /authorize renders carries the id of the authentication
 // session the required-action route will not act without.
-async function startAuthSession(app: FastifyInstance, realmName: string): Promise<string> {
+async function startAuthSession(app: FastifyInstance, tenantName: string): Promise<string> {
   const params = new URLSearchParams({
     response_type: 'code',
     client_id: 'policy-spa',
@@ -148,7 +148,7 @@ async function startAuthSession(app: FastifyInstance, realmName: string): Promis
     code_challenge_method: 'S256',
   });
   const authorize = await app.inject({
-    url: `/realms/${realmName}/protocol/openid-connect/auth?${params.toString()}`,
+    url: `/tenants/${tenantName}/protocol/openid-connect/auth?${params.toString()}`,
   });
   expect(authorize.statusCode).toBe(200);
   const match = /name="auth_session_id" value="([^"]*)"/.exec(authorize.body);
@@ -171,15 +171,15 @@ beforeEach(async () => {
   await owner.db.delete(emailOutbox);
 });
 
-describe('the realm password policy binds every writer', () => {
+describe('the tenant password policy binds every writer', () => {
   it('refuses a weak password at registration', async () => {
-    const realmName = `policy-reg-${newId()}`;
+    const tenantName = `policy-reg-${newId()}`;
     const seeded = await seed({
-      realm: realmName,
+      tenant: tenantName,
       clientId: 'policy-spa',
       redirectUris: [REDIRECT_URI],
     });
-    await setRealmSettings(seeded.realmId, { registrationAllowed: true });
+    await setTenantSettings(seeded.tenantId, { registrationAllowed: true });
 
     const app = buildTestApp();
     await app.ready();
@@ -191,7 +191,7 @@ describe('the realm password policy binds every writer', () => {
       });
       const res = await app.inject({
         method: 'POST',
-        url: `/realms/${realmName}/login-actions/registration`,
+        url: `/tenants/${tenantName}/login-actions/registration`,
         payload: form.toString(),
         headers: { 'content-type': 'application/x-www-form-urlencoded' },
       });
@@ -204,16 +204,16 @@ describe('the realm password policy binds every writer', () => {
   });
 
   it('refuses a weak password at reset redemption', async () => {
-    const realmName = `policy-reset-${newId()}`;
+    const tenantName = `policy-reset-${newId()}`;
     const seeded = await seed({
-      realm: realmName,
+      tenant: tenantName,
       clientId: 'policy-spa',
       redirectUris: [REDIRECT_URI],
       username: 'ada',
       password: STRONG_PASSWORD,
       email: 'ada@example.test',
     });
-    await setRealmSettings(seeded.realmId, { resetPasswordAllowed: true });
+    await setTenantSettings(seeded.tenantId, { resetPasswordAllowed: true });
 
     const sender = capturingSender();
     const app = buildApp({
@@ -228,7 +228,7 @@ describe('the realm password policy binds every writer', () => {
       const requestForm = new URLSearchParams({ email: 'ada@example.test' });
       const requested = await app.inject({
         method: 'POST',
-        url: `/realms/${realmName}/login-actions/reset-password`,
+        url: `/tenants/${tenantName}/login-actions/reset-password`,
         payload: requestForm.toString(),
         headers: { 'content-type': 'application/x-www-form-urlencoded' },
       });
@@ -257,18 +257,18 @@ describe('the realm password policy binds every writer', () => {
   });
 
   it('refuses a weak password from the seed CLI', async () => {
-    const realmName = `policy-seed-${newId()}`;
+    const tenantName = `policy-seed-${newId()}`;
 
     await expect(
       seed({
-        realm: realmName,
+        tenant: tenantName,
         clientId: 'policy-spa',
         redirectUris: [REDIRECT_URI],
         username: 'ada',
         password: WEAK_PASSWORD,
         email: 'ada@example.test',
       }),
-    ).rejects.toThrow(/password does not satisfy the realm's password policy/);
+    ).rejects.toThrow(/password does not satisfy the tenant's password policy/);
   });
 
   // The fourth writer, reached the only way it can be: the action has to be
@@ -277,9 +277,9 @@ describe('the realm password policy binds every writer', () => {
   // a submission whose session names nobody, and the gate refuses an action
   // the bound subject was never asked for.
   it('refuses a weak password at the change-password required action', async () => {
-    const realmName = `policy-change-${newId()}`;
+    const tenantName = `policy-change-${newId()}`;
     const seeded = await seed({
-      realm: realmName,
+      tenant: tenantName,
       clientId: 'policy-spa',
       redirectUris: [REDIRECT_URI],
       username: 'ada',
@@ -289,14 +289,14 @@ describe('the realm password policy binds every writer', () => {
     // A maximum age of one day against a password stood a week in the past:
     // what makes update-password owed, and the login that discovers it still
     // authenticates — the action blocks its completion, not the password.
-    await setRealmSettings(seeded.realmId, { passwordMaxAgeDays: 1 });
-    await agePassword(seeded.realmId, 7);
+    await setTenantSettings(seeded.tenantId, { passwordMaxAgeDays: 1 });
+    await agePassword(seeded.tenantId, 7);
 
     const app = buildTestApp();
     await app.ready();
     try {
-      const authSessionId = await startAuthSession(app, realmName);
-      const login = await formPost(app, `/realms/${realmName}/login-actions/authenticate`, {
+      const authSessionId = await startAuthSession(app, tenantName);
+      const login = await formPost(app, `/tenants/${tenantName}/login-actions/authenticate`, {
         auth_session_id: authSessionId,
         username: 'ada',
         password: STRONG_PASSWORD,
@@ -306,7 +306,7 @@ describe('the realm password policy binds every writer', () => {
 
       const res = await formPost(
         app,
-        `/realms/${realmName}/login-actions/required-action?action=update-password`,
+        `/tenants/${tenantName}/login-actions/required-action?action=update-password`,
         { auth_session_id: authSessionId, password: WEAK_PASSWORD },
       );
 
@@ -332,18 +332,18 @@ describe('a password over the maximum is refused wherever one is read', () => {
   const overlong = 'a'.repeat(MAX_PASSWORD_LENGTH + 1);
 
   it('refuses it at registration', async () => {
-    const realmName = `policy-max-reg-${newId()}`;
+    const tenantName = `policy-max-reg-${newId()}`;
     const seeded = await seed({
-      realm: realmName,
+      tenant: tenantName,
       clientId: 'policy-spa',
       redirectUris: [REDIRECT_URI],
     });
-    await setRealmSettings(seeded.realmId, { registrationAllowed: true });
+    await setTenantSettings(seeded.tenantId, { registrationAllowed: true });
 
     const app = buildTestApp();
     await app.ready();
     try {
-      const res = await formPost(app, `/realms/${realmName}/login-actions/registration`, {
+      const res = await formPost(app, `/tenants/${tenantName}/login-actions/registration`, {
         username: 'ada',
         email: 'ada@example.test',
         password: overlong,
@@ -357,16 +357,16 @@ describe('a password over the maximum is refused wherever one is read', () => {
   });
 
   it('refuses it at reset redemption', async () => {
-    const realmName = `policy-max-reset-${newId()}`;
+    const tenantName = `policy-max-reset-${newId()}`;
     const seeded = await seed({
-      realm: realmName,
+      tenant: tenantName,
       clientId: 'policy-spa',
       redirectUris: [REDIRECT_URI],
       username: 'ada',
       password: STRONG_PASSWORD,
       email: 'ada@example.test',
     });
-    await setRealmSettings(seeded.realmId, { resetPasswordAllowed: true });
+    await setTenantSettings(seeded.tenantId, { resetPasswordAllowed: true });
 
     const sender = capturingSender();
     const app = buildApp({
@@ -378,7 +378,7 @@ describe('a password over the maximum is refused wherever one is read', () => {
     });
     await app.ready();
     try {
-      const requested = await formPost(app, `/realms/${realmName}/login-actions/reset-password`, {
+      const requested = await formPost(app, `/tenants/${tenantName}/login-actions/reset-password`, {
         email: 'ada@example.test',
       });
       expect(requested.statusCode).toBe(200);
@@ -400,9 +400,9 @@ describe('a password over the maximum is refused wherever one is read', () => {
   });
 
   it('refuses it at the login form, without verifying it', async () => {
-    const realmName = `policy-max-login-${newId()}`;
+    const tenantName = `policy-max-login-${newId()}`;
     await seed({
-      realm: realmName,
+      tenant: tenantName,
       clientId: 'policy-spa',
       redirectUris: [REDIRECT_URI],
       username: 'ada',
@@ -413,8 +413,8 @@ describe('a password over the maximum is refused wherever one is read', () => {
     const app = buildTestApp();
     await app.ready();
     try {
-      const authSessionId = await startAuthSession(app, realmName);
-      const res = await formPost(app, `/realms/${realmName}/login-actions/authenticate`, {
+      const authSessionId = await startAuthSession(app, tenantName);
+      const res = await formPost(app, `/tenants/${tenantName}/login-actions/authenticate`, {
         auth_session_id: authSessionId,
         username: 'ada',
         password: overlong,
@@ -425,8 +425,8 @@ describe('a password over the maximum is refused wherever one is read', () => {
 
       // The attempt never reached the credential, so it never counted
       // against the account either: the correct password still signs in.
-      const signedIn = await formPost(app, `/realms/${realmName}/login-actions/authenticate`, {
-        auth_session_id: await startAuthSession(app, realmName),
+      const signedIn = await formPost(app, `/tenants/${tenantName}/login-actions/authenticate`, {
+        auth_session_id: await startAuthSession(app, tenantName),
         username: 'ada',
         password: STRONG_PASSWORD,
       });
@@ -437,23 +437,23 @@ describe('a password over the maximum is refused wherever one is read', () => {
   });
 
   it('refuses it at the change-password required action', async () => {
-    const realmName = `policy-max-change-${newId()}`;
+    const tenantName = `policy-max-change-${newId()}`;
     const seeded = await seed({
-      realm: realmName,
+      tenant: tenantName,
       clientId: 'policy-spa',
       redirectUris: [REDIRECT_URI],
       username: 'ada',
       password: STRONG_PASSWORD,
       email: 'ada@example.test',
     });
-    await setRealmSettings(seeded.realmId, { passwordMaxAgeDays: 1 });
-    await agePassword(seeded.realmId, 7);
+    await setTenantSettings(seeded.tenantId, { passwordMaxAgeDays: 1 });
+    await agePassword(seeded.tenantId, 7);
 
     const app = buildTestApp();
     await app.ready();
     try {
-      const authSessionId = await startAuthSession(app, realmName);
-      const login = await formPost(app, `/realms/${realmName}/login-actions/authenticate`, {
+      const authSessionId = await startAuthSession(app, tenantName);
+      const login = await formPost(app, `/tenants/${tenantName}/login-actions/authenticate`, {
         auth_session_id: authSessionId,
         username: 'ada',
         password: STRONG_PASSWORD,
@@ -462,7 +462,7 @@ describe('a password over the maximum is refused wherever one is read', () => {
 
       const res = await formPost(
         app,
-        `/realms/${realmName}/login-actions/required-action?action=update-password`,
+        `/tenants/${tenantName}/login-actions/required-action?action=update-password`,
         { auth_session_id: authSessionId, password: overlong },
       );
 
@@ -479,13 +479,13 @@ describe('a password over the maximum is refused wherever one is read', () => {
   it('refuses it from the seed CLI', async () => {
     await expect(
       seed({
-        realm: `policy-max-seed-${newId()}`,
+        tenant: `policy-max-seed-${newId()}`,
         clientId: 'policy-spa',
         redirectUris: [REDIRECT_URI],
         username: 'ada',
         password: overlong,
         email: 'ada@example.test',
       }),
-    ).rejects.toThrow(/password does not satisfy the realm's password policy/);
+    ).rejects.toThrow(/password does not satisfy the tenant's password policy/);
   });
 });

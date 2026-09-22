@@ -77,13 +77,13 @@ afterAll(async () => {
   await containerHandle?.stop();
 });
 
-async function provisionRealm(): Promise<string> {
-  const realm = `reap-detect-${newId()}`;
-  await seed(['realm', '--name', realm]);
+async function provisionTenant(): Promise<string> {
+  const tenant = `reap-detect-${newId()}`;
+  await seed(['tenant', '--name', tenant]);
   await seed([
     'client',
-    '--realm',
-    realm,
+    '--tenant',
+    tenant,
     '--client-id',
     'app',
     '--public',
@@ -92,8 +92,8 @@ async function provisionRealm(): Promise<string> {
   ]);
   await seed([
     'user',
-    '--realm',
-    realm,
+    '--tenant',
+    tenant,
     '--username',
     'ada',
     '--password',
@@ -104,9 +104,9 @@ async function provisionRealm(): Promise<string> {
 
   await owner.db.execute(sql`
     UPDATE client_oidc_config SET refresh_token_ttl_seconds = ${REFRESH_TTL_SECONDS}
-     WHERE realm_id = (SELECT id FROM realms WHERE name = ${realm})
+     WHERE tenant_id = (SELECT id FROM tenants WHERE name = ${tenant})
   `);
-  return realm;
+  return tenant;
 }
 
 interface RedeemedCode {
@@ -118,7 +118,7 @@ interface RedeemedCode {
 // for the code, then a PKCE exchange at /token. The code is returned
 // alongside the tokens so a later replay presents the same string a client
 // would have kept.
-async function completeCodeFlow(realm: string): Promise<RedeemedCode> {
+async function completeCodeFlow(tenant: string): Promise<RedeemedCode> {
   const query = new URLSearchParams({
     response_type: 'code',
     client_id: 'app',
@@ -130,14 +130,14 @@ async function completeCodeFlow(realm: string): Promise<RedeemedCode> {
     code_challenge_method: 'S256',
   });
   const form = await http.inject({
-    url: `/realms/${realm}/protocol/openid-connect/auth?${query.toString()}`,
+    url: `/tenants/${tenant}/protocol/openid-connect/auth?${query.toString()}`,
   });
   const authSessionId = /name="auth_session_id" value="([^"]*)"/.exec(form.body)?.[1];
   if (authSessionId === undefined) throw new Error('no auth_session_id in the login form');
 
   const loginRes = await http.inject({
     method: 'POST',
-    url: `/realms/${realm}/login-actions/authenticate`,
+    url: `/tenants/${tenant}/login-actions/authenticate`,
     payload: new URLSearchParams({
       auth_session_id: authSessionId,
       username: 'ada',
@@ -149,7 +149,7 @@ async function completeCodeFlow(realm: string): Promise<RedeemedCode> {
   const code = typeof location === 'string' ? /[?&]code=([^&]*)/.exec(location)?.[1] : undefined;
   if (code === undefined) throw new Error(`no code in redirect: ${String(location)}`);
 
-  const tokenRes = await redeemCode(realm, code);
+  const tokenRes = await redeemCode(tenant, code);
   expect(tokenRes.statusCode).toBe(200);
   const body = tokenRes.json<{ refresh_token?: string }>();
   if (body.refresh_token === undefined) {
@@ -158,10 +158,10 @@ async function completeCodeFlow(realm: string): Promise<RedeemedCode> {
   return { code, refreshToken: body.refresh_token };
 }
 
-function redeemCode(realm: string, code: string) {
+function redeemCode(tenant: string, code: string) {
   return http.inject({
     method: 'POST',
-    url: `/realms/${realm}/protocol/openid-connect/token`,
+    url: `/tenants/${tenant}/protocol/openid-connect/token`,
     payload: new URLSearchParams({
       grant_type: 'authorization_code',
       code,
@@ -173,10 +173,10 @@ function redeemCode(realm: string, code: string) {
   });
 }
 
-function presentRefreshToken(realm: string, token: string) {
+function presentRefreshToken(tenant: string, token: string) {
   return http.inject({
     method: 'POST',
-    url: `/realms/${realm}/protocol/openid-connect/token`,
+    url: `/tenants/${tenant}/protocol/openid-connect/token`,
     payload: new URLSearchParams({
       grant_type: 'refresh_token',
       refresh_token: token,
@@ -196,32 +196,32 @@ function reapEverythingEligible(): Promise<ReapOutcome> {
 
 // Ordered, and the caller asserts there is exactly one: a flow that grew a
 // second grant would otherwise have this pick between them arbitrarily.
-async function grantsOf(realm: string): Promise<{ id: string; revoked: boolean }[]> {
+async function grantsOf(tenant: string): Promise<{ id: string; revoked: boolean }[]> {
   const rows = await owner.db.execute<{ id: string; revoked: boolean }>(sql`
     SELECT g.id, g.revoked_at IS NOT NULL AS revoked
-      FROM token_grants g JOIN realms r ON r.id = g.realm_id
-     WHERE r.name = ${realm}
+      FROM token_grants g JOIN tenants r ON r.id = g.tenant_id
+     WHERE r.name = ${tenant}
      ORDER BY g.created_at, g.id
   `);
   return [...rows];
 }
 
-async function countIn(realm: string, table: 'refresh_tokens' | 'authorization_codes') {
+async function countIn(tenant: string, table: 'refresh_tokens' | 'authorization_codes') {
   const relation = table === 'refresh_tokens' ? sql`refresh_tokens` : sql`authorization_codes`;
   const rows = await owner.db.execute<{ n: string }>(sql`
     SELECT count(*) AS n FROM ${relation} t
-      JOIN realms r ON r.id = t.realm_id
-     WHERE r.name = ${realm}
+      JOIN tenants r ON r.id = t.tenant_id
+     WHERE r.name = ${tenant}
   `);
   return Number(rows[0]?.n ?? '-1');
 }
 
 describe('reaping does not break reuse detection', () => {
   it('still detects a replayed refresh token and revokes its family', async () => {
-    const realm = await provisionRealm();
-    const { refreshToken } = await completeCodeFlow(realm);
+    const tenant = await provisionTenant();
+    const { refreshToken } = await completeCodeFlow(tenant);
 
-    const rotated = await presentRefreshToken(realm, refreshToken);
+    const rotated = await presentRefreshToken(tenant, refreshToken);
     expect(rotated.statusCode).toBe(200);
     const nextToken = rotated.json<{ refresh_token: string }>().refresh_token;
 
@@ -232,26 +232,26 @@ describe('reaping does not break reuse detection', () => {
     // `expires_at` would have taken both of them, and every assertion
     // below except the revocation would still have held.
     expect(outcome.deleted.refresh_tokens).toBe(0);
-    expect(await countIn(realm, 'refresh_tokens')).toBe(2);
+    expect(await countIn(tenant, 'refresh_tokens')).toBe(2);
 
-    const replay = await presentRefreshToken(realm, refreshToken);
+    const replay = await presentRefreshToken(tenant, refreshToken);
     expect(replay.statusCode).toBe(400);
     expect(replay.json<{ error: string }>().error).toBe('invalid_grant');
 
-    const grants = await grantsOf(realm);
+    const grants = await grantsOf(tenant);
     expect(grants).toHaveLength(1);
     expect(grants[0]?.revoked).toBe(true);
 
     // The replacement must be dead too, which is what "revokes the family"
     // means and what a bare refusal would not have achieved.
-    const successor = await presentRefreshToken(realm, nextToken);
+    const successor = await presentRefreshToken(tenant, nextToken);
     expect(successor.statusCode).toBe(400);
     expect(successor.json<{ error: string }>().error).toBe('invalid_grant');
   });
 
   it('still revokes the grant behind a replayed authorization code', async () => {
-    const realm = await provisionRealm();
-    const { code } = await completeCodeFlow(realm);
+    const tenant = await provisionTenant();
+    const { code } = await completeCodeFlow(tenant);
 
     const outcome = await reapEverythingEligible();
     if (!outcome.ran) throw new Error('the pass did not run');
@@ -260,13 +260,13 @@ describe('reaping does not break reuse detection', () => {
     // family it produced is young. It is the only record of which grant a
     // replay must revoke (RFC 6749 §4.1.2).
     expect(outcome.deleted.authorization_codes).toBe(0);
-    expect(await countIn(realm, 'authorization_codes')).toBe(1);
+    expect(await countIn(tenant, 'authorization_codes')).toBe(1);
 
-    const replay = await redeemCode(realm, code);
+    const replay = await redeemCode(tenant, code);
     expect(replay.statusCode).toBe(400);
     expect(replay.json<{ error: string }>().error).toBe('invalid_grant');
 
-    const grants = await grantsOf(realm);
+    const grants = await grantsOf(tenant);
     expect(grants).toHaveLength(1);
     expect(grants[0]?.revoked).toBe(true);
   });

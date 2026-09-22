@@ -7,17 +7,17 @@ import { resolveSeedInvocation } from '#/cli/seed-invocation';
 // against main.ts itself.
 describe('resolveSeedInvocation', () => {
   it('routes a subcommand name to the identity-model command form', () => {
-    const invocation = resolveSeedInvocation(['role', '--realm', 'demo', '--name', 'admin']);
+    const invocation = resolveSeedInvocation(['role', '--tenant', 'demo', '--name', 'admin']);
 
     expect(invocation).toEqual({
       kind: 'command',
-      argv: ['role', '--realm', 'demo', '--name', 'admin'],
+      argv: ['role', '--tenant', 'demo', '--name', 'admin'],
     });
   });
 
   it('routes every produced subcommand name, not just one', () => {
     for (const command of [
-      'realm',
+      'tenant',
       'client',
       'user',
       'role',
@@ -34,9 +34,9 @@ describe('resolveSeedInvocation', () => {
     }
   });
 
-  it('routes the older --realm/--client form to the bootstrap form', () => {
+  it('routes the older --tenant/--client form to the bootstrap form', () => {
     const invocation = resolveSeedInvocation([
-      '--realm',
+      '--tenant',
       'demo',
       '--client',
       'demo-spa',
@@ -47,7 +47,7 @@ describe('resolveSeedInvocation', () => {
     expect(invocation).toEqual({
       kind: 'bootstrap',
       options: {
-        realm: 'demo',
+        tenant: 'demo',
         clientId: 'demo-spa',
         redirectUris: ['https://app.example/cb'],
       },
@@ -55,6 +55,6 @@ describe('resolveSeedInvocation', () => {
   });
 
   it('routes empty argv to the bootstrap form, which then refuses it', () => {
-    expect(() => resolveSeedInvocation([])).toThrow(/requires --realm and --client/);
+    expect(() => resolveSeedInvocation([])).toThrow(/requires --tenant and --client/);
   });
 });

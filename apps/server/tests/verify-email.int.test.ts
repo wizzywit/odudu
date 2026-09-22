@@ -3,7 +3,7 @@ import {
   createDatabase,
   MIGRATIONS_DIR,
   runMigrations,
-  withRealm,
+  withTenant,
   type DatabaseHandle,
 } from '@odudu/db';
 import { userRepository } from '@odudu/domain-identity';
@@ -110,7 +110,7 @@ function decodeIdTokenClaims(idToken: string): Record<string, unknown> {
   return JSON.parse(json) as Record<string, unknown>;
 }
 
-async function extractAuthSessionId(instance: FastifyInstance, realmName: string): Promise<string> {
+async function extractAuthSessionId(instance: FastifyInstance, tenantName: string): Promise<string> {
   const query = new URLSearchParams({
     response_type: 'code',
     client_id: 'verify-spa',
@@ -122,7 +122,7 @@ async function extractAuthSessionId(instance: FastifyInstance, realmName: string
     code_challenge_method: 'S256',
   });
   const res = await instance.inject({
-    url: `/realms/${realmName}/protocol/openid-connect/auth?${query.toString()}`,
+    url: `/tenants/${tenantName}/protocol/openid-connect/auth?${query.toString()}`,
   });
   const match = /name="auth_session_id" value="([^"]*)"/.exec(res.body);
   const value = match?.[1];
@@ -130,8 +130,8 @@ async function extractAuthSessionId(instance: FastifyInstance, realmName: string
   return value;
 }
 
-async function issueIdToken(instance: FastifyInstance, realmName: string): Promise<string> {
-  const authSessionId = await extractAuthSessionId(instance, realmName);
+async function issueIdToken(instance: FastifyInstance, tenantName: string): Promise<string> {
+  const authSessionId = await extractAuthSessionId(instance, tenantName);
 
   const loginForm = new URLSearchParams({
     auth_session_id: authSessionId,
@@ -140,7 +140,7 @@ async function issueIdToken(instance: FastifyInstance, realmName: string): Promi
   });
   const loginRes = await instance.inject({
     method: 'POST',
-    url: `/realms/${realmName}/login-actions/authenticate`,
+    url: `/tenants/${tenantName}/login-actions/authenticate`,
     payload: loginForm.toString(),
     headers: { 'content-type': 'application/x-www-form-urlencoded' },
   });
@@ -157,7 +157,7 @@ async function issueIdToken(instance: FastifyInstance, realmName: string): Promi
   });
   const tokenRes = await instance.inject({
     method: 'POST',
-    url: `/realms/${realmName}/protocol/openid-connect/token`,
+    url: `/tenants/${tenantName}/protocol/openid-connect/token`,
     payload: tokenForm.toString(),
     headers: { 'content-type': 'application/x-www-form-urlencoded' },
   });
@@ -181,9 +181,9 @@ beforeEach(async () => {
 
 describe('address verification, through the real composition root', () => {
   it('flips email_verified on the users column and in a freshly issued ID token', async () => {
-    const realmName = `verify-${newId()}`;
+    const tenantName = `verify-${newId()}`;
     const seeded = await seed({
-      realm: realmName,
+      tenant: tenantName,
       clientId: 'verify-spa',
       redirectUris: [REDIRECT_URI],
       username: 'ada',
@@ -197,16 +197,16 @@ describe('address verification, through the real composition root', () => {
     await app.ready();
 
     try {
-      const before = decodeIdTokenClaims(await issueIdToken(app, realmName));
+      const before = decodeIdTokenClaims(await issueIdToken(app, tenantName));
       expect(before.email_verified).toBe(false);
 
       const sender = capturingSender();
       await sendVerificationEmail(
         {
           database: appDb,
-          realmId: seeded.realmId,
-          realmName,
-          realmDisplayName: realmName,
+          tenantId: seeded.tenantId,
+          tenantName,
+          tenantDisplayName: tenantName,
           issuerBase: 'https://idp.example.test',
         },
         { subjectId: userSubjectId, email: EMAIL },
@@ -218,16 +218,16 @@ describe('address verification, through the real composition root', () => {
 
       const redeemRes = await app.inject({
         method: 'GET',
-        url: `/realms/${realmName}/login-actions/action-token?key=${key}`,
+        url: `/tenants/${tenantName}/login-actions/action-token?key=${key}`,
       });
       expect(redeemRes.statusCode).toBe(200);
 
-      const columnAfter = await withRealm(appDb.db, seeded.realmId, (tx) =>
+      const columnAfter = await withTenant(appDb.db, seeded.tenantId, (tx) =>
         userRepository(tx).bySubjectId(userSubjectId),
       );
       expect(columnAfter?.emailVerified).toBe(true);
 
-      const after = decodeIdTokenClaims(await issueIdToken(app, realmName));
+      const after = decodeIdTokenClaims(await issueIdToken(app, tenantName));
       expect(after.email_verified).toBe(true);
       expect(after.email).toBe(EMAIL);
     } finally {

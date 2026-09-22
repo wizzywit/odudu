@@ -10,7 +10,7 @@ export function parseSeedOptions(argv: string[]): SeedOptions {
   const { values } = parseArgs({
     args: argv,
     options: {
-      realm: { type: 'string' },
+      tenant: { type: 'string' },
       client: { type: 'string' },
       'client-secret': { type: 'string' },
       'token-endpoint-auth-method': { type: 'string' },
@@ -23,8 +23,8 @@ export function parseSeedOptions(argv: string[]): SeedOptions {
     },
   });
 
-  if (values.realm === undefined || values.client === undefined) {
-    throw new Error('seed requires --realm and --client');
+  if (values.tenant === undefined || values.client === undefined) {
+    throw new Error('seed requires --tenant and --client');
   }
 
   const authMethod = values['token-endpoint-auth-method'];
@@ -39,7 +39,7 @@ export function parseSeedOptions(argv: string[]): SeedOptions {
   }
 
   return {
-    realm: values.realm,
+    tenant: values.tenant,
     clientId: values.client,
     redirectUris: values['redirect-uri'] ?? [],
     ...(values['client-secret'] !== undefined ? { clientSecret: values['client-secret'] } : {}),
@@ -59,7 +59,7 @@ export type SeedInvocation =
   | { readonly kind: 'bootstrap'; readonly options: SeedOptions };
 
 // `seed role ...`, `seed grant-role ...` and the rest of the identity
-// model's subcommands are told apart from the older `seed --realm ...
+// model's subcommands are told apart from the older `seed --tenant ...
 // --client ...` bootstrap form by their first token: a subcommand name
 // never starts with `--`, and the bootstrap form's first flag always does.
 // Pulled out of main.ts, which runs its own boot sequence at module scope

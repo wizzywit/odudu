@@ -1,14 +1,14 @@
 import { parseArgs } from 'node:util';
-import { realmSettingsRepository, sendVerificationEmail } from '@odudu/account';
-import { provisionRealm } from '@odudu/authn-flows';
+import { tenantSettingsRepository, sendVerificationEmail } from '@odudu/account';
+import { provisionTenant } from '@odudu/authn-flows';
 import { groupRepository, roleRepository } from '@odudu/domain-authz';
 import { generateSigningKey, signingKeyRepository } from '@odudu/crypto';
 import {
   createDatabase,
-  realms,
-  withRealm,
+  tenants,
+  withTenant,
   type Database,
-  type RealmScopedDatabase,
+  type TenantScopedDatabase,
 } from '@odudu/db';
 import {
   credentialRepository,
@@ -33,7 +33,7 @@ import {
 import { loadConfig, newId, OduduError } from '@odudu/kernel';
 import {
   clientOidcConfigRepository,
-  realmLookupRepository,
+  tenantLookupRepository,
   type ClientOidcConfig,
 } from '@odudu/protocol-oidc';
 import { eq } from 'drizzle-orm';
@@ -51,7 +51,7 @@ type ConfidentialTokenEndpointAuthMethod = Extract<
 >;
 
 export interface SeedOptions {
-  realm: string;
+  tenant: string;
   clientId: string;
   clientSecret?: string;
   tokenEndpointAuthMethod?: ConfidentialTokenEndpointAuthMethod;
@@ -65,7 +65,7 @@ export interface SeedOptions {
   // whether there is one.
   email?: string;
   // Keycloak's admin console exposes "Send verification email" as an
-  // operator action on a user, independent of the realm's own verify_email
+  // operator action on a user, independent of the tenant's own verify_email
   // setting: the operator is asserting the address is real, not asking
   // self-registration to police it. This is that action, reachable before
   // an admin API exists.
@@ -78,8 +78,8 @@ export interface SeedOptions {
 
 export interface SeedResult {
   created: boolean;
-  realm: string;
-  realmId: string;
+  tenant: string;
+  tenantId: string;
   clientId: string;
   userSubjectId?: string;
 }
@@ -149,12 +149,12 @@ function sameRedirectUris(stored: string[], given: string[]): boolean {
   return sortedStored.every((uri, index) => uri === sortedGiven[index]);
 }
 
-// A second run supplying different values for an already-seeded realm
+// A second run supplying different values for an already-seeded tenant
 // refuses rather than silently ignoring or overwriting them — a changed
 // password or redirect URI that appears to "just work" the same as before
 // is how a bootstrap tool loses someone an afternoon.
 async function assertMatchesExisting(
-  tx: RealmScopedDatabase,
+  tx: TenantScopedDatabase,
   existingClient: ClientRecord,
   opts: SeedOptions,
 ): Promise<void> {
@@ -217,10 +217,10 @@ async function assertMatchesExisting(
       // user against an existing client. Silently accepting a username
       // that was never seeded would exit 0 having done nothing, which is
       // worse than refusing: refuse, so the operator adds the user through
-      // a fresh realm/client or notices the typo.
+      // a fresh tenant/client or notices the typo.
       throw new OduduError(
         'seed_conflict',
-        `client ${opts.clientId} already exists in realm ${opts.realm}, but user ${opts.username} was not seeded with it; seed does not add users to an existing client`,
+        `client ${opts.clientId} already exists in tenant ${opts.tenant}, but user ${opts.username} was not seeded with it; seed does not add users to an existing client`,
       );
     }
 
@@ -247,36 +247,36 @@ async function assertMatchesExisting(
   }
 }
 
-interface ResolvedRealm {
-  realmId: string;
+interface ResolvedTenant {
+  tenantId: string;
   created: boolean;
   passwordPolicy: PasswordPolicy;
 }
 
-// Read straight off `realms` rather than through @odudu/protocol-oidc's
-// realmLookupRepository: that repository's RealmLookup is shared by every
-// OIDC usecase that resolves a realm (discovery, jwks, login), and widening
+// Read straight off `tenants` rather than through @odudu/protocol-oidc's
+// tenantLookupRepository: that repository's TenantLookup is shared by every
+// OIDC usecase that resolves a tenant (discovery, jwks, login), and widening
 // it here would force a password policy onto fakes that have nothing to do
 // with one. The seed CLI is the one caller in this file that writes a
 // password, so it is the one that needs this column set.
-async function passwordPolicyFor(ownerDb: Database, realmId: string): Promise<PasswordPolicy> {
+async function passwordPolicyFor(ownerDb: Database, tenantId: string): Promise<PasswordPolicy> {
   const rows = await ownerDb
     .select({
-      passwordMinLength: realms.passwordMinLength,
-      passwordRequireDigit: realms.passwordRequireDigit,
-      passwordRequireUppercase: realms.passwordRequireUppercase,
-      passwordRequireLowercase: realms.passwordRequireLowercase,
-      passwordRequireSpecial: realms.passwordRequireSpecial,
-      passwordNotUsername: realms.passwordNotUsername,
-      passwordNotEmail: realms.passwordNotEmail,
-      passwordHistoryDepth: realms.passwordHistoryDepth,
-      passwordMaxAgeDays: realms.passwordMaxAgeDays,
+      passwordMinLength: tenants.passwordMinLength,
+      passwordRequireDigit: tenants.passwordRequireDigit,
+      passwordRequireUppercase: tenants.passwordRequireUppercase,
+      passwordRequireLowercase: tenants.passwordRequireLowercase,
+      passwordRequireSpecial: tenants.passwordRequireSpecial,
+      passwordNotUsername: tenants.passwordNotUsername,
+      passwordNotEmail: tenants.passwordNotEmail,
+      passwordHistoryDepth: tenants.passwordHistoryDepth,
+      passwordMaxAgeDays: tenants.passwordMaxAgeDays,
     })
-    .from(realms)
-    .where(eq(realms.id, realmId));
+    .from(tenants)
+    .where(eq(tenants.id, tenantId));
   const row = rows[0];
   if (row === undefined) {
-    throw new OduduError('seed_not_found', `no realm with id ${JSON.stringify(realmId)}`);
+    throw new OduduError('seed_not_found', `no tenant with id ${JSON.stringify(tenantId)}`);
   }
   return {
     minLength: row.passwordMinLength,
@@ -291,24 +291,24 @@ async function passwordPolicyFor(ownerDb: Database, realmId: string): Promise<Pa
   };
 }
 
-async function resolveRealmId(ownerDb: Database, realmName: string): Promise<ResolvedRealm> {
-  const lookup = realmLookupRepository(ownerDb);
-  const existing = await lookup.byName(realmName);
+async function resolveTenantId(ownerDb: Database, tenantName: string): Promise<ResolvedTenant> {
+  const lookup = tenantLookupRepository(ownerDb);
+  const existing = await lookup.byName(tenantName);
   if (existing !== null) {
     return {
-      realmId: existing.id,
+      tenantId: existing.id,
       created: false,
       passwordPolicy: await passwordPolicyFor(ownerDb, existing.id),
     };
   }
 
-  const realmId = newId();
-  await lookup.create({ id: realmId, name: realmName });
-  return { realmId, created: true, passwordPolicy: await passwordPolicyFor(ownerDb, realmId) };
+  const tenantId = newId();
+  await lookup.create({ id: tenantId, name: tenantName });
+  return { tenantId, created: true, passwordPolicy: await passwordPolicyFor(ownerDb, tenantId) };
 }
 
 // The seed CLI writes to the same password column every other writer does,
-// so it is bound by the same realm policy — there is no development
+// so it is bound by the same tenant policy — there is no development
 // exemption for it (packages/db/drizzle/0035_realm_password_policy.sql).
 // Never called for a client secret (the two hashPassword(clientSecret)
 // call sites below): a client secret is not a user password, and rules
@@ -323,7 +323,7 @@ function assertPasswordSatisfiesPolicy(
   if (violations.length > 0) {
     throw new OduduError(
       'seed_invalid_options',
-      `password does not satisfy the realm's password policy: ${violations
+      `password does not satisfy the tenant's password policy: ${violations
         .map((v) => v.message)
         .join(' ')}`,
     );
@@ -337,14 +337,14 @@ async function performSeed(
   opts: SeedOptions,
 ): Promise<SeedResult> {
   const {
-    realmId,
-    created: realmCreated,
+    tenantId,
+    created: tenantCreated,
     passwordPolicy,
-  } = await resolveRealmId(ownerDb, opts.realm);
+  } = await resolveTenantId(ownerDb, opts.tenant);
 
-  return withRealm(runtimeDb, realmId, async (tx) => {
-    if (realmCreated) {
-      await provisionRealm(tx, realmId);
+  return withTenant(runtimeDb, tenantId, async (tx) => {
+    if (tenantCreated) {
+      await provisionTenant(tx, tenantId);
     }
 
     const existingClient = await clientRepository(tx).byClientId(opts.clientId);
@@ -354,8 +354,8 @@ async function performSeed(
         opts.username === undefined ? null : await userRepository(tx).byUsername(opts.username);
       return {
         created: false,
-        realm: opts.realm,
-        realmId,
+        tenant: opts.tenant,
+        tenantId,
         clientId: opts.clientId,
         ...(existingUser !== null ? { userSubjectId: existingUser.subject.id } : {}),
       };
@@ -365,7 +365,7 @@ async function performSeed(
 
     let serviceSubjectId: string | null = null;
     if (type === 'confidential') {
-      const serviceSubject = await subjectRepository(tx).create({ realmId, type: 'service' });
+      const serviceSubject = await subjectRepository(tx).create({ tenantId, type: 'service' });
       serviceSubjectId = serviceSubject.id;
     }
 
@@ -373,7 +373,7 @@ async function performSeed(
       opts.clientSecret === undefined ? null : await hashPassword(opts.clientSecret);
 
     const client = await clientRepository(tx).create({
-      realmId,
+      tenantId,
       clientId: opts.clientId,
       name: opts.clientId,
       type,
@@ -381,13 +381,13 @@ async function performSeed(
       serviceSubjectId,
     });
 
-    // The realm's standard OIDC vocabulary, without which /authorize would
+    // The tenant's standard OIDC vocabulary, without which /authorize would
     // refuse `openid` on this client's very first request.
     await provisionClientDefaults(tx, client.id);
 
     await clientOidcConfigRepository(tx).create({
       clientId: client.id,
-      realmId,
+      tenantId,
       redirectUris: opts.redirectUris,
       grantTypes:
         type === 'confidential'
@@ -408,15 +408,15 @@ async function performSeed(
       // registration would have refused.
     });
 
-    // Only the realm's first key: a realm this seed command already found
+    // Only the tenant's first key: a tenant this seed command already found
     // (rather than just created) may already have one, and a second active
-    // key per realm is a constraint violation, not a valid rotation here.
+    // key per tenant is a constraint violation, not a valid rotation here.
     const publishableKeys = await signingKeyRepository(tx).listPublishable();
     if (publishableKeys.length === 0) {
       const generated = await generateSigningKey('RS256', kek);
       await signingKeyRepository(tx).create({
         id: newId(),
-        realmId,
+        tenantId,
         kid: generated.kid,
         alg: generated.alg,
         status: 'active',
@@ -428,16 +428,16 @@ async function performSeed(
     let userSubjectId: string | undefined;
     if (opts.username !== undefined && opts.password !== undefined) {
       assertPasswordSatisfiesPolicy(passwordPolicy, opts.username, opts.email, opts.password);
-      const userSubject = await subjectRepository(tx).create({ realmId, type: 'user' });
+      const userSubject = await subjectRepository(tx).create({ tenantId, type: 'user' });
       userSubjectId = userSubject.id;
       await userRepository(tx).create({
         subjectId: userSubject.id,
-        realmId,
+        tenantId,
         username: opts.username,
         ...(opts.email !== undefined ? { email: opts.email } : {}),
       });
       await credentialRepository(tx).insert({
-        realmId,
+        tenantId,
         subjectId: userSubject.id,
         type: 'password',
         secret: { kind: 'password', hash: await hashPassword(opts.password) },
@@ -446,15 +446,15 @@ async function performSeed(
 
     return {
       created: true,
-      realm: opts.realm,
-      realmId,
+      tenant: opts.tenant,
+      tenantId,
       clientId: opts.clientId,
       ...(userSubjectId !== undefined ? { userSubjectId } : {}),
     };
   });
 }
 
-// The only way to create the first realm, client, user and signing key: the
+// The only way to create the first tenant, client, user and signing key: the
 // admin API this would otherwise go through does not exist yet. Reads its
 // own configuration and opens its own connections so that both the
 // container smoke test and CI can invoke it as a plain one-shot command.
@@ -474,7 +474,7 @@ async function seedClientBootstrap(opts: SeedOptions): Promise<SeedResult> {
   try {
     const result = await performSeed(owner.db, runtime.db, config.ODUDU_KEK, opts);
 
-    // Sent only after performSeed's transaction commits (withRealm cannot
+    // Sent only after performSeed's transaction commits (withTenant cannot
     // nest), and the userSubjectId check below only satisfies the compiler:
     // assertUserOptionsPaired, assertEmailHasAUser and
     // assertSendVerificationEmailHasEmail together guarantee it is set.
@@ -493,13 +493,13 @@ async function seedClientBootstrap(opts: SeedOptions): Promise<SeedResult> {
             'the local compose stack',
         );
       }
-      const realm = await realmSettingsRepository(owner.db).byName(opts.realm);
+      const tenant = await tenantSettingsRepository(owner.db).byName(opts.tenant);
       await sendVerificationEmail(
         {
           database: runtime,
-          realmId: result.realmId,
-          realmName: result.realm,
-          realmDisplayName: realm?.displayName ?? result.realm,
+          tenantId: result.tenantId,
+          tenantName: result.tenant,
+          tenantDisplayName: tenant?.displayName ?? result.tenant,
           issuerBase: opts.issuerBase ?? `http://localhost:${String(config.ODUDU_HTTP_PORT)}`,
         },
         { subjectId: userSubjectId, email: opts.email },
@@ -513,15 +513,15 @@ async function seedClientBootstrap(opts: SeedOptions): Promise<SeedResult> {
   }
 }
 
-// The realm, client, user and role model this phase built, exposed one
+// The tenant, client, user and role model this phase built, exposed one
 // subcommand at a time rather than through seedClientBootstrap's single
 // combined call — an admin API is a later phase's; this is what makes the
 // model provisionable at all in the meantime.
-export interface RealmCommandResult {
-  command: 'realm';
+export interface TenantCommandResult {
+  command: 'tenant';
   created: boolean;
-  realm: string;
-  realmId: string;
+  tenant: string;
+  tenantId: string;
   // The settings this call changed, named as they were given, so a
   // transcript shows what was set rather than only that something was.
   settings?: readonly string[];
@@ -530,24 +530,24 @@ export interface RealmCommandResult {
 export interface ClientCommandResult {
   command: 'client';
   created: boolean;
-  realm: string;
-  realmId: string;
+  tenant: string;
+  tenantId: string;
   clientId: string;
   clientDbId: string;
 }
 
 export interface UserCommandResult {
   command: 'user';
-  realm: string;
-  realmId: string;
+  tenant: string;
+  tenantId: string;
   username: string;
   userSubjectId: string;
 }
 
 export interface RoleCommandResult {
   command: 'role';
-  realm: string;
-  realmId: string;
+  tenant: string;
+  tenantId: string;
   roleId: string;
   name: string;
   clientId: string | null;
@@ -555,24 +555,24 @@ export interface RoleCommandResult {
 
 export interface GroupCommandResult {
   command: 'group';
-  realm: string;
-  realmId: string;
+  tenant: string;
+  tenantId: string;
   groupId: string;
   path: string;
 }
 
 export interface ScopeCommandResult {
   command: 'scope';
-  realm: string;
-  realmId: string;
+  tenant: string;
+  tenantId: string;
   scopeId: string;
   name: string;
 }
 
 export interface AssignScopeCommandResult {
   command: 'assign-scope';
-  realm: string;
-  realmId: string;
+  tenant: string;
+  tenantId: string;
   clientId: string;
   scope: string;
   assignment: ClientScopeAssignment;
@@ -580,47 +580,47 @@ export interface AssignScopeCommandResult {
 
 export interface MapRoleCommandResult {
   command: 'map-role';
-  realm: string;
-  realmId: string;
+  tenant: string;
+  tenantId: string;
   scope: string;
   role: string;
 }
 
 export interface GrantRoleCommandResult {
   command: 'grant-role';
-  realm: string;
-  realmId: string;
+  tenant: string;
+  tenantId: string;
   username: string;
   role: string;
 }
 
 export interface MapGroupRoleCommandResult {
   command: 'map-group-role';
-  realm: string;
-  realmId: string;
+  tenant: string;
+  tenantId: string;
   group: string;
   role: string;
 }
 
 export interface JoinGroupCommandResult {
   command: 'join-group';
-  realm: string;
-  realmId: string;
+  tenant: string;
+  tenantId: string;
   username: string;
   group: string;
 }
 
 export interface ProfileCommandResult {
   command: 'profile';
-  realm: string;
-  realmId: string;
+  tenant: string;
+  tenantId: string;
   username: string;
 }
 
 export interface RegistrationTokenCommandResult {
   command: 'registration-token';
-  realm: string;
-  realmId: string;
+  tenant: string;
+  tenantId: string;
   // The only field main.ts prints for this command: the token is a
   // bearer credential meant for a shell to capture, not a field in a JSON
   // report alongside it.
@@ -628,7 +628,7 @@ export interface RegistrationTokenCommandResult {
 }
 
 export type SeedCommandResult =
-  | RealmCommandResult
+  | TenantCommandResult
   | ClientCommandResult
   | UserCommandResult
   | RoleCommandResult
@@ -642,15 +642,15 @@ export type SeedCommandResult =
   | ProfileCommandResult
   | RegistrationTokenCommandResult;
 
-async function requireRealmId(ownerDb: Database, realmName: string): Promise<string> {
-  const found = await realmLookupRepository(ownerDb).byName(realmName);
+async function requireTenantId(ownerDb: Database, tenantName: string): Promise<string> {
+  const found = await tenantLookupRepository(ownerDb).byName(tenantName);
   if (found === null) {
-    throw new OduduError('seed_not_found', `no realm named ${JSON.stringify(realmName)}`);
+    throw new OduduError('seed_not_found', `no tenant named ${JSON.stringify(tenantName)}`);
   }
   return found.id;
 }
 
-async function requireClientDbId(tx: RealmScopedDatabase, clientId: string): Promise<string> {
+async function requireClientDbId(tx: TenantScopedDatabase, clientId: string): Promise<string> {
   const client = await clientRepository(tx).byClientId(clientId);
   if (client === null) {
     throw new OduduError('seed_not_found', `no client named ${JSON.stringify(clientId)}`);
@@ -658,7 +658,7 @@ async function requireClientDbId(tx: RealmScopedDatabase, clientId: string): Pro
   return client.id;
 }
 
-async function requireUserSubjectId(tx: RealmScopedDatabase, username: string): Promise<string> {
+async function requireUserSubjectId(tx: TenantScopedDatabase, username: string): Promise<string> {
   const found = await userRepository(tx).byUsername(username);
   if (found === null) {
     throw new OduduError('seed_not_found', `no user named ${JSON.stringify(username)}`);
@@ -666,7 +666,7 @@ async function requireUserSubjectId(tx: RealmScopedDatabase, username: string): 
   return found.subject.id;
 }
 
-async function requireScopeId(tx: RealmScopedDatabase, scopeName: string): Promise<string> {
+async function requireScopeId(tx: TenantScopedDatabase, scopeName: string): Promise<string> {
   const scope = await clientScopeRepository(tx).byName(scopeName);
   if (scope === null) {
     throw new OduduError('seed_not_found', `no client scope named ${JSON.stringify(scopeName)}`);
@@ -674,7 +674,7 @@ async function requireScopeId(tx: RealmScopedDatabase, scopeName: string): Promi
   return scope.id;
 }
 
-async function requireGroupIdByPath(tx: RealmScopedDatabase, path: string): Promise<string> {
+async function requireGroupIdByPath(tx: TenantScopedDatabase, path: string): Promise<string> {
   const group = await groupRepository(tx).byPath(path);
   if (group === null) {
     throw new OduduError('seed_not_found', `no group at path ${JSON.stringify(path)}`);
@@ -682,7 +682,7 @@ async function requireGroupIdByPath(tx: RealmScopedDatabase, path: string): Prom
   return group.id;
 }
 
-// A realm role is bare; a client role is qualified as clientId:roleName,
+// A tenant role is bare; a client role is qualified as clientId:roleName,
 // which is unambiguous only because roles_name_has_no_colon
 // (packages/db/drizzle/0017_roles.sql) refuses ':' inside a role name
 // itself. A second colon cannot come from the role name, so it would have
@@ -706,7 +706,7 @@ interface ResolvedRole {
 }
 
 async function requireRoleByQualifiedName(
-  tx: RealmScopedDatabase,
+  tx: TenantScopedDatabase,
   qualifiedName: string,
 ): Promise<ResolvedRole> {
   const { name, clientId } = parseQualifiedRoleName(qualifiedName);
@@ -718,37 +718,37 @@ async function requireRoleByQualifiedName(
   return role;
 }
 
-async function runRealmCommand(
+async function runTenantCommand(
   ownerDb: Database,
   runtimeDb: Database,
   kek: Uint8Array,
   argv: readonly string[],
-): Promise<RealmCommandResult> {
+): Promise<TenantCommandResult> {
   const { values } = parseArgs({
     args: [...argv],
     options: { name: { type: 'string' }, set: { type: 'string', multiple: true } },
   });
   if (values.name === undefined) {
-    throw new OduduError('seed_invalid_options', 'seed realm requires --name');
+    throw new OduduError('seed_invalid_options', 'seed tenant requires --name');
   }
-  const realmName = values.name;
-  // Parsed before the realm is touched, so a typo in the third --set does
+  const tenantName = values.name;
+  // Parsed before the tenant is touched, so a typo in the third --set does
   // not leave the first two applied.
   const settings = parseSettings(values.set ?? []);
 
-  const { realmId, created } = await resolveRealmId(ownerDb, realmName);
+  const { tenantId, created } = await resolveTenantId(ownerDb, tenantName);
   if (created) {
-    // A realm's signing key is provisioned the moment the realm is, rather
+    // A tenant's signing key is provisioned the moment the tenant is, rather
     // than deferred to whichever client happens to be seeded first: a
-    // realm with no client yet still needs one the instant it can issue
+    // tenant with no client yet still needs one the instant it can issue
     // tokens, and "first client triggers key generation" was only ever
-    // true because realm and client used to be seeded in the same call.
-    await withRealm(runtimeDb, realmId, async (tx) => {
-      await provisionRealm(tx, realmId);
+    // true because tenant and client used to be seeded in the same call.
+    await withTenant(runtimeDb, tenantId, async (tx) => {
+      await provisionTenant(tx, tenantId);
       const generated = await generateSigningKey('RS256', kek);
       await signingKeyRepository(tx).create({
         id: newId(),
-        realmId,
+        tenantId,
         kid: generated.kid,
         alg: generated.alg,
         status: 'active',
@@ -762,19 +762,19 @@ async function runRealmCommand(
     // Whatever the CHECK constraints refuse (migrations 0028, 0035, 0041)
     // refuses this write too: the seed CLI has no development override, in
     // the way it has none for the password policy.
-    await withRealm(runtimeDb, realmId, (tx) =>
+    await withTenant(runtimeDb, tenantId, (tx) =>
       tx
-        .update(realms)
+        .update(tenants)
         .set(Object.fromEntries(settings.map(({ column, value }) => [column, value])))
-        .where(eq(realms.id, realmId)),
+        .where(eq(tenants.id, tenantId)),
     );
   }
 
   return {
-    command: 'realm',
+    command: 'tenant',
     created,
-    realm: realmName,
-    realmId,
+    tenant: tenantName,
+    tenantId,
     ...(settings.length > 0 ? { settings: settings.map(({ name }) => name) } : {}),
   };
 }
@@ -804,13 +804,13 @@ function parseSettings(assignments: readonly string[]): ParsedSetting[] {
     if (outcome.kind === 'unknown_setting') {
       throw new OduduError(
         'seed_unknown_setting',
-        `unknown realm setting ${JSON.stringify(name)}; expected one of ${outcome.known.join(', ')}`,
+        `unknown tenant setting ${JSON.stringify(name)}; expected one of ${outcome.known.join(', ')}`,
       );
     }
     if (outcome.kind === 'invalid_value') {
       throw new OduduError(
         'seed_invalid_options',
-        `realm setting ${name} expects ${outcome.expected === 'integer' ? 'an integer' : `a ${outcome.expected}`}`,
+        `tenant setting ${name} expects ${outcome.expected === 'integer' ? 'an integer' : `a ${outcome.expected}`}`,
       );
     }
     return { name, column: outcome.column, value: outcome.value };
@@ -825,7 +825,7 @@ async function runClientCommand(
   const { values } = parseArgs({
     args: [...argv],
     options: {
-      realm: { type: 'string' },
+      tenant: { type: 'string' },
       'client-id': { type: 'string' },
       public: { type: 'boolean' },
       'client-secret': { type: 'string' },
@@ -836,8 +836,8 @@ async function runClientCommand(
     },
   });
 
-  if (values.realm === undefined || values['client-id'] === undefined) {
-    throw new OduduError('seed_invalid_options', 'seed client requires --realm and --client-id');
+  if (values.tenant === undefined || values['client-id'] === undefined) {
+    throw new OduduError('seed_invalid_options', 'seed client requires --tenant and --client-id');
   }
   if (values.public === true && values['client-secret'] !== undefined) {
     throw new OduduError(
@@ -865,7 +865,7 @@ async function runClientCommand(
     );
   }
 
-  const realmName = values.realm;
+  const tenantName = values.tenant;
   const clientId = values['client-id'];
   const clientSecret = values['client-secret'];
   const redirectUris = values['redirect-uri'] ?? [];
@@ -876,14 +876,14 @@ async function runClientCommand(
   // redirect URI, so a relative one is as meaningless here as there.
   assertAbsoluteRedirectUris(postLogoutRedirectUris);
 
-  const realmId = await requireRealmId(ownerDb, realmName);
+  const tenantId = await requireTenantId(ownerDb, tenantName);
 
-  return withRealm(runtimeDb, realmId, async (tx) => {
+  return withTenant(runtimeDb, tenantId, async (tx) => {
     const existing = await clientRepository(tx).byClientId(clientId);
     if (existing !== null) {
       throw new OduduError(
         'seed_conflict',
-        `client ${JSON.stringify(clientId)} already exists in realm ${JSON.stringify(realmName)}`,
+        `client ${JSON.stringify(clientId)} already exists in tenant ${JSON.stringify(tenantName)}`,
       );
     }
 
@@ -891,14 +891,14 @@ async function runClientCommand(
 
     let serviceSubjectId: string | null = null;
     if (type === 'confidential') {
-      const serviceSubject = await subjectRepository(tx).create({ realmId, type: 'service' });
+      const serviceSubject = await subjectRepository(tx).create({ tenantId, type: 'service' });
       serviceSubjectId = serviceSubject.id;
     }
 
     const secretHash = clientSecret === undefined ? null : await hashPassword(clientSecret);
 
     const client = await clientRepository(tx).create({
-      realmId,
+      tenantId,
       clientId,
       name: clientId,
       type,
@@ -906,13 +906,13 @@ async function runClientCommand(
       serviceSubjectId,
     });
 
-    // The realm's standard OIDC vocabulary, without which /authorize would
+    // The tenant's standard OIDC vocabulary, without which /authorize would
     // refuse `openid` on this client's very first request.
     await provisionClientDefaults(tx, client.id);
 
     await clientOidcConfigRepository(tx).create({
       clientId: client.id,
-      realmId,
+      tenantId,
       redirectUris,
       grantTypes:
         type === 'confidential'
@@ -931,8 +931,8 @@ async function runClientCommand(
     return {
       command: 'client',
       created: true,
-      realm: realmName,
-      realmId,
+      tenant: tenantName,
+      tenantId,
       clientId,
       clientDbId: client.id,
     };
@@ -947,7 +947,7 @@ async function runUserCommand(
   const { values } = parseArgs({
     args: [...argv],
     options: {
-      realm: { type: 'string' },
+      tenant: { type: 'string' },
       username: { type: 'string' },
       password: { type: 'string' },
       email: { type: 'string' },
@@ -955,47 +955,47 @@ async function runUserCommand(
   });
 
   if (
-    values.realm === undefined ||
+    values.tenant === undefined ||
     values.username === undefined ||
     values.password === undefined
   ) {
     throw new OduduError(
       'seed_invalid_options',
-      'seed user requires --realm, --username and --password',
+      'seed user requires --tenant, --username and --password',
     );
   }
 
-  const realmName = values.realm;
+  const tenantName = values.tenant;
   const username = values.username;
   const password = values.password;
   const email = values.email;
 
-  const realmId = await requireRealmId(ownerDb, realmName);
+  const tenantId = await requireTenantId(ownerDb, tenantName);
   assertPasswordSatisfiesPolicy(
-    await passwordPolicyFor(ownerDb, realmId),
+    await passwordPolicyFor(ownerDb, tenantId),
     username,
     email,
     password,
   );
 
-  const userSubjectId = await withRealm(runtimeDb, realmId, async (tx) => {
+  const userSubjectId = await withTenant(runtimeDb, tenantId, async (tx) => {
     const existing = await userRepository(tx).byUsername(username);
     if (existing !== null) {
       throw new OduduError(
         'seed_conflict',
-        `user ${JSON.stringify(username)} already exists in realm ${JSON.stringify(realmName)}`,
+        `user ${JSON.stringify(username)} already exists in tenant ${JSON.stringify(tenantName)}`,
       );
     }
 
-    const subject = await subjectRepository(tx).create({ realmId, type: 'user' });
+    const subject = await subjectRepository(tx).create({ tenantId, type: 'user' });
     await userRepository(tx).create({
       subjectId: subject.id,
-      realmId,
+      tenantId,
       username,
       ...(email !== undefined ? { email } : {}),
     });
     await credentialRepository(tx).insert({
-      realmId,
+      tenantId,
       subjectId: subject.id,
       type: 'password',
       secret: { kind: 'password', hash: await hashPassword(password) },
@@ -1003,7 +1003,7 @@ async function runUserCommand(
     return subject.id;
   });
 
-  return { command: 'user', realm: realmName, realmId, username, userSubjectId };
+  return { command: 'user', tenant: tenantName, tenantId, username, userSubjectId };
 }
 
 async function runRoleCommand(
@@ -1014,30 +1014,30 @@ async function runRoleCommand(
   const { values } = parseArgs({
     args: [...argv],
     options: {
-      realm: { type: 'string' },
+      tenant: { type: 'string' },
       name: { type: 'string' },
       'client-id': { type: 'string' },
     },
   });
 
-  if (values.realm === undefined || values.name === undefined) {
-    throw new OduduError('seed_invalid_options', 'seed role requires --realm and --name');
+  if (values.tenant === undefined || values.name === undefined) {
+    throw new OduduError('seed_invalid_options', 'seed role requires --tenant and --name');
   }
 
-  const realmName = values.realm;
+  const tenantName = values.tenant;
   const roleName = values.name;
   const ownerClientId = values['client-id'];
 
-  const realmId = await requireRealmId(ownerDb, realmName);
+  const tenantId = await requireTenantId(ownerDb, tenantName);
 
-  return withRealm(runtimeDb, realmId, async (tx) => {
+  return withTenant(runtimeDb, tenantId, async (tx) => {
     const clientDbId =
       ownerClientId === undefined ? null : await requireClientDbId(tx, ownerClientId);
-    const role = await roleRepository(tx).create({ realmId, name: roleName, clientId: clientDbId });
+    const role = await roleRepository(tx).create({ tenantId, name: roleName, clientId: clientDbId });
     return {
       command: 'role',
-      realm: realmName,
-      realmId,
+      tenant: tenantName,
+      tenantId,
       roleId: role.id,
       name: roleName,
       clientId: ownerClientId ?? null,
@@ -1053,26 +1053,26 @@ async function runGroupCommand(
   const { values } = parseArgs({
     args: [...argv],
     options: {
-      realm: { type: 'string' },
+      tenant: { type: 'string' },
       name: { type: 'string' },
       parent: { type: 'string' },
     },
   });
 
-  if (values.realm === undefined || values.name === undefined) {
-    throw new OduduError('seed_invalid_options', 'seed group requires --realm and --name');
+  if (values.tenant === undefined || values.name === undefined) {
+    throw new OduduError('seed_invalid_options', 'seed group requires --tenant and --name');
   }
 
-  const realmName = values.realm;
+  const tenantName = values.tenant;
   const name = values.name;
   const parentPath = values.parent;
 
-  const realmId = await requireRealmId(ownerDb, realmName);
+  const tenantId = await requireTenantId(ownerDb, tenantName);
 
-  return withRealm(runtimeDb, realmId, async (tx) => {
+  return withTenant(runtimeDb, tenantId, async (tx) => {
     const parentId = parentPath === undefined ? null : await requireGroupIdByPath(tx, parentPath);
-    const group = await groupRepository(tx).create({ realmId, name, parentId });
-    return { command: 'group', realm: realmName, realmId, groupId: group.id, path: group.path };
+    const group = await groupRepository(tx).create({ tenantId, name, parentId });
+    return { command: 'group', tenant: tenantName, tenantId, groupId: group.id, path: group.path };
   });
 }
 
@@ -1091,7 +1091,7 @@ async function runScopeCommand(
   const { values } = parseArgs({
     args: [...argv],
     options: {
-      realm: { type: 'string' },
+      tenant: { type: 'string' },
       name: { type: 'string' },
       description: { type: 'string' },
       'include-in-id-token': { type: 'string' },
@@ -1099,11 +1099,11 @@ async function runScopeCommand(
     },
   });
 
-  if (values.realm === undefined || values.name === undefined) {
-    throw new OduduError('seed_invalid_options', 'seed scope requires --realm and --name');
+  if (values.tenant === undefined || values.name === undefined) {
+    throw new OduduError('seed_invalid_options', 'seed scope requires --tenant and --name');
   }
 
-  const realmName = values.realm;
+  const tenantName = values.tenant;
   const name = values.name;
   const description = values.description;
   const includeInIdToken = parseIncludeFlag(values['include-in-id-token'], '--include-in-id-token');
@@ -1112,26 +1112,26 @@ async function runScopeCommand(
     '--include-in-access-token',
   );
 
-  const realmId = await requireRealmId(ownerDb, realmName);
+  const tenantId = await requireTenantId(ownerDb, tenantName);
 
-  return withRealm(runtimeDb, realmId, async (tx) => {
+  return withTenant(runtimeDb, tenantId, async (tx) => {
     const existing = await clientScopeRepository(tx).byName(name);
     if (existing !== null) {
       throw new OduduError(
         'seed_conflict',
-        `client scope ${JSON.stringify(name)} already exists in realm ${JSON.stringify(realmName)}`,
+        `client scope ${JSON.stringify(name)} already exists in tenant ${JSON.stringify(tenantName)}`,
       );
     }
 
     const scope = await clientScopeRepository(tx).create({
-      realmId,
+      tenantId,
       name,
       ...(description !== undefined ? { description } : {}),
       ...(includeInIdToken !== undefined ? { includeInIdToken } : {}),
       ...(includeInAccessToken !== undefined ? { includeInAccessToken } : {}),
     });
 
-    return { command: 'scope', realm: realmName, realmId, scopeId: scope.id, name: scope.name };
+    return { command: 'scope', tenant: tenantName, tenantId, scopeId: scope.id, name: scope.name };
   });
 }
 
@@ -1143,7 +1143,7 @@ async function runAssignScopeCommand(
   const { values } = parseArgs({
     args: [...argv],
     options: {
-      realm: { type: 'string' },
+      tenant: { type: 'string' },
       'client-id': { type: 'string' },
       scope: { type: 'string' },
       assignment: { type: 'string' },
@@ -1151,35 +1151,35 @@ async function runAssignScopeCommand(
   });
 
   if (
-    values.realm === undefined ||
+    values.tenant === undefined ||
     values['client-id'] === undefined ||
     values.scope === undefined ||
     values.assignment === undefined
   ) {
     throw new OduduError(
       'seed_invalid_options',
-      'seed assign-scope requires --realm, --client-id, --scope and --assignment',
+      'seed assign-scope requires --tenant, --client-id, --scope and --assignment',
     );
   }
   if (values.assignment !== 'default' && values.assignment !== 'optional') {
     throw new OduduError('seed_invalid_options', '--assignment must be default or optional');
   }
 
-  const realmName = values.realm;
+  const tenantName = values.tenant;
   const clientId = values['client-id'];
   const scopeName = values.scope;
   const assignment: ClientScopeAssignment = values.assignment;
 
-  const realmId = await requireRealmId(ownerDb, realmName);
+  const tenantId = await requireTenantId(ownerDb, tenantName);
 
-  return withRealm(runtimeDb, realmId, async (tx) => {
+  return withTenant(runtimeDb, tenantId, async (tx) => {
     const clientDbId = await requireClientDbId(tx, clientId);
     const scopeId = await requireScopeId(tx, scopeName);
     await clientScopeRepository(tx).assignOrUpdate(clientDbId, scopeId, assignment);
     return {
       command: 'assign-scope',
-      realm: realmName,
-      realmId,
+      tenant: tenantName,
+      tenantId,
       clientId,
       scope: scopeName,
       assignment,
@@ -1195,30 +1195,30 @@ async function runMapRoleCommand(
   const { values } = parseArgs({
     args: [...argv],
     options: {
-      realm: { type: 'string' },
+      tenant: { type: 'string' },
       scope: { type: 'string' },
       role: { type: 'string' },
     },
   });
 
-  if (values.realm === undefined || values.scope === undefined || values.role === undefined) {
+  if (values.tenant === undefined || values.scope === undefined || values.role === undefined) {
     throw new OduduError(
       'seed_invalid_options',
-      'seed map-role requires --realm, --scope and --role',
+      'seed map-role requires --tenant, --scope and --role',
     );
   }
 
-  const realmName = values.realm;
+  const tenantName = values.tenant;
   const scopeName = values.scope;
   const roleName = values.role;
 
-  const realmId = await requireRealmId(ownerDb, realmName);
+  const tenantId = await requireTenantId(ownerDb, tenantName);
 
-  return withRealm(runtimeDb, realmId, async (tx) => {
+  return withTenant(runtimeDb, tenantId, async (tx) => {
     const role = await requireRoleByQualifiedName(tx, roleName);
     const scopeId = await requireScopeId(tx, scopeName);
     await roleRepository(tx).mapToClientScope(scopeId, role.id);
-    return { command: 'map-role', realm: realmName, realmId, scope: scopeName, role: roleName };
+    return { command: 'map-role', tenant: tenantName, tenantId, scope: scopeName, role: roleName };
   });
 }
 
@@ -1230,33 +1230,33 @@ async function runGrantRoleCommand(
   const { values } = parseArgs({
     args: [...argv],
     options: {
-      realm: { type: 'string' },
+      tenant: { type: 'string' },
       username: { type: 'string' },
       role: { type: 'string' },
     },
   });
 
-  if (values.realm === undefined || values.username === undefined || values.role === undefined) {
+  if (values.tenant === undefined || values.username === undefined || values.role === undefined) {
     throw new OduduError(
       'seed_invalid_options',
-      'seed grant-role requires --realm, --username and --role',
+      'seed grant-role requires --tenant, --username and --role',
     );
   }
 
-  const realmName = values.realm;
+  const tenantName = values.tenant;
   const username = values.username;
   const roleName = values.role;
 
-  const realmId = await requireRealmId(ownerDb, realmName);
+  const tenantId = await requireTenantId(ownerDb, tenantName);
 
-  return withRealm(runtimeDb, realmId, async (tx) => {
+  return withTenant(runtimeDb, tenantId, async (tx) => {
     // Refused before the subject is even looked up: a typo'd role must
     // never silently create one, the way a typo'd --user against an
     // existing client must never silently create a second user.
     const role = await requireRoleByQualifiedName(tx, roleName);
     const subjectId = await requireUserSubjectId(tx, username);
     await roleRepository(tx).assignToSubject(subjectId, role.id);
-    return { command: 'grant-role', realm: realmName, realmId, username, role: roleName };
+    return { command: 'grant-role', tenant: tenantName, tenantId, username, role: roleName };
   });
 }
 
@@ -1273,33 +1273,33 @@ async function runMapGroupRoleCommand(
   const { values } = parseArgs({
     args: [...argv],
     options: {
-      realm: { type: 'string' },
+      tenant: { type: 'string' },
       group: { type: 'string' },
       role: { type: 'string' },
     },
   });
 
-  if (values.realm === undefined || values.group === undefined || values.role === undefined) {
+  if (values.tenant === undefined || values.group === undefined || values.role === undefined) {
     throw new OduduError(
       'seed_invalid_options',
-      'seed map-group-role requires --realm, --group and --role',
+      'seed map-group-role requires --tenant, --group and --role',
     );
   }
 
-  const realmName = values.realm;
+  const tenantName = values.tenant;
   const groupPath = values.group;
   const roleName = values.role;
 
-  const realmId = await requireRealmId(ownerDb, realmName);
+  const tenantId = await requireTenantId(ownerDb, tenantName);
 
-  return withRealm(runtimeDb, realmId, async (tx) => {
+  return withTenant(runtimeDb, tenantId, async (tx) => {
     const role = await requireRoleByQualifiedName(tx, roleName);
     const groupId = await requireGroupIdByPath(tx, groupPath);
     await groupRepository(tx).mapRole(groupId, role.id);
     return {
       command: 'map-group-role',
-      realm: realmName,
-      realmId,
+      tenant: tenantName,
+      tenantId,
       group: groupPath,
       role: roleName,
     };
@@ -1314,30 +1314,30 @@ async function runJoinGroupCommand(
   const { values } = parseArgs({
     args: [...argv],
     options: {
-      realm: { type: 'string' },
+      tenant: { type: 'string' },
       username: { type: 'string' },
       group: { type: 'string' },
     },
   });
 
-  if (values.realm === undefined || values.username === undefined || values.group === undefined) {
+  if (values.tenant === undefined || values.username === undefined || values.group === undefined) {
     throw new OduduError(
       'seed_invalid_options',
-      'seed join-group requires --realm, --username and --group',
+      'seed join-group requires --tenant, --username and --group',
     );
   }
 
-  const realmName = values.realm;
+  const tenantName = values.tenant;
   const username = values.username;
   const groupPath = values.group;
 
-  const realmId = await requireRealmId(ownerDb, realmName);
+  const tenantId = await requireTenantId(ownerDb, tenantName);
 
-  return withRealm(runtimeDb, realmId, async (tx) => {
+  return withTenant(runtimeDb, tenantId, async (tx) => {
     const subjectId = await requireUserSubjectId(tx, username);
     const groupId = await requireGroupIdByPath(tx, groupPath);
     await groupRepository(tx).addToSubject(subjectId, groupId);
-    return { command: 'join-group', realm: realmName, realmId, username, group: groupPath };
+    return { command: 'join-group', tenant: tenantName, tenantId, username, group: groupPath };
   });
 }
 
@@ -1349,7 +1349,7 @@ async function runProfileCommand(
   const { values } = parseArgs({
     args: [...argv],
     options: {
-      realm: { type: 'string' },
+      tenant: { type: 'string' },
       username: { type: 'string' },
       name: { type: 'string' },
       'given-name': { type: 'string' },
@@ -1375,11 +1375,11 @@ async function runProfileCommand(
     },
   });
 
-  if (values.realm === undefined || values.username === undefined) {
-    throw new OduduError('seed_invalid_options', 'seed profile requires --realm and --username');
+  if (values.tenant === undefined || values.username === undefined) {
+    throw new OduduError('seed_invalid_options', 'seed profile requires --tenant and --username');
   }
 
-  const realmName = values.realm;
+  const tenantName = values.tenant;
   const username = values.username;
 
   const patch: ProfileUpdate = {
@@ -1418,14 +1418,14 @@ async function runProfileCommand(
       : {}),
   };
 
-  const realmId = await requireRealmId(ownerDb, realmName);
+  const tenantId = await requireTenantId(ownerDb, tenantName);
 
-  await withRealm(runtimeDb, realmId, async (tx) => {
+  await withTenant(runtimeDb, tenantId, async (tx) => {
     const subjectId = await requireUserSubjectId(tx, username);
     await userRepository(tx).updateProfile(subjectId, patch);
   });
 
-  return { command: 'profile', realm: realmName, realmId, username };
+  return { command: 'profile', tenant: tenantName, tenantId, username };
 }
 
 function parsePositiveInteger(raw: string, flag: string): number {
@@ -1444,41 +1444,41 @@ async function runRegistrationTokenCommand(
   const { values } = parseArgs({
     args: [...argv],
     options: {
-      realm: { type: 'string' },
+      tenant: { type: 'string' },
       uses: { type: 'string' },
       ttl: { type: 'string' },
     },
   });
 
-  if (values.realm === undefined || values.uses === undefined || values.ttl === undefined) {
+  if (values.tenant === undefined || values.uses === undefined || values.ttl === undefined) {
     throw new OduduError(
       'seed_invalid_options',
-      'seed registration-token requires --realm, --uses and --ttl',
+      'seed registration-token requires --tenant, --uses and --ttl',
     );
   }
 
-  const realmName = values.realm;
+  const tenantName = values.tenant;
   const uses = parsePositiveInteger(values.uses, '--uses');
   const ttlSeconds = parsePositiveInteger(values.ttl, '--ttl');
 
-  const realmId = await requireRealmId(ownerDb, realmName);
+  const tenantId = await requireTenantId(ownerDb, tenantName);
 
-  return withRealm(runtimeDb, realmId, async (tx) => {
+  return withTenant(runtimeDb, tenantId, async (tx) => {
     const { token } = await clientRegistrationTokenRepository(tx).mint({
-      realmId,
+      tenantId,
       uses,
       ttlSeconds,
     });
-    return { command: 'registration-token', realm: realmName, realmId, token };
+    return { command: 'registration-token', tenant: tenantName, tenantId, token };
   });
 }
 
 // Exported so main.ts can tell, before parsing anything, whether an
 // invocation names one of these subcommands or is the older
-// seedClientBootstrap form (`seed --realm ... --client ...`) — the two
+// seedClientBootstrap form (`seed --tenant ... --client ...`) — the two
 // argv shapes are otherwise indistinguishable from the outside.
 export const SEED_COMMANDS = [
-  'realm',
+  'tenant',
   'client',
   'user',
   'role',
@@ -1516,8 +1516,8 @@ async function runSeedCommand(argv: readonly string[]): Promise<SeedCommandResul
 
   try {
     switch (command) {
-      case 'realm':
-        return await runRealmCommand(owner.db, runtime.db, config.ODUDU_KEK, rest);
+      case 'tenant':
+        return await runTenantCommand(owner.db, runtime.db, config.ODUDU_KEK, rest);
       case 'client':
         return await runClientCommand(owner.db, runtime.db, rest);
       case 'user':
