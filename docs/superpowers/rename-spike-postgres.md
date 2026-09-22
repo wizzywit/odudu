@@ -59,7 +59,7 @@ but the GUC name baked into each policy as a string literal does not follow
 along. Since the target GUC is `app.tenant_id`, not `app.realm_id`, every
 policy of this shape needs its `qual` literal changed — the rename alone
 cannot do it. The migration must `DROP POLICY` and `CREATE POLICY` for all
-32 policies, rewriting the `current_setting('app.realm_id', true)` literal
+31 policies, rewriting the `current_setting('app.realm_id', true)` literal
 to `current_setting('app.tenant_id', true)`, rather than relying on
 `ALTER TABLE RENAME` to carry them.
 
