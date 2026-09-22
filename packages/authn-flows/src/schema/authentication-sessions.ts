@@ -1,13 +1,13 @@
 import { jsonb, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
-import { realms } from '@odudu/db';
+import { tenants } from '@odudu/db';
 
 // Policies are written as hand-authored SQL in packages/db/drizzle/, never
-// declared with pgPolicy() — see realms.ts in @odudu/db for why.
+// declared with pgPolicy() — see tenants.ts in @odudu/db for why.
 export const authenticationSessions = pgTable('authentication_sessions', {
   id: uuid('id').primaryKey(),
-  realmId: uuid('realm_id')
+  realmId: uuid('tenant_id')
     .notNull()
-    .references(() => realms.id, { onDelete: 'cascade' }),
+    .references(() => tenants.id, { onDelete: 'cascade' }),
   pendingRequest: jsonb('pending_request').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),

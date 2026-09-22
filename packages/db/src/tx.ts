@@ -2,47 +2,47 @@ import { OduduError } from '@odudu/kernel';
 import { sql } from 'drizzle-orm';
 import { type Database } from '#/client';
 
-declare const realmScopedBrand: unique symbol;
+declare const tenantScopedBrand: unique symbol;
 
 /**
- * A database handle bound to one realm's row-level-security context for the
- * life of a `withRealm` transaction. Omits `.transaction()` so that nesting
+ * A database handle bound to one tenant's row-level-security context for the
+ * life of a `withTenant` transaction. Omits `.transaction()` so that nesting
  * fails to compile: `set_config(..., true)` is transaction-scoped, not
- * savepoint-scoped, so a nested `withRealm` would rebind `app.realm_id` for
+ * savepoint-scoped, so a nested `withTenant` would rebind `app.tenant_id` for
  * the rest of the outer transaction once its savepoint released.
  */
-export type RealmScopedDatabase = Omit<Database, 'transaction'> & {
-  readonly [realmScopedBrand]: true;
+export type TenantScopedDatabase = Omit<Database, 'transaction'> & {
+  readonly [tenantScopedBrand]: true;
 };
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-export async function withRealm<T>(
+export async function withTenant<T>(
   db: Database,
-  realmId: string,
-  fn: (tx: RealmScopedDatabase) => Promise<T>,
+  tenantId: string,
+  fn: (tx: TenantScopedDatabase) => Promise<T>,
 ): Promise<T> {
-  if (!UUID_PATTERN.test(realmId)) {
+  if (!UUID_PATTERN.test(tenantId)) {
     throw new OduduError(
-      'realm_context_missing',
-      `withRealm requires a UUID realm id, got ${JSON.stringify(realmId)}`,
+      'tenant_context_missing',
+      `withTenant requires a UUID tenant id, got ${JSON.stringify(tenantId)}`,
     );
   }
 
   return db.transaction(async (tx) => {
     // set_config(..., true) is the bindable form of SET LOCAL; SET LOCAL itself
-    // takes no parameters, and interpolating realmId into DDL would be injectable.
-    await tx.execute(sql`select set_config('app.realm_id', ${realmId}, true)`);
-    return fn(tx as unknown as RealmScopedDatabase);
+    // takes no parameters, and interpolating tenantId into DDL would be injectable.
+    await tx.execute(sql`select set_config('app.tenant_id', ${tenantId}, true)`);
+    return fn(tx as unknown as TenantScopedDatabase);
   });
 }
 
 /**
- * Ran every realm in turn, or found another instance already doing it. A
+ * Ran every tenant in turn, or found another instance already doing it. A
  * zeroed result and a skipped pass are different answers, so the caller
  * cannot read one as the other.
  */
-export type ExclusiveRealmPass<T> =
+export type ExclusiveTenantPass<T> =
   { readonly acquired: false } | { readonly acquired: true; readonly values: readonly T[] };
 
 interface AdvisoryLockRow {
@@ -50,22 +50,22 @@ interface AdvisoryLockRow {
 }
 
 /**
- * One transaction, one Postgres advisory lock, each realm's row-level
+ * One transaction, one Postgres advisory lock, each tenant's row-level
  * security context bound in turn — what a maintenance pass that spans every
- * realm needs and `withRealm` cannot give, since a lock must outlive any
- * single realm's statements to mean anything.
+ * tenant needs and `withTenant` cannot give, since a lock must outlive any
+ * single tenant's statements to mean anything.
  */
-export async function withEachRealmExclusive<T>(
+export async function withEachTenantExclusive<T>(
   db: Database,
   lockKey: number,
-  realmIds: readonly string[],
-  fn: (tx: RealmScopedDatabase, realmId: string) => Promise<T>,
-): Promise<ExclusiveRealmPass<T>> {
-  for (const realmId of realmIds) {
-    if (!UUID_PATTERN.test(realmId)) {
+  tenantIds: readonly string[],
+  fn: (tx: TenantScopedDatabase, tenantId: string) => Promise<T>,
+): Promise<ExclusiveTenantPass<T>> {
+  for (const tenantId of tenantIds) {
+    if (!UUID_PATTERN.test(tenantId)) {
       throw new OduduError(
-        'realm_context_missing',
-        `withEachRealmExclusive requires UUID realm ids, got ${JSON.stringify(realmId)}`,
+        'tenant_context_missing',
+        `withEachTenantExclusive requires UUID tenant ids, got ${JSON.stringify(tenantId)}`,
       );
     }
   }
@@ -82,12 +82,12 @@ export async function withEachRealmExclusive<T>(
     if (!acquired) return { acquired: false };
 
     const values: T[] = [];
-    for (const realmId of realmIds) {
-      // Re-bound per realm at the top level of the transaction, never
+    for (const tenantId of tenantIds) {
+      // Re-bound per tenant at the top level of the transaction, never
       // nested: a savepoint releasing is what would make this unsafe, and
       // there is no savepoint here.
-      await tx.execute(sql`select set_config('app.realm_id', ${realmId}, true)`);
-      values.push(await fn(tx as unknown as RealmScopedDatabase, realmId));
+      await tx.execute(sql`select set_config('app.tenant_id', ${tenantId}, true)`);
+      values.push(await fn(tx as unknown as TenantScopedDatabase, tenantId));
     }
     return { acquired: true, values };
   });

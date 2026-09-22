@@ -69,30 +69,33 @@ const EXPECTED_CHECKS: Record<string, string> = {
     "CHECK ((((type = 'confidential'::text) AND (secret_hash IS NOT NULL)) OR ((type = 'public'::text) AND (secret_hash IS NULL))))",
   'clients.clients_type_check':
     "CHECK ((type = ANY (ARRAY['public'::text, 'confidential'::text])))",
-  'realms.realms_brute_force_bounds':
+  // The `realms_` prefix is not a typo: 0057_rename_realm_to_tenant.sql
+  // renamed the table and its columns, and Postgres leaves constraint names
+  // untouched by either.
+  'tenants.realms_brute_force_bounds':
     'CHECK ((((brute_force_max_failures >= 1) AND (brute_force_max_failures <= 100)) AND ((brute_force_lockout_seconds >= 1) AND (brute_force_lockout_seconds <= 86400)) AND (brute_force_max_lockout_seconds >= brute_force_lockout_seconds) AND ((brute_force_failure_reset_seconds >= 60) AND (brute_force_failure_reset_seconds <= 2592000))))',
-  'realms.realms_client_registration_policy_check':
+  'tenants.realms_client_registration_policy_check':
     "CHECK ((client_registration_policy = ANY (ARRAY['disabled'::text, 'open'::text, 'token'::text])))",
-  'realms.realms_max_clients_range': 'CHECK ((max_clients >= 0))',
-  'realms.realms_max_sessions_per_browser_range':
+  'tenants.realms_max_clients_range': 'CHECK ((max_clients >= 0))',
+  'tenants.realms_max_sessions_per_browser_range':
     'CHECK (((max_sessions_per_browser >= 1) AND (max_sessions_per_browser <= 32)))',
-  'realms.realms_password_history_bounds':
+  'tenants.realms_password_history_bounds':
     'CHECK (((password_history_depth >= 0) AND (password_history_depth <= 24)))',
-  'realms.realms_password_max_age_bounds':
+  'tenants.realms_password_max_age_bounds':
     'CHECK (((password_max_age_days >= 0) AND (password_max_age_days <= 3650)))',
-  'realms.realms_password_min_length_bounds':
+  'tenants.realms_password_min_length_bounds':
     'CHECK (((password_min_length >= 8) AND (password_min_length <= 256)))',
-  'realms.realms_remember_me_idle_range':
+  'tenants.realms_remember_me_idle_range':
     'CHECK (((remember_me_idle_seconds >= 60) AND (remember_me_idle_seconds <= 31536000)))',
-  'realms.realms_remember_me_idle_within_max':
+  'tenants.realms_remember_me_idle_within_max':
     'CHECK ((remember_me_idle_seconds <= remember_me_max_seconds))',
-  'realms.realms_remember_me_max_range':
+  'tenants.realms_remember_me_max_range':
     'CHECK (((remember_me_max_seconds >= 60) AND (remember_me_max_seconds <= 31536000)))',
-  'realms.realms_sso_idle_bounds':
+  'tenants.realms_sso_idle_bounds':
     'CHECK (((sso_session_idle_seconds >= 60) AND (sso_session_idle_seconds <= 2592000)))',
-  'realms.realms_sso_idle_within_max':
+  'tenants.realms_sso_idle_within_max':
     'CHECK ((sso_session_idle_seconds <= sso_session_max_seconds))',
-  'realms.realms_sso_max_bounds':
+  'tenants.realms_sso_max_bounds':
     'CHECK (((sso_session_max_seconds >= 60) AND (sso_session_max_seconds <= 2592000)))',
   'role_composites.role_composites_not_self': 'CHECK ((parent_role_id <> child_role_id))',
   'roles.roles_name_has_no_colon': "CHECK (((name !~ ':'::text) AND (name <> ''::text)))",
@@ -171,7 +174,7 @@ async function declaredTables(): Promise<DeclaredTable[]> {
   const declared: DeclaredTable[] = [];
   // One table object reached through both its own module and a re-export
   // (schema/index.ts) is one declaration, not two; identity is what tells
-  // that apart from two modules each declaring pgTable('realms', ...).
+  // that apart from two modules each declaring pgTable('tenants', ...).
   const seen = new Set<PgTable>();
   for (const file of schemaFiles()) {
     const module: unknown = await import(pathToFileURL(file).href);

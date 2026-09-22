@@ -1,13 +1,13 @@
 import { integer, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
-import { realms } from '@odudu/db';
+import { tenants } from '@odudu/db';
 
 // Policies are hand-authored SQL in packages/db/drizzle/, never declared
 // with pgPolicy() — see clients.ts for why.
 export const clientRegistrationTokens = pgTable('client_registration_tokens', {
   id: uuid('id').primaryKey(),
-  realmId: uuid('realm_id')
+  realmId: uuid('tenant_id')
     .notNull()
-    .references(() => realms.id, { onDelete: 'cascade' }),
+    .references(() => tenants.id, { onDelete: 'cascade' }),
   tokenHash: text('token_hash').notNull(),
   remainingUses: integer('remaining_uses').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),

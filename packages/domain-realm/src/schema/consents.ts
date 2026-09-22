@@ -1,5 +1,5 @@
 import { pgTable, primaryKey, timestamp, uuid } from 'drizzle-orm/pg-core';
-import { realms } from '@odudu/db';
+import { tenants } from '@odudu/db';
 import { clientScopes } from '#/schema/client-scopes';
 
 // Policies are hand-authored SQL in packages/db/drizzle/, never declared
@@ -8,9 +8,9 @@ import { clientScopes } from '#/schema/client-scopes';
 // migration: drizzle's table builder has no way to declare them here.
 export const consents = pgTable('consents', {
   id: uuid('id').primaryKey(),
-  realmId: uuid('realm_id')
+  realmId: uuid('tenant_id')
     .notNull()
-    .references(() => realms.id, { onDelete: 'cascade' }),
+    .references(() => tenants.id, { onDelete: 'cascade' }),
   subjectId: uuid('subject_id').notNull(),
   clientId: uuid('client_id').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -33,7 +33,7 @@ export interface ConsentRecord {
 export const consentScopes = pgTable(
   'consent_scopes',
   {
-    realmId: uuid('realm_id').notNull(),
+    realmId: uuid('tenant_id').notNull(),
     consentId: uuid('consent_id')
       .notNull()
       .references(() => consents.id, { onDelete: 'cascade' }),

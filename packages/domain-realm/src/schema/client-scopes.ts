@@ -1,14 +1,14 @@
 import { boolean, pgTable, primaryKey, text, timestamp, uuid } from 'drizzle-orm/pg-core';
-import { realms } from '@odudu/db';
+import { tenants } from '@odudu/db';
 import { clients } from '#/schema/clients';
 
 // Policies are hand-authored SQL in packages/db/drizzle/, never declared
 // with pgPolicy() — see clients.ts for why.
 export const clientScopes = pgTable('client_scopes', {
   id: uuid('id').primaryKey(),
-  realmId: uuid('realm_id')
+  realmId: uuid('tenant_id')
     .notNull()
-    .references(() => realms.id, { onDelete: 'cascade' }),
+    .references(() => tenants.id, { onDelete: 'cascade' }),
   name: text('name').notNull(),
   description: text('description'),
   includeInIdToken: boolean('include_in_id_token').notNull().default(true),
@@ -42,7 +42,7 @@ export type ClientScopeAssignment = 'default' | 'optional';
 export const clientScopeAssignments = pgTable(
   'client_scope_assignments',
   {
-    realmId: uuid('realm_id').notNull(),
+    realmId: uuid('tenant_id').notNull(),
     clientId: uuid('client_id')
       .notNull()
       .references(() => clients.id, { onDelete: 'cascade' }),

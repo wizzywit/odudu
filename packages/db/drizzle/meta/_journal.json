@@ -400,6 +400,13 @@
       "when": 1789049381699,
       "tag": "0056_authorization_codes_claims",
       "breakpoints": true
+    },
+    {
+      "idx": 57,
+      "version": "7",
+      "when": 1789049381700,
+      "tag": "0057_rename_realm_to_tenant",
+      "breakpoints": true
     }
   ]
 }

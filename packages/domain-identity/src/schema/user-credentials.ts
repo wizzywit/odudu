@@ -9,7 +9,7 @@ export { type CredentialType } from '#/service/credential-secret';
 // recovery codes — would be impossible to express in fixed columns.
 export const userCredentials = pgTable('user_credentials', {
   id: uuid('id').primaryKey(),
-  realmId: uuid('realm_id').notNull(),
+  realmId: uuid('tenant_id').notNull(),
   subjectId: uuid('subject_id')
     .notNull()
     .references(() => subjects.id, { onDelete: 'cascade' }),

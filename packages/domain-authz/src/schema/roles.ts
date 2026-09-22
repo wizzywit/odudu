@@ -1,13 +1,13 @@
 import { boolean, pgTable, primaryKey, text, timestamp, uuid } from 'drizzle-orm/pg-core';
-import { realms } from '@odudu/db';
+import { tenants } from '@odudu/db';
 
 // Policies are hand-authored SQL in packages/db/drizzle/, never declared
 // with pgPolicy() — see clients.ts in @odudu/domain-realm for why.
 export const roles = pgTable('roles', {
   id: uuid('id').primaryKey(),
-  realmId: uuid('realm_id')
+  realmId: uuid('tenant_id')
     .notNull()
-    .references(() => realms.id, { onDelete: 'cascade' }),
+    .references(() => tenants.id, { onDelete: 'cascade' }),
   // References clients(id), owned by @odudu/domain-realm. Declared as a
   // plain column: the foreign key lives only in the hand-authored
   // migration, so this package never imports the clients table.
@@ -35,7 +35,7 @@ export interface RoleRecord {
 export const roleComposites = pgTable(
   'role_composites',
   {
-    realmId: uuid('realm_id').notNull(),
+    realmId: uuid('tenant_id').notNull(),
     parentRoleId: uuid('parent_role_id')
       .notNull()
       .references(() => roles.id, { onDelete: 'cascade' }),
@@ -49,7 +49,7 @@ export const roleComposites = pgTable(
 export const subjectRoles = pgTable(
   'subject_roles',
   {
-    realmId: uuid('realm_id').notNull(),
+    realmId: uuid('tenant_id').notNull(),
     // References subjects(id), owned by @odudu/domain-identity. Plain
     // column for the same reason as roles.clientId above.
     subjectId: uuid('subject_id').notNull(),
@@ -63,7 +63,7 @@ export const subjectRoles = pgTable(
 export const clientScopeRoles = pgTable(
   'client_scope_roles',
   {
-    realmId: uuid('realm_id').notNull(),
+    realmId: uuid('tenant_id').notNull(),
     // References client_scopes(id), owned by @odudu/domain-realm. Plain
     // column for the same reason as roles.clientId above.
     clientScopeId: uuid('client_scope_id').notNull(),

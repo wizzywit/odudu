@@ -9,7 +9,7 @@ import { integer, pgTable, primaryKey, timestamp, uuid } from 'drizzle-orm/pg-co
 export const loginFailures = pgTable(
   'login_failures',
   {
-    realmId: uuid('realm_id').notNull(),
+    realmId: uuid('tenant_id').notNull(),
     subjectId: uuid('subject_id').notNull(),
     failureCount: integer('failure_count').notNull().default(0),
     // The start of the run of failures the count belongs to, reset when a

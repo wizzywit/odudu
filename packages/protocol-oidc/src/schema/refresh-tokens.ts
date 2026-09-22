@@ -1,8 +1,8 @@
 import { pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
-import { realms } from '@odudu/db';
+import { tenants } from '@odudu/db';
 
 // Policies are written as hand-authored SQL in packages/db/drizzle/, never
-// declared with pgPolicy() — see realms.ts in @odudu/db for why a
+// declared with pgPolicy() — see tenants.ts in @odudu/db for why a
 // declarative policy would collide with a database that already carries it.
 // The primary key is the hash, not the token itself, exactly like
 // authorization_codes: the raw token is never stored, so nothing recovered
@@ -10,9 +10,9 @@ import { realms } from '@odudu/db';
 // revokes as one statement — see refresh_tokens_by_grant in the migration.
 export const refreshTokens = pgTable('refresh_tokens', {
   tokenHash: text('token_hash').primaryKey(),
-  realmId: uuid('realm_id')
+  realmId: uuid('tenant_id')
     .notNull()
-    .references(() => realms.id, { onDelete: 'cascade' }),
+    .references(() => tenants.id, { onDelete: 'cascade' }),
   grantId: uuid('grant_id').notNull(),
   issuedAt: timestamp('issued_at', { withTimezone: true }).notNull().defaultNow(),
   expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),

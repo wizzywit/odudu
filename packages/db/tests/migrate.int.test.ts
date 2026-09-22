@@ -3,7 +3,7 @@ import { startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createDatabase, type DatabaseHandle } from '#/client';
 import { MIGRATIONS_DIR, runMigrations } from '#/migrate';
-import { realms } from '#/schema/index';
+import { tenants } from '#/schema/index';
 
 // Guarded (possibly-undefined) handles for cleanup: beforeAll can throw
 // before assignment (Docker down, image pull failure), and afterAll must
@@ -31,11 +31,11 @@ afterAll(async () => {
 });
 
 describe('migrations', () => {
-  it('creates the realms table with the expected columns', async () => {
+  it('creates the tenants table with the expected columns', async () => {
     const rows = await handle.sql<{ column_name: string }[]>`
       select column_name
       from information_schema.columns
-      where table_schema = 'public' and table_name = 'realms'
+      where table_schema = 'public' and table_name = 'tenants'
       order by column_name
     `;
 
@@ -73,22 +73,24 @@ describe('migrations', () => {
     ]);
   });
 
-  it('round-trips a realm', async () => {
-    await handle.db.insert(realms).values({ id: newId(), name: 'acme' });
+  it('round-trips a tenant', async () => {
+    await handle.db.insert(tenants).values({ id: newId(), name: 'acme' });
 
-    const found = await handle.db.select().from(realms);
+    const found = await handle.db.select().from(tenants);
 
     expect(found).toHaveLength(1);
     expect(found[0]?.name).toBe('acme');
     expect(found[0]?.enabled).toBe(true);
   });
 
-  it('rejects a duplicate realm name', async () => {
+  it('rejects a duplicate tenant name', async () => {
     await expect(
-      handle.db.insert(realms).values({ id: newId(), name: 'acme' }),
+      handle.db.insert(tenants).values({ id: newId(), name: 'acme' }),
     ).rejects.toMatchObject({
       cause: {
         code: '23505',
+        // ALTER TABLE ... RENAME TO leaves constraint names alone, so the
+        // constraint on `tenants` still carries the table's former name.
         constraint_name: 'realms_name_unique',
       },
     });

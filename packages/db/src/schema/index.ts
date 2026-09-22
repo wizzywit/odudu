@@ -1,1 +1,1 @@
-export * from '#/schema/realms';
+export * from '#/schema/tenants';

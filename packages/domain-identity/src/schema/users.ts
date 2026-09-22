@@ -8,7 +8,7 @@ export const users = pgTable('users', {
   subjectId: uuid('subject_id')
     .primaryKey()
     .references(() => subjects.id, { onDelete: 'cascade' }),
-  realmId: uuid('realm_id').notNull(),
+  realmId: uuid('tenant_id').notNull(),
   username: text('username').notNull(),
   email: text('email'),
   emailVerified: boolean('email_verified').notNull().default(false),

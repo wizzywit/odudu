@@ -1,20 +1,20 @@
 import { boolean, integer, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 
 // Policies are hand-authored SQL in drizzle/, never declared with pgPolicy():
-// realms_isolation exists in every migrated database while
+// tenants_isolation exists in every migrated database while
 // meta/0002_snapshot.json records policies: {}, so generating DDL from this
 // declaration emits a CREATE POLICY that fails 42710. The SQL is the
 // schema's source of truth and this is a typed view of it
 // (packages/db/README.md); rls-policy.int.test.ts stops a table shipping
 // without a policy, schema-drift.int.test.ts stops the view drifting.
-export const realms = pgTable('realms', {
+export const tenants = pgTable('tenants', {
   id: uuid('id').primaryKey(),
   name: text('name').notNull().unique(),
   displayName: text('display_name'),
   enabled: boolean('enabled').notNull().default(true),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   // All three default off (packages/db/drizzle/0022_realm_account_settings.sql):
-  // a realm does not acquire registration, mailed verification or
+  // a tenant does not acquire registration, mailed verification or
   // self-service password reset because it was upgraded.
   registrationAllowed: boolean('registration_allowed').notNull().default(false),
   verifyEmail: boolean('verify_email').notNull().default(false),
@@ -24,7 +24,7 @@ export const realms = pgTable('realms', {
   // is bounded by the ceiling at the database, not clamped at issuance.
   ssoSessionIdleSeconds: integer('sso_session_idle_seconds').notNull().default(1800),
   ssoSessionMaxSeconds: integer('sso_session_max_seconds').notNull().default(36_000),
-  // The password policy every writer of a password in this realm is bound
+  // The password policy every writer of a password in this tenant is bound
   // by (packages/db/drizzle/0035_realm_password_policy.sql): a rule a
   // CHECK can bound at the database, not a default a writer could bypass.
   // See packages/domain-identity/src/service/password-policy.ts for how
@@ -38,7 +38,7 @@ export const realms = pgTable('realms', {
   passwordNotEmail: boolean('password_not_email').notNull().default(true),
   passwordHistoryDepth: integer('password_history_depth').notNull().default(0),
   passwordMaxAgeDays: integer('password_max_age_days').notNull().default(0),
-  // Whether a second factor is expected of every subject in this realm
+  // Whether a second factor is expected of every subject in this tenant
   // (packages/db/drizzle/0037_realm_otp_required.sql). Off leaves TOTP to
   // whoever has enrolled one; on makes a subject without one owe the
   // configure-totp required action at their next login.
@@ -54,17 +54,17 @@ export const realms = pgTable('realms', {
   bruteForceFailureResetSeconds: integer('brute_force_failure_reset_seconds')
     .notNull()
     .default(43_200),
-  // Whether dynamic client registration (RFC 7591) is open to this realm,
+  // Whether dynamic client registration (RFC 7591) is open to this tenant,
   // and the ceiling it is bounded by
   // (packages/db/drizzle/0045_client_registration_metadata.sql). Defaults
-  // 'disabled'/200 so an existing realm's behaviour is unchanged.
+  // 'disabled'/200 so an existing tenant's behaviour is unchanged.
   clientRegistrationPolicy: text('client_registration_policy').notNull().default('disabled'),
   maxClients: integer('max_clients').notNull().default(200),
-  // How many live sessions one browser may hold for this realm
+  // How many live sessions one browser may hold for this tenant
   // (packages/db/drizzle/0048_sessions_remembered_and_cap.sql). 25 is the
   // spike-measured default; see docs/superpowers/p3b-spike-cookies.md.
   maxSessionsPerBrowser: integer('max_sessions_per_browser').notNull().default(25),
-  // Whether this realm offers "remember me", and the idle/ceiling pair a
+  // Whether this tenant offers "remember me", and the idle/ceiling pair a
   // login that takes it is measured against instead of sso_session_*
   // (packages/db/drizzle/0049_realm_remember_me.sql). See
   // packages/authn-flows/src/service/session-lifespan.ts for how the two

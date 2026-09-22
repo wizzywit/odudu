@@ -3,7 +3,7 @@ import { type TokenEndpointAuthMethod } from '@odudu/contracts';
 import { clients } from '@odudu/domain-realm';
 
 // Policies are written as hand-authored SQL in packages/db/drizzle/, never
-// declared with pgPolicy() — see realms.ts in @odudu/db for why a
+// declared with pgPolicy() — see tenants.ts in @odudu/db for why a
 // declarative policy would collide with a database that already carries it.
 // `clientId` is the client's own internal id (clients.id), not the OAuth
 // client_id string — this table is a one-to-one extension of `clients`, so
@@ -12,7 +12,7 @@ export const clientOidcConfig = pgTable('client_oidc_config', {
   clientId: uuid('client_id')
     .primaryKey()
     .references(() => clients.id, { onDelete: 'cascade' }),
-  realmId: uuid('realm_id').notNull(),
+  realmId: uuid('tenant_id').notNull(),
   redirectUris: text('redirect_uris').array().notNull(),
   grantTypes: text('grant_types').array().notNull(),
   tokenEndpointAuthMethod: text('token_endpoint_auth_method').notNull(),
