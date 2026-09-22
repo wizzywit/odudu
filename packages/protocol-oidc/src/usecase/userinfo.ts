@@ -37,15 +37,18 @@ export interface UserinfoDeps {
   // The realm's active signing key — the same one `/token` signs an access
   // token or ID Token with, and the only one this server can sign with.
   activeSigningKey(realmId: string): Promise<SigningKeyRecord>;
-  // `null` when the client registered no `userinfo_encrypted_response_alg`
-  // — the response is not encrypted. `jwks`/`jwksUri` are the client's own
-  // published keys, by value or by reference (never both,
-  // client_oidc_config_one_key_source) — the same fields
-  // `authenticatePrivateKeyJwt` (usecase/token-issuance.ts) reads.
+  // `'none'` and `'unavailable'` are deliberately not the same value: a
+  // client that never registered `userinfo_encrypted_response_alg` reads
+  // `'none'` — answer plainly, same as `userinfoSignedResponseAlg`'s
+  // `null` above. A client that registered it but is disabled (or
+  // otherwise cannot be resolved to a live config) reads `'unavailable'`
+  // — a registration this server cannot honour right now is not the same
+  // as no registration at all, and collapsing them here is what let a
+  // disabled client's encrypted claims answer in clear text.
   userinfoEncryptionTarget(
     realmId: string,
     oauthClientId: string,
-  ): Promise<UserinfoEncryptionTarget | null>;
+  ): Promise<UserinfoEncryptionLookup>;
   // RFC 7523 §2.2's fetcher for a client's jwks_uri — the same one /token
   // dereferences a private_key_jwt client's key with. Consulted here for
   // the first time on the /userinfo response path; docs/superpowers/p3b-spike-jwe.md's
@@ -60,6 +63,9 @@ export interface UserinfoEncryptionTarget {
   jwks: unknown;
   jwksUri: string | null;
 }
+
+export type UserinfoEncryptionLookup =
+  { kind: 'none' } | { kind: 'unavailable' } | { kind: 'target'; target: UserinfoEncryptionTarget };
 
 export type UserinfoBody =
   { kind: 'json'; claims: Record<string, unknown> } | { kind: 'jwt'; token: string };
@@ -218,10 +224,8 @@ function asJwks(value: unknown): { keys: unknown[] } | null {
 }
 
 // OIDC Core §5.3.2; see "docs/superpowers/p3b-spike-jwe.md" before changing
-// this. Wraps whatever signedBody produced: the signed JWS compact string,
-// nested with `cty: "JWT"`, when both were registered, or the plain claims
-// JSON when only encryption was — never the reverse nesting, and never a
-// fallback to the unencrypted form the client asked not to receive.
+// this. Never falls back to the unencrypted form on any branch below — see
+// `encryption_unavailable` on `UserinfoOutcome` for why.
 async function encryptedBody(
   deps: UserinfoDeps,
   realmId: string,
@@ -230,8 +234,12 @@ async function encryptedBody(
 ): Promise<EncryptedBodyResult> {
   if (clientId === undefined) return { kind: 'body', body };
 
-  const target = await deps.userinfoEncryptionTarget(realmId, clientId);
-  if (target === null) return { kind: 'body', body };
+  const lookup = await deps.userinfoEncryptionTarget(realmId, clientId);
+  if (lookup.kind === 'none') return { kind: 'body', body };
+  if (lookup.kind === 'unavailable') {
+    return { kind: 'unavailable', reason: 'client is disabled or unresolvable' };
+  }
+  const target = lookup.target;
 
   let jwks: unknown;
   if (target.jwks !== null) {
@@ -255,8 +263,9 @@ async function encryptedBody(
   }
 
   // No candidate, two equally good ones, or one the filters reject — all
-  // three read the same here (docs/superpowers/p3b-spike-jwe.md's Step 2):
-  // an ambiguous or absent choice is not this server's to make silently.
+  // three read the same here (docs/superpowers/p3b-spike-jwe.md, "Key
+  // selection from a client's JWKS"): an ambiguous or absent choice is not
+  // this server's to make silently.
   const key = selectEncryptionKey(parsed, target.alg);
   if (key === null) {
     return { kind: 'unavailable', reason: 'no unambiguous encryption key in the client JWKS' };

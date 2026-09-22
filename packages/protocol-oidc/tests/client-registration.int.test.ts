@@ -439,6 +439,26 @@ describe('[ODUDU-CLIENT-REGISTRATION-SEAM-01] the P3a/P3b seam, now closed', () 
     expect(res.json<{ error: string }>().error).toBe('invalid_client_metadata');
   });
 
+  // Unlike RSA1_5 above, jose *can* produce RSA-OAEP — but only against a
+  // key generated specifically for it, which a bare client JWK cannot
+  // promise (docs/superpowers/p3b-spike-jwe.md's hash-binding finding).
+  // This pins the server's own narrowing rather than jose's own refusal.
+  it('refuses a userinfo_encrypted_response_alg jose can produce but this server excludes', async () => {
+    const realmName = `seam-enc-refuse-oaep-${newId()}`;
+    const realmId = newId();
+    await withRealm(app.db, realmId, (tx) =>
+      seedRealm(tx, realmId, { name: realmName, policy: 'open' }),
+    );
+
+    const res = await http.inject({
+      method: 'POST',
+      url: URL_FOR(realmName),
+      payload: { ...MINIMAL, userinfo_encrypted_response_alg: 'RSA-OAEP' },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json<{ error: string }>().error).toBe('invalid_client_metadata');
+  });
+
   it('refuses a userinfo_encrypted_response_enc outside the JWA registry', async () => {
     const realmName = `seam-enc-value-refuse-${newId()}`;
     const realmId = newId();

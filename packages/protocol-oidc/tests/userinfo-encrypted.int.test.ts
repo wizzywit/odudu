@@ -14,6 +14,7 @@ import { clients, provisionClientDefaults } from '@odudu/domain-realm';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import formbody from '@fastify/formbody';
+import { eq } from 'drizzle-orm';
 import Fastify, { type FastifyInstance, type LightMyRequestResponse } from 'fastify';
 import {
   compactDecrypt,
@@ -84,6 +85,8 @@ let unreachableJwksClient: Client;
 let noCandidateClient: Client;
 let ambiguousClient: Client;
 let filteredClient: Client;
+let signAndEncryptNoCandidateClient: Client;
+let disablableClient: Client;
 
 function userinfoUrl(realmName: string): string {
   return `/realms/${realmName}/protocol/openid-connect/userinfo`;
@@ -172,13 +175,26 @@ async function issueAccessToken(client: Client): Promise<string> {
   return res.json<{ access_token: string }>().access_token;
 }
 
-async function userinfo(client: Client): Promise<LightMyRequestResponse> {
-  const accessToken = await issueAccessToken(client);
+function userinfoWithToken(accessToken: string): Promise<LightMyRequestResponse> {
   return http.inject({
     method: 'GET',
     url: userinfoUrl(realm.realmName),
     headers: { authorization: `Bearer ${accessToken}` },
   });
+}
+
+async function userinfo(client: Client): Promise<LightMyRequestResponse> {
+  const accessToken = await issueAccessToken(client);
+  return userinfoWithToken(accessToken);
+}
+
+// The access token this server issues carries no opinion on whether its
+// client stays enabled — disabling one is a live operator action against a
+// client that may already hold tokens with time left on them.
+async function disableClient(client: Client): Promise<void> {
+  await withRealm(app.db, realm.realmId, (tx) =>
+    tx.update(clients).set({ enabled: false }).where(eq(clients.id, client.dbId)),
+  );
 }
 
 function decode(token: string): Record<string, unknown> {
@@ -308,6 +324,20 @@ beforeAll(async () => {
     userinfoEncryptedResponseEnc: ENC_ENC,
     jwks: { keys: [{ ...(await exportJWK(ecPublicKey)), use: 'enc' }] },
   });
+  // Registers both: a fallback that answered with the signed-but-unencrypted
+  // form on failure (rather than refusing) would pass every other test in
+  // this file, since every other failing client registered encryption alone.
+  signAndEncryptNoCandidateClient = await registerClient('sign-and-encrypt-no-candidate-client', {
+    userinfoSignedResponseAlg: 'RS256',
+    userinfoEncryptedResponseAlg: ENC_ALG,
+    userinfoEncryptedResponseEnc: ENC_ENC,
+    jwks: { keys: [] },
+  });
+  disablableClient = await registerClient('disablable-client', {
+    userinfoEncryptedResponseAlg: ENC_ALG,
+    userinfoEncryptedResponseEnc: ENC_ENC,
+    jwks: { keys: [encPublicJwk] },
+  });
 }, 120_000);
 
 afterAll(async () => {
@@ -386,6 +416,19 @@ describe('[OIDC-CORE-5.3.2-03] a client asking for encryption never receives cle
     );
     expect(warning).toMatchObject({ client_id: unreachableJwksClient.clientId });
   });
+
+  // A registration this server can no longer honour is not the same as no
+  // registration at all: `userinfoEncryptionTarget` (packages/protocol-oidc/src/index.ts)
+  // used to fold both into `null`, which read as "answer plainly" here —
+  // the access token stays valid for its own TTL after its client is
+  // disabled, so this is reachable by a live token, not only a dead one.
+  it('refuses rather than answering in clear text once its client is disabled', async () => {
+    const accessToken = await issueAccessToken(disablableClient);
+    await disableClient(disablableClient);
+    const response = await userinfoWithToken(accessToken);
+    expect(response.statusCode).toBe(500);
+    expect(response.body).toBe('');
+  });
 });
 
 describe('three different key-selection failures reach the same refusal as a dead jwks_uri', () => {
@@ -403,6 +446,14 @@ describe('three different key-selection failures reach the same refusal as a dea
 
   it("refuses when the only candidate's kty cannot serve the registered alg family", async () => {
     const response = await userinfo(filteredClient);
+    expect(response.statusCode).toBe(500);
+    expect(response.body).toBe('');
+  });
+
+  // A fallback to the pre-encryption form would emit a readable JWS here,
+  // not JSON — a different leak than the encrypt-only clients above catch.
+  it('refuses the same way when the client also registered signing', async () => {
+    const response = await userinfo(signAndEncryptNoCandidateClient);
     expect(response.statusCode).toBe(500);
     expect(response.body).toBe('');
   });

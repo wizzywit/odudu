@@ -414,24 +414,36 @@ ADR 0034's Consequences record the question as open, not answered.
   relying parties make that comparison meaningful.
 
 **Neither of the server's two outbound DNS lookups carries a deadline of
-its own — and now both run in production.** `createLogoutDeliveryTransport`'s
-`defaultLookup` (`apps/server/src/logout-delivery-transport.ts`) and
-`defaultClientKeyLookup` (`apps/server/src/client-key-transport.ts`, wired
-into `/token`'s `private_key_jwt` authentication as of P3b's client-auth
-increment) both call `node:dns/promises`'s `lookup` with no timeout; the
-first also ignores the `AbortSignal` `sendLogouts` already started
-running. A stalling nameserver delays a claimed logout row by the
-resolver's own budget before the signal's deadline begins bounding the
-connection, and delays a `private_key_jwt` refusal past the 10s total
-timeout `docs/protocols/rfc7523.md`'s reading notes already say that bound
-does not cover. The parity argument the trigger below asked for now
-exists: both lookups are unbounded, in production, for the same reason.
+its own — and now both run in production, on three request paths.**
+`createLogoutDeliveryTransport`'s `defaultLookup`
+(`apps/server/src/logout-delivery-transport.ts`) and
+`defaultClientKeyLookup` (`apps/server/src/client-key-transport.ts`) both
+call `node:dns/promises`'s `lookup` with no timeout; the first also
+ignores the `AbortSignal` `sendLogouts` already started running. The
+second is shared by `/token`'s `private_key_jwt` authentication (P3b's
+client-auth increment) and, since encrypted UserInfo responses landed, by
+`/userinfo` — the same `clientKeySet`, the same unbounded lookup, now
+consulted on a path between a resource server's request and its answer
+rather than only on a misconfigured client's own. A stalling nameserver
+delays a claimed logout row by the resolver's own budget before the
+signal's deadline begins bounding the connection, delays a `private_key_jwt`
+refusal past the 10s total timeout `docs/protocols/rfc7523.md`'s reading
+notes already say that bound does not cover, and now delays a `/userinfo`
+response the same way (`docs/request-paths.md`'s "What a dead `jwks_uri`
+costs, on this path specifically" has the full accounting). The parity
+argument the trigger below asked for now exists across all three: every
+outbound lookup this server makes is unbounded, in production, for the
+same reason.
 
 - Trigger: fired. A relying party's back-channel endpoint or a client's
   `jwks_uri` resolves through a slow or unreachable nameserver in
   practice. Bound the lookup itself (a timeout race, or a resolver
-  library that takes one), and decide whether the two transports share
-  one answer or each wires its own.
+  library that takes one), and decide whether the transports share one
+  answer or each wires its own — and, for `/userinfo` specifically,
+  whether it needs a tighter timeout than `/token`'s shared default,
+  since it now sits on a resource server's request rather than a client's
+  own (`docs/superpowers/p3b-spike-jwe.md`'s Question 2 recommends one but
+  does not build it).
 
 **`/introspect`'s entitlement check sits in a `usecase`, not a `service`.**
 `callerIsAddressed` and `audienceOf`

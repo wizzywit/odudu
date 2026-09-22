@@ -200,25 +200,28 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
         return config?.userinfoSignedResponseAlg ?? null;
       });
 
-    // /userinfo's answer to "should this response be encrypted": an
-    // unknown or disabled client, or one that never registered
-    // `userinfo_encrypted_response_alg`, all read as `null` — the same
-    // "no opinion, answer plainly" default `userinfoSignedResponseAlg`
-    // above resolves to. `enc` falls back to
-    // USERINFO_ENCRYPTION_ENC_DEFAULT only for a row written before that
-    // default existed at registration time.
+    // /userinfo's answer to "should this response be encrypted". Unlike
+    // signing, a disabled client is not read the same as one that never
+    // registered encryption: registration is checked first, against
+    // whatever client row exists, so a disabled client that did register
+    // is `'unavailable'` (refused) rather than `'none'` (answered plainly,
+    // in clear text, defeating the registration).
     const userinfoEncryptionTarget = (realmId: string, oauthClientId: string) =>
       withRealm(deps.database.db, realmId, async (tx) => {
         const client = await clientRepository(tx).byClientId(oauthClientId);
-        if (!client?.enabled) return null;
+        if (client === null) return { kind: 'none' } as const;
         const config = await clientOidcConfigRepository(tx).byClientId(client.id);
-        if (config?.userinfoEncryptedResponseAlg == null) return null;
+        if (config?.userinfoEncryptedResponseAlg == null) return { kind: 'none' } as const;
+        if (!client.enabled) return { kind: 'unavailable' } as const;
         return {
-          alg: config.userinfoEncryptedResponseAlg,
-          enc: config.userinfoEncryptedResponseEnc ?? USERINFO_ENCRYPTION_ENC_DEFAULT,
-          jwks: config.jwks,
-          jwksUri: config.jwksUri,
-        };
+          kind: 'target',
+          target: {
+            alg: config.userinfoEncryptedResponseAlg,
+            enc: config.userinfoEncryptedResponseEnc ?? USERINFO_ENCRYPTION_ENC_DEFAULT,
+            jwks: config.jwks,
+            jwksUri: config.jwksUri,
+          },
+        } as const;
       });
 
     // The same key /token signs an access token or ID Token with —

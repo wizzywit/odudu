@@ -19,9 +19,8 @@ export interface DiscoveryUsecaseDeps {
   // unlike signing, this never varies per realm (no server key is
   // involved, only the installed jose's own capability), so the caller
   // passes the same narrowed set every time rather than this package
-  // reading it from a realm. @odudu/crypto's JWE_ALGS_PERMITTED and
-  // service/client-metadata.ts's USERINFO_ENCRYPTION_ENCS_PERMITTED are
-  // the two call sites this must never drift from.
+  // reading it from a realm: `@odudu/crypto`'s `JWE_ALGS_PERMITTED` and
+  // `service/client-metadata.ts`'s `USERINFO_ENCRYPTION_ENCS_PERMITTED`.
   userinfoEncryptionAlgSupported: readonly string[];
   userinfoEncryptionEncSupported: readonly string[];
   // Whether this deployment's `ODUDU_TRUST_PROXY` is on — server config,

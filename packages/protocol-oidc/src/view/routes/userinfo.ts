@@ -85,9 +85,8 @@ async function respondToUserinfoRequest(
         'userinfo: registered signing algorithm does not match the active signing key',
       );
       return reply.headers(corsHeaders).code(500).send();
-    // Same shape as signing_unavailable: not the token's fault, no body —
-    // answering in clear text because a key could not be selected would
-    // publish exactly what the client asked to have protected.
+    // Same shape as signing_unavailable, for the same reason (see
+    // `encryption_unavailable` on `UserinfoOutcome`).
     case 'encryption_unavailable':
       request.log.warn(
         { client_id: outcome.clientId, reason: outcome.reason },

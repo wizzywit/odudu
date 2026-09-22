@@ -1549,9 +1549,10 @@ JWT. Its protected header, decoded:
 
 `cty: "JWT"` is the only signal the plaintext is itself a JWT rather than
 JSON — decrypting with the private key matching the registered `jwks`
-(`jose.compactDecrypt`) and reading that plaintext back confirms it is
-exactly the signed response the [plain `/userinfo`](#5-userinfo) walk-through
-above produced, header and all:
+(`jose.compactDecrypt`) and reading that plaintext back shows a complete
+`userinfo+jwt` response in its own right, the same shape described in "A
+signed UserInfo response" (`docs/protocols/oidc-core.md`'s reading note),
+now wrapped in encryption:
 
 ```json
 { "alg": "RS256", "kid": "01a0c89c-6d76-…", "typ": "userinfo+jwt" }
@@ -1575,11 +1576,43 @@ A client that registers `userinfo_encrypted_response_alg` with no
 `userinfo_signed_response_alg` gets the claims encrypted directly, with no
 signing and no nesting — no `cty`, and the plaintext is the claims JSON,
 carrying no `iss`/`aud` (those are added only when something actually
-signs):
+signs). This one also leaves out `userinfo_encrypted_response_enc`, unlike
+the client above:
+
+```bash
+curl -sS -X POST http://localhost:3000/realms/demo/clients-registrations/openid-connect \
+  -H 'content-type: application/json' \
+  -d '{
+    "redirect_uris": ["https://rp2.example/cb"],
+    "userinfo_encrypted_response_alg": "RSA-OAEP-256",
+    "jwks": {"keys": [{"kty":"RSA","n":"ko4vxz0c…","e":"AQAB","use":"enc"}]}
+  }'
+```
+
+```json
+{
+  "client_id": "01a0c89d-a91e-…",
+  "client_id_issued_at": 1790072170,
+  "client_secret": "xCA2nlZCP59SaPQtwsfybM7eT2B7CAdrMsh4bTZR7Xs",
+  "client_secret_expires_at": 0,
+  "redirect_uris": ["https://rp2.example/cb"],
+  "grant_types": ["authorization_code"],
+  "token_endpoint_auth_method": "client_secret_basic",
+  "jwks": { "keys": [{ "kty": "RSA", "n": "ko4vxz0c…", "e": "AQAB", "use": "enc" }] },
+  "userinfo_encrypted_response_alg": "RSA-OAEP-256",
+  "userinfo_encrypted_response_enc": "A128CBC-HS256"
+}
+```
+
+`_enc` was never sent, and the response carries `A128CBC-HS256` — the
+default applying, unlike the client above, whose `A256GCM` was sent
+explicitly and never defaulted. Completing the same walk-through and
+calling `/userinfo`:
 
 ```
 HTTP/1.1 200 OK
 content-type: application/jwt
+content-length: 513
 
 eyJhbGciOiJSU0EtT0FFUC0yNTYiLCJlbmMiOiJBMTI4Q0JDLUhTMjU2In0.W7KhorJR_TnzMuNqcst0XbQ4bGqj…
 ```
@@ -1594,11 +1627,7 @@ Decrypted:
 { "sub": "01a0c89c-6d7a-…" }
 ```
 
-(This client requested `scope=openid` alone, hence one claim.) `_enc` was
-never sent at registration for this one either, so this is
-`USERINFO_ENCRYPTION_ENC_DEFAULT` a second time, against a different `alg`
-— OIDC Dynamic Client Registration §2's default applies independently of
-which permitted `alg` is registered alongside it.
+(This client requested `scope=openid` alone, hence one claim.)
 
 A client whose key cannot be retrieved or selected — a dead `jwks_uri`, an
 empty JWKS, two equally good candidates, or one the `kty`/`use`/`alg`
@@ -1610,8 +1639,27 @@ the client asked to have protected.
 `packages/protocol-oidc/tests/userinfo-encrypted.int.test.ts` exercises all
 four causes; running one such request against this stack is not reproduced
 here because reaching the "no candidate" and "ambiguous" cases needs no
-network at all, and the "dead `jwks_uri`" case is a timing property (a
-transport timeout), not a fixed transcript.
+network at all, and the "dead `jwks_uri`" case is a timing property, not a
+fixed transcript.
+
+**What a dead `jwks_uri` costs, on this path specifically.** Until this
+task, `clientKeySet.fetch` (the same fetcher, shared with `/token`'s
+`private_key_jwt` authentication) only ever sat on a misconfigured client's
+own request. Here it sits between a resource server's `/userinfo` call and
+the answer it is waiting on, for a client the resource server has no
+visibility into. A first, cold request against a dead `jwks_uri` pays: an
+unbounded DNS lookup this codebase does not bound itself (`node:dns`'s
+`lookup`, no timeout wrapped around it — the OS resolver's own retry
+behaviour is what actually bounds it), then, if that resolves, up to 5
+seconds to connect and 10 seconds total transport
+(`apps/server/src/client-key-transport.ts`'s `DEFAULT_CONNECT_TIMEOUT_MS`/
+`DEFAULT_TOTAL_TIMEOUT_MS`). `NEGATIVE_CACHE_TTL_MS` (30 seconds,
+`packages/protocol-oidc/src/repository/client-keys.ts`) means only the
+first request against a given dead `jwks_uri` in that window pays it —
+every other request for that client, in any realm, gets a cached refusal
+instead. `docs/superpowers/p3b-spike-jwe.md`'s "Question 2" has the full
+measurement; `docs/NEXT.md` records that this is now a second consumer of
+the same unbounded lookup.
 
 ## Path A, as a confidential client
 
