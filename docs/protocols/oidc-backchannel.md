@@ -136,7 +136,7 @@ now cite. `OIDC-BACKCHANNEL-2.4-09` goes further and signs one, with
 `logout+jwt` came back on the protected header rather than the payload —
 which is what closes both the `typ` row and "a Logout Token is signed".
 Production code takes the identical path: `endSession`
-(`packages/protocol-oidc/src/index.ts`) calls the realm's active signing
+(`packages/protocol-oidc/src/index.ts`) calls the tenant's active signing
 key and this same `signJwt` for every back-channel target before writing
 the delivery queue's `logout_token` column
 (`packages/protocol-oidc/src/schema/logout-deliveries.ts`), so the column
@@ -155,7 +155,7 @@ carrying a `backchannel_logout_uri`, and enqueues one Logout Token each. A
 client that used the session but registered no back-channel URI is never
 contacted; one that registered a URI but never received a grant under the
 session is never contacted either — nothing in `clientsForSession` reads
-past its own realm or session. README.md's "Ending a session tells the
+past its own tenant or session. README.md's "Ending a session tells the
 relying parties that were part of it" paragraph states the same rule in
 one sentence for an operator who has not opened this file.
 

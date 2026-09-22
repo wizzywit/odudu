@@ -125,9 +125,9 @@ authenticated a login, not a class a client can ask for and have checked
 against session state, which is the second half of §15.1's "at minimum"
 row (see its own reading note below).
 
-`/authorize` now reads the `__Host-<realm>-session` cookie
+`/authorize` now reads the `__Host-<tenant>-session` cookie
 (`AuthorizeUsecaseDeps.resolveSession`, resolved through
-`sessionRepository(tx).liveById` against the realm's own idle window) and
+`sessionRepository(tx).liveById` against the tenant's own idle window) and
 turns "is there a session, and does it still satisfy this request" into one
 decision alongside `prompt` and `max_age`, rather than answering `prompt`
 in isolation while treating every request as unauthenticated. The decision
@@ -203,7 +203,7 @@ own — `prompts.has('none')` and `prompts.has('login')` cannot both be true
 `mustReauthenticate`, the decision it forces is always `authenticate`,
 never `refuse`. Forcing the form is not itself a failure; the form can
 always be rendered, live session or none — the failure this row means is
-narrower: a realm whose flow (`authn-flows`' `nextStep`) has no applicable
+narrower: a tenant whose flow (`authn-flows`' `nextStep`) has no applicable
 execution at all, so there is nothing that could ever be rendered.
 `handleAuthorizationRequest` (`usecase/authorization-request.ts`) asks
 `initialChallenge` before starting an authentication session; a `'failure'`
@@ -218,14 +218,14 @@ claimed it did — but presenting no session cookie to `/authorize` at all
 makes that test byte-for-byte the plain hint-mismatch case
 `OIDC-CORE-3.1.2.1-09` already covers: deleting the `prompt=login`
 parameter from it changes nothing it asserts. What actually closes this
-row is a realm whose flow tree can put a request into a state with no
+row is a tenant whose flow tree can put a request into a state with no
 applicable execution — a state that exists only once a flow tree does,
 which is why it could not close before the executor ran the registry
 rather than a hardcoded single step.
 
 `id_token_hint` is a third case that looks like it needs session reuse and
 does not. Validating that Odudu issued the hint (§3.1.2.2) is signature and
-`iss` checking against the realm's own keys, which `/token` and `/userinfo`
+`iss` checking against the tenant's own keys, which `/token` and `/userinfo`
 already do — the same publishable set `/jwks` serves, so a hint signed by a
 key that has since been retired is no longer honoured. And §3.1.2.1's rule
 admits the end-user who "becomes logged in as a result of the request" —
@@ -256,8 +256,8 @@ declined on purpose — `login_required` describes what actually happened.
 
 **An access token is not an ID Token, and is refused as a hint.** §3.1.2.1
 says the parameter carries an ID Token previously issued by this OP, so a
-check that asked only "did this realm sign it?" would accept an access token
-minted for the same end-user — valid signature, this realm's `iss`, the same
+check that asked only "did this tenant sign it?" would accept an access token
+minted for the same end-user — valid signature, this tenant's `iss`, the same
 `sub`. What it cannot be is "must be an ID Token": OIDC Core §2 gives an ID
 Token no `typ` of its own and the ones `/token` issues carry none, so the
 demand that can honestly be made is _must not be an access token_, which RFC
@@ -524,7 +524,7 @@ and by a request that was going to be refused for this one. Each of
 request that is otherwise admitted, and asserts the login form comes back —
 so a rejection caused by the parameter shows up as a refused request rather
 than as a differently worded error. The values tried include ones no server
-could satisfy (`zz-ZZ`, an acr no realm defines), because the row says _any_
+could satisfy (`zz-ZZ`, an acr no tenant defines), because the row says _any_
 requested value.
 
 `acr_values` has a second half that is not this row: reporting in `acr`
@@ -559,7 +559,7 @@ see the note below.
 ### `iss`: the half of §2 this process cannot assert
 
 §2 requires the ID Token's `iss` to be a case-sensitive **`https`** URL with
-no query or fragment. `realmIssuer` (`packages/protocol-oidc/src/service/issuer.ts`)
+no query or fragment. `tenantIssuer` (`packages/protocol-oidc/src/service/issuer.ts`)
 builds the identifier from a scheme, an authority and a path, so a query or a
 fragment has nowhere to enter, and `OIDC-DISCOVERY-3-02` holds the value
 byte-identical to the `issuer` discovery publishes — but the scheme is
@@ -669,28 +669,28 @@ unconditionally, since every JWT this server verifies through it is
 expected to carry one). The `none` case needs neither: `jose` refuses to
 verify an unsecured JWT as a matter of course, independent of this fix.
 
-**The registered algorithm is narrowed twice, discovery is per realm, and a
+**The registered algorithm is narrowed twice, discovery is per tenant, and a
 mismatch refuses without a body.** `client-metadata.ts` used to admit any
 string for `userinfo_signed_response_alg` and read it as "sign, using
-whatever algorithm the realm's active key happens to carry" — an honest
+whatever algorithm the tenant's active key happens to carry" — an honest
 header (no path ever wrote a client's string into the JWS header) but a
 silently overridden choice: a client registering `ES512` against an
-`RS256` realm got `{"alg":"RS256"}` back with no error anywhere.
+`RS256` tenant got `{"alg":"RS256"}` back with no error anywhere.
 
 The first narrowing is to what any signing key's own check
 (`signing_keys_alg_check`) can produce at all —
 `USERINFO_SIGNING_ALGS_PERMITTED = ['RS256', 'ES256', 'none']`. That is not
-enough on its own: a realm holds exactly **one** active key
-(`signing_keys_one_active`, a unique index on `(realm_id) WHERE status =
-'active'`), so advertising both `RS256` and `ES256` to every realm — the
+enough on its own: a tenant holds exactly **one** active key
+(`signing_keys_one_active`, a unique index on `(tenant_id) WHERE status =
+'active'`), so advertising both `RS256` and `ES256` to every tenant — the
 first version of this fix did, reasoning from the permitted set rather
-than from any one realm's key — told a client a configuration was
-supported that this specific realm could never produce. Discovery's
-`userinfo_signing_alg_values_supported` is now the caller's own per-realm
-answer (`[key.alg, 'none']`, or `['none']` for a realm with no active key
+than from any one tenant's key — told a client a configuration was
+supported that this specific tenant could never produce. Discovery's
+`userinfo_signing_alg_values_supported` is now the caller's own per-tenant
+answer (`[key.alg, 'none']`, or `['none']` for a tenant with no active key
 yet), read by `usecase/discovery.ts`; registration
 (`usecase/client-registration.ts`) checks the registered value against
-that same realm's active key, in the same transaction, and refuses
+that same tenant's active key, in the same transaction, and refuses
 `invalid_client_metadata` on a mismatch. Together they make the common
 case — a client trusting what discovery told it — unable to reach a
 mismatch at all.
@@ -706,7 +706,7 @@ text for the caller holding a valid credential it cannot use to fix
 anything) — logged instead, at `view/routes/userinfo.ts`'s own call site,
 with the client, the registered algorithm and the active key's algorithm.
 
-Registration reads the same active-key query, so a realm with no active
+Registration reads the same active-key query, so a tenant with no active
 key at all is a mismatch too (every algorithm is unproducible), refused
 the same way as a real mismatch rather than left to throw.
 
@@ -731,7 +731,7 @@ enforce as an unrelated 500), and `_enc` omitted with `_alg` present
 defaults to `A128CBC-HS256` (OIDC Dynamic Client Registration §2's own
 default). Discovery's `userinfo_encryption_alg_values_supported` and
 `_enc_values_supported` advertise the same two sets — fixed by the
-installed jose, not by any realm's own data, unlike
+installed jose, not by any tenant's own data, unlike
 `userinfo_signing_alg_values_supported` above.
 
 **Key selection either finds exactly one candidate or refuses.** No
@@ -752,7 +752,7 @@ the response path a resource server is waiting on rather than the request
 path of the client that misconfigured itself. Answering in clear text
 because the fetch failed would publish exactly what the client registered
 encryption to protect — `view/routes/userinfo.ts` answers with no body and
-no `WWW-Authenticate` challenge (this token is fine; the realm's client
+no `WWW-Authenticate` challenge (this token is fine; the tenant's client
 configuration is not), logging the reason for an operator the way a signing
 mismatch does.
 
@@ -801,12 +801,12 @@ so a client that named `auth_time` voluntarily got it regardless; that is a
 behaviour change for the voluntary case, permitted by §2's MAY but not
 covered by any row or test, since none names the voluntary case.
 
-### `claims_parameter_supported`: fixed, like the other capability flags with no per-realm derivation
+### `claims_parameter_supported`: fixed, like the other capability flags with no per-tenant derivation
 
-Every realm honours the `claims` request parameter the same way, so
+Every tenant honours the `claims` request parameter the same way, so
 discovery states it fixed `true` (`packages/contracts/src/discovery.ts`) —
 the same reasoning as `authorization_response_iss_parameter_supported` and
-the four `backchannel_logout_*`/`frontchannel_logout_*` members: no realm or
+the four `backchannel_logout_*`/`frontchannel_logout_*` members: no tenant or
 client setting gates any of them, so there is nothing to carry through
 `DiscoveryDocumentOptions`.
 
@@ -871,7 +871,7 @@ authenticator's key and the platform's own user-verification step, which is
 why major OIDC providers report passkeys the same way. A synced (software)
 passkey would more accurately be `swk`; the `passkey` authenticator cannot
 tell the two apart from an assertion, so `hwk` is what it reports for both
-and a realm that needs the distinction does not get it from this claim.
+and a tenant that needs the distinction does not get it from this claim.
 
 **`recovery-code` maps to nothing, deliberately — but not because RFC 8176
 excludes it.** The registry's non-exhaustive "include" leaves room for a
@@ -902,12 +902,12 @@ cannot learn it from these claims.
 
 **`acr`'s bare digits, and why the SHOULD stays open.** §2 asks that "an
 absolute URI or an RFC 6711 registered name SHOULD be used as the `acr`
-value." `acrFor` returns `'1'` or `'2'` — a realm-local factor count, not a
+value." `acrFor` returns `'1'` or `'2'` — a tenant-local factor count, not a
 URI and not a name RFC 6711 or IANA has ever registered. That is a real gap
 against the SHOULD's own wording, not a technicality: a client that reads
 `acr` expecting one of those two forms gets neither. It is left `gap`
 rather than forced to `covered`, because closing it honestly needs either
-minting realm-specific URIs for its context classes or adopting an existing
+minting tenant-specific URIs for its context classes or adopting an existing
 RFC 6711 registration, and P2b did neither.
 
 Leaving it `gap` ships a wire format regardless: the moment a relying
@@ -929,7 +929,7 @@ Odudu never uses one, so nothing in `acrFor`'s output can violate it.
 
 | Clause  | Level  | Requirement                                                                                                                                                                                                                                                                                    | Test ID                | Status                                                                                                                                                                                                                                                                                                                                |
 | ------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 2       | MUST   | `iss` is a REQUIRED claim: a case-sensitive `https` URL with scheme, host, and optionally port and path, and no query or fragment                                                                                                                                                              | —                      | accepted: "`iss`: the half of §2 this process cannot assert" — the structure is held by `realmIssuer` and `OIDC-DISCOVERY-3-02`; the `https` scheme is whatever the proxy asserts through `X-Forwarded-Proto`                                                                                                                         |
+| 2       | MUST   | `iss` is a REQUIRED claim: a case-sensitive `https` URL with scheme, host, and optionally port and path, and no query or fragment                                                                                                                                                              | —                      | accepted: "`iss`: the half of §2 this process cannot assert" — the structure is held by `tenantIssuer` and `OIDC-DISCOVERY-3-02`; the `https` scheme is whatever the proxy asserts through `X-Forwarded-Proto`                                                                                                                        |
 | 2       | MUST   | `sub` is a REQUIRED claim: a locally unique, never-reassigned identifier for the end-user, no more than 255 ASCII characters                                                                                                                                                                   | `OIDC-CORE-2-02`       | covered                                                                                                                                                                                                                                                                                                                               |
 | 2       | MUST   | `aud` contains the client's `client_id` as an audience value                                                                                                                                                                                                                                   | `OIDC-CORE-3.1.3.7-01` | covered                                                                                                                                                                                                                                                                                                                               |
 | 2       | MAY    | `aud` may also contain identifiers for other audiences                                                                                                                                                                                                                                         | —                      | gap                                                                                                                                                                                                                                                                                                                                   |
@@ -943,7 +943,7 @@ Odudu never uses one, so nothing in `acrFor`'s output can violate it.
 | 2       | SHOULD | the authorization server performs no other processing on `nonce` values used                                                                                                                                                                                                                   | —                      | gap                                                                                                                                                                                                                                                                                                                                   |
 | 2       | MUST   | when `nonce` is present in the ID Token, the client verifies it equals the value it sent in the Authentication Request                                                                                                                                                                         | —                      | n/a: client-side guidance; Odudu is the authorization server, not a client                                                                                                                                                                                                                                                            |
 | 2       | SHOULD | an absolute URI or an RFC 6711 registered name is used as the `acr` value                                                                                                                                                                                                                      | —                      | gap                                                                                                                                                                                                                                                                                                                                   |
-| 2       | MUST   | a registered `acr` name is not used with a different meaning than the one it is registered with (vacuously true here: `acrFor` never emits an RFC 6711 registered name, only this realm's own digit)                                                                                           | `OIDC-CORE-2-09`       | covered                                                                                                                                                                                                                                                                                                                               |
+| 2       | MUST   | a registered `acr` name is not used with a different meaning than the one it is registered with (vacuously true here: `acrFor` never emits an RFC 6711 registered name, only this tenant's own digit)                                                                                          | `OIDC-CORE-2-09`       | covered                                                                                                                                                                                                                                                                                                                               |
 | 2       | SHOULD | authentications asserting `acr` level `0` are not used to authorize access to any resource of monetary value                                                                                                                                                                                   | —                      | n/a: guidance for whoever authorizes access on the strength of `acr`; Odudu emits the claim, it does not consume it                                                                                                                                                                                                                   |
 | 2       | SHOULD | values used in `amr` come from the IANA Authentication Method Reference Values registry                                                                                                                                                                                                        | `OIDC-CORE-2-10`       | covered                                                                                                                                                                                                                                                                                                                               |
 | 2       | MUST   | when `azp` is present, it contains the OAuth 2.0 Client ID of the authorized party                                                                                                                                                                                                             | —                      | n/a: `azp` only arises with extensions beyond this specification; Odudu uses none in P1                                                                                                                                                                                                                                               |
@@ -1091,7 +1091,7 @@ Odudu never uses one, so nothing in `acrFor`'s output can violate it.
 | 5.4     | MAY    | multiple scope values are combined in a space-delimited list                                                                                                                                                                                                                                   | `OIDC-CORE-5.4-01`     | covered                                                                                                                                                                                                                                                                                                                               |
 | 5.4     | MUST   | claims requested by `profile`/`email`/`address`/`phone` are returned from the UserInfo Endpoint, since the Authorization Code Flow always issues an access token                                                                                                                               | `OIDC-CORE-5.4-01`     | covered                                                                                                                                                                                                                                                                                                                               |
 | 5.4     | MUST   | when no access token is issued, the requested claims are returned in the ID Token instead                                                                                                                                                                                                      | —                      | n/a: response type not supported — see docs/superpowers/specs/2026-09-11-p1-oauth-oidc-core-design.md §1                                                                                                                                                                                                                              |
-| 5.5     | MAY    | support for the `claims` request parameter                                                                                                                                                                                                                                                     | —                      | accepted: "`claims_parameter_supported`: fixed, like the other capability flags with no per-realm derivation"                                                                                                                                                                                                                         |
+| 5.5     | MAY    | support for the `claims` request parameter                                                                                                                                                                                                                                                     | —                      | accepted: "`claims_parameter_supported`: fixed, like the other capability flags with no per-tenant derivation"                                                                                                                                                                                                                        |
 | 5.5.1   | MAY    | an Individual Claims Request's `essential` member marks a Claim as one the Client considers necessary                                                                                                                                                                                          | `OIDC-CORE-2-09`       | covered                                                                                                                                                                                                                                                                                                                               |
 | 5.5.1   | MAY    | an Individual Claims Request's `value` member requests the Claim be returned with a particular value                                                                                                                                                                                           | `OIDC-CORE-3.1.2.2-07` | covered                                                                                                                                                                                                                                                                                                                               |
 | 5.5.1   | MAY    | an Individual Claims Request's `values` member requests the Claim be returned with one of a set of acceptable values                                                                                                                                                                           | —                      | gap                                                                                                                                                                                                                                                                                                                                   |

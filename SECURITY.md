@@ -39,8 +39,8 @@ Particularly interesting, because they are the parts most likely to be
 subtly wrong:
 
 - token issuance, validation, and refresh rotation
-- realm isolation, including any path that reaches the database without a
-  realm context
+- tenant isolation, including any path that reaches the database without a
+  tenant context
 - agent delegation: any way to widen scopes, extend a lifetime beyond a
   parent, exceed a budget, or escape revocation
 - signing key handling and rotation

@@ -23,7 +23,7 @@ Self-hostable as one container plus PostgreSQL.
 
 ## Status
 
-**The OAuth 2.1 / OpenID Connect core is built.** A realm serves discovery,
+**The OAuth 2.1 / OpenID Connect core is built.** A tenant serves discovery,
 JWKS, `/authorize` with a password login, `/token` and `/userinfo`, and
 answers the `authorization_code` (PKCE mandatory, no exception),
 `refresh_token` (rotating, with reuse detection that revokes the family) and
@@ -44,11 +44,11 @@ the token surface.
 
 A role reaches a token only when it is mapped to a scope the client is
 assigned, because `clients.full_scope_allowed` is off by default — a client
-sees the realm's entire role vocabulary only once that is switched on for
+sees the tenant's entire role vocabulary only once that is switched on for
 it.
 
 `/token` and `/userinfo` now enforce CORS from a client's own `web_origins`
-(a preflight from the realm's union of every client's, since it carries no
+(a preflight from the tenant's union of every client's, since it carries no
 client identity to check against one) — see
 [the CORS section of docs/request-paths.md](docs/request-paths.md#cors-the-preflight-and-the-request-differ).
 `seed client --web-origin` registers them as it creates a client; changing
@@ -57,13 +57,13 @@ one on a client that already exists means updating
 existing client rather than widening a registered list on a re-run.
 
 `email_verified` is now a claim about something that happened: a mailed
-`GET /realms/{realm}/login-actions/action-token?key=…` link, redeemed once,
-flips it. A realm carries three settings for the account lifecycle this
+`GET /tenants/{tenant}/login-actions/action-token?key=…` link, redeemed once,
+flips it. A tenant carries three settings for the account lifecycle this
 begins — `registration_allowed`, `verify_email` and `reset_password_allowed`
-— each defaulting off, so upgrading a realm never silently grants it public
-registration or mailed verification. `odudu seed realm --set` changes them,
-and every other realm setting, by the column name the schema uses:
-`odudu seed realm --name demo --set registration_allowed=true`, repeatable.
+— each defaulting off, so upgrading a tenant never silently grants it public
+registration or mailed verification. `odudu seed tenant --set` changes them,
+and every other tenant setting, by the column name the schema uses:
+`odudu seed tenant --name demo --set registration_allowed=true`, repeatable.
 There is no admin **API** for them yet — that is P4 — and the ranges the
 numeric ones accept are CHECK constraints, so the CLI has no way past a
 policy the database enforces. Outgoing mail goes through `ODUDU_SMTP_HOST`,
@@ -75,10 +75,10 @@ the compose stack does. See
 for that walkthrough, captured message included.
 
 `registration_allowed` now has a reader: `GET`/`POST
-/realms/{realm}/login-actions/registration` lets a user create their own
-account — subject, user row, password credential and the realm's default
+/tenants/{tenant}/login-actions/registration` lets a user create their own
+account — subject, user row, password credential and the tenant's default
 roles, all in one transaction — instead of an administrator seeding one in.
-When the realm's `verify_email` is also on, a self-registered address
+When the tenant's `verify_email` is also on, a self-registered address
 cannot complete a login until it is verified: no authorization code is
 issued, which is the property that made verification ship before
 registration rather than alongside it. See
@@ -86,9 +86,9 @@ registration rather than alongside it. See
 for the walkthrough.
 
 `reset_password_allowed` now has a reader too: `GET`/`POST
-/realms/{realm}/login-actions/reset-password` lets a user request a mailed
+/tenants/{tenant}/login-actions/reset-password` lets a user request a mailed
 link that sets a new password, and the `reset_password` branch of `GET`/`POST
-/realms/{realm}/login-actions/action-token` redeems it. The request answers
+/tenants/{tenant}/login-actions/action-token` redeems it. The request answers
 identically whether or not the address has an account — same status, same
 body — and sends mail only for the one that does, so **this endpoint**
 cannot be used to enumerate who has registered; a send failure (a down or
@@ -101,12 +101,12 @@ well as the request form.
 See [the password reset section of docs/request-paths.md](docs/request-paths.md#password-reset)
 for the walkthrough.
 
-A realm's `otp_required` turns TOTP into a real second factor. It defaults
+A tenant's `otp_required` turns TOTP into a real second factor. It defaults
 off, and off does not mean nobody is asked: a subject who has enrolled a
 TOTP credential is always asked for a code after their password, in any
-realm. What the switch adds is everybody else — a subject with no credential
+tenant. What the switch adds is everybody else — a subject with no credential
 is given the `configure-totp` required action at their next login, and
-`POST /realms/{realm}/login-actions/required-action?action=configure-totp`
+`POST /tenants/{tenant}/login-actions/required-action?action=configure-totp`
 enrols one. The enrolment page renders the `otpauth://` URI as text and as a
 QR code, and the credential is written only by a submission that proves a
 correct code, never by the page that offers a secret. The algorithm is
@@ -114,7 +114,7 @@ RFC 6238 as `@odudu/crypto` implements it — six digits, SHA-1, a 30-second
 step, a ±1-step window and a stored last-accepted step, so a code cannot be
 used twice. A two-factor login's ID token carries `amr: ["otp", "pwd"]` and
 `acr: "2"`. Turning it on is
-`odudu seed realm --name <realm> --set otp_required=true`, the same command
+`odudu seed tenant --name <tenant> --set otp_required=true`, the same command
 the account-lifecycle settings above use.
 See [the TOTP section of docs/request-paths.md](docs/request-paths.md#two-factor-authentication-with-totp)
 for the walkthrough.
@@ -156,7 +156,7 @@ refusal.
 **A subject can also enrol a passkey.** A pending `configure-passkey`
 required action renders a page that calls `navigator.credentials.create()`
 and posts the result back to `POST
-/realms/{realm}/login-actions/required-action?action=configure-passkey`.
+/tenants/{tenant}/login-actions/required-action?action=configure-passkey`.
 Registration is verified by `@simplewebauthn/server` and the credential is
 written only after that — its `lookup_key` is the credential id, and
 `secret_data` carries the COSE public key, the authenticator's signature
@@ -168,29 +168,29 @@ authenticator.
 
 **A passkey then signs that subject in with no username at all.** The login
 page offers a "Sign in with a passkey" button beside the password fields; it
-asks `POST /realms/{realm}/login-actions/passkey-challenge` for request
+asks `POST /tenants/{tenant}/login-actions/passkey-challenge` for request
 options — which name no credentials, so the browser offers every
 discoverable passkey it holds — calls `navigator.credentials.get()`, and
 posts the assertion back to the same login endpoint in an `assertion` field.
 Who is signing in comes from the assertion: the credential id it carries is
-the `lookup_key` a realm-scoped read resolves to a subject, and that read
+the `lookup_key` a tenant-scoped read resolves to a subject, and that read
 happens before any signature is checked, because verification needs the
 stored public key as an input. The authenticator's signature counter must
 have advanced, or the credential looks cloned and the login is refused —
 except for an authenticator that reports zero and always has, which
 WebAuthn §6.1.1 permits. A passkey counts as **two** factors (`amr:
 ["hwk", "user"]`, `acr: "2"`), since enrolment demands user verification, so
-a realm with `otp_required` on does not ask for a code on top of one.
+a tenant with `otp_required` on does not ask for a code on top of one.
 
-Every realm also carries a password policy — `password_min_length` (default
-`8`, floored there by a `CHECK`; a realm cannot configure its way below it),
+Every tenant also carries a password policy — `password_min_length` (default
+`8`, floored there by a `CHECK`; a tenant cannot configure its way below it),
 `password_require_digit`, `password_require_uppercase`,
 `password_require_lowercase` and `password_require_special` (all off by
 default), and `password_not_username`/`password_not_email` (both on by
 default, refusing a password that contains the account's own username, or
 the local part of its email address — matched independently, so a
 password containing both is refused for both). A password is also capped at
-**256 characters**, which is the one rule no realm configures: it exists to
+**256 characters**, which is the one rule no tenant configures: it exists to
 bound work rather than to shape passwords, and 256 is double the length
 ASVS 2.1.2 says a server may start refusing, so no passphrase anybody would
 type reaches it. An over-long password is refused, never truncated, and it
@@ -198,7 +198,7 @@ is refused where the form is read — including at the sign-in form, which
 verifies a password rather than evaluating it against the policy, and so is
 the one route where "no maximum" would mean an Argon2id verification for
 input of any length (ADR 0023). The policy is read from the
-realm, never defaulted in code, and the same `evaluatePassword` call binds
+tenant, never defaulted in code, and the same `evaluatePassword` call binds
 every writer of a password: registration, reset redemption, the seed CLI's
 `--password` and `user` subcommand, and the change-password required
 action. A rejected password answers `400` with every violated rule listed
@@ -281,9 +281,9 @@ docs/request-paths.md](docs/request-paths.md#the-client_secret-budget-at-token).
 `password_max_age_days` (default `0`, the feature off) ages a password out.
 An expired password is **not** refused: the login authenticates as it
 always did and the `update-password` required action blocks it from
-completing, so a realm that turns this on moves accounts along rather than
+completing, so a tenant that turns this on moves accounts along rather than
 locking them out. `password_history_depth` (default `0`, also off) is how
-many retired passwords a realm remembers; above zero, the change-password
+many retired passwords a tenant remembers; above zero, the change-password
 action refuses a candidate matching any of them or the password in force,
 and rotation retires the displaced hash as a `password-history` credential.
 Those rows are never a login's input, and the ones past the depth are
@@ -291,9 +291,9 @@ deleted — the one place anything in this codebase deletes a credential
 rather than marking it (ADR 0021), because no decision can read them.
 
 **A required action blocks a login's completion, never its factors.**
-`POST /realms/{realm}/login-actions/required-action` carries no credentials
+`POST /tenants/{tenant}/login-actions/required-action` carries no credentials
 of its own, so it acts only for a session whose authentication has actually
-finished — every factor the realm's flow asks of that subject passed, and
+finished — every factor the tenant's flow asks of that subject passed, and
 the session not yet spent on a sign-in — and only for the action owed
 **next**, in the order `update-password`, `configure-totp`,
 `configure-passkey`, `generate-recovery-codes`. Both halves carry weight: a
@@ -319,7 +319,7 @@ required-action machinery nor `apps/server`.
 verification, self-registration and password reset — writes the message to
 `email_outbox` in the same transaction that mints the token it carries, and
 answers. A sender claims batches of due messages with `FOR UPDATE SKIP
-LOCKED`, one realm at a time, and runs either on the server's own schedule
+LOCKED`, one tenant at a time, and runs either on the server's own schedule
 (`ODUDU_OUTBOX_INTERVAL_SECONDS`) or as `odudu send-mail`
 ([ADR 0024](docs/adr/0024-a-scheduled-pass-is-a-command-first.md)). That is
 what makes the two reset paths indistinguishable in time as well as in
@@ -330,20 +330,20 @@ for an operator to read. A transport failure therefore cannot reach a
 caller or change a status: it happens after the response, and no code
 reachable from a request holds a mail transport at all.
 
-**Known limitation, realm-wide:** the reset endpoint's enumeration safety
-does not make the realm itself un-enumerable. With `registration_allowed`
+**Known limitation, tenant-wide:** the reset endpoint's enumeration safety
+does not make the tenant itself un-enumerable. With `registration_allowed`
 also on, the registration form (below) answers "that email address is
 already registered" with a 400 — a universal trade-off for a self-service
 registration form, and the one Keycloak makes too — so an address's
-presence in the realm is discoverable through that door even though the
+presence in the tenant is discoverable through that door even though the
 reset flow closes this one. Accepted, not fixed: honestly naming a
-trade-off beats implying a property the realm does not actually have.
+trade-off beats implying a property the tenant does not actually have.
 
 A mailed verification link is built from `ODUDU_PUBLIC_BASE_URL`, never
 from the request that triggered it — a request's `Host` header is
 client-controlled, and trusting it would let an attacker choose where a
 link Odudu mails to someone else points. `ODUDU_PUBLIC_BASE_URL` must be an
-absolute `http`/`https` origin with no path; when it is unset, a realm with
+absolute `http`/`https` origin with no path; when it is unset, a tenant with
 `verify_email` on refuses to register rather than guessing a base some
 other way (`compose.yaml` sets it for the local stack).
 
@@ -357,7 +357,7 @@ party ids are domains and `https://127.0.0.1:3000` would enrol credentials
 no browser can ever offer back. **With
 `NODE_ENV=production` the server refuses to boot until
 `ODUDU_PUBLIC_BASE_URL` is set**, since `configure-passkey` is reachable in
-every realm; outside production the variable stays optional, and without it
+every tenant; outside production the variable stays optional, and without it
 passkey enrolment reports itself unavailable and the login page offers no
 passkey button, because there would be nothing behind one.
 
@@ -386,18 +386,18 @@ user with no email address on file — including one seeded without
 `--email` — since there is no address for them to verify and, for now, no
 way to add one after the fact. The login page tells them so rather than
 claiming a mail it never sent, but there is no recovery path yet; give
-every user an address before enabling `verify_email` on a realm that
+every user an address before enabling `verify_email` on a tenant that
 already has some.
 
 **The SSO session is read as well as written, and it has two clocks.** The
-`{realm}-session` cookie the login POST sets is now what lets a second
+`{tenant}-session` cookie the login POST sets is now what lets a second
 authorization request from the same browser complete without the form:
 `/authorize` resolves it, and `prompt` decides whether that is allowed —
 `prompt=none` succeeds where a request with no session gets
 `login_required`, and `prompt=login` forces the form past a live session.
 A session is live until the earlier of `sso_session_idle_seconds`
 (default `1800`) measured from its last use and `sso_session_max_seconds`
-(default `36000`) from when it was established; both are per realm, both
+(default `36000`) from when it was established; both are per tenant, both
 bounded by a `CHECK`, and an idle window longer than the ceiling is refused
 rather than clamped. A reused session issues a code carrying the
 **original** login's `auth_time`, not the moment of reuse, which is the fact
@@ -408,25 +408,25 @@ as it guards the password form. The cookie now holds a **list** of session
 ids, not one, and a fresh login joins a browser's existing set rather than
 replacing it.
 
-**A realm can now offer "remember me."** Three settings gate it:
+**A tenant can now offer "remember me."** Three settings gate it:
 `remember_me_allowed` (off by default), and the pair
 `remember_me_idle_seconds`/`remember_me_max_seconds` (defaults 7 and 30
 days) a remembered login is measured against instead of
 `sso_session_idle_seconds`/`sso_session_max_seconds`. When the setting is
 on, the login form offers a `remember_me` checkbox; ticking it writes the
-new session's id into the `{realm}-session-persistent` cookie, carrying
+new session's id into the `{tenant}-session-persistent` cookie, carrying
 `Max-Age=remember_me_max_seconds`, instead of the ephemeral
-`{realm}-session` cookie. **The realm setting is the authority, not the
-field**: a realm with `remember_me_allowed` off ignores a ticked box
+`{tenant}-session` cookie. **The tenant setting is the authority, not the
+field**: a tenant with `remember_me_allowed` off ignores a ticked box
 entirely, and the session lands in the ephemeral list exactly as an
 ordinary login would.
 
 **A browser's session count is capped, and the cap is enforced.**
-`realms.max_sessions_per_browser` (1–32, default 25) is the ceiling
+`tenants.max_sessions_per_browser` (1–32, default 25) is the ceiling
 `admitSession` evicts a browser's own least recently active sessions down
 to — read from the ids its cookies already name, never by subject, since
 one browser can hold sessions for more than one — in the same transaction
-it creates a new one. A lock on the realm's own row serialises logins
+it creates a new one. A lock on the tenant's own row serialises logins
 arriving at once, but does not make the cap exact under concurrency: `k`
 racing from the same browser can transiently exceed it by up to `k - 1`,
 corrected at that browser's next login (ADR 0033's accepted residual).
@@ -439,7 +439,7 @@ posts to `login-actions/select-account` and completes the authorization the
 same way an ungated reuse does. The posted session id is a claim the
 browser makes, honoured only when it names a member of the set that
 request's own cookies resolve to — never merely because it names some live
-session in the realm — which is what stops it from being a way to continue
+session in the tenant — which is what stops it from being a way to continue
 as somebody else's account. `prompt=none` with no account resolvable
 answers `account_selection_required` rather than showing any UI, and
 choosing "use another account" falls through to the ordinary login form on
@@ -447,8 +447,8 @@ the same parked request. See [docs/request-paths.md's "Choosing among
 sessions"](docs/request-paths.md#choosing-among-sessions) for a full
 transcript.
 
-**A realm can now end a session.** `GET`/`POST
-/realms/{realm}/protocol/openid-connect/logout` implements OpenID Connect
+**A tenant can now end a session.** `GET`/`POST
+/tenants/{tenant}/protocol/openid-connect/logout` implements OpenID Connect
 RP-Initiated Logout 1.0 over both methods §2 requires, the parameters
 arriving in the query string or a form body: it asks the End-User to
 confirm before ending anything unless an `id_token_hint` names the session
@@ -464,18 +464,18 @@ server that only checks the signature locally keeps accepting a logged-out
 user's token until its own `exp`, at most
 `client_oidc_config.access_token_ttl_seconds` (capped at one hour) after it
 was issued — nothing about the token itself changes. A resource server that
-instead calls `POST /realms/{realm}/protocol/openid-connect/token/introspect`
+instead calls `POST /tenants/{tenant}/protocol/openid-connect/token/introspect`
 (RFC 7662), authenticating with its own client credentials, sees the
 revocation immediately: introspection checks the grant's `revoked_at` and
 the session's own liveness, not merely the token's signature, which is what
 makes a logout real inside an access token's hour. **`GET`/`POST
-/realms/{realm}/protocol/openid-connect/userinfo` makes the same two checks
+/tenants/{tenant}/protocol/openid-connect/userinfo` makes the same two checks
 on the OP's own behalf** — it is itself a resource server, and the one a
 client asks first — so a token presented there after a logout or a
 deliberate `/revoke` is refused with `invalid_token` rather than answering
 with the End-User's claims. A client can also end a
 grant deliberately with `POST
-/realms/{realm}/protocol/openid-connect/revoke` (RFC 7009) — revoking a
+/tenants/{tenant}/protocol/openid-connect/revoke` (RFC 7009) — revoking a
 refresh token invalidates every access token introspection reports for its
 grant, and revoking an access token revokes the refresh token beside it,
 whatever rotation it has since gone through, because both name the same
@@ -546,7 +546,7 @@ with the old one unreadable.
 
 That has a consequence worth knowing before you hit it. The two files hold
 **different** keys — the compose stack's throwaway one, and the one you just
-generated — and both point at the same database. Seed a realm under one and
+generated — and both point at the same database. Seed a tenant under one and
 serve it under the other, and discovery, JWKS and `/authorize` keep working,
 while `/token` returns a 500 reading `Unsupported state or unable to
 authenticate data`: that is the private key failing to unwrap, and it says
@@ -593,16 +593,16 @@ is what puts the serving connection under row-level security.
 constraint, not a convenience.** Every tenant table carries `FORCE ROW LEVEL
 SECURITY`, which removes the _owner's_ exemption — owning a table stops
 being enough to read it. The owner connection has exactly one job at
-request time: resolving `{realm}` from the path, which happens before any
-realm id exists to `SET LOCAL app.realm_id` into (ADR 0009's amendment of
+request time: resolving `{tenant}` from the path, which happens before any
+tenant id exists to `SET LOCAL app.tenant_id` into (ADR 0009's amendment of
 2026-09-13). Under a plain owner that read returns zero rows and **every
-request answers "unknown realm"**, whatever is in the database.
+request answers "unknown tenant"**, whatever is in the database.
 `packages/authn-flows/tests/migrate-backfill.int.test.ts` asserts exactly
 that, against a container, so the requirement is recorded rather than
 folklore. A least-privilege owner is what this deployment shape wants and
-cannot have yet; closing it means resolving a realm without the bypass.
+cannot have yet; closing it means resolving a tenant without the bypass.
 
-The same property is what a **migration** that reads or writes across realms
+The same property is what a **migration** that reads or writes across tenants
 has to be written for: under a role without the exemption it sees nothing,
 writes nothing, and raises no error doing it.
 `0040_recovery_code_execution.sql` is the worked example — it lifts `FORCE`
@@ -632,11 +632,11 @@ genuinely enforced in the container:
 ```
 
 That drives a full authorization-code-with-PKCE exchange against the
-container — seed a realm and client, request `/authorize`, submit the login
+container — seed a tenant and client, request `/authorize`, submit the login
 form the way a browser would, redeem the code at `/token` — and then tears
 the stack down, volumes included.
 
-**Sign somebody in yourself.** There is no admin API yet, so the first realm,
+**Sign somebody in yourself.** There is no admin API yet, so the first tenant,
 client, user and signing key come from the server's seed command. The run
 below is the all-Docker one:
 
@@ -647,12 +647,12 @@ until curl -fsS http://localhost:3000/health/ready; do sleep 2; done
 
 Wait for that, rather than seeding straight after `up -d`. The container is
 started before it has finished applying migrations, the seed command runs
-none of its own, and a seed run in the gap fails with `relation "realms" does
+none of its own, and a seed run in the gap fails with `relation "tenants" does
 not exist`. A host run needs the same wait, for the same reason.
 
 ```bash
 docker compose exec -T odudu node dist/main.js seed \
-  --realm demo --client demo-spa \
+  --tenant demo --client demo-spa \
   --redirect-uri http://localhost:8080/callback \
   --user ada --password correct-horse-battery --email ada@example.com
 ```
@@ -663,7 +663,7 @@ script reads:
 
 ```bash
 node --env-file=.env apps/server/src/main.ts seed \
-  --realm demo --client demo-spa \
+  --tenant demo --client demo-spa \
   --redirect-uri http://localhost:8080/callback \
   --user ada --password correct-horse-battery --email ada@example.com
 ```
@@ -673,27 +673,27 @@ Whichever of the two you run first answers:
 ```json
 {
   "created": true,
-  "realm": "demo",
-  "realmId": "01a096f4-…",
+  "tenant": "demo",
+  "tenantId": "01a096f4-…",
   "clientId": "demo-spa",
   "userSubjectId": "01a096f4-…"
 }
 ```
 
-That realm now serves the protocol. The discovery document is the one
+That tenant now serves the protocol. The discovery document is the one
 request every client makes first, and every URL below comes out of it:
 
 ```bash
-curl -sS http://localhost:3000/realms/demo/.well-known/openid-configuration
+curl -sS http://localhost:3000/tenants/demo/.well-known/openid-configuration
 ```
 
 ```json
 {
-  "issuer": "http://localhost:3000/realms/demo",
-  "authorization_endpoint": "http://localhost:3000/realms/demo/protocol/openid-connect/auth",
-  "token_endpoint": "http://localhost:3000/realms/demo/protocol/openid-connect/token",
-  "userinfo_endpoint": "http://localhost:3000/realms/demo/protocol/openid-connect/userinfo",
-  "jwks_uri": "http://localhost:3000/realms/demo/protocol/openid-connect/certs"
+  "issuer": "http://localhost:3000/tenants/demo",
+  "authorization_endpoint": "http://localhost:3000/tenants/demo/protocol/openid-connect/auth",
+  "token_endpoint": "http://localhost:3000/tenants/demo/protocol/openid-connect/token",
+  "userinfo_endpoint": "http://localhost:3000/tenants/demo/protocol/openid-connect/userinfo",
+  "jwks_uri": "http://localhost:3000/tenants/demo/protocol/openid-connect/certs"
 }
 ```
 
@@ -705,7 +705,7 @@ authorization-code-with-PKCE flow, with `curl` standing in for the browser,
 whose only job in it is to follow a redirect and submit a form:
 
 ```bash
-BASE=http://localhost:3000/realms/demo/protocol/openid-connect
+BASE=http://localhost:3000/tenants/demo/protocol/openid-connect
 VERIFIER=$(openssl rand -hex 32)
 CHALLENGE=$(printf '%s' "$VERIFIER" | openssl dgst -binary -sha256 \
   | openssl base64 | tr '+/' '-_' | tr -d '=')
@@ -721,7 +721,7 @@ AUTH_SESSION_ID=$(curl -sS --get \
 CODE=$(curl -sS -D - -o /dev/null \
   --data-urlencode "auth_session_id=$AUTH_SESSION_ID" \
   --data-urlencode 'username=ada' --data-urlencode 'password=correct-horse-battery' \
-  http://localhost:3000/realms/demo/login-actions/authenticate \
+  http://localhost:3000/tenants/demo/login-actions/authenticate \
   | sed -n 's/.*[?&]code=\([^&[:space:]]*\).*/\1/p' | tr -d '\r')
 
 curl -sS --data-urlencode 'grant_type=authorization_code' \
@@ -751,17 +751,17 @@ model — `role`, `group`, `scope`, `assign-scope`, `map-role`, `grant-role`,
 above):
 
 ```bash
-node --env-file=.env apps/server/src/main.ts seed role --realm demo --name reviewer
+node --env-file=.env apps/server/src/main.ts seed role --tenant demo --name reviewer
 node --env-file=.env apps/server/src/main.ts seed grant-role \
-  --realm demo --username ada --role reviewer
+  --tenant demo --username ada --role reviewer
 node --env-file=.env apps/server/src/main.ts seed map-role \
-  --realm demo --scope roles --role reviewer
+  --tenant demo --scope roles --role reviewer
 ```
 
 ```json
-{ "command": "role", "realm": "demo", "realmId": "01a0a1a7-…", "roleId": "01a0a1a7-…", "name": "reviewer", "clientId": null }
-{ "command": "grant-role", "realm": "demo", "realmId": "01a0a1a7-…", "username": "ada", "role": "reviewer" }
-{ "command": "map-role", "realm": "demo", "realmId": "01a0a1a7-…", "scope": "roles", "role": "reviewer" }
+{ "command": "role", "tenant": "demo", "tenantId": "01a0a1a7-…", "roleId": "01a0a1a7-…", "name": "reviewer", "clientId": null }
+{ "command": "grant-role", "tenant": "demo", "tenantId": "01a0a1a7-…", "username": "ada", "role": "reviewer" }
+{ "command": "map-role", "tenant": "demo", "tenantId": "01a0a1a7-…", "scope": "roles", "role": "reviewer" }
 ```
 
 Re-request a token with `scope=openid roles` instead of `scope=openid
@@ -771,7 +771,7 @@ access token's payload carries it:
 ```json
 {
   "roles": ["reviewer"],
-  "iss": "http://localhost:3000/realms/demo",
+  "iss": "http://localhost:3000/tenants/demo",
   "sub": "01a0a1a7-…",
   "client_id": "demo-spa",
   "scope": "openid roles"
@@ -788,25 +788,25 @@ onto a token, independently: it must be granted to the subject
 (`grant-role`), mapped to a scope (`map-role`), and that scope must both be
 assigned to the client and actually requested (`scope=` at `/authorize`, or
 `clients.full_scope_allowed`). `seed client` already assigns every
-realm-default scope — `roles` and `groups` included — so the third
+tenant-default scope — `roles` and `groups` included — so the third
 condition is usually already met; `seed assign-scope` is for a scope added
-to the realm afterwards. [docs/request-paths.md](docs/request-paths.md#roles-once-a-scope-reaches-it)
+to the tenant afterwards. [docs/request-paths.md](docs/request-paths.md#roles-once-a-scope-reaches-it)
 walks through all of it, including a client-scoped role qualified as
 `clientId:roleName`.
 
 **An initial access token is an operator's authorization for a client to
-exist.** `POST /realms/{realm}/clients-registrations/openid-connect` is
-RFC 7591 dynamic client registration — open to every realm whose
+exist.** `POST /tenants/{tenant}/clients-registrations/openid-connect` is
+RFC 7591 dynamic client registration — open to every tenant whose
 `client_registration_policy` is `open` or `token`, and refused outright
 while it is the default, `disabled` — `seed client` is then the only way to
-create a client in that realm. A realm whose policy is `token` needs a way to mint the
+create a client in that tenant. A tenant whose policy is `token` needs a way to mint the
 credential a registering client presents, and `seed registration-token`
-is that command: `--realm`, `--uses` (a token is good for that many
+is that command: `--tenant`, `--uses` (a token is good for that many
 registrations, never zero) and `--ttl` in seconds.
 
 ```bash
 node --env-file=.env apps/server/src/main.ts seed registration-token \
-  --realm demo --uses 1 --ttl 3600
+  --tenant demo --uses 1 --ttl 3600
 ```
 
 ```
@@ -815,7 +815,7 @@ PB0YxVF5Rj4P1kbXM4oXLBL1RjMCczPq6vu4dD3T4rg
 
 Unlike every other seed subcommand this prints nothing but the token
 itself — no JSON, no trailing newline content beyond it — so a shell can
-capture it directly: `TOKEN=$(odudu seed registration-token --realm demo
+capture it directly: `TOKEN=$(odudu seed registration-token --tenant demo
 --uses 1 --ttl 3600)`. It is stored as its SHA-256 digest
 (`packages/domain-tenant/src/repository/client-registration-tokens.ts`,
 copied from the action-token pattern `docs/request-paths.md` already
@@ -902,7 +902,7 @@ growing table to show for it.
 
 It answers three things that are not a report of rows, and
 [says which each is](docs/request-paths.md#when-the-pass-refuses-or-finds-nothing-to-look-at):
-`{"ran":false,"reason":"no realm was enumerated"}` on a database nobody has
+`{"ran":false,"reason":"no tenant was enumerated"}` on a database nobody has
 seeded yet, and — exiting non-zero — a refusal to run at all when
 `ODUDU_APP_DATABASE_URL` is unset or names a role that escapes row-level
 security, since either way the policy that scopes its deletes would not
@@ -920,7 +920,7 @@ node --env-file=.env apps/server/src/main.ts send-logouts
 ```
 
 It reports the same shape `send-mail` does: `{"ran":true,"delivered":N,"failed":N}`,
-or `{"ran":false,"reason":"no realm was enumerated"}` on a database nobody
+or `{"ran":false,"reason":"no tenant was enumerated"}` on a database nobody
 has seeded yet.
 
 Like the outbox it takes no lock and needs `ODUDU_APP_DATABASE_URL` for the
@@ -1061,8 +1061,8 @@ A real deployment today looks like:
    cron entry or a CronJob instead — one or the other, and doing both is
    harmless, since the pass takes a Postgres advisory lock and whoever
    loses a tick skips it. **It holds one transaction for the whole tick** —
-   every realm, every table — which is what makes one lock and one report
-   cover the lot, and what to watch if a deployment ever has many realms
+   every tenant, every table — which is what makes one lock and one report
+   cover the lot, and what to watch if a deployment ever has many tenants
    and very large tables. Either way it requires `ODUDU_APP_DATABASE_URL`,
    because its deletes are scoped by the row-level-security policy that the
    owner role escapes.
