@@ -46,10 +46,15 @@ export function sessionRepository(tx: RealmScopedDatabase) {
 
     // The read every session consumer uses. `byId` still exists and still
     // ignores liveness, because the reaper and a future session list need to
-    // see a dead row; nothing that authenticates should call it.
-    async liveById(id: string, idleSeconds: number, now: Date): Promise<SessionRecord | null> {
+    // see a dead row; nothing that authenticates should call it. Takes the
+    // whole `SessionLifespans` pair, like `liveByIds`, and picks the idle
+    // window by the record's own `remembered` column — a single idle number
+    // here would silently measure a remembered session against the
+    // ordinary window, which is the shape `liveByIds` exists to rule out.
+    async liveById(id: string, realm: SessionLifespans, now: Date): Promise<SessionRecord | null> {
       const record = await this.byId(id);
       if (record === null) return null;
+      const { idleSeconds } = lifespanFor(realm, record.remembered);
       return isSessionLive(record, idleSeconds, now) ? record : null;
     },
 

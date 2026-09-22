@@ -13,6 +13,14 @@ import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { sessionRepository } from '#/repository/sessions';
+import { type SessionLifespans } from '#/service/session-lifespan';
+
+const LIFESPANS: SessionLifespans = {
+  ssoSessionIdleSeconds: 1800,
+  ssoSessionMaxSeconds: 36_000,
+  rememberMeIdleSeconds: 604_800,
+  rememberMeMaxSeconds: 2_592_000,
+};
 
 let containerHandle: TestDatabase | undefined;
 let ownerHandle: DatabaseHandle | undefined;
@@ -71,7 +79,7 @@ describe('session lifespans', () => {
       return createSession(tx, realmId, new Date(Date.now() - 3_600_000));
     });
     await withRealm(app.db, realmId, async (tx) => {
-      expect(await sessionRepository(tx).liveById(id, 1800, new Date())).toBeNull();
+      expect(await sessionRepository(tx).liveById(id, LIFESPANS, new Date())).toBeNull();
       expect(await sessionRepository(tx).byId(id)).not.toBeNull();
     });
   });
@@ -83,7 +91,7 @@ describe('session lifespans', () => {
       return createSession(tx, realmId, new Date(Date.now() - 60_000));
     });
     await withRealm(app.db, realmId, async (tx) => {
-      const live = await sessionRepository(tx).liveById(id, 1800, new Date());
+      const live = await sessionRepository(tx).liveById(id, LIFESPANS, new Date());
       expect(live).not.toBeNull();
       const now = new Date();
       await sessionRepository(tx).touch(id, now);
@@ -99,9 +107,9 @@ describe('session lifespans', () => {
         return createSession(tx, realmId, new Date());
       },
       verifySeeded: async (tx, id) => {
-        expect(await sessionRepository(tx).liveById(id, 1800, new Date())).not.toBeNull();
+        expect(await sessionRepository(tx).liveById(id, LIFESPANS, new Date())).not.toBeNull();
       },
-      attempt: async (tx, id) => sessionRepository(tx).liveById(id, 1800, new Date()),
+      attempt: async (tx, id) => sessionRepository(tx).liveById(id, LIFESPANS, new Date()),
       expectBlocked: (result) => {
         expect(result).toBeNull();
       },

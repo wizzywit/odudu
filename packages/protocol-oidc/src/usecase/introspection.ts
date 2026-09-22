@@ -1,3 +1,4 @@
+import { type SessionLifespans } from '@odudu/authn-flows';
 import { AUDIENCE_UNCHECKED, verifyJwt, type SigningKeyRecord } from '@odudu/crypto';
 
 export interface IntrospectionGrant {
@@ -37,11 +38,11 @@ export type IntrospectionResponse =
 export interface IntrospectionDeps {
   readonly issuer: string;
   readonly keys: readonly SigningKeyRecord[];
-  readonly idleSeconds: number;
+  readonly lifespans: SessionLifespans;
   // Keyed by the token's own private `grant_id` claim — see
   // `mintAccessToken`'s comment on why nothing else identifies one row.
   loadGrant(grantId: string): Promise<IntrospectionGrant | null>;
-  isSessionLive(sessionId: string, idleSeconds: number, now: Date): Promise<boolean>;
+  isSessionLive(sessionId: string, lifespans: SessionLifespans, now: Date): Promise<boolean>;
 }
 
 const INACTIVE: IntrospectionResponse = { active: false };
@@ -113,7 +114,7 @@ export async function introspect(
   // carries no session — `sessionId` is `null` — and must not be reported
   // dead for lacking one.
   if (sessionId !== null) {
-    const live = await deps.isSessionLive(sessionId, deps.idleSeconds, now);
+    const live = await deps.isSessionLive(sessionId, deps.lifespans, now);
     if (!live) return INACTIVE;
   }
 

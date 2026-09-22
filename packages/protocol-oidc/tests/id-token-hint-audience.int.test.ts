@@ -9,7 +9,7 @@ import {
   type DatabaseHandle,
   type RealmScopedDatabase,
 } from '@odudu/db';
-import { sessionRepository, provisionRealm } from '@odudu/authn-flows';
+import { sessionRepository, provisionRealm, type SessionLifespans } from '@odudu/authn-flows';
 import { clients, provisionClientDefaults } from '@odudu/domain-realm';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
@@ -41,6 +41,15 @@ let http: FastifyInstance;
 
 const CLIENT_A_ID = 'client-a';
 const CLIENT_B_ID = 'client-b';
+
+// Generous enough that the session under test never idles out from
+// underneath the liveness check this file makes.
+const GENEROUS_LIFESPANS: SessionLifespans = {
+  ssoSessionIdleSeconds: 30 * 24 * 3600,
+  ssoSessionMaxSeconds: 30 * 24 * 3600,
+  rememberMeIdleSeconds: 30 * 24 * 3600,
+  rememberMeMaxSeconds: 30 * 24 * 3600,
+};
 const REDIRECT_URI = 'https://app.example/callback';
 const USERNAME = 'ada';
 const PASSWORD = 'correct horse battery staple';
@@ -326,7 +335,7 @@ describe('/logout leaves its own id_token_hint audience handling unchanged', () 
     expect(res.body).not.toContain('<title>Sign out?</title>');
 
     const stillLive = await withRealm(app.db, realmId, (tx) =>
-      sessionRepository(tx).liveById(sessionId, 30 * 24 * 3600, new Date()),
+      sessionRepository(tx).liveById(sessionId, GENEROUS_LIFESPANS, new Date()),
     );
     expect(stillLive).toBeNull();
   });

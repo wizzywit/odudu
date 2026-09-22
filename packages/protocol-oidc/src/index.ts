@@ -23,6 +23,7 @@ import {
   resetAuthenticationProgress,
   sessionRepository,
   startAuthentication,
+  type SessionLifespans,
 } from '@odudu/authn-flows';
 import { JWE_ALGS_PERMITTED, signingKeyRepository, signJwt } from '@odudu/crypto';
 import { effectiveGroupPaths, effectiveRoles } from '@odudu/domain-authz';
@@ -413,13 +414,13 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
     const isIntrospectionSessionLive = (
       realmId: string,
       sessionId: string,
-      idleSeconds: number,
+      lifespans: SessionLifespans,
       now: Date,
     ) =>
       withRealm(
         deps.database.db,
         realmId,
-        async (tx) => (await sessionRepository(tx).liveById(sessionId, idleSeconds, now)) !== null,
+        async (tx) => (await sessionRepository(tx).liveById(sessionId, lifespans, now)) !== null,
       );
     // No CORS scope: unlike /userinfo, a resource server calls this with
     // its own client credentials, never a browser holding a bearer token,

@@ -76,7 +76,12 @@ const caller = { clientId: 'resource-server-a', audiences: ['https://api.example
 function makeDeps(overrides: Partial<IntrospectionDeps> = {}): IntrospectionDeps {
   return {
     issuer: ISSUER,
-    idleSeconds: 300,
+    lifespans: {
+      ssoSessionIdleSeconds: 300,
+      ssoSessionMaxSeconds: 36_000,
+      rememberMeIdleSeconds: 604_800,
+      rememberMeMaxSeconds: 2_592_000,
+    },
     keys: [],
     loadGrant: () => Promise.resolve({ revokedAt: null }),
     isSessionLive: () => Promise.resolve(true),

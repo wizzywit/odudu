@@ -1,3 +1,4 @@
+import { type SessionLifespans } from '@odudu/authn-flows';
 import { type SigningKeyRecord } from '@odudu/crypto';
 import { withRealm, type DatabaseHandle } from '@odudu/db';
 import { type Clock, systemClock } from '@odudu/kernel';
@@ -13,9 +14,13 @@ import { realmIssuerFor } from '#/view/issuer';
 
 export interface IntrospectRouteDeps {
   database: DatabaseHandle;
-  findRealm(
-    name: string,
-  ): Promise<{ id: string; enabled: boolean; ssoSessionIdleSeconds: number } | null>;
+  findRealm(name: string): Promise<
+    | ({
+        id: string;
+        enabled: boolean;
+      } & SessionLifespans)
+    | null
+  >;
   listPublishableKeys(realmId: string): Promise<SigningKeyRecord[]>;
   verifyPassword: (hash: string, secret: string) => Promise<boolean>;
   // Reused, never re-implemented — see #/usecase/client-authentication.ts.
@@ -29,7 +34,7 @@ export interface IntrospectRouteDeps {
   isSessionLive(
     realmId: string,
     sessionId: string,
-    idleSeconds: number,
+    lifespans: SessionLifespans,
     now: Date,
   ): Promise<boolean>;
   clock?: Clock;
@@ -55,10 +60,15 @@ export function registerIntrospectRoute(app: FastifyInstance, deps: IntrospectRo
       clientSecretLimiter: deps.clientSecretLimiter,
       issuer,
       keys,
-      idleSeconds: realm.ssoSessionIdleSeconds,
+      lifespans: {
+        ssoSessionIdleSeconds: realm.ssoSessionIdleSeconds,
+        ssoSessionMaxSeconds: realm.ssoSessionMaxSeconds,
+        rememberMeIdleSeconds: realm.rememberMeIdleSeconds,
+        rememberMeMaxSeconds: realm.rememberMeMaxSeconds,
+      },
       loadGrant: (grantId) => deps.loadGrant(realm.id, grantId),
-      isSessionLive: (sessionId, idleSeconds, sessionNow) =>
-        deps.isSessionLive(realm.id, sessionId, idleSeconds, sessionNow),
+      isSessionLive: (sessionId, lifespans, sessionNow) =>
+        deps.isSessionLive(realm.id, sessionId, lifespans, sessionNow),
     };
 
     try {

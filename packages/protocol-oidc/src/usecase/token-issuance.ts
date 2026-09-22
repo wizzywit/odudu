@@ -1,4 +1,4 @@
-import { sessionRepository } from '@odudu/authn-flows';
+import { sessionRepository, type SessionLifespans } from '@odudu/authn-flows';
 import {
   signJwt,
   signingKeyRepository,
@@ -61,10 +61,11 @@ export interface TokenIssuanceDeps extends ClientAuthenticationDeps {
   issuer: string;
   kek: Uint8Array;
   clock: Clock;
-  // The realm's own idle window — the same one /authorize's resolveSessions
-  // checks a browser's sessions against — so a session-bound refresh dies
-  // exactly when the session it is bound to would (refresh-rotation.ts).
-  idleSeconds: number;
+  // The realm's own lifespan pair — the same one /authorize's
+  // resolveSessions checks a browser's sessions against — so a
+  // session-bound refresh dies exactly when the session it is bound to
+  // would, ordinary or remembered alike (refresh-rotation.ts).
+  lifespans: SessionLifespans;
   // Shared with /userinfo: the ID token's claims beyond the envelope
   // (`iss`/`aud`/`iat`/`exp`/`nonce`/`auth_time`) come from the same
   // registry, so a claim present in one can never be missing from the
@@ -578,7 +579,7 @@ async function issueRefreshTokens(
       presentedHash,
       now,
       config.refreshTokenTtlSeconds,
-      deps.idleSeconds,
+      deps.lifespans,
     ),
   );
   if (outcome.kind !== 'rotated') throw invalidGrant();
