@@ -9,7 +9,7 @@ import {
   type DatabaseHandle,
   type RealmScopedDatabase,
 } from '@odudu/db';
-import { provisionRealm } from '@odudu/authn-flows';
+import { provisionRealm, requiredActionRepository } from '@odudu/authn-flows';
 import { clients, provisionClientDefaults } from '@odudu/domain-realm';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
@@ -38,6 +38,7 @@ let app: DatabaseHandle;
 let http: FastifyInstance;
 
 let REALM: string;
+let REALM_ID: string;
 
 const CLIENT_ID = 'claims-client';
 const CLIENT_SECRET = 'claims-client-secret';
@@ -51,13 +52,27 @@ const ALICE_PASSWORD = 'correct horse battery staple';
 const ALICE_EMAIL = 'alice@example.test';
 const BOB_USERNAME = 'bob';
 const BOB_PASSWORD = 'another horse battery staple';
+// One subject per door-coverage test below, each otherwise untouched by
+// the rest of the suite, so completing a detour for one (a required
+// action, a consent decision) never leaves state a different test trips
+// over.
+const CAROL_USERNAME = 'carol';
+const CAROL_PASSWORD = 'a passphrase carol alone uses';
+const DAVE_USERNAME = 'dave';
+const DAVE_PASSWORD = 'a passphrase dave alone uses';
+const ERIN_USERNAME = 'erin';
+const ERIN_PASSWORD = 'a passphrase erin alone uses';
+const FRANK_USERNAME = 'frank';
+const FRANK_PASSWORD = 'a passphrase frank alone uses';
 
 let aliceSubjectId: string;
 let bobSubjectId: string;
+let frankSubjectId: string;
 
 async function setupRealm(): Promise<void> {
   REALM = `claims-parameter-${newId()}`;
   const realmId = newId();
+  REALM_ID = realmId;
 
   await withRealm(app.db, realmId, async (tx: RealmScopedDatabase) => {
     await tx.insert(realms).values({ id: realmId, name: REALM });
@@ -111,6 +126,24 @@ async function setupRealm(): Promise<void> {
       type: 'password',
       secretData: { hash: await hashPassword(BOB_PASSWORD) },
     });
+
+    for (const [username, password] of [
+      [CAROL_USERNAME, CAROL_PASSWORD],
+      [DAVE_USERNAME, DAVE_PASSWORD],
+      [ERIN_USERNAME, ERIN_PASSWORD],
+      [FRANK_USERNAME, FRANK_PASSWORD],
+    ] as const) {
+      const subject = await subjectRepository(tx).create({ realmId, type: 'user' });
+      if (username === FRANK_USERNAME) frankSubjectId = subject.id;
+      await tx.insert(users).values({ subjectId: subject.id, realmId, username });
+      await tx.insert(userCredentials).values({
+        id: newId(),
+        realmId,
+        subjectId: subject.id,
+        type: 'password',
+        secretData: { hash: await hashPassword(password) },
+      });
+    }
 
     const key = await generateSigningKey('RS256', KEK);
     await tx.insert(signingKeys).values({
@@ -191,6 +224,37 @@ async function formLogin(
   return { code, cookie: cookieHeaderFrom(login) };
 }
 
+// Signs a second subject in while carrying an existing session cookie
+// forward, the way a real browser would — `completeAuthorizedLogin` reads
+// the request's own live sessions and adds this login to the set rather
+// than replacing it, so the returned cookie names *both* subjects' live
+// sessions, each under its own id.
+async function signInAdditional(
+  existingCookie: string,
+  username: string,
+  password: string,
+): Promise<{ code: string; cookie: string }> {
+  const started = await http.inject({
+    url: authorizeUrl({ prompt: 'login', code_challenge: CHALLENGE }),
+    headers: { cookie: existingCookie },
+  });
+  expect(started.statusCode).toBe(200);
+  const sessionId = /name="auth_session_id" value="([^"]*)"/.exec(started.body)?.[1];
+  if (sessionId === undefined) throw new Error('no auth_session_id in the rendered login form');
+
+  const form = new URLSearchParams({ auth_session_id: sessionId, username, password });
+  const login = await http.inject({
+    method: 'POST',
+    url: `/realms/${REALM}/login-actions/authenticate`,
+    payload: form.toString(),
+    headers: { 'content-type': 'application/x-www-form-urlencoded', cookie: existingCookie },
+  });
+  expect(login.statusCode).toBe(302);
+  const code = new URL(locationHeader(login)).searchParams.get('code');
+  if (code === null) throw new Error('expected a code on the login redirect');
+  return { code, cookie: cookieHeaderFrom(login) };
+}
+
 async function redeemCode(code: string): Promise<LightMyRequestResponse> {
   const form = new URLSearchParams({
     grant_type: 'authorization_code',
@@ -255,6 +319,151 @@ async function userinfoAfter(overrides: {
   });
   expect(res.statusCode).toBe(200);
   return res.json<Record<string, unknown>>();
+}
+
+// Door 3 — the account chooser. `prompt=select_account` forces the chooser
+// even for the one live session this subject has (decideReuse's own rule),
+// so a fresh login here establishes the session and the second request
+// drives the chooser's own POST.
+async function chooseAccountSelf(
+  username: string,
+  password: string,
+  overrides: Record<string, string | undefined> = {},
+): Promise<string> {
+  const { cookie } = await formLogin(username, password, { code_challenge: CHALLENGE });
+  const select = await authorize(
+    { prompt: 'select_account', code_challenge: CHALLENGE, ...overrides },
+    { cookie },
+  );
+  expect(select.statusCode).toBe(200);
+  const authSessionId = /name="auth_session_id" value="([^"]*)"/.exec(select.body)?.[1];
+  const sessionId = /name="session_id" value="([^"]*)"/.exec(select.body)?.[1];
+  if (authSessionId === undefined || sessionId === undefined) {
+    throw new Error('expected the chooser page to carry auth_session_id and session_id');
+  }
+  const form = new URLSearchParams({ auth_session_id: authSessionId, session_id: sessionId });
+  const chosen = await http.inject({
+    method: 'POST',
+    url: `/realms/${REALM}/login-actions/select-account`,
+    payload: form.toString(),
+    headers: { 'content-type': 'application/x-www-form-urlencoded', cookie },
+  });
+  expect(chosen.statusCode).toBe(302);
+  const code = new URL(locationHeader(chosen)).searchParams.get('code');
+  if (code === null) throw new Error('expected a code on the chooser redirect');
+  return code;
+}
+
+// Doors 4 and 5 — the consent POST, reached either after a fresh login
+// (no live session; `alreadySignedIn` false) or after a live session is
+// promoted into a consent decision (`alreadySignedIn` true, a prior
+// `formLogin` already established the session `prompt=consent` reuses).
+async function completeThroughConsent(
+  username: string,
+  password: string,
+  alreadySignedIn: boolean,
+  overrides: Record<string, string | undefined> = {},
+): Promise<string> {
+  const cookie = alreadySignedIn ? (await formLogin(username, password, {})).cookie : undefined;
+  const started = await authorize(
+    { prompt: 'consent', code_challenge: CHALLENGE, ...overrides },
+    cookie !== undefined ? { cookie } : {},
+  );
+  expect(started.statusCode).toBe(200);
+  const authSessionId = /name="auth_session_id" value="([^"]*)"/.exec(started.body)?.[1];
+  if (authSessionId === undefined) throw new Error('no auth_session_id in the rendered page');
+
+  let consentSessionId = authSessionId;
+  if (!alreadySignedIn) {
+    const form = new URLSearchParams({ auth_session_id: authSessionId, username, password });
+    const login = await http.inject({
+      method: 'POST',
+      url: `/realms/${REALM}/login-actions/authenticate`,
+      payload: form.toString(),
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    });
+    expect(login.statusCode).toBe(200);
+    const id = /name="auth_session_id" value="([^"]*)"/.exec(login.body)?.[1];
+    if (id === undefined) throw new Error('no auth_session_id on the consent page');
+    consentSessionId = id;
+  }
+
+  const consentForm = new URLSearchParams({ auth_session_id: consentSessionId, decision: 'allow' });
+  const consented = await http.inject({
+    method: 'POST',
+    url: `/realms/${REALM}/login-actions/consent`,
+    payload: consentForm.toString(),
+    headers: {
+      'content-type': 'application/x-www-form-urlencoded',
+      ...(cookie !== undefined ? { cookie } : {}),
+    },
+  });
+  expect(consented.statusCode).toBe(302);
+  const code = new URL(locationHeader(consented)).searchParams.get('code');
+  if (code === null) throw new Error('expected a code on the consent redirect');
+  return code;
+}
+
+// Door 6 — the required-action detour. Completing the owed action re-renders
+// the login form against the *same* parked authentication session rather
+// than issuing a code directly (view/routes/required-action.ts's own
+// comment), so the factor is resubmitted — with the password just set —
+// before the flow reaches the same `completeAuthorizedLogin` tail door 2
+// does.
+async function completeThroughRequiredAction(
+  username: string,
+  oldPassword: string,
+  newPassword: string,
+  overrides: Record<string, string | undefined> = {},
+): Promise<string> {
+  const started = await authorize({ code_challenge: CHALLENGE, ...overrides });
+  expect(started.statusCode).toBe(200);
+  const firstSessionId = /name="auth_session_id" value="([^"]*)"/.exec(started.body)?.[1];
+  if (firstSessionId === undefined) throw new Error('no auth_session_id in the rendered form');
+
+  const loginForm = new URLSearchParams({
+    auth_session_id: firstSessionId,
+    username,
+    password: oldPassword,
+  });
+  const owed = await http.inject({
+    method: 'POST',
+    url: `/realms/${REALM}/login-actions/authenticate`,
+    payload: loginForm.toString(),
+    headers: { 'content-type': 'application/x-www-form-urlencoded' },
+  });
+  expect(owed.statusCode).toBe(200);
+  expect(owed.body).toContain('Change your password');
+
+  const actionForm = new URLSearchParams({
+    auth_session_id: firstSessionId,
+    password: newPassword,
+  });
+  const changed = await http.inject({
+    method: 'POST',
+    url: `/realms/${REALM}/login-actions/required-action?action=update-password`,
+    payload: actionForm.toString(),
+    headers: { 'content-type': 'application/x-www-form-urlencoded' },
+  });
+  expect(changed.statusCode).toBe(200);
+  const resumedSessionId = /name="auth_session_id" value="([^"]*)"/.exec(changed.body)?.[1];
+  if (resumedSessionId === undefined) throw new Error('no auth_session_id on the resumed form');
+
+  const secondLogin = new URLSearchParams({
+    auth_session_id: resumedSessionId,
+    username,
+    password: newPassword,
+  });
+  const finished = await http.inject({
+    method: 'POST',
+    url: `/realms/${REALM}/login-actions/authenticate`,
+    payload: secondLogin.toString(),
+    headers: { 'content-type': 'application/x-www-form-urlencoded' },
+  });
+  expect(finished.statusCode).toBe(302);
+  const code = new URL(locationHeader(finished)).searchParams.get('code');
+  if (code === null) throw new Error('expected a code on the resumed login redirect');
+  return code;
 }
 
 beforeAll(async () => {
@@ -352,6 +561,89 @@ describe('[OIDC-CORE-3.1.2.2-07] a claims-requested sub decides who may complete
     expect(response.statusCode).toBe(200);
     expect(response.body).toContain('name="password"');
   });
+
+  // The defect this rule exists to close: the form the previous test shows
+  // is not itself the enforcement, only where it starts. Somebody has to
+  // actually type credentials into it — Alice's own — for the request to
+  // be answerable, and the request named Bob.
+  it('refuses when a different subject actually signs in at the form the sub rule produced', async () => {
+    const started = await authorize({ claims: subClaim(bobSubjectId), code_challenge: CHALLENGE });
+    expect(started.statusCode).toBe(200);
+    const authSessionId = /name="auth_session_id" value="([^"]*)"/.exec(started.body)?.[1];
+    if (authSessionId === undefined) throw new Error('no auth_session_id in the rendered form');
+
+    const form = new URLSearchParams({
+      auth_session_id: authSessionId,
+      username: ALICE_USERNAME,
+      password: ALICE_PASSWORD,
+    });
+    const signedIn = await http.inject({
+      method: 'POST',
+      url: `/realms/${REALM}/login-actions/authenticate`,
+      payload: form.toString(),
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    });
+    expect(signedIn.statusCode).toBe(302);
+    const location = new URL(locationHeader(signedIn));
+    expect(location.searchParams.get('error')).toBe('login_required');
+    expect(location.searchParams.get('code')).toBeNull();
+  });
+
+  // The same defect on the chooser: `prompt=select_account` together with
+  // a claims `sub` forces the chooser to a single candidate (decideReuse's
+  // own `select_account` rule) rather than reusing it directly, and a
+  // session_id posted back is a claim the chooser page never offered —
+  // Bob's live session was never rendered as a choice.
+  it('refuses when the chooser is asked to complete as a session the sub rule excluded', async () => {
+    const alice = await formLogin(ALICE_USERNAME, ALICE_PASSWORD, {});
+    const both = await signInAdditional(alice.cookie, BOB_USERNAME, BOB_PASSWORD);
+    const jar = both.cookie;
+
+    // Names Alice, so the candidate filter already excludes Bob's session
+    // before decideReuse ever runs — `select_account` still forces the
+    // chooser rather than reusing the one filtered candidate directly.
+    const select = await authorize(
+      {
+        claims: subClaim(aliceSubjectId),
+        prompt: 'select_account',
+        code_challenge: CHALLENGE,
+      },
+      { cookie: jar },
+    );
+    expect(select.statusCode).toBe(200);
+    const authSessionId = /name="auth_session_id" value="([^"]*)"/.exec(select.body)?.[1];
+    const aliceSessionId = /name="session_id" value="([^"]*)"/.exec(select.body)?.[1];
+    if (authSessionId === undefined || aliceSessionId === undefined) {
+      throw new Error('no auth_session_id/session_id on the chooser page');
+    }
+    // Only Alice was ever offered — Bob's session never appears as a choice.
+    expect(select.body).not.toContain(BOB_USERNAME);
+
+    // Every live session id on this browser, from the *unnarrowed* chooser
+    // (no claims `sub`, so both accounts render) — what an attacker who
+    // already knows a session id would post back instead of what the
+    // narrowed page above actually offered.
+    const bothAccounts = await authorize(
+      { prompt: 'select_account', code_challenge: CHALLENGE },
+      { cookie: jar },
+    );
+    const bobSessionId = [...bothAccounts.body.matchAll(/name="session_id" value="([^"]*)"/g)]
+      .map((match) => match[1])
+      .find((id): id is string => id !== undefined && id !== aliceSessionId);
+    if (bobSessionId === undefined) throw new Error('expected Bob’s own live session id');
+
+    const form = new URLSearchParams({ auth_session_id: authSessionId, session_id: bobSessionId });
+    const chosen = await http.inject({
+      method: 'POST',
+      url: `/realms/${REALM}/login-actions/select-account`,
+      payload: form.toString(),
+      headers: { 'content-type': 'application/x-www-form-urlencoded', cookie: jar },
+    });
+    expect(chosen.statusCode).toBe(302);
+    const location = new URL(locationHeader(chosen));
+    expect(location.searchParams.get('error')).toBe('login_required');
+    expect(location.searchParams.get('code')).toBeNull();
+  });
 });
 
 // The parameter is not a path around consent: the only reason `email` is
@@ -385,6 +677,62 @@ describe('[ODUDU-CLAIMS-USERINFO-01] a requested userinfo claim is intersected w
     });
     expect(body.email).toBe(ALICE_EMAIL);
     expect('preferred_username' in body).toBe(false);
+  });
+});
+
+// `resource` shipped carried by only one door in four, caught only by
+// [ODUDU-RESOURCE-05] in resource-authorize.int.test.ts. `claims` reaches
+// the code through the same call sites; this drives each one, including
+// the required-action detour, which resumes the same parked session
+// `formLogin` started and so inherits `claims` "for free" — tested anyway,
+// since "correct by construction" is exactly what that gap disproved.
+describe('the claims request reaches the code through every door that mints one', () => {
+  it('is carried through the account chooser', async () => {
+    const code = await chooseAccountSelf(CAROL_USERNAME, CAROL_PASSWORD, {
+      claims: JSON.stringify({ id_token: { auth_time: { essential: true } } }),
+    });
+    const redeemed = await redeemCode(code);
+    expect(redeemed.statusCode).toBe(200);
+    const { id_token: idToken } = redeemed.json<{ id_token?: string }>();
+    if (idToken === undefined) throw new Error('expected an id_token');
+    expect(jwtPayload(idToken).auth_time).toEqual(expect.any(Number));
+  });
+
+  it('is carried through the consent POST after a fresh login', async () => {
+    const code = await completeThroughConsent(DAVE_USERNAME, DAVE_PASSWORD, false, {
+      claims: JSON.stringify({ id_token: { auth_time: { essential: true } } }),
+    });
+    const redeemed = await redeemCode(code);
+    expect(redeemed.statusCode).toBe(200);
+    const { id_token: idToken } = redeemed.json<{ id_token?: string }>();
+    if (idToken === undefined) throw new Error('expected an id_token');
+    expect(jwtPayload(idToken).auth_time).toEqual(expect.any(Number));
+  });
+
+  it('is carried through the consent POST after a live-session reuse is promoted', async () => {
+    const code = await completeThroughConsent(ERIN_USERNAME, ERIN_PASSWORD, true, {
+      claims: JSON.stringify({ id_token: { auth_time: { essential: true } } }),
+    });
+    const redeemed = await redeemCode(code);
+    expect(redeemed.statusCode).toBe(200);
+    const { id_token: idToken } = redeemed.json<{ id_token?: string }>();
+    if (idToken === undefined) throw new Error('expected an id_token');
+    expect(jwtPayload(idToken).auth_time).toEqual(expect.any(Number));
+  });
+
+  it('is carried through the required-action detour', async () => {
+    await withRealm(app.db, REALM_ID, (tx) =>
+      requiredActionRepository(tx).add(REALM_ID, frankSubjectId, 'update-password'),
+    );
+    const newPassword = 'a considerably better passphrase than before';
+    const code = await completeThroughRequiredAction(FRANK_USERNAME, FRANK_PASSWORD, newPassword, {
+      claims: JSON.stringify({ id_token: { auth_time: { essential: true } } }),
+    });
+    const redeemed = await redeemCode(code);
+    expect(redeemed.statusCode).toBe(200);
+    const { id_token: idToken } = redeemed.json<{ id_token?: string }>();
+    if (idToken === undefined) throw new Error('expected an id_token');
+    expect(jwtPayload(idToken).auth_time).toEqual(expect.any(Number));
   });
 });
 

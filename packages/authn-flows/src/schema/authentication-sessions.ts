@@ -55,6 +55,10 @@ export interface PendingRequest {
   // Absent when the request carried no hint; when present, whoever signs in
   // has to be that subject for the request to be answered positively.
   idTokenHintSubject?: string;
+  // The subject named by the `claims` parameter's `id_token.sub` member
+  // (OIDC Core §3.1.2.2) — the same constraint as `idTokenHintSubject`
+  // above, parked separately since the two have different provenance.
+  claimsSubject?: string;
   // The request's own `prompt` values (OIDC Core §3.1.2.1), parked
   // alongside everything else so a consent decision made after the detour
   // — a required action, a fresh login, a promoted session reuse — still
@@ -89,13 +93,10 @@ export interface PendingRequest {
   // door this phase starts a session from sets it, `[]` included, so
   // `[]` already means "resolved to nothing", never "not carried".
   resource?: string[];
-  // The `claims` request parameter (OIDC Core §5.5), parsed once at
-  // /authorize and parked here for the same reason `resource` is: every
-  // door that can mint a code — a fresh login, the account chooser, a
-  // required action, either consent detour — applies the same parsed
-  // request. Structurally identical to protocol-oidc's own `ClaimsRequest`
-  // (`service/claims-request.ts`), declared locally because authn-flows
-  // sits beneath protocol-oidc and may not import its types.
+  // The `claims` request parameter (OIDC Core §5.5), parked like `resource`
+  // above. Structurally identical to protocol-oidc's `ClaimsRequest`
+  // (`service/claims-request.ts`), declared locally: authn-flows may not
+  // import protocol-oidc's types.
   claims?: PendingClaimsRequest;
 }
 

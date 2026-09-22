@@ -1467,7 +1467,31 @@ The client must check that `sub` here matches the ID token's `sub`.
 
 §5.5's `claims` parameter narrows a response to what it names, never widens
 one past what `scope` already granted — the parameter is not a path around
-consent. Requesting `email` with `scope=openid email` returns it:
+consent. This section reuses [the shell variables above](#the-shell-variables-the-rest-of-this-document-uses)
+(`$BASE`, `$LOGIN`, `$VERIFIER`, `$CHALLENGE`, ada's own seeded credentials)
+against the same stack, plus one more subject seeded the same documented
+way — `odudu seed` refuses to add a second user to `demo-spa` once it
+exists ("Seeding never adds a user to a client that already exists"
+above), so `bob` gets his own client:
+
+```bash
+odudu seed \
+  --realm demo --client demo-second-user \
+  --redirect-uri http://localhost:8080/callback \
+  --user bob --password another-horse-battery
+```
+
+```json
+{
+  "created": true,
+  "realm": "demo",
+  "realmId": "01a0c949-…",
+  "clientId": "demo-second-user",
+  "userSubjectId": "01a0c949-7006-…"
+}
+```
+
+Requesting `email` with `scope=openid email` returns it:
 
 ```bash
 curl -sS --get \
@@ -1480,23 +1504,22 @@ curl -sS --get \
   --data-urlencode 'code_challenge_method=S256' \
   --data-urlencode 'claims={"userinfo":{"email":null}}' \
   "$BASE/auth"
-# … sign in, redeem the code, then:
+# … sign in as ada, redeem the code, then:
 curl -sS -H "Authorization: Bearer $ACCESS_TOKEN" "$BASE/userinfo"
 ```
 
 ```json
-{ "sub": "01a0c90d-0bf2-…", "email": "alice@example.com" }
+{ "sub": "01a0c949-49a3-…", "email": "ada@example.com" }
 ```
 
-Every other scope-granted claim `name`/`preferred_username` included, the
-`profile` scope was never asked for here, so this response was already
-narrow — the `claims` parameter narrows it further, to just `email` and the
-always-present `sub`. The same request with `scope=openid` alone — `email`
-never granted by scope this time — answers with `email` absent, though the
-`claims` parameter asked for it exactly the same way:
+Every other scope-granted claim (`name`, `preferred_username`) is left out —
+the `profile` scope was never asked for here, so this response was already
+narrow — but `email` was, and it survives. The same request with
+`scope=openid` alone — `email` never granted by scope this time — answers
+with `email` absent, though `claims` asked for it exactly the same way:
 
 ```json
-{ "sub": "01a0c90d-0bf2-…" }
+{ "sub": "01a0c949-49a3-…" }
 ```
 
 An `id_token` member's Essential Claims work the same way at `/token`.
@@ -1518,13 +1541,13 @@ curl -sS --get \
 
 ```json
 {
-  "sub": "01a0c90d-0bf2-…",
-  "iss": "http://localhost:3011/realms/demo",
+  "sub": "01a0c949-49a3-…",
+  "iss": "http://localhost:3000/realms/demo",
   "aud": "demo-spa",
-  "iat": 1790079520,
-  "exp": 1790079820,
-  "auth_time": 1790079520,
-  "sid": "01a0c90d-ce5b-…",
+  "iat": 1790083478,
+  "exp": 1790083778,
+  "auth_time": 1790083478,
+  "sid": "01a0c94a-35c5-…",
   "amr": ["pwd"],
   "acr": "1"
 }
@@ -1536,12 +1559,12 @@ above turn on:
 
 ```json
 {
-  "sub": "01a0c90d-0bf2-…",
-  "iss": "http://localhost:3011/realms/demo",
+  "sub": "01a0c949-49a3-…",
+  "iss": "http://localhost:3000/realms/demo",
   "aud": "demo-spa",
-  "iat": 1790079538,
-  "exp": 1790079838,
-  "sid": "01a0c90e-15f6-…",
+  "iat": 1790083493,
+  "exp": 1790083793,
+  "sid": "01a0c94a-6ec0-…",
   "amr": ["pwd"],
   "acr": "1"
 }
@@ -1549,9 +1572,18 @@ above turn on:
 
 The `id_token` member's `sub` is different from every other claim there:
 OIDC Core §3.1.2.2 reads it as naming a specific End-User this request must
-be answered for, not a claim to narrow the response to. With a live SSO
-session for `alice`, naming her own subject serves the request straight
-through:
+be answered for, not a claim to narrow the response to — and unlike every
+other claim here, this constraint is enforced twice: once at /authorize, in
+the same candidate-session filter `id_token_hint` already narrows, and again
+wherever a login can happen _after_ that filter ran, because the filter only
+governs a session reuse, not a form or a chooser the request can still
+produce. `$ADA_SUB` and `$BOB_SUB` below are the two subjects' own ids, from
+each seed command's own `userSubjectId`. `$COOKIE` is ada's session cookie,
+captured the same way [the walk-through above](#3-the-login-post) captures
+one — `Set-Cookie` header, name=value pair before the first `;`.
+
+With a live SSO session for ada, naming her own subject serves the request
+straight through:
 
 ```bash
 curl -sS -D - -o /dev/null --get \
@@ -1562,33 +1594,29 @@ curl -sS -D - -o /dev/null --get \
   --data-urlencode 'state=abc' \
   --data-urlencode "code_challenge=$CHALLENGE" \
   --data-urlencode 'code_challenge_method=S256' \
-  --data-urlencode "claims={\"id_token\":{\"sub\":{\"value\":\"$ALICE_SUB\"}}}" \
+  --data-urlencode "claims={\"id_token\":{\"sub\":{\"value\":\"$ADA_SUB\"}}}" \
   -H "Cookie: $COOKIE" \
   "$BASE/auth"
 ```
 
 ```
 HTTP/1.1 302 Found
-location: http://localhost:8080/callback?code=bu2_1AiPeg…&state=abc&iss=http%3A%2F%2Flocalhost%3A3011%2Frealms%2Fdemo
+location: http://localhost:8080/callback?code=BfXPWXsPFcv2_q5rzr_9P3fkPtNIs9wZpq-dJynrJfU&state=abc&iss=http%3A%2F%2Flocalhost%3A3000%2Frealms%2Fdemo
 ```
 
-Naming `bob`'s subject instead — nobody but `alice` is signed in on this
-cookie — refuses under `prompt=none` rather than silently answering for the
-wrong End-User:
+Naming bob's subject instead — nobody but ada is signed in on this cookie —
+refuses under `prompt=none` rather than silently answering for the wrong
+End-User:
 
 ```
 HTTP/1.1 302 Found
-location: http://localhost:8080/callback?error=login_required&state=abc&iss=http%3A%2F%2Flocalhost%3A3011%2Frealms%2Fdemo
+location: http://localhost:8080/callback?error=login_required&state=abc&iss=http%3A%2F%2Flocalhost%3A3000%2Frealms%2Fdemo
 ```
 
-and without `prompt=none` asks for a login instead of refusing outright —
-whoever signs in still has to be `bob` for the request to be answered
-(`packages/protocol-oidc/src/usecase/login-submission.ts`'s own
-`idTokenHintSubject` check, which the `claims` parameter's `sub` reaches the
-same way an `id_token_hint` does):
+and without `prompt=none` shows a login form instead of refusing outright:
 
 ```bash
-curl -sS -o /dev/null -w '%{http_code}\n' --get \
+curl -sS --get \
   --data-urlencode 'response_type=code' \
   --data-urlencode 'client_id=demo-spa' \
   --data-urlencode 'redirect_uri=http://localhost:8080/callback' \
@@ -1597,13 +1625,45 @@ curl -sS -o /dev/null -w '%{http_code}\n' --get \
   --data-urlencode "code_challenge=$CHALLENGE" \
   --data-urlencode 'code_challenge_method=S256' \
   --data-urlencode "claims={\"id_token\":{\"sub\":{\"value\":\"$BOB_SUB\"}}}" \
-  -H "Cookie: $COOKIE" \
-  "$BASE/auth"
+  "$BASE/auth" | grep -o 'name="password"'
 ```
 
 ```
-200
+name="password"
 ```
+
+That form is not itself the enforcement — only where it starts. Somebody
+still has to sign in, and the request named bob: ada signing in at the very
+form this request produced is refused, not completed as ada.
+`packages/authn-flows/src/schema/authentication-sessions.ts`'s
+`PendingRequest.claimsSubject` is what makes this possible — parked the same
+way `idTokenHintSubject` already is, and re-checked at the same door,
+`packages/protocol-oidc/src/usecase/login-submission.ts`'s
+`handleLoginSubmission`, once a password actually identifies somebody
+(`$AUTH_SESSION_ID` here is the one the request above rendered a form
+against):
+
+```bash
+curl -sS -D - -o /dev/null \
+  --data-urlencode "auth_session_id=$AUTH_SESSION_ID" \
+  --data-urlencode 'username=ada' \
+  --data-urlencode 'password=correct-horse-battery' \
+  "$LOGIN"
+```
+
+```
+HTTP/1.1 302 Found
+location: http://localhost:8080/callback?error=login_required&state=abc&iss=http%3A%2F%2Flocalhost%3A3000%2Frealms%2Fdemo
+```
+
+The account chooser carries the identical constraint at its own POST
+(`handleSelectAccountSubmission`) — a `session_id` the chooser page never
+offered is refused the same way, even when it names a session that really
+is live on the same browser. `claims-parameter.int.test.ts`'s own two tests
+for this ("refuses when a different subject actually signs in at the form
+the sub rule produced", "refuses when the chooser is asked to complete as a
+session the sub rule excluded") drive both doors; this transcript shows the
+first live.
 
 A `claims` parameter that is not valid JSON is refused the same way any
 other malformed request parameter is, at the client's own `redirect_uri`:
@@ -1623,7 +1683,7 @@ curl -sS -D - -o /dev/null --get \
 
 ```
 HTTP/1.1 302 Found
-location: http://localhost:8080/callback?error=invalid_request&state=xyz-123&iss=http%3A%2F%2Flocalhost%3A3011%2Frealms%2Fdemo
+location: http://localhost:8080/callback?error=invalid_request&state=xyz-123&iss=http%3A%2F%2Flocalhost%3A3000%2Frealms%2Fdemo
 ```
 
 Discovery states support for the parameter fixed `true`, the same way it
@@ -1633,6 +1693,42 @@ honours it the same way, so there is no per-realm derivation:
 ```json
 { "claims_parameter_supported": true }
 ```
+
+**The narrowing above is per-authorization-code, not per-grant.** Only the
+code minted at /authorize carries the `claims` request onto the access token
+it produces — `requested_userinfo_claims`, a third private access-token
+claim alongside `grant_id` and `sid` (see
+[docs/protocols/rfc9068.md](protocols/rfc9068.md)'s reading note above);
+a `refresh_token` redemption mints a new access token with none, so
+`/userinfo` answers from the full scope-granted set again, silently. Same
+code, redeeming the request above and then refreshing:
+
+```bash
+curl -sS \
+  --data-urlencode 'grant_type=refresh_token' \
+  --data-urlencode "refresh_token=$REFRESH_TOKEN" \
+  --data-urlencode 'client_id=demo-spa' "$BASE/token"
+# then, with the new access token:
+curl -sS -H "Authorization: Bearer $ACCESS_TOKEN" "$BASE/userinfo"
+```
+
+```json
+{
+  "sub": "01a0c949-…",
+  "name": "ada",
+  "preferred_username": "ada",
+  "email": "ada@example.com",
+  "email_verified": false
+}
+```
+
+Nothing here crosses the consented scope — the narrowing was never a
+confidentiality boundary, only the client asking for less than scope would
+give — so this is a consistency gap, not a security one; recorded in
+`docs/NEXT.md` rather than fixed here, alongside the question the gap
+actually depends on: whether narrowing scope-granted claims away is the
+right reading of §5.5 at all (`docs/protocols/oidc-core.md`'s own §5.5 rows
+have that argument).
 
 ### Encrypted and nested UserInfo responses
 

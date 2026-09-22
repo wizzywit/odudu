@@ -51,9 +51,8 @@ export interface IssueAuthorizationCodeInput {
   // resolved audience is empty, never "not carried"; see the schema
   // column's own comment.
   resource: readonly string[];
-  // The `claims` request parameter, parsed once at /authorize and carried
-  // the same way `resource` is — `EMPTY_CLAIMS_REQUEST` means "requested
-  // nothing", never "not carried".
+  // The `claims` request parameter, carried the same way `resource` is
+  // (`EMPTY_CLAIMS_REQUEST`'s own comment states what absent means).
   claims: ClaimsRequest;
 }
 
@@ -576,6 +575,18 @@ export async function handleLoginSubmission(
     // attempt is bound to the subject who just authenticated, and every
     // factor they satisfied is recorded against them, so the right End-User
     // could not sign in against this parked request until both are cleared.
+    await deps.resetAuthenticationProgress(realm.id, authSessionId);
+    return {
+      kind: 'error_redirect',
+      location: errorRedirect(pending, realmName, issuerBase, 'login_required'),
+    };
+  }
+
+  // OIDC Core §3.1.2.2: the same check for `claims`' own `id_token.sub` —
+  // the /authorize filter only governs a *reuse*, not the form this door
+  // renders regardless of how it came out.
+  const claimsSubject = pending.claimsSubject;
+  if (claimsSubject !== undefined && claimsSubject !== result.subjectId) {
     await deps.resetAuthenticationProgress(realm.id, authSessionId);
     return {
       kind: 'error_redirect',

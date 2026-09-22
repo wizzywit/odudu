@@ -176,10 +176,8 @@ const groupsMapper: ClaimMapper<ClaimContext> = {
 };
 
 // OIDC Core §5.5: once a `claims` request member names anything, the
-// response is narrowed to what it asked for — never widened past what
-// `assemble` already limited to the granted scope, only ever cut down
-// further. An empty `requested` is a claims request that named nothing for
-// this member, which leaves `claims` exactly as scope produced it.
+// response narrows to it — never widening past what `assemble` already
+// limited to scope. Empty `requested` leaves `claims` untouched.
 export function narrowToRequestedClaims(
   claims: Record<string, unknown>,
   requested: readonly string[],

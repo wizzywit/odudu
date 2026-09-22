@@ -35,10 +35,8 @@ export interface DiscoveryDocument {
   readonly grant_types_supported: readonly string[];
   readonly token_endpoint_auth_methods_supported: readonly string[];
   readonly authorization_response_iss_parameter_supported: boolean;
-  // OIDC Discovery §3 / OIDC Core §5.5: fixed true, like
-  // `authorization_response_iss_parameter_supported` above — every realm
-  // honours the `claims` request parameter the same way, so there is no
-  // per-realm derivation to carry through `DiscoveryDocumentOptions`.
+  // OIDC Core §5.5: fixed true, like `authorization_response_iss_parameter_supported`
+  // above — no per-realm derivation exists for this one either.
   readonly claims_parameter_supported: boolean;
   // Back-Channel Logout 1.0 §2.1 and Front-Channel Logout 1.0 §2: fixed
   // true, like `end_session_endpoint` above, since a client opts in per

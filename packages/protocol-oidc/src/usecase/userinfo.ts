@@ -111,10 +111,8 @@ function scopesOf(scopeClaim: unknown): string[] {
     : [];
 }
 
-// `requested_userinfo_claims` — the `claims` request parameter's `userinfo`
-// member, as claim names, embedded on the access token by token issuance
-// (`mintAccessToken`'s own comment). Absent for a token this request
-// carried none for, which reads the same as an empty array: no narrowing.
+// `requested_userinfo_claims`: the `claims` parameter's `userinfo` member,
+// embedded on the access token by token issuance. Absent reads as empty.
 function requestedClaimsOf(claim: unknown): string[] {
   if (!Array.isArray(claim)) return [];
   return claim.filter((value): value is string => typeof value === 'string');

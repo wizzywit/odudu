@@ -794,6 +794,63 @@ first moment, not the second. `OIDC-CORE-2-09`
 both name, and the same file's next case is the negative half neither row
 required until now: no `auth_time` at all when nothing asked for it.
 
+A voluntary request — `{"id_token":{"auth_time":null}}`, `essential` absent
+or `false` — now gets nothing either: `essential === true` is the one
+question issuance asks. Before this row existed the claim was unconditional,
+so a client that named `auth_time` voluntarily got it regardless; that is a
+behaviour change for the voluntary case, permitted by §2's MAY but not
+covered by any row or test, since none names the voluntary case.
+
+### `claims_parameter_supported`: fixed, like the other capability flags with no per-realm derivation
+
+Every realm honours the `claims` request parameter the same way, so
+discovery states it fixed `true` (`packages/contracts/src/discovery.ts`) —
+the same reasoning as `authorization_response_iss_parameter_supported` and
+the four `backchannel_logout_*`/`frontchannel_logout_*` members: no realm or
+client setting gates any of them, so there is nothing to carry through
+`DiscoveryDocumentOptions`.
+
+### The `claims` `sub`: filtered at the door, re-checked at every door a login can happen after it
+
+§3.1.2.2's `sub`-specific-value MUST has two ways to fail, and closing only
+one of them shipped once in this same file's history before this row
+existed — `id_token_hint`'s own subject. A value consulted only where a
+session is _chosen_ (the candidate filter at /authorize, folded into the
+same predicate `hintSubject` already narrows `candidateSessions` with)
+governs a **reuse**, never a login that happens afterwards: the filter
+excludes every other subject's session from being picked automatically, but
+the form or chooser page it produces is still a live door, and whoever
+authenticates there — or whichever `session_id` a chooser POST names — is a
+claim the filter never saw.
+
+So the constraint travels a second way, parked as `PendingRequest.claimsSubject`
+(`packages/authn-flows/src/schema/authentication-sessions.ts`) exactly the
+way `idTokenHintSubject` already is, and re-checked at the same two doors
+that check it: `login-submission.ts`'s `handleLoginSubmission`, once a
+password (or any other factor) actually identifies somebody, and
+`authorization-request.ts`'s `handleSelectAccountSubmission`, once a
+`session_id` is posted back. Both mismatches answer `login_required`, reset
+whatever the login attempt had satisfied, and issue nothing. The required-
+action detour needs no separate check: it resumes the same parked session
+either re-check already guards.
+
+`OIDC-CORE-3.1.2.2-07` (`claims-parameter.int.test.ts`) drives both re-checks
+directly — a request naming one subject's `sub`, completed by signing in as
+a different one at the form the rule produced, and the same shape at the
+chooser, posting back a live session id the narrowed chooser page never
+offered. Deleting either re-check (`if (claimsSubject !== undefined &&
+claimsSubject !== result.subjectId)` in `login-submission.ts`, and its
+sibling on `pending.claimsSubject` in `handleSelectAccountSubmission`) turns
+both into a 302 carrying a `code` instead of `error=login_required` — the
+defect this row exists to rule out.
+
+Only `value` is read for `sub` — `claimsSubject` above is
+`claims.idToken.sub?.value`. §5.5.1's `values` member (a set of acceptable
+values, rather than one) is parsed and stored on the code
+(`ClaimRequestEntry.values`) but never consulted, so a `sub` requested that
+way applies no constraint at all — a gap, not a refusal, and the `5.5.1`
+row above names it rather than the auth_time/value rows this section closes.
+
 ### `amr` and `acr`: what the registries actually say, and what this server emits
 
 Two registries govern these claims, and both were read directly rather than
@@ -1034,6 +1091,10 @@ Odudu never uses one, so nothing in `acrFor`'s output can violate it.
 | 5.4     | MAY    | multiple scope values are combined in a space-delimited list                                                                                                                                                                                                                                   | `OIDC-CORE-5.4-01`     | covered                                                                                                                                                                                                                                                                                                                               |
 | 5.4     | MUST   | claims requested by `profile`/`email`/`address`/`phone` are returned from the UserInfo Endpoint, since the Authorization Code Flow always issues an access token                                                                                                                               | `OIDC-CORE-5.4-01`     | covered                                                                                                                                                                                                                                                                                                                               |
 | 5.4     | MUST   | when no access token is issued, the requested claims are returned in the ID Token instead                                                                                                                                                                                                      | —                      | n/a: response type not supported — see docs/superpowers/specs/2026-09-11-p1-oauth-oidc-core-design.md §1                                                                                                                                                                                                                              |
+| 5.5     | MAY    | support for the `claims` request parameter                                                                                                                                                                                                                                                     | —                      | accepted: "`claims_parameter_supported`: fixed, like the other capability flags with no per-realm derivation"                                                                                                                                                                                                                         |
+| 5.5.1   | MAY    | an Individual Claims Request's `essential` member marks a Claim as one the Client considers necessary                                                                                                                                                                                          | `OIDC-CORE-2-09`       | covered                                                                                                                                                                                                                                                                                                                               |
+| 5.5.1   | MAY    | an Individual Claims Request's `value` member requests the Claim be returned with a particular value                                                                                                                                                                                           | `OIDC-CORE-3.1.2.2-07` | covered                                                                                                                                                                                                                                                                                                                               |
+| 5.5.1   | MAY    | an Individual Claims Request's `values` member requests the Claim be returned with one of a set of acceptable values                                                                                                                                                                           | —                      | gap                                                                                                                                                                                                                                                                                                                                   |
 | 15.1    | MUST   | the OP supports signing ID Tokens with RS256, unless it only returns ID Tokens from the Token Endpoint and only permits clients registered for `none`                                                                                                                                          | `OIDC-CORE-15.1-04`    | covered                                                                                                                                                                                                                                                                                                                               |
 | 15.1    | MUST   | the OP supports the `prompt` parameter's `none` behavior                                                                                                                                                                                                                                       | `OIDC-CORE-3.1.2.3-01` | covered                                                                                                                                                                                                                                                                                                                               |
 | 15.1    | MUST   | the OP supports the `prompt` parameter's `login` (forced reauthentication) behavior                                                                                                                                                                                                            | `OIDC-CORE-3.1.2.3-03` | covered                                                                                                                                                                                                                                                                                                                               |

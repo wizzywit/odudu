@@ -65,15 +65,15 @@ second execution (`docs/phases/p3a.md`, Task 19).
   `docs/superpowers/specs/2026-09-18-p3a-clients-registration-consent-design.md:596-598`
   are honored, not only the method's existence. Both methods the P3b
   criterion named are now built.
-- **The `claims` request parameter is P3b's**, not P3a's. It was placed in
-  P3a by `docs/protocols/oidc-core.md` on the reasoning that it needs the
-  per-client machinery and consent screen P3a builds; P3a's own criterion
-  never named it, and nothing in its plan built it — the machinery
-  shipped, the parameter that reads it did not. `docs/protocols/oidc-core.md`'s
-  three `deferred:` rows now say `P3b`, filed beside the signed and
-  encrypted UserInfo responses it shares a shape with: both read
-  per-client registration data that had no machinery to supply it before
-  P3a.
+- **The `claims` request parameter is built.** Parsed at /authorize, carried
+  onto the authorization code, and applied at token issuance (Essential
+  `auth_time`, a `sub`-named End-User enforced both where a session is
+  reused and wherever a login can happen afterwards) and at `/userinfo`
+  (intersected with granted scope). `docs/protocols/oidc-core.md`'s two
+  dependent rows are `covered`; its new §5.5 rows carry what is not — a
+  `values`-array `sub` is parsed and ignored, and a refresh silently widens
+  `/userinfo`'s narrowing back to the full scope-granted set (recorded
+  under "Recorded decisions with trigger conditions" below, not fixed).
 - **The consent-screen section of `docs/request-paths.md` is still
   derived, not observed, and it is P3b's to close, not P4b's.**
   Reproducing it means replaying the whole document's transcript from the
@@ -308,6 +308,35 @@ server boots, migrations apply, and the serving role sees zero rows through
 row-level security rather than a permission error.
 
 ## Recorded decisions with trigger conditions
+
+**A `claims` `userinfo` request narrows `/userinfo`, and a refresh silently
+widens it back.** The `claims` request parameter (OIDC Core §5.5) is parsed
+once at `/authorize` and stored on the authorization code; token issuance
+embeds its `userinfo` member on the access token as a private claim
+(`requested_userinfo_claims`, `packages/protocol-oidc/src/usecase/token-issuance.ts`),
+and `/userinfo` reads it back to narrow its response, intersected with the
+granted scope (`usecase/userinfo.ts`'s `narrowToRequestedClaims`). A
+`refresh_token` redemption mints a new access token from the rotated grant,
+not from a code, so it carries no such claim — a refreshed token widens
+`/userinfo` back to the full scope-granted set, contradicting the narrowing
+the original token gave. Not a security defect (nothing returned after a
+refresh crosses the consented
+scope — the narrowing is the client asking for less, never the user granting
+less) and not clearly a spec defect either, because it cuts the other way
+too — §5.5 describes `claims` as requesting Claims _alongside_ what `scope`
+already grants, and narrowing scope-granted Claims away is a stricter
+reading this implementation chose without ever writing the choice down
+(`docs/protocols/oidc-core.md`'s new §5.5 rows are the closest thing to
+that record today). If narrowing itself is reconsidered — answered
+additively, the way §5.5 reads — the refresh gap disappears with it, because
+there is nothing left to fail to carry forward.
+
+- Trigger: revisiting whether `claims`-parameter narrowing is the right
+  behaviour at all. If it is kept, close the gap by threading
+  `requested_userinfo_claims` onto the rotated refresh grant
+  (`packages/protocol-oidc/src/repository/grants.ts` and
+  `usecase/token-issuance.ts`'s `issueRefreshTokens`) rather than only the
+  code-minted access token.
 
 **No scope means anything in particular at an audience.** RFC 9068 §2.2.3
 requires that a token's `scope` be coherent with its `aud`. P3b gave a client

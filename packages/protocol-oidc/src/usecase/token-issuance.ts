@@ -291,12 +291,9 @@ async function mintAccessToken(
     // The id the caller has already generated for the grant this token
     // belongs to — see the `grant_id` comment below.
     grantId: string;
-    // The `claims` request parameter's `userinfo` member, as claim names —
-    // absent (or empty) for a grant with no such request, including every
-    // one that did not originate from an authorization code. Embedded on
-    // the token so `/userinfo`, a separate request with no code left to
-    // consult, can apply the same narrowing token issuance applies to the
-    // ID Token below (see `narrowToRequestedClaims`'s own comment).
+    // The `claims` parameter's `userinfo` member, embedded so `/userinfo`
+    // (no code left to consult) can narrow the same way. Absent for a
+    // grant not minted from a code.
     requestedUserinfoClaims?: readonly string[];
   },
   key: SigningKeyRecord,
@@ -434,11 +431,9 @@ async function issueAuthorizationCodeTokens(
     // what a subject's `openid`/`profile`/`email` scopes produce, not one
     // for the ID token and a second for /userinfo.
     const assembledClaims = await deps.claimMappers.assemble(idTokenScope, narrowedContext);
-    // `auth_time` is excluded from what narrows this response: it is never
-    // a `standardClaimMappers` output (the envelope sets it below), so a
-    // `max_age`-only request — which names nothing but `auth_time` as
-    // essential (see authorization-request.ts) — must not narrow away
-    // every other scope-granted claim.
+    // `auth_time` never comes from `standardClaimMappers` (the envelope
+    // sets it below), so it is excluded here — otherwise a `max_age`-only
+    // request, naming nothing else, would narrow away every other claim.
     const requestedIdTokenClaims = Object.keys(code.claims.idToken).filter(
       (name) => name !== 'auth_time',
     );
@@ -466,12 +461,9 @@ async function issueAuthorizationCodeTokens(
       aud: client.clientId,
       iat,
       exp,
-      // OIDC Core §2/§15.1: required when requested as an Essential Claim
-      // via `claims`, and when `max_age` was used — both folded into
-      // `code.claims.idToken.auth_time.essential` at /authorize (see
-      // authorization-request.ts), so this is the one question either rule
-      // needs answered. Optional otherwise, and left out rather than
-      // asserted for a login nobody asked to be told the timing of.
+      // OIDC Core §2/§15.1: required for an Essential Claim or a `max_age`
+      // request, both folded into this one flag at /authorize — otherwise
+      // left out (authorization-request.ts's `claims` synthesis).
       ...(code.claims.idToken.auth_time?.essential === true
         ? { auth_time: Math.floor(code.authTime.getTime() / 1000) }
         : {}),

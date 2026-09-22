@@ -19,10 +19,8 @@ export interface ClaimsRequest {
   readonly userinfo: ClaimsRequestMember;
 }
 
-// What an absent parameter parses to, and what every code-minting door
-// parks on a request that never carried one — `{}` members, not a missing
-// field, so a reader never has to distinguish "requested nothing" from
-// "never asked".
+// What an absent parameter parses to, and what a request that never
+// carried one is parked with — `{}` members, never a missing field.
 export const EMPTY_CLAIMS_REQUEST: ClaimsRequest = { idToken: {}, userinfo: {} };
 
 export type ClaimsRequestOutcome =
@@ -70,7 +68,7 @@ function toMember(member: ParsedMember): ClaimsRequestMember {
 
 export function parseClaimsRequest(raw: string | undefined): ClaimsRequestOutcome {
   if (raw === undefined) {
-    return { kind: 'ok', request: { idToken: {}, userinfo: {} } };
+    return { kind: 'ok', request: EMPTY_CLAIMS_REQUEST };
   }
 
   if (Buffer.byteLength(raw, 'utf8') > MAX_CLAIMS_PARAMETER_BYTES) {

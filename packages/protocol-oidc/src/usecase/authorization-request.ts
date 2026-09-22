@@ -326,12 +326,9 @@ export async function handleAuthorizationRequest(
   const claimsOutcome = parseClaimsRequest(params.claims);
   if (claimsOutcome.kind === 'invalid') return reject('invalid_request');
   // §2 and §15.1 both require `auth_time` when `max_age` was used, not only
-  // when it was requested as an Essential Claim — folded in here, once, so
-  // every door that reads `claims.idToken.auth_time` below (token issuance)
-  // needs to ask only one question. `auth_time` is never part of what
-  // `narrowToRequestedClaims` narrows against (it is an envelope claim, not
-  // one `standardClaimMappers` produces), so this addition never causes a
-  // `max_age`-only request to narrow an ID token's other claims.
+  // when requested as an Essential Claim — folded in here so token issuance
+  // asks one question (`token-issuance.ts` excludes `auth_time` from what
+  // this synthesis could otherwise narrow away).
   const claims: ClaimsRequest =
     outcome.maxAge === null
       ? claimsOutcome.request
@@ -343,11 +340,9 @@ export async function handleAuthorizationRequest(
           },
         };
 
-  // OIDC Core §3.1.2.2: a `sub` requested in the `claims` parameter's
-  // `id_token` member names a specific End-User this request must be
-  // answered for — the same kind of constraint `id_token_hint` already
-  // applies to `candidateSessions` below, and combined with it the same
-  // way: a session belongs to the candidate set only if it satisfies both.
+  // OIDC Core §3.1.2.2: a `sub` in the `claims` parameter's `id_token`
+  // member names a specific End-User, the same constraint `id_token_hint`
+  // is below — combined with it in `candidateSessions`.
   const claimsSubject = claims.idToken.sub?.value ?? null;
 
   let hintSubject: string | null = null;
@@ -385,13 +380,9 @@ export async function handleAuthorizationRequest(
   );
   const resolvedSessions = sessions.map(toReusableSession);
   // A hint, or a `claims` request's `sub`, names one subject, so only that
-  // subject's sessions are reusable or offered by the chooser here — this
-  // is what lets a hinted or `sub`-named subject reuse a live session
-  // instead of facing a chooser for other subjects on the same browser, and
-  // what makes prompt=none answer from it rather than
-  // account_selection_required. Both constraints apply together when both
-  // are present. The chooser POST's own membership check
-  // (handleSelectAccountSubmission) is a separate, later question.
+  // subject's sessions are reusable or offered by the chooser — both
+  // constraints apply together when both are present. The chooser POST's
+  // own membership check (handleSelectAccountSubmission) is separate.
   const candidateSessions = resolvedSessions.filter(
     (session) =>
       (hintSubject === null || session.subjectId === hintSubject) &&
@@ -449,6 +440,7 @@ export async function handleAuthorizationRequest(
         ...request,
         prompt: [...outcome.prompts],
         ...(hintSubject !== null ? { idTokenHintSubject: hintSubject } : {}),
+        ...(claimsSubject !== null ? { claimsSubject } : {}),
         reuseSessionId: resolvedSession.id,
         reuseAuthTime: resolvedSession.authTime.toISOString(),
         resource: [...audience],
@@ -532,6 +524,7 @@ export async function handleAuthorizationRequest(
       ...request,
       prompt: [...outcome.prompts],
       ...(hintSubject !== null ? { idTokenHintSubject: hintSubject } : {}),
+      ...(claimsSubject !== null ? { claimsSubject } : {}),
       // Re-checked against whichever session is posted back — see
       // handleSelectAccountSubmission's own withinMaxAge call.
       ...(outcome.maxAge !== null ? { maxAge: outcome.maxAge } : {}),
@@ -574,6 +567,7 @@ export async function handleAuthorizationRequest(
     // signs in is the one it identifies can only be judged once they have,
     // which is the login submission, so it travels with the parked request.
     ...(hintSubject !== null ? { idTokenHintSubject: hintSubject } : {}),
+    ...(claimsSubject !== null ? { claimsSubject } : {}),
     // Carried forward so handleLoginSubmission's own consent gate, once
     // this login completes, still sees `prompt=consent` the way it would
     // have at the moment this request first arrived.
@@ -689,6 +683,11 @@ export async function handleSelectAccountSubmission(
   // The same rule the reuse tail enforces once a candidate is settled: the
   // End-User a hint names is not whoever the browser happens to have picked.
   if (pending.idTokenHintSubject !== undefined && pending.idTokenHintSubject !== chosen.subjectId) {
+    return reject('login_required');
+  }
+  // The same check for a `claims` `sub`: a choice posted back is a claim,
+  // not a re-application of the filter that narrowed the chooser page.
+  if (pending.claimsSubject !== undefined && pending.claimsSubject !== chosen.subjectId) {
     return reject('login_required');
   }
 

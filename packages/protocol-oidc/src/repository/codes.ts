@@ -8,9 +8,10 @@ import {
   type ClaimsRequestMember,
 } from '#/service/claims-request';
 
-// Round-trips exactly what this repository itself wrote — never fed a
-// client-supplied string — so a schema this narrow is a safety net against
-// this file's own bug, not a boundary against the outside world.
+// Round-trips exactly what `serializeClaims` itself wrote — the client
+// input it carries was already validated once, by `parseClaimsRequest` —
+// so this schema is a safety net against this file's own round-trip bug,
+// not a second validation boundary.
 const storedClaimEntrySchema = z.object({
   essential: z.boolean(),
   value: z.string().optional(),
