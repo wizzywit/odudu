@@ -2,11 +2,25 @@
 
 ## Start here
 
-**P0, P1, P2a, P2b, P3a and P3b are complete. P4 — the admin API and
-consoles — is next**, and needs its own brainstorm and spec: nothing below
-is a P4 plan, only what it inherits and what is still open. Phases are
-section 11 of
+**P0, P1, P2a, P2b, P3a, P3b and the tenant rename (P4a) are complete. P4 —
+the admin API and consoles — is next**, and needs its own brainstorm and
+spec: nothing below is a P4 plan, only what it inherits and what is still
+open. Phases are section 11 of
 [the umbrella spec](superpowers/specs/2026-09-10-odudu-design.md).
+
+**The tenant rename changed the wire.** What was called a `realm` is a
+tenant everywhere: the path is `/tenants/{tenant}/…`, so the issuer — and
+with it `iss` in every ID token, access token and Logout Token, the RFC 9207
+authorization-response parameter, and the value `/userinfo` verifies against
+— moved with it. The table is `tenants`, its foreign keys are `tenant_id`,
+and the row-level-security GUC is `app.tenant_id`. The CLI flag is
+`--tenant` and the subcommand `seed tenant`. Migrations
+`0057_rename_realm_to_tenant.sql` and `0058_rename_realm_constraint_names.sql`
+carry the schema; the first drops and recreates all 31 policies, because a
+column rename does not rewrite the GUC literal inside them. Nothing has been
+deployed, so there is no transition to describe — a hard cutover is the only
+reason this was simple, and a deployed system would need two issuers per
+tenant for a published window instead.
 
 P3b shipped the session set — a browser's cookie holds a list of session
 ids rather than one, bounded per browser by `max_sessions_per_browser`
@@ -35,6 +49,7 @@ reason is false.
 The running records, split out of this file on 2026-09-17: P2b reached
 1,873 lines here, of which the part describing where the project stood was 58.
 
+- [P4a — renaming the tenant concept](phases/p4a.md)
 - [P3b — sessions, logout and the token surface](phases/p3b.md)
 - [P3a — clients, dynamic registration and consent](phases/p3a.md)
 - [P2b — credentials, MFA and the session lifecycle](phases/p2b.md)
@@ -343,6 +358,26 @@ on the grounds that P13 is the next phase to rework client authentication.
 
 ## Deferred from the final review
 
+- Six migration-filename citations under `docs/superpowers/plans/` name
+  files that do not exist. All six are dangling at `a039685` too, so none
+  arrived with the rename, and there are none in `packages`, `apps`,
+  `tools`, `tests`, `infra` or `README.md`. A plan is archived scaffolding,
+  which is the argument for leaving them; a citation that resolves nowhere
+  is the argument against.
+- `docs/protocols/rfc6750.md`'s row "`scope` appears at most once" is
+  vacuous. It is cited to a name-agnostic grammar test, and the server emits
+  no `scope` auth-param anywhere, so the row is true and holds nothing.
+  Choosing between rewording it and emitting a `scope` is a coverage
+  judgement, not a fix.
+- The two `user_credentials` counts at `docs/request-paths.md:3052` and
+  `:3282` are unscoped, and correct only in document order — the
+  neighbouring query of the same kind is scoped. Re-scoping them needs a
+  re-run against a live stack, which is why they were not changed in place.
+- `docs/request-paths.md` places token exchange (RFC 8693) in **P5**, and
+  P5's exit criterion names property-based attenuation, atomic budgets and
+  CIBA — not RFC 8693. Attenuation arguably implies it; the criterion does
+  not say so, so the work can be skipped with nothing going red. Either the
+  criterion names the RFC or the item moves.
 - `tests/lint/production-guard-order.test.ts` compares source offsets and
   breaks on a rename or a helper extraction. A reasonable stopgap for the
   still-positional server-boot path, but its narrowness should be visible to
