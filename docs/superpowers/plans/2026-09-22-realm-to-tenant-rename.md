@@ -639,7 +639,7 @@ git commit -m "Point the conformance profiles at the tenant paths"
 
 **Files:**
 
-- Modify: `README.md`, `CLAUDE.md`, `SECURITY.md`, `docs/NEXT.md`, all 14 files under `docs/protocols/`, `packages/db/README.md`, `infra/conformance/README.md`
+- Modify: `README.md`, `CLAUDE.md`, `SECURITY.md`, `docs/NEXT.md`, all 18 files under `docs/protocols/`, `packages/db/README.md`, `infra/conformance/README.md`
 
 Not `docs/request-paths.md` — Task 15 re-captures it. Not `docs/adr/`, `docs/phases/` or `docs/superpowers/` — Task 14 handles those with their annotations.
 
@@ -670,7 +670,7 @@ git commit -m "Rename realm to tenant in the living documents"
 
 **Files:**
 
-- Modify: all 13 files under `docs/adr/`, 4 under `docs/phases/`, 6 specs and 6 plans under `docs/superpowers/`
+- Modify: all 14 files under `docs/adr/`, 4 under `docs/phases/`, 6 specs and 6 plans under `docs/superpowers/`
 - Rename: `docs/adr/0026-client-registration-is-a-realm-policy-closed-by-default.md`, `docs/adr/0033-admitting-a-session-locks-the-realm-row.md`
 
 - [ ] **Step 1: Rename the two ADR files**
@@ -689,13 +689,13 @@ grep -rlI -E 'realm|Realm|REALM' docs/adr docs/phases docs/superpowers \
 
 - [ ] **Step 3: Annotate each ADR once**
 
-Add one line to each of the 13 ADRs, immediately under its `**Status:**` line, in this form:
+Add one line to each of the 14 ADRs, immediately under its `**Status:**` line, in this form:
 
 ```markdown
 **Renamed 2026-09-22:** written when a tenant was called a realm; the decision is unchanged.
 ```
 
-Write it by hand in each file. It is 13 lines, and a generated one would be the only thing in the repository nobody had read.
+Write it by hand in each file. It is 14 lines, and a generated one would be the only thing in the repository nobody had read.
 
 - [ ] **Step 4: Confirm any cross-reference still resolves**
 
