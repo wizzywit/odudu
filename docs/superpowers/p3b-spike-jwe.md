@@ -111,10 +111,19 @@ ECDH-ES encryption to the Ed25519 key FAILED: ECDH with the provided key is not 
 
 The `kty`-only rule admits the Ed25519 key as a candidate; the amended rule
 does not; a real `jose` `ECDH-ES` encryption attempt against the Ed25519 key
-fails, confirming it was never a usable candidate. No other curve is
-supported on the OKP path — `X25519` is the only one JWA assigns to
-`ECDH-ES*`, so the filter names it rather than excluding `Ed25519` by a
-denylist of one.
+fails, confirming it was never a usable candidate. The filter names
+`X25519` rather than excluding `Ed25519` by a denylist of one — but it is an
+implementation limit, not a property of `ECDH-ES*`: JWA assigns `X448` to
+those algorithms too, and this `jose` does not implement it.
+
+```
+$ node x448.throwaway.mjs
+X448 FAILED: Invalid or unsupported crv option provided, supported values
+are P-256, P-384, P-521, and X25519
+```
+
+So the OKP path admits `X25519` alone today, and a deployment whose clients
+publish `X448` keys would need that limit lifted here first.
 
 `verified: node jwe-spike4.throwaway.mjs`:
 
