@@ -91,8 +91,10 @@ null` or its script value — a page that adds a frame later widens that one
   case, so a session ended with a redirect notifies no relying party by
   this mechanism at all today. Rendering the frames first and navigating
   afterward was not weighed against this: the question is open, not
-  answered, and is P3b's to pick up rather than something this decision
-  closed.
+  answered, and is tracked in `docs/NEXT.md`'s "Front-channel logout on a
+  redirecting session end" — P3b closes without picking it up, so it
+  passes to whichever phase's trigger fires there, rather than being
+  something this decision closed.
 
 ## Alternatives rejected
 

@@ -289,8 +289,8 @@ export async function handleLogoutRequest(
     };
   }
   // decideRedirect only refuses inside decideLogout's already-matched-
-  // session branch (see the comment above), so `session` is never null
-  // here.
+  // session branch (see the comment above), but the type still admits
+  // `null` here.
   const refusedFrontChannel =
     session !== null ? await frontChannelLogoutUrls(deps, realm.id, issuer, session.id) : [];
   return {

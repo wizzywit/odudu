@@ -180,16 +180,20 @@ which grant a request may use.
 - Trigger: whichever task next touches grant selection in `issueTokens`.
   Add `config.grantTypes.includes(request.grantType)` before dispatching.
 
-**`/userinfo` honours a disabled client's live access token at all.**
-`usecase/userinfo.ts`'s gate checks `realm?.enabled` only. `resolveRoleReach`
-now refuses a disabled client's `fullScopeAllowed` bypass and
-`userinfoEncryptionTarget` refuses its registered encryption outright, but a
-disabled client that registered neither still gets an ordinary, correctly
-narrowed response.
+**`/userinfo` and `/introspect` both honour a disabled client's live access
+token.** `resolveUserinfo` now checks the realm, the token's own grant
+(`revoked_at`) and its session's liveness, and `introspect` checks the
+identical pair — neither reads `client.enabled`, so disabling a client
+after a token was issued to it revokes nothing: the grant stays live,
+`resolveRoleReach` refuses only the `fullScopeAllowed` bypass, and
+`userinfoEncryptionTarget` refuses only registered encryption. A disabled
+client that registered neither still gets an ordinary, correctly narrowed
+response from both endpoints.
 
 - Trigger: whichever phase next revisits token liveness or client
-  lifecycle. Decide there whether `/userinfo` should read `client.enabled`
-  the way `resolveRoleReach` and `resolveClientWebOrigins` do.
+  lifecycle. Decide there whether `/userinfo` and `/introspect` should
+  read `client.enabled` the way `resolveRoleReach` and
+  `resolveClientWebOrigins` do.
 
 **A signed UserInfo response's `typ` is a private value.** `userinfo+jwt`
 is not registered anywhere; it exists to stop a UserInfo response being

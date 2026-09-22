@@ -796,8 +796,6 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
         userinfoEncryptionTarget,
         clientKeySet,
         kek: deps.kek,
-        // Same two reads /introspect makes — see loadIntrospectionGrant and
-        // isIntrospectionSessionLive above.
         loadGrant: loadIntrospectionGrant,
         isSessionLive: isIntrospectionSessionLive,
         clock,

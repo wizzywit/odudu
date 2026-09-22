@@ -59,8 +59,7 @@ function describeError(error: unknown): string {
 }
 
 // A concurrent pass having already recorded this row's own delivery is
-// not this pass's failure — it is excluded from both tallies, the same
-// way a row nobody claimed is.
+// not this pass's failure.
 async function deliverOne(
   deps: SendLogoutsDeps,
   row: ClaimedLogoutDelivery,
