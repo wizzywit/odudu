@@ -20,9 +20,9 @@ dependency order, not a preference.
 
 1. **Per-client web origins.** CORS on the endpoints a browser calls, with a
    per-client allowlist.
-2. **Realm-owned client scopes.** The entity `resolveScope` was written for,
+2. **Tenant-owned client scopes.** The entity `resolveScope` was written for,
    replacing the `SUPPORTED_SCOPES` constant.
-3. **Roles.** Realm roles, client roles, composite roles, default roles,
+3. **Roles.** Tenant roles, client roles, composite roles, default roles,
    scope mappings, and the `roles` claim.
 4. **Groups.** Hierarchical, path-identified, with inherited role mappings
    and the `groups` claim.
@@ -49,7 +49,7 @@ than by a judgement call mid-increment.
 | Consent                                                    | P3    | Client scopes carry a `default`/`optional` distinction, which is the data a consent screen will read. Nothing asks the user anything; `resolveScope`'s `consented` parameter stays `null`. |
 | Policy evaluation, UMA 2.0                                 | P9    | P2a emits roles. It decides nothing with them.                                                                                                                                             |
 | Password policies, brute-force protection, MFA             | P2b   | Password _reset_ is here because it is an email flow. The rules a new password must satisfy are not.                                                                                       |
-| Per-realm SMTP configuration                               | P4    | ADR 0015 puts credentials in the environment. Per-realm SMTP needs an encrypted secret at rest and a surface to edit it.                                                                   |
+| Per-tenant SMTP configuration                              | P4    | ADR 0015 puts credentials in the environment. Per-tenant SMTP needs an encrypted secret at rest and a surface to edit it.                                                                  |
 | A `user_attributes` (EAV) table                            | P4    | Nothing in P2a emits a non-standard attribute into any claim. A table with no consumer has no test beyond "it stores what it was given". It arrives with the mappers that read it.         |
 | The `entitlements` claim                                   | —     | Registered alongside `roles` and `groups`, but Odudu has no entitlement concept. Recorded as a deliberate omission in `docs/protocols/rfc9068.md`, not left silent.                        |
 | Reaping expired `action_tokens` rows                       | P2b   | ADR 0021. Nothing is deleted; retention is decided once, for every table that carries `expires_at`.                                                                                        |
@@ -73,7 +73,7 @@ contracts is two things to test, two things to document, and a client-level
 configuration switch, which is P3 and P4 surface arriving early.
 
 **Rejected: Keycloak-shaped claims.** Every existing Keycloak adapter parses
-them for free, and realm-versus-client roles are structurally distinct rather
+them for free, and tenant-versus-client roles are structurally distinct rather
 than distinguished by convention. Rejected because the names are
 unregistered and undocumented outside one vendor's source, and because
 `docs/protocols/rfc9068.md` section 4's row would stay `n/a:` forever — the
@@ -102,9 +102,9 @@ unexplained difference from the referenced schema.
 Both arrays are **sorted and de-duplicated**. A token is then reproducible
 for a given state, and its tests are not order-flaky.
 
-### 3.3 Realm roles and client roles in one flat array
+### 3.3 Tenant roles and client roles in one flat array
 
-A realm role appears bare: `admin`. A client role appears qualified by its
+A tenant role appears bare: `admin`. A client role appears qualified by its
 owning client: `reports-api:reader`.
 
 The convention is enforced by the database, not by the code that formats the
@@ -117,7 +117,7 @@ Reads most naturally for a resource server. Rejected because the same token
 would mean different things to different audiences, and P3's `resource`
 indicators would have to re-derive the claim per audience.
 
-**Rejected: realm roles only, client roles deferred to P3.** Smallest
+**Rejected: tenant roles only, client roles deferred to P3.** Smallest
 contract. Rejected because the phase's exit criterion names client roles; a
 phase that closes without meeting its own criterion is the failure mode
 section 11 of the umbrella spec was amended to prevent.
@@ -137,10 +137,10 @@ ID token is size and disclosure a client cannot opt out of.
 
 A scope is granted per request, so "the client asks for it" cannot by itself
 distinguish the two token types. The distinction is therefore **data**:
-`client_scopes.include_in_id_token`, a column on the realm's scope definition
+`client_scopes.include_in_id_token`, a column on the tenant's scope definition
 (section 4, migration 0016), which ships off for `roles` and `groups` and on
-for `profile`, `email`, `address` and `phone`. A realm that wants roles in its
-ID tokens turns it on for the realm, not per client — refining that to
+for `profile`, `email`, `address` and `phone`. A tenant that wants roles in its
+ID tokens turns it on for the tenant, not per client — refining that to
 per-client, per-mapper control is exactly the configurable-mapper work P4
 owns.
 
@@ -169,8 +169,8 @@ set in a token is:
 > the subject's effective roles ∩ the roles reachable through the scopes
 > granted on this request
 
-Without this, every access token in a realm with 300 roles carries 300 roles,
-and any client learns the realm's entire role vocabulary from one login.
+Without this, every access token in a tenant with 300 roles carries 300 roles,
+and any client learns the tenant's entire role vocabulary from one login.
 
 `clients.full_scope_allowed` bypasses the intersection and **defaults to
 off**. A new client's tokens carry no roles until an operator maps them.
@@ -190,11 +190,11 @@ P2a.
 
 ## 4. Data model
 
-Eight migrations, 0015 through 0022. Every table carries `realm_id`, RLS
+Eight migrations, 0015 through 0022. Every table carries `tenant_id`, RLS
 enabled and forced, and an isolation policy on
-`current_setting('app.realm_id')` — the pattern established in migration 0001
+`current_setting('app.tenant_id')` — the pattern established in migration 0001
 and repeated since. Every repository method is probed with a foreign
-`realm_id`.
+`tenant_id`.
 
 ### 0015 — web origins
 
@@ -210,14 +210,14 @@ work.
 ### 0016 — client scopes
 
 ```
-client_scopes (id, realm_id, name, description,
+client_scopes (id, tenant_id, name, description,
                include_in_id_token)
-  UNIQUE (realm_id, name), UNIQUE (realm_id, id)
+  UNIQUE (tenant_id, name), UNIQUE (tenant_id, id)
   CHECK name is a valid RFC 6749 section 3.3 scope-token
 
-client_scope_assignments (realm_id, client_id, client_scope_id, assignment)
+client_scope_assignments (tenant_id, client_id, client_scope_id, assignment)
   assignment IN ('default', 'optional')
-  composite FKs on (realm_id, client_id) and (realm_id, client_scope_id)
+  composite FKs on (tenant_id, client_id) and (tenant_id, client_scope_id)
 ```
 
 `include_in_id_token` is section 3.4's gate.
@@ -250,14 +250,14 @@ anything a request's own `scope` parameter does not already do.
 configurable — whole rather than half-done.
 
 Seeds ship `openid`, `profile`, `email`, `address`, `phone`, `roles` and
-`groups` per realm, so P1's behaviour is preserved by data rather than by a
+`groups` per tenant, so P1's behaviour is preserved by data rather than by a
 constant.
 
 Consequences for existing code:
 
-- `scopes_supported` in discovery becomes a realm query, not
+- `scopes_supported` in discovery becomes a tenant query, not
   `SUPPORTED_SCOPES`.
-- `/authorize` validates against realm data. A scope unknown to the realm and
+- `/authorize` validates against tenant data. A scope unknown to the tenant and
   a scope known but not assigned to the client are **both `invalid_scope`** —
   refused rather than silently dropped, which is what `/authorize` does today.
 - `resolveScope`'s `clientAllowed` argument is finally fed real data instead
@@ -266,18 +266,18 @@ Consequences for existing code:
 ### 0017 — roles
 
 ```
-roles (id, realm_id, client_id NULL, name, description)
-  client_id NULL  => realm role
-  UNIQUE INDEX (realm_id, name) WHERE client_id IS NULL
+roles (id, tenant_id, client_id NULL, name, description)
+  client_id NULL  => tenant role
+  UNIQUE INDEX (tenant_id, name) WHERE client_id IS NULL
   UNIQUE INDEX (client_id, name) WHERE client_id IS NOT NULL
   CHECK (name !~ ':')          -- makes clientId:roleName unambiguous
   default_for_new_subjects boolean NOT NULL DEFAULT false
 
-role_composites (realm_id, parent_role_id, child_role_id)
+role_composites (tenant_id, parent_role_id, child_role_id)
   CHECK (parent_role_id <> child_role_id)
 
-subject_roles (realm_id, subject_id, role_id)
-client_scope_roles (realm_id, client_scope_id, role_id)
+subject_roles (tenant_id, subject_id, role_id)
+client_scope_roles (tenant_id, client_scope_id, role_id)
 ```
 
 This migration also adds `clients.full_scope_allowed boolean NOT NULL DEFAULT
@@ -301,13 +301,13 @@ an admin surface to be worth having, which is P4.
 ### 0018 — groups
 
 ```
-groups (id, realm_id, parent_id NULL, name, path)
-  UNIQUE (realm_id, path), UNIQUE (realm_id, id)
+groups (id, tenant_id, parent_id NULL, name, path)
+  UNIQUE (tenant_id, path), UNIQUE (tenant_id, id)
   CHECK (name !~ '/')
   CHECK (path LIKE '/%')
 
-group_roles   (realm_id, group_id, role_id)
-subject_groups (realm_id, subject_id, group_id)
+group_roles   (tenant_id, group_id, role_id)
+subject_groups (tenant_id, subject_id, group_id)
 ```
 
 `path` is denormalized and maintained in **one repository method**, which is
@@ -359,7 +359,7 @@ wider profile changes what belongs in it.
 One table serves verification and reset:
 
 ```
-action_tokens (id, realm_id, subject_id, type, token_hash, email,
+action_tokens (id, tenant_id, subject_id, type, token_hash, email,
                created_at, expires_at, consumed_at)
   type IN ('verify_email', 'reset_password')
   UNIQUE (token_hash)
@@ -374,16 +374,16 @@ The `email` column records the address the token was minted for. Changing the
 address therefore invalidates an outstanding verification, rather than
 letting it verify a value the user no longer holds.
 
-### 0021 — realm settings
+### 0021 — tenant settings
 
-`realms.registration_allowed`, `realms.verify_email`,
-`realms.reset_password_allowed`. All default **off**. A realm does not
+`tenants.registration_allowed`, `tenants.verify_email`,
+`tenants.reset_password_allowed`. All default **off**. A tenant does not
 silently acquire a public registration endpoint because it was upgraded.
 
 ### 0022 — conditional uniqueness on `users.email`
 
 Self-registration makes "is this address already taken?" a live question for
-the first time. A partial unique index on `(realm_id, email) WHERE email IS
+the first time. A partial unique index on `(tenant_id, email) WHERE email IS
 NOT NULL` is required for registration to be safe. It **can fail against
 existing data**, and the migration is written knowing that and says so rather
 than assuming a clean database.
@@ -400,10 +400,10 @@ this exact bug on `/userinfo`.
 
 The design follows the constraint rather than fighting it:
 
-- **Preflight is answered against the realm's union.** An `Origin` is allowed
-  if it appears in any enabled client's `web_origins` in that realm, with `+`
+- **Preflight is answered against the tenant's union.** An `Origin` is allowed
+  if it appears in any enabled client's `web_origins` in that tenant, with `+`
   expanded to that client's `redirect_uris` origins. This discloses only
-  "some client in this realm accepts this origin" — about an origin the
+  "some client in this tenant accepts this origin" — about an origin the
   caller supplied.
 - **The real request is enforced per client.** On `/token` the `client_id` is
   in the body; on `/userinfo` it is the `client_id` claim of the presented
@@ -413,14 +413,14 @@ The design follows the constraint rather than fighting it:
 
 Endpoint scope:
 
-| Endpoint                            | CORS                                                |
-| ----------------------------------- | --------------------------------------------------- |
-| `/protocol/openid-connect/token`    | per-client on the request, realm union on preflight |
-| `/protocol/openid-connect/userinfo` | same                                                |
-| `/protocol/openid-connect/certs`    | `Access-Control-Allow-Origin: *`                    |
-| `/.well-known/openid-configuration` | `Access-Control-Allow-Origin: *`                    |
-| `/protocol/openid-connect/auth`     | none                                                |
-| `/login-actions/*`                  | none                                                |
+| Endpoint                            | CORS                                                 |
+| ----------------------------------- | ---------------------------------------------------- |
+| `/protocol/openid-connect/token`    | per-client on the request, tenant union on preflight |
+| `/protocol/openid-connect/userinfo` | same                                                 |
+| `/protocol/openid-connect/certs`    | `Access-Control-Allow-Origin: *`                     |
+| `/.well-known/openid-configuration` | `Access-Control-Allow-Origin: *`                     |
+| `/protocol/openid-connect/auth`     | none                                                 |
+| `/login-actions/*`                  | none                                                 |
 
 `/certs` and the discovery document are unauthenticated, non-credentialed
 public documents; `*` is correct for them and simpler than pretending
@@ -465,7 +465,7 @@ Configuration is server-level environment variables, per ADR 0015:
 
 ### 6.2 The three flows
 
-All under the existing `/realms/:realm/login-actions/…` family.
+All under the existing `/tenants/:tenant/login-actions/…` family.
 
 **Address verification** — `login-actions/action-token?key=…`. This sets
 `email_verified` honestly for the first time in the project's life; until now
@@ -496,7 +496,7 @@ than following them:
   adapters, the templates.
 - **`@odudu/account`** — registration, verification and reset usecases and
   views. These are not protocol. Keeping them out of `@odudu/protocol-oidc` is
-  what stops that package becoming "everything served under `/realms/:realm/`".
+  what stops that package becoming "everything served under `/tenants/:tenant/`".
 
 Client scopes, scope mappings and web origins are client configuration and go
 in **`@odudu/domain-tenant`**. The profile columns go in
@@ -522,7 +522,7 @@ load-bearing path gets a spike **before** the task that depends on it.
 
 Integration tests run against real PostgreSQL via Testcontainers, never a
 mock. Every one of the ten new tables gets an RLS isolation probe; every
-repository method is probed with a foreign `realm_id`. Tests precede
+repository method is probed with a foreign `tenant_id`. Tests precede
 implementation.
 
 Four tests this phase specifically needs, each written so that the broken
@@ -537,11 +537,11 @@ implementation fails it:
    would pass against a broken implementation too.
 3. **Changing an email invalidates an outstanding verification token.**
 4. **Preflight and the real request disagree.** An origin allowed at preflight
-   because it belongs to _another_ client in the realm is refused on the
+   because it belongs to _another_ client in the tenant is refused on the
    actual `/token` call. This is the test that asserts section 5's split does
    what it claims.
 
-`tests/docs/` gains checks that `scopes_supported` equals the realm's scope
+`tests/docs/` gains checks that `scopes_supported` equals the tenant's scope
 data and that `claims_supported` equals what the registry can produce — the
 two places this phase can silently begin to lie.
 
@@ -600,7 +600,7 @@ The three things most likely to go wrong:
   manageable". Seed-CLI-only is the line, and an increment that adds an
   admin-shaped surface is out of scope by definition.
 - **The token contract moving under P1's tests.** Replacing `SUPPORTED_SCOPES`
-  with realm data touches discovery, `/authorize` and issuance at once. It is
+  with tenant data touches discovery, `/authorize` and issuance at once. It is
   sequenced as its own increment, ending green, before any role work begins.
 - **The final documentation increment treated as optional.** It is the only
   thing standing between `docs/request-paths.md` and the state it was written
@@ -610,7 +610,7 @@ The three things most likely to go wrong:
 
 P2a is finished when all of the following hold:
 
-1. Realm roles, client roles, composite roles, groups and client scopes are
+1. Tenant roles, client roles, composite roles, groups and client scopes are
    emitted into tokens as `roles` and `groups`, sorted string arrays, client
    roles qualified as `clientId:roleName`.
 2. Scope mappings narrow the role set, with `full_scope_allowed` off by
@@ -619,7 +619,7 @@ P2a is finished when all of the following hold:
    claims stored in constrained columns and mapped into `profile`, `email`,
    `address` and `phone` scopes.
 4. A browser client completes the authorization code flow end to end against
-   a realm's configured web origins, including preflight.
+   a tenant's configured web origins, including preflight.
 5. Email is delivered through the `EmailSender` port, with address
    verification, self-registration and password reset working on top of it,
    and `email_verified` set only by a completed verification.

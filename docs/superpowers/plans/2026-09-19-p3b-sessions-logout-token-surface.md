@@ -17,8 +17,8 @@ Every task's requirements implicitly include this section. Values are copied fro
 - **No `any`.** Not as an annotation, not as a cast, not leaked in from `JSON.parse`. Use `unknown` and narrow. No inline `eslint-disable` of `no-explicit-any` or `no-unsafe-*`; `tests/lint/no-any.test.ts` fails the build on one.
 - **Tests precede implementation.** Every task writes the failing test first and runs it to see it fail.
 - **Integration tests run against real PostgreSQL via Testcontainers**, never a mock.
-- **Every repository method is probed with a foreign `realm_id`.**
-- **`SET LOCAL`, never `SET`**, for realm context.
+- **Every repository method is probed with a foreign `tenant_id`.**
+- **`SET LOCAL`, never `SET`**, for tenant context.
 - **No comment block longer than eight lines.** `tests/lint/comment-block-length.test.ts` fails the build, and there is no waiver.
 - **Never reference the development process from a comment** — no task numbers, no "the plan", no phase-plan slots. Name the thing instead.
 - **Call a function as `doThing()`, never `void doThing()`.**
@@ -113,7 +113,7 @@ Five input classes the spec implies but that no task's happy path exercises, mos
 
 1. **A cookie naming a session id that no longer exists, or that is not a uuid at all.** Browsers keep cookies across a database reset and a user can edit one. Resolution must prune the unknown ids and continue with the rest, never throw and never treat the whole cookie as hostile. Tests in **Task 2** (a value that is not a session id) and **Task 4** (an id naming no row).
 2. **Two logins racing at the per-browser cap.** Both read the same list, both evict, and one write lands last. Eviction must not lose a session that the other request just created, and must never leave the cookie naming more ids than the cap. Test in **Task 4**.
-3. **A relying party whose back-channel endpoint accepts the connection and then never finishes the body.** Without a response timeout the sender's pass hangs and the queue stops draining for every other realm. Test in **Task 18**.
+3. **A relying party whose back-channel endpoint accepts the connection and then never finishes the body.** Without a response timeout the sender's pass hangs and the queue stops draining for every other tenant. Test in **Task 18**.
 4. **`resource` supplied more than once.** RFC 8707 permits multiple values; this server accepts one. Two values must be `invalid_target`, never a silent first-wins that issues a token for an audience the client did not mean. Test in **Task 22**.
 5. **A `claims` parameter carrying very large or deeply nested JSON.** It is attacker-supplied, unauthenticated at `/authorize`, and `JSON.parse` is not bounded. The size must be capped before parsing and the depth rejected after. Test in **Task 39**.
 
@@ -152,7 +152,7 @@ Five input classes the spec implies but that no task's happy path exercises, mos
 | `packages/protocol-oidc/src/usecase/session-reuse.ts`                    | A decision over a set                                           |
 | `packages/protocol-oidc/src/view/routes/{login,consent,logout}.ts`       | Spread the cookie authority instead of hand-matching attributes |
 | `packages/protocol-oidc/src/usecase/{logout,userinfo,token-issuance}.ts` | Delivery, JWS/JWE, derived `aud`                                |
-| `packages/domain-tenant/src/service/realm-settings.ts`                    | Four new settings                                               |
+| `packages/domain-tenant/src/service/tenant-settings.ts`                  | Four new settings                                               |
 | `apps/server/src/main.ts`, `cli/reap.ts`                                 | The new command, the new retention pass                         |
 
 **Migrations** — 0048 through 0053, in the order the increments need them.
@@ -231,8 +231,8 @@ If two `__Host-` cookies do **not** coexist, stop and raise it: the spec's decis
 
 **Interfaces:**
 
-- Consumes: `sessionCookieName(realm, tls)` (`packages/authn-flows/src/index.ts:6`).
-- Produces: `sessionCookies(input: SessionCookieInput): readonly string[]`, `readSessionIds(header: string | undefined, realm: string, tls: boolean): SessionIds`, `clearedSessionCookies(realm: string, tls: boolean): readonly string[]`, `PERSISTENT_SUFFIX`.
+- Consumes: `sessionCookieName(tenant, tls)` (`packages/authn-flows/src/index.ts:6`).
+- Produces: `sessionCookies(input: SessionCookieInput): readonly string[]`, `readSessionIds(header: string | undefined, tenant: string, tls: boolean): SessionIds`, `clearedSessionCookies(tenant: string, tls: boolean): readonly string[]`, `PERSISTENT_SUFFIX`.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -246,7 +246,7 @@ const B = '0192f2a0-0000-7000-8000-000000000002';
 describe('sessionCookies', () => {
   it('writes the ephemeral list with no Max-Age and the persistent list with one', () => {
     const written = sessionCookies({
-      realm: 'demo',
+      tenant: 'demo',
       tls: true,
       ephemeral: [A],
       persistent: [B],
@@ -261,7 +261,7 @@ describe('sessionCookies', () => {
 
   it('drops Secure and the prefix together when TLS is off, and nothing else', () => {
     const written = sessionCookies({
-      realm: 'demo',
+      tenant: 'demo',
       tls: false,
       ephemeral: [A],
       persistent: [],
@@ -273,7 +273,7 @@ describe('sessionCookies', () => {
 
   it('expires a list that has become empty rather than leaving it in the browser', () => {
     const written = sessionCookies({
-      realm: 'demo',
+      tenant: 'demo',
       tls: true,
       ephemeral: [],
       persistent: [B],
@@ -299,7 +299,7 @@ describe('readSessionIds', () => {
     expect(readSessionIds(header, 'demo', true)).toEqual({ ephemeral: [A], persistent: [] });
   });
 
-  it('ignores another realm’s cookie in the same jar', () => {
+  it('ignores another tenant’s cookie in the same jar', () => {
     const header = `__Host-other-session=${B}; __Host-demo-session=${A}`;
     expect(readSessionIds(header, 'demo', true)).toEqual({ ephemeral: [A], persistent: [] });
   });
@@ -335,7 +335,7 @@ export interface SessionIds {
 }
 
 export interface SessionCookieInput {
-  readonly realm: string;
+  readonly tenant: string;
   readonly tls: boolean;
   readonly ephemeral: readonly string[];
   readonly persistent: readonly string[];
@@ -344,8 +344,8 @@ export interface SessionCookieInput {
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u;
 
-function persistentName(realm: string, tls: boolean): string {
-  return `${sessionCookieName(realm, tls)}${PERSISTENT_SUFFIX}`;
+function persistentName(tenant: string, tls: boolean): string {
+  return `${sessionCookieName(tenant, tls)}${PERSISTENT_SUFFIX}`;
 }
 
 // ADR 0020 decides the name and nothing else; these are the attributes it
@@ -375,9 +375,9 @@ function listCookie(
 
 export function sessionCookies(input: SessionCookieInput): readonly string[] {
   return [
-    listCookie(sessionCookieName(input.realm, input.tls), input.ephemeral, input.tls, null),
+    listCookie(sessionCookieName(input.tenant, input.tls), input.ephemeral, input.tls, null),
     listCookie(
-      persistentName(input.realm, input.tls),
+      persistentName(input.tenant, input.tls),
       input.persistent,
       input.tls,
       input.persistentMaxAgeSeconds,
@@ -385,10 +385,10 @@ export function sessionCookies(input: SessionCookieInput): readonly string[] {
   ];
 }
 
-export function clearedSessionCookies(realm: string, tls: boolean): readonly string[] {
+export function clearedSessionCookies(tenant: string, tls: boolean): readonly string[] {
   return [
-    cookie(sessionCookieName(realm, tls), '', tls, 0),
-    cookie(persistentName(realm, tls), '', tls, 0),
+    cookie(sessionCookieName(tenant, tls), '', tls, 0),
+    cookie(persistentName(tenant, tls), '', tls, 0),
   ];
 }
 
@@ -412,13 +412,13 @@ function valuesOf(header: string, name: string): readonly string[] {
 // can complete and nothing explains.
 export function readSessionIds(
   header: string | undefined,
-  realm: string,
+  tenant: string,
   tls: boolean,
 ): SessionIds {
   if (header === undefined) return { ephemeral: [], persistent: [] };
   return {
-    ephemeral: valuesOf(header, sessionCookieName(realm, tls)),
-    persistent: valuesOf(header, persistentName(realm, tls)),
+    ephemeral: valuesOf(header, sessionCookieName(tenant, tls)),
+    persistent: valuesOf(header, persistentName(tenant, tls)),
   };
 }
 ```
@@ -454,22 +454,22 @@ git commit -m "Give the session cookie one authority"
 
 - Create: `packages/db/drizzle/0048_sessions_remembered_and_cap.sql`
 - Modify: `packages/authn-flows/src/schema/sessions.ts`
-- Modify: `packages/domain-tenant/src/schema/realms.ts`
-- Modify: `packages/domain-tenant/src/service/realm-settings.ts`
-- Modify: `packages/domain-tenant/src/service/realm-settings.test.ts`
+- Modify: `packages/domain-tenant/src/schema/tenants.ts`
+- Modify: `packages/domain-tenant/src/service/tenant-settings.ts`
+- Modify: `packages/domain-tenant/src/service/tenant-settings.test.ts`
 
 **Interfaces:**
 
 - Consumes: Task 1's cap default.
-- Produces: `sessions.remembered`, `realms.maxSessionsPerBrowser`, and the setting name `max_sessions_per_browser`.
+- Produces: `sessions.remembered`, `tenants.maxSessionsPerBrowser`, and the setting name `max_sessions_per_browser`.
 
 - [ ] **Step 1: Write the failing test**
 
-Add to `packages/domain-tenant/src/service/realm-settings.test.ts`:
+Add to `packages/domain-tenant/src/service/tenant-settings.test.ts`:
 
 ```ts
 it('coerces the per-browser session cap', () => {
-  expect(coerceRealmSetting('max_sessions_per_browser', '8')).toEqual({
+  expect(coerceTenantSetting('max_sessions_per_browser', '8')).toEqual({
     kind: 'coerced',
     column: 'maxSessionsPerBrowser',
     value: 8,
@@ -477,7 +477,7 @@ it('coerces the per-browser session cap', () => {
 });
 
 it('refuses a cap that is not an integer', () => {
-  expect(coerceRealmSetting('max_sessions_per_browser', 'lots')).toEqual({
+  expect(coerceTenantSetting('max_sessions_per_browser', 'lots')).toEqual({
     kind: 'invalid_value',
     expected: 'integer',
   });
@@ -486,7 +486,7 @@ it('refuses a cap that is not an integer', () => {
 
 - [ ] **Step 2: Run it to verify it fails**
 
-Run: `npx vitest run packages/domain-tenant/src/service/realm-settings.test.ts`
+Run: `npx vitest run packages/domain-tenant/src/service/tenant-settings.test.ts`
 Expected: FAIL — `unknown_setting`.
 
 - [ ] **Step 3: Write the migration**
@@ -503,9 +503,9 @@ ALTER TABLE sessions ADD COLUMN remembered boolean NOT NULL DEFAULT false;
 -- the least recently active session rather than being refused: a login that
 -- fails because of an invisible cookie limit is indistinguishable, to the
 -- person in front of it, from a broken server.
-ALTER TABLE realms ADD COLUMN max_sessions_per_browser integer NOT NULL DEFAULT <CAP>;
+ALTER TABLE tenants ADD COLUMN max_sessions_per_browser integer NOT NULL DEFAULT <CAP>;
 
-ALTER TABLE realms ADD CONSTRAINT realms_max_sessions_per_browser_range
+ALTER TABLE tenants ADD CONSTRAINT tenants_max_sessions_per_browser_range
   CHECK (max_sessions_per_browser BETWEEN 1 AND 32);
 ```
 
@@ -521,7 +521,7 @@ In `packages/authn-flows/src/schema/sessions.ts`, add to the table and to `Sessi
 remembered: boolean;
 ```
 
-In `packages/domain-tenant/src/schema/realms.ts`:
+In `packages/domain-tenant/src/schema/tenants.ts`:
 
 ```ts
   maxSessionsPerBrowser: integer('max_sessions_per_browser').notNull().default(8),
@@ -529,7 +529,7 @@ In `packages/domain-tenant/src/schema/realms.ts`:
 
 - [ ] **Step 5: Add the setting**
 
-In `realm-settings.ts`'s `SETTINGS`, beside the other two session entries:
+In `tenant-settings.ts`'s `SETTINGS`, beside the other two session entries:
 
 ```ts
   max_sessions_per_browser: { column: 'maxSessionsPerBrowser', type: 'integer' },
@@ -542,7 +542,7 @@ Expected: PASS, including `schema-drift.int.test.ts`, which compares the declara
 
 - [ ] **Step 7: Update the documentation**
 
-`docs/request-paths.md` lists the realm settings `seed realm --set` accepts. Add `max_sessions_per_browser` with its range, and note `sessions.remembered` where the session columns are described.
+`docs/request-paths.md` lists the tenant settings `seed tenant --set` accepts. Add `max_sessions_per_browser` with its range, and note `sessions.remembered` where the session columns are described.
 
 - [ ] **Step 8: Commit**
 
@@ -639,14 +639,14 @@ Expected: PASS.
 
 - [ ] **Step 5: Write the failing integration test**
 
-`packages/authn-flows/tests/session-set.int.test.ts`, using the container setup idiom from `packages/protocol-oidc/tests/*.int.test.ts` (`startTestDatabase`, `createAppRole`, `runMigrations`, `withRealm`):
+`packages/authn-flows/tests/session-set.int.test.ts`, using the container setup idiom from `packages/protocol-oidc/tests/*.int.test.ts` (`startTestDatabase`, `createAppRole`, `runMigrations`, `withTenant`):
 
 ```ts
 it('returns only the live sessions among the ids given, in no required order', async () => {
-  await withRealm(app.db, realmId, async (tx) => {
+  await withTenant(app.db, tenantId, async (tx) => {
     const repo = sessionRepository(tx);
-    await repo.create({ id: liveId, realmId, subjectId, expiresAt: future, authenticators: [] });
-    await repo.create({ id: deadId, realmId, subjectId, expiresAt: past, authenticators: [] });
+    await repo.create({ id: liveId, tenantId, subjectId, expiresAt: future, authenticators: [] });
+    await repo.create({ id: deadId, tenantId, subjectId, expiresAt: past, authenticators: [] });
 
     const found = await repo.liveByIds([liveId, deadId], 1800, now);
 
@@ -655,26 +655,26 @@ it('returns only the live sessions among the ids given, in no required order', a
 });
 
 it('ignores an id that names no row at all', async () => {
-  await withRealm(app.db, realmId, async (tx) => {
+  await withTenant(app.db, tenantId, async (tx) => {
     const found = await sessionRepository(tx).liveByIds([liveId, newId()], 1800, now);
     expect(found.map((s) => s.id)).toEqual([liveId]);
   });
 });
 
 it('returns an empty list for no ids without touching the database', async () => {
-  await withRealm(app.db, realmId, async (tx) => {
+  await withTenant(app.db, tenantId, async (tx) => {
     expect(await sessionRepository(tx).liveByIds([], 1800, now)).toEqual([]);
   });
 });
 
-it('cannot see a live session belonging to another realm', async () => {
-  await withRealm(app.db, otherRealmId, async (tx) => {
+it('cannot see a live session belonging to another tenant', async () => {
+  await withTenant(app.db, otherTenantId, async (tx) => {
     expect(await sessionRepository(tx).liveByIds([liveId], 1800, now)).toEqual([]);
   });
 });
 
 it('ends several sessions at once, and ending an already-dead one is a no-op', async () => {
-  await withRealm(app.db, realmId, async (tx) => {
+  await withTenant(app.db, tenantId, async (tx) => {
     const repo = sessionRepository(tx);
     await repo.endMany([liveId, deadId], now);
     expect(await repo.liveByIds([liveId, deadId], 1800, now)).toEqual([]);
@@ -725,11 +725,11 @@ it('holds the cap when two logins arrive at once', async () => {
   await seedLiveSessions(cap);
 
   const [first, second] = await Promise.all([
-    withRealm(app.db, realmId, (tx) => admitSession(tx, newId())),
-    withRealm(app.db, realmId, (tx) => admitSession(tx, newId())),
+    withTenant(app.db, tenantId, (tx) => admitSession(tx, newId())),
+    withTenant(app.db, tenantId, (tx) => admitSession(tx, newId())),
   ]);
 
-  await withRealm(app.db, realmId, async (tx) => {
+  await withTenant(app.db, tenantId, async (tx) => {
     const live = await sessionRepository(tx).liveByIds([...seeded, first.id, second.id], 1800, now);
     expect(live.length).toBeLessThanOrEqual(cap);
     expect(live.map((s) => s.id)).toEqual(expect.arrayContaining([first.id, second.id]));
@@ -763,7 +763,7 @@ git commit -m "Read and bound a browser's set of live sessions"
 **Interfaces:**
 
 - Consumes: `sessionCookies`, `readSessionIds`, `clearedSessionCookies`, `liveByIds`.
-- Produces: `resolveSessions(realm, header): Promise<SessionRecord[]>` in place of `resolveSession`.
+- Produces: `resolveSessions(tenant, header): Promise<SessionRecord[]>` in place of `resolveSession`.
 
 - [ ] **Step 1: Write the failing test that holds routes to the authority**
 
@@ -802,7 +802,7 @@ Both build the same array today. Replace each with, keeping the existing `outcom
 
 ```ts
 const written = sessionCookies({
-  realm: request.params.realm,
+  tenant: request.params.tenant,
   tls: deps.tls,
   ephemeral: outcome.ephemeralSessionIds,
   persistent: outcome.persistentSessionIds,
@@ -814,13 +814,13 @@ for (const cookie of written) reply302.header('set-cookie', cookie);
 return reply302.header('location', outcome.location).send();
 ```
 
-Until Task 7 introduces remembering, `persistentSessionIds` is always empty and `persistentMaxAgeSeconds` is the realm's `sso_session_max_seconds`; the usecase supplies both.
+Until Task 7 introduces remembering, `persistentSessionIds` is always empty and `persistentMaxAgeSeconds` is the tenant's `sso_session_max_seconds`; the usecase supplies both.
 
 - [ ] **Step 4: Replace `clearedCookie` in `logout.ts`**
 
 ```ts
 if (sessionEnded) {
-  for (const cookie of clearedSessionCookies(request.params.realm, deps.tls)) {
+  for (const cookie of clearedSessionCookies(request.params.tenant, deps.tls)) {
     reply.header('set-cookie', cookie);
   }
 }
@@ -833,12 +833,12 @@ Delete the local `clearedCookie` helper and the comment at `logout.ts:51` saying
 In `packages/protocol-oidc/src/index.ts:379` and `:532`, replace each `resolveSession` with:
 
 ```ts
-      resolveSessions: async (realm, header) => {
-        const ids = readSessionIds(header, realm.name, tls);
-        return withRealm(database.db, realm.id, async (tx) =>
+      resolveSessions: async (tenant, header) => {
+        const ids = readSessionIds(header, tenant.name, tls);
+        return withTenant(database.db, tenant.id, async (tx) =>
           sessionRepository(tx).liveByIds(
             [...ids.ephemeral, ...ids.persistent],
-            realm.ssoSessionIdleSeconds,
+            tenant.ssoSessionIdleSeconds,
             new Date(),
           ),
         );
@@ -850,7 +850,7 @@ In `packages/protocol-oidc/src/index.ts:379` and `:532`, replace each `resolveSe
 In `handleLogoutConfirmation`, the posted `confirmedSessionId` is now compared against membership in the resolved set:
 
 ```ts
-const sessions = await deps.resolveSessions(realm, header);
+const sessions = await deps.resolveSessions(tenant, header);
 const confirmed = sessions.find((session) => session.id === params.confirmedSessionId);
 if (confirmed === undefined) return { kind: 'unauthenticated' };
 ```
@@ -894,21 +894,21 @@ Both pull requests open **here**, with the first push, because a branch with no 
 
 **Branch:** `p3b/2-remember-me`, from the integration branch, with a pull request into it.
 
-A realm may offer it, a login may ask for it, and a session that asked is measured against a second pair of lifespans and carried in the persistent cookie.
+A tenant may offer it, a login may ask for it, and a session that asked is measured against a second pair of lifespans and carried in the persistent cookie.
 
 ### Task 6: The second lifespan pair, and which pair applies
 
 **Files:**
 
 - Create: `packages/db/drizzle/0049_realm_remember_me.sql`
-- Modify: `packages/domain-tenant/src/schema/realms.ts`
-- Modify: `packages/domain-tenant/src/service/realm-settings.ts`
+- Modify: `packages/domain-tenant/src/schema/tenants.ts`
+- Modify: `packages/domain-tenant/src/service/tenant-settings.ts`
 - Create: `packages/authn-flows/src/service/session-lifespan.ts`
 - Create: `packages/authn-flows/src/service/session-lifespan.test.ts`
 
 **Interfaces:**
 
-- Produces: `lifespanFor(realm, remembered): { idleSeconds: number; maxSeconds: number }`, and the settings `remember_me_allowed`, `remember_me_idle_seconds`, `remember_me_max_seconds`.
+- Produces: `lifespanFor(tenant, remembered): { idleSeconds: number; maxSeconds: number }`, and the settings `remember_me_allowed`, `remember_me_idle_seconds`, `remember_me_max_seconds`.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -916,7 +916,7 @@ A realm may offer it, a login may ask for it, and a session that asked is measur
 import { describe, expect, it } from 'vitest';
 import { lifespanFor } from '#/service/session-lifespan';
 
-const realm = {
+const tenant = {
   ssoSessionIdleSeconds: 1800,
   ssoSessionMaxSeconds: 36000,
   rememberMeIdleSeconds: 604800,
@@ -925,11 +925,11 @@ const realm = {
 
 describe('lifespanFor', () => {
   it('uses the ordinary pair for a login that did not ask to be remembered', () => {
-    expect(lifespanFor(realm, false)).toEqual({ idleSeconds: 1800, maxSeconds: 36000 });
+    expect(lifespanFor(tenant, false)).toEqual({ idleSeconds: 1800, maxSeconds: 36000 });
   });
 
   it('uses the remembered pair for one that did', () => {
-    expect(lifespanFor(realm, true)).toEqual({ idleSeconds: 604800, maxSeconds: 2592000 });
+    expect(lifespanFor(tenant, true)).toEqual({ idleSeconds: 604800, maxSeconds: 2592000 });
   });
 });
 ```
@@ -942,25 +942,25 @@ Expected: FAIL — cannot resolve `#/service/session-lifespan`.
 - [ ] **Step 3: Write the migration**
 
 ```sql
--- A realm may offer "remember me"; a login that takes it is measured
+-- A tenant may offer "remember me"; a login that takes it is measured
 -- against this pair instead of sso_session_*. The ranges and the
 -- idle <= max rule are CHECK constraints for the same reason 0028's are:
 -- a policy no writer may bypass belongs at the database.
-ALTER TABLE realms ADD COLUMN remember_me_allowed boolean NOT NULL DEFAULT false;
-ALTER TABLE realms ADD COLUMN remember_me_idle_seconds integer NOT NULL DEFAULT 604800;
-ALTER TABLE realms ADD COLUMN remember_me_max_seconds integer NOT NULL DEFAULT 2592000;
+ALTER TABLE tenants ADD COLUMN remember_me_allowed boolean NOT NULL DEFAULT false;
+ALTER TABLE tenants ADD COLUMN remember_me_idle_seconds integer NOT NULL DEFAULT 604800;
+ALTER TABLE tenants ADD COLUMN remember_me_max_seconds integer NOT NULL DEFAULT 2592000;
 
-ALTER TABLE realms ADD CONSTRAINT realms_remember_me_idle_range
+ALTER TABLE tenants ADD CONSTRAINT tenants_remember_me_idle_range
   CHECK (remember_me_idle_seconds BETWEEN 60 AND 31536000);
-ALTER TABLE realms ADD CONSTRAINT realms_remember_me_max_range
+ALTER TABLE tenants ADD CONSTRAINT tenants_remember_me_max_range
   CHECK (remember_me_max_seconds BETWEEN 60 AND 31536000);
-ALTER TABLE realms ADD CONSTRAINT realms_remember_me_idle_within_max
+ALTER TABLE tenants ADD CONSTRAINT tenants_remember_me_idle_within_max
   CHECK (remember_me_idle_seconds <= remember_me_max_seconds);
 ```
 
 - [ ] **Step 4: Declare the columns and the settings**
 
-In `realms.ts`, three columns matching the names above. In `realm-settings.ts`'s `SETTINGS`:
+In `tenants.ts`, three columns matching the names above. In `tenant-settings.ts`'s `SETTINGS`:
 
 ```ts
   remember_me_allowed: { column: 'rememberMeAllowed', type: 'boolean' },
@@ -982,25 +982,25 @@ export interface SessionLifespans {
 // idle window a request checks and the ceiling its row was created with
 // can never come from different pairs.
 export function lifespanFor(
-  realm: SessionLifespans,
+  tenant: SessionLifespans,
   remembered: boolean,
 ): { idleSeconds: number; maxSeconds: number } {
   return remembered
-    ? { idleSeconds: realm.rememberMeIdleSeconds, maxSeconds: realm.rememberMeMaxSeconds }
-    : { idleSeconds: realm.ssoSessionIdleSeconds, maxSeconds: realm.ssoSessionMaxSeconds };
+    ? { idleSeconds: tenant.rememberMeIdleSeconds, maxSeconds: tenant.rememberMeMaxSeconds }
+    : { idleSeconds: tenant.ssoSessionIdleSeconds, maxSeconds: tenant.ssoSessionMaxSeconds };
 }
 ```
 
 - [ ] **Step 6: Make `liveByIds` measure each session against its own pair**
 
-`liveByIds` takes one `idleSeconds` today, which is wrong the moment a browser holds a remembered session beside an ordinary one. Change its signature to take the realm's lifespans and apply `lifespanFor(realm, record.remembered)` per record. Update Task 4's tests for the new signature, and add:
+`liveByIds` takes one `idleSeconds` today, which is wrong the moment a browser holds a remembered session beside an ordinary one. Change its signature to take the tenant's lifespans and apply `lifespanFor(tenant, record.remembered)` per record. Update Task 4's tests for the new signature, and add:
 
 ```ts
 it('measures a remembered session against the remembered idle window', async () => {
   // idle for two days: dead under sso_session_idle_seconds, live under the
   // remembered pair.
-  await withRealm(app.db, realmId, async (tx) => {
-    const live = await sessionRepository(tx).liveByIds([rememberedId, ordinaryId], realm, now);
+  await withTenant(app.db, tenantId, async (tx) => {
+    const live = await sessionRepository(tx).liveByIds([rememberedId, ordinaryId], tenant, now);
     expect(live.map((s) => s.id)).toEqual([rememberedId]);
   });
 });
@@ -1036,7 +1036,7 @@ git commit -m "Add the remembered session lifespans and pick a pair"
 - [ ] **Step 1: Write the failing renderer test**
 
 ```ts
-it('offers remember me when the realm allows it', () => {
+it('offers remember me when the tenant allows it', () => {
   const page = renderAuthorizePage({ ...base, rememberMeAllowed: true });
   expect(page.body).toContain(
     '<input type="checkbox" name="remember_me" id="remember-me" value="true">',
@@ -1044,7 +1044,7 @@ it('offers remember me when the realm allows it', () => {
   expect(page.body).toContain('Remember me');
 });
 
-it('offers nothing when the realm does not allow it', () => {
+it('offers nothing when the tenant does not allow it', () => {
   const page = renderAuthorizePage({ ...base, rememberMeAllowed: false });
   expect(page.body).not.toContain('remember_me');
 });
@@ -1069,7 +1069,7 @@ it('carries a remembered login in the persistent cookie, with Max-Age', async ()
 
   const cookies = response.headers['set-cookie'];
   const persistent = cookies.find((c) => c.includes('-session-persistent='));
-  expect(persistent).toContain(`Max-Age=${realm.rememberMeMaxSeconds}`);
+  expect(persistent).toContain(`Max-Age=${tenant.rememberMeMaxSeconds}`);
   expect(cookies.find((c) => c.startsWith(ephemeralName))).toContain('Max-Age=0');
 });
 
@@ -1080,8 +1080,8 @@ it('carries an ordinary login in the ephemeral cookie, with no Max-Age', async (
   expect(cookies.find((c) => c.startsWith(ephemeralName))).not.toContain('Max-Age');
 });
 
-it('refuses to remember when the realm does not allow it', async () => {
-  await setRealm({ remember_me_allowed: false });
+it('refuses to remember when the tenant does not allow it', async () => {
+  await setTenant({ remember_me_allowed: false });
 
   const response = await postLogin({ remember_me: 'true' });
 
@@ -1093,7 +1093,7 @@ it('refuses to remember when the realm does not allow it', async () => {
 });
 ```
 
-The third is the one that matters: `remember_me` arrives in a form body from an unauthenticated browser, so the realm setting is the authority and the field is a request.
+The third is the one that matters: `remember_me` arrives in a form body from an unauthenticated browser, so the tenant setting is the authority and the field is a request.
 
 - [ ] **Step 5: Run it to verify it fails**
 
@@ -1102,7 +1102,7 @@ Expected: FAIL — no persistent cookie is written.
 
 - [ ] **Step 6: Implement it**
 
-In `login-submission.ts`, read the field, gate it on `realm.rememberMeAllowed`, pass the result to `lifespanFor` for the session's `expiresAt`, store `remembered`, and return the new session's id in `persistentSessionIds` when remembered and `ephemeralSessionIds` otherwise — each list being the browser's surviving ids plus this one, minus anything Task 4's eviction chose.
+In `login-submission.ts`, read the field, gate it on `tenant.rememberMeAllowed`, pass the result to `lifespanFor` for the session's `expiresAt`, store `remembered`, and return the new session's id in `persistentSessionIds` when remembered and `ephemeralSessionIds` otherwise — each list being the browser's surviving ids plus this one, minus anything Task 4's eviction chose.
 
 - [ ] **Step 7: Run the tests**
 
@@ -1111,7 +1111,7 @@ Expected: PASS.
 
 - [ ] **Step 8: Update the documentation**
 
-`README.md` and `docs/request-paths.md` both describe the login form and the session cookie. Add remember me: the three settings, the checkbox, which cookie carries the id, and the fact that a realm with `remember_me_allowed=false` ignores the field. Re-run the login transcript.
+`README.md` and `docs/request-paths.md` both describe the login form and the session cookie. Add remember me: the three settings, the checkbox, which cookie carries the id, and the fact that a tenant with `remember_me_allowed=false` ignores the field. Re-run the login transcript.
 
 - [ ] **Step 9: Commit and push**
 
@@ -1302,7 +1302,7 @@ git commit -m "Decide session reuse over a set of sessions"
 
 ```ts
 const base = {
-  realm: 'demo',
+  tenant: 'demo',
   authSessionId: 'a-session',
   accounts: [
     { sessionId: 's1', displayName: 'alice@example.test' },
@@ -1861,8 +1861,8 @@ it('stops retrying after the attempt limit', async () => {
   expect(await repo.claimDue(farFuture, 10)).toEqual([]);
 });
 
-it('cannot see another realm's deliveries', async () => {
-  await withRealm(app.db, otherRealmId, async (tx) => {
+it('cannot see another tenant's deliveries', async () => {
+  await withTenant(app.db, otherTenantId, async (tx) => {
     expect(await logoutDeliveryRepository(tx).claimDue(now, 10)).toEqual([]);
   });
 });
@@ -1875,7 +1875,7 @@ Expected: FAIL — the table does not exist.
 
 - [ ] **Step 3: Write the migration**
 
-Model it on `0043_email_outbox.sql`, including the realm-leading indexes and the RLS policy:
+Model it on `0043_email_outbox.sql`, including the tenant-leading indexes and the RLS policy:
 
 ```sql
 -- One row per relying party that must be told a session ended. Written in
@@ -1883,7 +1883,7 @@ Model it on `0043_email_outbox.sql`, including the realm-leading indexes and the
 -- to a crash between the two, and drained by `odudu send-logouts`.
 CREATE TABLE backchannel_logout_deliveries (
   id uuid PRIMARY KEY,
-  realm_id uuid NOT NULL REFERENCES realms (id) ON DELETE CASCADE,
+  tenant_id uuid NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
   client_id uuid NOT NULL,
   endpoint text NOT NULL,
   logout_token text NOT NULL,
@@ -1898,14 +1898,14 @@ ALTER TABLE backchannel_logout_deliveries ENABLE ROW LEVEL SECURITY;
 ALTER TABLE backchannel_logout_deliveries FORCE ROW LEVEL SECURITY;
 
 CREATE POLICY backchannel_logout_deliveries_isolation ON backchannel_logout_deliveries
-  USING (realm_id = nullif(current_setting('app.realm_id', true), '')::uuid);
+  USING (tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid);
 
 CREATE INDEX backchannel_logout_deliveries_pending
-  ON backchannel_logout_deliveries (realm_id, next_attempt_at)
+  ON backchannel_logout_deliveries (tenant_id, next_attempt_at)
   WHERE delivered_at IS NULL;
 
 CREATE INDEX backchannel_logout_deliveries_by_delivered
-  ON backchannel_logout_deliveries (realm_id, delivered_at);
+  ON backchannel_logout_deliveries (tenant_id, delivered_at);
 ```
 
 The logout token is stored rather than minted at send time: it is signed at the moment the session ended, and re-minting later would date it from the attempt rather than the event.
@@ -1943,7 +1943,7 @@ git commit -m "Add the back-channel logout delivery queue"
 ```ts
 describe('logoutTokenClaims', () => {
   const claims = logoutTokenClaims({
-    issuer: 'https://op.example/realms/demo',
+    issuer: 'https://op.example/tenants/demo',
     audience: 'rp-one',
     subject: 'subject-1',
     sessionId: 'session-1',
@@ -1951,7 +1951,7 @@ describe('logoutTokenClaims', () => {
   });
 
   it('carries iss, aud, iat, exp and jti', () => {
-    expect(claims.iss).toBe('https://op.example/realms/demo');
+    expect(claims.iss).toBe('https://op.example/tenants/demo');
     expect(claims.aud).toBe('rp-one');
     expect(claims.iat).toBe(1789812000);
     expect(claims.jti).toMatch(/^[0-9a-f-]{36}$/u);
@@ -2158,7 +2158,7 @@ describe('sendLogouts', () => {
 });
 ```
 
-The fourth is the Review Focus item: without a response timeout one relying party stops the queue draining for every realm. The transport carries both a connect and a response deadline, as `apps/server/src/client-key-transport.ts` already does — read it rather than inventing a second policy.
+The fourth is the Review Focus item: without a response timeout one relying party stops the queue draining for every tenant. The transport carries both a connect and a response deadline, as `apps/server/src/client-key-transport.ts` already does — read it rather than inventing a second policy.
 
 - [ ] **Step 2: Run it to verify it fails**
 
@@ -2232,7 +2232,7 @@ Expected: FAIL — module not found.
 
 - [ ] **Step 3: Write the command**
 
-`apps/server/src/cli/send-logouts.ts`, copying `cli/send-mail.ts`: open the database, iterate the realms, call `sendLogouts` with `new Date()`, return counts. All the logic is here, none of it in the loop.
+`apps/server/src/cli/send-logouts.ts`, copying `cli/send-mail.ts`: open the database, iterate the tenants, call `sendLogouts` with `new Date()`, return counts. All the logic is here, none of it in the loop.
 
 - [ ] **Step 4: Write the loop**
 
@@ -2622,8 +2622,8 @@ it('refuses a hint minted for another client', async () => {
   expect(new URL(response.headers.location).searchParams.get('error')).toBe('invalid_request');
 });
 
-it('refuses a hint from another realm even when its signature verifies', async () => {
-  const response = await authorize({ id_token_hint: hintFromOtherRealm, client_id: 'client-a' });
+it('refuses a hint from another tenant even when its signature verifies', async () => {
+  const response = await authorize({ id_token_hint: hintFromOtherTenant, client_id: 'client-a' });
   expect(new URL(response.headers.location).searchParams.get('error')).toBe('invalid_request');
 });
 ```
@@ -2751,8 +2751,8 @@ describe('introspect', () => {
     });
   });
 
-  it('answers inactive for a token signed by another realm', async () => {
-    expect(await introspect(deps, { token: foreignRealmToken, caller }, now)).toEqual({
+  it('answers inactive for a token signed by another tenant', async () => {
+    expect(await introspect(deps, { token: foreignTenantToken, caller }, now)).toEqual({
       active: false,
     });
   });
@@ -2768,7 +2768,7 @@ Expected: FAIL — module not found.
 
 - [ ] **Step 3: Implement it**
 
-Verify the token against the realm's own keys, load its grant, and answer `{ active: false }` — with no other member — whenever verification fails, the grant is revoked, the session named by `sid` is not live, or the caller is not in `aud`. Every "no" produces the identical response, so the endpoint cannot be used to tell one reason from another.
+Verify the token against the tenant's own keys, load its grant, and answer `{ active: false }` — with no other member — whenever verification fails, the grant is revoked, the session named by `sid` is not live, or the caller is not in `aud`. Every "no" produces the identical response, so the endpoint cannot be used to tell one reason from another.
 
 - [ ] **Step 4: Run it and commit**
 
@@ -3111,8 +3111,8 @@ it('admits the same jti from a different client', async () => {
   expect(await repo.claim('client-b', 'jti-1', expiresAt)).toBe(true);
 });
 
-it('cannot see a jti claimed in another realm', async () => {
-  await withRealm(app.db, otherRealmId, async (tx) => {
+it('cannot see a jti claimed in another tenant', async () => {
+  await withTenant(app.db, otherTenantId, async (tx) => {
     expect(await assertionJtiRepository(tx).claim('client-a', 'jti-1', expiresAt)).toBe(true);
   });
 });
@@ -3135,23 +3135,23 @@ Expected: FAIL — the table does not exist.
 ```sql
 -- Every jti a client assertion has spent, until that assertion could no
 -- longer be replayed. The primary key is what rejects a replay: a second
--- insert of the same (realm, client, jti) conflicts rather than being
+-- insert of the same (tenant, client, jti) conflicts rather than being
 -- looked up and raced.
 CREATE TABLE client_assertion_jti (
-  realm_id uuid NOT NULL REFERENCES realms (id) ON DELETE CASCADE,
+  tenant_id uuid NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
   client_id text NOT NULL,
   jti text NOT NULL,
   expires_at timestamptz NOT NULL,
-  PRIMARY KEY (realm_id, client_id, jti)
+  PRIMARY KEY (tenant_id, client_id, jti)
 );
 
 ALTER TABLE client_assertion_jti ENABLE ROW LEVEL SECURITY;
 ALTER TABLE client_assertion_jti FORCE ROW LEVEL SECURITY;
 
 CREATE POLICY client_assertion_jti_isolation ON client_assertion_jti
-  USING (realm_id = nullif(current_setting('app.realm_id', true), '')::uuid);
+  USING (tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid);
 
-CREATE INDEX client_assertion_jti_expiry ON client_assertion_jti (realm_id, expires_at);
+CREATE INDEX client_assertion_jti_expiry ON client_assertion_jti (tenant_id, expires_at);
 ```
 
 - [ ] **Step 4: Implement `claim` and the retention pass**

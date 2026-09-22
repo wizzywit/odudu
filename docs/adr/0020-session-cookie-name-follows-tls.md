@@ -2,6 +2,8 @@
 
 **Status:** Accepted · 2026-09-13
 
+**Renamed 2026-09-22:** written when a tenant was called a realm; the decision is unchanged.
+
 ## Context
 
 The `__Host-` cookie name prefix is the strongest binding a cookie can
@@ -17,12 +19,12 @@ complete, with nothing said anywhere about why.
 Two ways out were considered:
 
 **(a)** Always `__Host-`, and stand up local HTTPS now.
-**(b)** `__Host-<realm>-session` when TLS is on, `<realm>-session` without
+**(b)** `__Host-<tenant>-session` when TLS is on, `<tenant>-session` without
 `Secure` otherwise, plus a boot-time warning while the fallback is active.
 
 ## Decision
 
-**(b).** `sessionCookieName(realm, tls)`
+**(b).** `sessionCookieName(tenant, tls)`
 (`packages/authn-flows/src/service/session-cookie.ts`) is the only place the
 name is decided.
 

@@ -631,7 +631,7 @@ transactions ran under the same realm or different realms.
 Probe written as a throwaway integration test, `packages/db/tests/advisory-lock-spike.int.test.ts`,
 using this repository's real harness (`startTestDatabase` and
 `createAppRole` from `@odudu/testkit`), following `packages/db/tests/tx.int.test.ts`'s
-shape — the brief's own `testDatabase()`/`seedRealm(db)` shorthand does not
+shape — the brief's own `testDatabase()`/`seedTenant(db)` shorthand does not
 exist in this repository.
 
 ```ts

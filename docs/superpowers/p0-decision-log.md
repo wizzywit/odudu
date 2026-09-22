@@ -212,11 +212,11 @@ them into Task 7's dispatch, which legitimately edits every file involved:
 all four Importants enter the loop, plus two Minors that are really
 coverage holes in a security predicate.
 
-- Nested `withRealm` rebinds the realm for the remainder of the OUTER
+- Nested `withTenant` rebinds the tenant for the remainder of the OUTER
   transaction. set_config(..., true) is transaction-scoped, not
-  savepoint-scoped, so a successful inner block leaves app.realm_id = B
+  savepoint-scoped, so a successful inner block leaves app.tenant_id = B
   while the outer author believes they are bound to A. That is precisely
-  the cross-realm read this task exists to prevent, arriving through the
+  the cross-tenant read this task exists to prevent, arriving through the
   helper rather than around it. Fixing structurally with a branded callback
   type, per ADR 0009's own "omitting it fails to compile" standard.
 - The callback handle is typed as an unscoped, unexpiring `Database`, so it
@@ -318,7 +318,7 @@ all three Importants enter the loop.
   third order and it is the production one: role created after migrations
   with nothing playing testkit's part. Drizzle marks 0002 applied on that
   first run, so no redeploy repairs it, and /health/ready still returns 200
-  while every query on realms raises permission denied. Healthy-but-broken
+  while every query on tenants raises permission denied. Healthy-but-broken
   is worse than loud.
 - compose commits fixed credentials, publishes Postgres and the app on all
   host interfaces, and carries nothing marking it development-only — in a
@@ -368,7 +368,7 @@ whose behaviour differs from production's. Fixing before merge.
 ## 29
 
 also fixing before merge, per the reviewer's triage — the RLS coverage
-assertion ignoring policy predicates, withRealm's missing uuid validation,
+assertion ignoring policy predicates, withTenant's missing uuid validation,
 trustProxy becoming config-driven before rate limiting and audit depend on
 request.ip, the boundaries script's fail-open conditional, the vacuous smoke
 assertion (count=0 on an empty table holds whether or not RLS works), the

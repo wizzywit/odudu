@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** A client can register itself under a realm policy that is closed by default, describe itself with the metadata P3b reads, and be approved by a user on a consent screen whose grant is recorded and asked against again.
+**Goal:** A client can register itself under a tenant policy that is closed by default, describe itself with the metadata P3b reads, and be approved by a user on a consent screen whose grant is recorded and asked against again.
 
-**Architecture:** No new packages, one new tool. `domain-tenant` grows the consent model, initial access tokens and two realm settings. `protocol-oidc` grows the registration endpoint, the consent screen and the consent gate — which sits on **two** paths, not one, because `completeReuse` issues a code without passing through `handleLoginSubmission`. `kernel` gains the page-header contract that collapses the server's two HTML exits into one authority. The first outbound HTTP this server has ever made arrives here, pointed at a URL an attacker supplies, so its address guard is a pure function tested without a network.
+**Architecture:** No new packages, one new tool. `domain-tenant` grows the consent model, initial access tokens and two tenant settings. `protocol-oidc` grows the registration endpoint, the consent screen and the consent gate — which sits on **two** paths, not one, because `completeReuse` issues a code without passing through `handleLoginSubmission`. `kernel` gains the page-header contract that collapses the server's two HTML exits into one authority. The first outbound HTTP this server has ever made arrives here, pointed at a URL an attacker supplies, so its address guard is a pure function tested without a network.
 
 **Tech Stack:** Node 24, TypeScript 6.0.3, Fastify 5.12.3, PostgreSQL 17, Drizzle ORM 0.45.2, Zod 4.6.1, Vitest 5.0.0, Testcontainers 12.1.0, jose 6.2.12, @node-rs/argon2 2.2.1. No new runtime dependency is planned: `jose` already imports JWKS, and the fetcher is `node:https` plus `node:dns`.
 
@@ -29,13 +29,13 @@ Everything in P0's, P1's, P2a's and P2b's plans still binds. Repeated here becau
 - Test-driven: the failing test is written and observed failing before implementation.
 - **"Reuse the existing function" carries that function's preconditions, and they are load-bearing.** A claim that an existing function is safe under a new caller is an `assumption:`, not a fact, and its precondition belongs in the task text.
 - **An injected clock cannot move the database's clock.** Anything enforced in SQL against `now()` is untestable with a fake clock. Back-date the row through the owner connection instead.
-- **The integration-test harness is the package's existing one.** `@odudu/testkit` exports exactly `createAppRole`, `startTestDatabase`, `TestDatabase`, `softwareAuthenticator`, `softwareRegistrationResponse` and the WebAuthn types — there is no `testDatabase()` and no `seedRealm()`. verified: `cat packages/testkit/src/index.ts`, 2026-09-18. Copy the setup from the nearest existing `*.int.test.ts` in the package you are working in. For a foreign-`realm_id` probe use **`expectCrossRealmMethodProbe` from `@odudu/db/testing`**, which exports exactly `expectCrossRealmMethodProbe`, `expectRealmIsolation`, `CrossRealmMethodProbe` and `RealmProbe`. verified: `sed -n '/^export {/,/}/p' packages/db/src/testing.ts`, 2026-09-18.
+- **The integration-test harness is the package's existing one.** `@odudu/testkit` exports exactly `createAppRole`, `startTestDatabase`, `TestDatabase`, `softwareAuthenticator`, `softwareRegistrationResponse` and the WebAuthn types — there is no `testDatabase()` and no `seedTenant()`. verified: `cat packages/testkit/src/index.ts`, 2026-09-18. Copy the setup from the nearest existing `*.int.test.ts` in the package you are working in. For a foreign-`tenant_id` probe use **`expectCrossTenantMethodProbe` from `@odudu/db/testing`**, which exports exactly `expectCrossTenantMethodProbe`, `expectTenantIsolation`, `CrossTenantMethodProbe` and `TenantProbe`. verified: `sed -n '/^export {/,/}/p' packages/db/src/testing.ts`, 2026-09-18.
 - **How to run tests.** No package declares a `test` script. Vitest is configured at the root with two projects selected by path: `{packages,apps}/*/src/**/*.test.ts` for `unit`, `{packages,apps}/*/tests/**/*.int.test.ts` for `integration`. Run one file with `pnpm exec vitest run --project integration <fragment>`, and the whole suite with `pnpm test`. `tests/docs/` and `tests/lint/` live in the **unit** project despite the directory name: `pnpm exec vitest run --project unit tests/`.
 - **Before every commit**, in this order: `pnpm typecheck`, `pnpm lint`, `pnpm boundaries`, your focused tests, `pnpm trace`, and `pnpm exec prettier --check .` **last**, after every edit including documentation.
 - **Run tests in the foreground and read the output yourself.**
 - Integration tests run against real PostgreSQL via Testcontainers, never a mock. `*.int.test.ts` in a package's `tests/`; unit tests beside the code as `*.test.ts`.
-- **Every repository method is probed with a foreign `realm_id`** — every method, writers included. A writer is the method most worth probing: a read is filtered by the row's own `realm_id`, while an insert supplies one from its caller.
-- **`SET LOCAL`, never `SET`.** Use `withRealm(db, realmId, fn)` from `@odudu/db`.
+- **Every repository method is probed with a foreign `tenant_id`** — every method, writers included. A writer is the method most worth probing: a read is filtered by the row's own `tenant_id`, while an insert supplies one from its caller.
+- **`SET LOCAL`, never `SET`.** Use `withTenant(db, tenantId, fn)` from `@odudu/db`.
 - Domain packages never import protocol packages. Protocol packages never import each other. Layer imports follow ADR 0010.
 - Migrations are hand-authored SQL in `packages/db/drizzle/`, never generated, and each needs an entry appended to `packages/db/drizzle/meta/_journal.json` with the next `idx` and a `when` greater than the previous. **The last entry is `idx` 44, `tag` `0044_authentication_sessions_authenticated`, `when` 1789049381687.** verified: read `packages/db/drizzle/meta/_journal.json`, 2026-09-18. Every new tenant table needs `ENABLE` + `FORCE ROW LEVEL SECURITY` and a policy in the same migration.
 - **`pnpm trace` runs strict.** A new MUST that is not `covered` fails the build. A new `deferred:` or `n/a:` row must move the count in `tools/trace/silenced-musts.json` in the same diff. The current census is `oidc-core.md` 11 deferred / 29 n/a, `rfc6749.md` 9 / 26, `oidc-backchannel.md` 14 / 7, `rfc9068.md` 2 / 3. verified: `cat tools/trace/silenced-musts.json`, 2026-09-18.
@@ -78,43 +78,43 @@ Leave a thread open only where a question is genuinely still open. **Never resol
 
 - **Consent gates two paths, not one.** `handleLoginSubmission` (`packages/protocol-oidc/src/usecase/login-submission.ts:203`) is the form path; `handleAuthorizationRequest`'s `completeReuse` (`packages/protocol-oidc/src/usecase/authorization-request.ts:88`) issues a code from a reused SSO session **without passing through it at all**. A consent gate on the form path alone means a client with `consent_required` is asked once and never again, which is the opposite of the feature. verified: read both files, 2026-09-18.
 - **Consent leaves the authentication session unconsumed**, exactly as `required_action` and `unverified` already do, so the same parked request survives the detour. The union at `login-submission.ts` documents both; a third joins them, and the reasoning for why it must be decided _before_ `completeLogin` rather than after is the same.
-- **P3a registers metadata and advertises none of it.** `backchannel_logout_supported`, `frontchannel_logout_supported`, `userinfo_signing_alg_values_supported`, `userinfo_encryption_alg_values_supported`, `introspection_endpoint` and `revocation_endpoint` stay **absent** from the discovery document until P3b implements the behaviour. `docs/protocols/oidc-backchannel.md:25` records why: advertising one would "claim a capability the OP does not have". `registration_endpoint` is the exception — P3a implements it, so it is advertised, and only when the realm's policy is not `disabled`.
+- **P3a registers metadata and advertises none of it.** `backchannel_logout_supported`, `frontchannel_logout_supported`, `userinfo_signing_alg_values_supported`, `userinfo_encryption_alg_values_supported`, `introspection_endpoint` and `revocation_endpoint` stay **absent** from the discovery document until P3b implements the behaviour. `docs/protocols/oidc-backchannel.md:25` records why: advertising one would "claim a capability the OP does not have". `registration_endpoint` is the exception — P3a implements it, so it is advertised, and only when the tenant's policy is not `disabled`.
 - **`domain-tenant` must not depend on `domain-identity`.** Its dependencies are `@odudu/db`, `@odudu/kernel` and `drizzle-orm` only. The comment at `packages/domain-tenant/src/service/client.ts:2` states the rule and shows the remedy: inject the capability, as `verifyClientSecret` injects its Argon2id comparator. verified: `sed -n '/"dependencies"/,/}/p' packages/domain-tenant/package.json`, 2026-09-18.
 - **A `jwks_uri` is an attacker-supplied URL fetched from inside the perimeter.** No `http`, no redirects, no private or loopback address, and the address is checked **after** resolution and connected to by address — checking a hostname and letting the client resolve again is a DNS-rebinding hole. Spec section 6.
 - **The server has never made an outbound HTTP request.** verified: `grep -rn "fetch(\|undici\|axios" --include="*.ts" packages apps` returns one hit, `packages/protocol-oidc/src/view/authorize-html.ts:109`, which is browser-side script inside a rendered page, 2026-09-18. There is no existing pattern to copy and no egress allowlist to extend.
 - **The consent page is rendered by `protocol-oidc/src/view/consent-html.ts`** and leaves through the shared header contract like every other page. It is the first page written against the new contract, which is why the contract lands before it.
-- **`client_id` is assigned by the server, never proposed by the client** (RFC 7591 §2). `clients_client_id_unique (realm_id, client_id)` already enforces uniqueness.
+- **`client_id` is assigned by the server, never proposed by the client** (RFC 7591 §2). `clients_client_id_unique (tenant_id, client_id)` already enforces uniqueness.
 - **An initial access token is not a password.** It is 256 bits of `randomBytes` stored as a SHA-256 hex digest and found by that digest, exactly as `action_tokens` already does. verified: `packages/account/src/repository/action-tokens.ts:18`. Argon2id is wrong here: the value is high-entropy and has to be looked up.
 
 ## File structure
 
 No new packages. One new tool (`tools/commit-message`) already exists on this branch.
 
-| Path                                                                 | Change                                                                                     |
-| -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| `packages/kernel/src/page.ts`                                        | `RenderedPage` gains `body` and `title`; new `pageHeaders` returns the complete header set |
-| `packages/kernel/src/index.ts`                                       | export `pageHeaders`                                                                       |
-| `packages/protocol-oidc/src/view/html-response.ts`                   | `sendHtml` spreads `pageHeaders`; derives no policy of its own                             |
-| `packages/account/src/view/verification-html.ts`                     | `sendVerificationHtml` spreads the same headers; its hand-copied policy goes               |
-| `packages/*/src/view/*-html.ts`                                      | 26 renderers return the page contract (account 13, protocol-oidc 8, authn-flows 5)         |
-| `packages/db/drizzle/0045…0047_*.sql`                                | client metadata, realm settings, consent and registration-token tables                     |
+| Path                                                                  | Change                                                                                     |
+| --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| `packages/kernel/src/page.ts`                                         | `RenderedPage` gains `body` and `title`; new `pageHeaders` returns the complete header set |
+| `packages/kernel/src/index.ts`                                        | export `pageHeaders`                                                                       |
+| `packages/protocol-oidc/src/view/html-response.ts`                    | `sendHtml` spreads `pageHeaders`; derives no policy of its own                             |
+| `packages/account/src/view/verification-html.ts`                      | `sendVerificationHtml` spreads the same headers; its hand-copied policy goes               |
+| `packages/*/src/view/*-html.ts`                                       | 26 renderers return the page contract (account 13, protocol-oidc 8, authn-flows 5)         |
+| `packages/db/drizzle/0045…0047_*.sql`                                 | client metadata, tenant settings, consent and registration-token tables                    |
 | `packages/domain-tenant/src/schema/consents.ts`                       | `consents` and `consent_scopes`                                                            |
 | `packages/domain-tenant/src/repository/consents.ts`                   | read and record a grant                                                                    |
 | `packages/domain-tenant/src/schema/client-registration-tokens.ts`     | initial access tokens                                                                      |
 | `packages/domain-tenant/src/repository/client-registration-tokens.ts` | mint, spend                                                                                |
-| `packages/domain-tenant/src/service/realm-settings.ts`                | two new settings in the `SETTINGS` map                                                     |
-| `packages/protocol-oidc/src/service/client-metadata.ts`              | RFC 7591 validation, pure                                                                  |
-| `packages/protocol-oidc/src/service/remote-address.ts`               | the SSRF address guard, pure                                                               |
-| `packages/protocol-oidc/src/repository/client-keys.ts`               | the bounded, cached JWKS fetcher                                                           |
-| `packages/protocol-oidc/src/usecase/client-registration.ts`          | the registration journey                                                                   |
-| `packages/protocol-oidc/src/view/routes/client-registration.ts`      | the endpoint                                                                               |
-| `packages/protocol-oidc/src/service/consent.ts`                      | the consent decision, pure                                                                 |
-| `packages/protocol-oidc/src/view/consent-html.ts`                    | the screen                                                                                 |
-| `packages/protocol-oidc/src/usecase/consent-submission.ts`           | the POST, and the shared completion tail                                                   |
-| `packages/protocol-oidc/src/usecase/discovery.ts`                    | advertise `registration_endpoint` when the policy allows                                   |
-| `apps/server/src/cli/seed.ts`                                        | `seed registration-token`                                                                  |
-| `apps/server/src/app.ts`                                             | the per-client `/token` limiter                                                            |
-| `infra/conformance/dynamic-op.json`, `run-dynamic-op.sh`             | the third plan                                                                             |
+| `packages/domain-tenant/src/service/tenant-settings.ts`               | two new settings in the `SETTINGS` map                                                     |
+| `packages/protocol-oidc/src/service/client-metadata.ts`               | RFC 7591 validation, pure                                                                  |
+| `packages/protocol-oidc/src/service/remote-address.ts`                | the SSRF address guard, pure                                                               |
+| `packages/protocol-oidc/src/repository/client-keys.ts`                | the bounded, cached JWKS fetcher                                                           |
+| `packages/protocol-oidc/src/usecase/client-registration.ts`           | the registration journey                                                                   |
+| `packages/protocol-oidc/src/view/routes/client-registration.ts`       | the endpoint                                                                               |
+| `packages/protocol-oidc/src/service/consent.ts`                       | the consent decision, pure                                                                 |
+| `packages/protocol-oidc/src/view/consent-html.ts`                     | the screen                                                                                 |
+| `packages/protocol-oidc/src/usecase/consent-submission.ts`            | the POST, and the shared completion tail                                                   |
+| `packages/protocol-oidc/src/usecase/discovery.ts`                     | advertise `registration_endpoint` when the policy allows                                   |
+| `apps/server/src/cli/seed.ts`                                         | `seed registration-token`                                                                  |
+| `apps/server/src/app.ts`                                              | the per-client `/token` limiter                                                            |
+| `infra/conformance/dynamic-op.json`, `run-dynamic-op.sh`              | the third plan                                                                             |
 
 ---
 
@@ -570,20 +570,20 @@ git push && gh pr checks 12 --watch
 
 ## Increment 3 — schema
 
-### Task 5: Client metadata and the two realm settings
+### Task 5: Client metadata and the two tenant settings
 
 **Files:**
 
 - Create: `packages/db/drizzle/0045_client_registration_metadata.sql`
 - Modify: `packages/db/drizzle/meta/_journal.json`
 - Modify: `packages/protocol-oidc/src/schema/client-oidc-config.ts`
-- Modify: `packages/domain-tenant/src/schema/clients.ts`, `packages/db/src/schema/realms.ts` (the realm table is declared in `db`, not `domain-tenant` — verified 2026-09-18)
+- Modify: `packages/domain-tenant/src/schema/clients.ts`, `packages/db/src/schema/tenants.ts` (the tenant table is declared in `db`, not `domain-tenant` — verified 2026-09-18)
 - Test: `packages/db/tests/schema-drift.int.test.ts` (exists, asserts declarations against a migrated database)
 
 **Interfaces:**
 
 - Consumes: nothing.
-- Produces: the columns Tasks 10, 12, 15 and 18 read. `ClientOidcConfig` gains `jwks`, `jwksUri`, `frontchannelLogoutUri`, `backchannelLogoutUri`, `backchannelLogoutSessionRequired`, `consentRequired`, `userinfoSignedResponseAlg`, `userinfoEncryptedResponseAlg`, `userinfoEncryptedResponseEnc`. `ClientRecord` gains `registrationOrigin`. The realm gains `clientRegistrationPolicy` and `maxClients`.
+- Produces: the columns Tasks 10, 12, 15 and 18 read. `ClientOidcConfig` gains `jwks`, `jwksUri`, `frontchannelLogoutUri`, `backchannelLogoutUri`, `backchannelLogoutSessionRequired`, `consentRequired`, `userinfoSignedResponseAlg`, `userinfoEncryptedResponseAlg`, `userinfoEncryptedResponseEnc`. `ClientRecord` gains `registrationOrigin`. The tenant gains `clientRegistrationPolicy` and `maxClients`.
 
 - [ ] **Step 1: Write the migration**
 
@@ -630,14 +630,14 @@ ALTER TABLE clients
   ADD CONSTRAINT clients_registration_origin_check
   CHECK (registration_origin IN ('seeded', 'anonymous', 'token'));
 
-ALTER TABLE realms
+ALTER TABLE tenants
   ADD COLUMN client_registration_policy text NOT NULL DEFAULT 'disabled',
   ADD COLUMN max_clients integer NOT NULL DEFAULT 200;
-ALTER TABLE realms
-  ADD CONSTRAINT realms_client_registration_policy_check
+ALTER TABLE tenants
+  ADD CONSTRAINT tenants_client_registration_policy_check
   CHECK (client_registration_policy IN ('disabled', 'open', 'token'));
-ALTER TABLE realms
-  ADD CONSTRAINT realms_max_clients_range CHECK (max_clients >= 0);
+ALTER TABLE tenants
+  ADD CONSTRAINT tenants_max_clients_range CHECK (max_clients >= 0);
 ```
 
 Append `{"idx": 45, "version": "7", "when": 1789049381688, "tag": "0045_client_registration_metadata", "breakpoints": true}` to `_journal.json`.
@@ -648,7 +648,7 @@ Run `pnpm exec vitest run --project integration schema-drift` **before** editing
 
 - [ ] **Step 3: Add the declarations**
 
-Mirror the SQL in `client-oidc-config.ts`, `clients.ts` and `realms.ts`. `jsonb` is declared `jsonb('jwks')` and typed `unknown` — **not** a hand-written interface. A `jsonb` column is an untyped boundary and the no-`any` rule reaches it; Task 10 narrows it with Zod at the point of use.
+Mirror the SQL in `client-oidc-config.ts`, `clients.ts` and `tenants.ts`. `jsonb` is declared `jsonb('jwks')` and typed `unknown` — **not** a hand-written interface. A `jsonb` column is an untyped boundary and the no-`any` rule reaches it; Task 10 narrows it with Zod at the point of use.
 
 - [ ] **Step 4: Run the drift test**
 
@@ -660,14 +660,14 @@ Expected: PASS.
 
 - [ ] **Step 5: Probe the defaults**
 
-Add to an existing `*.int.test.ts` in `domain-tenant`: a realm created by the current seed path has `client_registration_policy = 'disabled'` and `max_clients = 200`; a client seeded by the current path has `registration_origin = 'seeded'` and `consent_required = false`. **Every existing realm and client must be unchanged in behaviour by this migration** — that is what the defaults are for, and it is the claim most worth a test.
+Add to an existing `*.int.test.ts` in `domain-tenant`: a tenant created by the current seed path has `client_registration_policy = 'disabled'` and `max_clients = 200`; a client seeded by the current path has `registration_origin = 'seeded'` and `consent_required = false`. **Every existing tenant and client must be unchanged in behaviour by this migration** — that is what the defaults are for, and it is the claim most worth a test.
 
 - [ ] **Step 6: Gate, commit, push, watch**
 
 ```bash
 pnpm typecheck && pnpm lint && pnpm boundaries && pnpm exec vitest run --project integration && pnpm exec prettier --check .
 git add packages/db packages/domain-tenant packages/protocol-oidc
-git commit -m "Record how a client registered, and what a realm allows"
+git commit -m "Record how a client registered, and what a tenant allows"
 git push && gh pr checks 12 --watch
 ```
 
@@ -696,45 +696,45 @@ git push && gh pr checks 12 --watch
 -- to authorization services.
 CREATE TABLE consents (
   id         uuid PRIMARY KEY,
-  realm_id   uuid NOT NULL REFERENCES realms(id) ON DELETE CASCADE,
+  tenant_id   uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
   subject_id uuid NOT NULL,
   client_id  uuid NOT NULL,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
-  CONSTRAINT consents_subject_client_unique UNIQUE (realm_id, subject_id, client_id),
-  CONSTRAINT consents_realm_id_unique UNIQUE (realm_id, id),
-  CONSTRAINT consents_subject_fk FOREIGN KEY (realm_id, subject_id)
-    REFERENCES subjects(realm_id, id) ON DELETE CASCADE,
-  CONSTRAINT consents_client_fk FOREIGN KEY (realm_id, client_id)
-    REFERENCES clients(realm_id, id) ON DELETE CASCADE
+  CONSTRAINT consents_subject_client_unique UNIQUE (tenant_id, subject_id, client_id),
+  CONSTRAINT consents_tenant_id_unique UNIQUE (tenant_id, id),
+  CONSTRAINT consents_subject_fk FOREIGN KEY (tenant_id, subject_id)
+    REFERENCES subjects(tenant_id, id) ON DELETE CASCADE,
+  CONSTRAINT consents_client_fk FOREIGN KEY (tenant_id, client_id)
+    REFERENCES clients(tenant_id, id) ON DELETE CASCADE
 );
 
 -- One row per granted scope, so withdrawing one is a delete rather than a
 -- rewrite of the set.
 CREATE TABLE consent_scopes (
-  realm_id        uuid NOT NULL,
+  tenant_id        uuid NOT NULL,
   consent_id      uuid NOT NULL,
   client_scope_id uuid NOT NULL,
   granted_at      timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY (consent_id, client_scope_id),
-  CONSTRAINT consent_scopes_consent_fk FOREIGN KEY (realm_id, consent_id)
-    REFERENCES consents(realm_id, id) ON DELETE CASCADE,
-  CONSTRAINT consent_scopes_scope_fk FOREIGN KEY (realm_id, client_scope_id)
-    REFERENCES client_scopes(realm_id, id) ON DELETE CASCADE
+  CONSTRAINT consent_scopes_consent_fk FOREIGN KEY (tenant_id, consent_id)
+    REFERENCES consents(tenant_id, id) ON DELETE CASCADE,
+  CONSTRAINT consent_scopes_scope_fk FOREIGN KEY (tenant_id, client_scope_id)
+    REFERENCES client_scopes(tenant_id, id) ON DELETE CASCADE
 );
 
 ALTER TABLE consents ENABLE ROW LEVEL SECURITY;
 ALTER TABLE consents FORCE ROW LEVEL SECURITY;
 CREATE POLICY consents_isolation ON consents
-  USING (realm_id = nullif(current_setting('app.realm_id', true), '')::uuid);
+  USING (tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid);
 
 ALTER TABLE consent_scopes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE consent_scopes FORCE ROW LEVEL SECURITY;
 CREATE POLICY consent_scopes_isolation ON consent_scopes
-  USING (realm_id = nullif(current_setting('app.realm_id', true), '')::uuid);
+  USING (tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid);
 ```
 
-The `ON DELETE CASCADE` from `client_scopes` is deliberate and worth knowing: deleting a realm scope withdraws every consent to it, which is the correct reading — a grant to a scope that no longer exists grants nothing.
+The `ON DELETE CASCADE` from `client_scopes` is deliberate and worth knowing: deleting a tenant scope withdraws every consent to it, which is the correct reading — a grant to a scope that no longer exists grants nothing.
 
 - [ ] **Step 2: Write `0047_client_registration_tokens.sql`**
 
@@ -745,7 +745,7 @@ The `ON DELETE CASCADE` from `client_scopes` is deliberate and worth knowing: de
 -- looked up rather than compared.
 CREATE TABLE client_registration_tokens (
   id             uuid PRIMARY KEY,
-  realm_id       uuid NOT NULL REFERENCES realms(id) ON DELETE CASCADE,
+  tenant_id       uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
   token_hash     text NOT NULL,
   remaining_uses integer NOT NULL,
   created_at     timestamptz NOT NULL DEFAULT now(),
@@ -757,7 +757,7 @@ CREATE TABLE client_registration_tokens (
 ALTER TABLE client_registration_tokens ENABLE ROW LEVEL SECURITY;
 ALTER TABLE client_registration_tokens FORCE ROW LEVEL SECURITY;
 CREATE POLICY client_registration_tokens_isolation ON client_registration_tokens
-  USING (realm_id = nullif(current_setting('app.realm_id', true), '')::uuid);
+  USING (tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid);
 ```
 
 `remaining_uses` has no default: a token minted without a stated budget is a mistake the schema should refuse rather than guess at.
@@ -795,29 +795,29 @@ git push && gh pr checks 12 --watch
 
 **Files:**
 
-- Modify: `packages/domain-tenant/src/service/realm-settings.ts`
-- Test: `packages/domain-tenant/src/service/realm-settings.test.ts` (exists), `apps/server/tests/seed.int.test.ts` (exists)
+- Modify: `packages/domain-tenant/src/service/tenant-settings.ts`
+- Test: `packages/domain-tenant/src/service/tenant-settings.test.ts` (exists), `apps/server/tests/seed.int.test.ts` (exists)
 - Modify: `README.md`, `docs/request-paths.md`
 
 **Interfaces:**
 
 - Consumes: the columns from Task 5.
-- Produces: `client_registration_policy` and `max_clients` as settable names. Task 12's integration tests use `seed realm --set client_registration_policy=open` rather than a raw `UPDATE`.
+- Produces: `client_registration_policy` and `max_clients` as settable names. Task 12's integration tests use `seed tenant --set client_registration_policy=open` rather than a raw `UPDATE`.
 
-**Why this is its own task and is three lines of code.** `realm-settings.ts` holds a name-to-column map and the CLI reads it, so adding two entries gives `odudu seed realm --set` both settings with no CLI change. That is the payoff of the map, and it is the reason the registration policy is one three-valued column rather than a pair of booleans.
+**Why this is its own task and is three lines of code.** `tenant-settings.ts` holds a name-to-column map and the CLI reads it, so adding two entries gives `odudu seed tenant --set` both settings with no CLI change. That is the payoff of the map, and it is the reason the registration policy is one three-valued column rather than a pair of booleans.
 
-**The ranges stay in SQL.** `realm-settings.ts:5` states the rule: ranges are CHECK constraints, "the repository's idiom for a rule no writer may bypass — restating them would give a second authority to disagree with." Task 5 wrote both CHECKs. Do not add a validator here for either. `max_clients` is `integer`; `client_registration_policy` is `text` and its three values are enforced by the constraint, which means a typo is refused by the database with a constraint error rather than by the CLI with a friendly one. That is the existing trade and this task does not reopen it.
+**The ranges stay in SQL.** `tenant-settings.ts:5` states the rule: ranges are CHECK constraints, "the repository's idiom for a rule no writer may bypass — restating them would give a second authority to disagree with." Task 5 wrote both CHECKs. Do not add a validator here for either. `max_clients` is `integer`; `client_registration_policy` is `text` and its three values are enforced by the constraint, which means a typo is refused by the database with a constraint error rather than by the CLI with a friendly one. That is the existing trade and this task does not reopen it.
 
 - [ ] **Step 1: Write the failing test**
 
 ```ts
 it('coerces the registration policy as text and the client cap as an integer', () => {
-  expect(coerceRealmSetting('client_registration_policy', 'token')).toEqual({
+  expect(coerceTenantSetting('client_registration_policy', 'token')).toEqual({
     kind: 'coerced',
     column: 'clientRegistrationPolicy',
     value: 'token',
   });
-  expect(coerceRealmSetting('max_clients', '50')).toEqual({
+  expect(coerceTenantSetting('max_clients', '50')).toEqual({
     kind: 'coerced',
     column: 'maxClients',
     value: 50,
@@ -825,12 +825,12 @@ it('coerces the registration policy as text and the client cap as an integer', (
 });
 ```
 
-Use the real exported name from `realm-settings.ts` rather than `coerceRealmSetting` if it differs — read the file first; its `CoerceOutcome` union is at the bottom.
+Use the real exported name from `tenant-settings.ts` rather than `coerceTenantSetting` if it differs — read the file first; its `CoerceOutcome` union is at the bottom.
 
 - [ ] **Step 2: Run it and watch it fail**
 
 ```bash
-pnpm exec vitest run --project unit realm-settings
+pnpm exec vitest run --project unit tenant-settings
 ```
 
 Expected: FAIL with `kind: 'unknown_setting'` for both.
@@ -848,7 +848,7 @@ Expected: FAIL with `kind: 'unknown_setting'` for both.
 
 - [ ] **Step 5: Document both settings**
 
-`README.md` and `docs/request-paths.md` both list the realm settings `seed realm --set` accepts. The count in the prose ("any of the twenty-one realm settings") is now twenty-three — grep for it; `docs/NEXT.md` says it too.
+`README.md` and `docs/request-paths.md` both list the tenant settings `seed tenant --set` accepts. The count in the prose ("any of the twenty-one tenant settings") is now twenty-three — grep for it; `docs/NEXT.md` says it too.
 
 - [ ] **Step 6: Gate, commit, push, watch**
 
@@ -964,7 +964,7 @@ deliberate limitation rather than an oversight. Alternatives rejected:
 validating the hostname and letting the HTTP client resolve again (a
 DNS-rebinding hole — this is the one worth writing down, because it is the
 implementation a reviewer would otherwise think equivalent); an egress
-allowlist per realm (configuration nobody would maintain); refusing
+allowlist per tenant (configuration nobody would maintain); refusing
 `jwks_uri` entirely and accepting only inline `jwks` (considered, and
 rejected only if Task 1 found the plan requires `jwks_uri` — record which).
 
@@ -1262,7 +1262,7 @@ Note `pnpm trace` needs `trace-report.json`, which only `pnpm test` produces. Ru
 **Interfaces:**
 
 - Consumes: the table from Task 6.
-- Produces: `clientRegistrationTokenRepository(tx)` with `mint({ realmId, uses, ttlSeconds }): Promise<{ token: string }>` and `spend(realmId, token): Promise<boolean>`. Task 12 calls `spend`.
+- Produces: `clientRegistrationTokenRepository(tx)` with `mint({ tenantId, uses, ttlSeconds }): Promise<{ token: string }>` and `spend(tenantId, token): Promise<boolean>`. Task 12 calls `spend`.
 
 **`spend` decrements in the caller's transaction and returns whether it succeeded.** It must not be two statements with a gap: a `UPDATE … SET remaining_uses = remaining_uses - 1 WHERE token_hash = $1 AND remaining_uses > 0 AND expires_at > now() RETURNING id` is one statement, and its row count is the answer. Two concurrent registrations against a one-use token then cannot both win — which is the property worth a test.
 
@@ -1275,8 +1275,8 @@ it('spends a token exactly as many times as it has uses', async () => {
 it('refuses an expired token', async () => {
   /* mint ttl 1s, back-date expires_at through the owner connection, spend → false */
 });
-it('refuses a token minted in another realm', async () => {
-  /* mint in realm A, spend in realm B → false */
+it('refuses a token minted in another tenant', async () => {
+  /* mint in tenant A, spend in tenant B → false */
 });
 it('does not let two concurrent spends overdraw a one-use token', async () => {
   /* two transactions, one wins */
@@ -1293,13 +1293,13 @@ pnpm exec vitest run --project integration client-registration-tokens
 
 Expected: FAIL — the repository does not exist.
 
-- [ ] **Step 3: Implement, and probe both methods for cross-realm leakage**
+- [ ] **Step 3: Implement, and probe both methods for cross-tenant leakage**
 
-Use `expectCrossRealmMethodProbe` from `@odudu/db/testing` on **`mint` and `spend` both**. `spend` is the method most worth probing: it takes a `realmId` from its caller, so its isolation rests on the policy being reused as the UPDATE's check rather than on the row filtering itself.
+Use `expectCrossTenantMethodProbe` from `@odudu/db/testing` on **`mint` and `spend` both**. `spend` is the method most worth probing: it takes a `tenantId` from its caller, so its isolation rests on the policy being reused as the UPDATE's check rather than on the row filtering itself.
 
 - [ ] **Step 4: Add the seed subcommand**
 
-`odudu seed registration-token --realm <name> --uses <n> --ttl <seconds>`, printing the token once on stdout and nothing else, so it can be captured by a shell. Follow the existing subcommand shape in `seed.ts`; `seed-invocation.ts` parses the arguments and has its own unit test.
+`odudu seed registration-token --tenant <name> --uses <n> --ttl <seconds>`, printing the token once on stdout and nothing else, so it can be captured by a shell. Follow the existing subcommand shape in `seed.ts`; `seed-invocation.ts` parses the arguments and has its own unit test.
 
 - [ ] **Step 5: Test the command**
 
@@ -1313,7 +1313,7 @@ Add it to `TableName` and `REAP_ORDER` in `apps/server/src/cli/reap.ts` with its
 
 - [ ] **Step 7: Document it**
 
-`README.md`'s seed section and `docs/request-paths.md`. In `request-paths.md` the command must be **run against a live stack with its real output pasted back**, and the token in the transcript is a real one from that run — it is a credential for a development realm, which ADR 0014 already covers, and a hand-written one would break the document's promise.
+`README.md`'s seed section and `docs/request-paths.md`. In `request-paths.md` the command must be **run against a live stack with its real output pasted back**, and the token in the transcript is a real one from that run — it is a credential for a development tenant, which ADR 0014 already covers, and a hand-written one would break the document's promise.
 
 - [ ] **Step 8: Gate, commit, push, watch**
 
@@ -1375,9 +1375,9 @@ git push
 **Interfaces:**
 
 - Consumes: `parseClientMetadata` (Task 10), `clientRegistrationTokenRepository` (Task 11), the columns from Task 5.
-- Produces: `POST /realms/{realm}/clients-registrations/openid-connect`, and `registration_endpoint` in discovery when the realm's policy is not `disabled`.
+- Produces: `POST /tenants/{tenant}/clients-registrations/openid-connect`, and `registration_endpoint` in discovery when the tenant's policy is not `disabled`.
 
-**Path, and why not `/register`.** RFC 7591 fixes no path and discovery advertises it. `/realms/{realm}/login-actions/registration` already exists and is **user** self-registration; two registration endpoints one path segment apart is a reader's trap. verified: `packages/account/src/view/routes/registration.ts:76`, 2026-09-18.
+**Path, and why not `/register`.** RFC 7591 fixes no path and discovery advertises it. `/tenants/{tenant}/login-actions/registration` already exists and is **user** self-registration; two registration endpoints one path segment apart is a reader's trap. verified: `packages/account/src/view/routes/registration.ts:76`, 2026-09-18.
 
 **The three states, and what each answers.**
 
@@ -1387,29 +1387,29 @@ git push
 | `open`     | registers, `registration_origin = 'anonymous'`, `consent_required = true` | registers, origin `token`, consent default `false` | advertised                 |
 | `token`    | 401 with `WWW-Authenticate: Bearer`                                       | registers, origin `token`, consent default `false` | advertised                 |
 
-`disabled` answers 404 rather than 403 for the reason discovery and JWKS already treat an unknown and a disabled realm alike: a status code that distinguishes "exists but closed" from "does not exist" is an enumeration oracle for nothing gained.
+`disabled` answers 404 rather than 403 for the reason discovery and JWKS already treat an unknown and a disabled tenant alike: a status code that distinguishes "exists but closed" from "does not exist" is an enumeration oracle for nothing gained.
 
 **Why `consent_required` defaults on for anonymous registration only.** RFC 7591 §5 says an AS "can also present warning messages to end-users about dynamically registered clients in all cases", after warning that "a rogue client might use the name and logo of a legitimate client that it is trying to impersonate". The axis is how the registration was _authorized_, not whether it was dynamic — an initial access token is an operator's authorization, so a token-registered client is as trusted as a seeded one. Taken from Keycloak's `DefaultClientRegistrationPolicies`, whose `addAnonymousPolicies()` installs a `Consent Required` policy and whose `addAuthPolicies()` installs none. verified in the spec's section 14 index.
 
 - [ ] **Step 1: Write the failing integration test**
 
 ```ts
-it('refuses registration in a realm that has not opened it', async () => {
+it('refuses registration in a tenant that has not opened it', async () => {
   const res = await app.inject({
     method: 'POST',
-    url: `/realms/${realm}/clients-registrations/openid-connect`,
+    url: `/tenants/${tenant}/clients-registrations/openid-connect`,
     payload: minimal,
   });
   expect(res.statusCode).toBe(404);
 });
 
 it('omits registration_endpoint from discovery while the policy is disabled', async () => {
-  const doc = await discovery(app, realm);
+  const doc = await discovery(app, tenant);
   expect(doc).not.toHaveProperty('registration_endpoint');
 });
 
 it('registers a client, assigns its id, and never echoes a proposed one', async () => {
-  await seedRealmSetting(realm, 'client_registration_policy', 'open');
+  await seedTenantSetting(tenant, 'client_registration_policy', 'open');
   const res = await app.inject({
     method: 'POST',
     url,
@@ -1427,13 +1427,13 @@ it('marks a token registration as not requiring consent', async () => {
 });
 
 it('refuses an unauthenticated registration while the policy is token', async () => {
-  await seedRealmSetting(realm, 'client_registration_policy', 'token');
+  await seedTenantSetting(tenant, 'client_registration_policy', 'token');
   const res = await app.inject({ method: 'POST', url, payload: minimal });
   expect(res.statusCode).toBe(401);
   expect(res.headers['www-authenticate']).toMatch(/^Bearer/u);
 });
 
-it('refuses once the realm is at its client cap', async () => {
+it('refuses once the tenant is at its client cap', async () => {
   /* set max_clients to the current count, register, expect 403 with invalid_client_metadata */
 });
 
@@ -1450,7 +1450,7 @@ it('stores logout and userinfo metadata without advertising any of it', async ()
     backchannel_logout_uri: 'https://rp.example/bc',
     userinfo_signed_response_alg: 'RS256',
   });
-  const doc = await discovery(app, realm);
+  const doc = await discovery(app, tenant);
   for (const key of [
     'backchannel_logout_supported',
     'frontchannel_logout_supported',
@@ -1473,15 +1473,15 @@ Expected: FAIL — 404 from Fastify because the route does not exist, which is i
 
 - [ ] **Step 3: Implement the usecase**
 
-**The cap is taken under a lock.** `SELECT max_clients FROM realms WHERE id = $1 FOR UPDATE` before the `COUNT`, which serialises registrations per realm and leaves other realms concurrent. A bare `COUNT` then `INSERT` lets two concurrent registrations both find room — the cap failing under exactly the load a denial-of-service bound exists to hold. The lock sits on a path that is neither hot nor latency-sensitive, which is why it is right here and would be wrong on `/token`.
+**The cap is taken under a lock.** `SELECT max_clients FROM tenants WHERE id = $1 FOR UPDATE` before the `COUNT`, which serialises registrations per tenant and leaves other tenants concurrent. A bare `COUNT` then `INSERT` lets two concurrent registrations both find room — the cap failing under exactly the load a denial-of-service bound exists to hold. The lock sits on a path that is neither hot nor latency-sensitive, which is why it is right here and would be wrong on `/token`.
 
-One transaction: resolve the realm, read its policy, authenticate the token if the policy demands one, `parseClientMetadata`, take the cap under that lock, insert `clients` then `client_oidc_config`, and for a confidential client generate and hash a secret with the same Argon2id path `seed client` uses. Return the RFC 7591 §3.2.1 response: every registered metadata field echoed, plus `client_id`, `client_id_issued_at`, and `client_secret` with `client_secret_expires_at: 0` for a confidential client.
+One transaction: resolve the tenant, read its policy, authenticate the token if the policy demands one, `parseClientMetadata`, take the cap under that lock, insert `clients` then `client_oidc_config`, and for a confidential client generate and hash a secret with the same Argon2id path `seed client` uses. Return the RFC 7591 §3.2.1 response: every registered metadata field echoed, plus `client_id`, `client_id_issued_at`, and `client_secret` with `client_secret_expires_at: 0` for a confidential client.
 
 The secret is returned **once**, in this response, and never again — `clients.secret_hash` is a hash. Say so in the prose you write for `request-paths.md`.
 
 - [ ] **Step 4: Advertise the endpoint conditionally**
 
-`resolveDiscoveryDocument` currently takes `findRealm`, `claimNames` and `scopesForRealm`. The realm lookup it already performs carries the policy once Task 5's column is declared, so no new dependency is needed — pass a `registrationEndpoint` option into `discoveryDocument` only when the policy is not `disabled`. `packages/contracts/src/discovery.ts` gains the optional field.
+`resolveDiscoveryDocument` currently takes `findTenant`, `claimNames` and `scopesForTenant`. The tenant lookup it already performs carries the policy once Task 5's column is declared, so no new dependency is needed — pass a `registrationEndpoint` option into `discoveryDocument` only when the policy is not `disabled`. `packages/contracts/src/discovery.ts` gains the optional field.
 
 - [ ] **Step 5: Run the tests**
 
@@ -1497,13 +1497,13 @@ Expected: PASS.
 
 - [ ] **Step 7: Document the endpoint**
 
-`docs/request-paths.md` gets a new section with a real transcript: opening the policy with `seed realm --set`, minting a token, registering, and the 404 and 401 refusals. **Delete the "Dynamic client registration (RFC 7591). P3a." bullet** from "What is not implemented", and check the surrounding bullets — the one about `seed client` being the only way to create a client is now false too.
+`docs/request-paths.md` gets a new section with a real transcript: opening the policy with `seed tenant --set`, minting a token, registering, and the 404 and 401 refusals. **Delete the "Dynamic client registration (RFC 7591). P3a." bullet** from "What is not implemented", and check the surrounding bullets — the one about `seed client` being the only way to create a client is now false too.
 
 - [ ] **Step 8: Write ADRs 0026 and 0027**
 
-`docs/adr/0026-client-registration-is-a-realm-policy-closed-by-default.md`:
+`docs/adr/0026-client-registration-is-a-tenant-policy-closed-by-default.md`:
 three states rather than a boolean, why `disabled` answers 404 and omits the
-endpoint from discovery, and why the default is closed (every realm toggle
+endpoint from discovery, and why the default is closed (every tenant toggle
 P2a and P2b added defaults off, and Keycloak's empty Trusted Hosts list
 reaches the same posture less directly). Alternatives rejected: open by
 default; a boolean plus a separate "require token" flag (two settings that
@@ -1526,7 +1526,7 @@ describes).
 ```bash
 pnpm verify
 git add packages apps docs README.md tools/trace
-git commit -m "Let a client register itself where a realm allows it"
+git commit -m "Let a client register itself where a tenant allows it"
 git push && gh pr checks 12 --watch
 ```
 
@@ -1556,13 +1556,13 @@ git push && gh pr checks 12 --watch
 **Interfaces:**
 
 - Consumes: the tables from Task 6.
-- Produces: `consentRepository(tx)` with `grantedScopeIds(realmId, subjectId, clientId): Promise<ReadonlySet<string>>` and `record(realmId, subjectId, clientId, scopeIds: readonly string[]): Promise<void>`. Tasks 16 and 17 call both.
+- Produces: `consentRepository(tx)` with `grantedScopeIds(tenantId, subjectId, clientId): Promise<ReadonlySet<string>>` and `record(tenantId, subjectId, clientId, scopeIds: readonly string[]): Promise<void>`. Tasks 16 and 17 call both.
 
 **`record` replaces the granted set for that pair, in one transaction.** Not a merge: a consent screen shows the whole set and the user's answer is the whole answer, so merging would make an unticked box mean "leave whatever was there". Upsert the `consents` row on the unique constraint, delete the `consent_scopes` rows not in the new set, insert the ones not already there.
 
 - [ ] **Step 1: Write the failing test**
 
-Cases, written out in full against the package's existing harness: an unrecorded pair yields an empty set; `record` then `grantedScopeIds` round-trips; a second `record` with a narrower set removes the dropped scope; a foreign `realm_id` sees neither method's rows (`expectCrossRealmMethodProbe` on **both**); and deleting a `client_scopes` row withdraws the consent to it, which is the cascade Task 6 chose.
+Cases, written out in full against the package's existing harness: an unrecorded pair yields an empty set; `record` then `grantedScopeIds` round-trips; a second `record` with a narrower set removes the dropped scope; a foreign `tenant_id` sees neither method's rows (`expectCrossTenantMethodProbe` on **both**); and deleting a `client_scopes` row withdraws the consent to it, which is the cascade Task 6 chose.
 
 - [ ] **Step 2: Run and watch fail**
 
@@ -1643,7 +1643,7 @@ This is the task most likely to ship a defect, and the reason is in its title.
 **Interfaces:**
 
 - Consumes: `decideConsent` (15), `renderConsentPage` (16), `consentRepository` (14).
-- Produces: `POST /realms/{realm}/login-actions/consent`, a `{ kind: 'consent' }` member of `LoginSubmissionOutcome`, and the same gate inside the reuse path.
+- Produces: `POST /tenants/{tenant}/login-actions/consent`, a `{ kind: 'consent' }` member of `LoginSubmissionOutcome`, and the same gate inside the reuse path.
 
 **Two paths issue a code, and both must be gated.**
 
@@ -1652,7 +1652,7 @@ This is the task most likely to ship a defect, and the reason is in its title.
 
 **Consent leaves the authentication session unconsumed**, as `required_action` and `unverified` already do, so the same parked request survives the detour. On the reuse path there may be no authentication session yet — decide whether the reuse path starts one to park the request on, or whether consent on that path renders from the request itself, and **state which in your report**: it changes what the consent POST resumes into.
 
-**The completion tail is shared, not duplicated.** `login-submission.ts` from `resolveClientId` to the redirect is the tail both the form path and the consent POST need. Extract it — `completeAuthorizedLogin(deps, realm, authSessionId, pending, subjectId, authenticators)` — and call it from both, rather than writing the redirect assembly twice. A second copy is how the two drift on `iss`, `state`, or the atomic consume that stops a back-button press minting a second session.
+**The completion tail is shared, not duplicated.** `login-submission.ts` from `resolveClientId` to the redirect is the tail both the form path and the consent POST need. Extract it — `completeAuthorizedLogin(deps, tenant, authSessionId, pending, subjectId, authenticators)` — and call it from both, rather than writing the redirect assembly twice. A second copy is how the two drift on `iss`, `state`, or the atomic consume that stops a back-button press minting a second session.
 
 - [ ] **Step 1: Write the failing integration test**
 
@@ -1727,7 +1727,7 @@ pnpm exec vitest run --project integration && pnpm exec vitest run --project uni
 **Interfaces:**
 
 - Consumes: `slidingWindow` from `apps/server/src/throttle.ts`, unchanged.
-- Produces: a second limiter instance, keyed by `realm:client_id`, consulted by `authenticateClient`.
+- Produces: a second limiter instance, keyed by `tenant:client_id`, consulted by `authenticateClient`.
 
 **ADR 0023 already specified this, which leaves nothing to design.** Its "Consequences" section says `/token` "is client-authenticated and hot, and the budget above is keyed by origin, which for a server-side client is one address for every request it will ever make... what that clause asks for is a limit keyed by _client_. This throttle is not where that goes." verified: `docs/adr/0023-brute-force-authority-is-split.md`, 2026-09-18.
 
@@ -1800,7 +1800,7 @@ git push && gh pr checks 12 --watch
 
 - [ ] **Step 1: Write the plan configuration**
 
-`dynamic-op.json` modelled on `config-op.json`, with the plan name `oidcc-dynamic-certification-test-plan` and a realm whose `client_registration_policy` is `open`. The realm is seeded by the script, not by hand.
+`dynamic-op.json` modelled on `config-op.json`, with the plan name `oidcc-dynamic-certification-test-plan` and a tenant whose `client_registration_policy` is `open`. The tenant is seeded by the script, not by hand.
 
 - [ ] **Step 2: Run it and read every failure**
 

@@ -4,7 +4,7 @@
 
 **Goal:** An identity model underneath the P1 protocol core — roles, groups, client scopes, a user profile and per-client web origins — emitted into tokens as IANA-registered claims, plus the email delivery that makes address verification, self-registration and password reset possible.
 
-**Architecture:** Three new packages join the six P1 established. `domain-authz` owns roles, groups and effective-role resolution and depends on nothing; `email` owns an `EmailSender` port with an SMTP adapter and a capturing adapter; `account` owns the registration, verification and reset journeys. Client scopes, scope mappings and web origins are client configuration and join `domain-tenant` and `protocol-oidc`. The frozen `SUPPORTED_SCOPES` constant is replaced by realm data, and the `ClaimMapperRegistry` — which has only ever fed the ID token and `/userinfo` — is extended to the access token, which is the surface RFC 9068 section 2.2.3.1 is actually about.
+**Architecture:** Three new packages join the six P1 established. `domain-authz` owns roles, groups and effective-role resolution and depends on nothing; `email` owns an `EmailSender` port with an SMTP adapter and a capturing adapter; `account` owns the registration, verification and reset journeys. Client scopes, scope mappings and web origins are client configuration and join `domain-tenant` and `protocol-oidc`. The frozen `SUPPORTED_SCOPES` constant is replaced by tenant data, and the `ClaimMapperRegistry` — which has only ever fed the ID token and `/userinfo` — is extended to the access token, which is the surface RFC 9068 section 2.2.3.1 is actually about.
 
 **Tech Stack:** Node 24, TypeScript 6.0.3, Fastify 5.12.3, PostgreSQL 17, Drizzle ORM 0.45.2, Zod 4.6.1, Vitest 5.0.0, Testcontainers 12.1.0, jose 6.2.12, @node-rs/argon2 2.2.1. Two candidate additions, each gated by a spike: a CORS mechanism (Task 1) and an SMTP client (Task 14).
 
@@ -30,8 +30,8 @@ Everything in P0's and P1's plans still binds. Repeated here because an implemen
 - Integration tests run against real PostgreSQL via Testcontainers, never a mock. They live in a package's `tests/` directory as `*.int.test.ts`. Unit tests sit beside the code as `*.test.ts`.
 - Domain packages never import protocol packages. Protocol packages never import each other.
 - Layer imports follow ADR 0010: `view` → own model and `shared/view`; `usecase` → repository, service, view models; `repository` → adapter, service; `adapter` → transport, service; `service` → nothing.
-- **`SET LOCAL`, never `SET`, for realm context.** Use `withRealm(db, realmId, fn)` from `@odudu/db`.
-- **Every new tenant table needs `ENABLE` + `FORCE ROW LEVEL SECURITY` and a policy.** `packages/db/tests/rls-policy.int.test.ts` sweeps every table in the `public` schema and fails if one is missing, so this is caught mechanically — but **the foreign-`realm_id` probe on every repository method is not**, and is written per task.
+- **`SET LOCAL`, never `SET`, for tenant context.** Use `withTenant(db, tenantId, fn)` from `@odudu/db`.
+- **Every new tenant table needs `ENABLE` + `FORCE ROW LEVEL SECURITY` and a policy.** `packages/db/tests/rls-policy.int.test.ts` sweeps every table in the `public` schema and fails if one is missing, so this is caught mechanically — but **the foreign-`tenant_id` probe on every repository method is not**, and is written per task.
 - Migrations are hand-authored SQL in `packages/db/drizzle/`, and each needs an entry appended to `packages/db/drizzle/meta/_journal.json` with the next `idx` and a `when` greater than the previous entry's.
 - **`pnpm trace` runs strict.** A new MUST that is not `covered` fails the build. A new `deferred:` or `n/a:` row must move the count in `tools/trace/silenced-musts.json` in the same diff.
 - **`README.md` and `docs/request-paths.md` are updated in the same commit as the code** that changes a request, response, branch, error code, endpoint, command or default. `tests/docs/` fails the build on drift.
@@ -41,10 +41,10 @@ Everything in P0's and P1's plans still binds. Repeated here because an implemen
 
 - **Claim names are `roles` and `groups`** — IANA-registered to RFC 7643 section 4.1.2 and RFC 9068 section 2.2.3.1. Never `realm_access`, never `resource_access`.
 - **Both claims are sorted, de-duplicated arrays of strings.** Sorted so a token is reproducible and its tests are not order-flaky.
-- **A realm role appears bare (`admin`); a client role appears as `clientId:roleName`.** A CHECK constraint refuses `:` in any role name, so the qualified form can never be ambiguous.
+- **A tenant role appears bare (`admin`); a client role appears as `clientId:roleName`.** A CHECK constraint refuses `:` in any role name, so the qualified form can never be ambiguous.
 - **`entitlements` is not emitted.** Recorded as a deliberate omission, never silently absent.
 - **`clients.full_scope_allowed` defaults to `false`.** A new client's tokens carry no roles until an operator maps them.
-- **A CORS preflight carries no client identity.** Preflight is answered against the realm's union of origins; the real request is enforced against the identified client's own list.
+- **A CORS preflight carries no client identity.** Preflight is answered against the tenant's union of origins; the real request is enforced against the identified client's own list.
 - **No `Access-Control-Allow-Credentials`, ever.** And every allowed origin is echoed explicitly, never reflected unchecked, with `Vary: Origin` set.
 - **Nothing is deleted.** `action_tokens` rows persist after consumption (ADR 0021); reaping is P2b's.
 - **Verification ships before registration.** An unverified self-registered address is an account-takeover primitive.
@@ -62,42 +62,42 @@ New packages, each with the standard `src/{schema,repository,service,usecase,vie
 
 Modified packages:
 
-| Path                        | Change                                                                                                              |
-| --------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| `packages/db/drizzle/`      | migrations 0015–0022 and their journal entries                                                                      |
-| `packages/domain-tenant/`    | client scopes, scope assignments, scope-to-role mappings, `full_scope_allowed`                                      |
-| `packages/domain-identity/` | profile columns on `users`, profile repository methods                                                              |
-| `packages/protocol-oidc/`   | `web_origins` on `client_oidc_config`, CORS at the edge, realm-sourced scopes, claim mappers, access-token assembly |
-| `packages/contracts/`       | `SUPPORTED_SCOPES` removed; discovery takes scopes as an argument                                                   |
-| `apps/server/`              | CORS registration, seed CLI subcommands, account routes                                                             |
-| `docs/protocols/`           | `rfc9068.md` reading note and rows, `oidc-core.md` rows                                                             |
+| Path                        | Change                                                                                                               |
+| --------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `packages/db/drizzle/`      | migrations 0015–0022 and their journal entries                                                                       |
+| `packages/domain-tenant/`   | client scopes, scope assignments, scope-to-role mappings, `full_scope_allowed`                                       |
+| `packages/domain-identity/` | profile columns on `users`, profile repository methods                                                               |
+| `packages/protocol-oidc/`   | `web_origins` on `client_oidc_config`, CORS at the edge, tenant-sourced scopes, claim mappers, access-token assembly |
+| `packages/contracts/`       | `SUPPORTED_SCOPES` removed; discovery takes scopes as an argument                                                    |
+| `apps/server/`              | CORS registration, seed CLI subcommands, account routes                                                              |
+| `docs/protocols/`           | `rfc9068.md` reading note and rows, `oidc-core.md` rows                                                              |
 
 ## Task budget
 
-| Task | Deliverable                                                            | Hours |
-| ---- | ---------------------------------------------------------------------- | ----- |
-| 1    | **Spike:** CORS decision taken per request                             | 2–3   |
-| 2    | Web origins: migration 0015, origin grammar, `+` expansion             | 4–5   |
-| 3    | CORS at the edge: preflight union, per-client enforcement              | 5–6   |
-| 4    | Client scopes: migration 0016, repository, realm seeds                 | 5–6   |
-| 5    | Scopes sourced from the realm: discovery, `/authorize`, `resolveScope` | 5–6   |
-| 6    | **Spike:** recursive CTE termination on a cyclic graph                 | 2     |
-| 7    | Roles: migration 0017, repository, cycle refusal                       | 5–6   |
-| 8    | Effective-role resolution: the composite closure                       | 4–5   |
-| 9    | Groups: migration 0018, path maintenance, inherited roles              | 5–6   |
-| 10   | The `roles` and `groups` claim mappers; `ClaimContext` widened         | 4–5   |
-| 11   | The access token runs the registry; scope mappings narrow              | 5–6   |
-| 12   | User profile: migration 0019, constrained columns, repository          | 5–6   |
-| 13   | `profile`, `address` and `phone` mappers; `claims_supported` honesty   | 4–5   |
-| 14   | **Spike:** SMTP client through a real container build                  | 2–3   |
-| 15   | `@odudu/email`: port, adapters, templates                              | 5–6   |
-| 16   | Action tokens: migration 0020, hashed single-use redemption            | 4–5   |
-| 17   | Address verification; migration 0021 realm settings                    | 5–6   |
-| 18   | Self-registration; migration 0022 email uniqueness                     | 5–6   |
-| 19   | Password reset, enumeration-safe                                       | 4–5   |
-| 20   | Seed CLI: roles, groups, scopes, mappings, profile                     | 4–5   |
-| 21   | Traceability: clause rows, reading notes, census                       | 4–5   |
-| 22   | Phase close: whole-phase documentation pass                            | 4–5   |
+| Task | Deliverable                                                             | Hours |
+| ---- | ----------------------------------------------------------------------- | ----- |
+| 1    | **Spike:** CORS decision taken per request                              | 2–3   |
+| 2    | Web origins: migration 0015, origin grammar, `+` expansion              | 4–5   |
+| 3    | CORS at the edge: preflight union, per-client enforcement               | 5–6   |
+| 4    | Client scopes: migration 0016, repository, tenant seeds                 | 5–6   |
+| 5    | Scopes sourced from the tenant: discovery, `/authorize`, `resolveScope` | 5–6   |
+| 6    | **Spike:** recursive CTE termination on a cyclic graph                  | 2     |
+| 7    | Roles: migration 0017, repository, cycle refusal                        | 5–6   |
+| 8    | Effective-role resolution: the composite closure                        | 4–5   |
+| 9    | Groups: migration 0018, path maintenance, inherited roles               | 5–6   |
+| 10   | The `roles` and `groups` claim mappers; `ClaimContext` widened          | 4–5   |
+| 11   | The access token runs the registry; scope mappings narrow               | 5–6   |
+| 12   | User profile: migration 0019, constrained columns, repository           | 5–6   |
+| 13   | `profile`, `address` and `phone` mappers; `claims_supported` honesty    | 4–5   |
+| 14   | **Spike:** SMTP client through a real container build                   | 2–3   |
+| 15   | `@odudu/email`: port, adapters, templates                               | 5–6   |
+| 16   | Action tokens: migration 0020, hashed single-use redemption             | 4–5   |
+| 17   | Address verification; migration 0021 tenant settings                    | 5–6   |
+| 18   | Self-registration; migration 0022 email uniqueness                      | 5–6   |
+| 19   | Password reset, enumeration-safe                                        | 4–5   |
+| 20   | Seed CLI: roles, groups, scopes, mappings, profile                      | 4–5   |
+| 21   | Traceability: clause rows, reading notes, census                        | 4–5   |
+| 22   | Phase close: whole-phase documentation pass                             | 4–5   |
 
 Total: 94–121 hours, against the spec's 90–130.
 
@@ -146,25 +146,25 @@ const seen = [];
 await app.register(cors, (instance) => async (req, cb) => {
   seen.push({ method: req.method, origin: req.headers.origin });
   // Simulates the database read: only this origin is allowed, and only
-  // for requests whose path names realm "alpha".
+  // for requests whose path names tenant "alpha".
   const allowed =
-    req.url.includes('/realms/alpha/') && req.headers.origin === 'https://app.example';
+    req.url.includes('/tenants/alpha/') && req.headers.origin === 'https://app.example';
   cb(null, { origin: allowed ? req.headers.origin : false, credentials: false });
 });
 
-app.post('/realms/:realm/protocol/openid-connect/token', async () => ({ ok: true }));
+app.post('/tenants/:tenant/protocol/openid-connect/token', async () => ({ ok: true }));
 await app.listen({ port: 0 });
 const port = app.server.address().port;
 
 const preflight = await fetch(
-  `http://127.0.0.1:${port}/realms/alpha/protocol/openid-connect/token`,
+  `http://127.0.0.1:${port}/tenants/alpha/protocol/openid-connect/token`,
   {
     method: 'OPTIONS',
     headers: { origin: 'https://app.example', 'access-control-request-method': 'POST' },
   },
 );
-const wrongRealm = await fetch(
-  `http://127.0.0.1:${port}/realms/beta/protocol/openid-connect/token`,
+const wrongTenant = await fetch(
+  `http://127.0.0.1:${port}/tenants/beta/protocol/openid-connect/token`,
   {
     method: 'OPTIONS',
     headers: { origin: 'https://app.example', 'access-control-request-method': 'POST' },
@@ -173,7 +173,7 @@ const wrongRealm = await fetch(
 
 console.log('delegator saw:', seen);
 console.log('preflight allow-origin:', preflight.headers.get('access-control-allow-origin'));
-console.log('wrong-realm allow-origin:', wrongRealm.headers.get('access-control-allow-origin'));
+console.log('wrong-tenant allow-origin:', wrongTenant.headers.get('access-control-allow-origin'));
 await app.close();
 ```
 
@@ -181,7 +181,7 @@ await app.close();
 
 Run: `node /tmp/cors-spike/probe.mjs`
 
-The answer is **yes** if `delegator saw:` contains an `OPTIONS` entry, `preflight allow-origin:` is `https://app.example`, and `wrong-realm allow-origin:` is `null`. Anything else — the delegator not running for `OPTIONS`, the callback form rejecting an `async` function, the same header on both — is a **no**.
+The answer is **yes** if `delegator saw:` contains an `OPTIONS` entry, `preflight allow-origin:` is `https://app.example`, and `wrong-tenant allow-origin:` is `null`. Anything else — the delegator not running for `OPTIONS`, the callback form rejecting an `async` function, the same header on both — is a **no**.
 
 - [ ] **Step 4: Record the finding**
 
@@ -222,7 +222,7 @@ git commit -m "Establish whether a CORS origin decision can be taken per request
   - `normalizeOrigin(value: string): string | null`
   - `expandWebOrigins(configured: readonly string[], redirectUris: readonly string[]): ReadonlySet<string>`
   - `ClientOidcConfig.webOrigins: string[]`
-  - `clientOidcConfigRepository(tx).webOriginsForRealm(): Promise<ReadonlySet<string>>`
+  - `clientOidcConfigRepository(tx).webOriginsForTenant(): Promise<ReadonlySet<string>>`
 
 - [ ] **Step 1: Verify the platform claim this task rests on**
 
@@ -397,7 +397,7 @@ The point of this test is the **negative** cases. A test that only inserts a val
 
 ```ts
 // packages/protocol-oidc/tests/web-origins.int.test.ts
-// Standard harness: startTestDatabase + runMigrations + withRealm, as in
+// Standard harness: startTestDatabase + runMigrations + withTenant, as in
 // packages/protocol-oidc/tests/*.int.test.ts.
 
 describe('client_oidc_config_web_origins_shape', () => {
@@ -434,13 +434,13 @@ In `packages/protocol-oidc/src/schema/client-oidc-config.ts`, add to the table d
   webOrigins: string[];
 ```
 
-In `packages/protocol-oidc/src/repository/client-oidc-config.ts`, add `webOrigins: row.webOrigins` to the row mapper, and add the realm-union read the preflight needs:
+In `packages/protocol-oidc/src/repository/client-oidc-config.ts`, add `webOrigins: row.webOrigins` to the row mapper, and add the tenant-union read the preflight needs:
 
 ```ts
     // A CORS preflight carries no client identity, so the only allowlist
-    // available at that moment is the realm's union. The per-client list is
+    // available at that moment is the tenant's union. The per-client list is
     // enforced on the real request, where the client is known.
-    async webOriginsForRealm(): Promise<ReadonlySet<string>> {
+    async webOriginsForTenant(): Promise<ReadonlySet<string>> {
       const rows = await tx
         .select({
           webOrigins: clientOidcConfig.webOrigins,
@@ -455,17 +455,17 @@ In `packages/protocol-oidc/src/repository/client-oidc-config.ts`, add `webOrigin
     },
 ```
 
-- [ ] **Step 9: Probe it with a foreign realm**
+- [ ] **Step 9: Probe it with a foreign tenant**
 
-Every repository method is probed with a foreign `realm_id`. Add to `web-origins.int.test.ts`:
+Every repository method is probed with a foreign `tenant_id`. Add to `web-origins.int.test.ts`:
 
 ```ts
-it('returns no origins from another realm', async () => {
-  await seedClientWithOrigins(realmA, ['https://a.example']);
-  await seedClientWithOrigins(realmB, ['https://b.example']);
+it('returns no origins from another tenant', async () => {
+  await seedClientWithOrigins(tenantA, ['https://a.example']);
+  await seedClientWithOrigins(tenantB, ['https://b.example']);
 
-  const inA = await withRealm(db, realmA, (tx) =>
-    clientOidcConfigRepository(tx).webOriginsForRealm(),
+  const inA = await withTenant(db, tenantA, (tx) =>
+    clientOidcConfigRepository(tx).webOriginsForTenant(),
   );
   expect([...inA]).toEqual(['https://a.example']);
 });
@@ -483,7 +483,7 @@ git commit -m "Give a client its own web origins, and refuse the ones that canno
 
 ---
 
-### Task 3: CORS at the edge — preflight against the realm, the request against the client
+### Task 3: CORS at the edge — preflight against the tenant, the request against the client
 
 **Files:**
 
@@ -499,7 +499,7 @@ git commit -m "Give a client its own web origins, and refuse the ones that canno
 
 **Interfaces:**
 
-- Consumes: `expandWebOrigins`, `clientOidcConfigRepository(tx).webOriginsForRealm()` (Task 2); the Task 1 finding
+- Consumes: `expandWebOrigins`, `clientOidcConfigRepository(tx).webOriginsForTenant()` (Task 2); the Task 1 finding
 - Produces:
   - `corsHeadersForPreflight(origin: string | undefined, allowed: ReadonlySet<string>): Record<string, string> | null`
   - `corsHeadersForRequest(origin: string | undefined, allowed: ReadonlySet<string>): Record<string, string>`
@@ -529,7 +529,7 @@ describe('preflight', () => {
     });
   });
 
-  it('returns null for an origin nothing in the realm allows', () => {
+  it('returns null for an origin nothing in the tenant allows', () => {
     expect(corsHeadersForPreflight('https://evil.example', allowed)).toBeNull();
   });
 
@@ -610,12 +610,12 @@ Expected: PASS.
 
 Wire four endpoints, and only four:
 
-| Route                               | Treatment                                                                                                       |
-| ----------------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| `/protocol/openid-connect/token`    | `OPTIONS` answered from `webOriginsForRealm()`; `POST` answered from the resolved client's own expanded origins |
-| `/protocol/openid-connect/userinfo` | same, with the client taken from the access token's `client_id` claim                                           |
-| `/protocol/openid-connect/certs`    | `access-control-allow-origin: *`, no `Vary`                                                                     |
-| `/.well-known/openid-configuration` | `access-control-allow-origin: *`, no `Vary`                                                                     |
+| Route                               | Treatment                                                                                                        |
+| ----------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `/protocol/openid-connect/token`    | `OPTIONS` answered from `webOriginsForTenant()`; `POST` answered from the resolved client's own expanded origins |
+| `/protocol/openid-connect/userinfo` | same, with the client taken from the access token's `client_id` claim                                            |
+| `/protocol/openid-connect/certs`    | `access-control-allow-origin: *`, no `Vary`                                                                      |
+| `/.well-known/openid-configuration` | `access-control-allow-origin: *`, no `Vary`                                                                      |
 
 `/protocol/openid-connect/auth` and `/login-actions/*` get **nothing**: they are top-level navigations, and a CORS header there would grant browser script read access to a login page.
 
@@ -623,25 +623,25 @@ On `/token` the client is the `client_id` in the form body; on `/userinfo` it is
 
 - [ ] **Step 6: Write the integration test that proves the split**
 
-This is the test the whole design rests on. Two clients in one realm with different origins: the preflight succeeds against the union, the real request is refused against the client.
+This is the test the whole design rests on. Two clients in one tenant with different origins: the preflight succeeds against the union, the real request is refused against the client.
 
 ```ts
 // packages/protocol-oidc/tests/cors.int.test.ts
-describe('preflight is answered from the realm, the request from the client', () => {
+describe('preflight is answered from the tenant, the request from the client', () => {
   it('allows at preflight an origin that belongs to another client, then withholds it on the real request', async () => {
     await seedClient({ clientId: 'app-a', webOrigins: ['https://a.example'] });
     await seedClient({ clientId: 'app-b', webOrigins: ['https://b.example'] });
 
     const preflight = await app.inject({
       method: 'OPTIONS',
-      url: '/realms/demo/protocol/openid-connect/token',
+      url: '/tenants/demo/protocol/openid-connect/token',
       headers: { origin: 'https://b.example', 'access-control-request-method': 'POST' },
     });
     expect(preflight.headers['access-control-allow-origin']).toBe('https://b.example');
 
     const actual = await app.inject({
       method: 'POST',
-      url: '/realms/demo/protocol/openid-connect/token',
+      url: '/tenants/demo/protocol/openid-connect/token',
       headers: { origin: 'https://b.example' },
       payload: tokenRequestFor('app-a'),
     });
@@ -651,10 +651,10 @@ describe('preflight is answered from the realm, the request from the client', ()
 
   it('never sets allow-credentials on any endpoint', async () => {
     for (const url of [
-      '/realms/demo/protocol/openid-connect/token',
-      '/realms/demo/protocol/openid-connect/userinfo',
-      '/realms/demo/protocol/openid-connect/certs',
-      '/realms/demo/.well-known/openid-configuration',
+      '/tenants/demo/protocol/openid-connect/token',
+      '/tenants/demo/protocol/openid-connect/userinfo',
+      '/tenants/demo/protocol/openid-connect/certs',
+      '/tenants/demo/.well-known/openid-configuration',
     ]) {
       const res = await app.inject({
         method: 'OPTIONS',
@@ -668,7 +668,7 @@ describe('preflight is answered from the realm, the request from the client', ()
   it('sets no CORS header on the authorization endpoint', async () => {
     const res = await app.inject({
       method: 'OPTIONS',
-      url: '/realms/demo/protocol/openid-connect/auth',
+      url: '/tenants/demo/protocol/openid-connect/auth',
       headers: { origin: 'https://a.example', 'access-control-request-method': 'GET' },
     });
     expect(res.headers['access-control-allow-origin']).toBeUndefined();
@@ -687,12 +687,12 @@ Expected: PASS.
 
 ```bash
 git add packages/protocol-oidc docs/request-paths.md README.md
-git commit -m "Answer a preflight from the realm and the request from the client"
+git commit -m "Answer a preflight from the tenant and the request from the client"
 ```
 
 ---
 
-### Task 4: Client scopes — migration 0016, the repository, and realm seeds
+### Task 4: Client scopes — migration 0016, the repository, and tenant seeds
 
 **Files:**
 
@@ -708,8 +708,8 @@ git commit -m "Answer a preflight from the realm and the request from the client
 - Consumes: `clients` table from `#/schema/clients`
 - Produces:
   - `clientScopes`, `clientScopeAssignments` tables
-  - `interface ClientScopeRecord { id, realmId, name, description, includeInTokenScope, includeInIdToken }`
-  - `clientScopeRepository(tx)` with `allForRealm()`, `byName(name)`, `forClient(clientId)`, `create(input)`, `assign(clientId, scopeId, assignment)`
+  - `interface ClientScopeRecord { id, tenantId, name, description, includeInTokenScope, includeInIdToken }`
+  - `clientScopeRepository(tx)` with `allForTenant()`, `byName(name)`, `forClient(clientId)`, `create(input)`, `assign(clientId, scopeId, assignment)`
 
 - [ ] **Step 1: Write the migration**
 
@@ -717,7 +717,7 @@ git commit -m "Answer a preflight from the realm and the request from the client
 -- packages/db/drizzle/0016_client_scopes.sql
 CREATE TABLE client_scopes (
   id                     uuid PRIMARY KEY,
-  realm_id               uuid NOT NULL REFERENCES realms(id) ON DELETE CASCADE,
+  tenant_id               uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
   name                   text NOT NULL,
   description            text,
   -- Whether the scope's own name appears in the issued `scope` claim. A
@@ -727,15 +727,15 @@ CREATE TABLE client_scopes (
   -- ID token is distinguished from the access token by data, not by the ask.
   include_in_id_token    boolean NOT NULL DEFAULT true,
   created_at             timestamptz NOT NULL DEFAULT now(),
-  CONSTRAINT client_scopes_name_unique UNIQUE (realm_id, name),
-  CONSTRAINT client_scopes_realm_id_unique UNIQUE (realm_id, id),
+  CONSTRAINT client_scopes_name_unique UNIQUE (tenant_id, name),
+  CONSTRAINT client_scopes_tenant_id_unique UNIQUE (tenant_id, id),
   -- RFC 6749 section 3.3 scope-token: %x21 / %x23-5B / %x5D-7E, one or more.
   CONSTRAINT client_scopes_name_is_scope_token
     CHECK (name ~ '^[\x21\x23-\x5B\x5D-\x7E]+$')
 );
 
 CREATE TABLE client_scope_assignments (
-  realm_id        uuid NOT NULL,
+  tenant_id        uuid NOT NULL,
   client_id       uuid NOT NULL,
   client_scope_id uuid NOT NULL,
   assignment      text NOT NULL,
@@ -743,20 +743,20 @@ CREATE TABLE client_scope_assignments (
   CONSTRAINT client_scope_assignments_assignment_check
     CHECK (assignment IN ('default', 'optional')),
   CONSTRAINT client_scope_assignments_client_fk
-    FOREIGN KEY (realm_id, client_id) REFERENCES clients(realm_id, id) ON DELETE CASCADE,
+    FOREIGN KEY (tenant_id, client_id) REFERENCES clients(tenant_id, id) ON DELETE CASCADE,
   CONSTRAINT client_scope_assignments_scope_fk
-    FOREIGN KEY (realm_id, client_scope_id) REFERENCES client_scopes(realm_id, id) ON DELETE CASCADE
+    FOREIGN KEY (tenant_id, client_scope_id) REFERENCES client_scopes(tenant_id, id) ON DELETE CASCADE
 );
 
 ALTER TABLE client_scopes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE client_scopes FORCE ROW LEVEL SECURITY;
 CREATE POLICY client_scopes_isolation ON client_scopes
-  USING (realm_id = nullif(current_setting('app.realm_id', true), '')::uuid);
+  USING (tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid);
 
 ALTER TABLE client_scope_assignments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE client_scope_assignments FORCE ROW LEVEL SECURITY;
 CREATE POLICY client_scope_assignments_isolation ON client_scope_assignments
-  USING (realm_id = nullif(current_setting('app.realm_id', true), '')::uuid);
+  USING (tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid);
 ```
 
 Append to `_journal.json`: `{ "idx": 16, "version": "7", "when": 1789049381659, "tag": "0016_client_scopes", "breakpoints": true }`.
@@ -782,12 +782,12 @@ describe('client scope names', () => {
     }
   });
 
-  it('refuses a duplicate name in one realm but permits it across realms', async () => {
-    await create({ name: 'roles', realmId: realmA });
-    await expect(create({ name: 'roles', realmId: realmA })).rejects.toThrow(
+  it('refuses a duplicate name in one tenant but permits it across tenants', async () => {
+    await create({ name: 'roles', tenantId: tenantA });
+    await expect(create({ name: 'roles', tenantId: tenantA })).rejects.toThrow(
       /client_scopes_name_unique/,
     );
-    await expect(create({ name: 'roles', realmId: realmB })).resolves.toBeDefined();
+    await expect(create({ name: 'roles', tenantId: tenantB })).resolves.toBeDefined();
   });
 });
 
@@ -798,9 +798,9 @@ describe('assignment', () => {
     );
   });
 
-  it('returns nothing for a client in another realm', async () => {
-    const scopes = await withRealm(db, realmB, (tx) =>
-      clientScopeRepository(tx).forClient(clientInRealmA),
+  it('returns nothing for a client in another tenant', async () => {
+    const scopes = await withTenant(db, tenantB, (tx) =>
+      clientScopeRepository(tx).forClient(clientInTenantA),
     );
     expect(scopes).toEqual([]);
   });
@@ -816,7 +816,7 @@ Expected: FAIL — the table does not exist.
 
 `packages/domain-tenant/src/schema/client-scopes.ts` mirrors the SQL with `pgTable(...).enableRLS()`, following `clients.ts` exactly — policies stay hand-authored SQL, never `pgPolicy()`. The record interface lives beside the table, not in the repository, so `service` can reference the shape without depending on the layer that reads it.
 
-`packages/domain-tenant/src/repository/client-scopes.ts` exposes `allForRealm()`, `byName(name)`, `forClient(clientId)` (joining assignments), `create(input)` and `assign(clientId, scopeId, assignment)`. Every method reads through the `RealmScopedDatabase` it is given and adds no `realm_id` predicate of its own — RLS is the filter, which is what the foreign-realm probes prove.
+`packages/domain-tenant/src/repository/client-scopes.ts` exposes `allForTenant()`, `byName(name)`, `forClient(clientId)` (joining assignments), `create(input)` and `assign(clientId, scopeId, assignment)`. Every method reads through the `TenantScopedDatabase` it is given and adds no `tenant_id` predicate of its own — RLS is the filter, which is what the foreign-tenant probes prove.
 
 Export all of it from `packages/domain-tenant/src/index.ts`.
 
@@ -825,9 +825,9 @@ Export all of it from `packages/domain-tenant/src/index.ts`.
 Run: `pnpm --filter @odudu/domain-tenant test:int client-scopes`
 Expected: PASS.
 
-- [ ] **Step 6: Seed the OIDC vocabulary per realm**
+- [ ] **Step 6: Seed the OIDC vocabulary per tenant**
 
-The realm bootstrap that today creates a realm must now also create its seven scopes, so that Task 5 can delete `SUPPORTED_SCOPES` without changing behaviour:
+The tenant bootstrap that today creates a tenant must now also create its seven scopes, so that Task 5 can delete `SUPPORTED_SCOPES` without changing behaviour:
 
 | name      | `include_in_token_scope` | `include_in_id_token` |
 | --------- | ------------------------ | --------------------- |
@@ -852,7 +852,7 @@ would also un-skip `oidcc-scope-address`, `oidcc-scope-phone` and
 four rows above are created by the task that adds their mapper: `roles` and
 `groups` in Task 10, `address` and `phone` in Task 13. Defining them without
 assigning them is **not** an alternative — `scopes_supported` is built from
-`allForRealm()`, so a defined scope is an advertised one.
+`allForTenant()`, so a defined scope is an advertised one.
 
 - [ ] **Step 7: Run everything and commit**
 
@@ -861,14 +861,14 @@ Expected: PASS.
 
 ```bash
 git add packages/db/drizzle packages/domain-tenant
-git commit -m "Make a scope a thing a realm owns rather than a constant in the binary"
+git commit -m "Make a scope a thing a tenant owns rather than a constant in the binary"
 ```
 
 ---
 
-### Task 5: Scopes sourced from the realm — discovery, `/authorize`, `resolveScope`
+### Task 5: Scopes sourced from the tenant — discovery, `/authorize`, `resolveScope`
 
-The riskiest task in the phase: it touches discovery, the authorization endpoint and token issuance at once, and every P1 scope test moves from a constant to realm data. It is its own increment and ends green before any role work starts.
+The riskiest task in the phase: it touches discovery, the authorization endpoint and token issuance at once, and every P1 scope test moves from a constant to tenant data. It is its own increment and ends green before any role work starts.
 
 **Files:**
 
@@ -878,12 +878,12 @@ The riskiest task in the phase: it touches discovery, the authorization endpoint
 - Modify: `packages/protocol-oidc/src/usecase/discovery.ts`
 - Modify: `packages/protocol-oidc/src/usecase/token-issuance.ts:319`
 - Modify: `packages/protocol-oidc/src/service/authorize-validation.test.ts`
-- Create: `packages/protocol-oidc/tests/realm-scopes.int.test.ts`
+- Create: `packages/protocol-oidc/tests/tenant-scopes.int.test.ts`
 - Modify: `docs/request-paths.md`
 
 **Interfaces:**
 
-- Consumes: `clientScopeRepository(tx).forClient(clientId)` and `.allForRealm()` (Task 4)
+- Consumes: `clientScopeRepository(tx).forClient(clientId)` and `.allForTenant()` (Task 4)
 - Produces:
   - `discoveryDocument(opts)` takes `scopesSupported: readonly string[]`; the `SUPPORTED_SCOPES` export is **deleted**
   - `validateAuthorizationRequest(params, client, config, knownScopes: ReadonlySet<string>, clientScopes: ReadonlySet<string>)`
@@ -891,28 +891,28 @@ The riskiest task in the phase: it touches discovery, the authorization endpoint
 - [ ] **Step 1: Write the failing integration test**
 
 ```ts
-// packages/protocol-oidc/tests/realm-scopes.int.test.ts
-describe('scopes come from the realm', () => {
-  it('advertises exactly the scopes the realm defines', async () => {
-    await createScope(realmId, { name: 'reports:read' });
-    const res = await app.inject({ url: '/realms/demo/.well-known/openid-configuration' });
+// packages/protocol-oidc/tests/tenant-scopes.int.test.ts
+describe('scopes come from the tenant', () => {
+  it('advertises exactly the scopes the tenant defines', async () => {
+    await createScope(tenantId, { name: 'reports:read' });
+    const res = await app.inject({ url: '/tenants/demo/.well-known/openid-configuration' });
     expect(res.json().scopes_supported).toContain('reports:read');
   });
 
-  it('refuses a scope the realm has never heard of', async () => {
+  it('refuses a scope the tenant has never heard of', async () => {
     const res = await authorizeWith({ scope: 'openid nonsense' });
     expect(res.headers.location).toContain('error=invalid_scope');
   });
 
-  it('refuses a scope the realm defines but this client is not assigned', async () => {
-    await createScope(realmId, { name: 'reports:read' });
+  it('refuses a scope the tenant defines but this client is not assigned', async () => {
+    await createScope(tenantId, { name: 'reports:read' });
     // deliberately not assigned to `app-a`
     const res = await authorizeWith({ clientId: 'app-a', scope: 'openid reports:read' });
     expect(res.headers.location).toContain('error=invalid_scope');
   });
 
   it('grants a scope the client is assigned', async () => {
-    const scope = await createScope(realmId, { name: 'reports:read' });
+    const scope = await createScope(tenantId, { name: 'reports:read' });
     await assign('app-a', scope.id, 'optional');
     const res = await authorizeWith({ clientId: 'app-a', scope: 'openid reports:read' });
     expect(res.headers.location).not.toContain('error=');
@@ -922,30 +922,30 @@ describe('scopes come from the realm', () => {
 
 - [ ] **Step 2: Run it and watch it fail**
 
-Run: `pnpm --filter @odudu/protocol-oidc test:int realm-scopes`
+Run: `pnpm --filter @odudu/protocol-oidc test:int tenant-scopes`
 Expected: FAIL — `scopes_supported` is the frozen three-element constant.
 
 - [ ] **Step 3: Take the scope list out of `contracts`**
 
 Delete `SUPPORTED_SCOPES` from `packages/contracts/src/discovery.ts` and its re-export from `index.ts`. Add `scopesSupported: readonly string[]` to `DiscoveryDocumentOptions` and use it for the `scopes_supported` member. `contracts` is a leaf and must not learn how to read a database; the caller supplies the list.
 
-- [ ] **Step 4: Make `/authorize` validate against realm data**
+- [ ] **Step 4: Make `/authorize` validate against tenant data**
 
 `validateAuthorizationRequest` currently closes over a module-level `KNOWN_SCOPES` set. Give it two arguments instead, because the two failures are different and both are `invalid_scope`:
 
 ```ts
 function scopesAreGrantable(
   scope: string | undefined,
-  knownToRealm: ReadonlySet<string>,
+  knownToTenant: ReadonlySet<string>,
   assignedToClient: ReadonlySet<string>,
 ): boolean {
   const tokens = (scope ?? 'openid').split(' ').filter((token) => token.length > 0);
   if (tokens.length === 0) return false;
-  return tokens.every((token) => knownToRealm.has(token) && assignedToClient.has(token));
+  return tokens.every((token) => knownToTenant.has(token) && assignedToClient.has(token));
 }
 ```
 
-A scope unknown to the realm and a scope known but unassigned are both refused rather than silently dropped, which is what `/authorize` does today and what RFC 6749 section 3.3 asks for.
+A scope unknown to the tenant and a scope known but unassigned are both refused rather than silently dropped, which is what `/authorize` does today and what RFC 6749 section 3.3 asks for.
 
 - [ ] **Step 5: Feed `resolveScope` real data**
 
@@ -959,7 +959,7 @@ Replace the second argument with the scopes assigned to the redeeming client, re
 
 - [ ] **Step 6: Update the P1 unit tests that asserted the constant**
 
-`packages/protocol-oidc/src/service/authorize-validation.test.ts` has a test named _"accepts exactly what discovery advertises as scopes_supported, and nothing beyond it"_ which reads `discoveryDocument(...).scopes_supported`. It still holds — the property is that validation and discovery agree — but both sides now come from the same realm-derived list passed in, rather than from a shared import. Rewrite it to pass one set to both and assert they agree; do not delete it. It is the only test standing between the two lists drifting apart.
+`packages/protocol-oidc/src/service/authorize-validation.test.ts` has a test named _"accepts exactly what discovery advertises as scopes_supported, and nothing beyond it"_ which reads `discoveryDocument(...).scopes_supported`. It still holds — the property is that validation and discovery agree — but both sides now come from the same tenant-derived list passed in, rather than from a shared import. Rewrite it to pass one set to both and assert they agree; do not delete it. It is the only test standing between the two lists drifting apart.
 
 - [ ] **Step 7: Run everything**
 
@@ -968,11 +968,11 @@ Expected: PASS.
 
 - [ ] **Step 8: Update the documentation and commit**
 
-`docs/request-paths.md` describes `scopes_supported` as a fixed list in at least one place. Re-run the discovery transcript against the running stack and paste the real output; add a line saying a scope must be both defined by the realm and assigned to the client.
+`docs/request-paths.md` describes `scopes_supported` as a fixed list in at least one place. Re-run the discovery transcript against the running stack and paste the real output; add a line saying a scope must be both defined by the tenant and assigned to the client.
 
 ```bash
 git add packages/contracts packages/protocol-oidc docs/request-paths.md
-git commit -m "Read the supported scopes from the realm that defines them"
+git commit -m "Read the supported scopes from the tenant that defines them"
 ```
 
 ---
@@ -1060,12 +1060,12 @@ git commit -m "Establish that a UNION recursive CTE survives a cyclic role graph
 
 **Interfaces:**
 
-- Consumes: `realms` and `clients` tables
+- Consumes: `tenants` and `clients` tables
 - Produces:
   - `roles`, `role_composites`, `subject_roles`, `client_scope_roles` tables
-  - `interface RoleRecord { id, realmId, clientId: string | null, name, description, defaultForNewSubjects }`
+  - `interface RoleRecord { id, tenantId, clientId: string | null, name, description, defaultForNewSubjects }`
   - `qualifiedRoleName(role: { name: string }, clientKey: string | null): string`
-  - `roleRepository(tx)` with `create`, `byName`, `addComposite`, `assignToSubject`, `mapToClientScope`, `defaultsForRealm`
+  - `roleRepository(tx)` with `create`, `byName`, `addComposite`, `assignToSubject`, `mapToClientScope`, `defaultsForTenant`
 
 - [ ] **Step 1: Scaffold the package**
 
@@ -1081,7 +1081,7 @@ import { describe, expect, it } from 'vitest';
 import { qualifiedRoleName } from '#/service/role-name';
 
 describe('qualifiedRoleName', () => {
-  it('leaves a realm role bare', () => {
+  it('leaves a tenant role bare', () => {
     expect(qualifiedRoleName({ name: 'admin' }, null)).toBe('admin');
   });
 
@@ -1101,7 +1101,7 @@ Expected: FAIL — module not found.
 ```ts
 // packages/domain-authz/src/service/role-name.ts
 
-// A realm role is bare, a client role is qualified by its owning client.
+// A tenant role is bare, a client role is qualified by its owning client.
 // The database refuses `:` in a role name, so the qualified form cannot be
 // ambiguous and this join needs no escaping.
 export function qualifiedRoleName(
@@ -1118,55 +1118,55 @@ export function qualifiedRoleName(
 -- packages/db/drizzle/0017_roles.sql
 CREATE TABLE roles (
   id                       uuid PRIMARY KEY,
-  realm_id                 uuid NOT NULL REFERENCES realms(id) ON DELETE CASCADE,
+  tenant_id                 uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
   client_id                uuid,
   name                     text NOT NULL,
   description              text,
   default_for_new_subjects boolean NOT NULL DEFAULT false,
   created_at               timestamptz NOT NULL DEFAULT now(),
-  CONSTRAINT roles_realm_id_unique UNIQUE (realm_id, id),
+  CONSTRAINT roles_tenant_id_unique UNIQUE (tenant_id, id),
   -- What makes `clientId:roleName` unambiguous. Enforced here rather than in
   -- the code that formats the claim, so no ambiguous role can exist at all.
   CONSTRAINT roles_name_has_no_colon CHECK (name !~ ':' AND name <> ''),
-  CONSTRAINT roles_client_fk FOREIGN KEY (realm_id, client_id)
-    REFERENCES clients(realm_id, id) ON DELETE CASCADE
+  CONSTRAINT roles_client_fk FOREIGN KEY (tenant_id, client_id)
+    REFERENCES clients(tenant_id, id) ON DELETE CASCADE
 );
 
-CREATE UNIQUE INDEX roles_realm_name ON roles (realm_id, name) WHERE client_id IS NULL;
+CREATE UNIQUE INDEX roles_tenant_name ON roles (tenant_id, name) WHERE client_id IS NULL;
 CREATE UNIQUE INDEX roles_client_name ON roles (client_id, name) WHERE client_id IS NOT NULL;
 
 CREATE TABLE role_composites (
-  realm_id       uuid NOT NULL,
+  tenant_id       uuid NOT NULL,
   parent_role_id uuid NOT NULL,
   child_role_id  uuid NOT NULL,
   PRIMARY KEY (parent_role_id, child_role_id),
   CONSTRAINT role_composites_not_self CHECK (parent_role_id <> child_role_id),
-  CONSTRAINT role_composites_parent_fk FOREIGN KEY (realm_id, parent_role_id)
-    REFERENCES roles(realm_id, id) ON DELETE CASCADE,
-  CONSTRAINT role_composites_child_fk FOREIGN KEY (realm_id, child_role_id)
-    REFERENCES roles(realm_id, id) ON DELETE CASCADE
+  CONSTRAINT role_composites_parent_fk FOREIGN KEY (tenant_id, parent_role_id)
+    REFERENCES roles(tenant_id, id) ON DELETE CASCADE,
+  CONSTRAINT role_composites_child_fk FOREIGN KEY (tenant_id, child_role_id)
+    REFERENCES roles(tenant_id, id) ON DELETE CASCADE
 );
 
 CREATE TABLE subject_roles (
-  realm_id   uuid NOT NULL,
+  tenant_id   uuid NOT NULL,
   subject_id uuid NOT NULL,
   role_id    uuid NOT NULL,
   PRIMARY KEY (subject_id, role_id),
-  CONSTRAINT subject_roles_subject_fk FOREIGN KEY (realm_id, subject_id)
-    REFERENCES subjects(realm_id, id) ON DELETE CASCADE,
-  CONSTRAINT subject_roles_role_fk FOREIGN KEY (realm_id, role_id)
-    REFERENCES roles(realm_id, id) ON DELETE CASCADE
+  CONSTRAINT subject_roles_subject_fk FOREIGN KEY (tenant_id, subject_id)
+    REFERENCES subjects(tenant_id, id) ON DELETE CASCADE,
+  CONSTRAINT subject_roles_role_fk FOREIGN KEY (tenant_id, role_id)
+    REFERENCES roles(tenant_id, id) ON DELETE CASCADE
 );
 
 CREATE TABLE client_scope_roles (
-  realm_id        uuid NOT NULL,
+  tenant_id        uuid NOT NULL,
   client_scope_id uuid NOT NULL,
   role_id         uuid NOT NULL,
   PRIMARY KEY (client_scope_id, role_id),
-  CONSTRAINT client_scope_roles_scope_fk FOREIGN KEY (realm_id, client_scope_id)
-    REFERENCES client_scopes(realm_id, id) ON DELETE CASCADE,
-  CONSTRAINT client_scope_roles_role_fk FOREIGN KEY (realm_id, role_id)
-    REFERENCES roles(realm_id, id) ON DELETE CASCADE
+  CONSTRAINT client_scope_roles_scope_fk FOREIGN KEY (tenant_id, client_scope_id)
+    REFERENCES client_scopes(tenant_id, id) ON DELETE CASCADE,
+  CONSTRAINT client_scope_roles_role_fk FOREIGN KEY (tenant_id, role_id)
+    REFERENCES roles(tenant_id, id) ON DELETE CASCADE
 );
 
 -- Bypasses the scope-mapping intersection. It belongs in this migration
@@ -1178,22 +1178,22 @@ ALTER TABLE clients ADD COLUMN full_scope_allowed boolean NOT NULL DEFAULT false
 ALTER TABLE roles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE roles FORCE ROW LEVEL SECURITY;
 CREATE POLICY roles_isolation ON roles
-  USING (realm_id = nullif(current_setting('app.realm_id', true), '')::uuid);
+  USING (tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid);
 
 ALTER TABLE role_composites ENABLE ROW LEVEL SECURITY;
 ALTER TABLE role_composites FORCE ROW LEVEL SECURITY;
 CREATE POLICY role_composites_isolation ON role_composites
-  USING (realm_id = nullif(current_setting('app.realm_id', true), '')::uuid);
+  USING (tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid);
 
 ALTER TABLE subject_roles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE subject_roles FORCE ROW LEVEL SECURITY;
 CREATE POLICY subject_roles_isolation ON subject_roles
-  USING (realm_id = nullif(current_setting('app.realm_id', true), '')::uuid);
+  USING (tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid);
 
 ALTER TABLE client_scope_roles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE client_scope_roles FORCE ROW LEVEL SECURITY;
 CREATE POLICY client_scope_roles_isolation ON client_scope_roles
-  USING (realm_id = nullif(current_setting('app.realm_id', true), '')::uuid);
+  USING (tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid);
 ```
 
 Append to `_journal.json`: `{ "idx": 17, "version": "7", "when": 1789049381660, "tag": "0017_roles", "breakpoints": true }`.
@@ -1209,14 +1209,16 @@ describe('role names', () => {
     );
   });
 
-  it('permits the same name as a realm role and as a client role', async () => {
+  it('permits the same name as a tenant role and as a client role', async () => {
     await expect(createRole({ name: 'reader', clientId: null })).resolves.toBeDefined();
     await expect(createRole({ name: 'reader', clientId: reportsApi })).resolves.toBeDefined();
   });
 
-  it('refuses two realm roles of the same name', async () => {
+  it('refuses two tenant roles of the same name', async () => {
     await createRole({ name: 'admin', clientId: null });
-    await expect(createRole({ name: 'admin', clientId: null })).rejects.toThrow(/roles_realm_name/);
+    await expect(createRole({ name: 'admin', clientId: null })).rejects.toThrow(
+      /roles_tenant_name/,
+    );
   });
 });
 
@@ -1234,10 +1236,10 @@ describe('composites', () => {
   });
 });
 
-describe('realm isolation', () => {
-  it('finds no role from another realm', async () => {
-    await createRole({ name: 'admin', realmId: realmA });
-    const found = await withRealm(db, realmB, (tx) => roleRepository(tx).byName('admin', null));
+describe('tenant isolation', () => {
+  it('finds no role from another tenant', async () => {
+    await createRole({ name: 'admin', tenantId: tenantA });
+    const found = await withTenant(db, tenantB, (tx) => roleRepository(tx).byName('admin', null));
     expect(found).toBeNull();
   });
 });
@@ -1264,7 +1266,7 @@ The schema file mirrors the SQL with `pgTable(...).enableRLS()`, following `pack
       if (reachable.has(parentRoleId)) {
         throw new OduduError('role_composite_cycle', 'would create a cycle');
       }
-      await tx.insert(roleComposites).values({ realmId, parentRoleId, childRoleId });
+      await tx.insert(roleComposites).values({ tenantId, parentRoleId, childRoleId });
     },
 ```
 
@@ -1280,7 +1282,7 @@ Expected: PASS.
 
 ```bash
 git add packages/domain-authz packages/db/drizzle tests/boundaries .dependency-cruiser.cjs
-git commit -m "Give a realm roles, and refuse the ones that cannot be named or resolved"
+git commit -m "Give a tenant roles, and refuse the ones that cannot be named or resolved"
 ```
 
 ---
@@ -1296,14 +1298,14 @@ git commit -m "Give a realm roles, and refuse the ones that cannot be named or r
 **Interfaces:**
 
 - Consumes: the Task 6 finding; `roles`, `role_composites`, `subject_roles` (Task 7)
-- Produces: `effectiveRoles(tx, subjectId): Promise<readonly EffectiveRole[]>` where `interface EffectiveRole { roleId: string; name: string; clientKey: string | null }`. `clientKey` is the OAuth `client_id` string of the owning client, or `null` for a realm role. Task 9 extends the same query with groups; Task 10 formats the result into a claim.
+- Produces: `effectiveRoles(tx, subjectId): Promise<readonly EffectiveRole[]>` where `interface EffectiveRole { roleId: string; name: string; clientKey: string | null }`. `clientKey` is the OAuth `client_id` string of the owning client, or `null` for a tenant role. Task 9 extends the same query with groups; Task 10 formats the result into a claim.
 
 - [ ] **Step 1: Write the failing integration test**
 
 ```ts
 // packages/domain-authz/tests/effective-roles.int.test.ts
 describe('effectiveRoles', () => {
-  it('returns a directly assigned realm role', async () => {
+  it('returns a directly assigned tenant role', async () => {
     const admin = await createRole({ name: 'admin' });
     await assignToSubject(subject, admin.id);
     expect(await names(subject)).toEqual(['admin']);
@@ -1346,10 +1348,10 @@ describe('effectiveRoles', () => {
     expect(await names(subject)).toEqual(['a', 'b']);
   }, 10_000);
 
-  it('returns nothing for a subject in another realm', async () => {
-    const admin = await createRole({ name: 'admin', realmId: realmA });
+  it('returns nothing for a subject in another tenant', async () => {
+    const admin = await createRole({ name: 'admin', tenantId: tenantA });
     await assignToSubject(subjectInA, admin.id);
-    const found = await withRealm(db, realmB, (tx) => effectiveRoles(tx, subjectInA));
+    const found = await withTenant(db, tenantB, (tx) => effectiveRoles(tx, subjectInA));
     expect(found).toEqual([]);
   });
 });
@@ -1368,7 +1370,7 @@ Expected: FAIL — module not found.
 
 ```ts
 // packages/domain-authz/src/repository/effective-roles.ts
-import { type RealmScopedDatabase } from '@odudu/db';
+import { type TenantScopedDatabase } from '@odudu/db';
 import { sql } from 'drizzle-orm';
 
 export interface EffectiveRole {
@@ -1387,7 +1389,7 @@ interface EffectiveRoleRow {
 // composite graph empties its frontier and the query ends. UNION ALL on the
 // same data does not terminate.
 export async function effectiveRoles(
-  tx: RealmScopedDatabase,
+  tx: TenantScopedDatabase,
   subjectId: string,
 ): Promise<readonly EffectiveRole[]> {
   const rows = await tx.execute<EffectiveRoleRow>(sql`
@@ -1459,56 +1461,56 @@ git commit -m "Resolve the roles a subject actually holds, cycles included"
 -- packages/db/drizzle/0018_groups.sql
 CREATE TABLE groups (
   id         uuid PRIMARY KEY,
-  realm_id   uuid NOT NULL REFERENCES realms(id) ON DELETE CASCADE,
+  tenant_id   uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
   parent_id  uuid,
   name       text NOT NULL,
   path       text NOT NULL,
   created_at timestamptz NOT NULL DEFAULT now(),
-  CONSTRAINT groups_realm_id_unique UNIQUE (realm_id, id),
-  CONSTRAINT groups_path_unique UNIQUE (realm_id, path),
+  CONSTRAINT groups_tenant_id_unique UNIQUE (tenant_id, id),
+  CONSTRAINT groups_path_unique UNIQUE (tenant_id, path),
   -- `/` separates path segments, so it cannot appear inside one.
   CONSTRAINT groups_name_has_no_slash CHECK (name !~ '/' AND name <> ''),
   CONSTRAINT groups_path_is_absolute CHECK (path LIKE '/%'),
-  CONSTRAINT groups_parent_fk FOREIGN KEY (realm_id, parent_id)
-    REFERENCES groups(realm_id, id) ON DELETE CASCADE
+  CONSTRAINT groups_parent_fk FOREIGN KEY (tenant_id, parent_id)
+    REFERENCES groups(tenant_id, id) ON DELETE CASCADE
 );
 
 CREATE TABLE group_roles (
-  realm_id uuid NOT NULL,
+  tenant_id uuid NOT NULL,
   group_id uuid NOT NULL,
   role_id  uuid NOT NULL,
   PRIMARY KEY (group_id, role_id),
-  CONSTRAINT group_roles_group_fk FOREIGN KEY (realm_id, group_id)
-    REFERENCES groups(realm_id, id) ON DELETE CASCADE,
-  CONSTRAINT group_roles_role_fk FOREIGN KEY (realm_id, role_id)
-    REFERENCES roles(realm_id, id) ON DELETE CASCADE
+  CONSTRAINT group_roles_group_fk FOREIGN KEY (tenant_id, group_id)
+    REFERENCES groups(tenant_id, id) ON DELETE CASCADE,
+  CONSTRAINT group_roles_role_fk FOREIGN KEY (tenant_id, role_id)
+    REFERENCES roles(tenant_id, id) ON DELETE CASCADE
 );
 
 CREATE TABLE subject_groups (
-  realm_id   uuid NOT NULL,
+  tenant_id   uuid NOT NULL,
   subject_id uuid NOT NULL,
   group_id   uuid NOT NULL,
   PRIMARY KEY (subject_id, group_id),
-  CONSTRAINT subject_groups_subject_fk FOREIGN KEY (realm_id, subject_id)
-    REFERENCES subjects(realm_id, id) ON DELETE CASCADE,
-  CONSTRAINT subject_groups_group_fk FOREIGN KEY (realm_id, group_id)
-    REFERENCES groups(realm_id, id) ON DELETE CASCADE
+  CONSTRAINT subject_groups_subject_fk FOREIGN KEY (tenant_id, subject_id)
+    REFERENCES subjects(tenant_id, id) ON DELETE CASCADE,
+  CONSTRAINT subject_groups_group_fk FOREIGN KEY (tenant_id, group_id)
+    REFERENCES groups(tenant_id, id) ON DELETE CASCADE
 );
 
 ALTER TABLE groups ENABLE ROW LEVEL SECURITY;
 ALTER TABLE groups FORCE ROW LEVEL SECURITY;
 CREATE POLICY groups_isolation ON groups
-  USING (realm_id = nullif(current_setting('app.realm_id', true), '')::uuid);
+  USING (tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid);
 
 ALTER TABLE group_roles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE group_roles FORCE ROW LEVEL SECURITY;
 CREATE POLICY group_roles_isolation ON group_roles
-  USING (realm_id = nullif(current_setting('app.realm_id', true), '')::uuid);
+  USING (tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid);
 
 ALTER TABLE subject_groups ENABLE ROW LEVEL SECURITY;
 ALTER TABLE subject_groups FORCE ROW LEVEL SECURITY;
 CREATE POLICY subject_groups_isolation ON subject_groups
-  USING (realm_id = nullif(current_setting('app.realm_id', true), '')::uuid);
+  USING (tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid);
 ```
 
 Append to `_journal.json`: `{ "idx": 18, "version": "7", "when": 1789049381661, "tag": "0018_groups", "breakpoints": true }`.
@@ -1587,9 +1589,9 @@ describe('group membership and roles', () => {
     expect(await effectiveGroupPaths(tx, subject)).toEqual(['/engineering/platform']);
   });
 
-  it('finds no group from another realm', async () => {
-    await createGroup({ name: 'engineering', parentId: null, realmId: realmA });
-    const found = await withRealm(db, realmB, (tx) => groupRepository(tx).byPath('/engineering'));
+  it('finds no group from another tenant', async () => {
+    await createGroup({ name: 'engineering', parentId: null, tenantId: tenantA });
+    const found = await withTenant(db, tenantB, (tx) => groupRepository(tx).byPath('/engineering'));
     expect(found).toBeNull();
   });
 });
@@ -1686,7 +1688,7 @@ describe('roles claim', () => {
     groups: ['/engineering/platform', '/engineering'],
   };
 
-  it('emits realm roles bare and client roles qualified', async () => {
+  it('emits tenant roles bare and client roles qualified', async () => {
     const claims = await standardClaimMappers().assemble(['openid', 'roles'], ctx);
     expect(claims.roles).toEqual(['admin', 'reports-api:reader']);
   });
@@ -1763,10 +1765,10 @@ const groupsMapper: ClaimMapper<ClaimContext> = {
 
 Widen `ClaimContext` and register both in `standardClaimMappers()`.
 
-**In this same commit, add `roles` and `groups` to `REALM_DEFAULT_SCOPE_NAMES`**
+**In this same commit, add `roles` and `groups` to `TENANT_DEFAULT_SCOPE_NAMES`**
 (`packages/domain-tenant/src/usecase/provision-defaults.ts`) and to the default
 set `provisionClientDefaults` assigns. Task 4's seed was reduced to the three
-scopes whose mappers existed; a scope joins the realm vocabulary in the commit
+scopes whose mappers existed; a scope joins the tenant vocabulary in the commit
 that makes it true, so that `scopes_supported` never advertises a promise
 nothing keeps. The discovery transcript in `docs/request-paths.md` changes with
 it and must be re-run, not edited.
@@ -1848,7 +1850,7 @@ Expected: FAIL — module not found.
 import { type EffectiveRole } from '@odudu/domain-authz';
 
 // A role reaches a token only if the granted scopes reach it. Without this,
-// one login tells a client the realm's entire role vocabulary.
+// one login tells a client the tenant's entire role vocabulary.
 export function narrowByScopeMappings(
   held: readonly EffectiveRole[],
   reachableRoleIds: ReadonlySet<string>,
@@ -2006,7 +2008,7 @@ Append to `_journal.json`: `{ "idx": 20, "version": "7", "when": 1789049381663, 
 
 - [ ] **Step 2: Decide `users_lookup` explicitly**
 
-`users_lookup` is `(realm_id, username) INCLUDE (subject_id, email, email_verified)` — a covering index on the hot path of every token issuance, added because class-table inheritance puts that join there. **It is left unchanged, and that is a decision, not an omission:** it covers the _login_ lookup by username, whereas profile claims are read by `subject_id`, which is the primary key and needs no covering index. Adding twenty columns to `INCLUDE` would enlarge every leaf page to serve a query that never uses it. Write that reason into the migration as a two-line comment so the next reader does not "fix" it.
+`users_lookup` is `(tenant_id, username) INCLUDE (subject_id, email, email_verified)` — a covering index on the hot path of every token issuance, added because class-table inheritance puts that join there. **It is left unchanged, and that is a decision, not an omission:** it covers the _login_ lookup by username, whereas profile claims are read by `subject_id`, which is the primary key and needs no covering index. Adding twenty columns to `INCLUDE` would enlarge every leaf page to serve a query that never uses it. Write that reason into the migration as a two-line comment so the next reader does not "fix" it.
 
 - [ ] **Step 3: Write the failing tests**
 
@@ -2054,9 +2056,9 @@ describe('the database enforces what the claim promises', () => {
     );
   });
 
-  it('updates no profile in another realm', async () => {
+  it('updates no profile in another tenant', async () => {
     await expect(
-      withRealm(db, realmB, (tx) =>
+      withTenant(db, tenantB, (tx) =>
         userRepository(tx).updateProfile(subjectInA, { nickname: 'x' }),
       ),
     ).rejects.toThrow(/not found/);
@@ -2194,7 +2196,7 @@ Expected: FAIL — `profile` emits only `name`.
 
 **Migration 0019 was inserted during execution** — `client_scopes.include_in_access_token`, symmetric with `include_in_id_token`. Running the claim mapper registry on the access token, which Task 11 does to carry `roles` and `groups`, also moved `name`, `email` and `email_verified` there: an access token goes to the resource servers named in `aud`, which should not receive the end-user's address because the registry started running. The gate defaults true for `roles` and `groups` and false for `openid`, `profile` and `email`. Every migration from the user profile onward shifted by one.
 
-**In this same commit, add `address` and `phone` to `REALM_DEFAULT_SCOPE_NAMES`**
+**In this same commit, add `address` and `phone` to `TENANT_DEFAULT_SCOPE_NAMES`**
 and to the default set `provisionClientDefaults` assigns, for the reason given
 in Task 4. These two are the last of the seven. Adding them un-skips
 `oidcc-scope-address`, `oidcc-scope-phone` and `oidcc-scope-all` in the
@@ -2347,29 +2349,29 @@ describe('renderVerifyEmail', () => {
   it('puts the action link in both the text and the html body', () => {
     const msg = renderVerifyEmail({
       to: 'ada@example.test',
-      link: 'https://idp.example/realms/demo/login-actions/action-token?key=abc',
-      realmDisplayName: 'Demo',
+      link: 'https://idp.example/tenants/demo/login-actions/action-token?key=abc',
+      tenantDisplayName: 'Demo',
     });
     expect(msg.text).toContain(
-      'https://idp.example/realms/demo/login-actions/action-token?key=abc',
+      'https://idp.example/tenants/demo/login-actions/action-token?key=abc',
     );
     expect(msg.html).toContain(
-      'https://idp.example/realms/demo/login-actions/action-token?key=abc',
+      'https://idp.example/tenants/demo/login-actions/action-token?key=abc',
     );
   });
 
-  it('escapes a realm name that contains markup', () => {
+  it('escapes a tenant name that contains markup', () => {
     const msg = renderVerifyEmail({
       to: 'ada@example.test',
       link: 'https://idp.example/x',
-      realmDisplayName: '<script>x</script>',
+      tenantDisplayName: '<script>x</script>',
     });
     expect(msg.html).not.toContain('<script>');
   });
 });
 ```
 
-The escaping test is not decoration: a realm display name is operator-supplied and lands in an HTML body that a mail client renders.
+The escaping test is not decoration: a tenant display name is operator-supplied and lands in an HTML body that a mail client renders.
 
 - [ ] **Step 2: Run them and watch them fail**
 
@@ -2399,7 +2401,7 @@ The capturing adapter writes to the logger as well as recording in memory, so th
 
 - [ ] **Step 4: Add the configuration at the kernel boundary**
 
-`ODUDU_SMTP_HOST`, `_PORT`, `_FROM`, `_USERNAME`, `_PASSWORD`, `_STARTTLS`, parsed and validated by the existing Zod config schema in `@odudu/kernel` — that is where the environment is decoded and length-checked already, and it is what keeps an untyped `process.env` read out of the adapter. Per ADR 0015, credentials come from the environment; per-realm SMTP is P4's. With no host configured the server selects the capturing adapter and logs that it has done so, rather than failing to boot: a realm with `verify_email` off needs no mail at all.
+`ODUDU_SMTP_HOST`, `_PORT`, `_FROM`, `_USERNAME`, `_PASSWORD`, `_STARTTLS`, parsed and validated by the existing Zod config schema in `@odudu/kernel` — that is where the environment is decoded and length-checked already, and it is what keeps an untyped `process.env` read out of the adapter. Per ADR 0015, credentials come from the environment; per-tenant SMTP is P4's. With no host configured the server selects the capturing adapter and logs that it has done so, rather than failing to boot: a tenant with `verify_email` off needs no mail at all.
 
 - [ ] **Step 5: Write the integration test against a real SMTP sink**
 
@@ -2458,7 +2460,7 @@ git commit -m "Put one seam under every message this server will ever send"
 -- packages/db/drizzle/0021_action_tokens.sql
 CREATE TABLE action_tokens (
   id          uuid PRIMARY KEY,
-  realm_id    uuid NOT NULL REFERENCES realms(id) ON DELETE CASCADE,
+  tenant_id    uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
   subject_id  uuid NOT NULL,
   type        text NOT NULL,
   token_hash  text NOT NULL,
@@ -2471,14 +2473,14 @@ CREATE TABLE action_tokens (
   consumed_at timestamptz,
   CONSTRAINT action_tokens_type_check CHECK (type IN ('verify_email', 'reset_password')),
   CONSTRAINT action_tokens_hash_unique UNIQUE (token_hash),
-  CONSTRAINT action_tokens_subject_fk FOREIGN KEY (realm_id, subject_id)
-    REFERENCES subjects(realm_id, id) ON DELETE CASCADE
+  CONSTRAINT action_tokens_subject_fk FOREIGN KEY (tenant_id, subject_id)
+    REFERENCES subjects(tenant_id, id) ON DELETE CASCADE
 );
 
 ALTER TABLE action_tokens ENABLE ROW LEVEL SECURITY;
 ALTER TABLE action_tokens FORCE ROW LEVEL SECURITY;
 CREATE POLICY action_tokens_isolation ON action_tokens
-  USING (realm_id = nullif(current_setting('app.realm_id', true), '')::uuid);
+  USING (tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid);
 ```
 
 Append to `_journal.json`: `{ "idx": 21, "version": "7", "when": 1789049381664, "tag": "0021_action_tokens", "breakpoints": true }`.
@@ -2537,10 +2539,10 @@ describe('issue and consume', () => {
     expect(results.filter((r) => r !== null)).toHaveLength(1);
   });
 
-  it('consumes nothing from another realm', async () => {
-    const { token } = await issueIn(realmA, { subjectId: subjectInA, type: 'verify_email' });
+  it('consumes nothing from another tenant', async () => {
+    const { token } = await issueIn(tenantA, { subjectId: subjectInA, type: 'verify_email' });
     await expect(
-      withRealm(db, realmB, (tx) => actionTokenRepository(tx).consume(token, 'verify_email')),
+      withTenant(db, tenantB, (tx) => actionTokenRepository(tx).consume(token, 'verify_email')),
     ).resolves.toBeNull();
   });
 });
@@ -2611,17 +2613,17 @@ git commit -m "Mint an action token that can be spent once and is never thrown a
 
 - Consumes: `actionTokenRepository` (Task 16), `EmailSender` and `renderVerifyEmail` (Task 15), `userRepository` (Task 12)
 - Produces:
-  - `realms.registration_allowed`, `realms.verify_email`, `realms.reset_password_allowed`
+  - `tenants.registration_allowed`, `tenants.verify_email`, `tenants.reset_password_allowed`
   - `sendVerificationEmail(deps, { subjectId, email }): Promise<void>`
-  - `GET /realms/:realm/login-actions/action-token?key=…`
+  - `GET /tenants/:tenant/login-actions/action-token?key=…`
 
 - [ ] **Step 1: Write the migration**
 
 ```sql
 -- packages/db/drizzle/0022_realm_account_settings.sql
--- All three default off: a realm does not acquire a public registration
+-- All three default off: a tenant does not acquire a public registration
 -- endpoint because it was upgraded.
-ALTER TABLE realms
+ALTER TABLE tenants
   ADD COLUMN registration_allowed   boolean NOT NULL DEFAULT false,
   ADD COLUMN verify_email           boolean NOT NULL DEFAULT false,
   ADD COLUMN reset_password_allowed boolean NOT NULL DEFAULT false;
@@ -2672,9 +2674,12 @@ describe('address verification', () => {
     expect(await emailVerified(subject)).toBe(false);
   });
 
-  it('refuses a token minted in another realm', async () => {
-    const link = await verificationLinkIn(realmA, subjectInA);
-    const res = await app.inject({ method: 'GET', url: link.replace('/realms/a/', '/realms/b/') });
+  it('refuses a token minted in another tenant', async () => {
+    const link = await verificationLinkIn(tenantA, subjectInA);
+    const res = await app.inject({
+      method: 'GET',
+      url: link.replace('/tenants/a/', '/tenants/b/'),
+    });
     expect(res.statusCode).toBe(400);
   });
 
@@ -2708,7 +2713,7 @@ Expected: PASS.
 
 - [ ] **Step 6: Document and commit**
 
-Add the flow to `docs/request-paths.md` with real output from a live stack — including the captured message body from the development adapter, which is how a reader gets the link without a mail server. `README.md` gains the three realm settings and the SMTP environment variables.
+Add the flow to `docs/request-paths.md` with real output from a live stack — including the captured message body from the development adapter, which is how a reader gets the link without a mail server. `README.md` gains the three tenant settings and the SMTP environment variables.
 
 ```bash
 git add packages/account packages/db/drizzle apps/server docs/request-paths.md README.md
@@ -2731,8 +2736,8 @@ git commit -m "Make email_verified a claim about something that happened"
 
 **Interfaces:**
 
-- Consumes: Tasks 15–17; `roleRepository(tx).defaultsForRealm()` (Task 7)
-- Produces: `GET` and `POST /realms/:realm/login-actions/registration`
+- Consumes: Tasks 15–17; `roleRepository(tx).defaultsForTenant()` (Task 7)
+- Produces: `GET` and `POST /tenants/:tenant/login-actions/registration`
 
 - [ ] **Step 1: Write the migration, knowing it can be rejected**
 
@@ -2742,7 +2747,7 @@ git commit -m "Make email_verified a claim about something that happened"
 -- for the first time. This index can fail on a database that already holds
 -- duplicates; that failure is correct and the operator resolves it before
 -- enabling registration. Partial, because email stays nullable.
-CREATE UNIQUE INDEX users_email_unique ON users (realm_id, email) WHERE email IS NOT NULL;
+CREATE UNIQUE INDEX users_email_unique ON users (tenant_id, email) WHERE email IS NOT NULL;
 ```
 
 Append to `_journal.json`: `{ "idx": 23, "version": "7", "when": 1789049381666, "tag": "0023_users_email_unique", "breakpoints": true }`.
@@ -2752,14 +2757,14 @@ Append to `_journal.json`: `{ "idx": 23, "version": "7", "when": 1789049381666, 
 ```ts
 // packages/account/tests/register.int.test.ts
 describe('self-registration', () => {
-  it('is not served at all when the realm has not enabled it', async () => {
-    await setRealm({ registrationAllowed: false });
-    const res = await app.inject({ url: '/realms/demo/login-actions/registration' });
+  it('is not served at all when the tenant has not enabled it', async () => {
+    await setTenant({ registrationAllowed: false });
+    const res = await app.inject({ url: '/tenants/demo/login-actions/registration' });
     expect(res.statusCode).toBe(404);
   });
 
-  it('creates a user and applies the realm default roles', async () => {
-    await setRealm({ registrationAllowed: true });
+  it('creates a user and applies the tenant default roles', async () => {
+    await setTenant({ registrationAllowed: true });
     await createRole({ name: 'offline_access', defaultForNewSubjects: true });
 
     await register({
@@ -2771,22 +2776,22 @@ describe('self-registration', () => {
     expect(await roleNames('ada')).toEqual(['offline_access']);
   });
 
-  it('refuses an address another user in the realm already holds', async () => {
-    await setRealm({ registrationAllowed: true });
+  it('refuses an address another user in the tenant already holds', async () => {
+    await setTenant({ registrationAllowed: true });
     await register({ username: 'ada', email: 'ada@example.test', password: 'p' });
     const res = await registerRaw({ username: 'grace', email: 'ada@example.test', password: 'p' });
     expect(res.statusCode).toBe(400);
   });
 
-  it('permits the same address in a different realm', async () => {
-    await registerIn(realmA, { username: 'ada', email: 'ada@example.test', password: 'p' });
+  it('permits the same address in a different tenant', async () => {
+    await registerIn(tenantA, { username: 'ada', email: 'ada@example.test', password: 'p' });
     await expect(
-      registerIn(realmB, { username: 'ada', email: 'ada@example.test', password: 'p' }),
+      registerIn(tenantB, { username: 'ada', email: 'ada@example.test', password: 'p' }),
     ).resolves.toBeDefined();
   });
 
   it('refuses to complete a login until the address is verified', async () => {
-    await setRealm({ registrationAllowed: true, verifyEmail: true });
+    await setTenant({ registrationAllowed: true, verifyEmail: true });
     await register({ username: 'ada', email: 'ada@example.test', password: 'p' });
 
     const login = await attemptLogin('ada', 'p');
@@ -2796,7 +2801,7 @@ describe('self-registration', () => {
   });
 
   it('lets the login complete once the address is verified', async () => {
-    await setRealm({ registrationAllowed: true, verifyEmail: true });
+    await setTenant({ registrationAllowed: true, verifyEmail: true });
     await register({ username: 'ada', email: 'ada@example.test', password: 'p' });
     await followVerificationLink();
 
@@ -2844,7 +2849,7 @@ git commit -m "Let a user create their own account, and hold it until the addres
 **Interfaces:**
 
 - Consumes: Tasks 15–17; `credentialRepository` from `@odudu/domain-identity`
-- Produces: `GET`/`POST /realms/:realm/login-actions/reset-password`, and the `reset_password` branch of the action-token route
+- Produces: `GET`/`POST /tenants/:tenant/login-actions/reset-password`, and the `reset_password` branch of the action-token route
 
 - [ ] **Step 1: Write the failing integration test**
 
@@ -2889,10 +2894,10 @@ describe('password reset', () => {
     expect(login.headers.location).toBeUndefined();
   });
 
-  it('is not served when the realm has not enabled it', async () => {
-    await setRealm({ resetPasswordAllowed: false });
+  it('is not served when the tenant has not enabled it', async () => {
+    await setTenant({ resetPasswordAllowed: false });
     expect(
-      (await app.inject({ url: '/realms/demo/login-actions/reset-password' })).statusCode,
+      (await app.inject({ url: '/tenants/demo/login-actions/reset-password' })).statusCode,
     ).toBe(404);
   });
 });
@@ -2940,11 +2945,11 @@ Provisioning in P2a is the seed CLI, and this is the task that makes the phase u
 
 ```ts
 // apps/server/tests/seed-authz.int.test.ts
-it('provisions a realm whose user can obtain a token carrying a role', async () => {
-  await seed(['realm', '--name', 'demo']);
+it('provisions a tenant whose user can obtain a token carrying a role', async () => {
+  await seed(['tenant', '--name', 'demo']);
   await seed([
     'client',
-    '--realm',
+    '--tenant',
     'demo',
     '--client-id',
     'app',
@@ -2956,7 +2961,7 @@ it('provisions a realm whose user can obtain a token carrying a role', async () 
   ]);
   await seed([
     'user',
-    '--realm',
+    '--tenant',
     'demo',
     '--username',
     'ada',
@@ -2965,12 +2970,12 @@ it('provisions a realm whose user can obtain a token carrying a role', async () 
     '--email',
     'ada@example.test',
   ]);
-  await seed(['role', '--realm', 'demo', '--name', 'admin']);
-  await seed(['grant-role', '--realm', 'demo', '--username', 'ada', '--role', 'admin']);
-  await seed(['map-role', '--realm', 'demo', '--scope', 'roles', '--role', 'admin']);
+  await seed(['role', '--tenant', 'demo', '--name', 'admin']);
+  await seed(['grant-role', '--tenant', 'demo', '--username', 'ada', '--role', 'admin']);
+  await seed(['map-role', '--tenant', 'demo', '--scope', 'roles', '--role', 'admin']);
   await seed([
     'assign-scope',
-    '--realm',
+    '--tenant',
     'demo',
     '--client-id',
     'app',
@@ -2985,24 +2990,24 @@ it('provisions a realm whose user can obtain a token carrying a role', async () 
 });
 
 it('qualifies a client role with its owning client', async () => {
-  await seed(['role', '--realm', 'demo', '--name', 'reader', '--client-id', 'reports-api']);
+  await seed(['role', '--tenant', 'demo', '--name', 'reader', '--client-id', 'reports-api']);
   await seed([
     'grant-role',
-    '--realm',
+    '--tenant',
     'demo',
     '--username',
     'ada',
     '--role',
     'reports-api:reader',
   ]);
-  await seed(['map-role', '--realm', 'demo', '--scope', 'roles', '--role', 'reports-api:reader']);
+  await seed(['map-role', '--tenant', 'demo', '--scope', 'roles', '--role', 'reports-api:reader']);
   const { access_token } = await completeCodeFlow({ clientId: 'app', scope: 'openid roles' });
   expect(decode(access_token).roles).toEqual(['reports-api:reader']);
 });
 
 it('refuses to grant a role that does not exist rather than creating one', async () => {
   await expect(
-    seed(['grant-role', '--realm', 'demo', '--username', 'ada', '--role', 'nope']),
+    seed(['grant-role', '--tenant', 'demo', '--username', 'ada', '--role', 'nope']),
   ).rejects.toThrow(/no role named/);
 });
 ```
@@ -3141,7 +3146,7 @@ Run after writing this plan, recorded so an executor knows what was checked.
 
 **Spec coverage.** Every section of the spec maps to a task: section 3.1–3.3 → Tasks 7, 10; section 3.4 → Tasks 4, 11; section 3.5 → Task 11; section 4 migrations 0015–0022 → Tasks 2, 4, 7, 9, 12, 16, 17, 18; section 5 → Tasks 1–3; section 6 → Tasks 14–19; section 7 → Tasks 7, 15, 16; section 8 → Tasks 1, 6, 14; section 9 → the tests named in each; section 10 → Task 21; section 11 → Task 22; section 13's seven exit criteria → Tasks 11, 11, 13, 3, 17–19, 21, 22 respectively.
 
-**One gap found and closed.** The spec's section 4 names `client_scope_roles` under migration 0017 while describing it under scope mappings; the plan places it in 0017 with the reason, because it references `roles(realm_id, id)` and cannot exist before that table.
+**One gap found and closed.** The spec's section 4 names `client_scope_roles` under migration 0017 while describing it under scope mappings; the plan places it in 0017 with the reason, because it references `roles(tenant_id, id)` and cannot exist before that table.
 
 **Naming consistency checked across tasks.** `effectiveRoles` / `effectiveGroupPaths` (Tasks 8, 9, 10), `qualifiedRoleName` (Tasks 7, 10), `narrowByScopeMappings` (Task 11), `expandWebOrigins` / `normalizeOrigin` (Tasks 2, 3), `EffectiveRole.clientKey` — the OAuth `client_id` string, never the uuid — used identically in Tasks 8, 10 and 11.
 

@@ -27,7 +27,7 @@ function under review.** The rule that caught it wasn't `verified:` /
 into every dispatch after Task 8: **execute the function, don't reason
 about it**, and per property, **ask what the test would still pass under**.
 
-The repository-claim shape still appeared (the realm schema file named
+The repository-claim shape still appeared (the tenant schema file named
 wrong in Task 5's plan — the P2b rule's exact failure, caught by the two
 greps CLAUDE.md now demands and corrected before the implementer even
 needed to). But the phase's costliest findings were all "the suite's own
@@ -89,7 +89,7 @@ encrypted UserInfo responses it shares a shape with (both read per-client
 registration data P3a stored but nothing yet acts on). The consent
 transcript: still derived, not observed, as the note admits. Reproducing
 it means replaying the whole document's transcript from the top to reach
-the same `demo` realm state — infeasible inside a documentation-only
+the same `demo` tenant state — infeasible inside a documentation-only
 closing pass — so it is explicitly deferred rather than left open-ended.
 A first pass of this note assigned it to P4b on the reasoning that
 theming touches every rendered page; a review of this pass caught that as
@@ -159,7 +159,7 @@ Basic OP already has.
 
 ## Task 18 — the `client_secret` limiter, and an accepted timing oracle
 
-The limiter is real: keyed by realm and client, genuinely injected rather
+The limiter is real: keyed by tenant and client, genuinely injected rather
 than imported, bounded, and confirmed failures-only by the implementer's
 own mutation run.
 
@@ -298,7 +298,7 @@ functions across 10 files, not seven pages** — both `docs/NEXT.md` and
 contract must cover; both corrected in the increment that did the work.
 Widening the contract also surfaced that `<title>` needed escaping it had
 never had — correct for a general-purpose helper, since a later page
-interpolating a realm or client name into a title would otherwise be
+interpolating a tenant or client name into a title would otherwise be
 injectable — but it changed served bytes for any apostrophe-bearing title.
 Seven transcripts in `docs/request-paths.md` carried exactly that
 apostrophe ("Can't create this account" ×5, "Can't reset your password"
@@ -320,8 +320,8 @@ again.
 
 **A file-path claim that would have failed the P2b rule outright, except
 this time the grep happened before the plan shipped.** The plan named
-`packages/domain-tenant/src/schema/realms.ts` for the realm table; it lives
-in `packages/db/src/schema/realms.ts`. Caught and corrected in the plan
+`packages/domain-tenant/src/schema/tenants.ts` for the tenant table; it lives
+in `packages/db/src/schema/tenants.ts`. Caught and corrected in the plan
 before the implementer needed to detour around it — CLAUDE.md's rule
 working as intended rather than as a postmortem.
 

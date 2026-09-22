@@ -1,16 +1,18 @@
-# 0033 — Admitting a session locks the realm row
+# 0033 — Admitting a session locks the tenant row
 
 **Status:** Accepted · 2026-09-19
 
+**Renamed 2026-09-22:** written when a tenant was called a realm; the decision is unchanged.
+
 ## Context
 
-A browser may hold at most `realms.max_sessions_per_browser` live sessions
+A browser may hold at most `tenants.max_sessions_per_browser` live sessions
 (migration `0048_sessions_remembered_and_cap.sql`). Admission has to evict
 the least recently active sessions before inserting a new one, and two
 logins can arrive at the same cap at once — nothing about the cookie or
 the request serialises them.
 
-The obvious remedy — `select ... from sessions where realm_id = $1 for
+The obvious remedy — `select ... from sessions where tenant_id = $1 for
 update`, then evict via `chooseEvictions`, then insert — does not hold the
 cap. `SELECT ... FOR UPDATE` takes a row lock, not a predicate lock: under
 `READ COMMITTED`, a statement that blocks on a locked row re-qualifies only
@@ -20,7 +22,7 @@ invisible.
 
 Worked sequence, cap 3, three sessions already live (`a`, `b`, `c`):
 
-1. Login 1 and login 2 both `SELECT ... FOR UPDATE` on the realm's session
+1. Login 1 and login 2 both `SELECT ... FOR UPDATE` on the tenant's session
    rows. Both scans find `{a, b, c}`; login 1's statement acquires the
    locks first, login 2's blocks on the same three rows.
 2. Login 1 evicts `a` (least recently active) and inserts `d`, then
@@ -38,20 +40,20 @@ Worked sequence, cap 3, three sessions already live (`a`, `b`, `c`):
 An independent reproduction ran three lock modes, five times each, cap 3,
 two concurrent admissions racing at the cap:
 
-| Lock mode                           | Live count, five runs |
-| ----------------------------------- | --------------------- |
-| No lock                             | 4, 4, 4, 4, 4         |
-| `for update` on the session rows    | 4, 4, 4, 4, 4         |
-| `for update` on the realm row first | 3, 3, 3, 3, 3         |
+| Lock mode                            | Live count, five runs |
+| ------------------------------------ | --------------------- |
+| No lock                              | 4, 4, 4, 4, 4         |
+| `for update` on the session rows     | 4, 4, 4, 4, 4         |
+| `for update` on the tenant row first | 3, 3, 3, 3, 3         |
 
 The session-row lock performs identically to no lock at all — it changes
 which transaction blocks, not what either one sees. Reproducible under
-plain concurrent execution (`Promise.all` over two `withRealm` calls); no
+plain concurrent execution (`Promise.all` over two `withTenant` calls); no
 artificial delay or barrier is needed to trigger the breach.
 
 ## Decision
 
-Admission locks the realm's own row first: `select ... from realms where
+Admission locks the tenant's own row first: `select ... from tenants where
 id = $1 for update`, before reading the session rows at all. The second
 transaction then blocks on that single row, and when it unblocks, its
 session read is a _new statement_ — a fresh scan, under a fresh snapshot,
@@ -61,21 +63,21 @@ insert and evicts correctly.
 ## Consequences
 
 - The lock holds under concurrent admission in the sense the reproduction
-  above tests: two transactions racing for the same realm row no longer
+  above tests: two transactions racing for the same tenant row no longer
   both see room under the cap from a scan that finds everything currently
   live. It does not make a _list_-based cap exact under concurrency — see
   the amendment below for why, and for what is exact instead (sequential
   admissions) and what is bounded (concurrent ones).
-- **Accepted cost:** this serialises every login in a realm on one row
+- **Accepted cost:** this serialises every login in a tenant on one row
   lock, which is far coarser than the invariant needs — the actual
-  contention is per browser, not per realm — and it sits on the hottest
+  contention is per browser, not per tenant — and it sits on the hottest
   write path in the server. It is correct today and will not survive load
-  as realms grow. Revisit when login latency or lock-wait time under
+  as tenants grow. Revisit when login latency or lock-wait time under
   concurrent load makes that visible; the candidates are an advisory lock
   keyed to a hash of the browser's own session-id set, or a lock on the
   subject row, either of which narrows contention to the sessions actually
-  racing instead of the whole realm.
-- The admission logic — realm-row lock, eviction, insert — lives in
+  racing instead of the whole tenant.
+- The admission logic — tenant-row lock, eviction, insert — lives in
   `packages/authn-flows/src/usecase/session-admission.ts`'s `admitSession`,
   the only place a session row is created; see the amendment below for how
   it replaced the test helper this bullet originally described.
@@ -83,7 +85,7 @@ insert and evicts correctly.
 ## Amendment, 2026-09-19 — the usecase, not the helper
 
 `packages/authn-flows/src/usecase/session-admission.ts` is now the only
-place a session row is created: the realm-row lock, eviction and insert in
+place a session row is created: the tenant-row lock, eviction and insert in
 one function, called from `completeLogin`
 (`packages/protocol-oidc/src/index.ts`) in place of a bare
 `establishSession`. The test helper described above is deleted;
@@ -91,7 +93,7 @@ one function, called from `completeLogin`
 
 Eviction reads `sessionRepository(tx).liveByIds` against the ids the
 browser's own cookies already name (`admitSession`'s `browserSessionIds`),
-never a subject- or realm-wide scan. The cap is `max_sessions_per_browser`,
+never a subject- or tenant-wide scan. The cap is `max_sessions_per_browser`,
 not per subject: a browser can hold sessions for more than one subject at
 once — the case `prompt=select_account` (a later increment) exists to
 choose among — so a per-subject predicate would let each subject on a
@@ -103,7 +105,7 @@ session the same person is actively using on another, two browsers that
 share nothing and should not share a budget.
 
 **The lock does not make a list-based cap exact under concurrency, and
-that is accepted, not fixed.** It serialises admissions in a realm and
+that is accepted, not fixed.** It serialises admissions in a tenant and
 stops two of them from interleaving their own eviction decisions, but a
 fixed id list — the browser's cookies, read once, before the lock — can
 never contain a session a concurrent admission inserts while the first
@@ -141,7 +143,7 @@ held by luck — this is why the test repeats rather than running once);
 with the lock restored, the same race held at exactly 4 — `cap + 1`, not
 `cap + 2` — in every repetition seen so far, asserted by "bounds two
 concurrent logins at cap plus one, over several races", which races five
-times per run against a realm-wide live count rather than a query
+times per run against a tenant-wide live count rather than a query
 pre-limited to the ids the test already expects, so a broken eviction has
 room to show up as more than `cap + 1` (removing the `endMany` call fails
 it immediately, at 5 against a bound of 4). Both numbers matter: unlocked,
@@ -216,11 +218,11 @@ and so does an operator's `odudu reap`.
 - **Retry on a detected overage.** Would close the `cap + (k - 1)` residual the
   amendment above accepts rather than fixes — the lock does not make the
   case impossible. Rejected on cost, not impossibility: a second read
-  after every commit, on every admission, in the realm's hottest write
+  after every commit, on every admission, in the tenant's hottest write
   path, to correct a size guard that already self-corrects at the
   browser's next login. Worth reopening only if the residual itself
   becomes the problem, not merely once noticed.
 - **`SERIALIZABLE` isolation instead of an explicit lock.** Would catch
   the conflict, but as a commit-time serialization failure the caller must
   retry — an explicit lock blocks up front instead and needs no retry
-  loop, at the same cost of serialising the realm's admissions.
+  loop, at the same cost of serialising the tenant's admissions.

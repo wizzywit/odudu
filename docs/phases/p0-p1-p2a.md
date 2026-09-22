@@ -33,7 +33,7 @@ cookie is written at login and never read (`/authorize` starts a fresh
 authentication every time), so the gate that refuses to complete a login
 for an unverified self-registered address only has one door to guard: the
 form POST. That gate lives in `login-submission.ts`, reached only through
-`POST /realms/{realm}/login-actions/authenticate`. The moment `/authorize`
+`POST /tenants/{tenant}/login-actions/authenticate`. The moment `/authorize`
 can complete a request from a cookie instead of a form submission, that
 check needs to run on the cookie path too, or an unverified user who
 happens to hold a live session cookie signs back in for free. Nothing
@@ -42,7 +42,7 @@ POST.
 
 **Rate limiting was always P2b's, and P2a's registration endpoint widens
 what it needs to cover.** There is no rate limiting or lockout anywhere in
-the repository. `POST /realms/{realm}/login-actions/registration` is
+the repository. `POST /tenants/{tenant}/login-actions/registration` is
 unauthenticated and performs one Argon2id hash at 19 MiB per request with
 no maximum password length; Fastify's 1 MB body limit is the only ceiling
 on the request itself. Before P2a this was "guess a password against an
@@ -66,14 +66,14 @@ and "Start here" above records what replaced it.
 **New environment variables.** `ODUDU_PUBLIC_BASE_URL` — the origin every
 mailed link is built from, never from a request's `Host` header, which is
 client-controlled; sending fails closed (500, logged as a misconfiguration)
-when a realm needs to mail and this is unset. The `ODUDU_SMTP_*` set —
+when a tenant needs to mail and this is unset. The `ODUDU_SMTP_*` set —
 `ODUDU_SMTP_HOST`, `ODUDU_SMTP_PORT` (default `587`), `ODUDU_SMTP_FROM`,
 `ODUDU_SMTP_USERNAME`, `ODUDU_SMTP_PASSWORD`, `ODUDU_SMTP_STARTTLS` — with
 `ODUDU_SMTP_HOST` unset, the server logs every message instead of sending
 it, which is what the compose stack does today.
 
 **Migrations now run to 0026.** `packages/db/drizzle/0023_users_email_unique.sql`
-is the realm-scoped `(realm_id, email)` uniqueness self-registration needs;
+is the tenant-scoped `(tenant_id, email)` uniqueness self-registration needs;
 0025 is the last one P2a added. 0026 (`token_grants_session`) is P2b's
 first, and the plan's own table numbers the rest through 0039.
 
@@ -163,7 +163,7 @@ whether the bytes were encrypted; closing them needs Odudu to terminate TLS
 itself, or evidence gathered where the connection actually is. Neither is a
 test in this repository, and neither is P2's job. The other two are the
 `https` half of an issuer identifier (OIDC Core §2 and RFC 9207 §2):
-`realmIssuer` builds the identifier, but the scheme is whatever the proxy
+`tenantIssuer` builds the identifier, but the scheme is whatever the proxy
 asserts through `X-Forwarded-Proto`, and closing those needs a scheme this
 process establishes rather than reads off a header. The eighteenth is RFC 6749 §10.10's umbrella sentence, which is fully held —
 by three test ids, where a row can carry one. Each cites the reading note
@@ -261,7 +261,7 @@ the row.
 evaluated.** `issueRefreshTokens` rotated first and checked the
 token-to-client binding afterwards. The binding was enforced — so no MUST
 was broken — but rotation marks the presented token used and commits in
-its own transaction, so any client registered in the realm that learned
+its own transaction, so any client registered in the tenant that learned
 another client's refresh token could burn it: the victim's next legitimate
 refresh was then detected as reuse, and reuse revokes the entire family.
 Reuse detection is one of this phase's headline security properties, and
@@ -302,7 +302,7 @@ authenticated there and `prompt=none` is `login_required` unconditionally —
 §3.1.2.3's actual requirement, not a stand-in. `none` beside any other
 value is refused (§3.1.2.1 makes them exclusive), as is a value outside the
 four the specification defines. `id_token_hint` is verified as a token this
-realm signed carrying this realm's `iss` (§3.1.2.2) against the same keys
+tenant signed carrying this tenant's `iss` (§3.1.2.2) against the same keys
 `/jwks` publishes, before the prompt is acted on; the validated subject
 rides on the parked request, so a sign-in by somebody else answers
 `login_required` with no code, no cookie and no consumed authentication
@@ -356,7 +356,7 @@ again: the previous increment's move to `request.host` kept a non-default
 port but let `Host: idp.example:443` and `Host: idp.example` become two
 issuers for one deployment, which `/userinfo` — verifying an access token
 against the issuer recomputed from that request's Host — turned into a 401. The scheme's default port is now dropped and every other port kept,
-IPv6 literals included, and `realmIssuer` joins base and realm in one
+IPv6 literals included, and `tenantIssuer` joins base and tenant in one
 place all five producers use.
 
 `ODUDU_TLS` is no longer advisory: with `NODE_ENV=production` and TLS
@@ -506,10 +506,10 @@ a non-root `odudu` user — confirmed inside a running container
 `infra/docker/compose.yaml` uses two connection strings on purpose:
 `ODUDU_DATABASE_URL` (the `odudu` owner) runs migrations; the server itself
 serves on `ODUDU_APP_DATABASE_URL` (`odudu_svc`), which is subject to the
-`realms_isolation` RLS policy from Task 7. Verified from inside the running
+`tenants_isolation` RLS policy from Task 7. Verified from inside the running
 stack, not asserted: `psql -U odudu_svc -d odudu -c 'select count(*) from
-realms;'` returns `0` (not a permission error), and `select policyname from
-pg_policies where tablename = 'realms'` returns `realms_isolation`. Setting
+tenants;'` returns `0` (not a permission error), and `select policyname from
+pg_policies where tablename = 'tenants'` returns `tenants_isolation`. Setting
 `ODUDU_APP_DATABASE_URL` also means `main.ts`'s bypass warning never fires
 in the compose stack — confirmed absent from the container's logs.
 
@@ -538,8 +538,8 @@ loopback only — see "Review fixes".
 
 `infra/docker/smoke.sh` brings the stack up, polls `/health/ready` for up
 to 120s, then asserts from inside the running stack that `odudu_svc` can
-query `realms` and sees `0` rows (not a permission error) and that the
-`realms_isolation` policy exists, before tearing the stack down on exit
+query `tenants` and sees `0` rows (not a permission error) and that the
+`tenants_isolation` policy exists, before tearing the stack down on exit
 either way. It is the `container` job in `.github/workflows/verify.yml`,
 run on every push alongside the existing `verify` job.
 
@@ -551,12 +551,12 @@ found three hardening gaps and two smaller issues, all now closed:
    from a broken one, and both smoke runs during the original
    implementation were green before and after the grant migration existed.
    `smoke.sh` now runs the brief's step 8 as hard, automatic assertions
-   (query `realms` as `odudu_svc`, expect `0` not `permission denied`;
-   query `pg_policies` for `realms_isolation`) so CI enforces this on every
+   (query `tenants` as `odudu_svc`, expect `0` not `permission denied`;
+   query `pg_policies` for `tenants_isolation`) so CI enforces this on every
    push. Verified by breaking the grant deliberately (commenting out both
    the `initdb` grant and the 0002 migration's grant) and confirming
    `smoke.sh` still reports `odudu became ready` but then fails on the new
-   check with `permission denied for table realms`, not a readiness
+   check with `permission denied for table tenants`, not a readiness
    timeout; restored, and confirmed green again.
 2. The grant migration's `IF EXISTS` guard made it a permanent silent
    no-op in a third ordering — `odudu_svc` created by tooling after
@@ -612,9 +612,9 @@ job).
   constrains which End-User may complete the login, so a foreign hint
   grants nothing; tightening it to the requesting `client_id` is a
   behaviour change that wants its own clause row and test.
-- Realm cookies are namespaced rather than host-isolated (spec section 6).
-- Only the `realms` table has an RLS policy. Every new tenant table needs
-  `ENABLE`/`FORCE ROW LEVEL SECURITY` plus a policy, and a foreign-realm
+- Tenant cookies are namespaced rather than host-isolated (spec section 6).
+- Only the `tenants` table has an RLS policy. Every new tenant table needs
+  `ENABLE`/`FORCE ROW LEVEL SECURITY` plus a policy, and a foreign-tenant
   probe in the adversarial suite.
 - The server bundle inlines all dependencies (tsup, `noExternal: [/.*/]`).
   P2 introduces `@node-rs/argon2`, a native module that must be marked

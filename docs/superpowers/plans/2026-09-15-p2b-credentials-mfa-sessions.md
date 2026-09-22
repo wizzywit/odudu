@@ -4,7 +4,7 @@
 
 **Goal:** An SSO session that is read as well as written — with idle and maximum lifespans, offline access and RP-initiated logout — behind a flow engine that authenticates with a password, a TOTP code, a passkey or a recovery code, protected by password policy and brute-force lockout, with expired state reaped on a stated retention window and mail sent off the request path.
 
-**Architecture:** No new packages. `authn-flows` grows from one hardcoded step to a flat per-realm list of executions with `REQUIRED`/`ALTERNATIVE`/`CONDITIONAL`/`DISABLED` semantics and a required-action mechanism that runs after authentication and before the session is established. `domain-identity` grows the widened credential store and the password-policy service. `protocol-oidc` grows the cookie read at `/authorize`, `end_session_endpoint`, and the `sid` claim. `crypto` gains RFC 6238 TOTP, hand-built against the RFC's own vectors. `apps/server` gains a `reap` command, the scheduler that runs it, and the outbox sender riding the same scheduler.
+**Architecture:** No new packages. `authn-flows` grows from one hardcoded step to a flat per-tenant list of executions with `REQUIRED`/`ALTERNATIVE`/`CONDITIONAL`/`DISABLED` semantics and a required-action mechanism that runs after authentication and before the session is established. `domain-identity` grows the widened credential store and the password-policy service. `protocol-oidc` grows the cookie read at `/authorize`, `end_session_endpoint`, and the `sid` claim. `crypto` gains RFC 6238 TOTP, hand-built against the RFC's own vectors. `apps/server` gains a `reap` command, the scheduler that runs it, and the outbox sender riding the same scheduler.
 
 **Tech Stack:** Node 24, TypeScript 6.0.3, Fastify 5.12.3, PostgreSQL 17, Drizzle ORM 0.45.2, Zod 4.6.1, Vitest 5.0.0, Testcontainers 12.1.0, jose 6.2.12, @node-rs/argon2 2.2.1. Two candidate additions, each gated by a spike: a WebAuthn server library (Task 17) and a QR encoder confined to the view layer (Task 16).
 
@@ -29,14 +29,14 @@ Everything in P0's, P1's and P2a's plans still binds. Repeated here because an i
 - Test-driven: the failing test is written and observed failing before implementation.
 - **"Reuse the existing function" carries that function's preconditions, and they are load-bearing.** Where a task says to reuse something rather than duplicate it, read what the existing function assumes and check the new caller still satisfies it. This plan already shipped one Critical defect that way: `issueAuthorizationCode` derived a code's `expires_at` from `authTime` because on the form path `authTime` _is_ `now`, and the session-reuse caller passes a past `authTime`, so a reused login issued a code that had already expired. The P0 rule about `verified:` versus `assumption:` applies to first-party code too — a claim that an existing function is safe under a new caller is an assumption, not a fact, and its precondition belongs in the task text.
 - **An injected clock cannot move the database's clock.** Anything enforced in SQL against `now()` — authorization-code expiry, session expiry, lockout windows — is untestable with a fake clock, and a test that advances one and passes has proved nothing. Back-date the row through the owner connection instead.
-- **The integration-test harness is the package's existing one, not the one this plan's skeletons sketch.** `@odudu/testkit` exports exactly `startTestDatabase`, `createAppRole` and `TestDatabase` — there is no `testDatabase()` and no `seedRealm()`, and any skeleton below that calls them is shorthand, not a real API. Copy the setup from the nearest existing `*.int.test.ts` in the package you are working in; `packages/authn-flows/tests/session-lifespan.int.test.ts` is the freshest exemplar (`startTestDatabase` + `createAppRole` + `createDatabase` + `runMigrations`, with a hand-rolled realm seed). For a foreign-`realm_id` probe use **`expectCrossRealmMethodProbe` from `@odudu/db/testing`** rather than hand-writing the assertion.
+- **The integration-test harness is the package's existing one, not the one this plan's skeletons sketch.** `@odudu/testkit` exports exactly `startTestDatabase`, `createAppRole` and `TestDatabase` — there is no `testDatabase()` and no `seedTenant()`, and any skeleton below that calls them is shorthand, not a real API. Copy the setup from the nearest existing `*.int.test.ts` in the package you are working in; `packages/authn-flows/tests/session-lifespan.int.test.ts` is the freshest exemplar (`startTestDatabase` + `createAppRole` + `createDatabase` + `runMigrations`, with a hand-rolled tenant seed). For a foreign-`tenant_id` probe use **`expectCrossTenantMethodProbe` from `@odudu/db/testing`** rather than hand-writing the assertion.
 - **How to run tests.** No package declares a `test` script — each package's `package.json` has only `typecheck`. Vitest is configured at the root (`vitest.config.ts`) with two projects, `unit` and `integration`, selected by path: `{packages,apps}/*/src/**/*.test.ts` for unit, `{packages,apps}/*/tests/**/*.int.test.ts` for integration. So run one file or one name fragment with `pnpm exec vitest run --project integration <fragment-or-path>`, and the whole suite with `pnpm test` from the root. `pnpm --filter @odudu/<pkg> test` fails with `ERR_PNPM_RECURSIVE_RUN_NO_SCRIPT`.
 - **Before every commit, run everything `pnpm verify` runs except the full test suite**, in this order: `pnpm typecheck`, `pnpm lint`, `pnpm boundaries`, your focused tests, `pnpm trace`, and `pnpm exec prettier --check .` last. Typecheck and lint take about twenty seconds each and catch what focused tests cannot — an unused destructured binding, a non-`Error` thrown in a test helper, a boundary violation. It is only `pnpm test` (the whole suite behind Testcontainers) that is slow enough to leave to CI. Two red builds in a row came from skipping lint.
 - **`pnpm exec prettier --check .` is the LAST command before committing**, after every edit including the documentation ones. `pnpm verify` runs `format:check` before anything else, so a formatting slip fails CI before a single test executes — which means the other jobs going green tells you nothing about whether the tests ran. A prettier check run before your final edit proves nothing about what you pushed.
 - **Run tests in the foreground and read the output yourself.** Do not background a test run and wait to be notified — that stalls the task with the work uncommitted.
 - Integration tests run against real PostgreSQL via Testcontainers, never a mock. They live in a package's `tests/` directory as `*.int.test.ts`. Unit tests sit beside the code as `*.test.ts`.
-- **Every repository method is probed with a foreign `realm_id`.** `packages/db/tests/rls-policy.int.test.ts` catches a table shipped without a policy; it does not catch a method that leaks, and that probe is written per task.
-- **`SET LOCAL`, never `SET`, for realm context.** Use `withRealm(db, realmId, fn)` from `@odudu/db`.
+- **Every repository method is probed with a foreign `tenant_id`.** `packages/db/tests/rls-policy.int.test.ts` catches a table shipped without a policy; it does not catch a method that leaks, and that probe is written per task.
+- **`SET LOCAL`, never `SET`, for tenant context.** Use `withTenant(db, tenantId, fn)` from `@odudu/db`.
 - Domain packages never import protocol packages. Protocol packages never import each other.
 - Layer imports follow ADR 0010: `view` → own model and `shared/view`; `usecase` → repository, service, view models; `repository` → adapter, service; `adapter` → transport, service; `service` → nothing.
 - Migrations are hand-authored SQL in `packages/db/drizzle/`, never generated, and each needs an entry appended to `packages/db/drizzle/meta/_journal.json` with the next `idx` and a `when` greater than the previous entry's. Every new tenant table needs `ENABLE` + `FORCE ROW LEVEL SECURITY` and a policy in the same migration.
@@ -45,9 +45,9 @@ Everything in P0's, P1's and P2a's plans still binds. Repeated here because an i
 - **`noUncheckedIndexedAccess` is on.** Indexing an array yields `T | undefined`, so test code in this plan that does `flow[0]` or `rows[1]` will not compile as written — name the elements as constants, or narrow them, rather than adding a non-null assertion or a cast. This plan's test skeletons index arrays in several places and are shorthand, not compilable code.
 - **The package dependency direction is `kernel ← contracts, crypto, db ← domain-* ← protocol-*, authn-flows, authz, agents, admin-api ← server`** (umbrella spec section 3). A `domain-*` package must never depend on `authn-flows`: the arrow runs the other way, and `authn-flows` already depends on `@odudu/domain-identity`. `dependency-cruiser`'s `no-domain-to-protocol` rule only forbids domain → `protocol-*`, so it does **not** catch this and `pnpm boundaries` stays clean while the architecture is inverted. If provisioning or any other cross-cutting call seems to need that edge, put the call in the composition root (`apps/server`) or in the `authn-flows` side, and say so in your report.
 - **Never pre-commit a traceability outcome.** A task is told which clauses it touches, never how they will close. This plan instructed one task that three rows "move from `deferred: P2` to `covered`" for a SHOULD its own interface section showed could not be held two paragraphs earlier — which is the failure ADR 0017's six statuses exist to prevent. The honest instruction is "close what the code holds, and record what it does not, with the status the evidence supports".
-- **A step's "Cases:" list never narrows a standing non-negotiable.** The rule is a foreign-`realm_id` probe on **every repository method**, and a case list that says "a foreign realm's rows are invisible" reads as one read-shaped case and quietly drops the writers. A writer is the method most worth probing, not the least: a read is filtered by the row's own `realm_id`, while an insert supplies one from its caller, so its isolation rests on the policy being reused as the INSERT check. Name each method, or say "and the standing probe on every method added here".
+- **A step's "Cases:" list never narrows a standing non-negotiable.** The rule is a foreign-`tenant_id` probe on **every repository method**, and a case list that says "a foreign tenant's rows are invisible" reads as one read-shaped case and quietly drops the writers. A writer is the method most worth probing, not the least: a read is filtered by the row's own `tenant_id`, while an insert supplies one from its caller, so its isolation rests on the policy being reused as the INSERT check. Name each method, or say "and the standing probe on every method added here".
 - **Where a new gate sits relative to the other gates is a decision the task text owes.** Fixing a gate's position only against its neighbours leaves the orderings that matter unstated. A gate placed before the `id_token_hint` comparison makes the wrong End-User complete an account change for a request already known to be unanswerable; placed after, it does not. Both satisfy "before `completeLogin`".
-- **Any task that changes what a password may be re-runs `infra/docker/smoke.sh` and greps `infra/` for seeded credentials.** `pnpm verify` does not build the image, so the `container` job is the only thing that will notice a scripted credential the new rule refuses — and it notices after the push, not before. This bit once already: the password policy's `not-username` rule refused `smoke.sh`'s own `--user smoke --password smoke-password`, and the image stopped booting. Every remaining rule in that family — `password_history_depth`, `password_max_age_days`, and any realm that turns a character-class flag on — can invalidate a committed credential the same way. Sweep `infra/` rather than rediscovering it per task, and remember a seeded password usually appears twice: once where it is seeded and once where it is submitted.
+- **Any task that changes what a password may be re-runs `infra/docker/smoke.sh` and greps `infra/` for seeded credentials.** `pnpm verify` does not build the image, so the `container` job is the only thing that will notice a scripted credential the new rule refuses — and it notices after the push, not before. This bit once already: the password policy's `not-username` rule refused `smoke.sh`'s own `--user smoke --password smoke-password`, and the image stopped booting. Every remaining rule in that family — `password_history_depth`, `password_max_age_days`, and any tenant that turns a character-class flag on — can invalidate a committed credential the same way. Sweep `infra/` rather than rediscovering it per task, and remember a seeded password usually appears twice: once where it is seeded and once where it is submitted.
 - **A migration's own conversion cannot be tested by the suite, so its evidence is the spike.** `runMigrations` applies the whole folder in one call, so there is no way to seed a pre-migration row and watch the migration transform it without a trimmed journal in a temporary folder. A test that seeds the post-migration shape exercises the reader, not the conversion — say so in the test rather than letting it read as proof. The bound on the risk is that a merged migration is immutable: the only window in which a wrong `USING` clause can be introduced is before merge, which is where review and the spike sit. Do not ask a task for a test its tooling cannot write.
 - **A task that adds a token claim re-runs every transcript that decodes a token, not only the section it wrote.** `docs/request-paths.md` decodes tokens in several places; a new envelope claim makes all of them stale at once. Two tasks in this phase added a claim and updated only their own prose — `sid` and then `acr` — so the document asserted a token shape the server no longer served. Grep the file for decoded payloads before committing.
 - **A `gap` that ships a wire format hardens into policy.** A claim, a parameter or a response shape left `gap` because nobody has decided is reversible only until relying parties read it. If the undecided default is in fact the permanent answer, that is an ADR and then `accepted:` — written while the choice is still reversible, not after.
@@ -60,7 +60,7 @@ Everything in P0's, P1's and P2a's plans still binds. Repeated here because an i
 
 ### P2b-specific constraints
 
-- **`token_grants` already exists** (migration 0010, `packages/protocol-oidc/src/schema/token-grants.ts`) with `id`, `realm_id`, `client_id`, `subject_id`, `scope`, `audience`, `created_at`, `revoked_at`. This phase adds **one** column to it. Do not create a second grants table.
+- **`token_grants` already exists** (migration 0010, `packages/protocol-oidc/src/schema/token-grants.ts`) with `id`, `tenant_id`, `client_id`, `subject_id`, `scope`, `audience`, `created_at`, `revoked_at`. This phase adds **one** column to it. Do not create a second grants table.
 - **A grant with `session_id IS NULL` is an offline grant.** Offline is the absence of a session, never a boolean. Nothing may set `session_id` to null on an existing session-bound grant.
 - **Nothing is deleted except by the reaper**, and the reaper never deletes a row a decision can still read. `DELETE … WHERE expires_at < now()` is the implementation this phase must not ship (ADR 0021).
 - **Logout revokes grants and sessions, never access tokens.** Odudu's access tokens are self-contained `at+jwt` JWTs. Say so in prose; never imply otherwise.
@@ -79,7 +79,7 @@ No new packages. Modified packages:
 | Path                        | Change                                                                                                                      |
 | --------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
 | `packages/db/drizzle/`      | migrations 0026–0044 and their journal entries                                                                              |
-| `packages/db/src/schema/`   | `realms` gains session-lifespan, password-policy and lockout columns                                                        |
+| `packages/db/src/schema/`   | `tenants` gains session-lifespan, password-policy and lockout columns                                                       |
 | `packages/authn-flows/`     | the execution schema and repository, the requirement evaluator, the authenticator registry, required actions, lockout       |
 | `packages/domain-identity/` | widened credential store, per-type `secret_data` parsing, the password-policy service, `login_failures`                     |
 | `packages/crypto/`          | RFC 6238 TOTP                                                                                                               |
@@ -92,24 +92,24 @@ No new packages. Modified packages:
 
 New files worth naming before the tasks, because they fix the decomposition:
 
-| Path                                                          | Responsibility                                                               |
-| ------------------------------------------------------------- | ---------------------------------------------------------------------------- |
-| `packages/authn-flows/src/service/requirements.ts`            | the pure requirement evaluator. No `tx`, no repository, no clock.            |
-| `packages/authn-flows/src/schema/execution.ts`                | the `authentication_executions` table and its record type                    |
-| `packages/authn-flows/src/service/authenticators/totp.ts`     | the TOTP step. Verification gathered by the caller, like `password.ts`.      |
-| `packages/authn-flows/src/service/authenticators/passkey.ts`  | the passkey step                                                             |
-| `packages/authn-flows/src/service/authenticators/recovery.ts` | the recovery-code step                                                       |
-| `packages/authn-flows/src/usecase/required-actions.ts`        | which actions are pending, and running them                                  |
-| `packages/domain-identity/src/service/password-policy.ts`     | evaluate a candidate password against a realm policy; returns all violations |
-| `packages/domain-identity/src/service/credential-secret.ts`   | the per-type `secret_data` discriminated union and its Zod schemas           |
-| `packages/domain-identity/src/service/lockout.ts`             | the pure backoff arithmetic. No `tx`.                                        |
-| `packages/crypto/src/service/totp.ts`                         | RFC 6238                                                                     |
-| `packages/protocol-oidc/src/usecase/session-reuse.ts`         | resolve a cookie to a live session, and decide `prompt`/`max_age` against it |
-| `packages/protocol-oidc/src/usecase/logout.ts`                | `end_session_endpoint`'s decisions                                           |
-| `packages/protocol-oidc/src/view/logout-html.ts`              | the confirmation page                                                        |
-| `apps/server/src/cli/reap.ts`                                 | the retention pass, as a command                                             |
-| `apps/server/src/scheduler.ts`                                | interval, jitter, advisory lock, call. No logic.                             |
-| `apps/server/src/throttle.ts`                                 | the in-process per-IP sliding window                                         |
+| Path                                                          | Responsibility                                                                |
+| ------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| `packages/authn-flows/src/service/requirements.ts`            | the pure requirement evaluator. No `tx`, no repository, no clock.             |
+| `packages/authn-flows/src/schema/execution.ts`                | the `authentication_executions` table and its record type                     |
+| `packages/authn-flows/src/service/authenticators/totp.ts`     | the TOTP step. Verification gathered by the caller, like `password.ts`.       |
+| `packages/authn-flows/src/service/authenticators/passkey.ts`  | the passkey step                                                              |
+| `packages/authn-flows/src/service/authenticators/recovery.ts` | the recovery-code step                                                        |
+| `packages/authn-flows/src/usecase/required-actions.ts`        | which actions are pending, and running them                                   |
+| `packages/domain-identity/src/service/password-policy.ts`     | evaluate a candidate password against a tenant policy; returns all violations |
+| `packages/domain-identity/src/service/credential-secret.ts`   | the per-type `secret_data` discriminated union and its Zod schemas            |
+| `packages/domain-identity/src/service/lockout.ts`             | the pure backoff arithmetic. No `tx`.                                         |
+| `packages/crypto/src/service/totp.ts`                         | RFC 6238                                                                      |
+| `packages/protocol-oidc/src/usecase/session-reuse.ts`         | resolve a cookie to a live session, and decide `prompt`/`max_age` against it  |
+| `packages/protocol-oidc/src/usecase/logout.ts`                | `end_session_endpoint`'s decisions                                            |
+| `packages/protocol-oidc/src/view/logout-html.ts`              | the confirmation page                                                         |
+| `apps/server/src/cli/reap.ts`                                 | the retention pass, as a command                                              |
+| `apps/server/src/scheduler.ts`                                | interval, jitter, advisory lock, call. No logic.                              |
+| `apps/server/src/throttle.ts`                                 | the in-process per-IP sliding window                                          |
 
 ## Task budget
 
@@ -121,7 +121,7 @@ New files worth naming before the tasks, because they fix the decomposition:
 | 4    | The `sid` claim in access and ID tokens                                   | 2–3   |
 | 5    | `end_session_endpoint`: migration 0029, confirmation, revocation          | 5–6   |
 | 6    | `offline_access`: a grant with no session                                 | 3–4   |
-| 7    | `authentication_executions`: migration 0030 and realm provisioning        | 3–4   |
+| 7    | `authentication_executions`: migration 0030 and tenant provisioning       | 3–4   |
 | 8    | The requirement evaluator, as a pure function                             | 2–3   |
 | 9    | The executor runs the registry, and a multi-step login resumes            | 4–5   |
 | 10   | `acr` and `amr` from the executions that actually ran                     | 2–3   |
@@ -138,7 +138,7 @@ New files worth naming before the tasks, because they fix the decomposition:
 | 21   | `update-password`: expiry, history, and the change-password action        | 3–4   |
 | 22   | Brute force: migration 0034, lockout, indistinguishable refusals          | 4–5   |
 | 23   | The per-IP throttle, and a maximum password length                        | 2–3   |
-| 24   | **Spike:** advisory locks inside `withRealm`                              | 1–2   |
+| 24   | **Spike:** advisory locks inside `withTenant`                             | 1–2   |
 | 25   | `odudu reap`: the retention rule, and the replay-after-pass tests         | 5–6   |
 | 26   | The scheduler in `apps/server`                                            | 2–3   |
 | 27   | The outbox, and the reset endpoint off the request path                   | 4–5   |
@@ -159,7 +159,7 @@ Total: 95–125 hours, against the spec's 95–130.
 
 This task lands alone and is pushed alone. It changes the refresh path, which is where reuse detection lives.
 
-**What already exists, verified by reading it:** `packages/protocol-oidc/src/schema/token-grants.ts` declares `token_grants` with `id`, `realmId`, `clientId`, `subjectId`, `scope`, `audience`, `createdAt`, `revokedAt`. `packages/protocol-oidc/src/repository/grants.ts` exposes `create`, `revoke(id, revokedAt)` and `byId`. `packages/protocol-oidc/src/usecase/refresh-rotation.ts` fetches the grant after a successful consume and throws if it is missing. None of that is rebuilt here.
+**What already exists, verified by reading it:** `packages/protocol-oidc/src/schema/token-grants.ts` declares `token_grants` with `id`, `tenantId`, `clientId`, `subjectId`, `scope`, `audience`, `createdAt`, `revokedAt`. `packages/protocol-oidc/src/repository/grants.ts` exposes `create`, `revoke(id, revokedAt)` and `byId`. `packages/protocol-oidc/src/usecase/refresh-rotation.ts` fetches the grant after a successful consume and throws if it is missing. None of that is rebuilt here.
 
 **Files:**
 
@@ -178,7 +178,7 @@ This task lands alone and is pushed alone. It changes the refresh path, which is
   - `TokenGrantRecord.sessionId: string | null`
   - `NewTokenGrant.sessionId?: string | null`
   - `tokenGrantRepository(tx).revokeForSession(sessionId: string, revokedAt: Date): Promise<number>` — returns how many grants it revoked
-  - `tokenGrantRepository(tx).bySession(sessionId: string): Promise<TokenGrantRecord[]>` — read by the retention pass, which refuses to delete a session a live grant still references. Like every repository method here it needs a happy-path test **and** a foreign-`realm_id` probe, even though its first caller arrives much later.
+  - `tokenGrantRepository(tx).bySession(sessionId: string): Promise<TokenGrantRecord[]>` — read by the retention pass, which refuses to delete a session a live grant still references. Like every repository method here it needs a happy-path test **and** a foreign-`tenant_id` probe, even though its first caller arrives much later.
   - `RotationOutcome` gains `{ readonly kind: 'revoked' }`
 
 - [ ] **Step 1: Write the migration**
@@ -191,21 +191,21 @@ This task lands alone and is pushed alone. It changes the refresh path, which is
 -- session's grants in one statement rather than a scan.
 ALTER TABLE token_grants ADD COLUMN session_id uuid;
 
--- sessions has no unique constraint on (realm_id, id): its primary key is on
+-- sessions has no unique constraint on (tenant_id, id): its primary key is on
 -- id alone, unlike subjects, clients and token_grants. A composite foreign
 -- key needs one on exactly the referenced columns, so it is added here,
 -- copying the idiom those tables already use.
-ALTER TABLE sessions ADD CONSTRAINT sessions_realm_id_unique UNIQUE (realm_id, id);
+ALTER TABLE sessions ADD CONSTRAINT sessions_tenant_id_unique UNIQUE (tenant_id, id);
 
 -- ON DELETE SET NULL is a backstop against a future writer, not the
 -- mechanism. Deleting a session a live grant still references would
 -- otherwise silently promote a session-bound grant to an offline one, which
 -- the retention pass is required to refuse outright.
 ALTER TABLE token_grants ADD CONSTRAINT token_grants_session_fk
-  FOREIGN KEY (realm_id, session_id) REFERENCES sessions (realm_id, id)
+  FOREIGN KEY (tenant_id, session_id) REFERENCES sessions (tenant_id, id)
   ON DELETE SET NULL;
 
-CREATE INDEX token_grants_by_session ON token_grants (realm_id, session_id);
+CREATE INDEX token_grants_by_session ON token_grants (tenant_id, session_id);
 ```
 
 - [ ] **Step 2: Append the journal entry**
@@ -220,7 +220,7 @@ Expected: the 0025 entry, whose `idx` and `when` the new one must exceed.
 ```ts
 // packages/protocol-oidc/tests/grant-session-link.int.test.ts
 import { beforeAll, describe, expect, it } from 'vitest';
-import { withRealm } from '@odudu/db';
+import { withTenant } from '@odudu/db';
 import { sessionRepository } from '@odudu/authn-flows';
 import { tokenGrantRepository } from '@odudu/protocol-oidc';
 import { newId } from '@odudu/kernel';
@@ -233,32 +233,32 @@ describe('a grant and the session it belongs to', () => {
   });
 
   it('revokes every grant of one session and leaves an offline grant alone', async () => {
-    const realm = await seedRealm(db);
+    const tenant = await seedTenant(db);
     const sessionId = newId();
-    await withRealm(db, realm.id, async (tx) => {
+    await withTenant(db, tenant.id, async (tx) => {
       await sessionRepository(tx).create({
         id: sessionId,
-        realmId: realm.id,
-        subjectId: realm.subjectId,
+        tenantId: tenant.id,
+        subjectId: tenant.subjectId,
         expiresAt: new Date(Date.now() + 3_600_000),
       });
     });
 
-    const [bound, offline] = await withRealm(db, realm.id, async (tx) => {
+    const [bound, offline] = await withTenant(db, tenant.id, async (tx) => {
       const repository = tokenGrantRepository(tx);
       return [
         await repository.create({
-          realmId: realm.id,
-          clientId: realm.clientId,
-          subjectId: realm.subjectId,
+          tenantId: tenant.id,
+          clientId: tenant.clientId,
+          subjectId: tenant.subjectId,
           scope: 'openid',
           audience: [],
           sessionId,
         }),
         await repository.create({
-          realmId: realm.id,
-          clientId: realm.clientId,
-          subjectId: realm.subjectId,
+          tenantId: tenant.id,
+          clientId: tenant.clientId,
+          subjectId: tenant.subjectId,
           scope: 'openid offline_access',
           audience: [],
           sessionId: null,
@@ -266,12 +266,12 @@ describe('a grant and the session it belongs to', () => {
       ];
     });
 
-    const revoked = await withRealm(db, realm.id, async (tx) =>
+    const revoked = await withTenant(db, tenant.id, async (tx) =>
       tokenGrantRepository(tx).revokeForSession(sessionId, new Date()),
     );
     expect(revoked).toBe(1);
 
-    await withRealm(db, realm.id, async (tx) => {
+    await withTenant(db, tenant.id, async (tx) => {
       const repository = tokenGrantRepository(tx);
       expect((await repository.byId(bound.id))?.revokedAt).not.toBeNull();
       expect((await repository.byId(offline.id))?.revokedAt).toBeNull();
@@ -279,19 +279,19 @@ describe('a grant and the session it belongs to', () => {
     });
   });
 
-  it('cannot revoke a foreign realm’s session grants', async () => {
-    const mine = await seedRealm(db);
-    const theirs = await seedRealm(db);
+  it('cannot revoke a foreign tenant’s session grants', async () => {
+    const mine = await seedTenant(db);
+    const theirs = await seedTenant(db);
     const sessionId = newId();
-    await withRealm(db, theirs.id, async (tx) => {
+    await withTenant(db, theirs.id, async (tx) => {
       await sessionRepository(tx).create({
         id: sessionId,
-        realmId: theirs.id,
+        tenantId: theirs.id,
         subjectId: theirs.subjectId,
         expiresAt: new Date(Date.now() + 3_600_000),
       });
       await tokenGrantRepository(tx).create({
-        realmId: theirs.id,
+        tenantId: theirs.id,
         clientId: theirs.clientId,
         subjectId: theirs.subjectId,
         scope: 'openid',
@@ -300,7 +300,7 @@ describe('a grant and the session it belongs to', () => {
       });
     });
 
-    const revoked = await withRealm(db, mine.id, async (tx) =>
+    const revoked = await withTenant(db, mine.id, async (tx) =>
       tokenGrantRepository(tx).revokeForSession(sessionId, new Date()),
     );
     expect(revoked).toBe(0);
@@ -343,14 +343,14 @@ Add to `packages/protocol-oidc/tests/grants.int.test.ts`:
 
 ```ts
 it('refuses to rotate a refresh token whose grant has been revoked', async () => {
-  const realm = await seedRealm(db);
-  const { grant, token } = await issueRefreshToken(db, realm);
+  const tenant = await seedTenant(db);
+  const { grant, token } = await issueRefreshToken(db, tenant);
 
-  await withRealm(db, realm.id, async (tx) => {
+  await withTenant(db, tenant.id, async (tx) => {
     await tokenGrantRepository(tx).revoke(grant.id, new Date());
   });
 
-  const outcome = await withRealm(db, realm.id, async (tx) =>
+  const outcome = await withTenant(db, tenant.id, async (tx) =>
     rotateRefreshToken(tx, hashRefreshToken(token), new Date(), 600),
   );
   expect(outcome.kind).toBe('revoked');
@@ -416,7 +416,7 @@ Then add a line to `docs/NEXT.md` recording that `token_grants.session_id` exist
 - Create: `packages/db/drizzle/0027_sessions_last_active.sql`
 - Create: `packages/db/drizzle/0028_realm_session_lifespans.sql`
 - Modify: `packages/db/drizzle/meta/_journal.json`
-- Modify: `packages/db/src/schema/realms.ts`
+- Modify: `packages/db/src/schema/tenants.ts`
 - Modify: `packages/authn-flows/src/schema/sessions.ts`
 - Modify: `packages/authn-flows/src/repository/sessions.ts`
 - Modify: `packages/authn-flows/src/usecase/executor.ts`
@@ -432,14 +432,14 @@ Then add a line to `docs/NEXT.md` recording that `token_grants.session_id` exist
   - `isSessionLive(session: SessionRecord, idleSeconds: number, now: Date): boolean`
   - `sessionRepository(tx).liveById(id: string, idleSeconds: number, now: Date): Promise<SessionRecord | null>`
   - `sessionRepository(tx).touch(id: string, now: Date): Promise<void>`
-  - `RealmRecord.ssoSessionIdleSeconds: number`, `RealmRecord.ssoSessionMaxSeconds: number`
-  - `establishSession(tx, realmId, subjectId, maxSeconds, clock?)` — the fixed `SESSION_TTL_MS` becomes a parameter
+  - `TenantRecord.ssoSessionIdleSeconds: number`, `TenantRecord.ssoSessionMaxSeconds: number`
+  - `establishSession(tx, tenantId, subjectId, maxSeconds, clock?)` — the fixed `SESSION_TTL_MS` becomes a parameter
 
 - [ ] **Step 1: Write both migrations**
 
 ```sql
 -- packages/db/drizzle/0027_sessions_last_active.sql
--- expires_at is the hard ceiling: created_at plus the realm's maximum
+-- expires_at is the hard ceiling: created_at plus the tenant's maximum
 -- lifespan. last_active_at is the idle clock, touched on use. They are two
 -- columns rather than one sliding expiry so that "idled out" and "hit its
 -- ceiling" stay distinguishable after the fact, and so a session list has a
@@ -455,18 +455,18 @@ ALTER TABLE sessions ALTER COLUMN last_active_at SET DEFAULT now();
 -- Bounds are constraints rather than clamps at the point of use, for the
 -- reason 0013 gives: a constraint is true of every writer there will ever
 -- be, including an admin API this repository does not have yet.
-ALTER TABLE realms ADD COLUMN sso_session_idle_seconds integer NOT NULL DEFAULT 1800;
-ALTER TABLE realms ADD COLUMN sso_session_max_seconds integer NOT NULL DEFAULT 36000;
+ALTER TABLE tenants ADD COLUMN sso_session_idle_seconds integer NOT NULL DEFAULT 1800;
+ALTER TABLE tenants ADD COLUMN sso_session_max_seconds integer NOT NULL DEFAULT 36000;
 
-ALTER TABLE realms ADD CONSTRAINT realms_sso_idle_bounds
+ALTER TABLE tenants ADD CONSTRAINT tenants_sso_idle_bounds
   CHECK (sso_session_idle_seconds BETWEEN 60 AND 2592000);
-ALTER TABLE realms ADD CONSTRAINT realms_sso_max_bounds
+ALTER TABLE tenants ADD CONSTRAINT tenants_sso_max_bounds
   CHECK (sso_session_max_seconds BETWEEN 60 AND 2592000);
 
 -- An idle timeout longer than the ceiling is not a lenient configuration,
 -- it is a meaningless one: the ceiling would always win and the idle number
 -- would never be consulted.
-ALTER TABLE realms ADD CONSTRAINT realms_sso_idle_within_max
+ALTER TABLE tenants ADD CONSTRAINT tenants_sso_idle_within_max
   CHECK (sso_session_idle_seconds <= sso_session_max_seconds);
 ```
 
@@ -482,7 +482,7 @@ import { isSessionLive } from '#/service/session-liveness';
 const at = (iso: string) => new Date(iso);
 const session = (createdAt: string, lastActiveAt: string, expiresAt: string) => ({
   id: 's',
-  realmId: 'r',
+  tenantId: 'r',
   subjectId: 'u',
   createdAt: at(createdAt),
   lastActiveAt: at(lastActiveAt),
@@ -551,7 +551,7 @@ Expected: PASS, four tests.
 ```ts
 // packages/authn-flows/tests/session-lifespan.int.test.ts
 import { beforeAll, describe, expect, it } from 'vitest';
-import { withRealm } from '@odudu/db';
+import { withTenant } from '@odudu/db';
 import { newId } from '@odudu/kernel';
 import { sessionRepository } from '@odudu/authn-flows';
 // Setup shorthand — use the package's real harness (see Global Constraints).
@@ -562,12 +562,12 @@ describe('session lifespans', () => {
     db = await testDatabase();
   });
 
-  const create = async (realmId: string, subjectId: string, lastActiveAt: Date) => {
+  const create = async (tenantId: string, subjectId: string, lastActiveAt: Date) => {
     const id = newId();
-    await withRealm(db, realmId, async (tx) => {
+    await withTenant(db, tenantId, async (tx) => {
       await sessionRepository(tx).create({
         id,
-        realmId,
+        tenantId,
         subjectId,
         expiresAt: new Date(Date.now() + 36_000_000),
       });
@@ -577,18 +577,18 @@ describe('session lifespans', () => {
   };
 
   it('does not return an idled-out session from liveById', async () => {
-    const realm = await seedRealm(db);
-    const id = await create(realm.id, realm.subjectId, new Date(Date.now() - 3_600_000));
-    await withRealm(db, realm.id, async (tx) => {
+    const tenant = await seedTenant(db);
+    const id = await create(tenant.id, tenant.subjectId, new Date(Date.now() - 3_600_000));
+    await withTenant(db, tenant.id, async (tx) => {
       expect(await sessionRepository(tx).liveById(id, 1800, new Date())).toBeNull();
       expect(await sessionRepository(tx).byId(id)).not.toBeNull();
     });
   });
 
   it('returns a recently used session and moves last_active_at on touch', async () => {
-    const realm = await seedRealm(db);
-    const id = await create(realm.id, realm.subjectId, new Date(Date.now() - 60_000));
-    await withRealm(db, realm.id, async (tx) => {
+    const tenant = await seedTenant(db);
+    const id = await create(tenant.id, tenant.subjectId, new Date(Date.now() - 60_000));
+    await withTenant(db, tenant.id, async (tx) => {
       const live = await sessionRepository(tx).liveById(id, 1800, new Date());
       expect(live).not.toBeNull();
       const now = new Date();
@@ -598,16 +598,16 @@ describe('session lifespans', () => {
     });
   });
 
-  it('cannot touch or read a foreign realm’s session', async () => {
-    const mine = await seedRealm(db);
-    const theirs = await seedRealm(db);
+  it('cannot touch or read a foreign tenant’s session', async () => {
+    const mine = await seedTenant(db);
+    const theirs = await seedTenant(db);
     const id = await create(theirs.id, theirs.subjectId, new Date());
-    await withRealm(db, mine.id, async (tx) => {
+    await withTenant(db, mine.id, async (tx) => {
       expect(await sessionRepository(tx).liveById(id, 1800, new Date())).toBeNull();
       expect(await sessionRepository(tx).byId(id)).toBeNull();
       await sessionRepository(tx).touch(id, new Date());
     });
-    await withRealm(db, theirs.id, async (tx) => {
+    await withTenant(db, theirs.id, async (tx) => {
       const untouched = await sessionRepository(tx).byId(id);
       expect(Date.now() - (untouched?.lastActiveAt.getTime() ?? 0)).toBeLessThan(60_000);
     });
@@ -647,15 +647,15 @@ In `packages/authn-flows/src/usecase/executor.ts`, delete the `SESSION_TTL_MS` c
 
 ```ts
 export async function establishSession(
-  tx: RealmScopedDatabase,
-  realmId: string,
+  tx: TenantScopedDatabase,
+  tenantId: string,
   subjectId: string,
   maxSeconds: number,
   clock: Clock = systemClock,
 ): Promise<{ sessionId: string }> {
 ```
 
-Add `ssoSessionIdleSeconds` and `ssoSessionMaxSeconds` to `realms` in `packages/db/src/schema/realms.ts` and to whatever record type the realm lookup produces, then pass the realm's value at the one call site in `protocol-oidc`'s login wiring. The comment explaining that a fresh id closes session fixation stays exactly as it is.
+Add `ssoSessionIdleSeconds` and `ssoSessionMaxSeconds` to `tenants` in `packages/db/src/schema/tenants.ts` and to whatever record type the tenant lookup produces, then pass the tenant's value at the one call site in `protocol-oidc`'s login wiring. The comment explaining that a fresh id closes session fixation stays exactly as it is.
 
 - [ ] **Step 10: Run the affected suites**
 
@@ -669,12 +669,12 @@ Expected: PASS — `schema-drift.int.test.ts` is what catches a typed view that 
 
 ```bash
 git add -A
-git commit -m "Give a session an idle clock and a realm-configured ceiling"
+git commit -m "Give a session an idle clock and a tenant-configured ceiling"
 git push
 gh pr checks --watch
 ```
 
-Then record the two new realm columns and their defaults in `docs/NEXT.md` and commit.
+Then record the two new tenant columns and their defaults in `docs/NEXT.md` and commit.
 
 ---
 
@@ -696,10 +696,10 @@ The behaviour change a relying party can observe, and the task that closes four 
 
 **Interfaces:**
 
-- Consumes: `sessionRepository(tx).liveById` and `.touch` (Task 2); `sessionCookieName(realm, tls)` from `@odudu/authn-flows`; `handleAuthorizationRequest` and its `AuthorizeUsecaseDeps`
+- Consumes: `sessionRepository(tx).liveById` and `.touch` (Task 2); `sessionCookieName(tenant, tls)` from `@odudu/authn-flows`; `handleAuthorizationRequest` and its `AuthorizeUsecaseDeps`
 - Produces:
   - `decideReuse(input: ReuseInput): ReuseDecision` where `ReuseDecision` is `{ kind: 'reuse'; subjectId: string; authTime: Date } | { kind: 'authenticate' } | { kind: 'refuse'; error: string }`
-  - `AuthorizeUsecaseDeps.resolveSession(realm: RealmLookup, cookieValue: string | undefined): Promise<ResolvedSession | null>` — takes the resolved realm, not its id: the caller already holds the `RealmLookup` including `ssoSessionIdleSeconds`, so passing the id alone forces a second realm read on the RLS-bypassing owner connection for every request carrying a cookie. Guard a non-UUID cookie value before it reaches the query, or a garbage cookie is a 500 rather than "no session".
+  - `AuthorizeUsecaseDeps.resolveSession(tenant: TenantLookup, cookieValue: string | undefined): Promise<ResolvedSession | null>` — takes the resolved tenant, not its id: the caller already holds the `TenantLookup` including `ssoSessionIdleSeconds`, so passing the id alone forces a second tenant read on the RLS-bypassing owner connection for every request carrying a cookie. Guard a non-UUID cookie value before it reaches the query, or a garbage cookie is a 500 rather than "no session".
   - `AuthorizationRequestOutcome` gains `{ kind: 'reused'; code: string; redirectUri: string; state: string | null }`
 
 - [ ] **Step 1: Write the failing unit tests for the decision**
@@ -833,7 +833,7 @@ Expected: PASS, nine tests.
 // every existing test drives the form POST.
 ```
 
-Write cases for: a live cookie producing a 302 to the client's `redirect_uri` carrying `code` and `iss`; the same request with `prompt=none` also succeeding; a realm with `verify_email` on and an unverified subject holding a live cookie being refused rather than redirected with a code; and the session's `last_active_at` having moved after a successful reuse.
+Write cases for: a live cookie producing a 302 to the client's `redirect_uri` carrying `code` and `iss`; the same request with `prompt=none` also succeeding; a tenant with `verify_email` on and an unverified subject holding a live cookie being refused rather than redirected with a code; and the session's `last_active_at` having moved after a successful reuse.
 
 - [ ] **Step 6: Move the verified-email gate so both doors call it**
 
@@ -841,17 +841,17 @@ Write cases for: a live cookie producing a 302 to the client's `redirect_uri` ca
 
 ```ts
 // The gate is a property of completing a login, not of submitting a form.
-// A realm requiring a verified address refuses a cookie-borne login for an
+// A tenant requiring a verified address refuses a cookie-borne login for an
 // unverified subject exactly as it refuses a password one; an unverified
 // account that happens to hold a live session would otherwise sign in
 // without ever passing the check.
 export async function refusedForUnverifiedEmail(
   deps: Pick<LoginSubmissionDeps, 'checkEmailVerification'>,
-  realm: { id: string; verifyEmail: boolean },
+  tenant: { id: string; verifyEmail: boolean },
   subjectId: string,
 ): Promise<{ hasEmail: boolean } | null> {
-  if (!realm.verifyEmail) return null;
-  const status = await deps.checkEmailVerification(realm.id, subjectId);
+  if (!tenant.verifyEmail) return null;
+  const status = await deps.checkEmailVerification(tenant.id, subjectId);
   return status.verified ? null : { hasEmail: status.hasEmail };
 }
 ```
@@ -860,7 +860,7 @@ export async function refusedForUnverifiedEmail(
 
 In `packages/protocol-oidc/src/usecase/authorization-request.ts`, replace the unconditional `if (outcome.prompts.has('none')) return reject('login_required');` with the decision, keeping every constraint the reading note in `docs/protocols/oidc-core.md` records: a refusal is still a redirect, still below the §4.1.2.1 boundary, and still starts no authentication session and writes no cookie. On `reuse`, issue the code through the same `issueAuthorizationCode` the form path uses, touch the session, and return the new `reused` outcome; on `authenticate`, park the request exactly as today.
 
-The route in `packages/protocol-oidc/src/view/routes/authorize.ts` reads the cookie by `sessionCookieName(realm, tls)` and passes its value in. It must not trust the cookie for anything but a lookup.
+The route in `packages/protocol-oidc/src/view/routes/authorize.ts` reads the cookie by `sessionCookieName(tenant, tls)` and passes its value in. It must not trust the cookie for anything but a lookup.
 
 - [ ] **Step 8: Run the whole package suite**
 
@@ -871,7 +871,7 @@ Expected: PASS. Existing `prompt=none` tests will need their expectations update
 
 In `docs/protocols/oidc-core.md`, move **three** rows from `deferred: P2` to `covered` with the test ids from this task: §2's `auth_time` MUST, §3.1.2.1's `max_age` MUST, and §15.1's `max_age` MUST.
 
-**§3.1.2.1's `prompt=login` MUST is not closable here** and stays `deferred: P2`. "An error is returned if reauthentication cannot be performed" still has no reachable branch: this server can always render a login form, and a hint mismatch after a forced reauthentication is the `id_token_hint` rule, already held by its own row. The state where reauthentication genuinely cannot be performed arrives with the flow engine, where a realm's flow can have no applicable execution at all.
+**§3.1.2.1's `prompt=login` MUST is not closable here** and stays `deferred: P2`. "An error is returned if reauthentication cannot be performed" still has no reachable branch: this server can always render a login form, and a hint mismatch after a forced reauthentication is the `id_token_hint` rule, already held by its own row. The state where reauthentication genuinely cannot be performed arrives with the flow engine, where a tenant's flow can have no applicable execution at all.
 
 Every test id must name a test that actually exercises its clause. A test that establishes a session and then never presents it to `/authorize` is not exercising session reuse, whatever its fixture does. Give the reuse tests their own ids rather than reusing ids already carried by tests asserting the opposite outcome — `pnpm trace` requires all carriers of an id to pass, so a shared id lets a deleted test hide behind a surviving one that proves something different. Then rewrite the reading note that says "always return `login_required`" is the whole of `prompt=none` — it is now a decision, and the note should say what replaced it.
 
@@ -1124,11 +1124,11 @@ Where the decision is `render` with an unusable redirect, the session is still e
 
 - [ ] **Step 5: Write the failing integration test**
 
-Cases: a `GET` with a matching hint and a registered URI ends the session and 302s there; the session row is no longer live afterwards; `token_grants` rows for that session carry `revoked_at`; an offline grant for the same subject does **not**; a refresh of a revoked session-bound token is refused with `invalid_grant`; a `GET` with no hint renders a confirmation page and ends nothing until the form is posted; and a `GET` from a different realm's session id ends nothing.
+Cases: a `GET` with a matching hint and a registered URI ends the session and 302s there; the session row is no longer live afterwards; `token_grants` rows for that session carry `revoked_at`; an offline grant for the same subject does **not**; a refresh of a revoked session-bound token is refused with `invalid_grant`; a `GET` with no hint renders a confirmation page and ends nothing until the form is posted; and a `GET` from a different tenant's session id ends nothing.
 
 - [ ] **Step 6: Implement the route and the revocation**
 
-One transaction: end the session, then `revokeForSession`. Order matters only for readability — both are in the same `withRealm` call, so a failure rolls both back.
+One transaction: end the session, then `revokeForSession`. Order matters only for readability — both are in the same `withTenant` call, so a failure rolls both back.
 
 - [ ] **Step 7: Advertise it in discovery**
 
@@ -1169,8 +1169,8 @@ Then update `docs/NEXT.md`.
 
 **Interfaces:**
 
-- Consumes: `DEFAULT_SCOPES` and `REALM_DEFAULT_SCOPE_NAMES` from `provision-defaults.ts`; `TokenGrantRecord.sessionId`
-- Produces: `offline_access` in a realm's default scope vocabulary; a grant whose `sessionId` is null when it is requested and granted
+- Consumes: `DEFAULT_SCOPES` and `TENANT_DEFAULT_SCOPE_NAMES` from `provision-defaults.ts`; `TokenGrantRecord.sessionId`
+- Produces: `offline_access` in a tenant's default scope vocabulary; a grant whose `sessionId` is null when it is requested and granted
 
 - [ ] **Step 1: Write the failing integration test**
 
@@ -1217,7 +1217,7 @@ The fourth case is the one that makes the third meaningful: if a session-bound r
 - [ ] **Step 2: Run them and watch them fail**
 
 Run: `pnpm exec vitest run --project integration offline-access`
-Expected: FAIL — `offline_access` is not a scope the realm defines, so `resolveScope` drops it.
+Expected: FAIL — `offline_access` is not a scope the tenant defines, so `resolveScope` drops it.
 
 - [ ] **Step 3: Seed the scope**
 
@@ -1227,7 +1227,7 @@ Add `{ name: 'offline_access', includeInAccessToken: false, includeInIdToken: fa
 
 `decideLogout` compares a hint's `sid` to the current session's id and falls back to comparing subjects when the hint carries no `sid`. That fallback is currently unreachable for any token this server mints, because every ID token from a session-backed code carries one. **An offline grant has no session, so its ID token carries no `sid`** — which makes the weaker check reachable again for a _current_ token, and a logout confirmation skippable with a stale-but-valid offline ID token from the same user.
 
-Close it in this task, not later: either refuse a `sid`-less hint outright in a realm that issues sessions, or treat one as a mismatch so the confirmation page always shows. Add the case to `decideLogout`'s unit tests and to the reading note in `docs/protocols/oidc-rpinitiated.md`, which currently states what "belong to" is compared on and would otherwise become wrong the moment this scope ships.
+Close it in this task, not later: either refuse a `sid`-less hint outright in a tenant that issues sessions, or treat one as a mismatch so the confirmation page always shows. Add the case to `decideLogout`'s unit tests and to the reading note in `docs/protocols/oidc-rpinitiated.md`, which currently states what "belong to" is compared on and would otherwise become wrong the moment this scope ships.
 
 - [ ] **Step 4: Issue the grant without a session**
 
@@ -1249,7 +1249,7 @@ if (grant.sessionId !== null) {
 }
 ```
 
-`idleSeconds` becomes a parameter of `rotateRefreshToken`, sourced from the realm. Note the `touch`: a refresh is session activity, which is the spec's §3.1 rule and the reason a client refreshing every five minutes keeps a session alive.
+`idleSeconds` becomes a parameter of `rotateRefreshToken`, sourced from the tenant. Note the `touch`: a refresh is session activity, which is the spec's §3.1 rule and the reason a client refreshing every five minutes keeps a session alive.
 
 - [ ] **Step 6: Unskip the offline `sid` case**
 
@@ -1277,7 +1277,7 @@ Then update `docs/NEXT.md`.
 
 ---
 
-### Task 7: `authentication_executions` — migration 0030 and realm provisioning
+### Task 7: `authentication_executions` — migration 0030 and tenant provisioning
 
 **Files:**
 
@@ -1292,24 +1292,24 @@ Then update `docs/NEXT.md`.
 **Interfaces:**
 
 - Produces:
-  - `AuthenticationExecutionRecord { id, realmId, index, authenticator, requirement }`
+  - `AuthenticationExecutionRecord { id, tenantId, index, authenticator, requirement }`
   - `Requirement = 'required' | 'alternative' | 'conditional' | 'disabled'`
-  - `executionRepository(tx).forRealm(realmId): Promise<AuthenticationExecutionRecord[]>` — ordered by `index`
+  - `executionRepository(tx).forTenant(tenantId): Promise<AuthenticationExecutionRecord[]>` — ordered by `index`
   - `executionRepository(tx).create(input): Promise<void>`
-  - `provisionBrowserFlow(tx, realmId): Promise<void>`
+  - `provisionBrowserFlow(tx, tenantId): Promise<void>`
   - `BROWSER_FLOW_DEFAULT: readonly { authenticator: string; requirement: Requirement }[]`
 
 - [ ] **Step 1: Write the migration**
 
 ```sql
 -- packages/db/drizzle/0030_authentication_executions.sql
--- One flat, ordered list of executions per realm. Alternatives at adjacent
+-- One flat, ordered list of executions per tenant. Alternatives at adjacent
 -- indexes form one group, which is how a single level expresses "passkey or
 -- password" without a tree; nesting is not modelled because nothing can
 -- author it until there is an admin surface.
 CREATE TABLE authentication_executions (
   id uuid PRIMARY KEY,
-  realm_id uuid NOT NULL REFERENCES realms (id) ON DELETE CASCADE,
+  tenant_id uuid NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
   index integer NOT NULL,
   authenticator text NOT NULL,
   requirement text NOT NULL,
@@ -1317,23 +1317,23 @@ CREATE TABLE authentication_executions (
   CONSTRAINT authentication_executions_requirement CHECK (
     requirement IN ('required', 'alternative', 'conditional', 'disabled')
   ),
-  CONSTRAINT authentication_executions_order UNIQUE (realm_id, index)
+  CONSTRAINT authentication_executions_order UNIQUE (tenant_id, index)
 );
 
 ALTER TABLE authentication_executions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE authentication_executions FORCE ROW LEVEL SECURITY;
 
 CREATE POLICY authentication_executions_isolation ON authentication_executions
-  USING (realm_id = nullif(current_setting('app.realm_id', true), '')::uuid);
+  USING (tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid);
 ```
 
-**Copy the policy from `packages/db/drizzle/0006_sessions.sql` rather than from this plan.** The setting is `app.realm_id`, wrapped in `nullif(…, '')`, and there is no `WITH CHECK`; this plan got all three wrong in its first drafts. A policy that does not match what `withRealm` sets silently matches zero rows.
+**Copy the policy from `packages/db/drizzle/0006_sessions.sql` rather than from this plan.** The setting is `app.tenant_id`, wrapped in `nullif(…, '')`, and there is no `WITH CHECK`; this plan got all three wrong in its first drafts. A policy that does not match what `withTenant` sets silently matches zero rows.
 
 Append the journal entry.
 
 - [ ] **Step 2: Write the failing integration test**
 
-Cases: a freshly provisioned realm has exactly the three default executions in index order; a foreign realm's executions are invisible to `forRealm`; a duplicate `(realm_id, index)` is refused; and an unknown `requirement` value is refused by the CHECK.
+Cases: a freshly provisioned tenant has exactly the three default executions in index order; a foreign tenant's executions are invisible to `forTenant`; a duplicate `(tenant_id, index)` is refused; and an unknown `requirement` value is refused by the CHECK.
 
 - [ ] **Step 3: Run it and watch it fail**
 
@@ -1349,7 +1349,7 @@ Expected: FAIL — table does not exist.
 ```ts
 // packages/authn-flows/src/usecase/provision-flow.ts
 // A passkey or a password gets a user through the first group; the OTP step
-// applies only where the subject has enrolled one or the realm demands it,
+// applies only where the subject has enrolled one or the tenant demands it,
 // and never after a passkey, which is already two factors.
 export const BROWSER_FLOW_DEFAULT = [
   { authenticator: 'passkey', requirement: 'alternative' },
@@ -1358,7 +1358,7 @@ export const BROWSER_FLOW_DEFAULT = [
 ] as const satisfies readonly { authenticator: string; requirement: Requirement }[];
 ```
 
-Call it from `provisionRealmDefaults`, beside the client-scope seeding, so a realm is never left without a flow — the same argument that comment already makes about a scope vocabulary.
+Call it from `provisionTenantDefaults`, beside the client-scope seeding, so a tenant is never left without a flow — the same argument that comment already makes about a scope vocabulary.
 
 - [ ] **Step 6: Run it and watch it pass**
 
@@ -1369,7 +1369,7 @@ Expected: PASS, including `rls-policy.int.test.ts` finding the new table has a p
 
 ```bash
 git add -A
-git commit -m "Give a realm an ordered list of authentication executions"
+git commit -m "Give a tenant an ordered list of authentication executions"
 git push
 gh pr checks --watch
 ```
@@ -1468,7 +1468,7 @@ describe('nextStep', () => {
 });
 ```
 
-The last two cases are the ones that stop a misconfigured realm from logging everybody in with no credential at all — an empty or wholly inapplicable flow must fail, never complete.
+The last two cases are the ones that stop a misconfigured tenant from logging everybody in with no credential at all — an empty or wholly inapplicable flow must fail, never complete.
 
 - [ ] **Step 2: Run them and watch them fail**
 
@@ -1510,7 +1510,7 @@ gh pr checks --watch
 
 **Interfaces:**
 
-- Consumes: `nextStep` (Task 8), `executionRepository(tx).forRealm` (Task 7)
+- Consumes: `nextStep` (Task 8), `executionRepository(tx).forTenant` (Task 7)
 - Produces:
   - `AuthenticatorResult`'s challenge widens: `{ kind: 'challenge'; form: string }`
   - `AuthenticationSessionRecord.satisfied: string[]`
@@ -1535,8 +1535,8 @@ ALTER TABLE authentication_sessions
 What this task proves instead, split by what each layer can honestly show:
 
 - **Resumption, as a unit test of the executor against a fake registry.** Two executions, the first satisfied, and `advance` must offer the second rather than the first. That is decision #3 — a correct password followed by a wrong second factor must not ask for the password again — and it is a property of the engine, not of any authenticator.
-- **Persistence, as an integration test.** `satisfied` round-trips: recording an authenticator puts it in the column, reading it back returns it, and a foreign `realm_id` sees nothing.
-- **Ordering, as an integration test.** A realm's executions drive the dispatch: a provisioned realm completes after `password`, and `passkey`/`otp` being inapplicable is asserted rather than assumed.
+- **Persistence, as an integration test.** `satisfied` round-trips: recording an authenticator puts it in the column, reading it back returns it, and a foreign `tenant_id` sees nothing.
+- **Ordering, as an integration test.** A tenant's executions drive the dispatch: a provisioned tenant completes after `password`, and `passkey`/`otp` being inapplicable is asserted rather than assumed.
 - **Unchanged behaviour.** An expired authentication session still returns `authentication_session_expired`.
 
 The end-to-end multi-factor journey — password, then a real OTP challenge, then success — belongs to the task that builds the TOTP authenticator, and is named in its step list.
@@ -1548,7 +1548,7 @@ Expected: FAIL — `advance` runs `STEPS[0]` and nothing else.
 
 - [ ] **Step 4: Replace `STEPS` with the registry**
 
-Delete the `STEPS` constant and the `StepName` type. `AUTHENTICATORS` becomes keyed by string, and `advance` loads the realm's executions, asks each authenticator whether it is applicable to this subject, calls `nextStep`, and dispatches. Every authenticator name in a row must resolve in the registry; an unresolvable one throws at startup when the flow is provisioned, not at login.
+Delete the `STEPS` constant and the `StepName` type. `AUTHENTICATORS` becomes keyed by string, and `advance` loads the tenant's executions, asks each authenticator whether it is applicable to this subject, calls `nextStep`, and dispatches. Every authenticator name in a row must resolve in the registry; an unresolvable one throws at startup when the flow is provisioned, not at login.
 
 `advance()`'s signature does not change. The P1 comment promising that P2 replaces the list "without changing what a caller of `advance` sees" is now fulfilled and should be deleted rather than left describing a future that has arrived.
 
@@ -1558,7 +1558,7 @@ Delete the `STEPS` constant and the `StepName` type. `AUTHENTICATORS` becomes ke
 
 - [ ] **Step 6: Close §3.1.2.1's `prompt=login` MUST, which now has a reachable branch**
 
-A realm whose flow has no applicable execution is the state in which reauthentication cannot be performed: `nextStep` returns `fail` for it. Under `prompt=login` that must be answered `login_required` at the `redirect_uri` — not a rendered page, and nothing persisted. Write that test, move `OIDC-CORE-3.1.2.1-11` from `deferred: P2` to `covered` against it, and drop the `oidc-core.md` count in `tools/trace/silenced-musts.json` by one.
+A tenant whose flow has no applicable execution is the state in which reauthentication cannot be performed: `nextStep` returns `fail` for it. Under `prompt=login` that must be answered `login_required` at the `redirect_uri` — not a rendered page, and nothing persisted. Write that test, move `OIDC-CORE-3.1.2.1-11` from `deferred: P2` to `covered` against it, and drop the `oidc-core.md` count in `tools/trace/silenced-musts.json` by one.
 
 Run: `pnpm trace`
 Expected: exit 0, one fewer `deferred`, one more `covered`.
@@ -1572,7 +1572,7 @@ Expected: PASS.
 
 ```bash
 git add -A
-git commit -m "Run a realm's authentication executions in order, resuming across steps"
+git commit -m "Run a tenant's authentication executions in order, resuming across steps"
 git push
 gh pr checks --watch
 ```
@@ -1790,7 +1790,7 @@ gh pr checks --watch
 - Produces:
   - `CredentialType = 'password' | 'totp' | 'webauthn' | 'recovery-code' | 'password-history'`
   - `CredentialSecret` — a discriminated union, with `parseCredentialSecret(type, value: unknown): CredentialSecret`
-  - `CredentialRecord { id, realmId, subjectId, type, secret, label, lastUsedAt, lookupKey, createdAt }`
+  - `CredentialRecord { id, tenantId, subjectId, type, secret, label, lastUsedAt, lookupKey, createdAt }`
   - `credentialRepository(tx)` gains `listFor(subjectId, type)`, `byLookupKey(lookupKey)`, `insert(input)`, `markUsed(id, at)`, `deleteOne(id)`
   - `passwordFor(subjectId)` keeps its exact current signature, returning the PHC string or null
 
@@ -1801,7 +1801,7 @@ gh pr checks --watch
 -- A password and a TOTP secret are one per subject; passkeys and recovery
 -- codes are many, which is why the old UNIQUE (subject_id, type) has to go
 -- rather than be widened. password-history rows are retired hashes kept for
--- the realm's history depth and are never verified against for login.
+-- the tenant's history depth and are never verified against for login.
 ALTER TABLE user_credentials
   DROP CONSTRAINT IF EXISTS user_credentials_one_password;
 ALTER TABLE user_credentials
@@ -1828,7 +1828,7 @@ CREATE UNIQUE INDEX user_credentials_one_totp
 -- A passwordless assertion arrives naming a credential, not a user, so the
 -- subject is resolved through this index rather than by scanning jsonb.
 CREATE UNIQUE INDEX user_credentials_lookup_key
-  ON user_credentials (realm_id, lookup_key) WHERE lookup_key IS NOT NULL;
+  ON user_credentials (tenant_id, lookup_key) WHERE lookup_key IS NOT NULL;
 ```
 
 Check the real constraint names first — `\d user_credentials` against a migrated database — rather than trusting the `DROP CONSTRAINT` names in this plan. Migration 0005 is the file that created them.
@@ -1887,7 +1887,7 @@ One Zod schema per type, a `parse` at the repository boundary, and `unknown` in 
 
 - [ ] **Step 4: Write the failing integration test**
 
-Cases: an existing password row survives the migration and `passwordFor` still returns its PHC string unchanged; two passkeys for one subject both insert; a second password for one subject is refused by the partial index; a second TOTP is refused; two passkeys with the same `lookup_key` in one realm are refused; the _same_ `lookup_key` in two different realms is accepted; and every new method is probed with a foreign `realm_id`.
+Cases: an existing password row survives the migration and `passwordFor` still returns its PHC string unchanged; two passkeys for one subject both insert; a second password for one subject is refused by the partial index; a second TOTP is refused; two passkeys with the same `lookup_key` in one tenant are refused; the _same_ `lookup_key` in two different tenants is accepted; and every new method is probed with a foreign `tenant_id`.
 
 The first case is the one the spike exists for — assert the exact string, not that a row exists.
 
@@ -1922,7 +1922,7 @@ Then update `docs/NEXT.md`, recording that `user_credentials.type` is no longer 
 
 - Create: `packages/db/drizzle/0035_realm_password_policy.sql`
 - Modify: `packages/db/drizzle/meta/_journal.json`
-- Modify: `packages/db/src/schema/realms.ts`
+- Modify: `packages/db/src/schema/tenants.ts`
 - Create: `packages/domain-identity/src/service/password-policy.ts`
 - Create: `packages/domain-identity/src/service/password-policy.test.ts`
 - Modify: `packages/account/src/usecase/register.ts`
@@ -1945,25 +1945,25 @@ Then update `docs/NEXT.md`, recording that `user_credentials.type` is no longer 
 -- The weakest configuration this server is willing to call a policy: eight
 -- characters and no class requirements. Every bound is a constraint rather
 -- than a clamp, for the reason 0013 gives.
-ALTER TABLE realms ADD COLUMN password_min_length integer NOT NULL DEFAULT 8;
-ALTER TABLE realms ADD COLUMN password_require_digit boolean NOT NULL DEFAULT false;
-ALTER TABLE realms ADD COLUMN password_require_uppercase boolean NOT NULL DEFAULT false;
-ALTER TABLE realms ADD COLUMN password_require_lowercase boolean NOT NULL DEFAULT false;
-ALTER TABLE realms ADD COLUMN password_require_special boolean NOT NULL DEFAULT false;
-ALTER TABLE realms ADD COLUMN password_not_username boolean NOT NULL DEFAULT true;
-ALTER TABLE realms ADD COLUMN password_not_email boolean NOT NULL DEFAULT true;
-ALTER TABLE realms ADD COLUMN password_history_depth integer NOT NULL DEFAULT 0;
-ALTER TABLE realms ADD COLUMN password_max_age_days integer NOT NULL DEFAULT 0;
+ALTER TABLE tenants ADD COLUMN password_min_length integer NOT NULL DEFAULT 8;
+ALTER TABLE tenants ADD COLUMN password_require_digit boolean NOT NULL DEFAULT false;
+ALTER TABLE tenants ADD COLUMN password_require_uppercase boolean NOT NULL DEFAULT false;
+ALTER TABLE tenants ADD COLUMN password_require_lowercase boolean NOT NULL DEFAULT false;
+ALTER TABLE tenants ADD COLUMN password_require_special boolean NOT NULL DEFAULT false;
+ALTER TABLE tenants ADD COLUMN password_not_username boolean NOT NULL DEFAULT true;
+ALTER TABLE tenants ADD COLUMN password_not_email boolean NOT NULL DEFAULT true;
+ALTER TABLE tenants ADD COLUMN password_history_depth integer NOT NULL DEFAULT 0;
+ALTER TABLE tenants ADD COLUMN password_max_age_days integer NOT NULL DEFAULT 0;
 
-ALTER TABLE realms ADD CONSTRAINT realms_password_min_length_bounds
+ALTER TABLE tenants ADD CONSTRAINT tenants_password_min_length_bounds
   CHECK (password_min_length BETWEEN 8 AND 256);
-ALTER TABLE realms ADD CONSTRAINT realms_password_history_bounds
+ALTER TABLE tenants ADD CONSTRAINT tenants_password_history_bounds
   CHECK (password_history_depth BETWEEN 0 AND 24);
-ALTER TABLE realms ADD CONSTRAINT realms_password_max_age_bounds
+ALTER TABLE tenants ADD CONSTRAINT tenants_password_max_age_bounds
   CHECK (password_max_age_days BETWEEN 0 AND 3650);
 ```
 
-`password_min_length`'s floor is 8, not 1: a realm cannot configure its way below the weakest policy this server ships.
+`password_min_length`'s floor is 8, not 1: a tenant cannot configure its way below the weakest policy this server ships.
 
 - [ ] **Step 2: Write the failing unit tests**
 
@@ -2077,7 +2077,7 @@ Run: `pnpm test`
 
 ```bash
 git add -A
-git commit -m "Enforce a realm password policy at every writer of a password"
+git commit -m "Enforce a tenant password policy at every writer of a password"
 git push
 gh pr checks --watch
 ```
@@ -2114,34 +2114,34 @@ Then update `docs/NEXT.md` and `README.md` — the registration and reset sectio
 ```sql
 -- packages/db/drizzle/0036_user_required_actions.sql
 -- What a subject must do before a login completes. This is what makes a
--- realm-level requirement expressible at all: without it, "this realm
+-- tenant-level requirement expressible at all: without it, "this tenant
 -- requires OTP" could only mean "OTP is offered to whoever already has one".
 CREATE TABLE user_required_actions (
-  realm_id uuid NOT NULL REFERENCES realms (id) ON DELETE CASCADE,
+  tenant_id uuid NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
   subject_id uuid NOT NULL,
   action text NOT NULL,
   created_at timestamptz NOT NULL DEFAULT now(),
-  PRIMARY KEY (realm_id, subject_id, action),
+  PRIMARY KEY (tenant_id, subject_id, action),
   CONSTRAINT user_required_actions_action CHECK (
     action IN ('configure-totp', 'configure-passkey', 'update-password',
                'generate-recovery-codes')
   ),
   CONSTRAINT user_required_actions_subject_fk
-    FOREIGN KEY (realm_id, subject_id) REFERENCES subjects (realm_id, id) ON DELETE CASCADE
+    FOREIGN KEY (tenant_id, subject_id) REFERENCES subjects (tenant_id, id) ON DELETE CASCADE
 );
 
 ALTER TABLE user_required_actions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE user_required_actions FORCE ROW LEVEL SECURITY;
 
 CREATE POLICY user_required_actions_isolation ON user_required_actions
-  USING (realm_id = nullif(current_setting('app.realm_id', true), '')::uuid);
+  USING (tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid);
 ```
 
-**Copy the policy from `packages/db/drizzle/0006_sessions.sql` rather than from this plan** — `app.realm_id`, wrapped in `nullif(…, '')`, no `WITH CHECK`. A policy that does not match what `withRealm` sets matches zero rows without erroring.
+**Copy the policy from `packages/db/drizzle/0006_sessions.sql` rather than from this plan** — `app.tenant_id`, wrapped in `nullif(…, '')`, no `WITH CHECK`. A policy that does not match what `withTenant` sets matches zero rows without erroring.
 
 - [ ] **Step 2: Write the failing integration test — the gate is the assertion**
 
-Cases: a subject with a pending action authenticates correctly and **no session is established and no code issued**; the authentication session is left unconsumed so the action can be completed against it; completing the action then completes the login and issues the code; a second pending action is run before the login completes; and a foreign realm's pending actions are invisible.
+Cases: a subject with a pending action authenticates correctly and **no session is established and no code issued**; the authentication session is left unconsumed so the action can be completed against it; completing the action then completes the login and issues the code; a second pending action is run before the login completes; and a foreign tenant's pending actions are invisible.
 
 The first case is the one that matters. A required action that runs _after_ the session is established is not a required action.
 
@@ -2165,7 +2165,7 @@ In `handleLoginSubmission`, after the email-verified gate and **before** `comple
 // is issued until it is done. The authentication session is deliberately
 // left unconsumed, exactly as the unverified-address outcome leaves it,
 // so the same parked request survives the detour.
-const action = nextRequiredAction(await deps.pendingActions(realm.id, result.subjectId));
+const action = nextRequiredAction(await deps.pendingActions(tenant.id, result.subjectId));
 if (action !== null) {
   return { kind: 'required_action', authSessionId, action };
 }
@@ -2323,7 +2323,7 @@ gh pr checks --watch
 - Modify: `packages/authn-flows/src/usecase/executor.ts`
 - Create: `packages/authn-flows/src/view/totp-enrolment-html.ts`
 - Create: `packages/authn-flows/tests/totp-login.int.test.ts`
-- Modify: `packages/db/src/schema/realms.ts` — `otp_required`
+- Modify: `packages/db/src/schema/tenants.ts` — `otp_required`
 - Create: `packages/db/drizzle/0037_realm_otp_required.sql`
 - Create: `packages/db/drizzle/0038_authentication_sessions_subject.sql`
 - Modify: `packages/db/drizzle/meta/_journal.json`
@@ -2335,16 +2335,16 @@ gh pr checks --watch
 - Produces:
   - `totpStep(input: { code?: string }, verification: TotpVerification): Promise<AuthenticatorResult>`
   - `TotpVerification { subjectId: string | null; secret: TotpSecret | null }`
-  - `otpApplicable(subject: { hasTotp: boolean }, realm: { otpRequired: boolean }): boolean`
+  - `otpApplicable(subject: { hasTotp: boolean }, tenant: { otpRequired: boolean }): boolean`
 
-- [ ] **Step 1: Write the migration for the realm switch**
+- [ ] **Step 1: Write the migration for the tenant switch**
 
 ```sql
 -- packages/db/drizzle/0037_realm_otp_required.sql
--- Off by default: a realm does not acquire a second factor because it was
+-- Off by default: a tenant does not acquire a second factor because it was
 -- upgraded. On, every subject without a TOTP credential gets the
 -- configure-totp required action at their next login.
-ALTER TABLE realms ADD COLUMN otp_required boolean NOT NULL DEFAULT false;
+ALTER TABLE tenants ADD COLUMN otp_required boolean NOT NULL DEFAULT false;
 ```
 
 ```sql
@@ -2375,7 +2375,7 @@ Run: `pnpm exec vitest run --project unit totp`
 
 - [ ] **Step 4: Write the failing integration test for the whole journey**
 
-Cases: a realm with `otp_required` on and a subject with no TOTP credential gets `configure-totp` and cannot complete a login until enrolled; enrolment stores a `totp` credential and the same login then completes; a subsequent login asks for a code after the password; the same code cannot be used twice; and a subject who enrolled while the realm did not require OTP is still asked for a code.
+Cases: a tenant with `otp_required` on and a subject with no TOTP credential gets `configure-totp` and cannot complete a login until enrolled; enrolment stores a `totp` credential and the same login then completes; a subsequent login asks for a code after the password; the same code cannot be used twice; and a subject who enrolled while the tenant did not require OTP is still asked for a code.
 
 **This task owes the end-to-end two-factor `amr`/`acr` assertion.** The claims are emitted from the authenticators a login actually recorded, and the accumulation that makes a multi-factor `amr` — appending the completing factor to the ones already satisfied — cannot be reached while `password` is the only applicable authenticator. Simplifying it to "just the completing factor" leaves the whole suite green and ships the first real two-factor login reporting one factor. Assert a password-then-OTP login yields `amr: ["otp","pwd"]` and `acr: "2"` through the real issuance path.
 
@@ -2553,7 +2553,7 @@ A passkey registered against the wrong RP ID is unusable, and silently: the brow
 
 Run: `pnpm exec vitest run --project unit webauthn`
 
-The RP ID comes from `ODUDU_PUBLIC_BASE_URL` and from nowhere else — never `Host`, never `X-Forwarded-Host`, which are client-controlled. Boot fails when a realm can register a passkey and this is unset, the same way P2a's mailed links fail closed.
+The RP ID comes from `ODUDU_PUBLIC_BASE_URL` and from nowhere else — never `Host`, never `X-Forwarded-Host`, which are client-controlled. Boot fails when a tenant can register a passkey and this is unset, the same way P2a's mailed links fail closed.
 
 - [ ] **Step 3: Write the failing integration test for enrolment**
 
@@ -2610,13 +2610,13 @@ Run: `pnpm exec vitest run --project unit passkey`
 
 - [ ] **Step 3: Write the failing integration test for the usernameless journey**
 
-Cases: `/authorize` renders a page offering a passkey with **no username field required**; an assertion resolves the subject through `lookup_key` and issues a code; the session's `authenticators` records `passkey` alone; **the conditional OTP step does not run** after a passkey, even on a realm with `otp_required` on; and the stored counter has advanced after the login.
+Cases: `/authorize` renders a page offering a passkey with **no username field required**; an assertion resolves the subject through `lookup_key` and issues a code; the session's `authenticators` records `passkey` alone; **the conditional OTP step does not run** after a passkey, even on a tenant with `otp_required` on; and the stored counter has advanced after the login.
 
 The fourth case is a constraint from the spec stated as a test: a passkey assertion is already two factors.
 
 - [ ] **Step 4: Implement the resolution and the counter write**
 
-Resolve through `credentialRepository(tx).byLookupKey`, which is realm-scoped by RLS — a credential ID from another realm resolves to nothing rather than to somebody else's subject. Write the new counter and `last_used_at` in the same transaction as the success.
+Resolve through `credentialRepository(tx).byLookupKey`, which is tenant-scoped by RLS — a credential ID from another tenant resolves to nothing rather than to somebody else's subject. Write the new counter and `last_used_at` in the same transaction as the success.
 
 - [ ] **Step 5: Make the conditional OTP step skip a passkey login**
 
@@ -2673,7 +2673,7 @@ Codes are hashed with the same Argon2id parameters as a password — `hashPasswo
 
 - [ ] **Step 3: Write the failing integration test — single use is the assertion**
 
-Cases: a code works once; **the same code presented again is refused, and is refused as a used code rather than as an unknown one**; the used row is still present (marked used, not deleted — ADR 0021's reasoning applies to every single-use credential); nine remain usable; regenerating replaces all ten and invalidates the old set; and a code from another subject in the same realm does not authenticate this subject.
+Cases: a code works once; **the same code presented again is refused, and is refused as a used code rather than as an unknown one**; the used row is still present (marked used, not deleted — ADR 0021's reasoning applies to every single-use credential); nine remain usable; regenerating replaces all ten and invalidates the old set; and a code from another subject in the same tenant does not authenticate this subject.
 
 - [ ] **Step 4: Implement consumption and run the suite**
 
@@ -2730,7 +2730,7 @@ Run: `pnpm exec vitest run --project unit password-age`
 
 - [ ] **Step 3: Write the failing integration test**
 
-Cases: a subject whose password is past `password_max_age_days` gets `update-password` and **is not locked out** — they can still authenticate, they simply must change it before the login completes; changing it clears the action; reusing one of the last `password_history_depth` passwords is refused; reusing one older than the depth is accepted; the retired hash is stored as a `password-history` row; history rows never authenticate a login; and the new password is evaluated against the realm policy.
+Cases: a subject whose password is past `password_max_age_days` gets `update-password` and **is not locked out** — they can still authenticate, they simply must change it before the login completes; changing it clears the action; reusing one of the last `password_history_depth` passwords is refused; reusing one older than the depth is accepted; the retired hash is stored as a `password-history` row; history rows never authenticate a login; and the new password is evaluated against the tenant policy.
 
 The last case is Task 13's fourth test, now reachable.
 
@@ -2762,7 +2762,7 @@ Then update `docs/NEXT.md`.
 
 - Create: `packages/db/drizzle/0041_login_failures.sql`
 - Modify: `packages/db/drizzle/meta/_journal.json`
-- Modify: `packages/db/src/schema/realms.ts`
+- Modify: `packages/db/src/schema/tenants.ts`
 - Create: `packages/domain-identity/src/schema/login-failures.ts`
 - Create: `packages/domain-identity/src/repository/login-failures.ts`
 - Create: `packages/domain-identity/src/service/lockout.ts`
@@ -2786,29 +2786,29 @@ Then update `docs/NEXT.md`.
 -- would let an attacker lock an account out of existence by guessing at a
 -- name it no longer uses, and would miss an attacker arriving by email.
 CREATE TABLE login_failures (
-  realm_id uuid NOT NULL REFERENCES realms (id) ON DELETE CASCADE,
+  tenant_id uuid NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
   subject_id uuid NOT NULL,
   failure_count integer NOT NULL DEFAULT 0,
   first_failure_at timestamptz,
   last_failure_at timestamptz,
   locked_until timestamptz,
-  PRIMARY KEY (realm_id, subject_id),
+  PRIMARY KEY (tenant_id, subject_id),
   CONSTRAINT login_failures_subject_fk
-    FOREIGN KEY (realm_id, subject_id) REFERENCES subjects (realm_id, id) ON DELETE CASCADE
+    FOREIGN KEY (tenant_id, subject_id) REFERENCES subjects (tenant_id, id) ON DELETE CASCADE
 );
 
 ALTER TABLE login_failures ENABLE ROW LEVEL SECURITY;
 ALTER TABLE login_failures FORCE ROW LEVEL SECURITY;
 
 CREATE POLICY login_failures_isolation ON login_failures
-  USING (realm_id = nullif(current_setting('app.realm_id', true), '')::uuid);
+  USING (tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid);
 
-ALTER TABLE realms ADD COLUMN brute_force_max_failures integer NOT NULL DEFAULT 5;
-ALTER TABLE realms ADD COLUMN brute_force_lockout_seconds integer NOT NULL DEFAULT 60;
-ALTER TABLE realms ADD COLUMN brute_force_max_lockout_seconds integer NOT NULL DEFAULT 900;
-ALTER TABLE realms ADD COLUMN brute_force_failure_reset_seconds integer NOT NULL DEFAULT 43200;
+ALTER TABLE tenants ADD COLUMN brute_force_max_failures integer NOT NULL DEFAULT 5;
+ALTER TABLE tenants ADD COLUMN brute_force_lockout_seconds integer NOT NULL DEFAULT 60;
+ALTER TABLE tenants ADD COLUMN brute_force_max_lockout_seconds integer NOT NULL DEFAULT 900;
+ALTER TABLE tenants ADD COLUMN brute_force_failure_reset_seconds integer NOT NULL DEFAULT 43200;
 
-ALTER TABLE realms ADD CONSTRAINT realms_brute_force_bounds CHECK (
+ALTER TABLE tenants ADD CONSTRAINT tenants_brute_force_bounds CHECK (
   brute_force_max_failures BETWEEN 1 AND 100
   AND brute_force_lockout_seconds BETWEEN 1 AND 86400
   AND brute_force_max_lockout_seconds >= brute_force_lockout_seconds
@@ -2816,7 +2816,7 @@ ALTER TABLE realms ADD CONSTRAINT realms_brute_force_bounds CHECK (
 );
 ```
 
-Lockout is **on by default**, unlike every other realm setting this phase adds. RFC 6749 §2.3.1's protection is a MUST, and a MUST that ships off is not held.
+Lockout is **on by default**, unlike every other tenant setting this phase adds. RFC 6749 §2.3.1's protection is a MUST, and a MUST that ships off is not held.
 
 - [ ] **Step 2: Write the failing unit tests for the arithmetic**
 
@@ -2968,9 +2968,9 @@ Then update `docs/NEXT.md`.
 
 ---
 
-### Task 24: Spike — advisory locks inside `withRealm`
+### Task 24: Spike — advisory locks inside `withTenant`
 
-**The assumption under test:** that a Postgres advisory lock behaves as the scheduler needs it to when taken inside the transaction `withRealm` opens. `packages/db/src/tx.ts` sets realm context with `set_config(..., true)` — the bindable form of `SET LOCAL` — on a **pooled** connection. Two things follow that documentation will not settle: whether a _session_-scoped lock (`pg_advisory_lock`) outlives the transaction and therefore leaks across pooled requests, and whether the _transaction_-scoped variant (`pg_try_advisory_xact_lock`) is the one the reaper should use.
+**The assumption under test:** that a Postgres advisory lock behaves as the scheduler needs it to when taken inside the transaction `withTenant` opens. `packages/db/src/tx.ts` sets tenant context with `set_config(..., true)` — the bindable form of `SET LOCAL` — on a **pooled** connection. Two things follow that documentation will not settle: whether a _session_-scoped lock (`pg_advisory_lock`) outlives the transaction and therefore leaks across pooled requests, and whether the _transaction_-scoped variant (`pg_try_advisory_xact_lock`) is the one the reaper should use.
 
 Getting this wrong gives a lock that is either never released — and the reaper runs once, ever — or never held, and two instances reap concurrently.
 
@@ -2987,20 +2987,20 @@ Use the existing Testcontainers helper so it runs against the same Postgres vers
 // packages/db/tests/advisory-lock-spike.int.test.ts   (throwaway)
 import { beforeAll, expect, it } from 'vitest';
 import { sql } from 'drizzle-orm';
-import { withRealm } from '@odudu/db';
+import { withTenant } from '@odudu/db';
 // Setup shorthand — use the package's real harness (see Global Constraints).
 
-it('reports how each advisory lock variant behaves inside withRealm', async () => {
+it('reports how each advisory lock variant behaves inside withTenant', async () => {
   const db = await testDatabase();
-  const realm = await seedRealm(db);
+  const tenant = await seedTenant(db);
 
-  const taken = await withRealm(db, realm.id, async (tx) =>
+  const taken = await withTenant(db, tenant.id, async (tx) =>
     tx.execute(sql`SELECT pg_try_advisory_xact_lock(42) AS got`),
   );
-  const again = await withRealm(db, realm.id, async (tx) =>
+  const again = await withTenant(db, tenant.id, async (tx) =>
     tx.execute(sql`SELECT pg_try_advisory_xact_lock(42) AS got`),
   );
-  const held = await withRealm(db, realm.id, async (tx) =>
+  const held = await withTenant(db, tenant.id, async (tx) =>
     tx.execute(sql`SELECT count(*) AS n FROM pg_locks WHERE locktype = 'advisory'`),
   );
 
@@ -3011,7 +3011,7 @@ it('reports how each advisory lock variant behaves inside withRealm', async () =
 
 - [ ] **Step 2: Add the same probe for the session-scoped variant**
 
-A second block calling `pg_advisory_lock(43)` inside `withRealm`, then counting `pg_locks` **after** that transaction has returned. A non-zero count is the leak: the lock survived the transaction and is now attached to a connection the pool will hand to somebody else.
+A second block calling `pg_advisory_lock(43)` inside `withTenant`, then counting `pg_locks` **after** that transaction has returned. A non-zero count is the leak: the lock survived the transaction and is now attached to a connection the pool will hand to somebody else.
 
 - [ ] **Step 3: Run it and read the output**
 
@@ -3021,14 +3021,14 @@ The expected answer, to be confirmed rather than assumed: `pg_try_advisory_xact_
 
 - [ ] **Step 4: Record the finding**
 
-Append to `docs/superpowers/p2b-spike-log.md` under `## Advisory locks inside withRealm`: the exact test, the logged output verbatim, and the conclusion naming the function Task 26 must call.
+Append to `docs/superpowers/p2b-spike-log.md` under `## Advisory locks inside withTenant`: the exact test, the logged output verbatim, and the conclusion naming the function Task 26 must call.
 
 - [ ] **Step 5: Delete the probe and commit**
 
 ```bash
 rm packages/db/tests/advisory-lock-spike.int.test.ts
 git add -A
-git commit -m "Establish which advisory lock variant is safe inside a pooled realm transaction"
+git commit -m "Establish which advisory lock variant is safe inside a pooled tenant transaction"
 git push
 gh pr checks --watch
 ```
@@ -3065,11 +3065,11 @@ The headline test of the phase. **Read ADR 0021 before starting.**
 -- A reaping pass scans by age. Without these it is a sequential scan over
 -- the largest tables in the schema, which is how a retention pass becomes
 -- the reason a deployment falls over at 3am.
-CREATE INDEX authentication_sessions_by_expiry ON authentication_sessions (realm_id, expires_at);
-CREATE INDEX refresh_tokens_by_expiry ON refresh_tokens (realm_id, expires_at);
-CREATE INDEX token_grants_by_created ON token_grants (realm_id, created_at);
-CREATE INDEX sessions_by_expiry ON sessions (realm_id, expires_at);
-CREATE INDEX action_tokens_by_expiry ON action_tokens (realm_id, expires_at);
+CREATE INDEX authentication_sessions_by_expiry ON authentication_sessions (tenant_id, expires_at);
+CREATE INDEX refresh_tokens_by_expiry ON refresh_tokens (tenant_id, expires_at);
+CREATE INDEX token_grants_by_created ON token_grants (tenant_id, created_at);
+CREATE INDEX sessions_by_expiry ON sessions (tenant_id, expires_at);
+CREATE INDEX action_tokens_by_expiry ON action_tokens (tenant_id, expires_at);
 ```
 
 - [ ] **Step 2: Write the failing test that the phase is judged on**
@@ -3143,7 +3143,7 @@ Expected: PASS. If they pass with a naive `expires_at` delete, the tests are wro
 
 - [ ] **Step 6: Write the ordinary reaping tests**
 
-Cases: each table's eligible rows go; each table's ineligible rows stay; the report counts what was deleted; a second pass deletes nothing; the pass is realm-agnostic but respects RLS per realm; and a session with a live grant is **not** deleted.
+Cases: each table's eligible rows go; each table's ineligible rows stay; the report counts what was deleted; a second pass deletes nothing; the pass is tenant-agnostic but respects RLS per tenant; and a session with a live grant is **not** deleted.
 
 - [ ] **Step 7: Wire the command**
 
@@ -3265,7 +3265,7 @@ Closes the limitation P2a recorded and P2b was amended to own.
 -- inside the response.
 CREATE TABLE email_outbox (
   id uuid PRIMARY KEY,
-  realm_id uuid NOT NULL REFERENCES realms (id) ON DELETE CASCADE,
+  tenant_id uuid NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
   to_address text NOT NULL,
   subject text NOT NULL,
   body text NOT NULL,
@@ -3280,7 +3280,7 @@ ALTER TABLE email_outbox ENABLE ROW LEVEL SECURITY;
 ALTER TABLE email_outbox FORCE ROW LEVEL SECURITY;
 
 CREATE POLICY email_outbox_isolation ON email_outbox
-  USING (realm_id = nullif(current_setting('app.realm_id', true), '')::uuid);
+  USING (tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid);
 
 CREATE INDEX email_outbox_pending ON email_outbox (next_attempt_at) WHERE sent_at IS NULL;
 ```
@@ -3461,20 +3461,20 @@ The spec's section 4 numbered its migrations 0026–0034 before the task order e
 | --------- | ---- | ---------------------------------------------- |
 | 0026      | 1    | `token_grants.session_id`                      |
 | 0027      | 2    | `sessions.last_active_at`                      |
-| 0028      | 2    | realm session lifespans                        |
+| 0028      | 2    | tenant session lifespans                       |
 | 0029      | 4    | `authorization_codes.session_id`               |
 | 0030      | 5    | `client_oidc_config.post_logout_redirect_uris` |
 | 0031      | 7    | `authentication_executions`                    |
 | 0032      | 9    | `authentication_sessions.satisfied`            |
 | 0033      | 10   | `sessions.authenticators`                      |
 | 0034      | 12   | `user_credentials` widening                    |
-| 0035      | 13   | realm password policy                          |
+| 0035      | 13   | tenant password policy                         |
 | 0036      | 14   | `user_required_actions`                        |
-| 0037      | 16   | `realms.otp_required`                          |
+| 0037      | 16   | `tenants.otp_required`                         |
 | 0038      | 16   | `authentication_sessions.subject_id`           |
 | 0039      | 18   | `authentication_sessions.webauthn_challenge`   |
-| 0040      | 20   | `recovery-code` execution for existing realms  |
-| 0041      | 22   | `login_failures` and realm lockout settings    |
+| 0040      | 20   | `recovery-code` execution for existing tenants |
+| 0041      | 22   | `login_failures` and tenant lockout settings   |
 | 0042      | 25   | retention indexes                              |
 | 0043      | 27   | `email_outbox`                                 |
 | 0044      | —    | `authentication_sessions.authenticated_at`     |
@@ -3485,12 +3485,12 @@ required action was satisfiable by a session bound by only the first factor
 (see docs/NEXT.md). The difference is
 three the spec folded into prose rather than numbering (`satisfied`,
 `authenticators`, `otp_required`), three it did not foresee (the retention
-indexes, splitting the session columns from the realm columns because they
+indexes, splitting the session columns from the tenant columns because they
 land in different tables, and `authorization_codes.session_id` — without
 which the session a login establishes never reaches the grant redeemed from
 its code), and three found during execution: binding an in-progress login to its
 subject, giving a WebAuthn challenge somewhere server-side to live, and
-backfilling the recovery-code execution onto realms provisioned before it
+backfilling the recovery-code execution onto tenants provisioned before it
 existed.
 Both of those are state a task needed and no numbered migration provided,
 which is the shape to expect from the remaining tasks too. If a task runs

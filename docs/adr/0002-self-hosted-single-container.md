@@ -2,6 +2,8 @@
 
 **Status:** Accepted · 2026-09-10
 
+**Renamed 2026-09-22:** written when a tenant was called a realm; the decision is unchanged.
+
 ## Context
 
 The deployment shape determines the caching and clustering design and
@@ -21,7 +23,7 @@ balancer with a shared cache.
   in `kernel`, so Valkey drops in at P11 for multi-replica deployments.
 - Nodes stay stateless from the first commit, so horizontal scaling is a
   later addition rather than a rewrite.
-- Realms resolve from the URL path rather than subdomains, because wildcard
+- Tenants resolve from the URL path rather than subdomains, because wildcard
   DNS and certificates would break the laptop-friendly promise. See the
   spec for the cookie-isolation cost this incurs.
 

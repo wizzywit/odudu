@@ -2,6 +2,8 @@
 
 **Status:** Accepted · 2026-09-19
 
+**Renamed 2026-09-22:** written when a tenant was called a realm; the decision is unchanged.
+
 ## Context
 
 P3a's exit criterion is the OpenID Foundation's Dynamic OP plan
@@ -19,7 +21,7 @@ that check fails on every run, and `docs/protocols/oidc-discovery.md:73`
 already carries the clause as `n/a:`.
 
 That was the known-before-the-run divergence. The run itself, against a
-realm seeded with `client_registration_policy=open`
+tenant seeded with `client_registration_policy=open`
 (`infra/conformance/run-dynamic-op.sh`, suite `release-v5.1.36`, plan id
 `4JhQ5ffOdtF1Q`, 2026-09-19), found it is not the dominant one — and a
 module can fail more than one condition, so **this section attributes by

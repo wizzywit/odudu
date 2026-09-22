@@ -79,7 +79,7 @@ smaller than they look.
 | The name has one authority already                                                 | `packages/authn-flows/src/index.ts:6` (`sessionCookieName`, ADR 0020)                                               |
 | `decideReuse` is 36 lines and assumes one session                                  | `wc -l packages/protocol-oidc/src/usecase/session-reuse.ts`                                                         |
 | `parsePrompt` already parses `select_account`                                      | `packages/protocol-oidc/src/service/prompt.ts:4`                                                                    |
-| The realm already carries one lifespan pair, with CHECK ranges                     | `packages/db/drizzle/0028_realm_session_lifespans.sql:4,5,8,10,16`                                                  |
+| The tenant already carries one lifespan pair, with CHECK ranges                    | `packages/db/drizzle/0028_realm_session_lifespans.sql:4,5,8,10,16`                                                  |
 | `token_grants` carries `client_id` and `session_id`, indexed                       | `packages/db/drizzle/0026_token_grants_session.sql:5,23`                                                            |
 | The queue-and-command pattern exists end to end                                    | `packages/db/drizzle/0043_email_outbox.sql`; `apps/server/src/main.ts:33`; `apps/server/src/modules/outbox.ts:88`   |
 | `client_oidc_config.audiences` exists and is already the `aud` source              | `packages/db/drizzle/0007_client_oidc_config.sql:7`; `packages/protocol-oidc/src/usecase/token-issuance.ts:368`     |
@@ -108,7 +108,7 @@ an existing one, and it is sequenced last for that reason.
 
 ### 5.1 Two cookies
 
-`__Host-{realm}-session` carries no `Max-Age`; `__Host-{realm}-session-persistent`
+`__Host-{tenant}-session` carries no `Max-Age`; `__Host-{tenant}-session-persistent`
 carries one. Each holds a delimited list of session ids, and resolution is
 the union of the two, pruned to live rows in one query.
 
@@ -139,9 +139,9 @@ match login.ts's own `set-cookie` for a browser to…". Two cookies,
 ### 5.3 Schema
 
 - `sessions.remembered boolean NOT NULL DEFAULT false`.
-- A second realm lifespan pair beside 0028's, with CHECK ranges in the same
+- A second tenant lifespan pair beside 0028's, with CHECK ranges in the same
   shape and the same `idle <= max` constraint.
-- Both reach `realm-settings.ts`'s name-to-column map, so `seed realm --set`
+- Both reach `tenant-settings.ts`'s name-to-column map, so `seed tenant --set`
   configures them with no new CLI concept and no second coercion table.
 
 Ranges stay CHECK constraints rather than validation, per the note in
@@ -195,7 +195,7 @@ framing.
 
 An ADR records what is being accepted. A framed page can navigate the top
 window away, so framing a registered URI hands a registered client — in a
-realm with anonymous dynamic registration enabled, an anonymous one — a
+tenant with anonymous dynamic registration enabled, an anonymous one — a
 top-navigation primitive. `sandbox` without `allow-same-origin` would
 remove it and would also deny the frame the cookies that are the entire
 mechanism, so it is not the answer. The ADR also states plainly that
@@ -449,7 +449,7 @@ ambiguity. Runs before increment 8.
 ## 13. Exit criterion
 
 Concurrent sessions per browser, with `prompt=select_account` choosing
-among them and `account_selection_required` where it cannot; a realm's
+among them and `account_selection_required` where it cannot; a tenant's
 "remember me", offered on the login form, carrying a cookie that outlives
 the browser session and selecting the second pair of idle and maximum
 lifespans; front-channel logout **attempted** against every URI P3a registers — the
@@ -469,7 +469,7 @@ full and honoured against the claim registry, including an Essential
 with the JWKS fetcher wired, its three recorded nits fixed and a `jti`
 replay guard, and proxy-header mTLS client authentication; the consent
 section of `docs/request-paths.md` replaced by a real transcript; every new
-repository method probed with a foreign `realm_id`; cross-realm RLS probes
+repository method probed with a foreign `tenant_id`; cross-tenant RLS probes
 green; CI green on a pushed commit with a pull request open.
 
 ## 14. What P3b does not do

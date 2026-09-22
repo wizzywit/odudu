@@ -2,18 +2,20 @@
 
 **Status:** Accepted · 2026-09-18
 
+**Renamed 2026-09-22:** written when a tenant was called a realm; the decision is unchanged.
+
 ## Context
 
-P4b's exit criterion lets a realm's administrator — an operator of the
-realm, but not of Odudu itself — supply branding for the pages their
+P4b's exit criterion lets a tenant's administrator — an operator of the
+tenant, but not of Odudu itself — supply branding for the pages their
 End-Users see: a logo, a palette, copy. That branding has to reach pages
 `protocol-oidc`, `account` and `authn-flows` render today as a single
 `html` string per `RenderedPage` (ADR 0029), with no seam a theme could
 attach to.
 
 Whatever seam is chosen has to survive the fact that the branding comes
-from a realm, which this server does not otherwise trust with markup: a
-realm's administrator is closer to an untrusted client than to an operator
+from a tenant, which this server does not otherwise trust with markup: a
+tenant's administrator is closer to an untrusted client than to an operator
 of the identity provider. The login form's password field, the CSP nonce a
 WebAuthn page carries (ADR 0018's amendment), `frame-ancestors 'none'`,
 and the hidden `auth_session_id` or `session_id` that CSRF-protects a
@@ -67,13 +69,13 @@ guess before eight renderers, then more, depend on it.
 ## Alternatives rejected
 
 - **A theme replaces the whole document.** Rejected: P4b's criterion is
-  that an _untrusted_ client — a realm's own administrator — supplies the
+  that an _untrusted_ client — a tenant's own administrator — supplies the
   styling. A theme that can replace the document can replace the password
   field, the CSP nonce a script's policy is keyed to, `frame-ancestors`,
   and `form-action`, which is not a branding surface, it is the page's
   security boundary.
 - **A theme supplies only a stylesheet.** Rejected: a stylesheet cannot
-  reorder a form's fields, relabel a button, or drop a paragraph a realm
+  reorder a form's fields, relabel a button, or drop a paragraph a tenant
   does not want shown — and reordering, relabelling and trimming copy is
-  most of what a realm asking for its own branding actually wants. A seam
+  most of what a tenant asking for its own branding actually wants. A seam
   that only accepts colours and fonts would not meet P4b's criterion.

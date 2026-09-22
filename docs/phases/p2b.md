@@ -43,7 +43,7 @@ write to a latch left every attack test green.
 
 **What P3 will meet here.** `authenticated_at` is a snapshot taken at the
 last `advance`, so a factor that becomes applicable **out of band** — a TOTP
-enrolled from another session, a realm flipping `otp_required` — leaves a
+enrolled from another session, a tenant flipping `otp_required` — leaves a
 live session recorded as complete until it is next re-run. It is bounded by
 the authentication session's own lifespan, and no factor is bypassed by it:
 whoever holds such a session completed a login when the flow had nothing
@@ -70,7 +70,7 @@ fine:
   run prints two; the `client_oidc_config` listing printed two clients where
   a faithful run has eleven, and the prose leans on exactly that output; the
   retention counts needed a stack driven only through Path A; the throttle's
-  ten `200`s needed `reset_password_allowed` on a realm the document never
+  ten `200`s needed `reset_password_allowed` on a tenant the document never
   turns it on for; and the lockout's second run needed a subject with no
   failures behind it, which the run shown above it makes impossible. Each
   now scopes its query or states its precondition.
@@ -107,9 +107,9 @@ was the oracle.
 
 **The sender is the second scheduled pass, and it deliberately takes no
 lock.** `sendPending` (`packages/email/src/usecase/send-pending.ts`)
-enumerates realms on the owner connection — the queue cannot be read to
-find out whose mail is in it, since the policy keys on `app.realm_id` — and
-claims per realm on the serving one under `SET LOCAL`, in one
+enumerates tenants on the owner connection — the queue cannot be read to
+find out whose mail is in it, since the policy keys on `app.tenant_id` — and
+claims per tenant on the serving one under `SET LOCAL`, in one
 `UPDATE … WHERE id IN (SELECT … FOR UPDATE SKIP LOCKED)` that counts the
 attempt and leases the message for five minutes. Two senders that meet take
 different messages and both make progress, which is strictly better than
@@ -135,13 +135,13 @@ before the rule existed, which is the mechanism working as designed.
 
 **`odudu reap` exists, and retention is now arithmetic rather than a
 warning.** `apps/server/src/cli/reap.ts` deletes what no decision can still
-read, in every realm, in one transaction holding
+read, in every tenant, in one transaction holding
 `pg_try_advisory_xact_lock`; `node dist/main.js reap` prints a per-table
 report and a skipped pass says so rather than reporting zeros. Six
 `ODUDU_RETENTION_*` windows, all defaulted; **`refresh_tokens` has none and
 cannot be given one**, because a refresh token is retained for the life of
 its grant family, and `login_failures` has none because its bounds are the
-realm's own. ADR 0021's amendment of 2026-09-16 carries the numbers, the
+tenant's own. ADR 0021's amendment of 2026-09-16 carries the numbers, the
 `token_grants.created_at` derivation and the ordering.
 
 **Three things in that pass are correctness rather than tidiness.** The
@@ -156,28 +156,28 @@ floor on retention and never a ceiling on the credential.
 
 **`login_failures` needed both bounds, and the second is the one that
 matters.** A pass keyed on the quiet period alone deletes the row holding a
-lock in any realm whose `brute_force_max_lockout_seconds` outlasts its
-`brute_force_failure_reset_seconds` — which `realms_brute_force_bounds`
+lock in any tenant whose `brute_force_max_lockout_seconds` outlasts its
+`brute_force_failure_reset_seconds` — which `tenants_brute_force_bounds`
 permits, because it relates neither to the other. The integration case pins
-the pathological realm, not a default one: against defaults the broken
+the pathological tenant, not a default one: against defaults the broken
 condition passes.
 
 **The command refuses to reap on the owner connection.** `reap` requires
 `ODUDU_APP_DATABASE_URL` in every environment, not only production: the boot
 guard that demands it is never reached by a CLI branch, and the owner must
-bypass row-level security for the realm enumeration, so falling back to it
+bypass row-level security for the tenant enumeration, so falling back to it
 would run every delete with the policy switched off — N unscoped passes for
-N realms, and ADR 0021's "the policy is the scoping" made false in the
+N tenants, and ADR 0021's "the policy is the scoping" made false in the
 document that says it. Both roles are asked of `pg_roles` rather
 than assumed — the listing role must escape row-level security, the serving
 role must not, and a serving role that escapes it is the same property
-failing for a configuration reason instead of a code one. An empty realm
-list is reported as "no realm was enumerated" rather than as a clean pass.
+failing for a configuration reason instead of a code one. An empty tenant
+list is reported as "no tenant was enumerated" rather than as a clean pass.
 
 **Now scheduled, and that is the codebase's first background loop.**
 `apps/server/src/scheduler.ts` is an interval, its jitter, a call, a
 `catch` that logs and a `stop` that awaits the pass in flight — no lock of
-its own, because `withEachRealmExclusive` already takes one and a second
+its own, because `withEachTenantExclusive` already takes one and a second
 key would break the guarantee rather than strengthen it.
 `apps/server/src/modules/reap.ts` wires it behind the `database` module, at
 `ODUDU_REAP_INTERVAL_SECONDS` (3600) plus a tenth as jitter, with
@@ -200,7 +200,7 @@ shared across all three rather than one budget each. Over budget answers
 the body parse, with nothing in the decision needing a body. It is also
 what keeps the refusal from being an oracle — nothing has looked an account
 up when it fires, so the refusal cannot vary with whether the address was
-one the realm knows, which the integration suite asserts by comparing a
+one the tenant knows, which the integration suite asserts by comparing a
 known address's `429` against an unknown one's byte for byte.
 
 **A refused request is not recorded**, so retrying does not extend the
@@ -227,7 +227,7 @@ verification for input of any length. So `readPasswordField`
 every read, and `evaluatePassword` carries the same rule as well — the seed
 CLI reads no form, and a password it accepted but the login form refused
 would be one nobody could sign in with. Over-long input is refused, never
-truncated. Not a realm setting: it bounds work rather than shaping
+truncated. Not a tenant setting: it bounds work rather than shaping
 passwords, and ASVS 2.1.2 permits denial above 128, so 256 refuses no
 passphrase anybody types.
 
@@ -257,19 +257,19 @@ which the document now says.
 
 **Brute-force lockout lands, and closes the last `deferred: P2` clause row
 by splitting it.** Migration 0041 adds `login_failures` — one row per
-subject, keyed `(realm_id, subject_id)` with a composite foreign key onto
-`subjects (realm_id, id)`, RLS enabled and forced with its own policy — and
-four `realms` columns bounded by `realms_brute_force_bounds`:
+subject, keyed `(tenant_id, subject_id)` with a composite foreign key onto
+`subjects (tenant_id, id)`, RLS enabled and forced with its own policy — and
+four `tenants` columns bounded by `tenants_brute_force_bounds`:
 `brute_force_max_failures` (5), `brute_force_lockout_seconds` (60),
 `brute_force_max_lockout_seconds` (900) and
 `brute_force_failure_reset_seconds` (43200). **On by default, alone among
-this phase's realm switches**, because RFC 6749 §2.3.1 is a MUST and a MUST
+this phase's tenant switches**, because RFC 6749 §2.3.1 is a MUST and a MUST
 that ships off is not held. `nextLockout` in `@odudu/domain-identity` is the
 whole of the arithmetic; `isLockedOut` is the read side, with the exclusive
 boundary every other expiry here uses. A missing row reads as nobody's
 failure and nobody locked — the only answer that does not refuse every
-first login in the realm — but `flowSettings` still raises rather than
-defaulting on a missing realm row, so a policy is never invented.
+first login in the tenant — but `flowSettings` still raises rather than
+defaulting on a missing tenant row, so a policy is never invented.
 
 `loginFailureRepository.recordFailure` is a compare-and-swap with a bounded
 re-read: the count it observed is the `ON CONFLICT DO UPDATE`'s `WHERE`, and
@@ -284,7 +284,7 @@ contention worth knowing about. Six concurrent writers each end `recorded`,
 which the count alone could not have shown.
 
 The row is inserted **from an RLS-scoped `SELECT` on `subjects`** rather
-than from a realm id the caller passes, which is what lets the login path
+than from a tenant id the caller passes, which is what lets the login path
 key every read and write on `DUMMY_SUBJECT_ID` for an unknown username: the
 statement runs identically, writes nothing, and violates no foreign key
 there would be no safe place to catch. Measured over 40 attempts apiece,
@@ -311,12 +311,12 @@ row an abandoned attack leaves behind stays forever — and it carries no
 `expires_at` or `consumed_at`, so the five tables named further down this
 file do not describe it. Its retention window is its own, and has two
 bounds rather than one: a row is dead once `last_failure_at` is older than
-the realm's `brute_force_failure_reset_seconds`, because from that point the
+the tenant's `brute_force_failure_reset_seconds`, because from that point the
 arithmetic restarts from one whether the row exists or not — **and** once
 `locked_until` has passed, which is not implied by the first, since nothing
-stops a realm setting `brute_force_max_lockout_seconds` longer than its
+stops a tenant setting `brute_force_max_lockout_seconds` longer than its
 reset window. Deleting a row before both **unlocks an account**, so the
-window is per realm and per row, never a global age.
+window is per tenant and per row, never a global age.
 
 **The clause row was split rather than moved.** RFC 6749 §2.3.1's MUST
 covers "any endpoint using password authentication", and the row's own
@@ -340,9 +340,9 @@ maxAgeDays, now)` is a leaf service in `@odudu/domain-identity`; a maximum
 of zero is the feature off, not an immediate expiry.
 `recordPasswordExpiryIfOwed` runs in `advance`, beside
 `recordOtpEnrolmentIfOwed` and for the same reason, and takes the maximum
-age as a parameter rather than reading `realms` again — `otpRequired` and
+age as a parameter rather than reading `tenants` again — `otpRequired` and
 `passwordMaxAgeDays` are one `flowSettings` read now, carried on
-`FlowFacts`, so a login costs no more realm reads than before: **an expired password
+`FlowFacts`, so a login costs no more tenant reads than before: **an expired password
 still authenticates**, and the required-action gate — which sits downstream
 of a success — is what blocks the login from completing. Refusing the
 factor instead would have been a deadlock, the shape Task 17's
@@ -364,7 +364,7 @@ depth is the one `DELETE` in this phase that is right, and the comment at
 it says why against ADR 0021's default: a row past the depth is not
 something any decision can read. `passwordHistoryShape` needed no widening
 — it was already `{ hash }`, unlike `recoveryCodeShape` in Task 20.
-`completeUpdatePassword` evaluates the realm policy first and only then
+`completeUpdatePassword` evaluates the tenant policy first and only then
 verifies reuse, sequentially and short-circuiting: at a depth of 24 that is
 up to 25 Argon2id verifications, and awaiting them together would hold the
 whole default libuv pool for as long as the slowest — affordable here only
@@ -419,20 +419,20 @@ step, `recovery-code` conditional at index 3, applicable only to a
 submission carrying a code — the same shape as the passkey step. The OTP
 step stands down for the rest of such an attempt rather than asking for a
 code from the authenticator that was lost, but **only where the recovery
-step actually runs**: the realm's flow carries the row and the subject holds
+step actually runs**: the tenant's flow carries the row and the subject holds
 codes. Standing down on the field alone left both conditional groups
 satisfied by inapplicability (`isGroupSatisfied`) and completed a
 two-factor login on the password, which every subject who enrolled TOTP
-before this task was exposed to. Migration 0040 appends the row to realms
+before this task was exposed to. Migration 0040 appends the row to tenants
 provisioned earlier, and **lifts `FORCE ROW LEVEL SECURITY` for its one
 statement**: FORCE removes the owner's exemption, so under a schema owner
-that is not `SUPERUSER` or `BYPASSRLS` a cross-realm write sees nothing,
+that is not `SUPERUSER` or `BYPASSRLS` a cross-tenant write sees nothing,
 writes nothing and raises nothing.
 `packages/authn-flows/tests/migrate-backfill.int.test.ts` runs the whole
 migration set as exactly that role. **It also records a pre-existing
 requirement nothing had stated: the owner role must be RLS-exempt**, because
-`realmLookupRepository.byName` reads `realms` on the owner connection with
-no realm context (ADR 0009's amendment), so under a plain owner no realm
+`tenantLookupRepository.byName` reads `tenants` on the owner connection with
+no tenant context (ADR 0009's amendment), so under a plain owner no tenant
 resolves at all. README.md said the opposite in three places — that serving
 as the owner bypasses RLS — and now says what FORCE actually makes true. Completing either
 `configure-totp` or `configure-passkey` now adds `generate-recovery-codes`
@@ -471,11 +471,11 @@ what `FACTOR_COUNT` counts it as, so `otp_required` is a floor, not a tax.
 form at a time, so the passkey step is applicable to a submission that
 actually carries an assertion; with nothing submitted the group falls
 through to `password`, whose page carries the button. **The failure mode
-that buys: a realm that disables `password` and keeps only `passkey` answers
+that buys: a tenant that disables `password` and keeps only `passkey` answers
 `no_applicable_execution` at `/authorize` and cannot be signed into at
 all** — nothing makes the passkey step applicable except already holding an
 assertion, and the only page that could produce one is never rendered. No
-realm `provisionRealm` creates is in that state, and any realm that keeps
+tenant `provisionTenant` creates is in that state, and any tenant that keeps
 `password` applicable is unaffected. The fix is to let a challenge name
 every applicable member of its group rather than the first, which changes
 `nextStep` and `AuthenticatorResult`, so it is its own increment rather than
@@ -483,7 +483,7 @@ a widening of this one. `AuthenticatorResult`'s
 success variant grew an optional `commit`, run by `advance` **after** the
 subject-mismatch guard — a factor that names its own subject must not move
 any state until the attempt is known to be that subject's.
-`POST /realms/{realm}/login-actions/passkey-challenge` issues the options
+`POST /tenants/{tenant}/login-actions/passkey-challenge` issues the options
 and parks the challenge per press. **A rendered page now carries its own script**:
 `default-src 'none'` was silently blocking the enrolment page's inline
 script as well, so no WebAuthn page could ever have worked in a browser.
@@ -526,15 +526,15 @@ the whole ceremony against real PostgreSQL with a software authenticator
 emitting `none`-format attestations. Passkey login is Task 19's, above.
 
 **Task 16 makes TOTP a real second factor and lets a subject enrol one.**
-Migration 0037 adds `realms.otp_required` (default false) and 0038 adds
-`authentication_sessions.subject_id` (nullable, FK to `subjects (realm_id,
+Migration 0037 adds `tenants.otp_required` (default false) and 0038 adds
+`authentication_sessions.subject_id` (nullable, FK to `subjects (tenant_id,
 id)`). `@odudu/authn-flows` gained `totpStep`/`otpApplicable`
 (`src/service/authenticators/totp.ts`, a leaf in `password.ts`'s shape),
 `beginTotpEnrolment`/`completeTotpEnrolment`, and
 `renderTotpEnrolmentPage`, which draws the `otpauth://` URI as text and as
 a QR code (`qrcode-generator` 2.0.4, exact, zero dependencies, confined to
 the view layer). `executor.ts` registers `otp` for real: applicability is
-now per-subject and per-realm, `AdvanceInput` carries `code`, and every
+now per-subject and per-tenant, `AdvanceInput` carries `code`, and every
 successful factor binds `subject_id` so a later factor cannot answer for
 somebody else — a mismatch fails with `subject_mismatch`. The OTP step
 looks its secret up by the bound subject, never by anything the form
@@ -542,11 +542,11 @@ submits. `credentialRepository.recordTotpUse` stores the accepted time
 step as the credential's `lastStep`, which is the half of RFC 6238 §5.2's
 no-replay rule `verifyTotp` leaves to its caller.
 
-A realm that requires OTP from a subject with no credential cannot express
+A tenant that requires OTP from a subject with no credential cannot express
 that as a step — asking for a code nobody can produce parks the login, and
 the required-action gate sits downstream of a successful authentication —
 so `advance` records the `configure-totp` required action instead, and
-`POST /realms/{realm}/login-actions/required-action` (new, in
+`POST /tenants/{tenant}/login-actions/required-action` (new, in
 `protocol-oidc`) completes it. The secret round-trips in a hidden field and
 the credential is written only by a submission that verifies a code.
 `id_token_hint` naming a different subject now also clears the attempt's
@@ -595,30 +595,30 @@ package and gives the two-factor login journey Task 9's own note pointed
 at somewhere to land.
 
 Migration 0031 adds
-`authentication_executions`: one flat, ordered list per realm (`id`,
-`realm_id`, `index`, `authenticator`, `requirement`), `requirement`
+`authentication_executions`: one flat, ordered list per tenant (`id`,
+`tenant_id`, `index`, `authenticator`, `requirement`), `requirement`
 constrained to `required`/`alternative`/`conditional`/`disabled` and
-`(realm_id, index)` unique. `@odudu/authn-flows` gained
-`executionRepository` (`forRealm`, ordered by `index`; `create`) and
+`(tenant_id, index)` unique. `@odudu/authn-flows` gained
+`executionRepository` (`forTenant`, ordered by `index`; `create`) and
 `provisionBrowserFlow`, which seeds `BROWSER_FLOW_DEFAULT` — `passkey` and
-`password` at `alternative`, `otp` at `conditional` — for every realm.
+`password` at `alternative`, `otp` at `conditional` — for every tenant.
 `@odudu/domain-tenant` does not depend on `@odudu/authn-flows` — the umbrella
-spec fixes the direction the other way — so `provisionRealmDefaults` does not
+spec fixes the direction the other way — so `provisionTenantDefaults` does not
 call `provisionBrowserFlow` itself; a `dependency-cruiser` rule
 (`no-domain-to-authn-flows`) forbids that edge, alongside `no-circular`,
 which would also catch it (`authn-flows` now depends on `@odudu/domain-tenant`
 too, so the edge would close a cycle, not just point the wrong way).
-`@odudu/authn-flows` exports `provisionRealm(tx, realmId)`, which calls
-`provisionRealmDefaults` and then `provisionBrowserFlow` — the one function
-a realm-creation site should call so the two cannot drift apart. The seed
-CLI's two realm-creation sites (`apps/server/src/cli/seed.ts`) call it; so do
+`@odudu/authn-flows` exports `provisionTenant(tx, tenantId)`, which calls
+`provisionTenantDefaults` and then `provisionBrowserFlow` — the one function
+a tenant-creation site should call so the two cannot drift apart. The seed
+CLI's two tenant-creation sites (`apps/server/src/cli/seed.ts`) call it; so do
 all but one of the ~25 protocol-oidc and domain-tenant test fixtures that
-stand up a realm, mechanically migrated from calling `provisionRealmDefaults`
+stand up a tenant, mechanically migrated from calling `provisionTenantDefaults`
 directly. The one exception is `domain-tenant`'s own
-`provision-defaults.int.test.ts`, which cannot reach `provisionRealm` —
+`provision-defaults.int.test.ts`, which cannot reach `provisionTenant` —
 `domain-tenant` sits underneath `authn-flows` in the dependency graph — and
-still calls `provisionRealmDefaults` directly, with a comment saying why.
-`provisionBrowserFlow` and `provisionRealmDefaults` both stay exported
+still calls `provisionTenantDefaults` directly, with a comment saying why.
+`provisionBrowserFlow` and `provisionTenantDefaults` both stay exported
 individually for a caller that wants only one half. Evaluating the flow into
 a decision, and rewiring `executor.ts`'s `STEPS` to read it, are Tasks 8 and
 9 — Task 7 built only the table, the repository and the provisioning
@@ -636,7 +636,7 @@ disabled entry merge into one (a deliberate choice past what the nine
 brief-given cases pin down, covered by a tenth test). An empty flow, or one
 where every group runs out of applicable members, returns `{ kind: 'fail'
 }` rather than `{ kind: 'complete' }` — the case that stops a misconfigured
-realm from admitting anyone with no credential at all. `executor.ts`'s
+tenant from admitting anyone with no credential at all. `executor.ts`'s
 `STEPS` rewiring to call this is Task 9's, untouched here.
 
 **Task 9 is that rewiring, and it lands the registry `advance()` was always
@@ -658,7 +658,7 @@ resumption is provable as a unit test against a fake registry
 (`ODUDU-AUTHN-RESUMPTION-01`) rather than tied to `password` being the one
 real authenticator. `advance()` still takes exactly the arguments it always
 has; a caller cannot tell the registry exists. `initialChallenge(tx,
-realmId)` answers what a realm's flow would ask for first, with no session
+tenantId)` answers what a tenant's flow would ask for first, with no session
 yet — used both to render the right form at `/authorize` and to detect a
 flow with no applicable execution at all before a session is ever started.
 `pendingChallenge(tx, authSessionId)` answers the same question for a live
@@ -673,7 +673,7 @@ duplicated per case.
 
 **Closes `OIDC-CORE-3.1.2.1-11`.** `docs/protocols/oidc-core.md`'s
 `prompt=login` MUST — "an error is returned if reauthentication cannot be
-performed" — was `deferred: P2` because no realm could ever reach a state
+performed" — was `deferred: P2` because no tenant could ever reach a state
 with no applicable execution. Task 9 is what creates that state:
 `handleAuthorizationRequest` calls `initialChallenge` before starting an
 authentication session, and a `'failure'` answer (no applicable execution)
@@ -690,8 +690,8 @@ no OTP authenticator and no non-`password` credential type until the TOTP
 tasks. What Task 9 proves instead, each at the layer that can honestly show
 it: resumption as a unit test against a fake registry
 (`ODUDU-AUTHN-RESUMPTION-01`), `satisfied` persistence as an integration
-test including a foreign-`realm_id` probe (`ODUDU-AUTHN-SATISFIED-PERSISTENCE-01`),
-realm-ordered dispatch asserting — not assuming — that `passkey`/`otp` are
+test including a foreign-`tenant_id` probe (`ODUDU-AUTHN-SATISFIED-PERSISTENCE-01`),
+tenant-ordered dispatch asserting — not assuming — that `passkey`/`otp` are
 inapplicable today (`ODUDU-AUTHN-FLOW-ORDER-01`), and unchanged expiry
 behaviour (`ODUDU-AUTHN-SESSION-EXPIRY-UNCHANGED-01`). The full two-factor
 journey is now named in Task 16's own step list, which builds the OTP
@@ -742,7 +742,7 @@ gives `passkey` a runtime: a synced (software) passkey would be `swk`, not
 `hwk`.
 
 **`acr`'s SHOULD — an absolute URI or an RFC 6711 name — was not closed.**
-`acrFor` returns this realm's own bare digit, which is neither, so that
+`acrFor` returns this tenant's own bare digit, which is neither, so that
 row moves to `gap`, not `covered`; the adjacent MUST ("a registered name
 is not used with a different meaning") closes instead, because it binds
 only a value that names a registration, and Odudu's digits never do — a
@@ -776,7 +776,7 @@ task owns rate limiting.
 Migration 0026 adds
 `token_grants.session_id`, nullable: null means an offline grant, which
 nothing expires and no logout can end; a non-null value is the SSO session
-the grant was issued under, and `sessions` needed a `UNIQUE (realm_id, id)`
+the grant was issued under, and `sessions` needed a `UNIQUE (tenant_id, id)`
 it did not have before this so the composite foreign key could exist.
 `tokenGrantRepository` gained `revokeForSession` and `bySession`, and
 `rotateRefreshToken` refuses to rotate a revoked grant's refresh token
@@ -785,7 +785,7 @@ it did not have before this so the composite foreign key could exist.
 
 **Migrations 0027 and 0028 give a session two clocks.** `sessions` gained
 `last_active_at`, touched on every use; `expires_at` stays the hard
-ceiling, `created_at` plus the realm's maximum lifespan. `realms` gained
+ceiling, `created_at` plus the tenant's maximum lifespan. `tenants` gained
 `sso_session_idle_seconds` (default 1800) and `sso_session_max_seconds`
 (default 36000), each bounded to `[60, 2592000]` by a `CHECK`, plus a third
 `CHECK` refusing an idle timeout longer than the ceiling. `isSessionLive`
@@ -802,7 +802,7 @@ supersedes the spec's section 4 numbering. The
 phase spec is
 [2026-09-15-p2b-credentials-mfa-sessions-design.md](../superpowers/specs/2026-09-15-p2b-credentials-mfa-sessions-design.md),
 on branch `p2b-credentials-mfa-sessions`. It settles nine design decisions
-against stated alternatives — a flat per-realm flow, `jsonb` credentials
+against stated alternatives — a flat per-tenant flow, `jsonb` credentials
 with a `lookup_key` index, `session_id` on the existing `token_grants`,
 `last_active_at` beside `expires_at`, Postgres lockout with an in-process
 IP throttle, reaping as a command under a thin scheduler, required actions
@@ -820,8 +820,8 @@ for a `deferred:` row either way, so the move is invisible to the build and
 was made deliberately.
 
 **Task 3 makes the SSO session load-bearing.** `/authorize` reads the
-`__Host-<realm>-session` cookie P1 wrote and never read, resolves it
-through `sessionRepository(tx).liveById` scoped to the realm's own idle
+`__Host-<tenant>-session` cookie P1 wrote and never read, resolves it
+through `sessionRepository(tx).liveById` scoped to the tenant's own idle
 window, and decides — alongside `prompt` and a newly-parsed `max_age` — to
 reuse the session, start a fresh authentication, or refuse under
 `prompt=none`, all in one function (`decideReuse`,
@@ -876,7 +876,7 @@ session-less yet except by this being the only way one is ever null:
 OpenID Connect RP-Initiated Logout 1.0 §3 requires; migration numbering
 corrects the brief's own `0029` (Task 4 already took it for
 `authorization_codes.session_id`). `GET`/`POST
-/realms/{realm}/protocol/openid-connect/logout` is new
+/tenants/{tenant}/protocol/openid-connect/logout` is new
 (`packages/protocol-oidc/src/usecase/logout.ts`,
 `view/logout-html.ts`, `view/routes/logout.ts`), built around
 `decideLogout` — a pure function, hint subject, hint `sid`, the current
@@ -900,7 +900,7 @@ session (§3's exact-match MUST) still ends it — the two are independent
 outcomes of one decision. Ending a session is `sessionRepository(tx).end`
 (new: moves `expires_at` to now, mirroring how `isSessionLive` already
 reads it, no new column or row state) followed by
-`tokenGrantRepository(tx).revokeForSession`, one `withRealm` transaction.
+`tokenGrantRepository(tx).revokeForSession`, one `withTenant` transaction.
 Access tokens are untouched, and `docs/protocols/oidc-rpinitiated.md` and
 README.md's own logout section both say plainly why: they are
 self-contained `at+jwt` JWTs nothing consults, so nothing exists to tell
@@ -957,9 +957,9 @@ is `jsonb` now, converted in place with
 byte-identical and reversible for every PHC string shape tried, including
 one containing `"`, `\`, `{`, `}` or a raw newline). `label`, `last_used_at`
 and `lookup_key` are new columns; `lookup_key` carries a WebAuthn credential
-id and is unique per `(realm_id, lookup_key)`, which is what lets a
+id and is unique per `(tenant_id, lookup_key)`, which is what lets a
 passwordless assertion resolve its subject without scanning `jsonb` across
-a realm. `@odudu/domain-identity` gained `parseCredentialSecret` (a Zod
+a tenant. `@odudu/domain-identity` gained `parseCredentialSecret` (a Zod
 schema per type, `unknown` in, a narrowed discriminated union out — no
 cast) and `credentialRepository` gained `listFor`, `byLookupKey`, `insert`,
 `markUsed` and `deleteOne`; `passwordFor` and `setPassword` keep their exact
@@ -967,11 +967,11 @@ signatures. Nothing yet writes a `totp`, `webauthn` or `password-history`
 row or reads `lookup_key` — that is TOTP, passkeys and password history's
 own tasks to build on top of this.
 
-**Task 13: every realm now carries a password policy, and every writer of
+**Task 13: every tenant now carries a password policy, and every writer of
 a password is bound by it.** Migration 0035 (numbered past the brief's
 0034 — 0034 was already `user_credentials_types`, per Task 12 above) adds
-nine columns to `realms`: `password_min_length` (default 8, floored there
-by a `CHECK` so a realm cannot configure below it, ceiling 256),
+nine columns to `tenants`: `password_min_length` (default 8, floored there
+by a `CHECK` so a tenant cannot configure below it, ceiling 256),
 `password_require_digit`/`_uppercase`/`_lowercase`/`_special` (all off by
 default), `password_not_username`/`_not_email` (both on by default — `not_email`
 matches the local part of the address, not the whole string, so a
@@ -1013,23 +1013,23 @@ that changes what a password may be should re-run `infra/docker/smoke.sh`
 and grep `infra/` for other seeded credentials, rather than rediscovering
 this per task.
 
-**Task 14 gives a realm-level requirement something to require against: a
+**Task 14 gives a tenant-level requirement something to require against: a
 pending action that blocks a login, not just an offer.** Migration 0036
 (0035 was already `realm_password_policy`, per Task 13) adds
-`user_required_actions` (`realm_id`, `subject_id`, `action`, `created_at`,
+`user_required_actions` (`tenant_id`, `subject_id`, `action`, `created_at`,
 primary key on the first three, `action` constrained to the four decision
 #1 fixes: `update-password`, `configure-totp`, `configure-passkey`,
 `generate-recovery-codes`), RLS policy copied verbatim from
-`authentication_sessions`' (`app.realm_id`, `nullif(..., '')`, no `WITH
+`authentication_sessions`' (`app.tenant_id`, `nullif(..., '')`, no `WITH
 CHECK`) rather than the brief's `current_setting`-named one, which a
-`withRealm`-set session would never match. `@odudu/authn-flows` gained
+`withTenant`-set session would never match. `@odudu/authn-flows` gained
 `requiredActionRepository(tx)` (`pendingFor(subjectId)`,
-`add(realmId, subjectId, action)` — `realmId` explicit, the same way every
+`add(tenantId, subjectId, action)` — `tenantId` explicit, the same way every
 other repository's insert in this codebase takes one, unlike the brief's
-signature, which had no way to supply a fresh row's `realm_id` —
+signature, which had no way to supply a fresh row's `tenant_id` —
 `complete(subjectId, action)`), `nextRequiredAction(pending)` (the fixed
 order: password first, so an expired password is never usable to enrol a
-second factor), and `renderRequiredActionPage(realm, authSessionId,
+second factor), and `renderRequiredActionPage(tenant, authSessionId,
 action)` — a page shell in the same dependency-free, `escapeHtml`-everything
 style as `authorize-html.ts`, carrying the same hidden `auth_session_id`
 CSRF field. Every action has since been given a page of its own, and this
@@ -1038,7 +1038,7 @@ deployment that cannot offer an action at all (no relying party id, and so
 no passkey to enrol), which is why it carries no form.
 
 `login-submission.ts`'s `handleLoginSubmission` gates on
-`nextRequiredAction(await deps.pendingActions(realm.id, result.subjectId))`
+`nextRequiredAction(await deps.pendingActions(tenant.id, result.subjectId))`
 after the `id_token_hint` comparison and before `resolveClientId`/
 `completeLogin`: a non-null action returns `{ kind: 'required_action',
 authSessionId, action }` with nothing established and no code issued, and
@@ -1061,9 +1061,9 @@ gate. `login.ts`'s route renders `renderRequiredActionPage` for the new
 outcome, the same way it already does for `unverified`.
 
 **What this task did not build.** It registered no route for
-`POST /realms/{realm}/login-actions/required-action` — the page's form
+`POST /tenants/{tenant}/login-actions/required-action` — the page's form
 posted there with nothing to receive it — and nothing seeded
-`user_required_actions` in any live path, so no existing realm's login
+`user_required_actions` in any live path, so no existing tenant's login
 behaviour changed. Tasks 17 through 21 closed both halves: the route, and
-the paths (a realm requiring OTP, and an expired password) that owe an
+the paths (a tenant requiring OTP, and an expired password) that owe an
 action in the first place.
