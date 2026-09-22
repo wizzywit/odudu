@@ -249,12 +249,13 @@ row, giving admission, logout and P4's session list one predicate.
   holds a list; there is no browser row), so it waits until something else
   wants that row — most likely P4's session surface.
 
-**Front-channel logout on a redirecting session end.** The logout page
-frames a relying party's `frontchannel_logout_uri` only on the branch that
-renders a page — never on the 302 a matched `post_logout_redirect_uri` takes
-instead, which is RP-initiated logout's common case. Rendering the frames
-first and navigating afterward was never weighed; ADR 0034's Consequences
-record the question as open, not answered.
+**Front-channel logout on a redirecting session end.** `/logout` frames a
+relying party's `frontchannel_logout_uri` on either branch that renders a
+page — the logged-out page and the redirect-refused page — never on the
+302 a matched `post_logout_redirect_uri` takes instead, which is
+RP-initiated logout's common case. Rendering the frames first and
+navigating afterward was never weighed; ADR 0034's Consequences record the
+question as open, not answered.
 
 - Trigger: back-channel logout now gives a redirecting session end a
   server-to-server path, but only to a relying party at a public address.

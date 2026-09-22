@@ -276,8 +276,12 @@ async function signIn(realmName: string): Promise<string> {
   return cookie;
 }
 
-function logoutUrl(realmName: string, idTokenHint: string): string {
-  const query = new URLSearchParams({ id_token_hint: idTokenHint });
+function logoutUrl(
+  realmName: string,
+  idTokenHint: string,
+  extra: Record<string, string> = {},
+): string {
+  const query = new URLSearchParams({ id_token_hint: idTokenHint, ...extra });
   return `/realms/${realmName}/protocol/openid-connect/logout?${query.toString()}`;
 }
 
@@ -490,5 +494,36 @@ describe('the logout page frames each relying party that used the session', () =
     expect(res.body).toContain('<iframe src="https://rp-one.example/logout?');
     expect(res.body).not.toContain('rp-disabled.example');
     expect(String(res.headers['content-security-policy'])).not.toContain('rp-disabled.example');
+  });
+
+  it('[ODUDU-LOGOUT-REDIRECT-REFUSED-FRAME-01] also frames the session’s RPs when the redirect is refused', async () => {
+    const realmName = `frontchannel-refused-${newId()}`;
+    const { realmId, subjectId, rpClientIds } = await setupRealm(realmName, [RP_ONE]);
+    const cookie = await signIn(realmName);
+    const sessionId = sessionIdFromCookie(cookie);
+    const rpOneId = rpClientIds.get(RP_ONE.hostname);
+    if (rpOneId === undefined) throw new Error('expected rp-one to have been provisioned');
+
+    await grantUnderSession(realmId, rpOneId, subjectId, sessionId);
+
+    const hint = await mintIdToken(realmName, subjectId, sessionId);
+    // LOGIN_CLIENT_ID registered no post_logout_redirect_uris at all, so
+    // any value here is refused — this drives the render branch, not the
+    // no-redirect `end` branch the earlier tests in this file drive.
+    const res = await http.inject({
+      url: logoutUrl(realmName, hint, {
+        client_id: LOGIN_CLIENT_ID,
+        post_logout_redirect_uri: 'https://not-registered.example/after',
+      }),
+      headers: { cookie },
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.body).toContain('has not been used');
+    expect(res.body).toContain('<iframe src="https://rp-one.example/logout?');
+
+    const policy = String(res.headers['content-security-policy']);
+    expect(policy).toContain('frame-src');
+    expect(policy).toContain('https://rp-one.example');
   });
 });

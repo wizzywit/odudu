@@ -80,10 +80,9 @@ export type LogoutOutcome =
   // A session was ended, or there was none to end and the redirect alone
   // was honoured (see decideLogout). `sessionEnded` tells the route whether
   // there is a cookie to clear. `frontChannelLogoutUrls` is non-empty only
-  // when a session ended with nowhere to redirect to — the route then
-  // renders it as the logged-out page's iframes (Front-Channel Logout 1.0
-  // §3); a redirect leaves the page, and with it any chance an iframe on
-  // it could load, so building the list would serve nothing there.
+  // when `redirectTo` is null — a redirect leaves the page, and with it any
+  // chance an iframe on it could load, so building the list would serve
+  // nothing there (Front-Channel Logout 1.0 §3).
   | {
       kind: 'end';
       redirectTo: string | null;
@@ -91,7 +90,15 @@ export type LogoutOutcome =
       sessionEnded: boolean;
       frontChannelLogoutUrls: readonly string[];
     }
-  | { kind: 'render'; error: string; state: string | null };
+  // The redirect was refused, but the session still ended and the page
+  // still renders — the same reason `end`'s no-redirect branch frames its
+  // relying parties applies here too.
+  | {
+      kind: 'render';
+      error: string;
+      state: string | null;
+      frontChannelLogoutUrls: readonly string[];
+    };
 
 export interface LogoutUsecaseDeps {
   findRealm(name: string): Promise<RealmLookup | null>;
@@ -145,9 +152,9 @@ function hasFrontChannelLogoutUri(
   return target.frontchannelLogoutUri !== null;
 }
 
-// Built only for the branch that is about to render the logged-out page —
-// a redirect leaves the browser before any iframe on it could load, so
-// there is nothing here for that branch to use.
+// Built for either branch that is about to render a page rather than
+// redirect — a redirect leaves the browser before any iframe on it could
+// load, so there is nothing here for that branch to use.
 async function frontChannelLogoutUrls(
   deps: LogoutUsecaseDeps,
   realmId: string,
@@ -281,7 +288,17 @@ export async function handleLogoutRequest(
       frontChannelLogoutUrls: frontChannel,
     };
   }
-  return { kind: 'render', error: decision.error, state: params.state };
+  // decideRedirect only refuses inside decideLogout's already-matched-
+  // session branch (see the comment above), so `session` is never null
+  // here.
+  const refusedFrontChannel =
+    session !== null ? await frontChannelLogoutUrls(deps, realm.id, issuer, session.id) : [];
+  return {
+    kind: 'render',
+    error: decision.error,
+    state: params.state,
+    frontChannelLogoutUrls: refusedFrontChannel,
+  };
 }
 
 export interface LogoutConfirmationParams {
@@ -356,7 +373,13 @@ export async function handleLogoutConfirmation(
     };
   }
   if (decision.kind === 'render') {
-    return { kind: 'render', error: decision.error, state: params.state };
+    const refusedFrontChannel = await frontChannelLogoutUrls(deps, realm.id, issuer, session.id);
+    return {
+      kind: 'render',
+      error: decision.error,
+      state: params.state,
+      frontChannelLogoutUrls: refusedFrontChannel,
+    };
   }
   throw new Error('unreachable: decideLogout asked to confirm a hint forced to match');
 }

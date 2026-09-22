@@ -481,12 +481,13 @@ grant, and revoking an access token revokes the refresh token beside it,
 whatever rotation it has since gone through, because both name the same
 `token_grants` row. A grant issued with no session — `offline_access` — is
 untouched by a logout, per Back-Channel Logout 1.0 §2.7's second sentence,
-but is reached by `/revoke` the same way any other grant is. **The page a
-logout with nowhere to redirect renders now frames
-each relying party's `frontchannel_logout_uri`**, per OpenID Connect
-Front-Channel Logout 1.0 §3 — an attempt, not a guarantee: the iframe's
-response is never read back, and a browser may never deliver the framed
-request to a live RP session at all (third-party-cookie policy;
+but is reached by `/revoke` the same way any other grant is. **Either page
+a logout renders — the logged-out page, and the page a refused
+`post_logout_redirect_uri` gets instead — frames each relying party's
+`frontchannel_logout_uri`**, per OpenID Connect Front-Channel Logout 1.0
+§3 — an attempt, not a guarantee: the iframe's response is never read
+back, and a browser may never deliver the framed request to a live RP
+session at all (third-party-cookie policy;
 `docs/superpowers/p3b-spike-frontchannel.md` has the measured evidence).
 Back-channel logout ships too: a session that ends enqueues one Logout
 Token per client that registered a `backchannel_logout_uri`, and the
