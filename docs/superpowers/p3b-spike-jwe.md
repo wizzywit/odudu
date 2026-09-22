@@ -44,17 +44,27 @@ will fail at encryption time — the exact late failure narrowing exists to
 prevent. **Recommendation: exclude `RSA1_5` from the narrowed permitted set
 where the permitted set is narrowed.**
 
-**`RSA-OAEP` needs a key generated or imported specifically for it.** A
-CryptoKey produced by `jose.generateKeyPair('RSA-OAEP-256', …)` fails when
-used with `alg: 'RSA-OAEP'` (`CryptoKey does not support this operation, its
-algorithm.hash must be SHA-1`) — Web Crypto binds the OAEP hash to the key at
-generation/import time, and `RSA-OAEP` uses SHA-1 where `RSA-OAEP-256` uses
-SHA-256. A key generated for `RSA-OAEP` specifically works
+**A `CryptoKey` binds its OAEP hash at generation time — a bare JWK does
+not.** A `CryptoKey` produced by `jose.generateKeyPair('RSA-OAEP-256', …)`
+fails when used with `alg: 'RSA-OAEP'` (`CryptoKey does not support this
+operation, its algorithm.hash must be SHA-1`): Web Crypto binds the hash to
+that object at generation time, and `RSA-OAEP` specifies SHA-1 where
+`RSA-OAEP-256` specifies SHA-256
 (`verified: node jwe-spike2.throwaway.mjs`, "RSA-OAEP key generated
-specifically for RSA-OAEP" section, both `enc` values tried succeeded). This
-only matters for a **client-imported** JWK that already carries `alg` — see
-Step 2's "bare key" finding below for the case where the JWK carries no
-`alg` and the server chooses one live.
+specifically for RSA-OAEP" section, both `enc` values tried succeeded with a
+key generated for `RSA-OAEP` directly). **Amended in review: this does not
+carry over to `jose.importJWK`.** Importing a
+bare JWK — the shape `encryptCompact` (`packages/crypto/src/service/encrypt.ts`)
+always receives, since it never holds onto a `CryptoKey` across calls —
+binds the hash to whichever `alg` argument that import call is given, every
+time. A JWK exported from an `RSA-OAEP-256` key pair, re-imported with
+`alg: 'RSA-OAEP'`, encrypts without complaint
+(`verified: node --input-type=module` in `packages/crypto`, jose 6.2.12).
+So the failure mode above is real for a reused `CryptoKey` and does not
+occur on this server's actual code path at all — narrowing `RSA-OAEP` out
+is still the right call, but on SHA-1-versus-SHA-256 grounds alone, not
+because a bare client JWK "cannot promise" the algorithm the way the
+original wording here implied.
 
 **Everything else registered for a public/asymmetric key worked cleanly:**
 `RSA-OAEP-256` against all six `enc` values, and all four `ECDH-ES*`
@@ -73,11 +83,11 @@ password-derived, not applicable to a client's asymmetric key material).
 
 - `userinfo_encrypted_response_alg`: `RSA-OAEP-256`, `ECDH-ES`,
   `ECDH-ES+A128KW`, `ECDH-ES+A192KW`, `ECDH-ES+A256KW`. Excludes `RSA1_5`
-  (removed from `jose`) and excludes `RSA-OAEP` (works, but only against a
-  key the client generated _for_ `RSA-OAEP` — see the hash-binding finding
-  above; narrowing to `RSA-OAEP-256` avoids a second live failure mode this
-  spike found no clean way to detect ahead of time without attempting the
-  encryption).
+  (removed from `jose`) and excludes `RSA-OAEP` — not because it fails on
+  this server's own code path (it does not, per the amendment above), but
+  because it specifies SHA-1 for its OAEP hash where `RSA-OAEP-256`
+  specifies SHA-256, and nothing about a client's own registration should
+  make that choice for it.
 - `userinfo_encrypted_response_enc`: all six — `A128CBC-HS256`,
   `A192CBC-HS384`, `A256CBC-HS512`, `A128GCM`, `A192GCM`, `A256GCM` — since
   every one succeeded against every admitted `alg`.

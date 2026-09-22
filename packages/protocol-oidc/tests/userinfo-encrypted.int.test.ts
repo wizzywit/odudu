@@ -417,11 +417,8 @@ describe('[OIDC-CORE-5.3.2-03] a client asking for encryption never receives cle
     expect(warning).toMatchObject({ client_id: unreachableJwksClient.clientId });
   });
 
-  // A registration this server can no longer honour is not the same as no
-  // registration at all: `userinfoEncryptionTarget` (packages/protocol-oidc/src/index.ts)
-  // used to fold both into `null`, which read as "answer plainly" here —
-  // the access token stays valid for its own TTL after its client is
-  // disabled, so this is reachable by a live token, not only a dead one.
+  // A disabled registrant's token is live for its own TTL, so this is
+  // reachable with a live token, not only a dead one.
   it('refuses rather than answering in clear text once its client is disabled', async () => {
     const accessToken = await issueAccessToken(disablableClient);
     await disableClient(disablableClient);

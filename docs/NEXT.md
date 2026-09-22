@@ -511,10 +511,12 @@ idle window — shorter than the session's own — passes.
 **`/userinfo` honours a disabled client's live access token at all.**
 `usecase/userinfo.ts`'s gate (~line 134) checks `realm?.enabled` only —
 nothing there reads the token's client. `resolveRoleReach` now refuses a
-disabled client's `fullScopeAllowed` bypass, but a disabled client's token
-still authenticates at `/userinfo` and gets an ordinary, correctly narrowed
-response back. Whether disabling a client should also kill its live tokens
-at `/userinfo` is a design question this fix does not answer.
+disabled client's `fullScopeAllowed` bypass, and `userinfoEncryptionTarget`
+refuses a disabled client's registered encryption outright (500, no body)
+rather than answer it — but a disabled client that registered neither
+still gets an ordinary, correctly narrowed response back. Whether
+disabling a client should also kill its live tokens at `/userinfo` is a
+design question this fix does not answer.
 
 - Trigger: whichever phase next revisits token liveness or client
   lifecycle — decide there whether `/userinfo` should read `client.enabled`

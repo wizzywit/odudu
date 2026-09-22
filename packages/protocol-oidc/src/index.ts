@@ -162,8 +162,8 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
     // granted scope reaches, and whether its client bypasses that
     // intersection — the same two facts token issuance reads from the same
     // tables, so a role withheld from the token cannot resurface here. A
-    // disabled client never bypasses, for the reason given below
-    // resolveClientWebOrigins.
+    // disabled client never bypasses, for the reason given at
+    // `resolveClientWebOrigins` below.
     const resolveRoleReach = (realmId: string, oauthClientId: string, scope: readonly string[]) =>
       withRealm(deps.database.db, realmId, async (tx) => {
         const client = await clientRepository(tx).byClientId(oauthClientId);
@@ -202,12 +202,11 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
         return config?.userinfoSignedResponseAlg ?? null;
       });
 
-    // /userinfo's answer to "should this response be encrypted". Unlike
-    // signing, a disabled client is not read the same as one that never
-    // registered encryption: registration is checked first, against
-    // whatever client row exists, so a disabled client that did register
-    // is `'unavailable'` (refused) rather than `'none'` (answered plainly,
-    // in clear text, defeating the registration).
+    // /userinfo's answer to "should this response be encrypted" — see
+    // `UserinfoDeps.userinfoEncryptionTarget` (usecase/userinfo.ts) for
+    // what `'none'` versus `'unavailable'` means. Registration is checked
+    // before `enabled`, so a disabled client that did register reaches
+    // `'unavailable'` rather than `'none'`.
     const userinfoEncryptionTarget = (realmId: string, oauthClientId: string) =>
       withRealm(deps.database.db, realmId, async (tx) => {
         const client = await clientRepository(tx).byClientId(oauthClientId);

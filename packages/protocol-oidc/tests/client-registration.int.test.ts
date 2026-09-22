@@ -439,10 +439,10 @@ describe('[ODUDU-CLIENT-REGISTRATION-SEAM-01] the P3a/P3b seam, now closed', () 
     expect(res.json<{ error: string }>().error).toBe('invalid_client_metadata');
   });
 
-  // Unlike RSA1_5 above, jose *can* produce RSA-OAEP — but only against a
-  // key generated specifically for it, which a bare client JWK cannot
-  // promise (docs/superpowers/p3b-spike-jwe.md's hash-binding finding).
-  // This pins the server's own narrowing rather than jose's own refusal.
+  // Unlike RSA1_5 above, jose *can* produce RSA-OAEP from a bare client
+  // JWK; this server excludes it anyway because it specifies SHA-1 for
+  // its OAEP hash (`@odudu/crypto`'s `JWE_ALGS_PERMITTED`). This pins the
+  // server's own narrowing rather than jose's own refusal.
   it('refuses a userinfo_encrypted_response_alg jose can produce but this server excludes', async () => {
     const realmName = `seam-enc-refuse-oaep-${newId()}`;
     const realmId = newId();

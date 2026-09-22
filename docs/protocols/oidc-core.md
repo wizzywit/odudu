@@ -716,9 +716,11 @@ here.
 **The permitted `alg`/`enc` sets are narrowed the way signing's already
 is.** `service/client-metadata.ts` admits `userinfo_encrypted_response_alg`
 only from `@odudu/crypto`'s `JWE_ALGS_PERMITTED` — `RSA1_5` is excluded
-because the installed jose removed it, and `RSA-OAEP` because it only
-succeeds against a key generated specifically for it, not a bare client
-JWK. `userinfo_encrypted_response_enc` is narrowed to the full six
+because the installed jose removed it, and `RSA-OAEP` because it specifies
+SHA-1 for its OAEP hash where `RSA-OAEP-256` specifies SHA-256; a bare
+client JWK encrypts under either just as well, so this is a policy
+exclusion, not a library limit. `userinfo_encrypted_response_enc` is
+narrowed to the full six
 registered values, since the spike found none the library fails to
 produce; `_enc` without `_alg` is refused at registration (the same
 constraint `client_oidc_config_userinfo_enc_needs_alg` would otherwise

@@ -40,11 +40,9 @@ export interface UserinfoDeps {
   // `'none'` and `'unavailable'` are deliberately not the same value: a
   // client that never registered `userinfo_encrypted_response_alg` reads
   // `'none'` — answer plainly, same as `userinfoSignedResponseAlg`'s
-  // `null` above. A client that registered it but is disabled (or
-  // otherwise cannot be resolved to a live config) reads `'unavailable'`
-  // — a registration this server cannot honour right now is not the same
-  // as no registration at all, and collapsing them here is what let a
-  // disabled client's encrypted claims answer in clear text.
+  // `null` above. A disabled client that did register it reads
+  // `'unavailable'` — a registration this server cannot currently honour,
+  // refused rather than answered.
   userinfoEncryptionTarget(
     realmId: string,
     oauthClientId: string,
@@ -237,7 +235,7 @@ async function encryptedBody(
   const lookup = await deps.userinfoEncryptionTarget(realmId, clientId);
   if (lookup.kind === 'none') return { kind: 'body', body };
   if (lookup.kind === 'unavailable') {
-    return { kind: 'unavailable', reason: 'client is disabled or unresolvable' };
+    return { kind: 'unavailable', reason: 'client is disabled' };
   }
   const target = lookup.target;
 

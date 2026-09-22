@@ -3,10 +3,12 @@ import { OduduError } from '@odudu/kernel';
 
 // docs/superpowers/p3b-spike-jwe.md: the only alg/enc pairs the installed
 // `jose` produces against a client-published asymmetric key. `RSA1_5` is
-// removed from the library; `RSA-OAEP` verifies only against a key
-// generated specifically for it, which a bare client JWK cannot promise.
-// A later task narrows client registration to this same set rather than
-// keeping a second literal that can drift from it.
+// removed from the library; `RSA-OAEP` specifies SHA-1 for its OAEP hash,
+// where `RSA-OAEP-256` specifies SHA-256, so it is excluded on that
+// ground rather than for any failure this library exhibits — a bare
+// client JWK encrypts under either just as well. A later task narrows
+// client registration to this same set rather than keeping a second
+// literal that can drift from it.
 export const JWE_ALGS_PERMITTED = [
   'RSA-OAEP-256',
   'ECDH-ES',

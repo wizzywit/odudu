@@ -1656,10 +1656,12 @@ seconds to connect and 10 seconds total transport
 `DEFAULT_TOTAL_TIMEOUT_MS`). `NEGATIVE_CACHE_TTL_MS` (30 seconds,
 `packages/protocol-oidc/src/repository/client-keys.ts`) means only the
 first request against a given dead `jwks_uri` in that window pays it —
-every other request for that client, in any realm, gets a cached refusal
-instead. `docs/superpowers/p3b-spike-jwe.md`'s "Question 2" has the full
-measurement; `docs/NEXT.md` records that this is now a second consumer of
-the same unbounded lookup.
+every other request for that client, **in the same realm**, gets a cached
+refusal instead: the negative cache is keyed by realm and URI together, so
+a second realm pointed at the same dead `jwks_uri` pays the full cost
+again, independently. `docs/superpowers/p3b-spike-jwe.md`'s "Question 2"
+has the full measurement; `docs/NEXT.md` records that this is now a
+second consumer of the same unbounded lookup.
 
 ## Path A, as a confidential client
 
