@@ -390,7 +390,8 @@ export async function completeAuthorizedLogin(
   // Whether to remember this login — already gated against
   // `realm.rememberMeAllowed` by the caller (handleLoginSubmission), never
   // an unauthenticated request's own say-so. Consent-submission.ts's call
-  // carries no such choice and passes `false`.
+  // reads no field of its own; it passes the value parked on the request
+  // by the original login (`pending.rememberMe ?? false`).
   rememberMeRequested = false,
 ): Promise<LoginSubmissionOutcome> {
   // A session reuse a consent decision promoted (PendingRequest carries
