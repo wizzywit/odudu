@@ -19,6 +19,12 @@ export {
 } from '#/service/sign';
 export { verifyJwtAgainstJwkSet } from '#/service/jwk-set-verify';
 export {
+  encryptCompact,
+  selectEncryptionKey,
+  JWE_ALGS_PERMITTED,
+  type JweAlg,
+} from '#/service/encrypt';
+export {
   generateTotpSecret,
   totpCode,
   totpCounter,
