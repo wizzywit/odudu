@@ -366,11 +366,32 @@ will take port 3000 and the stack's database with it.
 
 ### Dynamic client registration
 
+This section runs against a realm of its own, so nothing it registers lands
+in `demo`. `seed realm` creates one with every setting at its default:
+
+```bash
+odudu seed realm --name reg-demo
+```
+
+```json
+{ "command": "realm", "created": true, "realm": "reg-demo", "realmId": "01a0c9a7-4a80-…" }
+```
+
+```bash
+curl -sS -o /dev/null -w '%{http_code}\n' \
+  http://localhost:3000/realms/reg-demo/.well-known/openid-configuration
+```
+
+```
+200
+```
+
 `client_registration_policy` is `disabled` on every realm by default (ADR
 0026). Registering before it is opened, or against a realm that does not
 exist, answers the same way — an enumeration oracle costs nothing to close
 here, the same reasoning discovery and JWKS already apply to a disabled
-realm:
+realm. The discovery `200` above is what tells the two apart: the first
+refusal below is the closed policy, not an absent realm.
 
 ```bash
 curl -sS -o /dev/null -w '%{http_code}\n' -X POST \
@@ -405,7 +426,7 @@ odudu seed realm --name reg-demo --set client_registration_policy=open
   "command": "realm",
   "created": false,
   "realm": "reg-demo",
-  "realmId": "01a0b605-…",
+  "realmId": "01a0c9a7-4a80-…",
   "settings": ["client_registration_policy"]
 }
 ```
@@ -425,9 +446,9 @@ curl -sS -X POST http://localhost:3000/realms/reg-demo/clients-registrations/ope
 
 ```json
 {
-  "client_id": "01a0b605-7708-…",
-  "client_id_issued_at": 1789760206,
-  "client_secret": "bvHXg71rJLarigim4vtlUMm5KwV9QmAmxDSx-Mfz76U",
+  "client_id": "01a0c9a7-89bd-…",
+  "client_id_issued_at": 1790089595,
+  "client_secret": "3PrC0YXeq47JaVLQI57gtrFTWrJZy0OkEhJEAfLkpns",
   "client_secret_expires_at": 0,
   "redirect_uris": ["https://rp.example/cb"],
   "grant_types": ["authorization_code"],
@@ -474,7 +495,7 @@ TOKEN=$(odudu seed registration-token --realm reg-demo --uses 1 --ttl 3600)
 ```
 
 ```
-w0aDvT8i3ajvn00gKiCGMwHjeSujSS2LBbn0H_xRy6U
+fUAI7gFGUYH10PdvGXV6Nzi8dkvb4_siXnZgWiSqOgA
 ```
 
 It is stored as its SHA-256 digest, the same shape
@@ -496,8 +517,8 @@ curl -sS -X POST http://localhost:3000/realms/reg-demo/clients-registrations/ope
 
 ```json
 {
-  "client_id": "01a0b605-9e5d-…",
-  "client_id_issued_at": 1789760216,
+  "client_id": "01a0c9a7-8d0b-…",
+  "client_id_issued_at": 1790089596,
   "redirect_uris": ["https://rp2.example/cb"],
   "grant_types": ["authorization_code"],
   "token_endpoint_auth_method": "none"
@@ -537,6 +558,25 @@ stored, echoed and now read too — see
 [Encrypted and nested UserInfo responses](#encrypted-and-nested-userinfo-responses)
 below for the transcript.
 
+The metadata checks below are shown anonymously, so the policy goes back to
+`open` first — under `token` every one of them would answer the `401` above
+before any metadata was read, and would demonstrate the credential rather
+than the check:
+
+```bash
+odudu seed realm --name reg-demo --set client_registration_policy=open
+```
+
+```json
+{
+  "command": "realm",
+  "created": false,
+  "realm": "reg-demo",
+  "realmId": "01a0c9a7-4a80-…",
+  "settings": ["client_registration_policy"]
+}
+```
+
 A non-HTTP `redirect_uri` has to look like RFC 8252 §7.1's reverse-DNS
 custom scheme (ADR 0032): the scheme names at least one `.`, which is what
 tells `com.example.app:/cb` apart from `javascript:`, `data:` and `file:`
@@ -562,9 +602,9 @@ curl -sS -X POST http://localhost:3000/realms/reg-demo/clients-registrations/ope
 
 ```json
 {
-  "client_id": "01a0b707-…",
-  "client_id_issued_at": 1789777116,
-  "client_secret": "Iv4li0N-PWbQ0hno_SR04d6sEZnkxvUlI9RWaDYCW6k",
+  "client_id": "01a0c9a7-8ed5-…",
+  "client_id_issued_at": 1790089596,
+  "client_secret": "j9GzJC5do7RCGj9C_qimNqoYxsJMwZ_34ABv3OpYIao",
   "client_secret_expires_at": 0,
   "redirect_uris": ["com.example.app:/cb"],
   "grant_types": ["authorization_code"],
@@ -573,9 +613,10 @@ curl -sS -X POST http://localhost:3000/realms/reg-demo/clients-registrations/ope
 ```
 
 `frontchannel_logout_uri` gets the same https/absolute/no-fragment policy
-`backchannel_logout_uri` already had — it is destined for an iframe `src`
-once P3b renders it, the sink a bare `http:` or `javascript:` value would
-otherwise reach:
+`backchannel_logout_uri` already had — it is the `src` of an iframe the
+logout page now renders
+([front-channel and back-channel logout](#front-channel-and-back-channel-logout)),
+the sink a bare `http:` or `javascript:` value would otherwise reach:
 
 ```bash
 curl -sS -X POST http://localhost:3000/realms/reg-demo/clients-registrations/openid-connect \
@@ -622,9 +663,9 @@ curl -sS -X POST http://localhost:3000/realms/reg-demo/clients-registrations/ope
 
 ```json
 {
-  "client_id": "01a0bbd5-5d46-…",
-  "client_id_issued_at": 1789857717,
-  "client_secret": "YkEhHefxvt6UTSiXLhdYVr3nPd42kK5R588HAqEai-Y",
+  "client_id": "01a0c9a7-8f24-…",
+  "client_id_issued_at": 1790089596,
+  "client_secret": "dA-62s9zOvUIQfzkXvQ-mEYvj-gBwc6CkVlbpJWYcNI",
   "client_secret_expires_at": 0,
   "redirect_uris": ["https://rp.example/cb"],
   "grant_types": ["authorization_code"],
@@ -7530,9 +7571,10 @@ session lifecycle. A citation of either half here means that half.
   with no flow that returns a response in the fragment there is no second
   `response_mode` to offer. `response_modes_supported` states `["query"]`
   rather than being omitted so that the advertisement matches.
-- **`resource` (RFC 8707 §2) is validated, but not yet checked for a query
-  component** (**P3b**, per `rfc8707.md`'s own `deferred: P3b` row for this
-  SHOULD). A single value is checked as an absolute URI with no
+- **`resource` (RFC 8707 §2) is validated, and deliberately not checked for
+  a query component** — a decision, recorded at `rfc8707.md`'s "A query
+  component: the allowlist refuses it, the parser does not". A single value
+  is checked as an absolute URI with no
   fragment, against the client's registered `audiences`; two values or one
   outside that list refuse with `error=invalid_target`, on the same
   post-boundary redirect every other refusal here uses
@@ -7553,10 +7595,11 @@ session lifecycle. A citation of either half here means that half.
   is parked on the authentication session's own
   `PendingRequest.resource` between the request and whichever door
   completes it. `/token` now derives `aud` from this column — see the
-  `resource` paragraph under [step 4](#4-token) of the walkthrough. What is
-  still not there is RFC 8707 §2's SHOULD that a `resource` value carry no
-  query component (**P3b**, `rfc8707.md`'s own `deferred: P3b` row for
-  it), which `parseResource` does not check.
+  `resource` paragraph under [step 4](#4-token) of the walkthrough. What
+  `parseResource` does not check is RFC 8707 §2's SHOULD that a `resource`
+  value carry no query component — the registered-audience allowlist is
+  what bounds the value instead, so the only query-bearing `resource` the
+  server can accept is one an operator registered itself.
 
 **Login**
 
@@ -7651,8 +7694,12 @@ session lifecycle. A citation of either half here means that half.
   only reads a Basic header or a body `client_secret`; a client registered
   for either assertion-based method presents neither and is refused every
   time. `private_key_jwt` introduced the gap; `tls_client_auth` inherited
-  it. P3b owns both RFCs, so this is P3b's to close — recorded with a
-  trigger in `docs/NEXT.md`, "Recorded decisions with trigger conditions".
+  it. A decision, not a gap in either RFC: neither requires a particular
+  set of client-authentication methods, and closing it extends `/token`'s
+  assertion and certificate dispatch to two more routes rather than
+  changing introspection or revocation — `rfc7662.md`'s "Only the two
+  password methods reach this endpoint" carries the reasoning, and
+  `docs/NEXT.md` the trigger.
 
 **`/userinfo`**
 

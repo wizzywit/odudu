@@ -102,7 +102,8 @@ async function performRegistration(
   // it at request time; dereferencing at registration would make a
   // registration's success depend on a socket to a host the registrant
   // does not control being up at that instant, and never again — the
-  // opposite of what a registration is for. See docs/NEXT.md.
+  // opposite of what a registration is for. docs/phases/p3a.md records the
+  // registration-time attempt that was reverted, and why.
   const type = clientType(metadata.tokenEndpointAuthMethod);
 
   let serviceSubjectId: string | null = null;

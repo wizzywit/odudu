@@ -2,571 +2,394 @@
 
 ## Start here
 
-**P0, P1, P2a, P2b and P3a are complete. P3b — sessions, logout and the
-token surface — is next**, and needs its own brainstorm and spec: nothing
-below is a P3b plan, only what it inherits and the two things still open.
-P3a's own record — what each increment found, and what turned out to be
-wrong — is in [docs/phases/p3a.md](phases/p3a.md); this section is only
-where the project stands now.
+**P0, P1, P2a, P2b, P3a and P3b are complete. P4 — the admin API and
+consoles — is next**, and needs its own brainstorm and spec: nothing below
+is a P4 plan, only what it inherits and what is still open. Phases are
+section 11 of
+[the umbrella spec](superpowers/specs/2026-09-10-odudu-design.md).
 
-P3a shipped dynamic client registration (RFC 7591) behind a per-realm
-policy, a consent screen with per-scope choice over a client's optional
-scopes, the `client_secret` rate limit at `/token`, the address guard
-`jwks_uri` validation sits behind, and the page-contract retrofit (every
-renderer now returns `RenderedPage`, one authority for a page's headers)
-that P4b's theming will build on. The OIDF Dynamic OP plan is intended to
-run reproducibly with every divergence a recorded decision (ADR 0031),
-the same treatment P1's own criterion already accepted for Basic OP — it
-cannot pass outright, because its discovery check demands response types
-OAuth 2.1 removes. Only one run is committed as evidence, though: unlike
-Basic OP, whose directory holds a run and a rerun that agree, "runs
-reproducibly" here is asserted by the plan rather than demonstrated by a
-second execution (`docs/phases/p3a.md`, Task 19).
+P3b shipped the session set — a browser's cookie holds a list of session
+ids rather than one, bounded per browser by `max_sessions_per_browser`
+(ADR 0033), with `prompt=select_account` rendering a chooser over it and a
+realm's "remember me" selecting a second pair of idle and maximum
+lifespans. Ending a session now reaches the relying parties that hold it:
+front-channel through iframes the logout page declares (ADR 0034), and
+back-channel through a queue, a signed Logout Token per registered client
+and an `odudu send-logouts` command with its own retention window. The
+token surface gained RFC 7662 introspection scoped by audience and
+consulting session liveness, RFC 7009 revocation, RFC 8707 `resource`
+indicators making `aud` derived rather than asserted, signed and encrypted
+UserInfo responses selected by registration — this repository's first JWE —
+the OIDC Core §5.5 `claims` parameter, and `private_key_jwt` and
+proxy-header mTLS client authentication.
 
-**What P3b inherits, concretely:**
-
-- **A `jwks_uri` fetcher and pinned transport, built and exported but
-  wired into nothing.** `clientKeySet`
-  (`packages/protocol-oidc/src/repository/client-keys.ts`) and
-  `apps/server/src/client-key-transport.ts` are tested and independently
-  reviewed (pinned lookup, both timeouts, the stream-level body cap, TLS
-  verification each proven under an adversarial review, not merely
-  claimed). Registration validates a `jwks_uri`'s **shape** only —
-  `https`, no embedded credentials — and does not dereference it: an
-  earlier attempt at registration-time dereferencing was reverted
-  (`docs/phases/p3a.md`, Task 12b) after it turned an SSRF guard's own
-  refusal reason into a network oracle for an anonymous, unauthenticated
-  caller. The one consumer the OIDF suite's own source identifies is
-  `private_key_jwt` client authentication at `/token`: fetch there, at the
-  moment a signature is actually verified, with a refusal that says "the
-  signature did not verify" or "the key could not be retrieved" — never
-  the guard's own reasoning. `expiresAt` is now read after the fetch
-  resolves rather than before it, concurrent callers for one URI join a
-  single in-flight attempt, and a failure writes its own negative-cache
-  entry keyed by realm and URI (`NEGATIVE_CACHE_TTL_MS`, shorter than the
-  success TTL) rather than re-fetching every call — the umbrella spec §6's
-  "a failure is not a permanent cache miss". **Now wired in**: `/token`
-  accepts `private_key_jwt` (`authenticatePrivateKeyJwt`,
-  `packages/protocol-oidc/src/usecase/token-issuance.ts`), fetching at the
-  moment a signature is verified and reporting one `invalid_client`
-  whatever failed — see `docs/protocols/rfc7523.md`'s reading notes for
-  that property and its timing residual. `apps/server/src/app.ts`
-  constructs the one `clientKeySet` shared across requests the caching
-  above assumes. **Also now wired in**: `tls_client_auth`
-  (`authenticateTlsClientAuth`, same file), a proxy-supplied certificate
-  subject compared against a client's registered
-  `tls_client_auth_subject_dn`, gated on `ODUDU_TRUST_PROXY` the same way
-  Fastify's own proxy trust already is — off means the method is refused,
-  never trusted, and never advertised in discovery either
-  (`tlsClientAuthEnabled`, `packages/contracts/src/discovery.ts`). The
-  header name is `ODUDU_TLS_CLIENT_CERT_HEADER`
-  (`packages/kernel/src/config.ts`), not a constant — both halves of the
-  design decision at
-  `docs/superpowers/specs/2026-09-18-p3a-clients-registration-consent-design.md:596-598`
-  are honored, not only the method's existence. Both methods the P3b
-  criterion named are now built.
-- **The `claims` request parameter is built.** Parsed at /authorize, carried
-  onto the authorization code, and applied at token issuance (Essential
-  `auth_time`, a `sub`-named End-User enforced both where a session is
-  reused and wherever a login can happen afterwards) and at `/userinfo`
-  (intersected with granted scope). `docs/protocols/oidc-core.md`'s two
-  dependent rows are `covered`; its new §5.5 rows carry what is not — a
-  `values`-array `sub` is parsed and ignored, and a refresh silently widens
-  `/userinfo`'s narrowing back to the full scope-granted set (recorded
-  under "Recorded decisions with trigger conditions" below, not fixed).
-- **The consent-screen section of `docs/request-paths.md` is still
-  derived, not observed, and it is P3b's to close, not P4b's.**
-  Reproducing it means replaying the whole document's transcript from the
-  top to reach the same `demo` realm state, which a documentation-only
-  pass cannot absorb — deliberately not attempted here. P4b's criterion is
-  theming and per-client branding; re-deriving a transcript is nowhere in
-  it, the same "criterion omits the work sent to it" shape this file just
-  corrected for the `claims` parameter above. P3b is the right owner
-  instead: it rewrites `/authorize`'s session decision and adds concurrent
-  sessions and "remember me," so it will be re-running the transcripts
-  around this exact request path regardless, and its own criterion already
-  names the surface. Replace the section with a real transcript (an
-  anonymously self-registered client, per the section's own plan) as part
-  of that work, not as an afterthought.
-- **The address guard (`packages/protocol-oidc/src/service/remote-address.ts`)
-  is sound against every bypass this phase's adversarial review found and
-  fixed** (IPv4-mapped/-compatible spellings, NAT64, 6to4 all now
-  refused, each proven by executing the function against the real address
-  forms, not by reasoning about it). One narrow class-level gap (`::/96`
-  outside the named markers) and one narrower RFC 6052 embedding gap
-  remain, the first spun off as an immediate follow-up rather than a
-  phase item.
-- **RFC 7592 client management (GET/PUT/DELETE on a registered client) is
-  not P3a's and is not P3b's.** The Dynamic OP suite's own cleanup issues
-  a best-effort DELETE against `registration_client_uri` but treats a
-  failure as a warning, not a module failure — confirmed by reading the
-  suite's source directly, not by assumption. Registered-client management
-  stays where `docs/request-paths.md` already places it, in P4, with the
-  rest of the admin surface.
-
-**Two things carried forward from P2b, both now P3b's surface directly:**
-concurrent sessions per browser, whose `prompt=select_account`'s three
-clause rows an increment inside P3b has since resolved, and the
-`sid`-addressable session front-channel and back-channel logout needed —
-an increment inside P3b has since built both, discovery advertisement and
-retention included (see below). Both are described in full below.
-
-### What P3b inherits from P2b
-
-**A session that is read, and one per browser.** `/authorize` resolves the
-`{realm}-session` cookie through `sessionRepository.liveById`, scoped by the
-realm's own `sso_session_idle_seconds` (1800) and `sso_session_max_seconds`
-(36000), and `decideReuse`
-(`packages/protocol-oidc/src/usecase/session-reuse.ts`) turns that plus
-`prompt` and `max_age` into reuse, a fresh authentication, or a refusal. The
-cookie holds **one** session id, so a second login in the same browser
-replaces the first — the limitation `prompt=select_account` ran into when
-this section was written, and the reason its three clause rows in
-`docs/protocols/oidc-core.md` read `deferred: P3b` at the time. A P3b
-increment has since widened the cookie to a list and added the chooser
-`/authorize` renders over it: all three rows now read `covered`
-(`OIDC-CORE-3.1.2.1-15`, `-16`, `OIDC-CORE-3.1.2.6-08`).
-
-**A `sid` claim, so a session has a name a client can say.** Every
-session-backed access token and ID token carries it (Back-Channel Logout
-§2.1), assembled straight into the envelope rather than through
-`ClaimMapperRegistry` so no mapper can overwrite it, and an `offline_access`
-grant omits it because it has no session. That is what made front-channel
-and back-channel logout addressable at all: a logout token names a `sid`,
-and `tokenGrantRepository.bySession` and `revokeForSession` were already
-the read and write sides of it. A later P3b increment built on this —
-discovery now advertises all four `_logout_supported` members, ending a
-session enqueues a signed Logout Token for every client that registered a
-`backchannel_logout_uri`, `odudu send-logouts` delivers them, and `reap`
-retains the queue on its own window
-(`docs/protocols/oidc-backchannel.md`, `docs/protocols/oidc-frontchannel.md`).
-What is still open: encrypted Logout Tokens (no JWE exists anywhere in
-this repository), delivering a batch's rows in parallel rather than one at
-a time, and the DNS-lookup deadline gap below.
-
-**Revocation that an access token does not feel.** Ending a session revokes
-its grants, and `refresh-rotation.ts` checks the session's own liveness as
-well as the grant's `revoked_at` — but an `at+jwt` is self-contained and
-nothing consults anything before accepting one, so a logged-out user's
-access token works until its `exp` (at most an hour). RFC 7662
-introspection is what makes revocation real inside that window, and it is in
-P3b's criterion for that reason rather than as a checklist item.
-
-**Three gaps P2b filed forward, all recorded rather than remembered.** A
-rate limit on `client_secret` attempts at `/token` — RFC 6749 §2.3.1's
-client half, filed as its own row and named in P3a's criterion — is
-closed: `RFC6749-2.3.1-04` covers it, and ADR 0023 carries the amendment.
-The `prompt=select_account` rows above are closed too, as of the same
-increment. `/authorize` passes the requesting client's id into
-`subjectOfIdTokenHint` as the expected audience, closing the gap this
-paragraph used to name; `/logout` was never that gap; it already compared
-`client_id` against the hint's `aud` itself (§2, `disagreeing`) and still
-does — `AUDIENCE_UNCHECKED` there names verification finding no audience
-of its own to check, not the client comparison having none.
+What turned out to be **wrong** while building it is in
+[docs/phases/p3b.md](phases/p3b.md), not here. Two things from it are worth
+reading before P4 is brainstormed: the recurring defect of a rule applied at
+one door out of several, and the finding that this repository's most
+frequent defect is a comment whose conclusion is right and whose stated
+reason is false.
 
 ### What each phase found while building it
 
-The running records, split out of this file on 2026-09-17: P2b reached 1,873
-lines here, of which the part describing where the project stood was 58.
+The running records, split out of this file on 2026-09-17: P2b reached
+1,873 lines here, of which the part describing where the project stood was 58.
 
+- [P3b — sessions, logout and the token surface](phases/p3b.md)
 - [P3a — clients, dynamic registration and consent](phases/p3a.md)
 - [P2b — credentials, MFA and the session lifecycle](phases/p2b.md)
 - [P0, P1 and P2a](phases/p0-p1-p2a.md)
 
 Nothing in them is current position. They are kept because they record what
-turned out to be **wrong** during a phase, which no spec, plan or close note
-keeps — and because the pattern across them is worth reading before
-brainstorming the next one: almost every correction was a claim about this
-repository rather than about the design.
+turned out to be wrong during a phase, which no spec, plan or close note
+keeps.
 
 **What belongs in this file:** where the project stands, what the next phase
-inherits, and decisions that are still open. Not what a finished phase
-discovered. If a section here is addressed to a phase that has closed, it is
-overdue for a decision or a move, not for another paragraph.
+inherits, decisions that are still open, and what a final review deferred.
+Not what a finished phase discovered. If a section here is addressed to a
+phase that has closed, it is overdue for a decision or a move, not for
+another paragraph.
 
-## Login page theming — decided in P3a, delivered by P4b
+## What P4 inherits
 
-**Closed on 2026-09-18.** P2 left this open and the note that carried it
-asked for a decision "when three pages exist"; P2b shipped past that without
-one, which is the failure the rule at the top of this file describes. P3a's
-brainstorm settled it.
+**A session set to list and to end.** `sessionRepository.liveByIds`
+(`packages/authn-flows/src/repository/sessions.ts`) measures each session
+against its own lifespan pair, and the cookie is the only place a browser's
+membership is recorded. P4's "list a subject's sessions and end one" is the
+first surface that reads sessions by **subject** rather than by cookie —
+and it is also the operator's only reach for the orphan case ADR 0033
+records, where two genuinely concurrent logins in one browser can leave a
+session the browser's own cookie no longer names. A **remembered** orphan
+idles for `remember_me_idle_seconds`, seven days by default, which is the
+sharp case.
 
-**A theme replaces a body fragment and a token set. Never the document.**
-The document is where the CSP nonce, the framing defence and the
-`auth_session_id` live, and P4b's criterion requires an _untrusted client_
-to supply styling — so a contract that lets a client replace the document is
-a contract that lets a client replace the password field. `RenderedPage`
-grows `body` and `title` alongside `html`; P4b substitutes a shell around
-them without touching a renderer. ADR 0030, written in P3a.
+**Client metadata that only two doors can write.** Dynamic client
+registration (P3a) validates and stores the full metadata set; `seed client`
+takes `--redirect-uri`, `--post-logout-redirect-uri`, `--web-origin`,
+`--client-secret` and `--token-endpoint-auth-method` and nothing else, and
+refuses a client that already exists rather than amending one. So every
+per-client value P3b reads — `audiences`, the logout URIs, the UserInfo
+algorithms, `tls_client_auth_subject_dn` — is settable at creation by one
+door and by `psql` otherwise. `docs/request-paths.md` says so at each site
+that reaches for SQL, and aggregates it under "Any admin API".
 
-Two things found while deciding it, both now P3a's work:
-
-- **The retrofit is 26 render functions across 10 files, not seven pages.**
-  This file and `CLAUDE.md` both said seven, which counted pages a user
-  navigates to rather than functions a contract must cover. Both are
-  corrected in the increment that does the retrofit.
-- **`CLAUDE.md`'s "every page leaves through `sendHtml`" is already
-  false.** `packages/account/src/view/verification-html.ts:14` is a second
-  exit that hand-duplicates the policy — correctly, since `html-response.ts`
-  is a protocol package's internal and no feature reaches into another's
-  internals. The two have diverged: one sets `referrer-policy: no-referrer`
-  and the other does not. P3a puts the complete header set behind one pure
-  `pageHeaders` in `kernel`, which is where `RenderedPage` already lives and
-  the only module all three page-owning packages may import. `sendHtml`
-  itself cannot move there — it takes a `FastifyReply`, and `kernel` depends
-  on `uuidv7` and `zod` only — so the promise P3a's criterion makes is **one
-  authority for a page's headers, enforced by a test**, not one exit.
-
-## Recovery codes run out into a fresh set, not into a lockout
-
-Spending the last unspent code owes `generate-recovery-codes` again, in the
-login that spent it — the gate reads pending actions after `advance`, so the
-page appears in that login rather than the next one. That is Keycloak's own
-answer to the same moment: its
-[recovery codes](https://www.keycloak.org/2025/10/recovery-codes) re-present
-the setup as the last code is used.
-
-What it replaced was a dead end. The guard that owes the action read
-`listFor(subjectId, 'recovery-code')`, which does not filter on `usedAt`, so
-ten spent codes were still ten rows and a subject who ran out owed nothing —
-with no self-service re-issue, the only way back was an operator deleting the
-rows, and there is no admin surface for that until P4. It now counts unspent
-rows, and the count is the one thing both callers read.
-
-**Two of Keycloak's three are still missing, and both need the account
-console.** A subject cannot ask for a fresh set _before_ running out, and
-nothing warns as the list gets short — Keycloak warns below a configurable
-threshold, four by default. Both are now named in **P4**'s exit criterion
-rather than covered by "an account console for self-service", which is
-unfailable as written. `beginRecoveryCodes` already replaces a set wholesale,
-so what P4 owes is a surface, not a mechanism.
-
-## Realm settings have a command; two client writes do not, by design
-
+**Realm settings already have a command, and its validation is reusable.**
 `odudu seed realm --name <realm> --set <name>=<value>` applies any of the
-twenty-three realm settings, repeatable, named by the column names the schema
-and `docs/request-paths.md` already use. All five passages that flipped a
-realm setting with `psql` now run it, and `README.md`'s three claims that no
-flag existed are gone — one of them had been wrong before this, since
-`seed client --web-origin` already existed.
+realm settings by column name. The name-to-column map and the coercion live
+in `packages/domain-realm/src/service/realm-settings.ts` rather than in the
+CLI, so P4's admin API inherits them rather than growing a second copy.
+Ranges are deliberately not there — they are CHECK constraints, and a policy
+no writer may bypass belongs at the database.
 
-The validation lives in `packages/domain-realm/src/service/realm-settings.ts`
-rather than in the CLI, so P4's admin API inherits the name-to-column map and
-the coercion rather than growing a second one. **Ranges are deliberately not
-there**: they are CHECK constraints (migrations 0028, 0035, 0041), and
-`apps/server/tests/seed.int.test.ts` proves the CLI cannot write past one —
-the repository's idiom that a policy no writer may bypass belongs at the
-database, and the seed CLI having no development override matches what it
-already does for the password policy.
+**An asymmetry worth deciding about rather than inheriting by accident.**
+`seed realm --set` changes an existing realm; `seed client` will not change
+an existing client, because a re-run that quietly widened a registered
+redirect list is how an allowlist grows by accident. An admin API that
+treats both the same way would be wrong in one of the two directions.
 
-**Two `client_oidc_config` writes stay, and the reason is a decision rather
-than a gap.** `seed client` registers `--post-logout-redirect-uri` and
-`--web-origin` as it _creates_ a client and refuses one that already exists,
-because a re-run that quietly widened a registered redirect list is how an
-allowlist grows by accident. Both remaining sites change a client seeded
-earlier in the document, so they stay `psql` until the admin API can do it
-under authentication and audit — **P3a**, whose criterion already names
-registered per-client logout URIs.
+**Signing-key rotation now has a consistency obligation it did not have
+before.** A realm holds exactly one active signing key
+(`signing_keys_one_active`), and P3b made two things depend on that:
+discovery advertises `userinfo_signing_alg_values_supported` as that
+realm's own `[key.alg, "none"]`, and registration refuses a
+`userinfo_signed_response_alg` the active key cannot produce. Rotating a
+realm to a key with a different algorithm therefore strands every client
+registered against the old one — `/userinfo` answers 500 for them, with a
+log line naming client, registered algorithm and active key. P4 owns
+rotation and owes that case an answer.
 
-**Asymmetry worth knowing before P4 builds on it:** `seed realm --set`
-changes an existing realm, `seed client` will not change an existing client.
-That is not an oversight — a realm's settings are configuration, while a
-client's redirect and origin lists are its security-relevant registration —
-but an admin API that treats both the same way would be wrong in one of the
-two directions.
+**Two recovery-code gaps that need the account console.** A subject cannot
+ask for a fresh set before running out, and nothing warns as the list gets
+short. Both are named in P4's exit criterion; `beginRecoveryCodes` already
+replaces a set wholesale, so what is owed is a surface, not a mechanism.
 
-Two `UPDATE`s in the document are not this subject at all:
-`user_credentials.created_at` ages a password ninety days and
-`authentication_sessions.*` ages rows for the retention pass. No command can
-make a row older than the process running it.
+**Theming is P4b's, and the contract it needs already exists.** Every
+renderer returns `RenderedPage`, and `pageHeaders` in `@odudu/kernel` is the
+single authority for a page's headers (ADR 0029). A theme replaces a body
+fragment and a token set, never the document, because the document carries
+the CSP nonce, the framing defence and the `auth_session_id` — ADR 0030 has
+the reasoning, and the `frames` member ADR 0034 added is part of the same
+contract.
 
-## Deployment gaps, for whoever asks next
+**Deployment is still unpublished.** There is no published image or release
+process, secrets are environment variables and nothing more, and there is
+no backup or restore guidance — **P12**, whose position in the table is not
+a dependency: publishing an image waits on nothing and is the prerequisite
+for anybody deploying this at all. Multi-replica deployment is blocked on
+migration locking and a shared session cache, both P11.
 
-`README.md` now has a Deploying section stating plainly that the container
-image is the artifact and the compose file is development-only. What it lists
-as missing, in the order it would matter: there is no published image or
-release process; secrets are environment variables and nothing more; there
-is no backup or restore guidance; there is no way to rotate a signing key
-once one is in the field; and multi-replica deployment is blocked on
-migration locking and a shared session cache, both P11. The protocol surface
-itself is no longer among them — P1 shipped it, and `README.md` describes
-what it serves.
+## Decisions still open
 
-**All of those now have a phase, as of 2026-09-14.** The first three became
-**P12**, Operational readiness, appended to the roadmap rather than folded
-into P11 — same audience, different work, and an exit criterion that can be
-failed is worth more than a wider one that cannot. Signing-key rotation went
-to P4. P12 sits last in the table and is not last in dependency order:
-publishing an image depends on no other phase and is the prerequisite for
-anybody deploying this at all, so it is the piece to pull forward first.
-
-The fully-local path (your own Postgres, no Docker) needs exactly one
-bootstrap statement — `CREATE USER odudu_svc` — because migration 0001
-creates `odudu_app` and 0002 grants membership when the serving role already
-exists. Verified against a bare PostgreSQL 17 with no init scripts: the
-server boots, migrations apply, and the serving role sees zero rows through
-row-level security rather than a permission error.
-
-## Recorded decisions with trigger conditions
+### The token surface
 
 **A `claims` `userinfo` request narrows `/userinfo`, and a refresh silently
-widens it back.** The `claims` request parameter (OIDC Core §5.5) is parsed
-once at `/authorize` and stored on the authorization code; token issuance
-embeds its `userinfo` member on the access token as a private claim
-(`requested_userinfo_claims`, `packages/protocol-oidc/src/usecase/token-issuance.ts`),
-and `/userinfo` reads it back to narrow its response, intersected with the
-granted scope (`usecase/userinfo.ts`'s `narrowToRequestedClaims`). A
-`refresh_token` redemption mints a new access token from the rotated grant,
-not from a code, so it carries no such claim — a refreshed token widens
-`/userinfo` back to the full scope-granted set, contradicting the narrowing
-the original token gave. Not a security defect (nothing returned after a
-refresh crosses the consented
-scope — the narrowing is the client asking for less, never the user granting
-less) and not clearly a spec defect either, because it cuts the other way
-too — §5.5 describes `claims` as requesting Claims _alongside_ what `scope`
-already grants, and narrowing scope-granted Claims away is a stricter
-reading this implementation chose without ever writing the choice down
-(`docs/protocols/oidc-core.md`'s new §5.5 rows are the closest thing to
-that record today). If narrowing itself is reconsidered — answered
-additively, the way §5.5 reads — the refresh gap disappears with it, because
-there is nothing left to fail to carry forward.
+widens it back.** The parameter is parsed at `/authorize`, stored on the
+authorization code, and embedded on the access token as
+`requested_userinfo_claims`; `/userinfo` reads it back and narrows,
+intersected with granted scope. A `refresh_token` redemption mints from the
+rotated grant rather than from a code, so it carries no such claim and the
+narrowing disappears. Not a security defect — nothing returned after a
+refresh crosses the consented scope — and not clearly a spec defect either:
+OIDC Core §5.5 describes `claims` as requesting Claims _alongside_ what
+`scope` grants, and narrowing scope-granted Claims away is a stricter
+reading this implementation chose without writing the choice down.
 
-- Trigger: revisiting whether `claims`-parameter narrowing is the right
-  behaviour at all. If it is kept, close the gap by threading
-  `requested_userinfo_claims` onto the rotated refresh grant
-  (`packages/protocol-oidc/src/repository/grants.ts` and
-  `usecase/token-issuance.ts`'s `issueRefreshTokens`) rather than only the
-  code-minted access token.
+- Trigger: revisiting whether narrowing is right at all. If it is kept,
+  thread `requested_userinfo_claims` onto the rotated grant
+  (`packages/protocol-oidc/src/repository/grants.ts`,
+  `usecase/token-issuance.ts`'s `issueRefreshTokens`). If it is not, the
+  refresh gap disappears with it.
 
 **No scope means anything in particular at an audience.** RFC 9068 §2.2.3
-requires that a token's `scope` be coherent with its `aud`. P3b gave a client
-the means to narrow `aud` to one resource (RFC 8707's `resource`), but
-narrowing what a token is _restricted to_ says nothing about whether its
-granted scope _suits_ that restriction: a client may ask for `reports:read`
-against `resource=https://api.example` and nothing here objects. The MUST is
-recorded as `accepted:` in `docs/protocols/rfc9068.md` with that reasoning,
-not as covered.
+requires a token's `scope` to be coherent with its `aud`. A client may ask
+for `reports:read` against `resource=https://api.example` and nothing
+objects. Recorded `accepted:` in `docs/protocols/rfc9068.md`. Closing it
+honestly needs a per-audience scope model, which belongs to client
+management rather than to the token surface.
 
-Closing it honestly needs a per-audience scope model — which resources a
-scope is meaningful for — which this server does not have, and which belongs
-to client management rather than to the token surface.
-
-- Trigger: whichever phase gives scopes an audience of their own. Most
-  likely wherever per-resource scope registration lands; until then the row
-  stays `accepted:` and the census counts it as such.
+- Trigger: whichever phase gives scopes an audience of their own.
 
 **`/introspect` answers every registered client the same way, regardless of
-which resource it names.** RFC 7662 §2.2 MAY lets a deployment limit which
-scopes from a token a given protected resource sees, and §4 SHOULD asks
-that a protected resource be _specifically authorized_ to call the
-introspection endpoint at all, not merely authenticated. Neither is built:
-any client that authenticates with its own registered secret may call
-`/introspect` for any token, and an entitled caller (per `aud`) always sees
-the token's whole `scope`. Both rows are `gap` in `docs/protocols/rfc7662.md`
-rather than `deferred:`, because no phase has committed to either — the
-design spec's §8.2 names only the audience-scoping mechanism `introspect`
-already implements.
+which resource it names.** RFC 7662 §2.2's MAY to limit which scopes a
+protected resource sees, and §4's SHOULD that it be specifically authorized
+to call the endpoint at all, are both `gap` rather than `deferred:` — no
+phase has committed to either.
 
 - Trigger: a phase that gives a client a "may introspect" capability
-  distinct from ordinary client authentication, or a per-resource scope
-  model like the one the entry above already needs. Until one exists, both
-  rows stay `gap`.
+  distinct from ordinary client authentication, or the per-resource scope
+  model the entry above needs.
 
 **A `private_key_jwt` or `tls_client_auth` client can never call
-`/introspect` or `/revoke`.** Both endpoints authenticate through
-`authenticateClient` alone (`usecase/introspection-request.ts:31`,
-`usecase/revocation.ts:62`), which only ever checks a Basic header or a body
-`client_secret`; a client registered for either assertion-based method
-presents neither, so `verifyClientSecret` is handed `null` against a
-confidential client and refuses it every time. `private_key_jwt` introduced
-this gap; `tls_client_auth` (this task) inherited it rather than closing it
-— P3b owns RFC 7662 and RFC 7009 both, so the gap is P3b's to close, not a
-future phase's, and nothing has yet.
+`/introspect` or `/revoke`.** Both authenticate through `authenticateClient`
+alone, which reads a Basic header or a body `client_secret`; neither
+assertion-based method is dispatched anywhere but `/token`. Recorded as an
+accepted limitation rather than a gap — no clause in either RFC requires a
+particular set of methods — at `docs/protocols/rfc7662.md`'s "Only the two
+password methods reach this endpoint".
 
-- Trigger: extend the same `assertionOutcome`/certificate-subject dispatch
-  `usecase/token-issuance.ts` already has to `/introspect` and `/revoke`,
-  or record it as an accepted limitation in `docs/protocols/rfc7662.md` and
-  `docs/protocols/rfc7009.md` if P3b closes without doing so.
+- Trigger: extend `token-issuance.ts`'s assertion and certificate dispatch
+  to both routes. It is a client-authentication change, so the natural
+  moment is whichever phase next reworks that — P13, for FAPI 2.0.
+
+**`/token` enforces no `config.grantTypes` allowlist, on either
+authentication path.** A client registered for `authorization_code` only
+can still obtain a `client_credentials` token: `token-issuance.ts`'s only
+read of `config.grantTypes` gates whether a refresh token is issued, not
+which grant a request may use.
+
+- Trigger: whichever task next touches grant selection in `issueTokens`.
+  Add `config.grantTypes.includes(request.grantType)` before dispatching.
+
+**`/introspect` cannot express a remembered session's own idle window, and
+that is now live rather than latent.** `registerIntrospectRoute`
+(`packages/protocol-oidc/src/view/routes/introspect.ts`) passes
+`realm.ssoSessionIdleSeconds` and `isIntrospectionSessionLive`
+(`packages/protocol-oidc/src/index.ts`) calls `liveById` with it, while
+`liveByIds` takes the realm's whole `SessionLifespans` pair precisely
+because a remembered session is never measured against an ordinary one's
+window. So a remembered session's token is reported `active: false` once the
+ordinary idle window passes — thirty minutes by default against the
+session's own seven days. The trigger this entry carried through P3b was
+"the task that wires `/introspect`'s real `loadGrant`/`isSessionLive`"; that
+wiring shipped and the threading did not follow it. **This is a defect, not
+a design question**: thread `SessionLifespans` or the session's `remembered`
+flag through instead of a bare `idleSeconds`.
+
+**`/userinfo` honours a disabled client's live access token at all.**
+`usecase/userinfo.ts`'s gate checks `realm?.enabled` only. `resolveRoleReach`
+now refuses a disabled client's `fullScopeAllowed` bypass and
+`userinfoEncryptionTarget` refuses its registered encryption outright, but a
+disabled client that registered neither still gets an ordinary, correctly
+narrowed response.
+
+- Trigger: whichever phase next revisits token liveness or client
+  lifecycle. Decide there whether `/userinfo` should read `client.enabled`
+  the way `resolveRoleReach` and `resolveClientWebOrigins` do.
+
+**A signed UserInfo response's `typ` is a private value.** `userinfo+jwt`
+is not registered anywhere; it exists to stop a UserInfo response being
+accepted as an `id_token_hint`, which it was before. A registered value, if
+one ever appears, is what this should move to.
+
+- Trigger: an IANA registration for the media type, or a conformance suite
+  objecting to the private one.
+
+**`/introspect`'s entitlement check sits in a `usecase`, not a `service`.**
+`callerIsAddressed` and `audienceOf`
+(`packages/protocol-oidc/src/usecase/introspection.ts`) are pure domain
+decisions with no orchestration, which this package's convention puts in
+`service/`. The trigger this entry carried — "the task that wires
+`/introspect`'s HTTP route" — has fired; the route shipped and the move did
+not happen.
+
+- Trigger: any task that next touches `introspection.ts`. It is two
+  functions and their tests.
+
+**The post-rotation `resolveAudience` check is exercised by no test.** It is
+load-bearing only for ADR 0019's revocation race — a revocation landing
+between the pre-flight and the authoritative read — which no test drives.
+
+- Trigger: whichever task next touches refresh rotation. A test that lands
+  a revocation in that window is what pins it.
+
+### The session set
+
+**The cap is per browser, and admits `cap + (k - 1)` under `k` concurrent
+logins.** The candidate list is fixed before the realm-row lock and
+identical across racers from one browser, so once the first evicts, the
+remaining `k - 1` insert unconditionally. Accepted: the cap is a size guard
+with 4.4x headroom, not a security boundary. The consequence that is not
+merely cosmetic is the orphan — `resolveSessions` supplies logout
+membership too, so a session omitted from the cookie cannot be logged out
+through the cookie path. ADR 0033 carries the derivation and the durable
+remedy: a stable browser identifier in its own cookie, stored on the session
+row, giving admission, logout and P4's session list one predicate.
+
+- Trigger: the remedy is the reversal of the spec's decision 1 (the cookie
+  holds a list; there is no browser row), so it waits until something else
+  wants that row — most likely P4's session surface.
+
+**Front-channel logout on a redirecting session end.** The logout page
+frames a relying party's `frontchannel_logout_uri` only on the branch that
+renders a page — never on the 302 a matched `post_logout_redirect_uri` takes
+instead, which is RP-initiated logout's common case. Rendering the frames
+first and navigating afterward was never weighed; ADR 0034's Consequences
+record the question as open, not answered.
+
+- Trigger: back-channel logout now gives a redirecting session end a
+  server-to-server path, but only to a relying party at a public address.
+  Revisit once a deployment's actual relying parties make the comparison
+  meaningful.
+
+### Operational and infrastructural
+
+**Neither of the server's two outbound DNS lookups carries a deadline, and
+both run in production on three request paths.**
+`createLogoutDeliveryTransport`'s `defaultLookup`
+(`apps/server/src/logout-delivery-transport.ts`) and
+`defaultClientKeyLookup` (`apps/server/src/client-key-transport.ts`) both
+call `node:dns/promises`'s `lookup` with no timeout; the first also ignores
+the `AbortSignal` `sendLogouts` already started. The second is shared by
+`/token`'s `private_key_jwt` authentication and, since encrypted UserInfo
+responses landed, by `/userinfo` — now on a path between a resource
+server's request and its answer.
+
+- Trigger: fired. Bound the lookup itself, and decide whether the two
+  transports share one answer or each wires its own — and whether
+  `/userinfo` needs a tighter timeout than `/token`'s shared default, since
+  it sits on a resource server's request rather than a client's own.
 
 **`client_oidc_config_tls_client_auth_needs_subject_dn` enforces `NOT
-NULL`, not non-blank.** A row with `tls_client_auth_subject_dn = ''`
-passes the CHECK the same migration (0055) adds, and `tlsClientSubject`
-only refuses a zero-length header, so a client in that state would
-authenticate against a blank subject. No code path in this repository can
-produce such a row today — `parseClientMetadata` trims and rejects a
-blank value before it ever reaches the repository — so this is reachable
-only by a hand-written `INSERT`, the same class of gap the `jwks`/
-`jwks_uri` mutual-exclusion constraint already accepts (it says nothing
-about `jwks: {}` either). Declined rather than fixed, because 0055 is
-already committed and closing it needs a second migration
-(`CHECK (tls_client_auth_subject_dn <> '')` alongside the existing
-`IS NOT NULL`) for a state application code cannot reach.
+NULL`, not non-blank.** A row with `tls_client_auth_subject_dn = ''` passes
+the CHECK, and `tlsClientSubject` only refuses a zero-length header. No code
+path can produce such a row — `parseClientMetadata` trims and rejects a
+blank value — so it is reachable only by a hand-written `INSERT`, the same
+class the `jwks`/`jwks_uri` mutual-exclusion constraint already accepts.
 
 - Trigger: the next migration that touches `client_oidc_config` for an
-  unrelated reason is the natural place to add the tightened constraint
-  alongside it, rather than spending a migration on this alone.
+  unrelated reason is where the tightened CHECK belongs.
 
 **Affected-package-only CI.** Turborepo and pnpm both support
-`--filter='...[<ref>]'` — changed packages plus their dependents — so no
-tooling change is needed to adopt it. Not adopted now: CI runs in about 50
-seconds end to end, and `test` is a root-level `vitest run` rather than a
-per-package Turbo task, which is a prerequisite. When adopting, prefer
-Turborepo **caching** first: an unchanged package replays its cached result
-instead of being skipped, which gives the same wall-clock win without the
-"we did not run those tests" semantics that a wrong graph turns into an
-untested merge. Apply filtering only to genuinely slow jobs, keep typecheck,
-lint, boundaries and unit tests always-full, and set `globalDependencies` at
-the same time so a root config or lockfile change still forces everything.
+`--filter='...[<ref>]'`, so no tooling change is needed. Not adopted: CI
+runs in about 50 seconds end to end, and `test` is a root-level `vitest run`
+rather than a per-package Turbo task, which is a prerequisite. When
+adopting, prefer Turborepo **caching** first — an unchanged package replays
+its cached result rather than being skipped, which is the same wall-clock
+win without "we did not run those tests" semantics. Keep typecheck, lint,
+boundaries and unit tests always-full, and set `globalDependencies` at the
+same time.
 
 - Trigger for caching: CI exceeds roughly 5 minutes (likely P4, when
   Playwright arrives).
 - Trigger for filtering: slow suites dominate — P8 SAML interop, P9 policy
   evaluation, or the nightly conformance suite.
 
-**Committed development credentials.** Kept inline deliberately; see
-ADR 0014 for the reasoning, the three controls that make it acceptable, and
-the conditions under which to revisit.
+**Committed development credentials.** Kept inline deliberately; ADR 0014
+has the reasoning, the three controls that make it acceptable, and the
+conditions under which to revisit.
 
-**Front-channel logout on a redirecting session end.** The logout page
-frames a relying party's `frontchannel_logout_uri` only on the branch that
-renders it — never on the 302 a matched `post_logout_redirect_uri` takes
-instead, which is RP-initiated logout's common case. Rendering the frames
-first and navigating afterward was never weighed against today's choice;
-ADR 0034's Consequences record the question as open, not answered.
+### The traceability machinery itself
 
-- Trigger: back-channel logout has since landed, giving a redirecting
-  session end a server-to-server notification path — but only to a
-  relying party reachable at a public address (see the DNS-lookup gap
-  below, and the loopback/private-address refusal
-  `docs/request-paths.md`'s back-channel logout section demonstrates).
-  Revisit whether front-channel still needs one once a deployment's actual
-  relying parties make that comparison meaningful.
+**`CLAUDE.md` states a rule the repository's own tests forbid.** A fenced
+block holding a response is supposed to carry no language tag, because
+Prettier reformats a tagged one — verified true. But
+`tests/docs/markdown.ts`'s `blockAfter(document, marker, language)` selects
+a block **by** language and its callers pass `'json'`, so an untagged JSON
+response is invisible to every check built on it. Every JSON response in
+`docs/request-paths.md` therefore shows Prettier's formatting rather than
+the server's bytes: content intact, byte-level promise not.
 
-**Neither of the server's two outbound DNS lookups carries a deadline of
-its own — and now both run in production, on three request paths.**
-`createLogoutDeliveryTransport`'s `defaultLookup`
-(`apps/server/src/logout-delivery-transport.ts`) and
-`defaultClientKeyLookup` (`apps/server/src/client-key-transport.ts`) both
-call `node:dns/promises`'s `lookup` with no timeout; the first also
-ignores the `AbortSignal` `sendLogouts` already started running. The
-second is shared by `/token`'s `private_key_jwt` authentication (P3b's
-client-auth increment) and, since encrypted UserInfo responses landed, by
-`/userinfo` — the same `clientKeySet`, the same unbounded lookup, now
-consulted on a path between a resource server's request and its answer
-rather than only on a misconfigured client's own. A stalling nameserver
-delays a claimed logout row by the resolver's own budget before the
-signal's deadline begins bounding the connection, delays a `private_key_jwt`
-refusal past the 10s total timeout `docs/protocols/rfc7523.md`'s reading
-notes already say that bound does not cover, and now delays a `/userinfo`
-response the same way (`docs/request-paths.md`'s "What a dead `jwks_uri`
-costs, on this path specifically" has the full accounting). The parity
-argument the trigger below asked for now exists across all three: every
-outbound lookup this server makes is unbounded, in production, for the
-same reason.
+- Trigger: do it as its own change. Teach the locator to match an
+  empty-language block — the parser beneath it already accepts one — then
+  untag the responses. It touches every JSON transcript at once, which is
+  why it does not ride along with anything else.
 
-- Trigger: fired. A relying party's back-channel endpoint or a client's
-  `jwks_uri` resolves through a slow or unreachable nameserver in
-  practice. Bound the lookup itself (a timeout race, or a resolver
-  library that takes one), and decide whether the transports share one
-  answer or each wires its own — and, for `/userinfo` specifically,
-  whether it needs a tighter timeout than `/token`'s shared default,
-  since it now sits on a resource server's request rather than a client's
-  own (`docs/superpowers/p3b-spike-jwe.md`'s Question 2 recommends one but
-  does not build it).
+**`pnpm trace` can overstate the census, and hides its own errors after the
+first.** `parseStatus` throws in `loadTables` before any id is resolved, so
+one malformed clause status masks every later problem in every later file —
+a single `trace` error is never safely the only one. And the summary counts
+a broken `covered` row as covered; it printed `410 covered` on a failing
+run. Only reachable in an already-red build, but the census is the one
+artefact claiming to be exhaustive.
 
-**`/introspect`'s entitlement check sits in a `usecase`, not a `service`.**
-`callerIsAddressed` and `audienceOf`
-(`packages/protocol-oidc/src/usecase/introspection.ts`) are pure domain
-decisions with no orchestration in them — this package's convention puts
-that kind of function in `service/`, alongside `authorization-code-grant.ts`
-and `client-credentials-grant.ts`, where it would get unit tests of its own
-independent of `introspect`'s. The task that built `/introspect` named only
-its usecase and test file; moving the check would add a file beyond that
-scope.
+- Trigger: whichever change next touches `tools/trace`. Collect parse
+  errors rather than throwing on the first, and exclude a row that failed
+  validation from the summary.
 
-- Trigger: the task that wires `/introspect`'s HTTP route, or any task that
-  next touches `introspection.ts`. Move `callerIsAddressed`/`audienceOf`
-  into `service/` at that point.
+**RFC 7523 has no clause table, and its clauses are absent from the
+matrix.** `docs/protocols/rfc7523.md` is the one file in `docs/protocols/`
+without a clause table, so Odudu has implemented an RFC whose every clause
+is untracked in the system built to make that visible — and `pnpm trace`
+does not fail on it, because a file with no table contributes zero rows
+rather than an error. This entry asked for it "before P3b closes"; P3b
+closed without it, so it is now **P13**'s, named in that phase's criterion,
+on the grounds that P13 is the next phase to rework client authentication.
 
-**`/token` enforces no `config.grantTypes` allowlist, for either
-authentication path.** `evaluateClientCredentialsGrant`'s own comment says
-a confidential client with a service subject is granted "regardless of
-what `grant_types` claims", and `token-issuance.ts`'s only read of
-`config.grantTypes` gates whether a _refresh token_ is issued, not which
-grant a request may use. So a client registered for `authorization_code`
-only can still obtain a `client_credentials` token. Pre-existing, and
-identical for `client_secret_*` and `private_key_jwt` clients alike — not
-a gap this task introduced or one specific to the new method.
-
-- Trigger: whichever task next touches grant selection in
-  `usecase/token-issuance.ts`'s `issueTokens`. Add a
-  `config.grantTypes.includes(request.grantType)` check before dispatching
-  to a grant-specific issuance function.
-
-**RFC 7523 has no clause table; its clauses are absent from the
-traceability matrix.** `docs/protocols/rfc7523.md` is a reading-notes-only
-file — the one file in `docs/protocols/` without a `| Clause | Level |
-... |` table — because building one accurately needs an hour of reading
-the RFC text carefully enough to quote each clause, not spent under the
-task that implemented `private_key_jwt` client authentication. `pnpm
-trace` does not fail on the omission: a file with no table contributes
-zero rows, not an error, so Odudu has implemented an RFC whose every
-clause is untracked in the one system built to make that visible, and
-nothing goes red.
-
-- Trigger: before this phase closes. What it takes: §2.2's two request
-  parameters and §3's claim requirements — §5 (Security Considerations)
-  stays prose, per `rfc7523.md`'s own header, not a source of further
-  rows. Test IDs are mostly already fillable from
-  `[ODUDU-PRIVATE-KEY-JWT-01]`'s cases
+- What it takes: §2.2's two request parameters and §3's claim requirements.
+  §5 stays prose, per `rfc7523.md`'s own header. Test IDs are mostly
+  fillable from `[ODUDU-PRIVATE-KEY-JWT-01]`
   (`packages/protocol-oidc/tests/private-key-jwt.int.test.ts`) and
   `service/client-assertion.test.ts`.
 
-**`/introspect`'s session-liveness check cannot express a remembered
-session's own idle window.** `IntrospectionDeps.isSessionLive` takes one
-`idleSeconds` value, mirroring `refresh-rotation.ts`'s older `liveById`
-call — but `sessionRepository.liveByIds` takes the realm's whole
-`SessionLifespans` pair precisely because a remembered session and an
-ordinary one are never measured against the other's window
-(`authn-flows/src/repository/sessions.ts`). Remember-me is in P3b's scope,
-so a remembered session's token can be reported dead after the ordinary
-idle window — shorter than the session's own — passes.
-
-- Trigger: the task that wires `/introspect`'s real `loadGrant`/
-  `isSessionLive` against actual sessions. Thread `SessionLifespans` (or
-  the session's own `remembered` flag) through instead of a bare
-  `idleSeconds`.
-
-**`/userinfo` honours a disabled client's live access token at all.**
-`usecase/userinfo.ts`'s gate (~line 134) checks `realm?.enabled` only —
-nothing there reads the token's client. `resolveRoleReach` now refuses a
-disabled client's `fullScopeAllowed` bypass, and `userinfoEncryptionTarget`
-refuses a disabled client's registered encryption outright (500, no body)
-rather than answer it — but a disabled client that registered neither
-still gets an ordinary, correctly narrowed response back. Whether
-disabling a client should also kill its live tokens at `/userinfo` is a
-design question this fix does not answer.
-
-- Trigger: whichever phase next revisits token liveness or client
-  lifecycle — decide there whether `/userinfo` should read `client.enabled`
-  the way `resolveRoleReach` and `resolveClientWebOrigins` do.
-
 ## Deferred from the final review
 
-- **Closed, differently than this item expected.** The snapshots are not
-  maintained at all — `drizzle/meta/` holds two of fifteen migrations — and
-  `db:generate` has been retired rather than repaired: pointing it at every
-  table would have meant reconciling generated SQL against fifteen
-  hand-written migrations carrying RLS policies, thirteen CHECK constraints
-  and guarded DO blocks that no `pgTable` expresses, and declaring the
-  policies so it could see them emits the 42710 this item describes. SQL is
-  the source of truth, `packages/db/README.md` says so, and
-  `packages/db/tests/schema-drift.int.test.ts` compares the declarations
-  against a freshly migrated database. `drizzle-kit` remains an unused
-  devDependency of `packages/db`; removing it rewrites `pnpm-lock.yaml`,
-  which is worth doing on its own, away from other work.
-- `ODUDU_TRUST_PROXY=` (a bare key) now refuses boot rather than defaulting
-  off — correct by strictness, but a new way for a previously-booting
+- **`/introspect`'s remembered-session idle window** is the one entry above
+  that is a defect rather than a decision. It is here as well as there
+  because it is the first thing P4 will hit when it lists sessions.
+- `tests/lint/production-guard-order.test.ts` compares source offsets and
+  breaks on a rename or a helper extraction. A reasonable stopgap for the
+  still-positional server-boot path, but its narrowness should be visible to
+  whoever reads it next.
+- Fifteen tests share one clause id, `[RFC8705-2.1-03]`, while pinning
+  different requirements — a disabled client, a public client, the
+  one-method rule, the duplicate header, realm isolation, several of them
+  not §2.1 at all. The undifferentiated id is the real defect; the missing
+  table that surfaced it was fixed.
+- `session-cookie.ts` hand-rolls a case-sensitive UUID regex while the test
+  beside it uses `@odudu/kernel`'s case-insensitive `isUuid`. Inert today —
+  `newId()` emits lowercase only — and ironic in the module whose purpose is
+  to be one authority. Worth collapsing onto `isUuid` when something else
+  touches that file.
+- `pendingSession` duplicates `authenticatedSession`'s two liveness
+  conditions inline rather than sharing a predicate. Four lines, and the two
+  are not identical, so they must be kept in sync by hand if liveness
+  semantics change.
+- `logoutDeliveryRepository.enqueue` takes caller-supplied row ids where
+  `outbox.enqueue` generates its own. Arguably right — the session-ending
+  transaction needs the id up front — but an unremarked divergence from the
+  precedent it otherwise copies.
+- A `client_id`/hint mismatch at `/logout` rejects through an invariant
+  `throw`, so a future refactor's mistake is a 500 rather than a redirect.
+  Fails closed, which is why it stands.
+- The order pin on `/authorize`'s `claims` size check couples to
+  `JSON.parse` **by name**: a refactor to another parse mechanism would make
+  it silently stop testing anything rather than fail. Acceptable for one
+  small function with one obvious parse path; it would not scale.
+- `docs/protocols/rfc7662.md` points at a plan file for when a class of rows
+  was decided. A plan is archived scaffolding; the durable pointer is this
+  file or the phase note.
+- `ODUDU_TRUST_PROXY=` (a bare key) refuses boot rather than defaulting off
+  — correct by strictness, but a new way for a previously-booting
   environment to fail.
 - The boundary suite's negative control filters a fixture with no imports at
   all, so it cannot demonstrate that `service-is-a-leaf` is not over-broad.
@@ -574,3 +397,7 @@ design question this fix does not answer.
 - The `res` serializer still emits all reply headers with only `set-cookie`
   denylisted — the remaining instance of the pattern removed on the request
   side.
+- `drizzle-kit` remains an unused devDependency of `packages/db` after
+`db:generate` was retired. Removing it rewrites `pnpm-lock.yaml`, which is
+worth doing on its own, away from other work.
+</content>

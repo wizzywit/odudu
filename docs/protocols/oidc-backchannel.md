@@ -13,8 +13,8 @@ and a separate pass — `sendLogouts`
 retrying a recoverable failure and abandoning one that is not. Discovery
 now advertises `backchannel_logout_supported` and
 `backchannel_logout_session_supported`. What remains is what the rest of
-this table calls out by row: encryption (no JWE exists anywhere in this
-repository yet) and parallel delivery within a batch. The clauses
+this table calls out by row: an encrypted Logout Token, which nothing asks
+for even now that JWE exists, and parallel delivery within a batch. The clauses
 addressed to the RP receiving a Logout Token are `n/a` — Odudu is the OP
 that sends one.
 
@@ -52,7 +52,7 @@ a deployment and are not rowed; §4.1's explicit-typing advice is the same
 | 2.4    | MAY    | a Logout Token contains other Claims                                                                                                                  | —                         | accepted: "Parallel delivery and extra claims: understood, not promised anywhere"                                                                                                                                                                                                                                                                                              |
 | 2.4    | MUST   | Claims used that are not understood are ignored                                                                                                       | —                         | n/a: addressed to the party reading a Logout Token, which is the RP                                                                                                                                                                                                                                                                                                            |
 | 2.4    | MUST   | a Logout Token is signed, and may also be encrypted                                                                                                   | `OIDC-BACKCHANNEL-2.4-09` | covered                                                                                                                                                                                                                                                                                                                                                                        |
-| 2.4    | SHOULD | an encrypted Logout Token replicates the `iss` claim in its JWT header parameters                                                                     | —                         | deferred: P3b — the same increment that builds JWE for encrypted UserInfo responses (the design spec's own name for this phase's encryption work) is what an encrypted Logout Token would reuse; nothing has asked for one yet                                                                                                                                                 |
+| 2.4    | SHOULD | an encrypted Logout Token replicates the `iss` claim in its JWT header parameters                                                                     | —                         | accepted: "An encrypted Logout Token: the capability exists, the request for one does not"                                                                                                                                                                                                                                                                                     |
 | 2.4    | SHOULD | Logout Tokens are explicitly typed, with a `typ` header parameter of `logout+jwt`                                                                     | `OIDC-BACKCHANNEL-2.4-09` | covered                                                                                                                                                                                                                                                                                                                                                                        |
 | 2.5    | MUST   | the back-channel logout request's `POST` body includes a `logout_token` parameter containing a Logout Token for the RP                                | `OIDC-BACKCHANNEL-2.5-01` | covered                                                                                                                                                                                                                                                                                                                                                                        |
 | 2.5    | MAY    | the `POST` body contains other values alongside `logout_token`                                                                                        | —                         | n/a: `createRawLogoutDeliveryRequest` (`apps/server/src/logout-delivery-transport.ts`) sends a body of exactly `logout_token=<token>`; the MAY permits an addition, it does not require one, and nothing here has a further value to send                                                                                                                                      |
@@ -170,6 +170,22 @@ satisfies the row rather than leaving it half done: a client that demanded
 regardless (`OIDC-BACKCHANNEL-2.4-07`). The flag is stored and echoed at
 registration (P3a) but reads nowhere in the delivery path — there is
 nothing left for reading it to change.
+
+### An encrypted Logout Token: the capability exists, the request for one does not
+
+§2.4's SHOULD that an encrypted Logout Token replicate `iss` in its JWT
+header is conditioned on the token being encrypted, and none ever is.
+Encryption is now a capability this repository has — `encryptCompact`
+(`packages/crypto/src/encrypt.ts`) serves encrypted UserInfo responses —
+but nothing selects it here: client registration has no member asking for
+an encrypted Logout Token, so `logoutTokenClaims` and the sender have no
+branch to take. The row was `deferred:` while JWE did not exist; with it
+built and unasked-for, the honest status is a decision rather than a
+pending phase.
+
+Whichever change adds that registration member owns the `iss` replication
+with it — the two are one piece of work, and splitting them would ship an
+encrypted token that this row then fails against.
 
 ### Parallel delivery and extra claims: understood, not promised anywhere
 

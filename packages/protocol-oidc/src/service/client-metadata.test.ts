@@ -73,7 +73,7 @@ it('accepts a well-formed jwks_uri without dereferencing it', () => {
   // No lookup, no socket: parseClientMetadata checks shape alone
   // (assertFetchableUrl), so a host that cannot resolve still parses ok.
   // The registration endpoint built on top of this never dereferences
-  // jwks_uri either — see docs/NEXT.md and
+  // jwks_uri either — see docs/phases/p3a.md and
   // packages/protocol-oidc/tests/client-registration.int.test.ts's own
   // proof of that at the endpoint level.
   expect(

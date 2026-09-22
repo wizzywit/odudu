@@ -1,36 +1,25 @@
-// The default `ODUDU_TLS_CLIENT_CERT_HEADER` (packages/kernel/src/config.ts
-// carries the same literal at the config boundary) — nginx's own
-// `$ssl_client_s_dn` naming convention, kept only as a starting point: a
-// deployment behind a different proxy overrides it, never edits this file.
+// The default `ODUDU_TLS_CLIENT_CERT_HEADER`, also at the config boundary
+// in packages/kernel/src/config.ts. nginx's `$ssl_client_s_dn` convention.
 export const DEFAULT_TLS_CLIENT_SUBJECT_HEADER = 'x-ssl-client-s-dn';
 
-// RFC 8705 §2.1: proxy-terminated mutual TLS, the shape Odudu supports —
-// it never terminates TLS itself (README.md's deployment section). The
-// reverse proxy in front of it does the handshake and forwards the
-// certificate's subject in a plain header; this module reads that header
-// and decides whether the request behind it may authenticate as the client
-// whose registered subject the caller compares it against
-// (`authenticateTlsClientAuth`, usecase/token-issuance.ts).
+// RFC 8705 §2.1, proxy-terminated: Odudu never handshakes, so a reverse
+// proxy forwards the certificate's subject in a plain header.
 export interface TlsClientAuthOptions {
-  // The same flag that already governs whether Fastify trusts
-  // `X-Forwarded-*` (`apps/server/src/app.ts`'s `trustProxy`). Off means
-  // this header is exactly as untrustworthy as any other one a caller can
-  // set for itself, so it is never read — refused, not downgraded.
+  // The same flag governing whether Fastify trusts `X-Forwarded-*`. Off
+  // means the header is as untrustworthy as any a caller sets for itself,
+  // so it is never read — refused, not downgraded.
   trustProxy: boolean;
-  // `ODUDU_TLS_CLIENT_CERT_HEADER` — the name a deployment's own proxy
-  // emits the subject under. nginx, Envoy, Apache and HAProxy each use a
-  // different one; Odudu does not get to fix it, so it is configuration,
-  // never a constant here. Any casing: this module lower-cases it before
-  // use, so the invariant does not depend on where the value came from.
+  // Every proxy emits the subject under a different name, so this is
+  // configuration. Any casing — `tlsClientSubject` lower-cases it, as Node
+  // does what it parses.
   headerName: string;
 }
 
 export type TlsClientSubjectResult =
   { kind: 'absent' } | { kind: 'duplicated' } | { kind: 'present'; subject: string };
 
-// Node joins repeated headers into one ", "-separated value, which an
-// ordinary comma-bearing DN is indistinguishable from, so duplicates are
-// counted from the raw pairs rather than read off `headers[name]`.
+// Node joins repeated headers with ", ", which an ordinary comma-bearing DN
+// is indistinguishable from — hence the raw pairs, not `headers[name]`.
 function countHeaderOccurrences(rawHeaders: readonly string[], name: string): number {
   let count = 0;
   for (let index = 0; index < rawHeaders.length; index += 2) {
@@ -46,8 +35,6 @@ export function tlsClientSubject(
 ): TlsClientSubjectResult {
   if (!options.trustProxy) return { kind: 'absent' };
 
-  // Node lower-cases what it parses, so the configured name has to match
-  // that however a deployment spelled it.
   const name = options.headerName.toLowerCase();
   const value = headers[name];
   if (typeof value !== 'string' || value.length === 0) return { kind: 'absent' };
@@ -56,13 +43,10 @@ export function tlsClientSubject(
   return { kind: 'present', subject: value };
 }
 
-// RFC 8705 §2.1 asks for "a predictable treatment of DN values, such as the
-// distinguishedNameMatch rule from [RFC4517]" — Odudu implements neither;
-// this is exact string comparison after trimming surrounding whitespace, a
-// deliberate simplification, correct only as far as the proxy emits the
-// subject in one stable, canonical form every time. A comma inside an RDN
-// value is ordinary (RFC 2253 escapes it `\,`, keeping the space after),
-// so nothing here treats `, ` as a signal of anything.
+// Exact comparison after trimming, not RFC 4517's `distinguishedNameMatch`:
+// a deliberate simplification, correct only as far as the proxy emits one
+// canonical form every time. `docs/protocols/rfc8705.md`'s "The subject
+// comparison is exact-match" has the reasoning.
 export function tlsClientAuthSubjectMatches(presented: string, registered: string): boolean {
   return presented.trim() === registered.trim();
 }

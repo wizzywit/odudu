@@ -365,7 +365,8 @@ A registered `jwks_uri` is validated for shape only at registration —
 `https`, no embedded credentials, no DNS lookup
 (`assertFetchableUrl`) — and deliberately **not** dereferenced there: a
 registration's success must not depend on a key host being reachable at
-that instant, and never again (`docs/NEXT.md` records this decision). The
+that instant, and never again ([docs/phases/p3a.md](docs/phases/p3a.md)
+records the reverted attempt and why). The
 pieces that dereference it at request time now: the address guard and
 the socket transport (`apps/server/src/client-key-transport.ts`), which
 pins the connection to the address the guard already checked rather than
@@ -826,9 +827,9 @@ and `file:` are the values this rule exists to close off, and none of them
 carries a `.` in its own scheme name the way every reverse-DNS scheme does
 ([ADR 0032](docs/adr/0032-a-non-http-redirect-uri-scheme-must-look-custom.md)).
 `frontchannel_logout_uri` is validated the same way its `backchannel_logout_uri`
-twin already was — `https`, absolute, no fragment — since P3b renders it
-into an iframe and a `javascript:` or bare-`http:` value would reach that
-sink unchecked otherwise.
+twin already was — `https`, absolute, no fragment — because the logout page
+renders it into an iframe, and a `javascript:` or bare-`http:` value would
+reach that sink unchecked otherwise.
 
 **One pass deletes everything that expires.** Every login writes an
 `authentication_sessions` row, every redemption an `authorization_codes`
