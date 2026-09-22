@@ -1,3 +1,4 @@
+import { type Clock, systemClock } from '@odudu/kernel';
 import { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
 import { corsHeadersForRequest } from '#/service/cors';
 import { FORM_MEDIA_TYPE } from '#/service/media-type';
@@ -36,6 +37,7 @@ async function corsHeadersFor(
 
 async function respondToUserinfoRequest(
   deps: UserinfoDeps,
+  clock: Clock,
   request: FastifyRequest<{ Params: { realm: string } }>,
   body: unknown,
   reply: FastifyReply,
@@ -47,6 +49,7 @@ async function respondToUserinfoRequest(
     issuer,
     request.headers.authorization,
     body,
+    clock.now(),
   );
   const corsHeaders = await corsHeadersFor(deps, request, outcome);
 
@@ -105,12 +108,18 @@ async function respondToUserinfoRequest(
   }
 }
 
-export function registerUserinfoRoute(app: FastifyInstance, deps: UserinfoDeps): void {
+export interface UserinfoRouteDeps extends UserinfoDeps {
+  clock?: Clock;
+}
+
+export function registerUserinfoRoute(app: FastifyInstance, deps: UserinfoRouteDeps): void {
+  const clock = deps.clock ?? systemClock;
+
   // OIDC Core §5.3 requires both methods. A GET has no body to read a token
   // from, so the two differ only in what they hand the resolver; everything
   // after that is one path.
   app.get<{ Params: { realm: string } }>(PATH, (request, reply) =>
-    respondToUserinfoRequest(deps, request, undefined, reply),
+    respondToUserinfoRequest(deps, clock, request, undefined, reply),
   );
 
   // RFC 6750 §2.2 fixes the form-encoded body method's content type. Any
@@ -128,6 +137,6 @@ export function registerUserinfoRoute(app: FastifyInstance, deps: UserinfoDeps):
         }
       },
     },
-    (request, reply) => respondToUserinfoRequest(deps, request, request.body, reply),
+    (request, reply) => respondToUserinfoRequest(deps, clock, request, request.body, reply),
   );
 }

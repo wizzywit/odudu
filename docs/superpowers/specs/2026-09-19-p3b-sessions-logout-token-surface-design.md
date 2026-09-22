@@ -308,6 +308,18 @@ That is what makes revocation real inside an access token's hour: an
 `at+jwt` is self-contained and nothing consults anything before accepting
 one, which `docs/NEXT.md` records as the gap introspection exists to close.
 
+**Amended after the whole-branch review — this section enumerated one door
+onto the token, not both.** `/userinfo` accepts the identical self-contained
+`at+jwt`, on the OP's own behalf rather than a third-party resource
+server's, and this section never asked whether it made the same two checks.
+It did not, until the review found it: `resolveUserinfo` verified signature
+and claims and went straight to the claim mappers, so a token `/introspect`
+already reported `active: false` for still returned the End-User's full
+claim set until its own `exp`. Fixed to consult `loadGrant`'s `revokedAt`
+and `isSessionLive` exactly as this section describes, and to answer
+`invalid_token` rather than the claims when either fails — see
+`packages/protocol-oidc/src/usecase/userinfo.ts`'s `resolveUserinfo`.
+
 ### 8.3 Revocation
 
 `/revoke` per RFC 7009, against the grant the token names.

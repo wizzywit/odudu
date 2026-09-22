@@ -4942,7 +4942,8 @@ grant whose `session_id` names it. The access tokens those grants minted
 are self-contained `at+jwt` JWTs, so a resource server that only checks a
 signature locally keeps accepting one until its own `exp` regardless — but
 [`/introspect`](#token-introspection-and-revocation) reports it inactive
-immediately, which is what closes that gap before `exp`. README.md's own
+immediately, and `/userinfo` refuses it outright with `invalid_token`,
+which is what closes that gap before `exp` for both doors. README.md's own
 logout section has the same account.
 
 A client registers its `post_logout_redirect_uri` values ahead of time.
@@ -7716,6 +7717,14 @@ session lifecycle. A citation of either half here means that half.
   advertised: there is no notion of one in this identity model yet, and
   `packages/protocol-oidc/tests/claims-supported.int.test.ts` fails the
   build if it appears in a live discovery response.
+- **A client disabled after a token was issued to it does not lose that
+  token's `/userinfo` claims.** `resolveUserinfo` now refuses a token whose
+  grant this server revoked or whose session has ended, but neither of
+  those is stamped when an operator disables the client itself — the
+  grant is untouched. `docs/NEXT.md` records the open decision: whichever
+  phase next revisits client lifecycle decides whether `/userinfo` should
+  read `client.enabled` the way `resolveRoleReach` and
+  `resolveClientWebOrigins` do.
 
 **Endpoints that do not exist at all**
 

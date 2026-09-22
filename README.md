@@ -468,7 +468,12 @@ instead calls `POST /realms/{realm}/protocol/openid-connect/token/introspect`
 (RFC 7662), authenticating with its own client credentials, sees the
 revocation immediately: introspection checks the grant's `revoked_at` and
 the session's own liveness, not merely the token's signature, which is what
-makes a logout real inside an access token's hour. A client can also end a
+makes a logout real inside an access token's hour. **`GET`/`POST
+/realms/{realm}/protocol/openid-connect/userinfo` makes the same two checks
+on the OP's own behalf** — it is itself a resource server, and the one a
+client asks first — so a token presented there after a logout or a
+deliberate `/revoke` is refused with `invalid_token` rather than answering
+with the End-User's claims. A client can also end a
 grant deliberately with `POST
 /realms/{realm}/protocol/openid-connect/revoke` (RFC 7009) — revoking a
 refresh token invalidates every access token introspection reports for its

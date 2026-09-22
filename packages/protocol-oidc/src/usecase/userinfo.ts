@@ -1,3 +1,4 @@
+import { type SessionLifespans } from '@odudu/authn-flows';
 import {
   encodeUnsecuredJwt,
   encryptCompact,
@@ -13,11 +14,27 @@ import { narrowByScopeMappings } from '#/service/scope-mapping';
 import { type ClientKeySet } from '#/repository/client-keys';
 import { type RealmLookup } from '#/repository/realm-lookup';
 
+export interface UserinfoGrant {
+  readonly revokedAt: Date | null;
+}
+
 export interface UserinfoDeps {
   findRealm(name: string): Promise<RealmLookup | null>;
   listPublishableKeys(realmId: string): Promise<SigningKeyRecord[]>;
   loadClaimContext(realmId: string, subjectId: string): Promise<ClaimContext>;
   claimMappers: ClaimMapperRegistry<ClaimContext>;
+  // The same two reads `/introspect` makes (usecase/introspection.ts) —
+  // a grant this server revoked, or a session that has since ended, makes
+  // the token no less self-contained but no longer valid either. Realm-
+  // scoped explicitly, like every other lookup below, since this deps
+  // object is built once and reused across realms.
+  loadGrant(realmId: string, grantId: string): Promise<UserinfoGrant | null>;
+  isSessionLive(
+    realmId: string,
+    sessionId: string,
+    lifespans: SessionLifespans,
+    now: Date,
+  ): Promise<boolean>;
   // The role set a granted scope reaches, and whether the token's client
   // bypasses that intersection — the same gate token issuance applies, so
   // a role withheld from a token cannot resurface here.
@@ -134,6 +151,7 @@ export async function resolveUserinfo(
   // Whatever a body parser produced for a POST (OIDC Core §5.3); `undefined`
   // for a GET, which has no body to carry a token in.
   body: unknown,
+  now: Date,
 ): Promise<UserinfoOutcome> {
   const realm = await deps.findRealm(realmName);
   if (!realm?.enabled) return { kind: 'not_found' };
@@ -159,6 +177,30 @@ export async function resolveUserinfo(
 
   if (typeof payload.sub !== 'string' || payload.sub.length === 0) {
     return { kind: 'invalid_token' };
+  }
+
+  // A token minted before `grant_id` existed carries none — fail closed
+  // rather than skip the check, mirroring `/introspect`.
+  const grantId = payload.grant_id;
+  if (typeof grantId !== 'string' || grantId.length === 0) return { kind: 'invalid_token' };
+  const grant = await deps.loadGrant(realm.id, grantId);
+  if (grant?.revokedAt !== null) return { kind: 'invalid_token' };
+
+  // Session liveness is what makes revocation real inside an access
+  // token's hour (design spec §8.2) — the same check `/introspect` and
+  // refresh rotation make. An `offline_access` grant carries no session
+  // (`sid` absent) and must not be reported dead for lacking one.
+  const sid = payload.sid;
+  const sessionId = typeof sid === 'string' && sid.length > 0 ? sid : null;
+  if (sessionId !== null) {
+    const lifespans: SessionLifespans = {
+      ssoSessionIdleSeconds: realm.ssoSessionIdleSeconds,
+      ssoSessionMaxSeconds: realm.ssoSessionMaxSeconds,
+      rememberMeIdleSeconds: realm.rememberMeIdleSeconds,
+      rememberMeMaxSeconds: realm.rememberMeMaxSeconds,
+    };
+    const live = await deps.isSessionLive(realm.id, sessionId, lifespans, now);
+    if (!live) return { kind: 'invalid_token' };
   }
 
   const ctx = await deps.loadClaimContext(realm.id, payload.sub);
