@@ -26,10 +26,10 @@
 ## Review Focus
 
 1. **A row-level-security policy rewritten wrongly admits cross-tenant reads and nothing fails.** Task 2 pins it by updating `rls-policy.int.test.ts` before the migration. Each package's foreign-tenant probes run with that package, in Tasks 4 through 9, because they cannot compile before their package is renamed; Task 16 runs them all together as the final sweep.
-2. **A missed URL string breaks a login flow the type checker cannot see.** Task 9's integration suites are the detector; Task 13's conformance run is the external proof.
+2. **A missed URL string breaks a login flow the type checker cannot see.** Task 9's integration suites are the detector; Task 12's conformance run is the external proof.
 3. **A transcript that was edited rather than re-captured asserts bytes never served.** Task 16 re-captures against a running stack; `tests/docs` compares documents to live output.
 4. **A frozen migration edited by a tool run with too wide a scope.** Every task's substitution command excludes `packages/db/drizzle/0*.sql`; Task 3 asserts the journal still matches.
-5. **The rename declared done while a name survives somewhere.** Task 17 makes completeness a test rather than a final grep somebody remembers.
+5. **The rename declared done while a name survives somewhere.** Task 16 makes completeness a test rather than a final grep somebody remembers.
 
 ---
 
