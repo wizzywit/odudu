@@ -59,7 +59,7 @@ function documentedDefaults(name: string): { column: string; value: string; line
 }
 
 describe('the brute-force defaults the documents state are the defaults the schema declares', () => {
-  it.each(DOCUMENTS)('%s states no default the realms table does not', (name) => {
+  it.each(DOCUMENTS)('%s states no default the tenants table does not', (name) => {
     const declared = declaredDefaults();
     const stated = documentedDefaults(name);
 

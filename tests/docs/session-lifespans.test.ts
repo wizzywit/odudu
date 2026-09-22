@@ -56,7 +56,7 @@ describe('the session lifespans the documents state are the ones the schema decl
       expect(
         loadDocument(name).lines.join('\n'),
         `${name} still calls the SSO session 12 hours, which is the constant ` +
-          `migration ${MIGRATION} replaced with two per-realm windows`,
+          `migration ${MIGRATION} replaced with two per-tenant windows`,
       ).not.toMatch(/SSO session, 12 hours/u);
     }
   });

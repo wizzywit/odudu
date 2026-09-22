@@ -6,17 +6,17 @@ import { USERINFO_ENCRYPTION_ENCS_PERMITTED } from '../../packages/protocol-oidc
 import { resolveDiscoveryDocument } from '../../packages/protocol-oidc/src/usecase/discovery.js';
 import { jsonAfter, loadDocument } from './markdown.js';
 
-// Both documents show the discovery response for this realm on this stack, so
+// Both documents show the discovery response for this tenant on this stack, so
 // the document under test fixes the issuer the comparison is made against.
-const REALM = 'demo';
+const TENANT = 'demo';
 const ISSUER_BASE = 'http://localhost:3000';
-const CURL = `curl -sS ${ISSUER_BASE}/realms/${REALM}/.well-known/openid-configuration`;
+const CURL = `curl -sS ${ISSUER_BASE}/tenants/${TENANT}/.well-known/openid-configuration`;
 
 async function serverDiscoveryDocument(): Promise<Record<string, unknown>> {
   const claimMappers = standardClaimMappers();
   const document = await resolveDiscoveryDocument(
     {
-      findRealm: () =>
+      findTenant: () =>
         Promise.resolve({
           id: '01a096f4-0000-0000-0000-000000000000',
           enabled: true,
@@ -30,10 +30,10 @@ async function serverDiscoveryDocument(): Promise<Record<string, unknown>> {
           clientRegistrationPolicy: 'disabled',
         }),
       claimNames: () => claimMappers.claimNames(),
-      // What `seed realm` puts in a realm, so the document is checked against
+      // What `seed tenant` puts in a tenant, so the document is checked against
       // the vocabulary a freshly seeded stack actually serves.
-      scopesForRealm: () => Promise.resolve(TENANT_DEFAULT_SCOPE_NAMES),
-      // `seed bootstrap` generates a realm's first signing key as RS256
+      scopesForTenant: () => Promise.resolve(TENANT_DEFAULT_SCOPE_NAMES),
+      // `seed bootstrap` generates a tenant's first signing key as RS256
       // (apps/server/src/cli/seed.ts) — the same key a freshly seeded
       // stack's `/userinfo` would sign with.
       activeSigningKeyAlg: () => Promise.resolve('RS256'),
@@ -46,7 +46,7 @@ async function serverDiscoveryDocument(): Promise<Record<string, unknown>> {
       // this same value's effect on token_endpoint_auth_methods_supported.
       trustProxy: false,
     },
-    REALM,
+    TENANT,
     ISSUER_BASE,
   );
   if (document === null) throw new Error('the discovery usecase returned no document');

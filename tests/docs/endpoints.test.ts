@@ -92,14 +92,14 @@ function served(app: Awaited<ReturnType<typeof servingApp>>): Endpoint[] {
   return endpoints;
 }
 
-// `{realm}` reads as a placeholder to a person; Fastify spells it `:realm`.
+// `{tenant}` reads as a placeholder to a person; Fastify spells it `:tenant`.
 function documented(): Endpoint[] {
   const table = tableWithHeadings(loadDocument(DOCUMENT), ['Method', 'Path', 'What it is']);
   return table.rows.flatMap((row) => {
     const [methodCell = '', pathCell = ''] = row;
     const method = backticked(methodCell)[0];
     if (method === undefined) return [];
-    return backticked(pathCell).map((url) => ({ method, url: url.replace('{realm}', ':realm') }));
+    return backticked(pathCell).map((url) => ({ method, url: url.replace('{tenant}', ':tenant') }));
   });
 }
 

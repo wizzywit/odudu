@@ -55,7 +55,7 @@ export type LogoutSenderReport =
 // Both halves of the claim's scoping, checked rather than hoped for — the
 // same two checks `sendPending` (`@odudu/email`) runs for its own queue,
 // copied here because `sendLogouts` itself stays single-tenant and leaves
-// the cross-tenant walk to its caller (Task 18's report).
+// the cross-tenant walk to its caller.
 async function assertRolesAreRight(deps: LogoutSenderDeps): Promise<void> {
   if (!(await bypassesRowLevelSecurity(deps.ownerDatabase))) {
     throw new OduduError(
