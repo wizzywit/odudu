@@ -111,7 +111,7 @@ export {
 } from '#/schema/execution';
 export {
   provisionBrowserFlow,
-  provisionRealm,
+  provisionTenant,
   BROWSER_FLOW_DEFAULT,
 } from '#/usecase/provision-flow';
 export { nextRequiredAction } from '#/usecase/required-actions';

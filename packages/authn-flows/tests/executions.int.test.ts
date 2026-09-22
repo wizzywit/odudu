@@ -1,12 +1,12 @@
 import {
   createDatabase,
   MIGRATIONS_DIR,
-  realms,
+  tenants,
   runMigrations,
-  withRealm,
+  withTenant,
   type DatabaseHandle,
 } from '@odudu/db';
-import { expectCrossRealmMethodProbe } from '@odudu/db/testing';
+import { expectCrossTenantMethodProbe } from '@odudu/db/testing';
 import { clientScopeRepository, TENANT_DEFAULT_SCOPE_NAMES } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
@@ -16,7 +16,7 @@ import { type Requirement } from '#/schema/execution';
 import {
   BROWSER_FLOW_DEFAULT,
   provisionBrowserFlow,
-  provisionRealm,
+  provisionTenant,
 } from '#/usecase/provision-flow';
 
 let containerHandle: TestDatabase | undefined;
@@ -46,28 +46,28 @@ afterAll(async () => {
   await containerHandle?.stop();
 });
 
-async function seedRealm(realmId: string): Promise<void> {
-  await withRealm(app.db, realmId, async (tx) => {
-    await tx.insert(realms).values({ id: realmId, name: `realm-${realmId}` });
+async function seedTenant(tenantId: string): Promise<void> {
+  await withTenant(app.db, tenantId, async (tx) => {
+    await tx.insert(tenants).values({ id: tenantId, name: `tenant-${tenantId}` });
   });
 }
 
 describe('provisionBrowserFlow', () => {
-  it('gives a freshly provisioned realm exactly the default executions in order', async () => {
-    const realmId = newId();
-    await seedRealm(realmId);
+  it('gives a freshly provisioned tenant exactly the default executions in order', async () => {
+    const tenantId = newId();
+    await seedTenant(tenantId);
 
-    const executions = await withRealm(app.db, realmId, async (tx) => {
-      await provisionBrowserFlow(tx, realmId);
-      return executionRepository(tx).forRealm(realmId);
+    const executions = await withTenant(app.db, tenantId, async (tx) => {
+      await provisionBrowserFlow(tx, tenantId);
+      return executionRepository(tx).forTenant(tenantId);
     });
 
     expect(
-      executions.map((execution) => ({ ...execution, id: undefined, realmId: undefined })),
+      executions.map((execution) => ({ ...execution, id: undefined, tenantId: undefined })),
     ).toEqual(
       BROWSER_FLOW_DEFAULT.map((execution, index) => ({
         id: undefined,
-        realmId: undefined,
+        tenantId: undefined,
         index,
         authenticator: execution.authenticator,
         requirement: execution.requirement,
@@ -79,19 +79,19 @@ describe('provisionBrowserFlow', () => {
   });
 });
 
-describe('provisionRealm', () => {
-  // The claim that a realm is never left half-provisioned is only checked
+describe('provisionTenant', () => {
+  // The claim that a tenant is never left half-provisioned is only checked
   // if something asserts both halves landed from the one call a real
-  // realm-creation site makes, not just that each function works in
+  // tenant-creation site makes, not just that each function works in
   // isolation.
-  it('gives a realm both its scope vocabulary and its browser flow', async () => {
-    const realmId = newId();
-    await seedRealm(realmId);
+  it('gives a tenant both its scope vocabulary and its browser flow', async () => {
+    const tenantId = newId();
+    await seedTenant(tenantId);
 
-    const [scopeNames, executions] = await withRealm(app.db, realmId, async (tx) => {
-      await provisionRealm(tx, realmId);
-      const scopes = await clientScopeRepository(tx).allForRealm();
-      const flow = await executionRepository(tx).forRealm(realmId);
+    const [scopeNames, executions] = await withTenant(app.db, tenantId, async (tx) => {
+      await provisionTenant(tx, tenantId);
+      const scopes = await clientScopeRepository(tx).allForTenant();
+      const flow = await executionRepository(tx).forTenant(tenantId);
       return [scopes.map((scope) => scope.name), flow] as const;
     });
 
@@ -106,40 +106,40 @@ describe('provisionRealm', () => {
 });
 
 describe('executionRepository', () => {
-  it("cannot see a foreign realm's executions through forRealm", async () => {
-    await expectCrossRealmMethodProbe(app.db, {
-      seed: async (tx, realmId) => {
-        await tx.insert(realms).values({ id: realmId, name: `realm-${realmId}` });
-        await provisionBrowserFlow(tx, realmId);
-        return realmId;
+  it("cannot see a foreign tenant's executions through forTenant", async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        await tx.insert(tenants).values({ id: tenantId, name: `tenant-${tenantId}` });
+        await provisionBrowserFlow(tx, tenantId);
+        return tenantId;
       },
-      verifySeeded: async (tx, realmId) => {
-        const found = await executionRepository(tx).forRealm(realmId);
+      verifySeeded: async (tx, tenantId) => {
+        const found = await executionRepository(tx).forTenant(tenantId);
         expect(found).toHaveLength(BROWSER_FLOW_DEFAULT.length);
       },
-      attempt: async (tx, realmId) => executionRepository(tx).forRealm(realmId),
+      attempt: async (tx, tenantId) => executionRepository(tx).forTenant(tenantId),
       expectBlocked: (result) => {
         expect(result).toEqual([]);
       },
     });
   });
 
-  it('refuses a second execution at an index a realm already uses', async () => {
-    const realmId = newId();
-    await seedRealm(realmId);
+  it('refuses a second execution at an index a tenant already uses', async () => {
+    const tenantId = newId();
+    await seedTenant(tenantId);
 
     let error: unknown;
     try {
-      await withRealm(app.db, realmId, async (tx) => {
+      await withTenant(app.db, tenantId, async (tx) => {
         const repository = executionRepository(tx);
         await repository.create({
-          realmId,
+          tenantId,
           index: 0,
           authenticator: 'passkey',
           requirement: 'alternative',
         });
         await repository.create({
-          realmId,
+          tenantId,
           index: 0,
           authenticator: 'password',
           requirement: 'alternative',
@@ -157,14 +157,14 @@ describe('executionRepository', () => {
   });
 
   it('refuses a requirement outside required/alternative/conditional/disabled', async () => {
-    const realmId = newId();
-    await seedRealm(realmId);
+    const tenantId = newId();
+    await seedTenant(tenantId);
 
     let error: unknown;
     try {
-      await withRealm(app.db, realmId, async (tx) => {
+      await withTenant(app.db, tenantId, async (tx) => {
         await executionRepository(tx).create({
-          realmId,
+          tenantId,
           index: 0,
           authenticator: 'password',
           requirement: 'sometimes' as Requirement,

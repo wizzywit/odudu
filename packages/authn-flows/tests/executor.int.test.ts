@@ -1,13 +1,13 @@
 import {
   createDatabase,
   MIGRATIONS_DIR,
-  realms,
+  tenants,
   runMigrations,
-  withRealm,
+  withTenant,
   type DatabaseHandle,
-  type RealmScopedDatabase,
+  type TenantScopedDatabase,
 } from '@odudu/db';
-import { expectRealmIsolation } from '@odudu/db/testing';
+import { expectTenantIsolation } from '@odudu/db/testing';
 import { subjectRepository } from '@odudu/domain-identity';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
@@ -54,68 +54,68 @@ const request: PendingRequest = {
   codeChallengeMethod: 'S256',
 };
 
-async function seedRealm(tx: RealmScopedDatabase, realmId: string): Promise<void> {
-  await tx.insert(realms).values({ id: realmId, name: `realm-${realmId}` });
+async function seedTenant(tx: TenantScopedDatabase, tenantId: string): Promise<void> {
+  await tx.insert(tenants).values({ id: tenantId, name: `tenant-${tenantId}` });
 }
 
-describe('realm isolation', () => {
-  it.each(['authentication_sessions', 'sessions'])('isolates %s by realm', async (table) => {
-    await expectRealmIsolation(app.db, {
+describe('tenant isolation', () => {
+  it.each(['authentication_sessions', 'sessions'])('isolates %s by tenant', async (table) => {
+    await expectTenantIsolation(app.db, {
       table,
-      seed: async (tx, realmId) => {
-        await seedRealm(tx, realmId);
+      seed: async (tx, tenantId) => {
+        await seedTenant(tx, tenantId);
         if (table === 'authentication_sessions') {
-          await startAuthentication(tx, realmId, request);
+          await startAuthentication(tx, tenantId, request);
         } else {
-          const subject = await subjectRepository(tx).create({ realmId, type: 'user' });
-          await establishSession(tx, realmId, subject.id, 36_000, ['password']);
+          const subject = await subjectRepository(tx).create({ tenantId, type: 'user' });
+          await establishSession(tx, tenantId, subject.id, 36_000, ['password']);
         }
       },
     });
   });
 });
 
-describe('cross-realm resume is blocked', () => {
-  it('cannot load a pending request parked under a different realm context', async () => {
-    const realmA = newId();
-    const realmB = newId();
+describe('cross-tenant resume is blocked', () => {
+  it('cannot load a pending request parked under a different tenant context', async () => {
+    const tenantA = newId();
+    const tenantB = newId();
 
-    const authSessionId = await withRealm(app.db, realmA, async (tx) => {
-      await seedRealm(tx, realmA);
-      return (await startAuthentication(tx, realmA, request)).authSessionId;
+    const authSessionId = await withTenant(app.db, tenantA, async (tx) => {
+      await seedTenant(tx, tenantA);
+      return (await startAuthentication(tx, tenantA, request)).authSessionId;
     });
 
-    await withRealm(app.db, realmB, async (tx) => seedRealm(tx, realmB));
+    await withTenant(app.db, tenantB, async (tx) => seedTenant(tx, tenantB));
 
-    const loadedFromB = await withRealm(app.db, realmB, async (tx) =>
+    const loadedFromB = await withTenant(app.db, tenantB, async (tx) =>
       loadPendingRequest(tx, authSessionId),
     );
     expect(loadedFromB).toBeNull();
 
-    const loadedFromA = await withRealm(app.db, realmA, async (tx) =>
+    const loadedFromA = await withTenant(app.db, tenantA, async (tx) =>
       loadPendingRequest(tx, authSessionId),
     );
     expect(loadedFromA).toEqual(request);
   });
 
-  it('cannot resume a session established under a different realm context', async () => {
-    const realmA = newId();
-    const realmB = newId();
+  it('cannot resume a session established under a different tenant context', async () => {
+    const tenantA = newId();
+    const tenantB = newId();
 
-    const sessionId = await withRealm(app.db, realmA, async (tx) => {
-      await seedRealm(tx, realmA);
-      const subject = await subjectRepository(tx).create({ realmId: realmA, type: 'user' });
-      return (await establishSession(tx, realmA, subject.id, 36_000, ['password'])).sessionId;
+    const sessionId = await withTenant(app.db, tenantA, async (tx) => {
+      await seedTenant(tx, tenantA);
+      const subject = await subjectRepository(tx).create({ tenantId: tenantA, type: 'user' });
+      return (await establishSession(tx, tenantA, subject.id, 36_000, ['password'])).sessionId;
     });
 
-    await withRealm(app.db, realmB, async (tx) => seedRealm(tx, realmB));
+    await withTenant(app.db, tenantB, async (tx) => seedTenant(tx, tenantB));
 
-    const rowsFromB = await withRealm(app.db, realmB, async (tx) =>
+    const rowsFromB = await withTenant(app.db, tenantB, async (tx) =>
       tx.select().from(sessions).where(eq(sessions.id, sessionId)),
     );
     expect(rowsFromB).toEqual([]);
 
-    const rowsFromA = await withRealm(app.db, realmA, async (tx) =>
+    const rowsFromA = await withTenant(app.db, tenantA, async (tx) =>
       tx.select().from(sessions).where(eq(sessions.id, sessionId)),
     );
     expect(rowsFromA).toHaveLength(1);

@@ -1,9 +1,9 @@
 import {
   createDatabase,
   MIGRATIONS_DIR,
-  realms,
+  tenants,
   runMigrations,
-  withRealm,
+  withTenant,
   type DatabaseHandle,
 } from '@odudu/db';
 import {
@@ -84,61 +84,61 @@ interface BruteForce {
 }
 
 interface Account {
-  realmId: string;
+  tenantId: string;
   subjectId: string;
   username: string;
 }
 
-async function seedRealm(policy: BruteForce = {}): Promise<string> {
-  const realmId = newId();
-  await withRealm(app.db, realmId, async (tx) => {
-    await tx.insert(realms).values({
-      id: realmId,
-      name: `realm-${realmId}`,
+async function seedTenant(policy: BruteForce = {}): Promise<string> {
+  const tenantId = newId();
+  await withTenant(app.db, tenantId, async (tx) => {
+    await tx.insert(tenants).values({
+      id: tenantId,
+      name: `tenant-${tenantId}`,
       bruteForceMaxFailures: policy.maxFailures ?? 3,
       bruteForceLockoutSeconds: policy.lockoutSeconds ?? 60,
       bruteForceMaxLockoutSeconds: policy.maxLockoutSeconds ?? 240,
       bruteForceFailureResetSeconds: policy.failureResetSeconds ?? 3600,
     });
-    await provisionBrowserFlow(tx, realmId);
+    await provisionBrowserFlow(tx, tenantId);
   });
-  return realmId;
+  return tenantId;
 }
 
-async function seedUser(realmId: string, username: string): Promise<Account> {
-  const subjectId = await withRealm(app.db, realmId, async (tx) => {
-    const subject = await subjectRepository(tx).create({ realmId, type: 'user' });
-    await tx.insert(users).values({ subjectId: subject.id, realmId, username });
+async function seedUser(tenantId: string, username: string): Promise<Account> {
+  const subjectId = await withTenant(app.db, tenantId, async (tx) => {
+    const subject = await subjectRepository(tx).create({ tenantId, type: 'user' });
+    await tx.insert(users).values({ subjectId: subject.id, tenantId, username });
     await tx.insert(userCredentials).values({
       id: newId(),
-      realmId,
+      tenantId,
       subjectId: subject.id,
       type: 'password',
       secretData: { hash: await hashPassword(PASSWORD) },
     });
     return subject.id;
   });
-  return { realmId, subjectId, username };
+  return { tenantId, subjectId, username };
 }
 
 async function seedAccount(policy: BruteForce = {}): Promise<Account> {
-  return seedUser(await seedRealm(policy), 'ada');
+  return seedUser(await seedTenant(policy), 'ada');
 }
 
 function attempt(
-  account: Pick<Account, 'realmId' | 'username'>,
+  account: Pick<Account, 'tenantId' | 'username'>,
   password: string,
   clock: FakeClock,
   handle: DatabaseHandle = app,
 ): Promise<AdvanceOutcome> {
-  return withRealm(handle.db, account.realmId, async (tx) => {
-    const { authSessionId } = await startAuthentication(tx, account.realmId, request, clock);
+  return withTenant(handle.db, account.tenantId, async (tx) => {
+    const { authSessionId } = await startAuthentication(tx, account.tenantId, request, clock);
     return advance(tx, authSessionId, { username: account.username, password }, clock);
   });
 }
 
 function onRecord(account: Account): Promise<LoginFailureRecord> {
-  return withRealm(app.db, account.realmId, (tx) =>
+  return withTenant(app.db, account.tenantId, (tx) =>
     loginFailureRepository(tx).forSubject(account.subjectId),
   );
 }
@@ -233,11 +233,11 @@ describe('[RFC6749-2.3.1-03] repeated wrong passwords lock the account out', () 
     expect(await attempt(account, PASSWORD, clock, second)).toEqual(REFUSED);
   });
 
-  it('locks one subject out without touching another in the same realm', async () => {
+  it('locks one subject out without touching another in the same tenant', async () => {
     const clock = new FakeClock(START);
-    const realmId = await seedRealm();
-    const ada = await seedUser(realmId, 'ada');
-    const grace = await seedUser(realmId, 'grace');
+    const tenantId = await seedTenant();
+    const ada = await seedUser(tenantId, 'ada');
+    const grace = await seedUser(tenantId, 'grace');
 
     for (let i = 0; i < 3; i++) await attempt(ada, WRONG, clock);
 
@@ -260,7 +260,7 @@ describe('[RFC6749-2.3.1-03] repeated wrong passwords lock the account out', () 
     expect(await onRecord(account)).toMatchObject({ failureCount: 4 });
   });
 
-  it('forgets a run of failures after the realm quiet period, and starts again at one', async () => {
+  it('forgets a run of failures after the tenant quiet period, and starts again at one', async () => {
     const clock = new FakeClock(START);
     const account = await seedAccount();
     await attempt(account, WRONG, clock);
@@ -307,14 +307,14 @@ describe('an unknown username costs what a wrong password costs', () => {
   // transaction the login runs in and turn a refusal into a 500.
   it('refuses an unknown username without recording anything or raising', async () => {
     const clock = new FakeClock(START);
-    const realmId = await seedRealm();
-    await seedUser(realmId, 'ada');
+    const tenantId = await seedTenant();
+    await seedUser(tenantId, 'ada');
 
     for (let i = 0; i < 5; i++) {
-      expect(await attempt({ realmId, username: 'nobody' }, WRONG, clock)).toEqual(REFUSED);
+      expect(await attempt({ tenantId, username: 'nobody' }, WRONG, clock)).toEqual(REFUSED);
     }
 
-    const rows = await withRealm(app.db, realmId, (tx) =>
+    const rows = await withTenant(app.db, tenantId, (tx) =>
       tx.execute(sql`select count(*)::int as n from login_failures`),
     );
     expect((rows as unknown as { n: number }[])[0]?.n).toBe(0);
@@ -323,12 +323,12 @@ describe('an unknown username costs what a wrong password costs', () => {
   // A username nobody holds must not become a way to lock out somebody who
   // does: the counter is keyed by subject, so an unknown name has nowhere
   // to accumulate and the real account's own attempt still succeeds.
-  it('leaves the real accounts of the realm signable-into', async () => {
+  it('leaves the real accounts of the tenant signable-into', async () => {
     const clock = new FakeClock(START);
-    const realmId = await seedRealm();
-    const ada = await seedUser(realmId, 'ada');
+    const tenantId = await seedTenant();
+    const ada = await seedUser(tenantId, 'ada');
 
-    for (let i = 0; i < 5; i++) await attempt({ realmId, username: 'nobody' }, WRONG, clock);
+    for (let i = 0; i < 5; i++) await attempt({ tenantId, username: 'nobody' }, WRONG, clock);
 
     expect(await attempt(ada, PASSWORD, clock)).toMatchObject({ kind: 'success' });
   });

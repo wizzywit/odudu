@@ -1,12 +1,12 @@
 import {
   createDatabase,
   MIGRATIONS_DIR,
-  realms,
+  tenants,
   runMigrations,
   type DatabaseHandle,
-  type RealmScopedDatabase,
+  type TenantScopedDatabase,
 } from '@odudu/db';
-import { expectCrossRealmMethodProbe } from '@odudu/db/testing';
+import { expectCrossTenantMethodProbe } from '@odudu/db/testing';
 import { subjectRepository } from '@odudu/domain-identity';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
@@ -52,20 +52,20 @@ afterAll(async () => {
   await containerHandle?.stop();
 });
 
-async function seedRealm(tx: RealmScopedDatabase, realmId: string): Promise<void> {
-  await tx.insert(realms).values({ id: realmId, name: `realm-${realmId}` });
+async function seedTenant(tx: TenantScopedDatabase, tenantId: string): Promise<void> {
+  await tx.insert(tenants).values({ id: tenantId, name: `tenant-${tenantId}` });
 }
 
 describe('sessionRepository', () => {
-  it('cannot find a session by id under a different realm context', async () => {
-    await expectCrossRealmMethodProbe(app.db, {
-      seed: async (tx, realmId) => {
-        await seedRealm(tx, realmId);
-        const subject = await subjectRepository(tx).create({ realmId, type: 'user' });
+  it('cannot find a session by id under a different tenant context', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        await seedTenant(tx, tenantId);
+        const subject = await subjectRepository(tx).create({ tenantId, type: 'user' });
         const id = newId();
         await sessionRepository(tx).create({
           id,
-          realmId,
+          tenantId,
           subjectId: subject.id,
           expiresAt: new Date(Date.now() + 3_600_000),
           authenticators: [],
@@ -83,16 +83,16 @@ describe('sessionRepository', () => {
     });
   });
 
-  it('cannot end a session under a different realm context, and leaves it live', async () => {
+  it('cannot end a session under a different tenant context, and leaves it live', async () => {
     const originalExpiry = new Date(Date.now() + 3_600_000);
-    await expectCrossRealmMethodProbe(app.db, {
-      seed: async (tx, realmId) => {
-        await seedRealm(tx, realmId);
-        const subject = await subjectRepository(tx).create({ realmId, type: 'user' });
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        await seedTenant(tx, tenantId);
+        const subject = await subjectRepository(tx).create({ tenantId, type: 'user' });
         const id = newId();
         await sessionRepository(tx).create({
           id,
-          realmId,
+          tenantId,
           subjectId: subject.id,
           expiresAt: originalExpiry,
           authenticators: [],
@@ -105,11 +105,11 @@ describe('sessionRepository', () => {
       },
       attempt: async (tx, id) => sessionRepository(tx).end(id, new Date()),
       expectBlocked: () => {
-        // `end` is an UPDATE affecting zero rows under a foreign realm
+        // `end` is an UPDATE affecting zero rows under a foreign tenant
         // context, not a thrown error or a returned value to assert on —
-        // `verifyRealmAUnaffected` is where the blocking actually shows.
+        // `verifyTenantAUnaffected` is where the blocking actually shows.
       },
-      verifyRealmAUnaffected: async (tx, id) => {
+      verifyTenantAUnaffected: async (tx, id) => {
         const found = await sessionRepository(tx).byId(id);
         expect(found?.expiresAt).toEqual(originalExpiry);
       },
@@ -120,17 +120,17 @@ describe('sessionRepository', () => {
 describe('authenticationSessionRepository', () => {
   // `byId` is read twice per login attempt by the flow executor: once to
   // load the parked request and once after `consume` succeeds. `consume`
-  // being realm-scoped says nothing about the read that precedes it, which
+  // being tenant-scoped says nothing about the read that precedes it, which
   // is where the parked request — client_id, redirect_uri, scope, nonce —
-  // would leak across realms.
-  it('cannot find an authentication session by id under a different realm context', async () => {
-    await expectCrossRealmMethodProbe(app.db, {
-      seed: async (tx, realmId) => {
-        await seedRealm(tx, realmId);
+  // would leak across tenants.
+  it('cannot find an authentication session by id under a different tenant context', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        await seedTenant(tx, tenantId);
         const id = newId();
         await authenticationSessionRepository(tx).create({
           id,
-          realmId,
+          tenantId,
           pendingRequest: PENDING_REQUEST,
           expiresAt: new Date(Date.now() + 600_000),
         });
@@ -147,14 +147,14 @@ describe('authenticationSessionRepository', () => {
     });
   });
 
-  it('cannot consume an authentication session under a different realm context, and leaves it unconsumed', async () => {
-    await expectCrossRealmMethodProbe(app.db, {
-      seed: async (tx, realmId) => {
-        await seedRealm(tx, realmId);
+  it('cannot consume an authentication session under a different tenant context, and leaves it unconsumed', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        await seedTenant(tx, tenantId);
         const id = newId();
         await authenticationSessionRepository(tx).create({
           id,
-          realmId,
+          tenantId,
           pendingRequest: PENDING_REQUEST,
           expiresAt: new Date(Date.now() + 600_000),
         });
@@ -168,7 +168,7 @@ describe('authenticationSessionRepository', () => {
       expectBlocked: (result) => {
         expect(result).toBe(false);
       },
-      verifyRealmAUnaffected: async (tx, id) => {
+      verifyTenantAUnaffected: async (tx, id) => {
         const found = await authenticationSessionRepository(tx).byId(id);
         expect(found?.consumedAt).toBeNull();
       },

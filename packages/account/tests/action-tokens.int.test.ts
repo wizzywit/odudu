@@ -1,13 +1,13 @@
 import {
   createDatabase,
   MIGRATIONS_DIR,
-  realms,
+  tenants,
   runMigrations,
-  withRealm,
+  withTenant,
   type DatabaseHandle,
-  type RealmScopedDatabase,
+  type TenantScopedDatabase,
 } from '@odudu/db';
-import { expectCrossRealmMethodProbe } from '@odudu/db/testing';
+import { expectCrossTenantMethodProbe } from '@odudu/db/testing';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import { eq, sql } from 'drizzle-orm';
@@ -50,22 +50,22 @@ afterAll(async () => {
 // @odudu/account never imports @odudu/domain-identity, so a subject fixture
 // is inserted with raw SQL rather than through that package's repository —
 // the same idiom packages/domain-authz/tests/roles.int.test.ts uses.
-async function seedRealm(tx: RealmScopedDatabase, realmId: string): Promise<void> {
-  await tx.insert(realms).values({ id: realmId, name: `realm-${realmId}` });
+async function seedTenant(tx: TenantScopedDatabase, tenantId: string): Promise<void> {
+  await tx.insert(tenants).values({ id: tenantId, name: `tenant-${tenantId}` });
 }
 
-async function insertSubject(tx: RealmScopedDatabase, realmId: string): Promise<string> {
+async function insertSubject(tx: TenantScopedDatabase, tenantId: string): Promise<string> {
   const id = newId();
   await tx.execute(sql`
-    insert into subjects (id, realm_id, type) values (${id}, ${realmId}, 'user')
+    insert into subjects (id, tenant_id, type) values (${id}, ${tenantId}, 'user')
   `);
   return id;
 }
 
-// Scoped to the current test's own realm, so a row another test issued (and
+// Scoped to the current test's own tenant, so a row another test issued (and
 // never deleted, per ADR 0021) does not leak into this test's count.
 async function rawSelectAllActionTokens() {
-  return withRealm(app.db, realmId, (tx) =>
+  return withTenant(app.db, tenantId, (tx) =>
     tx
       .select({ tokenHash: actionTokens.tokenHash, consumedAt: actionTokens.consumedAt })
       .from(actionTokens),
@@ -76,23 +76,23 @@ async function rawSelectAllActionTokens() {
 // not any particular token type's exposure window.
 const TEST_TTL_SECONDS = 60 * 60;
 
-let realmId: string;
+let tenantId: string;
 let subject: string;
 
 beforeEach(async () => {
-  realmId = newId();
-  subject = await withRealm(app.db, realmId, async (tx) => {
-    await seedRealm(tx, realmId);
-    return insertSubject(tx, realmId);
+  tenantId = newId();
+  subject = await withTenant(app.db, tenantId, async (tx) => {
+    await seedTenant(tx, tenantId);
+    return insertSubject(tx, tenantId);
   });
 });
 
-async function issue(input: Omit<IssueActionToken, 'realmId'>): Promise<{ token: string }> {
-  return withRealm(app.db, realmId, (tx) => actionTokenRepository(tx).issue({ realmId, ...input }));
+async function issue(input: Omit<IssueActionToken, 'tenantId'>): Promise<{ token: string }> {
+  return withTenant(app.db, tenantId, (tx) => actionTokenRepository(tx).issue({ tenantId, ...input }));
 }
 
 async function consume(token: string, type: ActionTokenType) {
-  return withRealm(app.db, realmId, (tx) => actionTokenRepository(tx).consume(token, type));
+  return withTenant(app.db, tenantId, (tx) => actionTokenRepository(tx).consume(token, type));
 }
 
 // The driver only carries the fired policy's message on the query error's
@@ -203,7 +203,7 @@ describe('peek', () => {
       ttlSeconds: TEST_TTL_SECONDS,
     });
 
-    const peeked = await withRealm(app.db, realmId, (tx) => actionTokenRepository(tx).peek(token));
+    const peeked = await withTenant(app.db, tenantId, (tx) => actionTokenRepository(tx).peek(token));
     expect(peeked).toMatchObject({ subjectId: subject, type: 'reset_password' });
 
     // Still redeemable: peek must not have consumed it.
@@ -218,24 +218,24 @@ describe('peek', () => {
     });
     await consume(token, 'reset_password');
 
-    const peeked = await withRealm(app.db, realmId, (tx) => actionTokenRepository(tx).peek(token));
+    const peeked = await withTenant(app.db, tenantId, (tx) => actionTokenRepository(tx).peek(token));
     expect(peeked).toBeNull();
   });
 
   it('reports nothing for an expired token', async () => {
     const { token } = await issue({ subjectId: subject, type: 'reset_password', ttlSeconds: -1 });
 
-    const peeked = await withRealm(app.db, realmId, (tx) => actionTokenRepository(tx).peek(token));
+    const peeked = await withTenant(app.db, tenantId, (tx) => actionTokenRepository(tx).peek(token));
     expect(peeked).toBeNull();
   });
 
-  it('cannot see a token minted in another realm', async () => {
-    await expectCrossRealmMethodProbe(app.db, {
-      seed: async (tx, seedRealmId) => {
-        await seedRealm(tx, seedRealmId);
-        const seededSubject = await insertSubject(tx, seedRealmId);
+  it('cannot see a token minted in another tenant', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, seedTenantId) => {
+        await seedTenant(tx, seedTenantId);
+        const seededSubject = await insertSubject(tx, seedTenantId);
         const { token } = await actionTokenRepository(tx).issue({
-          realmId: seedRealmId,
+          tenantId: seedTenantId,
           subjectId: seededSubject,
           type: 'reset_password',
           ttlSeconds: TEST_TTL_SECONDS,
@@ -250,7 +250,7 @@ describe('peek', () => {
       expectBlocked: (result) => {
         expect(result).toBeNull();
       },
-      verifyRealmAUnaffected: async (tx, seeded) => {
+      verifyTenantAUnaffected: async (tx, seeded) => {
         const found = await actionTokenRepository(tx).peek(seeded.token);
         expect(found).toMatchObject({ subjectId: seeded.subjectId });
       },
@@ -278,7 +278,7 @@ describe('invalidateOutstanding', () => {
       ttlSeconds: TEST_TTL_SECONDS,
     });
 
-    await withRealm(app.db, realmId, (tx) =>
+    await withTenant(app.db, tenantId, (tx) =>
       actionTokenRepository(tx).invalidateOutstanding(subject, 'reset_password'),
     );
 
@@ -298,7 +298,7 @@ describe('invalidateOutstanding', () => {
     const consumedAt = (await consume(token, 'reset_password'))?.consumedAt;
     if (consumedAt === undefined) throw new Error('token was not consumed');
 
-    await withRealm(app.db, realmId, (tx) =>
+    await withTenant(app.db, tenantId, (tx) =>
       actionTokenRepository(tx).invalidateOutstanding(subject, 'reset_password'),
     );
 
@@ -307,23 +307,23 @@ describe('invalidateOutstanding', () => {
     expect(row?.consumedAt).toEqual(consumedAt);
   });
 
-  it('does not touch another subject in the same realm', async () => {
-    const otherSubject = await withRealm(app.db, realmId, (tx) => insertSubject(tx, realmId));
+  it('does not touch another subject in the same tenant', async () => {
+    const otherSubject = await withTenant(app.db, tenantId, (tx) => insertSubject(tx, tenantId));
     const { token: mineToken } = await issue({
       subjectId: subject,
       type: 'reset_password',
       ttlSeconds: TEST_TTL_SECONDS,
     });
-    const { token: theirsToken } = await withRealm(app.db, realmId, (tx) =>
+    const { token: theirsToken } = await withTenant(app.db, tenantId, (tx) =>
       actionTokenRepository(tx).issue({
-        realmId,
+        tenantId,
         subjectId: otherSubject,
         type: 'reset_password',
         ttlSeconds: TEST_TTL_SECONDS,
       }),
     );
 
-    await withRealm(app.db, realmId, (tx) =>
+    await withTenant(app.db, tenantId, (tx) =>
       actionTokenRepository(tx).invalidateOutstanding(subject, 'reset_password'),
     );
 
@@ -333,13 +333,13 @@ describe('invalidateOutstanding', () => {
     });
   });
 
-  it("cannot invalidate another realm's outstanding tokens", async () => {
-    await expectCrossRealmMethodProbe(app.db, {
-      seed: async (tx, seedRealmId) => {
-        await seedRealm(tx, seedRealmId);
-        const seededSubject = await insertSubject(tx, seedRealmId);
+  it("cannot invalidate another tenant's outstanding tokens", async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, seedTenantId) => {
+        await seedTenant(tx, seedTenantId);
+        const seededSubject = await insertSubject(tx, seedTenantId);
         const { token } = await actionTokenRepository(tx).issue({
-          realmId: seedRealmId,
+          tenantId: seedTenantId,
           subjectId: seededSubject,
           type: 'reset_password',
           ttlSeconds: TEST_TTL_SECONDS,
@@ -354,10 +354,10 @@ describe('invalidateOutstanding', () => {
         actionTokenRepository(tx).invalidateOutstanding(seeded.subjectId, 'reset_password'),
       expectBlocked: () => {
         // invalidateOutstanding returns void; the assertion that matters is
-        // verifyRealmAUnaffected below — an UPDATE an RLS policy narrows to
+        // verifyTenantAUnaffected below — an UPDATE an RLS policy narrows to
         // zero rows still "succeeds" with nothing touched.
       },
-      verifyRealmAUnaffected: async (tx, seeded) => {
+      verifyTenantAUnaffected: async (tx, seeded) => {
         const found = await actionTokenRepository(tx).peek(seeded.token);
         expect(found).not.toBeNull();
       },
@@ -365,14 +365,14 @@ describe('invalidateOutstanding', () => {
   });
 });
 
-describe('realm isolation', () => {
-  it('cannot consume a token minted in another realm, and leaves it unconsumed', async () => {
-    await expectCrossRealmMethodProbe(app.db, {
-      seed: async (tx, seedRealmId) => {
-        await seedRealm(tx, seedRealmId);
-        const seededSubject = await insertSubject(tx, seedRealmId);
+describe('tenant isolation', () => {
+  it('cannot consume a token minted in another tenant, and leaves it unconsumed', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, seedTenantId) => {
+        await seedTenant(tx, seedTenantId);
+        const seededSubject = await insertSubject(tx, seedTenantId);
         const { token } = await actionTokenRepository(tx).issue({
-          realmId: seedRealmId,
+          tenantId: seedTenantId,
           subjectId: seededSubject,
           type: 'verify_email',
           ttlSeconds: TEST_TTL_SECONDS,
@@ -390,7 +390,7 @@ describe('realm isolation', () => {
       expectBlocked: (result) => {
         expect(result).toBeNull();
       },
-      verifyRealmAUnaffected: async (tx, token) => {
+      verifyTenantAUnaffected: async (tx, token) => {
         const rows = await tx
           .select({ consumedAt: actionTokens.consumedAt })
           .from(actionTokens)
@@ -400,26 +400,26 @@ describe('realm isolation', () => {
     });
   });
 
-  // `issue` takes realmId as a parameter the same way roleRepository.create
+  // `issue` takes tenantId as a parameter the same way roleRepository.create
   // and groupRepository.create do, and both of those are probed for exactly
-  // this: a caller connected under one realm cannot mint a row claiming
+  // this: a caller connected under one tenant cannot mint a row claiming
   // another's id. This is also the only test that exercises
   // action_tokens_isolation's WITH CHECK on an INSERT — every other probe in
-  // this file only ever reads under a foreign realm.
-  it('refuses to issue a token claiming another realm’s id, and leaves that realm untouched', async () => {
-    const realmA = newId();
-    const realmB = newId();
-    const subjectA = await withRealm(app.db, realmA, async (tx) => {
-      await seedRealm(tx, realmA);
-      return insertSubject(tx, realmA);
+  // this file only ever reads under a foreign tenant.
+  it('refuses to issue a token claiming another tenant’s id, and leaves that tenant untouched', async () => {
+    const tenantA = newId();
+    const tenantB = newId();
+    const subjectA = await withTenant(app.db, tenantA, async (tx) => {
+      await seedTenant(tx, tenantA);
+      return insertSubject(tx, tenantA);
     });
-    await withRealm(app.db, realmB, (tx) => seedRealm(tx, realmB));
+    await withTenant(app.db, tenantB, (tx) => seedTenant(tx, tenantB));
 
     expect(
       await causeMessage(
-        withRealm(app.db, realmB, (tx) =>
+        withTenant(app.db, tenantB, (tx) =>
           actionTokenRepository(tx).issue({
-            realmId: realmA,
+            tenantId: tenantA,
             subjectId: subjectA,
             type: 'verify_email',
             ttlSeconds: TEST_TTL_SECONDS,
@@ -428,7 +428,7 @@ describe('realm isolation', () => {
       ),
     ).toMatch(/row-level security/i);
 
-    const rows = await withRealm(app.db, realmA, (tx) =>
+    const rows = await withTenant(app.db, tenantA, (tx) =>
       tx.select({ tokenHash: actionTokens.tokenHash }).from(actionTokens),
     );
     expect(rows).toHaveLength(0);

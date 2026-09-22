@@ -1,7 +1,7 @@
-import { withRealm, type DatabaseHandle, type RealmScopedDatabase } from '@odudu/db';
+import { withTenant, type DatabaseHandle, type TenantScopedDatabase } from '@odudu/db';
 import { outboxRepository, renderResetPassword } from '@odudu/email';
 import { actionTokenRepository } from '#/repository/action-tokens';
-import { type PasswordPolicy, type PolicyViolation } from '#/repository/realm-settings';
+import { type PasswordPolicy, type PolicyViolation } from '#/repository/tenant-settings';
 import { RESET_PASSWORD_TTL_SECONDS } from '#/usecase/verify-email';
 
 // Re-exported so the view layer can reach these without importing the
@@ -12,9 +12,9 @@ export type { PasswordPolicy, PolicyViolation };
 
 export interface RequestPasswordResetDeps {
   readonly database: DatabaseHandle;
-  readonly realmId: string;
-  readonly realmName: string;
-  readonly realmDisplayName: string;
+  readonly tenantId: string;
+  readonly tenantName: string;
+  readonly tenantDisplayName: string;
   // Never derived from the request that reached this usecase: see
   // #/view/routes/registration.ts for why a request header cannot be
   // trusted with the contents of a mail sent to a third party.
@@ -28,7 +28,7 @@ export interface RequestPasswordResetDeps {
   // stored column, not necessarily byte-identical to what was submitted —
   // that is what the mail actually goes to.
   readonly findByEmail: (
-    tx: RealmScopedDatabase,
+    tx: TenantScopedDatabase,
     email: string,
   ) => Promise<{ subjectId: string; email: string } | null>;
 }
@@ -51,23 +51,23 @@ export async function requestPasswordReset(
     return { kind: 'misconfigured' };
   }
 
-  await withRealm(deps.database.db, deps.realmId, async (tx) => {
+  await withTenant(deps.database.db, deps.tenantId, async (tx) => {
     const user = await deps.findByEmail(tx, email);
     if (user === null) return;
     const { token } = await actionTokenRepository(tx).issue({
-      realmId: deps.realmId,
+      tenantId: deps.tenantId,
       subjectId: user.subjectId,
       type: 'reset_password',
       email: user.email,
       ttlSeconds: RESET_PASSWORD_TTL_SECONDS,
     });
-    const link = `${issuerBase}/realms/${deps.realmName}/login-actions/action-token?key=${encodeURIComponent(token)}`;
+    const link = `${issuerBase}/tenants/${deps.tenantName}/login-actions/action-token?key=${encodeURIComponent(token)}`;
     await outboxRepository(tx).enqueue({
-      realmId: deps.realmId,
+      realmId: deps.tenantId,
       ...renderResetPassword({
         to: user.email,
         link,
-        realmDisplayName: deps.realmDisplayName,
+        realmDisplayName: deps.tenantDisplayName,
       }),
     });
   });
@@ -77,18 +77,18 @@ export async function requestPasswordReset(
 
 export interface CompletePasswordResetDeps {
   readonly database: DatabaseHandle;
-  readonly realmId: string;
+  readonly tenantId: string;
   // Injected rather than imported, for the same reason
   // completeEmailVerification's getCurrentEmail and markVerified are:
   // @odudu/account never imports @odudu/domain-identity, where hashPassword
   // and the credentials table live. The composition root
   // (apps/server/src/app.ts) wires this to credentialRepository.setPassword.
   readonly setPassword: (
-    tx: RealmScopedDatabase,
+    tx: TenantScopedDatabase,
     subjectId: string,
     newPassword: string,
   ) => Promise<void>;
-  // The realm's own configured policy, and the username to check it
+  // The tenant's own configured policy, and the username to check it
   // against — injected for the reason setPassword is: @odudu/account never
   // imports @odudu/domain-identity, where users.username lives.
   readonly passwordPolicy: PasswordPolicy;
@@ -97,13 +97,13 @@ export interface CompletePasswordResetDeps {
     policy: PasswordPolicy,
     subject: { username: string; email: string | null },
   ) => PolicyViolation[];
-  readonly getUsername: (tx: RealmScopedDatabase, subjectId: string) => Promise<string>;
+  readonly getUsername: (tx: TenantScopedDatabase, subjectId: string) => Promise<string>;
   // The one policy rule no candidate decides on its own: whether it is the
   // password already in force. Injected as the violations to report rather
   // than as a predicate, for the reason setPassword is — the stored hash,
   // the verifier and the message all live in @odudu/domain-identity.
   readonly unchangedPasswordViolations: (
-    tx: RealmScopedDatabase,
+    tx: TenantScopedDatabase,
     subjectId: string,
     candidate: string,
   ) => Promise<PolicyViolation[]>;
@@ -111,7 +111,7 @@ export interface CompletePasswordResetDeps {
   // link, and must not be asked for a third password on their next login.
   // Injected because user_required_actions belongs to @odudu/authn-flows,
   // which @odudu/account does not depend on either.
-  readonly clearPasswordUpdateAction: (tx: RealmScopedDatabase, subjectId: string) => Promise<void>;
+  readonly clearPasswordUpdateAction: (tx: TenantScopedDatabase, subjectId: string) => Promise<void>;
 }
 
 export type CompletePasswordResetResult =
@@ -131,7 +131,7 @@ export async function completePasswordReset(
   key: string,
   newPassword: string,
 ): Promise<CompletePasswordResetResult> {
-  return withRealm(deps.database.db, deps.realmId, async (tx) => {
+  return withTenant(deps.database.db, deps.tenantId, async (tx) => {
     const peeked = await actionTokenRepository(tx).peek(key);
     if (peeked?.type !== 'reset_password') return { kind: 'invalid' };
 
@@ -143,7 +143,7 @@ export async function completePasswordReset(
     if (violations.length > 0) return { kind: 'invalid_password', violations };
 
     // Before the link is spent, for the same reason the rules above are:
-    // setting the password already in force restarts the realm's
+    // setting the password already in force restarts the tenant's
     // password_max_age_days on it, which would make an expired password
     // evadable by anybody who can read the account's mail.
     const unchanged = await deps.unchangedPasswordViolations(tx, peeked.subjectId, newPassword);

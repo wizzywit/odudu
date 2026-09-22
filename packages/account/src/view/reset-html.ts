@@ -4,8 +4,8 @@ import { escapeHtml, page } from '#/view/document';
 
 export { sendVerificationHtml as sendResetHtml };
 
-export function renderResetRequestForm(realm: string): RenderedPage {
-  const action = `/realms/${escapeHtml(realm)}/login-actions/reset-password`;
+export function renderResetRequestForm(tenant: string): RenderedPage {
+  const action = `/tenants/${escapeHtml(tenant)}/login-actions/reset-password`;
   return page(
     'Forgot your password?',
     `<form method="post" action="${action}">
@@ -34,8 +34,8 @@ export function renderResetRequestFailedPage(message: string): RenderedPage {
   );
 }
 
-export function renderResetPasswordForm(realm: string, key: string): RenderedPage {
-  const action = `/realms/${escapeHtml(realm)}/login-actions/action-token`;
+export function renderResetPasswordForm(tenant: string, key: string): RenderedPage {
+  const action = `/tenants/${escapeHtml(tenant)}/login-actions/action-token`;
   return page(
     'Choose a new password',
     `<form method="post" action="${action}">

@@ -1,6 +1,6 @@
 import { and, eq, isNull, sql } from 'drizzle-orm';
 import { z } from 'zod';
-import { type RealmScopedDatabase } from '@odudu/db';
+import { type TenantScopedDatabase } from '@odudu/db';
 import { isUuid } from '@odudu/kernel';
 import {
   authenticationSessions,
@@ -11,7 +11,7 @@ import {
 function toRecord(row: typeof authenticationSessions.$inferSelect): AuthenticationSessionRecord {
   return {
     id: row.id,
-    realmId: row.realmId,
+    tenantId: row.tenantId,
     pendingRequest: row.pendingRequest as PendingRequest,
     createdAt: row.createdAt,
     expiresAt: row.expiresAt,
@@ -30,7 +30,7 @@ const claimedChallengeRows = z.array(z.object({ challenge: z.string() }));
 
 export interface NewAuthenticationSession {
   id: string;
-  realmId: string;
+  tenantId: string;
   pendingRequest: PendingRequest;
   expiresAt: Date;
 }
@@ -38,7 +38,7 @@ export interface NewAuthenticationSession {
 // All persistence for the parked-request row, both for the executor's own
 // state-machine flow and for callers (logging, admin inspection, a future
 // "resend" path) that want the row without driving `advance`.
-export function authenticationSessionRepository(tx: RealmScopedDatabase) {
+export function authenticationSessionRepository(tx: TenantScopedDatabase) {
   return {
     // The first read on every path that resolves an attempt, and therefore
     // the one place worth a backstop: `id` normally arrives from a hidden

@@ -1,12 +1,12 @@
 import { boolean, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 import { tenants } from '@odudu/db';
 
-// realm_id is denormalized so this table's isolation policy needs no join to
-// subjects; the composite foreign key back to subjects(realm_id, id) — see
+// tenant_id is denormalized so this table's isolation policy needs no join to
+// subjects; the composite foreign key back to subjects(tenant_id, id) — see
 // packages/db/drizzle/0006_sessions.sql — is what stops the two disagreeing.
 export const sessions = pgTable('sessions', {
   id: uuid('id').primaryKey(),
-  realmId: uuid('tenant_id')
+  tenantId: uuid('tenant_id')
     .notNull()
     .references(() => tenants.id, { onDelete: 'cascade' }),
   subjectId: uuid('subject_id').notNull(),
@@ -26,7 +26,7 @@ export const sessions = pgTable('sessions', {
 
 export interface SessionRecord {
   id: string;
-  realmId: string;
+  tenantId: string;
   subjectId: string;
   createdAt: Date;
   expiresAt: Date;

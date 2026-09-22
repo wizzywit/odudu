@@ -1,11 +1,11 @@
 import {
   createDatabase,
   MIGRATIONS_DIR,
-  realms,
+  tenants,
   runMigrations,
-  withRealm,
+  withTenant,
   type DatabaseHandle,
-  type RealmScopedDatabase,
+  type TenantScopedDatabase,
 } from '@odudu/db';
 import {
   credentialRepository,
@@ -72,25 +72,25 @@ const request: PendingRequest = {
   codeChallengeMethod: 'S256',
 };
 
-async function seedRealm(
-  tx: RealmScopedDatabase,
-  realmId: string,
+async function seedTenant(
+  tx: TenantScopedDatabase,
+  tenantId: string,
   otpRequired = false,
 ): Promise<void> {
-  await tx.insert(realms).values({ id: realmId, name: `realm-${realmId}`, otpRequired });
-  await provisionBrowserFlow(tx, realmId);
+  await tx.insert(tenants).values({ id: tenantId, name: `tenant-${tenantId}`, otpRequired });
+  await provisionBrowserFlow(tx, tenantId);
 }
 
 async function seedUser(
-  tx: RealmScopedDatabase,
-  realmId: string,
+  tx: TenantScopedDatabase,
+  tenantId: string,
   username: string,
 ): Promise<string> {
-  const subject = await subjectRepository(tx).create({ realmId, type: 'user' });
-  await tx.insert(users).values({ subjectId: subject.id, realmId, username });
+  const subject = await subjectRepository(tx).create({ tenantId, type: 'user' });
+  await tx.insert(users).values({ subjectId: subject.id, tenantId, username });
   await tx.insert(userCredentials).values({
     id: newId(),
-    realmId,
+    tenantId,
     subjectId: subject.id,
     type: 'password',
     secretData: { hash: await hashPassword(PASSWORD) },
@@ -102,19 +102,19 @@ async function seedUser(
 // the assertions it signs later check against the public key this enrolment
 // actually stored.
 async function seedSubjectWithAPasskey(
-  realmId: string,
+  tenantId: string,
   options: { otpRequired?: boolean; signCount?: number } = {},
 ): Promise<{ subjectId: string; authenticator: SoftwareAuthenticator }> {
   const authenticator = softwareAuthenticator();
-  const subjectId = await withRealm(app.db, realmId, async (tx) => {
-    await seedRealm(tx, realmId, options.otpRequired ?? false);
-    const subject = await seedUser(tx, realmId, 'ada');
-    await requiredActionRepository(tx).add(realmId, subject, 'configure-passkey');
-    const { authSessionId } = await startAuthentication(tx, realmId, request);
+  const subjectId = await withTenant(app.db, tenantId, async (tx) => {
+    await seedTenant(tx, tenantId, options.otpRequired ?? false);
+    const subject = await seedUser(tx, tenantId, 'ada');
+    await requiredActionRepository(tx).add(tenantId, subject, 'configure-passkey');
+    const { authSessionId } = await startAuthentication(tx, tenantId, request);
     await authenticationSessionRepository(tx).bindSubject(authSessionId, subject);
     await authenticationSessionRepository(tx).setWebauthnChallenge(authSessionId, 'ZW5yb2wtbWU');
     const outcome = await completePasskeyEnrolment(tx, {
-      realmId,
+      tenantId,
       subjectId: subject,
       authSessionId,
       publicBaseUrl: PUBLIC_BASE_URL,
@@ -131,9 +131,9 @@ async function seedSubjectWithAPasskey(
   return { subjectId, authenticator };
 }
 
-function start(realmId: string): Promise<string> {
-  return withRealm(app.db, realmId, async (tx) => {
-    const { authSessionId } = await startAuthentication(tx, realmId, request);
+function start(tenantId: string): Promise<string> {
+  return withTenant(app.db, tenantId, async (tx) => {
+    const { authSessionId } = await startAuthentication(tx, tenantId, request);
     return authSessionId;
   });
 }
@@ -141,12 +141,12 @@ function start(realmId: string): Promise<string> {
 // What the passkey button does: ask for options, which parks a fresh
 // challenge on the attempt, then have the authenticator sign them.
 async function assertWithPasskey(
-  realmId: string,
+  tenantId: string,
   authSessionId: string,
   authenticator: SoftwareAuthenticator,
   signCount: number,
 ): Promise<unknown> {
-  const offer = await withRealm(app.db, realmId, (tx) =>
+  const offer = await withTenant(app.db, tenantId, (tx) =>
     beginPasskeyAuthentication(tx, { publicBaseUrl: PUBLIC_BASE_URL, authSessionId }),
   );
   return authenticator.assertion({
@@ -157,14 +157,14 @@ async function assertWithPasskey(
   });
 }
 
-function submit(realmId: string, authSessionId: string, assertion: unknown) {
-  return withRealm(app.db, realmId, (tx) =>
+function submit(tenantId: string, authSessionId: string, assertion: unknown) {
+  return withTenant(app.db, tenantId, (tx) =>
     advance(tx, authSessionId, { assertion }, undefined, { publicBaseUrl: PUBLIC_BASE_URL }),
   );
 }
 
-function storedCounter(realmId: string, subjectId: string): Promise<number | undefined> {
-  return withRealm(app.db, realmId, async (tx) => {
+function storedCounter(tenantId: string, subjectId: string): Promise<number | undefined> {
+  return withTenant(app.db, tenantId, async (tx) => {
     const [credential] = await credentialRepository(tx).listFor(subjectId, 'webauthn');
     return credential?.secret.kind === 'webauthn' ? credential.secret.counter : undefined;
   });
@@ -172,10 +172,10 @@ function storedCounter(realmId: string, subjectId: string): Promise<number | und
 
 describe('signing in with a passkey and no username', () => {
   it('offers a first step that asks for no assertion, so the page can offer both', async () => {
-    const realmId = newId();
-    await withRealm(app.db, realmId, (tx) => seedRealm(tx, realmId));
+    const tenantId = newId();
+    await withTenant(app.db, tenantId, (tx) => seedTenant(tx, tenantId));
 
-    const challenge = await withRealm(app.db, realmId, (tx) => initialChallenge(tx, realmId));
+    const challenge = await withTenant(app.db, tenantId, (tx) => initialChallenge(tx, tenantId));
 
     // The passkey execution comes first in the flow, but a group offers one
     // form at a time: with nothing submitted it falls through to the
@@ -184,82 +184,82 @@ describe('signing in with a passkey and no username', () => {
   });
 
   it('parks a fresh challenge on the attempt when options are asked for', async () => {
-    const realmId = newId();
-    await withRealm(app.db, realmId, (tx) => seedRealm(tx, realmId));
-    const authSessionId = await start(realmId);
+    const tenantId = newId();
+    await withTenant(app.db, tenantId, (tx) => seedTenant(tx, tenantId));
+    const authSessionId = await start(tenantId);
 
-    const offer = await withRealm(app.db, realmId, (tx) =>
+    const offer = await withTenant(app.db, tenantId, (tx) =>
       beginPasskeyAuthentication(tx, { publicBaseUrl: PUBLIC_BASE_URL, authSessionId }),
     );
 
     expect(offer.options.allowCredentials).toBeUndefined();
-    const record = await withRealm(app.db, realmId, (tx) =>
+    const record = await withTenant(app.db, tenantId, (tx) =>
       authenticationSessionRepository(tx).byId(authSessionId),
     );
     expect(record?.webauthnChallenge).toBe(offer.challenge);
   });
 
   it('resolves the subject from the assertion alone and completes the login', async () => {
-    const realmId = newId();
-    const { subjectId, authenticator } = await seedSubjectWithAPasskey(realmId, { signCount: 3 });
-    const authSessionId = await start(realmId);
-    const assertion = await assertWithPasskey(realmId, authSessionId, authenticator, 4);
+    const tenantId = newId();
+    const { subjectId, authenticator } = await seedSubjectWithAPasskey(tenantId, { signCount: 3 });
+    const authSessionId = await start(tenantId);
+    const assertion = await assertWithPasskey(tenantId, authSessionId, authenticator, 4);
 
-    const outcome = await submit(realmId, authSessionId, assertion);
+    const outcome = await submit(tenantId, authSessionId, assertion);
 
     expect(outcome).toEqual({ kind: 'success', subjectId, authenticators: ['passkey'] });
   });
 
   it('[WEBAUTHN2-7.2.21-01] advances the stored counter to what the authenticator reported', async () => {
-    const realmId = newId();
-    const { subjectId, authenticator } = await seedSubjectWithAPasskey(realmId, { signCount: 3 });
-    const authSessionId = await start(realmId);
-    const assertion = await assertWithPasskey(realmId, authSessionId, authenticator, 9);
+    const tenantId = newId();
+    const { subjectId, authenticator } = await seedSubjectWithAPasskey(tenantId, { signCount: 3 });
+    const authSessionId = await start(tenantId);
+    const assertion = await assertWithPasskey(tenantId, authSessionId, authenticator, 9);
 
-    await submit(realmId, authSessionId, assertion);
+    await submit(tenantId, authSessionId, assertion);
 
-    expect(await storedCounter(realmId, subjectId)).toBe(9);
+    expect(await storedCounter(tenantId, subjectId)).toBe(9);
   });
 
-  it('does not ask for a code after a passkey, even where the realm requires one', async () => {
-    const realmId = newId();
-    const { subjectId, authenticator } = await seedSubjectWithAPasskey(realmId, {
+  it('does not ask for a code after a passkey, even where the tenant requires one', async () => {
+    const tenantId = newId();
+    const { subjectId, authenticator } = await seedSubjectWithAPasskey(tenantId, {
       otpRequired: true,
       signCount: 1,
     });
-    const authSessionId = await start(realmId);
-    const assertion = await assertWithPasskey(realmId, authSessionId, authenticator, 2);
+    const authSessionId = await start(tenantId);
+    const assertion = await assertWithPasskey(tenantId, authSessionId, authenticator, 2);
 
-    const outcome = await submit(realmId, authSessionId, assertion);
+    const outcome = await submit(tenantId, authSessionId, assertion);
 
-    // A passkey is two factors on its own, so the realm's floor is already
+    // A passkey is two factors on its own, so the tenant's floor is already
     // met: no otp step, and no configure-totp owed for not having one.
     expect(outcome).toEqual({ kind: 'success', subjectId, authenticators: ['passkey'] });
-    const owed = await withRealm(app.db, realmId, (tx) =>
+    const owed = await withTenant(app.db, tenantId, (tx) =>
       requiredActionRepository(tx).pendingFor(subjectId),
     );
     expect(owed).not.toContain('configure-totp');
   });
 
   it('[WEBAUTHN2-7.2.21-02] refuses an assertion whose counter did not advance', async () => {
-    const realmId = newId();
-    const { authenticator } = await seedSubjectWithAPasskey(realmId, { signCount: 6 });
-    const authSessionId = await start(realmId);
-    const assertion = await assertWithPasskey(realmId, authSessionId, authenticator, 6);
+    const tenantId = newId();
+    const { authenticator } = await seedSubjectWithAPasskey(tenantId, { signCount: 6 });
+    const authSessionId = await start(tenantId);
+    const assertion = await assertWithPasskey(tenantId, authSessionId, authenticator, 6);
 
-    const outcome = await submit(realmId, authSessionId, assertion);
+    const outcome = await submit(tenantId, authSessionId, assertion);
 
     expect(outcome).toEqual({ kind: 'failure', reason: 'invalid_credentials' });
   });
 
   it('refuses a replay of an assertion that already signed somebody in', async () => {
-    const realmId = newId();
-    const { authenticator } = await seedSubjectWithAPasskey(realmId, { signCount: 1 });
-    const authSessionId = await start(realmId);
-    const assertion = await assertWithPasskey(realmId, authSessionId, authenticator, 2);
+    const tenantId = newId();
+    const { authenticator } = await seedSubjectWithAPasskey(tenantId, { signCount: 1 });
+    const authSessionId = await start(tenantId);
+    const assertion = await assertWithPasskey(tenantId, authSessionId, authenticator, 2);
 
-    const first = await submit(realmId, authSessionId, assertion);
-    const second = await submit(realmId, authSessionId, assertion);
+    const first = await submit(tenantId, authSessionId, assertion);
+    const second = await submit(tenantId, authSessionId, assertion);
 
     expect(first.kind).toBe('success');
     // The challenge was read and cleared in one statement by the first
@@ -267,17 +267,17 @@ describe('signing in with a passkey and no username', () => {
     expect(second).toEqual({ kind: 'failure', reason: 'invalid_credentials' });
   });
 
-  it('refuses an assertion for a credential enrolled in another realm', async () => {
-    const realmA = newId();
-    const realmB = newId();
-    const { authenticator } = await seedSubjectWithAPasskey(realmA, { signCount: 1 });
-    await withRealm(app.db, realmB, (tx) => seedRealm(tx, realmB));
-    const authSessionId = await start(realmB);
-    const assertion = await assertWithPasskey(realmB, authSessionId, authenticator, 2);
+  it('refuses an assertion for a credential enrolled in another tenant', async () => {
+    const tenantA = newId();
+    const tenantB = newId();
+    const { authenticator } = await seedSubjectWithAPasskey(tenantA, { signCount: 1 });
+    await withTenant(app.db, tenantB, (tx) => seedTenant(tx, tenantB));
+    const authSessionId = await start(tenantB);
+    const assertion = await assertWithPasskey(tenantB, authSessionId, authenticator, 2);
 
-    const outcome = await submit(realmB, authSessionId, assertion);
+    const outcome = await submit(tenantB, authSessionId, assertion);
 
-    // byLookupKey is realm-scoped by RLS, so realm A's credential resolves
+    // byLookupKey is tenant-scoped by RLS, so tenant A's credential resolves
     // to nothing here rather than to somebody else's subject.
     expect(outcome).toEqual({ kind: 'failure', reason: 'invalid_credentials' });
   });
@@ -289,11 +289,11 @@ describe('signing in with a passkey and no username', () => {
   // assertion takes the group's turn and is refused rather than skipping
   // anything.
   it('[WEBAUTHN2-7.2.22-01] refuses a junk assertion rather than letting the password beside it through', async () => {
-    const realmId = newId();
-    await seedSubjectWithAPasskey(realmId);
-    const authSessionId = await start(realmId);
+    const tenantId = newId();
+    await seedSubjectWithAPasskey(tenantId);
+    const authSessionId = await start(tenantId);
 
-    const outcome = await withRealm(app.db, realmId, (tx) =>
+    const outcome = await withTenant(app.db, tenantId, (tx) =>
       advance(tx, authSessionId, {
         username: 'ada',
         password: PASSWORD,
@@ -305,11 +305,11 @@ describe('signing in with a passkey and no username', () => {
   });
 
   it('leaves the password path alone: no assertion, no passkey step', async () => {
-    const realmId = newId();
-    const { subjectId } = await seedSubjectWithAPasskey(realmId);
-    const authSessionId = await start(realmId);
+    const tenantId = newId();
+    const { subjectId } = await seedSubjectWithAPasskey(tenantId);
+    const authSessionId = await start(tenantId);
 
-    const outcome = await withRealm(app.db, realmId, (tx) =>
+    const outcome = await withTenant(app.db, tenantId, (tx) =>
       advance(tx, authSessionId, { username: 'ada', password: PASSWORD }),
     );
 

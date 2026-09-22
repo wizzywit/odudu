@@ -1,11 +1,11 @@
-import { type RealmScopedDatabase } from '@odudu/db';
+import { type TenantScopedDatabase } from '@odudu/db';
 import { credentialRepository, hashPassword } from '@odudu/domain-identity';
 import { requiredActionRepository } from '#/repository/required-actions';
 import { generateRecoveryCodes, normaliseRecoveryCode } from '#/service/authenticators/recovery';
 import { type RecoveryCodesOffer } from '#/view/recovery-codes-html';
 
 export interface IssueRecoveryCodes {
-  realmId: string;
+  tenantId: string;
   subjectId: string;
 }
 
@@ -15,7 +15,7 @@ export interface IssueRecoveryCodes {
 // that renders it is not re-renderable — a reload re-enters this function
 // and issues a different ten, replacing the set it just displayed.
 export async function beginRecoveryCodes(
-  tx: RealmScopedDatabase,
+  tx: TenantScopedDatabase,
   input: IssueRecoveryCodes,
 ): Promise<RecoveryCodesOffer> {
   const codes = generateRecoveryCodes();
@@ -28,7 +28,7 @@ export async function beginRecoveryCodes(
   const replaced = await repository.deleteRecoveryCodes(input.subjectId);
   for (const hash of hashes) {
     await repository.insert({
-      realmId: input.realmId,
+      tenantId: input.tenantId,
       subjectId: input.subjectId,
       type: 'recovery-code',
       secret: { kind: 'recovery-code', hash },
@@ -45,7 +45,7 @@ export type RecoveryCodesOutcome =
 // owes the action, and the next login issues a fresh set rather than
 // leaving them with ten codes they never saw.
 export async function completeRecoveryCodes(
-  tx: RealmScopedDatabase,
+  tx: TenantScopedDatabase,
   input: { subjectId: string },
 ): Promise<RecoveryCodesOutcome> {
   const held = await credentialRepository(tx).listFor(input.subjectId, 'recovery-code');
@@ -61,11 +61,11 @@ export async function completeRecoveryCodes(
 // replay can be refused as spent (ADR 0021), so a subject who has used all
 // ten still holds ten, and a guard counting rows leaves them owing nothing.
 export async function oweRecoveryCodesIfNoneUnspent(
-  tx: RealmScopedDatabase,
-  realmId: string,
+  tx: TenantScopedDatabase,
+  tenantId: string,
   subjectId: string,
 ): Promise<void> {
   const usable = await credentialRepository(tx).countUnspentRecoveryCodes(subjectId);
   if (usable > 0) return;
-  await requiredActionRepository(tx).add(realmId, subjectId, 'generate-recovery-codes');
+  await requiredActionRepository(tx).add(tenantId, subjectId, 'generate-recovery-codes');
 }

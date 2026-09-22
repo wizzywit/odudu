@@ -2,13 +2,13 @@ import { totpCode, totpCounter } from '@odudu/crypto';
 import {
   createDatabase,
   MIGRATIONS_DIR,
-  realms,
+  tenants,
   runMigrations,
-  withRealm,
+  withTenant,
   type DatabaseHandle,
-  type RealmScopedDatabase,
+  type TenantScopedDatabase,
 } from '@odudu/db';
-import { expectCrossRealmMethodProbe } from '@odudu/db/testing';
+import { expectCrossTenantMethodProbe } from '@odudu/db/testing';
 import {
   credentialRepository,
   hashPassword,
@@ -21,7 +21,7 @@ import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/test
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { authenticationSessionRepository } from '#/repository/authentication-sessions';
-import { realmSettingsRepository } from '#/repository/realm-settings';
+import { tenantSettingsRepository } from '#/repository/tenant-settings';
 import { requiredActionRepository } from '#/repository/required-actions';
 import { authenticationSessions, type PendingRequest } from '#/schema/authentication-sessions';
 import {
@@ -81,25 +81,25 @@ function clockAt(offsetMs = 0): FakeClock {
   return new FakeClock(new Date(Date.UTC(2031, 0, 1) + offsetMs));
 }
 
-async function seedRealm(
-  tx: RealmScopedDatabase,
-  realmId: string,
+async function seedTenant(
+  tx: TenantScopedDatabase,
+  tenantId: string,
   otpRequired: boolean,
 ): Promise<void> {
-  await tx.insert(realms).values({ id: realmId, name: `realm-${realmId}`, otpRequired });
-  await provisionBrowserFlow(tx, realmId);
+  await tx.insert(tenants).values({ id: tenantId, name: `tenant-${tenantId}`, otpRequired });
+  await provisionBrowserFlow(tx, tenantId);
 }
 
 async function seedUser(
-  tx: RealmScopedDatabase,
-  realmId: string,
+  tx: TenantScopedDatabase,
+  tenantId: string,
   username: string,
 ): Promise<string> {
-  const subject = await subjectRepository(tx).create({ realmId, type: 'user' });
-  await tx.insert(users).values({ subjectId: subject.id, realmId, username });
+  const subject = await subjectRepository(tx).create({ tenantId, type: 'user' });
+  await tx.insert(users).values({ subjectId: subject.id, tenantId, username });
   await tx.insert(userCredentials).values({
     id: newId(),
-    realmId,
+    tenantId,
     subjectId: subject.id,
     type: 'password',
     secretData: { hash: await hashPassword(PASSWORD) },
@@ -108,18 +108,18 @@ async function seedUser(
 }
 
 async function enrol(
-  realmId: string,
+  tenantId: string,
   subjectId: string,
   clock: FakeClock,
 ): Promise<{ secret: string }> {
-  const offer = await withRealm(app.db, realmId, (tx) =>
-    beginTotpEnrolment(tx, `realm-${realmId}`, subjectId),
+  const offer = await withTenant(app.db, tenantId, (tx) =>
+    beginTotpEnrolment(tx, `tenant-${tenantId}`, subjectId),
   );
-  const outcome = await withRealm(app.db, realmId, (tx) =>
+  const outcome = await withTenant(app.db, tenantId, (tx) =>
     completeTotpEnrolment(
       tx,
       {
-        realmId,
+        tenantId,
         subjectId,
         secret: offer.secret,
         code: totpCode(offer.secret, totpCounter(clock.now())),
@@ -131,53 +131,53 @@ async function enrol(
   return { secret: offer.secret };
 }
 
-function start(realmId: string, clock: FakeClock): Promise<string> {
-  return withRealm(app.db, realmId, async (tx) => {
-    const { authSessionId } = await startAuthentication(tx, realmId, request, clock);
+function start(tenantId: string, clock: FakeClock): Promise<string> {
+  return withTenant(app.db, tenantId, async (tx) => {
+    const { authSessionId } = await startAuthentication(tx, tenantId, request, clock);
     return authSessionId;
   });
 }
 
-describe('a realm that requires a second factor collects it as a required action', () => {
+describe('a tenant that requires a second factor collects it as a required action', () => {
   it('authenticates a subject with no credential, and owes them configure-totp', async () => {
-    const realmId = newId();
+    const tenantId = newId();
     const clock = clockAt();
-    const subjectId = await withRealm(app.db, realmId, async (tx) => {
-      await seedRealm(tx, realmId, true);
-      return seedUser(tx, realmId, 'ada');
+    const subjectId = await withTenant(app.db, tenantId, async (tx) => {
+      await seedTenant(tx, tenantId, true);
+      return seedUser(tx, tenantId, 'ada');
     });
-    const authSessionId = await start(realmId, clock);
+    const authSessionId = await start(tenantId, clock);
 
     // No code is asked for: a subject with nothing enrolled could not
     // produce one, and the flow would park forever if it asked.
-    const outcome = await withRealm(app.db, realmId, (tx) =>
+    const outcome = await withTenant(app.db, tenantId, (tx) =>
       advance(tx, authSessionId, { username: 'ada', password: PASSWORD }, clock),
     );
     expect(outcome).toEqual({ kind: 'success', subjectId, authenticators: ['password'] });
 
-    const pending = await withRealm(app.db, realmId, (tx) =>
+    const pending = await withTenant(app.db, tenantId, (tx) =>
       requiredActionRepository(tx).pendingFor(subjectId),
     );
     expect(nextRequiredAction(pending)).toBe('configure-totp');
   });
 
   it('asks for a code on the next login once the subject has enrolled', async () => {
-    const realmId = newId();
+    const tenantId = newId();
     const clock = clockAt();
-    const subjectId = await withRealm(app.db, realmId, async (tx) => {
-      await seedRealm(tx, realmId, true);
-      return seedUser(tx, realmId, 'ada');
+    const subjectId = await withTenant(app.db, tenantId, async (tx) => {
+      await seedTenant(tx, tenantId, true);
+      return seedUser(tx, tenantId, 'ada');
     });
 
-    const blocked = await start(realmId, clock);
-    await withRealm(app.db, realmId, (tx) =>
+    const blocked = await start(tenantId, clock);
+    await withTenant(app.db, tenantId, (tx) =>
       advance(tx, blocked, { username: 'ada', password: PASSWORD }, clock),
     );
 
-    const { secret } = await enrol(realmId, subjectId, clock);
+    const { secret } = await enrol(tenantId, subjectId, clock);
     // configure-totp is satisfied; what the enrolment leaves behind is the
     // recovery path for the factor it just created.
-    const stillOwed = await withRealm(app.db, realmId, (tx) =>
+    const stillOwed = await withTenant(app.db, tenantId, (tx) =>
       requiredActionRepository(tx).pendingFor(subjectId),
     );
     expect(nextRequiredAction(stillOwed)).toBe('generate-recovery-codes');
@@ -185,13 +185,13 @@ describe('a realm that requires a second factor collects it as a required action
     // The enrolment's own code is spent by the credential it created, so a
     // step has to pass before the next login can use one (RFC 6238 §5.2).
     clock.advance(31_000);
-    const authSessionId = await start(realmId, clock);
-    const challenge = await withRealm(app.db, realmId, (tx) =>
+    const authSessionId = await start(tenantId, clock);
+    const challenge = await withTenant(app.db, tenantId, (tx) =>
       advance(tx, authSessionId, { username: 'ada', password: PASSWORD }, clock),
     );
     expect(challenge).toEqual({ kind: 'challenge', form: 'otp' });
 
-    const completed = await withRealm(app.db, realmId, (tx) =>
+    const completed = await withTenant(app.db, tenantId, (tx) =>
       advance(tx, authSessionId, { code: totpCode(secret, totpCounter(clock.now())) }, clock),
     );
     expect(completed).toEqual({
@@ -202,43 +202,43 @@ describe('a realm that requires a second factor collects it as a required action
   });
 
   it('refuses the enrolment when the confirming code does not match', async () => {
-    const realmId = newId();
+    const tenantId = newId();
     const clock = clockAt();
-    const subjectId = await withRealm(app.db, realmId, async (tx) => {
-      await seedRealm(tx, realmId, true);
-      return seedUser(tx, realmId, 'ada');
+    const subjectId = await withTenant(app.db, tenantId, async (tx) => {
+      await seedTenant(tx, tenantId, true);
+      return seedUser(tx, tenantId, 'ada');
     });
 
-    const offer = await withRealm(app.db, realmId, (tx) =>
-      beginTotpEnrolment(tx, `realm-${realmId}`, subjectId),
+    const offer = await withTenant(app.db, tenantId, (tx) =>
+      beginTotpEnrolment(tx, `tenant-${tenantId}`, subjectId),
     );
-    const outcome = await withRealm(app.db, realmId, (tx) =>
+    const outcome = await withTenant(app.db, tenantId, (tx) =>
       completeTotpEnrolment(
         tx,
-        { realmId, subjectId, secret: offer.secret, code: '000000' },
+        { tenantId, subjectId, secret: offer.secret, code: '000000' },
         clock,
       ),
     );
 
     expect(outcome).toEqual({ kind: 'rejected', reason: 'invalid_code' });
-    const stored = await withRealm(app.db, realmId, (tx) =>
+    const stored = await withTenant(app.db, tenantId, (tx) =>
       credentialRepository(tx).listFor(subjectId, 'totp'),
     );
     expect(stored).toEqual([]);
   });
 
-  it('still asks a subject who enrolled before the realm required it', async () => {
-    const realmId = newId();
+  it('still asks a subject who enrolled before the tenant required it', async () => {
+    const tenantId = newId();
     const clock = clockAt();
-    const subjectId = await withRealm(app.db, realmId, async (tx) => {
-      await seedRealm(tx, realmId, false);
-      return seedUser(tx, realmId, 'ada');
+    const subjectId = await withTenant(app.db, tenantId, async (tx) => {
+      await seedTenant(tx, tenantId, false);
+      return seedUser(tx, tenantId, 'ada');
     });
-    await enrol(realmId, subjectId, clock);
+    await enrol(tenantId, subjectId, clock);
     clock.advance(31_000);
 
-    const authSessionId = await start(realmId, clock);
-    const challenge = await withRealm(app.db, realmId, (tx) =>
+    const authSessionId = await start(tenantId, clock);
+    const challenge = await withTenant(app.db, tenantId, (tx) =>
       advance(tx, authSessionId, { username: 'ada', password: PASSWORD }, clock),
     );
 
@@ -246,16 +246,16 @@ describe('a realm that requires a second factor collects it as a required action
   });
 
   it('asks nobody for a code before anybody has said who they are', async () => {
-    const realmId = newId();
+    const tenantId = newId();
     const clock = clockAt();
-    const subjectId = await withRealm(app.db, realmId, async (tx) => {
-      await seedRealm(tx, realmId, true);
-      return seedUser(tx, realmId, 'ada');
+    const subjectId = await withTenant(app.db, tenantId, async (tx) => {
+      await seedTenant(tx, tenantId, true);
+      return seedUser(tx, tenantId, 'ada');
     });
-    await enrol(realmId, subjectId, clock);
+    await enrol(tenantId, subjectId, clock);
 
-    const challenge = await withRealm(app.db, realmId, (tx) =>
-      initialChallenge(tx, realmId, clock),
+    const challenge = await withTenant(app.db, tenantId, (tx) =>
+      initialChallenge(tx, tenantId, clock),
     );
 
     expect(challenge).toEqual({ kind: 'challenge', form: 'password' });
@@ -264,30 +264,30 @@ describe('a realm that requires a second factor collects it as a required action
 
 describe('a factor with work left after it is written down, and one that finishes is not', () => {
   it('records password as satisfied when an otp step follows it', async () => {
-    const realmId = newId();
+    const tenantId = newId();
     const clock = clockAt();
-    const subjectId = await withRealm(app.db, realmId, async (tx) => {
-      await seedRealm(tx, realmId, false);
-      return seedUser(tx, realmId, 'ada');
+    const subjectId = await withTenant(app.db, tenantId, async (tx) => {
+      await seedTenant(tx, tenantId, false);
+      return seedUser(tx, tenantId, 'ada');
     });
-    const { secret } = await enrol(realmId, subjectId, clock);
+    const { secret } = await enrol(tenantId, subjectId, clock);
     clock.advance(31_000);
 
-    const authSessionId = await start(realmId, clock);
-    await withRealm(app.db, realmId, (tx) =>
+    const authSessionId = await start(tenantId, clock);
+    await withTenant(app.db, tenantId, (tx) =>
       advance(tx, authSessionId, { username: 'ada', password: PASSWORD }, clock),
     );
 
     // Without this write, the next submission — which carries a code and no
     // password — would find nothing satisfied and be asked for the password
     // all over again.
-    const afterPassword = await withRealm(app.db, realmId, (tx) =>
+    const afterPassword = await withTenant(app.db, tenantId, (tx) =>
       authenticationSessionRepository(tx).byId(authSessionId),
     );
     expect(afterPassword?.satisfied).toEqual(['password']);
     expect(afterPassword?.subjectId).toBe(subjectId);
 
-    const completed = await withRealm(app.db, realmId, (tx) =>
+    const completed = await withTenant(app.db, tenantId, (tx) =>
       advance(tx, authSessionId, { code: totpCode(secret, totpCounter(clock.now())) }, clock),
     );
     expect(completed).toEqual({
@@ -298,38 +298,38 @@ describe('a factor with work left after it is written down, and one that finishe
 
     // otp finished the login, so it is not written down: a retry after a
     // refusal downstream has to present a code again.
-    const afterOtp = await withRealm(app.db, realmId, (tx) =>
+    const afterOtp = await withTenant(app.db, tenantId, (tx) =>
       authenticationSessionRepository(tx).byId(authSessionId),
     );
     expect(afterOtp?.satisfied).toEqual(['password']);
   });
 
   it('re-challenges otp alone after a wrong code, leaving the password satisfied', async () => {
-    const realmId = newId();
+    const tenantId = newId();
     const clock = clockAt();
-    const subjectId = await withRealm(app.db, realmId, async (tx) => {
-      await seedRealm(tx, realmId, false);
-      return seedUser(tx, realmId, 'ada');
+    const subjectId = await withTenant(app.db, tenantId, async (tx) => {
+      await seedTenant(tx, tenantId, false);
+      return seedUser(tx, tenantId, 'ada');
     });
-    const { secret } = await enrol(realmId, subjectId, clock);
+    const { secret } = await enrol(tenantId, subjectId, clock);
     clock.advance(31_000);
 
-    const authSessionId = await start(realmId, clock);
-    await withRealm(app.db, realmId, (tx) =>
+    const authSessionId = await start(tenantId, clock);
+    await withTenant(app.db, tenantId, (tx) =>
       advance(tx, authSessionId, { username: 'ada', password: PASSWORD }, clock),
     );
 
-    const wrong = await withRealm(app.db, realmId, (tx) =>
+    const wrong = await withTenant(app.db, tenantId, (tx) =>
       advance(tx, authSessionId, { code: '000000' }, clock),
     );
     expect(wrong).toEqual({ kind: 'failure', reason: 'invalid_credentials' });
 
-    const still = await withRealm(app.db, realmId, (tx) =>
+    const still = await withTenant(app.db, tenantId, (tx) =>
       pendingChallenge(tx, authSessionId, clock),
     );
     expect(still).toEqual({ kind: 'challenge', form: 'otp' });
 
-    const completed = await withRealm(app.db, realmId, (tx) =>
+    const completed = await withTenant(app.db, tenantId, (tx) =>
       advance(tx, authSessionId, { code: totpCode(secret, totpCounter(clock.now())) }, clock),
     );
     expect(completed).toEqual({
@@ -343,31 +343,31 @@ describe('a factor with work left after it is written down, and one that finishe
   // holds half of that; spending the step on the credential is the half
   // this flow owes it.
   it('refuses the same code a second time', async () => {
-    const realmId = newId();
+    const tenantId = newId();
     const clock = clockAt();
-    const subjectId = await withRealm(app.db, realmId, async (tx) => {
-      await seedRealm(tx, realmId, false);
-      return seedUser(tx, realmId, 'ada');
+    const subjectId = await withTenant(app.db, tenantId, async (tx) => {
+      await seedTenant(tx, tenantId, false);
+      return seedUser(tx, tenantId, 'ada');
     });
-    const { secret } = await enrol(realmId, subjectId, clock);
+    const { secret } = await enrol(tenantId, subjectId, clock);
     clock.advance(31_000);
     const code = totpCode(secret, totpCounter(clock.now()));
 
-    const first = await start(realmId, clock);
-    await withRealm(app.db, realmId, (tx) =>
+    const first = await start(tenantId, clock);
+    await withTenant(app.db, tenantId, (tx) =>
       advance(tx, first, { username: 'ada', password: PASSWORD }, clock),
     );
-    expect(await withRealm(app.db, realmId, (tx) => advance(tx, first, { code }, clock))).toEqual({
+    expect(await withTenant(app.db, tenantId, (tx) => advance(tx, first, { code }, clock))).toEqual({
       kind: 'success',
       subjectId,
       authenticators: ['password', 'otp'],
     });
 
-    const second = await start(realmId, clock);
-    await withRealm(app.db, realmId, (tx) =>
+    const second = await start(tenantId, clock);
+    await withTenant(app.db, tenantId, (tx) =>
       advance(tx, second, { username: 'ada', password: PASSWORD }, clock),
     );
-    const replay = await withRealm(app.db, realmId, (tx) => advance(tx, second, { code }, clock));
+    const replay = await withTenant(app.db, tenantId, (tx) => advance(tx, second, { code }, clock));
 
     expect(replay).toEqual({ kind: 'failure', reason: 'invalid_credentials' });
   });
@@ -379,54 +379,54 @@ describe('a factor with work left after it is written down, and one that finishe
 // answer, and it is what a required action is judged against.
 describe('a finished authentication is recorded, and stops being recorded', () => {
   it('sets it when the flow runs out of steps and clears it when one reappears', async () => {
-    const realmId = newId();
+    const tenantId = newId();
     const clock = clockAt();
-    const subjectId = await withRealm(app.db, realmId, async (tx) => {
-      await seedRealm(tx, realmId, true);
-      return seedUser(tx, realmId, 'ada');
+    const subjectId = await withTenant(app.db, tenantId, async (tx) => {
+      await seedTenant(tx, tenantId, true);
+      return seedUser(tx, tenantId, 'ada');
     });
 
     // otp_required with no credential to produce a code: the step cannot
-    // apply, so the password finishes this login and the realm collects the
+    // apply, so the password finishes this login and the tenant collects the
     // enrolment as a required action instead.
-    const authSessionId = await start(realmId, clock);
-    const finished = await withRealm(app.db, realmId, (tx) =>
+    const authSessionId = await start(tenantId, clock);
+    const finished = await withTenant(app.db, tenantId, (tx) =>
       advance(tx, authSessionId, { username: 'ada', password: PASSWORD }, clock),
     );
     expect(finished).toEqual({ kind: 'success', subjectId, authenticators: ['password'] });
-    const complete = await withRealm(app.db, realmId, (tx) =>
+    const complete = await withTenant(app.db, tenantId, (tx) =>
       authenticationSessionRepository(tx).byId(authSessionId),
     );
     expect(complete?.authenticatedAt).not.toBeNull();
     expect(
-      await withRealm(app.db, realmId, (tx) => authenticatedSubject(tx, authSessionId, clock)),
+      await withTenant(app.db, tenantId, (tx) => authenticatedSubject(tx, authSessionId, clock)),
     ).toBe(subjectId);
 
     // Completing that required action is what makes the otp step apply, so
     // the same session now owes a factor it did not owe a moment ago. A
     // record of completion that only ever moved one way would still call
     // this attempt finished.
-    const { secret } = await enrol(realmId, subjectId, clock);
+    const { secret } = await enrol(tenantId, subjectId, clock);
     clock.advance(31_000);
-    const challenged = await withRealm(app.db, realmId, (tx) =>
+    const challenged = await withTenant(app.db, tenantId, (tx) =>
       advance(tx, authSessionId, { username: 'ada', password: PASSWORD }, clock),
     );
     expect(challenged).toEqual({ kind: 'challenge', form: 'otp' });
 
-    const outstanding = await withRealm(app.db, realmId, (tx) =>
+    const outstanding = await withTenant(app.db, tenantId, (tx) =>
       authenticationSessionRepository(tx).byId(authSessionId),
     );
     expect(outstanding?.authenticatedAt).toBeNull();
     // The predicate the required-action gate reads, not only the column it
     // reads it from: there is nobody to act for while a factor is owed.
     expect(
-      await withRealm(app.db, realmId, (tx) => authenticatedSubject(tx, authSessionId, clock)),
+      await withTenant(app.db, tenantId, (tx) => authenticatedSubject(tx, authSessionId, clock)),
     ).toBeNull();
 
     // And passing that factor records completion afresh, at the later
     // instant — rewritten on every attempt, not restored to the old stamp.
     clock.advance(31_000);
-    const completed = await withRealm(app.db, realmId, (tx) =>
+    const completed = await withTenant(app.db, tenantId, (tx) =>
       advance(tx, authSessionId, { code: totpCode(secret, totpCounter(clock.now())) }, clock),
     );
     expect(completed).toEqual({
@@ -434,7 +434,7 @@ describe('a finished authentication is recorded, and stops being recorded', () =
       subjectId,
       authenticators: ['password', 'otp'],
     });
-    const again = await withRealm(app.db, realmId, (tx) =>
+    const again = await withTenant(app.db, tenantId, (tx) =>
       authenticationSessionRepository(tx).byId(authSessionId),
     );
     expect(again?.authenticatedAt?.getTime()).toBeGreaterThan(
@@ -447,61 +447,61 @@ describe('a finished authentication is recorded, and stops being recorded', () =
   // left behind on that row would be the previous person's, and the gate
   // would act for them.
   it('forgets it when the attempt is put back to how it started', async () => {
-    const realmId = newId();
+    const tenantId = newId();
     const clock = clockAt();
-    const subjectId = await withRealm(app.db, realmId, async (tx) => {
-      await seedRealm(tx, realmId, false);
-      return seedUser(tx, realmId, 'ada');
+    const subjectId = await withTenant(app.db, tenantId, async (tx) => {
+      await seedTenant(tx, tenantId, false);
+      return seedUser(tx, tenantId, 'ada');
     });
 
-    const authSessionId = await start(realmId, clock);
+    const authSessionId = await start(tenantId, clock);
     expect(
-      await withRealm(app.db, realmId, (tx) =>
+      await withTenant(app.db, tenantId, (tx) =>
         advance(tx, authSessionId, { username: 'ada', password: PASSWORD }, clock),
       ),
     ).toEqual({ kind: 'success', subjectId, authenticators: ['password'] });
     expect(
-      await withRealm(app.db, realmId, (tx) => authenticatedSubject(tx, authSessionId, clock)),
+      await withTenant(app.db, tenantId, (tx) => authenticatedSubject(tx, authSessionId, clock)),
     ).toBe(subjectId);
 
-    await withRealm(app.db, realmId, (tx) => resetAuthenticationProgress(tx, authSessionId));
+    await withTenant(app.db, tenantId, (tx) => resetAuthenticationProgress(tx, authSessionId));
 
-    const cleared = await withRealm(app.db, realmId, (tx) =>
+    const cleared = await withTenant(app.db, tenantId, (tx) =>
       authenticationSessionRepository(tx).byId(authSessionId),
     );
     expect(cleared?.authenticatedAt).toBeNull();
     expect(cleared?.satisfied).toEqual([]);
     expect(cleared?.subjectId).toBeNull();
     expect(
-      await withRealm(app.db, realmId, (tx) => authenticatedSubject(tx, authSessionId, clock)),
+      await withTenant(app.db, tenantId, (tx) => authenticatedSubject(tx, authSessionId, clock)),
     ).toBeNull();
   });
 });
 
 describe('one code, one login', () => {
   it('accepts a code once when two submissions of it race', async () => {
-    const realmId = newId();
+    const tenantId = newId();
     const clock = clockAt();
-    const subjectId = await withRealm(app.db, realmId, async (tx) => {
-      await seedRealm(tx, realmId, false);
-      return seedUser(tx, realmId, 'ada');
+    const subjectId = await withTenant(app.db, tenantId, async (tx) => {
+      await seedTenant(tx, tenantId, false);
+      return seedUser(tx, tenantId, 'ada');
     });
-    const { secret } = await enrol(realmId, subjectId, clock);
+    const { secret } = await enrol(tenantId, subjectId, clock);
     clock.advance(31_000);
     const code = totpCode(secret, totpCounter(clock.now()));
 
     // Two attempts, each past its own password step, so the only thing they
     // contend for is the credential's time step.
-    const sessions = await Promise.all([start(realmId, clock), start(realmId, clock)]);
+    const sessions = await Promise.all([start(tenantId, clock), start(tenantId, clock)]);
     for (const authSessionId of sessions) {
-      await withRealm(app.db, realmId, (tx) =>
+      await withTenant(app.db, tenantId, (tx) =>
         advance(tx, authSessionId, { username: 'ada', password: PASSWORD }, clock),
       );
     }
 
     const outcomes = await Promise.all(
       sessions.map((authSessionId) =>
-        withRealm(app.db, realmId, (tx) => advance(tx, authSessionId, { code }, clock)),
+        withTenant(app.db, tenantId, (tx) => advance(tx, authSessionId, { code }, clock)),
       ),
     );
 
@@ -514,25 +514,25 @@ describe('one code, one login', () => {
 
 describe('an attempt answers for one subject and no other', () => {
   it("does not complete ada's login with bob's username and bob's code", async () => {
-    const realmId = newId();
+    const tenantId = newId();
     const clock = clockAt();
-    const { ada, bob } = await withRealm(app.db, realmId, async (tx) => {
-      await seedRealm(tx, realmId, false);
-      return { ada: await seedUser(tx, realmId, 'ada'), bob: await seedUser(tx, realmId, 'bob') };
+    const { ada, bob } = await withTenant(app.db, tenantId, async (tx) => {
+      await seedTenant(tx, tenantId, false);
+      return { ada: await seedUser(tx, tenantId, 'ada'), bob: await seedUser(tx, tenantId, 'bob') };
     });
-    await enrol(realmId, ada, clock);
-    const { secret: bobSecret } = await enrol(realmId, bob, clock);
+    await enrol(tenantId, ada, clock);
+    const { secret: bobSecret } = await enrol(tenantId, bob, clock);
     clock.advance(31_000);
 
-    const authSessionId = await start(realmId, clock);
-    await withRealm(app.db, realmId, (tx) =>
+    const authSessionId = await start(tenantId, clock);
+    await withTenant(app.db, tenantId, (tx) =>
       advance(tx, authSessionId, { username: 'ada', password: PASSWORD }, clock),
     );
 
     // bob's own valid code, submitted with bob's username, against the
     // attempt ada authenticated: the code is checked against ada's secret,
     // because the subject comes from the attempt and never from the form.
-    const hijack = await withRealm(app.db, realmId, (tx) =>
+    const hijack = await withTenant(app.db, tenantId, (tx) =>
       advance(
         tx,
         authSessionId,
@@ -542,31 +542,31 @@ describe('an attempt answers for one subject and no other', () => {
     );
 
     expect(hijack).toEqual({ kind: 'failure', reason: 'invalid_credentials' });
-    const record = await withRealm(app.db, realmId, (tx) =>
+    const record = await withTenant(app.db, tenantId, (tx) =>
       authenticationSessionRepository(tx).byId(authSessionId),
     );
     expect(record?.subjectId).toBe(ada);
   });
 
   it('refuses a factor that answers for somebody other than the bound subject', async () => {
-    const realmId = newId();
+    const tenantId = newId();
     const clock = clockAt();
-    const { ada, bob } = await withRealm(app.db, realmId, async (tx) => {
-      await seedRealm(tx, realmId, false);
-      return { ada: await seedUser(tx, realmId, 'ada'), bob: await seedUser(tx, realmId, 'bob') };
+    const { ada, bob } = await withTenant(app.db, tenantId, async (tx) => {
+      await seedTenant(tx, tenantId, false);
+      return { ada: await seedUser(tx, tenantId, 'ada'), bob: await seedUser(tx, tenantId, 'bob') };
     });
 
     // ada signs in and the login is refused downstream for a reason that
     // leaves the attempt alive (an unverified address), so it stays bound
     // to her. bob then submits his own correct password against it.
-    const authSessionId = await start(realmId, clock);
+    const authSessionId = await start(tenantId, clock);
     expect(
-      await withRealm(app.db, realmId, (tx) =>
+      await withTenant(app.db, tenantId, (tx) =>
         advance(tx, authSessionId, { username: 'ada', password: PASSWORD }, clock),
       ),
     ).toMatchObject({ kind: 'success', subjectId: ada });
 
-    const hijack = await withRealm(app.db, realmId, (tx) =>
+    const hijack = await withTenant(app.db, tenantId, (tx) =>
       advance(tx, authSessionId, { username: 'bob', password: PASSWORD }, clock),
     );
 
@@ -575,45 +575,45 @@ describe('an attempt answers for one subject and no other', () => {
   });
 
   it('lets somebody else sign in once the attempt is put back to how it started', async () => {
-    const realmId = newId();
+    const tenantId = newId();
     const clock = clockAt();
-    const { ada, bob } = await withRealm(app.db, realmId, async (tx) => {
-      await seedRealm(tx, realmId, false);
-      return { ada: await seedUser(tx, realmId, 'ada'), bob: await seedUser(tx, realmId, 'bob') };
+    const { ada, bob } = await withTenant(app.db, tenantId, async (tx) => {
+      await seedTenant(tx, tenantId, false);
+      return { ada: await seedUser(tx, tenantId, 'ada'), bob: await seedUser(tx, tenantId, 'bob') };
     });
-    await enrol(realmId, ada, clock);
+    await enrol(tenantId, ada, clock);
     clock.advance(31_000);
 
-    const authSessionId = await start(realmId, clock);
-    await withRealm(app.db, realmId, (tx) =>
+    const authSessionId = await start(tenantId, clock);
+    await withTenant(app.db, tenantId, (tx) =>
       advance(tx, authSessionId, { username: 'ada', password: PASSWORD }, clock),
     );
 
-    await withRealm(app.db, realmId, (tx) => resetAuthenticationProgress(tx, authSessionId));
+    await withTenant(app.db, tenantId, (tx) => resetAuthenticationProgress(tx, authSessionId));
 
-    const cleared = await withRealm(app.db, realmId, (tx) =>
+    const cleared = await withTenant(app.db, tenantId, (tx) =>
       authenticationSessionRepository(tx).byId(authSessionId),
     );
     expect(cleared?.satisfied).toEqual([]);
     expect(cleared?.subjectId).toBeNull();
 
-    const bobsLogin = await withRealm(app.db, realmId, (tx) =>
+    const bobsLogin = await withTenant(app.db, tenantId, (tx) =>
       advance(tx, authSessionId, { username: 'bob', password: PASSWORD }, clock),
     );
     expect(bobsLogin).toEqual({ kind: 'success', subjectId: bob, authenticators: ['password'] });
   });
 });
 
-describe('realmSettingsRepository', () => {
-  it("cannot read a foreign realm's flow settings, and refuses rather than defaulting", async () => {
-    await expectCrossRealmMethodProbe(app.db, {
-      seed: async (tx, realmId) => {
-        await seedRealm(tx, realmId, true);
-        await tx.update(realms).set({ passwordMaxAgeDays: 90 }).where(eq(realms.id, realmId));
-        return realmId;
+describe('tenantSettingsRepository', () => {
+  it("cannot read a foreign tenant's flow settings, and refuses rather than defaulting", async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        await seedTenant(tx, tenantId, true);
+        await tx.update(tenants).set({ passwordMaxAgeDays: 90 }).where(eq(tenants.id, tenantId));
+        return tenantId;
       },
-      verifySeeded: async (tx, realmId) => {
-        expect(await realmSettingsRepository(tx).flowSettings(realmId)).toEqual({
+      verifySeeded: async (tx, tenantId) => {
+        expect(await tenantSettingsRepository(tx).flowSettings(tenantId)).toEqual({
           otpRequired: true,
           passwordMaxAgeDays: 90,
           lockout: {
@@ -624,15 +624,15 @@ describe('realmSettingsRepository', () => {
           },
         });
       },
-      attempt: async (tx, realmId) => {
+      attempt: async (tx, tenantId) => {
         try {
-          return await realmSettingsRepository(tx).flowSettings(realmId);
+          return await tenantSettingsRepository(tx).flowSettings(tenantId);
         } catch (caught) {
           return caught instanceof OduduError ? caught.code : 'unexpected';
         }
       },
-      // Not the off values: a realm that requires a second factor and a
-      // realm whose row this context cannot see are different things, and
+      // Not the off values: a tenant that requires a second factor and a
+      // tenant whose row this context cannot see are different things, and
       // answering `false`/`0` for the second would silently drop the factor
       // and switch expiry off.
       expectBlocked: (result) => {
@@ -643,28 +643,28 @@ describe('realmSettingsRepository', () => {
 
   // The same proof for the policy the change-password action writes against.
   // Fails closed for a harder reason than the switches above: a default
-  // depth of zero would accept a password the realm remembers, and a
+  // depth of zero would accept a password the tenant remembers, and a
   // default minimum length would accept a weak one.
-  it("cannot read a foreign realm's password policy, and refuses rather than defaulting", async () => {
-    await expectCrossRealmMethodProbe(app.db, {
-      seed: async (tx, realmId) => {
-        await seedRealm(tx, realmId, false);
+  it("cannot read a foreign tenant's password policy, and refuses rather than defaulting", async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        await seedTenant(tx, tenantId, false);
         await tx
-          .update(realms)
+          .update(tenants)
           .set({ passwordMinLength: 16, passwordHistoryDepth: 3, passwordMaxAgeDays: 90 })
-          .where(eq(realms.id, realmId));
-        return realmId;
+          .where(eq(tenants.id, tenantId));
+        return tenantId;
       },
-      verifySeeded: async (tx, realmId) => {
-        expect(await realmSettingsRepository(tx).passwordPolicy(realmId)).toMatchObject({
+      verifySeeded: async (tx, tenantId) => {
+        expect(await tenantSettingsRepository(tx).passwordPolicy(tenantId)).toMatchObject({
           minLength: 16,
           historyDepth: 3,
           maxAgeDays: 90,
         });
       },
-      attempt: async (tx, realmId) => {
+      attempt: async (tx, tenantId) => {
         try {
-          return await realmSettingsRepository(tx).passwordPolicy(realmId);
+          return await tenantSettingsRepository(tx).passwordPolicy(tenantId);
         } catch (caught) {
           return caught instanceof OduduError ? caught.code : 'unexpected';
         }
@@ -677,12 +677,12 @@ describe('realmSettingsRepository', () => {
 });
 
 describe('authenticationSessionRepository — the subject binding', () => {
-  it('cannot bind a subject under a different realm context, and leaves the row alone', async () => {
-    await expectCrossRealmMethodProbe(app.db, {
-      seed: async (tx, realmId) => {
-        await seedRealm(tx, realmId, false);
-        const subjectId = await seedUser(tx, realmId, 'ada');
-        const { authSessionId } = await startAuthentication(tx, realmId, request);
+  it('cannot bind a subject under a different tenant context, and leaves the row alone', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        await seedTenant(tx, tenantId, false);
+        const subjectId = await seedUser(tx, tenantId, 'ada');
+        const { authSessionId } = await startAuthentication(tx, tenantId, request);
         return { authSessionId, subjectId };
       },
       verifySeeded: async (tx, seeded) => {
@@ -692,22 +692,22 @@ describe('authenticationSessionRepository — the subject binding', () => {
       attempt: async (tx, seeded) =>
         authenticationSessionRepository(tx).bindSubject(seeded.authSessionId, seeded.subjectId),
       expectBlocked: () => {
-        // An UPDATE matching zero rows under a foreign realm context, not a
+        // An UPDATE matching zero rows under a foreign tenant context, not a
         // thrown error — the assertion that matters is the one below.
       },
-      verifyRealmAUnaffected: async (tx, seeded) => {
+      verifyTenantAUnaffected: async (tx, seeded) => {
         const found = await authenticationSessionRepository(tx).byId(seeded.authSessionId);
         expect(found?.subjectId).toBeNull();
       },
     });
   });
 
-  it('cannot clear a foreign realm’s progress', async () => {
-    await expectCrossRealmMethodProbe(app.db, {
-      seed: async (tx, realmId) => {
-        await seedRealm(tx, realmId, false);
-        const subjectId = await seedUser(tx, realmId, 'ada');
-        const { authSessionId } = await startAuthentication(tx, realmId, request);
+  it('cannot clear a foreign tenant’s progress', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        await seedTenant(tx, tenantId, false);
+        const subjectId = await seedUser(tx, tenantId, 'ada');
+        const { authSessionId } = await startAuthentication(tx, tenantId, request);
         const repository = authenticationSessionRepository(tx);
         await repository.recordSatisfied(authSessionId, 'password');
         await repository.bindSubject(authSessionId, subjectId);
@@ -723,7 +723,7 @@ describe('authenticationSessionRepository — the subject binding', () => {
       expectBlocked: () => {
         // Same shape as bindSubject above: zero rows, no error.
       },
-      verifyRealmAUnaffected: async (tx, seeded) => {
+      verifyTenantAUnaffected: async (tx, seeded) => {
         const found = await authenticationSessionRepository(tx).byId(seeded.authSessionId);
         expect(found?.satisfied).toEqual(['password']);
         expect(found?.subjectId).toBe(seeded.subjectId);
@@ -731,20 +731,20 @@ describe('authenticationSessionRepository — the subject binding', () => {
     });
   });
 
-  it('refuses a subject from another realm', async () => {
-    const realmA = newId();
-    const realmB = newId();
-    const foreign = await withRealm(app.db, realmA, async (tx) => {
-      await seedRealm(tx, realmA, false);
-      return seedUser(tx, realmA, 'ada');
+  it('refuses a subject from another tenant', async () => {
+    const tenantA = newId();
+    const tenantB = newId();
+    const foreign = await withTenant(app.db, tenantA, async (tx) => {
+      await seedTenant(tx, tenantA, false);
+      return seedUser(tx, tenantA, 'ada');
     });
-    const authSessionId = await withRealm(app.db, realmB, async (tx) => {
-      await seedRealm(tx, realmB, false);
-      return (await startAuthentication(tx, realmB, request)).authSessionId;
+    const authSessionId = await withTenant(app.db, tenantB, async (tx) => {
+      await seedTenant(tx, tenantB, false);
+      return (await startAuthentication(tx, tenantB, request)).authSessionId;
     });
 
     await expect(
-      withRealm(app.db, realmB, (tx) =>
+      withTenant(app.db, tenantB, (tx) =>
         authenticationSessionRepository(tx).bindSubject(authSessionId, foreign),
       ),
     ).rejects.toThrow();

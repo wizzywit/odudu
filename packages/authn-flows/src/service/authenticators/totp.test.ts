@@ -79,16 +79,16 @@ describe('otpApplicable', () => {
   const NOTHING_SATISFIED: ReadonlySet<string> = new Set();
   const AFTER_A_PASSKEY: ReadonlySet<string> = new Set(['passkey']);
 
-  it('applies to a subject who has enrolled, whether or not the realm requires it', () => {
+  it('applies to a subject who has enrolled, whether or not the tenant requires it', () => {
     expect(otpApplicable({ hasTotp: true }, { otpRequired: true }, NOTHING_SATISFIED)).toBe(true);
     expect(otpApplicable({ hasTotp: true }, { otpRequired: false }, NOTHING_SATISFIED)).toBe(true);
   });
 
-  it('applies to a subject who has not enrolled when the realm requires it', () => {
+  it('applies to a subject who has not enrolled when the tenant requires it', () => {
     expect(otpApplicable({ hasTotp: false }, { otpRequired: true }, NOTHING_SATISFIED)).toBe(true);
   });
 
-  it('does not apply to a subject who has not enrolled in a realm that does not require it', () => {
+  it('does not apply to a subject who has not enrolled in a tenant that does not require it', () => {
     expect(otpApplicable({ hasTotp: false }, { otpRequired: false }, NOTHING_SATISFIED)).toBe(
       false,
     );

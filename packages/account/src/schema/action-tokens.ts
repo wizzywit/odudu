@@ -4,11 +4,11 @@ import { tenants } from '@odudu/db';
 // Policies are written as hand-authored SQL in packages/db/drizzle/, never
 // declared with pgPolicy() — see tenants.ts in @odudu/db for why a
 // declarative policy would collide with a database that already carries it.
-// The composite foreign key to subjects(realm_id, id) lives only in the
+// The composite foreign key to subjects(tenant_id, id) lives only in the
 // migration: drizzle's table builder has no way to declare it here.
 export const actionTokens = pgTable('action_tokens', {
   id: uuid('id').primaryKey(),
-  realmId: uuid('tenant_id')
+  tenantId: uuid('tenant_id')
     .notNull()
     .references(() => tenants.id, { onDelete: 'cascade' }),
   subjectId: uuid('subject_id').notNull(),
@@ -24,7 +24,7 @@ export type ActionTokenType = 'verify_email' | 'reset_password';
 
 export interface ActionTokenRecord {
   id: string;
-  realmId: string;
+  tenantId: string;
   subjectId: string;
   type: ActionTokenType;
   tokenHash: string;

@@ -7,8 +7,8 @@ const SEPARATOR = '.';
 // login. The name therefore follows TLS, and the fallback is announced at
 // boot rather than shipping quietly — ADR 0020, which also lists the
 // attributes the login handler must set alongside the name.
-export function sessionCookieName(realm: string, tls: boolean): string {
-  return tls ? `__Host-${realm}-session` : `${realm}-session`;
+export function sessionCookieName(tenant: string, tls: boolean): string {
+  return tls ? `__Host-${tenant}-session` : `${tenant}-session`;
 }
 
 export function warnIfCookieFallbackActive(
@@ -30,7 +30,7 @@ export interface SessionIds {
 }
 
 export interface SessionCookieInput {
-  readonly realm: string;
+  readonly tenant: string;
   readonly tls: boolean;
   readonly ephemeral: readonly string[];
   readonly persistent: readonly string[];
@@ -39,8 +39,8 @@ export interface SessionCookieInput {
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u;
 
-function persistentName(realm: string, tls: boolean): string {
-  return `${sessionCookieName(realm, tls)}${PERSISTENT_SUFFIX}`;
+function persistentName(tenant: string, tls: boolean): string {
+  return `${sessionCookieName(tenant, tls)}${PERSISTENT_SUFFIX}`;
 }
 
 // ADR 0020 decides the name and nothing else; these are the attributes it
@@ -70,9 +70,9 @@ function listCookie(
 
 export function sessionCookies(input: SessionCookieInput): readonly string[] {
   return [
-    listCookie(sessionCookieName(input.realm, input.tls), input.ephemeral, input.tls, null),
+    listCookie(sessionCookieName(input.tenant, input.tls), input.ephemeral, input.tls, null),
     listCookie(
-      persistentName(input.realm, input.tls),
+      persistentName(input.tenant, input.tls),
       input.persistent,
       input.tls,
       input.persistentMaxAgeSeconds,
@@ -80,10 +80,10 @@ export function sessionCookies(input: SessionCookieInput): readonly string[] {
   ];
 }
 
-export function clearedSessionCookies(realm: string, tls: boolean): readonly string[] {
+export function clearedSessionCookies(tenant: string, tls: boolean): readonly string[] {
   return [
-    cookie(sessionCookieName(realm, tls), '', tls, 0),
-    cookie(persistentName(realm, tls), '', tls, 0),
+    cookie(sessionCookieName(tenant, tls), '', tls, 0),
+    cookie(persistentName(tenant, tls), '', tls, 0),
   ];
 }
 
@@ -107,12 +107,12 @@ function valuesOf(header: string, name: string): readonly string[] {
 // can complete and nothing explains.
 export function readSessionIds(
   header: string | undefined,
-  realm: string,
+  tenant: string,
   tls: boolean,
 ): SessionIds {
   if (header === undefined) return { ephemeral: [], persistent: [] };
   return {
-    ephemeral: valuesOf(header, sessionCookieName(realm, tls)),
-    persistent: valuesOf(header, persistentName(realm, tls)),
+    ephemeral: valuesOf(header, sessionCookieName(tenant, tls)),
+    persistent: valuesOf(header, persistentName(tenant, tls)),
   };
 }

@@ -9,10 +9,10 @@ export interface SessionLifespans {
 // idle window a request checks and the ceiling its row was created with
 // can never come from different pairs.
 export function lifespanFor(
-  realm: SessionLifespans,
+  tenant: SessionLifespans,
   remembered: boolean,
 ): { idleSeconds: number; maxSeconds: number } {
   return remembered
-    ? { idleSeconds: realm.rememberMeIdleSeconds, maxSeconds: realm.rememberMeMaxSeconds }
-    : { idleSeconds: realm.ssoSessionIdleSeconds, maxSeconds: realm.ssoSessionMaxSeconds };
+    ? { idleSeconds: tenant.rememberMeIdleSeconds, maxSeconds: tenant.rememberMeMaxSeconds }
+    : { idleSeconds: tenant.ssoSessionIdleSeconds, maxSeconds: tenant.ssoSessionMaxSeconds };
 }

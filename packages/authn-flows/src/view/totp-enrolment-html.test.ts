@@ -42,7 +42,7 @@ describe('renderTotpEnrolmentPage', () => {
     expect(page.html).not.toContain('period=30</code>&');
   });
 
-  it('escapes the realm, the session id and an error message', () => {
+  it('escapes the tenant, the session id and an error message', () => {
     const page = renderTotpEnrolmentPage(
       'acme"><script>',
       'session"><script>',

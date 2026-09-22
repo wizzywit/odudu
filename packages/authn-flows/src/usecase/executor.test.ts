@@ -1,11 +1,11 @@
 import {
   createDatabase,
   MIGRATIONS_DIR,
-  realms,
+  tenants,
   runMigrations,
-  withRealm,
+  withTenant,
   type DatabaseHandle,
-  type RealmScopedDatabase,
+  type TenantScopedDatabase,
 } from '@odudu/db';
 import { hashPassword, subjectRepository, userCredentials, users } from '@odudu/domain-identity';
 import { FakeClock, newId } from '@odudu/kernel';
@@ -61,19 +61,19 @@ const request: PendingRequest = {
   codeChallengeMethod: 'S256',
 };
 
-async function seedRealmAndUser(
-  tx: RealmScopedDatabase,
-  realmId: string,
+async function seedTenantAndUser(
+  tx: TenantScopedDatabase,
+  tenantId: string,
   username: string,
   password: string,
 ): Promise<string> {
-  await tx.insert(realms).values({ id: realmId, name: `realm-${realmId}` });
-  await provisionBrowserFlow(tx, realmId);
-  const subject = await subjectRepository(tx).create({ realmId, type: 'user' });
-  await tx.insert(users).values({ subjectId: subject.id, realmId, username });
+  await tx.insert(tenants).values({ id: tenantId, name: `tenant-${tenantId}` });
+  await provisionBrowserFlow(tx, tenantId);
+  const subject = await subjectRepository(tx).create({ tenantId, type: 'user' });
+  await tx.insert(users).values({ subjectId: subject.id, tenantId, username });
   await tx.insert(userCredentials).values({
     id: newId(),
-    realmId,
+    tenantId,
     subjectId: subject.id,
     type: 'password',
     secretData: { hash: await hashPassword(password) },
@@ -83,10 +83,10 @@ async function seedRealmAndUser(
 
 describe('[ODUDU-AUTHN-REQUEST-PARKING-01] the request is parked server-side, not carried by the browser', () => {
   it('returns an opaque id that does not contain the request', async () => {
-    const realmId = newId();
-    const { authSessionId } = await withRealm(app.db, realmId, async (tx) => {
-      await tx.insert(realms).values({ id: realmId, name: `realm-${realmId}` });
-      return startAuthentication(tx, realmId, request);
+    const tenantId = newId();
+    const { authSessionId } = await withTenant(app.db, tenantId, async (tx) => {
+      await tx.insert(tenants).values({ id: tenantId, name: `tenant-${tenantId}` });
+      return startAuthentication(tx, tenantId, request);
     });
 
     expect(authSessionId).not.toContain(request.redirectUri);
@@ -94,30 +94,30 @@ describe('[ODUDU-AUTHN-REQUEST-PARKING-01] the request is parked server-side, no
   });
 
   it('reads the parked request back unchanged', async () => {
-    const realmId = newId();
-    const authSessionId = await withRealm(app.db, realmId, async (tx) => {
-      await tx.insert(realms).values({ id: realmId, name: `realm-${realmId}` });
-      return (await startAuthentication(tx, realmId, request)).authSessionId;
+    const tenantId = newId();
+    const authSessionId = await withTenant(app.db, tenantId, async (tx) => {
+      await tx.insert(tenants).values({ id: tenantId, name: `tenant-${tenantId}` });
+      return (await startAuthentication(tx, tenantId, request)).authSessionId;
     });
 
-    const loaded = await withRealm(app.db, realmId, async (tx) =>
+    const loaded = await withTenant(app.db, tenantId, async (tx) =>
       loadPendingRequest(tx, authSessionId),
     );
     expect(loaded).toEqual(request);
   });
 
   it('refuses an expired authentication session', async () => {
-    const realmId = newId();
+    const tenantId = newId();
     const clock = new FakeClock(new Date('2026-01-01T00:00:00.000Z'));
 
-    const authSessionId = await withRealm(app.db, realmId, async (tx) => {
-      await tx.insert(realms).values({ id: realmId, name: `realm-${realmId}` });
-      return (await startAuthentication(tx, realmId, request, clock)).authSessionId;
+    const authSessionId = await withTenant(app.db, tenantId, async (tx) => {
+      await tx.insert(tenants).values({ id: tenantId, name: `tenant-${tenantId}` });
+      return (await startAuthentication(tx, tenantId, request, clock)).authSessionId;
     });
 
     clock.advance(31 * 60_000);
 
-    const result = await withRealm(app.db, realmId, async (tx) =>
+    const result = await withTenant(app.db, tenantId, async (tx) =>
       advance(tx, authSessionId, { username: 'ada', password: 'x' }, clock),
     );
     expect(result).toMatchObject({ kind: 'failure' });
@@ -126,36 +126,36 @@ describe('[ODUDU-AUTHN-REQUEST-PARKING-01] the request is parked server-side, no
 
 describe('[ODUDU-AUTHN-SESSION-FIXATION-01] session fixation', () => {
   it('issues a session id that differs from the pre-authentication one', async () => {
-    const realmId = newId();
+    const tenantId = newId();
 
-    const { authSessionId, subjectId } = await withRealm(app.db, realmId, async (tx) => {
-      await tx.insert(realms).values({ id: realmId, name: `realm-${realmId}` });
-      const subject = await subjectRepository(tx).create({ realmId, type: 'user' });
-      const { authSessionId: id } = await startAuthentication(tx, realmId, request);
+    const { authSessionId, subjectId } = await withTenant(app.db, tenantId, async (tx) => {
+      await tx.insert(tenants).values({ id: tenantId, name: `tenant-${tenantId}` });
+      const subject = await subjectRepository(tx).create({ tenantId, type: 'user' });
+      const { authSessionId: id } = await startAuthentication(tx, tenantId, request);
       return { authSessionId: id, subjectId: subject.id };
     });
 
-    const { sessionId } = await withRealm(app.db, realmId, async (tx) =>
-      establishSession(tx, realmId, subjectId, 36_000, ['password']),
+    const { sessionId } = await withTenant(app.db, tenantId, async (tx) =>
+      establishSession(tx, tenantId, subjectId, 36_000, ['password']),
     );
 
     expect(sessionId).not.toEqual(authSessionId);
   });
 
   it('issues a different session id on every establishment', async () => {
-    const realmId = newId();
+    const tenantId = newId();
 
-    const subjectId = await withRealm(app.db, realmId, async (tx) => {
-      await tx.insert(realms).values({ id: realmId, name: `realm-${realmId}` });
-      const subject = await subjectRepository(tx).create({ realmId, type: 'user' });
+    const subjectId = await withTenant(app.db, tenantId, async (tx) => {
+      await tx.insert(tenants).values({ id: tenantId, name: `tenant-${tenantId}` });
+      const subject = await subjectRepository(tx).create({ tenantId, type: 'user' });
       return subject.id;
     });
 
-    const first = await withRealm(app.db, realmId, async (tx) =>
-      establishSession(tx, realmId, subjectId, 36_000, ['password']),
+    const first = await withTenant(app.db, tenantId, async (tx) =>
+      establishSession(tx, tenantId, subjectId, 36_000, ['password']),
     );
-    const second = await withRealm(app.db, realmId, async (tx) =>
-      establishSession(tx, realmId, subjectId, 36_000, ['password']),
+    const second = await withTenant(app.db, tenantId, async (tx) =>
+      establishSession(tx, tenantId, subjectId, 36_000, ['password']),
     );
 
     expect(first.sessionId).not.toEqual(second.sessionId);
@@ -164,27 +164,27 @@ describe('[ODUDU-AUTHN-SESSION-FIXATION-01] session fixation', () => {
 
 describe('[ODUDU-AUTHN-NO-USER-ENUMERATION-01] the password step does not enumerate users', () => {
   it('fails identically for an unknown user and a wrong password', async () => {
-    const realmId = newId();
+    const tenantId = newId();
 
-    await withRealm(app.db, realmId, async (tx) => {
-      await seedRealmAndUser(tx, realmId, 'ada', 'correct-horse-battery-staple');
+    await withTenant(app.db, tenantId, async (tx) => {
+      await seedTenantAndUser(tx, tenantId, 'ada', 'correct-horse-battery-staple');
     });
 
     async function sessionFor(): Promise<string> {
-      return withRealm(
+      return withTenant(
         app.db,
-        realmId,
-        async (tx) => (await startAuthentication(tx, realmId, request)).authSessionId,
+        tenantId,
+        async (tx) => (await startAuthentication(tx, tenantId, request)).authSessionId,
       );
     }
 
     const unknownSessionId = await sessionFor();
-    const unknown = await withRealm(app.db, realmId, async (tx) =>
+    const unknown = await withTenant(app.db, tenantId, async (tx) =>
       advance(tx, unknownSessionId, { username: 'nobody', password: 'x' }),
     );
 
     const wrongSessionId = await sessionFor();
-    const wrong = await withRealm(app.db, realmId, async (tx) =>
+    const wrong = await withTenant(app.db, tenantId, async (tx) =>
       advance(tx, wrongSessionId, { username: 'ada', password: 'x' }),
     );
 
@@ -194,7 +194,7 @@ describe('[ODUDU-AUTHN-NO-USER-ENUMERATION-01] the password step does not enumer
     // so the identical failure above is a real non-enumeration property and
     // not a step that always fails.
     const goodSessionId = await sessionFor();
-    const good = await withRealm(app.db, realmId, async (tx) =>
+    const good = await withTenant(app.db, tenantId, async (tx) =>
       advance(tx, goodSessionId, { username: 'ada', password: 'correct-horse-battery-staple' }),
     );
     expect(good.kind).toBe('success');

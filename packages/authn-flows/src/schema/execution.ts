@@ -6,13 +6,13 @@ export type Requirement = 'required' | 'alternative' | 'conditional' | 'disabled
 // Policies are written as hand-authored SQL in packages/db/drizzle/, never
 // declared with pgPolicy() — see tenants.ts in @odudu/db for why.
 //
-// One flat, ordered list per realm: consecutive ALTERNATIVE executions form
+// One flat, ordered list per tenant: consecutive ALTERNATIVE executions form
 // a group ("passkey or password") without a tree walker, and CONDITIONAL
 // executions decide their own applicability. `index` carries the order, so
-// it is data (unique with realm_id), not an accident of insertion.
+// it is data (unique with tenant_id), not an accident of insertion.
 export const authenticationExecutions = pgTable('authentication_executions', {
   id: uuid('id').primaryKey(),
-  realmId: uuid('tenant_id')
+  tenantId: uuid('tenant_id')
     .notNull()
     .references(() => tenants.id, { onDelete: 'cascade' }),
   index: integer('index').notNull(),
@@ -23,7 +23,7 @@ export const authenticationExecutions = pgTable('authentication_executions', {
 
 export interface AuthenticationExecutionRecord {
   id: string;
-  realmId: string;
+  tenantId: string;
   index: number;
   authenticator: string;
   requirement: Requirement;

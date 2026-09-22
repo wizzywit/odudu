@@ -1,5 +1,5 @@
 import { eq } from 'drizzle-orm';
-import { realms, type RealmScopedDatabase } from '@odudu/db';
+import { tenants, type TenantScopedDatabase } from '@odudu/db';
 import { type Clock, systemClock } from '@odudu/kernel';
 import { sessionRepository } from '#/repository/sessions';
 import { lifespanFor, type SessionLifespans } from '#/service/session-lifespan';
@@ -7,7 +7,7 @@ import { chooseEvictions } from '#/service/session-set';
 import { establishSession } from '#/usecase/executor';
 
 export interface AdmitSessionInput {
-  realmId: string;
+  tenantId: string;
   subjectId: string;
   authenticators: readonly string[];
   remembered: boolean;
@@ -22,18 +22,18 @@ export interface AdmitSessionInput {
   lifespans: SessionLifespans;
 }
 
-// The only place a session row is created (ADR 0033). Locks the realm's
+// The only place a session row is created (ADR 0033). Locks the tenant's
 // own row before reading anything else: a lock on the session rows
 // instead does not hold the cap under concurrency (ADR 0033's worked
-// failure). Locking the realm row does not make eviction against a fixed
+// failure). Locking the tenant row does not make eviction against a fixed
 // id list exact either — see the ADR's amendment for the accepted
 // cap+k residual and why a per-subject predicate is not the fix.
 export async function admitSession(
-  tx: RealmScopedDatabase,
+  tx: TenantScopedDatabase,
   input: AdmitSessionInput,
   clock: Clock = systemClock,
 ): Promise<{ sessionId: string }> {
-  await tx.select().from(realms).where(eq(realms.id, input.realmId)).for('update');
+  await tx.select().from(tenants).where(eq(tenants.id, input.tenantId)).for('update');
 
   const now = clock.now();
   const repo = sessionRepository(tx);
@@ -43,7 +43,7 @@ export async function admitSession(
   const { maxSeconds } = lifespanFor(input.lifespans, input.remembered);
   return establishSession(
     tx,
-    input.realmId,
+    input.tenantId,
     input.subjectId,
     maxSeconds,
     input.authenticators,

@@ -1,5 +1,5 @@
 import { generateTotpSecret, verifyTotp } from '@odudu/crypto';
-import { type RealmScopedDatabase } from '@odudu/db';
+import { type TenantScopedDatabase } from '@odudu/db';
 import { credentialRepository, userRepository } from '@odudu/domain-identity';
 import { systemClock, type Clock } from '@odudu/kernel';
 import { requiredActionRepository } from '#/repository/required-actions';
@@ -11,8 +11,8 @@ import { type TotpEnrolmentOffer } from '#/view/totp-enrolment-html';
 // until a code proves the app holds it. An abandoned enrolment therefore
 // leaves nothing behind at all.
 export async function beginTotpEnrolment(
-  tx: RealmScopedDatabase,
-  realmName: string,
+  tx: TenantScopedDatabase,
+  tenantName: string,
   subjectId: string,
 ): Promise<TotpEnrolmentOffer> {
   const user = await userRepository(tx).bySubjectId(subjectId);
@@ -20,7 +20,7 @@ export async function beginTotpEnrolment(
   return {
     secret,
     uri: totpEnrolmentUri({
-      issuer: realmName,
+      issuer: tenantName,
       account: user?.username ?? subjectId,
       secret,
     }),
@@ -31,8 +31,8 @@ export type TotpEnrolmentOutcome =
   { kind: 'enrolled' } | { kind: 'rejected'; reason: 'invalid_code' | 'already_enrolled' };
 
 export async function completeTotpEnrolment(
-  tx: RealmScopedDatabase,
-  input: { realmId: string; subjectId: string; secret: string; code: string },
+  tx: TenantScopedDatabase,
+  input: { tenantId: string; subjectId: string; secret: string; code: string },
   clock: Clock = systemClock,
 ): Promise<TotpEnrolmentOutcome> {
   const existing = await credentialRepository(tx).listFor(input.subjectId, 'totp');
@@ -53,12 +53,12 @@ export async function completeTotpEnrolment(
   // valid as the second factor of the login waiting behind it (RFC 6238
   // §5.2, docs/protocols/rfc6238.md).
   await credentialRepository(tx).insert({
-    realmId: input.realmId,
+    tenantId: input.tenantId,
     subjectId: input.subjectId,
     type: 'totp',
     secret: { kind: 'totp', secret: input.secret, digits: 6, lastStep: verified.step },
   });
   await requiredActionRepository(tx).complete(input.subjectId, 'configure-totp');
-  await oweRecoveryCodesIfNoneUnspent(tx, input.realmId, input.subjectId);
+  await oweRecoveryCodesIfNoneUnspent(tx, input.tenantId, input.subjectId);
   return { kind: 'enrolled' };
 }

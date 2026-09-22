@@ -1,9 +1,9 @@
 import {
   createDatabase,
   MIGRATIONS_DIR,
-  realms,
+  tenants,
   runMigrations,
-  withRealm,
+  withTenant,
   type DatabaseHandle,
 } from '@odudu/db';
 import {
@@ -62,46 +62,46 @@ const request: PendingRequest = {
 
 const PASSWORD = 'correct horse battery staple';
 
-interface RealmPolicy {
+interface TenantPolicy {
   maxAgeDays?: number;
   historyDepth?: number;
   minLength?: number;
 }
 
 interface Account {
-  realmId: string;
+  tenantId: string;
   subjectId: string;
 }
 
-async function seedAccount(policy: RealmPolicy = {}): Promise<Account> {
-  const realmId = newId();
-  const subjectId = await withRealm(app.db, realmId, async (tx) => {
-    await tx.insert(realms).values({
-      id: realmId,
-      name: `realm-${realmId}`,
+async function seedAccount(policy: TenantPolicy = {}): Promise<Account> {
+  const tenantId = newId();
+  const subjectId = await withTenant(app.db, tenantId, async (tx) => {
+    await tx.insert(tenants).values({
+      id: tenantId,
+      name: `tenant-${tenantId}`,
       passwordMaxAgeDays: policy.maxAgeDays ?? 0,
       passwordHistoryDepth: policy.historyDepth ?? 0,
       passwordMinLength: policy.minLength ?? 8,
     });
-    await provisionBrowserFlow(tx, realmId);
-    const subject = await subjectRepository(tx).create({ realmId, type: 'user' });
-    await tx.insert(users).values({ subjectId: subject.id, realmId, username: 'ada' });
+    await provisionBrowserFlow(tx, tenantId);
+    const subject = await subjectRepository(tx).create({ tenantId, type: 'user' });
+    await tx.insert(users).values({ subjectId: subject.id, tenantId, username: 'ada' });
     await tx.insert(userCredentials).values({
       id: newId(),
-      realmId,
+      tenantId,
       subjectId: subject.id,
       type: 'password',
       secretData: { hash: await hashPassword(PASSWORD) },
     });
     return subject.id;
   });
-  return { realmId, subjectId };
+  return { tenantId, subjectId };
 }
 
 // The only way to stand a password in the past: created_at is written by
 // the database's own now(), not by the clock a test injects.
 async function agePassword(account: Account, days: number): Promise<void> {
-  await withRealm(app.db, account.realmId, (tx) =>
+  await withTenant(app.db, account.tenantId, (tx) =>
     tx
       .update(userCredentials)
       .set({ createdAt: sql`now() - ${`${String(days)} days`}::interval` })
@@ -116,22 +116,22 @@ async function agePassword(account: Account, days: number): Promise<void> {
 // the flow judges it at. A fake clock years from that would expire
 // everything and prove nothing about the limit.
 function signIn(account: Account, password: string): Promise<AdvanceOutcome> {
-  return withRealm(app.db, account.realmId, async (tx) => {
-    const { authSessionId } = await startAuthentication(tx, account.realmId, request);
+  return withTenant(app.db, account.tenantId, async (tx) => {
+    const { authSessionId } = await startAuthentication(tx, account.tenantId, request);
     return advance(tx, authSessionId, { username: 'ada', password });
   });
 }
 
 function pending(account: Account): Promise<string[]> {
-  return withRealm(app.db, account.realmId, (tx) =>
+  return withTenant(app.db, account.tenantId, (tx) =>
     requiredActionRepository(tx).pendingFor(account.subjectId),
   );
 }
 
 function change(account: Account, password: string): Promise<UpdatePasswordOutcome> {
-  return withRealm(app.db, account.realmId, (tx) =>
+  return withTenant(app.db, account.tenantId, (tx) =>
     completeUpdatePassword(tx, {
-      realmId: account.realmId,
+      tenantId: account.tenantId,
       subjectId: account.subjectId,
       password,
     }),
@@ -139,12 +139,12 @@ function change(account: Account, password: string): Promise<UpdatePasswordOutco
 }
 
 function historyHashes(account: Account): Promise<string[]> {
-  return withRealm(app.db, account.realmId, (tx) =>
+  return withTenant(app.db, account.tenantId, (tx) =>
     credentialRepository(tx).passwordHistory(account.subjectId),
   );
 }
 
-describe('a password past the realm maximum age is changed, not refused', () => {
+describe('a password past the tenant maximum age is changed, not refused', () => {
   it('owes update-password and still authenticates the expired password', async () => {
     const account = await seedAccount({ maxAgeDays: 90 });
     await agePassword(account, 91);
@@ -167,7 +167,7 @@ describe('a password past the realm maximum age is changed, not refused', () => 
     expect(await pending(account)).toEqual([]);
   });
 
-  it('owes nothing in a realm that does not age passwords out', async () => {
+  it('owes nothing in a tenant that does not age passwords out', async () => {
     const account = await seedAccount();
     await agePassword(account, 3650);
 
@@ -191,7 +191,7 @@ describe('a password past the realm maximum age is changed, not refused', () => 
   });
 });
 
-describe('the realm password history refuses a password the subject has had', () => {
+describe('the tenant password history refuses a password the subject has had', () => {
   it('refuses the password in force and the retired ones inside the depth', async () => {
     const account = await seedAccount({ historyDepth: 2 });
     await change(account, 'second passphrase here');
@@ -231,7 +231,7 @@ describe('the realm password history refuses a password the subject has had', ()
 
   it('stores the retired hash as a password-history row, and only the depth of them', async () => {
     const account = await seedAccount({ historyDepth: 2 });
-    const displaced = await withRealm(app.db, account.realmId, (tx) =>
+    const displaced = await withTenant(app.db, account.tenantId, (tx) =>
       credentialRepository(tx).passwordFor(account.subjectId),
     );
 
@@ -260,8 +260,8 @@ describe('the realm password history refuses a password the subject has had', ()
   });
 });
 
-describe('the realm password policy binds the change-password action', () => {
-  it('refuses a candidate that breaks the realm minimum length', async () => {
+describe('the tenant password policy binds the change-password action', () => {
+  it('refuses a candidate that breaks the tenant minimum length', async () => {
     const account = await seedAccount({ minLength: 12 });
 
     expect(await change(account, 'short')).toEqual({

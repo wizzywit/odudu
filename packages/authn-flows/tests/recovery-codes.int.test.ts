@@ -2,13 +2,13 @@ import { totpCode, totpCounter } from '@odudu/crypto';
 import {
   createDatabase,
   MIGRATIONS_DIR,
-  realms,
+  tenants,
   runMigrations,
-  withRealm,
+  withTenant,
   type DatabaseHandle,
-  type RealmScopedDatabase,
+  type TenantScopedDatabase,
 } from '@odudu/db';
-import { expectCrossRealmMethodProbe } from '@odudu/db/testing';
+import { expectCrossTenantMethodProbe } from '@odudu/db/testing';
 import {
   credentialRepository,
   hashPassword,
@@ -83,9 +83,9 @@ function clockAt(offsetMs = 0): FakeClock {
   return new FakeClock(new Date(Date.UTC(2031, 0, 1) + offsetMs));
 }
 
-async function seedRealm(tx: RealmScopedDatabase, realmId: string): Promise<void> {
-  await tx.insert(realms).values({ id: realmId, name: `realm-${realmId}` });
-  await provisionBrowserFlow(tx, realmId);
+async function seedTenant(tx: TenantScopedDatabase, tenantId: string): Promise<void> {
+  await tx.insert(tenants).values({ id: tenantId, name: `tenant-${tenantId}` });
+  await provisionBrowserFlow(tx, tenantId);
 }
 
 // Any valid base32 secret: no test here ever computes a code from it. What
@@ -94,15 +94,15 @@ async function seedRealm(tx: RealmScopedDatabase, realmId: string): Promise<void
 const TOTP_SECRET = 'GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ';
 
 async function enrolTotp(
-  tx: RealmScopedDatabase,
-  realmId: string,
+  tx: TenantScopedDatabase,
+  tenantId: string,
   subjectId: string,
   clock: FakeClock,
 ): Promise<void> {
   const outcome = await completeTotpEnrolment(
     tx,
     {
-      realmId,
+      tenantId,
       subjectId,
       secret: TOTP_SECRET,
       code: totpCode(TOTP_SECRET, totpCounter(clock.now())),
@@ -113,15 +113,15 @@ async function enrolTotp(
 }
 
 async function seedUser(
-  tx: RealmScopedDatabase,
-  realmId: string,
+  tx: TenantScopedDatabase,
+  tenantId: string,
   username: string,
 ): Promise<string> {
-  const subject = await subjectRepository(tx).create({ realmId, type: 'user' });
-  await tx.insert(users).values({ subjectId: subject.id, realmId, username });
+  const subject = await subjectRepository(tx).create({ tenantId, type: 'user' });
+  await tx.insert(users).values({ subjectId: subject.id, tenantId, username });
   await tx.insert(userCredentials).values({
     id: newId(),
-    realmId,
+    tenantId,
     subjectId: subject.id,
     type: 'password',
     secretData: { hash: await hashPassword(PASSWORD) },
@@ -130,7 +130,7 @@ async function seedUser(
 }
 
 interface Account {
-  realmId: string;
+  tenantId: string;
   subjectId: string;
   codes: readonly string[];
 }
@@ -139,51 +139,51 @@ interface Account {
 // state this whole feature exists for, since a recovery code substitutes
 // for a factor that has to be in play for anything to substitute for.
 async function seedAccountWithCodes(clock: FakeClock, username = 'ada'): Promise<Account> {
-  const realmId = newId();
-  const subjectId = await withRealm(app.db, realmId, async (tx) => {
-    await seedRealm(tx, realmId);
-    const subject = await seedUser(tx, realmId, username);
-    await enrolTotp(tx, realmId, subject, clock);
+  const tenantId = newId();
+  const subjectId = await withTenant(app.db, tenantId, async (tx) => {
+    await seedTenant(tx, tenantId);
+    const subject = await seedUser(tx, tenantId, username);
+    await enrolTotp(tx, tenantId, subject, clock);
     return subject;
   });
-  const offer = await withRealm(app.db, realmId, (tx) =>
-    beginRecoveryCodes(tx, { realmId, subjectId }),
+  const offer = await withTenant(app.db, tenantId, (tx) =>
+    beginRecoveryCodes(tx, { tenantId, subjectId }),
   );
-  return { realmId, subjectId, codes: offer.codes };
+  return { tenantId, subjectId, codes: offer.codes };
 }
 
-function start(realmId: string, clock: FakeClock): Promise<string> {
-  return withRealm(app.db, realmId, async (tx) => {
-    const { authSessionId } = await startAuthentication(tx, realmId, request, clock);
+function start(tenantId: string, clock: FakeClock): Promise<string> {
+  return withTenant(app.db, tenantId, async (tx) => {
+    const { authSessionId } = await startAuthentication(tx, tenantId, request, clock);
     return authSessionId;
   });
 }
 
 async function signInWithPassword(
-  realmId: string,
+  tenantId: string,
   clock: FakeClock,
   username = 'ada',
 ): Promise<string> {
-  const authSessionId = await start(realmId, clock);
-  await withRealm(app.db, realmId, (tx) =>
+  const authSessionId = await start(tenantId, clock);
+  await withTenant(app.db, tenantId, (tx) =>
     advance(tx, authSessionId, { username, password: PASSWORD }, clock),
   );
   return authSessionId;
 }
 
 function present(
-  realmId: string,
+  tenantId: string,
   authSessionId: string,
   recoveryCode: string,
   clock: FakeClock,
 ): Promise<AdvanceOutcome> {
-  return withRealm(app.db, realmId, (tx) => advance(tx, authSessionId, { recoveryCode }, clock));
+  return withTenant(app.db, tenantId, (tx) => advance(tx, authSessionId, { recoveryCode }, clock));
 }
 
 function storedCodes(
   account: Account,
 ): Promise<{ usedAt: string | undefined; lastUsedAt: Date | null }[]> {
-  return withRealm(app.db, account.realmId, async (tx) => {
+  return withTenant(app.db, account.tenantId, async (tx) => {
     const rows = await credentialRepository(tx).listFor(account.subjectId, 'recovery-code');
     return rows.map((row) => ({
       usedAt: row.secret.kind === 'recovery-code' ? row.secret.usedAt : undefined,
@@ -197,7 +197,7 @@ function storedCodes(
 // real login costs an Argon2id verification per code tried and proves
 // nothing the first spend has not already proven.
 async function spendDirectly(account: Account, count: number): Promise<void> {
-  await withRealm(app.db, account.realmId, async (tx) => {
+  await withTenant(app.db, account.tenantId, async (tx) => {
     const rows = await credentialRepository(tx).listFor(account.subjectId, 'recovery-code');
     for (const row of rows.slice(0, count)) {
       expect(await credentialRepository(tx).spendRecoveryCode(row.id, new Date())).toBe(true);
@@ -208,13 +208,13 @@ async function spendDirectly(account: Account, count: number): Promise<void> {
 // What the subject does after saving a set: the seeded enrolment owes the
 // action, and nothing in these tests goes through the page that clears it.
 function acknowledge(account: Account): Promise<void> {
-  return withRealm(app.db, account.realmId, (tx) =>
+  return withTenant(app.db, account.tenantId, (tx) =>
     requiredActionRepository(tx).complete(account.subjectId, 'generate-recovery-codes'),
   );
 }
 
 function pendingActions(account: Account): Promise<string[]> {
-  return withRealm(app.db, account.realmId, (tx) =>
+  return withTenant(app.db, account.tenantId, (tx) =>
     requiredActionRepository(tx).pendingFor(account.subjectId),
   );
 }
@@ -242,8 +242,8 @@ describe('a recovery code stands in for the second factor, once', () => {
     expect(code).toBeDefined();
 
     const first = await present(
-      account.realmId,
-      await signInWithPassword(account.realmId, clock),
+      account.tenantId,
+      await signInWithPassword(account.tenantId, clock),
       code ?? '',
       clock,
     );
@@ -254,8 +254,8 @@ describe('a recovery code stands in for the second factor, once', () => {
     });
 
     const again = await present(
-      account.realmId,
-      await signInWithPassword(account.realmId, clock),
+      account.tenantId,
+      await signInWithPassword(account.tenantId, clock),
       code ?? '',
       clock,
     );
@@ -271,8 +271,8 @@ describe('a recovery code stands in for the second factor, once', () => {
     const [code] = account.codes;
 
     await present(
-      account.realmId,
-      await signInWithPassword(account.realmId, clock),
+      account.tenantId,
+      await signInWithPassword(account.tenantId, clock),
       code ?? '',
       clock,
     );
@@ -291,8 +291,8 @@ describe('a recovery code stands in for the second factor, once', () => {
 
     for (const code of account.codes) {
       const outcome = await present(
-        account.realmId,
-        await signInWithPassword(account.realmId, clock),
+        account.tenantId,
+        await signInWithPassword(account.tenantId, clock),
         code,
         clock,
       );
@@ -308,8 +308,8 @@ describe('a recovery code stands in for the second factor, once', () => {
     const account = await seedAccountWithCodes(clock);
 
     const outcome = await present(
-      account.realmId,
-      await signInWithPassword(account.realmId, clock),
+      account.tenantId,
+      await signInWithPassword(account.tenantId, clock),
       'ZZZZZ-ZZZZZ',
       clock,
     );
@@ -321,42 +321,42 @@ describe('a recovery code stands in for the second factor, once', () => {
     const clock = clockAt();
     const account = await seedAccountWithCodes(clock);
 
-    const reissued = await withRealm(app.db, account.realmId, (tx) =>
-      beginRecoveryCodes(tx, { realmId: account.realmId, subjectId: account.subjectId }),
+    const reissued = await withTenant(app.db, account.tenantId, (tx) =>
+      beginRecoveryCodes(tx, { tenantId: account.tenantId, subjectId: account.subjectId }),
     );
     expect(reissued.replaced).toBe(true);
     expect(await storedCodes(account)).toHaveLength(RECOVERY_CODE_COUNT);
 
     const old = await present(
-      account.realmId,
-      await signInWithPassword(account.realmId, clock),
+      account.tenantId,
+      await signInWithPassword(account.tenantId, clock),
       account.codes[0] ?? '',
       clock,
     );
     expect(old).toEqual({ kind: 'failure', reason: 'invalid_credentials' });
 
     const fresh = await present(
-      account.realmId,
-      await signInWithPassword(account.realmId, clock),
+      account.tenantId,
+      await signInWithPassword(account.tenantId, clock),
       reissued.codes[0] ?? '',
       clock,
     );
     expect(fresh).toMatchObject({ kind: 'success', subjectId: account.subjectId });
   });
 
-  it("does not authenticate one subject with another's code from the same realm", async () => {
+  it("does not authenticate one subject with another's code from the same tenant", async () => {
     const clock = clockAt();
     const ada = await seedAccountWithCodes(clock, 'ada');
-    const bob = await withRealm(app.db, ada.realmId, (tx) => seedUser(tx, ada.realmId, 'bob'));
-    const bobsCodes = await withRealm(app.db, ada.realmId, (tx) =>
-      beginRecoveryCodes(tx, { realmId: ada.realmId, subjectId: bob }),
+    const bob = await withTenant(app.db, ada.tenantId, (tx) => seedUser(tx, ada.tenantId, 'bob'));
+    const bobsCodes = await withTenant(app.db, ada.tenantId, (tx) =>
+      beginRecoveryCodes(tx, { tenantId: ada.tenantId, subjectId: bob }),
     );
 
     // ada's attempt, bob's own valid code: the codes are read for the
     // subject the attempt is bound to, so bob's list is never consulted.
     const outcome = await present(
-      ada.realmId,
-      await signInWithPassword(ada.realmId, clock, 'ada'),
+      ada.tenantId,
+      await signInWithPassword(ada.tenantId, clock, 'ada'),
       bobsCodes.codes[0] ?? '',
       clock,
     );
@@ -381,8 +381,8 @@ describe('one code, one login', () => {
     const code = account.codes[0] ?? '';
 
     const sessions = await Promise.all([
-      signInWithPassword(account.realmId, clock),
-      signInWithPassword(account.realmId, clock),
+      signInWithPassword(account.tenantId, clock),
+      signInWithPassword(account.tenantId, clock),
     ]);
 
     let arrived = 0;
@@ -398,7 +398,7 @@ describe('one code, one login', () => {
 
     const outcomes = await Promise.all(
       sessions.map((authSessionId) =>
-        withRealm(app.db, account.realmId, async (tx) => {
+        withTenant(app.db, account.tenantId, async (tx) => {
           await arrive();
           return advance(tx, authSessionId, { recoveryCode: code }, clock);
         }),
@@ -416,31 +416,31 @@ describe('one code, one login', () => {
 
 describe('the second-factor form offers both, and the recovery code wins the step', () => {
   it('asks for a code from the app until a recovery code is actually submitted', async () => {
-    const realmId = newId();
+    const tenantId = newId();
     const clock = clockAt();
-    const subjectId = await withRealm(app.db, realmId, async (tx) => {
-      await seedRealm(tx, realmId);
-      return seedUser(tx, realmId, 'ada');
+    const subjectId = await withTenant(app.db, tenantId, async (tx) => {
+      await seedTenant(tx, tenantId);
+      return seedUser(tx, tenantId, 'ada');
     });
     // A TOTP credential, so the OTP step is the one that would otherwise run.
-    await withRealm(app.db, realmId, (tx) => enrolTotp(tx, realmId, subjectId, clock));
+    await withTenant(app.db, tenantId, (tx) => enrolTotp(tx, tenantId, subjectId, clock));
 
-    const authSessionId = await start(realmId, clock);
+    const authSessionId = await start(tenantId, clock);
     expect(
-      await withRealm(app.db, realmId, (tx) =>
+      await withTenant(app.db, tenantId, (tx) =>
         advance(tx, authSessionId, { username: 'ada', password: PASSWORD }, clock),
       ),
     ).toEqual({ kind: 'challenge', form: 'otp' });
     expect(
-      await withRealm(app.db, realmId, (tx) => pendingChallenge(tx, authSessionId, clock)),
+      await withTenant(app.db, tenantId, (tx) => pendingChallenge(tx, authSessionId, clock)),
     ).toEqual({ kind: 'challenge', form: 'otp' });
 
     // Fresh codes: the enrolment above owed a set, and asking for them is
     // what a subject who has just lost the authenticator would have done.
-    const offer = await withRealm(app.db, realmId, (tx) =>
-      beginRecoveryCodes(tx, { realmId, subjectId }),
+    const offer = await withTenant(app.db, tenantId, (tx) =>
+      beginRecoveryCodes(tx, { tenantId, subjectId }),
     );
-    const outcome = await withRealm(app.db, realmId, (tx) =>
+    const outcome = await withTenant(app.db, tenantId, (tx) =>
       advance(tx, authSessionId, { recoveryCode: offer.codes[0] ?? '' }, clock),
     );
 
@@ -463,37 +463,37 @@ describe('the second-factor form offers both, and the recovery code wins the ste
 // not.
 describe('the OTP step stands down only for a recovery step that actually runs', () => {
   it('challenges for a code when the subject holds none, however the field is filled', async () => {
-    const realmId = newId();
+    const tenantId = newId();
     const clock = clockAt();
-    const subjectId = await withRealm(app.db, realmId, async (tx) => {
-      await seedRealm(tx, realmId);
-      const subject = await seedUser(tx, realmId, 'ada');
-      await enrolTotp(tx, realmId, subject, clock);
+    const subjectId = await withTenant(app.db, tenantId, async (tx) => {
+      await seedTenant(tx, tenantId);
+      const subject = await seedUser(tx, tenantId, 'ada');
+      await enrolTotp(tx, tenantId, subject, clock);
       return subject;
     });
     expect(
-      await withRealm(app.db, realmId, (tx) =>
+      await withTenant(app.db, tenantId, (tx) =>
         credentialRepository(tx).listFor(subjectId, 'recovery-code'),
       ),
     ).toEqual([]);
 
-    const authSessionId = await signInWithPassword(realmId, clock);
-    const outcome = await present(realmId, authSessionId, 'A', clock);
+    const authSessionId = await signInWithPassword(tenantId, clock);
+    const outcome = await present(tenantId, authSessionId, 'A', clock);
 
     expect(outcome).toEqual({ kind: 'challenge', form: 'otp' });
   });
 
-  it('challenges for a code when the realm has no recovery step, even for a code it would accept', async () => {
+  it('challenges for a code when the tenant has no recovery step, even for a code it would accept', async () => {
     const clock = clockAt();
     const account = await seedAccountWithCodes(clock);
-    await withRealm(app.db, account.realmId, (tx) =>
+    await withTenant(app.db, account.tenantId, (tx) =>
       tx
         .delete(authenticationExecutions)
         .where(eq(authenticationExecutions.authenticator, 'recovery-code')),
     );
 
-    const authSessionId = await signInWithPassword(account.realmId, clock);
-    const outcome = await present(account.realmId, authSessionId, account.codes[0] ?? '', clock);
+    const authSessionId = await signInWithPassword(account.tenantId, clock);
+    const outcome = await present(account.tenantId, authSessionId, account.codes[0] ?? '', clock);
 
     expect(outcome).toEqual({ kind: 'challenge', form: 'otp' });
     // Nothing was spent: the step the code would have answered never ran.
@@ -503,16 +503,16 @@ describe('the OTP step stands down only for a recovery step that actually runs',
 
 describe('enrolling a second factor asks for a recovery path', () => {
   it('owes generate-recovery-codes to a subject who has just enrolled TOTP', async () => {
-    const realmId = newId();
+    const tenantId = newId();
     const clock = clockAt();
-    const subjectId = await withRealm(app.db, realmId, async (tx) => {
-      await seedRealm(tx, realmId);
-      return seedUser(tx, realmId, 'ada');
+    const subjectId = await withTenant(app.db, tenantId, async (tx) => {
+      await seedTenant(tx, tenantId);
+      return seedUser(tx, tenantId, 'ada');
     });
 
-    await withRealm(app.db, realmId, (tx) => enrolTotp(tx, realmId, subjectId, clock));
+    await withTenant(app.db, tenantId, (tx) => enrolTotp(tx, tenantId, subjectId, clock));
 
-    const pending = await withRealm(app.db, realmId, (tx) =>
+    const pending = await withTenant(app.db, tenantId, (tx) =>
       requiredActionRepository(tx).pendingFor(subjectId),
     );
     expect(pending).toContain('generate-recovery-codes');
@@ -521,18 +521,18 @@ describe('enrolling a second factor asks for a recovery path', () => {
   // A second factor does not invalidate a list the subject has already
   // saved, and re-issuing would silently retire the copy on their paper.
   it('does not ask a subject who already holds codes', async () => {
-    const realmId = newId();
+    const tenantId = newId();
     const clock = clockAt();
-    const subjectId = await withRealm(app.db, realmId, async (tx) => {
-      await seedRealm(tx, realmId);
-      const subject = await seedUser(tx, realmId, 'ada');
-      await beginRecoveryCodes(tx, { realmId, subjectId: subject });
+    const subjectId = await withTenant(app.db, tenantId, async (tx) => {
+      await seedTenant(tx, tenantId);
+      const subject = await seedUser(tx, tenantId, 'ada');
+      await beginRecoveryCodes(tx, { tenantId, subjectId: subject });
       return subject;
     });
 
-    await withRealm(app.db, realmId, (tx) => enrolTotp(tx, realmId, subjectId, clock));
+    await withTenant(app.db, tenantId, (tx) => enrolTotp(tx, tenantId, subjectId, clock));
 
-    const pending = await withRealm(app.db, realmId, (tx) =>
+    const pending = await withTenant(app.db, tenantId, (tx) =>
       requiredActionRepository(tx).pendingFor(subjectId),
     );
     expect(pending).not.toContain('generate-recovery-codes');
@@ -553,8 +553,8 @@ describe('enrolling a second factor asks for a recovery path', () => {
 
     const [ninth, tenth] = account.codes.slice(-2);
     const penultimate = await present(
-      account.realmId,
-      await signInWithPassword(account.realmId, clock),
+      account.tenantId,
+      await signInWithPassword(account.tenantId, clock),
       ninth ?? '',
       clock,
     );
@@ -562,8 +562,8 @@ describe('enrolling a second factor asks for a recovery path', () => {
     expect(await pendingActions(account)).not.toContain('generate-recovery-codes');
 
     const last = await present(
-      account.realmId,
-      await signInWithPassword(account.realmId, clock),
+      account.tenantId,
+      await signInWithPassword(account.tenantId, clock),
       tenth ?? '',
       clock,
     );
@@ -580,8 +580,8 @@ describe('enrolling a second factor asks for a recovery path', () => {
     await spendDirectly(account, RECOVERY_CODE_COUNT);
     await acknowledge(account);
 
-    await withRealm(app.db, account.realmId, (tx) =>
-      oweRecoveryCodesIfNoneUnspent(tx, account.realmId, account.subjectId),
+    await withTenant(app.db, account.tenantId, (tx) =>
+      oweRecoveryCodesIfNoneUnspent(tx, account.tenantId, account.subjectId),
     );
 
     expect(await pendingActions(account)).toContain('generate-recovery-codes');
@@ -589,27 +589,27 @@ describe('enrolling a second factor asks for a recovery path', () => {
 
   it('completes the action on acknowledgement, and refuses one with no codes stored', async () => {
     const account = await seedAccountWithCodes(clockAt());
-    await withRealm(app.db, account.realmId, (tx) =>
+    await withTenant(app.db, account.tenantId, (tx) =>
       requiredActionRepository(tx).add(
-        account.realmId,
+        account.tenantId,
         account.subjectId,
         'generate-recovery-codes',
       ),
     );
 
     expect(
-      await withRealm(app.db, account.realmId, (tx) =>
+      await withTenant(app.db, account.tenantId, (tx) =>
         completeRecoveryCodes(tx, { subjectId: account.subjectId }),
       ),
     ).toEqual({ kind: 'acknowledged' });
     expect(
-      await withRealm(app.db, account.realmId, (tx) =>
+      await withTenant(app.db, account.tenantId, (tx) =>
         requiredActionRepository(tx).pendingFor(account.subjectId),
       ),
     ).not.toContain('generate-recovery-codes');
 
-    const bare = await withRealm(app.db, account.realmId, async (tx) => {
-      const subjectId = await seedUser(tx, account.realmId, 'bare');
+    const bare = await withTenant(app.db, account.tenantId, async (tx) => {
+      const subjectId = await seedUser(tx, account.tenantId, 'bare');
       return completeRecoveryCodes(tx, { subjectId });
     });
     expect(bare).toEqual({ kind: 'rejected', reason: 'none_issued' });
@@ -617,12 +617,12 @@ describe('enrolling a second factor asks for a recovery path', () => {
 });
 
 describe('credentialRepository — the recovery-code writes', () => {
-  it('cannot spend a code under a different realm context, and leaves the row alone', async () => {
-    await expectCrossRealmMethodProbe(app.db, {
-      seed: async (tx, realmId) => {
-        await seedRealm(tx, realmId);
-        const subjectId = await seedUser(tx, realmId, 'ada');
-        await beginRecoveryCodes(tx, { realmId, subjectId });
+  it('cannot spend a code under a different tenant context, and leaves the row alone', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        await seedTenant(tx, tenantId);
+        const subjectId = await seedUser(tx, tenantId, 'ada');
+        await beginRecoveryCodes(tx, { tenantId, subjectId });
         const [stored] = await credentialRepository(tx).listFor(subjectId, 'recovery-code');
         if (stored === undefined) throw new Error('expected the seeded codes back');
         return { subjectId, id: stored.id };
@@ -638,7 +638,7 @@ describe('credentialRepository — the recovery-code writes', () => {
         // updated and the call reports the code as unspent.
         expect(result).toBe(false);
       },
-      verifyRealmAUnaffected: async (tx, seeded) => {
+      verifyTenantAUnaffected: async (tx, seeded) => {
         const rows = await credentialRepository(tx).listFor(seeded.subjectId, 'recovery-code');
         expect(
           rows.filter(
@@ -649,12 +649,12 @@ describe('credentialRepository — the recovery-code writes', () => {
     });
   });
 
-  it('counts no unspent codes under a different realm context', async () => {
-    await expectCrossRealmMethodProbe(app.db, {
-      seed: async (tx, realmId) => {
-        await seedRealm(tx, realmId);
-        const subjectId = await seedUser(tx, realmId, 'ada');
-        await beginRecoveryCodes(tx, { realmId, subjectId });
+  it('counts no unspent codes under a different tenant context', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        await seedTenant(tx, tenantId);
+        const subjectId = await seedUser(tx, tenantId, 'ada');
+        await beginRecoveryCodes(tx, { tenantId, subjectId });
         return { subjectId };
       },
       verifySeeded: async (tx, seeded) => {
@@ -665,12 +665,12 @@ describe('credentialRepository — the recovery-code writes', () => {
       attempt: async (tx, seeded) =>
         credentialRepository(tx).countUnspentRecoveryCodes(seeded.subjectId),
       expectBlocked: (result) => {
-        // Zero is the answer a foreign realm gets, and it is the answer that
+        // Zero is the answer a foreign tenant gets, and it is the answer that
         // would owe a fresh set — so the guard that reads it is only safe
-        // because nothing calls it outside the subject's own realm context.
+        // because nothing calls it outside the subject's own tenant context.
         expect(result).toBe(0);
       },
-      verifyRealmAUnaffected: async (tx, seeded) => {
+      verifyTenantAUnaffected: async (tx, seeded) => {
         expect(await credentialRepository(tx).countUnspentRecoveryCodes(seeded.subjectId)).toBe(
           RECOVERY_CODE_COUNT,
         );
@@ -678,12 +678,12 @@ describe('credentialRepository — the recovery-code writes', () => {
     });
   });
 
-  it("cannot delete a foreign realm's codes", async () => {
-    await expectCrossRealmMethodProbe(app.db, {
-      seed: async (tx, realmId) => {
-        await seedRealm(tx, realmId);
-        const subjectId = await seedUser(tx, realmId, 'ada');
-        await beginRecoveryCodes(tx, { realmId, subjectId });
+  it("cannot delete a foreign tenant's codes", async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        await seedTenant(tx, tenantId);
+        const subjectId = await seedUser(tx, tenantId, 'ada');
+        await beginRecoveryCodes(tx, { tenantId, subjectId });
         return { subjectId };
       },
       verifySeeded: async (tx, seeded) => {
@@ -695,7 +695,7 @@ describe('credentialRepository — the recovery-code writes', () => {
       expectBlocked: (result) => {
         expect(result).toBe(0);
       },
-      verifyRealmAUnaffected: async (tx, seeded) => {
+      verifyTenantAUnaffected: async (tx, seeded) => {
         expect(
           await credentialRepository(tx).listFor(seeded.subjectId, 'recovery-code'),
         ).toHaveLength(RECOVERY_CODE_COUNT);

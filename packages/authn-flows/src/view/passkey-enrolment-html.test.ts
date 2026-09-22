@@ -23,7 +23,7 @@ describe('renderPasskeyEnrolmentPage', () => {
     expect(page).toContain('name="credential"');
     expect(page).toContain('value="auth-session-1"');
     expect(page).toContain(
-      'action="/realms/acme/login-actions/required-action?action=configure-passkey"',
+      'action="/tenants/acme/login-actions/required-action?action=configure-passkey"',
     );
   });
 
@@ -67,7 +67,7 @@ describe('renderPasskeyEnrolmentPage', () => {
     expect(page).toContain('maxlength="64"');
   });
 
-  it('escapes the realm, the session id and an error message', () => {
+  it('escapes the tenant, the session id and an error message', () => {
     const { html: page } = renderPasskeyEnrolmentPage(
       'acme"><script>',
       'session"><script>',
@@ -81,7 +81,7 @@ describe('renderPasskeyEnrolmentPage', () => {
   });
 
   // HTML escaping does not apply inside a <script>, where the parser reads
-  // text: a realm name carrying `</script>` would otherwise end the element
+  // text: a tenant name carrying `</script>` would otherwise end the element
   // early and leave the rest of the options as markup.
   it('neutralises a value that would close the script element', () => {
     const { html: page } = renderPasskeyEnrolmentPage('acme', 'auth-session-1', {

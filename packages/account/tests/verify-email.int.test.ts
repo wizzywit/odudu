@@ -1,11 +1,11 @@
 import {
   createDatabase,
   MIGRATIONS_DIR,
-  realms,
+  tenants,
   runMigrations,
-  withRealm,
+  withTenant,
   type DatabaseHandle,
-  type RealmScopedDatabase,
+  type TenantScopedDatabase,
 } from '@odudu/db';
 import {
   emailOutbox,
@@ -20,7 +20,7 @@ import { eq, sql } from 'drizzle-orm';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { actionTokens } from '#/schema/action-tokens';
-import { realmSettingsRepository } from '#/repository/realm-settings';
+import { tenantSettingsRepository } from '#/repository/tenant-settings';
 import { sendVerificationEmail, type SendVerificationEmailDeps } from '#/usecase/verify-email';
 import { registerActionTokenRoute } from '#/view/routes/action-token';
 
@@ -64,9 +64,9 @@ function fakeUserStore() {
   const users = new Map<string, FakeUser>();
   return {
     users,
-    getCurrentEmail: (_tx: RealmScopedDatabase, subjectId: string) =>
+    getCurrentEmail: (_tx: TenantScopedDatabase, subjectId: string) =>
       Promise.resolve(users.get(subjectId)?.email ?? null),
-    markVerified: (_tx: RealmScopedDatabase, subjectId: string) => {
+    markVerified: (_tx: TenantScopedDatabase, subjectId: string) => {
       const user = users.get(subjectId);
       if (user !== undefined) user.verified = true;
       return Promise.resolve();
@@ -103,26 +103,26 @@ function extractLink(message: EmailMessage): string {
 // @odudu/account never imports @odudu/domain-identity, so a subject fixture
 // is inserted with raw SQL rather than through that package's repository —
 // the same idiom packages/account/tests/action-tokens.int.test.ts uses.
-async function seedRealm(name: string): Promise<{ realmId: string; realmName: string }> {
-  const realmId = newId();
-  await owner.db.insert(realms).values({ id: realmId, name });
-  return { realmId, realmName: name };
+async function seedTenant(name: string): Promise<{ tenantId: string; tenantName: string }> {
+  const tenantId = newId();
+  await owner.db.insert(tenants).values({ id: tenantId, name });
+  return { tenantId, tenantName: name };
 }
 
-async function insertSubject(realmId: string, subjectId: string): Promise<void> {
-  await withRealm(app.db, realmId, (tx) =>
+async function insertSubject(tenantId: string, subjectId: string): Promise<void> {
+  await withTenant(app.db, tenantId, (tx) =>
     tx.execute(
-      sql`insert into subjects (id, realm_id, type) values (${subjectId}, ${realmId}, 'user')`,
+      sql`insert into subjects (id, tenant_id, type) values (${subjectId}, ${tenantId}, 'user')`,
     ),
   );
 }
 
-async function rawSelectAllActionTokens(realmId: string) {
-  return withRealm(app.db, realmId, (tx) => tx.select().from(actionTokens));
+async function rawSelectAllActionTokens(tenantId: string) {
+  return withTenant(app.db, tenantId, (tx) => tx.select().from(actionTokens));
 }
 
-let realmId: string;
-let realmName: string;
+let tenantId: string;
+let tenantName: string;
 let subject: string;
 let sender: ReturnType<typeof fakeSender>;
 
@@ -145,7 +145,7 @@ async function drainOutbox(into: EmailSender = sender): Promise<void> {
 }
 
 async function outboxRows() {
-  return withRealm(app.db, realmId, (tx) => tx.select().from(emailOutbox));
+  return withTenant(app.db, tenantId, (tx) => tx.select().from(emailOutbox));
 }
 let store: ReturnType<typeof fakeUserStore>;
 let deps: SendVerificationEmailDeps;
@@ -155,7 +155,7 @@ async function buildHttpApp(): Promise<FastifyInstance> {
   const instance = Fastify();
   registerActionTokenRoute(instance, {
     database: app,
-    findRealm: (name) => realmSettingsRepository(owner.db).byName(name),
+    findTenant: (name) => tenantSettingsRepository(owner.db).byName(name),
     getCurrentEmail: store.getCurrentEmail,
     markVerified: store.markVerified,
     setPassword: store.setPassword,
@@ -170,17 +170,17 @@ async function buildHttpApp(): Promise<FastifyInstance> {
 }
 
 beforeEach(async () => {
-  ({ realmId, realmName } = await seedRealm(`realm-${newId()}`));
+  ({ tenantId, tenantName } = await seedTenant(`tenant-${newId()}`));
   subject = newId();
-  await insertSubject(realmId, subject);
+  await insertSubject(tenantId, subject);
   sender = fakeSender();
   store = fakeUserStore();
   store.users.set(subject, { email: 'ada@example.test', verified: false });
   deps = {
     database: app,
-    realmId,
-    realmName,
-    realmDisplayName: 'Ada Test Realm',
+    tenantId,
+    tenantName,
+    tenantDisplayName: 'Ada Test Tenant',
     issuerBase: 'https://idp.example.test',
   };
   httpApp = await buildHttpApp();
@@ -214,7 +214,7 @@ describe('address verification', () => {
     // The token is durably stored and the mail that carries it is queued
     // beside it, and no transport has been spoken to: the send happens on
     // the outbox pass, where a failure cannot reach a caller.
-    expect(await rawSelectAllActionTokens(realmId)).toHaveLength(1);
+    expect(await rawSelectAllActionTokens(tenantId)).toHaveLength(1);
     expect(await outboxRows()).toHaveLength(1);
     expect(sender.sent).toHaveLength(0);
   });
@@ -231,7 +231,7 @@ describe('address verification', () => {
     expect(queued).toHaveLength(1);
     expect(queued[0]?.attempts).toBe(1);
     expect(queued[0]?.lastError).toBe('mail transport unavailable');
-    expect(await rawSelectAllActionTokens(realmId)).toHaveLength(1);
+    expect(await rawSelectAllActionTokens(tenantId)).toHaveLength(1);
   });
 
   it('refuses a second use of the same link', async () => {
@@ -264,17 +264,17 @@ describe('address verification', () => {
     expect(store.users.get(subject)?.verified).toBe(false);
   });
 
-  it('refuses a token minted in another realm', async () => {
-    const other = await seedRealm(`realm-${newId()}`);
+  it('refuses a token minted in another tenant', async () => {
+    const other = await seedTenant(`tenant-${newId()}`);
     const otherSubject = newId();
-    await insertSubject(other.realmId, otherSubject);
+    await insertSubject(other.tenantId, otherSubject);
     const otherStore = fakeUserStore();
     otherStore.users.set(otherSubject, { email: 'grace@example.test', verified: false });
     const otherDeps: SendVerificationEmailDeps = {
       database: app,
-      realmId: other.realmId,
-      realmName: other.realmName,
-      realmDisplayName: 'Other Realm',
+      tenantId: other.tenantId,
+      tenantName: other.tenantName,
+      tenantDisplayName: 'Other Tenant',
       issuerBase: 'https://idp.example.test',
     };
 
@@ -286,33 +286,33 @@ describe('address verification', () => {
     const message = sender.sent[0];
     if (message === undefined) throw new Error('no mail sent');
     const link = extractLink(message).replace(
-      `/realms/${other.realmName}/`,
-      `/realms/${realmName}/`,
+      `/tenants/${other.tenantName}/`,
+      `/tenants/${tenantName}/`,
     );
 
     const res = await httpApp.inject({ method: 'GET', url: link });
     expect(res.statusCode).toBe(400);
   });
 
-  it('rejects a request naming a realm that does not exist', async () => {
+  it('rejects a request naming a tenant that does not exist', async () => {
     await sendVerificationEmail(deps, { subjectId: subject, email: 'ada@example.test' });
     await drainOutbox();
     const message = sender.sent[0];
     if (message === undefined) throw new Error('no mail sent');
-    const link = extractLink(message).replace(`/realms/${realmName}/`, '/realms/does-not-exist/');
+    const link = extractLink(message).replace(`/tenants/${tenantName}/`, '/tenants/does-not-exist/');
 
     const res = await httpApp.inject({ method: 'GET', url: link });
     expect(res.statusCode).toBe(400);
   });
 
-  it('refuses to redeem a link minted for a realm that has since been disabled', async () => {
+  it('refuses to redeem a link minted for a tenant that has since been disabled', async () => {
     await sendVerificationEmail(deps, { subjectId: subject, email: 'ada@example.test' });
     await drainOutbox();
     const message = sender.sent[0];
     if (message === undefined) throw new Error('no mail sent');
     const link = extractLink(message);
 
-    await owner.db.update(realms).set({ enabled: false }).where(eq(realms.id, realmId));
+    await owner.db.update(tenants).set({ enabled: false }).where(eq(tenants.id, tenantId));
 
     const res = await httpApp.inject({ method: 'GET', url: link });
     expect(res.statusCode).toBe(400);
@@ -322,7 +322,7 @@ describe('address verification', () => {
   it('rejects a request with no key', async () => {
     const res = await httpApp.inject({
       method: 'GET',
-      url: `/realms/${realmName}/login-actions/action-token`,
+      url: `/tenants/${tenantName}/login-actions/action-token`,
     });
     expect(res.statusCode).toBe(400);
   });
