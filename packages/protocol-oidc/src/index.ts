@@ -201,11 +201,8 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
     const activeSigningKey = (realmId: string) =>
       withRealm(deps.database.db, realmId, (tx) => signingKeyRepository(tx).active());
 
-    // Discovery's and registration's shared answer to "what can this realm
-    // actually sign with" — `null` only for a realm provisioned before a
-    // signing key was ever generated for it (`signingKeyRepository(tx)
-    // .active()` throws `signing_key_not_found` in that state; caught here
-    // rather than left to break discovery for a realm mid-bootstrap).
+    // `null` rather than thrown: a realm provisioned before its first
+    // signing key still gets a discovery document.
     const activeSigningKeyAlg = (realmId: string) =>
       withRealm(deps.database.db, realmId, async (tx) => {
         try {

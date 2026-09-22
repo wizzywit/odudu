@@ -75,23 +75,23 @@ async function performRegistration(
     return { kind: 'at_capacity' };
   }
 
-  // `client-metadata.ts` narrows `userinfo_signed_response_alg` to what a
-  // signing key's own check permits in general (`RS256`, `ES256`, `none`);
-  // this narrows further to what *this* realm's one active key actually is
-  // (`signing_keys_one_active` — a realm never holds two). Checked here,
-  // in the same transaction the realm's key lives in, so a client cannot
-  // register a value discovery told it was supported but this realm cannot
-  // produce.
+  // Checked in the same transaction the realm's key lives in, so discovery
+  // and registration cannot disagree; `null` (no active key) is a mismatch too.
   if (
     metadata.userinfoSignedResponseAlg !== null &&
     metadata.userinfoSignedResponseAlg !== 'none'
   ) {
-    const activeKey = await signingKeyRepository(tx).active();
-    if (activeKey.alg !== metadata.userinfoSignedResponseAlg) {
+    const activeAlg: string | null = await signingKeyRepository(tx)
+      .active()
+      .then(
+        (key) => key.alg,
+        () => null,
+      );
+    if (activeAlg !== metadata.userinfoSignedResponseAlg) {
       return {
         kind: 'invalid_metadata',
         error: 'invalid_client_metadata',
-        description: `userinfo_signed_response_alg ${metadata.userinfoSignedResponseAlg} does not match this realm's active signing key (${activeKey.alg})`,
+        description: `userinfo_signed_response_alg ${metadata.userinfoSignedResponseAlg} does not match this realm's active signing key (${activeAlg ?? 'none'})`,
       };
     }
   }

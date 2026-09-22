@@ -622,8 +622,7 @@ immediately below, where the response is signed or encrypted.
 ### A signed UserInfo response: `aud`, `none`, `typ`, and the algorithm that was never selectable
 
 Four decisions `usecase/userinfo.ts`'s `signedBody` makes, each easy to get
-wrong by analogy with a token that looks similar — one of them was gotten
-wrong here first, and the fix is recorded alongside it.
+wrong by analogy with a token that looks similar.
 
 **`aud` is the client.** The access token that reached `/userinfo` already
 carries the resource(s) it was issued for in its own `aud`
@@ -701,7 +700,12 @@ second one to try — and it is not the presented access token's fault, so
 challenge (RFC 6750 §3's challenges are about the token, and this token is
 fine), and no body (the reason is an operator's configuration state, not
 text for the caller holding a valid credential it cannot use to fix
-anything).
+anything) — logged instead, at `view/routes/userinfo.ts`'s own call site,
+with the client, the registered algorithm and the active key's algorithm.
+
+Registration reads the same active-key query, so a realm with no active
+key at all is a mismatch too (every algorithm is unproducible), refused
+the same way as a real mismatch rather than left to throw.
 
 ### §15.1's `auth_time`, answered unconditionally
 

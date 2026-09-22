@@ -23,18 +23,9 @@ export interface DiscoveryDocument {
   readonly response_types_supported: readonly string[];
   readonly response_modes_supported: readonly string[];
   readonly subject_types_supported: readonly string[];
-  // No client-registrable field selects an ID Token signing algorithm, so
-  // nothing reads this list to make a decision — it names both algorithms
-  // this binary can ever sign with, not what this realm's one active key
-  // actually is (`signing_keys_one_active`; see
-  // `userinfo_signing_alg_values_supported` below, where that distinction
-  // is load-bearing).
   readonly id_token_signing_alg_values_supported: readonly string[];
   // OIDC Discovery §3: the JWS `alg` values a client may register in
-  // `userinfo_signed_response_alg`, and this one *is* read back at
-  // registration (`client-registration.ts`) — a realm holds exactly one
-  // active signing key, so this is `opts.userinfoSigningAlgSupported`, the
-  // caller's own per-realm answer, never a fixed literal.
+  // `userinfo_signed_response_alg` — this realm's own active key's algorithm.
   readonly userinfo_signing_alg_values_supported: readonly string[];
   readonly code_challenge_methods_supported: readonly string[];
   readonly grant_types_supported: readonly string[];
@@ -75,11 +66,7 @@ export interface DiscoveryDocumentOptions {
   // /authorize's validation, so the two cannot drift apart.
   readonly scopesSupported: readonly string[];
   // What `userinfo_signed_response_alg` this realm can actually honour:
-  // its one active signing key's own algorithm, plus `none` (OIDC
-  // Discovery §3 admits `none` in its own right, needing no key at all).
-  // Required, not defaulted, for the same reason `claimsSupported` is —
-  // this package never reads a database, and a realm's active key is not
-  // knowable from here.
+  // its active key's algorithm, plus `none` (OIDC Discovery §3).
   readonly userinfoSigningAlgSupported: readonly string[];
   // Whether the realm's client_registration_policy is not 'disabled' — the
   // endpoint's path is fixed the same way every other one here is, so the

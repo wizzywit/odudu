@@ -72,11 +72,17 @@ async function respondToUserinfoRequest(
         .code(403)
         .header('www-authenticate', `${CHALLENGE}, error="insufficient_scope"`)
         .send();
-    // Not a bad-token failure (RFC 6750 §3's own vocabulary), so no
-    // `WWW-Authenticate` challenge — the presented access token is fine.
-    // No body either: the reason is a realm/client configuration state an
-    // operator reads from `/userinfo`'s own logs, not text for the caller.
+    // Not the token's fault, so no `WWW-Authenticate` challenge; no body
+    // either — logged below instead, for whoever operates this realm.
     case 'signing_unavailable':
+      request.log.warn(
+        {
+          client_id: outcome.clientId,
+          userinfo_signed_response_alg: outcome.registeredAlg,
+          active_signing_key_alg: outcome.activeAlg,
+        },
+        'userinfo: registered signing algorithm does not match the active signing key',
+      );
       return reply.headers(corsHeaders).code(500).send();
     case 'ok':
       if (outcome.body.kind === 'jwt') {

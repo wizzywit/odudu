@@ -12,12 +12,8 @@ export interface DiscoveryUsecaseDeps {
   // realm data rather than a constant in the binary. `/authorize` validates
   // against this same read.
   scopesForRealm(realmId: string): Promise<readonly string[]>;
-  // This realm's one active signing key's own algorithm (`null` for a realm
-  // provisioned before a key was ever generated for it) — a realm holds
-  // exactly one (`signing_keys_one_active`), never "the algorithms a
-  // signing key can carry" in general. Read by `client-registration.ts`
-  // too, so what this advertises and what registration accepts cannot
-  // disagree.
+  // This realm's active signing key's own algorithm, `null` for a realm
+  // provisioned before a key was ever generated for it.
   activeSigningKeyAlg(realmId: string): Promise<string | null>;
   // Whether this deployment's `ODUDU_TRUST_PROXY` is on — server config,
   // not realm data, so it is read once per process the way `/token`'s own
@@ -46,9 +42,7 @@ export async function resolveDiscoveryDocument(
     issuer: realmIssuer(issuerBase, realmName),
     claimsSupported: deps.claimNames(),
     scopesSupported,
-    // `none` always belongs: it needs no key (OIDC Discovery §3 admits it
-    // in its own right). The realm's own algorithm joins it only when the
-    // realm actually has an active key to sign with.
+    // `none` always belongs: it needs no key (OIDC Discovery §3).
     userinfoSigningAlgSupported: activeAlg === null ? ['none'] : [activeAlg, 'none'],
     clientRegistrationEnabled: realm.clientRegistrationPolicy !== 'disabled',
     tlsClientAuthEnabled: deps.trustProxy,

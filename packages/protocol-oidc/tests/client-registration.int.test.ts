@@ -417,8 +417,7 @@ describe('[ODUDU-CLIENT-REGISTRATION-SEAM-01] the P3a/P3b seam', () => {
   });
 
   // A permitted value (client-metadata.ts's own enum admits it) that this
-  // realm's own active key still cannot produce — the mismatch N1/N2's fix
-  // closes at registration, before a client ever reaches a `/userinfo` 500.
+  // realm's own active key still cannot produce.
   it('refuses a permitted algorithm this realm cannot produce, at registration', async () => {
     const realmName = `seam-key-mismatch-${newId()}`;
     const realmId = newId();
@@ -440,6 +439,24 @@ describe('[ODUDU-CLIENT-REGISTRATION-SEAM-01] the P3a/P3b seam', () => {
       method: 'POST',
       url: URL_FOR(realmName),
       payload: { ...MINIMAL, userinfo_signed_response_alg: 'ES256' },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json<{ error: string }>().error).toBe('invalid_client_metadata');
+  });
+
+  // No active key at all: the realm can honour neither RS256 nor ES256, so
+  // this is the same refusal as a mismatch, not an unguarded exception.
+  it('refuses a signing algorithm on a realm with no active key, rather than 500', async () => {
+    const realmName = `seam-no-key-${newId()}`;
+    const realmId = newId();
+    await withRealm(app.db, realmId, (tx) =>
+      seedRealm(tx, realmId, { name: realmName, policy: 'open' }),
+    );
+
+    const res = await http.inject({
+      method: 'POST',
+      url: URL_FOR(realmName),
+      payload: { ...MINIMAL, userinfo_signed_response_alg: 'RS256' },
     });
     expect(res.statusCode).toBe(400);
     expect(res.json<{ error: string }>().error).toBe('invalid_client_metadata');

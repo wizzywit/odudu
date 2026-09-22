@@ -15,6 +15,7 @@ import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import formbody from '@fastify/formbody';
 import Fastify, { type FastifyInstance, type LightMyRequestResponse } from 'fastify';
+import { Writable } from 'node:stream';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { oidcRoutes } from '#/index';
 import { NO_CLIENT_KEY_FETCHER } from '#/repository/client-keys';
@@ -32,6 +33,19 @@ let container: TestDatabase;
 let owner: DatabaseHandle;
 let app: DatabaseHandle;
 let http: FastifyInstance;
+
+// Captures every line Fastify's logger emits, so a test can assert what an
+// operator would actually see rather than trusting a comment about it.
+const loggedLines: Record<string, unknown>[] = [];
+const logStream = new Writable({
+  write(chunk: Buffer, _encoding, callback) {
+    for (const line of chunk.toString('utf8').split('\n')) {
+      if (line.trim().length === 0) continue;
+      loggedLines.push(JSON.parse(line) as Record<string, unknown>);
+    }
+    callback();
+  },
+});
 
 const KEK = Buffer.alloc(32, 5);
 const REDIRECT_URI = 'https://app.example/callback';
@@ -177,7 +191,7 @@ beforeAll(async () => {
   appHandle = createDatabase(appUrl, { max: 5 });
   app = appHandle;
 
-  http = Fastify();
+  http = Fastify({ logger: { level: 'warn', stream: logStream } });
   await http.register(formbody);
   await http.register(
     oidcRoutes({
@@ -356,9 +370,20 @@ describe('the UserInfo response format follows client registration', () => {
   // under the client's chosen name is the defect this closes — refusing is
   // the honest minimum (docs/protocols/oidc-core.md's reading note).
   it('refuses to answer when the active key cannot produce the registered algorithm, in its own shape', async () => {
+    loggedLines.length = 0;
     const response = await userinfo(mismatchClient);
     expect(response.statusCode).toBe(500);
     expect(response.body).toBe('');
     expect(response.headers['www-authenticate']).toBeUndefined();
+
+    const warning = loggedLines.find(
+      (line) =>
+        line.msg === 'userinfo: registered signing algorithm does not match the active signing key',
+    );
+    expect(warning).toMatchObject({
+      client_id: mismatchClient.clientId,
+      userinfo_signed_response_alg: 'ES256',
+      active_signing_key_alg: 'RS256',
+    });
   });
 });

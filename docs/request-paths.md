@@ -528,8 +528,7 @@ that is not signed — an RFC 7519 §6 unsecured JWT (`alg: "none"`, no
 signature). Both are `application/jwt` and carry `iss` and `aud` (OIDC Core
 §5.3.2 for the "If signed" case; OIDC Registration §2 and Discovery §3 for
 why `none` still serializes as a JWT at all — see the reading note in
-`docs/protocols/oidc-core.md`, which the first version of this passage
-mis-cited). Registration refuses a value the _realm's own_ active signing
+`docs/protocols/oidc-core.md`). Registration refuses a value the _realm's own_ active signing
 key cannot produce, and discovery's `userinfo_signing_alg_values_supported`
 is that same realm's answer — `[key.alg, "none"]` — never a fixed pair
 advertised to every realm regardless of which key it actually holds (a

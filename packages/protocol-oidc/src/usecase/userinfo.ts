@@ -55,12 +55,14 @@ export type UserinfoOutcome =
   // against; every earlier outcome never got that far.
   | { kind: 'insufficient_scope'; clientId: string | undefined }
   // A client registered `userinfo_signed_response_alg` for an algorithm
-  // this realm's active key no longer carries — reachable only after a key
-  // rotation, since registration itself now refuses the mismatch (see
-  // `usecase/client-registration.ts`). Not a bad token, so no
-  // `WWW-Authenticate` challenge; not this resource server's fault either,
-  // so the body says nothing an operator's own logs don't already know.
-  | { kind: 'signing_unavailable'; clientId: string | undefined }
+  // this realm's active key no longer carries — see `view/routes/userinfo.ts`
+  // for how this is answered and logged.
+  | {
+      kind: 'signing_unavailable';
+      clientId: string | undefined;
+      registeredAlg: string;
+      activeAlg: string;
+    }
   | { kind: 'ok'; body: UserinfoBody; clientId: string | undefined };
 
 function scopesOf(scopeClaim: unknown): string[] {
@@ -124,42 +126,43 @@ export async function resolveUserinfo(
     roles: narrowByScopeMappings(ctx.roles, reachableRoleIds, fullScopeAllowed),
   };
   const claims = await deps.claimMappers.assemble(scope, narrowedCtx);
-  const responseBody = await signedBody(deps, realm.id, issuer, clientId, claims);
-  if (responseBody === null) return { kind: 'signing_unavailable', clientId };
-  return { kind: 'ok', body: responseBody, clientId };
+  const result = await signedBody(deps, realm.id, issuer, clientId, claims);
+  if (result.kind === 'mismatch') {
+    return {
+      kind: 'signing_unavailable',
+      clientId,
+      registeredAlg: result.registeredAlg,
+      activeAlg: result.activeAlg,
+    };
+  }
+  return { kind: 'ok', body: result.body, clientId };
 }
 
-// OIDC Core §5.3.2. `aud`, `none`, `typ` and a `null` return each carry a
-// decision that reads as obvious by analogy and is not — see "A signed
-// UserInfo response: `aud`, `none`, `typ`, and the algorithm that was never
-// selectable" in docs/protocols/oidc-core.md before changing this. `null`:
-// the realm's active key cannot honour a registered algorithm, reported
-// rather than thrown, since a realm holding exactly one active signing key
-// makes this a configuration state, not an unexpected exception.
+type SignedBodyResult =
+  | { kind: 'body'; body: UserinfoBody }
+  | { kind: 'mismatch'; registeredAlg: string; activeAlg: string };
+
+// OIDC Core §5.3.2; see "A signed UserInfo response" in
+// docs/protocols/oidc-core.md before changing this.
 async function signedBody(
   deps: UserinfoDeps,
   realmId: string,
   issuer: string,
   clientId: string | undefined,
   claims: Record<string, unknown>,
-): Promise<UserinfoBody | null> {
-  if (clientId === undefined) return { kind: 'json', claims };
+): Promise<SignedBodyResult> {
+  if (clientId === undefined) return { kind: 'body', body: { kind: 'json', claims } };
 
   const alg = await deps.userinfoSignedResponseAlg(realmId, clientId);
-  if (alg === null) return { kind: 'json', claims };
+  if (alg === null) return { kind: 'body', body: { kind: 'json', claims } };
 
   const signedClaims = { ...claims, iss: issuer, aud: clientId };
   if (alg === 'none') {
-    return { kind: 'jwt', token: encodeUnsecuredJwt(signedClaims) };
+    return { kind: 'body', body: { kind: 'jwt', token: encodeUnsecuredJwt(signedClaims) } };
   }
 
-  // `alg` is `RS256` or `ES256` here — the permitted set `client-
-  // metadata.ts` checks at registration. That check does not reach every
-  // row in this column, though: `userinfoSignedResponseAlg` is read
-  // straight from storage, and nothing stops a value written there some
-  // other way (a fixture, a future admin API) from being neither.
   const key = await deps.activeSigningKey(realmId);
-  if (key.alg !== alg) return null;
+  if (key.alg !== alg) return { kind: 'mismatch', registeredAlg: alg, activeAlg: key.alg };
   const token = await signJwt(signedClaims, { key, kek: deps.kek, typ: USERINFO_JWT_TYP });
-  return { kind: 'jwt', token };
+  return { kind: 'body', body: { kind: 'jwt', token } };
 }
