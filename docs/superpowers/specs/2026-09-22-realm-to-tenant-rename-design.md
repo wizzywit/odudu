@@ -52,7 +52,7 @@ called a realm.
 
 **3.4 The database rename goes all the way to the GUC.** The table, all thirty
 `realm_id` columns, and `app.realm_id` become `tenants`, `tenant_id` and
-`app.tenant_id`, which means rewriting all thirty-two row-level-security
+`app.tenant_id`, which means rewriting all thirty-one row-level-security
 policies and `packages/db/src/tx.ts`'s two `set_config` calls.
 
 ## 4. The naming rule

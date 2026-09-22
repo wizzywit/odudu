@@ -77,7 +77,7 @@ Write `docs/superpowers/rename-spike-postgres.md` answering three questions, eac
 2. Do `relrowsecurity` and `relforcerowsecurity` survive `ALTER TABLE RENAME TO`?
 3. Does the `app.realm_id` string literal inside `current_setting(...)` change? (Expected: no — it is a literal. Confirm rather than assume.)
 
-If the GUC literal does not change, the migration must `DROP POLICY` and `CREATE POLICY` for all 32 policies rather than relying on the rename. State which the migration will do.
+If the GUC literal does not change, the migration must `DROP POLICY` and `CREATE POLICY` for all 31 policies rather than relying on the rename. State which the migration will do.
 
 - [ ] **Step 4: Tear down and commit**
 
@@ -131,7 +131,7 @@ git commit -m "Expect tenant-named policies before renaming them"
 
 - [ ] **Step 1: Write the migration**
 
-Follow the shape of the recent hand-authored migrations. It must, in order: rename the table; rename all 30 `realm_id` columns; and bring every one of the 32 policies to the new GUC — by `DROP POLICY` then `CREATE POLICY` if the spike showed the literal does not change, which it will have.
+Follow the shape of the recent hand-authored migrations. It must, in order: rename the table; rename all 30 `realm_id` columns; and bring every one of the 31 policies to the new GUC — by `DROP POLICY` then `CREATE POLICY` if the spike showed the literal does not change, which it will have.
 
 Find the tables to cover mechanically rather than from memory:
 
@@ -172,6 +172,102 @@ Expected: empty. Any other file listed means a substitution ran too wide.
 ```bash
 git add packages/db
 git commit -m "Rename the realms table, its columns and its policies"
+```
+
+### Task 3b: Rename the constraint and index names the catalogue kept
+
+**Files:**
+
+- Create: `packages/db/drizzle/0058_rename_realm_constraint_names.sql`
+- Modify: `packages/db/drizzle/meta/_journal.json`
+- Modify: `packages/db/tests/migrate.int.test.ts`, `packages/db/tests/schema-drift.int.test.ts`
+
+`0057` renamed the table, its columns and its policies. PostgreSQL does not
+rename a constraint or an index when the table or column it belongs to is
+renamed, so roughly 106 constraint names and at least one index name still
+carry the old word: primary keys, foreign keys, unique constraints, check
+constraints, the PG18 not-null constraint names, and the index
+`roles_realm_name`. A constraint name reaches a user in the error text of a
+violation, so these are not internal.
+
+**Interfaces:**
+
+- Consumes: the `tenants` table and `tenant_id` columns that `0057` produced.
+- Produces: a catalogue in which no relation, constraint, index or policy name
+  contains the old word.
+
+- [ ] **Step 1: Enumerate from the catalogue, never by hand**
+
+Replay every migration into a throwaway PostgreSQL and read the real names out
+of `pg_constraint`, `pg_class` and `pg_indexes`. A hand-written list will be
+wrong, and a `sed` over the migration files cannot produce this because the
+frozen migrations must not change.
+
+Use queries of this shape, and record both the count and the full list in the
+report:
+
+```sql
+SELECT conrelid::regclass AS table_name, conname
+FROM pg_constraint WHERE conname LIKE '%realm%' ORDER BY 1, 2;
+
+SELECT indexname, tablename FROM pg_indexes
+WHERE schemaname = 'public' AND indexname LIKE '%realm%' ORDER BY 1;
+```
+
+- [ ] **Step 2: Write the migration**
+
+`0058_rename_realm_constraint_names.sql` renames each one, applying the same
+three substitutions to the name itself: `realm`→`tenant`, `Realm`→`Tenant`,
+`REALM`→`TENANT`.
+
+```sql
+ALTER TABLE <table> RENAME CONSTRAINT <old> TO <new>;
+ALTER INDEX <old> RENAME TO <new>;
+```
+
+A constraint backing a primary key or a unique constraint is renamed by
+`ALTER TABLE ... RENAME CONSTRAINT`, which carries its index with it; do not
+also rename that index separately, or the second statement fails on a name
+that no longer exists. Establish which of the two forms each name needs from
+the catalogue rather than assuming: `pg_constraint` rows are constraints,
+and an entry in `pg_indexes` with no matching `pg_constraint` row is a plain
+index.
+
+Generate the statements from the enumeration, then read every one of them.
+
+- [ ] **Step 3: Add the journal entry**
+
+Append one entry to `packages/db/drizzle/meta/_journal.json` following the
+shape of the last one, with `tag` exactly `0058_rename_realm_constraint_names`
+and the next `idx`.
+
+- [ ] **Step 4: Move the two test expectations off the old names**
+
+`packages/db/tests/migrate.int.test.ts` and
+`packages/db/tests/schema-drift.int.test.ts` currently assert the old
+constraint names as string literals, each with a one-line comment saying why
+the old name survived. Those names are now new, and the comments describe a
+state that no longer exists: update both the strings and remove the comments.
+
+- [ ] **Step 5: Prove nothing was missed**
+
+After the migration applies, the two queries in Step 1 must both return zero
+rows. Paste both, with their real output, into the report. Then:
+
+Run: `npx vitest run packages/db`
+Expected: PASS.
+
+```bash
+git diff --name-only HEAD -- packages/db/drizzle/ | grep -v '0058_rename_realm_constraint_names.sql\|meta/_journal.json'
+```
+
+Expected: empty. Any other file listed means a substitution ran too wide.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add packages/db
+git commit -m "Rename the constraint and index names the rename left behind"
 ```
 
 ### Task 4: The rest of packages/db
