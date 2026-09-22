@@ -1,4 +1,4 @@
-import { sessionCookieName } from '@odudu/authn-flows';
+import { sessionCookies } from '@odudu/authn-flows';
 import { type FastifyInstance } from 'fastify';
 import { handleConsentSubmission, type ConsentSubmissionDeps } from '#/usecase/consent-submission';
 import { renderAuthorizeErrorPage, renderEmailUnverifiedPage } from '#/view/authorize-html';
@@ -36,9 +36,13 @@ function scopeValues(value: string | string[] | undefined): string[] {
 export function registerConsentRoute(app: FastifyInstance, deps: ConsentRouteDeps): void {
   app.post<{
     Params: { realm: string };
-    Body: Record<string, string | string[] | undefined>;
+    Body: Record<string, string | string[] | undefined> | undefined;
   }>('/realms/:realm/login-actions/consent', async (request, reply) => {
-    const body = request.body;
+    // Fastify leaves `request.body` undefined for a POST with no
+    // Content-Type and no payload — normalised to an empty object so the
+    // ordinary invalid_request handling below runs instead of throwing on a
+    // missing read (the same fix authorize.ts's chooser POST needs).
+    const body = request.body ?? {};
     const authSessionId = firstString(body.auth_session_id);
 
     const outcome = await handleConsentSubmission(
@@ -47,6 +51,7 @@ export function registerConsentRoute(app: FastifyInstance, deps: ConsentRouteDep
       issuerBaseFor(request),
       authSessionId,
       { decision: firstString(body.decision), scopes: scopeValues(body.scope) },
+      request.headers.cookie,
     );
 
     if (outcome.kind === 'unauthenticated') {
@@ -63,8 +68,8 @@ export function registerConsentRoute(app: FastifyInstance, deps: ConsentRouteDep
     // No set-cookie on 'error_redirect': nothing was established to carry
     // in one. A 'redirect' means completeAuthorizedLogin ran establishSession
     // exactly as the form path's own success redirect does, so it gets the
-    // same cookie, set the same way (login.ts's own comment has the
-    // attributes' reasoning).
+    // same cookies, written through the one authority both routes share
+    // (@odudu/authn-flows' sessionCookies).
     if (outcome.kind === 'error_redirect') {
       return reply.code(302).header('location', outcome.location).send();
     }
@@ -89,15 +94,16 @@ export function registerConsentRoute(app: FastifyInstance, deps: ConsentRouteDep
       );
     }
 
-    const cookieName = sessionCookieName(request.params.realm, deps.tls);
-    const cookie = [
-      `${cookieName}=${outcome.sessionId}`,
-      'HttpOnly',
-      'SameSite=Lax',
-      'Path=/',
-      ...(deps.tls ? ['Secure'] : []),
-    ].join('; ');
+    const written = sessionCookies({
+      realm: request.params.realm,
+      tls: deps.tls,
+      ephemeral: outcome.ephemeralSessionIds,
+      persistent: outcome.persistentSessionIds,
+      persistentMaxAgeSeconds: outcome.persistentMaxAgeSeconds,
+    });
 
-    return reply.code(302).header('set-cookie', cookie).header('location', outcome.location).send();
+    const reply302 = reply.code(302);
+    for (const cookie of written) reply302.header('set-cookie', cookie);
+    return reply302.header('location', outcome.location).send();
   });
 }

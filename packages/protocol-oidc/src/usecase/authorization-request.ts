@@ -1,24 +1,33 @@
 import {
   nextRequiredAction,
   type AuthenticatorResult,
+  type PendingRequest,
   type RequiredAction,
+  type SessionRecord,
 } from '@odudu/authn-flows';
-import { AUDIENCE_UNCHECKED, verifyJwt, type SigningKeyRecord } from '@odudu/crypto';
+import { verifyJwt, TYP_ABSENT, type ExpectedAudience, type SigningKeyRecord } from '@odudu/crypto';
 import { type ClientRecord } from '@odudu/domain-realm';
+import { isUuid } from '@odudu/kernel';
 import { type ClientOidcConfig } from '#/schema/client-oidc-config';
 import { type RealmLookup } from '#/repository/realm-lookup';
 import {
   validateAuthorizationRequest,
   type AuthorizeOutcome,
 } from '#/service/authorize-validation';
+import {
+  EMPTY_CLAIMS_REQUEST,
+  parseClaimsRequest,
+  type ClaimsRequest,
+} from '#/service/claims-request';
 import { normalizeAuthorizeQuery } from '#/service/query-normalization';
+import { parseResource } from '#/service/resource-indicator';
 import {
   decideConsentGate,
   refusedForUnverifiedEmail,
   type ConsentGateDeps,
   type LoginSubmissionDeps,
 } from '#/usecase/login-submission';
-import { decideReuse, type ResolvedSession } from '#/usecase/session-reuse';
+import { decideReuse, withinMaxAge, type ResolvedSession } from '#/usecase/session-reuse';
 
 export type AuthorizationRequestOutcome =
   | { kind: 'render'; error: string; description: string }
@@ -26,7 +35,7 @@ export type AuthorizationRequestOutcome =
   // `form` names what the rendered login page should ask for first —
   // whatever the realm's flow would offer nobody has submitted anything
   // yet (authn-flows' initialChallenge).
-  | { kind: 'started'; authSessionId: string; form: string }
+  | { kind: 'started'; authSessionId: string; form: string; rememberMeAllowed: boolean }
   // Session reuse: a code issued with no page ever rendered and no fresh
   // authentication session started. Carries exactly what the form-POST
   // success redirect carries, because the client cannot tell the two apart.
@@ -58,14 +67,25 @@ export type AuthorizationRequestOutcome =
       authSessionId: string;
       subjectId: string;
       action: RequiredAction;
-    };
+    }
+  // The browser's cookies resolve to more than one live session, or the
+  // client asked with prompt=select_account (OIDC Core §3.1.2.1): neither
+  // is answerable without asking which account, so a fresh authentication
+  // session is parked — unauthenticated, unlike the reuse promotions above,
+  // because nobody has been identified yet — for the chooser's POST to
+  // resume once one is.
+  | { kind: 'select'; authSessionId: string; accounts: readonly SelectAccountCandidate[] };
+
+export interface SelectAccountCandidate {
+  sessionId: string;
+  displayName: string;
+}
 
 // What resolving the SSO session cookie against a live row yields — the
-// facts decideReuse needs (ResolvedSession), the authenticators that
-// session's own login recorded (carried forward rather than re-derived if
-// consent promotes this reuse into a full authentication session), and the
-// row's own id, needed only afterward, to touch it once reuse is decided.
-export type ReusableSession = ResolvedSession & { sessionId: string; authenticators: string[] };
+// facts decideReuse needs (ResolvedSession) plus the authenticators that
+// session's own login recorded, carried forward rather than re-derived if
+// consent promotes this reuse into a full authentication session.
+export type ReusableSession = ResolvedSession & { authenticators: string[] };
 
 export interface CompleteReuseInput {
   realmId: string;
@@ -78,6 +98,14 @@ export interface CompleteReuseInput {
   codeChallenge: string;
   codeChallengeMethod: 'S256';
   authTime: Date;
+  // The audience resolved at /authorize (parseResource against the
+  // client's registered list) — stored on the code so /token derives `aud`
+  // from what was approved rather than re-deriving it.
+  resource: readonly string[];
+  // The `claims` request parameter (OIDC Core §5.5), parsed at /authorize
+  // — stored on the code so /token and /userinfo apply the same request,
+  // never one re-derived downstream.
+  claims: ClaimsRequest;
 }
 
 export interface ResolvedClient {
@@ -106,20 +134,34 @@ export interface AuthorizeUsecaseDeps extends ConsentGateDeps {
     realmId: string,
     request: Extract<AuthorizeOutcome, { kind: 'ok' }>['request'],
   ): Promise<{ authSessionId: string }>;
+  // Reads back the request a 'select' outcome parked — the chooser's POST
+  // has no query parameters of its own, so this is its only source of
+  // scope, redirect_uri, nonce, state, code_challenge and max_age. Unlike
+  // consent-submission.ts's own loadPendingRequest call, this session was
+  // never bound to a subject, so it carries its own liveness check
+  // (expired or already consumed answers null) rather than relying on
+  // authenticatedSession's, which this session could never pass.
+  loadPendingRequest(realmId: string, authSessionId: string): Promise<PendingRequest | null>;
   // What the realm's flow would ask for first, decided before any
   // authentication session exists — also the honest way to notice a flow
   // with no applicable execution at all: OIDC Core §3.1.2.1's `prompt=login`
   // MUST, "an error is returned if reauthentication cannot be performed".
   initialChallenge(realmId: string): Promise<AuthenticatorResult>;
-  // The SSO session cookie's value, resolved to a live row (never trusted
-  // for anything but that lookup) — sessionRepository(tx).liveById scoped
-  // to the realm's own idle window, read off the already-resolved `realm`
-  // rather than a second lookup by id. Null for no cookie, an unknown id,
-  // or one that has idled out or hit its ceiling.
-  resolveSession(
-    realm: RealmLookup,
-    cookieValue: string | undefined,
-  ): Promise<ReusableSession | null>;
+  // The browser's session cookies, resolved to their live rows (never
+  // trusted for anything but that lookup) — sessionRepository(tx).liveByIds
+  // scoped to the realm's own idle window. decideReuse decides over the
+  // whole set resolved here, which may belong to more than one subject.
+  resolveSessions(
+    realm: {
+      id: string;
+      name: string;
+      ssoSessionIdleSeconds: number;
+      ssoSessionMaxSeconds: number;
+      rememberMeIdleSeconds: number;
+      rememberMeMaxSeconds: number;
+    },
+    header: string | undefined,
+  ): Promise<SessionRecord[]>;
   // The same gate handleLoginSubmission enforces, shared so a cookie-borne
   // login cannot complete for a subject a password login would refuse.
   checkEmailVerification: LoginSubmissionDeps['checkEmailVerification'];
@@ -141,7 +183,65 @@ export interface AuthorizeUsecaseDeps extends ConsentGateDeps {
     subjectId: string,
     authenticators: readonly string[],
   ): Promise<void>;
+  // The account chooser's label for each candidate session:
+  // preferred_username falling back to username — never email, a recovery
+  // identifier this page can render on a shared device. A subject with no
+  // row (impossible for a live session's own subject, but not a type this
+  // signature can rule out) is left off the returned map, and the caller
+  // falls back to the subject id itself.
+  accountDisplayNames(
+    realmId: string,
+    subjectIds: readonly string[],
+  ): Promise<ReadonlyMap<string, string>>;
   now(): Date;
+}
+
+// Several live sessions for the same subject are one account, not several
+// choices — the chooser shows the newest by authTime and drops the rest.
+// The others stay live; this is a rendering decision, not a logout one.
+function newestPerSubject(candidates: readonly ResolvedSession[]): readonly ResolvedSession[] {
+  const newestBySubject = new Map<string, ResolvedSession>();
+  for (const candidate of candidates) {
+    const current = newestBySubject.get(candidate.subjectId);
+    if (current === undefined || candidate.authTime > current.authTime) {
+      newestBySubject.set(candidate.subjectId, candidate);
+    }
+  }
+  return candidates.filter((candidate) => newestBySubject.get(candidate.subjectId) === candidate);
+}
+
+function toReusableSession(session: SessionRecord): ReusableSession {
+  return {
+    id: session.id,
+    subjectId: session.subjectId,
+    authTime: session.createdAt,
+    authenticators: session.authenticators,
+  };
+}
+
+// normalizeAuthorizeQuery folds every repeated key but `resource` down to a
+// single string, which is right for a parameter this server refuses to see
+// twice but wrong for one whose whole rule is "reject two values" — so
+// `resource` is read from the raw query Fastify handed the route, not from
+// the normalized params, the same shape parseResource is typed against.
+function resourceParam(rawParams: unknown): string | string[] | undefined {
+  if (typeof rawParams !== 'object' || rawParams === null || Array.isArray(rawParams)) {
+    return undefined;
+  }
+  const raw = (rawParams as Record<string, unknown>).resource;
+  const sent = Array.isArray(raw) ? raw : [raw];
+  // RFC 6749 §3.1: an empty value is an omitted parameter —
+  // `parameterValue`'s own rule (query-normalization.ts), restated here
+  // because `resource` reads the raw query directly. Without this,
+  // `?resource=` alone refuses the request, and `resource=<uri>&resource=`
+  // reads as two values instead of one. Unlike `parameterValue`, an
+  // unreadable value is dropped, not counted towards a repeat — Fastify's
+  // default parser yields only strings here, so the two never diverge on
+  // a value either could actually see.
+  const present = sent.filter(
+    (entry): entry is string => typeof entry === 'string' && entry !== '',
+  );
+  return present.length > 1 ? present : present[0];
 }
 
 // An unknown or disabled realm is indistinguishable from an unknown or
@@ -156,10 +256,10 @@ export async function handleAuthorizationRequest(
   // This realm's issuer identifier, as the discovery document states it: the
   // `iss` an id_token_hint has to carry to have come from here.
   issuer: string,
-  // The SSO session cookie's raw value, read by the route from the request
-  // header and trusted for nothing but the lookup resolveSession performs
-  // with it — no claim in it, no subject id from it.
-  cookieValue: string | undefined,
+  // The browser's raw `Cookie` header, read by the route and trusted for
+  // nothing but the lookup resolveSessions performs with it — no claim in
+  // it, no subject id from it.
+  header: string | undefined,
 ): Promise<AuthorizationRequestOutcome> {
   const normalized = normalizeAuthorizeQuery(rawParams);
   if (normalized.kind === 'render') return normalized;
@@ -211,9 +311,53 @@ export async function handleAuthorizationRequest(
     state: request.state,
   });
 
+  // RFC 8707 §2: resolved against the client's registered audience list
+  // before anything else below the boundary, so a request naming a target
+  // it may not use is refused before a session is ever touched. A client
+  // with no registered audience (every client in this repository, today)
+  // still succeeds with an empty resolved audience — see parseResource.
+  const resourceOutcome = parseResource(resourceParam(rawParams), resolved.config?.audiences ?? []);
+  if (resourceOutcome.kind === 'invalid_target') return reject('invalid_target');
+  const audience = resourceOutcome.audience;
+
+  // OIDC Core §5.5. Parsed below the §4.1.2.1 boundary, same as `resource`
+  // above: a malformed parameter is reported at the client's own
+  // redirect_uri, not rendered.
+  const claimsOutcome = parseClaimsRequest(params.claims);
+  if (claimsOutcome.kind === 'invalid') return reject('invalid_request');
+  // §2 and §15.1 both require `auth_time` when `max_age` was used, not only
+  // when requested as an Essential Claim — folded in here so token issuance
+  // asks one question (`token-issuance.ts` excludes `auth_time` from what
+  // this synthesis could otherwise narrow away).
+  const claims: ClaimsRequest =
+    outcome.maxAge === null
+      ? claimsOutcome.request
+      : {
+          ...claimsOutcome.request,
+          idToken: {
+            ...claimsOutcome.request.idToken,
+            auth_time: { ...claimsOutcome.request.idToken.auth_time, essential: true },
+          },
+        };
+
+  // OIDC Core §3.1.2.2: a `sub` in the `claims` parameter's `id_token`
+  // member names a specific End-User, the same constraint `id_token_hint`
+  // is below — combined with it in `candidateSessions`.
+  const claimsSubject = claims.idToken.sub?.value ?? null;
+
   let hintSubject: string | null = null;
   if (outcome.idTokenHint !== null) {
-    const hint = await subjectOfIdTokenHint(deps, realm.id, issuer, outcome.idTokenHint);
+    // Unlike `/logout`, this door has a principal to check the hint's `aud`
+    // against: the client making this very request. A hint minted for
+    // another client is refused here even though its signature and issuer
+    // are this realm's own.
+    const hint = await subjectOfIdTokenHint(
+      deps,
+      realm.id,
+      issuer,
+      outcome.idTokenHint,
+      request.clientId,
+    );
     if (hint === null) return reject('invalid_request');
     hintSubject = hint.subject;
   }
@@ -223,9 +367,29 @@ export async function handleAuthorizationRequest(
   // authentication, or — under `prompt=none` — must be refused because it
   // would otherwise do one of those. The two are decided together rather
   // than in sequence (docs/protocols/oidc-core.md's reading note has why).
-  const resolvedSession = await deps.resolveSession(realm, cookieValue);
+  const sessions = await deps.resolveSessions(
+    {
+      id: realm.id,
+      name: realmName,
+      ssoSessionIdleSeconds: realm.ssoSessionIdleSeconds,
+      ssoSessionMaxSeconds: realm.ssoSessionMaxSeconds,
+      rememberMeIdleSeconds: realm.rememberMeIdleSeconds,
+      rememberMeMaxSeconds: realm.rememberMeMaxSeconds,
+    },
+    header,
+  );
+  const resolvedSessions = sessions.map(toReusableSession);
+  // A hint, or a `claims` request's `sub`, names one subject, so only that
+  // subject's sessions are reusable or offered by the chooser — both
+  // constraints apply together when both are present. The chooser POST's
+  // own membership check (handleSelectAccountSubmission) is separate.
+  const candidateSessions = resolvedSessions.filter(
+    (session) =>
+      (hintSubject === null || session.subjectId === hintSubject) &&
+      (claimsSubject === null || session.subjectId === claimsSubject),
+  );
   const decision = decideReuse({
-    session: resolvedSession,
+    sessions: candidateSessions,
     prompts: outcome.prompts,
     maxAge: outcome.maxAge,
     now: deps.now(),
@@ -234,18 +398,25 @@ export async function handleAuthorizationRequest(
   if (decision.kind === 'refuse') return reject(decision.error);
 
   if (decision.kind === 'reuse') {
-    if (resolvedSession === null) {
-      throw new Error('unreachable: decideReuse reused with no resolved session');
+    const resolvedSession = resolvedSessions.find((s) => s.id === decision.sessionId);
+    if (resolvedSession === undefined) {
+      throw new Error('unreachable: decideReuse reused a session outside the resolved set');
     }
     if (resolved.client === null) {
       throw new Error('unreachable: validateAuthorizationRequest succeeded with a null client');
     }
 
-    // The same rule the login form enforces once somebody actually signs
-    // in: the End-User a hint names is not the one who is about to be
-    // reused into this response.
+    // Invariant, not a live check: candidateSessions above already excluded
+    // every session but the hinted subject's own, so decideReuse could not
+    // have reused anybody else. A hint mismatch is refused by falling
+    // through to a fresh authentication instead (the 'authenticate' branch
+    // below), the same door handleLoginSubmission's own hintSubject check
+    // guards once somebody actually signs in there.
     if (hintSubject !== null && hintSubject !== decision.subjectId) {
-      return reject('login_required');
+      throw new Error('unreachable: decideReuse reused a session the hint filter excluded');
+    }
+    if (claimsSubject !== null && claimsSubject !== decision.subjectId) {
+      throw new Error('unreachable: decideReuse reused a session the claims sub filter excluded');
     }
 
     // The second door into the same decision handleLoginSubmission's
@@ -269,8 +440,11 @@ export async function handleAuthorizationRequest(
         ...request,
         prompt: [...outcome.prompts],
         ...(hintSubject !== null ? { idTokenHintSubject: hintSubject } : {}),
-        reuseSessionId: resolvedSession.sessionId,
+        ...(claimsSubject !== null ? { claimsSubject } : {}),
+        reuseSessionId: resolvedSession.id,
         reuseAuthTime: resolvedSession.authTime.toISOString(),
+        resource: [...audience],
+        claims,
       });
       await deps.markAuthenticated(
         realm.id,
@@ -325,7 +499,7 @@ export async function handleAuthorizationRequest(
 
     const { code } = await deps.completeReuse({
       realmId: realm.id,
-      sessionId: resolvedSession.sessionId,
+      sessionId: resolvedSession.id,
       subjectId: decision.subjectId,
       clientId: resolved.client.id,
       redirectUri: request.redirectUri,
@@ -334,8 +508,42 @@ export async function handleAuthorizationRequest(
       codeChallenge: request.codeChallenge,
       codeChallengeMethod: request.codeChallengeMethod,
       authTime: decision.authTime,
+      resource: audience,
+      claims,
     });
     return { kind: 'reused', code, redirectUri: request.redirectUri, state: request.state };
+  }
+
+  if (decision.kind === 'select') {
+    // Parked unauthenticated — no markAuthenticated call, unlike
+    // promoteToParkedRequest above, because nobody has been identified yet.
+    // handleSelectAccountSubmission binds the session once a choice is
+    // posted back and membership against the browser's own cookies is
+    // proven.
+    const { authSessionId } = await deps.startAuthentication(realm.id, {
+      ...request,
+      prompt: [...outcome.prompts],
+      ...(hintSubject !== null ? { idTokenHintSubject: hintSubject } : {}),
+      ...(claimsSubject !== null ? { claimsSubject } : {}),
+      // Re-checked against whichever session is posted back — see
+      // handleSelectAccountSubmission's own withinMaxAge call.
+      ...(outcome.maxAge !== null ? { maxAge: outcome.maxAge } : {}),
+      resource: [...audience],
+      claims,
+    });
+    const rendered = newestPerSubject(decision.candidates);
+    const names = await deps.accountDisplayNames(
+      realm.id,
+      rendered.map((candidate) => candidate.subjectId),
+    );
+    return {
+      kind: 'select',
+      authSessionId,
+      accounts: rendered.map((candidate) => ({
+        sessionId: candidate.id,
+        displayName: names.get(candidate.subjectId) ?? candidate.subjectId,
+      })),
+    };
   }
 
   // A realm whose flow has no applicable execution at all cannot
@@ -359,12 +567,187 @@ export async function handleAuthorizationRequest(
     // signs in is the one it identifies can only be judged once they have,
     // which is the login submission, so it travels with the parked request.
     ...(hintSubject !== null ? { idTokenHintSubject: hintSubject } : {}),
+    ...(claimsSubject !== null ? { claimsSubject } : {}),
     // Carried forward so handleLoginSubmission's own consent gate, once
     // this login completes, still sees `prompt=consent` the way it would
     // have at the moment this request first arrived.
     prompt: [...outcome.prompts],
+    resource: [...audience],
+    claims,
   });
-  return { kind: 'started', authSessionId, form: initial.form };
+  return {
+    kind: 'started',
+    authSessionId,
+    form: initial.form,
+    rememberMeAllowed: realm.rememberMeAllowed,
+  };
+}
+
+export type SelectAccountOutcome =
+  | AuthorizationRequestOutcome
+  | { kind: 'unauthenticated' }
+  // The posted session_id names no member of the set this browser's own
+  // cookies resolve to — refused rather than honoured, because that is the
+  // whole of this endpoint's defence against completing as somebody else's
+  // account (see the module comment on ReusableSession and decideReuse's
+  // own module comment for the property this enforces).
+  | { kind: 'invalid_selection' };
+
+export interface SelectAccountAnswer {
+  sessionId: string | undefined;
+  useOther: boolean;
+}
+
+// The chooser's POST: resolves the browser's own live sessions again — the
+// posted session_id is a claim, and only membership in that fresh set
+// authorises it — then continues exactly the tail handleAuthorizationRequest
+// runs for an ungated 'reuse' decision, with the chosen session standing in
+// for the one decideReuse would have picked unassisted.
+export async function handleSelectAccountSubmission(
+  deps: AuthorizeUsecaseDeps,
+  realmName: string,
+  authSessionId: string | undefined,
+  answer: SelectAccountAnswer,
+  header: string | undefined,
+): Promise<SelectAccountOutcome> {
+  if (authSessionId === undefined || !isUuid(authSessionId)) {
+    return { kind: 'unauthenticated' };
+  }
+
+  const realm = await deps.findRealm(realmName);
+  if (!realm?.enabled) {
+    return { kind: 'unauthenticated' };
+  }
+
+  const pending: PendingRequest | null = await deps.loadPendingRequest(realm.id, authSessionId);
+  if (pending === null) {
+    return { kind: 'unauthenticated' };
+  }
+
+  if (answer.useOther) {
+    const initial = await deps.initialChallenge(realm.id);
+    if (initial.kind !== 'challenge') {
+      if (initial.kind === 'success') {
+        throw new Error('unreachable: initialChallenge succeeded with no input submitted');
+      }
+      return {
+        kind: 'redirect',
+        redirectUri: pending.redirectUri,
+        error: 'login_required',
+        state: pending.state,
+      };
+    }
+    // The same parked authentication session, not a fresh one: nobody was
+    // ever bound to it, so the ordinary login form resumes it exactly as if
+    // it had rendered that form to begin with.
+    return {
+      kind: 'started',
+      authSessionId,
+      form: initial.form,
+      rememberMeAllowed: realm.rememberMeAllowed,
+    };
+  }
+
+  const realmShape = {
+    id: realm.id,
+    name: realmName,
+    ssoSessionIdleSeconds: realm.ssoSessionIdleSeconds,
+    ssoSessionMaxSeconds: realm.ssoSessionMaxSeconds,
+    rememberMeIdleSeconds: realm.rememberMeIdleSeconds,
+    rememberMeMaxSeconds: realm.rememberMeMaxSeconds,
+  };
+  const sessions = await deps.resolveSessions(realmShape, header);
+  const chosen = sessions.find((session) => session.id === answer.sessionId);
+  // Membership alone is not enough: decideReuse's own candidate filter
+  // (session-reuse.ts's withinMaxAge) already excluded anything older than
+  // the parked request's own max_age when the chooser rendered, and a
+  // session excluded from that page is not a valid choice merely because
+  // it is still live and still this browser's.
+  if (chosen === undefined || !withinMaxAge(chosen.createdAt, pending.maxAge ?? null, deps.now())) {
+    return { kind: 'invalid_selection' };
+  }
+
+  const resolvedClient = await deps.resolveClient(realm.id, pending.clientId);
+  if (resolvedClient.client === null) {
+    return { kind: 'unauthenticated' };
+  }
+  const client = resolvedClient.client;
+
+  const reject = (error: string): SelectAccountOutcome => ({
+    kind: 'redirect',
+    redirectUri: pending.redirectUri,
+    error,
+    state: pending.state,
+  });
+
+  // The same rule the reuse tail enforces once a candidate is settled: the
+  // End-User a hint names is not whoever the browser happens to have picked.
+  if (pending.idTokenHintSubject !== undefined && pending.idTokenHintSubject !== chosen.subjectId) {
+    return reject('login_required');
+  }
+  // The same check for a `claims` `sub`: a choice posted back is a claim,
+  // not a re-application of the filter that narrowed the chooser page.
+  if (pending.claimsSubject !== undefined && pending.claimsSubject !== chosen.subjectId) {
+    return reject('login_required');
+  }
+
+  const refusal = await refusedForUnverifiedEmail(
+    deps,
+    { id: realm.id, verifyEmail: realm.verifyEmail },
+    chosen.subjectId,
+  );
+  if (refusal !== null) return reject('login_required');
+
+  const action = nextRequiredAction(await deps.pendingActions(realm.id, chosen.subjectId));
+  if (action !== null) {
+    await deps.markAuthenticated(realm.id, authSessionId, chosen.subjectId, chosen.authenticators);
+    return { kind: 'required_action', authSessionId, subjectId: chosen.subjectId, action };
+  }
+
+  const gate = await decideConsentGate(
+    deps,
+    realm.id,
+    client.id,
+    chosen.subjectId,
+    pending.scope,
+    pending.prompt,
+  );
+  if (gate.kind === 'refuse') return reject('consent_required');
+  if (gate.kind === 'ask') {
+    await deps.markAuthenticated(realm.id, authSessionId, chosen.subjectId, chosen.authenticators);
+    return {
+      kind: 'consent',
+      authSessionId,
+      clientName: gate.clientName,
+      defaultScopes: gate.defaultScopes,
+      optionalScopes: gate.optionalScopes,
+      alreadyGranted: gate.alreadyGranted,
+    };
+  }
+
+  // Deliberately not consumed: a live SSO cookie can drive completeReuse
+  // through the ordinary GET as many times as a client re-asks, and a
+  // chooser selection is the same reuse with the candidate picked rather
+  // than inferred — repeatable for the same reason, gated by pendingSession's
+  // own expiry check above rather than by single use.
+  const { code } = await deps.completeReuse({
+    realmId: realm.id,
+    sessionId: chosen.id,
+    subjectId: chosen.subjectId,
+    clientId: client.id,
+    redirectUri: pending.redirectUri,
+    scope: pending.scope,
+    nonce: pending.nonce,
+    codeChallenge: pending.codeChallenge,
+    codeChallengeMethod: pending.codeChallengeMethod,
+    authTime: chosen.createdAt,
+    // Parked on PendingRequest by the /authorize GET that started this
+    // journey — resolved once, against the query it actually carried, not
+    // re-derived here where no query parameters survive.
+    resource: pending.resource ?? [],
+    claims: pending.claims ?? EMPTY_CLAIMS_REQUEST,
+  });
+  return { kind: 'reused', code, redirectUri: pending.redirectUri, state: pending.state };
 }
 
 export interface IdTokenHintClaims {
@@ -389,34 +772,30 @@ function audiencesOf(claim: unknown): readonly string[] {
 
 // OIDC Core §3.1.2.2: "the OP MUST validate that it was the issuer of the ID
 // Token" — a signature made by one of this realm's keys, over a payload whose
-// `iss` is this realm. Returns the claims it carries, or null for a hint
-// this server cannot recognise as its own. `exp` is enforced by verifyJwt,
-// so a hint past its expiry is refused rather than accepted as §3.1.2.2's
-// SHOULD allows (see the reading note in docs/protocols/oidc-core.md).
-// Exported for `#/usecase/logout.ts`, which validates its own hint the same
-// way rather than a second, looser check.
+// `iss` is this realm; `exp` is enforced by verifyJwt too. Returns the
+// claims it carries, or null for a hint this server cannot recognise as its
+// own. `audience` is a parameter, not a constant — callers differ on
+// whether they check it; see docs/protocols/oidc-core.md's reading note.
+// Exported for `#/usecase/logout.ts`, which shares this check.
 export async function subjectOfIdTokenHint(
   deps: Pick<AuthorizeUsecaseDeps, 'listPublishableKeys'>,
   realmId: string,
   issuer: string,
   hint: string,
+  audience: ExpectedAudience,
 ): Promise<IdTokenHintClaims | null> {
   const keys = await deps.listPublishableKeys(realmId);
   try {
-    // An ID token's `aud` is the client it was issued to, so the OP reading
-    // one back as a hint is not the principal RFC 7519 §4.1.3 addresses and
-    // has no audience of its own to match. §3.1.2.2 asks only that the OP
-    // was its issuer, which `issuer` and the realm's own keys settle.
     const payload = await verifyJwt(hint, {
       keys,
       issuer,
-      audience: AUDIENCE_UNCHECKED,
-      // An ID Token has no `typ` of its own — OIDC Core §2 defines none and
-      // the ones /token issues carry none — so the honest demand is not
-      // "must be an ID Token" but "must not be an access token", which RFC
-      // 9068 §2.1's `at+jwt` names exactly. /userinfo makes the mirror image
-      // of this check of the token presented to it.
-      typ: { refused: 'at+jwt' },
+      audience,
+      // An ID Token has no `typ` of its own (OIDC Core §2), so a hint is
+      // read as one only when its header carries none at all —
+      // `{refused: 'at+jwt'}` once denylisted only the one confusion this
+      // server had already made once; `TYP_ABSENT` closes the shape rather
+      // than the instance (docs/protocols/oidc-core.md's reading note).
+      typ: TYP_ABSENT,
     });
     if (typeof payload.sub !== 'string' || payload.sub.length === 0) return null;
     return {

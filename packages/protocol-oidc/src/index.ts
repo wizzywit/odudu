@@ -1,4 +1,5 @@
 import {
+  admitSession,
   advance,
   authenticatedSession,
   authenticatedSubject,
@@ -11,29 +12,40 @@ import {
   completeTotpEnrolment,
   completeUpdatePassword,
   consumeAuthenticationSession,
-  establishSession,
   initialChallenge,
   loadPendingRequest,
   markSessionAuthenticated,
   pendingChallenge,
+  pendingSession,
+  readSessionIds,
+  recordRememberMe,
   requiredActionRepository,
   resetAuthenticationProgress,
   sessionRepository,
   startAuthentication,
+  type SessionLifespans,
 } from '@odudu/authn-flows';
-import { signingKeyRepository } from '@odudu/crypto';
+import { JWE_ALGS_PERMITTED, signingKeyRepository, signJwt } from '@odudu/crypto';
 import { effectiveGroupPaths, effectiveRoles } from '@odudu/domain-authz';
 import { withRealm, type DatabaseHandle } from '@odudu/db';
 import { hashPassword, userRepository, verifyPassword } from '@odudu/domain-identity';
 import { clientRepository, clientScopeRepository, consentRepository } from '@odudu/domain-realm';
-import { isUuid, systemClock, type Clock } from '@odudu/kernel';
+import { newId, systemClock, type Clock } from '@odudu/kernel';
 import { type FastifyPluginAsync } from 'fastify';
+import { type ClientKeySet } from '#/repository/client-keys';
 import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
-import { tokenGrantRepository } from '#/repository/grants';
+import { tokenGrantRepository, type ClientLogoutTarget } from '#/repository/grants';
+import { logoutDeliveryRepository } from '#/repository/logout-deliveries';
 import { realmLookupRepository } from '#/repository/realm-lookup';
 import { reachableRoleIds } from '#/repository/scope-role-reach';
 import { standardClaimMappers } from '#/service/claims';
 import { type ClientSecretLimiter } from '#/service/client-secret-throttle';
+import {
+  USERINFO_ENCRYPTION_ENC_DEFAULT,
+  USERINFO_ENCRYPTION_ENCS_PERMITTED,
+} from '#/service/client-metadata';
+import { logoutTokenClaims, LOGOUT_TOKEN_TYP } from '#/service/logout-token';
+import { DEFAULT_TLS_CLIENT_SUBJECT_HEADER } from '#/service/tls-client-auth';
 import { expandWebOrigins } from '#/service/web-origin';
 import {
   issueAuthorizationCode,
@@ -46,10 +58,12 @@ import { registerClientRegistrationRoute } from '#/view/routes/client-registrati
 import { registerConsentRoute } from '#/view/routes/consent';
 import { registerCors } from '#/view/routes/cors';
 import { registerDiscoveryRoute } from '#/view/routes/discovery';
+import { registerIntrospectRoute } from '#/view/routes/introspect';
 import { registerJwksRoute } from '#/view/routes/jwks';
 import { registerLoginRoute } from '#/view/routes/login';
 import { registerRequiredActionRoute } from '#/view/routes/required-action';
 import { registerLogoutRoute } from '#/view/routes/logout';
+import { registerRevokeRoute } from '#/view/routes/revoke';
 import { registerTokenRoute } from '#/view/routes/token';
 import { registerUserinfoRoute } from '#/view/routes/userinfo';
 
@@ -84,6 +98,32 @@ export interface OidcRoutesDeps {
   // A caller that genuinely wants no budget says so explicitly with
   // `UNLIMITED_CLIENT_SECRET_LIMITER` (#/service/client-secret-throttle.ts).
   clientSecretLimiter: ClientSecretLimiter;
+  // RFC 7523 §2.2's fetcher for a client's jwks_uri, consulted only by
+  // private_key_jwt authentication at /token. Required for the same
+  // reason `clientSecretLimiter` above is (see its comment); a caller
+  // with no opinion says so explicitly with `NO_CLIENT_KEY_FETCHER`
+  // (#/repository/client-keys.ts). `apps/server/src/app.ts` supplies the
+  // real one, wired to `node:https` and `node:dns`.
+  clientKeySet: ClientKeySet;
+  // Gates tls_client_auth client authentication at /token the same way it
+  // already gates Fastify's own `X-Forwarded-*` trust
+  // (apps/server/src/app.ts). Defaults off, the same as that trust does —
+  // a caller with no reverse proxy in front of it must not have a
+  // proxy-supplied header trusted by default. Also what discovery's
+  // `token_endpoint_auth_methods_supported` conditions `tls_client_auth`
+  // on — see `resolveDiscoveryDocument`.
+  trustProxy?: boolean;
+  // The header a deployment's own proxy emits the certificate subject
+  // under (`ODUDU_TLS_CLIENT_CERT_HEADER`) — no two proxies agree on a
+  // name, so this is never a constant. Defaults to the same value the
+  // kernel config schema does.
+  tlsClientCertHeader?: string;
+}
+
+function hasBackchannelLogoutUri(
+  target: ClientLogoutTarget,
+): target is ClientLogoutTarget & { backchannelLogoutUri: string } {
+  return target.backchannelLogoutUri !== null;
 }
 
 // The plugin apps/server registers. Discovery and JWKS both read the
@@ -96,6 +136,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
     const clock = deps.clock ?? systemClock;
     const tls = deps.tls ?? false;
     const clientSecretLimiter = deps.clientSecretLimiter;
+    const clientKeySet = deps.clientKeySet;
     // One registry per process, shared by discovery (claimNames, for
     // claims_supported), /userinfo, and token issuance's ID token claims —
     // so a mapper registered once reaches every consumer the same way.
@@ -121,13 +162,15 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
     // /userinfo's own gate on the `roles` claim: which role ids the token's
     // granted scope reaches, and whether its client bypasses that
     // intersection — the same two facts token issuance reads from the same
-    // tables, so a role withheld from the token cannot resurface here.
+    // tables, so a role withheld from the token cannot resurface here. A
+    // disabled client never bypasses, for the reason given at
+    // `resolveClientWebOrigins` below.
     const resolveRoleReach = (realmId: string, oauthClientId: string, scope: readonly string[]) =>
       withRealm(deps.database.db, realmId, async (tx) => {
         const client = await clientRepository(tx).byClientId(oauthClientId);
         return {
           reachableRoleIds: await reachableRoleIds(tx, scope),
-          fullScopeAllowed: client?.fullScopeAllowed ?? false,
+          fullScopeAllowed: client?.enabled === true && client.fullScopeAllowed,
         };
       });
 
@@ -145,6 +188,58 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
         const config = await clientOidcConfigRepository(tx).byClientId(client.id);
         if (config === null) return new Set<string>();
         return expandWebOrigins(config.webOrigins, config.redirectUris);
+      });
+
+    // /userinfo's own answer to "should this response be a JWT": an unknown
+    // or disabled client, or one that never registered
+    // `userinfo_signed_response_alg`, all read as `null` — the response
+    // format's default, JSON — the same way an unrecognised `client_id`
+    // reads as no CORS origins above rather than an error.
+    const userinfoSignedResponseAlg = (realmId: string, oauthClientId: string) =>
+      withRealm(deps.database.db, realmId, async (tx) => {
+        const client = await clientRepository(tx).byClientId(oauthClientId);
+        if (!client?.enabled) return null;
+        const config = await clientOidcConfigRepository(tx).byClientId(client.id);
+        return config?.userinfoSignedResponseAlg ?? null;
+      });
+
+    // /userinfo's answer to "should this response be encrypted" — see
+    // `UserinfoDeps.userinfoEncryptionTarget` (usecase/userinfo.ts) for
+    // what `'none'` versus `'unavailable'` means. Registration is checked
+    // before `enabled`, so a disabled client that did register reaches
+    // `'unavailable'` rather than `'none'`.
+    const userinfoEncryptionTarget = (realmId: string, oauthClientId: string) =>
+      withRealm(deps.database.db, realmId, async (tx) => {
+        const client = await clientRepository(tx).byClientId(oauthClientId);
+        if (client === null) return { kind: 'none' } as const;
+        const config = await clientOidcConfigRepository(tx).byClientId(client.id);
+        if (config?.userinfoEncryptedResponseAlg == null) return { kind: 'none' } as const;
+        if (!client.enabled) return { kind: 'unavailable' } as const;
+        return {
+          kind: 'target',
+          target: {
+            alg: config.userinfoEncryptedResponseAlg,
+            enc: config.userinfoEncryptedResponseEnc ?? USERINFO_ENCRYPTION_ENC_DEFAULT,
+            jwks: config.jwks,
+            jwksUri: config.jwksUri,
+          },
+        } as const;
+      });
+
+    // The same key /token signs an access token or ID Token with —
+    // `signingKeyRepository(tx).active()`, not a second selection rule.
+    const activeSigningKey = (realmId: string) =>
+      withRealm(deps.database.db, realmId, (tx) => signingKeyRepository(tx).active());
+
+    // `null` rather than thrown: a realm provisioned before its first
+    // signing key still gets a discovery document.
+    const activeSigningKeyAlg = (realmId: string) =>
+      withRealm(deps.database.db, realmId, async (tx) => {
+        try {
+          return (await signingKeyRepository(tx).active()).alg;
+        } catch {
+          return null;
+        }
       });
 
     // One definition, read by discovery for scopes_supported and by
@@ -166,6 +261,27 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
           hasEmail: (user?.email ?? null) !== null,
         };
       });
+
+    // The one definition of "what is this browser's live session set":
+    // read by /authorize's reuse check, by login and consent to grow the
+    // set with a fresh login, and by logout's membership check — never
+    // trusted for anything but that lookup.
+    const resolveSessions = (
+      realm: {
+        id: string;
+        name: string;
+        ssoSessionIdleSeconds: number;
+        ssoSessionMaxSeconds: number;
+        rememberMeIdleSeconds: number;
+        rememberMeMaxSeconds: number;
+      },
+      header: string | undefined,
+    ) => {
+      const ids = readSessionIds(header, realm.name, tls);
+      return withRealm(deps.database.db, realm.id, (tx) =>
+        sessionRepository(tx).liveByIds([...ids.ephemeral, ...ids.persistent], realm, clock.now()),
+      );
+    };
 
     // Whether the login page offers a passkey button at all: the relying
     // party id comes from ODUDU_PUBLIC_BASE_URL and nowhere else, so
@@ -241,15 +357,20 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
           sessionId = reuseSession.sessionId;
           authTime = reuseSession.authTime;
         } else {
-          const established = await establishSession(
+          const admitted = await admitSession(
             tx,
-            input.realmId,
-            input.subjectId,
-            input.ssoSessionMaxSeconds,
-            input.authenticators,
+            {
+              realmId: input.realmId,
+              subjectId: input.subjectId,
+              authenticators: input.authenticators,
+              remembered: input.remembered,
+              browserSessionIds: input.browserSessionIds,
+              maxSessionsPerBrowser: input.maxSessionsPerBrowser,
+              lifespans: input.lifespans,
+            },
             clock,
           );
-          sessionId = established.sessionId;
+          sessionId = admitted.sessionId;
           authTime = now;
         }
 
@@ -265,6 +386,8 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
           authTime,
           now,
           sessionId,
+          resource: input.resource,
+          claims: input.claims,
         });
         return { kind: 'issued', sessionId, code };
       });
@@ -273,13 +396,61 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
       findRealm,
       claimNames: () => claimMappers.claimNames(),
       scopesForRealm,
+      activeSigningKeyAlg,
+      userinfoEncryptionAlgSupported: JWE_ALGS_PERMITTED,
+      userinfoEncryptionEncSupported: USERINFO_ENCRYPTION_ENCS_PERMITTED,
+      trustProxy: deps.trustProxy ?? false,
     });
     registerJwksRoute(app, { findRealm, listPublishableKeys });
+    // Introspection's two grant/session reads, resolved here rather than in
+    // the route — a route never imports a repository (dependency-cruiser's
+    // no-view-to-repository rule; see token.ts's own `findRealm` comment for
+    // the same rule stated where /token obeys it).
+    const loadIntrospectionGrant = (realmId: string, grantId: string) =>
+      withRealm(deps.database.db, realmId, async (tx) => {
+        const grant = await tokenGrantRepository(tx).byId(grantId);
+        return grant === null ? null : { revokedAt: grant.revokedAt };
+      });
+    const isIntrospectionSessionLive = (
+      realmId: string,
+      sessionId: string,
+      lifespans: SessionLifespans,
+      now: Date,
+    ) =>
+      withRealm(
+        deps.database.db,
+        realmId,
+        async (tx) => (await sessionRepository(tx).liveById(sessionId, lifespans, now)) !== null,
+      );
+    // No CORS scope: unlike /userinfo, a resource server calls this with
+    // its own client credentials, never a browser holding a bearer token,
+    // so there is no Origin this endpoint owes a header to.
+    registerIntrospectRoute(app, {
+      database: deps.database,
+      findRealm,
+      listPublishableKeys,
+      verifyPassword,
+      clientSecretLimiter,
+      loadGrant: loadIntrospectionGrant,
+      isSessionLive: isIntrospectionSessionLive,
+      clock,
+    });
+    // Same no-CORS reasoning as /introspect above: a client revokes its own
+    // token with its own credentials, never a browser bearer token.
+    registerRevokeRoute(app, {
+      database: deps.database,
+      findRealm,
+      listPublishableKeys,
+      verifyPassword,
+      clientSecretLimiter,
+      clock,
+    });
     registerClientRegistrationRoute(app, {
       findRealm,
       withinRealm: (realmId, fn) => withRealm(deps.database.db, realmId, fn),
       hashClientSecret: hashPassword,
       now: () => clock.now(),
+      tlsClientAuthEnabled: deps.trustProxy ?? false,
     });
     // One definition for both doors onto the enrolment page: the login
     // submission that discovers the action is owed, and the enrolment
@@ -374,33 +545,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
       initialChallenge: (realmId) =>
         withRealm(deps.database.db, realmId, (tx) => initialChallenge(tx, realmId)),
       now: () => clock.now(),
-      // The realm's idle window comes from the `realm` the caller already
-      // resolved (its own `findRealm`), not a second lookup by id.
-      resolveSession: async (realm, cookieValue) => {
-        // The cookie is trusted for nothing but this lookup, and a session
-        // id is a UUID column — a value shaped like anything else names no
-        // row rather than raising the invalid-input-syntax error Postgres
-        // would give a raw comparison.
-        if (cookieValue === undefined || !isUuid(cookieValue)) return null;
-        return withRealm(deps.database.db, realm.id, async (tx) => {
-          const record = await sessionRepository(tx).liveById(
-            cookieValue,
-            realm.ssoSessionIdleSeconds,
-            clock.now(),
-          );
-          if (record === null) return null;
-          return {
-            sessionId: record.id,
-            subjectId: record.subjectId,
-            authTime: record.createdAt,
-            // Carried forward for the one case that needs it: a consent
-            // gate promoting this reuse into a real authentication session
-            // (markAuthenticated below), whose amr has to say what the
-            // original login actually used.
-            authenticators: record.authenticators,
-          };
-        });
-      },
+      resolveSessions,
       checkEmailVerification,
       pendingActions,
       beginTotpEnrolment: startTotpEnrolment,
@@ -408,6 +553,27 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
       ...passkeyEnrolment,
       consentContext,
       grantedScopeIds,
+      // The account chooser's own POST reads back the request a 'select'
+      // outcome parked here. Unlike login.ts's and consent.ts's own
+      // loadPendingRequest calls below, this session was never bound to a
+      // subject, so authenticatedSession's own liveness check cannot gate
+      // it — pendingSession applies the same expiry/consumed checks to a
+      // session that has not yet been authenticated.
+      loadPendingRequest: (realmId, authSessionId) =>
+        withRealm(deps.database.db, realmId, (tx) => pendingSession(tx, authSessionId, clock)),
+      // The chooser's label for each candidate: preferred_username falling
+      // back to username, the same fallback #/service/claims.ts uses for
+      // the preferred_username claim itself — never email, which the
+      // chooser must not print on a shared device.
+      accountDisplayNames: (realmId, subjectIds) =>
+        withRealm(deps.database.db, realmId, async (tx) => {
+          const names = new Map<string, string>();
+          for (const subjectId of new Set(subjectIds)) {
+            const user = await userRepository(tx).bySubjectId(subjectId);
+            if (user !== null) names.set(subjectId, user.preferredUsername ?? user.username);
+          }
+          return names;
+        }),
       // Promotes a reuse into a real authentication session, already bound
       // and authenticated for the reused subject — what the required-action
       // gate and decideConsentGate's 'ask' branch both need to park the
@@ -438,6 +604,8 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
             authTime: input.authTime,
             now,
             sessionId: input.sessionId,
+            resource: input.resource,
+            claims: input.claims,
           });
         }),
     });
@@ -474,6 +642,10 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
         withRealm(deps.database.db, realmId, (tx) =>
           resetAuthenticationProgress(tx, authSessionId),
         ),
+      recordRememberMe: (realmId, authSessionId, remembered) =>
+        withRealm(deps.database.db, realmId, (tx) =>
+          recordRememberMe(tx, authSessionId, remembered),
+        ),
       advance: (realmId, authSessionId, input) =>
         withRealm(deps.database.db, realmId, (tx) =>
           advance(tx, authSessionId, input, clock, {
@@ -489,6 +661,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
       consentContext,
       grantedScopeIds,
       completeLogin,
+      resolveSessions,
     });
     registerConsentRoute(app, {
       findRealm,
@@ -511,6 +684,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
           consentRepository(tx).record(realmId, subjectId, clientId, [...scopeIds]),
         ),
       completeLogin,
+      resolveSessions,
     });
     registerLogoutRoute(app, {
       findRealm,
@@ -518,38 +692,68 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
       listPublishableKeys,
       now: () => clock.now(),
       // Resolved from the OAuth client_id to that client's own registered
-      // list — an unknown or unspecified client yields none, refusing any
-      // redirect rather than resolving one with no client to trust it
-      // against (RP-Initiated Logout 1.0 §3).
+      // list — an unknown, disabled or unspecified client yields none,
+      // refusing any redirect rather than resolving one with no client (or
+      // no longer-trusted client) to trust it against (RP-Initiated Logout
+      // 1.0 §3).
       postLogoutRedirectUris: (realmId, oauthClientId) =>
         withRealm(deps.database.db, realmId, async (tx) => {
           const client = await clientRepository(tx).byClientId(oauthClientId);
-          if (client === null) return [];
+          if (!client?.enabled) return [];
           return clientOidcConfigRepository(tx).postLogoutRedirectUris(client.id);
         }),
-      // The same cookie-to-live-row resolution /authorize's resolveSession
-      // performs, minus the authTime that only completing a login needs.
-      resolveSession: async (realm, cookieValue) => {
-        if (cookieValue === undefined || !isUuid(cookieValue)) return null;
-        return withRealm(deps.database.db, realm.id, async (tx) => {
-          const record = await sessionRepository(tx).liveById(
-            cookieValue,
-            realm.ssoSessionIdleSeconds,
-            clock.now(),
-          );
-          if (record === null) return null;
-          return { id: record.id, subjectId: record.subjectId };
-        });
-      },
-      // One transaction, per Back-Channel Logout §2.7: end the session, then
-      // revoke every grant whose session_id is that session. A failure
-      // anywhere rolls both back — a session that ends with its grants
-      // still live would be logout not actually having happened.
-      endSession: (realmId, sessionId, now) =>
+      resolveSessions,
+      // One transaction, per Back-Channel Logout §2.7: end the session,
+      // revoke every grant whose session_id is that session, then mint and
+      // enqueue one delivery per client that used the session and
+      // registered a back-channel URI. A failure anywhere rolls all of it
+      // back — see the JSDoc on LogoutUsecaseDeps.endSession for why. Two
+      // concurrent logouts on the same session both reach here and both
+      // attempt to enqueue; logoutDeliveryRepository.enqueue's own comment
+      // is why that yields one delivery, not two.
+      endSession: (realmId, sessionId, subjectId, now, issuer) =>
         withRealm(deps.database.db, realmId, async (tx) => {
           await sessionRepository(tx).end(sessionId, now);
           await tokenGrantRepository(tx).revokeForSession(sessionId, now);
+
+          const targets = await tokenGrantRepository(tx).clientsForSession(sessionId);
+          const backchannelTargets = targets.filter(hasBackchannelLogoutUri);
+          if (backchannelTargets.length === 0) return;
+
+          const key = await signingKeyRepository(tx).active();
+          const deliveries = await Promise.all(
+            backchannelTargets.map(async (target) => {
+              const claims = logoutTokenClaims({
+                issuer,
+                audience: target.oauthClientId,
+                subject: subjectId,
+                sessionId,
+                now,
+              });
+              const logoutToken = await signJwt(
+                { ...claims },
+                { key, kek: deps.kek, typ: LOGOUT_TOKEN_TYP },
+              );
+              return {
+                id: newId(),
+                realmId,
+                clientId: target.clientId,
+                sessionId,
+                endpoint: target.backchannelLogoutUri,
+                logoutToken,
+                nextAttemptAt: now,
+              };
+            }),
+          );
+          await logoutDeliveryRepository(tx).enqueue(deliveries);
         }),
+      // Front-Channel Logout 1.0 §3's "set of logged-in RPs" — read after
+      // endSession above has already revoked the session's grants, since
+      // revoking one only stamps revoked_at rather than removing it.
+      clientsForSession: (realmId, sessionId) =>
+        withRealm(deps.database.db, realmId, (tx) =>
+          tokenGrantRepository(tx).clientsForSession(sessionId),
+        ),
     });
     // Own encapsulation scope: `@fastify/cors`'s delegator-driven hook adds
     // `Vary: Origin` to every response it sees, including a disallowed one
@@ -575,6 +779,9 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
         claimMappers,
         loadClaimContext,
         resolveClientWebOrigins,
+        clientKeySet,
+        trustProxy: deps.trustProxy ?? false,
+        tlsClientCertHeader: deps.tlsClientCertHeader ?? DEFAULT_TLS_CLIENT_SUBJECT_HEADER,
       });
       registerUserinfoRoute(scope, {
         findRealm,
@@ -584,6 +791,14 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
         claimMappers,
         resolveRoleReach,
         resolveClientWebOrigins,
+        userinfoSignedResponseAlg,
+        activeSigningKey,
+        userinfoEncryptionTarget,
+        clientKeySet,
+        kek: deps.kek,
+        loadGrant: loadIntrospectionGrant,
+        isSessionLive: isIntrospectionSessionLive,
+        clock,
       });
     });
 
@@ -591,6 +806,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
   };
 }
 
+export { assertionJtiRepository } from '#/repository/assertion-jti';
 export { clientOidcConfigRepository } from '#/repository/client-oidc-config';
 export { type ClientOidcConfig } from '#/schema/client-oidc-config';
 export { realmLookupRepository, type NewRealm, type RealmLookup } from '#/repository/realm-lookup';
@@ -598,8 +814,29 @@ export {
   clientKeySet,
   ClientKeySetRefused,
   MAX_JWKS_BYTES,
+  NO_CLIENT_KEY_FETCHER,
   type ClientKeyDeps,
   type ClientKeyRequest,
   type ClientKeyResponse,
   type ClientKeySet,
 } from '#/repository/client-keys';
+export {
+  logoutDeliveryRepository,
+  BACKCHANNEL_LOGOUT_MAX_ATTEMPTS,
+  BACKCHANNEL_LOGOUT_RETRY_BACKOFF_SECONDS,
+  type ClaimDue,
+  type EnqueueDelivery,
+} from '#/repository/logout-deliveries';
+export {
+  sendLogouts,
+  type ClaimedLogoutDelivery,
+  type LogoutDeliveryResponse,
+  type LogoutDeliveryTransport,
+  type SendLogoutsDeps,
+  type SendLogoutsOutcome,
+} from '#/usecase/send-logouts';
+export {
+  assertFetchableUrl,
+  assertPublicAddresses,
+  RemoteAddressRefused,
+} from '#/service/remote-address';

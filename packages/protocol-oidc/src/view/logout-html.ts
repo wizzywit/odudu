@@ -50,25 +50,47 @@ export function renderNoActiveSessionPage(): RenderedPage {
 }
 
 // The session ended, and there was nowhere the request asked to send the
-// End-User back to (no post_logout_redirect_uri at all).
-export function renderLoggedOutPage(): RenderedPage {
+// End-User back to (no post_logout_redirect_uri at all) — Front-Channel
+// Logout 1.0 §3's page: one <iframe> per relying party that registered a
+// front-channel logout URI and held a grant under the ended session. This
+// is the OP's whole obligation under that section; §4.1's third-party
+// cookie behaviour decides whether a framed RP ever sees the request (see
+// docs/superpowers/p3b-spike-frontchannel.md), which this function cannot
+// know and does not claim to.
+export function renderLoggedOutPage(frontChannelLogoutUrls: readonly string[] = []): RenderedPage {
+  const iframes = frontChannelLogoutUrls
+    .map((url) => `<iframe src="${escapeHtml(url)}"></iframe>`)
+    .join('\n');
   return page(
     'Signed out',
     `<h1>Signed out</h1>
-<p>You have been signed out.</p>`,
+<p>You have been signed out.</p>
+${iframes}`,
+    null,
+    frontChannelLogoutUrls.map((url) => new URL(url).origin),
   );
 }
 
 // The session still ended — RP-Initiated Logout 1.0's redirect rule (§3) is
 // about the redirect alone, and refusing it must not look like refusing the
 // logout itself, or an attacker's unmatched redirect_uri would be a way to
-// keep a session alive.
-export function renderLogoutRedirectRefusedPage(): RenderedPage {
+// keep a session alive. Frames each relying party's front-channel logout
+// URI exactly as `renderLoggedOutPage` does — this page renders too, rather
+// than redirecting, so the same iframe opportunity applies.
+export function renderLogoutRedirectRefusedPage(
+  frontChannelLogoutUrls: readonly string[] = [],
+): RenderedPage {
+  const iframes = frontChannelLogoutUrls
+    .map((url) => `<iframe src="${escapeHtml(url)}"></iframe>`)
+    .join('\n');
   return page(
     'Signed out',
     `<h1>Signed out</h1>
 <p>You have been signed out, but the address given to return to afterward is
-not one this client has registered, so it has not been used.</p>`,
+not one this client has registered, so it has not been used.</p>
+${iframes}`,
+    null,
+    frontChannelLogoutUrls.map((url) => new URL(url).origin),
   );
 }
 

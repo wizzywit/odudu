@@ -40,10 +40,12 @@ const config: ClientOidcConfig = {
   frontchannelLogoutUri: null,
   backchannelLogoutUri: null,
   backchannelLogoutSessionRequired: false,
+  frontchannelLogoutSessionRequired: false,
   consentRequired: false,
   userinfoSignedResponseAlg: null,
   userinfoEncryptedResponseAlg: null,
   userinfoEncryptedResponseEnc: null,
+  tlsClientAuthSubjectDn: null,
 };
 
 // One list stands for both halves of the rule these tests exercise: the
@@ -154,6 +156,9 @@ describe('an unsupported response mode is refused, not silently changed', () => 
       issuer: 'https://idp.example',
       claimsSupported: [],
       scopesSupported: REALM_SCOPES,
+      userinfoSigningAlgSupported: ['none'],
+      userinfoEncryptionAlgSupported: [],
+      userinfoEncryptionEncSupported: [],
     }).response_modes_supported;
 
     for (const mode of advertised) {
@@ -229,6 +234,9 @@ describe('scope acceptance', () => {
       issuer: 'https://idp.example',
       claimsSupported: [],
       scopesSupported: realmScopes,
+      userinfoSigningAlgSupported: ['none'],
+      userinfoEncryptionAlgSupported: [],
+      userinfoEncryptionEncSupported: [],
     }).scopes_supported;
     if (advertised === undefined) throw new Error('the document advertised no scopes');
     const fromDiscovery = new Set(advertised);

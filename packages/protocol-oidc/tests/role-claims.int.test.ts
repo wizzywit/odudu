@@ -19,6 +19,7 @@ import { sql } from 'drizzle-orm';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { oidcRoutes } from '#/index';
+import { NO_CLIENT_KEY_FETCHER } from '#/repository/client-keys';
 import { UNLIMITED_CLIENT_SECRET_LIMITER } from '#/service/client-secret-throttle';
 import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
 import { authorizationCodeRepository } from '#/repository/codes';
@@ -123,6 +124,12 @@ async function setFullScopeAllowed(realm: Realm): Promise<void> {
   );
 }
 
+async function disableClient(realm: Realm): Promise<void> {
+  await withRealm(app.db, realm.realmId, (tx) =>
+    tx.execute(sql`update clients set enabled = false where id = ${realm.clientDbId}`),
+  );
+}
+
 async function setIncludeInAccessToken(
   realm: Realm,
   scopeName: string,
@@ -156,6 +163,8 @@ async function completeCodeFlow(realm: Realm, scope: string): Promise<TokenSet> 
       codeChallengeMethod: 'S256',
       authTime: new Date(),
       expiresAt: new Date(Date.now() + 60_000),
+      resource: [],
+      claims: { idToken: {}, userinfo: {} },
     });
   });
 
@@ -216,6 +225,7 @@ beforeAll(async () => {
       ownerDatabase: owner,
       kek: KEK,
       clientSecretLimiter: UNLIMITED_CLIENT_SECRET_LIMITER,
+      clientKeySet: NO_CLIENT_KEY_FETCHER,
     }),
   );
   await http.ready();
@@ -293,6 +303,17 @@ describe('roles in an issued token', () => {
     await giveSubjectRole(realm, 'admin'); // held, mapped to no scope
 
     const { accessToken } = await completeCodeFlow(realm, 'openid roles');
+    expect(await userinfo(realm, accessToken)).not.toHaveProperty('roles');
+  });
+
+  it('narrows a disabled full-scope client’s live token at userinfo', async () => {
+    const realm = await seedRealm('userinfo-disabled-full-scope');
+    await setFullScopeAllowed(realm);
+    await giveSubjectRole(realm, 'admin'); // held, mapped to no scope, but full_scope_allowed
+
+    const { accessToken } = await completeCodeFlow(realm, 'openid roles');
+    await disableClient(realm);
+
     expect(await userinfo(realm, accessToken)).not.toHaveProperty('roles');
   });
 

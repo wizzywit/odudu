@@ -18,6 +18,7 @@ import Fastify, { type FastifyInstance, type LightMyRequestResponse } from 'fast
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { oidcRoutes } from '#/index';
+import { NO_CLIENT_KEY_FETCHER } from '#/repository/client-keys';
 import { UNLIMITED_CLIENT_SECRET_LIMITER } from '#/service/client-secret-throttle';
 import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
 import { authorizationCodeRepository } from '#/repository/codes';
@@ -52,6 +53,11 @@ interface RealmSetup {
   issuer: string;
   client: Client;
   subjectId: string;
+  // The client's own registered `audiences` — what /authorize would store
+  // on a code's `resource` when a request names none, the same default
+  // `issueTokens` below has to mint the code with now that /token derives
+  // `aud` from the code rather than from `config.audiences` directly.
+  audiences: string[];
 }
 
 let primary: RealmSetup;
@@ -123,6 +129,7 @@ async function setupRealm(label: string, audiences: string[] = []): Promise<Real
     issuer: `http://localhost/realms/${realmName}`,
     client: { clientId: 'web-app', dbId: clientId.webAppDbId, secret: 'supersecret' },
     subjectId: clientId.subjectId,
+    audiences,
   };
 }
 
@@ -154,6 +161,8 @@ async function issueTokens(
       codeChallengeMethod: 'S256',
       authTime: new Date(),
       expiresAt: new Date(Date.now() + 60_000),
+      resource: realm.audiences,
+      claims: { idToken: {}, userinfo: {} },
     });
   });
 
@@ -413,6 +422,7 @@ beforeAll(async () => {
       ownerDatabase: owner,
       kek: KEK,
       clientSecretLimiter: UNLIMITED_CLIENT_SECRET_LIMITER,
+      clientKeySet: NO_CLIENT_KEY_FETCHER,
     }),
   );
   await http.ready();

@@ -1,4 +1,4 @@
-import { sessionRepository } from '@odudu/authn-flows';
+import { sessionRepository, type SessionLifespans } from '@odudu/authn-flows';
 import { type RealmScopedDatabase } from '@odudu/db';
 import { tokenGrantRepository, type TokenGrantRecord } from '#/repository/grants';
 import { refreshTokenRepository } from '#/repository/refresh';
@@ -22,7 +22,7 @@ export async function rotateRefreshToken(
   presentedHash: string,
   now: Date,
   refreshTokenTtlSeconds: number,
-  idleSeconds: number,
+  lifespans: SessionLifespans,
 ): Promise<RotationOutcome> {
   const consumed = await refreshTokenRepository(tx).consume(presentedHash);
 
@@ -54,7 +54,7 @@ export async function rotateRefreshToken(
   // offline family has no session and is therefore bounded only by its own
   // TTL and by retention.
   if (grant.sessionId !== null) {
-    const session = await sessionRepository(tx).liveById(grant.sessionId, idleSeconds, now);
+    const session = await sessionRepository(tx).liveById(grant.sessionId, lifespans, now);
     if (session === null) return { kind: 'revoked' };
     await sessionRepository(tx).touch(grant.sessionId, now);
   }

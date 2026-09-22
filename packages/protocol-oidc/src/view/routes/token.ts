@@ -1,3 +1,4 @@
+import { type SessionLifespans } from '@odudu/authn-flows';
 import { withRealm, type DatabaseHandle } from '@odudu/db';
 import { type ClaimMapperRegistry, type Clock } from '@odudu/kernel';
 import { type FastifyInstance } from 'fastify';
@@ -5,20 +6,24 @@ import { corsHeadersForRequest } from '#/service/cors';
 import { type ClaimContext } from '#/service/claims';
 import { type ClientSecretLimiter } from '#/service/client-secret-throttle';
 import { TokenError, TokenRateLimited } from '#/service/errors';
-import { issueTokens, type TokenResponse } from '#/usecase/token-issuance';
+import { issueTokens, type ClientKeySet, type TokenResponse } from '#/usecase/token-issuance';
 import { realmIssuerFor } from '#/view/issuer';
 
 export interface TokenRouteDeps {
   database: DatabaseHandle;
   // Shaped like repository/realm-lookup.ts's RealmLookup, not imported from
   // it: view never reaches into repository (dependency-cruiser's
-  // no-view-to-repository rule). `ssoSessionIdleSeconds` is read here for
-  // the same reason /authorize's own resolveSession reads it — a
+  // no-view-to-repository rule). The full lifespan pair is read here for
+  // the same reason /authorize's own resolveSessions reads it — a
   // session-bound refresh dies exactly when the session it is bound to
-  // would (refresh-rotation.ts).
-  findRealm(
-    name: string,
-  ): Promise<{ id: string; enabled: boolean; ssoSessionIdleSeconds: number } | null>;
+  // would, ordinary or remembered alike (refresh-rotation.ts).
+  findRealm(name: string): Promise<
+    | ({
+        id: string;
+        enabled: boolean;
+      } & SessionLifespans)
+    | null
+  >;
   kek: Uint8Array;
   clock: Clock;
   verifyPassword: (hash: string, secret: string) => Promise<boolean>;
@@ -35,6 +40,15 @@ export interface TokenRouteDeps {
   // ADR 0023's client-authentication budget, per client_id. See
   // token-issuance.ts's TokenIssuanceDeps for what it counts.
   clientSecretLimiter: ClientSecretLimiter;
+  // RFC 7523 §2.2's fetcher for a client's jwks_uri — see
+  // token-issuance.ts's TokenIssuanceDeps for what calls it.
+  clientKeySet: ClientKeySet;
+  // Gates tls_client_auth — see token-issuance.ts's TokenIssuanceDeps for
+  // what reads it.
+  trustProxy: boolean;
+  // `ODUDU_TLS_CLIENT_CERT_HEADER` — see token-issuance.ts's
+  // TokenIssuanceDeps for what reads it.
+  tlsClientCertHeader: string;
 }
 
 function readClientId(body: Record<string, string | string[] | undefined>): string | undefined {
@@ -69,14 +83,25 @@ export function registerTokenRoute(app: FastifyInstance, deps: TokenRouteDeps): 
             issuer,
             kek: deps.kek,
             clock: deps.clock,
-            idleSeconds: realm.ssoSessionIdleSeconds,
+            lifespans: {
+              ssoSessionIdleSeconds: realm.ssoSessionIdleSeconds,
+              ssoSessionMaxSeconds: realm.ssoSessionMaxSeconds,
+              rememberMeIdleSeconds: realm.rememberMeIdleSeconds,
+              rememberMeMaxSeconds: realm.rememberMeMaxSeconds,
+            },
             verifyPassword: deps.verifyPassword,
             clientSecretLimiter: deps.clientSecretLimiter,
             claimMappers: deps.claimMappers,
             loadClaimContext: (realmId, subjectId) => deps.loadClaimContext(realmId, subjectId),
+            clientKeySet: deps.clientKeySet,
+            logger: request.log,
+            trustProxy: deps.trustProxy,
+            tlsClientCertHeader: deps.tlsClientCertHeader,
           },
           request.body,
           request.headers.authorization,
+          request.headers,
+          request.raw.rawHeaders,
         ),
       );
 

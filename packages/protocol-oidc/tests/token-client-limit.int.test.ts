@@ -18,6 +18,7 @@ import Fastify, { type FastifyInstance, type LightMyRequestResponse } from 'fast
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { oidcRoutes } from '#/index';
 import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
+import { NO_CLIENT_KEY_FETCHER } from '#/repository/client-keys';
 import { type ClientSecretLimiter } from '#/service/client-secret-throttle';
 
 let containerHandle: TestDatabase | undefined;
@@ -100,6 +101,7 @@ beforeAll(async () => {
       ownerDatabase: owner,
       kek: KEK,
       clientSecretLimiter: clientSecretLimiter(),
+      clientKeySet: NO_CLIENT_KEY_FETCHER,
     }),
   );
   await http.ready();

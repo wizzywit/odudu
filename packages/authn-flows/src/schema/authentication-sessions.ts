@@ -55,12 +55,22 @@ export interface PendingRequest {
   // Absent when the request carried no hint; when present, whoever signs in
   // has to be that subject for the request to be answered positively.
   idTokenHintSubject?: string;
+  // The subject named by the `claims` parameter's `id_token.sub` member
+  // (OIDC Core §3.1.2.2) — the same constraint as `idTokenHintSubject`
+  // above, parked separately since the two have different provenance.
+  claimsSubject?: string;
   // The request's own `prompt` values (OIDC Core §3.1.2.1), parked
   // alongside everything else so a consent decision made after the detour
   // — a required action, a fresh login, a promoted session reuse — still
   // sees `prompt=consent` the way it would have at the moment the request
   // first arrived. Absent is the same as empty: no value was sent.
   prompt?: string[];
+  // The request's own `max_age` (OIDC Core §3.1.2.1), parked so a
+  // selection made after an account-chooser detour is re-checked against
+  // it — a session the chooser excluded for being too old must stay
+  // excluded when its id is posted back, not merely be re-admitted because
+  // it is still live. Absent is the same as no `max_age` sent.
+  maxAge?: number;
   // Present only when this session was started to promote a session reuse
   // into a consent decision (protocol-oidc's authorization-request.ts):
   // the SSO session to complete into, and the instant it actually
@@ -70,6 +80,37 @@ export interface PendingRequest {
   // is an ISO string, jsonb's only way to carry a Date.
   reuseSessionId?: string;
   reuseAuthTime?: string;
+  // The already realm-gated `remember_me` decision, parked here only when
+  // a detour — today, consent — completes the login from a door that
+  // never asks the field itself (login-submission.ts's `recordRememberMe`,
+  // its only writer). Absent, the same as `false`, on every session this
+  // was never written against.
+  rememberMe?: boolean;
+  // The audience `parseResource` resolved at /authorize
+  // (protocol-oidc's resource-indicator.ts), parked so a code minted
+  // once this session completes — however many doors that takes —
+  // stores the same resolved audience a session reuse would have. Every
+  // door this phase starts a session from sets it, `[]` included, so
+  // `[]` already means "resolved to nothing", never "not carried".
+  resource?: string[];
+  // The `claims` request parameter (OIDC Core §5.5), parked like `resource`
+  // above. Structurally identical to protocol-oidc's `ClaimsRequest`
+  // (`service/claims-request.ts`), declared locally: authn-flows may not
+  // import protocol-oidc's types.
+  claims?: PendingClaimsRequest;
+}
+
+interface PendingClaimEntry {
+  essential: boolean;
+  value?: string;
+  values?: readonly string[];
+}
+
+type PendingClaimsMember = Readonly<Record<string, PendingClaimEntry>>;
+
+export interface PendingClaimsRequest {
+  idToken: PendingClaimsMember;
+  userinfo: PendingClaimsMember;
 }
 
 export interface AuthenticationSessionRecord {

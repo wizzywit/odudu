@@ -17,6 +17,7 @@ import formbody from '@fastify/formbody';
 import Fastify, { type FastifyInstance, type LightMyRequestResponse } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { oidcRoutes } from '#/index';
+import { NO_CLIENT_KEY_FETCHER } from '#/repository/client-keys';
 import { UNLIMITED_CLIENT_SECRET_LIMITER } from '#/service/client-secret-throttle';
 import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
 import { authorizationCodeRepository } from '#/repository/codes';
@@ -45,6 +46,11 @@ interface Client {
   clientId: string;
   dbId: string;
   secret: string;
+  // What /authorize would store on a code's `resource` when a request
+  // names none — the same default `issueTokens` below mints codes with,
+  // now that /token derives `aud` from the code rather than from
+  // `config.audiences` directly.
+  audiences: string[];
 }
 
 interface RealmSetup {
@@ -87,7 +93,7 @@ async function insertClient(
     accessTokenTtlSeconds: 300,
     refreshTokenTtlSeconds: 1_209_600,
   });
-  return { clientId, dbId, secret };
+  return { clientId, dbId, secret, audiences };
 }
 
 async function setupRealm(label: string): Promise<RealmSetup> {
@@ -169,6 +175,8 @@ async function issueTokens(
       codeChallengeMethod: 'S256',
       authTime: new Date(),
       expiresAt: new Date(Date.now() + 60_000),
+      resource: client.audiences,
+      claims: { idToken: {}, userinfo: {} },
     });
   });
 
@@ -287,6 +295,7 @@ beforeAll(async () => {
       ownerDatabase: owner,
       kek: KEK,
       clientSecretLimiter: UNLIMITED_CLIENT_SECRET_LIMITER,
+      clientKeySet: NO_CLIENT_KEY_FETCHER,
     }),
   );
   await http.ready();
@@ -358,6 +367,8 @@ describe('[ODUDU-CROSS-REALM-LEAKAGE-01] cross-realm leakage', () => {
         codeChallengeMethod: 'S256',
         authTime: new Date(),
         expiresAt: new Date(Date.now() + 60_000),
+        resource: [],
+        claims: { idToken: {}, userinfo: {} },
       });
     });
 

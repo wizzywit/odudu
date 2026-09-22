@@ -21,10 +21,11 @@ import {
   verifyPassword,
 } from '@odudu/domain-identity';
 import { newId } from '@odudu/kernel';
-import { oidcRoutes } from '@odudu/protocol-oidc';
+import { clientKeySet, oidcRoutes } from '@odudu/protocol-oidc';
 import Fastify, { type FastifyInstance, type RawServerDefault } from 'fastify';
 import { type IncomingMessage, type ServerResponse } from 'node:http';
 import { type Logger as PinoLogger } from 'pino';
+import { createClientKeyRequest, defaultClientKeyLookup } from '#/client-key-transport';
 import { registerHealth } from '#/health';
 import { slidingWindow } from '#/throttle';
 
@@ -65,6 +66,13 @@ export interface AppDeps {
    */
   readonly trustProxy?: boolean;
   /**
+   * The header a deployment's reverse proxy emits a client certificate's
+   * subject under, read by `tls_client_auth` client authentication at
+   * `/token` while `trustProxy` above is on. Defaults to the same value
+   * `ODUDU_TLS_CLIENT_CERT_HEADER` does.
+   */
+  readonly tlsClientCertHeader?: string;
+  /**
    * The per-origin request budget on the three unauthenticated routes that
    * each cost an Argon2id hash or a mail send. Defaults to
    * `DEFAULT_THROTTLE`; `main.ts` passes what `ODUDU_THROTTLE_*` says.
@@ -80,6 +88,15 @@ export interface AppDeps {
    * `ODUDU_CLIENT_SECRET_THROTTLE_*` says.
    */
   readonly clientSecretThrottle?: ThrottleSettings;
+  /**
+   * ADR 0028's escape hatch for a `jwks_uri` resolving to a private or
+   * loopback address — the same flag `main.ts` already passes to the
+   * back-channel logout transport, reused here for `private_key_jwt`'s
+   * own address guard. Defaults `false`; a deployment with clients whose
+   * `jwks_uri` is genuinely internal (a compose stack, a private VPC) sets
+   * it explicitly rather than getting it silently.
+   */
+  readonly allowPrivateClientUrls?: boolean;
 }
 
 export interface ThrottleSettings {
@@ -166,6 +183,18 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     now: () => new Date(),
   });
 
+  // private_key_jwt's own address-guarded fetcher (RFC 7523 §2.2, ADR
+  // 0028) — the real `node:https`/`node:dns` pair `#/client-key-transport`
+  // wraps, shared by every realm's clients the way the cache in
+  // `clientKeySet` itself already assumes (protocol-oidc's own comment on
+  // `negativeCacheKey`).
+  const privateKeyJwtKeySet = clientKeySet({
+    lookup: defaultClientKeyLookup,
+    request: createClientKeyRequest(),
+    now: () => new Date(),
+    allowPrivate: deps.allowPrivateClientUrls ?? false,
+  });
+
   // At onRequest, so a refusal costs neither the body parse nor anything
   // that touches the database. It is also what keeps the refusal from
   // being an oracle: nothing here has looked an account up, so a throttled
@@ -193,7 +222,12 @@ export function buildApp(deps: AppDeps): FastifyInstance {
       ownerDatabase: deps.ownerDatabase,
       kek: deps.kek,
       clientSecretLimiter,
+      clientKeySet: privateKeyJwtKeySet,
       ...(deps.publicBaseUrl === undefined ? {} : { publicBaseUrl: deps.publicBaseUrl }),
+      trustProxy: deps.trustProxy ?? false,
+      ...(deps.tlsClientCertHeader === undefined
+        ? {}
+        : { tlsClientCertHeader: deps.tlsClientCertHeader }),
     }),
   );
 

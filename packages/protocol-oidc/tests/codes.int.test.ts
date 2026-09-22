@@ -4,6 +4,7 @@ import {
   MIGRATIONS_DIR,
   realms,
   runMigrations,
+  withRealm,
   type DatabaseHandle,
   type RealmScopedDatabase,
 } from '@odudu/db';
@@ -82,11 +83,53 @@ async function issueCode(tx: RealmScopedDatabase, realmId: string): Promise<stri
     codeChallengeMethod: 'S256',
     authTime: new Date(),
     expiresAt: new Date(Date.now() + 60_000),
+    resource: [],
+    claims: { idToken: {}, userinfo: {} },
   });
   return codeHash;
 }
 
 describe('authorizationCodeRepository', () => {
+  // Not expectCrossRealmMethodProbe: `create` is an INSERT the isolation
+  // policy refuses by throwing (its USING doubles as WITH CHECK — see
+  // 0008_authorization_codes.sql), not by returning nothing. postgres.js's
+  // `sql.begin()` rejects the whole transaction on any query error, so
+  // this asserts the rejection directly — the shape
+  // `consents.int.test.ts`'s own `record` probe uses, same reason.
+  it('cannot create a code for another realm from a foreign realm context', async () => {
+    const realmA = newId();
+    const realmB = newId();
+
+    const seeded = await withRealm(app.db, realmA, (tx) => seedRealmClientSubject(tx, realmA));
+    await withRealm(app.db, realmB, (tx) => seedRealmClientSubject(tx, realmB));
+
+    const codeHash = hashAuthorizationCode(generateAuthorizationCode());
+    await expect(
+      withRealm(app.db, realmB, (tx) =>
+        authorizationCodeRepository(tx).create({
+          codeHash,
+          realmId: realmA,
+          clientId: seeded.clientDbId,
+          subjectId: seeded.subjectId,
+          redirectUri: REDIRECT_URI,
+          scope: 'openid',
+          nonce: null,
+          codeChallenge: CHALLENGE,
+          codeChallengeMethod: 'S256',
+          authTime: new Date(),
+          expiresAt: new Date(Date.now() + 60_000),
+          resource: [],
+          claims: { idToken: {}, userinfo: {} },
+        }),
+      ),
+    ).rejects.toThrow();
+
+    const found = await withRealm(app.db, realmA, (tx) =>
+      authorizationCodeRepository(tx).byHash(codeHash),
+    );
+    expect(found).toBeNull();
+  });
+
   it('cannot find a code by hash under a different realm context', async () => {
     await expectCrossRealmMethodProbe(app.db, {
       seed: async (tx, realmId) => issueCode(tx, realmId),

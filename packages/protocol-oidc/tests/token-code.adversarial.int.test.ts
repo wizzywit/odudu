@@ -20,6 +20,7 @@ import { eq } from 'drizzle-orm';
 import Fastify, { type FastifyInstance, type LightMyRequestResponse } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { oidcRoutes } from '#/index';
+import { NO_CLIENT_KEY_FETCHER } from '#/repository/client-keys';
 import { UNLIMITED_CLIENT_SECRET_LIMITER } from '#/service/client-secret-throttle';
 import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
 import { authorizationCodeRepository, consumeAuthorizationCode } from '#/repository/codes';
@@ -256,6 +257,13 @@ async function issueCode(opts: IssueCodeOptions = {}): Promise<{ code: string; c
       codeChallengeMethod: 'S256',
       authTime,
       expiresAt,
+      // Every client in this realm is registered for `[AUDIENCE]` — what
+      // /authorize would store on a code's `resource` when a request names
+      // none, the same default a code minted directly here (bypassing
+      // /authorize) has to carry now that /token derives `aud` from the
+      // code rather than from `config.audiences` directly.
+      resource: [AUDIENCE],
+      claims: { idToken: {}, userinfo: {} },
     });
     if (opts.consumedImmediately === true) {
       await authorizationCodeRepository(tx).consume(codeHash);
@@ -445,6 +453,7 @@ beforeAll(async () => {
       ownerDatabase: owner,
       kek: KEK,
       clientSecretLimiter: UNLIMITED_CLIENT_SECRET_LIMITER,
+      clientKeySet: NO_CLIENT_KEY_FETCHER,
     }),
   );
   await http.ready();
@@ -826,8 +835,12 @@ describe('[RFC6749-3.2-02] unrecognized token request parameters', () => {
     const res = await postForm(
       [
         ...redemptionParams(code),
+        // `audience` and `assertion` name no parameter this grant reads —
+        // `resource` moved out of this list once RFC 8707 wired it up
+        // (usecase/token-issuance.ts): it is no longer unrecognized, and a
+        // value this code did not carry would refuse the request rather
+        // than being dropped, defeating the point of this test.
         ['audience', 'https://elsewhere.example'],
-        ['resource', 'urn:example:api'],
         ['assertion', 'not-a-parameter-of-this-grant'],
       ],
       basicHeader(webApp),

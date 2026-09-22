@@ -80,7 +80,9 @@ cheap for P1 to support unconditionally: Odudu's session/authn-flow layer
 already knows when a user last actively authenticated, so emitting
 `auth_time` whenever it's available is a straightforward addition, and
 doing so now means the two deferred triggers have something to attach to
-when P2a, P2b and P3b land.
+when P2a, P2b and P3b land. P3b is what closes both triggers: `auth_time`
+is no longer unconditional — see "§15.1's `auth_time`, answered on
+request" below for the mechanism.
 
 ### ID Token validation (§3.1.3.7): the client's ordered checks
 
@@ -171,13 +173,27 @@ free just because this request found a second way to complete a login.
 
 `prompt` parsing (`service/prompt.ts`) refuses `none` alongside any other
 value, which §3.1.2.1 requires, and refuses a value outside the four the
-specification defines, which §3.1.2.1 leaves as a MAY. `consent` and
-`select_account` are accepted and have no effect of their own — both sets of
-rows are now deferred — `consent`'s to `P3a`, which builds the consent
-screen, and `select_account`'s to `P3b`, having moved out of P2b on
-2026-09-15 when P2b's brainstorm established that account selection needs
-several concurrent sessions per browser rather than flow tree semantics — so
-this server recognises them without yet obeying them.
+specification defines, which §3.1.2.1 leaves as a MAY. `consent` is
+accepted and has no effect of its own — its rows are deferred to `P3a`,
+which builds the consent screen. `select_account` moved out of P2b to
+`P3b` on 2026-09-15, when P2b's brainstorm established that account
+selection needs several concurrent sessions per browser rather than flow
+tree semantics; a later P3b increment (`packages/protocol-oidc/src/usecase/session-reuse.ts`'s
+`select` outcome and the chooser `/authorize` renders over it,
+`packages/protocol-oidc/src/view/select-account-html.ts`) closed all three
+rows, `OIDC-CORE-3.1.2.1-15`, `-16` and `OIDC-CORE-3.1.2.6-08`.
+
+**`OIDC-CORE-3.1.2.1-16` is tagged on a `prompt=none` request, not one
+spelling `select_account` alone.** The two cannot be combined on the wire:
+`parsePrompt` refuses `none` alongside any other value, the same MUST the
+paragraph above already covers for `login` and `consent`. So the one
+manifestation §3.1.2.1's own MUST admits — an error when account selection
+cannot be obtained under a prompt forbidding interaction — is reachable
+only as `prompt=none` alone, exactly the request `decideReuse` already
+turns into `refuse: account_selection_required` whenever it would
+otherwise return `select`. There is no separate `prompt=select_account`
+failure case to test, because `prompt=select_account` on its own can
+always ask — that is `-15`'s row, not `-16`'s.
 
 **The row §3.1.2.1 phrases for `prompt=login`'s failure was `deferred: P2`
 until the flow engine gave it a reachable branch, and it is now
@@ -251,6 +267,22 @@ caller to state a `typ` policy — the type it demands, a type it refuses, or
 this confusion existed for precisely as long as that option could be left
 unsaid. `/userinfo` makes the mirror-image check of the token presented to
 it.
+
+**The hint's `aud` names the client it was issued to, not this server, so
+checking it is a choice, not RFC 7519 §4.1.3's obligation met at last.**
+That obligation binds a principal absent from a present `aud` — the OP
+reading a hint back is not that principal, which is why
+`AUDIENCE_UNCHECKED` existed at all. `/authorize` now checks the hint's
+`aud` against the requesting client's `client_id` anyway, as a deliberate
+additional guard: a hint minted for one client accepted from another is a
+real confusion (the client-a/client-b case this repository's tests
+provision), and OIDC Core gives `/authorize` a principal to check against
+that it did not have to invent. `/logout` declines the same check — it has
+no client of its own to compare against when `client_id` is absent from the
+logout request, and RP-Initiated Logout §2's own `client_id`-vs-`aud`
+comparison already covers the case where one is present. Both callers pass
+their choice to `verifyJwt` explicitly (`ExpectedAudience`), so a reader
+sees the asymmetry in the type rather than having to know it.
 
 **Discovery advertises none of this, deliberately.** OIDC Discovery 1.0 §3
 defines no metadata for `prompt`: `prompt_values_supported` comes from
@@ -390,9 +422,10 @@ what P3a's registration data then feeds — signed and encrypted UserInfo
 responses — for `prompt=select_account`, which needs the concurrent
 sessions per browser that phase builds, and for the `claims` request
 parameter itself, which P3a's plan never named in its own criterion (see
-`docs/NEXT.md` and `docs/phases/p3a.md`) and which is now filed beside the
+`docs/NEXT.md` and `docs/phases/p3a.md`) and which P3b built beside the
 UserInfo work it shares a shape with — reading per-client registration data
-the client did not have a machinery to supply before P3a. **P13** for signed requests, which
+the client did not have a machinery to supply before P3a; both its rows are
+now `covered` (`OIDC-CORE-2-09`, `OIDC-CORE-3.1.2.2-07`). **P13** for signed requests, which
 depend on the request objects §6 defines. `prompt=login`'s own
 reauthentication behavior is answered in P1, not deferred — see above. Two items have no phase at all: ID Token
 encryption negotiation (§2) and the end-user-facing mechanism to revoke
@@ -583,31 +616,172 @@ Endpoint returns a content-type header identifying the response format" and
 "the content-type is `application/json` when the response body is a plain
 JSON object" are four rows over one fact, and all four cite
 `OIDC-CORE-5.4-01`, which reads the content-type and the parsed body of a
-real UserInfo response. Each row's
-"unless a different format was registered" escape is unreachable here: signed
-and encrypted UserInfo responses need per-client registration data that does
-not exist until P3a, which registers it, and those rows are `deferred: P3b`
-immediately below, where the response is signed or encrypted.
+real UserInfo response for a client that registered neither signing nor
+encryption. Each row's "unless a different format was registered" escape is
+exercised by the signed and encrypted cases below — `OIDC-CORE-5.3.2-02`,
+`-03` and `-04` — not by `OIDC-CORE-5.4-01` itself, which only ever sees the
+plain case.
 
-### §15.1's `auth_time`, answered unconditionally
+### A signed UserInfo response: `aud`, `none`, `typ`, and the algorithm that was never selectable
+
+Four decisions `usecase/userinfo.ts`'s `signedBody` makes, each easy to get
+wrong by analogy with a token that looks similar.
+
+**`aud` is the client.** The access token that reached `/userinfo` already
+carries the resource(s) it was issued for in its own `aud`
+(`usecase/token-issuance.ts`); the ID Token's `aud` is the client because
+**OIDC Core §2** says so — see "Why the ID Token's audience is the client,
+and the access token's is the API" above, which states this directly. A
+signed UserInfo response's `aud` (§5.3.2) is the client again, but that is a
+third, independent clause reaching the same value, not the ID Token rule
+restated under another name.
+
+**`none` still means "produce a JWT".** Not §5.3.2 — it names neither the
+parameter nor the value, and its `application/jwt`/`iss`/`aud` MUSTs are
+conditioned on "If signed", which an unsecured JWT is not. The real sources:
+OIDC Registration §2 makes the JWT serialization conditional only on
+`userinfo_signed_response_alg` being _specified_, not on its value being a
+real algorithm — "If this is specified, the response will be JWT
+serialized, and signed using JWS" — and OIDC Discovery §3 admits the value
+itself: "`userinfo_signing_alg_values_supported` … The value `none` MAY be
+included." Together they are why a client that registers `"none"` gets an
+unsecured JWT (RFC 7519 §6: `alg: "none"`, three dots, an empty signature
+segment) rather than JSON: `application/jwt`, and — since neither source
+excepts it — `iss`/`aud` as members, same as a signed one.
+
+**A signed response carries `typ: "userinfo+jwt"`.** The first version of
+this note argued only that no registered `typ` exists for a UserInfo JWT,
+concluded no `typ` at all, and was wrong: "no name is assigned" is a reason
+not to reuse someone else's (RFC 9068's `at+jwt` names an OAuth access
+token specifically, §2.1), not a reason to look exactly like an OIDC Core
+§2 ID Token, which carries none. A signed UserInfo response then satisfied
+every check `subjectOfIdTokenHint` made — right `iss`, right `aud`, a `sub`,
+signed by a publishable key, no `typ` — and, carrying no `exp` either,
+minted a **permanent** `id_token_hint` out of a response designed to be
+forwarded to a third party. RFC 8725 §3.11's explicit-typing advice exists
+for exactly this. Fixed on both sides, because either alone is brittle: the
+`typ` (`USERINFO_JWT_TYP` in `usecase/userinfo.ts`), and
+`subjectOfIdTokenHint`'s policy changed from `{refused: 'at+jwt'}` — a
+denylist of the one confusion already found — to `TYP_ABSENT`, which
+refuses any explicitly-typed JWT, this one included, and additionally
+requires `exp` (`verifyJwt` now passes `requiredClaims: ['exp']`
+unconditionally, since every JWT this server verifies through it is
+expected to carry one). The `none` case needs neither: `jose` refuses to
+verify an unsecured JWT as a matter of course, independent of this fix.
+
+**The registered algorithm is narrowed twice, discovery is per realm, and a
+mismatch refuses without a body.** `client-metadata.ts` used to admit any
+string for `userinfo_signed_response_alg` and read it as "sign, using
+whatever algorithm the realm's active key happens to carry" — an honest
+header (no path ever wrote a client's string into the JWS header) but a
+silently overridden choice: a client registering `ES512` against an
+`RS256` realm got `{"alg":"RS256"}` back with no error anywhere.
+
+The first narrowing is to what any signing key's own check
+(`signing_keys_alg_check`) can produce at all —
+`USERINFO_SIGNING_ALGS_PERMITTED = ['RS256', 'ES256', 'none']`. That is not
+enough on its own: a realm holds exactly **one** active key
+(`signing_keys_one_active`, a unique index on `(realm_id) WHERE status =
+'active'`), so advertising both `RS256` and `ES256` to every realm — the
+first version of this fix did, reasoning from the permitted set rather
+than from any one realm's key — told a client a configuration was
+supported that this specific realm could never produce. Discovery's
+`userinfo_signing_alg_values_supported` is now the caller's own per-realm
+answer (`[key.alg, 'none']`, or `['none']` for a realm with no active key
+yet), read by `usecase/discovery.ts`; registration
+(`usecase/client-registration.ts`) checks the registered value against
+that same realm's active key, in the same transaction, and refuses
+`invalid_client_metadata` on a mismatch. Together they make the common
+case — a client trusting what discovery told it — unable to reach a
+mismatch at all.
+
+A response-time check remains, for the one case registration cannot
+pre-empt: a key rotated to a different algorithm after a client already
+registered. It is not a selection among several keys — there is never a
+second one to try — and it is not the presented access token's fault, so
+`/userinfo` answers it in its own vocabulary: 500, no `WWW-Authenticate`
+challenge (RFC 6750 §3's challenges are about the token, and this token is
+fine), and no body (the reason is an operator's configuration state, not
+text for the caller holding a valid credential it cannot use to fix
+anything) — logged instead, at `view/routes/userinfo.ts`'s own call site,
+with the client, the registered algorithm and the active key's algorithm.
+
+Registration reads the same active-key query, so a realm with no active
+key at all is a mismatch too (every algorithm is unproducible), refused
+the same way as a real mismatch rather than left to throw.
+
+### An encrypted UserInfo response: no fallback, no silent key choice
+
+`usecase/userinfo.ts`'s `encryptedBody` wraps whatever `signedBody` produced
+— `docs/superpowers/p3b-spike-jwe.md` is the authority behind every decision
+here.
+
+**The permitted `alg`/`enc` sets are narrowed the way signing's already
+is.** `service/client-metadata.ts` admits `userinfo_encrypted_response_alg`
+only from `@odudu/crypto`'s `JWE_ALGS_PERMITTED` — `RSA1_5` is excluded
+because the installed jose removed it, and `RSA-OAEP` because it specifies
+SHA-1 for its OAEP hash where `RSA-OAEP-256` specifies SHA-256; a bare
+client JWK encrypts under either just as well, so this is a policy
+exclusion, not a library limit. `userinfo_encrypted_response_enc` is
+narrowed to the full six
+registered values, since the spike found none the library fails to
+produce; `_enc` without `_alg` is refused at registration (the same
+constraint `client_oidc_config_userinfo_enc_needs_alg` would otherwise
+enforce as an unrelated 500), and `_enc` omitted with `_alg` present
+defaults to `A128CBC-HS256` (OIDC Dynamic Client Registration §2's own
+default). Discovery's `userinfo_encryption_alg_values_supported` and
+`_enc_values_supported` advertise the same two sets — fixed by the
+installed jose, not by any realm's own data, unlike
+`userinfo_signing_alg_values_supported` above.
+
+**Key selection either finds exactly one candidate or refuses.** No
+candidate, two equally good ones, or a candidate the `use`/`alg`/`kty`
+filters reject all reach the same refusal — `selectEncryptionKey`
+(`@odudu/crypto`) returns `null` for all three, and `encryptedBody` never
+distinguishes them in its response, only in its logged reason. Picking
+between two ambiguous keys on the client's behalf would mean guessing which
+private key must stay live to decrypt a given response; OIDC Core §10.2.1
+permits the encrypting party to choose but only requires it to announce the
+choice via `kid` — refusing is the honest reading when the client gave
+nothing to announce.
+
+**A key that cannot be retrieved or selected is a 500, never a JSON
+fallback.** This is the same `clientKeySet` `/token`'s `private_key_jwt`
+authentication already dereferences, consulted here for the first time on
+the response path a resource server is waiting on rather than the request
+path of the client that misconfigured itself. Answering in clear text
+because the fetch failed would publish exactly what the client registered
+encryption to protect — `view/routes/userinfo.ts` answers with no body and
+no `WWW-Authenticate` challenge (this token is fine; the realm's client
+configuration is not), logging the reason for an operator the way a signing
+mismatch does.
+
+**Sign then encrypt, never the reverse.** When both are registered,
+`encryptedBody` receives the JWS `signedBody` already produced and encrypts
+that compact string with `cty: "JWT"`, never the other nesting — OIDC Core
+§5.3.2 only ever describes signing first. When only encryption is
+registered, the plaintext is the claims JSON directly, with no `iss`/`aud`
+added: those are `signedBody`'s own addition, conditioned on signing having
+happened, not on the response being a JWT at all.
+
+### §15.1's `auth_time`, answered on request
 
 §15.1 makes returning `auth_time` _when requested_ mandatory for every OP.
 The specification gives two ways to request it — `max_age` (§3.1.2.1) and an
-Essential Claim in the `claims` parameter (§5.5). Odudu emits `auth_time` in
-every ID Token it issues regardless
-(`packages/protocol-oidc/src/usecase/token-issuance.ts`), so a client that
-asks either way is answered, by a superset of what it asked for — and since
-P2b, a request that carried `max_age` is one where the claim can no longer
-be confused with the token's own issuance time: `max_age` now decides
-whether the login it attaches to is a fresh one or a reused session
+Essential Claim in the `claims` parameter (§5.5). Both are folded into one
+signal at /authorize: a `max_age` on the request forces
+`essential: true` onto whatever the `claims` parameter's own `id_token.auth_time`
+already carried, before either is stored on the code
+(`usecase/authorization-request.ts`) — so token issuance
+(`packages/protocol-oidc/src/usecase/token-issuance.ts`) has one question to
+ask, not two, and a request that names neither gets no `auth_time` at all
+(§2's MAY, "otherwise `auth_time`'s inclusion is OPTIONAL"). Since P2b, a
+request that carried `max_age` is also one where the claim can no longer be
+confused with the token's own issuance time: `max_age` decides whether the
+login it attaches to is a fresh one or a reused session
 (`usecase/session-reuse.ts`), and the code either way carries the real
 `auth_time` the decision read, not a clock reread at issuance.
 
-That is why this row is `covered` alongside §2's `auth_time`-and-`max_age`
-row, both closed by the same mechanism; §2's `claims`-Essential-Claim row
-moves to `deferred: P3b`, since P3a's plan never named the `claims`
-parameter in its own criterion and the rows now travel with the UserInfo
-work P3b already owns (`docs/NEXT.md`).
 `OIDC-CORE-15.1-05` sends each request form on a login that completes and
 checks the ID Token's `auth_time` against the `auth_time` stored on the
 code that login issued — so a claim naming the token's own issuance time, or
@@ -615,7 +789,67 @@ carrying milliseconds, is a failure rather than a presence.
 `OIDC-CORE-2-08` (`session-reuse.int.test.ts`) does the same check across a
 reuse specifically: a session established at one moment, reused two minutes
 later under a generous `max_age`, and an ID Token whose `auth_time` is the
-first moment, not the second.
+first moment, not the second. `OIDC-CORE-2-09`
+(`claims-parameter.int.test.ts`) is the Essential-Claim leg §2 and §15.1
+both name, and the same file's next case is the negative half neither row
+required until now: no `auth_time` at all when nothing asked for it.
+
+A voluntary request — `{"id_token":{"auth_time":null}}`, `essential` absent
+or `false` — now gets nothing either: `essential === true` is the one
+question issuance asks. Before this row existed the claim was unconditional,
+so a client that named `auth_time` voluntarily got it regardless; that is a
+behaviour change for the voluntary case, permitted by §2's MAY but not
+covered by any row or test, since none names the voluntary case.
+
+### `claims_parameter_supported`: fixed, like the other capability flags with no per-realm derivation
+
+Every realm honours the `claims` request parameter the same way, so
+discovery states it fixed `true` (`packages/contracts/src/discovery.ts`) —
+the same reasoning as `authorization_response_iss_parameter_supported` and
+the four `backchannel_logout_*`/`frontchannel_logout_*` members: no realm or
+client setting gates any of them, so there is nothing to carry through
+`DiscoveryDocumentOptions`.
+
+### The `claims` `sub`: filtered at the door, re-checked at every door a login can happen after it
+
+§3.1.2.2's `sub`-specific-value MUST has two ways to fail, and closing only
+one of them shipped once in this same file's history before this row
+existed — `id_token_hint`'s own subject. A value consulted only where a
+session is _chosen_ (the candidate filter at /authorize, folded into the
+same predicate `hintSubject` already narrows `candidateSessions` with)
+governs a **reuse**, never a login that happens afterwards: the filter
+excludes every other subject's session from being picked automatically, but
+the form or chooser page it produces is still a live door, and whoever
+authenticates there — or whichever `session_id` a chooser POST names — is a
+claim the filter never saw.
+
+So the constraint travels a second way, parked as `PendingRequest.claimsSubject`
+(`packages/authn-flows/src/schema/authentication-sessions.ts`) exactly the
+way `idTokenHintSubject` already is, and re-checked at the same two doors
+that check it: `login-submission.ts`'s `handleLoginSubmission`, once a
+password (or any other factor) actually identifies somebody, and
+`authorization-request.ts`'s `handleSelectAccountSubmission`, once a
+`session_id` is posted back. Both mismatches answer `login_required`, reset
+whatever the login attempt had satisfied, and issue nothing. The required-
+action detour needs no separate check: it resumes the same parked session
+either re-check already guards.
+
+`OIDC-CORE-3.1.2.2-07` (`claims-parameter.int.test.ts`) drives both re-checks
+directly — a request naming one subject's `sub`, completed by signing in as
+a different one at the form the rule produced, and the same shape at the
+chooser, posting back a live session id the narrowed chooser page never
+offered. Deleting either re-check (`if (claimsSubject !== undefined &&
+claimsSubject !== result.subjectId)` in `login-submission.ts`, and its
+sibling on `pending.claimsSubject` in `handleSelectAccountSubmission`) turns
+both into a 302 carrying a `code` instead of `error=login_required` — the
+defect this row exists to rule out.
+
+Only `value` is read for `sub` — `claimsSubject` above is
+`claims.idToken.sub?.value`. §5.5.1's `values` member (a set of acceptable
+values, rather than one) is parsed and stored on the code
+(`ClaimRequestEntry.values`) but never consulted, so a `sub` requested that
+way applies no constraint at all — a gap, not a refusal, and the `5.5.1`
+row above names it rather than the auth_time/value rows this section closes.
 
 ### `amr` and `acr`: what the registries actually say, and what this server emits
 
@@ -703,7 +937,7 @@ Odudu never uses one, so nothing in `acrFor`'s output can violate it.
 | 2       | MAY    | implementers allow a small clock-skew leeway around `exp`                                                                                                                                                                                                                                      | —                      | gap                                                                                                                                                                                                                                                                                                                                   |
 | 2       | MUST   | `iat` is a REQUIRED claim: the issuance time as a JSON number of seconds since the epoch                                                                                                                                                                                                       | `OIDC-CORE-2-04`       | covered                                                                                                                                                                                                                                                                                                                               |
 | 2       | MUST   | `auth_time` is present when the Authentication Request carried a `max_age` value                                                                                                                                                                                                               | `OIDC-CORE-2-08`       | covered                                                                                                                                                                                                                                                                                                                               |
-| 2       | MUST   | `auth_time` is present when requested as an Essential Claim via the `claims` parameter                                                                                                                                                                                                         | —                      | deferred: P3b — the `claims` request parameter is not in P3a's criterion; filed with P3b's UserInfo work                                                                                                                                                                                                                              |
+| 2       | MUST   | `auth_time` is present when requested as an Essential Claim via the `claims` parameter                                                                                                                                                                                                         | `OIDC-CORE-2-09`       | covered                                                                                                                                                                                                                                                                                                                               |
 | 2       | MAY    | otherwise `auth_time`'s inclusion is OPTIONAL                                                                                                                                                                                                                                                  | —                      | gap                                                                                                                                                                                                                                                                                                                                   |
 | 2       | MUST   | when `nonce` was present in the Authentication Request, the authorization server includes a `nonce` claim in the ID Token with that same value                                                                                                                                                 | `OIDC-CORE-3.1.3.7-01` | covered                                                                                                                                                                                                                                                                                                                               |
 | 2       | SHOULD | the authorization server performs no other processing on `nonce` values used                                                                                                                                                                                                                   | —                      | gap                                                                                                                                                                                                                                                                                                                                   |
@@ -735,8 +969,8 @@ Odudu never uses one, so nothing in `acrFor`'s output can violate it.
 | 3.1.2.1 | MUST   | with `prompt=login`, an error (typically `login_required`) is returned if reauthentication cannot be performed                                                                                                                                                                                 | `OIDC-CORE-3.1.2.1-11` | covered                                                                                                                                                                                                                                                                                                                               |
 | 3.1.2.1 | SHOULD | with `prompt=consent`, the end-user is prompted for consent before information is released                                                                                                                                                                                                     | `OIDC-CORE-3.1.2.1-13` | covered                                                                                                                                                                                                                                                                                                                               |
 | 3.1.2.1 | MUST   | with `prompt=consent`, an error (typically `consent_required`) is returned if consent cannot be obtained                                                                                                                                                                                       | `OIDC-CORE-3.1.2.1-14` | covered                                                                                                                                                                                                                                                                                                                               |
-| 3.1.2.1 | SHOULD | with `prompt=select_account`, the end-user is prompted to select among multiple accounts with sessions at the authorization server                                                                                                                                                             | —                      | deferred: P3b — needs several concurrent sessions per browser, not flow tree semantics; P3a owns the /authorize user-choice page                                                                                                                                                                                                      |
-| 3.1.2.1 | MUST   | with `prompt=select_account`, an error (typically `account_selection_required`) is returned if account selection cannot be obtained                                                                                                                                                            | —                      | deferred: P3b — needs several concurrent sessions per browser, not flow tree semantics; P3a owns the /authorize user-choice page                                                                                                                                                                                                      |
+| 3.1.2.1 | SHOULD | with `prompt=select_account`, the end-user is prompted to select among multiple accounts with sessions at the authorization server                                                                                                                                                             | `OIDC-CORE-3.1.2.1-15` | covered                                                                                                                                                                                                                                                                                                                               |
+| 3.1.2.1 | MUST   | with `prompt=select_account`, an error (typically `account_selection_required`) is returned if account selection cannot be obtained                                                                                                                                                            | `OIDC-CORE-3.1.2.1-16` | covered                                                                                                                                                                                                                                                                                                                               |
 | 3.1.2.1 | MUST   | `prompt` containing `none` together with any other value results in an error                                                                                                                                                                                                                   | `OIDC-CORE-3.1.2.1-07` | covered                                                                                                                                                                                                                                                                                                                               |
 | 3.1.2.1 | MAY    | an unrecognized `prompt` value results in an error, or is ignored                                                                                                                                                                                                                              | `OIDC-CORE-3.1.2.1-08` | covered                                                                                                                                                                                                                                                                                                                               |
 | 3.1.2.1 | MUST   | when `max_age` is exceeded, the OP attempts to actively re-authenticate the end-user                                                                                                                                                                                                           | `OIDC-CORE-3.1.2.1-10` | covered                                                                                                                                                                                                                                                                                                                               |
@@ -747,7 +981,7 @@ Odudu never uses one, so nothing in `acrFor`'s output can violate it.
 | 3.1.2.2 | MUST   | the authorization server validates all OAuth 2.0 parameters according to the OAuth 2.0 specification                                                                                                                                                                                           | `OIDC-CORE-3.1.2.2-02` | covered                                                                                                                                                                                                                                                                                                                               |
 | 3.1.2.2 | MUST   | a `scope` parameter is present and contains the `openid` scope value                                                                                                                                                                                                                           | —                      | n/a: §3.1.2.2's own parenthetical makes a request without `openid` a valid OAuth 2.0 request rather than a rejection the OP owes, and that is how Odudu treats it — the `openid` gate sits on what the request yields (no ID Token in `usecase/token-issuance.ts`, `insufficient_scope` at `/userinfo`), not on admitting the request |
 | 3.1.2.2 | MUST   | all REQUIRED parameters are present and conform to this specification                                                                                                                                                                                                                          | `OIDC-CORE-3.1.2.2-03` | covered                                                                                                                                                                                                                                                                                                                               |
-| 3.1.2.2 | MUST   | when `sub` is requested with a specific value, a positive response is sent only if the identified end-user has an active session or was authenticated as a result of this request                                                                                                              | —                      | deferred: P3b — `sub` can only be requested with a specific value through the `claims` request parameter, not in P3a's criterion; filed with P3b's UserInfo work                                                                                                                                                                      |
+| 3.1.2.2 | MUST   | when `sub` is requested with a specific value, a positive response is sent only if the identified end-user has an active session or was authenticated as a result of this request                                                                                                              | `OIDC-CORE-3.1.2.2-07` | covered                                                                                                                                                                                                                                                                                                                               |
 | 3.1.2.2 | MUST   | the authorization server does not reply with an ID Token or Access Token for a different user, even if that user has an active session                                                                                                                                                         | `OIDC-CORE-3.1.2.2-05` | covered                                                                                                                                                                                                                                                                                                                               |
 | 3.1.2.2 | MUST   | when `id_token_hint` is present, the OP validates that it was itself the issuer of that ID Token                                                                                                                                                                                               | `OIDC-CORE-3.1.2.2-01` | covered                                                                                                                                                                                                                                                                                                                               |
 | 3.1.2.2 | SHOULD | the OP accepts an `id_token_hint` when the identified RP has a current or recent session, even past its `exp`                                                                                                                                                                                  | —                      | gap                                                                                                                                                                                                                                                                                                                                   |
@@ -766,7 +1000,7 @@ Odudu never uses one, so nothing in `acrFor`'s output can violate it.
 | 3.1.2.6 | MUST   | an unsupported Response Mode value produces an HTTP 400 with no error response parameters                                                                                                                                                                                                      | `OIDC-CORE-3.1.2.6-01` | covered                                                                                                                                                                                                                                                                                                                               |
 | 3.1.2.6 | MAY    | `login_required` is returned when authentication cannot complete without end-user interaction under `prompt=none`                                                                                                                                                                              | `OIDC-CORE-3.1.2.3-01` | covered                                                                                                                                                                                                                                                                                                                               |
 | 3.1.2.6 | MAY    | `interaction_required` is returned when the request cannot complete without end-user interaction under `prompt=none`                                                                                                                                                                           | —                      | gap                                                                                                                                                                                                                                                                                                                                   |
-| 3.1.2.6 | MAY    | `account_selection_required` is returned under `prompt=none` when session selection is required                                                                                                                                                                                                | —                      | deferred: P3b — needs several concurrent sessions per browser, not flow tree semantics; P3a owns the /authorize user-choice page                                                                                                                                                                                                      |
+| 3.1.2.6 | MAY    | `account_selection_required` is returned under `prompt=none` when session selection is required                                                                                                                                                                                                | `OIDC-CORE-3.1.2.6-08` | covered                                                                                                                                                                                                                                                                                                                               |
 | 3.1.2.6 | MAY    | `consent_required` is returned under `prompt=none` when consent is required                                                                                                                                                                                                                    | `OIDC-CORE-3.1.2.6-07` | covered                                                                                                                                                                                                                                                                                                                               |
 | 3.1.2.6 | MUST   | `request_not_supported` is returned when a `request` parameter is present, since request objects (§6) are not implemented                                                                                                                                                                      | `OIDC-CORE-3.1.2.6-02` | covered                                                                                                                                                                                                                                                                                                                               |
 | 3.1.2.6 | MUST   | `request_uri_not_supported` is returned when a `request_uri` parameter is present, since request objects (§6) are not implemented                                                                                                                                                              | `OIDC-CORE-3.1.2.6-03` | covered                                                                                                                                                                                                                                                                                                                               |
@@ -840,12 +1074,12 @@ Odudu never uses one, so nothing in `acrFor`'s output can violate it.
 | 5.3.2   | MUST   | the UserInfo Endpoint returns a content-type header identifying the response format                                                                                                                                                                                                            | `OIDC-CORE-5.4-01`     | covered                                                                                                                                                                                                                                                                                                                               |
 | 5.3.2   | MUST   | the content-type is `application/json` when the response body is a plain JSON object                                                                                                                                                                                                           | `OIDC-CORE-5.4-01`     | covered                                                                                                                                                                                                                                                                                                                               |
 | 5.3.2   | SHOULD | the response body is encoded using UTF-8                                                                                                                                                                                                                                                       | —                      | gap                                                                                                                                                                                                                                                                                                                                   |
-| 5.3.2   | MUST   | when signed or encrypted, the UserInfo Response's content-type is `application/jwt`                                                                                                                                                                                                            | —                      | deferred: P3b — needs per-client signed/encrypted UserInfo configuration from dynamic client registration                                                                                                                                                                                                                             |
-| 5.3.2   | MAY    | the UserInfo Response is encrypted without also being signed                                                                                                                                                                                                                                   | —                      | deferred: P3b — needs per-client signed/encrypted UserInfo configuration from dynamic client registration                                                                                                                                                                                                                             |
-| 5.3.2   | MUST   | when both signing and encryption are requested, the response is signed then encrypted, producing a Nested JWT                                                                                                                                                                                  | —                      | deferred: P3b — needs per-client signed/encrypted UserInfo configuration from dynamic client registration                                                                                                                                                                                                                             |
-| 5.3.2   | MUST   | a signed UserInfo Response contains `iss` and `aud` as members                                                                                                                                                                                                                                 | —                      | deferred: P3b — needs per-client signed/encrypted UserInfo configuration from dynamic client registration                                                                                                                                                                                                                             |
-| 5.3.2   | MUST   | in a signed UserInfo Response, `iss` is the OP's issuer identifier URL                                                                                                                                                                                                                         | —                      | deferred: P3b — needs per-client signed/encrypted UserInfo configuration from dynamic client registration                                                                                                                                                                                                                             |
-| 5.3.2   | MUST   | in a signed UserInfo Response, `aud` is or includes the RP's client ID                                                                                                                                                                                                                         | —                      | deferred: P3b — needs per-client signed/encrypted UserInfo configuration from dynamic client registration                                                                                                                                                                                                                             |
+| 5.3.2   | MUST   | when signed or encrypted, the UserInfo Response's content-type is `application/jwt`                                                                                                                                                                                                            | `OIDC-CORE-5.3.2-03`   | covered                                                                                                                                                                                                                                                                                                                               |
+| 5.3.2   | MAY    | the UserInfo Response is encrypted without also being signed                                                                                                                                                                                                                                   | `OIDC-CORE-5.3.2-03`   | covered                                                                                                                                                                                                                                                                                                                               |
+| 5.3.2   | MUST   | when both signing and encryption are requested, the response is signed then encrypted, producing a Nested JWT                                                                                                                                                                                  | `OIDC-CORE-5.3.2-04`   | covered                                                                                                                                                                                                                                                                                                                               |
+| 5.3.2   | MUST   | a signed UserInfo Response contains `iss` and `aud` as members                                                                                                                                                                                                                                 | `OIDC-CORE-5.3.2-02`   | covered                                                                                                                                                                                                                                                                                                                               |
+| 5.3.2   | MUST   | in a signed UserInfo Response, `iss` is the OP's issuer identifier URL                                                                                                                                                                                                                         | `OIDC-CORE-5.3.2-02`   | covered                                                                                                                                                                                                                                                                                                                               |
+| 5.3.2   | MUST   | in a signed UserInfo Response, `aud` is or includes the RP's client ID                                                                                                                                                                                                                         | `OIDC-CORE-5.3.2-02`   | covered                                                                                                                                                                                                                                                                                                                               |
 | 5.3.3   | MUST   | the UserInfo Endpoint returns error responses per OAuth 2.0 Bearer Token Usage §3                                                                                                                                                                                                              | `OIDC-CORE-5.3.3-01`   | covered                                                                                                                                                                                                                                                                                                                               |
 | 5.3.4   | MUST   | the client verifies the responding OP's identity via a TLS server certificate check                                                                                                                                                                                                            | —                      | n/a: client-side guidance; Odudu is the authorization server, not a client                                                                                                                                                                                                                                                            |
 | 5.3.4   | MUST   | the client decrypts the UserInfo Response using the keys it registered, if encryption was negotiated                                                                                                                                                                                           | —                      | n/a: client-side guidance; Odudu is the authorization server, not a client                                                                                                                                                                                                                                                            |
@@ -857,6 +1091,10 @@ Odudu never uses one, so nothing in `acrFor`'s output can violate it.
 | 5.4     | MAY    | multiple scope values are combined in a space-delimited list                                                                                                                                                                                                                                   | `OIDC-CORE-5.4-01`     | covered                                                                                                                                                                                                                                                                                                                               |
 | 5.4     | MUST   | claims requested by `profile`/`email`/`address`/`phone` are returned from the UserInfo Endpoint, since the Authorization Code Flow always issues an access token                                                                                                                               | `OIDC-CORE-5.4-01`     | covered                                                                                                                                                                                                                                                                                                                               |
 | 5.4     | MUST   | when no access token is issued, the requested claims are returned in the ID Token instead                                                                                                                                                                                                      | —                      | n/a: response type not supported — see docs/superpowers/specs/2026-09-11-p1-oauth-oidc-core-design.md §1                                                                                                                                                                                                                              |
+| 5.5     | MAY    | support for the `claims` request parameter                                                                                                                                                                                                                                                     | —                      | accepted: "`claims_parameter_supported`: fixed, like the other capability flags with no per-realm derivation"                                                                                                                                                                                                                         |
+| 5.5.1   | MAY    | an Individual Claims Request's `essential` member marks a Claim as one the Client considers necessary                                                                                                                                                                                          | `OIDC-CORE-2-09`       | covered                                                                                                                                                                                                                                                                                                                               |
+| 5.5.1   | MAY    | an Individual Claims Request's `value` member requests the Claim be returned with a particular value                                                                                                                                                                                           | `OIDC-CORE-3.1.2.2-07` | covered                                                                                                                                                                                                                                                                                                                               |
+| 5.5.1   | MAY    | an Individual Claims Request's `values` member requests the Claim be returned with one of a set of acceptable values                                                                                                                                                                           | —                      | gap                                                                                                                                                                                                                                                                                                                                   |
 | 15.1    | MUST   | the OP supports signing ID Tokens with RS256, unless it only returns ID Tokens from the Token Endpoint and only permits clients registered for `none`                                                                                                                                          | `OIDC-CORE-15.1-04`    | covered                                                                                                                                                                                                                                                                                                                               |
 | 15.1    | MUST   | the OP supports the `prompt` parameter's `none` behavior                                                                                                                                                                                                                                       | `OIDC-CORE-3.1.2.3-01` | covered                                                                                                                                                                                                                                                                                                                               |
 | 15.1    | MUST   | the OP supports the `prompt` parameter's `login` (forced reauthentication) behavior                                                                                                                                                                                                            | `OIDC-CORE-3.1.2.3-03` | covered                                                                                                                                                                                                                                                                                                                               |

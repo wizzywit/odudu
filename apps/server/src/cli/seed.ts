@@ -399,6 +399,13 @@ async function performSeed(
       accessTokenTtlSeconds: 300,
       refreshTokenTtlSeconds: 1_209_600,
       clientCredentialsScopes: [],
+      // No frontchannel_logout_uri or backchannel_logout_uri flag exists
+      // here, so isValidLogoutUri and sharesOriginWithRegisteredRedirectUri
+      // (packages/protocol-oidc/src/service/client-metadata.ts) are never
+      // consulted for a seeded client. Adding either flag must route
+      // through parseClientMetadata, or replicate its origin check itself —
+      // otherwise a seeded client could carry a logout URI dynamic
+      // registration would have refused.
     });
 
     // Only the realm's first key: a realm this seed command already found

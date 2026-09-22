@@ -3,9 +3,9 @@
 // camel case. Identity is absent on purpose: `name` is in every issuer URL
 // already minted, and `id` is what row-level security keys on.
 //
-// Ranges are not here. They are CHECK constraints (migrations 0028, 0035 and
-// 0041), which is the repository's idiom for a rule no writer may bypass —
-// restating them would give a second authority to disagree with.
+// Ranges are not here. They are CHECK constraints (migrations 0028, 0035,
+// 0041 and 0049), which is the repository's idiom for a rule no writer may
+// bypass — restating them would give a second authority to disagree with.
 const SETTINGS = {
   display_name: { column: 'displayName', type: 'text' },
   enabled: { column: 'enabled', type: 'boolean' },
@@ -30,6 +30,10 @@ const SETTINGS = {
   brute_force_failure_reset_seconds: { column: 'bruteForceFailureResetSeconds', type: 'integer' },
   client_registration_policy: { column: 'clientRegistrationPolicy', type: 'text' },
   max_clients: { column: 'maxClients', type: 'integer' },
+  max_sessions_per_browser: { column: 'maxSessionsPerBrowser', type: 'integer' },
+  remember_me_allowed: { column: 'rememberMeAllowed', type: 'boolean' },
+  remember_me_idle_seconds: { column: 'rememberMeIdleSeconds', type: 'integer' },
+  remember_me_max_seconds: { column: 'rememberMeMaxSeconds', type: 'integer' },
 } as const satisfies Record<string, { column: string; type: 'boolean' | 'integer' | 'text' }>;
 
 export type RealmSettingName = keyof typeof SETTINGS;

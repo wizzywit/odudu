@@ -9,7 +9,7 @@ import {
   type RealmScopedDatabase,
 } from '@odudu/db';
 import { expectCrossRealmMethodProbe } from '@odudu/db/testing';
-import { provisionRealm } from '@odudu/authn-flows';
+import { provisionRealm, type SessionLifespans } from '@odudu/authn-flows';
 import { clients, provisionClientDefaults } from '@odudu/domain-realm';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
@@ -28,6 +28,15 @@ let owner: DatabaseHandle;
 let app: DatabaseHandle;
 
 const AUDIENCE = ['https://api.example'];
+
+// The grant under test here carries no session (issueRefreshToken never
+// sets one), so which pair this names never affects the outcome.
+const LIFESPANS: SessionLifespans = {
+  ssoSessionIdleSeconds: 1_800,
+  ssoSessionMaxSeconds: 36_000,
+  rememberMeIdleSeconds: 604_800,
+  rememberMeMaxSeconds: 2_592_000,
+};
 
 beforeAll(async () => {
   containerHandle = await startTestDatabase();
@@ -71,6 +80,7 @@ async function seedRealmClientSubject(
 async function createGrant(tx: RealmScopedDatabase, realmId: string): Promise<TokenGrantRecord> {
   const { clientDbId, subjectId } = await seedRealmClientSubject(tx, realmId);
   return tokenGrantRepository(tx).create({
+    id: newId(),
     realmId,
     clientId: clientDbId,
     subjectId,
@@ -162,7 +172,7 @@ describe('tokenGrantRepository', () => {
     await withRealm(app.db, realmId, (tx) => tokenGrantRepository(tx).revoke(grant.id, new Date()));
 
     const outcome = await withRealm(app.db, realmId, (tx) =>
-      rotateRefreshToken(tx, hashRefreshToken(token), new Date(), 600, 1_800),
+      rotateRefreshToken(tx, hashRefreshToken(token), new Date(), 600, LIFESPANS),
     );
     expect(outcome.kind).toBe('revoked');
   });

@@ -337,6 +337,69 @@
       "when": 1789049381690,
       "tag": "0047_client_registration_tokens",
       "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1789049381691,
+      "tag": "0048_sessions_remembered_and_cap",
+      "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "7",
+      "when": 1789049381692,
+      "tag": "0049_realm_remember_me",
+      "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1789049381693,
+      "tag": "0050_frontchannel_logout_session_required",
+      "breakpoints": true
+    },
+    {
+      "idx": 51,
+      "version": "7",
+      "when": 1789049381694,
+      "tag": "0051_backchannel_logout_deliveries",
+      "breakpoints": true
+    },
+    {
+      "idx": 52,
+      "version": "7",
+      "when": 1789049381695,
+      "tag": "0052_backchannel_logout_deliveries_session",
+      "breakpoints": true
+    },
+    {
+      "idx": 53,
+      "version": "7",
+      "when": 1789049381696,
+      "tag": "0053_authorization_codes_resource",
+      "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "7",
+      "when": 1789049381697,
+      "tag": "0054_client_assertion_jti",
+      "breakpoints": true
+    },
+    {
+      "idx": 55,
+      "version": "7",
+      "when": 1789049381698,
+      "tag": "0055_client_tls_client_auth_subject_dn",
+      "breakpoints": true
+    },
+    {
+      "idx": 56,
+      "version": "7",
+      "when": 1789049381699,
+      "tag": "0056_authorization_codes_claims",
+      "breakpoints": true
     }
   ]
 }

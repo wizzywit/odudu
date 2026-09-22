@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { JWE_ALGS_PERMITTED } from '@odudu/crypto';
 import { assertFetchableUrl, RemoteAddressRefused } from '#/service/remote-address';
 
 // The RFC 7591 §3.2.2 error codes this validator returns. `error` doubles
@@ -15,9 +16,11 @@ export interface ClientMetadata {
   frontchannelLogoutUri: string | null;
   backchannelLogoutUri: string | null;
   backchannelLogoutSessionRequired: boolean;
+  frontchannelLogoutSessionRequired: boolean;
   userinfoSignedResponseAlg: string | null;
   userinfoEncryptedResponseAlg: string | null;
   userinfoEncryptedResponseEnc: string | null;
+  tlsClientAuthSubjectDn: string | null;
 }
 
 export type ClientMetadataOutcome =
@@ -43,6 +46,40 @@ const AUTH_METHODS_PERMITTED = new Set([
   'private_key_jwt',
   'tls_client_auth',
 ]);
+
+// signing_keys_alg_check (packages/db/drizzle/0003_signing_keys.sql):
+// `RS256` and `ES256` are the only algorithms this server ever generates a
+// signing key for, so they are the only ones it can honour. `none` is OIDC
+// Discovery §3's own value for an unsigned-but-JWT-serialized response
+// (`docs/protocols/oidc-core.md`'s reading note has the exact clauses). A
+// value outside this set used to be accepted and silently answered with
+// whichever algorithm the realm's active key happened to carry.
+export const USERINFO_SIGNING_ALGS_PERMITTED = ['RS256', 'ES256', 'none'] as const;
+const USERINFO_SIGNING_ALGS = new Set<string>(USERINFO_SIGNING_ALGS_PERMITTED);
+
+// docs/superpowers/p3b-spike-jwe.md: what the installed jose can produce
+// against a client-published asymmetric key. @odudu/crypto's
+// JWE_ALGS_PERMITTED is the same narrowing `encryptCompact` enforces, so a
+// value this validator admits can never fail there for being unproduceable.
+const USERINFO_ENCRYPTION_ALGS = new Set<string>(JWE_ALGS_PERMITTED);
+
+// The spike found no `enc` value the installed jose fails to produce
+// against any permitted `alg` — this is the full JWA registry, not a
+// narrowing.
+export const USERINFO_ENCRYPTION_ENCS_PERMITTED = [
+  'A128CBC-HS256',
+  'A192CBC-HS384',
+  'A256CBC-HS512',
+  'A128GCM',
+  'A192GCM',
+  'A256GCM',
+] as const;
+const USERINFO_ENCRYPTION_ENCS = new Set<string>(USERINFO_ENCRYPTION_ENCS_PERMITTED);
+
+// OIDC Dynamic Client Registration §2: this is the default `enc` when
+// `_alg` is registered with no `_enc`.
+// verified: curl -s https://openid.net/specs/openid-connect-registration-1_0.html
+export const USERINFO_ENCRYPTION_ENC_DEFAULT = 'A128CBC-HS256';
 
 // RFC 7591 §2: the server assigns these, so a client stating one for itself
 // is refused rather than silently overridden — silent override is how a
@@ -106,6 +143,25 @@ function isValidLogoutUri(raw: string): boolean {
   return url.protocol === 'https:' && url.hash === '';
 }
 
+// Front-Channel Logout 1.0 §2: the front-channel logout URI's domain, port
+// and scheme must match a registered redirect URI's. `URL#origin` folds a
+// default port into its scheme-standard form (`https://a` and
+// `https://a:443` both yield `https://a`), so comparing origins rather than
+// raw strings treats those as the same value the specification does.
+function sharesOriginWithRegisteredRedirectUri(
+  frontchannelLogoutUri: string,
+  redirectUris: readonly string[],
+): boolean {
+  const target = new URL(frontchannelLogoutUri).origin;
+  return redirectUris.some((redirectUri) => {
+    try {
+      return new URL(redirectUri).origin === target;
+    } catch {
+      return false;
+    }
+  });
+}
+
 const jwkSetShape = z.object({ keys: z.array(z.unknown()) });
 
 const metadataShape = z.object({
@@ -118,15 +174,20 @@ const metadataShape = z.object({
   frontchannel_logout_uri: z.string().optional(),
   backchannel_logout_uri: z.string().optional(),
   backchannel_logout_session_required: z.boolean().optional(),
+  frontchannel_logout_session_required: z.boolean().optional(),
   userinfo_signed_response_alg: z.string().optional(),
   userinfo_encrypted_response_alg: z.string().optional(),
   userinfo_encrypted_response_enc: z.string().optional(),
+  tls_client_auth_subject_dn: z.string().optional(),
 });
 
 // The registration body is an untyped boundary: parsed with Zod, never
 // cast. Business rules (server-assigned fields, grant/method allowlists,
 // jwks exclusivity, URI shape) run after the shape is known to be sound.
-export function parseClientMetadata(body: unknown): ClientMetadataOutcome {
+export function parseClientMetadata(
+  body: unknown,
+  options: { tlsClientAuthEnabled: boolean },
+): ClientMetadataOutcome {
   if (typeof body !== 'object' || body === null || Array.isArray(body)) {
     return invalid('invalid_client_metadata', 'registration body must be a JSON object');
   }
@@ -159,6 +220,73 @@ export function parseClientMetadata(body: unknown): ClientMetadataOutcome {
       `token_endpoint_auth_method must not be ${tokenEndpointAuthMethod}`,
     );
   }
+  // docs/superpowers/specs/2026-09-18-p3a-clients-registration-consent-design.md:596-598:
+  // "unset means the method is unavailable and a client registering
+  // tls_client_auth is refused" — a registration nobody could ever
+  // authenticate with is worse than none, since it looks configured.
+  if (tokenEndpointAuthMethod === 'tls_client_auth' && !options.tlsClientAuthEnabled) {
+    return invalid(
+      'invalid_client_metadata',
+      'tls_client_auth is unavailable: ODUDU_TRUST_PROXY is off on this deployment',
+    );
+  }
+
+  // client_oidc_config_tls_client_auth_needs_subject_dn (migration
+  // 0055_client_tls_client_auth_subject_dn.sql): the column the token
+  // endpoint compares a proxy-supplied certificate subject against, so a
+  // tls_client_auth registration with nothing in it would authenticate
+  // against nothing. RFC 8705 §2.1.2. Stored only for that method — a
+  // value sent alongside any other one is dropped, not kept dormant, so a
+  // `client_secret_basic` row can never carry a subject a certificate
+  // could later be checked against.
+  const providedSubjectDn = metadata.tls_client_auth_subject_dn?.trim() ?? '';
+  if (tokenEndpointAuthMethod === 'tls_client_auth' && providedSubjectDn.length === 0) {
+    return invalid(
+      'invalid_client_metadata',
+      'tls_client_auth_subject_dn is required when token_endpoint_auth_method is tls_client_auth',
+    );
+  }
+  const tlsClientAuthSubjectDn =
+    tokenEndpointAuthMethod === 'tls_client_auth' ? providedSubjectDn : '';
+
+  const userinfoSignedResponseAlg = metadata.userinfo_signed_response_alg ?? null;
+  if (userinfoSignedResponseAlg !== null && !USERINFO_SIGNING_ALGS.has(userinfoSignedResponseAlg)) {
+    return invalid(
+      'invalid_client_metadata',
+      `userinfo_signed_response_alg must not be ${userinfoSignedResponseAlg}`,
+    );
+  }
+
+  const userinfoEncryptedResponseAlg = metadata.userinfo_encrypted_response_alg ?? null;
+  if (
+    userinfoEncryptedResponseAlg !== null &&
+    !USERINFO_ENCRYPTION_ALGS.has(userinfoEncryptedResponseAlg)
+  ) {
+    return invalid(
+      'invalid_client_metadata',
+      `userinfo_encrypted_response_alg must not be ${userinfoEncryptedResponseAlg}`,
+    );
+  }
+
+  const providedEnc = metadata.userinfo_encrypted_response_enc ?? null;
+  if (providedEnc !== null && !USERINFO_ENCRYPTION_ENCS.has(providedEnc)) {
+    return invalid(
+      'invalid_client_metadata',
+      `userinfo_encrypted_response_enc must not be ${providedEnc}`,
+    );
+  }
+  // client_oidc_config_userinfo_enc_needs_alg (migration
+  // 0045_client_registration_metadata.sql) enforces this at the row level;
+  // refused here too, so a client gets invalid_client_metadata rather than
+  // an unrelated 500 from a constraint it never sees.
+  if (providedEnc !== null && userinfoEncryptedResponseAlg === null) {
+    return invalid(
+      'invalid_client_metadata',
+      'userinfo_encrypted_response_enc requires userinfo_encrypted_response_alg',
+    );
+  }
+  const userinfoEncryptedResponseEnc =
+    userinfoEncryptedResponseAlg === null ? null : (providedEnc ?? USERINFO_ENCRYPTION_ENC_DEFAULT);
 
   const redirectUris = metadata.redirect_uris ?? [];
   const badRedirectUri = redirectUris.find((uri) => !isValidRedirectUri(uri));
@@ -201,14 +329,19 @@ export function parseClientMetadata(body: unknown): ClientMetadataOutcome {
     );
   }
 
-  if (
-    metadata.frontchannel_logout_uri !== undefined &&
-    !isValidLogoutUri(metadata.frontchannel_logout_uri)
-  ) {
-    return invalid(
-      'invalid_client_metadata',
-      'frontchannel_logout_uri must be an absolute https URI with no fragment',
-    );
+  if (metadata.frontchannel_logout_uri !== undefined) {
+    if (!isValidLogoutUri(metadata.frontchannel_logout_uri)) {
+      return invalid(
+        'invalid_client_metadata',
+        'frontchannel_logout_uri must be an absolute https URI with no fragment',
+      );
+    }
+    if (!sharesOriginWithRegisteredRedirectUri(metadata.frontchannel_logout_uri, redirectUris)) {
+      return invalid(
+        'invalid_client_metadata',
+        'frontchannel_logout_uri must share its domain, port and scheme with a registered redirect_uri',
+      );
+    }
   }
 
   return {
@@ -223,9 +356,11 @@ export function parseClientMetadata(body: unknown): ClientMetadataOutcome {
       frontchannelLogoutUri: metadata.frontchannel_logout_uri ?? null,
       backchannelLogoutUri: metadata.backchannel_logout_uri ?? null,
       backchannelLogoutSessionRequired: metadata.backchannel_logout_session_required ?? false,
-      userinfoSignedResponseAlg: metadata.userinfo_signed_response_alg ?? null,
-      userinfoEncryptedResponseAlg: metadata.userinfo_encrypted_response_alg ?? null,
-      userinfoEncryptedResponseEnc: metadata.userinfo_encrypted_response_enc ?? null,
+      frontchannelLogoutSessionRequired: metadata.frontchannel_logout_session_required ?? false,
+      userinfoSignedResponseAlg,
+      userinfoEncryptedResponseAlg,
+      userinfoEncryptedResponseEnc,
+      tlsClientAuthSubjectDn: tlsClientAuthSubjectDn.length > 0 ? tlsClientAuthSubjectDn : null,
     },
   };
 }

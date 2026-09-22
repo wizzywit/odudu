@@ -14,6 +14,7 @@ import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/test
 import Fastify, { type FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { oidcRoutes } from '#/index';
+import { NO_CLIENT_KEY_FETCHER } from '#/repository/client-keys';
 import { UNLIMITED_CLIENT_SECRET_LIMITER } from '#/service/client-secret-throttle';
 
 let containerHandle: TestDatabase | undefined;
@@ -57,6 +58,7 @@ beforeAll(async () => {
       ownerDatabase: owner,
       kek: Buffer.alloc(32, 7),
       clientSecretLimiter: UNLIMITED_CLIENT_SECRET_LIMITER,
+      clientKeySet: NO_CLIENT_KEY_FETCHER,
     }),
   );
   await http.ready();
@@ -132,6 +134,30 @@ describe('[OIDC-RPINITIATED-2.1-01] end_session_endpoint is advertised', () => {
     }>();
     const res = await http.inject({ url: new URL(endSessionEndpoint).pathname });
     expect(res.statusCode).not.toBe(404);
+  });
+});
+
+describe('[OIDC-BACKCHANNEL-2.1-02] back-channel logout is advertised', () => {
+  it('advertises support, with session support', async () => {
+    const res = await http.inject({ url: '/realms/acme/.well-known/openid-configuration' });
+    const document = res.json<{
+      backchannel_logout_supported: boolean;
+      backchannel_logout_session_supported: boolean;
+    }>();
+    expect(document.backchannel_logout_supported).toBe(true);
+    expect(document.backchannel_logout_session_supported).toBe(true);
+  });
+});
+
+describe('[OIDC-FRONTCHANNEL-3-01] front-channel logout is advertised', () => {
+  it('advertises support, with session support', async () => {
+    const res = await http.inject({ url: '/realms/acme/.well-known/openid-configuration' });
+    const document = res.json<{
+      frontchannel_logout_supported: boolean;
+      frontchannel_logout_session_supported: boolean;
+    }>();
+    expect(document.frontchannel_logout_supported).toBe(true);
+    expect(document.frontchannel_logout_session_supported).toBe(true);
   });
 });
 

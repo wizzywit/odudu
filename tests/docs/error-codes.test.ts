@@ -13,8 +13,8 @@ const DOCUMENTS: readonly (readonly [name: string, atLeast: number])[] = [
   ['README.md', 0],
 ];
 
-// The error codes RFC 6749 §4.1.2.1 and §5.2, RFC 6750 §3.1 and OIDC Core
-// §3.1.2.6 define. A backticked word is only read as an error code if it is
+// The error codes RFC 6749 §4.1.2.1 and §5.2, RFC 6750 §3.1, RFC 8707 §2 and
+// OIDC Core §3.1.2.6 define. A backticked word is only read as an error code if it is
 // one of these, so ordinary prose cannot be mistaken for a claim about the
 // wire.
 const VOCABULARY = new Set([
@@ -27,6 +27,7 @@ const VOCABULARY = new Set([
   'invalid_grant',
   'invalid_request',
   'invalid_scope',
+  'invalid_target',
   'invalid_token',
   'login_required',
   'registration_not_supported',
@@ -47,6 +48,7 @@ const TOKEN_ERROR_CODES: Record<TokenErrorCode, true> = {
   invalid_grant: true,
   invalid_request: true,
   invalid_scope: true,
+  invalid_target: true,
   unauthorized_client: true,
   unsupported_grant_type: true,
 };

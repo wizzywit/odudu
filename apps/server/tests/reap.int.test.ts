@@ -47,6 +47,8 @@ const POLICY: RetentionPolicy = {
   emailSentSeconds: 7 * 24 * 60 * 60,
   emailFailedSeconds: 30 * 24 * 60 * 60,
   emailMaxAttempts: 5,
+  logoutDeliveredSeconds: 7 * 24 * 60 * 60,
+  logoutFailedSeconds: 30 * 24 * 60 * 60,
 };
 
 function at(offsetMs: number): string {
@@ -72,6 +74,13 @@ interface Fixture {
   readonly failedYesterdayId: string;
   readonly neverAttemptedId: string;
   readonly abandonedId: string;
+  readonly logoutDeliveredLongAgoId: string;
+  readonly logoutDeliveredYesterdayId: string;
+  readonly logoutAbandonedLongAgoId: string;
+  readonly logoutAbandonedYesterdayId: string;
+  readonly logoutStillRetryingId: string;
+  readonly assertionJtiStale: string;
+  readonly assertionJtiLive: string;
 }
 
 // One realm carrying, for every reaped table, a row that is eligible and a
@@ -94,6 +103,13 @@ async function seedFixture(brute?: BruteForce): Promise<Fixture> {
   const failedYesterdayId = newId();
   const neverAttemptedId = newId();
   const abandonedId = newId();
+  const logoutDeliveredLongAgoId = newId();
+  const logoutDeliveredYesterdayId = newId();
+  const logoutAbandonedLongAgoId = newId();
+  const logoutAbandonedYesterdayId = newId();
+  const logoutStillRetryingId = newId();
+  const assertionJtiStale = `jti-stale-${realmId}`;
+  const assertionJtiLive = `jti-live-${realmId}`;
 
   await owner.db.execute(sql`
     INSERT INTO realms (id, name, brute_force_lockout_seconds,
@@ -213,6 +229,41 @@ async function seedFixture(brute?: BruteForce): Promise<Fixture> {
        ${at(-60 * DAY)}::timestamptz, ${at(-40 * DAY)}::timestamptz, NULL, 5, NULL)
   `);
 
+  // The same shape as email_outbox's own fixture, one column renamed:
+  // delivered long ago, delivered yesterday, abandoned (attempts spent,
+  // an error on file) long ago, abandoned yesterday, and one still inside
+  // its retry budget however old it is.
+  await owner.db.execute(sql`
+    INSERT INTO backchannel_logout_deliveries (id, realm_id, client_id, session_id, endpoint,
+                                               logout_token, created_at, next_attempt_at,
+                                               delivered_at, attempts, last_error)
+    VALUES
+      (${logoutDeliveredLongAgoId}, ${realmId}, ${clientId}, ${newId()},
+       'https://rp.example/backchannel', 'token', ${at(-9 * DAY)}::timestamptz,
+       ${at(-9 * DAY)}::timestamptz, ${at(-9 * DAY)}::timestamptz, 1, NULL),
+      (${logoutDeliveredYesterdayId}, ${realmId}, ${clientId}, ${newId()},
+       'https://rp.example/backchannel', 'token', ${at(-2 * DAY)}::timestamptz,
+       ${at(-2 * DAY)}::timestamptz, ${at(-1 * DAY)}::timestamptz, 1, NULL),
+      (${logoutAbandonedLongAgoId}, ${realmId}, ${clientId}, ${newId()},
+       'https://rp.example/backchannel', 'token', ${at(-40 * DAY)}::timestamptz,
+       ${at(-31 * DAY)}::timestamptz, NULL, 5, 'logout delivery refused with status 400'),
+      (${logoutAbandonedYesterdayId}, ${realmId}, ${clientId}, ${newId()},
+       'https://rp.example/backchannel', 'token', ${at(-3 * DAY)}::timestamptz,
+       ${at(-1 * DAY)}::timestamptz, NULL, 5, 'logout delivery refused with status 400'),
+      (${logoutStillRetryingId}, ${realmId}, ${clientId}, ${newId()},
+       'https://rp.example/backchannel', 'token', ${at(-400 * DAY)}::timestamptz,
+       ${at(-399 * DAY)}::timestamptz, NULL, 4, 'logout delivery failed with status 503')
+  `);
+
+  // One jti already past the exp its own claim carried, one still short of
+  // it — no separate policy window, so age alone decides.
+  await owner.db.execute(sql`
+    INSERT INTO client_assertion_jti (realm_id, oauth_client_id, jti, expires_at)
+    VALUES
+      (${realmId}, 'app', ${assertionJtiStale}, ${at(-1 * MINUTE)}::timestamptz),
+      (${realmId}, 'app', ${assertionJtiLive}, ${at(1 * HOUR)}::timestamptz)
+  `);
+
   return {
     realm,
     realmId,
@@ -226,6 +277,13 @@ async function seedFixture(brute?: BruteForce): Promise<Fixture> {
     failedYesterdayId,
     neverAttemptedId,
     abandonedId,
+    logoutDeliveredLongAgoId,
+    logoutDeliveredYesterdayId,
+    logoutAbandonedLongAgoId,
+    logoutAbandonedYesterdayId,
+    logoutStillRetryingId,
+    assertionJtiStale,
+    assertionJtiLive,
   };
 }
 
@@ -238,6 +296,8 @@ const RELATIONS: Record<TableName, SQL> = {
   client_registration_tokens: sql.raw('client_registration_tokens'),
   login_failures: sql.raw('login_failures'),
   email_outbox: sql.raw('email_outbox'),
+  backchannel_logout_deliveries: sql.raw('backchannel_logout_deliveries'),
+  client_assertion_jti: sql.raw('client_assertion_jti'),
   sessions: sql.raw('sessions'),
 };
 
@@ -305,6 +365,8 @@ describe('odudu reap', () => {
       client_registration_tokens: 1,
       login_failures: 1,
       email_outbox: 2,
+      backchannel_logout_deliveries: 2,
+      client_assertion_jti: 1,
       sessions: 1,
     });
 
@@ -320,6 +382,8 @@ describe('odudu reap', () => {
       client_registration_tokens: 1,
       login_failures: 1,
       email_outbox: 4,
+      backchannel_logout_deliveries: 3,
+      client_assertion_jti: 1,
       sessions: 1,
     });
 
@@ -332,8 +396,48 @@ describe('odudu reap', () => {
       client_registration_tokens: 0,
       login_failures: 0,
       email_outbox: 0,
+      backchannel_logout_deliveries: 0,
+      client_assertion_jti: 0,
       sessions: 0,
     });
+  });
+
+  // The count above is satisfied equally by deleting the stale row or the
+  // live one — one seeded of each, one deleted either way — so which one
+  // survives is asserted by name.
+  it('keeps the jti that has not yet reached its own expiry', async () => {
+    const fixture = await seedFixture();
+
+    await runPass();
+
+    const rows = await owner.db.execute<{ jti: string }>(
+      sql`SELECT jti FROM client_assertion_jti WHERE realm_id = ${fixture.realmId}`,
+    );
+    expect(rows.map((row) => row.jti)).toEqual([fixture.assertionJtiLive]);
+  });
+
+  // The foreign-realm probe for this table specifically: the
+  // generic "scopes each realm's statements by row-level security alone"
+  // test below hard-codes authentication_sessions and never runs this
+  // table's own DELETE, so it proves nothing about client_assertion_jti.
+  it('scopes the client_assertion_jti delete to one realm by row-level security alone', async () => {
+    const mine = await seedFixture();
+    const theirs = await seedFixture();
+
+    const before = await countRows(theirs.realmId, 'client_assertion_jti');
+    const pass = await withEachRealmExclusive(appDb.db, REAP_LOCK_KEY, [mine.realmId], (tx) =>
+      tx.execute(sql`
+        DELETE FROM client_assertion_jti
+         WHERE expires_at < ${NOW.toISOString()}::timestamptz
+      `),
+    );
+    expect(pass.acquired).toBe(true);
+
+    // Only mine's stale row is gone; the live one it seeded stays.
+    expect(await countRows(mine.realmId, 'client_assertion_jti')).toBe(1);
+    expect(await countRows(theirs.realmId, 'client_assertion_jti')).toBe(before);
+
+    await runPass();
   });
 
   // The counts above are satisfied by a rule that deletes any two of the
@@ -355,6 +459,27 @@ describe('odudu reap', () => {
         fixture.failedYesterdayId,
         fixture.sentYesterdayId,
         fixture.abandonedId,
+      ].sort(),
+    );
+  });
+
+  // The same property, for the queue a session's own logout writes to:
+  // delivered yesterday, abandoned yesterday, and one still inside its
+  // retry budget survive; delivered and abandoned long ago do not.
+  it('keeps every queued logout delivery an operator could still need to read', async () => {
+    const fixture = await seedFixture();
+
+    await runPass();
+
+    const rows = await owner.db.execute<{ id: string }>(sql`
+      SELECT id FROM backchannel_logout_deliveries WHERE realm_id = ${fixture.realmId}
+       ORDER BY created_at
+    `);
+    expect(rows.map((row) => row.id).sort()).toEqual(
+      [
+        fixture.logoutDeliveredYesterdayId,
+        fixture.logoutAbandonedYesterdayId,
+        fixture.logoutStillRetryingId,
       ].sort(),
     );
   });

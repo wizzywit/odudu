@@ -1,4 +1,4 @@
-import { sessionCookieName } from '@odudu/authn-flows';
+import { clearedSessionCookies } from '@odudu/authn-flows';
 import { type RenderedPage } from '@odudu/kernel';
 import { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
 import {
@@ -24,20 +24,6 @@ export interface LogoutRouteDeps extends LogoutUsecaseDeps {
   tls: boolean;
 }
 
-// Duplicated from routes/authorize.ts rather than shared: the cookie is
-// read here and nowhere else on this path, so the usecase never has a
-// request to reach for any other header from.
-function readCookie(request: FastifyRequest, name: string): string | undefined {
-  const header = request.headers.cookie;
-  if (typeof header !== 'string') return undefined;
-  for (const part of header.split(';')) {
-    const separator = part.indexOf('=');
-    if (separator === -1) continue;
-    if (part.slice(0, separator).trim() === name) return part.slice(separator + 1).trim();
-  }
-  return undefined;
-}
-
 // A parameter sent twice arrives as an array, and is dropped rather than
 // read first-wins: "which one did it mean" has no answer a client can rely
 // on, and every caller here fails safe on `undefined` — a repeated
@@ -46,21 +32,6 @@ function readCookie(request: FastifyRequest, name: string): string | undefined {
 // the shape it narrows to, not because it picks one out of several.
 function firstString(value: string | string[] | undefined): string | undefined {
   return typeof value === 'string' ? value : undefined;
-}
-
-// The attributes have to match login.ts's own `set-cookie` for a browser to
-// treat this as overwriting rather than a second, unrelated cookie —
-// `Max-Age=0` is what actually deletes it; the value is irrelevant once
-// that is set, but empty is clearest to a reader of a captured request.
-function clearedCookie(name: string, tls: boolean): string {
-  return [
-    `${name}=`,
-    'Max-Age=0',
-    'HttpOnly',
-    'SameSite=Lax',
-    'Path=/',
-    ...(tls ? ['Secure'] : []),
-  ].join('; ');
 }
 
 // Every page this route renders carries a live SSO session identifier
@@ -74,7 +45,6 @@ function sendLogoutHtml(reply: FastifyReply, status: number, page: RenderedPage)
 async function respondToOutcome(
   outcome: LogoutOutcome,
   realm: string,
-  cookieName: string,
   tls: boolean,
   reply: FastifyReply,
 ): Promise<FastifyReply> {
@@ -107,17 +77,25 @@ async function respondToOutcome(
   // `sessionEnded` says so (decideLogout can also honour a matched redirect
   // with no session to end at all).
   const sessionEnded = outcome.kind === 'render' || outcome.sessionEnded;
-  if (sessionEnded) reply.header('set-cookie', clearedCookie(cookieName, tls));
+  if (sessionEnded) {
+    for (const cookie of clearedSessionCookies(realm, tls)) {
+      reply.header('set-cookie', cookie);
+    }
+  }
 
   if (outcome.kind === 'render') {
-    return sendLogoutHtml(reply, 400, renderLogoutRedirectRefusedPage());
+    return sendLogoutHtml(
+      reply,
+      400,
+      renderLogoutRedirectRefusedPage(outcome.frontChannelLogoutUrls),
+    );
   }
 
   // RP-Initiated Logout §3's redirect, carrying state the same way RFC
   // 9207 has /authorize carry iss on every response — this is not an
   // authorization response, so no `iss` parameter of its own applies here.
   if (outcome.redirectTo === null) {
-    return sendLogoutHtml(reply, 200, renderLoggedOutPage());
+    return sendLogoutHtml(reply, 200, renderLoggedOutPage(outcome.frontChannelLogoutUrls));
   }
   const target = new URL(outcome.redirectTo);
   if (outcome.state !== null) target.searchParams.set('state', outcome.state);
@@ -147,15 +125,14 @@ async function respondToLogoutRequest(
   params: LogoutRequestParams,
 ): Promise<FastifyReply> {
   const realm = request.params.realm;
-  const cookieName = sessionCookieName(realm, deps.tls);
   const outcome = await handleLogoutRequest(
     deps,
     realm,
     realmIssuerFor(request, realm),
-    readCookie(request, cookieName),
+    request.headers.cookie,
     params,
   );
-  return respondToOutcome(outcome, realm, cookieName, deps.tls, reply);
+  return respondToOutcome(outcome, realm, deps.tls, reply);
 }
 
 export function registerLogoutRoute(app: FastifyInstance, deps: LogoutRouteDeps): void {
@@ -170,7 +147,6 @@ export function registerLogoutRoute(app: FastifyInstance, deps: LogoutRouteDeps)
     Params: { realm: string };
     Body: Record<string, string | string[] | undefined>;
   }>(PATH, async (request, reply) => {
-    const cookieName = sessionCookieName(request.params.realm, deps.tls);
     const body = request.body;
     const confirmedSessionId = firstString(body.session_id);
     // No `session_id` is not a malformed confirmation: it is a logout
@@ -184,7 +160,8 @@ export function registerLogoutRoute(app: FastifyInstance, deps: LogoutRouteDeps)
     const outcome = await handleLogoutConfirmation(
       deps,
       request.params.realm,
-      readCookie(request, cookieName),
+      realmIssuerFor(request, request.params.realm),
+      request.headers.cookie,
       {
         confirmedSessionId,
         clientId: firstString(body.client_id) ?? null,
@@ -192,6 +169,6 @@ export function registerLogoutRoute(app: FastifyInstance, deps: LogoutRouteDeps)
         state: firstString(body.state) ?? null,
       },
     );
-    return respondToOutcome(outcome, request.params.realm, cookieName, deps.tls, reply);
+    return respondToOutcome(outcome, request.params.realm, deps.tls, reply);
   });
 }

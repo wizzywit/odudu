@@ -7,6 +7,7 @@ import {
   type RealmScopedDatabase,
 } from '@odudu/db';
 import { loadConfig, OduduError, type Config } from '@odudu/kernel';
+import { BACKCHANNEL_LOGOUT_MAX_ATTEMPTS } from '@odudu/protocol-oidc';
 import { sql, type SQL } from 'drizzle-orm';
 
 /**
@@ -24,6 +25,8 @@ export type TableName =
   | 'client_registration_tokens'
   | 'login_failures'
   | 'email_outbox'
+  | 'backchannel_logout_deliveries'
+  | 'client_assertion_jti'
   | 'sessions';
 
 /** Rows deleted per table, summed over every realm the pass visited. */
@@ -66,6 +69,8 @@ export interface RetentionPolicy {
    * permanent failure — there is no `failed_at` to read.
    */
   readonly emailMaxAttempts: number;
+  readonly logoutDeliveredSeconds: number;
+  readonly logoutFailedSeconds: number;
 }
 
 export function retentionPolicyFromConfig(config: Config): RetentionPolicy {
@@ -80,6 +85,8 @@ export function retentionPolicyFromConfig(config: Config): RetentionPolicy {
     emailSentSeconds: config.ODUDU_RETENTION_EMAIL_SENT_SECONDS,
     emailFailedSeconds: config.ODUDU_RETENTION_EMAIL_FAILED_SECONDS,
     emailMaxAttempts: config.ODUDU_OUTBOX_MAX_ATTEMPTS,
+    logoutDeliveredSeconds: config.ODUDU_RETENTION_LOGOUT_DELIVERED_SECONDS,
+    logoutFailedSeconds: config.ODUDU_RETENTION_LOGOUT_FAILED_SECONDS,
   };
 }
 
@@ -264,6 +271,43 @@ const RETENTION_RULES: Record<TableName, RetentionRule> = {
     `,
   },
 
+  // Two windows, for the same two reasons email_outbox has them: a
+  // delivered row is bounded from its delivery, and one that spent every
+  // attempt (BACKCHANNEL_LOGOUT_MAX_ATTEMPTS) and was never delivered is
+  // bounded from its last attempt instead, measured off next_attempt_at
+  // the same way — claimDue and markFailed both move it forward on every
+  // attempt, and markAbandoned sets it to the abandoning instant, so it
+  // reads as "the last time anything touched this row" either way. A row
+  // that failed but has not yet spent every attempt is still due and kept.
+  backchannel_logout_deliveries: {
+    after: [],
+    statement: (now, policy) => sql`
+      DELETE FROM backchannel_logout_deliveries d
+       WHERE (d.delivered_at IS NOT NULL
+              AND d.delivered_at < ${now.toISOString()}::timestamptz
+                  - make_interval(secs => ${policy.logoutDeliveredSeconds}::integer))
+          OR (d.delivered_at IS NULL
+              AND d.attempts >= ${BACKCHANNEL_LOGOUT_MAX_ATTEMPTS}::integer
+              AND d.last_error IS NOT NULL
+              AND d.next_attempt_at < ${now.toISOString()}::timestamptz
+                  - make_interval(secs => ${policy.logoutFailedSeconds}::integer))
+    `,
+  },
+
+  // Carries no window of its own: expires_at is already the assertion's
+  // own claimed exp (bounded when the assertion is parsed, by
+  // MAX_ASSERTION_LIFETIME_SECONDS in client-assertion.ts), so once that
+  // instant has passed the assertion could never satisfy the exp check
+  // that makes it presentable again — a policy window here would only
+  // delay deleting a row nothing can use.
+  client_assertion_jti: {
+    after: [],
+    statement: (now) => sql`
+      DELETE FROM client_assertion_jti j
+       WHERE j.expires_at < ${now.toISOString()}::timestamptz
+    `,
+  },
+
   // Last, and only once nothing points at it. The ON DELETE SET NULL on
   // token_grants.session_id is a backstop this must never reach: nulling a
   // session-bound grant's session would promote it to an offline one, which
@@ -300,6 +344,8 @@ export const REAP_ORDER: readonly TableName[] = [
   'client_registration_tokens',
   'login_failures',
   'email_outbox',
+  'backchannel_logout_deliveries',
+  'client_assertion_jti',
   'sessions',
 ];
 

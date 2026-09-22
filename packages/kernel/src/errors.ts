@@ -12,6 +12,7 @@ export type ErrorCode =
   | 'jwt_unknown_key'
   | 'jwt_alg_mismatch'
   | 'jwt_typ_mismatch'
+  | 'jwe_alg_unsupported'
   | 'claim_mapper_duplicate'
   | 'invalid_email'
   | 'seed_invalid_options'
@@ -32,7 +33,10 @@ export type ErrorCode =
   | 'reap_serving_role_bypasses_rls'
   | 'outbox_cannot_enumerate_realms'
   | 'outbox_requires_app_database_url'
-  | 'outbox_serving_role_bypasses_rls';
+  | 'outbox_serving_role_bypasses_rls'
+  | 'logout_sender_cannot_enumerate_realms'
+  | 'logout_sender_requires_app_database_url'
+  | 'logout_sender_serving_role_bypasses_rls';
 
 export class OduduError extends Error {
   readonly code: ErrorCode;

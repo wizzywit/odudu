@@ -105,6 +105,7 @@ form.addEventListener('submit', async (event) => {
 </script>`;
   return {
     script: { nonce, fetchesSameOrigin: false },
+    frames: [],
     title,
     body,
     html: `<!doctype html>

@@ -9,6 +9,7 @@ const MARKUP_ONLY_PAGE = {
   body: '<!doctype html>',
   title: 'Untitled',
   script: null,
+  frames: [],
 };
 
 describe('the headers every rendered page carries', () => {
@@ -33,6 +34,7 @@ describe('the headers every rendered page carries', () => {
       body: '<script nonce="abc">',
       title: 'Untitled',
       script: { nonce: 'abc', fetchesSameOrigin: false },
+      frames: [],
     })['content-security-policy'];
     expect(csp).toContain("script-src 'nonce-abc'");
     expect(csp).not.toContain('connect-src');
@@ -44,7 +46,38 @@ describe('the headers every rendered page carries', () => {
       body: '<script nonce="abc">',
       title: 'Untitled',
       script: { nonce: 'abc', fetchesSameOrigin: true },
+      frames: [],
     })['content-security-policy'];
     expect(csp).toContain("connect-src 'self'");
+  });
+
+  it('names no frame-src for a page that frames nothing', () => {
+    const csp = headerMap(MARKUP_ONLY_PAGE)['content-security-policy'];
+    expect(csp).not.toContain('frame-src');
+    expect(csp).toContain("default-src 'none'");
+  });
+
+  it('derives frame-src from the origins the page itself carries', () => {
+    const csp = headerMap({
+      ...MARKUP_ONLY_PAGE,
+      frames: ['https://rp.example', 'https://other.example'],
+    })['content-security-policy'];
+    expect(csp).toContain('frame-src https://rp.example https://other.example');
+  });
+
+  it('keeps x-frame-options DENY for a page that frames others', () => {
+    const headers = headerMap({ ...MARKUP_ONLY_PAGE, frames: ['https://rp.example'] });
+    expect(headers['x-frame-options']).toBe('DENY');
+  });
+
+  // The origins come from a row per relying party, and two clients may
+  // register logout URIs on one host.
+  it('deduplicates repeated origins rather than repeating them in the policy', () => {
+    const csp = headerMap({
+      ...MARKUP_ONLY_PAGE,
+      frames: ['https://rp.example', 'https://rp.example'],
+    })['content-security-policy'];
+    expect(csp).toContain('frame-src https://rp.example');
+    expect(csp?.match(/rp\.example/gu)).toHaveLength(1);
   });
 });

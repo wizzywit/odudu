@@ -365,21 +365,21 @@ A registered `jwks_uri` is validated for shape only at registration —
 `https`, no embedded credentials, no DNS lookup
 (`assertFetchableUrl`) — and deliberately **not** dereferenced there: a
 registration's success must not depend on a key host being reachable at
-that instant, and never again (`docs/NEXT.md` records this decision). The
-pieces that will dereference it once something needs the key exist — the
-address guard and the socket transport
-(`apps/server/src/client-key-transport.ts`), which pins the connection to
-the address the guard already checked rather than letting Node resolve the
-hostname a second time, refuses a private, loopback, link-local or
-otherwise non-public address, and carries a connect timeout, a total
-timeout and a body-size cap enforced as the response streams — but nothing
-calls them yet: `private_key_jwt` client authentication, the first
-consumer of a fetched key set, is P3b's. `ODUDU_ALLOW_PRIVATE_CLIENT_URLS`
-is read and enforced at boot already — **with `NODE_ENV=production` the
-server refuses to boot if it is set to `true`** — so that once a caller
-exists, the development and conformance stacks can let it resolve a
+that instant, and never again ([docs/phases/p3a.md](docs/phases/p3a.md)
+records the reverted attempt and why). The
+pieces that dereference it at request time now: the address guard and
+the socket transport (`apps/server/src/client-key-transport.ts`), which
+pins the connection to the address the guard already checked rather than
+letting Node resolve the hostname a second time, refuses a private,
+loopback, link-local or otherwise non-public address, and carries a
+connect timeout, a total timeout and a body-size cap enforced as the
+response streams — are called by `private_key_jwt` client authentication
+at `/token`, their first and so far only caller.
+`ODUDU_ALLOW_PRIVATE_CLIENT_URLS` is read and enforced at boot — **with
+`NODE_ENV=production` the server refuses to boot if it is set to
+`true`** — so the development and conformance stacks can let it resolve a
 private or loopback address, which the OIDF conformance suite's own
-registration module does.
+registration module does, without production doing the same.
 
 **Operational trap:** turning `verify_email` on locks out every existing
 user with no email address on file — including one seeded without
@@ -404,9 +404,48 @@ rather than clamped. A reused session issues a code carrying the
 a client's own `max_age` check depends on — and `max_age` is honoured, so a
 client can demand a fresher authentication than the cookie represents. The
 email-verified gate guards this second door into completing a login exactly
-as it guards the password form. What is not there: **one session per
-browser**, since the cookie holds one id, which is why
-`prompt=select_account` renders the ordinary form and is P3b's.
+as it guards the password form. The cookie now holds a **list** of session
+ids, not one, and a fresh login joins a browser's existing set rather than
+replacing it.
+
+**A realm can now offer "remember me."** Three settings gate it:
+`remember_me_allowed` (off by default), and the pair
+`remember_me_idle_seconds`/`remember_me_max_seconds` (defaults 7 and 30
+days) a remembered login is measured against instead of
+`sso_session_idle_seconds`/`sso_session_max_seconds`. When the setting is
+on, the login form offers a `remember_me` checkbox; ticking it writes the
+new session's id into the `{realm}-session-persistent` cookie, carrying
+`Max-Age=remember_me_max_seconds`, instead of the ephemeral
+`{realm}-session` cookie. **The realm setting is the authority, not the
+field**: a realm with `remember_me_allowed` off ignores a ticked box
+entirely, and the session lands in the ephemeral list exactly as an
+ordinary login would.
+
+**A browser's session count is capped, and the cap is enforced.**
+`realms.max_sessions_per_browser` (1–32, default 25) is the ceiling
+`admitSession` evicts a browser's own least recently active sessions down
+to — read from the ids its cookies already name, never by subject, since
+one browser can hold sessions for more than one — in the same transaction
+it creates a new one. A lock on the realm's own row serialises logins
+arriving at once, but does not make the cap exact under concurrency: `k`
+racing from the same browser can transiently exceed it by up to `k - 1`,
+corrected at that browser's next login (ADR 0033's accepted residual).
+
+**More than one live session in a browser gets a chooser, not a guess.**
+When `/authorize` resolves several live sessions at once — or the client
+asks with `prompt=select_account` — it renders an account picker instead of
+either reusing one unasked or falling back to the login form; picking one
+posts to `login-actions/select-account` and completes the authorization the
+same way an ungated reuse does. The posted session id is a claim the
+browser makes, honoured only when it names a member of the set that
+request's own cookies resolve to — never merely because it names some live
+session in the realm — which is what stops it from being a way to continue
+as somebody else's account. `prompt=none` with no account resolvable
+answers `account_selection_required` rather than showing any UI, and
+choosing "use another account" falls through to the ordinary login form on
+the same parked request. See [docs/request-paths.md's "Choosing among
+sessions"](docs/request-paths.md#choosing-among-sessions) for a full
+transcript.
 
 **A realm can now end a session.** `GET`/`POST
 /realms/{realm}/protocol/openid-connect/logout` implements OpenID Connect
@@ -419,18 +458,45 @@ client that hint was issued to, or neither is used — and it redirects to
 exact, unnormalized match against the client's own registered list —
 refusing the redirect never keeps the session alive, since the two are
 decided independently. **Logout revokes the session row and every grant
-tied to it — not access tokens.** Odudu's access tokens are self-contained
-`at+jwt` JWTs that a resource server verifies without a round trip to
-anywhere, so nothing exists to tell one it has been logged out; a
-logged-out user's access token keeps working until its own `exp`, at most
+tied to it.** Odudu's access tokens are self-contained `at+jwt` JWTs that a
+resource server can verify without a round trip to anywhere, so a resource
+server that only checks the signature locally keeps accepting a logged-out
+user's token until its own `exp`, at most
 `client_oidc_config.access_token_ttl_seconds` (capped at one hour) after it
-was issued. A grant issued with no session — `offline_access` — is
-untouched by a logout, per Back-Channel Logout 1.0 §2.7's second sentence.
-A deployment that needs revocation inside an
-access token's own lifetime is what RFC 7662 introspection is for, landing
-in P3b. See [the logout section of
+was issued — nothing about the token itself changes. A resource server that
+instead calls `POST /realms/{realm}/protocol/openid-connect/token/introspect`
+(RFC 7662), authenticating with its own client credentials, sees the
+revocation immediately: introspection checks the grant's `revoked_at` and
+the session's own liveness, not merely the token's signature, which is what
+makes a logout real inside an access token's hour. **`GET`/`POST
+/realms/{realm}/protocol/openid-connect/userinfo` makes the same two checks
+on the OP's own behalf** — it is itself a resource server, and the one a
+client asks first — so a token presented there after a logout or a
+deliberate `/revoke` is refused with `invalid_token` rather than answering
+with the End-User's claims. A client can also end a
+grant deliberately with `POST
+/realms/{realm}/protocol/openid-connect/revoke` (RFC 7009) — revoking a
+refresh token invalidates every access token introspection reports for its
+grant, and revoking an access token revokes the refresh token beside it,
+whatever rotation it has since gone through, because both name the same
+`token_grants` row. A grant issued with no session — `offline_access` — is
+untouched by a logout, per Back-Channel Logout 1.0 §2.7's second sentence,
+but is reached by `/revoke` the same way any other grant is. **Either page
+a logout renders — the logged-out page, and the page a refused
+`post_logout_redirect_uri` gets instead — frames each relying party's
+`frontchannel_logout_uri`**, per OpenID Connect Front-Channel Logout 1.0
+§3 — an attempt, not a guarantee: the iframe's response is never read
+back, and a browser may never deliver the framed request to a live RP
+session at all (third-party-cookie policy;
+`docs/superpowers/p3b-spike-frontchannel.md` has the measured evidence).
+Back-channel logout ships too: a session that ends enqueues one Logout
+Token per client that registered a `backchannel_logout_uri`, and the
+`send-logouts` pass delivers them off the request path — see below. See
+[the logout section of
 docs/request-paths.md](docs/request-paths.md#rp-initiated-logout) for the
-walkthrough.
+walkthrough, and [its front-channel logout
+section](docs/request-paths.md#front-channel-logout) for a real transcript
+of the framed page.
 
 > ### → [docs/request-paths.md](docs/request-paths.md)
 >
@@ -631,8 +697,8 @@ curl -sS http://localhost:3000/realms/demo/.well-known/openid-configuration
 }
 ```
 
-(Five of the sixteen members it returns; the other eleven, and what a client
-does with each, are in the guide.)
+(Five of the twenty-eight members it returns; the other twenty-three, and
+what a client does with each, are in the guide.)
 
 And this signs ada in and comes back with tokens — the whole
 authorization-code-with-PKCE flow, with `curl` standing in for the browser,
@@ -712,8 +778,8 @@ access token's payload carries it:
 }
 ```
 
-(Trimmed to the claims this section is about; `aud`, `iat`, `exp`, `jti` and
-`sid` are on it too, and
+(Trimmed to the claims this section is about; `aud`, `iat`, `exp`, `jti`,
+`sid` and `grant_id` are on it too, and
 [docs/request-paths.md](docs/request-paths.md#roles-once-a-scope-reaches-it)
 shows the whole payload.)
 
@@ -767,9 +833,9 @@ and `file:` are the values this rule exists to close off, and none of them
 carries a `.` in its own scheme name the way every reverse-DNS scheme does
 ([ADR 0032](docs/adr/0032-a-non-http-redirect-uri-scheme-must-look-custom.md)).
 `frontchannel_logout_uri` is validated the same way its `backchannel_logout_uri`
-twin already was — `https`, absolute, no fragment — since P3b renders it
-into an iframe and a `javascript:` or bare-`http:` value would reach that
-sink unchecked otherwise.
+twin already was — `https`, absolute, no fragment — because the logout page
+renders it into an iframe, and a `javascript:` or bare-`http:` value would
+reach that sink unchecked otherwise.
 
 **One pass deletes everything that expires.** Every login writes an
 `authentication_sessions` row, every redemption an `authorization_codes`
@@ -787,7 +853,7 @@ node --env-file=.env apps/server/src/main.ts reap
 ```
 
 ```
-{"ran":true,"deleted":{"refresh_tokens":0,"authorization_codes":0,"token_grants":0,"authentication_sessions":0,"action_tokens":0,"client_registration_tokens":0,"login_failures":0,"email_outbox":0,"sessions":0}}
+{"ran":true,"deleted":{"refresh_tokens":0,"authorization_codes":0,"token_grants":0,"authentication_sessions":0,"action_tokens":0,"client_registration_tokens":0,"login_failures":0,"email_outbox":0,"backchannel_logout_deliveries":0,"client_assertion_jti":0,"sessions":0}}
 ```
 
 Those zeros on a freshly used stack are the design, not a bug. A row is
@@ -842,6 +908,34 @@ seeded yet, and — exiting non-zero — a refusal to run at all when
 security, since either way the policy that scopes its deletes would not
 apply. It refuses rather than warning: a retention pass whose isolation is
 inert is no better than one that never ran.
+
+**Ending a session tells the relying parties that were part of it.** A
+session that ends enqueues one back-channel Logout Token per client that
+registered a `backchannel_logout_uri` and used the session, and a third
+pass, `send-logouts`, delivers them — every `ODUDU_LOGOUT_SENDER_INTERVAL_SECONDS`
+(default `15`) plus a tenth as jitter, or as a one-shot command:
+
+```bash
+node --env-file=.env apps/server/src/main.ts send-logouts
+```
+
+It reports the same shape `send-mail` does: `{"ran":true,"delivered":N,"failed":N}`,
+or `{"ran":false,"reason":"no realm was enumerated"}` on a database nobody
+has seeded yet.
+
+Like the outbox it takes no lock and needs `ODUDU_APP_DATABASE_URL` for the
+same reason, declining to start without it the same way — and **with
+`ODUDU_LOGOUT_SENDER_ENABLED=false` and nothing scheduling the command, an
+ended session's relying parties are never told**, the way `frontchannel_logout_uri`
+already isn't when a redirect fires instead of the logout page rendering
+(ADR 0034). A relying party that accepts the connection and never answers
+costs one delivery, not the queue: `ODUDU_LOGOUT_SENDER_RESPONSE_TIMEOUT_MS`
+(default `5000`) bounds each one independently, and every 4xx response
+except 429 — the relying party rejecting the token outright, or refusing
+it for a reason retrying will not fix — is abandoned rather than retried;
+429 and anything else recoverable is retried, up to the source's own
+`BACKCHANNEL_LOGOUT_MAX_ATTEMPTS` ceiling, which has no environment
+variable of its own.
 
 **[docs/request-paths.md](docs/request-paths.md) takes it from there** — what
 each of those tokens is for, what `/userinfo` does with them, how a refresh
@@ -928,7 +1022,29 @@ A real deployment today looks like:
    that overwrites `X-Forwarded-*`, or `request.ip` becomes
    client-controlled — and with it the key the per-origin throttle counts
    on, which a spoofed `X-Forwarded-For` then bypasses a header at a time.
-   Appending is not enough: the value must be replaced.
+   Appending is not enough: the value must be replaced. The same flag now
+   also gates `tls_client_auth` client authentication at `/token`: with it
+   on, the server reads the client certificate's subject from the header
+   named by `ODUDU_TLS_CLIENT_CERT_HEADER` (default `x-ssl-client-s-dn`;
+   the name is not standardized — Envoy, Apache and HAProxy each use a
+   different one, so set this to whatever the proxy actually emits). **The
+   proxy must strip this header from every inbound request before adding
+   its own** — a deployment that trusts the header without stripping it
+   lets any caller assert any client's identity, since nothing downstream
+   of the proxy can otherwise tell its own header from one the proxy
+   appended. **The proxy must also actually verify the certificate**
+   (nginx's `ssl_verify_client on`, not `optional_no_ca`) — a client
+   authentication method is not optional-if-presented, and an unverified
+   certificate is just a header a caller wrote into its own request. When
+   no certificate is presented, the header must be absent or empty, never
+   a literal placeholder like `(null)` or `-`: either of those would be
+   read as a real, if unmatched, subject and refuse every ordinary
+   `client_secret_basic` or `client_secret_post` request from that proxy
+   too, since it would then look like a certificate was always presented.
+   With the flag off, `tls_client_auth` is unavailable end to end:
+   discovery does not advertise it and dynamic client registration refuses
+   to register a client for it, not only `/token`'s own refusal to
+   authenticate one.
 5. Set `ODUDU_PUBLIC_BASE_URL` to the origin users reach the server on.
    **With `NODE_ENV=production` the server refuses to boot without it** — it
    is the base of every mailed link and the WebAuthn relying party id every
@@ -965,12 +1081,9 @@ Every row says where it stands, and every row has a phase:
 |                                                                                                        | Where it stands |
 | ------------------------------------------------------------------------------------------------------ | --------------- |
 | A consent screen — `consent_required` is recorded per client, nothing reads it yet                     | P3a             |
-| Several sessions in one browser, and the `prompt=select_account` that needs them                       | P3b             |
 | An account console for self-service credential management, and an operator unlock for a locked account | P4              |
 | An admin API — seeding is the only administrative surface                                              | P4              |
 | Signing-key rotation — the shape exists, the operation does not                                        | P4              |
-| Front-channel and back-channel logout                                                                  | P3b             |
-| Token introspection and revocation                                                                     | P3b             |
 | Published images and a release process                                                                 | P12             |
 | Secret management beyond environment variables                                                         | P12             |
 | Backup and restore guidance                                                                            | P12             |

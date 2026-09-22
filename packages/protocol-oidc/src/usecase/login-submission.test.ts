@@ -16,6 +16,17 @@ const REALM = {
   verifyEmail: false,
   ssoSessionMaxSeconds: 36_000,
   ssoSessionIdleSeconds: 1_800,
+  rememberMeAllowed: true,
+  rememberMeIdleSeconds: 604_800,
+  rememberMeMaxSeconds: 2_592_000,
+  maxSessionsPerBrowser: 25,
+};
+
+const REALM_LIFESPANS = {
+  ssoSessionIdleSeconds: REALM.ssoSessionIdleSeconds,
+  ssoSessionMaxSeconds: REALM.ssoSessionMaxSeconds,
+  rememberMeIdleSeconds: REALM.rememberMeIdleSeconds,
+  rememberMeMaxSeconds: REALM.rememberMeMaxSeconds,
 };
 
 const PENDING = {
@@ -35,6 +46,7 @@ interface Harness {
   checkEmailVerification: Mock;
   pendingActions: Mock;
   resetAuthenticationProgress: Mock;
+  recordRememberMe: Mock;
 }
 
 function harness(): Harness {
@@ -47,6 +59,7 @@ function harness(): Harness {
   const checkEmailVerification = vi.fn().mockResolvedValue({ verified: true, hasEmail: true });
   const pendingActions = vi.fn().mockResolvedValue([]);
   const resetAuthenticationProgress = vi.fn().mockResolvedValue(undefined);
+  const recordRememberMe = vi.fn().mockResolvedValue(undefined);
   const deps: LoginSubmissionDeps = {
     findRealm: vi.fn().mockResolvedValue(REALM),
     advance,
@@ -55,6 +68,7 @@ function harness(): Harness {
     checkEmailVerification,
     pendingActions,
     resetAuthenticationProgress,
+    recordRememberMe,
     completeLogin,
     // consentRequired: false is 'not_required' unconditionally — none of
     // this file's cases are about consent, so the gate stays a no-op here;
@@ -67,6 +81,9 @@ function harness(): Harness {
       scopeIdByName: new Map<string, string>(),
     }),
     grantedScopeIds: vi.fn().mockResolvedValue(new Set<string>()),
+    // No other live session by default — the harness's cases are about the
+    // login gates, not the browser's existing session set.
+    resolveSessions: vi.fn().mockResolvedValue([]),
   };
   return {
     deps,
@@ -75,6 +92,7 @@ function harness(): Harness {
     checkEmailVerification,
     pendingActions,
     resetAuthenticationProgress,
+    recordRememberMe,
   };
 }
 
@@ -101,6 +119,7 @@ describe('handleLoginSubmission — a session id that cannot name a session', ()
         'https://idp.example',
         authSessionId,
         { username: 'ada', password: 'x' },
+        undefined,
       );
 
       expect(outcome).toEqual({ kind: 'unauthenticated' });
@@ -119,6 +138,7 @@ describe('handleLoginSubmission — the success path', () => {
       'https://idp.example',
       AUTH_SESSION_ID,
       { username: 'ada', password: 'x' },
+      undefined,
     );
 
     expect(outcome).toEqual({
@@ -126,6 +146,9 @@ describe('handleLoginSubmission — the success path', () => {
       location:
         'https://app.example/callback?code=code-1&state=xyz&iss=https%3A%2F%2Fidp.example%2Frealms%2Facme',
       sessionId: 'session-1',
+      ephemeralSessionIds: ['session-1'],
+      persistentSessionIds: [],
+      persistentMaxAgeSeconds: REALM.rememberMeMaxSeconds,
     });
     expect(completeLogin).toHaveBeenCalledWith({
       realmId: REALM.id,
@@ -137,9 +160,85 @@ describe('handleLoginSubmission — the success path', () => {
       nonce: PENDING.nonce,
       codeChallenge: PENDING.codeChallenge,
       codeChallengeMethod: PENDING.codeChallengeMethod,
-      ssoSessionMaxSeconds: REALM.ssoSessionMaxSeconds,
+      remembered: false,
+      lifespans: REALM_LIFESPANS,
+      maxSessionsPerBrowser: REALM.maxSessionsPerBrowser,
+      browserSessionIds: [],
       authenticators: ['password'],
+      resource: [],
+      claims: { idToken: {}, userinfo: {} },
     });
+  });
+
+  it('remembers the login when the field is set and the realm allows it', async () => {
+    const { deps, completeLogin } = harness();
+    const outcome = await handleLoginSubmission(
+      deps,
+      'acme',
+      'https://idp.example',
+      AUTH_SESSION_ID,
+      { username: 'ada', password: 'x' },
+      undefined,
+      true,
+    );
+
+    expect(outcome).toMatchObject({ kind: 'redirect' });
+    expect(completeLogin).toHaveBeenCalledWith(
+      expect.objectContaining({
+        remembered: true,
+      }),
+    );
+  });
+
+  it('ignores the field when the realm does not allow remembering', async () => {
+    const { deps, completeLogin } = harness();
+    deps.findRealm = vi.fn().mockResolvedValue({ ...REALM, rememberMeAllowed: false });
+
+    const outcome = await handleLoginSubmission(
+      deps,
+      'acme',
+      'https://idp.example',
+      AUTH_SESSION_ID,
+      { username: 'ada', password: 'x' },
+      undefined,
+      true,
+    );
+
+    expect(outcome).toMatchObject({ kind: 'redirect' });
+    expect(completeLogin).toHaveBeenCalledWith(
+      expect.objectContaining({
+        remembered: false,
+      }),
+    );
+  });
+
+  // completeAuthorizedLogin never runs on this path — the consent POST
+  // runs it later, from recordRememberMe's parked value, not this
+  // request's own field. The same `remembered` variable feeds both
+  // branches today; this only stays true if something keeps asserting it.
+  it('ignores the field on the consent path too, when the realm does not allow remembering', async () => {
+    const { deps, recordRememberMe } = harness();
+    deps.findRealm = vi.fn().mockResolvedValue({ ...REALM, rememberMeAllowed: false });
+    deps.consentContext = vi.fn().mockResolvedValue({
+      clientName: 'Test Client',
+      consentRequired: true,
+      defaultScopes: ['openid'],
+      optionalScopes: [],
+      scopeIdByName: new Map<string, string>(),
+    });
+
+    const outcome = await handleLoginSubmission(
+      deps,
+      'acme',
+      'https://idp.example',
+      AUTH_SESSION_ID,
+      { username: 'ada', password: 'x' },
+      undefined,
+      true,
+    );
+
+    expect(outcome).toMatchObject({ kind: 'consent' });
+    expect(recordRememberMe).toHaveBeenCalledWith(REALM.id, AUTH_SESSION_ID, false);
   });
 });
 
@@ -155,6 +254,7 @@ describe('handleLoginSubmission — a realm that requires a verified address', (
       'https://idp.example',
       AUTH_SESSION_ID,
       { username: 'ada', password: 'x' },
+      undefined,
     );
 
     expect(outcome).toEqual({
@@ -176,6 +276,7 @@ describe('handleLoginSubmission — a realm that requires a verified address', (
       'https://idp.example',
       AUTH_SESSION_ID,
       { username: 'ada', password: 'x' },
+      undefined,
     );
 
     expect(outcome).toEqual({
@@ -196,6 +297,7 @@ describe('handleLoginSubmission — a realm that requires a verified address', (
       'https://idp.example',
       AUTH_SESSION_ID,
       { username: 'ada', password: 'x' },
+      undefined,
     );
 
     expect(outcome.kind).toBe('redirect');
@@ -213,6 +315,7 @@ describe('handleLoginSubmission — a subject with a pending required action', (
       'https://idp.example',
       AUTH_SESSION_ID,
       { username: 'ada', password: 'x' },
+      undefined,
     );
 
     expect(outcome).toEqual({
@@ -234,6 +337,7 @@ describe('handleLoginSubmission — a subject with a pending required action', (
       'https://idp.example',
       AUTH_SESSION_ID,
       { username: 'ada', password: 'x' },
+      undefined,
     );
 
     expect(outcome).toEqual({
@@ -254,6 +358,7 @@ describe('handleLoginSubmission — a subject with a pending required action', (
       'https://idp.example',
       AUTH_SESSION_ID,
       { username: 'ada', password: 'x' },
+      undefined,
     );
 
     expect(outcome.kind).toBe('redirect');
@@ -272,6 +377,7 @@ describe('handleLoginSubmission — a session already consumed by an earlier or 
       'https://idp.example',
       AUTH_SESSION_ID,
       { username: 'ada', password: 'x' },
+      undefined,
     );
 
     expect(outcome).toEqual({ kind: 'unauthenticated' });
@@ -289,6 +395,7 @@ describe('handleLoginSubmission — a failed attempt must not consume the sessio
       'https://idp.example',
       AUTH_SESSION_ID,
       { username: 'ada', password: 'wrong' },
+      undefined,
     );
 
     expect(outcome).toEqual({ kind: 'reject', authSessionId: AUTH_SESSION_ID });
@@ -305,6 +412,7 @@ describe('handleLoginSubmission — a failed attempt must not consume the sessio
       'https://idp.example',
       AUTH_SESSION_ID,
       { username: 'ada', password: 'x' },
+      undefined,
     );
 
     expect(outcome).toEqual({ kind: 'unauthenticated' });
@@ -321,6 +429,7 @@ describe('handleLoginSubmission — a failed attempt must not consume the sessio
       'https://idp.example',
       AUTH_SESSION_ID,
       {},
+      undefined,
     );
 
     expect(outcome).toEqual({ kind: 'reject', authSessionId: AUTH_SESSION_ID });
@@ -341,6 +450,7 @@ describe('handleLoginSubmission — a hint naming somebody other than who signed
       'https://idp.example',
       AUTH_SESSION_ID,
       { username: 'ada', password: 'x' },
+      undefined,
     );
 
     expect(outcome.kind).toBe('error_redirect');
@@ -360,6 +470,7 @@ describe('handleLoginSubmission — a hint naming somebody other than who signed
       'https://idp.example',
       AUTH_SESSION_ID,
       { username: 'ada', password: 'x' },
+      undefined,
     );
 
     expect(outcome.kind).toBe('redirect');

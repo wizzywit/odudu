@@ -80,6 +80,14 @@ const schema = z.object({
   ODUDU_MIGRATIONS_DIR: z.string().min(1).optional(),
   ODUDU_APP_DATABASE_URL: z.url().optional(),
   ODUDU_TRUST_PROXY: booleanEnvVar,
+  // The header a deployment's proxy emits a client certificate's subject
+  // under — read only while `ODUDU_TRUST_PROXY` is on (`tls_client_auth`
+  // at /token); no two proxies agree on a name, so never a constant.
+  // Trimmed and lower-cased once, here — Fastify's own header map is
+  // lower-cased, so every downstream reader can assume this already is.
+  // `.min(1)` runs after `.trim()`, so blank or whitespace-only refuses
+  // to boot rather than silently disabling the method.
+  ODUDU_TLS_CLIENT_CERT_HEADER: z.string().trim().min(1).toLowerCase().default('x-ssl-client-s-dn'),
   // Whether this process itself terminates TLS, or (via a reverse proxy)
   // knows the client's connection to be HTTPS. Off by default: the compose
   // stack serves plain HTTP on :3000 today. Read by @odudu/authn-flows to
@@ -158,6 +166,27 @@ const schema = z.object({
     .min(3600)
     .max(31_536_000)
     .default(2_592_000),
+  // A delivered back-channel logout, measured from its delivery — the same
+  // shape as ODUDU_RETENTION_EMAIL_SENT_SECONDS, and the same week-long
+  // default, for the same reason: something for an operator to read.
+  ODUDU_RETENTION_LOGOUT_DELIVERED_SECONDS: z.coerce
+    .number()
+    .int()
+    .min(60)
+    .max(31_536_000)
+    .default(604_800),
+  // A delivery that spent every attempt (BACKCHANNEL_LOGOUT_MAX_ATTEMPTS,
+  // `packages/protocol-oidc/src/repository/logout-deliveries.ts`, which has
+  // no environment variable of its own) and was never delivered, measured
+  // from its last attempt. Far longer, for the same reason
+  // ODUDU_RETENTION_EMAIL_FAILED_SECONDS is: nothing else records the
+  // failure.
+  ODUDU_RETENTION_LOGOUT_FAILED_SECONDS: z.coerce
+    .number()
+    .int()
+    .min(3600)
+    .max(31_536_000)
+    .default(2_592_000),
   // How often the server runs that pass itself, and whether it runs it at
   // all. `false` is for a deployment that schedules `odudu reap` as a cron
   // entry or a Kubernetes CronJob instead — a documented alternative, and
@@ -183,6 +212,29 @@ const schema = z.object({
   ODUDU_OUTBOX_MAX_ATTEMPTS: z.coerce.number().int().min(1).max(100).default(5),
   // The first retry's delay; each further attempt doubles it.
   ODUDU_OUTBOX_RETRY_BACKOFF_SECONDS: z.coerce.number().int().min(1).max(86_400).default(60),
+  // A back-channel logout is enqueued the instant a session ends, so this
+  // pass has no queueing delay of the outbox's kind to hide — it exists to
+  // take a relying party's own slowness off the request path. `false` is
+  // for a deployment that schedules `odudu send-logouts` itself; with the
+  // schedule off and nothing scheduled elsewhere, an ended session's
+  // relying parties are never told.
+  ODUDU_LOGOUT_SENDER_ENABLED: enabledEnvVar,
+  ODUDU_LOGOUT_SENDER_INTERVAL_SECONDS: z.coerce.number().int().min(5).max(86_400).default(15),
+  // Deliveries claimed per realm per pass, so one realm's backlog cannot
+  // starve another's — the same reasoning as ODUDU_OUTBOX_BATCH_SIZE.
+  ODUDU_LOGOUT_SENDER_BATCH_SIZE: z.coerce.number().int().min(1).max(1000).default(20),
+  // How long a claimed delivery stays invisible to other passes; what a
+  // process killed between the claim and the send costs.
+  ODUDU_LOGOUT_SENDER_LEASE_SECONDS: z.coerce.number().int().min(1).max(3600).default(30),
+  // Bounds one delivery end to end (connect and response together): a
+  // relying party that accepts the connection and never answers is
+  // abandoned for this pass, not for good.
+  ODUDU_LOGOUT_SENDER_RESPONSE_TIMEOUT_MS: z.coerce
+    .number()
+    .int()
+    .min(100)
+    .max(60_000)
+    .default(5000),
   ODUDU_LOG_LEVEL: z
     .enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent'])
     .default('info'),
@@ -199,12 +251,13 @@ const schema = z.object({
   ODUDU_SMTP_PASSWORD: z.string().min(1).optional(),
   ODUDU_SMTP_STARTTLS: booleanEnvVar,
   ODUDU_PUBLIC_BASE_URL: publicBaseUrl,
-  // Lets the bounded JWKS fetcher (@odudu/protocol-oidc's client-keys
-  // repository) connect to a private or loopback address when a client
-  // registers a jwks_uri pointing at one — which the development and
-  // conformance stacks both do, since the suite serves its key set from
-  // inside the same compose network. Off by default; production refuses
-  // to boot with it on (apps/server/src/config-guard.ts).
+  // Lets a bounded address-checked fetch — the JWKS fetcher
+  // (@odudu/protocol-oidc's client-keys repository) or the back-channel
+  // logout transport (apps/server/src/logout-delivery-transport.ts) —
+  // reach a private address a client registered, which local development
+  // and the OIDF conformance stack both need. Off by default; production
+  // refuses to boot with it on (apps/server/src/config-guard.ts). Neither
+  // fetch admits a loopback address regardless of this flag.
   ODUDU_ALLOW_PRIVATE_CLIENT_URLS: booleanEnvVar,
 });
 

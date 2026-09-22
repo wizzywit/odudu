@@ -373,10 +373,12 @@ resolved below rather than left to be re-discovered.
 Task 9/12a built and left unwired, and P3b is what wires them for
 `private_key_jwt`:
 
-- _Task 9_ — `expiresAt` is computed from the pre-fetch clock, so a slow
-  fetch shortens its own cache TTL by the fetch duration.
-- _Task 9_ — no in-flight coalescing: two concurrent fetches of the same
-  URI both reach the network before the cache can suppress the second.
+- _Task 9_ — `expiresAt` was computed from the pre-fetch clock, so a slow
+  fetch shortened its own cache TTL by the fetch duration. Fixed:
+  `client-keys.ts` now reads the clock after the fetch resolves.
+- _Task 9_ — there was no in-flight coalescing, so two concurrent fetches
+  of one URI both reached the network. Fixed: concurrent fetches of one
+  URI now join a single attempt.
 - _Task 12b_ — the `jwks_uri`-shape test at registration would also pass a
   build that catches a fetch failure and proceeds; it discriminates the
   specific reversal Ruling 13 found, not every variant of it. Worth

@@ -28,7 +28,10 @@ function toResponseBody(client: RegisteredClient): Record<string, unknown> {
     ...(metadata.jwksUri === null ? {} : { jwks_uri: metadata.jwksUri }),
     ...(metadata.frontchannelLogoutUri === null
       ? {}
-      : { frontchannel_logout_uri: metadata.frontchannelLogoutUri }),
+      : {
+          frontchannel_logout_uri: metadata.frontchannelLogoutUri,
+          frontchannel_logout_session_required: metadata.frontchannelLogoutSessionRequired,
+        }),
     ...(metadata.backchannelLogoutUri === null
       ? {}
       : {
@@ -44,6 +47,9 @@ function toResponseBody(client: RegisteredClient): Record<string, unknown> {
     ...(metadata.userinfoEncryptedResponseEnc === null
       ? {}
       : { userinfo_encrypted_response_enc: metadata.userinfoEncryptedResponseEnc }),
+    ...(metadata.tlsClientAuthSubjectDn === null
+      ? {}
+      : { tls_client_auth_subject_dn: metadata.tlsClientAuthSubjectDn }),
   };
 }
 

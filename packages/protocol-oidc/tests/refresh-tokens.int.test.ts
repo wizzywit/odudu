@@ -59,6 +59,7 @@ async function issueRefreshToken(tx: RealmScopedDatabase, realmId: string): Prom
   await provisionClientDefaults(tx, clientDbId);
   const subject = await subjectRepository(tx).create({ realmId, type: 'user' });
   const grant = await tokenGrantRepository(tx).create({
+    id: newId(),
     realmId,
     clientId: clientDbId,
     subjectId: subject.id,

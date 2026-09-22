@@ -2,8 +2,10 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { loadConfig } from '../../packages/kernel/src/config.js';
+import { LOGOUT_SENDER_JITTER_FRACTION } from '../../apps/server/src/modules/logout-sender.js';
 import { OUTBOX_JITTER_FRACTION } from '../../apps/server/src/modules/outbox.js';
 import { REAP_JITTER_FRACTION } from '../../apps/server/src/modules/reap.js';
+import { REAP_ORDER } from '../../apps/server/src/cli/reap.js';
 import { loadDocument, REPO_ROOT } from './markdown.js';
 
 // README.md and docs/request-paths.md both quote the interval the server
@@ -75,6 +77,23 @@ describe('the retention schedule the documents describe is the one the server ru
     expect(sourceText(command)).toContain(quoted.replaceAll(/\s+/gu, ' '));
   });
 
+  // A table added to REAP_ORDER without touching every captured transcript
+  // is exactly what put this table's own report one key short of the real
+  // command's output — checked here so the next one fails a build instead.
+  it('every captured `odudu reap` report carries REAP_ORDER’s keys, in order', () => {
+    for (const name of DOCUMENTS) {
+      const pattern = /"ran":true,"deleted":\{(?<body>[^}]*)\}/gu;
+      const matches = [...textOf(name).matchAll(pattern)];
+      expect(matches.length).toBeGreaterThan(0);
+      for (const match of matches) {
+        const body = match.groups?.body;
+        if (body === undefined) throw new Error('unreachable: the pattern captured no body');
+        const parsed = JSON.parse(`{${body}}`) as Record<string, number>;
+        expect(Object.keys(parsed)).toEqual([...REAP_ORDER]);
+      }
+    }
+  });
+
   it('logs the refusal docs/request-paths.md quotes, in those words', () => {
     const module = readFileSync(path.join(REPO_ROOT, 'apps/server/src/modules/reap.ts'), 'utf8');
     const quoted = /`(?<message>not reaping: [^`]+)`/su.exec(textOf('docs/request-paths.md'));
@@ -144,5 +163,42 @@ describe('the outbox schedule the documents describe is the one the server runs'
     }
     expect(module).toContain('ODUDU_OUTBOX_ENABLED=false');
     expect(sourceText(module)).toContain(quoted.groups.message.replaceAll(/\s+/gu, ' '));
+  });
+});
+
+// The interval and jitter claims are README-only: docs/request-paths.md's
+// real `odudu send-logouts` transcript (under "Front-channel and
+// back-channel logout") states no interval or timeout default in words
+// there for this check to read. The retention windows are the opposite —
+// stated only in request-paths.md, beside email_outbox's own.
+describe('the logout-sender schedule README describes is the one the server runs', () => {
+  it('states the interval the config schema defaults to', () => {
+    expect(statedDefault('README.md', 'ODUDU_LOGOUT_SENDER_INTERVAL_SECONDS')).toBe(
+      String(defaults.ODUDU_LOGOUT_SENDER_INTERVAL_SECONDS),
+    );
+  });
+
+  it('adds jitter of the fraction README calls a tenth', () => {
+    expect(LOGOUT_SENDER_JITTER_FRACTION).toBe(0.1);
+    expect(textOf('README.md')).toMatch(/a tenth as jitter/u);
+  });
+
+  it.each([
+    ['ODUDU_RETENTION_LOGOUT_DELIVERED_SECONDS', defaults.ODUDU_RETENTION_LOGOUT_DELIVERED_SECONDS],
+    ['ODUDU_RETENTION_LOGOUT_FAILED_SECONDS', defaults.ODUDU_RETENTION_LOGOUT_FAILED_SECONDS],
+  ])('describes %s as the period it defaults to', (variable, seconds) => {
+    const words: Record<string, number> = { 'a week': 604_800, 'thirty days': 2_592_000 };
+    const pattern = new RegExp('`' + variable + '`[^.]*?(?<period>a week|thirty days)', 'su');
+    const stated = pattern.exec(textOf('docs/request-paths.md'));
+    if (stated?.groups?.period === undefined) {
+      throw new Error(`docs/request-paths.md no longer says how long ${variable} keeps a row`);
+    }
+    expect(words[stated.groups.period]).toBe(seconds);
+  });
+
+  it('states the response timeout the config schema defaults to', () => {
+    expect(statedDefault('README.md', 'ODUDU_LOGOUT_SENDER_RESPONSE_TIMEOUT_MS')).toBe(
+      String(defaults.ODUDU_LOGOUT_SENDER_RESPONSE_TIMEOUT_MS),
+    );
   });
 });

@@ -1,5 +1,9 @@
-import { type SigningKeyRecord } from '@odudu/crypto';
+import { type SessionRecord } from '@odudu/authn-flows';
+import { AUDIENCE_UNCHECKED, type SigningKeyRecord } from '@odudu/crypto';
+import { type ClientLogoutTarget } from '#/repository/grants';
 import { type RealmLookup } from '#/repository/realm-lookup';
+import { frontChannelLogoutUrl } from '#/service/frontchannel-logout';
+import { mostRecentlyActive } from '#/service/session-selection';
 import { subjectOfIdTokenHint } from '#/usecase/authorization-request';
 
 export interface LogoutSession {
@@ -75,9 +79,26 @@ export type LogoutOutcome =
     }
   // A session was ended, or there was none to end and the redirect alone
   // was honoured (see decideLogout). `sessionEnded` tells the route whether
-  // there is a cookie to clear.
-  | { kind: 'end'; redirectTo: string | null; state: string | null; sessionEnded: boolean }
-  | { kind: 'render'; error: string; state: string | null };
+  // there is a cookie to clear. `frontChannelLogoutUrls` is non-empty only
+  // when `redirectTo` is null — a redirect leaves the page, and with it any
+  // chance an iframe on it could load, so building the list would serve
+  // nothing there (Front-Channel Logout 1.0 §3).
+  | {
+      kind: 'end';
+      redirectTo: string | null;
+      state: string | null;
+      sessionEnded: boolean;
+      frontChannelLogoutUrls: readonly string[];
+    }
+  // The redirect was refused, but the session still ended and the page
+  // still renders — the same reason `end`'s no-redirect branch frames its
+  // relying parties applies here too.
+  | {
+      kind: 'render';
+      error: string;
+      state: string | null;
+      frontChannelLogoutUrls: readonly string[];
+    };
 
 export interface LogoutUsecaseDeps {
   findRealm(name: string): Promise<RealmLookup | null>;
@@ -89,17 +110,69 @@ export interface LogoutUsecaseDeps {
   // empty list, refusing any redirect rather than resolving one with no
   // client to trust it against (§3).
   postLogoutRedirectUris(realmId: string, oauthClientId: string): Promise<readonly string[]>;
-  // The SSO session cookie's value, resolved to a live row exactly the way
-  // /authorize resolves one — never trusted for anything but that lookup.
-  resolveSession(
-    realm: RealmLookup,
-    cookieValue: string | undefined,
-  ): Promise<LogoutSession | null>;
-  // One transaction: ends the session row and revokes every grant whose
-  // session_id is that session (Back-Channel Logout §2.7). Access tokens
-  // are not touched — see README.md's logout section for why not.
-  endSession(realmId: string, sessionId: string, now: Date): Promise<void>;
+  // The browser's session cookies, resolved to their live rows exactly the
+  // way /authorize resolves them — never trusted for anything but that
+  // lookup.
+  resolveSessions(
+    realm: {
+      id: string;
+      name: string;
+      ssoSessionIdleSeconds: number;
+      ssoSessionMaxSeconds: number;
+      rememberMeIdleSeconds: number;
+      rememberMeMaxSeconds: number;
+    },
+    header: string | undefined,
+  ): Promise<SessionRecord[]>;
+  // One transaction: ends the session row, revokes every grant whose
+  // session_id is that session (Back-Channel Logout §2.7), and enqueues one
+  // back-channel logout delivery per relying party that used the session
+  // and registered a back-channel URI (§2.5). A failure anywhere — minting
+  // or queuing a delivery included — rolls the whole transaction back, so a
+  // session cannot end with a delivery lost: nothing would ever retry a row
+  // that was never written. Access tokens are not touched — see README.md's
+  // logout section for why not.
+  endSession(
+    realmId: string,
+    sessionId: string,
+    subjectId: string,
+    now: Date,
+    issuer: string,
+  ): Promise<void>;
+  // Front-Channel Logout 1.0 §3's "set of logged-in RPs": the distinct
+  // clients holding a grant issued under this session, with enough of each
+  // one's logout metadata to build a front-channel logout URL for it.
+  clientsForSession(realmId: string, sessionId: string): Promise<ClientLogoutTarget[]>;
   now(): Date;
+}
+
+function hasFrontChannelLogoutUri(
+  target: ClientLogoutTarget,
+): target is ClientLogoutTarget & { frontchannelLogoutUri: string } {
+  return target.frontchannelLogoutUri !== null;
+}
+
+// Built for either branch that is about to render a page rather than
+// redirect — a redirect leaves the browser before any iframe on it could
+// load, so there is nothing here for that branch to use.
+async function frontChannelLogoutUrls(
+  deps: LogoutUsecaseDeps,
+  realmId: string,
+  issuer: string,
+  sessionId: string,
+): Promise<readonly string[]> {
+  const targets = await deps.clientsForSession(realmId, sessionId);
+  const urls = targets
+    .filter(hasFrontChannelLogoutUri)
+    .map((target) =>
+      frontChannelLogoutUrl(
+        target.frontchannelLogoutUri,
+        issuer,
+        sessionId,
+        target.frontchannelLogoutSessionRequired,
+      ),
+    );
+  return urls.filter((url): url is string => url !== null);
 }
 
 async function registeredUris(
@@ -111,6 +184,23 @@ async function registeredUris(
   return deps.postLogoutRedirectUris(realmId, clientId);
 }
 
+// decideLogout decides over one session, while a browser may hold several.
+// A hint that names a `sid` identifies which one the End-User asked to end,
+// so it is matched against the resolved set first; mostRecentlyActive
+// (#/service/session-selection) is only the fallback for a hint that names
+// nothing usable, the same stand-in the reuse decision at /authorize makes.
+function selectLogoutSession(
+  sessions: readonly SessionRecord[],
+  hintSid: string | null,
+): SessionRecord | null {
+  const named = hintSid === null ? undefined : sessions.find((session) => session.id === hintSid);
+  return named ?? mostRecentlyActive(sessions);
+}
+
+function toLogoutSession(session: SessionRecord | null): LogoutSession | null {
+  return session === null ? null : { id: session.id, subjectId: session.subjectId };
+}
+
 // A `GET` (or unconfirmed `POST`) against the logout endpoint: the first
 // contact, before anything has been ended. Ends the session immediately
 // only when the hint already proves the End-User's intent (§2); otherwise
@@ -120,17 +210,33 @@ export async function handleLogoutRequest(
   deps: LogoutUsecaseDeps,
   realmName: string,
   issuer: string,
-  cookieValue: string | undefined,
+  header: string | undefined,
   params: LogoutRequestParams,
 ): Promise<LogoutOutcome> {
   const realm = await deps.findRealm(realmName);
   if (!realm?.enabled) return { kind: 'not_found' };
 
-  const session = await deps.resolveSession(realm, cookieValue);
+  const sessions = await deps.resolveSessions(
+    {
+      id: realm.id,
+      name: realmName,
+      ssoSessionIdleSeconds: realm.ssoSessionIdleSeconds,
+      ssoSessionMaxSeconds: realm.ssoSessionMaxSeconds,
+      rememberMeIdleSeconds: realm.rememberMeIdleSeconds,
+      rememberMeMaxSeconds: realm.rememberMeMaxSeconds,
+    },
+    header,
+  );
+  // AUDIENCE_UNCHECKED here does not mean this door leaves `aud`
+  // unexamined — §4 requires a disagreeing `client_id`/hint pair told apart
+  // from no usable hint at all, and `subjectOfIdTokenHint` returns `null`
+  // for every failure alike, so a mismatch refused inside verification
+  // would be indistinguishable from an absent hint. `disagreeing`, below,
+  // makes that comparison where the caller can still see which case it is.
   const hint =
     params.idTokenHint === null
       ? null
-      : await subjectOfIdTokenHint(deps, realm.id, issuer, params.idTokenHint);
+      : await subjectOfIdTokenHint(deps, realm.id, issuer, params.idTokenHint, AUDIENCE_UNCHECKED);
   const registered = await registeredUris(deps, realm.id, params.clientId);
 
   // §2: "When both `client_id` and `id_token_hint` are present, the OP MUST
@@ -141,10 +247,12 @@ export async function handleLogoutRequest(
   const disagreeing =
     params.clientId !== null && hint !== null && !hint.audiences.includes(params.clientId);
   const requested = disagreeing ? null : params.postLogoutRedirectUri;
+  const hintSid = disagreeing ? null : (hint?.sid ?? null);
+  const session = toLogoutSession(selectLogoutSession(sessions, hintSid));
 
   const decision = decideLogout({
     hintSubject: disagreeing ? null : (hint?.subject ?? null),
-    hintSid: disagreeing ? null : (hint?.sid ?? null),
+    hintSid,
     session,
     requested,
     registered,
@@ -164,27 +272,42 @@ export async function handleLogoutRequest(
   // matched redirect with nothing to end (see its own comment) — there is
   // no session row to touch.
   if (session !== null) {
-    await deps.endSession(realm.id, session.id, deps.now());
+    await deps.endSession(realm.id, session.id, session.subjectId, deps.now(), issuer);
   }
 
   if (decision.kind === 'end') {
+    const frontChannel =
+      session !== null && decision.redirectTo === null
+        ? await frontChannelLogoutUrls(deps, realm.id, issuer, session.id)
+        : [];
     return {
       kind: 'end',
       redirectTo: decision.redirectTo,
       state: params.state,
       sessionEnded: session !== null,
+      frontChannelLogoutUrls: frontChannel,
     };
   }
-  return { kind: 'render', error: decision.error, state: params.state };
+  // decideRedirect only refuses inside decideLogout's already-matched-
+  // session branch (see the comment above), but the type still admits
+  // `null` here.
+  const refusedFrontChannel =
+    session !== null ? await frontChannelLogoutUrls(deps, realm.id, issuer, session.id) : [];
+  return {
+    kind: 'render',
+    error: decision.error,
+    state: params.state,
+    frontChannelLogoutUrls: refusedFrontChannel,
+  };
 }
 
 export interface LogoutConfirmationParams {
   // The value the confirmation form's hidden field carried — a
-  // double-submit cookie check, not a single-use token: it *is* the
-  // session cookie's own value, echoed back and compared against what the
-  // cookie itself still resolves to. Only a browser holding that
-  // HttpOnly cookie can supply a match, which is what stops a forged
-  // cross-site POST from ending it.
+  // double-submit cookie check, not a single-use token: it *is* one of the
+  // session cookies' own values, echoed back and checked for membership in
+  // the set the cookies themselves still resolve to. Only a browser
+  // holding an HttpOnly cookie can name a member, which is what stops a
+  // forged cross-site POST from ending it.
   confirmedSessionId: string;
   clientId: string | null;
   postLogoutRedirectUri: string | null;
@@ -198,16 +321,29 @@ export interface LogoutConfirmationParams {
 export async function handleLogoutConfirmation(
   deps: LogoutUsecaseDeps,
   realmName: string,
-  cookieValue: string | undefined,
+  issuer: string,
+  header: string | undefined,
   params: LogoutConfirmationParams,
 ): Promise<LogoutOutcome> {
   const realm = await deps.findRealm(realmName);
   if (!realm?.enabled) return { kind: 'not_found' };
 
-  const session = await deps.resolveSession(realm, cookieValue);
-  if (session?.id !== params.confirmedSessionId) {
+  const sessions = await deps.resolveSessions(
+    {
+      id: realm.id,
+      name: realmName,
+      ssoSessionIdleSeconds: realm.ssoSessionIdleSeconds,
+      ssoSessionMaxSeconds: realm.ssoSessionMaxSeconds,
+      rememberMeIdleSeconds: realm.rememberMeIdleSeconds,
+      rememberMeMaxSeconds: realm.rememberMeMaxSeconds,
+    },
+    header,
+  );
+  const confirmed = sessions.find((candidate) => candidate.id === params.confirmedSessionId);
+  if (confirmed === undefined) {
     return { kind: 'unauthenticated' };
   }
+  const session: LogoutSession = { id: confirmed.id, subjectId: confirmed.subjectId };
 
   const registered = await registeredUris(deps, realm.id, params.clientId);
   // Forcing sid to the session's own id trivially satisfies decideLogout's
@@ -221,18 +357,29 @@ export async function handleLogoutConfirmation(
     registered,
   });
 
-  await deps.endSession(realm.id, session.id, deps.now());
+  await deps.endSession(realm.id, session.id, session.subjectId, deps.now(), issuer);
 
   if (decision.kind === 'end') {
+    const frontChannel =
+      decision.redirectTo === null
+        ? await frontChannelLogoutUrls(deps, realm.id, issuer, session.id)
+        : [];
     return {
       kind: 'end',
       redirectTo: decision.redirectTo,
       state: params.state,
       sessionEnded: true,
+      frontChannelLogoutUrls: frontChannel,
     };
   }
   if (decision.kind === 'render') {
-    return { kind: 'render', error: decision.error, state: params.state };
+    const refusedFrontChannel = await frontChannelLogoutUrls(deps, realm.id, issuer, session.id);
+    return {
+      kind: 'render',
+      error: decision.error,
+      state: params.state,
+      frontChannelLogoutUrls: refusedFrontChannel,
+    };
   }
   throw new Error('unreachable: decideLogout asked to confirm a hint forced to match');
 }

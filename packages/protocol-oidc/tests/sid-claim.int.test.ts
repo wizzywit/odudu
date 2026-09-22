@@ -17,6 +17,7 @@ import formbody from '@fastify/formbody';
 import Fastify, { type FastifyInstance, type LightMyRequestResponse } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { oidcRoutes } from '#/index';
+import { NO_CLIENT_KEY_FETCHER } from '#/repository/client-keys';
 import { UNLIMITED_CLIENT_SECRET_LIMITER } from '#/service/client-secret-throttle';
 import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
 
@@ -113,9 +114,14 @@ function authorizeUrl(realmName: string, scope = 'openid'): string {
   return `/realms/${realmName}/protocol/openid-connect/auth?${params.toString()}`;
 }
 
+// Two cookies travel on a successful login now (session-cookie.ts, the one
+// authority): the ephemeral list and the persistent one. This walks the
+// browser's SSO session, never the remembered one, which stays empty until
+// a login can ask to be remembered.
 function setCookieValue(res: LightMyRequestResponse): string | undefined {
   const raw = res.headers['set-cookie'];
-  return typeof raw === 'string' ? raw.split(';')[0] : undefined;
+  const values = raw === undefined ? [] : Array.isArray(raw) ? raw : [raw];
+  return values.find((value) => !value.includes('-persistent='))?.split(';')[0];
 }
 
 function locationHeader(res: LightMyRequestResponse): string {
@@ -240,6 +246,7 @@ beforeAll(async () => {
       ownerDatabase: owner,
       kek: KEK,
       clientSecretLimiter: UNLIMITED_CLIENT_SECRET_LIMITER,
+      clientKeySet: NO_CLIENT_KEY_FETCHER,
     }),
   );
   await http.ready();

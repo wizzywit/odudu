@@ -67,6 +67,31 @@ function possibleMessages(): Set<string> {
   return messages;
 }
 
+// The pages that render a violation list, read from the views that render
+// them: a `<li>` anywhere else in the document — a consent screen's scopes,
+// say — is not a policy message and is not this check's business.
+const VIOLATION_PAGE_VIEWS = [
+  'packages/account/src/view/registration-html.ts',
+  'packages/account/src/view/reset-html.ts',
+];
+
+function violationPageHeadings(): Set<string> {
+  const headings = new Set<string>();
+  for (const view of VIOLATION_PAGE_VIEWS) {
+    const source = readFileSync(path.join(REPO_ROOT, view), 'utf8');
+    for (const match of source.matchAll(/<h1>(?<title>[^<]+)<\/h1>/gu)) {
+      if (match.groups?.title !== undefined) headings.add(match.groups.title);
+    }
+  }
+  if (headings.size === 0) {
+    throw new Error(
+      `${VIOLATION_PAGE_VIEWS.join(', ')} no longer render an <h1>; ` +
+        'point this check at where those pages went.',
+    );
+  }
+  return headings;
+}
+
 describe('the password-policy violation messages in docs/request-paths.md are ones the policy actually produces', () => {
   it('matches every <li> violation line to a real message', () => {
     const document = loadDocument(GUIDE);
@@ -75,9 +100,15 @@ describe('the password-policy violation messages in docs/request-paths.md are on
     // list this document shows inside a transcript is the recovery codes,
     // whose items are `<code>`-wrapped values rather than sentences; they
     // have their own check in recovery-codes.test.ts.
-    const shown = document.lines
-      .map((line, index) => ({ text: line.trim(), lineNumber: index + 1 }))
-      .filter(({ text }) => /^<li>(?!<code>).*<\/li>$/u.test(text));
+    const headings = violationPageHeadings();
+    let underViolationHeading = false;
+    const shown = document.lines.flatMap((line, index) => {
+      const text = line.trim();
+      const heading = /^<h1>(?<title>.*)<\/h1>$/u.exec(text)?.groups?.title;
+      if (heading !== undefined) underViolationHeading = headings.has(heading);
+      if (!underViolationHeading) return [];
+      return /^<li>(?!<code>).*<\/li>$/u.test(text) ? [{ text, lineNumber: index + 1 }] : [];
+    });
 
     if (shown.length === 0) {
       throw new Error(

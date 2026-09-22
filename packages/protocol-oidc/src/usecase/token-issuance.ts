@@ -1,14 +1,16 @@
-import { sessionRepository } from '@odudu/authn-flows';
-import { signJwt, signingKeyRepository, type SigningKeyRecord } from '@odudu/crypto';
+import { sessionRepository, type SessionLifespans } from '@odudu/authn-flows';
+import {
+  signJwt,
+  signingKeyRepository,
+  verifyJwtAgainstJwkSet,
+  type SigningKeyRecord,
+} from '@odudu/crypto';
 import { withRealm, type DatabaseHandle, type RealmScopedDatabase } from '@odudu/db';
 import { subjectRepository } from '@odudu/domain-identity';
-import {
-  clientRepository,
-  clientScopeRepository,
-  verifyClientSecret,
-  type ClientRecord,
-} from '@odudu/domain-realm';
+import { clientRepository, clientScopeRepository, type ClientRecord } from '@odudu/domain-realm';
 import { type ClaimMapperRegistry, type Clock, newId } from '@odudu/kernel';
+import { assertionJtiRepository } from '#/repository/assertion-jti';
+import { type ClientKeySet } from '#/repository/client-keys';
 import { clientOidcConfigRepository, type ClientOidcConfig } from '#/repository/client-oidc-config';
 import { authorizationCodeRepository } from '#/repository/codes';
 import { tokenGrantRepository, type TokenGrantRecord } from '#/repository/grants';
@@ -18,56 +20,84 @@ import { rotateRefreshToken } from '#/usecase/refresh-rotation';
 import { acrFor, amrFor } from '#/service/acr';
 import { hashAuthorizationCode } from '#/service/authorization-code';
 import { evaluateAuthorizationCodeGrant } from '#/service/authorization-code-grant';
-import { type ClaimContext } from '#/service/claims';
+import { parseClientAssertion, type AssertionOutcome } from '#/service/client-assertion';
+import { type ClaimContext, narrowToRequestedClaims } from '#/service/claims';
 import { evaluateClientCredentialsGrant } from '#/service/client-credentials-grant';
-import {
-  clientSecretLimiterKey,
-  isPasswordAuthMethod,
-  type ClientSecretLimiter,
-} from '#/service/client-secret-throttle';
 import {
   invalidClient,
   invalidGrant,
   invalidRequest,
   invalidScope,
-  TokenError,
-  TokenRateLimited,
+  invalidTarget,
   unauthorizedClient,
   unsupportedGrantType,
 } from '#/service/errors';
 import { evaluateRefreshGrant, generateRefreshToken, hashRefreshToken } from '#/service/refresh';
+import { parseResource } from '#/service/resource-indicator';
 import { resolveScope } from '#/service/scope';
 import { narrowByScopeMappings } from '#/service/scope-mapping';
 import { withRegisteredClaimsWinning } from '#/service/token-claims';
+import { tlsClientAuthSubjectMatches, tlsClientSubject } from '#/service/tls-client-auth';
+import {
+  authenticateClient,
+  parseBasicAuth,
+  readOptionalField,
+  WWW_AUTHENTICATE,
+  type ClientAuthenticationDeps,
+} from '#/usecase/client-authentication';
 
-export interface TokenIssuanceDeps {
+// Re-exported so the view layer can name it without reaching into
+// repository directly (dependency-cruiser's no-view-to-repository rule) —
+// view/routes/token.ts is the one caller.
+export type { ClientKeySet } from '#/repository/client-keys';
+
+export interface TokenIssuanceDeps extends ClientAuthenticationDeps {
   // Used only to run a step in its own, independently committed
   // transaction: the enclosing `tx` this call runs in is always rolled
   // back once it throws, and both the authorization_code grant's
   // replay-revocation and the refresh_token grant's rotation are exactly
   // the kind of side effect that must survive that rollback.
   database: DatabaseHandle;
-  realmId: string;
   issuer: string;
   kek: Uint8Array;
   clock: Clock;
-  // The realm's own idle window — the same one /authorize's resolveSession
-  // checks a session cookie against — so a session-bound refresh dies
-  // exactly when the session it is bound to would (refresh-rotation.ts).
-  idleSeconds: number;
-  verifyPassword: (hash: string, secret: string) => Promise<boolean>;
-  // ADR 0023's client half: a per-`client_id` budget on failed
-  // client_secret_basic/client_secret_post attempts, consulted by
-  // `authenticateClient` and by nothing else. The concrete instance wraps
-  // `apps/server/src/throttle.ts`'s `slidingWindow`; protocol-oidc only
-  // ever sees the shape.
-  clientSecretLimiter: ClientSecretLimiter;
+  // The realm's own lifespan pair — the same one /authorize's
+  // resolveSessions checks a browser's sessions against — so a
+  // session-bound refresh dies exactly when the session it is bound to
+  // would, ordinary or remembered alike (refresh-rotation.ts).
+  lifespans: SessionLifespans;
   // Shared with /userinfo: the ID token's claims beyond the envelope
   // (`iss`/`aud`/`iat`/`exp`/`nonce`/`auth_time`) come from the same
   // registry, so a claim present in one can never be missing from the
   // other for the same subject and scope.
   claimMappers: ClaimMapperRegistry<ClaimContext>;
   loadClaimContext(realmId: string, subjectId: string): Promise<ClaimContext>;
+  // RFC 7523 §2.2's fetcher for a client's jwks_uri — the dereference
+  // `usecase/client-registration.ts` deliberately never performs (P3a
+  // reverted that). private_key_jwt authentication is the one caller.
+  // No safe default: a caller with no opinion says so explicitly with
+  // `NO_CLIENT_KEY_FETCHER` (`#/repository/client-keys.ts`) rather than
+  // this package silently choosing on its behalf — the same reasoning as
+  // `clientSecretLimiter` above.
+  clientKeySet: ClientKeySet;
+  // Where a private_key_jwt refusal's real cause goes — the caller sees
+  // one invalid_client whatever it was; see
+  // authenticatePrivateKeyJwt below.
+  logger: AssertionLogger;
+  // Gates tls_client_auth exactly the way it already gates Fastify's own
+  // `X-Forwarded-*` trust (apps/server/src/app.ts) — the proxy-supplied
+  // certificate-subject header is exactly as forgeable as those, so it is
+  // read only when an operator has said something in front of this
+  // process controls it. See authenticateTlsClientAuth below.
+  trustProxy: boolean;
+  // `ODUDU_TLS_CLIENT_CERT_HEADER` — no deployment's reverse proxy agrees
+  // on a name for this (nginx, Envoy, Apache and HAProxy each use a
+  // different one), so it is never a constant here.
+  tlsClientCertHeader: string;
+}
+
+export interface AssertionLogger {
+  warn(details: Record<string, unknown>, message: string): void;
 }
 
 export interface TokenResponse {
@@ -93,17 +123,20 @@ type StructuredRequest =
       redirectUri: string;
       clientId: string | undefined;
       codeVerifier: string;
+      resource: string | string[] | undefined;
     }
   | {
       grantType: 'refresh_token';
       refreshToken: string;
       clientId: string | undefined;
       scope: string;
+      resource: string | string[] | undefined;
     }
   | {
       grantType: 'client_credentials';
       clientId: string | undefined;
       scope: string;
+      resource: string | string[] | undefined;
     };
 
 function readField(body: Record<string, string | string[] | undefined>, key: string): string {
@@ -111,18 +144,20 @@ function readField(body: Record<string, string | string[] | undefined>, key: str
   return typeof value === 'string' ? value : '';
 }
 
-// RFC 6749 §3.2: a parameter sent with an empty value is treated as if it
-// had been omitted. `readField`'s callers get that for free by testing the
-// result for length zero; here the absence has to be made explicit, because
-// the caller cannot see the difference — `client_secret=` counted as a
-// second authentication method being presented, refusing a request that
-// succeeded without the parameter at all.
-function readOptionalField(
+// RFC 8707 §2's whole rule is "reject two values", so `resource` cannot be
+// folded down to one string the way `readField` folds every other
+// parameter — the same reason /authorize's own `resourceParam`
+// (usecase/authorization-request.ts) reads it off the raw query instead of
+// the normalized params. `body` already carries this shape, so there is no
+// raw query to read here; only the empty-value and repeat-collapsing rules
+// need restating.
+function readResourceField(
   body: Record<string, string | string[] | undefined>,
-  key: string,
-): string | undefined {
-  const value = body[key];
-  return typeof value === 'string' && value.length > 0 ? value : undefined;
+): string | string[] | undefined {
+  const raw = body.resource;
+  const sent = Array.isArray(raw) ? raw : raw === undefined ? [] : [raw];
+  const present = sent.filter((entry) => entry !== '');
+  return present.length > 1 ? present : present[0];
 }
 
 function parseStructure(body: Record<string, string | string[] | undefined>): StructuredRequest {
@@ -139,6 +174,7 @@ function parseStructure(body: Record<string, string | string[] | undefined>): St
       redirectUri,
       clientId: readOptionalField(body, 'client_id'),
       codeVerifier: readField(body, 'code_verifier'),
+      resource: readResourceField(body),
     };
   }
 
@@ -150,6 +186,7 @@ function parseStructure(body: Record<string, string | string[] | undefined>): St
       refreshToken,
       clientId: readOptionalField(body, 'client_id'),
       scope: readField(body, 'scope'),
+      resource: readResourceField(body),
     };
   }
 
@@ -158,138 +195,11 @@ function parseStructure(body: Record<string, string | string[] | undefined>): St
       grantType,
       clientId: readOptionalField(body, 'client_id'),
       scope: readField(body, 'scope'),
+      resource: readResourceField(body),
     };
   }
 
   throw unsupportedGrantType();
-}
-
-interface BasicCredentials {
-  clientId: string;
-  secret: string;
-}
-
-const WWW_AUTHENTICATE = 'Basic realm="token"';
-
-// RFC 6749 §2.3.1 encodes each half with
-// `application/x-www-form-urlencoded` before joining them, so decoding is
-// what lets a secret containing `:` — the separator itself — or `%` survive
-// the round trip. `decodeURIComponent` raises `URIError` on a sequence like
-// `%` or `%zz`, and such bytes are not a form-urlencoding at all: they hold
-// no client identifier and no secret to recover. Falling back to them
-// undecoded, as some servers do for clients that never encoded, would leave
-// one registered secret with two accepted spellings on the wire.
-function decodeBasicCredentials(payload: string): BasicCredentials | undefined {
-  const decoded = Buffer.from(payload, 'base64').toString('utf8');
-  const separator = decoded.indexOf(':');
-  if (separator === -1) return undefined;
-  try {
-    return {
-      clientId: decodeURIComponent(decoded.slice(0, separator)),
-      secret: decodeURIComponent(decoded.slice(separator + 1)),
-    };
-  } catch {
-    return undefined;
-  }
-}
-
-// RFC 6749 §2.3.1: `Authorization: Basic base64(client_id:client_secret)`.
-// A header naming another scheme presents no client credential — a bearer
-// token here is not client authentication — and is left to the body. A
-// header that names `Basic` and cannot be read is a failed presentation of
-// `client_secret_basic`, and fails as one rather than being dropped so the
-// body can be tried instead: a client cannot escape §2.3's
-// one-method-per-request rule, or a wrong secret, by corrupting its header.
-function parseBasicAuth(header: string | undefined): BasicCredentials | undefined {
-  if (header === undefined) return undefined;
-  const match = /^Basic(?:\s+(.*))?$/i.exec(header);
-  if (match === null) return undefined;
-
-  const credentials = decodeBasicCredentials(match[1] ?? '');
-  if (credentials === undefined) throw invalidClient(WWW_AUTHENTICATE);
-  return credentials;
-}
-
-// Stage 2: client authentication. Every failure here — unknown client_id,
-// disabled client, wrong secret, a public client presenting a secret, the
-// method the client is not configured for, or two methods at once — reports
-// the same `invalid_client` (401, WWW-Authenticate: Basic), never which,
-// and (ADR 0023's amendment) is metered identically against the same
-// per-`client_id` budget. A healthy client never reaches that budget:
-// `verifyClientCredentials` returns its result untouched on success, so
-// only the `throw` path below ever calls `check`.
-async function authenticateClient(
-  tx: RealmScopedDatabase,
-  deps: TokenIssuanceDeps,
-  basic: BasicCredentials | undefined,
-  bodyClientId: string | undefined,
-  bodyClientSecret: string | undefined,
-): Promise<{ client: ClientRecord; config: ClientOidcConfig }> {
-  if (basic !== undefined && bodyClientSecret !== undefined) throw invalidClient(WWW_AUTHENTICATE);
-
-  const oauthClientId = basic?.clientId ?? bodyClientId;
-  if (oauthClientId === undefined) throw invalidClient(WWW_AUTHENTICATE);
-
-  // What this request is attempting, from how the credential arrived —
-  // never the client's registered method, which an unknown client_id has
-  // none of. Basic and a body secret are §2.3.1's two password methods by
-  // construction; there is no third presentation /token accepts today.
-  const attemptedMethod =
-    basic !== undefined
-      ? 'client_secret_basic'
-      : bodyClientSecret !== undefined
-        ? 'client_secret_post'
-        : undefined;
-
-  try {
-    return await verifyClientCredentials(tx, deps, oauthClientId, basic, bodyClientSecret);
-  } catch (err) {
-    if (
-      err instanceof TokenError &&
-      attemptedMethod !== undefined &&
-      isPasswordAuthMethod(attemptedMethod)
-    ) {
-      const decision = deps.clientSecretLimiter.check(
-        clientSecretLimiterKey(deps.realmId, oauthClientId),
-      );
-      if (!decision.allowed) throw new TokenRateLimited(decision.retryAfterSeconds);
-    }
-    throw err;
-  }
-}
-
-async function verifyClientCredentials(
-  tx: RealmScopedDatabase,
-  deps: TokenIssuanceDeps,
-  oauthClientId: string,
-  basic: BasicCredentials | undefined,
-  bodyClientSecret: string | undefined,
-): Promise<{ client: ClientRecord; config: ClientOidcConfig }> {
-  const client = await clientRepository(tx).byClientId(oauthClientId);
-  if (client === null) throw invalidClient(WWW_AUTHENTICATE);
-
-  const config = await clientOidcConfigRepository(tx).byClientId(client.id);
-  if (config === null) throw invalidClient(WWW_AUTHENTICATE);
-
-  let presented: string | null;
-  if (basic !== undefined) {
-    if (config.tokenEndpointAuthMethod !== 'client_secret_basic') {
-      throw invalidClient(WWW_AUTHENTICATE);
-    }
-    presented = basic.secret;
-  } else if (bodyClientSecret !== undefined) {
-    if (config.tokenEndpointAuthMethod !== 'client_secret_post') {
-      throw invalidClient(WWW_AUTHENTICATE);
-    }
-    presented = bodyClientSecret;
-  } else {
-    presented = null;
-  }
-
-  const ok = await verifyClientSecret(client, presented, deps.verifyPassword);
-  if (!ok) throw invalidClient(WWW_AUTHENTICATE);
-
-  return { client, config };
 }
 
 // Stage 3: the authorization_code grant. `consume` is one atomic UPDATE, so
@@ -332,13 +242,29 @@ async function redeemAuthorizationCode(
   return record;
 }
 
+// RFC 8707 §2 at /token: what a request's `resource` narrows `base` to.
+// `base` is the ceiling each caller already resolved — a code's stored
+// `resource`, a rotated grant's `audience`, or a codeless
+// client_credentials grant's `audiences` — never `config.audiences` once
+// one of those has narrowed it. No `resource` keeps `base` verbatim, empty
+// or not (an empty `base` is a resolved empty audience, not "unset"). A
+// named `resource` must be found in `base`; empty is one way not to be.
+function resolveAudience(
+  base: readonly string[],
+  requestedResource: string | string[] | undefined,
+): string[] {
+  const outcome = parseResource(requestedResource, base);
+  if (outcome.kind === 'invalid_target') throw invalidTarget();
+  return [...outcome.audience];
+}
+
 // Stages 5-6, shared by every grant: sign an access token bound to `sub`
-// and `scope`. The audience is the issuer itself, plus whatever resource
-// APIs this realm's client is configured for — the issuer is never
-// dropped in favor of a configured audience, since a token that cannot be
-// used at the issuer's own endpoints (e.g. /userinfo) would be unusable
-// for anything OIDC promised the client (RFC 9068 §4: a resource server,
-// including this one, must find itself in `aud` or refuse the token).
+// and `scope`. The audience is the issuer itself, plus the audience the
+// caller has already resolved via `resolveAudience` — the issuer is never
+// dropped in favor of it, since a token that cannot be used at the
+// issuer's own endpoints (e.g. /userinfo) would be unusable for anything
+// OIDC promised the client (RFC 9068 §4: a resource server, including
+// this one, must find itself in `aud` or refuse the token).
 async function mintAccessToken(
   deps: TokenIssuanceDeps,
   input: {
@@ -346,6 +272,10 @@ async function mintAccessToken(
     clientId: string;
     scope: string[];
     config: ClientOidcConfig;
+    // The resolved audience this token is bound to, before the issuer is
+    // appended — see `resolveAudience`, which every caller runs before
+    // reaching here.
+    audience: readonly string[];
     // Resolved once per issuance by the caller — see loadClaimContext's own
     // doc comment for why a claim mapper never resolves this itself.
     claimContext: ClaimContext;
@@ -359,15 +289,22 @@ async function mintAccessToken(
     accessTokenScope: string[];
     // The grant's session, if it has one — see the `sid` comment below.
     sessionId: string | null;
+    // The id the caller has already generated for the grant this token
+    // belongs to — see the `grant_id` comment below.
+    grantId: string;
+    // The `claims` parameter's `userinfo` member, embedded so `/userinfo`
+    // (no code left to consult) can narrow the same way. Absent for a
+    // grant not minted from a code.
+    requestedUserinfoClaims?: readonly string[];
   },
   key: SigningKeyRecord,
   now: Date,
 ): Promise<{ accessToken: string; audience: string[]; iat: number; exp: number }> {
   const iat = Math.floor(now.getTime() / 1000);
   const exp = iat + input.config.accessTokenTtlSeconds;
-  const audience = input.config.audiences.includes(deps.issuer)
-    ? input.config.audiences
-    : [...input.config.audiences, deps.issuer];
+  const audience = input.audience.includes(deps.issuer)
+    ? [...input.audience]
+    : [...input.audience, deps.issuer];
 
   const narrowedContext: ClaimContext = {
     ...input.claimContext,
@@ -393,6 +330,15 @@ async function mintAccessToken(
     // introspection, and later a logout addressed to a client, can both
     // name the session; absent on an offline grant, which has none.
     ...(input.sessionId !== null ? { sid: input.sessionId } : {}),
+    // Odudu-private: the token_grants row's own id, generated by the
+    // caller before this function runs. `jti` cannot stand in for it — a
+    // fresh id per token, independent of the grant a refresh reuses — and
+    // no combination of the other claims identifies one row uniquely. See
+    // docs/protocols/rfc9068.md's reading note on private claims.
+    grant_id: input.grantId,
+    ...(input.requestedUserinfoClaims !== undefined && input.requestedUserinfoClaims.length > 0
+      ? { requested_userinfo_claims: input.requestedUserinfoClaims }
+      : {}),
   });
   const accessToken = await signJwt(accessTokenClaims, { key, kek: deps.kek, typ: 'at+jwt' });
   return { accessToken, audience, iat, exp };
@@ -434,6 +380,17 @@ async function issueAuthorizationCodeTokens(
   // sees an ordinary session-bound grant.
   const sessionId = scope.includes('offline_access') ? null : code.sessionId;
 
+  // RFC 8707 §2: `/token` may narrow what `/authorize` already resolved
+  // onto the code, and may never widen it — `code.resource` is the
+  // ceiling, not `config.audiences`, which a client's registered list
+  // could since have grown past what this code was ever authorized for.
+  const resolvedAudience = resolveAudience(code.resource, request.resource);
+
+  // Generated ahead of the grant row itself so the same id can be signed
+  // into the access token below and passed to `create` afterward — the
+  // `grant_id` comment on `mintAccessToken` explains why.
+  const grantId = newId();
+
   const { accessToken, audience, iat, exp } = await mintAccessToken(
     deps,
     {
@@ -441,11 +398,14 @@ async function issueAuthorizationCodeTokens(
       clientId: client.clientId,
       scope,
       config,
+      audience: resolvedAudience,
       claimContext,
       reachableRoleIds: reachable,
       fullScopeAllowed: client.fullScopeAllowed,
       accessTokenScope,
       sessionId,
+      grantId,
+      requestedUserinfoClaims: Object.keys(code.claims.userinfo),
     },
     key,
     now,
@@ -471,7 +431,14 @@ async function issueAuthorizationCodeTokens(
     // arrives through it too, so there is exactly one place that decides
     // what a subject's `openid`/`profile`/`email` scopes produce, not one
     // for the ID token and a second for /userinfo.
-    const userClaims = await deps.claimMappers.assemble(idTokenScope, narrowedContext);
+    const assembledClaims = await deps.claimMappers.assemble(idTokenScope, narrowedContext);
+    // `auth_time` never comes from `standardClaimMappers` (the envelope
+    // sets it below), so it is excluded here — otherwise a `max_age`-only
+    // request, naming nothing else, would narrow away every other claim.
+    const requestedIdTokenClaims = Object.keys(code.claims.idToken).filter(
+      (name) => name !== 'auth_time',
+    );
+    const userClaims = narrowToRequestedClaims(assembledClaims, requestedIdTokenClaims);
     // What actually authenticated this login, read off the session the
     // code's own login established (or, for a reused session, established
     // originally) — `amr`/`acr` state what ran, never what the subject
@@ -495,7 +462,12 @@ async function issueAuthorizationCodeTokens(
       aud: client.clientId,
       iat,
       exp,
-      auth_time: Math.floor(code.authTime.getTime() / 1000),
+      // OIDC Core §2/§15.1: required for an Essential Claim or a `max_age`
+      // request, both folded into this one flag at /authorize — otherwise
+      // left out (authorization-request.ts's `claims` synthesis).
+      ...(code.claims.idToken.auth_time?.essential === true
+        ? { auth_time: Math.floor(code.authTime.getTime() / 1000) }
+        : {}),
       ...(code.nonce !== null ? { nonce: code.nonce } : {}),
       ...(sessionId !== null ? { sid: sessionId } : {}),
       ...(amr.length > 0 ? { amr } : {}),
@@ -509,6 +481,7 @@ async function issueAuthorizationCodeTokens(
   // session travels from the code, which is where the login that minted it
   // recorded one, unless the resolved scope asked for an offline grant.
   const grant = await tokenGrantRepository(tx).create({
+    id: grantId,
     realmId: deps.realmId,
     clientId: client.id,
     subjectId: code.subjectId,
@@ -572,6 +545,13 @@ async function evaluatePresentedRefreshToken(
   if (!decision.ok) {
     throw decision.reason === 'scope_widened' ? invalidScope() : invalidGrant();
   }
+
+  // Repeated after rotation (line ~680 below), where it stays the
+  // authoritative check — the comment above `issueRefreshTokens` explains
+  // why that copy cannot move earlier. This one only needs to be right
+  // often enough to refuse before the presented token is consumed; a
+  // revocation landing between the two reads is still caught there.
+  resolveAudience(grant.audience, request.resource);
 }
 
 // Stage 3 (and everything after) for `refresh_token`. Rotation runs in its
@@ -599,7 +579,7 @@ async function issueRefreshTokens(
       presentedHash,
       now,
       config.refreshTokenTtlSeconds,
-      deps.idleSeconds,
+      deps.lifespans,
     ),
   );
   if (outcome.kind !== 'rotated') throw invalidGrant();
@@ -618,6 +598,16 @@ async function issueRefreshTokens(
   const claimContext = await deps.loadClaimContext(deps.realmId, grant.subjectId);
   const reachable = await reachableRoleIds(tx, scope);
   const accessTokenScope = await accessTokenEligibleScope(tx, scope);
+
+  // RFC 8707 §2: a refresh derives its ceiling from the grant it rotated,
+  // never from `config.audiences` — the grant is what a `resource` at the
+  // original redemption already may have narrowed, and re-deriving from
+  // the client's current configured list would let a wider audience back
+  // in on the next refresh after that redemption deliberately narrowed it.
+  // A `resource` on this request may narrow `grant.audience` further, and,
+  // by the same rule as the authorization_code path, may never widen it.
+  const resolvedAudience = resolveAudience(grant.audience, request.resource);
+
   const { accessToken } = await mintAccessToken(
     deps,
     {
@@ -625,11 +615,16 @@ async function issueRefreshTokens(
       clientId: client.clientId,
       scope,
       config,
+      audience: resolvedAudience,
       claimContext,
       reachableRoleIds: reachable,
       fullScopeAllowed: client.fullScopeAllowed,
       accessTokenScope,
       sessionId: grant.sessionId,
+      // The rotated grant's own id — stable across every refresh, unlike
+      // `jti`, which is why revocation and introspection can still name
+      // this grant after several rotations.
+      grantId: grant.id,
     },
     key,
     now,
@@ -675,6 +670,19 @@ async function issueClientCredentialsTokens(
   const claimContext = await deps.loadClaimContext(deps.realmId, serviceSubjectId);
   const reachable = await reachableRoleIds(tx, scope);
   const accessTokenScope = await accessTokenEligibleScope(tx, scope);
+
+  // RFC 8707 §2: no code and no prior grant here, so the ceiling `resource`
+  // may narrow is the client's own configured `audiences` — the same base
+  // /authorize's `parseResource` resolves a code's `resource` from when the
+  // request carries none.
+  const resolvedAudience = resolveAudience(config.audiences, request.resource);
+
+  // Every client_credentials issuance for this client shares `subjectId`
+  // (its stable `service_subject_id`) and `sessionId` (always null) — this
+  // id is the only thing that ever distinguishes one such grant from
+  // another. See the `grant_id` comment on `mintAccessToken`.
+  const grantId = newId();
+
   const { accessToken, audience } = await mintAccessToken(
     deps,
     {
@@ -682,6 +690,7 @@ async function issueClientCredentialsTokens(
       clientId: client.clientId,
       scope,
       config,
+      audience: resolvedAudience,
       claimContext,
       reachableRoleIds: reachable,
       fullScopeAllowed: client.fullScopeAllowed,
@@ -689,12 +698,14 @@ async function issueClientCredentialsTokens(
       // client_credentials authenticates no End-User, so there is no
       // session for a grant here to carry.
       sessionId: null,
+      grantId,
     },
     key,
     now,
   );
 
   await tokenGrantRepository(tx).create({
+    id: grantId,
     realmId: deps.realmId,
     clientId: client.id,
     subjectId: serviceSubjectId,
@@ -710,21 +721,246 @@ async function issueClientCredentialsTokens(
   };
 }
 
+// `claimedClientId`, not `clientId`: nothing here is verified until a
+// signature check passes, so the log names it for what it is — the
+// assertion's own say-so — the same distinction `client-assertion.ts` draws
+// in `AssertionOutcome`'s own doc comment. Shared by `authenticatePrivateKeyJwt`
+// below and `issueTokens`'s own both-methods-presented refusal, so that
+// refusal — upstream of the eight branches below and not one of them — logs
+// a reason too, instead of being the one assertion refusal that doesn't.
+function refusePrivateKeyJwt(
+  deps: TokenIssuanceDeps,
+  reason: string,
+  claimedClientId?: string,
+): never {
+  deps.logger.warn(
+    { reason, ...(claimedClientId !== undefined ? { claimedClientId } : {}) },
+    'private_key_jwt authentication refused',
+  );
+  throw invalidClient(WWW_AUTHENTICATE);
+}
+
+// RFC 7523 §2.2 / OIDC Core §9's `private_key_jwt`. Every failure reports
+// the same `invalid_client`, verification runs before the jti is ever
+// claimed, and the timing residual that leaves open is stated rather than
+// hidden — see docs/protocols/rfc7523.md's reading notes for why each of
+// those holds. The specific reason goes to `deps.logger`; only an operator
+// reads it.
+async function authenticatePrivateKeyJwt(
+  tx: RealmScopedDatabase,
+  deps: TokenIssuanceDeps,
+  outcome: Exclude<AssertionOutcome, { kind: 'unsupported' }>,
+  tokenEndpoint: string,
+): Promise<{ client: ClientRecord; config: ClientOidcConfig }> {
+  const fail = (reason: string): never =>
+    refusePrivateKeyJwt(deps, reason, outcome.kind === 'ok' ? outcome.claimedClientId : undefined);
+
+  if (outcome.kind !== 'ok') return fail('assertion failed structural validation');
+
+  const client = await clientRepository(tx).byClientId(outcome.claimedClientId);
+  if (client === null) return fail('unknown client');
+  // `authenticateClient`'s password path gets this only incidentally, inside
+  // `verifyClientSecret` (packages/domain-realm/src/service/client.ts) —
+  // this path calls no such function, so a disabled client must be refused
+  // here explicitly or the operator's one revocation lever does nothing to
+  // a private_key_jwt client.
+  if (!client.enabled) return fail('client is disabled');
+
+  const config = await clientOidcConfigRepository(tx).byClientId(client.id);
+  if (config?.tokenEndpointAuthMethod !== 'private_key_jwt') {
+    return fail('client is not registered for private_key_jwt');
+  }
+
+  let jwks: unknown;
+  if (config.jwks !== null) {
+    jwks = config.jwks;
+  } else if (config.jwksUri !== null) {
+    try {
+      jwks = await deps.clientKeySet.fetch(config.jwksUri, deps.realmId);
+    } catch (err) {
+      return fail(err instanceof Error ? err.message : 'jwks_uri fetch failed');
+    }
+  } else {
+    return fail('client publishes no keys');
+  }
+
+  const verified = await verifyJwtAgainstJwkSet(outcome.assertion, jwks, {
+    issuer: outcome.claimedClientId,
+    audience: tokenEndpoint,
+    now: deps.clock.now(),
+  });
+  if (!verified) return fail('assertion signature did not verify');
+
+  const claimed = await assertionJtiRepository(deps.database).claim(
+    deps.realmId,
+    outcome.claimedClientId,
+    outcome.jti,
+    outcome.expiresAt,
+  );
+  if (!claimed) return fail('jti already spent');
+
+  return { client, config };
+}
+
+// Shares `refusePrivateKeyJwt`'s shape (same log message pattern, same
+// single invalid_client) rather than its function: the two methods refuse
+// for entirely different reasons, and folding them into one function would
+// make a future change to one method's logging silently change the
+// other's too.
+function refuseTlsClientAuth(
+  deps: TokenIssuanceDeps,
+  reason: string,
+  claimedClientId?: string,
+): never {
+  deps.logger.warn(
+    { reason, ...(claimedClientId !== undefined ? { claimedClientId } : {}) },
+    'tls_client_auth authentication refused',
+  );
+  throw invalidClient(WWW_AUTHENTICATE);
+}
+
+// RFC 8705 §2.1's PKI mutual-TLS method, proxy-terminated
+// (`tls-client-auth.ts` has the deployment shape). Seven preconditions,
+// each checked here explicitly rather than assumed: a client_id was
+// presented, the client is known, enabled, confidential, registered for
+// this method, a registered subject exists, and it matches. `enabled` in
+// particular is checked directly rather than inherited from a callee —
+// nothing here may assume a property of the client that some other
+// function established.
+async function authenticateTlsClientAuth(
+  tx: RealmScopedDatabase,
+  deps: TokenIssuanceDeps,
+  certificateSubject: string,
+  claimedClientId: string | undefined,
+): Promise<{ client: ClientRecord; config: ClientOidcConfig }> {
+  if (claimedClientId === undefined) {
+    return refuseTlsClientAuth(deps, 'no client_id presented alongside the certificate');
+  }
+
+  const client = await clientRepository(tx).byClientId(claimedClientId);
+  if (client === null) return refuseTlsClientAuth(deps, 'unknown client', claimedClientId);
+  if (!client.enabled) return refuseTlsClientAuth(deps, 'client is disabled', claimedClientId);
+  // tls_client_auth is a confidential-client method — checked again here
+  // rather than trusted from registration. The only confidentiality check
+  // on this path: `evaluateClientCredentialsGrant` also refuses a public
+  // client, but only for the client_credentials grant it belongs to —
+  // authorization_code and refresh_token have no such downstream check, so
+  // for those grants this is the only thing standing between a public
+  // client and a token.
+  if (client.type !== 'confidential') {
+    return refuseTlsClientAuth(deps, 'client is not confidential', claimedClientId);
+  }
+
+  const config = await clientOidcConfigRepository(tx).byClientId(client.id);
+  // client-metadata.ts's `parseClientMetadata` stores
+  // `tlsClientAuthSubjectDn` only for a client registered `tls_client_auth`
+  // — a client of any other method always reaches this with `config`
+  // either absent or carrying a null subject, so skipping this check
+  // would still 401 there, at the null-subject check below, just with a
+  // less specific reason logged. True only because that storage rule
+  // holds; checked directly anyway, not trusted.
+  if (config?.tokenEndpointAuthMethod !== 'tls_client_auth') {
+    return refuseTlsClientAuth(
+      deps,
+      'client is not registered for tls_client_auth',
+      claimedClientId,
+    );
+  }
+  // Unreachable only because the check immediately above already pinned
+  // `tokenEndpointAuthMethod === 'tls_client_auth'`, and
+  // client_oidc_config_tls_client_auth_needs_subject_dn (migration
+  // 0055_client_tls_client_auth_subject_dn.sql) guarantees a non-null
+  // subject for exactly that method — the constraint alone does not, since
+  // it says nothing about any other method. Checked anyway, the same
+  // defense the client_credentials path takes on `serviceSubjectId` above.
+  if (config.tlsClientAuthSubjectDn === null) {
+    return refuseTlsClientAuth(
+      deps,
+      'client has no registered certificate subject',
+      claimedClientId,
+    );
+  }
+  if (!tlsClientAuthSubjectMatches(certificateSubject, config.tlsClientAuthSubjectDn)) {
+    return refuseTlsClientAuth(
+      deps,
+      'certificate subject does not match the registered value',
+      claimedClientId,
+    );
+  }
+
+  return { client, config };
+}
+
 export async function issueTokens(
   tx: RealmScopedDatabase,
   deps: TokenIssuanceDeps,
   body: Record<string, string | string[] | undefined>,
   authorizationHeader: string | undefined,
+  // The full header set, read for exactly one thing: the proxy-supplied
+  // certificate subject `tlsClientSubject` reads off it below. Kept
+  // separate from `authorizationHeader` because that one is a single named
+  // header every caller already threads through, where this is the raw
+  // request the tls_client_auth path alone needs.
+  headers: Record<string, string | string[] | undefined>,
+  // Node's own `IncomingMessage.rawHeaders` — flat, duplicate-preserving
+  // name/value pairs. The only consumer is `tlsClientSubject`'s duplicate
+  // check; `headers` above cannot answer that question (see
+  // tls-client-auth.ts's own comment on why).
+  rawHeaders: readonly string[],
 ): Promise<TokenResponse> {
   const request = parseStructure(body);
+  // OIDC Core §9: the audience a private_key_jwt assertion must name is
+  // this realm's own token endpoint — the same string discovery.ts's
+  // token_endpoint publishes (contracts/discovery.ts).
+  const tokenEndpoint = `${deps.issuer}/protocol/openid-connect/token`;
+  const assertionOutcome = parseClientAssertion(body, deps.clock.now(), {
+    audience: tokenEndpoint,
+  });
   const basic = parseBasicAuth(authorizationHeader);
-  const { client, config } = await authenticateClient(
-    tx,
-    deps,
-    basic,
-    request.clientId,
-    readOptionalField(body, 'client_secret'),
-  );
+  const bodyClientSecret = readOptionalField(body, 'client_secret');
+  const certResult = tlsClientSubject(headers, rawHeaders, {
+    trustProxy: deps.trustProxy,
+    headerName: deps.tlsClientCertHeader,
+  });
+  // A duplicated header is refused outright, the same way every other
+  // tls_client_auth refusal is — never silently downgraded to "no
+  // certificate presented", which would leave an operator debugging a
+  // completely unexplained 401.
+  if (certResult.kind === 'duplicated') {
+    refuseTlsClientAuth(deps, 'certificate subject header presented more than once');
+  }
+  const certificateSubject = certResult.kind === 'present' ? certResult.subject : null;
+
+  // RFC 7521 §4.2 / RFC 6749 §2.3: a client presents exactly one
+  // authentication mechanism per request. `authenticateClient` already
+  // refuses Basic alongside a body secret; this extends the same
+  // one-method rule to the certificate subject, refused before any path
+  // runs rather than silently preferring one and dropping the other.
+  if (
+    certificateSubject !== null &&
+    (assertionOutcome.kind !== 'unsupported' ||
+      basic !== undefined ||
+      bodyClientSecret !== undefined)
+  ) {
+    refuseTlsClientAuth(deps, 'certificate presented alongside another authentication method');
+  }
+  if (
+    assertionOutcome.kind !== 'unsupported' &&
+    (basic !== undefined || bodyClientSecret !== undefined)
+  ) {
+    refusePrivateKeyJwt(
+      deps,
+      'assertion presented alongside a client_secret',
+      assertionOutcome.kind === 'ok' ? assertionOutcome.claimedClientId : undefined,
+    );
+  }
+
+  const { client, config } =
+    assertionOutcome.kind !== 'unsupported'
+      ? await authenticatePrivateKeyJwt(tx, deps, assertionOutcome, tokenEndpoint)
+      : certificateSubject !== null
+        ? await authenticateTlsClientAuth(tx, deps, certificateSubject, request.clientId)
+        : await authenticateClient(tx, deps, basic, request.clientId, bodyClientSecret);
 
   if (request.grantType === 'authorization_code') {
     return issueAuthorizationCodeTokens(tx, deps, request, client, config);
