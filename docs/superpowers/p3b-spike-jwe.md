@@ -90,7 +90,31 @@ password-derived, not applicable to a client's asymmetric key material).
 candidates by `use` (accepts `enc` or absent), `alg` (accepts a match to the
 client's registered `userinfo_encrypted_response_alg` or absent), `key_ops`
 (accepts an encryption-shaped op or absent), and `kty` compatibility with
-the registered `alg` family (`RSA` for `RSA-*`, `EC`/`OKP` for `ECDH-ES*`).
+the registered `alg` family — **amended in review**: `kty` alone is not
+enough on the OKP path. `RSA` for `RSA-*`; for `ECDH-ES*`, `EC` **or**
+`OKP` with `crv: 'X25519'` specifically — never OKP on `kty` alone, because
+`Ed25519` is also an OKP curve and is a signing key, not an ECDH one, so a
+bare Ed25519 JWK (no `use`, no `alg` — the common case this same spike
+established below) would otherwise pass the filter as an encryption
+candidate. `verified: node jwe-spike5.throwaway.mjs`, generating an Ed25519
+key pair and an X25519 key pair and running each through both forms of the
+rule:
+
+```
+Ed25519 public JWK: {"crv":"Ed25519","x":"fpfrquWIWL_ZZKeygba7oITG9WTXMPjTJuN7HUNvgP0","kty":"OKP"}
+Admitted by kty-only rule: true
+Admitted by kty+crv rule: false
+X25519 public JWK: {"crv":"X25519","x":"5DUTWyyEfc4qydrHtn_bZjA-NfmLuMkb5oCAEIZ1bwI","kty":"OKP"}
+Admitted by kty+crv rule: true
+ECDH-ES encryption to the Ed25519 key FAILED: ECDH with the provided key is not allowed or not supported by your javascript runtime
+```
+
+The `kty`-only rule admits the Ed25519 key as a candidate; the amended rule
+does not; a real `jose` `ECDH-ES` encryption attempt against the Ed25519 key
+fails, confirming it was never a usable candidate. No other curve is
+supported on the OKP path — `X25519` is the only one JWA assigns to
+`ECDH-ES*`, so the filter names it rather than excluding `Ed25519` by a
+denylist of one.
 
 `verified: node jwe-spike4.throwaway.mjs`:
 
@@ -180,9 +204,11 @@ explicitly) says why this is discouraged rather than banned:
 **A bare key (no `use`, no `alg`) is the common case, not an edge case —
 it's what `jose.exportJWK` produces by default** (`verified: node
 jwe-spike3.throwaway.mjs` — `exported JWK members: [ 'kty', 'n', 'e' ]`, no
-`use`, no `alg`). Practically this means: `kty` compatibility with the
-client's registered `alg` (RSA key ⇒ `RSA-*` algs; EC/OKP key ⇒ `ECDH-ES*`
-algs) is the _only_ filter that always applies, because `use` and `alg` on
+`use`, no `alg`). Practically this means: `kty`-and-`crv` compatibility with
+the client's registered `alg` (RSA key ⇒ `RSA-*` algs; EC key or OKP key
+with `crv: 'X25519'` ⇒ `ECDH-ES*` algs — an OKP key with `crv: 'Ed25519'`
+matches neither, per the amendment above) is the _only_ filter that always
+applies, because `use` and `alg` on
 the key itself are both frequently absent. The selection rule from Step 2
 already treats a missing `use`/`alg` as "does not exclude this candidate,"
 which is why the bare-key row above selects successfully when it is the

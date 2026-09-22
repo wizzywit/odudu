@@ -24,6 +24,13 @@ export interface DiscoveryDocument {
   readonly response_modes_supported: readonly string[];
   readonly subject_types_supported: readonly string[];
   readonly id_token_signing_alg_values_supported: readonly string[];
+  // OIDC Discovery §3: the JWS `alg` values a client may register in
+  // `userinfo_signed_response_alg`. Fixed for the same reason
+  // `id_token_signing_alg_values_supported` above is — every realm signs
+  // with the same two algorithms a signing key can carry
+  // (`signing_keys_alg_check`) — plus `none`, which Discovery §3 names as
+  // an admissible value in its own right.
+  readonly userinfo_signing_alg_values_supported: readonly string[];
   readonly code_challenge_methods_supported: readonly string[];
   readonly grant_types_supported: readonly string[];
   readonly token_endpoint_auth_methods_supported: readonly string[];
@@ -101,6 +108,7 @@ export function discoveryDocument(opts: DiscoveryDocumentOptions): DiscoveryDocu
     response_modes_supported: ['query'],
     subject_types_supported: ['public'],
     id_token_signing_alg_values_supported: ['RS256', 'ES256'],
+    userinfo_signing_alg_values_supported: ['RS256', 'ES256', 'none'],
     code_challenge_methods_supported: ['S256'],
     grant_types_supported: ['authorization_code', 'refresh_token', 'client_credentials'],
     // Built from the same constant `authenticateClient` validates against

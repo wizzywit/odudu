@@ -354,12 +354,12 @@ describe('[ODUDU-CLIENT-REGISTRATION-CAP-01] the realm client cap', () => {
 });
 
 describe('[ODUDU-CLIENT-REGISTRATION-SEAM-01] the P3a/P3b seam', () => {
-  // The seam that remains: `backchannel_logout_uri` is stored and now read
-  // (discovery advertises the capability unconditionally, and ending a
-  // session delivers to it — docs/protocols/oidc-backchannel.md), but
-  // `userinfo_signed_response_alg` is stored with nothing downstream of it
-  // yet, and discovery advertises no capability for it.
-  it('stores userinfo metadata without advertising it, unlike backchannel_logout_uri', async () => {
+  // The seam that remains: `backchannel_logout_uri` and
+  // `userinfo_signed_response_alg` are both stored, read, and advertised in
+  // discovery now (`/userinfo` signs — see `userinfo-signed.int.test.ts`).
+  // `userinfo_encrypted_response_alg`/`_enc` are still stored with nothing
+  // downstream of them, and discovery advertises no capability for either.
+  it('advertises signing but not encryption, and stores both', async () => {
     const realmName = `seam-${newId()}`;
     const realmId = newId();
     await withRealm(app.db, realmId, (tx) =>
@@ -382,12 +382,24 @@ describe('[ODUDU-CLIENT-REGISTRATION-SEAM-01] the P3a/P3b seam', () => {
 
     const doc = await discovery(realmName);
     expect(doc.backchannel_logout_supported).toBe(true);
-    for (const key of [
-      'userinfo_signing_alg_values_supported',
-      'userinfo_encryption_alg_values_supported',
-    ]) {
-      expect(doc).not.toHaveProperty(key);
-    }
+    expect(doc.userinfo_signing_alg_values_supported).toEqual(['RS256', 'ES256', 'none']);
+    expect(doc).not.toHaveProperty('userinfo_encryption_alg_values_supported');
+  });
+
+  it('refuses a userinfo_signed_response_alg this server cannot produce', async () => {
+    const realmName = `seam-refuse-${newId()}`;
+    const realmId = newId();
+    await withRealm(app.db, realmId, (tx) =>
+      seedRealm(tx, realmId, { name: realmName, policy: 'open' }),
+    );
+
+    const res = await http.inject({
+      method: 'POST',
+      url: URL_FOR(realmName),
+      payload: { ...MINIMAL, userinfo_signed_response_alg: 'ES512' },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json<{ error: string }>().error).toBe('invalid_client_metadata');
   });
 });
 

@@ -1,5 +1,5 @@
 import { encodeUnsecuredJwt, signJwt, verifyJwt, type SigningKeyRecord } from '@odudu/crypto';
-import { type ClaimMapperRegistry } from '@odudu/kernel';
+import { OduduError, type ClaimMapperRegistry } from '@odudu/kernel';
 import { presentedBearerToken } from '#/service/bearer-token';
 import { type ClaimContext } from '#/service/claims';
 import { narrowByScopeMappings } from '#/service/scope-mapping';
@@ -34,6 +34,12 @@ export interface UserinfoDeps {
 
 export type UserinfoBody =
   { kind: 'json'; claims: Record<string, unknown> } | { kind: 'jwt'; token: string };
+
+// RFC 8725 §3.11's explicit typing, applied where confusing this response
+// with an ID Token hint would matter: `subjectOfIdTokenHint` demands
+// `TYP_ABSENT` (see docs/protocols/oidc-core.md's reading note for why "no
+// registered typ exists" is not the same claim as "emit none").
+export const USERINFO_JWT_TYP = 'userinfo+jwt';
 
 export type UserinfoOutcome =
   | { kind: 'not_found' }
@@ -136,11 +142,18 @@ async function signedBody(
     return { kind: 'jwt', token: encodeUnsecuredJwt(signedClaims) };
   }
 
-  // No `typ`: an ID Token carries none (OIDC Core §2), and nothing in JWA
-  // or OIDC Core assigns a UserInfo JWT one either — RFC 9068's `at+jwt` is
-  // specific to OAuth access tokens (§2.1), and reusing it here would claim
-  // this token is one.
+  // `alg` is `RS256` or `ES256` here — `client-metadata.ts` admits nothing
+  // else. The realm has exactly one active key and no per-algorithm
+  // selection (controller note 4), so a registration this key cannot honour
+  // is refused now rather than silently answered with the key's own
+  // algorithm under the client's chosen name.
   const key = await deps.activeSigningKey(realmId);
-  const token = await signJwt(signedClaims, { key, kek: deps.kek });
+  if (key.alg !== alg) {
+    throw new OduduError(
+      'userinfo_signing_key_mismatch',
+      `client registered userinfo_signed_response_alg ${alg}, but the realm's active signing key is ${key.alg}`,
+    );
+  }
+  const token = await signJwt(signedClaims, { key, kek: deps.kek, typ: USERINFO_JWT_TYP });
   return { kind: 'jwt', token };
 }

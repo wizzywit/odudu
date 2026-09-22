@@ -3,10 +3,16 @@ import { SignJWT, importJWK } from 'jose';
 import { generateSigningKey } from '#/service/generate';
 import { unwrapPrivateJwk } from '#/service/kek';
 import { type SigningKeyRecord } from '#/schema/signing-keys';
-import { AUDIENCE_UNCHECKED, TYP_UNCHECKED, signJwt, verifyJwt } from '#/service/sign';
+import { AUDIENCE_UNCHECKED, TYP_ABSENT, TYP_UNCHECKED, signJwt, verifyJwt } from '#/service/sign';
 
 const KEK = new Uint8Array(32).fill(9);
 const ISS = 'https://issuer.example';
+
+// `verifyJwt` requires `exp` (RFC 7519 §4.1.4); every payload below that
+// expects to verify carries one, the same way a real caller's would.
+function futureExp(): { exp: number } {
+  return { exp: Math.floor(Date.now() / 1000) + 300 };
+}
 
 async function makeKey(alg: 'RS256' | 'ES256'): Promise<SigningKeyRecord> {
   const generated = await generateSigningKey(alg, KEK);
@@ -141,7 +147,7 @@ describe('[JOSE-4.1.4-01] kid is an exact-match lookup, never a path', () => {
 
 describe('[JOSE-4.1.1-02] the header alg is only honoured when the verifier understands it', () => {
   it('verifies a token whose header alg is the one the key record pins', async () => {
-    const token = await signJwt({ sub: 's', iss: ISS }, { key, kek: KEK });
+    const token = await signJwt({ sub: 's', iss: ISS, ...futureExp() }, { key, kek: KEK });
     const headerText = Buffer.from(token.split('.')[0] ?? '', 'base64url').toString('utf8');
     expect(headerText).toContain(`"alg":"${key.alg}"`);
     await expect(
@@ -281,7 +287,10 @@ describe('[RFC9068-2.1-01] token type confusion', () => {
   });
 
   it('accepts an access token whose typ matches what the caller requires', async () => {
-    const accessToken = await signJwt({ sub: 's', iss: ISS }, { key, kek: KEK, typ: 'at+jwt' });
+    const accessToken = await signJwt(
+      { sub: 's', iss: ISS, ...futureExp() },
+      { key, kek: KEK, typ: 'at+jwt' },
+    );
     await expect(
       verifyJwt(accessToken, { keys, issuer: ISS, audience: AUDIENCE_UNCHECKED, typ: 'at+jwt' }),
     ).resolves.toMatchObject({ sub: 's' });
@@ -305,7 +314,7 @@ describe('a typ the verifier refuses', () => {
   });
 
   it('accepts a token carrying no typ at all', async () => {
-    const idToken = await signJwt({ sub: 's', iss: ISS }, { key, kek: KEK });
+    const idToken = await signJwt({ sub: 's', iss: ISS, ...futureExp() }, { key, kek: KEK });
     await expect(
       verifyJwt(idToken, {
         keys,
@@ -317,7 +326,10 @@ describe('a typ the verifier refuses', () => {
   });
 
   it('accepts a token carrying some other typ', async () => {
-    const token = await signJwt({ sub: 's', iss: ISS }, { key, kek: KEK, typ: 'JWT' });
+    const token = await signJwt(
+      { sub: 's', iss: ISS, ...futureExp() },
+      { key, kek: KEK, typ: 'JWT' },
+    );
     await expect(
       verifyJwt(token, {
         keys,
@@ -344,5 +356,40 @@ describe('a typ the verifier refuses', () => {
       audience: AUDIENCE_UNCHECKED,
     };
     expect(omitted).not.toHaveProperty('typ');
+  });
+});
+
+// `{refused: 'at+jwt'}` only ever closes the one confusion already found —
+// a signed UserInfo response carrying `typ: 'userinfo+jwt'` would pass it
+// cleanly. `TYP_ABSENT` is the positive form: an ID Token reader that
+// accepts only the shape an ID Token actually has.
+describe('TYP_ABSENT: a reader that accepts only a typ-less token', () => {
+  it('accepts a token carrying no typ at all', async () => {
+    const idToken = await signJwt({ sub: 's', iss: ISS, ...futureExp() }, { key, kek: KEK });
+    await expect(
+      verifyJwt(idToken, { keys, issuer: ISS, audience: AUDIENCE_UNCHECKED, typ: TYP_ABSENT }),
+    ).resolves.toMatchObject({ sub: 's' });
+  });
+
+  it('rejects the one confusion a refused-value policy already caught', async () => {
+    const accessToken = await signJwt(
+      { sub: 's', iss: ISS, ...futureExp() },
+      { key, kek: KEK, typ: 'at+jwt' },
+    );
+    await expect(
+      verifyJwt(accessToken, { keys, issuer: ISS, audience: AUDIENCE_UNCHECKED, typ: TYP_ABSENT }),
+    ).rejects.toThrow(/typ/i);
+  });
+
+  // The confusion a `{refused: 'at+jwt'}` policy could not have caught: a
+  // differently-typed JWT this codebase mints for an unrelated purpose.
+  it('rejects a typed JWT that is not an access token either', async () => {
+    const token = await signJwt(
+      { sub: 's', iss: ISS, ...futureExp() },
+      { key, kek: KEK, typ: 'userinfo+jwt' },
+    );
+    await expect(
+      verifyJwt(token, { keys, issuer: ISS, audience: AUDIENCE_UNCHECKED, typ: TYP_ABSENT }),
+    ).rejects.toThrow(/typ/i);
   });
 });

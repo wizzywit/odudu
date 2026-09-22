@@ -521,12 +521,18 @@ registration response, and now read: discovery advertises
 `backchannel_logout_supported` and its front-channel twin for every realm
 (see [discovery](#1-discovery) above), and ending a session delivers to it
 (see [front-channel and back-channel logout](#front-channel-and-back-channel-logout)
-below). `userinfo_signed_response_alg` is stored and echoed the same way,
-and now read: a client that registers it gets a signed `/userinfo` response
-(`application/jwt`, carrying `iss` and `aud`, per OIDC Core §5.3.2 — see the
-reading note in `docs/protocols/oidc-core.md`). `userinfo_encrypted_response_alg`
-and `_enc`, and `userinfo_signing_alg_values_supported` in discovery, remain
-unread — still P3b's to build.
+below). `userinfo_signed_response_alg` is stored, echoed, narrowed at
+registration to `RS256`/`ES256`/`none`, and now read: a client that
+registers `RS256` or `ES256` gets a signed `/userinfo` response, and one
+that registers `none` gets a JWT `/userinfo` response that is not signed —
+an RFC 7519 §6 unsecured JWT (`alg: "none"`, no signature). Both are
+`application/jwt` and carry `iss` and `aud` (OIDC Core §5.3.2 for the
+"If signed" case; OIDC Registration §2 and Discovery §3 for why `none`
+still serializes as a JWT at all — see the reading note in
+`docs/protocols/oidc-core.md`, which the first version of this passage
+mis-cited). `userinfo_signing_alg_values_supported` is advertised in
+discovery. `userinfo_encrypted_response_alg` and `_enc` remain unread —
+still P3b's to build.
 
 A non-HTTP `redirect_uri` has to look like RFC 8252 §7.1's reverse-DNS
 custom scheme (ADR 0032): the scheme names at least one `.`, which is what
@@ -650,6 +656,7 @@ curl -sS http://localhost:3000/realms/demo/.well-known/openid-configuration
   "response_modes_supported": ["query"],
   "subject_types_supported": ["public"],
   "id_token_signing_alg_values_supported": ["RS256", "ES256"],
+  "userinfo_signing_alg_values_supported": ["RS256", "ES256", "none"],
   "code_challenge_methods_supported": ["S256"],
   "grant_types_supported": ["authorization_code", "refresh_token", "client_credentials"],
   "token_endpoint_auth_methods_supported": [
@@ -7013,17 +7020,17 @@ session lifecycle. A citation of either half here means that half.
 
 **`/userinfo`**
 
-- **No signed or encrypted UserInfo responses. JSON only.** Not a
-  conformance gap: OIDC Core §5.3.2 requires the claims to be "returned as
-  the members of a JSON object unless a signed or encrypted response was
-  requested during Client Registration". A client can now request one —
-  `userinfo_signed_response_alg`, `userinfo_encrypted_response_alg` and
+- **No encrypted UserInfo responses.** Signing is read now: a client
+  registering `userinfo_signed_response_alg` (`RS256`, `ES256`, or `none`,
+  narrowed at registration) gets a JWT `/userinfo` response —
+  `application/jwt`, carrying `iss` and `aud` — instead of JSON. Encryption
+  is the remaining half: `userinfo_encrypted_response_alg` and
   `userinfo_encrypted_response_enc` are registration metadata
   ([Dynamic client registration](#dynamic-client-registration)) and are
-  stored — but `/userinfo` reads none of the three yet and answers JSON
-  regardless of what a client registered. Delivering on what is already
-  stored is **P3b**, whose exit criterion names signed and encrypted
-  UserInfo responses for that reason.
+  stored, but `/userinfo` reads neither yet and never produces an encrypted
+  or nested (signed-then-encrypted) response. Delivering on what is already
+  stored is **P3b**, whose exit criterion names encrypted UserInfo responses
+  for that reason.
 - **No `claims` request parameter.** A decision: §5.5 says "Support for the
   `claims` parameter is OPTIONAL", and the two ID Token clauses that depend
   on it are deferred to **P3b**. P3a built the per-client machinery and

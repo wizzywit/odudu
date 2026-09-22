@@ -5,7 +5,7 @@ import {
   type RequiredAction,
   type SessionRecord,
 } from '@odudu/authn-flows';
-import { verifyJwt, type ExpectedAudience, type SigningKeyRecord } from '@odudu/crypto';
+import { verifyJwt, TYP_ABSENT, type ExpectedAudience, type SigningKeyRecord } from '@odudu/crypto';
 import { type ClientRecord } from '@odudu/domain-realm';
 import { isUuid } from '@odudu/kernel';
 import { type ClientOidcConfig } from '#/schema/client-oidc-config';
@@ -741,12 +741,12 @@ export async function subjectOfIdTokenHint(
       keys,
       issuer,
       audience,
-      // An ID Token has no `typ` of its own — OIDC Core §2 defines none and
-      // the ones /token issues carry none — so the honest demand is not
-      // "must be an ID Token" but "must not be an access token", which RFC
-      // 9068 §2.1's `at+jwt` names exactly. /userinfo makes the mirror image
-      // of this check of the token presented to it.
-      typ: { refused: 'at+jwt' },
+      // An ID Token has no `typ` of its own (OIDC Core §2), so a hint is
+      // read as one only when its header carries none at all —
+      // `{refused: 'at+jwt'}` once denylisted only the one confusion this
+      // server had already made once; `TYP_ABSENT` closes the shape rather
+      // than the instance (docs/protocols/oidc-core.md's reading note).
+      typ: TYP_ABSENT,
     });
     if (typeof payload.sub !== 'string' || payload.sub.length === 0) return null;
     return {

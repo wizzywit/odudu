@@ -13,6 +13,7 @@ export {
   encodeUnsecuredJwt,
   AUDIENCE_UNCHECKED,
   TYP_UNCHECKED,
+  TYP_ABSENT,
   type ExpectedAudience,
   type ExpectedTyp,
 } from '#/service/sign';

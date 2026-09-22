@@ -1,4 +1,4 @@
-import { generateSigningKey, signingKeys } from '@odudu/crypto';
+import { generateSigningKey, signingKeys, verifyJwtAgainstJwkSet } from '@odudu/crypto';
 import { hashPassword, subjectRepository, users } from '@odudu/domain-identity';
 import {
   createDatabase,
@@ -58,6 +58,7 @@ let realm: RealmSetup;
 let plainClient: Client;
 let signingClient: Client;
 let noneClient: Client;
+let mismatchClient: Client;
 
 function userinfoUrl(realmName: string): string {
   return `/realms/${realmName}/protocol/openid-connect/userinfo`;
@@ -254,6 +255,14 @@ beforeAll(async () => {
   plainClient = realm.client;
   signingClient = await registerClient('signing-client', 'RS256');
   noneClient = await registerClient('none-client', 'none');
+  // A permitted value (client-metadata.ts's own enum admits it) the
+  // realm's one active key — generated RS256 above — cannot honour. Written
+  // straight to the repository: the registration endpoint's own narrowing
+  // is asserted separately in client-registration.int.test.ts, and a realm
+  // can only ever hold one active key (`signing_keys_one_active`), so this
+  // is not a contrived shape — it is what a key rotation to a different
+  // algorithm leaves behind for a client that registered under the old one.
+  mismatchClient = await registerClient('mismatch-client', 'ES256');
 }, 120_000);
 
 afterAll(async () => {
@@ -283,13 +292,36 @@ describe('the UserInfo response format follows client registration', () => {
     expect(claims.aud).toBe(signingClient.clientId);
   });
 
-  // OIDC Core §2 gives an ID Token no `typ`; nothing in JWA or OIDC Core
-  // assigns a UserInfo JWT one either, so this pins the header to carry
-  // none rather than reusing RFC 9068's `at+jwt`, which names access tokens.
-  it('carries no typ header', async () => {
+  // RFC 8725 §3.11's explicit typing. Not "no typ" — a signed UserInfo
+  // response is indistinguishable from an ID Token without one, which is
+  // exactly what let it pass as an id_token_hint (see the Critical fixed in
+  // this round; the reading note in docs/protocols/oidc-core.md has the
+  // fuller account). `at+jwt` is refused too, since it names an access
+  // token, not this.
+  it('carries the userinfo+jwt typ header', async () => {
     const response = await userinfo(signingClient);
     const header = decodeHeader(response.rawPayload);
-    expect(header.typ).toBeUndefined();
+    expect(header.typ).toBe('userinfo+jwt');
+  });
+
+  it('verifies against the realm-published JWKS under a real kid', async () => {
+    const response = await userinfo(signingClient);
+    const header = decodeHeader(response.rawPayload);
+    expect(typeof header.kid).toBe('string');
+
+    const certsRes = await http.inject({
+      method: 'GET',
+      url: `/realms/${realm.realmName}/protocol/openid-connect/certs`,
+    });
+    expect(certsRes.statusCode).toBe(200);
+    const jwks: unknown = certsRes.json();
+
+    const verified = await verifyJwtAgainstJwkSet(response.body, jwks, {
+      issuer: realm.issuer,
+      audience: signingClient.clientId,
+      now: new Date(),
+    });
+    expect(verified).toBe(true);
   });
 
   it('carries the same claims the JSON response would have', async () => {
@@ -300,10 +332,12 @@ describe('the UserInfo response format follows client registration', () => {
     expect(signed.email).toBe(plain.email);
   });
 
-  // OIDC Core §5.3.2 admits `alg: "none"` for `userinfo_signed_response_alg`
-  // and still requires the JWT serialization — it is not the JSON case
-  // wearing three dots, so it gets its own assertions rather than reusing
-  // the JSON test's.
+  // Not OIDC Core §5.3.2 — it names neither `userinfo_signed_response_alg`
+  // nor `none`, and its `application/jwt`/`iss`/`aud` MUSTs are conditioned
+  // on "If signed", which an unsecured JWT is not. OIDC Registration §2
+  // makes the JWT serialization conditional only on the parameter being
+  // specified at all; OIDC Discovery §3 admits `none` as a value. Together
+  // they are why this is not the JSON case wearing three dots.
   it('answers application/jwt, unsigned, for a client that registered none', async () => {
     const response = await userinfo(noneClient);
     expect(response.statusCode).toBe(200);
@@ -315,5 +349,15 @@ describe('the UserInfo response format follows client registration', () => {
     expect(claims.iss).toBe(realm.issuer);
     expect(claims.aud).toBe(noneClient.clientId);
     expect(claims.sub).toBe(realm.subjectId);
+  });
+
+  // The narrowed enum (client-metadata.ts) only closes the registration
+  // side; a realm's active key can still not match a value that was valid
+  // when it was registered. Silently answering with the key's own algorithm
+  // under the client's chosen name is the defect this closes — refusing is
+  // the honest minimum (docs/protocols/oidc-core.md's reading note).
+  it('refuses to answer when the active key cannot produce the registered algorithm', async () => {
+    const response = await userinfo(mismatchClient);
+    expect(response.statusCode).toBe(500);
   });
 });

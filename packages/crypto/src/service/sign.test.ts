@@ -13,6 +13,16 @@ import {
 const KEK = new Uint8Array(32).fill(5);
 const ISS = 'https://issuer.example';
 
+function nowSeconds(): number {
+  return Math.floor(Date.now() / 1000);
+}
+
+// `verifyJwt` requires `exp` (RFC 7519 §4.1.4); every payload below that
+// expects to verify carries one, the same way a real caller's would.
+function futureExp(): { exp: number } {
+  return { exp: nowSeconds() + 300 };
+}
+
 async function makeKey(alg: 'RS256' | 'ES256'): Promise<SigningKeyRecord> {
   const generated = await generateSigningKey(alg, KEK);
   return {
@@ -31,7 +41,7 @@ async function makeKey(alg: 'RS256' | 'ES256'): Promise<SigningKeyRecord> {
 describe('signJwt / verifyJwt', () => {
   it('round-trips a payload signed with an RS256 key', async () => {
     const key = await makeKey('RS256');
-    const token = await signJwt({ sub: 'user-1', iss: ISS }, { key, kek: KEK });
+    const token = await signJwt({ sub: 'user-1', iss: ISS, ...futureExp() }, { key, kek: KEK });
     const payload = await verifyJwt(token, {
       keys: [key],
       issuer: ISS,
@@ -43,7 +53,7 @@ describe('signJwt / verifyJwt', () => {
 
   it('round-trips a payload signed with an ES256 key', async () => {
     const key = await makeKey('ES256');
-    const token = await signJwt({ sub: 'user-2', iss: ISS }, { key, kek: KEK });
+    const token = await signJwt({ sub: 'user-2', iss: ISS, ...futureExp() }, { key, kek: KEK });
     const payload = await verifyJwt(token, {
       keys: [key],
       issuer: ISS,
@@ -55,7 +65,10 @@ describe('signJwt / verifyJwt', () => {
 
   it('carries the requested typ header through to verification', async () => {
     const key = await makeKey('RS256');
-    const token = await signJwt({ sub: 'user-3', iss: ISS }, { key, kek: KEK, typ: 'at+jwt' });
+    const token = await signJwt(
+      { sub: 'user-3', iss: ISS, ...futureExp() },
+      { key, kek: KEK, typ: 'at+jwt' },
+    );
     const payload = await verifyJwt(token, {
       keys: [key],
       issuer: ISS,
@@ -67,7 +80,7 @@ describe('signJwt / verifyJwt', () => {
 
   it('rejects a token whose issuer does not match', async () => {
     const key = await makeKey('RS256');
-    const token = await signJwt({ sub: 'user-4', iss: ISS }, { key, kek: KEK });
+    const token = await signJwt({ sub: 'user-4', iss: ISS, ...futureExp() }, { key, kek: KEK });
     await expect(
       verifyJwt(token, {
         keys: [key],
@@ -75,13 +88,13 @@ describe('signJwt / verifyJwt', () => {
         audience: AUDIENCE_UNCHECKED,
         typ: TYP_UNCHECKED,
       }),
-    ).rejects.toThrow();
+    ).rejects.toThrow(/iss/i);
   });
 
   it('rejects an audience that is not present', async () => {
     const key = await makeKey('RS256');
     const token = await signJwt(
-      { sub: 'user-5', iss: ISS, aud: 'https://someone.example' },
+      { sub: 'user-5', iss: ISS, aud: 'https://someone.example', ...futureExp() },
       { key, kek: KEK },
     );
     await expect(
@@ -91,13 +104,29 @@ describe('signJwt / verifyJwt', () => {
         audience: 'https://api.example',
         typ: TYP_UNCHECKED,
       }),
-    ).rejects.toThrow();
+    ).rejects.toThrow(/aud/i);
+  });
+
+  it('rejects a token carrying no exp at all', async () => {
+    const key = await makeKey('RS256');
+    const token = await signJwt({ sub: 'user-4b', iss: ISS }, { key, kek: KEK });
+    await expect(
+      verifyJwt(token, {
+        keys: [key],
+        issuer: ISS,
+        audience: AUDIENCE_UNCHECKED,
+        typ: TYP_UNCHECKED,
+      }),
+    ).rejects.toThrow(/exp/i);
   });
 
   it('picks the matching key by kid out of several candidates', async () => {
     const first = await makeKey('RS256');
     const second = await makeKey('ES256');
-    const token = await signJwt({ sub: 'user-6', iss: ISS }, { key: second, kek: KEK });
+    const token = await signJwt(
+      { sub: 'user-6', iss: ISS, ...futureExp() },
+      { key: second, kek: KEK },
+    );
     const payload = await verifyJwt(token, {
       keys: [first, second],
       issuer: ISS,
@@ -210,7 +239,10 @@ describe('[JOSE-4.1-02] aud is matched against the principal processing the toke
 
   it('accepts a token whose single-valued aud names the processing principal', async () => {
     const key = await makeKey('RS256');
-    const token = await signJwt({ sub: 'u', iss: ISS, aud: API }, { key, kek: KEK });
+    const token = await signJwt(
+      { sub: 'u', iss: ISS, aud: API, ...futureExp() },
+      { key, kek: KEK },
+    );
     await expect(
       verifyJwt(token, { keys: [key], issuer: ISS, audience: API, typ: TYP_UNCHECKED }),
     ).resolves.toMatchObject({
@@ -220,7 +252,10 @@ describe('[JOSE-4.1-02] aud is matched against the principal processing the toke
 
   it('accepts a token whose multi-valued aud contains the processing principal', async () => {
     const key = await makeKey('RS256');
-    const token = await signJwt({ sub: 'u', iss: ISS, aud: [ISS, API] }, { key, kek: KEK });
+    const token = await signJwt(
+      { sub: 'u', iss: ISS, aud: [ISS, API], ...futureExp() },
+      { key, kek: KEK },
+    );
     await expect(
       verifyJwt(token, { keys: [key], issuer: ISS, audience: API, typ: TYP_UNCHECKED }),
     ).resolves.toMatchObject({
@@ -231,7 +266,7 @@ describe('[JOSE-4.1-02] aud is matched against the principal processing the toke
   it('rejects a token whose aud omits the processing principal', async () => {
     const key = await makeKey('RS256');
     const token = await signJwt(
-      { sub: 'u', iss: ISS, aud: ['https://other.example'] },
+      { sub: 'u', iss: ISS, aud: ['https://other.example'], ...futureExp() },
       { key, kek: KEK },
     );
     await expect(
@@ -256,7 +291,7 @@ describe('[JOSE-4.1-02] aud is matched against the principal processing the toke
   it('rejects an aud entry that merely has the principal as a prefix', async () => {
     const key = await makeKey('RS256');
     const token = await signJwt(
-      { sub: 'u', iss: ISS, aud: `${API}.evil.example` },
+      { sub: 'u', iss: ISS, aud: `${API}.evil.example`, ...futureExp() },
       { key, kek: KEK },
     );
     await expect(
@@ -266,10 +301,6 @@ describe('[JOSE-4.1-02] aud is matched against the principal processing the toke
 });
 
 describe('[JOSE-4.1-03] a token is not accepted at or after the time in exp', () => {
-  function nowSeconds(): number {
-    return Math.floor(Date.now() / 1000);
-  }
-
   it('accepts a token whose exp is still ahead', async () => {
     const key = await makeKey('RS256');
     const token = await signJwt({ sub: 'u', iss: ISS, exp: nowSeconds() + 300 }, { key, kek: KEK });

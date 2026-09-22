@@ -46,6 +46,16 @@ const AUTH_METHODS_PERMITTED = new Set([
   'tls_client_auth',
 ]);
 
+// signing_keys_alg_check (packages/db/drizzle/0003_signing_keys.sql):
+// `RS256` and `ES256` are the only algorithms this server ever generates a
+// signing key for, so they are the only ones it can honour. `none` is OIDC
+// Discovery §3's own value for an unsigned-but-JWT-serialized response
+// (`docs/protocols/oidc-core.md`'s reading note has the exact clauses). A
+// value outside this set used to be accepted and silently answered with
+// whichever algorithm the realm's active key happened to carry.
+export const USERINFO_SIGNING_ALGS_PERMITTED = ['RS256', 'ES256', 'none'] as const;
+const USERINFO_SIGNING_ALGS = new Set<string>(USERINFO_SIGNING_ALGS_PERMITTED);
+
 // RFC 7591 §2: the server assigns these, so a client stating one for itself
 // is refused rather than silently overridden — silent override is how a
 // client comes to believe it chose its own identity.
@@ -214,6 +224,14 @@ export function parseClientMetadata(
   const tlsClientAuthSubjectDn =
     tokenEndpointAuthMethod === 'tls_client_auth' ? providedSubjectDn : '';
 
+  const userinfoSignedResponseAlg = metadata.userinfo_signed_response_alg ?? null;
+  if (userinfoSignedResponseAlg !== null && !USERINFO_SIGNING_ALGS.has(userinfoSignedResponseAlg)) {
+    return invalid(
+      'invalid_client_metadata',
+      `userinfo_signed_response_alg must not be ${userinfoSignedResponseAlg}`,
+    );
+  }
+
   const redirectUris = metadata.redirect_uris ?? [];
   const badRedirectUri = redirectUris.find((uri) => !isValidRedirectUri(uri));
   if (badRedirectUri !== undefined) {
@@ -283,7 +301,7 @@ export function parseClientMetadata(
       backchannelLogoutUri: metadata.backchannel_logout_uri ?? null,
       backchannelLogoutSessionRequired: metadata.backchannel_logout_session_required ?? false,
       frontchannelLogoutSessionRequired: metadata.frontchannel_logout_session_required ?? false,
-      userinfoSignedResponseAlg: metadata.userinfo_signed_response_alg ?? null,
+      userinfoSignedResponseAlg,
       userinfoEncryptedResponseAlg: metadata.userinfo_encrypted_response_alg ?? null,
       userinfoEncryptedResponseEnc: metadata.userinfo_encrypted_response_enc ?? null,
       tlsClientAuthSubjectDn: tlsClientAuthSubjectDn.length > 0 ? tlsClientAuthSubjectDn : null,
