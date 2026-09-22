@@ -1,5 +1,17 @@
 import { TOKEN_ENDPOINT_AUTH_METHODS_SUPPORTED } from '#/token';
 
+// authenticateClient (packages/protocol-oidc/src/usecase/client-authentication.ts)
+// is what both /introspect and /revoke authenticate through, and it reads
+// only a Basic header or a body client_secret — never private_key_jwt or
+// tls_client_auth, so unlike the token endpoint's list this one does not
+// vary with ODUDU_TRUST_PROXY. RFC 8414 §2 defaults an omitted member to
+// ['client_secret_basic'] alone; both endpoints also accept
+// client_secret_post, which this makes discoverable.
+const INTROSPECTION_AND_REVOCATION_AUTH_METHODS_SUPPORTED = [
+  'client_secret_basic',
+  'client_secret_post',
+] as const;
+
 // Every `_endpoint` member is served unconditionally once a realm is
 // provisioned, including the three their own specifications make OPTIONAL:
 // `introspection_endpoint`, `revocation_endpoint` and
@@ -25,6 +37,8 @@ export interface DiscoveryDocument {
   readonly code_challenge_methods_supported: readonly string[];
   readonly grant_types_supported: readonly string[];
   readonly token_endpoint_auth_methods_supported: readonly string[];
+  readonly introspection_endpoint_auth_methods_supported: readonly string[];
+  readonly revocation_endpoint_auth_methods_supported: readonly string[];
   readonly authorization_response_iss_parameter_supported: boolean;
   readonly claims_parameter_supported: boolean;
   // Fixed true: a client opts into logout per client, not per realm, and
@@ -96,6 +110,9 @@ export function discoveryDocument(opts: DiscoveryDocumentOptions): DiscoveryDocu
       opts.tlsClientAuthEnabled === true
         ? TOKEN_ENDPOINT_AUTH_METHODS_SUPPORTED
         : TOKEN_ENDPOINT_AUTH_METHODS_SUPPORTED.filter((method) => method !== 'tls_client_auth'),
+    introspection_endpoint_auth_methods_supported:
+      INTROSPECTION_AND_REVOCATION_AUTH_METHODS_SUPPORTED,
+    revocation_endpoint_auth_methods_supported: INTROSPECTION_AND_REVOCATION_AUTH_METHODS_SUPPORTED,
     authorization_response_iss_parameter_supported: true,
     claims_parameter_supported: true,
     backchannel_logout_supported: true,
