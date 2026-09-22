@@ -8,7 +8,7 @@ import {
 } from '@odudu/crypto';
 import { type ClaimMapperRegistry } from '@odudu/kernel';
 import { presentedBearerToken } from '#/service/bearer-token';
-import { type ClaimContext } from '#/service/claims';
+import { type ClaimContext, narrowToRequestedClaims } from '#/service/claims';
 import { narrowByScopeMappings } from '#/service/scope-mapping';
 import { type ClientKeySet } from '#/repository/client-keys';
 import { type RealmLookup } from '#/repository/realm-lookup';
@@ -111,6 +111,15 @@ function scopesOf(scopeClaim: unknown): string[] {
     : [];
 }
 
+// `requested_userinfo_claims` — the `claims` request parameter's `userinfo`
+// member, as claim names, embedded on the access token by token issuance
+// (`mintAccessToken`'s own comment). Absent for a token this request
+// carried none for, which reads the same as an empty array: no narrowing.
+function requestedClaimsOf(claim: unknown): string[] {
+  if (!Array.isArray(claim)) return [];
+  return claim.filter((value): value is string => typeof value === 'string');
+}
+
 // Validation order, matching RFC 9068 §4 and RFC 6750 §3.1: signature and
 // `kid` → `typ: at+jwt`, which is what stops an ID Token signed by the same
 // key being presented here → `iss` → `exp` → `aud` contains this issuer
@@ -165,7 +174,14 @@ export async function resolveUserinfo(
     ...ctx,
     roles: narrowByScopeMappings(ctx.roles, reachableRoleIds, fullScopeAllowed),
   };
-  const claims = await deps.claimMappers.assemble(scope, narrowedCtx);
+  const assembled = await deps.claimMappers.assemble(scope, narrowedCtx);
+  // `sub` is kept regardless of what was requested — OIDC Core §5.3.2's own
+  // response, not a claim `narrowToRequestedClaims` was ever meant to cut.
+  const requested = requestedClaimsOf(payload.requested_userinfo_claims);
+  const claims = narrowToRequestedClaims(
+    assembled,
+    requested.length === 0 ? [] : [...requested, 'sub'],
+  );
   const signed = await signedBody(deps, realm.id, issuer, clientId, claims);
   if (signed.kind === 'mismatch') {
     return {

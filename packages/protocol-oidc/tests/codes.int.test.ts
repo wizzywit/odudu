@@ -84,6 +84,7 @@ async function issueCode(tx: RealmScopedDatabase, realmId: string): Promise<stri
     authTime: new Date(),
     expiresAt: new Date(Date.now() + 60_000),
     resource: [],
+    claims: { idToken: {}, userinfo: {} },
   });
   return codeHash;
 }
@@ -118,6 +119,7 @@ describe('authorizationCodeRepository', () => {
           authTime: new Date(),
           expiresAt: new Date(Date.now() + 60_000),
           resource: [],
+          claims: { idToken: {}, userinfo: {} },
         }),
       ),
     ).rejects.toThrow();

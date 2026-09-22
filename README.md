@@ -690,7 +690,7 @@ curl -sS http://localhost:3000/realms/demo/.well-known/openid-configuration
 }
 ```
 
-(Five of the twenty-five members it returns; the other twenty, and what a
+(Five of the twenty-six members it returns; the other twenty-one, and what a
 client does with each, are in the guide.)
 
 And this signs ada in and comes back with tokens — the whole

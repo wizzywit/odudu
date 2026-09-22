@@ -80,7 +80,9 @@ cheap for P1 to support unconditionally: Odudu's session/authn-flow layer
 already knows when a user last actively authenticated, so emitting
 `auth_time` whenever it's available is a straightforward addition, and
 doing so now means the two deferred triggers have something to attach to
-when P2a, P2b and P3b land.
+when P2a, P2b and P3b land. P3b is what closes both triggers: `auth_time`
+is no longer unconditional — see "§15.1's `auth_time`, answered on
+request" below for the mechanism.
 
 ### ID Token validation (§3.1.3.7): the client's ordered checks
 
@@ -420,9 +422,10 @@ what P3a's registration data then feeds — signed and encrypted UserInfo
 responses — for `prompt=select_account`, which needs the concurrent
 sessions per browser that phase builds, and for the `claims` request
 parameter itself, which P3a's plan never named in its own criterion (see
-`docs/NEXT.md` and `docs/phases/p3a.md`) and which is now filed beside the
+`docs/NEXT.md` and `docs/phases/p3a.md`) and which P3b built beside the
 UserInfo work it shares a shape with — reading per-client registration data
-the client did not have a machinery to supply before P3a. **P13** for signed requests, which
+the client did not have a machinery to supply before P3a; both its rows are
+now `covered` (`OIDC-CORE-2-09`, `OIDC-CORE-3.1.2.2-07`). **P13** for signed requests, which
 depend on the request objects §6 defines. `prompt=login`'s own
 reauthentication behavior is answered in P1, not deferred — see above. Two items have no phase at all: ID Token
 encryption negotiation (§2) and the end-user-facing mechanism to revoke
@@ -761,25 +764,24 @@ registered, the plaintext is the claims JSON directly, with no `iss`/`aud`
 added: those are `signedBody`'s own addition, conditioned on signing having
 happened, not on the response being a JWT at all.
 
-### §15.1's `auth_time`, answered unconditionally
+### §15.1's `auth_time`, answered on request
 
 §15.1 makes returning `auth_time` _when requested_ mandatory for every OP.
 The specification gives two ways to request it — `max_age` (§3.1.2.1) and an
-Essential Claim in the `claims` parameter (§5.5). Odudu emits `auth_time` in
-every ID Token it issues regardless
-(`packages/protocol-oidc/src/usecase/token-issuance.ts`), so a client that
-asks either way is answered, by a superset of what it asked for — and since
-P2b, a request that carried `max_age` is one where the claim can no longer
-be confused with the token's own issuance time: `max_age` now decides
-whether the login it attaches to is a fresh one or a reused session
+Essential Claim in the `claims` parameter (§5.5). Both are folded into one
+signal at /authorize: a `max_age` on the request forces
+`essential: true` onto whatever the `claims` parameter's own `id_token.auth_time`
+already carried, before either is stored on the code
+(`usecase/authorization-request.ts`) — so token issuance
+(`packages/protocol-oidc/src/usecase/token-issuance.ts`) has one question to
+ask, not two, and a request that names neither gets no `auth_time` at all
+(§2's MAY, "otherwise `auth_time`'s inclusion is OPTIONAL"). Since P2b, a
+request that carried `max_age` is also one where the claim can no longer be
+confused with the token's own issuance time: `max_age` decides whether the
+login it attaches to is a fresh one or a reused session
 (`usecase/session-reuse.ts`), and the code either way carries the real
 `auth_time` the decision read, not a clock reread at issuance.
 
-That is why this row is `covered` alongside §2's `auth_time`-and-`max_age`
-row, both closed by the same mechanism; §2's `claims`-Essential-Claim row
-moves to `deferred: P3b`, since P3a's plan never named the `claims`
-parameter in its own criterion and the rows now travel with the UserInfo
-work P3b already owns (`docs/NEXT.md`).
 `OIDC-CORE-15.1-05` sends each request form on a login that completes and
 checks the ID Token's `auth_time` against the `auth_time` stored on the
 code that login issued — so a claim naming the token's own issuance time, or
@@ -787,7 +789,10 @@ carrying milliseconds, is a failure rather than a presence.
 `OIDC-CORE-2-08` (`session-reuse.int.test.ts`) does the same check across a
 reuse specifically: a session established at one moment, reused two minutes
 later under a generous `max_age`, and an ID Token whose `auth_time` is the
-first moment, not the second.
+first moment, not the second. `OIDC-CORE-2-09`
+(`claims-parameter.int.test.ts`) is the Essential-Claim leg §2 and §15.1
+both name, and the same file's next case is the negative half neither row
+required until now: no `auth_time` at all when nothing asked for it.
 
 ### `amr` and `acr`: what the registries actually say, and what this server emits
 
@@ -875,7 +880,7 @@ Odudu never uses one, so nothing in `acrFor`'s output can violate it.
 | 2       | MAY    | implementers allow a small clock-skew leeway around `exp`                                                                                                                                                                                                                                      | —                      | gap                                                                                                                                                                                                                                                                                                                                   |
 | 2       | MUST   | `iat` is a REQUIRED claim: the issuance time as a JSON number of seconds since the epoch                                                                                                                                                                                                       | `OIDC-CORE-2-04`       | covered                                                                                                                                                                                                                                                                                                                               |
 | 2       | MUST   | `auth_time` is present when the Authentication Request carried a `max_age` value                                                                                                                                                                                                               | `OIDC-CORE-2-08`       | covered                                                                                                                                                                                                                                                                                                                               |
-| 2       | MUST   | `auth_time` is present when requested as an Essential Claim via the `claims` parameter                                                                                                                                                                                                         | —                      | deferred: P3b — the `claims` request parameter is not in P3a's criterion; filed with P3b's UserInfo work                                                                                                                                                                                                                              |
+| 2       | MUST   | `auth_time` is present when requested as an Essential Claim via the `claims` parameter                                                                                                                                                                                                         | `OIDC-CORE-2-09`       | covered                                                                                                                                                                                                                                                                                                                               |
 | 2       | MAY    | otherwise `auth_time`'s inclusion is OPTIONAL                                                                                                                                                                                                                                                  | —                      | gap                                                                                                                                                                                                                                                                                                                                   |
 | 2       | MUST   | when `nonce` was present in the Authentication Request, the authorization server includes a `nonce` claim in the ID Token with that same value                                                                                                                                                 | `OIDC-CORE-3.1.3.7-01` | covered                                                                                                                                                                                                                                                                                                                               |
 | 2       | SHOULD | the authorization server performs no other processing on `nonce` values used                                                                                                                                                                                                                   | —                      | gap                                                                                                                                                                                                                                                                                                                                   |
@@ -919,7 +924,7 @@ Odudu never uses one, so nothing in `acrFor`'s output can violate it.
 | 3.1.2.2 | MUST   | the authorization server validates all OAuth 2.0 parameters according to the OAuth 2.0 specification                                                                                                                                                                                           | `OIDC-CORE-3.1.2.2-02` | covered                                                                                                                                                                                                                                                                                                                               |
 | 3.1.2.2 | MUST   | a `scope` parameter is present and contains the `openid` scope value                                                                                                                                                                                                                           | —                      | n/a: §3.1.2.2's own parenthetical makes a request without `openid` a valid OAuth 2.0 request rather than a rejection the OP owes, and that is how Odudu treats it — the `openid` gate sits on what the request yields (no ID Token in `usecase/token-issuance.ts`, `insufficient_scope` at `/userinfo`), not on admitting the request |
 | 3.1.2.2 | MUST   | all REQUIRED parameters are present and conform to this specification                                                                                                                                                                                                                          | `OIDC-CORE-3.1.2.2-03` | covered                                                                                                                                                                                                                                                                                                                               |
-| 3.1.2.2 | MUST   | when `sub` is requested with a specific value, a positive response is sent only if the identified end-user has an active session or was authenticated as a result of this request                                                                                                              | —                      | deferred: P3b — `sub` can only be requested with a specific value through the `claims` request parameter, not in P3a's criterion; filed with P3b's UserInfo work                                                                                                                                                                      |
+| 3.1.2.2 | MUST   | when `sub` is requested with a specific value, a positive response is sent only if the identified end-user has an active session or was authenticated as a result of this request                                                                                                              | `OIDC-CORE-3.1.2.2-07` | covered                                                                                                                                                                                                                                                                                                                               |
 | 3.1.2.2 | MUST   | the authorization server does not reply with an ID Token or Access Token for a different user, even if that user has an active session                                                                                                                                                         | `OIDC-CORE-3.1.2.2-05` | covered                                                                                                                                                                                                                                                                                                                               |
 | 3.1.2.2 | MUST   | when `id_token_hint` is present, the OP validates that it was itself the issuer of that ID Token                                                                                                                                                                                               | `OIDC-CORE-3.1.2.2-01` | covered                                                                                                                                                                                                                                                                                                                               |
 | 3.1.2.2 | SHOULD | the OP accepts an `id_token_hint` when the identified RP has a current or recent session, even past its `exp`                                                                                                                                                                                  | —                      | gap                                                                                                                                                                                                                                                                                                                                   |

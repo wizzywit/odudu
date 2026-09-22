@@ -70,6 +70,7 @@ const NUMBER_WORDS: ReadonlyMap<string, number> = new Map([
   ['twenty-three', 23],
   ['twenty-four', 24],
   ['twenty-five', 25],
+  ['twenty-six', 26],
 ]);
 
 function spelled(word: string, context: string): number {

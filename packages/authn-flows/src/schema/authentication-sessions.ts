@@ -89,6 +89,27 @@ export interface PendingRequest {
   // door this phase starts a session from sets it, `[]` included, so
   // `[]` already means "resolved to nothing", never "not carried".
   resource?: string[];
+  // The `claims` request parameter (OIDC Core §5.5), parsed once at
+  // /authorize and parked here for the same reason `resource` is: every
+  // door that can mint a code — a fresh login, the account chooser, a
+  // required action, either consent detour — applies the same parsed
+  // request. Structurally identical to protocol-oidc's own `ClaimsRequest`
+  // (`service/claims-request.ts`), declared locally because authn-flows
+  // sits beneath protocol-oidc and may not import its types.
+  claims?: PendingClaimsRequest;
+}
+
+interface PendingClaimEntry {
+  essential: boolean;
+  value?: string;
+  values?: readonly string[];
+}
+
+type PendingClaimsMember = Readonly<Record<string, PendingClaimEntry>>;
+
+export interface PendingClaimsRequest {
+  idToken: PendingClaimsMember;
+  userinfo: PendingClaimsMember;
 }
 
 export interface AuthenticationSessionRecord {

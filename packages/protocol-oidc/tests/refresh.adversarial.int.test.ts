@@ -192,6 +192,7 @@ async function issueInitialRefreshToken(
       authTime: new Date(),
       expiresAt: new Date(Date.now() + 60_000),
       resource: [],
+      claims: { idToken: {}, userinfo: {} },
     });
   });
 

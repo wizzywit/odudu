@@ -166,6 +166,7 @@ describe('handleLoginSubmission — the success path', () => {
       browserSessionIds: [],
       authenticators: ['password'],
       resource: [],
+      claims: { idToken: {}, userinfo: {} },
     });
   });
 

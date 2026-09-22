@@ -684,6 +684,7 @@ curl -sS http://localhost:3000/realms/demo/.well-known/openid-configuration
     "private_key_jwt"
   ],
   "authorization_response_iss_parameter_supported": true,
+  "claims_parameter_supported": true,
   "backchannel_logout_supported": true,
   "backchannel_logout_session_supported": true,
   "frontchannel_logout_supported": true,
@@ -1461,6 +1462,177 @@ curl -sS -o /dev/null -w '%{http_code}\n' -X POST \
 The claims come from the same registry the ID token's claims came from, so
 one can never carry a claim the other omits for the same subject and scope.
 The client must check that `sub` here matches the ID token's `sub`.
+
+### The `claims` request parameter
+
+§5.5's `claims` parameter narrows a response to what it names, never widens
+one past what `scope` already granted — the parameter is not a path around
+consent. Requesting `email` with `scope=openid email` returns it:
+
+```bash
+curl -sS --get \
+  --data-urlencode 'response_type=code' \
+  --data-urlencode 'client_id=demo-spa' \
+  --data-urlencode 'redirect_uri=http://localhost:8080/callback' \
+  --data-urlencode 'scope=openid email' \
+  --data-urlencode 'state=xyz-123' \
+  --data-urlencode "code_challenge=$CHALLENGE" \
+  --data-urlencode 'code_challenge_method=S256' \
+  --data-urlencode 'claims={"userinfo":{"email":null}}' \
+  "$BASE/auth"
+# … sign in, redeem the code, then:
+curl -sS -H "Authorization: Bearer $ACCESS_TOKEN" "$BASE/userinfo"
+```
+
+```json
+{ "sub": "01a0c90d-0bf2-…", "email": "alice@example.com" }
+```
+
+Every other scope-granted claim `name`/`preferred_username` included, the
+`profile` scope was never asked for here, so this response was already
+narrow — the `claims` parameter narrows it further, to just `email` and the
+always-present `sub`. The same request with `scope=openid` alone — `email`
+never granted by scope this time — answers with `email` absent, though the
+`claims` parameter asked for it exactly the same way:
+
+```json
+{ "sub": "01a0c90d-0bf2-…" }
+```
+
+An `id_token` member's Essential Claims work the same way at `/token`.
+Requesting `auth_time` as essential:
+
+```bash
+curl -sS --get \
+  --data-urlencode 'response_type=code' \
+  --data-urlencode 'client_id=demo-spa' \
+  --data-urlencode 'redirect_uri=http://localhost:8080/callback' \
+  --data-urlencode 'scope=openid' \
+  --data-urlencode 'state=xyz-123' \
+  --data-urlencode "code_challenge=$CHALLENGE" \
+  --data-urlencode 'code_challenge_method=S256' \
+  --data-urlencode 'claims={"id_token":{"auth_time":{"essential":true}}}' \
+  "$BASE/auth"
+# … sign in, redeem the code, then decode $ID_TOKEN
+```
+
+```json
+{
+  "sub": "01a0c90d-0bf2-…",
+  "iss": "http://localhost:3011/realms/demo",
+  "aud": "demo-spa",
+  "iat": 1790079520,
+  "exp": 1790079820,
+  "auth_time": 1790079520,
+  "sid": "01a0c90d-ce5b-…",
+  "amr": ["pwd"],
+  "acr": "1"
+}
+```
+
+A request carrying neither `max_age` nor an essential `auth_time` request
+gets no `auth_time` claim at all — §2's MAY, not the MUST the two triggers
+above turn on:
+
+```json
+{
+  "sub": "01a0c90d-0bf2-…",
+  "iss": "http://localhost:3011/realms/demo",
+  "aud": "demo-spa",
+  "iat": 1790079538,
+  "exp": 1790079838,
+  "sid": "01a0c90e-15f6-…",
+  "amr": ["pwd"],
+  "acr": "1"
+}
+```
+
+The `id_token` member's `sub` is different from every other claim there:
+OIDC Core §3.1.2.2 reads it as naming a specific End-User this request must
+be answered for, not a claim to narrow the response to. With a live SSO
+session for `alice`, naming her own subject serves the request straight
+through:
+
+```bash
+curl -sS -D - -o /dev/null --get \
+  --data-urlencode 'response_type=code' \
+  --data-urlencode 'client_id=demo-spa' \
+  --data-urlencode 'redirect_uri=http://localhost:8080/callback' \
+  --data-urlencode 'scope=openid' \
+  --data-urlencode 'state=abc' \
+  --data-urlencode "code_challenge=$CHALLENGE" \
+  --data-urlencode 'code_challenge_method=S256' \
+  --data-urlencode "claims={\"id_token\":{\"sub\":{\"value\":\"$ALICE_SUB\"}}}" \
+  -H "Cookie: $COOKIE" \
+  "$BASE/auth"
+```
+
+```
+HTTP/1.1 302 Found
+location: http://localhost:8080/callback?code=bu2_1AiPeg…&state=abc&iss=http%3A%2F%2Flocalhost%3A3011%2Frealms%2Fdemo
+```
+
+Naming `bob`'s subject instead — nobody but `alice` is signed in on this
+cookie — refuses under `prompt=none` rather than silently answering for the
+wrong End-User:
+
+```
+HTTP/1.1 302 Found
+location: http://localhost:8080/callback?error=login_required&state=abc&iss=http%3A%2F%2Flocalhost%3A3011%2Frealms%2Fdemo
+```
+
+and without `prompt=none` asks for a login instead of refusing outright —
+whoever signs in still has to be `bob` for the request to be answered
+(`packages/protocol-oidc/src/usecase/login-submission.ts`'s own
+`idTokenHintSubject` check, which the `claims` parameter's `sub` reaches the
+same way an `id_token_hint` does):
+
+```bash
+curl -sS -o /dev/null -w '%{http_code}\n' --get \
+  --data-urlencode 'response_type=code' \
+  --data-urlencode 'client_id=demo-spa' \
+  --data-urlencode 'redirect_uri=http://localhost:8080/callback' \
+  --data-urlencode 'scope=openid' \
+  --data-urlencode 'state=abc' \
+  --data-urlencode "code_challenge=$CHALLENGE" \
+  --data-urlencode 'code_challenge_method=S256' \
+  --data-urlencode "claims={\"id_token\":{\"sub\":{\"value\":\"$BOB_SUB\"}}}" \
+  -H "Cookie: $COOKIE" \
+  "$BASE/auth"
+```
+
+```
+200
+```
+
+A `claims` parameter that is not valid JSON is refused the same way any
+other malformed request parameter is, at the client's own `redirect_uri`:
+
+```bash
+curl -sS -D - -o /dev/null --get \
+  --data-urlencode 'response_type=code' \
+  --data-urlencode 'client_id=demo-spa' \
+  --data-urlencode 'redirect_uri=http://localhost:8080/callback' \
+  --data-urlencode 'scope=openid' \
+  --data-urlencode 'state=xyz-123' \
+  --data-urlencode "code_challenge=$CHALLENGE" \
+  --data-urlencode 'code_challenge_method=S256' \
+  --data-urlencode 'claims={' \
+  "$BASE/auth"
+```
+
+```
+HTTP/1.1 302 Found
+location: http://localhost:8080/callback?error=invalid_request&state=xyz-123&iss=http%3A%2F%2Flocalhost%3A3011%2Frealms%2Fdemo
+```
+
+Discovery states support for the parameter fixed `true`, the same way it
+states `authorization_response_iss_parameter_supported` — every realm
+honours it the same way, so there is no per-realm derivation:
+
+```json
+{ "claims_parameter_supported": true }
+```
 
 ### Encrypted and nested UserInfo responses
 
@@ -7239,14 +7411,6 @@ session lifecycle. A citation of either half here means that half.
 
 **`/userinfo`**
 
-- **No `claims` request parameter.** A decision: §5.5 says "Support for the
-  `claims` parameter is OPTIONAL", and the two ID Token clauses that depend
-  on it are deferred to **P3b**. P3a built the per-client machinery and
-  consent screen the parameter needs, but P3a's own criterion never named
-  the parameter itself and nothing in its plan built it, so it moves to
-  P3b, filed beside the signed and encrypted UserInfo responses
-  ([Encrypted and nested UserInfo responses](#encrypted-and-nested-userinfo-responses)),
-  which read the same per-client registration data.
 - **No aggregated or distributed claims.** A decision, and the specification
   is explicit: §5.6.2 says "Normal Claims MUST be supported. Support for
   Aggregated Claims and Distributed Claims is OPTIONAL." No phase is owed

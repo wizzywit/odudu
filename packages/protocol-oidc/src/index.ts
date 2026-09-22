@@ -386,6 +386,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
           now,
           sessionId,
           resource: input.resource,
+          claims: input.claims,
         });
         return { kind: 'issued', sessionId, code };
       });
@@ -603,6 +604,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
             now,
             sessionId: input.sessionId,
             resource: input.resource,
+            claims: input.claims,
           });
         }),
     });

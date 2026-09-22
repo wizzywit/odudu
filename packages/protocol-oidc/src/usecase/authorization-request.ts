@@ -14,6 +14,11 @@ import {
   validateAuthorizationRequest,
   type AuthorizeOutcome,
 } from '#/service/authorize-validation';
+import {
+  EMPTY_CLAIMS_REQUEST,
+  parseClaimsRequest,
+  type ClaimsRequest,
+} from '#/service/claims-request';
 import { normalizeAuthorizeQuery } from '#/service/query-normalization';
 import { parseResource } from '#/service/resource-indicator';
 import {
@@ -97,6 +102,10 @@ export interface CompleteReuseInput {
   // client's registered list) — stored on the code so /token derives `aud`
   // from what was approved rather than re-deriving it.
   resource: readonly string[];
+  // The `claims` request parameter (OIDC Core §5.5), parsed at /authorize
+  // — stored on the code so /token and /userinfo apply the same request,
+  // never one re-derived downstream.
+  claims: ClaimsRequest;
 }
 
 export interface ResolvedClient {
@@ -311,6 +320,36 @@ export async function handleAuthorizationRequest(
   if (resourceOutcome.kind === 'invalid_target') return reject('invalid_target');
   const audience = resourceOutcome.audience;
 
+  // OIDC Core §5.5. Parsed below the §4.1.2.1 boundary, same as `resource`
+  // above: a malformed parameter is reported at the client's own
+  // redirect_uri, not rendered.
+  const claimsOutcome = parseClaimsRequest(params.claims);
+  if (claimsOutcome.kind === 'invalid') return reject('invalid_request');
+  // §2 and §15.1 both require `auth_time` when `max_age` was used, not only
+  // when it was requested as an Essential Claim — folded in here, once, so
+  // every door that reads `claims.idToken.auth_time` below (token issuance)
+  // needs to ask only one question. `auth_time` is never part of what
+  // `narrowToRequestedClaims` narrows against (it is an envelope claim, not
+  // one `standardClaimMappers` produces), so this addition never causes a
+  // `max_age`-only request to narrow an ID token's other claims.
+  const claims: ClaimsRequest =
+    outcome.maxAge === null
+      ? claimsOutcome.request
+      : {
+          ...claimsOutcome.request,
+          idToken: {
+            ...claimsOutcome.request.idToken,
+            auth_time: { ...claimsOutcome.request.idToken.auth_time, essential: true },
+          },
+        };
+
+  // OIDC Core §3.1.2.2: a `sub` requested in the `claims` parameter's
+  // `id_token` member names a specific End-User this request must be
+  // answered for — the same kind of constraint `id_token_hint` already
+  // applies to `candidateSessions` below, and combined with it the same
+  // way: a session belongs to the candidate set only if it satisfies both.
+  const claimsSubject = claims.idToken.sub?.value ?? null;
+
   let hintSubject: string | null = null;
   if (outcome.idTokenHint !== null) {
     // Unlike `/logout`, this door has a principal to check the hint's `aud`
@@ -345,16 +384,19 @@ export async function handleAuthorizationRequest(
     header,
   );
   const resolvedSessions = sessions.map(toReusableSession);
-  // A hint names one subject, so only that subject's sessions are reusable
-  // or offered by the chooser here — this is what lets a hinted subject
-  // reuse a live session instead of facing a chooser for other subjects on
-  // the same browser, and what makes prompt=none answer from it rather
-  // than account_selection_required. The chooser POST's own membership
-  // check (handleSelectAccountSubmission) is a separate, later question.
-  const candidateSessions =
-    hintSubject === null
-      ? resolvedSessions
-      : resolvedSessions.filter((session) => session.subjectId === hintSubject);
+  // A hint, or a `claims` request's `sub`, names one subject, so only that
+  // subject's sessions are reusable or offered by the chooser here — this
+  // is what lets a hinted or `sub`-named subject reuse a live session
+  // instead of facing a chooser for other subjects on the same browser, and
+  // what makes prompt=none answer from it rather than
+  // account_selection_required. Both constraints apply together when both
+  // are present. The chooser POST's own membership check
+  // (handleSelectAccountSubmission) is a separate, later question.
+  const candidateSessions = resolvedSessions.filter(
+    (session) =>
+      (hintSubject === null || session.subjectId === hintSubject) &&
+      (claimsSubject === null || session.subjectId === claimsSubject),
+  );
   const decision = decideReuse({
     sessions: candidateSessions,
     prompts: outcome.prompts,
@@ -382,6 +424,9 @@ export async function handleAuthorizationRequest(
     if (hintSubject !== null && hintSubject !== decision.subjectId) {
       throw new Error('unreachable: decideReuse reused a session the hint filter excluded');
     }
+    if (claimsSubject !== null && claimsSubject !== decision.subjectId) {
+      throw new Error('unreachable: decideReuse reused a session the claims sub filter excluded');
+    }
 
     // The second door into the same decision handleLoginSubmission's
     // password path guards — an unverified subject that happens to hold a
@@ -407,6 +452,7 @@ export async function handleAuthorizationRequest(
         reuseSessionId: resolvedSession.id,
         reuseAuthTime: resolvedSession.authTime.toISOString(),
         resource: [...audience],
+        claims,
       });
       await deps.markAuthenticated(
         realm.id,
@@ -471,6 +517,7 @@ export async function handleAuthorizationRequest(
       codeChallengeMethod: request.codeChallengeMethod,
       authTime: decision.authTime,
       resource: audience,
+      claims,
     });
     return { kind: 'reused', code, redirectUri: request.redirectUri, state: request.state };
   }
@@ -489,6 +536,7 @@ export async function handleAuthorizationRequest(
       // handleSelectAccountSubmission's own withinMaxAge call.
       ...(outcome.maxAge !== null ? { maxAge: outcome.maxAge } : {}),
       resource: [...audience],
+      claims,
     });
     const rendered = newestPerSubject(decision.candidates);
     const names = await deps.accountDisplayNames(
@@ -531,6 +579,7 @@ export async function handleAuthorizationRequest(
     // have at the moment this request first arrived.
     prompt: [...outcome.prompts],
     resource: [...audience],
+    claims,
   });
   return {
     kind: 'started',
@@ -697,6 +746,7 @@ export async function handleSelectAccountSubmission(
     // journey — resolved once, against the query it actually carried, not
     // re-derived here where no query parameters survive.
     resource: pending.resource ?? [],
+    claims: pending.claims ?? EMPTY_CLAIMS_REQUEST,
   });
   return { kind: 'reused', code, redirectUri: pending.redirectUri, state: pending.state };
 }

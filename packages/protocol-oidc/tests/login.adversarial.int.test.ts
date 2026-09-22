@@ -476,10 +476,10 @@ describe('[RFC6749-4.1.2-03] a granted authorization code expires shortly after 
 });
 
 // OIDC Core §15.1 makes returning `auth_time` mandatory whenever requested —
-// via `max_age` (§3.1.2.1) or an Essential Claim in `claims` (§5.5). Odudu
-// honours neither as a request: it emits `auth_time` unconditionally, so
-// both are answered by a superset of what they asked for. See the reading
-// note "§15.1's `auth_time`, answered unconditionally".
+// via `max_age` (§3.1.2.1) or an Essential Claim in `claims` (§5.5). Both
+// are folded into the same stored signal at /authorize (see
+// authorization-request.ts), so either request form gets `auth_time` back.
+// See the reading note "§15.1's `auth_time`, answered on request".
 
 // The value is checked against the code's stored `auth_time`, not merely
 // for presence: the token's own issuance time, or milliseconds, would be a
@@ -681,6 +681,7 @@ describe('realm isolation', () => {
           authTime: new Date(),
           expiresAt: new Date(Date.now() + 60_000),
           resource: [],
+          claims: { idToken: {}, userinfo: {} },
         });
       },
     });

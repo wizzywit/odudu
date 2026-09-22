@@ -35,6 +35,11 @@ export interface DiscoveryDocument {
   readonly grant_types_supported: readonly string[];
   readonly token_endpoint_auth_methods_supported: readonly string[];
   readonly authorization_response_iss_parameter_supported: boolean;
+  // OIDC Discovery §3 / OIDC Core §5.5: fixed true, like
+  // `authorization_response_iss_parameter_supported` above — every realm
+  // honours the `claims` request parameter the same way, so there is no
+  // per-realm derivation to carry through `DiscoveryDocumentOptions`.
+  readonly claims_parameter_supported: boolean;
   // Back-Channel Logout 1.0 §2.1 and Front-Channel Logout 1.0 §2: fixed
   // true, like `end_session_endpoint` above, since a client opts in per
   // client rather than per realm. `_session_supported` is true for both:
@@ -131,6 +136,7 @@ export function discoveryDocument(opts: DiscoveryDocumentOptions): DiscoveryDocu
         ? TOKEN_ENDPOINT_AUTH_METHODS_SUPPORTED
         : TOKEN_ENDPOINT_AUTH_METHODS_SUPPORTED.filter((method) => method !== 'tls_client_auth'),
     authorization_response_iss_parameter_supported: true,
+    claims_parameter_supported: true,
     backchannel_logout_supported: true,
     backchannel_logout_session_supported: true,
     frontchannel_logout_supported: true,

@@ -186,6 +186,7 @@ async function mintCode(clientDbId: string, resource: readonly string[]): Promis
       authTime: new Date(),
       expiresAt: new Date(Date.now() + 60_000),
       resource,
+      claims: { idToken: {}, userinfo: {} },
     });
   });
   return code;

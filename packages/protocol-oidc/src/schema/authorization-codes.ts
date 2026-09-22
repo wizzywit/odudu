@@ -1,5 +1,6 @@
 import { pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 import { realms } from '@odudu/db';
+import { type ClaimsRequest } from '#/service/claims-request';
 
 // Policies are written as hand-authored SQL in packages/db/drizzle/, never
 // declared with pgPolicy() — see realms.ts in @odudu/db for why a
@@ -39,6 +40,12 @@ export const authorizationCodes = pgTable('authorization_codes', {
   // this from the same resolution, whether the request completes
   // immediately or after a login detour — see migration 0053.
   resource: text('resource').array().notNull().default([]),
+  // The `claims` request parameter (OIDC Core §5.5), resolved once at
+  // /authorize and stored as JSON text rather than jsonb — /token and
+  // /userinfo only ever read the whole value back, never query into it.
+  // Every code-minting path sets this, `{}` members included; see
+  // migration 0056.
+  claims: text('claims').notNull().default('{"idToken":{},"userinfo":{}}'),
 }).enableRLS();
 
 // Every value the token endpoint must check the redemption against
@@ -61,4 +68,5 @@ export interface AuthorizationCodeRecord {
   grantId: string | null;
   sessionId: string | null;
   resource: readonly string[];
+  claims: ClaimsRequest;
 }

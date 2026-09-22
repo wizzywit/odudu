@@ -1,6 +1,53 @@
 import { type RealmScopedDatabase } from '@odudu/db';
 import { eq, sql } from 'drizzle-orm';
+import { z } from 'zod';
 import { authorizationCodes, type AuthorizationCodeRecord } from '#/schema/authorization-codes';
+import {
+  type ClaimRequestEntry,
+  type ClaimsRequest,
+  type ClaimsRequestMember,
+} from '#/service/claims-request';
+
+// Round-trips exactly what this repository itself wrote — never fed a
+// client-supplied string — so a schema this narrow is a safety net against
+// this file's own bug, not a boundary against the outside world.
+const storedClaimEntrySchema = z.object({
+  essential: z.boolean(),
+  value: z.string().optional(),
+  values: z.array(z.string()).optional(),
+});
+const storedClaimsMemberSchema = z.record(z.string(), storedClaimEntrySchema);
+const storedClaimsRequestSchema = z.object({
+  idToken: storedClaimsMemberSchema,
+  userinfo: storedClaimsMemberSchema,
+});
+
+function serializeClaims(request: ClaimsRequest): string {
+  return JSON.stringify(request);
+}
+
+// zod's own `.optional()` infers `value?: string | undefined`, one property
+// wider than `ClaimRequestEntry`'s `value?: string` under this project's
+// `exactOptionalPropertyTypes` — rebuilt field by field, the same way
+// claims-request.ts's own `toEntry` does, rather than cast past the check.
+function toEntry(parsed: z.infer<typeof storedClaimEntrySchema>): ClaimRequestEntry {
+  return {
+    essential: parsed.essential,
+    ...(parsed.value !== undefined ? { value: parsed.value } : {}),
+    ...(parsed.values !== undefined ? { values: parsed.values } : {}),
+  };
+}
+
+function toMember(parsed: z.infer<typeof storedClaimsMemberSchema>): ClaimsRequestMember {
+  const result: Record<string, ClaimRequestEntry> = {};
+  for (const [name, entry] of Object.entries(parsed)) result[name] = toEntry(entry);
+  return result;
+}
+
+function deserializeClaims(raw: string): ClaimsRequest {
+  const parsed = storedClaimsRequestSchema.parse(JSON.parse(raw));
+  return { idToken: toMember(parsed.idToken), userinfo: toMember(parsed.userinfo) };
+}
 
 // The shape a raw `tx.execute(sql\`...\`)` returns: driver rows keyed by
 // their actual (snake_case) column names, not drizzle's mapped camelCase —
@@ -26,6 +73,7 @@ interface RawAuthorizationCodeRow {
   grant_id: string | null;
   session_id: string | null;
   resource: string[];
+  claims: string;
 }
 
 function toRecord(row: RawAuthorizationCodeRow): AuthorizationCodeRecord {
@@ -46,6 +94,7 @@ function toRecord(row: RawAuthorizationCodeRow): AuthorizationCodeRecord {
     grantId: row.grant_id,
     sessionId: row.session_id,
     resource: row.resource,
+    claims: deserializeClaims(row.claims),
   };
 }
 
@@ -67,6 +116,10 @@ export interface NewAuthorizationCode {
   // states; every caller resolves one, so there is no "unset" for this
   // field to mean instead.
   resource: readonly string[];
+  // The `claims` request parameter resolved at /authorize — every caller
+  // resolves one, `EMPTY_CLAIMS_REQUEST` included, the same rule
+  // `resource`'s own comment states.
+  claims: ClaimsRequest;
 }
 
 export function authorizationCodeRepository(tx: RealmScopedDatabase) {
@@ -76,6 +129,7 @@ export function authorizationCodeRepository(tx: RealmScopedDatabase) {
         ...input,
         sessionId: input.sessionId ?? null,
         resource: [...input.resource],
+        claims: serializeClaims(input.claims),
         consumedAt: null,
         grantId: null,
       });
@@ -122,6 +176,7 @@ export function authorizationCodeRepository(tx: RealmScopedDatabase) {
         ...row,
         codeChallengeMethod:
           row.codeChallengeMethod as AuthorizationCodeRecord['codeChallengeMethod'],
+        claims: deserializeClaims(row.claims),
       };
     },
   };

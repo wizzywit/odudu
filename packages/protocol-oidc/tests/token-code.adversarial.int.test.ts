@@ -263,6 +263,7 @@ async function issueCode(opts: IssueCodeOptions = {}): Promise<{ code: string; c
       // /authorize) has to carry now that /token derives `aud` from the
       // code rather than from `config.audiences` directly.
       resource: [AUDIENCE],
+      claims: { idToken: {}, userinfo: {} },
     });
     if (opts.consumedImmediately === true) {
       await authorizationCodeRepository(tx).consume(codeHash);

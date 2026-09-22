@@ -164,6 +164,7 @@ async function completeCodeFlow(realm: Realm, scope: string): Promise<TokenSet> 
       authTime: new Date(),
       expiresAt: new Date(Date.now() + 60_000),
       resource: [],
+      claims: { idToken: {}, userinfo: {} },
     });
   });
 

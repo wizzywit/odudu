@@ -21,7 +21,7 @@ import { acrFor, amrFor } from '#/service/acr';
 import { hashAuthorizationCode } from '#/service/authorization-code';
 import { evaluateAuthorizationCodeGrant } from '#/service/authorization-code-grant';
 import { parseClientAssertion, type AssertionOutcome } from '#/service/client-assertion';
-import { type ClaimContext } from '#/service/claims';
+import { type ClaimContext, narrowToRequestedClaims } from '#/service/claims';
 import { evaluateClientCredentialsGrant } from '#/service/client-credentials-grant';
 import {
   invalidClient,
@@ -291,6 +291,13 @@ async function mintAccessToken(
     // The id the caller has already generated for the grant this token
     // belongs to — see the `grant_id` comment below.
     grantId: string;
+    // The `claims` request parameter's `userinfo` member, as claim names —
+    // absent (or empty) for a grant with no such request, including every
+    // one that did not originate from an authorization code. Embedded on
+    // the token so `/userinfo`, a separate request with no code left to
+    // consult, can apply the same narrowing token issuance applies to the
+    // ID Token below (see `narrowToRequestedClaims`'s own comment).
+    requestedUserinfoClaims?: readonly string[];
   },
   key: SigningKeyRecord,
   now: Date,
@@ -331,6 +338,9 @@ async function mintAccessToken(
     // no combination of the other claims identifies one row uniquely. See
     // docs/protocols/rfc9068.md's reading note on private claims.
     grant_id: input.grantId,
+    ...(input.requestedUserinfoClaims !== undefined && input.requestedUserinfoClaims.length > 0
+      ? { requested_userinfo_claims: input.requestedUserinfoClaims }
+      : {}),
   });
   const accessToken = await signJwt(accessTokenClaims, { key, kek: deps.kek, typ: 'at+jwt' });
   return { accessToken, audience, iat, exp };
@@ -397,6 +407,7 @@ async function issueAuthorizationCodeTokens(
       accessTokenScope,
       sessionId,
       grantId,
+      requestedUserinfoClaims: Object.keys(code.claims.userinfo),
     },
     key,
     now,
@@ -422,7 +433,16 @@ async function issueAuthorizationCodeTokens(
     // arrives through it too, so there is exactly one place that decides
     // what a subject's `openid`/`profile`/`email` scopes produce, not one
     // for the ID token and a second for /userinfo.
-    const userClaims = await deps.claimMappers.assemble(idTokenScope, narrowedContext);
+    const assembledClaims = await deps.claimMappers.assemble(idTokenScope, narrowedContext);
+    // `auth_time` is excluded from what narrows this response: it is never
+    // a `standardClaimMappers` output (the envelope sets it below), so a
+    // `max_age`-only request — which names nothing but `auth_time` as
+    // essential (see authorization-request.ts) — must not narrow away
+    // every other scope-granted claim.
+    const requestedIdTokenClaims = Object.keys(code.claims.idToken).filter(
+      (name) => name !== 'auth_time',
+    );
+    const userClaims = narrowToRequestedClaims(assembledClaims, requestedIdTokenClaims);
     // What actually authenticated this login, read off the session the
     // code's own login established (or, for a reused session, established
     // originally) — `amr`/`acr` state what ran, never what the subject
@@ -446,7 +466,15 @@ async function issueAuthorizationCodeTokens(
       aud: client.clientId,
       iat,
       exp,
-      auth_time: Math.floor(code.authTime.getTime() / 1000),
+      // OIDC Core §2/§15.1: required when requested as an Essential Claim
+      // via `claims`, and when `max_age` was used — both folded into
+      // `code.claims.idToken.auth_time.essential` at /authorize (see
+      // authorization-request.ts), so this is the one question either rule
+      // needs answered. Optional otherwise, and left out rather than
+      // asserted for a login nobody asked to be told the timing of.
+      ...(code.claims.idToken.auth_time?.essential === true
+        ? { auth_time: Math.floor(code.authTime.getTime() / 1000) }
+        : {}),
       ...(code.nonce !== null ? { nonce: code.nonce } : {}),
       ...(sessionId !== null ? { sid: sessionId } : {}),
       ...(amr.length > 0 ? { amr } : {}),
