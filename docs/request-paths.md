@@ -5817,34 +5817,70 @@ every anonymously self-registered client (`consent_required` defaults
 `true` there, per [Dynamic client registration](#dynamic-client-registration)
 and ADR 0027) — and for `prompt=consent` on any client at all.
 
-**This section is derived, not observed** — every other block in this
-document is a command actually run against the compose stack; reproducing
-that here would mean replaying the whole document's transcript from the
-top to reach the same `demo` realm state this section wants to start from,
-which the time available for this pass did not allow. What follows is
-read off the implementation
-(`packages/protocol-oidc/src/usecase/login-submission.ts`'s
-`decideConsentGate`, `packages/protocol-oidc/src/usecase/authorization-request.ts`'s
-own gate on the reuse path, and `packages/protocol-oidc/src/view/consent-html.ts`)
-and the integration suite that exercises exactly these requests
-(`packages/protocol-oidc/tests/consent.int.test.ts`, ten cases, all
-passing) — not invented, but not a byte-for-byte transcript either. A
-later pass that re-derives this section from a real run should replace
-this note along with it.
+This section continues the same `demo` realm [Bootstrap](#bootstrap) seeded
+and the sections since have been building on, on a stack brought up with
+`docker compose down -v` then `up -d --build` and nothing else — `ada`
+already verified ([Address verification](#address-verification) above) and
+already the subject of an SSO session or two, none of which this section's
+own requests touch. `client_registration_policy` is `disabled` on `demo` by
+default, the same as every realm, so the anonymously self-registered client
+this section needs opens it first:
+
+```bash
+odudu seed realm --name demo --set client_registration_policy=open
+```
+
+```json
+{
+  "command": "realm",
+  "created": false,
+  "realm": "demo",
+  "realmId": "01a0c98c-…",
+  "settings": ["client_registration_policy"]
+}
+```
+
+Then the client itself, with no credential presented — `registration_origin`
+is `'anonymous'` and `consent_required` defaults `true` on the row it wrote:
+
+```bash
+curl -sS -X POST http://localhost:3000/realms/demo/clients-registrations/openid-connect \
+  -H 'content-type: application/json' \
+  -d '{"redirect_uris":["https://rp.example/cb"],"client_name":"Example RP"}'
+```
+
+```json
+{
+  "client_id": "01a0c98f-72f7-…",
+  "client_id_issued_at": 1790088016,
+  "client_secret": "JJr3ZcplNG1ky0wyTa16aRNQGINP7o8DqZpipEjLOl8",
+  "client_secret_expires_at": 0,
+  "redirect_uris": ["https://rp.example/cb"],
+  "grant_types": ["authorization_code"],
+  "token_endpoint_auth_method": "client_secret_basic",
+  "client_name": "Example RP"
+}
+```
 
 A client that requires consent renders the screen once the credentials
 that would otherwise complete the login have been accepted — after the
 same required-action gate `/authorize`'s form path always enforced, and
-before a code is ever issued:
+before a code is ever issued. PKCE and the parked request are the same
+shape [the login POST](#3-the-login-post) uses, against this new client and
+`scope=openid profile offline_access`:
 
-```
-POST /realms/demo/login-actions/authenticate
-auth_session_id=…&username=ada&password=correct-horse-battery
+```bash
+curl -sS -D - \
+  --data-urlencode "auth_session_id=$AUTH_SESSION_ID" \
+  --data-urlencode 'username=ada' \
+  --data-urlencode 'password=correct-horse-battery' \
+  'http://localhost:3000/realms/demo/login-actions/authenticate'
 ```
 
 ```
 HTTP/1.1 200 OK
-content-type: text/html; charset=utf-8
+content-type: text/html
+content-length: 663
 
 <!doctype html>
 <html lang="en">
@@ -5852,8 +5888,11 @@ content-type: text/html; charset=utf-8
 <body>
 <h1>Example RP is asking for access</h1>
 <form method="post" action="/realms/demo/login-actions/consent">
-  <input type="hidden" name="auth_session_id" value="…">
-  <ul><li>openid</li><li>profile</li></ul>
+  <input type="hidden" name="auth_session_id" value="01a0c990-…">
+  <ul>
+  <li>openid</li>
+  <li>profile</li>
+  </ul>
   <label><input type="checkbox" name="scope" value="offline_access"> offline_access — grants ongoing access, even while you are not present</label>
   <button type="submit" name="decision" value="allow">Allow</button>
   <button type="submit" name="decision" value="deny">Deny</button>
@@ -5871,32 +5910,40 @@ was already assigned it without asking.
 Declining the optional scope narrows what the eventual token carries —
 `scope` in the token response omits `offline_access`, not merely "the flow
 completed" — and the client's answer is what gets recorded, so the same
-request does not ask again:
+request does not ask again. Leaving the checkbox unticked and pressing
+Allow:
 
-```
-POST /realms/demo/login-actions/consent
-auth_session_id=…&decision=allow
+```bash
+curl -sS -D - \
+  --data-urlencode "auth_session_id=$AUTH_SESSION_ID" \
+  --data-urlencode 'decision=allow' \
+  'http://localhost:3000/realms/demo/login-actions/consent'
 ```
 
 ```
 HTTP/1.1 302 Found
-set-cookie: demo-session=…; HttpOnly; SameSite=Lax; Path=/
+set-cookie: demo-session=01a0c991-…; HttpOnly; SameSite=Lax; Path=/
 set-cookie: demo-session-persistent=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
-location: https://rp.example/cb?code=…&state=xyz-123&iss=http://localhost:3000/realms/demo
+location: https://rp.example/cb?code=kpTtEZbio8Yx…&state=xyz-123&iss=http%3A%2F%2Flocalhost%3A3000%2Frealms%2Fdemo
+content-length: 0
 ```
 
 Pressing Deny instead answers exactly where a client-side `access_denied`
 always does — the request's own `redirect_uri`, not a page — with nothing
-established and no code issued:
+established and no code issued. (A fresh parked request, logged in the same
+way as above — the one that redeemed a code cannot answer twice.)
 
-```
-POST /realms/demo/login-actions/consent
-auth_session_id=…&decision=deny
+```bash
+curl -sS -D - \
+  --data-urlencode "auth_session_id=$AUTH_SESSION_ID" \
+  --data-urlencode 'decision=deny' \
+  'http://localhost:3000/realms/demo/login-actions/consent'
 ```
 
 ```
 HTTP/1.1 302 Found
-location: https://rp.example/cb?error=access_denied&state=xyz-123&iss=http://localhost:3000/realms/demo
+location: https://rp.example/cb?error=access_denied&state=xyz-deny&iss=http%3A%2F%2Flocalhost%3A3000%2Frealms%2Fdemo
+content-length: 0
 ```
 
 The gate applies to a live SSO session exactly as it does to a fresh
@@ -5907,18 +5954,70 @@ consent recorded, renders this same screen again rather than reusing the
 session straight through to a code — `packages/protocol-oidc/tests/consent.int.test.ts`'s
 `asks for consent on a reused SSO session, not only on a fresh login` is
 the case that would ship broken if the gate lived only on the form path.
-Under `prompt=none`, that same reused-but-under-consented session is
-refused rather than asked, since `prompt=none` forbids the interaction a
-consent screen is:
+The cookie from Allow above (`openid profile`, `offline_access` declined)
+asking again with `offline_access` in scope, this time with no login form
+in between — the session is still live:
+
+```bash
+curl -sS -D - -b cookies-consent.txt --get \
+  --data-urlencode 'response_type=code' \
+  --data-urlencode "client_id=$CLIENT_ID" \
+  --data-urlencode 'redirect_uri=https://rp.example/cb' \
+  --data-urlencode 'scope=openid profile offline_access' \
+  --data-urlencode 'state=xyz-reuse' \
+  --data-urlencode "code_challenge=$CHALLENGE" \
+  --data-urlencode 'code_challenge_method=S256' \
+  'http://localhost:3000/realms/demo/protocol/openid-connect/auth'
+```
 
 ```
-GET /realms/demo/protocol/openid-connect/auth?…&prompt=none
-Cookie: demo-session=…
+HTTP/1.1 200 OK
+content-type: text/html
+content-length: 663
+
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Allow access?</title></head>
+<body>
+<h1>Example RP is asking for access</h1>
+<form method="post" action="/realms/demo/login-actions/consent">
+  <input type="hidden" name="auth_session_id" value="01a0c991-…">
+  <ul>
+  <li>openid</li>
+  <li>profile</li>
+  </ul>
+  <label><input type="checkbox" name="scope" value="offline_access"> offline_access — grants ongoing access, even while you are not present</label>
+  <button type="submit" name="decision" value="allow">Allow</button>
+  <button type="submit" name="decision" value="deny">Deny</button>
+</form>
+</body>
+</html>
+```
+
+(Same markup GET produced above, byte-for-byte other than the fresh
+`auth_session_id` — a second `/authorize`, not a POST, is what got here,
+because the SSO cookie skipped the login form entirely.) Under
+`prompt=none`, that same reused-but-under-consented session is refused
+rather than asked, since `prompt=none` forbids the interaction a consent
+screen is:
+
+```bash
+curl -sS -D - -b cookies-consent.txt --get \
+  --data-urlencode 'response_type=code' \
+  --data-urlencode "client_id=$CLIENT_ID" \
+  --data-urlencode 'redirect_uri=https://rp.example/cb' \
+  --data-urlencode 'scope=openid profile offline_access' \
+  --data-urlencode 'state=xyz-reuse' \
+  --data-urlencode 'prompt=none' \
+  --data-urlencode "code_challenge=$CHALLENGE" \
+  --data-urlencode 'code_challenge_method=S256' \
+  'http://localhost:3000/realms/demo/protocol/openid-connect/auth'
 ```
 
 ```
 HTTP/1.1 302 Found
-location: https://rp.example/cb?error=consent_required&state=xyz-123&iss=http://localhost:3000/realms/demo
+location: https://rp.example/cb?error=consent_required&state=xyz-reuse&iss=http%3A%2F%2Flocalhost%3A3000%2Frealms%2Fdemo
+content-length: 0
 ```
 
 ## Path C: `client_credentials`
