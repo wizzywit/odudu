@@ -1,5 +1,5 @@
 import { encodeUnsecuredJwt, signJwt, verifyJwt, type SigningKeyRecord } from '@odudu/crypto';
-import { OduduError, type ClaimMapperRegistry } from '@odudu/kernel';
+import { type ClaimMapperRegistry } from '@odudu/kernel';
 import { presentedBearerToken } from '#/service/bearer-token';
 import { type ClaimContext } from '#/service/claims';
 import { narrowByScopeMappings } from '#/service/scope-mapping';
@@ -54,6 +54,13 @@ export type UserinfoOutcome =
   // token verifies — it names the client CORS checks the response's origin
   // against; every earlier outcome never got that far.
   | { kind: 'insufficient_scope'; clientId: string | undefined }
+  // A client registered `userinfo_signed_response_alg` for an algorithm
+  // this realm's active key no longer carries — reachable only after a key
+  // rotation, since registration itself now refuses the mismatch (see
+  // `usecase/client-registration.ts`). Not a bad token, so no
+  // `WWW-Authenticate` challenge; not this resource server's fault either,
+  // so the body says nothing an operator's own logs don't already know.
+  | { kind: 'signing_unavailable'; clientId: string | undefined }
   | { kind: 'ok'; body: UserinfoBody; clientId: string | undefined };
 
 function scopesOf(scopeClaim: unknown): string[] {
@@ -118,20 +125,24 @@ export async function resolveUserinfo(
   };
   const claims = await deps.claimMappers.assemble(scope, narrowedCtx);
   const responseBody = await signedBody(deps, realm.id, issuer, clientId, claims);
+  if (responseBody === null) return { kind: 'signing_unavailable', clientId };
   return { kind: 'ok', body: responseBody, clientId };
 }
 
-// OIDC Core §5.3.2. `aud`, `none` and `typ` each carry a decision that reads
-// as obvious by analogy with a token that looks similar and is not — see
-// "A signed UserInfo response: `aud`, `none`, `typ`, and the algorithm that
-// was never selectable" in docs/protocols/oidc-core.md before changing this.
+// OIDC Core §5.3.2. `aud`, `none`, `typ` and a `null` return each carry a
+// decision that reads as obvious by analogy and is not — see "A signed
+// UserInfo response: `aud`, `none`, `typ`, and the algorithm that was never
+// selectable" in docs/protocols/oidc-core.md before changing this. `null`:
+// the realm's active key cannot honour a registered algorithm, reported
+// rather than thrown, since a realm holding exactly one active signing key
+// makes this a configuration state, not an unexpected exception.
 async function signedBody(
   deps: UserinfoDeps,
   realmId: string,
   issuer: string,
   clientId: string | undefined,
   claims: Record<string, unknown>,
-): Promise<UserinfoBody> {
+): Promise<UserinfoBody | null> {
   if (clientId === undefined) return { kind: 'json', claims };
 
   const alg = await deps.userinfoSignedResponseAlg(realmId, clientId);
@@ -142,18 +153,13 @@ async function signedBody(
     return { kind: 'jwt', token: encodeUnsecuredJwt(signedClaims) };
   }
 
-  // `alg` is `RS256` or `ES256` here — `client-metadata.ts` admits nothing
-  // else. The realm has exactly one active key and no per-algorithm
-  // selection (controller note 4), so a registration this key cannot honour
-  // is refused now rather than silently answered with the key's own
-  // algorithm under the client's chosen name.
+  // `alg` is `RS256` or `ES256` here — the permitted set `client-
+  // metadata.ts` checks at registration. That check does not reach every
+  // row in this column, though: `userinfoSignedResponseAlg` is read
+  // straight from storage, and nothing stops a value written there some
+  // other way (a fixture, a future admin API) from being neither.
   const key = await deps.activeSigningKey(realmId);
-  if (key.alg !== alg) {
-    throw new OduduError(
-      'userinfo_signing_key_mismatch',
-      `client registered userinfo_signed_response_alg ${alg}, but the realm's active signing key is ${key.alg}`,
-    );
-  }
+  if (key.alg !== alg) return null;
   const token = await signJwt(signedClaims, { key, kek: deps.kek, typ: USERINFO_JWT_TYP });
   return { kind: 'jwt', token };
 }

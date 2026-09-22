@@ -521,18 +521,20 @@ registration response, and now read: discovery advertises
 `backchannel_logout_supported` and its front-channel twin for every realm
 (see [discovery](#1-discovery) above), and ending a session delivers to it
 (see [front-channel and back-channel logout](#front-channel-and-back-channel-logout)
-below). `userinfo_signed_response_alg` is stored, echoed, narrowed at
-registration to `RS256`/`ES256`/`none`, and now read: a client that
-registers `RS256` or `ES256` gets a signed `/userinfo` response, and one
-that registers `none` gets a JWT `/userinfo` response that is not signed —
-an RFC 7519 §6 unsecured JWT (`alg: "none"`, no signature). Both are
-`application/jwt` and carry `iss` and `aud` (OIDC Core §5.3.2 for the
-"If signed" case; OIDC Registration §2 and Discovery §3 for why `none`
-still serializes as a JWT at all — see the reading note in
+below). `userinfo_signed_response_alg` is stored, echoed, and now read: a
+client that registers `RS256` or `ES256` gets a signed `/userinfo`
+response, and one that registers `none` gets a JWT `/userinfo` response
+that is not signed — an RFC 7519 §6 unsecured JWT (`alg: "none"`, no
+signature). Both are `application/jwt` and carry `iss` and `aud` (OIDC Core
+§5.3.2 for the "If signed" case; OIDC Registration §2 and Discovery §3 for
+why `none` still serializes as a JWT at all — see the reading note in
 `docs/protocols/oidc-core.md`, which the first version of this passage
-mis-cited). `userinfo_signing_alg_values_supported` is advertised in
-discovery. `userinfo_encrypted_response_alg` and `_enc` remain unread —
-still P3b's to build.
+mis-cited). Registration refuses a value the _realm's own_ active signing
+key cannot produce, and discovery's `userinfo_signing_alg_values_supported`
+is that same realm's answer — `[key.alg, "none"]` — never a fixed pair
+advertised to every realm regardless of which key it actually holds (a
+realm holds exactly one). `userinfo_encrypted_response_alg` and `_enc`
+remain unread — still P3b's to build.
 
 A non-HTTP `redirect_uri` has to look like RFC 8252 §7.1's reverse-DNS
 custom scheme (ADR 0032): the scheme names at least one `.`, which is what
@@ -656,7 +658,7 @@ curl -sS http://localhost:3000/realms/demo/.well-known/openid-configuration
   "response_modes_supported": ["query"],
   "subject_types_supported": ["public"],
   "id_token_signing_alg_values_supported": ["RS256", "ES256"],
-  "userinfo_signing_alg_values_supported": ["RS256", "ES256", "none"],
+  "userinfo_signing_alg_values_supported": ["RS256", "none"],
   "code_challenge_methods_supported": ["S256"],
   "grant_types_supported": ["authorization_code", "refresh_token", "client_credentials"],
   "token_endpoint_auth_methods_supported": [

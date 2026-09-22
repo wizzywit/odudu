@@ -149,12 +149,14 @@ export async function verifyJwt(
   checkTyp(header.typ, opts.typ);
 
   const publicKey = await importJWK(record.publicJwk, record.alg);
-  // `exp` REQUIRED (RFC 7519 §4.1.4; OIDC Core §2 for an ID Token
-  // specifically) — `jwtVerify` only validates one that is present, so an
-  // omitted `exp` verifies as a non-expiring token unless this is named.
-  // Every JWT this server mints for a caller of `verifyJwt` carries one; a
-  // response this server signs but does not mint as a token (a signed
-  // UserInfo response) does not, and must not verify here as if it did.
+  // `exp` REQUIRED — RFC 9068 §2.2 for the access tokens this function
+  // reads, OIDC Core §2 for the ID Tokens it reads as `id_token_hint`s;
+  // RFC 7519 §4.1.4 itself, both profiles' shared source for the claim's
+  // definition, leaves it OPTIONAL. `jwtVerify` only validates an `exp`
+  // that is present, so an omitted one verifies as non-expiring unless
+  // named here. A response this server signs but does not mint as a token
+  // (a signed UserInfo response) carries none, and must not verify as if
+  // it did.
   const { payload } = await jwtVerify(token, publicKey, {
     algorithms: [record.alg],
     issuer: opts.issuer,

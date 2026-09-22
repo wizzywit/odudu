@@ -293,11 +293,10 @@ describe('the UserInfo response format follows client registration', () => {
   });
 
   // RFC 8725 §3.11's explicit typing. Not "no typ" — a signed UserInfo
-  // response is indistinguishable from an ID Token without one, which is
-  // exactly what let it pass as an id_token_hint (see the Critical fixed in
-  // this round; the reading note in docs/protocols/oidc-core.md has the
-  // fuller account). `at+jwt` is refused too, since it names an access
-  // token, not this.
+  // response with none is indistinguishable from an ID Token, which
+  // `subjectOfIdTokenHint` would then accept as one
+  // (docs/protocols/oidc-core.md's reading note has the fuller account).
+  // `at+jwt` is refused too, since it names an access token, not this.
   it('carries the userinfo+jwt typ header', async () => {
     const response = await userinfo(signingClient);
     const header = decodeHeader(response.rawPayload);
@@ -356,8 +355,10 @@ describe('the UserInfo response format follows client registration', () => {
   // when it was registered. Silently answering with the key's own algorithm
   // under the client's chosen name is the defect this closes — refusing is
   // the honest minimum (docs/protocols/oidc-core.md's reading note).
-  it('refuses to answer when the active key cannot produce the registered algorithm', async () => {
+  it('refuses to answer when the active key cannot produce the registered algorithm, in its own shape', async () => {
     const response = await userinfo(mismatchClient);
     expect(response.statusCode).toBe(500);
+    expect(response.body).toBe('');
+    expect(response.headers['www-authenticate']).toBeUndefined();
   });
 });

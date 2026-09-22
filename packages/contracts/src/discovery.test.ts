@@ -5,11 +5,15 @@ const CLAIMS_SUPPORTED = ['sub', 'name', 'email', 'email_verified'];
 // Stands in for a realm's scope vocabulary, which is what the caller reads
 // and hands over; this package has no list of its own to fall back to.
 const SCOPES_SUPPORTED = ['openid', 'profile', 'email'];
+// Stands in for one realm's active signing key's own algorithm plus
+// `none` — the caller's per-realm answer this package never derives itself.
+const USERINFO_SIGNING_ALG_SUPPORTED = ['RS256', 'none'];
 
 const doc = discoveryDocument({
   issuer: 'https://idp.example/realms/acme',
   claimsSupported: CLAIMS_SUPPORTED,
   scopesSupported: SCOPES_SUPPORTED,
+  userinfoSigningAlgSupported: USERINFO_SIGNING_ALG_SUPPORTED,
 });
 
 describe('[OIDC-DISCOVERY-3-01] the discovery document', () => {
@@ -53,6 +57,7 @@ describe('[OIDC-DISCOVERY-3-01] the discovery document', () => {
       issuer: 'https://idp.example/realms/acme',
       claimsSupported: CLAIMS_SUPPORTED,
       scopesSupported: SCOPES_SUPPORTED,
+      userinfoSigningAlgSupported: USERINFO_SIGNING_ALG_SUPPORTED,
       tlsClientAuthEnabled: true,
     });
     expect([...withTls.token_endpoint_auth_methods_supported].sort()).toEqual([
@@ -73,6 +78,7 @@ describe('[OIDC-DISCOVERY-3-01] the discovery document', () => {
       issuer: 'https://idp.example/realms/acme/',
       claimsSupported: CLAIMS_SUPPORTED,
       scopesSupported: SCOPES_SUPPORTED,
+      userinfoSigningAlgSupported: USERINFO_SIGNING_ALG_SUPPORTED,
     });
     expect(trimmed.issuer).toBe('https://idp.example/realms/acme');
   });
@@ -106,6 +112,10 @@ describe('[OIDC-DISCOVERY-3-01] the discovery document', () => {
     expect(doc.id_token_signing_alg_values_supported).toEqual(['RS256', 'ES256']);
   });
 
+  it('advertises exactly the userinfo_signing_alg_values_supported list it was given, never a hardcoded one', () => {
+    expect(doc.userinfo_signing_alg_values_supported).toBe(USERINFO_SIGNING_ALG_SUPPORTED);
+  });
+
   it('advertises exactly the scopes_supported list it was given, never a hardcoded one', () => {
     expect(doc.scopes_supported).toBe(SCOPES_SUPPORTED);
   });
@@ -123,6 +133,7 @@ describe('[OIDC-DISCOVERY-3-01] the discovery document', () => {
       issuer: 'https://idp.example/realms/acme',
       claimsSupported: CLAIMS_SUPPORTED,
       scopesSupported: SCOPES_SUPPORTED,
+      userinfoSigningAlgSupported: USERINFO_SIGNING_ALG_SUPPORTED,
       clientRegistrationEnabled: true,
     });
     expect(withRegistration.registration_endpoint).toBe(
@@ -149,6 +160,7 @@ describe('[OIDC-DISCOVERY-4.2-01] a metadata claim with zero elements', () => {
       issuer: 'https://idp.example/realms/acme',
       claimsSupported: [],
       scopesSupported: [],
+      userinfoSigningAlgSupported: USERINFO_SIGNING_ALG_SUPPORTED,
     });
     for (const member of ['claims_supported', 'scopes_supported']) {
       expect(Object.keys(empty)).not.toContain(member);

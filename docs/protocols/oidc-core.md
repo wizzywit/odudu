@@ -667,25 +667,41 @@ unconditionally, since every JWT this server verifies through it is
 expected to carry one). The `none` case needs neither: `jose` refuses to
 verify an unsecured JWT as a matter of course, independent of this fix.
 
-**The registered algorithm is narrowed, and a mismatch refuses.**
-`client-metadata.ts` used to admit any string for
-`userinfo_signed_response_alg` and read it as "sign, using whatever
-algorithm the realm's active key happens to carry" — an honest header (no
-path ever wrote a client's string into the JWS header) but a silently
-overridden choice: a client registering `ES512` against an `RS256` realm
-got `{"alg":"RS256"}` back with no error anywhere. Two changes close this.
-Registration now narrows to exactly what a signing key's own check
-(`signing_keys_alg_check`) can produce —
-`USERINFO_SIGNING_ALGS_PERMITTED = ['RS256', 'ES256', 'none']` — refusing
-anything else at registration time, the same way the JWE spike
-(`docs/superpowers/p3b-spike-jwe.md`) recommended narrowing the encryption
-fields. Narrowing alone still leaves `RS256` registered against a realm
-whose active key is `ES256`, so `signedBody` also refuses at response time
-when `key.alg !== alg`. The refusal is not a selection among several keys:
-`signing_keys_one_active` is a unique index on `(realm_id) WHERE status =
-'active'`, so a realm holds exactly one active signing key, and there is no
-second key this server could try instead — for an ID Token, an access
-token, or this response alike.
+**The registered algorithm is narrowed twice, discovery is per realm, and a
+mismatch refuses without a body.** `client-metadata.ts` used to admit any
+string for `userinfo_signed_response_alg` and read it as "sign, using
+whatever algorithm the realm's active key happens to carry" — an honest
+header (no path ever wrote a client's string into the JWS header) but a
+silently overridden choice: a client registering `ES512` against an
+`RS256` realm got `{"alg":"RS256"}` back with no error anywhere.
+
+The first narrowing is to what any signing key's own check
+(`signing_keys_alg_check`) can produce at all —
+`USERINFO_SIGNING_ALGS_PERMITTED = ['RS256', 'ES256', 'none']`. That is not
+enough on its own: a realm holds exactly **one** active key
+(`signing_keys_one_active`, a unique index on `(realm_id) WHERE status =
+'active'`), so advertising both `RS256` and `ES256` to every realm — the
+first version of this fix did, reasoning from the permitted set rather
+than from any one realm's key — told a client a configuration was
+supported that this specific realm could never produce. Discovery's
+`userinfo_signing_alg_values_supported` is now the caller's own per-realm
+answer (`[key.alg, 'none']`, or `['none']` for a realm with no active key
+yet), read by `usecase/discovery.ts`; registration
+(`usecase/client-registration.ts`) checks the registered value against
+that same realm's active key, in the same transaction, and refuses
+`invalid_client_metadata` on a mismatch. Together they make the common
+case — a client trusting what discovery told it — unable to reach a
+mismatch at all.
+
+A response-time check remains, for the one case registration cannot
+pre-empt: a key rotated to a different algorithm after a client already
+registered. It is not a selection among several keys — there is never a
+second one to try — and it is not the presented access token's fault, so
+`/userinfo` answers it in its own vocabulary: 500, no `WWW-Authenticate`
+challenge (RFC 6750 §3's challenges are about the token, and this token is
+fine), and no body (the reason is an operator's configuration state, not
+text for the caller holding a valid credential it cannot use to fix
+anything).
 
 ### §15.1's `auth_time`, answered unconditionally
 

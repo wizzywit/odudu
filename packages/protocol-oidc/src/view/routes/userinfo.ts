@@ -20,7 +20,11 @@ async function corsHeadersFor(
   outcome: UserinfoOutcome,
 ): Promise<Record<string, string>> {
   const clientId =
-    outcome.kind === 'ok' || outcome.kind === 'insufficient_scope' ? outcome.clientId : undefined;
+    outcome.kind === 'ok' ||
+    outcome.kind === 'insufficient_scope' ||
+    outcome.kind === 'signing_unavailable'
+      ? outcome.clientId
+      : undefined;
   if (clientId === undefined) return corsHeadersForRequest(request.headers.origin, new Set());
 
   const realm = await deps.findRealm(request.params.realm);
@@ -68,6 +72,12 @@ async function respondToUserinfoRequest(
         .code(403)
         .header('www-authenticate', `${CHALLENGE}, error="insufficient_scope"`)
         .send();
+    // Not a bad-token failure (RFC 6750 §3's own vocabulary), so no
+    // `WWW-Authenticate` challenge — the presented access token is fine.
+    // No body either: the reason is a realm/client configuration state an
+    // operator reads from `/userinfo`'s own logs, not text for the caller.
+    case 'signing_unavailable':
+      return reply.headers(corsHeaders).code(500).send();
     case 'ok':
       if (outcome.body.kind === 'jwt') {
         return reply

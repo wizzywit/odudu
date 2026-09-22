@@ -5,11 +5,18 @@ const claimNames = () => ['sub', 'name', 'email', 'email_verified'];
 // Rows come back from client_scopes in no particular order, so this returns
 // them out of order deliberately.
 const scopesForRealm = () => Promise.resolve(['profile', 'openid', 'email']);
+const activeSigningKeyAlg = () => Promise.resolve('RS256');
 
 describe('resolveDiscoveryDocument', () => {
   it('returns null for an unknown realm', async () => {
     const doc = await resolveDiscoveryDocument(
-      { findRealm: () => Promise.resolve(null), claimNames, scopesForRealm, trustProxy: false },
+      {
+        findRealm: () => Promise.resolve(null),
+        claimNames,
+        scopesForRealm,
+        activeSigningKeyAlg,
+        trustProxy: false,
+      },
       'no-such-realm',
       'https://idp.example',
     );
@@ -34,6 +41,7 @@ describe('resolveDiscoveryDocument', () => {
           }),
         claimNames,
         scopesForRealm,
+        activeSigningKeyAlg,
         trustProxy: false,
       },
       'disabled-realm',
@@ -60,6 +68,7 @@ describe('resolveDiscoveryDocument', () => {
           }),
         claimNames,
         scopesForRealm,
+        activeSigningKeyAlg,
         trustProxy: false,
       },
       'acme',
@@ -86,6 +95,7 @@ describe('resolveDiscoveryDocument', () => {
           }),
         claimNames,
         scopesForRealm,
+        activeSigningKeyAlg,
         trustProxy: false,
       },
       'acme',
@@ -112,6 +122,7 @@ describe('resolveDiscoveryDocument', () => {
           }),
         claimNames,
         scopesForRealm,
+        activeSigningKeyAlg,
         trustProxy: false,
       },
       'acme',
@@ -148,6 +159,7 @@ describe('resolveDiscoveryDocument', () => {
             }),
           claimNames,
           scopesForRealm,
+          activeSigningKeyAlg,
           trustProxy: false,
         },
         'acme',
@@ -183,6 +195,7 @@ describe('resolveDiscoveryDocument', () => {
             }),
           claimNames,
           scopesForRealm,
+          activeSigningKeyAlg,
           trustProxy,
         },
         'acme',
@@ -193,6 +206,60 @@ describe('resolveDiscoveryDocument', () => {
       );
     },
   );
+
+  it('advertises the realm active key alg plus none, never a fixed pair', async () => {
+    const doc = await resolveDiscoveryDocument(
+      {
+        findRealm: () =>
+          Promise.resolve({
+            id: 'r1',
+            enabled: true,
+            verifyEmail: false,
+            ssoSessionMaxSeconds: 36_000,
+            ssoSessionIdleSeconds: 1_800,
+            rememberMeIdleSeconds: 604_800,
+            rememberMeMaxSeconds: 2_592_000,
+            rememberMeAllowed: false,
+            maxSessionsPerBrowser: 25,
+            clientRegistrationPolicy: 'disabled',
+          }),
+        claimNames,
+        scopesForRealm,
+        activeSigningKeyAlg: () => Promise.resolve('ES256'),
+        trustProxy: false,
+      },
+      'acme',
+      'https://idp.example',
+    );
+    expect(doc?.userinfo_signing_alg_values_supported).toEqual(['ES256', 'none']);
+  });
+
+  it('advertises only none for a realm with no active signing key yet', async () => {
+    const doc = await resolveDiscoveryDocument(
+      {
+        findRealm: () =>
+          Promise.resolve({
+            id: 'r1',
+            enabled: true,
+            verifyEmail: false,
+            ssoSessionMaxSeconds: 36_000,
+            ssoSessionIdleSeconds: 1_800,
+            rememberMeIdleSeconds: 604_800,
+            rememberMeMaxSeconds: 2_592_000,
+            rememberMeAllowed: false,
+            maxSessionsPerBrowser: 25,
+            clientRegistrationPolicy: 'disabled',
+          }),
+        claimNames,
+        scopesForRealm,
+        activeSigningKeyAlg: () => Promise.resolve(null),
+        trustProxy: false,
+      },
+      'acme',
+      'https://idp.example',
+    );
+    expect(doc?.userinfo_signing_alg_values_supported).toEqual(['none']);
+  });
 
   it('omits registration_endpoint while the policy is disabled', async () => {
     const doc = await resolveDiscoveryDocument(
@@ -212,6 +279,7 @@ describe('resolveDiscoveryDocument', () => {
           }),
         claimNames,
         scopesForRealm,
+        activeSigningKeyAlg,
         trustProxy: false,
       },
       'acme',

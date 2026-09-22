@@ -8,6 +8,7 @@ import {
   type RealmScopedDatabase,
 } from '@odudu/db';
 import { provisionRealm } from '@odudu/authn-flows';
+import { generateSigningKey, signingKeys } from '@odudu/crypto';
 import { clientRegistrationTokenRepository, clients } from '@odudu/domain-realm';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
@@ -31,6 +32,7 @@ let http: FastifyInstance;
 
 const URL_FOR = (realm: string) => `/realms/${realm}/clients-registrations/openid-connect`;
 const MINIMAL = { redirect_uris: ['https://rp.example/cb'] };
+const KEK = Buffer.alloc(32, 7);
 
 async function seedRealm(
   tx: RealmScopedDatabase,
@@ -82,7 +84,7 @@ beforeAll(async () => {
     oidcRoutes({
       database: app,
       ownerDatabase: owner,
-      kek: Buffer.alloc(32, 7),
+      kek: KEK,
       clientSecretLimiter: UNLIMITED_CLIENT_SECRET_LIMITER,
       clientKeySet: NO_CLIENT_KEY_FETCHER,
     }),
@@ -362,9 +364,19 @@ describe('[ODUDU-CLIENT-REGISTRATION-SEAM-01] the P3a/P3b seam', () => {
   it('advertises signing but not encryption, and stores both', async () => {
     const realmName = `seam-${newId()}`;
     const realmId = newId();
-    await withRealm(app.db, realmId, (tx) =>
-      seedRealm(tx, realmId, { name: realmName, policy: 'open' }),
-    );
+    await withRealm(app.db, realmId, async (tx) => {
+      await seedRealm(tx, realmId, { name: realmName, policy: 'open' });
+      const key = await generateSigningKey('RS256', KEK);
+      await tx.insert(signingKeys).values({
+        id: newId(),
+        realmId,
+        kid: key.kid,
+        alg: key.alg,
+        status: 'active',
+        publicJwk: key.publicJwk,
+        privateJwkEncrypted: key.privateJwkEncrypted,
+      });
+    });
 
     const res = await http.inject({
       method: 'POST',
@@ -382,7 +394,9 @@ describe('[ODUDU-CLIENT-REGISTRATION-SEAM-01] the P3a/P3b seam', () => {
 
     const doc = await discovery(realmName);
     expect(doc.backchannel_logout_supported).toBe(true);
-    expect(doc.userinfo_signing_alg_values_supported).toEqual(['RS256', 'ES256', 'none']);
+    // This realm's own active key, not a fixed pair every realm gets —
+    // it holds exactly one (`signing_keys_one_active`).
+    expect(doc.userinfo_signing_alg_values_supported).toEqual(['RS256', 'none']);
     expect(doc).not.toHaveProperty('userinfo_encryption_alg_values_supported');
   });
 
@@ -397,6 +411,35 @@ describe('[ODUDU-CLIENT-REGISTRATION-SEAM-01] the P3a/P3b seam', () => {
       method: 'POST',
       url: URL_FOR(realmName),
       payload: { ...MINIMAL, userinfo_signed_response_alg: 'ES512' },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json<{ error: string }>().error).toBe('invalid_client_metadata');
+  });
+
+  // A permitted value (client-metadata.ts's own enum admits it) that this
+  // realm's own active key still cannot produce — the mismatch N1/N2's fix
+  // closes at registration, before a client ever reaches a `/userinfo` 500.
+  it('refuses a permitted algorithm this realm cannot produce, at registration', async () => {
+    const realmName = `seam-key-mismatch-${newId()}`;
+    const realmId = newId();
+    await withRealm(app.db, realmId, async (tx) => {
+      await seedRealm(tx, realmId, { name: realmName, policy: 'open' });
+      const key = await generateSigningKey('RS256', KEK);
+      await tx.insert(signingKeys).values({
+        id: newId(),
+        realmId,
+        kid: key.kid,
+        alg: key.alg,
+        status: 'active',
+        publicJwk: key.publicJwk,
+        privateJwkEncrypted: key.privateJwkEncrypted,
+      });
+    });
+
+    const res = await http.inject({
+      method: 'POST',
+      url: URL_FOR(realmName),
+      payload: { ...MINIMAL, userinfo_signed_response_alg: 'ES256' },
     });
     expect(res.statusCode).toBe(400);
     expect(res.json<{ error: string }>().error).toBe('invalid_client_metadata');
