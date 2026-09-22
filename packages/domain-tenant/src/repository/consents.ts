@@ -1,12 +1,12 @@
-import { type RealmScopedDatabase } from '@odudu/db';
+import { type TenantScopedDatabase } from '@odudu/db';
 import { newId } from '@odudu/kernel';
 import { and, eq, notInArray, sql } from 'drizzle-orm';
 import { consentScopes, consents } from '#/schema/consents';
 
-export function consentRepository(tx: RealmScopedDatabase) {
+export function consentRepository(tx: TenantScopedDatabase) {
   return {
     async grantedScopeIds(
-      realmId: string,
+      tenantId: string,
       subjectId: string,
       clientId: string,
     ): Promise<ReadonlySet<string>> {
@@ -16,7 +16,7 @@ export function consentRepository(tx: RealmScopedDatabase) {
         .innerJoin(consents, eq(consentScopes.consentId, consents.id))
         .where(
           and(
-            eq(consents.realmId, realmId),
+            eq(consents.tenantId, tenantId),
             eq(consents.subjectId, subjectId),
             eq(consents.clientId, clientId),
           ),
@@ -30,16 +30,16 @@ export function consentRepository(tx: RealmScopedDatabase) {
     // delete of what fell out of the new set, and the insert of what is new
     // to it all run against the one transaction `tx` already is.
     async record(
-      realmId: string,
+      tenantId: string,
       subjectId: string,
       clientId: string,
       scopeIds: readonly string[],
     ): Promise<void> {
       const rows = await tx
         .insert(consents)
-        .values({ id: newId(), realmId, subjectId, clientId })
+        .values({ id: newId(), tenantId, subjectId, clientId })
         .onConflictDoUpdate({
-          target: [consents.realmId, consents.subjectId, consents.clientId],
+          target: [consents.tenantId, consents.subjectId, consents.clientId],
           set: { updatedAt: sql`now()` },
         })
         .returning({ id: consents.id });
@@ -63,7 +63,7 @@ export function consentRepository(tx: RealmScopedDatabase) {
       if (scopeIds.length > 0) {
         await tx
           .insert(consentScopes)
-          .values(scopeIds.map((clientScopeId) => ({ realmId, consentId, clientScopeId })))
+          .values(scopeIds.map((clientScopeId) => ({ tenantId, consentId, clientScopeId })))
           .onConflictDoNothing();
       }
     },

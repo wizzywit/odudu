@@ -1,4 +1,4 @@
-// What a realm exposes for configuration, keyed by the column name a reader
+// What a tenant exposes for configuration, keyed by the column name a reader
 // sees in the schema and in `docs/request-paths.md` rather than by Drizzle's
 // camel case. Identity is absent on purpose: `name` is in every issuer URL
 // already minted, and `id` is what row-level security keys on.
@@ -36,16 +36,16 @@ const SETTINGS = {
   remember_me_max_seconds: { column: 'rememberMeMaxSeconds', type: 'integer' },
 } as const satisfies Record<string, { column: string; type: 'boolean' | 'integer' | 'text' }>;
 
-export type RealmSettingName = keyof typeof SETTINGS;
+export type TenantSettingName = keyof typeof SETTINGS;
 
-export const REALM_SETTING_NAMES: readonly string[] = Object.keys(SETTINGS);
+export const TENANT_SETTING_NAMES: readonly string[] = Object.keys(SETTINGS);
 
 export type CoerceOutcome =
   | { kind: 'coerced'; column: string; value: boolean | number | string }
   | { kind: 'unknown_setting'; known: readonly string[] }
   | { kind: 'invalid_value'; expected: 'boolean' | 'integer' | 'text' };
 
-function isSettingName(value: string): value is RealmSettingName {
+function isSettingName(value: string): value is TenantSettingName {
   return Object.hasOwn(SETTINGS, value);
 }
 
@@ -64,9 +64,9 @@ function coerceInteger(raw: string): number | null {
   return /^-?\d+$/u.test(raw) ? Number(raw) : null;
 }
 
-export function coerceRealmSetting(name: string, raw: string): CoerceOutcome {
+export function coerceTenantSetting(name: string, raw: string): CoerceOutcome {
   if (!isSettingName(name)) {
-    return { kind: 'unknown_setting', known: REALM_SETTING_NAMES };
+    return { kind: 'unknown_setting', known: TENANT_SETTING_NAMES };
   }
   const setting = SETTINGS[name];
   if (setting.type === 'text') {

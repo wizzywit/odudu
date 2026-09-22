@@ -28,8 +28,8 @@ import {
   verifyClientSecret,
   type ClientRecord,
   type ClientScopeAssignment,
-  coerceRealmSetting,
-} from '@odudu/domain-realm';
+  coerceTenantSetting,
+} from '@odudu/domain-tenant';
 import { loadConfig, newId, OduduError } from '@odudu/kernel';
 import {
   clientOidcConfigRepository,
@@ -800,7 +800,7 @@ function parseSettings(assignments: readonly string[]): ParsedSetting[] {
     }
     const name = assignment.slice(0, separator);
     // Only the first `=` splits, so a text setting may contain one.
-    const outcome = coerceRealmSetting(name, assignment.slice(separator + 1));
+    const outcome = coerceTenantSetting(name, assignment.slice(separator + 1));
     if (outcome.kind === 'unknown_setting') {
       throw new OduduError(
         'seed_unknown_setting',

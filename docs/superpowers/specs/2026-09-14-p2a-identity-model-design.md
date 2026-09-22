@@ -491,7 +491,7 @@ than following them:
 - **`@odudu/domain-authz`** — roles, composites, groups, assignments, and
   effective-role resolution. Depends on nothing: its schema references ids,
   not entities, so "domain packages never import protocol packages" holds
-  trivially and it does not import `@odudu/domain-realm` either.
+  trivially and it does not import `@odudu/domain-tenant` either.
 - **`@odudu/email`** — the `EmailSender` port, the SMTP and capturing
   adapters, the templates.
 - **`@odudu/account`** — registration, verification and reset usecases and
@@ -499,7 +499,7 @@ than following them:
   what stops that package becoming "everything served under `/realms/:realm/`".
 
 Client scopes, scope mappings and web origins are client configuration and go
-in **`@odudu/domain-realm`**. The profile columns go in
+in **`@odudu/domain-tenant`**. The profile columns go in
 **`@odudu/domain-identity`**.
 
 `tests/boundaries` and the `dependency-cruiser` rules are updated in the

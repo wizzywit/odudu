@@ -8,7 +8,7 @@ import {
   type RealmScopedDatabase,
 } from '@odudu/db';
 import { roleRepository } from '@odudu/domain-authz';
-import { clientScopeRepository } from '@odudu/domain-realm';
+import { clientScopeRepository } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';

@@ -166,9 +166,9 @@ importers:
       '@odudu/domain-identity':
         specifier: workspace:*
         version: link:../../packages/domain-identity
-      '@odudu/domain-realm':
+      '@odudu/domain-tenant':
         specifier: workspace:*
-        version: link:../../packages/domain-realm
+        version: link:../../packages/domain-tenant
       '@odudu/email':
         specifier: workspace:*
         version: link:../../packages/email
@@ -246,9 +246,9 @@ importers:
       '@odudu/domain-identity':
         specifier: workspace:*
         version: link:../domain-identity
-      '@odudu/domain-realm':
+      '@odudu/domain-tenant':
         specifier: workspace:*
-        version: link:../domain-realm
+        version: link:../domain-tenant
       '@odudu/kernel':
         specifier: workspace:*
         version: link:../kernel
@@ -373,7 +373,7 @@ importers:
         specifier: 5.0.0
         version: 5.0.0(@types/node@24.13.4)(vite@8.2.2(@types/node@24.13.4)(esbuild@0.28.2)(tsx@4.23.13)(yaml@2.9.0))
 
-  packages/domain-realm:
+  packages/domain-tenant:
     dependencies:
       '@odudu/db':
         specifier: workspace:*
@@ -455,9 +455,9 @@ importers:
       '@odudu/domain-identity':
         specifier: workspace:*
         version: link:../domain-identity
-      '@odudu/domain-realm':
+      '@odudu/domain-tenant':
         specifier: workspace:*
-        version: link:../domain-realm
+        version: link:../domain-tenant
       '@odudu/kernel':
         specifier: workspace:*
         version: link:../kernel

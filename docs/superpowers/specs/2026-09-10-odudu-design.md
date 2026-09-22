@@ -85,7 +85,7 @@ odudu/
 │  ├─ contracts/           # schemas and types shared across the API boundary
 │  ├─ crypto/              # JWS/JWE, JWKS, key rotation, password hashing
 │  ├─ db/                  # connection, migration runner, schema aggregation
-│  ├─ domain-realm/
+│  ├─ domain-tenant/
 │  ├─ domain-identity/
 │  ├─ authn-flows/
 │  ├─ protocol-oidc/

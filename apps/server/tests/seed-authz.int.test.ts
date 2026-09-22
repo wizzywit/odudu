@@ -1,6 +1,6 @@
 import { createDatabase, MIGRATIONS_DIR, runMigrations, type DatabaseHandle } from '@odudu/db';
 import { users } from '@odudu/domain-identity';
-import { clientScopes } from '@odudu/domain-realm';
+import { clientScopes } from '@odudu/domain-tenant';
 import { loadConfig, newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import { and, eq } from 'drizzle-orm';

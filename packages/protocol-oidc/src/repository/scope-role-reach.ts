@@ -1,6 +1,6 @@
 import { type RealmScopedDatabase } from '@odudu/db';
 import { roleRepository } from '@odudu/domain-authz';
-import { clientScopeRepository, type ClientScopeRecord } from '@odudu/domain-realm';
+import { clientScopeRepository, type ClientScopeRecord } from '@odudu/domain-tenant';
 
 // A granted scope name with no matching client_scopes row resolves to
 // nothing rather than erroring — the same "missing means absent"

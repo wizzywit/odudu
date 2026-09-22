@@ -6,7 +6,7 @@ import {
   clientRepository,
   provisionClientDefaults,
   type ClientRecord,
-} from '@odudu/domain-realm';
+} from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
 import { randomBytes } from 'node:crypto';
 import { clientOidcConfigRepository, type ClientOidcConfig } from '#/repository/client-oidc-config';
@@ -49,7 +49,7 @@ export type ClientRegistrationOutcome =
 
 // RFC 7591 places no format requirement on a client secret; 32 random bytes
 // base64url-encoded matches the registration token's own choice
-// (packages/domain-realm/src/repository/client-registration-tokens.ts) —
+// (packages/domain-tenant/src/repository/client-registration-tokens.ts) —
 // 256 bits of entropy, comfortably above what a bearer credential needs.
 function generateClientSecret(): string {
   return randomBytes(32).toString('base64url');

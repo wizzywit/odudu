@@ -7,7 +7,7 @@ import {
   type DatabaseHandle,
 } from '@odudu/db';
 import { provisionRealm } from '@odudu/authn-flows';
-import { clientScopeRepository, clients, provisionClientDefaults } from '@odudu/domain-realm';
+import { clientScopeRepository, clients, provisionClientDefaults } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import Fastify, { type FastifyInstance, type LightMyRequestResponse } from 'fastify';
@@ -134,7 +134,7 @@ async function servedScopes(): Promise<string[]> {
 describe('[OIDC-DISCOVERY-3-01] the served discovery document', () => {
   // §3 requires the server to support the `openid` scope value, and a realm's
   // vocabulary is now the only thing that can make that true: if `openid`
-  // left the set provisionRealmDefaults seeds, this is what would notice.
+  // left the set provisionTenantDefaults seeds, this is what would notice.
   it('lists openid for a realm provisioned with nothing but the defaults', async () => {
     expect(await servedScopes()).toContain('openid');
   });

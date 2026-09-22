@@ -1,13 +1,13 @@
 import {
   createDatabase,
   MIGRATIONS_DIR,
-  realms,
+  tenants,
   runMigrations,
-  withRealm,
+  withTenant,
   type DatabaseHandle,
-  type RealmScopedDatabase,
+  type TenantScopedDatabase,
 } from '@odudu/db';
-import { expectCrossRealmMethodProbe, expectRealmIsolation } from '@odudu/db/testing';
+import { expectCrossTenantMethodProbe, expectTenantIsolation } from '@odudu/db/testing';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import { eq } from 'drizzle-orm';
@@ -42,18 +42,18 @@ afterAll(async () => {
   await containerHandle?.stop();
 });
 
-async function seedRealm(tx: RealmScopedDatabase, realmId: string): Promise<void> {
-  await tx.insert(realms).values({ id: realmId, name: `realm-${realmId}` });
+async function seedTenant(tx: TenantScopedDatabase, tenantId: string): Promise<void> {
+  await tx.insert(tenants).values({ id: tenantId, name: `tenant-${tenantId}` });
 }
 
 async function insertClient(
-  tx: RealmScopedDatabase,
-  realmId: string,
+  tx: TenantScopedDatabase,
+  tenantId: string,
   overrides: Partial<typeof clients.$inferInsert> = {},
 ): Promise<void> {
   await tx.insert(clients).values({
     id: newId(),
-    realmId,
+    tenantId,
     clientId: `client-${newId()}`,
     name: 'A client',
     type: 'confidential',
@@ -64,15 +64,15 @@ async function insertClient(
 
 describe('clientRepository', () => {
   it('finds a client by its client_id', async () => {
-    const realmId = newId();
+    const tenantId = newId();
     const clientId = `web-app-${newId()}`;
 
-    await withRealm(app.db, realmId, async (tx) => {
-      await seedRealm(tx, realmId);
-      await insertClient(tx, realmId, { clientId });
+    await withTenant(app.db, tenantId, async (tx) => {
+      await seedTenant(tx, tenantId);
+      await insertClient(tx, tenantId, { clientId });
     });
 
-    const found = await withRealm(app.db, realmId, async (tx) =>
+    const found = await withTenant(app.db, tenantId, async (tx) =>
       clientRepository(tx).byClientId(clientId),
     );
 
@@ -82,13 +82,13 @@ describe('clientRepository', () => {
   });
 
   it('returns null when no client matches', async () => {
-    const realmId = newId();
+    const tenantId = newId();
 
-    await withRealm(app.db, realmId, async (tx) => {
-      await seedRealm(tx, realmId);
+    await withTenant(app.db, tenantId, async (tx) => {
+      await seedTenant(tx, tenantId);
     });
 
-    const found = await withRealm(app.db, realmId, async (tx) =>
+    const found = await withTenant(app.db, tenantId, async (tx) =>
       clientRepository(tx).byClientId('does-not-exist'),
     );
 
@@ -96,13 +96,13 @@ describe('clientRepository', () => {
   });
 
   it('creates a client through the repository', async () => {
-    const realmId = newId();
+    const tenantId = newId();
     const clientId = `created-${newId()}`;
 
-    const created = await withRealm(app.db, realmId, async (tx) => {
-      await seedRealm(tx, realmId);
+    const created = await withTenant(app.db, tenantId, async (tx) => {
+      await seedTenant(tx, tenantId);
       return clientRepository(tx).create({
-        realmId,
+        tenantId,
         clientId,
         name: 'Created client',
         type: 'public',
@@ -115,22 +115,22 @@ describe('clientRepository', () => {
     expect(created.secretHash).toBeNull();
     expect(created.id).not.toBe('');
 
-    const found = await withRealm(app.db, realmId, async (tx) =>
+    const found = await withTenant(app.db, tenantId, async (tx) =>
       clientRepository(tx).byClientId(clientId),
     );
     expect(found?.id).toBe(created.id);
   });
 
-  it('rejects a second client with the same client_id in one realm', async () => {
-    const realmId = newId();
+  it('rejects a second client with the same client_id in one tenant', async () => {
+    const tenantId = newId();
     const clientId = `dup-${newId()}`;
 
     let error: unknown;
     try {
-      await withRealm(app.db, realmId, async (tx) => {
-        await seedRealm(tx, realmId);
-        await insertClient(tx, realmId, { clientId });
-        await insertClient(tx, realmId, { clientId });
+      await withTenant(app.db, tenantId, async (tx) => {
+        await seedTenant(tx, tenantId);
+        await insertClient(tx, tenantId, { clientId });
+        await insertClient(tx, tenantId, { clientId });
       });
       expect.unreachable('expected the duplicate client_id insert to be rejected');
     } catch (caught) {
@@ -144,13 +144,13 @@ describe('clientRepository', () => {
   });
 
   it('rejects a public client carrying a secret', async () => {
-    const realmId = newId();
+    const tenantId = newId();
 
     let error: unknown;
     try {
-      await withRealm(app.db, realmId, async (tx) => {
-        await seedRealm(tx, realmId);
-        await insertClient(tx, realmId, { type: 'public', secretHash: 'x' });
+      await withTenant(app.db, tenantId, async (tx) => {
+        await seedTenant(tx, tenantId);
+        await insertClient(tx, tenantId, { type: 'public', secretHash: 'x' });
       });
       expect.unreachable('expected the public client with a secret to be rejected');
     } catch (caught) {
@@ -163,23 +163,23 @@ describe('clientRepository', () => {
     expect((cause as Error).message).toContain('clients_secret_matches_type');
   });
 
-  it('isolates clients by realm', async () => {
-    await expectRealmIsolation(app.db, {
+  it('isolates clients by tenant', async () => {
+    await expectTenantIsolation(app.db, {
       table: 'clients',
-      seed: async (tx, realmId) => {
-        await seedRealm(tx, realmId);
-        await insertClient(tx, realmId);
+      seed: async (tx, tenantId) => {
+        await seedTenant(tx, tenantId);
+        await insertClient(tx, tenantId);
       },
     });
   });
 
-  it('leaves an existing realm and an existing client unchanged in behaviour', async () => {
-    const realmId = newId();
+  it('leaves an existing tenant and an existing client unchanged in behaviour', async () => {
+    const tenantId = newId();
 
-    const created = await withRealm(app.db, realmId, async (tx) => {
-      await seedRealm(tx, realmId);
+    const created = await withTenant(app.db, tenantId, async (tx) => {
+      await seedTenant(tx, tenantId);
       return clientRepository(tx).create({
-        realmId,
+        tenantId,
         clientId: `seeded-${newId()}`,
         name: 'A seeded client',
         type: 'public',
@@ -189,19 +189,19 @@ describe('clientRepository', () => {
 
     expect(created.registrationOrigin).toBe('seeded');
 
-    const [realm] = await withRealm(app.db, realmId, async (tx) =>
-      tx.select().from(realms).where(eq(realms.id, realmId)),
+    const [tenant] = await withTenant(app.db, tenantId, async (tx) =>
+      tx.select().from(tenants).where(eq(tenants.id, tenantId)),
     );
-    expect(realm?.clientRegistrationPolicy).toBe('disabled');
-    expect(realm?.maxClients).toBe(200);
+    expect(tenant?.clientRegistrationPolicy).toBe('disabled');
+    expect(tenant?.maxClients).toBe(200);
   });
 
-  it('cannot find a client by client_id under a different realm context', async () => {
-    await expectCrossRealmMethodProbe(app.db, {
-      seed: async (tx, realmId) => {
-        await seedRealm(tx, realmId);
+  it('cannot find a client by client_id under a different tenant context', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        await seedTenant(tx, tenantId);
         const clientId = `probe-${newId()}`;
-        await insertClient(tx, realmId, { clientId });
+        await insertClient(tx, tenantId, { clientId });
         return clientId;
       },
       verifySeeded: async (tx, clientId) => {
@@ -216,24 +216,24 @@ describe('clientRepository', () => {
     });
   });
 
-  it('locks and counts capacity for the resolved realm, not the caller-supplied id', async () => {
-    await expectCrossRealmMethodProbe(app.db, {
-      seed: async (tx, realmId) => {
-        await seedRealm(tx, realmId);
-        await insertClient(tx, realmId);
-        return realmId;
+  it('locks and counts capacity for the resolved tenant, not the caller-supplied id', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        await seedTenant(tx, tenantId);
+        await insertClient(tx, tenantId);
+        return tenantId;
       },
-      verifySeeded: async (tx, realmId) => {
-        const capacity = await clientRepository(tx).lockCapacity(realmId);
+      verifySeeded: async (tx, tenantId) => {
+        const capacity = await clientRepository(tx).lockCapacity(tenantId);
         expect(capacity.count).toBe(1);
         expect(capacity.maxClients).toBe(200);
       },
-      // Realm B's RLS-scoped read of `realms` finds no row for realm A's
+      // Tenant B's RLS-scoped read of `tenants` finds no row for tenant A's
       // id, so the lock itself is what refuses — not a count that quietly
-      // comes back as someone else's realm's number.
-      attempt: async (tx, realmId) => {
+      // comes back as someone else's tenant's number.
+      attempt: async (tx, tenantId) => {
         try {
-          return await clientRepository(tx).lockCapacity(realmId);
+          return await clientRepository(tx).lockCapacity(tenantId);
         } catch (error) {
           return { threw: true, message: error instanceof Error ? error.message : String(error) };
         }

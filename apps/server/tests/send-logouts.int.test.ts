@@ -6,7 +6,7 @@ import {
   withRealm,
   type DatabaseHandle,
 } from '@odudu/db';
-import { clients } from '@odudu/domain-realm';
+import { clients } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
 import { logoutDeliveryRepository, type LogoutDeliveryTransport } from '@odudu/protocol-oidc';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';

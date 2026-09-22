@@ -228,7 +228,7 @@ is waste.
 P1 creates six of the packages named in umbrella spec section 3:
 
 ```
-kernel <- contracts, crypto, db <- domain-realm, domain-identity
+kernel <- contracts, crypto, db <- domain-tenant, domain-identity
                                         ^
                      authn-flows, protocol-oidc <- server
 ```
@@ -237,7 +237,7 @@ kernel <- contracts, crypto, db <- domain-realm, domain-identity
 | ----------------- | ---------------------------------------------------------- |
 | `contracts`       | Zod schemas and types for the API boundary                 |
 | `crypto`          | JWS, JWKS, `kid` resolution, KEK-wrapped keys, Argon2id    |
-| `domain-realm`    | realms, clients                                            |
+| `domain-tenant`    | realms, clients                                            |
 | `domain-identity` | subjects, users, credentials                               |
 | `authn-flows`     | the persisted executor and the password authenticator      |
 | `protocol-oidc`   | five endpoints, the eight-stage pipeline, its schema slice |
@@ -250,12 +250,12 @@ A client carries `redirect_uris`, `grant_types` and
 which is what allows SAML to arrive in P8 without touching the identity
 model.
 
-**Decision.** Split. `domain-realm` owns a protocol-agnostic `clients`
+**Decision.** Split. `domain-tenant` owns a protocol-agnostic `clients`
 row; `protocol-oidc` owns `client_oidc_config` keyed to it. At P8,
 `protocol-saml` adds a parallel configuration table and the identity model
 is untouched.
 
-**Rejected — one wide table in `domain-realm`.** Cheaper now, makes the
+**Rejected — one wide table in `domain-tenant`.** Cheaper now, makes the
 domain package protocol-aware, and is the specific outcome the rule exists
 to prevent. It is also Keycloak's shape: one `client` table with a
 `protocol` discriminator.
@@ -273,7 +273,7 @@ SECURITY`, a policy, and a foreign-`realm_id` probe in the adversarial
 suite — the standing obligation `docs/NEXT.md` records from P0, which P1
 is the first phase to owe.
 
-**`domain-realm`**
+**`domain-tenant`**
 
 - `clients` — `(id, realm_id, client_id, name, enabled, type, secret_hash,
 created_at)`, `type` in `{ public, confidential }`, unique on
@@ -546,7 +546,7 @@ each independently mergeable and each ending green.
 3. resolve the snapshot divergence; establish the RLS pattern for new
    tables
 4. `crypto` — keys, KEK, JWKS, `kid`, signing
-5. `domain-realm` clients; `domain-identity` subjects, users, credentials,
+5. `domain-tenant` clients; `domain-identity` subjects, users, credentials,
    Argon2id
 6. `authn-flows` — executor, password authenticator, sessions
 7. discovery and `/jwks`

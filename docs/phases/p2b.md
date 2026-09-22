@@ -602,21 +602,21 @@ constrained to `required`/`alternative`/`conditional`/`disabled` and
 `executionRepository` (`forRealm`, ordered by `index`; `create`) and
 `provisionBrowserFlow`, which seeds `BROWSER_FLOW_DEFAULT` — `passkey` and
 `password` at `alternative`, `otp` at `conditional` — for every realm.
-`@odudu/domain-realm` does not depend on `@odudu/authn-flows` — the umbrella
+`@odudu/domain-tenant` does not depend on `@odudu/authn-flows` — the umbrella
 spec fixes the direction the other way — so `provisionRealmDefaults` does not
 call `provisionBrowserFlow` itself; a `dependency-cruiser` rule
 (`no-domain-to-authn-flows`) forbids that edge, alongside `no-circular`,
-which would also catch it (`authn-flows` now depends on `@odudu/domain-realm`
+which would also catch it (`authn-flows` now depends on `@odudu/domain-tenant`
 too, so the edge would close a cycle, not just point the wrong way).
 `@odudu/authn-flows` exports `provisionRealm(tx, realmId)`, which calls
 `provisionRealmDefaults` and then `provisionBrowserFlow` — the one function
 a realm-creation site should call so the two cannot drift apart. The seed
 CLI's two realm-creation sites (`apps/server/src/cli/seed.ts`) call it; so do
-all but one of the ~25 protocol-oidc and domain-realm test fixtures that
+all but one of the ~25 protocol-oidc and domain-tenant test fixtures that
 stand up a realm, mechanically migrated from calling `provisionRealmDefaults`
-directly. The one exception is `domain-realm`'s own
+directly. The one exception is `domain-tenant`'s own
 `provision-defaults.int.test.ts`, which cannot reach `provisionRealm` —
-`domain-realm` sits underneath `authn-flows` in the dependency graph — and
+`domain-tenant` sits underneath `authn-flows` in the dependency graph — and
 still calls `provisionRealmDefaults` directly, with a comment saying why.
 `provisionBrowserFlow` and `provisionRealmDefaults` both stay exported
 individually for a caller that wants only one half. Evaluating the flow into

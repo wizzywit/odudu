@@ -4,7 +4,7 @@
 
 **Goal:** A client can register itself under a realm policy that is closed by default, describe itself with the metadata P3b reads, and be approved by a user on a consent screen whose grant is recorded and asked against again.
 
-**Architecture:** No new packages, one new tool. `domain-realm` grows the consent model, initial access tokens and two realm settings. `protocol-oidc` grows the registration endpoint, the consent screen and the consent gate — which sits on **two** paths, not one, because `completeReuse` issues a code without passing through `handleLoginSubmission`. `kernel` gains the page-header contract that collapses the server's two HTML exits into one authority. The first outbound HTTP this server has ever made arrives here, pointed at a URL an attacker supplies, so its address guard is a pure function tested without a network.
+**Architecture:** No new packages, one new tool. `domain-tenant` grows the consent model, initial access tokens and two realm settings. `protocol-oidc` grows the registration endpoint, the consent screen and the consent gate — which sits on **two** paths, not one, because `completeReuse` issues a code without passing through `handleLoginSubmission`. `kernel` gains the page-header contract that collapses the server's two HTML exits into one authority. The first outbound HTTP this server has ever made arrives here, pointed at a URL an attacker supplies, so its address guard is a pure function tested without a network.
 
 **Tech Stack:** Node 24, TypeScript 6.0.3, Fastify 5.12.3, PostgreSQL 17, Drizzle ORM 0.45.2, Zod 4.6.1, Vitest 5.0.0, Testcontainers 12.1.0, jose 6.2.12, @node-rs/argon2 2.2.1. No new runtime dependency is planned: `jose` already imports JWKS, and the fetcher is `node:https` plus `node:dns`.
 
@@ -79,7 +79,7 @@ Leave a thread open only where a question is genuinely still open. **Never resol
 - **Consent gates two paths, not one.** `handleLoginSubmission` (`packages/protocol-oidc/src/usecase/login-submission.ts:203`) is the form path; `handleAuthorizationRequest`'s `completeReuse` (`packages/protocol-oidc/src/usecase/authorization-request.ts:88`) issues a code from a reused SSO session **without passing through it at all**. A consent gate on the form path alone means a client with `consent_required` is asked once and never again, which is the opposite of the feature. verified: read both files, 2026-09-18.
 - **Consent leaves the authentication session unconsumed**, exactly as `required_action` and `unverified` already do, so the same parked request survives the detour. The union at `login-submission.ts` documents both; a third joins them, and the reasoning for why it must be decided _before_ `completeLogin` rather than after is the same.
 - **P3a registers metadata and advertises none of it.** `backchannel_logout_supported`, `frontchannel_logout_supported`, `userinfo_signing_alg_values_supported`, `userinfo_encryption_alg_values_supported`, `introspection_endpoint` and `revocation_endpoint` stay **absent** from the discovery document until P3b implements the behaviour. `docs/protocols/oidc-backchannel.md:25` records why: advertising one would "claim a capability the OP does not have". `registration_endpoint` is the exception — P3a implements it, so it is advertised, and only when the realm's policy is not `disabled`.
-- **`domain-realm` must not depend on `domain-identity`.** Its dependencies are `@odudu/db`, `@odudu/kernel` and `drizzle-orm` only. The comment at `packages/domain-realm/src/service/client.ts:2` states the rule and shows the remedy: inject the capability, as `verifyClientSecret` injects its Argon2id comparator. verified: `sed -n '/"dependencies"/,/}/p' packages/domain-realm/package.json`, 2026-09-18.
+- **`domain-tenant` must not depend on `domain-identity`.** Its dependencies are `@odudu/db`, `@odudu/kernel` and `drizzle-orm` only. The comment at `packages/domain-tenant/src/service/client.ts:2` states the rule and shows the remedy: inject the capability, as `verifyClientSecret` injects its Argon2id comparator. verified: `sed -n '/"dependencies"/,/}/p' packages/domain-tenant/package.json`, 2026-09-18.
 - **A `jwks_uri` is an attacker-supplied URL fetched from inside the perimeter.** No `http`, no redirects, no private or loopback address, and the address is checked **after** resolution and connected to by address — checking a hostname and letting the client resolve again is a DNS-rebinding hole. Spec section 6.
 - **The server has never made an outbound HTTP request.** verified: `grep -rn "fetch(\|undici\|axios" --include="*.ts" packages apps` returns one hit, `packages/protocol-oidc/src/view/authorize-html.ts:109`, which is browser-side script inside a rendered page, 2026-09-18. There is no existing pattern to copy and no egress allowlist to extend.
 - **The consent page is rendered by `protocol-oidc/src/view/consent-html.ts`** and leaves through the shared header contract like every other page. It is the first page written against the new contract, which is why the contract lands before it.
@@ -98,11 +98,11 @@ No new packages. One new tool (`tools/commit-message`) already exists on this br
 | `packages/account/src/view/verification-html.ts`                     | `sendVerificationHtml` spreads the same headers; its hand-copied policy goes               |
 | `packages/*/src/view/*-html.ts`                                      | 26 renderers return the page contract (account 13, protocol-oidc 8, authn-flows 5)         |
 | `packages/db/drizzle/0045…0047_*.sql`                                | client metadata, realm settings, consent and registration-token tables                     |
-| `packages/domain-realm/src/schema/consents.ts`                       | `consents` and `consent_scopes`                                                            |
-| `packages/domain-realm/src/repository/consents.ts`                   | read and record a grant                                                                    |
-| `packages/domain-realm/src/schema/client-registration-tokens.ts`     | initial access tokens                                                                      |
-| `packages/domain-realm/src/repository/client-registration-tokens.ts` | mint, spend                                                                                |
-| `packages/domain-realm/src/service/realm-settings.ts`                | two new settings in the `SETTINGS` map                                                     |
+| `packages/domain-tenant/src/schema/consents.ts`                       | `consents` and `consent_scopes`                                                            |
+| `packages/domain-tenant/src/repository/consents.ts`                   | read and record a grant                                                                    |
+| `packages/domain-tenant/src/schema/client-registration-tokens.ts`     | initial access tokens                                                                      |
+| `packages/domain-tenant/src/repository/client-registration-tokens.ts` | mint, spend                                                                                |
+| `packages/domain-tenant/src/service/realm-settings.ts`                | two new settings in the `SETTINGS` map                                                     |
 | `packages/protocol-oidc/src/service/client-metadata.ts`              | RFC 7591 validation, pure                                                                  |
 | `packages/protocol-oidc/src/service/remote-address.ts`               | the SSRF address guard, pure                                                               |
 | `packages/protocol-oidc/src/repository/client-keys.ts`               | the bounded, cached JWKS fetcher                                                           |
@@ -577,7 +577,7 @@ git push && gh pr checks 12 --watch
 - Create: `packages/db/drizzle/0045_client_registration_metadata.sql`
 - Modify: `packages/db/drizzle/meta/_journal.json`
 - Modify: `packages/protocol-oidc/src/schema/client-oidc-config.ts`
-- Modify: `packages/domain-realm/src/schema/clients.ts`, `packages/db/src/schema/realms.ts` (the realm table is declared in `db`, not `domain-realm` — verified 2026-09-18)
+- Modify: `packages/domain-tenant/src/schema/clients.ts`, `packages/db/src/schema/realms.ts` (the realm table is declared in `db`, not `domain-tenant` — verified 2026-09-18)
 - Test: `packages/db/tests/schema-drift.int.test.ts` (exists, asserts declarations against a migrated database)
 
 **Interfaces:**
@@ -660,13 +660,13 @@ Expected: PASS.
 
 - [ ] **Step 5: Probe the defaults**
 
-Add to an existing `*.int.test.ts` in `domain-realm`: a realm created by the current seed path has `client_registration_policy = 'disabled'` and `max_clients = 200`; a client seeded by the current path has `registration_origin = 'seeded'` and `consent_required = false`. **Every existing realm and client must be unchanged in behaviour by this migration** — that is what the defaults are for, and it is the claim most worth a test.
+Add to an existing `*.int.test.ts` in `domain-tenant`: a realm created by the current seed path has `client_registration_policy = 'disabled'` and `max_clients = 200`; a client seeded by the current path has `registration_origin = 'seeded'` and `consent_required = false`. **Every existing realm and client must be unchanged in behaviour by this migration** — that is what the defaults are for, and it is the claim most worth a test.
 
 - [ ] **Step 6: Gate, commit, push, watch**
 
 ```bash
 pnpm typecheck && pnpm lint && pnpm boundaries && pnpm exec vitest run --project integration && pnpm exec prettier --check .
-git add packages/db packages/domain-realm packages/protocol-oidc
+git add packages/db packages/domain-tenant packages/protocol-oidc
 git commit -m "Record how a client registered, and what a realm allows"
 git push && gh pr checks 12 --watch
 ```
@@ -677,8 +677,8 @@ git push && gh pr checks 12 --watch
 
 - Create: `packages/db/drizzle/0046_consents.sql`, `packages/db/drizzle/0047_client_registration_tokens.sql`
 - Modify: `packages/db/drizzle/meta/_journal.json`
-- Create: `packages/domain-realm/src/schema/consents.ts`, `packages/domain-realm/src/schema/client-registration-tokens.ts`
-- Modify: `packages/domain-realm/src/index.ts`
+- Create: `packages/domain-tenant/src/schema/consents.ts`, `packages/domain-tenant/src/schema/client-registration-tokens.ts`
+- Modify: `packages/domain-tenant/src/index.ts`
 - Test: `packages/db/tests/schema-drift.int.test.ts`, `packages/db/tests/rls-policy.int.test.ts` (both exist)
 
 **Interfaces:**
@@ -786,7 +786,7 @@ Expected: PASS after the declarations are added.
 
 ```bash
 pnpm typecheck && pnpm lint && pnpm boundaries && pnpm exec vitest run --project integration && pnpm exec prettier --check .
-git add packages/db packages/domain-realm
+git add packages/db packages/domain-tenant
 git commit -m "Add the consent grant and the registration token"
 git push && gh pr checks 12 --watch
 ```
@@ -795,8 +795,8 @@ git push && gh pr checks 12 --watch
 
 **Files:**
 
-- Modify: `packages/domain-realm/src/service/realm-settings.ts`
-- Test: `packages/domain-realm/src/service/realm-settings.test.ts` (exists), `apps/server/tests/seed.int.test.ts` (exists)
+- Modify: `packages/domain-tenant/src/service/realm-settings.ts`
+- Test: `packages/domain-tenant/src/service/realm-settings.test.ts` (exists), `apps/server/tests/seed.int.test.ts` (exists)
 - Modify: `README.md`, `docs/request-paths.md`
 
 **Interfaces:**
@@ -854,7 +854,7 @@ Expected: FAIL with `kind: 'unknown_setting'` for both.
 
 ```bash
 pnpm typecheck && pnpm lint && pnpm boundaries && pnpm exec vitest run --project unit && pnpm exec vitest run --project integration seed && pnpm exec prettier --check .
-git add packages/domain-realm apps/server README.md docs
+git add packages/domain-tenant apps/server README.md docs
 git commit -m "Let seed set the registration policy and the client cap"
 git push && gh pr checks 12 --watch
 ```
@@ -1253,8 +1253,8 @@ Note `pnpm trace` needs `trace-report.json`, which only `pnpm test` produces. Ru
 
 **Files:**
 
-- Create: `packages/domain-realm/src/repository/client-registration-tokens.ts`
-- Test: `packages/domain-realm/tests/client-registration-tokens.int.test.ts`
+- Create: `packages/domain-tenant/src/repository/client-registration-tokens.ts`
+- Test: `packages/domain-tenant/tests/client-registration-tokens.int.test.ts`
 - Modify: `apps/server/src/cli/seed.ts`, `apps/server/src/cli/seed-invocation.ts`
 - Test: `apps/server/tests/seed.int.test.ts` (exists)
 - Modify: `README.md`, `docs/request-paths.md`
@@ -1283,7 +1283,7 @@ it('does not let two concurrent spends overdraw a one-use token', async () => {
 });
 ```
 
-Write these out in full against the package's existing harness — copy the setup from the nearest `*.int.test.ts` in `domain-realm`. Back-date `expires_at` through the owner connection, because an injected clock cannot move the database's `now()`.
+Write these out in full against the package's existing harness — copy the setup from the nearest `*.int.test.ts` in `domain-tenant`. Back-date `expires_at` through the owner connection, because an injected clock cannot move the database's `now()`.
 
 - [ ] **Step 2: Run and watch fail**
 
@@ -1319,7 +1319,7 @@ Add it to `TableName` and `REAP_ORDER` in `apps/server/src/cli/reap.ts` with its
 
 ```bash
 pnpm typecheck && pnpm lint && pnpm boundaries && pnpm exec vitest run --project integration && pnpm exec prettier --check .
-git add packages/domain-realm apps/server README.md docs
+git add packages/domain-tenant apps/server README.md docs
 git commit -m "Issue an operator's token for registering a client"
 git push && gh pr checks 12 --watch
 ```
@@ -1550,8 +1550,8 @@ git push && gh pr checks 12 --watch
 
 **Files:**
 
-- Create: `packages/domain-realm/src/repository/consents.ts`
-- Test: `packages/domain-realm/tests/consents.int.test.ts`
+- Create: `packages/domain-tenant/src/repository/consents.ts`
+- Test: `packages/domain-tenant/tests/consents.int.test.ts`
 
 **Interfaces:**
 

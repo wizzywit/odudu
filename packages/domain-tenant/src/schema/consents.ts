@@ -4,11 +4,11 @@ import { clientScopes } from '#/schema/client-scopes';
 
 // Policies are hand-authored SQL in packages/db/drizzle/, never declared
 // with pgPolicy() — see clients.ts for why. The composite foreign keys to
-// subjects(realm_id, id) and clients(realm_id, id) live only in the
+// subjects(tenant_id, id) and clients(tenant_id, id) live only in the
 // migration: drizzle's table builder has no way to declare them here.
 export const consents = pgTable('consents', {
   id: uuid('id').primaryKey(),
-  realmId: uuid('tenant_id')
+  tenantId: uuid('tenant_id')
     .notNull()
     .references(() => tenants.id, { onDelete: 'cascade' }),
   subjectId: uuid('subject_id').notNull(),
@@ -19,7 +19,7 @@ export const consents = pgTable('consents', {
 
 export interface ConsentRecord {
   id: string;
-  realmId: string;
+  tenantId: string;
   subjectId: string;
   clientId: string;
   createdAt: Date;
@@ -27,13 +27,13 @@ export interface ConsentRecord {
 }
 
 // One row per granted scope, so withdrawing one is a delete rather than a
-// rewrite of the set. Deleting a realm scope withdraws every consent to it
+// rewrite of the set. Deleting a tenant scope withdraws every consent to it
 // (client_scopes' ON DELETE CASCADE into here): a grant to a scope that no
 // longer exists grants nothing.
 export const consentScopes = pgTable(
   'consent_scopes',
   {
-    realmId: uuid('tenant_id').notNull(),
+    tenantId: uuid('tenant_id').notNull(),
     consentId: uuid('consent_id')
       .notNull()
       .references(() => consents.id, { onDelete: 'cascade' }),
@@ -46,7 +46,7 @@ export const consentScopes = pgTable(
 ).enableRLS();
 
 export interface ConsentScopeRecord {
-  realmId: string;
+  tenantId: string;
   consentId: string;
   clientScopeId: string;
   grantedAt: Date;

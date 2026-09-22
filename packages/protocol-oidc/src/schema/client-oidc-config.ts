@@ -1,6 +1,6 @@
 import { boolean, integer, jsonb, pgTable, text, uuid } from 'drizzle-orm/pg-core';
 import { type TokenEndpointAuthMethod } from '@odudu/contracts';
-import { clients } from '@odudu/domain-realm';
+import { clients } from '@odudu/domain-tenant';
 
 // Policies are written as hand-authored SQL in packages/db/drizzle/, never
 // declared with pgPolicy() — see tenants.ts in @odudu/db for why a
@@ -59,7 +59,7 @@ export const clientOidcConfig = pgTable('client_oidc_config', {
 }).enableRLS();
 
 // Redirect URIs and grant types are OAuth vocabulary; they live here rather
-// than on domain-realm's protocol-agnostic ClientRecord, so that a second
+// than on domain-tenant's protocol-agnostic ClientRecord, so that a second
 // protocol can add its own configuration table without touching the domain.
 export interface ClientOidcConfig {
   clientId: string;

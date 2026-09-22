@@ -1,4 +1,4 @@
-import { realms, type RealmScopedDatabase } from '@odudu/db';
+import { tenants, type TenantScopedDatabase } from '@odudu/db';
 import { newId } from '@odudu/kernel';
 import { count, eq } from 'drizzle-orm';
 import { clients, type ClientRecord } from '#/schema/clients';
@@ -8,7 +8,7 @@ export type { ClientRecord } from '#/schema/clients';
 function toRecord(row: typeof clients.$inferSelect): ClientRecord {
   return {
     id: row.id,
-    realmId: row.realmId,
+    tenantId: row.tenantId,
     clientId: row.clientId,
     name: row.name,
     enabled: row.enabled,
@@ -22,7 +22,7 @@ function toRecord(row: typeof clients.$inferSelect): ClientRecord {
 }
 
 export interface NewClient {
-  realmId: string;
+  tenantId: string;
   clientId: string;
   name: string;
   type: 'public' | 'confidential';
@@ -44,7 +44,7 @@ export interface ClientCapacity {
   count: number;
 }
 
-export function clientRepository(tx: RealmScopedDatabase) {
+export function clientRepository(tx: TenantScopedDatabase) {
   return {
     async byClientId(clientId: string): Promise<ClientRecord | null> {
       const rows = await tx.select().from(clients).where(eq(clients.clientId, clientId));
@@ -70,7 +70,7 @@ export function clientRepository(tx: RealmScopedDatabase) {
         .insert(clients)
         .values({
           id: newId(),
-          realmId: input.realmId,
+          tenantId: input.tenantId,
           clientId: input.clientId,
           name: input.name,
           type: input.type,
@@ -90,25 +90,25 @@ export function clientRepository(tx: RealmScopedDatabase) {
       return toRecord(row);
     },
 
-    // `SELECT ... FOR UPDATE` on the realm row before the `COUNT`, in the
+    // `SELECT ... FOR UPDATE` on the tenant row before the `COUNT`, in the
     // same transaction the caller inserts the new client in — a bare COUNT
     // then INSERT lets two concurrent registrations both see room under the
-    // cap. Serialises registrations within one realm; a different realm's
+    // cap. Serialises registrations within one tenant; a different tenant's
     // registration takes a different row and is not blocked by this one.
-    async lockCapacity(realmId: string): Promise<ClientCapacity> {
+    async lockCapacity(tenantId: string): Promise<ClientCapacity> {
       const lockRows = await tx
-        .select({ maxClients: realms.maxClients })
-        .from(realms)
-        .where(eq(realms.id, realmId))
+        .select({ maxClients: tenants.maxClients })
+        .from(tenants)
+        .where(eq(tenants.id, tenantId))
         .for('update');
       const maxClients = lockRows[0]?.maxClients;
       if (maxClients === undefined) {
-        throw new Error(`realm ${realmId} not found while locking its client capacity`);
+        throw new Error(`tenant ${tenantId} not found while locking its client capacity`);
       }
       const countRows = await tx
         .select({ count: count() })
         .from(clients)
-        .where(eq(clients.realmId, realmId));
+        .where(eq(clients.tenantId, tenantId));
       return { maxClients, count: countRows[0]?.count ?? 0 };
     },
   };

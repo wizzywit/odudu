@@ -7,7 +7,7 @@ import {
   type DatabaseHandle,
 } from '@odudu/db';
 import { expectCrossRealmMethodProbe, expectRealmIsolation } from '@odudu/db/testing';
-import { clients } from '@odudu/domain-realm';
+import { clients } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import { eq } from 'drizzle-orm';

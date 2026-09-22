@@ -70,7 +70,7 @@ No English word contains `realm` as a substring, so there are no false
 positives. Every compound follows from the stem: `realmId` → `tenantId`,
 `RealmScopedDatabase` → `TenantScopedDatabase`, `withRealm` → `withTenant`,
 `expectCrossRealmMethodProbe` → `expectCrossTenantMethodProbe`, and the package
-`domain-realm` → `domain-tenant`.
+`domain-tenant` → `domain-tenant`.
 
 ## 5. What a mechanical substitution must not touch
 
@@ -121,7 +121,7 @@ compile until it is renamed; the full sweep is the last step of the rename.
 Those probes already exist as a stated non-negotiable — this is re-running
 suites, not writing them.
 
-**6.2 Domain packages.** `domain-realm` (renamed to `domain-tenant`),
+**6.2 Domain packages.** `domain-tenant` (renamed to `domain-tenant`),
 `domain-identity`, `account`, `authn-flows`.
 
 **6.3 Protocol packages and the wire.** `protocol-oidc`, `contracts`, the

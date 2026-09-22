@@ -1,4 +1,4 @@
-import { type RealmScopedDatabase } from '@odudu/db';
+import { type TenantScopedDatabase } from '@odudu/db';
 import { newId } from '@odudu/kernel';
 import { eq } from 'drizzle-orm';
 import {
@@ -14,7 +14,7 @@ export type { ClientScopeAssignment, ClientScopeRecord } from '#/schema/client-s
 function toRecord(row: typeof clientScopes.$inferSelect): ClientScopeRecord {
   return {
     id: row.id,
-    realmId: row.realmId,
+    tenantId: row.tenantId,
     name: row.name,
     description: row.description,
     includeInIdToken: row.includeInIdToken,
@@ -24,16 +24,16 @@ function toRecord(row: typeof clientScopes.$inferSelect): ClientScopeRecord {
 }
 
 export interface NewClientScope {
-  realmId: string;
+  tenantId: string;
   name: string;
   description?: string | null;
   includeInIdToken?: boolean;
   includeInAccessToken?: boolean;
 }
 
-export function clientScopeRepository(tx: RealmScopedDatabase) {
+export function clientScopeRepository(tx: TenantScopedDatabase) {
   return {
-    async allForRealm(): Promise<ClientScopeRecord[]> {
+    async allForTenant(): Promise<ClientScopeRecord[]> {
       const rows = await tx.select().from(clientScopes);
       return rows.map(toRecord);
     },
@@ -73,7 +73,7 @@ export function clientScopeRepository(tx: RealmScopedDatabase) {
         .insert(clientScopes)
         .values({
           id: newId(),
-          realmId: input.realmId,
+          tenantId: input.tenantId,
           name: input.name,
           description: input.description ?? null,
           includeInIdToken: input.includeInIdToken ?? true,
@@ -87,8 +87,8 @@ export function clientScopeRepository(tx: RealmScopedDatabase) {
       return toRecord(row);
     },
 
-    // realm_id is not a caller-supplied argument: it is read back from the
-    // client being assigned to, the same realm RLS already scopes both
+    // tenant_id is not a caller-supplied argument: it is read back from the
+    // client being assigned to, the same tenant RLS already scopes both
     // client and scope to.
     async assign(
       clientId: string,
@@ -96,7 +96,7 @@ export function clientScopeRepository(tx: RealmScopedDatabase) {
       assignment: ClientScopeAssignment,
     ): Promise<void> {
       const clientRows = await tx
-        .select({ realmId: clients.realmId })
+        .select({ tenantId: clients.tenantId })
         .from(clients)
         .where(eq(clients.id, clientId));
       const client = clientRows[0];
@@ -105,7 +105,7 @@ export function clientScopeRepository(tx: RealmScopedDatabase) {
       }
 
       await tx.insert(clientScopeAssignments).values({
-        realmId: client.realmId,
+        tenantId: client.tenantId,
         clientId,
         clientScopeId,
         assignment,
@@ -116,14 +116,14 @@ export function clientScopeRepository(tx: RealmScopedDatabase) {
     // explicitly both reach for the same pair, so the second call narrows
     // or widens an existing assignment rather than colliding with it — the
     // seed CLI's assign-scope depends on this to run after client creation
-    // has already assigned the realm's default vocabulary.
+    // has already assigned the tenant's default vocabulary.
     async assignOrUpdate(
       clientId: string,
       clientScopeId: string,
       assignment: ClientScopeAssignment,
     ): Promise<void> {
       const clientRows = await tx
-        .select({ realmId: clients.realmId })
+        .select({ tenantId: clients.tenantId })
         .from(clients)
         .where(eq(clients.id, clientId));
       const client = clientRows[0];
@@ -133,7 +133,7 @@ export function clientScopeRepository(tx: RealmScopedDatabase) {
 
       await tx
         .insert(clientScopeAssignments)
-        .values({ realmId: client.realmId, clientId, clientScopeId, assignment })
+        .values({ tenantId: client.tenantId, clientId, clientScopeId, assignment })
         .onConflictDoUpdate({
           target: [clientScopeAssignments.clientId, clientScopeAssignments.clientScopeId],
           set: { assignment },

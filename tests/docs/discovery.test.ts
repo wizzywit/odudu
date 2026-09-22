@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { JWE_ALGS_PERMITTED } from '../../packages/crypto/src/index.js';
-import { REALM_DEFAULT_SCOPE_NAMES } from '../../packages/domain-realm/src/usecase/provision-defaults.js';
+import { TENANT_DEFAULT_SCOPE_NAMES } from '../../packages/domain-tenant/src/usecase/provision-defaults.js';
 import { standardClaimMappers } from '../../packages/protocol-oidc/src/service/claims.js';
 import { USERINFO_ENCRYPTION_ENCS_PERMITTED } from '../../packages/protocol-oidc/src/service/client-metadata.js';
 import { resolveDiscoveryDocument } from '../../packages/protocol-oidc/src/usecase/discovery.js';
@@ -32,7 +32,7 @@ async function serverDiscoveryDocument(): Promise<Record<string, unknown>> {
       claimNames: () => claimMappers.claimNames(),
       // What `seed realm` puts in a realm, so the document is checked against
       // the vocabulary a freshly seeded stack actually serves.
-      scopesForRealm: () => Promise.resolve(REALM_DEFAULT_SCOPE_NAMES),
+      scopesForRealm: () => Promise.resolve(TENANT_DEFAULT_SCOPE_NAMES),
       // `seed bootstrap` generates a realm's first signing key as RS256
       // (apps/server/src/cli/seed.ts) — the same key a freshly seeded
       // stack's `/userinfo` would sign with.

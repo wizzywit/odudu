@@ -817,7 +817,7 @@ Unlike every other seed subcommand this prints nothing but the token
 itself — no JSON, no trailing newline content beyond it — so a shell can
 capture it directly: `TOKEN=$(odudu seed registration-token --realm demo
 --uses 1 --ttl 3600)`. It is stored as its SHA-256 digest
-(`packages/domain-realm/src/repository/client-registration-tokens.ts`,
+(`packages/domain-tenant/src/repository/client-registration-tokens.ts`,
 copied from the action-token pattern `docs/request-paths.md` already
 documents), found by that digest rather than compared, and spent by one
 `UPDATE … RETURNING` so two concurrent registrations against a one-use

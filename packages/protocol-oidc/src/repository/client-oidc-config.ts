@@ -1,5 +1,5 @@
 import { type RealmScopedDatabase } from '@odudu/db';
-import { clients } from '@odudu/domain-realm';
+import { clients } from '@odudu/domain-tenant';
 import { eq } from 'drizzle-orm';
 import { clientOidcConfig, type ClientOidcConfig } from '#/schema/client-oidc-config';
 import { expandWebOrigins } from '#/service/web-origin';

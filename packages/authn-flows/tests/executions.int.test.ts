@@ -7,7 +7,7 @@ import {
   type DatabaseHandle,
 } from '@odudu/db';
 import { expectCrossRealmMethodProbe } from '@odudu/db/testing';
-import { clientScopeRepository, REALM_DEFAULT_SCOPE_NAMES } from '@odudu/domain-realm';
+import { clientScopeRepository, TENANT_DEFAULT_SCOPE_NAMES } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -95,7 +95,7 @@ describe('provisionRealm', () => {
       return [scopes.map((scope) => scope.name), flow] as const;
     });
 
-    expect(scopeNames.sort()).toEqual([...REALM_DEFAULT_SCOPE_NAMES].sort());
+    expect(scopeNames.sort()).toEqual([...TENANT_DEFAULT_SCOPE_NAMES].sort());
     expect(executions.map((execution) => execution.authenticator)).toEqual(
       BROWSER_FLOW_DEFAULT.map((execution) => execution.authenticator),
     );

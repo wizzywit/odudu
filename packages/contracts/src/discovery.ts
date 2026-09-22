@@ -3,7 +3,7 @@ import { TOKEN_ENDPOINT_AUTH_METHODS_SUPPORTED } from '#/token';
 // authenticateClient (packages/protocol-oidc/src/usecase/client-authentication.ts)
 // is what both /introspect and /revoke authenticate through, and it accepts
 // a Basic header, a body client_secret, or — verifyClientSecret,
-// packages/domain-realm/src/service/client.ts — no secret at all from a
+// packages/domain-tenant/src/service/client.ts — no secret at all from a
 // `none` public client. Only private_key_jwt and tls_client_auth are never
 // dispatched here, so unlike the token endpoint's list this one never
 // varies with ODUDU_TRUST_PROXY.

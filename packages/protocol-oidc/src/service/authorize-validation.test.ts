@@ -1,5 +1,5 @@
 import { discoveryDocument } from '@odudu/contracts';
-import { type ClientRecord } from '@odudu/domain-realm';
+import { type ClientRecord } from '@odudu/domain-tenant';
 import { describe, expect, it } from 'vitest';
 import { validateAuthorizationRequest } from '#/service/authorize-validation';
 import { type ClientOidcConfig } from '#/schema/client-oidc-config';

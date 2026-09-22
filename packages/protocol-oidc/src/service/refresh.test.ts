@@ -1,5 +1,5 @@
 import { type SubjectRecord } from '@odudu/domain-identity';
-import { type ClientRecord } from '@odudu/domain-realm';
+import { type ClientRecord } from '@odudu/domain-tenant';
 import { describe, expect, it } from 'vitest';
 import { type TokenGrantRecord } from '#/schema/token-grants';
 import { evaluateRefreshGrant, generateRefreshToken, hashRefreshToken } from '#/service/refresh';

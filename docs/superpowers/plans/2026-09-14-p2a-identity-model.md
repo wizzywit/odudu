@@ -4,7 +4,7 @@
 
 **Goal:** An identity model underneath the P1 protocol core — roles, groups, client scopes, a user profile and per-client web origins — emitted into tokens as IANA-registered claims, plus the email delivery that makes address verification, self-registration and password reset possible.
 
-**Architecture:** Three new packages join the six P1 established. `domain-authz` owns roles, groups and effective-role resolution and depends on nothing; `email` owns an `EmailSender` port with an SMTP adapter and a capturing adapter; `account` owns the registration, verification and reset journeys. Client scopes, scope mappings and web origins are client configuration and join `domain-realm` and `protocol-oidc`. The frozen `SUPPORTED_SCOPES` constant is replaced by realm data, and the `ClaimMapperRegistry` — which has only ever fed the ID token and `/userinfo` — is extended to the access token, which is the surface RFC 9068 section 2.2.3.1 is actually about.
+**Architecture:** Three new packages join the six P1 established. `domain-authz` owns roles, groups and effective-role resolution and depends on nothing; `email` owns an `EmailSender` port with an SMTP adapter and a capturing adapter; `account` owns the registration, verification and reset journeys. Client scopes, scope mappings and web origins are client configuration and join `domain-tenant` and `protocol-oidc`. The frozen `SUPPORTED_SCOPES` constant is replaced by realm data, and the `ClaimMapperRegistry` — which has only ever fed the ID token and `/userinfo` — is extended to the access token, which is the surface RFC 9068 section 2.2.3.1 is actually about.
 
 **Tech Stack:** Node 24, TypeScript 6.0.3, Fastify 5.12.3, PostgreSQL 17, Drizzle ORM 0.45.2, Zod 4.6.1, Vitest 5.0.0, Testcontainers 12.1.0, jose 6.2.12, @node-rs/argon2 2.2.1. Two candidate additions, each gated by a spike: a CORS mechanism (Task 1) and an SMTP client (Task 14).
 
@@ -65,7 +65,7 @@ Modified packages:
 | Path                        | Change                                                                                                              |
 | --------------------------- | ------------------------------------------------------------------------------------------------------------------- |
 | `packages/db/drizzle/`      | migrations 0015–0022 and their journal entries                                                                      |
-| `packages/domain-realm/`    | client scopes, scope assignments, scope-to-role mappings, `full_scope_allowed`                                      |
+| `packages/domain-tenant/`    | client scopes, scope assignments, scope-to-role mappings, `full_scope_allowed`                                      |
 | `packages/domain-identity/` | profile columns on `users`, profile repository methods                                                              |
 | `packages/protocol-oidc/`   | `web_origins` on `client_oidc_config`, CORS at the edge, realm-sourced scopes, claim mappers, access-token assembly |
 | `packages/contracts/`       | `SUPPORTED_SCOPES` removed; discovery takes scopes as an argument                                                   |
@@ -698,10 +698,10 @@ git commit -m "Answer a preflight from the realm and the request from the client
 
 - Create: `packages/db/drizzle/0016_client_scopes.sql`
 - Modify: `packages/db/drizzle/meta/_journal.json`
-- Create: `packages/domain-realm/src/schema/client-scopes.ts`
-- Create: `packages/domain-realm/src/repository/client-scopes.ts`
-- Create: `packages/domain-realm/tests/client-scopes.int.test.ts`
-- Modify: `packages/domain-realm/src/index.ts`
+- Create: `packages/domain-tenant/src/schema/client-scopes.ts`
+- Create: `packages/domain-tenant/src/repository/client-scopes.ts`
+- Create: `packages/domain-tenant/tests/client-scopes.int.test.ts`
+- Modify: `packages/domain-tenant/src/index.ts`
 
 **Interfaces:**
 
@@ -764,7 +764,7 @@ Append to `_journal.json`: `{ "idx": 16, "version": "7", "when": 1789049381659, 
 - [ ] **Step 2: Write the failing integration test**
 
 ```ts
-// packages/domain-realm/tests/client-scopes.int.test.ts
+// packages/domain-tenant/tests/client-scopes.int.test.ts
 describe('client scope names', () => {
   it('refuses a name containing a space, which is the scope separator', async () => {
     await expect(create({ name: 'read write' })).rejects.toThrow(
@@ -809,20 +809,20 @@ describe('assignment', () => {
 
 - [ ] **Step 3: Run it and watch it fail**
 
-Run: `pnpm --filter @odudu/domain-realm test:int client-scopes`
+Run: `pnpm --filter @odudu/domain-tenant test:int client-scopes`
 Expected: FAIL — the table does not exist.
 
 - [ ] **Step 4: Write the schema and the repository**
 
-`packages/domain-realm/src/schema/client-scopes.ts` mirrors the SQL with `pgTable(...).enableRLS()`, following `clients.ts` exactly — policies stay hand-authored SQL, never `pgPolicy()`. The record interface lives beside the table, not in the repository, so `service` can reference the shape without depending on the layer that reads it.
+`packages/domain-tenant/src/schema/client-scopes.ts` mirrors the SQL with `pgTable(...).enableRLS()`, following `clients.ts` exactly — policies stay hand-authored SQL, never `pgPolicy()`. The record interface lives beside the table, not in the repository, so `service` can reference the shape without depending on the layer that reads it.
 
-`packages/domain-realm/src/repository/client-scopes.ts` exposes `allForRealm()`, `byName(name)`, `forClient(clientId)` (joining assignments), `create(input)` and `assign(clientId, scopeId, assignment)`. Every method reads through the `RealmScopedDatabase` it is given and adds no `realm_id` predicate of its own — RLS is the filter, which is what the foreign-realm probes prove.
+`packages/domain-tenant/src/repository/client-scopes.ts` exposes `allForRealm()`, `byName(name)`, `forClient(clientId)` (joining assignments), `create(input)` and `assign(clientId, scopeId, assignment)`. Every method reads through the `RealmScopedDatabase` it is given and adds no `realm_id` predicate of its own — RLS is the filter, which is what the foreign-realm probes prove.
 
-Export all of it from `packages/domain-realm/src/index.ts`.
+Export all of it from `packages/domain-tenant/src/index.ts`.
 
 - [ ] **Step 5: Run it and watch it pass**
 
-Run: `pnpm --filter @odudu/domain-realm test:int client-scopes`
+Run: `pnpm --filter @odudu/domain-tenant test:int client-scopes`
 Expected: PASS.
 
 - [ ] **Step 6: Seed the OIDC vocabulary per realm**
@@ -860,7 +860,7 @@ Run: `pnpm verify`
 Expected: PASS.
 
 ```bash
-git add packages/db/drizzle packages/domain-realm
+git add packages/db/drizzle packages/domain-tenant
 git commit -m "Make a scope a thing a realm owns rather than a constant in the binary"
 ```
 
@@ -1069,7 +1069,7 @@ git commit -m "Establish that a UNION recursive CTE survives a cyclic role graph
 
 - [ ] **Step 1: Scaffold the package**
 
-`packages/domain-authz/package.json` copies `packages/domain-realm/package.json`, changing the name to `@odudu/domain-authz`. It declares `"imports": { "#/*": "./src/*.ts" }` and depends on `@odudu/db` and `@odudu/kernel` and **nothing else** — in particular not `@odudu/domain-realm`, so that a role's `client_id` is an id this package never dereferences.
+`packages/domain-authz/package.json` copies `packages/domain-tenant/package.json`, changing the name to `@odudu/domain-authz`. It declares `"imports": { "#/*": "./src/*.ts" }` and depends on `@odudu/db` and `@odudu/kernel` and **nothing else** — in particular not `@odudu/domain-tenant`, so that a role's `client_id` is an id this package never dereferences.
 
 Add the package to `tests/boundaries/boundaries.test.ts` and the `dependency-cruiser` rules in the same commit. A dead rule there is one of the defects the P0 decision log records, so assert it bites: add a fixture importing `@odudu/protocol-oidc` from `domain-authz` and confirm the rule rejects it.
 
@@ -1250,7 +1250,7 @@ Expected: FAIL — the tables do not exist.
 
 - [ ] **Step 8: Implement the schema, the repository, and cycle refusal**
 
-The schema file mirrors the SQL with `pgTable(...).enableRLS()`, following `packages/domain-realm/src/schema/clients.ts`.
+The schema file mirrors the SQL with `pgTable(...).enableRLS()`, following `packages/domain-tenant/src/schema/clients.ts`.
 
 `addComposite` refuses a cycle before inserting, by asking whether the proposed child already reaches the proposed parent:
 
@@ -1764,7 +1764,7 @@ const groupsMapper: ClaimMapper<ClaimContext> = {
 Widen `ClaimContext` and register both in `standardClaimMappers()`.
 
 **In this same commit, add `roles` and `groups` to `REALM_DEFAULT_SCOPE_NAMES`**
-(`packages/domain-realm/src/usecase/provision-defaults.ts`) and to the default
+(`packages/domain-tenant/src/usecase/provision-defaults.ts`) and to the default
 set `provisionClientDefaults` assigns. Task 4's seed was reduced to the three
 scopes whose mappers existed; a scope joins the realm vocabulary in the commit
 that makes it true, so that `scopes_supported` never advertises a promise

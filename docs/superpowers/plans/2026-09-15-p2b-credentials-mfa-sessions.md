@@ -1160,7 +1160,7 @@ Then update `docs/NEXT.md`.
 
 **Files:**
 
-- Modify: `packages/domain-realm/src/usecase/provision-defaults.ts`
+- Modify: `packages/domain-tenant/src/usecase/provision-defaults.ts`
 - Modify: `packages/protocol-oidc/src/usecase/token-issuance.ts`
 - Modify: `packages/protocol-oidc/src/usecase/refresh-rotation.ts`
 - Create: `packages/protocol-oidc/tests/offline-access.int.test.ts`
@@ -1286,7 +1286,7 @@ Then update `docs/NEXT.md`.
 - Create: `packages/authn-flows/src/schema/execution.ts`
 - Create: `packages/authn-flows/src/repository/executions.ts`
 - Modify: `packages/authn-flows/src/index.ts`
-- Modify: `packages/domain-realm/src/usecase/provision-defaults.ts`
+- Modify: `packages/domain-tenant/src/usecase/provision-defaults.ts`
 - Create: `packages/authn-flows/tests/executions.int.test.ts`
 
 **Interfaces:**

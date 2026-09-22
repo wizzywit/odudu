@@ -3,7 +3,7 @@ import { tenants } from '@odudu/db';
 import { roles } from '#/schema/roles';
 
 // Policies are hand-authored SQL in packages/db/drizzle/, never declared
-// with pgPolicy() — see clients.ts in @odudu/domain-realm for why.
+// with pgPolicy() — see clients.ts in @odudu/domain-tenant for why.
 export const groups = pgTable('groups', {
   id: uuid('id').primaryKey(),
   realmId: uuid('tenant_id')

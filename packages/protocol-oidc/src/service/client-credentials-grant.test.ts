@@ -1,4 +1,4 @@
-import { type ClientRecord } from '@odudu/domain-realm';
+import { type ClientRecord } from '@odudu/domain-tenant';
 import { describe, expect, it } from 'vitest';
 import { evaluateClientCredentialsGrant } from '#/service/client-credentials-grant';
 

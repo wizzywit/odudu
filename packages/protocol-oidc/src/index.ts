@@ -29,7 +29,7 @@ import { JWE_ALGS_PERMITTED, signingKeyRepository, signJwt } from '@odudu/crypto
 import { effectiveGroupPaths, effectiveRoles } from '@odudu/domain-authz';
 import { withRealm, type DatabaseHandle } from '@odudu/db';
 import { hashPassword, userRepository, verifyPassword } from '@odudu/domain-identity';
-import { clientRepository, clientScopeRepository, consentRepository } from '@odudu/domain-realm';
+import { clientRepository, clientScopeRepository, consentRepository } from '@odudu/domain-tenant';
 import { newId, systemClock, type Clock } from '@odudu/kernel';
 import { type FastifyPluginAsync } from 'fastify';
 import { type ClientKeySet } from '#/repository/client-keys';

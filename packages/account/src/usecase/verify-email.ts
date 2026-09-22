@@ -58,7 +58,7 @@ export interface CompleteEmailVerificationDeps {
   // Injected rather than imported: @odudu/account does not depend on
   // @odudu/domain-identity, where the users table and its Argon2id
   // neighbours live. The composition root (apps/server/src/app.ts) wires
-  // these to userRepository, the same way domain-realm's verifyClientSecret
+  // these to userRepository, the same way domain-tenant's verifyClientSecret
   // takes its hash comparator injected for the same reason.
   readonly getCurrentEmail: (tx: RealmScopedDatabase, subjectId: string) => Promise<string | null>;
   readonly markVerified: (tx: RealmScopedDatabase, subjectId: string) => Promise<void>;

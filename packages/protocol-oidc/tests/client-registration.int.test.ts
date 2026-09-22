@@ -9,7 +9,7 @@ import {
 } from '@odudu/db';
 import { provisionRealm } from '@odudu/authn-flows';
 import { generateSigningKey, signingKeys } from '@odudu/crypto';
-import { clientRegistrationTokenRepository, clients } from '@odudu/domain-realm';
+import { clientRegistrationTokenRepository, clients } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import { eq } from 'drizzle-orm';

@@ -7,7 +7,7 @@ import {
 } from '@odudu/crypto';
 import { withRealm, type DatabaseHandle, type RealmScopedDatabase } from '@odudu/db';
 import { subjectRepository } from '@odudu/domain-identity';
-import { clientRepository, clientScopeRepository, type ClientRecord } from '@odudu/domain-realm';
+import { clientRepository, clientScopeRepository, type ClientRecord } from '@odudu/domain-tenant';
 import { type ClaimMapperRegistry, type Clock, newId } from '@odudu/kernel';
 import { assertionJtiRepository } from '#/repository/assertion-jti';
 import { type ClientKeySet } from '#/repository/client-keys';
@@ -760,7 +760,7 @@ async function authenticatePrivateKeyJwt(
   const client = await clientRepository(tx).byClientId(outcome.claimedClientId);
   if (client === null) return fail('unknown client');
   // `authenticateClient`'s password path gets this only incidentally, inside
-  // `verifyClientSecret` (packages/domain-realm/src/service/client.ts) —
+  // `verifyClientSecret` (packages/domain-tenant/src/service/client.ts) —
   // this path calls no such function, so a disabled client must be refused
   // here explicitly or the operator's one revocation lever does nothing to
   // a private_key_jwt client.

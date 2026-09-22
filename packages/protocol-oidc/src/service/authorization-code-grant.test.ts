@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { evaluateAuthorizationCodeGrant } from '#/service/authorization-code-grant';
 import { type AuthorizationCodeRecord } from '#/schema/authorization-codes';
-import { type ClientRecord } from '@odudu/domain-realm';
+import { type ClientRecord } from '@odudu/domain-tenant';
 
 const VERIFIER = 'dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk';
 const CHALLENGE = 'E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM';

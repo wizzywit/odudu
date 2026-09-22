@@ -15,7 +15,7 @@ import {
   subjectRepository,
   users,
 } from '@odudu/domain-identity';
-import { clients, provisionClientDefaults } from '@odudu/domain-realm';
+import { clients, provisionClientDefaults } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
 import {
   createAppRole,

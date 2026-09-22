@@ -1,5 +1,5 @@
 import { type RealmScopedDatabase } from '@odudu/db';
-import { clientRepository, verifyClientSecret, type ClientRecord } from '@odudu/domain-realm';
+import { clientRepository, verifyClientSecret, type ClientRecord } from '@odudu/domain-tenant';
 import { clientOidcConfigRepository, type ClientOidcConfig } from '#/repository/client-oidc-config';
 import {
   clientSecretLimiterKey,

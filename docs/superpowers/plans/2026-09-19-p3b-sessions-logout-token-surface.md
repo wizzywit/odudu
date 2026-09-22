@@ -152,7 +152,7 @@ Five input classes the spec implies but that no task's happy path exercises, mos
 | `packages/protocol-oidc/src/usecase/session-reuse.ts`                    | A decision over a set                                           |
 | `packages/protocol-oidc/src/view/routes/{login,consent,logout}.ts`       | Spread the cookie authority instead of hand-matching attributes |
 | `packages/protocol-oidc/src/usecase/{logout,userinfo,token-issuance}.ts` | Delivery, JWS/JWE, derived `aud`                                |
-| `packages/domain-realm/src/service/realm-settings.ts`                    | Four new settings                                               |
+| `packages/domain-tenant/src/service/realm-settings.ts`                    | Four new settings                                               |
 | `apps/server/src/main.ts`, `cli/reap.ts`                                 | The new command, the new retention pass                         |
 
 **Migrations** — 0048 through 0053, in the order the increments need them.
@@ -454,9 +454,9 @@ git commit -m "Give the session cookie one authority"
 
 - Create: `packages/db/drizzle/0048_sessions_remembered_and_cap.sql`
 - Modify: `packages/authn-flows/src/schema/sessions.ts`
-- Modify: `packages/domain-realm/src/schema/realms.ts`
-- Modify: `packages/domain-realm/src/service/realm-settings.ts`
-- Modify: `packages/domain-realm/src/service/realm-settings.test.ts`
+- Modify: `packages/domain-tenant/src/schema/realms.ts`
+- Modify: `packages/domain-tenant/src/service/realm-settings.ts`
+- Modify: `packages/domain-tenant/src/service/realm-settings.test.ts`
 
 **Interfaces:**
 
@@ -465,7 +465,7 @@ git commit -m "Give the session cookie one authority"
 
 - [ ] **Step 1: Write the failing test**
 
-Add to `packages/domain-realm/src/service/realm-settings.test.ts`:
+Add to `packages/domain-tenant/src/service/realm-settings.test.ts`:
 
 ```ts
 it('coerces the per-browser session cap', () => {
@@ -486,7 +486,7 @@ it('refuses a cap that is not an integer', () => {
 
 - [ ] **Step 2: Run it to verify it fails**
 
-Run: `npx vitest run packages/domain-realm/src/service/realm-settings.test.ts`
+Run: `npx vitest run packages/domain-tenant/src/service/realm-settings.test.ts`
 Expected: FAIL — `unknown_setting`.
 
 - [ ] **Step 3: Write the migration**
@@ -521,7 +521,7 @@ In `packages/authn-flows/src/schema/sessions.ts`, add to the table and to `Sessi
 remembered: boolean;
 ```
 
-In `packages/domain-realm/src/schema/realms.ts`:
+In `packages/domain-tenant/src/schema/realms.ts`:
 
 ```ts
   maxSessionsPerBrowser: integer('max_sessions_per_browser').notNull().default(8),
@@ -537,7 +537,7 @@ In `realm-settings.ts`'s `SETTINGS`, beside the other two session entries:
 
 - [ ] **Step 6: Run the tests**
 
-Run: `npx vitest run packages/domain-realm packages/db`
+Run: `npx vitest run packages/domain-tenant packages/db`
 Expected: PASS, including `schema-drift.int.test.ts`, which compares the declarations against a freshly migrated database.
 
 - [ ] **Step 7: Update the documentation**
@@ -547,7 +547,7 @@ Expected: PASS, including `schema-drift.int.test.ts`, which compares the declara
 - [ ] **Step 8: Commit**
 
 ```bash
-git add packages/db/drizzle/0048_sessions_remembered_and_cap.sql packages/authn-flows/src/schema/sessions.ts packages/domain-realm/src docs/request-paths.md
+git add packages/db/drizzle/0048_sessions_remembered_and_cap.sql packages/authn-flows/src/schema/sessions.ts packages/domain-tenant/src docs/request-paths.md
 git commit -m "Add the remembered flag and the per-browser session cap"
 ```
 
@@ -901,8 +901,8 @@ A realm may offer it, a login may ask for it, and a session that asked is measur
 **Files:**
 
 - Create: `packages/db/drizzle/0049_realm_remember_me.sql`
-- Modify: `packages/domain-realm/src/schema/realms.ts`
-- Modify: `packages/domain-realm/src/service/realm-settings.ts`
+- Modify: `packages/domain-tenant/src/schema/realms.ts`
+- Modify: `packages/domain-tenant/src/service/realm-settings.ts`
 - Create: `packages/authn-flows/src/service/session-lifespan.ts`
 - Create: `packages/authn-flows/src/service/session-lifespan.test.ts`
 
@@ -1008,13 +1008,13 @@ it('measures a remembered session against the remembered idle window', async () 
 
 - [ ] **Step 7: Run the tests**
 
-Run: `npx vitest run packages/authn-flows packages/domain-realm packages/db`
+Run: `npx vitest run packages/authn-flows packages/domain-tenant packages/db`
 Expected: PASS.
 
 - [ ] **Step 8: Commit**
 
 ```bash
-git add packages/db/drizzle/0049_realm_remember_me.sql packages/authn-flows packages/domain-realm
+git add packages/db/drizzle/0049_realm_remember_me.sql packages/authn-flows packages/domain-tenant
 git commit -m "Add the remembered session lifespans and pick a pair"
 ```
 

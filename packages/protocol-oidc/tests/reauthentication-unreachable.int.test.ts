@@ -8,7 +8,7 @@ import {
   type RealmScopedDatabase,
 } from '@odudu/db';
 import { authenticationSessions } from '@odudu/authn-flows';
-import { clients, provisionClientDefaults, provisionRealmDefaults } from '@odudu/domain-realm';
+import { clients, provisionClientDefaults, provisionTenantDefaults } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import formbody from '@fastify/formbody';
@@ -80,7 +80,7 @@ afterAll(async () => {
   await containerHandle?.stop();
 });
 
-// A realm given a scope vocabulary but never a flow (provisionRealmDefaults,
+// A realm given a scope vocabulary but never a flow (provisionTenantDefaults,
 // not provisionRealm) — the state a realm-creation site should never
 // actually produce, but the only honest way to reach "reauthentication
 // cannot be performed" without a flow tree deep enough to make every row
@@ -90,7 +90,7 @@ async function setupRealmWithNoFlow(name: string): Promise<string> {
   const clientDbId = newId();
   await withRealm(app.db, realmId, async (tx: RealmScopedDatabase) => {
     await tx.insert(realms).values({ id: realmId, name });
-    await provisionRealmDefaults(tx, realmId);
+    await provisionTenantDefaults(tx, realmId);
     await tx.insert(clients).values({
       id: clientDbId,
       realmId,

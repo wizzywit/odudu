@@ -6,7 +6,7 @@ import {
   type SessionRecord,
 } from '@odudu/authn-flows';
 import { verifyJwt, TYP_ABSENT, type ExpectedAudience, type SigningKeyRecord } from '@odudu/crypto';
-import { type ClientRecord } from '@odudu/domain-realm';
+import { type ClientRecord } from '@odudu/domain-tenant';
 import { isUuid } from '@odudu/kernel';
 import { type ClientOidcConfig } from '#/schema/client-oidc-config';
 import { type RealmLookup } from '#/repository/realm-lookup';

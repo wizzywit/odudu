@@ -1,10 +1,10 @@
 export { verifyClientSecret } from '#/service/client';
 export {
-  coerceRealmSetting,
-  REALM_SETTING_NAMES,
+  coerceTenantSetting,
+  TENANT_SETTING_NAMES,
   type CoerceOutcome,
-  type RealmSettingName,
-} from '#/service/realm-settings';
+  type TenantSettingName,
+} from '#/service/tenant-settings';
 export { clients, type ClientRecord } from '#/schema/clients';
 export { clientRepository, type ClientCapacity, type NewClient } from '#/repository/clients';
 export {
@@ -16,8 +16,8 @@ export {
 export { clientScopeRepository, type NewClientScope } from '#/repository/client-scopes';
 export {
   provisionClientDefaults,
-  provisionRealmDefaults,
-  REALM_DEFAULT_SCOPE_NAMES,
+  provisionTenantDefaults,
+  TENANT_DEFAULT_SCOPE_NAMES,
 } from '#/usecase/provision-defaults';
 export {
   consents,

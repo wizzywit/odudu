@@ -13,8 +13,8 @@ import {
   clientRegistrationTokenRepository,
   clients,
   clientScopeRepository,
-  REALM_DEFAULT_SCOPE_NAMES,
-} from '@odudu/domain-realm';
+  TENANT_DEFAULT_SCOPE_NAMES,
+} from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
 import { clientOidcConfigRepository } from '@odudu/protocol-oidc';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
@@ -161,7 +161,7 @@ describe('seed', () => {
     const result = await seed(options);
 
     expect(await assignedScopes(result.realmId, result.clientId)).toEqual(
-      [...REALM_DEFAULT_SCOPE_NAMES].sort(),
+      [...TENANT_DEFAULT_SCOPE_NAMES].sort(),
     );
   });
 

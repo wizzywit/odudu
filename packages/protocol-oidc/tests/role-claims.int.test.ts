@@ -10,7 +10,7 @@ import {
   type RealmScopedDatabase,
 } from '@odudu/db';
 import { provisionRealm } from '@odudu/authn-flows';
-import { clientScopeRepository, clients, provisionClientDefaults } from '@odudu/domain-realm';
+import { clientScopeRepository, clients, provisionClientDefaults } from '@odudu/domain-tenant';
 import { roleRepository, type RoleRecord } from '@odudu/domain-authz';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';

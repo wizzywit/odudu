@@ -501,7 +501,7 @@ fUAI7gFGUYH10PdvGXV6Nzi8dkvb4_siXnZgWiSqOgA
 It is stored as its SHA-256 digest, the same shape
 `packages/account/src/repository/action-tokens.ts` uses, and spent by one
 `UPDATE … RETURNING`
-(`packages/domain-realm/src/repository/client-registration-tokens.ts`) so
+(`packages/domain-tenant/src/repository/client-registration-tokens.ts`) so
 two concurrent registrations against a one-use token cannot both win —
 answering the request and consuming the token happen in the one transaction
 that inserts the client, never earlier. Presenting it registers a client
@@ -533,7 +533,7 @@ A realm at its `max_clients` cap refuses further registration with 403 and
 `invalid_client_metadata`, taken under `SELECT … FOR UPDATE` on the realm
 row before the count so two concurrent registrations cannot both observe
 room that only one of them will actually get
-(`packages/domain-realm/src/repository/clients.ts`'s `lockCapacity`,
+(`packages/domain-tenant/src/repository/clients.ts`'s `lockCapacity`,
 exercised concurrently in
 `packages/protocol-oidc/tests/client-registration.int.test.ts`).
 

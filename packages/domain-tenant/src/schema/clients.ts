@@ -6,7 +6,7 @@ import { tenants } from '@odudu/db';
 // declarative policy would collide with a database that already carries it.
 export const clients = pgTable('clients', {
   id: uuid('id').primaryKey(),
-  realmId: uuid('tenant_id')
+  tenantId: uuid('tenant_id')
     .notNull()
     .references(() => tenants.id, { onDelete: 'cascade' }),
   clientId: text('client_id').notNull(),
@@ -40,7 +40,7 @@ export const clients = pgTable('clients', {
 // vocabulary and live in protocol-oidc's client_oidc_config.
 export interface ClientRecord {
   id: string;
-  realmId: string;
+  tenantId: string;
   clientId: string;
   name: string;
   enabled: boolean;

@@ -10,7 +10,7 @@ import {
   type RealmScopedDatabase,
 } from '@odudu/db';
 import { sessions, provisionRealm } from '@odudu/authn-flows';
-import { clientScopeAssignments, clientScopeRepository, clients } from '@odudu/domain-realm';
+import { clientScopeAssignments, clientScopeRepository, clients } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import formbody from '@fastify/formbody';

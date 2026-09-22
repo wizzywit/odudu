@@ -17,7 +17,7 @@ import {
   type RealmScopedDatabase,
 } from '@odudu/db';
 import { hashPassword, subjectRepository } from '@odudu/domain-identity';
-import { clients } from '@odudu/domain-realm';
+import { clients } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import Fastify, {

@@ -1,5 +1,5 @@
 import { type PendingRequest } from '@odudu/authn-flows';
-import { type ClientRecord } from '@odudu/domain-realm';
+import { type ClientRecord } from '@odudu/domain-tenant';
 import { type ClientOidcConfig } from '#/schema/client-oidc-config';
 import { isWellFormedPkceString } from '#/service/pkce';
 import { parsePrompt, type PromptValue } from '#/service/prompt';

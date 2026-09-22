@@ -6,7 +6,7 @@ import { clients } from '#/schema/clients';
 // with pgPolicy() — see clients.ts for why.
 export const clientScopes = pgTable('client_scopes', {
   id: uuid('id').primaryKey(),
-  realmId: uuid('tenant_id')
+  tenantId: uuid('tenant_id')
     .notNull()
     .references(() => tenants.id, { onDelete: 'cascade' }),
   name: text('name').notNull(),
@@ -29,7 +29,7 @@ export const clientScopes = pgTable('client_scopes', {
 // not the other way around.
 export interface ClientScopeRecord {
   id: string;
-  realmId: string;
+  tenantId: string;
   name: string;
   description: string | null;
   includeInIdToken: boolean;
@@ -42,7 +42,7 @@ export type ClientScopeAssignment = 'default' | 'optional';
 export const clientScopeAssignments = pgTable(
   'client_scope_assignments',
   {
-    realmId: uuid('tenant_id').notNull(),
+    tenantId: uuid('tenant_id').notNull(),
     clientId: uuid('client_id')
       .notNull()
       .references(() => clients.id, { onDelete: 'cascade' }),

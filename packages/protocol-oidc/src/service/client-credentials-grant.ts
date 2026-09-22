@@ -1,4 +1,4 @@
-import { type ClientRecord } from '@odudu/domain-realm';
+import { type ClientRecord } from '@odudu/domain-tenant';
 
 export interface ClientCredentialsGrantRequest {
   requestedScope: string;

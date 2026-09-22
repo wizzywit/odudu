@@ -1,9 +1,9 @@
 import {
   createDatabase,
   MIGRATIONS_DIR,
-  realms,
+  tenants,
   runMigrations,
-  withRealm,
+  withTenant,
   type DatabaseHandle,
 } from '@odudu/db';
 import { newId } from '@odudu/kernel';
@@ -19,8 +19,8 @@ import {
 import { clients } from '#/schema/clients';
 import {
   provisionClientDefaults,
-  provisionRealmDefaults,
-  REALM_DEFAULT_SCOPE_NAMES,
+  provisionTenantDefaults,
+  TENANT_DEFAULT_SCOPE_NAMES,
 } from '#/usecase/provision-defaults';
 
 let containerHandle: TestDatabase | undefined;
@@ -59,21 +59,21 @@ describe('a newly provisioned client', () => {
   // change to provisionClientDefaults that quietly assigned everything
   // 'default' again would otherwise pass every existing test silently.
   it("assigns offline_access as 'optional' and every other default scope as 'default'", async () => {
-    const realmId = newId();
+    const tenantId = newId();
     const clientDbId = newId();
 
-    const assignmentByName = await withRealm(app.db, realmId, async (tx) => {
-      await tx.insert(realms).values({ id: realmId, name: `realm-${realmId}` });
-      // Not provisionRealm: domain-realm sits underneath authn-flows in the
+    const assignmentByName = await withTenant(app.db, tenantId, async (tx) => {
+      await tx.insert(tenants).values({ id: tenantId, name: `tenant-${tenantId}` });
+      // Not provisionTenant: domain-tenant sits underneath authn-flows in the
       // dependency graph (authn-flows depends on it, never the reverse), so
       // a test in this package cannot reach the combined entry point. This
-      // realm intentionally has no flow — only the scope vocabulary this
+      // tenant intentionally has no flow — only the scope vocabulary this
       // test is about.
-      await provisionRealmDefaults(tx, realmId);
+      await provisionTenantDefaults(tx, tenantId);
       await tx.insert(clients).values({
         id: clientDbId,
-        realmId,
-        clientId: `client-${realmId}`,
+        tenantId,
+        clientId: `client-${tenantId}`,
         name: 'a freshly provisioned client',
         type: 'public',
         secretHash: null,
@@ -88,9 +88,9 @@ describe('a newly provisioned client', () => {
       return new Map<string, ClientScopeAssignment>(rows.map((row) => [row.name, row.assignment]));
     });
 
-    expect([...assignmentByName.keys()].sort()).toEqual([...REALM_DEFAULT_SCOPE_NAMES].sort());
+    expect([...assignmentByName.keys()].sort()).toEqual([...TENANT_DEFAULT_SCOPE_NAMES].sort());
     expect(assignmentByName.get('offline_access')).toBe('optional');
-    for (const name of REALM_DEFAULT_SCOPE_NAMES) {
+    for (const name of TENANT_DEFAULT_SCOPE_NAMES) {
       if (name === 'offline_access') continue;
       expect(assignmentByName.get(name), `${name} should be assigned 'default'`).toBe('default');
     }
@@ -99,7 +99,7 @@ describe('a newly provisioned client', () => {
     // request the scope and receive it (protocol-oidc's offline-access
     // tests prove that end to end; this is `forClient`'s own read, the
     // thing `resolveScope` intersects the request against).
-    const assigned = await withRealm(app.db, realmId, (tx) =>
+    const assigned = await withTenant(app.db, tenantId, (tx) =>
       clientScopeRepository(tx).forClient(clientDbId),
     );
     expect(assigned.map((scope) => scope.name)).toContain('offline_access');

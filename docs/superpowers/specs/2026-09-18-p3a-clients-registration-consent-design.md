@@ -73,18 +73,18 @@ Each gets an ADR. The numbers continue from 0025.
 ### 4.1 Where things live
 
 The repository already splits clients along a line this phase follows:
-`domain-realm` owns `clients`, `client_scopes` and realm settings;
+`domain-tenant` owns `clients`, `client_scopes` and realm settings;
 `protocol-oidc` owns `client_oidc_config`. The domain owns the client, the
 protocol owns its OIDC metadata.
 
 verified: `grep -rln "pgTable('clients'" packages/*/src` →
-`packages/domain-realm/src/schema/clients.ts`, 2026-09-18.
+`packages/domain-tenant/src/schema/clients.ts`, 2026-09-18.
 
 | New thing                            | Package                       | Why                                                                                                                                                                                                                                                                                                                               |
 | ------------------------------------ | ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `consents`, `consent_scopes`         | `domain-realm`                | Consent is what a subject authorized a client to do. It is not wire-shaped and outlives OIDC. `CLAUDE.md` forbids protocol packages importing each other, so consent placed in `protocol-oidc` would be unreadable to P5's agent layer and P9's authorization services. It references `client_scopes`, which `domain-realm` owns. |
-| `client_registration_tokens`         | `domain-realm`                | An initial access token is a realm's credential for creating clients, not an OAuth artefact.                                                                                                                                                                                                                                      |
-| Registration endpoint, usecase, DTOs | `protocol-oidc`               | An OAuth endpoint advertised in discovery. It orchestrates a `domain-realm` client write and a `protocol-oidc` config write.                                                                                                                                                                                                      |
+| `consents`, `consent_scopes`         | `domain-tenant`                | Consent is what a subject authorized a client to do. It is not wire-shaped and outlives OIDC. `CLAUDE.md` forbids protocol packages importing each other, so consent placed in `protocol-oidc` would be unreadable to P5's agent layer and P9's authorization services. It references `client_scopes`, which `domain-tenant` owns. |
+| `client_registration_tokens`         | `domain-tenant`                | An initial access token is a realm's credential for creating clients, not an OAuth artefact.                                                                                                                                                                                                                                      |
+| Registration endpoint, usecase, DTOs | `protocol-oidc`               | An OAuth endpoint advertised in discovery. It orchestrates a `domain-tenant` client write and a `protocol-oidc` config write.                                                                                                                                                                                                      |
 | `consent-html.ts`                    | `protocol-oidc/src/view/`     | `CLAUDE.md`: pages belonging to the protocol endpoints themselves live there, beside login, error and logout. Consent is an `/authorize` step.                                                                                                                                                                                    |
 | `pageHeaders`                        | `packages/kernel/src/page.ts` | Where `RenderedPage` already lives, and the one module all three page-owning packages may import.                                                                                                                                                                                                                                 |
 
@@ -92,11 +92,11 @@ A cross-table foreign key does not force a package import. `token_grants`
 lives in `protocol-oidc` and references `subjects`, which `domain-identity`
 owns; the same idiom applies here, so the package graph is unchanged.
 
-verified: `sed -n '/"dependencies"/,/}/p' packages/domain-realm/package.json`
+verified: `sed -n '/"dependencies"/,/}/p' packages/domain-tenant/package.json`
 → `@odudu/db`, `@odudu/kernel`, `drizzle-orm` only, 2026-09-18. The comment
-at `packages/domain-realm/src/service/client.ts:2` states the constraint
-directly: the Argon2id comparator is injected because "domain-realm must
-not depend on domain-identity". Anything P3a adds to `domain-realm` that
+at `packages/domain-tenant/src/service/client.ts:2` states the constraint
+directly: the Argon2id comparator is injected because "domain-tenant must
+not depend on domain-identity". Anything P3a adds to `domain-tenant` that
 needs a `domain-identity` capability injects it the same way.
 
 ### 4.2 Migrations
@@ -127,7 +127,7 @@ DEFAULT 'disabled'` with a CHECK of `('disabled', 'open', 'token')`, and
 `max_clients integer NOT NULL DEFAULT 200` with a CHECK of `>= 0`.
 
 Both names go into the `SETTINGS` map in
-`packages/domain-realm/src/service/realm-settings.ts:9`, which makes
+`packages/domain-tenant/src/service/realm-settings.ts:9`, which makes
 `odudu seed realm --set client_registration_policy=token` work with no CLI
 change. That is the payoff of that map existing, and the reason the policy
 is one three-valued column rather than a pair of booleans.

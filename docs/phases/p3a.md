@@ -320,7 +320,7 @@ again.
 
 **A file-path claim that would have failed the P2b rule outright, except
 this time the grep happened before the plan shipped.** The plan named
-`packages/domain-realm/src/schema/realms.ts` for the realm table; it lives
+`packages/domain-tenant/src/schema/realms.ts` for the realm table; it lives
 in `packages/db/src/schema/realms.ts`. Caught and corrected in the plan
 before the implementer needed to detour around it — CLAUDE.md's rule
 working as intended rather than as a postmortem.

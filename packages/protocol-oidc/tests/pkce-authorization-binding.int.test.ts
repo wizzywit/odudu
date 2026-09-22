@@ -11,7 +11,7 @@ import {
   type RealmScopedDatabase,
 } from '@odudu/db';
 import { PERSISTENT_SUFFIX, provisionRealm, sessionCookieName } from '@odudu/authn-flows';
-import { clients, provisionClientDefaults } from '@odudu/domain-realm';
+import { clients, provisionClientDefaults } from '@odudu/domain-tenant';
 import { isUuid, newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import formbody from '@fastify/formbody';

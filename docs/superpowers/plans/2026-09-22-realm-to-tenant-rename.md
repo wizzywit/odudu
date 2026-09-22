@@ -317,17 +317,17 @@ git commit -m "Rename the rest of the database package"
 
 **Branch:** `rename/2-domain`, from the phase branch, with a pull request into it.
 
-### Task 5: domain-realm becomes domain-tenant
+### Task 5: domain-tenant becomes domain-tenant
 
 **Files:**
 
-- Rename: `packages/domain-realm/` → `packages/domain-tenant/`
-- Modify: every file within it, plus every `package.json` and `tsconfig.json` that references `@odudu/domain-realm`
+- Rename: `packages/domain-tenant/` → `packages/domain-tenant/`
+- Modify: every file within it, plus every `package.json` and `tsconfig.json` that references `@odudu/domain-tenant`
 
 - [ ] **Step 1: Rename the directory and the files that carry the name**
 
 ```bash
-git mv packages/domain-realm packages/domain-tenant
+git mv packages/domain-tenant packages/domain-tenant
 git mv packages/domain-tenant/src/service/realm-settings.ts packages/domain-tenant/src/service/tenant-settings.ts
 git mv packages/domain-tenant/src/service/realm-settings.test.ts packages/domain-tenant/src/service/tenant-settings.test.ts
 ```
@@ -342,8 +342,8 @@ grep -rlI -E 'realm|Realm|REALM' packages/domain-tenant \
 - [ ] **Step 3: Update every reference to the package name**
 
 ```bash
-grep -rlI 'domain-realm' . --include='*.json' --include='*.ts' --include='*.js' --include='*.md' \
-  | grep -v node_modules | xargs sed -i '' -e 's/domain-realm/domain-tenant/g'
+grep -rlI 'domain-tenant' . --include='*.json' --include='*.ts' --include='*.js' --include='*.md' \
+  | grep -v node_modules | xargs sed -i '' -e 's/domain-tenant/domain-tenant/g'
 pnpm install
 ```
 
@@ -356,7 +356,7 @@ Expected: PASS.
 
 ```bash
 git add -A
-git commit -m "Rename the domain-realm package to domain-tenant"
+git commit -m "Rename the domain-tenant package to domain-tenant"
 ```
 
 ### Task 6: domain-identity and domain-authz

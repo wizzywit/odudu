@@ -15,7 +15,7 @@ import {
   type GeneratedSigningKey,
   type SigningKeyRecord,
 } from '@odudu/crypto';
-import { clients, provisionClientDefaults } from '@odudu/domain-realm';
+import { clients, provisionClientDefaults } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
 import { eq } from 'drizzle-orm';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';

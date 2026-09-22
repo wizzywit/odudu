@@ -1,13 +1,13 @@
 import {
   createDatabase,
   MIGRATIONS_DIR,
-  realms,
+  tenants,
   runMigrations,
-  withRealm,
+  withTenant,
   type DatabaseHandle,
-  type RealmScopedDatabase,
+  type TenantScopedDatabase,
 } from '@odudu/db';
-import { expectCrossRealmMethodProbe } from '@odudu/db/testing';
+import { expectCrossTenantMethodProbe } from '@odudu/db/testing';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import { eq } from 'drizzle-orm';
@@ -43,14 +43,14 @@ afterAll(async () => {
   await containerHandle?.stop();
 });
 
-async function seedRealm(tx: RealmScopedDatabase, realmId: string): Promise<void> {
-  await tx.insert(realms).values({ id: realmId, name: `realm-${realmId}` });
+async function seedTenant(tx: TenantScopedDatabase, tenantId: string): Promise<void> {
+  await tx.insert(tenants).values({ id: tenantId, name: `tenant-${tenantId}` });
 }
 
-async function newRealm(): Promise<string> {
-  const realmId = newId();
-  await withRealm(app.db, realmId, (tx) => seedRealm(tx, realmId));
-  return realmId;
+async function newTenant(): Promise<string> {
+  const tenantId = newId();
+  await withTenant(app.db, tenantId, (tx) => seedTenant(tx, tenantId));
+  return tenantId;
 }
 
 // The clock a test controls cannot move the database's own `now()`, which
@@ -70,16 +70,16 @@ function hashOf(token: string): string {
 
 describe('spend', () => {
   it('spends a token exactly as many times as it has uses', async () => {
-    const realmId = await newRealm();
-    const { token } = await withRealm(app.db, realmId, (tx) =>
-      clientRegistrationTokenRepository(tx).mint({ realmId, uses: 2, ttlSeconds: 3600 }),
+    const tenantId = await newTenant();
+    const { token } = await withTenant(app.db, tenantId, (tx) =>
+      clientRegistrationTokenRepository(tx).mint({ tenantId, uses: 2, ttlSeconds: 3600 }),
     );
 
     const results: boolean[] = [];
     for (let i = 0; i < 3; i++) {
       results.push(
-        await withRealm(app.db, realmId, (tx) =>
-          clientRegistrationTokenRepository(tx).spend(realmId, token),
+        await withTenant(app.db, tenantId, (tx) =>
+          clientRegistrationTokenRepository(tx).spend(tenantId, token),
         ),
       );
     }
@@ -88,78 +88,78 @@ describe('spend', () => {
   });
 
   it('refuses an expired token', async () => {
-    const realmId = await newRealm();
-    const { token } = await withRealm(app.db, realmId, (tx) =>
-      clientRegistrationTokenRepository(tx).mint({ realmId, uses: 1, ttlSeconds: 1 }),
+    const tenantId = await newTenant();
+    const { token } = await withTenant(app.db, tenantId, (tx) =>
+      clientRegistrationTokenRepository(tx).mint({ tenantId, uses: 1, ttlSeconds: 1 }),
     );
     await backdateExpiry(hashOf(token), new Date(Date.now() - 1000));
 
-    const spent = await withRealm(app.db, realmId, (tx) =>
-      clientRegistrationTokenRepository(tx).spend(realmId, token),
+    const spent = await withTenant(app.db, tenantId, (tx) =>
+      clientRegistrationTokenRepository(tx).spend(tenantId, token),
     );
 
     expect(spent).toBe(false);
   });
 
-  it('refuses a token minted in another realm', async () => {
-    const realmA = await newRealm();
-    const realmB = await newRealm();
-    const { token } = await withRealm(app.db, realmA, (tx) =>
-      clientRegistrationTokenRepository(tx).mint({ realmId: realmA, uses: 1, ttlSeconds: 3600 }),
+  it('refuses a token minted in another tenant', async () => {
+    const tenantA = await newTenant();
+    const tenantB = await newTenant();
+    const { token } = await withTenant(app.db, tenantA, (tx) =>
+      clientRegistrationTokenRepository(tx).mint({ tenantId: tenantA, uses: 1, ttlSeconds: 3600 }),
     );
 
-    const spent = await withRealm(app.db, realmB, (tx) =>
-      clientRegistrationTokenRepository(tx).spend(realmB, token),
+    const spent = await withTenant(app.db, tenantB, (tx) =>
+      clientRegistrationTokenRepository(tx).spend(tenantB, token),
     );
 
     expect(spent).toBe(false);
   });
 
   it('does not let two concurrent spends overdraw a one-use token', async () => {
-    const realmId = await newRealm();
-    const { token } = await withRealm(app.db, realmId, (tx) =>
-      clientRegistrationTokenRepository(tx).mint({ realmId, uses: 1, ttlSeconds: 3600 }),
+    const tenantId = await newTenant();
+    const { token } = await withTenant(app.db, tenantId, (tx) =>
+      clientRegistrationTokenRepository(tx).mint({ tenantId, uses: 1, ttlSeconds: 3600 }),
     );
 
     const [first, second] = await Promise.all([
-      withRealm(app.db, realmId, (tx) =>
-        clientRegistrationTokenRepository(tx).spend(realmId, token),
+      withTenant(app.db, tenantId, (tx) =>
+        clientRegistrationTokenRepository(tx).spend(tenantId, token),
       ),
-      withRealm(app.db, realmId, (tx) =>
-        clientRegistrationTokenRepository(tx).spend(realmId, token),
+      withTenant(app.db, tenantId, (tx) =>
+        clientRegistrationTokenRepository(tx).spend(tenantId, token),
       ),
     ]);
 
     expect([first, second].sort()).toEqual([false, true]);
   });
 
-  // `attempt` calls `spend` with the token's real realmId — the value an
+  // `attempt` calls `spend` with the token's real tenantId — the value an
   // honest caller would supply — while the connection itself is bound to
-  // realm B. That is what makes this probe worth more than
-  // `allForRealm`'s: if isolation depended on the application's own
-  // eq(realmId, …) predicate rather than on the row-level security policy
+  // tenant B. That is what makes this probe worth more than
+  // `allForTenant`'s: if isolation depended on the application's own
+  // eq(tenantId, …) predicate rather than on the row-level security policy
   // applied to the UPDATE, this call would still match it and the probe
   // would pass for the wrong reason.
-  it('does not spend a token minted in another realm, even given that token’s own realmId', async () => {
-    await expectCrossRealmMethodProbe(app.db, {
-      seed: async (tx, realmId) => {
-        await seedRealm(tx, realmId);
+  it('does not spend a token minted in another tenant, even given that token’s own tenantId', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        await seedTenant(tx, tenantId);
         const { token } = await clientRegistrationTokenRepository(tx).mint({
-          realmId,
+          tenantId,
           uses: 1,
           ttlSeconds: 3600,
         });
-        return { realmId, token };
+        return { tenantId, token };
       },
       verifySeeded: async (tx, seeded) => {
         const spent = await clientRegistrationTokenRepository(tx).spend(
-          seeded.realmId,
+          seeded.tenantId,
           seeded.token,
         );
         expect(spent).toBe(true);
       },
       attempt: async (tx, seeded) =>
-        clientRegistrationTokenRepository(tx).spend(seeded.realmId, seeded.token),
+        clientRegistrationTokenRepository(tx).spend(seeded.tenantId, seeded.token),
       expectBlocked: (result) => {
         expect(result).toBe(false);
       },
@@ -169,24 +169,24 @@ describe('spend', () => {
 
 describe('mint', () => {
   // `mint` itself only writes; what a probe of it can show is that the row
-  // it wrote is invisible from another realm's context, the ordinary
-  // row-filtering property `expectRealmIsolation` would cover directly if
+  // it wrote is invisible from another tenant's context, the ordinary
+  // row-filtering property `expectTenantIsolation` would cover directly if
   // this table were keyed simply — checked here through a raw select
   // instead, since the repository exposes no read of its own to attempt.
-  it('does not expose a minted token to another realm', async () => {
-    await expectCrossRealmMethodProbe(app.db, {
-      seed: async (tx, realmId) => {
-        await seedRealm(tx, realmId);
+  it('does not expose a minted token to another tenant', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        await seedTenant(tx, tenantId);
         const { token } = await clientRegistrationTokenRepository(tx).mint({
-          realmId,
+          tenantId,
           uses: 1,
           ttlSeconds: 3600,
         });
-        return { realmId, token };
+        return { tenantId, token };
       },
       verifySeeded: async (tx, seeded) => {
         const spent = await clientRegistrationTokenRepository(tx).spend(
-          seeded.realmId,
+          seeded.tenantId,
           seeded.token,
         );
         expect(spent).toBe(true);

@@ -1,13 +1,13 @@
 import {
   createDatabase,
   MIGRATIONS_DIR,
-  realms,
+  tenants,
   runMigrations,
-  withRealm,
+  withTenant,
   type DatabaseHandle,
-  type RealmScopedDatabase,
+  type TenantScopedDatabase,
 } from '@odudu/db';
-import { expectCrossRealmMethodProbe } from '@odudu/db/testing';
+import { expectCrossTenantMethodProbe } from '@odudu/db/testing';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import { and, eq } from 'drizzle-orm';
@@ -47,15 +47,15 @@ afterAll(async () => {
   await containerHandle?.stop();
 });
 
-async function seedRealm(tx: RealmScopedDatabase, realmId: string): Promise<void> {
-  await tx.insert(realms).values({ id: realmId, name: `realm-${realmId}` });
+async function seedTenant(tx: TenantScopedDatabase, tenantId: string): Promise<void> {
+  await tx.insert(tenants).values({ id: tenantId, name: `tenant-${tenantId}` });
 }
 
-async function insertClient(tx: RealmScopedDatabase, realmId: string): Promise<string> {
+async function insertClient(tx: TenantScopedDatabase, tenantId: string): Promise<string> {
   const clientId = newId();
   await tx.insert(clients).values({
     id: clientId,
-    realmId,
+    tenantId,
     clientId: `client-${clientId}`,
     name: 'A client',
     type: 'public',
@@ -66,20 +66,20 @@ async function insertClient(tx: RealmScopedDatabase, realmId: string): Promise<s
 
 interface CreateOptions {
   name: string;
-  realmId?: string;
+  tenantId?: string;
 }
 
-// A call that names an existing realmId assumes the caller already seeded
+// A call that names an existing tenantId assumes the caller already seeded
 // it (a second seed of the same id would collide on the primary key); a
-// call with no realmId gets a fresh, freshly seeded realm of its own, so
+// call with no tenantId gets a fresh, freshly seeded tenant of its own, so
 // each test's scopes are isolated from every other test's by default.
 async function create(opts: CreateOptions): Promise<ClientScopeRecord> {
-  const realmId = opts.realmId ?? newId();
-  if (opts.realmId === undefined) {
-    await withRealm(app.db, realmId, (tx) => seedRealm(tx, realmId));
+  const tenantId = opts.tenantId ?? newId();
+  if (opts.tenantId === undefined) {
+    await withTenant(app.db, tenantId, (tx) => seedTenant(tx, tenantId));
   }
-  return withRealm(app.db, realmId, (tx) =>
-    clientScopeRepository(tx).create({ realmId, name: opts.name }),
+  return withTenant(app.db, tenantId, (tx) =>
+    clientScopeRepository(tx).create({ tenantId, name: opts.name }),
   );
 }
 
@@ -115,45 +115,45 @@ describe('client scope names', () => {
     }
   });
 
-  it('refuses a duplicate name in one realm but permits it across realms', async () => {
-    const realmA = newId();
-    const realmB = newId();
-    await withRealm(app.db, realmA, (tx) => seedRealm(tx, realmA));
-    await withRealm(app.db, realmB, (tx) => seedRealm(tx, realmB));
+  it('refuses a duplicate name in one tenant but permits it across tenants', async () => {
+    const tenantA = newId();
+    const tenantB = newId();
+    await withTenant(app.db, tenantA, (tx) => seedTenant(tx, tenantA));
+    await withTenant(app.db, tenantB, (tx) => seedTenant(tx, tenantB));
 
-    await create({ name: 'roles', realmId: realmA });
-    expect(await causeMessage(create({ name: 'roles', realmId: realmA }))).toContain(
+    await create({ name: 'roles', tenantId: tenantA });
+    expect(await causeMessage(create({ name: 'roles', tenantId: tenantA }))).toContain(
       'client_scopes_name_unique',
     );
-    await expect(create({ name: 'roles', realmId: realmB })).resolves.toBeDefined();
+    await expect(create({ name: 'roles', tenantId: tenantB })).resolves.toBeDefined();
   });
 });
 
-describe('allForRealm', () => {
-  it('returns every scope created in the realm', async () => {
-    const realmId = newId();
-    await withRealm(app.db, realmId, (tx) => seedRealm(tx, realmId));
-    await create({ name: 'openid', realmId });
-    await create({ name: 'reports:read', realmId });
+describe('allForTenant', () => {
+  it('returns every scope created in the tenant', async () => {
+    const tenantId = newId();
+    await withTenant(app.db, tenantId, (tx) => seedTenant(tx, tenantId));
+    await create({ name: 'openid', tenantId });
+    await create({ name: 'reports:read', tenantId });
 
-    const scopes = await withRealm(app.db, realmId, (tx) =>
-      clientScopeRepository(tx).allForRealm(),
+    const scopes = await withTenant(app.db, tenantId, (tx) =>
+      clientScopeRepository(tx).allForTenant(),
     );
 
     expect(scopes.map((scope) => scope.name).sort()).toEqual(['openid', 'reports:read']);
   });
 
-  it('does not return another realm’s scopes', async () => {
-    await expectCrossRealmMethodProbe(app.db, {
-      seed: async (tx, realmId) => {
-        await seedRealm(tx, realmId);
-        await clientScopeRepository(tx).create({ realmId, name: 'openid' });
+  it('does not return another tenant’s scopes', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        await seedTenant(tx, tenantId);
+        await clientScopeRepository(tx).create({ tenantId, name: 'openid' });
       },
       verifySeeded: async (tx) => {
-        const scopes = await clientScopeRepository(tx).allForRealm();
+        const scopes = await clientScopeRepository(tx).allForTenant();
         expect(scopes.map((scope) => scope.name)).toContain('openid');
       },
-      attempt: async (tx) => clientScopeRepository(tx).allForRealm(),
+      attempt: async (tx) => clientScopeRepository(tx).allForTenant(),
       expectBlocked: (result) => {
         expect(result).toEqual([]);
       },
@@ -162,23 +162,23 @@ describe('allForRealm', () => {
 });
 
 describe('byName', () => {
-  it('finds a scope created in the realm', async () => {
-    const realmId = newId();
-    await withRealm(app.db, realmId, (tx) => seedRealm(tx, realmId));
-    await create({ name: 'reports:read', realmId });
+  it('finds a scope created in the tenant', async () => {
+    const tenantId = newId();
+    await withTenant(app.db, tenantId, (tx) => seedTenant(tx, tenantId));
+    await create({ name: 'reports:read', tenantId });
 
-    const found = await withRealm(app.db, realmId, (tx) =>
+    const found = await withTenant(app.db, tenantId, (tx) =>
       clientScopeRepository(tx).byName('reports:read'),
     );
 
     expect(found?.name).toBe('reports:read');
   });
 
-  it('cannot find another realm’s scope by name', async () => {
-    await expectCrossRealmMethodProbe(app.db, {
-      seed: async (tx, realmId) => {
-        await seedRealm(tx, realmId);
-        await clientScopeRepository(tx).create({ realmId, name: 'reports:read' });
+  it('cannot find another tenant’s scope by name', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        await seedTenant(tx, tenantId);
+        await clientScopeRepository(tx).create({ tenantId, name: 'reports:read' });
         return 'reports:read';
       },
       verifySeeded: async (tx, name) => {
@@ -195,14 +195,14 @@ describe('byName', () => {
 
 describe('assignment', () => {
   it('refuses an assignment that is neither default nor optional', async () => {
-    const realmId = newId();
+    const tenantId = newId();
 
     let error: unknown;
     try {
-      await withRealm(app.db, realmId, async (tx) => {
-        await seedRealm(tx, realmId);
-        const clientId = await insertClient(tx, realmId);
-        const scope = await clientScopeRepository(tx).create({ realmId, name: 'openid' });
+      await withTenant(app.db, tenantId, async (tx) => {
+        await seedTenant(tx, tenantId);
+        const clientId = await insertClient(tx, tenantId);
+        const scope = await clientScopeRepository(tx).create({ tenantId, name: 'openid' });
         await clientScopeRepository(tx).assign(
           clientId,
           scope.id,
@@ -220,22 +220,22 @@ describe('assignment', () => {
     expect((cause as Error).message).toContain('client_scope_assignments_assignment_check');
   });
 
-  it('returns nothing for a client in another realm', async () => {
-    const realmA = newId();
-    const realmB = newId();
+  it('returns nothing for a client in another tenant', async () => {
+    const tenantA = newId();
+    const tenantB = newId();
 
-    const clientInRealmA = await withRealm(app.db, realmA, async (tx) => {
-      await seedRealm(tx, realmA);
-      const clientId = await insertClient(tx, realmA);
-      const scope = await clientScopeRepository(tx).create({ realmId: realmA, name: 'openid' });
+    const clientInTenantA = await withTenant(app.db, tenantA, async (tx) => {
+      await seedTenant(tx, tenantA);
+      const clientId = await insertClient(tx, tenantA);
+      const scope = await clientScopeRepository(tx).create({ tenantId: tenantA, name: 'openid' });
       await clientScopeRepository(tx).assign(clientId, scope.id, 'default');
       return clientId;
     });
 
-    await withRealm(app.db, realmB, (tx) => seedRealm(tx, realmB));
+    await withTenant(app.db, tenantB, (tx) => seedTenant(tx, tenantB));
 
-    const scopes = await withRealm(app.db, realmB, (tx) =>
-      clientScopeRepository(tx).forClient(clientInRealmA),
+    const scopes = await withTenant(app.db, tenantB, (tx) =>
+      clientScopeRepository(tx).forClient(clientInTenantA),
     );
     expect(scopes).toEqual([]);
   });
@@ -243,39 +243,39 @@ describe('assignment', () => {
 
 describe('assignOrUpdate', () => {
   it('creates the assignment when none exists', async () => {
-    const realmId = newId();
-    const { clientId, scopeId } = await withRealm(app.db, realmId, async (tx) => {
-      await seedRealm(tx, realmId);
-      const clientId = await insertClient(tx, realmId);
-      const scope = await clientScopeRepository(tx).create({ realmId, name: 'roles' });
+    const tenantId = newId();
+    const { clientId, scopeId } = await withTenant(app.db, tenantId, async (tx) => {
+      await seedTenant(tx, tenantId);
+      const clientId = await insertClient(tx, tenantId);
+      const scope = await clientScopeRepository(tx).create({ tenantId, name: 'roles' });
       return { clientId, scopeId: scope.id };
     });
 
-    await withRealm(app.db, realmId, (tx) =>
+    await withTenant(app.db, tenantId, (tx) =>
       clientScopeRepository(tx).assignOrUpdate(clientId, scopeId, 'optional'),
     );
 
-    const scopes = await withRealm(app.db, realmId, (tx) =>
+    const scopes = await withTenant(app.db, tenantId, (tx) =>
       clientScopeRepository(tx).forClient(clientId),
     );
     expect(scopes.map((scope) => scope.name)).toEqual(['roles']);
   });
 
-  // Client creation assigns the realm's default vocabulary before an
+  // Client creation assigns the tenant's default vocabulary before an
   // operator ever runs the seed CLI's assign-scope command, so the second
   // call this method exists for always lands on a row `assign` already
   // wrote — narrowing it is the point, not a collision to refuse.
   it('narrows an existing assignment instead of colliding with it', async () => {
-    const realmId = newId();
-    const { clientId, scopeId } = await withRealm(app.db, realmId, async (tx) => {
-      await seedRealm(tx, realmId);
-      const clientId = await insertClient(tx, realmId);
-      const scope = await clientScopeRepository(tx).create({ realmId, name: 'roles' });
+    const tenantId = newId();
+    const { clientId, scopeId } = await withTenant(app.db, tenantId, async (tx) => {
+      await seedTenant(tx, tenantId);
+      const clientId = await insertClient(tx, tenantId);
+      const scope = await clientScopeRepository(tx).create({ tenantId, name: 'roles' });
       await clientScopeRepository(tx).assign(clientId, scope.id, 'default');
       return { clientId, scopeId: scope.id };
     });
 
-    await withRealm(app.db, realmId, (tx) =>
+    await withTenant(app.db, tenantId, (tx) =>
       clientScopeRepository(tx).assignOrUpdate(clientId, scopeId, 'optional'),
     );
 
@@ -291,30 +291,30 @@ describe('assignOrUpdate', () => {
     expect(rows[0]?.assignment).toBe('optional');
   });
 
-  it('refuses a client from another realm', async () => {
-    const realmA = newId();
-    const realmB = newId();
+  it('refuses a client from another tenant', async () => {
+    const tenantA = newId();
+    const tenantB = newId();
 
-    const { clientId, scopeId } = await withRealm(app.db, realmA, async (tx) => {
-      await seedRealm(tx, realmA);
-      const clientId = await insertClient(tx, realmA);
-      const scope = await clientScopeRepository(tx).create({ realmId: realmA, name: 'roles' });
+    const { clientId, scopeId } = await withTenant(app.db, tenantA, async (tx) => {
+      await seedTenant(tx, tenantA);
+      const clientId = await insertClient(tx, tenantA);
+      const scope = await clientScopeRepository(tx).create({ tenantId: tenantA, name: 'roles' });
       return { clientId, scopeId: scope.id };
     });
 
-    await withRealm(app.db, realmB, (tx) => seedRealm(tx, realmB));
+    await withTenant(app.db, tenantB, (tx) => seedTenant(tx, tenantB));
 
     await expect(
-      withRealm(app.db, realmB, (tx) =>
+      withTenant(app.db, tenantB, (tx) =>
         clientScopeRepository(tx).assignOrUpdate(clientId, scopeId, 'optional'),
       ),
     ).rejects.toThrow(/unknown client/);
 
     // The rejection alone is consistent with RLS filtering the client out
-    // of realm B's view; reading it back under its own realm A confirms
+    // of tenant B's view; reading it back under its own tenant A confirms
     // that is really what happened, not some other failure that happened
     // to leave the assignment untouched too.
-    const scopesAfter = await withRealm(app.db, realmA, (tx) =>
+    const scopesAfter = await withTenant(app.db, tenantA, (tx) =>
       clientScopeRepository(tx).forClient(clientId),
     );
     expect(scopesAfter).toEqual([]);

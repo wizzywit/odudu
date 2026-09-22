@@ -46,7 +46,7 @@ async function seedRealm(tx: RealmScopedDatabase, realmId: string): Promise<void
   await tx.insert(realms).values({ id: realmId, name: `realm-${realmId}` });
 }
 
-// @odudu/domain-authz never imports @odudu/domain-realm or
+// @odudu/domain-authz never imports @odudu/domain-tenant or
 // @odudu/domain-identity, so fixtures for their tables are inserted with raw
 // SQL rather than through those packages' schemas.
 async function insertClient(tx: RealmScopedDatabase, realmId: string): Promise<string> {

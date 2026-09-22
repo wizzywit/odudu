@@ -4,7 +4,7 @@
 
 **Goal:** An authorization server that issues signed tokens through five endpoints and three grant types, where every MUST in the traced specifications is mapped to a passing test by a tool that fails CI when the map has a hole.
 
-**Architecture:** Six new packages under the dependency direction P0 established. `crypto` owns keys and signatures; `domain-realm` and `domain-identity` own tenant data and know nothing of OAuth; `authn-flows` owns a persisted login state machine; `protocol-oidc` owns the wire. Token issuance funnels every grant through one eight-stage pipeline in which only stage 3 is grant-specific. A `trace` tool parses clause tables in `docs/protocols/` and cross-references them against the test suite.
+**Architecture:** Six new packages under the dependency direction P0 established. `crypto` owns keys and signatures; `domain-tenant` and `domain-identity` own tenant data and know nothing of OAuth; `authn-flows` owns a persisted login state machine; `protocol-oidc` owns the wire. Token issuance funnels every grant through one eight-stage pipeline in which only stage 3 is grant-specific. A `trace` tool parses clause tables in `docs/protocols/` and cross-references them against the test suite.
 
 **Tech Stack:** Node 24, TypeScript 6.0.3, Fastify 5.12.3, PostgreSQL 17, Drizzle ORM 0.45.2, Zod 4.6.1, Vitest 5.0.0, Testcontainers 12.1.0, jose 6.2.12, @node-rs/argon2 2.2.1, @fastify/formbody 9.0.0, @fastify/cookie 11.1.2, Stryker 10.0.0.
 
@@ -56,7 +56,7 @@ Everything in P0's plan still binds. Repeated here because an implementer sees o
 | 5    | The tenant-table guard: RLS made mechanical                     | 3–4        |
 | 6    | `crypto`: key storage, KEK encryption, JWKS assembly            | 5–6        |
 | 7    | `crypto`: signing, verification, algorithm-confusion defenses   | 4–6        |
-| 8    | `domain-realm`: clients                                         | 3–4        |
+| 8    | `domain-tenant`: clients                                         | 3–4        |
 | 9    | `domain-identity`: subjects, users, credentials, Argon2id       | 5–6        |
 | 10   | `authn-flows`: sessions and the persisted executor              | 5–6        |
 | 11   | `protocol-oidc`: `contracts`, discovery and JWKS endpoints      | 4–5        |
@@ -122,7 +122,7 @@ packages/crypto/src/
 ├─ repository/signing-keys.ts
 └─ tests/*.int.test.ts
 
-packages/domain-realm/src/
+packages/domain-tenant/src/
 ├─ index.ts
 ├─ schema/clients.ts
 ├─ service/client.ts              type rules, secret verification
@@ -1498,15 +1498,15 @@ as an HS256 secret, and a mismatched algorithms option are all rejected.
 
 ---
 
-### Task 8: `domain-realm` — clients
+### Task 8: `domain-tenant` — clients
 
 A client here is protocol-agnostic. Redirect URIs and grant types are OAuth vocabulary and belong to `protocol-oidc` (Task 11), because a domain package that knows what a redirect URI is cannot survive SAML at P8.
 
 **Files:**
 
-- Create: `packages/domain-realm/package.json`, `tsconfig.json`, `src/index.ts`
+- Create: `packages/domain-tenant/package.json`, `tsconfig.json`, `src/index.ts`
 - Create: `src/schema/clients.ts`, `src/service/client.ts`, `src/service/client.test.ts`, `src/repository/clients.ts`
-- Create: `packages/domain-realm/tests/clients.int.test.ts`
+- Create: `packages/domain-tenant/tests/clients.int.test.ts`
 - Create: `packages/db/drizzle/0004_clients.sql`
 
 **Interfaces:**
@@ -1551,7 +1551,7 @@ CREATE POLICY clients_isolation ON clients
 
 - [ ] **Step 2: Write the failing service test**
 
-`packages/domain-realm/src/service/client.test.ts`:
+`packages/domain-tenant/src/service/client.test.ts`:
 
 ```ts
 import { describe, expect, it } from 'vitest';
@@ -1602,18 +1602,18 @@ describe('[RFC6749-2.3.1-01] client secret verification', () => {
 
 - [ ] **Step 3: Run it and watch it fail**
 
-Run: `npx vitest run packages/domain-realm/src/service/client.test.ts`
+Run: `npx vitest run packages/domain-tenant/src/service/client.test.ts`
 
 Expected: FAIL with `Cannot find module '#/service/client'`.
 
 - [ ] **Step 4: Implement**
 
-`packages/domain-realm/src/service/client.ts`:
+`packages/domain-tenant/src/service/client.ts`:
 
 ```ts
 import { type ClientRecord } from '#/schema/clients';
 
-// The comparison function is injected rather than imported: domain-realm must
+// The comparison function is injected rather than imported: domain-tenant must
 // not depend on domain-identity, and Task 9's Argon2id verifier is what the
 // server passes in.
 export async function verifyClientSecret(
@@ -1632,7 +1632,7 @@ Run the test again: PASS, 6 tests.
 
 - [ ] **Step 5: Write the integration test**
 
-`packages/domain-realm/tests/clients.int.test.ts` covers `byClientId` finding and not finding a client, the unique constraint on `(realm_id, client_id)`, the check constraint rejecting a public client with a secret, and the realm probe:
+`packages/domain-tenant/tests/clients.int.test.ts` covers `byClientId` finding and not finding a client, the unique constraint on `(realm_id, client_id)`, the check constraint rejecting a public client with a secret, and the realm probe:
 
 ```ts
 it('rejects a public client carrying a secret', async () => {
@@ -1651,7 +1651,7 @@ it('isolates clients by realm', async () => {
 });
 ```
 
-Run: `npx vitest run --project integration packages/domain-realm` — expect FAIL, implement the repository, expect PASS.
+Run: `npx vitest run --project integration packages/domain-tenant` — expect FAIL, implement the repository, expect PASS.
 
 - [ ] **Step 6: Verify and commit**
 
@@ -1660,7 +1660,7 @@ pnpm verify
 ```
 
 ```bash
-git add packages/domain-realm packages/db
+git add packages/domain-tenant packages/db
 git commit -m "Add protocol-agnostic client records"
 ```
 
@@ -3604,4 +3604,4 @@ Run against the spec after the plan was written.
 
 **3. Type consistency.** `RealmScopedDatabase`, `withRealm` and `createAppRole` match the existing exports in `packages/db/src/index.ts` and `packages/testkit/src/index.ts` — verified by reading those files, not assumed. `SigningKeyRecord` is defined in Task 6 and consumed with the same member names in Tasks 7, 11 and 16. `ClientRecord` (Task 8) and `ClientOidcConfig` (Task 11) are separate types throughout, never conflated. `PendingRequest` is defined in Task 10 and produced by Task 12's `AuthorizeOutcome`. `AuthenticatorResult` uses `kind` as its discriminant, matching `AuthorizeOutcome` and `RotationOutcome`.
 
-**4. One deliberate inconsistency, flagged rather than fixed.** Task 8's `verifyClientSecret` takes its comparison function by injection because `domain-realm` must not import `domain-identity`. An implementer reading Task 8 alone may find the third parameter odd; the comment in the code says why, and Task 14 is where the real Argon2id comparator is passed in.
+**4. One deliberate inconsistency, flagged rather than fixed.** Task 8's `verifyClientSecret` takes its comparison function by injection because `domain-tenant` must not import `domain-identity`. An implementer reading Task 8 alone may find the third parameter odd; the comment in the code says why, and Task 14 is where the real Argon2id comparator is passed in.

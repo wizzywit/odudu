@@ -39,7 +39,7 @@ realm-name scanner for free.
   gets from `/jwks` and discovery already.
 - `open`: any request registers a client. RFC 7591 §3.1's anonymous case.
 - `token`: a request needs a valid, unspent `client_registration_tokens` row
-  (`packages/domain-realm/src/repository/client-registration-tokens.ts`,
+  (`packages/domain-tenant/src/repository/client-registration-tokens.ts`,
   minted by `seed registration-token`) presented as a Bearer credential.
   Missing entirely, the request is refused with 401 and
   `WWW-Authenticate: Bearer` and no `error` parameter (RFC 6750 §3.1's own

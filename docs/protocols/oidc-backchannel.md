@@ -99,7 +99,7 @@ revokes every grant whose `session_id` names the session being ended
 (`tokenGrantRepository(tx).revokeForSession`) — the first sentence. It
 reaches no further, because a grant's `session_id` is `NULL` exactly when
 it was issued for the `offline_access` scope
-(`packages/domain-realm/src/usecase/provision-defaults.ts`,
+(`packages/domain-tenant/src/usecase/provision-defaults.ts`,
 `packages/protocol-oidc/src/usecase/token-issuance.ts`): SQL equality never
 matches `NULL`, so the same `UPDATE` that revokes every session-bound grant
 leaves an offline one untouched by construction, not by a second check

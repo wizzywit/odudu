@@ -76,7 +76,7 @@ that reaches for SQL, and aggregates it under "Any admin API".
 **Realm settings already have a command, and its validation is reusable.**
 `odudu seed realm --name <realm> --set <name>=<value>` applies any of the
 realm settings by column name. The name-to-column map and the coercion live
-in `packages/domain-realm/src/service/realm-settings.ts` rather than in the
+in `packages/domain-tenant/src/service/realm-settings.ts` rather than in the
 CLI, so P4's admin API inherits them rather than growing a second copy.
 Ranges are deliberately not there — they are CHECK constraints, and a policy
 no writer may bypass belongs at the database.

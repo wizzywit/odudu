@@ -1,5 +1,5 @@
 import { type RealmScopedDatabase } from '@odudu/db';
-import { provisionRealmDefaults } from '@odudu/domain-realm';
+import { provisionTenantDefaults } from '@odudu/domain-tenant';
 import { executionRepository } from '#/repository/executions';
 import { type Requirement } from '#/schema/execution';
 import { isRegisteredAuthenticator } from '#/usecase/executor';
@@ -24,8 +24,8 @@ export const BROWSER_FLOW_DEFAULT: readonly DefaultExecution[] = [
 ];
 
 // Seeds the browser flow alone. Exported so a caller that wants only the
-// scope vocabulary, or that cannot depend on this package (domain-realm
-// itself, underneath it), can still reach for provisionRealmDefaults
+// scope vocabulary, or that cannot depend on this package (domain-tenant
+// itself, underneath it), can still reach for provisionTenantDefaults
 // without carrying a flow it does not want.
 export async function provisionBrowserFlow(
   tx: RealmScopedDatabase,
@@ -43,12 +43,12 @@ export async function provisionBrowserFlow(
 }
 
 // A realm is not usable until it has both a scope vocabulary and a flow to
-// authenticate against — provisionRealmDefaults (@odudu/domain-realm) gives
+// authenticate against — provisionTenantDefaults (@odudu/domain-tenant) gives
 // the first, provisionBrowserFlow the second. This is the one function that
 // calls both, so a realm-creation site cannot drift into calling only one of
 // them; every caller standing up a real realm should reach for this rather
 // than the two pieces separately.
 export async function provisionRealm(tx: RealmScopedDatabase, realmId: string): Promise<void> {
-  await provisionRealmDefaults(tx, realmId);
+  await provisionTenantDefaults(tx, realmId);
   await provisionBrowserFlow(tx, realmId);
 }

@@ -6,7 +6,7 @@ const compare = async (hash: string, secret: string) => hash === `hashed:${secre
 
 const confidential = {
   id: 'c',
-  realmId: 'r',
+  tenantId: 'r',
   clientId: 'web-app',
   name: 'Web',
   enabled: true,
