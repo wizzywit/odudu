@@ -1,15 +1,16 @@
 import { TOKEN_ENDPOINT_AUTH_METHODS_SUPPORTED } from '#/token';
 
 // authenticateClient (packages/protocol-oidc/src/usecase/client-authentication.ts)
-// is what both /introspect and /revoke authenticate through, and it reads
-// only a Basic header or a body client_secret — never private_key_jwt or
-// tls_client_auth, so unlike the token endpoint's list this one does not
-// vary with ODUDU_TRUST_PROXY. RFC 8414 §2 defaults an omitted member to
-// ['client_secret_basic'] alone; both endpoints also accept
-// client_secret_post, which this makes discoverable.
+// is what both /introspect and /revoke authenticate through, and it accepts
+// a Basic header, a body client_secret, or — verifyClientSecret,
+// packages/domain-realm/src/service/client.ts — no secret at all from a
+// `none` public client. Only private_key_jwt and tls_client_auth are never
+// dispatched here, so unlike the token endpoint's list this one never
+// varies with ODUDU_TRUST_PROXY.
 const INTROSPECTION_AND_REVOCATION_AUTH_METHODS_SUPPORTED = [
   'client_secret_basic',
   'client_secret_post',
+  'none',
 ] as const;
 
 // Every `_endpoint` member is served unconditionally once a realm is
