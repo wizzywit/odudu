@@ -131,6 +131,18 @@ of.
   required-action detour, correct by construction and driven by nothing. A
   fifth had been found the same way one deliverable earlier. Four of the
   six were untested when the count said six of six.
+- **The remembered-session idle window was threaded through one of two
+  callers.** `sessionRepository.liveByIds` (session listing) took the
+  realm's whole `SessionLifespans` pair, with a comment explaining exactly
+  why a bare `idleSeconds` cannot express a remembered session's own
+  window; `liveById`, the sibling `/introspect`, `/token` and refresh
+  rotation all called, kept the bare `idleSeconds` for eleven commits after
+  `liveByIds` shipped. A remembered session's access token was reported
+  `active: false` once the _ordinary_ idle window passed — thirty minutes
+  by default against the session's own seven days — which is live the
+  moment a `remember_me` login exists, not a latent risk. Found at the
+  phase-close pass, fixed at `707d682`: `liveById` now takes the same
+  `SessionLifespans` pair `liveByIds` always did.
 
 **The lesson that generalises past this phase:** a coverage claim stated as
 a count hides which member is missing. "Six journeys, six tests" was wrong

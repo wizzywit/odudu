@@ -180,21 +180,6 @@ which grant a request may use.
 - Trigger: whichever task next touches grant selection in `issueTokens`.
   Add `config.grantTypes.includes(request.grantType)` before dispatching.
 
-**`/introspect` cannot express a remembered session's own idle window, and
-that is now live rather than latent.** `registerIntrospectRoute`
-(`packages/protocol-oidc/src/view/routes/introspect.ts`) passes
-`realm.ssoSessionIdleSeconds` and `isIntrospectionSessionLive`
-(`packages/protocol-oidc/src/index.ts`) calls `liveById` with it, while
-`liveByIds` takes the realm's whole `SessionLifespans` pair precisely
-because a remembered session is never measured against an ordinary one's
-window. So a remembered session's token is reported `active: false` once the
-ordinary idle window passes — thirty minutes by default against the
-session's own seven days. The trigger this entry carried through P3b was
-"the task that wires `/introspect`'s real `loadGrant`/`isSessionLive`"; that
-wiring shipped and the threading did not follow it. **This is a defect, not
-a design question**: thread `SessionLifespans` or the session's `remembered`
-flag through instead of a bare `idleSeconds`.
-
 **`/userinfo` honours a disabled client's live access token at all.**
 `usecase/userinfo.ts`'s gate checks `realm?.enabled` only. `resolveRoleReach`
 now refuses a disabled client's `fullScopeAllowed` bypass and
@@ -354,9 +339,6 @@ on the grounds that P13 is the next phase to rework client authentication.
 
 ## Deferred from the final review
 
-- **`/introspect`'s remembered-session idle window** is the one entry above
-  that is a defect rather than a decision. It is here as well as there
-  because it is the first thing P4 will hit when it lists sessions.
 - `tests/lint/production-guard-order.test.ts` compares source offsets and
   breaks on a rename or a helper extraction. A reasonable stopgap for the
   still-positional server-boot path, but its narrowness should be visible to
