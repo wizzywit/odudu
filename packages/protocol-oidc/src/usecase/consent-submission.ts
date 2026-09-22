@@ -121,19 +121,23 @@ export async function handleConsentSubmission(
     return { kind: 'unauthenticated' };
   }
 
+  // Two of handleLoginSubmission's four pre-consent gates need no mirror
+  // here: an `idTokenHintSubject`/`claimsSubject` mismatch there calls
+  // `resetAuthenticationProgress`, which nulls `subject_id` and
+  // `authenticated_at` — so `authenticatedSession` below already answers
+  // null for exactly that attempt, refusing before either of this
+  // function's own two checks would run.
   const authenticated = await deps.authenticatedSession(realm.id, authSessionId);
   if (authenticated === null) {
     return { kind: 'unauthenticated' };
   }
   const { subjectId, authenticators } = authenticated;
 
-  // The first of the two gates handleLoginSubmission clears before it will
-  // ever produce a 'consent' outcome — checked here in the same order, for
-  // the same reason: a parked request can only reach this endpoint by
-  // having been refused past this point once already, and a decision=allow
-  // posted straight at it must not skip what the form path never let it
-  // skip. See refusedForUnverifiedEmail's own comment for why this sits
-  // ahead of everything else.
+  // The other two gates handleLoginSubmission clears before it will ever
+  // produce a 'consent' outcome — checked here in the same order, so a
+  // decision=allow posted straight at this endpoint cannot skip what the
+  // form path never let it skip. See refusedForUnverifiedEmail's own
+  // comment for why this sits ahead of everything else.
   const emailRefusal = await refusedForUnverifiedEmail(deps, realm, subjectId);
   if (emailRefusal !== null) {
     return { kind: 'unverified', authSessionId, hasEmail: emailRefusal.hasEmail };

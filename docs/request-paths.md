@@ -1491,6 +1491,42 @@ odudu seed \
 }
 ```
 
+`$ADA_SUB` and `$BOB_SUB` (used below) and `$COOKIE` are captured the same
+way [the shell variables above](#the-shell-variables-the-rest-of-this-document-uses)
+capture `$AUTH_SESSION_ID`/`$CODE` — re-running `odudu seed` for ada is
+idempotent (`"created": false`, same `userSubjectId`), so this needs no
+separate bootstrap:
+
+```bash
+ADA_SUB=$(odudu seed \
+  --realm demo --client demo-spa \
+  --redirect-uri http://localhost:8080/callback \
+  --user ada --password correct-horse-battery --email ada@example.com \
+  | sed -n 's/.*"userSubjectId":"\([^"]*\)".*/\1/p')
+
+BOB_SUB=$(odudu seed \
+  --realm demo --client demo-second-user \
+  --redirect-uri http://localhost:8080/callback \
+  --user bob --password another-horse-battery \
+  | sed -n 's/.*"userSubjectId":"\([^"]*\)".*/\1/p')
+
+AUTH_SESSION_ID=$(curl -sS --get \
+  --data-urlencode 'response_type=code' \
+  --data-urlencode 'client_id=demo-spa' \
+  --data-urlencode 'redirect_uri=http://localhost:8080/callback' \
+  --data-urlencode 'scope=openid' \
+  --data-urlencode 'state=xyz-123' \
+  --data-urlencode "code_challenge=$CHALLENGE" \
+  --data-urlencode 'code_challenge_method=S256' \
+  "$BASE/auth" | sed -n '/name="auth_session_id"/{s/.*value="\([^"]*\)".*/\1/p;q;}')
+
+COOKIE=$(curl -sS -D - -o /dev/null \
+  --data-urlencode "auth_session_id=$AUTH_SESSION_ID" \
+  --data-urlencode 'username=ada' \
+  --data-urlencode 'password=correct-horse-battery' \
+  "$LOGIN" | sed -n 's/^[Ss]et-[Cc]ookie: \([^;]*\);.*/\1/p' | paste -sd'; ' -)
+```
+
 Requesting `email` with `scope=openid email` returns it:
 
 ```bash
@@ -1577,12 +1613,8 @@ other claim here, this constraint is enforced twice: once at /authorize, in
 the same candidate-session filter `id_token_hint` already narrows, and again
 wherever a login can happen _after_ that filter ran, because the filter only
 governs a session reuse, not a form or a chooser the request can still
-produce. `$ADA_SUB` and `$BOB_SUB` below are the two subjects' own ids, from
-each seed command's own `userSubjectId`. `$COOKIE` is ada's session cookie,
-captured the same way [the walk-through above](#3-the-login-post) captures
-one — `Set-Cookie` header, name=value pair before the first `;`.
-
-With a live SSO session for ada, naming her own subject serves the request
+produce. With a live SSO session for ada (`$COOKIE`, `$ADA_SUB` and
+`$BOB_SUB`, assigned above), naming her own subject serves the request
 straight through:
 
 ```bash
@@ -1608,15 +1640,32 @@ Naming bob's subject instead — nobody but ada is signed in on this cookie —
 refuses under `prompt=none` rather than silently answering for the wrong
 End-User:
 
+```bash
+curl -sS -D - -o /dev/null --get \
+  --data-urlencode 'response_type=code' \
+  --data-urlencode 'client_id=demo-spa' \
+  --data-urlencode 'redirect_uri=http://localhost:8080/callback' \
+  --data-urlencode 'scope=openid' \
+  --data-urlencode 'state=abc' \
+  --data-urlencode "code_challenge=$CHALLENGE" \
+  --data-urlencode 'code_challenge_method=S256' \
+  --data-urlencode 'prompt=none' \
+  --data-urlencode "claims={\"id_token\":{\"sub\":{\"value\":\"$BOB_SUB\"}}}" \
+  -H "Cookie: $COOKIE" \
+  "$BASE/auth"
+```
+
 ```
 HTTP/1.1 302 Found
 location: http://localhost:8080/callback?error=login_required&state=abc&iss=http%3A%2F%2Flocalhost%3A3000%2Frealms%2Fdemo
 ```
 
-and without `prompt=none` shows a login form instead of refusing outright:
+and without `prompt=none` shows a login form instead of refusing outright —
+reassigning `$AUTH_SESSION_ID` to the one this specific form carries, for
+the sign-in attempt below:
 
 ```bash
-curl -sS --get \
+STARTED=$(curl -sS --get \
   --data-urlencode 'response_type=code' \
   --data-urlencode 'client_id=demo-spa' \
   --data-urlencode 'redirect_uri=http://localhost:8080/callback' \
@@ -1625,7 +1674,10 @@ curl -sS --get \
   --data-urlencode "code_challenge=$CHALLENGE" \
   --data-urlencode 'code_challenge_method=S256' \
   --data-urlencode "claims={\"id_token\":{\"sub\":{\"value\":\"$BOB_SUB\"}}}" \
-  "$BASE/auth" | grep -o 'name="password"'
+  -H "Cookie: $COOKIE" \
+  "$BASE/auth")
+echo "$STARTED" | grep -o 'name="password"'
+AUTH_SESSION_ID=$(printf '%s' "$STARTED" | sed -n '/name="auth_session_id"/{s/.*value="\([^"]*\)".*/\1/p;q;}')
 ```
 
 ```
@@ -1639,9 +1691,7 @@ form this request produced is refused, not completed as ada.
 `PendingRequest.claimsSubject` is what makes this possible — parked the same
 way `idTokenHintSubject` already is, and re-checked at the same door,
 `packages/protocol-oidc/src/usecase/login-submission.ts`'s
-`handleLoginSubmission`, once a password actually identifies somebody
-(`$AUTH_SESSION_ID` here is the one the request above rendered a form
-against):
+`handleLoginSubmission`, once a password actually identifies somebody:
 
 ```bash
 curl -sS -D - -o /dev/null \

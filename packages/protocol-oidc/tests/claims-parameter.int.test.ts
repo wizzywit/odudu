@@ -687,6 +687,25 @@ describe('[ODUDU-CLAIMS-USERINFO-01] a requested userinfo claim is intersected w
 // `formLogin` started and so inherits `claims` "for free" — tested anyway,
 // since "correct by construction" is exactly what that gap disproved.
 describe('the claims request reaches the code through every door that mints one', () => {
+  it('is carried through immediate session reuse', async () => {
+    const { cookie } = await formLogin(ALICE_USERNAME, ALICE_PASSWORD, {});
+    const response = await authorize(
+      {
+        claims: JSON.stringify({ id_token: { auth_time: { essential: true } } }),
+        code_challenge: CHALLENGE,
+      },
+      { cookie },
+    );
+    expect(response.statusCode).toBe(302);
+    const code = new URL(locationHeader(response)).searchParams.get('code');
+    if (code === null) throw new Error('expected a code on the reuse redirect');
+    const redeemed = await redeemCode(code);
+    expect(redeemed.statusCode).toBe(200);
+    const { id_token: idToken } = redeemed.json<{ id_token?: string }>();
+    if (idToken === undefined) throw new Error('expected an id_token');
+    expect(jwtPayload(idToken).auth_time).toEqual(expect.any(Number));
+  });
+
   it('is carried through the account chooser', async () => {
     const code = await chooseAccountSelf(CAROL_USERNAME, CAROL_PASSWORD, {
       claims: JSON.stringify({ id_token: { auth_time: { essential: true } } }),
