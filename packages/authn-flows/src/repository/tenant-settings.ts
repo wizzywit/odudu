@@ -39,7 +39,7 @@ export function tenantSettingsRepository(tx: TenantScopedDatabase) {
         .where(eq(tenants.id, tenantId));
       const row = rows[0];
       if (row === undefined) {
-        throw new OduduError('realm_not_found', `no tenant with id ${tenantId} in this context`);
+        throw new OduduError('tenant_not_found', `no tenant with id ${tenantId} in this context`);
       }
       return {
         otpRequired: row.otpRequired,
@@ -74,7 +74,7 @@ export function tenantSettingsRepository(tx: TenantScopedDatabase) {
         .where(eq(tenants.id, tenantId));
       const row = rows[0];
       if (row === undefined) {
-        throw new OduduError('realm_not_found', `no tenant with id ${tenantId} in this context`);
+        throw new OduduError('tenant_not_found', `no tenant with id ${tenantId} in this context`);
       }
       return row;
     },

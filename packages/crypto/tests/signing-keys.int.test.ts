@@ -1,13 +1,13 @@
 import {
   createDatabase,
   MIGRATIONS_DIR,
-  realms,
+  tenants,
   runMigrations,
-  withRealm,
+  withTenant,
   type DatabaseHandle,
-  type RealmScopedDatabase,
+  type TenantScopedDatabase,
 } from '@odudu/db';
-import { expectCrossRealmMethodProbe, expectRealmIsolation } from '@odudu/db/testing';
+import { expectCrossTenantMethodProbe, expectTenantIsolation } from '@odudu/db/testing';
 import { newId, OduduError } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -44,18 +44,18 @@ afterAll(async () => {
   await containerHandle?.stop();
 });
 
-async function seedRealm(tx: RealmScopedDatabase, realmId: string): Promise<void> {
-  await tx.insert(realms).values({ id: realmId, name: `realm-${realmId}` });
+async function seedTenant(tx: TenantScopedDatabase, tenantId: string): Promise<void> {
+  await tx.insert(tenants).values({ id: tenantId, name: `tenant-${tenantId}` });
 }
 
 async function insertKey(
-  tx: RealmScopedDatabase,
-  realmId: string,
+  tx: TenantScopedDatabase,
+  tenantId: string,
   overrides: Partial<typeof signingKeys.$inferInsert> = {},
 ): Promise<void> {
   await tx.insert(signingKeys).values({
     id: newId(),
-    realmId,
+    tenantId,
     kid: newId(),
     alg: 'RS256',
     status: 'active',
@@ -67,15 +67,15 @@ async function insertKey(
 
 describe('signingKeyRepository', () => {
   it('round-trips a key through the repository', async () => {
-    const realmId = newId();
+    const tenantId = newId();
     const kid = newId();
 
-    await withRealm(app.db, realmId, async (tx) => {
-      await seedRealm(tx, realmId);
-      await insertKey(tx, realmId, { kid });
+    await withTenant(app.db, tenantId, async (tx) => {
+      await seedTenant(tx, tenantId);
+      await insertKey(tx, tenantId, { kid });
     });
 
-    const active = await withRealm(app.db, realmId, async (tx) =>
+    const active = await withTenant(app.db, tenantId, async (tx) =>
       signingKeyRepository(tx).active(),
     );
 
@@ -88,28 +88,28 @@ describe('signingKeyRepository', () => {
   });
 
   it('excludes retired keys from the published set', async () => {
-    const realmId = newId();
+    const tenantId = newId();
 
-    await withRealm(app.db, realmId, async (tx) => {
-      await seedRealm(tx, realmId);
-      await insertKey(tx, realmId, { kid: 'active-kid', status: 'active' });
-      await insertKey(tx, realmId, { kid: 'rotating-kid', status: 'rotating' });
-      await insertKey(tx, realmId, { kid: 'retired-kid', status: 'retired' });
+    await withTenant(app.db, tenantId, async (tx) => {
+      await seedTenant(tx, tenantId);
+      await insertKey(tx, tenantId, { kid: 'active-kid', status: 'active' });
+      await insertKey(tx, tenantId, { kid: 'rotating-kid', status: 'rotating' });
+      await insertKey(tx, tenantId, { kid: 'retired-kid', status: 'retired' });
     });
 
-    const published = await withRealm(app.db, realmId, async (tx) =>
+    const published = await withTenant(app.db, tenantId, async (tx) =>
       signingKeyRepository(tx).listPublishable(),
     );
 
     expect(published.map((k) => k.kid)).toEqual(['active-kid', 'rotating-kid']);
   });
 
-  it('refuses a second active key in one realm', async () => {
-    const realmId = newId();
+  it('refuses a second active key in one tenant', async () => {
+    const tenantId = newId();
 
-    await withRealm(app.db, realmId, async (tx) => {
-      await seedRealm(tx, realmId);
-      await insertKey(tx, realmId, { status: 'active' });
+    await withTenant(app.db, tenantId, async (tx) => {
+      await seedTenant(tx, tenantId);
+      await insertKey(tx, tenantId, { status: 'active' });
     });
 
     // Drizzle wraps the driver error as `DrizzleQueryError`, whose own
@@ -118,7 +118,7 @@ describe('signingKeyRepository', () => {
     // inspects.
     let error: unknown;
     try {
-      await withRealm(app.db, realmId, async (tx) => insertKey(tx, realmId, { status: 'active' }));
+      await withTenant(app.db, tenantId, async (tx) => insertKey(tx, tenantId, { status: 'active' }));
       expect.unreachable('expected the second active insert to be rejected');
     } catch (caught) {
       error = caught;
@@ -131,35 +131,35 @@ describe('signingKeyRepository', () => {
   });
 
   it('allows a second key when the first is not active', async () => {
-    const realmId = newId();
+    const tenantId = newId();
 
-    await withRealm(app.db, realmId, async (tx) => {
-      await seedRealm(tx, realmId);
-      await insertKey(tx, realmId, { status: 'rotating' });
-      await insertKey(tx, realmId, { status: 'active' });
+    await withTenant(app.db, tenantId, async (tx) => {
+      await seedTenant(tx, tenantId);
+      await insertKey(tx, tenantId, { status: 'rotating' });
+      await insertKey(tx, tenantId, { status: 'active' });
     });
 
-    const active = await withRealm(app.db, realmId, async (tx) =>
+    const active = await withTenant(app.db, tenantId, async (tx) =>
       signingKeyRepository(tx).active(),
     );
     expect(active.status).toBe('active');
   });
 
-  it('isolates keys by realm', async () => {
-    await expectRealmIsolation(app.db, {
+  it('isolates keys by tenant', async () => {
+    await expectTenantIsolation(app.db, {
       table: 'signing_keys',
-      seed: async (tx, realmId) => {
-        await seedRealm(tx, realmId);
-        await insertKey(tx, realmId);
+      seed: async (tx, tenantId) => {
+        await seedTenant(tx, tenantId);
+        await insertKey(tx, tenantId);
       },
     });
   });
 
-  it('lists no publishable keys under a different realm context', async () => {
-    await expectCrossRealmMethodProbe(app.db, {
-      seed: async (tx, realmId) => {
-        await seedRealm(tx, realmId);
-        await insertKey(tx, realmId);
+  it('lists no publishable keys under a different tenant context', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        await seedTenant(tx, tenantId);
+        await insertKey(tx, tenantId);
       },
       verifySeeded: async (tx) => {
         const found = await signingKeyRepository(tx).listPublishable();
@@ -172,11 +172,11 @@ describe('signingKeyRepository', () => {
     });
   });
 
-  it('finds no active key under a different realm context', async () => {
-    await expectCrossRealmMethodProbe(app.db, {
-      seed: async (tx, realmId) => {
-        await seedRealm(tx, realmId);
-        await insertKey(tx, realmId, { status: 'active' });
+  it('finds no active key under a different tenant context', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        await seedTenant(tx, tenantId);
+        await insertKey(tx, tenantId, { status: 'active' });
       },
       verifySeeded: async (tx) => {
         const found = await signingKeyRepository(tx).active();

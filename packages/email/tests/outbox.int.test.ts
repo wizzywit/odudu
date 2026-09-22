@@ -1,12 +1,12 @@
 import {
   createDatabase,
   MIGRATIONS_DIR,
-  realms,
+  tenants,
   runMigrations,
-  withRealm,
+  withTenant,
   type DatabaseHandle,
 } from '@odudu/db';
-import { expectCrossRealmMethodProbe, expectRealmIsolation } from '@odudu/db/testing';
+import { expectCrossTenantMethodProbe, expectTenantIsolation } from '@odudu/db/testing';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import { eq } from 'drizzle-orm';
@@ -82,22 +82,22 @@ function refusing(reason = 'mail transport unavailable'): EmailSender {
   return { send: () => Promise.reject(new Error(reason)) };
 }
 
-let realmId: string;
+let tenantId: string;
 
-async function seedRealm(): Promise<string> {
+async function seedTenant(): Promise<string> {
   const id = newId();
-  await owner.db.insert(realms).values({ id, name: `outbox-${id}` });
+  await owner.db.insert(tenants).values({ id, name: `outbox-${id}` });
   return id;
 }
 
 async function enqueue(
-  into: string = realmId,
+  into: string = tenantId,
   overrides: Partial<{ to: string; subject: string }> = {},
 ): Promise<string> {
-  const { id } = await withRealm(app.db, into, (tx) =>
+  const { id } = await withTenant(app.db, into, (tx) =>
     outboxRepository(tx).enqueue(
       {
-        realmId: into,
+        tenantId: into,
         to: overrides.to ?? 'ada@example.test',
         subject: overrides.subject ?? 'Reset your password',
         text: 'Visit this link',
@@ -109,22 +109,22 @@ async function enqueue(
   return id;
 }
 
-async function rowById(id: string, into: string = realmId) {
-  const rows = await withRealm(app.db, into, (tx) =>
+async function rowById(id: string, into: string = tenantId) {
+  const rows = await withTenant(app.db, into, (tx) =>
     tx.select().from(emailOutbox).where(eq(emailOutbox.id, id)),
   );
   return rows[0];
 }
 
 beforeEach(async () => {
-  realmId = await seedRealm();
+  tenantId = await seedTenant();
 });
 
 describe('the outbox repository', () => {
   it('hands a queued message out once, with its attempt already counted', async () => {
     const id = await enqueue();
 
-    const claimed = await withRealm(app.db, realmId, (tx) =>
+    const claimed = await withTenant(app.db, tenantId, (tx) =>
       outboxRepository(tx).claimBatch(CLAIM),
     );
 
@@ -140,7 +140,7 @@ describe('the outbox repository', () => {
 
     // The claim is a lease: the same message is not offered again until it
     // elapses, so a sender that dies mid-send costs that wait and no more.
-    const again = await withRealm(app.db, realmId, (tx) => outboxRepository(tx).claimBatch(CLAIM));
+    const again = await withTenant(app.db, tenantId, (tx) => outboxRepository(tx).claimBatch(CLAIM));
     expect(again).toHaveLength(0);
     const row = await rowById(id);
     expect(row?.nextAttemptAt).toEqual(new Date(NOW.getTime() + OUTBOX_CLAIM_LEASE_SECONDS * 1000));
@@ -160,7 +160,7 @@ describe('the outbox repository', () => {
     const sent = await enqueue();
     const later = await enqueue();
     const spent = await enqueue();
-    await withRealm(app.db, realmId, async (tx) => {
+    await withTenant(app.db, tenantId, async (tx) => {
       await outboxRepository(tx).markSent(sent, NOW);
       await outboxRepository(tx).markFailed(later, 'not yet', new Date(NOW.getTime() + MINUTE));
       await tx
@@ -169,7 +169,7 @@ describe('the outbox repository', () => {
         .where(eq(emailOutbox.id, spent));
     });
 
-    const claimed = await withRealm(app.db, realmId, (tx) =>
+    const claimed = await withTenant(app.db, tenantId, (tx) =>
       outboxRepository(tx).claimBatch(CLAIM),
     );
 
@@ -177,16 +177,16 @@ describe('the outbox repository', () => {
   });
 
   it('claims the oldest first, up to the limit', async () => {
-    const first = await enqueue(realmId, { subject: 'first' });
-    await enqueue(realmId, { subject: 'second' });
-    await withRealm(app.db, realmId, (tx) =>
+    const first = await enqueue(tenantId, { subject: 'first' });
+    await enqueue(tenantId, { subject: 'second' });
+    await withTenant(app.db, tenantId, (tx) =>
       tx
         .update(emailOutbox)
         .set({ nextAttemptAt: new Date(NOW.getTime() - 120 * MINUTE) })
         .where(eq(emailOutbox.id, first)),
     );
 
-    const claimed = await withRealm(app.db, realmId, (tx) =>
+    const claimed = await withTenant(app.db, tenantId, (tx) =>
       outboxRepository(tx).claimBatch({ ...CLAIM, limit: 1 }),
     );
 
@@ -199,11 +199,11 @@ describe('the outbox repository', () => {
   it('never hands one message to two senders at once', async () => {
     const ids = [await enqueue(), await enqueue()];
 
-    const claims = await withRealm(app.db, realmId, async (mine) => {
+    const claims = await withTenant(app.db, tenantId, async (mine) => {
       const first = await outboxRepository(mine).claimBatch({ ...CLAIM, limit: 1 });
       // A second connection, while the first transaction still holds its
       // row: this is the concurrent sender.
-      const second = await withRealm(app.db, realmId, (theirs) =>
+      const second = await withTenant(app.db, tenantId, (theirs) =>
         outboxRepository(theirs).claimBatch({ ...CLAIM, limit: 1 }),
       );
       return [first, second];
@@ -217,8 +217,8 @@ describe('the outbox repository', () => {
   it('records a delivery once, and says which call was the one that did', async () => {
     const id = await enqueue();
 
-    const first = await withRealm(app.db, realmId, (tx) => outboxRepository(tx).markSent(id, NOW));
-    const second = await withRealm(app.db, realmId, (tx) =>
+    const first = await withTenant(app.db, tenantId, (tx) => outboxRepository(tx).markSent(id, NOW));
+    const second = await withTenant(app.db, tenantId, (tx) =>
       outboxRepository(tx).markSent(id, new Date(NOW.getTime() + MINUTE)),
     );
 
@@ -231,7 +231,7 @@ describe('the outbox repository', () => {
     const id = await enqueue();
     const retryAt = new Date(NOW.getTime() + 5 * MINUTE);
 
-    await withRealm(app.db, realmId, (tx) =>
+    await withTenant(app.db, tenantId, (tx) =>
       outboxRepository(tx).markFailed(id, 'connection refused', retryAt),
     );
 
@@ -241,13 +241,13 @@ describe('the outbox repository', () => {
     expect(row?.nextAttemptAt).toEqual(retryAt);
   });
 
-  it('scopes its rows to the realm that queued them', async () => {
-    await expectRealmIsolation(app.db, {
+  it('scopes its rows to the tenant that queued them', async () => {
+    await expectTenantIsolation(app.db, {
       table: 'email_outbox',
-      seed: async (tx, seededRealm) => {
-        await owner.db.insert(realms).values({ id: seededRealm, name: `probe-${seededRealm}` });
+      seed: async (tx, seededTenant) => {
+        await owner.db.insert(tenants).values({ id: seededTenant, name: `probe-${seededTenant}` });
         await outboxRepository(tx).enqueue({
-          realmId: seededRealm,
+          tenantId: seededTenant,
           to: 'ada@example.test',
           subject: 'Probe',
           text: 't',
@@ -258,17 +258,17 @@ describe('the outbox repository', () => {
   });
 });
 
-describe('a foreign realm cannot reach a queued message', () => {
-  it('refuses to queue a message for another realm', async () => {
-    const foreignRealm = await seedRealm();
+describe('a foreign tenant cannot reach a queued message', () => {
+  it('refuses to queue a message for another tenant', async () => {
+    const foreignTenant = await seedTenant();
 
     // The policy declares no WITH CHECK, so its USING expression is what
     // refuses the insert: the row is not merely invisible afterwards, it
     // was never written.
     await expect(
-      withRealm(app.db, realmId, (tx) =>
+      withTenant(app.db, tenantId, (tx) =>
         outboxRepository(tx).enqueue({
-          realmId: foreignRealm,
+          tenantId: foreignTenant,
           to: 'ada@example.test',
           subject: 'Not yours',
           text: 't',
@@ -280,28 +280,28 @@ describe('a foreign realm cannot reach a queued message', () => {
     const rows = await owner.db
       .select()
       .from(emailOutbox)
-      .where(eq(emailOutbox.realmId, foreignRealm));
+      .where(eq(emailOutbox.tenantId, foreignTenant));
     expect(rows).toEqual([]);
   });
 
-  it('claims nothing of another realm, and leaves its attempt count alone', async () => {
-    const foreignRealm = await seedRealm();
-    const id = await enqueue(foreignRealm);
+  it('claims nothing of another tenant, and leaves its attempt count alone', async () => {
+    const foreignTenant = await seedTenant();
+    const id = await enqueue(foreignTenant);
 
-    const claimed = await withRealm(app.db, realmId, (tx) =>
+    const claimed = await withTenant(app.db, tenantId, (tx) =>
       outboxRepository(tx).claimBatch(CLAIM),
     );
 
     expect(claimed).toEqual([]);
-    expect((await rowById(id, foreignRealm))?.attempts).toBe(0);
+    expect((await rowById(id, foreignTenant))?.attempts).toBe(0);
   });
 
-  it('cannot mark another realm’s message sent', async () => {
-    await expectCrossRealmMethodProbe(app.db, {
-      seed: async (tx, seededRealm) => {
-        await owner.db.insert(realms).values({ id: seededRealm, name: `probe-${seededRealm}` });
+  it('cannot mark another tenant’s message sent', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, seededTenant) => {
+        await owner.db.insert(tenants).values({ id: seededTenant, name: `probe-${seededTenant}` });
         const { id } = await outboxRepository(tx).enqueue({
-          realmId: seededRealm,
+          tenantId: seededTenant,
           to: 'ada@example.test',
           subject: 'Probe',
           text: 't',
@@ -319,19 +319,19 @@ describe('a foreign realm cannot reach a queued message', () => {
       expectBlocked: (result) => {
         expect(result).toBe(false);
       },
-      verifyRealmAUnaffected: async (tx, id) => {
+      verifyTenantAUnaffected: async (tx, id) => {
         const rows = await tx.select().from(emailOutbox).where(eq(emailOutbox.id, id));
         expect(rows[0]?.sentAt).toBeNull();
       },
     });
   });
 
-  it('cannot record a failure against another realm’s message', async () => {
-    await expectCrossRealmMethodProbe(app.db, {
-      seed: async (tx, seededRealm) => {
-        await owner.db.insert(realms).values({ id: seededRealm, name: `probe-${seededRealm}` });
+  it('cannot record a failure against another tenant’s message', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, seededTenant) => {
+        await owner.db.insert(tenants).values({ id: seededTenant, name: `probe-${seededTenant}` });
         const { id } = await outboxRepository(tx).enqueue({
-          realmId: seededRealm,
+          tenantId: seededTenant,
           to: 'ada@example.test',
           subject: 'Probe',
           text: 't',
@@ -343,9 +343,9 @@ describe('a foreign realm cannot reach a queued message', () => {
         const rows = await tx.select().from(emailOutbox).where(eq(emailOutbox.id, id));
         expect(rows[0]?.lastError).toBeNull();
       },
-      attempt: (tx, id) => outboxRepository(tx).markFailed(id, 'written from the wrong realm', NOW),
+      attempt: (tx, id) => outboxRepository(tx).markFailed(id, 'written from the wrong tenant', NOW),
       expectBlocked: () => undefined,
-      verifyRealmAUnaffected: async (tx, id) => {
+      verifyTenantAUnaffected: async (tx, id) => {
         const rows = await tx.select().from(emailOutbox).where(eq(emailOutbox.id, id));
         expect(rows[0]?.lastError).toBeNull();
       },
@@ -354,8 +354,8 @@ describe('a foreign realm cannot reach a queued message', () => {
 });
 
 describe('the sending pass', () => {
-  // The pass visits every realm in the database, and the tests above have
-  // left realms behind in this one: emptying the queue is what makes the
+  // The pass visits every tenant in the database, and the tests above have
+  // left tenants behind in this one: emptying the queue is what makes the
   // counts below exact rather than "at least".
   beforeEach(async () => {
     await owner.db.delete(emailOutbox);
@@ -383,9 +383,9 @@ describe('the sending pass', () => {
     expect((await rowById(id))?.sentAt).toEqual(NOW);
   });
 
-  it('visits every realm, not only the first', async () => {
+  it('visits every tenant, not only the first', async () => {
     await enqueue();
-    const second = await seedRealm();
+    const second = await seedTenant();
     await enqueue(second);
     const sender = capturing();
 
@@ -461,7 +461,7 @@ describe('the sending pass', () => {
     const id = await enqueue();
     const racing: EmailSender = {
       send: async () => {
-        await withRealm(app.db, realmId, (tx) => outboxRepository(tx).markSent(id, NOW));
+        await withTenant(app.db, tenantId, (tx) => outboxRepository(tx).markSent(id, NOW));
       },
     };
 
@@ -476,8 +476,8 @@ describe('the sending pass', () => {
   });
 
   it('carries on to the next message after one is refused', async () => {
-    const refused = await enqueue(realmId, { to: 'nobody@example.test' });
-    await enqueue(realmId, { to: 'ada@example.test' });
+    const refused = await enqueue(tenantId, { to: 'nobody@example.test' });
+    await enqueue(tenantId, { to: 'ada@example.test' });
     const sender: EmailSender = {
       send: (message) =>
         message.to === 'nobody@example.test'
@@ -497,7 +497,7 @@ describe('the sending pass', () => {
 
   // A pass that reports zeros for a database nobody has seeded reads as a
   // healthy pass. Run against a database of its own, because every other
-  // test in this file has left a realm behind in the shared one.
+  // test in this file has left a tenant behind in the shared one.
   it('says it enumerated nothing rather than reporting a clean pass', async () => {
     const name = `outbox_empty_${Date.now().toString(36)}`;
     await owner.sql.unsafe(`CREATE DATABASE ${name}`);
@@ -516,20 +516,20 @@ describe('the sending pass', () => {
         NOW,
         OPTIONS,
       );
-      expect(outcome).toEqual({ ran: false, reason: 'no realm was enumerated' });
+      expect(outcome).toEqual({ ran: false, reason: 'no tenant was enumerated' });
     } finally {
       await emptyServing.close();
       await emptyOwner.close();
     }
   }, 120_000);
 
-  it('refuses to run on a connection that cannot enumerate realms', async () => {
+  it('refuses to run on a connection that cannot enumerate tenants', async () => {
     await expect(
       sendPending({ database: app, ownerDatabase: app, sender: capturing() }, NOW, OPTIONS),
     ).rejects.toThrow(/bypasses row-level security/u);
   });
 
-  it('refuses to claim on a connection that escapes the realm policy', async () => {
+  it('refuses to claim on a connection that escapes the tenant policy', async () => {
     await expect(
       sendPending({ database: owner, ownerDatabase: owner, sender: capturing() }, NOW, OPTIONS),
     ).rejects.toThrow(/must be subject to it/u);

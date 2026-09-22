@@ -46,8 +46,8 @@ export async function sendVerificationEmail(
     });
     const link = `${deps.issuerBase}/tenants/${deps.tenantName}/login-actions/action-token?key=${encodeURIComponent(token)}`;
     await outboxRepository(tx).enqueue({
-      realmId: deps.tenantId,
-      ...renderVerifyEmail({ to: input.email, link, realmDisplayName: deps.tenantDisplayName }),
+      tenantId: deps.tenantId,
+      ...renderVerifyEmail({ to: input.email, link, tenantDisplayName: deps.tenantDisplayName }),
     });
   });
 }

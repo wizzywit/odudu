@@ -14,7 +14,7 @@ async function makeKeyRecord(): Promise<SigningKeyRecord> {
   const generated = await generateSigningKey('RS256', KEK);
   return {
     id: 'id-1',
-    realmId: 'realm-1',
+    tenantId: 'tenant-1',
     kid: generated.kid,
     alg: generated.alg,
     status: 'active',

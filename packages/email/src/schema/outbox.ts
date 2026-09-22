@@ -6,7 +6,7 @@ import { integer, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 // declarative policy would collide with a database that already carries it.
 export const emailOutbox = pgTable('email_outbox', {
   id: uuid('id').primaryKey(),
-  realmId: uuid('tenant_id')
+  tenantId: uuid('tenant_id')
     .notNull()
     .references(() => tenants.id, { onDelete: 'cascade' }),
   toAddress: text('to_address').notNull(),
@@ -22,7 +22,7 @@ export const emailOutbox = pgTable('email_outbox', {
 
 export interface OutboxMessage {
   readonly id: string;
-  readonly realmId: string;
+  readonly tenantId: string;
   readonly to: string;
   readonly subject: string;
   readonly text: string;

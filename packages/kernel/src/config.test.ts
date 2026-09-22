@@ -289,7 +289,7 @@ describe('loadConfig', () => {
 
   it('rejects a value carrying a path, since it is an origin, not a URL', () => {
     expect(() =>
-      loadConfig({ ...minimal, ODUDU_PUBLIC_BASE_URL: 'http://localhost:3000/realms/demo' }),
+      loadConfig({ ...minimal, ODUDU_PUBLIC_BASE_URL: 'http://localhost:3000/tenants/demo' }),
     ).toThrow(OduduError);
   });
 

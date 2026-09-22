@@ -1,4 +1,4 @@
-import { type RealmScopedDatabase } from '@odudu/db';
+import { type TenantScopedDatabase } from '@odudu/db';
 import { OduduError } from '@odudu/kernel';
 import { asc, eq, ne } from 'drizzle-orm';
 import { signingKeys, type SigningKeyRecord } from '#/schema/signing-keys';
@@ -8,7 +8,7 @@ export type { SigningKeyRecord } from '#/schema/signing-keys';
 function toRecord(row: typeof signingKeys.$inferSelect): SigningKeyRecord {
   return {
     id: row.id,
-    realmId: row.realmId,
+    tenantId: row.tenantId,
     kid: row.kid,
     alg: row.alg as SigningKeyRecord['alg'],
     status: row.status as SigningKeyRecord['status'],
@@ -22,14 +22,14 @@ function toRecord(row: typeof signingKeys.$inferSelect): SigningKeyRecord {
 function firstOrThrow(rows: readonly SigningKeyRecord[]): SigningKeyRecord {
   const row = rows[0];
   if (row === undefined) {
-    throw new OduduError('signing_key_not_found', 'No active signing key for this realm');
+    throw new OduduError('signing_key_not_found', 'No active signing key for this tenant');
   }
   return row;
 }
 
 export interface NewSigningKey {
   id: string;
-  realmId: string;
+  tenantId: string;
   kid: string;
   alg: 'RS256' | 'ES256';
   status: 'active' | 'rotating' | 'retired';
@@ -38,7 +38,7 @@ export interface NewSigningKey {
   notAfter?: Date | null;
 }
 
-export function signingKeyRepository(tx: RealmScopedDatabase) {
+export function signingKeyRepository(tx: TenantScopedDatabase) {
   return {
     async listPublishable(): Promise<SigningKeyRecord[]> {
       const rows = await tx
@@ -54,14 +54,14 @@ export function signingKeyRepository(tx: RealmScopedDatabase) {
       return firstOrThrow(rows.map(toRecord));
     },
 
-    // The bootstrap seed command is the only caller today: a realm cannot
+    // The bootstrap seed command is the only caller today: a tenant cannot
     // issue a token, and /jwks has nothing to publish, until it has one.
     async create(input: NewSigningKey): Promise<SigningKeyRecord> {
       const rows = await tx
         .insert(signingKeys)
         .values({
           id: input.id,
-          realmId: input.realmId,
+          tenantId: input.tenantId,
           kid: input.kid,
           alg: input.alg,
           status: input.status,

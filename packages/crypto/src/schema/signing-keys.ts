@@ -6,7 +6,7 @@ import { tenants } from '@odudu/db';
 // declarative policy would collide with a database that already carries it.
 export const signingKeys = pgTable('signing_keys', {
   id: uuid('id').primaryKey(),
-  realmId: uuid('tenant_id')
+  tenantId: uuid('tenant_id')
     .notNull()
     .references(() => tenants.id, { onDelete: 'cascade' }),
   kid: text('kid').notNull(),
@@ -23,7 +23,7 @@ export const signingKeys = pgTable('signing_keys', {
 // without depending on the repository that reads it.
 export interface SigningKeyRecord {
   id: string;
-  realmId: string;
+  tenantId: string;
   kid: string;
   alg: 'RS256' | 'ES256';
   status: 'active' | 'rotating' | 'retired';

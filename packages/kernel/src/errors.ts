@@ -27,14 +27,14 @@ export type ErrorCode =
   | 'group_reparent_cycle'
   | 'user_not_found'
   | 'credential_not_found'
-  | 'realm_not_found'
-  | 'reap_cannot_enumerate_realms'
+  | 'tenant_not_found'
+  | 'reap_cannot_enumerate_tenants'
   | 'reap_requires_app_database_url'
   | 'reap_serving_role_bypasses_rls'
-  | 'outbox_cannot_enumerate_realms'
+  | 'outbox_cannot_enumerate_tenants'
   | 'outbox_requires_app_database_url'
   | 'outbox_serving_role_bypasses_rls'
-  | 'logout_sender_cannot_enumerate_realms'
+  | 'logout_sender_cannot_enumerate_tenants'
   | 'logout_sender_requires_app_database_url'
   | 'logout_sender_serving_role_bypasses_rls';
 

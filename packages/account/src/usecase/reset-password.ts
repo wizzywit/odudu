@@ -63,11 +63,11 @@ export async function requestPasswordReset(
     });
     const link = `${issuerBase}/tenants/${deps.tenantName}/login-actions/action-token?key=${encodeURIComponent(token)}`;
     await outboxRepository(tx).enqueue({
-      realmId: deps.tenantId,
+      tenantId: deps.tenantId,
       ...renderResetPassword({
         to: user.email,
         link,
-        realmDisplayName: deps.tenantDisplayName,
+        tenantDisplayName: deps.tenantDisplayName,
       }),
     });
   });

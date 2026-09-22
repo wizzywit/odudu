@@ -636,7 +636,7 @@ describe('tenantSettingsRepository', () => {
       // answering `false`/`0` for the second would silently drop the factor
       // and switch expiry off.
       expectBlocked: (result) => {
-        expect(result).toBe('realm_not_found');
+        expect(result).toBe('tenant_not_found');
       },
     });
   });
@@ -670,7 +670,7 @@ describe('tenantSettingsRepository', () => {
         }
       },
       expectBlocked: (result) => {
-        expect(result).toBe('realm_not_found');
+        expect(result).toBe('tenant_not_found');
       },
     });
   });
