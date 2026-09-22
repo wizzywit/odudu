@@ -4,7 +4,7 @@ export type ErrorCode =
   | 'module_unknown_dependency'
   | 'module_cycle'
   | 'module_stop_failed'
-  | 'realm_context_missing'
+  | 'tenant_context_missing'
   | 'kek_invalid'
   | 'signing_key_not_found'
   | 'jwt_header_invalid'
