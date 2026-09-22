@@ -94,4 +94,11 @@ export async function expectTenantIsolation(db: Database, probe: TenantProbe): P
     tx.execute(sql`select count(*)::int as n from ${sql.identifier(probe.table)}`),
   );
   expect(firstRow(fromB as unknown as { n: number }[]).n).toBe(0);
+
+  // Issued directly on db, not inside withTenant: SET LOCAL reverted when the
+  // fromB transaction committed, so this carries no tenant context at all.
+  const fromNone = await db.execute(
+    sql`select count(*)::int as n from ${sql.identifier(probe.table)}`,
+  );
+  expect(firstRow(fromNone as unknown as { n: number }[]).n).toBe(0);
 }
