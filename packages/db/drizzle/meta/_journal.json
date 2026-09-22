@@ -407,6 +407,13 @@
       "when": 1789049381700,
       "tag": "0057_rename_realm_to_tenant",
       "breakpoints": true
+    },
+    {
+      "idx": 58,
+      "version": "7",
+      "when": 1789049381701,
+      "tag": "0058_rename_realm_constraint_names",
+      "breakpoints": true
     }
   ]
 }

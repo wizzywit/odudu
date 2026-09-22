@@ -69,33 +69,30 @@ const EXPECTED_CHECKS: Record<string, string> = {
     "CHECK ((((type = 'confidential'::text) AND (secret_hash IS NOT NULL)) OR ((type = 'public'::text) AND (secret_hash IS NULL))))",
   'clients.clients_type_check':
     "CHECK ((type = ANY (ARRAY['public'::text, 'confidential'::text])))",
-  // The `realms_` prefix is not a typo: 0057_rename_realm_to_tenant.sql
-  // renamed the table and its columns, and Postgres leaves constraint names
-  // untouched by either.
-  'tenants.realms_brute_force_bounds':
+  'tenants.tenants_brute_force_bounds':
     'CHECK ((((brute_force_max_failures >= 1) AND (brute_force_max_failures <= 100)) AND ((brute_force_lockout_seconds >= 1) AND (brute_force_lockout_seconds <= 86400)) AND (brute_force_max_lockout_seconds >= brute_force_lockout_seconds) AND ((brute_force_failure_reset_seconds >= 60) AND (brute_force_failure_reset_seconds <= 2592000))))',
-  'tenants.realms_client_registration_policy_check':
+  'tenants.tenants_client_registration_policy_check':
     "CHECK ((client_registration_policy = ANY (ARRAY['disabled'::text, 'open'::text, 'token'::text])))",
-  'tenants.realms_max_clients_range': 'CHECK ((max_clients >= 0))',
-  'tenants.realms_max_sessions_per_browser_range':
+  'tenants.tenants_max_clients_range': 'CHECK ((max_clients >= 0))',
+  'tenants.tenants_max_sessions_per_browser_range':
     'CHECK (((max_sessions_per_browser >= 1) AND (max_sessions_per_browser <= 32)))',
-  'tenants.realms_password_history_bounds':
+  'tenants.tenants_password_history_bounds':
     'CHECK (((password_history_depth >= 0) AND (password_history_depth <= 24)))',
-  'tenants.realms_password_max_age_bounds':
+  'tenants.tenants_password_max_age_bounds':
     'CHECK (((password_max_age_days >= 0) AND (password_max_age_days <= 3650)))',
-  'tenants.realms_password_min_length_bounds':
+  'tenants.tenants_password_min_length_bounds':
     'CHECK (((password_min_length >= 8) AND (password_min_length <= 256)))',
-  'tenants.realms_remember_me_idle_range':
+  'tenants.tenants_remember_me_idle_range':
     'CHECK (((remember_me_idle_seconds >= 60) AND (remember_me_idle_seconds <= 31536000)))',
-  'tenants.realms_remember_me_idle_within_max':
+  'tenants.tenants_remember_me_idle_within_max':
     'CHECK ((remember_me_idle_seconds <= remember_me_max_seconds))',
-  'tenants.realms_remember_me_max_range':
+  'tenants.tenants_remember_me_max_range':
     'CHECK (((remember_me_max_seconds >= 60) AND (remember_me_max_seconds <= 31536000)))',
-  'tenants.realms_sso_idle_bounds':
+  'tenants.tenants_sso_idle_bounds':
     'CHECK (((sso_session_idle_seconds >= 60) AND (sso_session_idle_seconds <= 2592000)))',
-  'tenants.realms_sso_idle_within_max':
+  'tenants.tenants_sso_idle_within_max':
     'CHECK ((sso_session_idle_seconds <= sso_session_max_seconds))',
-  'tenants.realms_sso_max_bounds':
+  'tenants.tenants_sso_max_bounds':
     'CHECK (((sso_session_max_seconds >= 60) AND (sso_session_max_seconds <= 2592000)))',
   'role_composites.role_composites_not_self': 'CHECK ((parent_role_id <> child_role_id))',
   'roles.roles_name_has_no_colon': "CHECK (((name !~ ':'::text) AND (name <> ''::text)))",

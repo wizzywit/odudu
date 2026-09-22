@@ -89,9 +89,7 @@ describe('migrations', () => {
     ).rejects.toMatchObject({
       cause: {
         code: '23505',
-        // ALTER TABLE ... RENAME TO leaves constraint names alone, so the
-        // constraint on `tenants` still carries the table's former name.
-        constraint_name: 'realms_name_unique',
+        constraint_name: 'tenants_name_unique',
       },
     });
   });

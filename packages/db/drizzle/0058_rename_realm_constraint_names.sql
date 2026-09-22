@@ -1,0 +1,52 @@
+-- ALTER TABLE ... RENAME in 0057_rename_realm_to_tenant.sql leaves constraint
+-- and index names untouched, and a constraint name is user-visible in the
+-- error text of a violation.
+
+ALTER TABLE action_tokens RENAME CONSTRAINT action_tokens_realm_id_fkey TO action_tokens_tenant_id_fkey;
+ALTER TABLE authentication_executions RENAME CONSTRAINT authentication_executions_realm_id_fkey TO authentication_executions_tenant_id_fkey;
+ALTER TABLE authentication_sessions RENAME CONSTRAINT authentication_sessions_realm_id_fkey TO authentication_sessions_tenant_id_fkey;
+ALTER TABLE authorization_codes RENAME CONSTRAINT authorization_codes_realm_id_fkey TO authorization_codes_tenant_id_fkey;
+ALTER TABLE backchannel_logout_deliveries RENAME CONSTRAINT backchannel_logout_deliveries_realm_id_fkey TO backchannel_logout_deliveries_tenant_id_fkey;
+ALTER TABLE client_assertion_jti RENAME CONSTRAINT client_assertion_jti_realm_id_fkey TO client_assertion_jti_tenant_id_fkey;
+ALTER TABLE client_registration_tokens RENAME CONSTRAINT client_registration_tokens_realm_id_fkey TO client_registration_tokens_tenant_id_fkey;
+ALTER TABLE client_scopes RENAME CONSTRAINT client_scopes_realm_id_fkey TO client_scopes_tenant_id_fkey;
+ALTER TABLE client_scopes RENAME CONSTRAINT client_scopes_realm_id_unique TO client_scopes_tenant_id_unique;
+ALTER TABLE clients RENAME CONSTRAINT clients_realm_id_fkey TO clients_tenant_id_fkey;
+ALTER TABLE clients RENAME CONSTRAINT clients_realm_id_unique TO clients_tenant_id_unique;
+ALTER TABLE consents RENAME CONSTRAINT consents_realm_id_fkey TO consents_tenant_id_fkey;
+ALTER TABLE consents RENAME CONSTRAINT consents_realm_id_unique TO consents_tenant_id_unique;
+ALTER TABLE email_outbox RENAME CONSTRAINT email_outbox_realm_id_fkey TO email_outbox_tenant_id_fkey;
+ALTER TABLE groups RENAME CONSTRAINT groups_realm_id_fkey TO groups_tenant_id_fkey;
+ALTER TABLE groups RENAME CONSTRAINT groups_realm_id_unique TO groups_tenant_id_unique;
+ALTER TABLE login_failures RENAME CONSTRAINT login_failures_realm_id_fkey TO login_failures_tenant_id_fkey;
+ALTER TABLE refresh_tokens RENAME CONSTRAINT refresh_tokens_realm_id_fkey TO refresh_tokens_tenant_id_fkey;
+ALTER TABLE roles RENAME CONSTRAINT roles_realm_id_fkey TO roles_tenant_id_fkey;
+ALTER TABLE roles RENAME CONSTRAINT roles_realm_id_unique TO roles_tenant_id_unique;
+ALTER TABLE sessions RENAME CONSTRAINT sessions_realm_id_fkey TO sessions_tenant_id_fkey;
+ALTER TABLE sessions RENAME CONSTRAINT sessions_realm_id_unique TO sessions_tenant_id_unique;
+ALTER TABLE sessions RENAME CONSTRAINT sessions_subject_realm_fk TO sessions_subject_tenant_fk;
+ALTER TABLE signing_keys RENAME CONSTRAINT signing_keys_realm_id_fkey TO signing_keys_tenant_id_fkey;
+ALTER TABLE subjects RENAME CONSTRAINT subjects_realm_id_fkey TO subjects_tenant_id_fkey;
+ALTER TABLE subjects RENAME CONSTRAINT subjects_realm_id_unique TO subjects_tenant_id_unique;
+ALTER TABLE tenants RENAME CONSTRAINT realms_brute_force_bounds TO tenants_brute_force_bounds;
+ALTER TABLE tenants RENAME CONSTRAINT realms_client_registration_policy_check TO tenants_client_registration_policy_check;
+ALTER TABLE tenants RENAME CONSTRAINT realms_max_clients_range TO tenants_max_clients_range;
+ALTER TABLE tenants RENAME CONSTRAINT realms_max_sessions_per_browser_range TO tenants_max_sessions_per_browser_range;
+ALTER TABLE tenants RENAME CONSTRAINT realms_name_unique TO tenants_name_unique;
+ALTER TABLE tenants RENAME CONSTRAINT realms_password_history_bounds TO tenants_password_history_bounds;
+ALTER TABLE tenants RENAME CONSTRAINT realms_password_max_age_bounds TO tenants_password_max_age_bounds;
+ALTER TABLE tenants RENAME CONSTRAINT realms_password_min_length_bounds TO tenants_password_min_length_bounds;
+ALTER TABLE tenants RENAME CONSTRAINT realms_pkey TO tenants_pkey;
+ALTER TABLE tenants RENAME CONSTRAINT realms_remember_me_idle_range TO tenants_remember_me_idle_range;
+ALTER TABLE tenants RENAME CONSTRAINT realms_remember_me_idle_within_max TO tenants_remember_me_idle_within_max;
+ALTER TABLE tenants RENAME CONSTRAINT realms_remember_me_max_range TO tenants_remember_me_max_range;
+ALTER TABLE tenants RENAME CONSTRAINT realms_sso_idle_bounds TO tenants_sso_idle_bounds;
+ALTER TABLE tenants RENAME CONSTRAINT realms_sso_idle_within_max TO tenants_sso_idle_within_max;
+ALTER TABLE tenants RENAME CONSTRAINT realms_sso_max_bounds TO tenants_sso_max_bounds;
+ALTER TABLE token_grants RENAME CONSTRAINT token_grants_realm_id_fkey TO token_grants_tenant_id_fkey;
+ALTER TABLE token_grants RENAME CONSTRAINT token_grants_realm_id_unique TO token_grants_tenant_id_unique;
+ALTER TABLE user_credentials RENAME CONSTRAINT user_credentials_subject_realm_fk TO user_credentials_subject_tenant_fk;
+ALTER TABLE user_required_actions RENAME CONSTRAINT user_required_actions_realm_id_fkey TO user_required_actions_tenant_id_fkey;
+ALTER TABLE users RENAME CONSTRAINT users_subject_realm_fk TO users_subject_tenant_fk;
+
+ALTER INDEX roles_realm_name RENAME TO roles_tenant_name;
