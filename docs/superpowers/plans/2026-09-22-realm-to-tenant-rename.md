@@ -473,7 +473,7 @@ git commit -m "Rename realm to tenant in the shared packages"
 - Modify: every file under `packages/protocol-oidc`
 - Rename: `packages/protocol-oidc/src/repository/realm-lookup.ts`, `tests/cross-realm.adversarial.int.test.ts`, `tests/realm-scopes.int.test.ts`
 
-This task changes the URL path in 17 route literals and 19 form actions and fetch URLs inside rendered pages. A missed string is a broken flow that no type checker sees.
+This task changes the URL path in 14 route registrations and 6 form actions and fetch URLs inside rendered pages. A missed string is a broken flow that no type checker sees.
 
 - [ ] **Step 1: Rename the files that carry the name**
 
