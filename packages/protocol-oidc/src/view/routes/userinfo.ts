@@ -69,7 +69,14 @@ async function respondToUserinfoRequest(
         .header('www-authenticate', `${CHALLENGE}, error="insufficient_scope"`)
         .send();
     case 'ok':
-      return reply.headers(corsHeaders).code(200).send(outcome.claims);
+      if (outcome.body.kind === 'jwt') {
+        return reply
+          .headers(corsHeaders)
+          .code(200)
+          .header('content-type', 'application/jwt')
+          .send(outcome.body.token);
+      }
+      return reply.headers(corsHeaders).code(200).send(outcome.body.claims);
   }
 }
 

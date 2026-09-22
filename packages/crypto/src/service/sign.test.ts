@@ -2,7 +2,13 @@ import { describe, expect, it } from 'vitest';
 import { OduduError } from '@odudu/kernel';
 import { generateSigningKey } from '#/service/generate';
 import { type SigningKeyRecord } from '#/schema/signing-keys';
-import { AUDIENCE_UNCHECKED, TYP_UNCHECKED, signJwt, verifyJwt } from '#/service/sign';
+import {
+  AUDIENCE_UNCHECKED,
+  TYP_UNCHECKED,
+  encodeUnsecuredJwt,
+  signJwt,
+  verifyJwt,
+} from '#/service/sign';
 
 const KEK = new Uint8Array(32).fill(5);
 const ISS = 'https://issuer.example';
@@ -305,5 +311,29 @@ describe('[JOSE-4.1-03] a token is not accepted at or after the time in exp', ()
         typ: TYP_UNCHECKED,
       }),
     ).rejects.toThrow(/exp/i);
+  });
+});
+
+describe('encodeUnsecuredJwt', () => {
+  it('produces a three-part JWT with alg none and no signature segment', () => {
+    const token = encodeUnsecuredJwt({ sub: 'user-1', iss: ISS });
+    const parts = token.split('.');
+    expect(parts).toHaveLength(3);
+    expect(parts[2]).toBe('');
+    const header = JSON.parse(Buffer.from(parts[0] ?? '', 'base64url').toString('utf8')) as {
+      alg: string;
+    };
+    expect(header).toEqual({ alg: 'none' });
+  });
+
+  it('carries the payload members unchanged', () => {
+    const token = encodeUnsecuredJwt({ sub: 'user-2', iss: ISS, aud: 'client-1' });
+    const parts = token.split('.');
+    const payload = JSON.parse(Buffer.from(parts[1] ?? '', 'base64url').toString('utf8')) as {
+      sub: string;
+      iss: string;
+      aud: string;
+    };
+    expect(payload).toEqual({ sub: 'user-2', iss: ISS, aud: 'client-1' });
   });
 });

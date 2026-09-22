@@ -1,4 +1,4 @@
-import { verifyJwt, type SigningKeyRecord } from '@odudu/crypto';
+import { encodeUnsecuredJwt, signJwt, verifyJwt, type SigningKeyRecord } from '@odudu/crypto';
 import { type ClaimMapperRegistry } from '@odudu/kernel';
 import { presentedBearerToken } from '#/service/bearer-token';
 import { type ClaimContext } from '#/service/claims';
@@ -22,7 +22,18 @@ export interface UserinfoDeps {
   // own expanded origins, resolved from the access token's `client_id`
   // claim rather than any credential the preflight could have carried.
   resolveClientWebOrigins(realmId: string, oauthClientId: string): Promise<ReadonlySet<string>>;
+  // `null` when the client registered no `userinfo_signed_response_alg` at
+  // all, or has none by the time this runs (unknown or disabled client) —
+  // both read as "answer in JSON," the response format's default.
+  userinfoSignedResponseAlg(realmId: string, oauthClientId: string): Promise<string | null>;
+  // The realm's active signing key — the same one `/token` signs an access
+  // token or ID Token with, and the only one this server can sign with.
+  activeSigningKey(realmId: string): Promise<SigningKeyRecord>;
+  kek: Uint8Array;
 }
+
+export type UserinfoBody =
+  { kind: 'json'; claims: Record<string, unknown> } | { kind: 'jwt'; token: string };
 
 export type UserinfoOutcome =
   | { kind: 'not_found' }
@@ -37,7 +48,7 @@ export type UserinfoOutcome =
   // token verifies — it names the client CORS checks the response's origin
   // against; every earlier outcome never got that far.
   | { kind: 'insufficient_scope'; clientId: string | undefined }
-  | { kind: 'ok'; claims: Record<string, unknown>; clientId: string | undefined };
+  | { kind: 'ok'; body: UserinfoBody; clientId: string | undefined };
 
 function scopesOf(scopeClaim: unknown): string[] {
   return typeof scopeClaim === 'string'
@@ -100,5 +111,36 @@ export async function resolveUserinfo(
     roles: narrowByScopeMappings(ctx.roles, reachableRoleIds, fullScopeAllowed),
   };
   const claims = await deps.claimMappers.assemble(scope, narrowedCtx);
-  return { kind: 'ok', claims, clientId };
+  const responseBody = await signedBody(deps, realm.id, issuer, clientId, claims);
+  return { kind: 'ok', body: responseBody, clientId };
+}
+
+// OIDC Core §5.3.2. `aud`, `none` and `typ` each carry a decision that reads
+// as obvious by analogy with a token that looks similar and is not — see
+// "A signed UserInfo response: `aud`, `none`, `typ`, and the algorithm that
+// was never selectable" in docs/protocols/oidc-core.md before changing this.
+async function signedBody(
+  deps: UserinfoDeps,
+  realmId: string,
+  issuer: string,
+  clientId: string | undefined,
+  claims: Record<string, unknown>,
+): Promise<UserinfoBody> {
+  if (clientId === undefined) return { kind: 'json', claims };
+
+  const alg = await deps.userinfoSignedResponseAlg(realmId, clientId);
+  if (alg === null) return { kind: 'json', claims };
+
+  const signedClaims = { ...claims, iss: issuer, aud: clientId };
+  if (alg === 'none') {
+    return { kind: 'jwt', token: encodeUnsecuredJwt(signedClaims) };
+  }
+
+  // No `typ`: an ID Token carries none (OIDC Core §2), and nothing in JWA
+  // or OIDC Core assigns a UserInfo JWT one either — RFC 9068's `at+jwt` is
+  // specific to OAuth access tokens (§2.1), and reusing it here would claim
+  // this token is one.
+  const key = await deps.activeSigningKey(realmId);
+  const token = await signJwt(signedClaims, { key, kek: deps.kek });
+  return { kind: 'jwt', token };
 }

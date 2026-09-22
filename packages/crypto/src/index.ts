@@ -10,6 +10,7 @@ export {
 export {
   signJwt,
   verifyJwt,
+  encodeUnsecuredJwt,
   AUDIENCE_UNCHECKED,
   TYP_UNCHECKED,
   type ExpectedAudience,

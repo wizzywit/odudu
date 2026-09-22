@@ -183,6 +183,24 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
         return expandWebOrigins(config.webOrigins, config.redirectUris);
       });
 
+    // /userinfo's own answer to "should this response be a JWT": an unknown
+    // or disabled client, or one that never registered
+    // `userinfo_signed_response_alg`, all read as `null` — the response
+    // format's default, JSON — the same way an unrecognised `client_id`
+    // reads as no CORS origins above rather than an error.
+    const userinfoSignedResponseAlg = (realmId: string, oauthClientId: string) =>
+      withRealm(deps.database.db, realmId, async (tx) => {
+        const client = await clientRepository(tx).byClientId(oauthClientId);
+        if (!client?.enabled) return null;
+        const config = await clientOidcConfigRepository(tx).byClientId(client.id);
+        return config?.userinfoSignedResponseAlg ?? null;
+      });
+
+    // The same key /token signs an access token or ID Token with —
+    // `signingKeyRepository(tx).active()`, not a second selection rule.
+    const activeSigningKey = (realmId: string) =>
+      withRealm(deps.database.db, realmId, (tx) => signingKeyRepository(tx).active());
+
     // One definition, read by discovery for scopes_supported and by
     // /authorize for what it will accept, so the advertised list and the
     // accepted one cannot drift apart.
@@ -726,6 +744,9 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
         claimMappers,
         resolveRoleReach,
         resolveClientWebOrigins,
+        userinfoSignedResponseAlg,
+        activeSigningKey,
+        kek: deps.kek,
       });
     });
 

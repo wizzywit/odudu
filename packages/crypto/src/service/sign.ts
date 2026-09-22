@@ -1,4 +1,11 @@
-import { importJWK, jwtVerify, SignJWT, type JWTHeaderParameters, type JWTPayload } from 'jose';
+import {
+  importJWK,
+  jwtVerify,
+  SignJWT,
+  UnsecuredJWT,
+  type JWTHeaderParameters,
+  type JWTPayload,
+} from 'jose';
 import { OduduError } from '@odudu/kernel';
 import { unwrapPrivateJwk } from '#/service/kek';
 import { type SigningKeyRecord } from '#/schema/signing-keys';
@@ -14,6 +21,15 @@ export async function signJwt(
   if (opts.typ !== undefined) header.typ = opts.typ;
 
   return new SignJWT(payload).setProtectedHeader(header).sign(privateKey);
+}
+
+// RFC 7519 §6's Unsecured JWT: `alg: "none"`, no `kid` (there is no key),
+// and no signature segment. The only caller is a client that registered
+// `userinfo_signed_response_alg: "none"` — OIDC Core §5.3.2 admits that
+// value and still requires the JWT serialization and `application/jwt`,
+// so this is not the JSON case wearing three dots.
+export function encodeUnsecuredJwt(payload: JWTPayload): string {
+  return new UnsecuredJWT(payload).encode();
 }
 
 function decodeProtectedHeaderSafely(token: string): Record<string, unknown> {
