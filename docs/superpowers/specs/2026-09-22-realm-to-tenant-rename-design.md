@@ -42,7 +42,7 @@ transition would need two issuers per tenant, with `/userinfo` and
 `/introspect` accepting either, for a published window. **If this rename is ever
 repeated on a deployed system, that is the design it needs.**
 
-**3.3 All fifty-four documents, with the thirteen ADRs annotated once.** Living
+**3.3 All fifty-four documents, with the fourteen ADRs annotated once.** Living
 documents are renamed because they describe what the server does now. Historical
 documents — ADRs, phase notes, archived specs and plans — are also renamed,
 because code comments cite ADRs as live explanations and a reader following
@@ -66,15 +66,19 @@ Four case-preserving substitutions, applied everywhere:
 | `realms` | `tenants` |
 | `REALM`  | `TENANT`  |
 
-No English word contains `realm` as a substring, so there are no false
-positives. Every compound follows from the stem: `realmId` → `tenantId`,
+No English word contains `realm` as a substring. That is true and it is the
+wrong guard: the false positives come from **other vocabularies**, where the
+word is spelled the same and means something that is not a tenant. RFC 7235
+§4.1's `WWW-Authenticate` auth-param is one, Keycloak's own concept is
+another, and §5 below carries both. Where the word is this project's own,
+every compound follows from the stem: `realmId` → `tenantId`,
 `RealmScopedDatabase` → `TenantScopedDatabase`, `withRealm` → `withTenant`,
 `expectCrossRealmMethodProbe` → `expectCrossTenantMethodProbe`, and the package
 `domain-realm` → `domain-tenant`.
 
 ## 5. What a mechanical substitution must not touch
 
-Four places carry the risk, and each is called out because a tool would produce
+Six places carry the risk, and each is called out because a tool would produce
 something that looks correct and is not.
 
 **5.1 The row-level-security policies.** A column rename updates a policy's
@@ -94,13 +98,38 @@ hardcode `https://proxy/realms/conformance/...`. Changing them is trivial;
 the point is that the suite must **pass** against the new paths, which is the
 external proof that the wire change is correct.
 
-**5.4 The ADR annotations.** Thirteen dated notes, written by hand, not
+**5.4 The ADR annotations.** Fourteen dated notes, written by hand, not
 generated.
+
+**5.5 Another specification's vocabulary.** `realm` in a `WWW-Authenticate`
+header is RFC 7235 §4.1's auth-param, naming an HTTP protection space and
+not a tenant; the three challenge constants on `/token`, `/userinfo` and
+`/register` keep it. `realm_access` is Keycloak's role claim, and the
+comparative prose that says Odudu emits neither it nor `resource_access` has
+to keep spelling it. These are the substitution's real false positives, and
+they need **byte-exact** assertions to catch — a `toMatch(/^Bearer/)` or a
+`toContain` on the error parameter passes against a wrong auth-param name.
+
+**5.6 Comment citations of frozen migration filenames.** The fifty-six
+migrations that predate this change are replayed in order on a fresh
+database and recorded in `meta/_journal.json` by stem, so their names cannot
+move. A comment citing one, rewritten, points at a file that does not exist
+and reads perfectly. Check the files just substituted for these immediately,
+while the set is small enough to look at.
 
 ## 6. Increments
 
-Five, each one branch and one pull request into a phase branch, each ending
-green and independently mergeable.
+Five, planned as one branch and one pull request each, each ending green and
+independently mergeable.
+
+**They were not, and could not be.** `withRealm`, `RealmScopedDatabase` and
+`realms` are consumed by every application package, so nothing between the
+schema and the protocol package compiles while the two ends disagree on the
+name: there is no cut in the dependency graph that leaves both sides
+building. The work ran as one branch and one pull request, with the five
+below as its ordering rather than as its merge units. Anything that renames
+a type the whole repository imports has this shape, and the honest planning
+unit for it is the branch.
 
 **6.1 Spike, then the schema.** Establish by execution what Postgres does:
 whether `ALTER TABLE RENAME COLUMN` rewrites dependent policy expressions,
@@ -124,16 +153,16 @@ suites, not writing them.
 **6.2 Domain packages.** `domain-realm` (renamed to `domain-tenant`),
 `domain-identity`, `account`, `authn-flows`.
 
-**6.3 Protocol packages and the wire.** `protocol-oidc`, `contracts`, the
-seventeen route literals, the nineteen HTML form actions and fetch URLs, and
-`realmIssuer`. This is the increment where `iss` changes. The integration suites
+**6.3 Protocol packages and the wire.** `protocol-oidc`, `contracts`, its
+fourteen route registrations, the six page embeddings of a path — five form
+actions and one `fetch` URL — and `realmIssuer`. This is the increment where `iss` changes. The integration suites
 are the detector for a missed string literal, because a broken form action is
 invisible to the type checker.
 
 **6.4 Server and tooling.** `apps/server`, the CLI, `tools/`, and the
 `infra/conformance` profiles.
 
-**6.5 Documentation.** All fifty-four markdown files, the thirteen ADR annotations,
+**6.5 Documentation.** All fifty-four markdown files, the fourteen ADR annotations,
 and the re-captured transcripts.
 
 ## 7. What proves it worked
@@ -144,14 +173,29 @@ In ascending order of strength:
 2. Every foreign-tenant probe passing — isolation intact.
 3. The conformance suite passing against `/tenants/` — the wire is correct by
    the OIDF's own tests rather than by our reading of them.
-4. **No occurrence of the stem outside the historical annotations.** A grep that
-   returns only the thirteen dated ADR lines is the one check that proves the
-   rename is complete rather than merely working.
+4. **No occurrence of the stem except where it is not this project's word.**
+   That is the one check that proves the rename is complete rather than
+   merely working.
 
-The fourth becomes a test under `tests/lint/`, the way the `any` ban and the
-comment-length ceiling are already enforced rather than remembered. A rename
-that is 99% done is a repository that says two things, which is worse than
-either name alone.
+The fourth is `tests/lint/no-realm.test.ts`, enforced the way the `any` ban
+and the comment-length ceiling are rather than remembered. A bare grep is
+not enough for it, because the legitimate occurrences §5 enumerates are real
+and permanent, so the test is built in two parts:
+
+- **Whole-file records**, listed by path: `packages/db/drizzle/`, this spec,
+  its plan and its spike, the dated OIDF result exports and the README
+  quoting them, the P2a and P2b spike logs, and the backfill test that seeds
+  the schema as of migration 39. Rewriting any of these would falsify a
+  record of something already done.
+- **Occurrence-level patterns**, which are cut out of a line before the
+  question is asked again of what is left — so a legitimate token never
+  vouches for the rest of the line it sits on. They are the auth-param in
+  §5.5, both emitted and named; `realm_access`; a migration's filename,
+  numbered or in backticks; and the single dated line each pre-rename ADR
+  carries.
+
+A rename that is 99% done is a repository that says two things, which is
+worse than either name alone.
 
 ## 8. What this does not do
 
