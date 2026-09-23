@@ -206,10 +206,45 @@ describe('[ODUDU-TOKEN-EXCHANGE-ACT-01] the delegation chain', () => {
     });
   });
 
+  // RFC 8693 §4.1: `act` names its actor and nothing else — a prior chain
+  // carrying `exp`, `nbf` or `aud` (claims that belong to the token as a
+  // whole, not to the actor it names) must not have those claims echoed
+  // into the narrowed chain.
+  it('drops non-identity claims from a prior chain', () => {
+    expect(
+      buildActChain('actor-2', { sub: 'actor-1', exp: 123, nbf: 456, aud: 'https://api.example' }),
+    ).toEqual({ kind: 'ok', act: { sub: 'actor-2', act: { sub: 'actor-1' } } });
+  });
+
   it('refuses a chain deeper than the cap', () => {
     let act: unknown = { sub: 'root' };
     for (let i = 0; i < MAX_DELEGATION_DEPTH; i += 1) act = { sub: `a${String(i)}`, act };
     expect(buildActChain('one-more', act)).toEqual({ kind: 'too_deep' });
+  });
+
+  // A chain nested `depth` levels deep, counting itself: depth 1 is a bare
+  // `{ sub }`, depth 2 nests one level beneath it, and so on.
+  function chainOfDepth(depth: number): unknown {
+    let act: unknown = { sub: 'root' };
+    for (let i = 1; i < depth; i += 1) act = { sub: `a${String(i)}`, act };
+    return act;
+  }
+
+  // The boundary itself, not a chain safely past it in either direction:
+  // a prior chain one level short of the cap must still be admitted...
+  it('admits the deepest chain the cap allows', () => {
+    const prior = chainOfDepth(MAX_DELEGATION_DEPTH - 1);
+    expect(buildActChain('root-actor', prior)).toEqual({
+      kind: 'ok',
+      act: { sub: 'root-actor', act: prior },
+    });
+  });
+
+  // ...and one level deeper — the first depth the cap must refuse — must
+  // not be.
+  it('refuses the first chain one level past the cap', () => {
+    const prior = chainOfDepth(MAX_DELEGATION_DEPTH);
+    expect(buildActChain('root-actor', prior)).toEqual({ kind: 'too_deep' });
   });
 
   it('refuses a prior act that is not shaped like one', () => {

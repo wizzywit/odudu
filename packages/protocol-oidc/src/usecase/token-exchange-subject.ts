@@ -138,8 +138,8 @@ async function resolveIdToken(
   }
 
   // An ID token names no grant and carries no scope, so an exchange from
-  // one is bounded by the client's own registration rather than by a
-  // grant's recorded scope.
+  // one can only ever narrow to an empty requested scope (attenuateScope
+  // treats "granted" as the empty set) and yields a zero-scope token.
   return {
     kind: 'ok',
     token: {
@@ -149,7 +149,7 @@ async function resolveIdToken(
       grantId: null,
       act: undefined,
       mayAct: claims.mayAct,
-      expiresAt: null,
+      expiresAt: claims.expiresAt,
     },
   };
 }

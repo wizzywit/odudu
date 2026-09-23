@@ -74,12 +74,13 @@ describe('subjectOfIdTokenHint refuses a signed UserInfo response', () => {
 
   it('still accepts a genuine ID Token: no typ, a real exp', async () => {
     const key = await makeKey();
+    const exp = Math.floor(Date.now() / 1000) + 300;
     const idToken = await signJwt(
       {
         sub: 'user-3',
         iss: ISS,
         aud: CLIENT_ID,
-        exp: Math.floor(Date.now() / 1000) + 300,
+        exp,
       },
       { key, kek: KEK },
     );
@@ -92,7 +93,13 @@ describe('subjectOfIdTokenHint refuses a signed UserInfo response', () => {
       AUDIENCE_UNCHECKED,
     );
 
-    expect(result).toEqual({ subject: 'user-3', sid: null, audiences: [CLIENT_ID] });
+    expect(result).toEqual({
+      subject: 'user-3',
+      sid: null,
+      audiences: [CLIENT_ID],
+      mayAct: undefined,
+      expiresAt: new Date(exp * 1000),
+    });
   });
 
   // The `none` case never reaches this far: jose refuses to verify an

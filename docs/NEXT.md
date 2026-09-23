@@ -195,6 +195,17 @@ agent identity layer's own instance, budget and `max_depth` (design spec
   specific actor needs something to write the claim onto a token in the
   first place, which is P5's, alongside the instance that would be doing
   the pre-authorising.
+- **`may_act` is unreachable when the subject is a refresh token.**
+  `resolveExchangeToken`'s refresh-token branch
+  (`packages/protocol-oidc/src/usecase/token-exchange-subject.ts`) sets
+  `mayAct: undefined` unconditionally: no grant column persists `may_act`,
+  and a refresh token carries no JWT claims of its own to read one from.
+  Not exploitable today, since nothing mints the claim yet, but once P5
+  does, a holder of a grant's refresh token escapes a restriction placed on
+  its access token by presenting the refresh token instead — and a
+  delegated client normally holds both. The minting phase must persist
+  `may_act` on the grant row (alongside `actChain`/`expCeiling`) or accept
+  this gap knowingly.
 - **The delegation cascade `exchangedFromGrantId` enables but does not
   perform.** Revoking a grant today revokes that grant alone;
   `exchangedFromGrantId` records the lineage a cascade would walk, but
@@ -347,8 +358,15 @@ PostgreSQL does not have. Nothing has hit this: `REAP_ORDER`
 so reap never deletes a session a live grant references. The fix is the
 same column-list form: `ON DELETE SET NULL (session_id)`.
 
-- Trigger: the next migration that touches `token_grants` for an unrelated
-  reason.
+**`clients_service_subject_fk` (0005_subjects.sql, renamed by 0057) is a
+third instance of the same trap**: an unrestricted composite
+`ON DELETE SET NULL` on `(tenant_id, service_subject_id)` would null
+`tenant_id` on `clients` alongside it, and a service subject's delete would
+fail `clients`'s own `NOT NULL` rather than detach it. The fix is the same
+column-list form: `ON DELETE SET NULL (service_subject_id)`.
+
+- Trigger: the next migration that touches `token_grants` or `clients` for
+  an unrelated reason.
 
 ### The session set
 

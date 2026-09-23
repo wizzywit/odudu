@@ -1,4 +1,10 @@
-import { generateSigningKey, signingKeys, type SigningKeyRecord } from '@odudu/crypto';
+import {
+  generateSigningKey,
+  signingKeyRepository,
+  signingKeys,
+  signJwt,
+  type SigningKeyRecord,
+} from '@odudu/crypto';
 import { hashPassword, subjectRepository, userCredentials, users } from '@odudu/domain-identity';
 import {
   createDatabase,
@@ -593,6 +599,47 @@ describe('[ODUDU-TOKEN-EXCHANGE-ACTOR-01] the actor token is checked too', () =>
   });
 });
 
+// Nothing mints `may_act` yet (docs/NEXT.md's own entry on this), so this
+// re-signs a real, grant-backed access token with the claim added — the
+// only way to exercise `mayActPermits`'s wiring end to end before P5 gives
+// it a mint path of its own.
+async function withMayAct(accessToken: string, sub: string): Promise<string> {
+  const claims = decode(accessToken);
+  const key = await withTenant(app.db, TENANT_ID, (tx) => signingKeyRepository(tx).active());
+  return signJwt({ ...claims, may_act: { sub } }, { key, kek: KEK, typ: 'at+jwt' });
+}
+
+describe('[ODUDU-TOKEN-EXCHANGE-MAYACT-02] may_act is honoured and violated end to end', () => {
+  it('refuses an actor the subject token does not name in may_act', async () => {
+    const subject = await loginAndGetToken();
+    const namedActor = await loginAndGetToken({
+      username: DELEGATE_USERNAME,
+      password: DELEGATE_PASSWORD,
+    });
+    const otherActor = await loginAndGetToken();
+    const subjectToken = await withMayAct(subject.accessToken, namedActor.subjectId);
+
+    const response = await exchange({ subjectToken, actorToken: otherActor.accessToken });
+    expect(response.statusCode).toBe(400);
+    expect(response.json<{ error?: string }>()).toMatchObject({ error: 'invalid_request' });
+  });
+
+  it('permits the actor may_act names', async () => {
+    const subject = await loginAndGetToken();
+    const namedActor = await loginAndGetToken({
+      username: DELEGATE_USERNAME,
+      password: DELEGATE_PASSWORD,
+    });
+    const subjectToken = await withMayAct(subject.accessToken, namedActor.subjectId);
+
+    const response = await exchange({ subjectToken, actorToken: namedActor.accessToken });
+    expect(response.statusCode).toBe(200);
+    expect(decode(response.json<{ access_token: string }>().access_token).act).toEqual({
+      sub: namedActor.subjectId,
+    });
+  });
+});
+
 describe('[ODUDU-TOKEN-EXCHANGE-01] the grant end to end', () => {
   it('delegates: sub is the subject, act names the actor', async () => {
     const subject = await loginAndGetToken();
@@ -964,6 +1011,29 @@ describe('[ODUDU-TOKEN-EXCHANGE-EXPIRY-01] the issued token is capped at the sub
     expect(body.expires_in).toBe(subjectExp - fakeNowSeconds());
     expect(body.expires_in).toBeLessThan(1_209_600);
     expect(body.token_type).toBe('N_A');
+  });
+
+  // An id_token subject_token carries its own exp too, and this exchange
+  // must never widen it — `resolveIdToken` (token-exchange-subject.ts) used
+  // to hand back `expiresAt: null`, so a subject presenting one always
+  // escaped the ceiling and received a full-ttl token regardless of how
+  // little of its own id_token's lifetime was left.
+  it('caps the issued token exp at the id_token subject own exp', async () => {
+    const subject = await loginAndGetToken({ scope: 'openid' });
+    await allowImpersonation(CLIENT_ID);
+    const subjectIdTokenExp = decodeExp(subject.idToken);
+
+    advanceClock(60_000);
+    const response = await exchange({
+      subjectToken: subject.idToken,
+      subjectTokenType: 'urn:ietf:params:oauth:token-type:id_token',
+    });
+    expect(response.statusCode).toBe(200);
+    const body = response.json<{ access_token: string; expires_in: number }>();
+    const exp = decodeExp(body.access_token);
+
+    expect(exp).toBe(subjectIdTokenExp);
+    expect(exp).toBeLessThan(fakeNowSeconds() + ACCESS_TOKEN_TTL_SECONDS);
   });
 });
 
