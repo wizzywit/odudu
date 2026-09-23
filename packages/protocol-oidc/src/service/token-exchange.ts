@@ -81,8 +81,9 @@ export function attenuateScope(
   requested: string,
   granted: readonly string[],
 ): { kind: 'ok'; scope: readonly string[] } | { kind: 'widened' } {
+  if (requested === '') return { kind: 'ok', scope: granted };
   const asked = [...new Set(requested.split(' ').filter((entry) => entry !== ''))];
-  if (asked.length === 0) return { kind: 'ok', scope: granted };
+  if (asked.length === 0) return { kind: 'widened' };
   const held = new Set(granted);
   return asked.every((entry) => held.has(entry))
     ? { kind: 'ok', scope: asked }

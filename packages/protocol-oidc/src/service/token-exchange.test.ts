@@ -176,6 +176,19 @@ describe('[ODUDU-TOKEN-EXCHANGE-SCOPE-01] scope never widens', () => {
   it('refuses when one of several requested scopes is not held', () => {
     expect(attenuateScope('openid reports:write', GRANTED)).toEqual({ kind: 'widened' });
   });
+
+  // '' means the parameter was omitted (readField's convention for an
+  // absent field) and carries the granted scope forward. A non-empty
+  // value that names no token — RFC 6749 §3.3 defines a scope value as
+  // one or more non-empty scope tokens — is malformed input, not an
+  // omitted parameter, and is refused rather than reinterpreted.
+  it('refuses a whitespace-only scope rather than treating it as omitted', () => {
+    expect(attenuateScope('   ', GRANTED)).toEqual({ kind: 'widened' });
+  });
+
+  it('still treats a genuinely empty scope as omitted', () => {
+    expect(attenuateScope('', GRANTED)).toEqual({ kind: 'ok', scope: GRANTED });
+  });
 });
 
 describe('[ODUDU-TOKEN-EXCHANGE-ACT-01] the delegation chain', () => {
