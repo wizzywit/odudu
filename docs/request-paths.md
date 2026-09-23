@@ -717,7 +717,12 @@ curl -sS http://localhost:3000/tenants/demo/.well-known/openid-configuration
     "A256GCM"
   ],
   "code_challenge_methods_supported": ["S256"],
-  "grant_types_supported": ["authorization_code", "refresh_token", "client_credentials"],
+  "grant_types_supported": [
+    "authorization_code",
+    "refresh_token",
+    "client_credentials",
+    "urn:ietf:params:oauth:grant-type:token-exchange"
+  ],
   "token_endpoint_auth_methods_supported": [
     "client_secret_basic",
     "client_secret_post",
