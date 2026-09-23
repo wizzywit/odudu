@@ -28,7 +28,9 @@ import { NO_CLIENT_KEY_FETCHER } from '#/repository/client-keys';
 import { UNLIMITED_CLIENT_SECRET_LIMITER } from '#/service/client-secret-throttle';
 import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
 import { tokenGrantRepository } from '#/repository/grants';
+import { refreshTokenRepository } from '#/repository/refresh';
 import { clientOidcConfig } from '#/schema/client-oidc-config';
+import { hashRefreshToken } from '#/service/refresh';
 import { TOKEN_EXCHANGE_GRANT } from '#/service/token-exchange';
 import { resolveExchangeToken, type ResolveDeps } from '#/usecase/token-exchange-subject';
 
@@ -700,6 +702,74 @@ describe('[ODUDU-TOKEN-EXCHANGE-01] the grant end to end', () => {
     expect(body.issued_token_type).toBe('urn:ietf:params:oauth:token-type:refresh_token');
     expect(body.token_type).toBe('N_A');
     expect(body.access_token).toEqual(expect.any(String));
+  });
+});
+
+async function rotate(refreshToken: string): Promise<LightMyRequestResponse> {
+  const form = new URLSearchParams({ grant_type: 'refresh_token', refresh_token: refreshToken });
+  return http.inject({
+    method: 'POST',
+    url: `/tenants/${TENANT}/protocol/openid-connect/token`,
+    payload: form.toString(),
+    headers: {
+      'content-type': 'application/x-www-form-urlencoded',
+      authorization: basicAuth(CLIENT_ID, CLIENT_SECRET),
+    },
+  });
+}
+
+describe('[ODUDU-TOKEN-EXCHANGE-ROTATION-01] a rotated exchanged refresh token keeps its limits', () => {
+  it('keeps act and the subject exp ceiling through two rotations', async () => {
+    const subject = await loginAndGetToken();
+    const actor = await loginAndGetToken();
+    const subjectExp = decodeExp(subject.accessToken);
+
+    const exchangeResponse = await exchange({
+      subjectToken: subject.accessToken,
+      actorToken: actor.accessToken,
+      requestedTokenType: 'urn:ietf:params:oauth:token-type:refresh_token',
+    });
+    expect(exchangeResponse.statusCode).toBe(200);
+    const exchangedRefreshToken = exchangeResponse.json<{ access_token: string }>().access_token;
+
+    const firstRotation = await rotate(exchangedRefreshToken);
+    expect(firstRotation.statusCode).toBe(200);
+    const firstBody = firstRotation.json<{ access_token: string; refresh_token: string }>();
+    // The whole point of a delegated credential: `act` must survive
+    // rotation, not just the token minted at exchange time.
+    expect(decode(firstBody.access_token).act).toEqual({ sub: actor.subjectId });
+    expect(decodeExp(firstBody.access_token)).toBeLessThanOrEqual(subjectExp);
+
+    // And again — the ceiling and the delegation must survive a second
+    // hop, not just the first one after the exchange.
+    const secondRotation = await rotate(firstBody.refresh_token);
+    expect(secondRotation.statusCode).toBe(200);
+    const secondBody = secondRotation.json<{ access_token: string; refresh_token: string }>();
+    expect(decode(secondBody.access_token).act).toEqual({ sub: actor.subjectId });
+    expect(decodeExp(secondBody.access_token)).toBeLessThanOrEqual(subjectExp);
+  });
+
+  it('caps the rotated refresh token itself, not just the access token it mints', async () => {
+    const subject = await loginAndGetToken();
+    await allowImpersonation(CLIENT_ID);
+    const subjectExpDate = new Date(decodeExp(subject.accessToken) * 1000);
+
+    const exchangeResponse = await exchange({
+      subjectToken: subject.accessToken,
+      requestedTokenType: 'urn:ietf:params:oauth:token-type:refresh_token',
+    });
+    const exchangedRefreshToken = exchangeResponse.json<{ access_token: string }>().access_token;
+
+    const rotation = await rotate(exchangedRefreshToken);
+    expect(rotation.statusCode).toBe(200);
+    const body = rotation.json<{ refresh_token: string }>();
+
+    // The rotated refresh token is opaque, so the cap is checked in the
+    // database it was written to, not by decoding it.
+    const record = await withTenant(app.db, TENANT_ID, (tx) =>
+      refreshTokenRepository(tx).byHash(hashRefreshToken(body.refresh_token)),
+    );
+    expect(record?.expiresAt).toEqual(subjectExpDate);
   });
 });
 

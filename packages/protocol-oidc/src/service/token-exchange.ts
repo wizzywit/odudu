@@ -120,6 +120,16 @@ export function buildActChain(
   return { kind: 'ok', act: { sub: actorSubject, act: inner } };
 }
 
+// The read side of a persisted `token_grants.act_chain` (jsonb, therefore
+// unknown): a grant's own value, exactly as `buildActChain` produced it, or
+// null for anything that does not parse as one — absent, malformed, or
+// deeper than a chain this issuer ever mints.
+export function narrowActClaim(value: unknown): ActClaim | null {
+  if (value === null || value === undefined) return null;
+  const inner = narrowAct(value, MAX_DELEGATION_DEPTH);
+  return inner === 'malformed' || inner === 'too_deep' ? null : inner;
+}
+
 // RFC 8693 §4.4 authorises a party "to become the actor", so the comparison
 // is against whoever the issued token will name in `act` — the actor
 // token's subject under delegation, the requesting client under
