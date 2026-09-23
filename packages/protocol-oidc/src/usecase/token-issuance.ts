@@ -969,6 +969,13 @@ export async function issueTokens(
         ? await authenticateTlsClientAuth(tx, deps, certificateSubject, request.clientId)
         : await authenticateClient(tx, deps, basic, request.clientId, bodyClientSecret);
 
+  // RFC 6749 §5.2. Until this landed, `config.grantTypes` gated only
+  // whether a refresh token was issued, so a client could use any grant
+  // this server implements regardless of what it registered for.
+  if (!config.grantTypes.includes(request.grantType)) {
+    throw unauthorizedClient();
+  }
+
   if (request.grantType === 'authorization_code') {
     return issueAuthorizationCodeTokens(tx, deps, request, client, config);
   }
