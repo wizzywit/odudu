@@ -18,13 +18,9 @@ const ALLOWED_REQUEST_HEADERS = new Set([
   'x-request-id',
 ]);
 
-// The response half of the same rule, derived from what this server
-// actually sends: `pageHeaders` in @odudu/kernel, the cache and challenge
-// headers of the token, introspection, revocation and userinfo endpoints,
-// and app.ts's request id. `location` is allowed but never emitted whole —
-// it is a URL, so it gets the URL treatment below. `set-cookie` is absent
-// rather than censored: a name not on this list cannot be logged at all,
-// which is what a redaction entry was standing in for.
+// The response half of the same rule. `location` is allowed but never
+// emitted whole — it is a URL, so it gets pathOnly below. `set-cookie` is
+// absent rather than censored: a name off this list cannot be logged at all.
 const ALLOWED_RESPONSE_HEADERS = new Set([
   'content-type',
   'content-length',
@@ -35,10 +31,8 @@ const ALLOWED_RESPONSE_HEADERS = new Set([
   'accept-post',
   'vary',
   'x-request-id',
-  // The only member of its family: it carries an origin already matched
-  // against the client's registered list, and its absence is the sole trace
-  // of a refused CORS request — cors.ts sends `vary: Origin` on the allowed
-  // and the refused branch alike.
+  // The only member of its family worth logging: cors.ts sends `vary: Origin`
+  // on the refused branch too, so its absence is the one trace of a refusal.
   'access-control-allow-origin',
   'location',
 ]);
@@ -63,10 +57,9 @@ const USERINFO = /^([a-zA-Z][a-zA-Z\d+.-]*:\/\/)[^/]*@/;
 // Query strings carry the same class of secrets as headers (OAuth `code`,
 // `state`, `code_challenge`, ...) and a two-entry denylist has already once
 // missed something. Logging the path only is the allowlist equivalent for a
-// URL: nothing after `?` or `#` is ever emitted — response_mode=fragment
-// puts the authorization code after the `#` — and nothing between `//` and
-// `@`, which a registered redirect_uri may carry (isValidRedirectUri in
-// protocol-oidc checks the scheme and the fragment, not userinfo).
+// URL: nothing after `?` or `#`, and nothing between `//` and `@`. A
+// registered redirect_uri may carry userinfo, and `response_mode=fragment`
+// puts the code after the hash.
 function pathOnly(url: unknown): unknown {
   if (typeof url !== 'string') return url;
   const cut = url.search(/[?#]/);
