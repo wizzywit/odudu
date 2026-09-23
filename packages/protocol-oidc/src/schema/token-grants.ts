@@ -39,9 +39,9 @@ export const tokenGrants = pgTable('token_grants', {
   actChain: jsonb('act_chain'),
   // The subject token's own `exp` at the moment of exchange, so a refresh
   // rotation can cap the replacement the same way `mintAccessToken`'s
-  // `expCeiling` capped the token issued at exchange time. Null for a
-  // grant no exchange produced, and for one exchanged from a token that
-  // itself carried no expiry (an id_token subject).
+  // `expCeiling` capped the token issued at exchange time. Null only for a
+  // grant no exchange produced — every subject shape this server resolves
+  // (access token, refresh token, id_token) carries its own expiry.
   expCeiling: timestamp('exp_ceiling', { withTimezone: true }),
 }).enableRLS();
 

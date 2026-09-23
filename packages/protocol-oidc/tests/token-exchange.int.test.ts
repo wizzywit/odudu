@@ -965,6 +965,29 @@ describe('[ODUDU-TOKEN-EXCHANGE-EXPIRY-01] the issued token is capped at the sub
     expect(body.expires_in).toBeLessThan(1_209_600);
     expect(body.token_type).toBe('N_A');
   });
+
+  // An id_token subject_token carries its own exp too, and this exchange
+  // must never widen it — `resolveIdToken` (token-exchange-subject.ts) used
+  // to hand back `expiresAt: null`, so a subject presenting one always
+  // escaped the ceiling and received a full-ttl token regardless of how
+  // little of its own id_token's lifetime was left.
+  it('caps the issued token exp at the id_token subject own exp', async () => {
+    const subject = await loginAndGetToken({ scope: 'openid' });
+    await allowImpersonation(CLIENT_ID);
+    const subjectIdTokenExp = decodeExp(subject.idToken);
+
+    advanceClock(60_000);
+    const response = await exchange({
+      subjectToken: subject.idToken,
+      subjectTokenType: 'urn:ietf:params:oauth:token-type:id_token',
+    });
+    expect(response.statusCode).toBe(200);
+    const body = response.json<{ access_token: string; expires_in: number }>();
+    const exp = decodeExp(body.access_token);
+
+    expect(exp).toBe(subjectIdTokenExp);
+    expect(exp).toBeLessThan(fakeNowSeconds() + ACCESS_TOKEN_TTL_SECONDS);
+  });
 });
 
 async function introspect(token: string): Promise<LightMyRequestResponse> {
