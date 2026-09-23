@@ -10,10 +10,11 @@ import {
   type TenantScopedDatabase,
 } from '@odudu/db';
 import { provisionTenant, type SessionLifespans } from '@odudu/authn-flows';
-import { clients, provisionClientDefaults } from '@odudu/domain-tenant';
+import { clientRepository, clients, provisionClientDefaults } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import formbody from '@fastify/formbody';
+import { eq } from 'drizzle-orm';
 import Fastify, { type FastifyInstance, type LightMyRequestResponse } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { oidcRoutes } from '#/index';
@@ -21,6 +22,7 @@ import { NO_CLIENT_KEY_FETCHER } from '#/repository/client-keys';
 import { UNLIMITED_CLIENT_SECRET_LIMITER } from '#/service/client-secret-throttle';
 import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
 import { tokenGrantRepository } from '#/repository/grants';
+import { clientOidcConfig } from '#/schema/client-oidc-config';
 import { TOKEN_EXCHANGE_GRANT } from '#/service/token-exchange';
 import { resolveExchangeToken, type ResolveDeps } from '#/usecase/token-exchange-subject';
 
@@ -391,15 +393,27 @@ describe('[ODUDU-TOKEN-EXCHANGE-SUBJECT-02] a refresh token as subject_token', (
 
 async function exchange(input: {
   subjectToken: string;
-  actorToken: string;
+  subjectTokenType?: string;
+  actorToken?: string;
+  actorTokenType?: string;
+  requestedTokenType?: string;
+  resource?: string;
 }): Promise<LightMyRequestResponse> {
-  const form = new URLSearchParams({
+  const fields: Record<string, string> = {
     grant_type: TOKEN_EXCHANGE_GRANT,
     subject_token: input.subjectToken,
-    subject_token_type: 'urn:ietf:params:oauth:token-type:access_token',
-    actor_token: input.actorToken,
-    actor_token_type: 'urn:ietf:params:oauth:token-type:access_token',
-  });
+    subject_token_type:
+      input.subjectTokenType ?? 'urn:ietf:params:oauth:token-type:access_token',
+  };
+  if (input.actorToken !== undefined) {
+    fields.actor_token = input.actorToken;
+    fields.actor_token_type =
+      input.actorTokenType ?? 'urn:ietf:params:oauth:token-type:access_token';
+  }
+  if (input.requestedTokenType !== undefined) fields.requested_token_type = input.requestedTokenType;
+  if (input.resource !== undefined) fields.resource = input.resource;
+
+  const form = new URLSearchParams(fields);
   return http.inject({
     method: 'POST',
     url: `/tenants/${TENANT}/protocol/openid-connect/token`,
@@ -411,6 +425,20 @@ async function exchange(input: {
   });
 }
 
+function decodeExp(token: string): number {
+  const exp = decode(token).exp;
+  if (typeof exp !== 'number') throw new Error('expected a numeric exp claim');
+  return exp;
+}
+
+function nowSeconds(): number {
+  return Math.floor(Date.now() / 1000);
+}
+
+// Matches the `accessTokenTtlSeconds` this file's own setupTenant configures
+// for CLIENT_ID.
+const ACCESS_TOKEN_TTL_SECONDS = 300;
+
 // Approximates an expired access token by revoking its grant: nothing here
 // controls the real clock jose's own exp check reads inside verifyJwt, so
 // waiting out a TTL is not practical in this suite. resolveAccessToken
@@ -418,6 +446,21 @@ async function exchange(input: {
 // nothing left to tell them apart — which is the boundary this test probes.
 async function expireAccessToken(grantId: string): Promise<void> {
   await withTenant(app.db, TENANT_ID, (tx) => tokenGrantRepository(tx).revoke(grantId, new Date()));
+}
+
+// Impersonation — an exchange with no actor_token — defaults to refused
+// (client-oidc-config.ts), so any test exercising it must opt in first.
+// No repository method flips this one column, so the test reaches for the
+// schema directly rather than adding a single-purpose write method.
+async function allowImpersonation(oauthClientId: string): Promise<void> {
+  await withTenant(app.db, TENANT_ID, async (tx) => {
+    const client = await clientRepository(tx).byClientId(oauthClientId);
+    if (client === null) throw new Error(`unknown client ${oauthClientId}`);
+    await tx
+      .update(clientOidcConfig)
+      .set({ tokenExchangeImpersonationAllowed: true })
+      .where(eq(clientOidcConfig.clientId, client.id));
+  });
 }
 
 describe('[ODUDU-TOKEN-EXCHANGE-SUBJECT-03] an id_token as subject_token', () => {
@@ -497,5 +540,26 @@ describe('[ODUDU-TOKEN-EXCHANGE-ACTOR-01] the actor token is checked too', () =>
       actorToken: actor.accessToken,
     });
     expect(response.statusCode).toBe(400);
+  });
+});
+
+describe('[ODUDU-TOKEN-EXCHANGE-EXPIRY-01] the issued token is capped at the subject token', () => {
+  it.skip('caps the issued token at the subject token exp', async () => {
+    const subject = await loginAndGetToken();
+    await allowImpersonation(CLIENT_ID);
+    const subjectExp = decodeExp(subject.accessToken);
+
+    const response = await exchange({ subjectToken: subject.accessToken });
+    expect(decodeExp(response.json<{ access_token: string }>().access_token)).toBeLessThanOrEqual(
+      subjectExp,
+    );
+  });
+
+  it.skip('never extends beyond the configured ttl either', async () => {
+    const subject = await loginAndGetToken();
+    await allowImpersonation(CLIENT_ID);
+    const response = await exchange({ subjectToken: subject.accessToken });
+    const exp = decodeExp(response.json<{ access_token: string }>().access_token);
+    expect(exp).toBeLessThanOrEqual(nowSeconds() + ACCESS_TOKEN_TTL_SECONDS);
   });
 });

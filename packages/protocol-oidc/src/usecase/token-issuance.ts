@@ -35,8 +35,8 @@ import {
 import { evaluateRefreshGrant, generateRefreshToken, hashRefreshToken } from '#/service/refresh';
 import { parseResource } from '#/service/resource-indicator';
 import { resolveScope } from '#/service/scope';
-import { TOKEN_EXCHANGE_GRANT } from '#/service/token-exchange';
 import { narrowByScopeMappings } from '#/service/scope-mapping';
+import { TOKEN_EXCHANGE_GRANT, type ActClaim } from '#/service/token-exchange';
 import { withRegisteredClaimsWinning } from '#/service/token-claims';
 import { tlsClientAuthSubjectMatches, tlsClientSubject } from '#/service/tls-client-auth';
 import {
@@ -342,12 +342,23 @@ async function mintAccessToken(
     // (no code left to consult) can narrow the same way. Absent for a
     // grant not minted from a code.
     requestedUserinfoClaims?: readonly string[];
+    // RFC 8693 §4.4's delegation chain, present only for a token-exchange
+    // grant that named an actor. Never derived here — the caller resolves
+    // it via `buildActChain` before this function ever runs.
+    act?: ActClaim;
+    // An exchange may not lengthen the credential it was handed; every
+    // other grant mints from one the client already owns and passes no
+    // ceiling, so `exp` is never capped for them.
+    expCeiling?: Date;
   },
   key: SigningKeyRecord,
   now: Date,
 ): Promise<{ accessToken: string; audience: string[]; iat: number; exp: number }> {
   const iat = Math.floor(now.getTime() / 1000);
-  const exp = iat + input.config.accessTokenTtlSeconds;
+  const ttlExp = iat + input.config.accessTokenTtlSeconds;
+  const ceiling =
+    input.expCeiling === undefined ? ttlExp : Math.floor(input.expCeiling.getTime() / 1000);
+  const exp = Math.min(ttlExp, ceiling);
   const audience = input.audience.includes(deps.issuer)
     ? [...input.audience]
     : [...input.audience, deps.issuer];
@@ -385,6 +396,7 @@ async function mintAccessToken(
     ...(input.requestedUserinfoClaims !== undefined && input.requestedUserinfoClaims.length > 0
       ? { requested_userinfo_claims: input.requestedUserinfoClaims }
       : {}),
+    ...(input.act === undefined ? {} : { act: input.act }),
   });
   const accessToken = await signJwt(accessTokenClaims, { key, kek: deps.kek, typ: 'at+jwt' });
   return { accessToken, audience, iat, exp };
