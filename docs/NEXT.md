@@ -270,9 +270,12 @@ after a token was issued to it revokes nothing: the grant stays live,
 `resolveRoleReach` refuses only the `fullScopeAllowed` bypass, and
 `userinfoEncryptionTarget` refuses only registered encryption. A disabled
 client that registered neither still gets an ordinary, correctly narrowed
-response from both endpoints. `resolveExchangeToken`
-(`packages/protocol-oidc/src/usecase/token-exchange-subject.ts`) checks the
-same pair a third way and inherits the identical blind spot.
+response from both endpoints. `resolveExchangeToken`'s access-token and
+refresh-token branches
+(`packages/protocol-oidc/src/usecase/token-exchange-subject.ts`) check the
+same pair a third way; its id_token branch checks only session liveness,
+since an ID token names no grant. All three inherit the identical blind
+spot.
 
 - Trigger: **P4**, where disabling a client becomes an operation at all.
   Its criterion now asks that phase to decide whether `/userinfo` and
