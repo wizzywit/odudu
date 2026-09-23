@@ -422,6 +422,7 @@ async function exchange(input: {
   actorTokenType?: string;
   requestedTokenType?: string;
   resource?: string;
+  scope?: string;
 }): Promise<LightMyRequestResponse> {
   const fields: Record<string, string> = {
     grant_type: TOKEN_EXCHANGE_GRANT,
@@ -436,6 +437,7 @@ async function exchange(input: {
   if (input.requestedTokenType !== undefined)
     fields.requested_token_type = input.requestedTokenType;
   if (input.resource !== undefined) fields.resource = input.resource;
+  if (input.scope !== undefined) fields.scope = input.scope;
 
   const form = new URLSearchParams(fields);
   return http.inject({
@@ -601,6 +603,17 @@ describe('[ODUDU-TOKEN-EXCHANGE-01] the grant end to end', () => {
     const allowed = await exchange({ subjectToken: subject.accessToken });
     expect(allowed.statusCode).toBe(200);
     expect(decode(allowed.json<{ access_token: string }>().access_token).act).toBeUndefined();
+  });
+
+  it('refuses a scope wider than the subject token holds', async () => {
+    const subject = await loginAndGetToken();
+    await allowImpersonation(CLIENT_ID);
+    const response = await exchange({
+      subjectToken: subject.accessToken,
+      scope: 'openid roles',
+    });
+    expect(response.statusCode).toBe(400);
+    expect(response.json<{ error?: string }>()).toMatchObject({ error: 'invalid_scope' });
   });
 
   it('refuses a refused token type with invalid_request', async () => {
@@ -866,9 +879,9 @@ describe('[ODUDU-TOKEN-EXCHANGE-SESSION-01] an exchanged token dies with the ses
     await allowImpersonation(CLIENT_ID);
     const offlineAccessToken = subject.offlineAccessToken;
     if (offlineAccessToken === undefined) throw new Error('expected an offline access token');
-    const exchanged = (await exchange({ subjectToken: offlineAccessToken })).json<{
-      access_token: string;
-    }>().access_token;
+    const exchangeResponse = await exchange({ subjectToken: offlineAccessToken });
+    expect(exchangeResponse.statusCode).toBe(200);
+    const exchanged = exchangeResponse.json<{ access_token: string }>().access_token;
 
     await endSession(subject.sessionId);
     expect((await introspect(exchanged)).json<{ active: boolean }>().active).toBe(true);
