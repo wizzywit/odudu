@@ -7731,7 +7731,12 @@ session lifecycle. A citation of either half here means that half.
 **`/token`**
 
 - **No token exchange (RFC 8693)**, and so none of the delegation the agent
-  identity layer is built on. **P5.**
+  identity layer is built on. **P4**, whose criterion names the grant at
+  stage 3 of the token pipeline — `subject_token` and `actor_token`,
+  audience and scope narrowing, `act` and nested `act`, impersonation
+  against delegation — with its exchange permissions configurable through
+  the admin API that phase builds. **P5** consumes it at stage 4, where the
+  delegated intersection is the attenuation check (ADR 0003).
 - **No CIBA.** **P5**, whose exit criterion is CIBA approvals end to end.
 - **No device authorization grant.** **P13**, whose criterion names a
   device-code client completing a login on a second device. It shares that

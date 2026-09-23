@@ -35,8 +35,8 @@ every merge to `main` — a branch push with no pull request open runs
 nothing, by design (`.github/workflows/verify.yml`).
 
 **P3a** adds clients, dynamic registration (RFC 7591) and a consent screen.
-There is still no admin API and no token exchange — those wait on P4 and
-P5. The roadmap's second and third phases are each two. **P2a** is the
+There is still no admin API and no token exchange — both wait on P4. The
+roadmap's second and third phases are each two. **P2a** is the
 identity model — roles, groups, client scopes, per-client web origins,
 email — and **P2b** is credentials, MFA and the session lifecycle. **P3a**
 is clients, registration and consent, and **P3b** is sessions, logout and

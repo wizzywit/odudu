@@ -25,6 +25,8 @@ type, parent, granted scopes, budget, and expiry, and reaped on TTL.
   matches how agents actually behave and avoids unbounded growth.
 - The agent layer touches only stage 4 of the token pipeline. If it ever
   requires a forked pipeline, this decision was wrong.
+- The RFC 8693 grant itself is stage 3 and is P4's; this layer consumes it
+  at stage 4 rather than introducing it.
 
 ## Alternatives rejected
 
