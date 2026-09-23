@@ -151,7 +151,7 @@ depends on it — the ceremony proves possession of the private key and, via
 the User Verified flag, that the holder was verified, both of which are
 checked and tested — so the rows are `accepted:` rather than deferred: no
 phase is waiting to close them, and if one ever is, it arrives with an
-attestation policy in the realm's own configuration to hang them on.
+attestation policy in the tenant's own configuration to hang them on.
 
 ### The assertion is resolved by credential id, not by user handle
 
@@ -162,12 +162,12 @@ authentication ceremony was initiated, verify that `response.userHandle`
 is present, and that the user identified by this value is the owner of
 `credentialSource`." Odudu does not read `userHandle` at all.
 `assertedCredentialId` (`service/webauthn.ts`) takes the response's
-credential id, and a realm-scoped read of `user_credentials.lookup_key`
+credential id, and a tenant-scoped read of `user_credentials.lookup_key`
 resolves the row — subject included — before any signature is checked,
 because `verifyAuthenticationResponse` needs the stored public key as an
 input and so ownership has to be settled first.
 
-The divergence is deliberate and narrow. `lookup_key` is unique per realm,
+The divergence is deliberate and narrow. `lookup_key` is unique per tenant,
 so the id identifies exactly one credential and therefore exactly one
 subject; the signature is then checked against _that_ row's public key, so
 an assertion naming a credential id cannot be made to authenticate anybody
@@ -182,11 +182,11 @@ resolution step. Registered as a divergence rather than a gap because
 nothing is waiting to be built: the alternative was considered and this is
 the answer.
 
-### A credential id is refused realm-wide, not just per user
+### A credential id is refused tenant-wide, not just per user
 
 §7.1 step 22 is scoped to another _user_: "Check that the `credentialId`
 is not yet registered to any other user." Odudu's constraint is
-`user_credentials_lookup_key`, which is unique per realm, so a credential
+`user_credentials_lookup_key`, which is unique per tenant, so a credential
 id already held by the same subject is refused too — strictly stronger
 than the step, and the direction that cannot go wrong. `excludeCredentials`
 in the creation options (§7.1 step 1's row) is what stops a conforming

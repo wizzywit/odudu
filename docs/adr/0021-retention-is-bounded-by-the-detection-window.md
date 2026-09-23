@@ -2,6 +2,8 @@
 
 **Status:** Accepted · 2026-09-14
 
+**Renamed 2026-09-22:** written when a tenant was called a realm; the decision is unchanged.
+
 ## Context
 
 Four tables carry `expires_at`: `sessions`, `authentication_sessions`,
@@ -249,7 +251,7 @@ given below.
 
 A family is past retention once **both** hold:
 
-1. `created_at` is older than `greatest(window, realms.sso_session_max_seconds)`,
+1. `created_at` is older than `greatest(window, tenants.sso_session_max_seconds)`,
    where `window` is the offline number for a grant with no `session_id` and
    the session-bound number otherwise. The `greatest` is the bound below
    that the Consequences above ask for: a window configured shorter than the
@@ -268,7 +270,7 @@ expires_at > now`. Without this a 30-day retention would kill a 90-day
 `token_grants`, and `sessions` after it. Both directions are forced by
 constraints that already exist:
 
-- `refresh_tokens` carries `(realm_id, grant_id) REFERENCES token_grants
+- `refresh_tokens` carries `(tenant_id, grant_id) REFERENCES token_grants
 ON DELETE CASCADE` (`packages/db/drizzle/0011_refresh_tokens.sql`).
   Deleting the grant first therefore deletes its tokens without the pass
   counting them, and reports zero for a table it had just emptied.
@@ -298,25 +300,25 @@ this ADR was accepted, and it carries no `expires_at`. Its row is created by
 a failure and removed by a success, so an abandoned attack leaves one
 forever. It needs **two** bounds:
 
-- `last_failure_at` older than the realm's
+- `last_failure_at` older than the tenant's
   `brute_force_failure_reset_seconds`, from which point the arithmetic
   restarts from one whether the row exists or not, and
 - `locked_until` passed.
 
-The second does not follow from the first. `realms_brute_force_bounds`
+The second does not follow from the first. `tenants_brute_force_bounds`
 relates `max_lockout_seconds` to `lockout_seconds` and bounds
 `failure_reset_seconds`, but relates neither of those to the other, so a
-realm locking for a day while forgetting failures after a minute is legal —
+tenant locking for a day while forgetting failures after a minute is legal —
 and there a pass keyed on the quiet period alone **deletes the row holding
 the lock**, unlocking accounts on a schedule, silently, with no error
-anywhere. Both bounds are per realm and per row, read from the realm in the
+anywhere. Both bounds are per tenant and per row, read from the tenant in the
 same statement as the delete, never a global age.
 
-### One instance, every realm
+### One instance, every tenant
 
 The pass runs in one transaction on the serving connection, which takes
 `pg_try_advisory_xact_lock` as its first statement and then binds each
-realm's row-level-security context in turn (`withEachRealmExclusive`,
+tenant's row-level-security context in turn (`withEachTenantExclusive`,
 `packages/db/src/tx.ts`). Not `pg_advisory_lock`: that one is session-scoped
 and would outlive the transaction on a pooled connection, so the pass would
 run once and then silently never again. The transaction-scoped form releases
@@ -324,35 +326,35 @@ on commit and on rollback alike, so there is nothing to unlock. A replica
 that loses the race is told so and skips the tick rather than retrying — the
 holder is doing the same work concurrently.
 
-Advisory locks are not realm-scoped and structurally cannot be, so one key
-means one instance reaps every realm. That is what is wanted here; per-realm
-reaping would need a deliberate per-realm key and nothing asks for one.
+Advisory locks are not tenant-scoped and structurally cannot be, so one key
+means one instance reaps every tenant. That is what is wanted here; per-tenant
+reaping would need a deliberate per-tenant key and nothing asks for one.
 
 The pass refuses to run on the owner connection at all: `reap` requires
 `ODUDU_APP_DATABASE_URL` in every environment, not only production, because
 the owner must bypass row-level security for the enumeration below to work,
 and a retention job that quietly ran with the policy switched off would be N
-unscoped passes for N realms rather than the property this section claims.
+unscoped passes for N tenants rather than the property this section claims.
 
-Listing the realms to visit is the one read the pass makes on the owner
-connection. `realms_isolation` scopes that table by `app.realm_id`, and the
-realm ids are what a realm context would have to be built from, so the list
+Listing the tenants to visit is the one read the pass makes on the owner
+connection. `tenants_isolation` scopes that table by `app.tenant_id`, and the
+tenant ids are what a tenant context would have to be built from, so the list
 cannot be read from inside one — the same gap, and the same narrow bypass,
-that ADR 0009's amendment of 2026-09-13 records for resolving `{realm}` from
-a request path. Every `DELETE` runs on the serving connection under a realm
-context, and none of them carries a `realm_id` predicate of its own: the
+that ADR 0009's amendment of 2026-09-13 records for resolving `{tenant}` from
+a request path. Every `DELETE` runs on the serving connection under a tenant
+context, and none of them carries a `tenant_id` predicate of its own: the
 policy is the scoping, and an integration case asserts that a pass over one
-realm leaves another realm's eligible rows untouched.
+tenant leaves another tenant's eligible rows untouched.
 
 Both halves of that are asserted rather than assumed, against `pg_roles`:
-the listing role must be `SUPERUSER` or hold `BYPASSRLS`, because `realms`
+the listing role must be `SUPERUSER` or hold `BYPASSRLS`, because `tenants`
 carries `FORCE ROW LEVEL SECURITY` and a role without the escape reads zero
-realms and would reap none of them without a word — and the serving role
+tenants and would reap none of them without a word — and the serving role
 must be **neither**, because a serving role that escapes the policy runs
-every `DELETE` unscoped while `app.realm_id` is bound, which is this
+every `DELETE` unscoped while `app.tenant_id` is bound, which is this
 section's claim failing by configuration rather than by code. Both refuse
 rather than warn. An enumeration that then comes back empty
-is reported as "no realm was enumerated" and not as a pass that found
+is reported as "no tenant was enumerated" and not as a pass that found
 nothing to do.
 
 ### `email_outbox`
@@ -372,7 +374,7 @@ the pass itself, hourly by default, and
 [ADR 0024](0024-a-scheduled-pass-is-a-command-first.md) carries the shape:
 the pass stays exactly what this ADR describes — a command, taking its
 `now` as an argument — and the loop that calls it holds no logic and takes
-no lock of its own, because `withEachRealmExclusive` already holds the one
+no lock of its own, because `withEachTenantExclusive` already holds the one
 this document's amendment named. `ODUDU_REAP_ENABLED=false` returns a
 deployment to the external cron entry this ADR assumed.
 

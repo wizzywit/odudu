@@ -9,13 +9,13 @@ import {
   type RequiredActionResponseDeps,
 } from '#/view/routes/required-action-response';
 
-// Omits RequiredActionResponseDeps's own `findRealm`: ConsentSubmissionDeps
+// Omits RequiredActionResponseDeps's own `findTenant`: ConsentSubmissionDeps
 // already declares one, and TypeScript refuses to extend two interfaces
 // whose same-named method signatures are not identical, even when they are
-// structurally compatible (RealmLookup is a subtype of the `{ id }` shape
+// structurally compatible (TenantLookup is a subtype of the `{ id }` shape
 // sendRequiredActionPage actually reads).
 export interface ConsentRouteDeps
-  extends ConsentSubmissionDeps, Omit<RequiredActionResponseDeps, 'findRealm'> {
+  extends ConsentSubmissionDeps, Omit<RequiredActionResponseDeps, 'findTenant'> {
   tls: boolean;
 }
 
@@ -35,9 +35,9 @@ function scopeValues(value: string | string[] | undefined): string[] {
 // gives: this is Odudu's own UI, not the OIDC wire protocol.
 export function registerConsentRoute(app: FastifyInstance, deps: ConsentRouteDeps): void {
   app.post<{
-    Params: { realm: string };
+    Params: { tenant: string };
     Body: Record<string, string | string[] | undefined> | undefined;
-  }>('/realms/:realm/login-actions/consent', async (request, reply) => {
+  }>('/tenants/:tenant/login-actions/consent', async (request, reply) => {
     // Fastify leaves `request.body` undefined for a POST with no
     // Content-Type and no payload — normalised to an empty object so the
     // ordinary invalid_request handling below runs instead of throwing on a
@@ -47,7 +47,7 @@ export function registerConsentRoute(app: FastifyInstance, deps: ConsentRouteDep
 
     const outcome = await handleConsentSubmission(
       deps,
-      request.params.realm,
+      request.params.tenant,
       issuerBaseFor(request),
       authSessionId,
       { decision: firstString(body.decision), scopes: scopeValues(body.scope) },
@@ -87,7 +87,7 @@ export function registerConsentRoute(app: FastifyInstance, deps: ConsentRouteDep
       return sendRequiredActionPage(
         reply,
         deps,
-        request.params.realm,
+        request.params.tenant,
         outcome.authSessionId,
         outcome.subjectId,
         outcome.action,
@@ -95,7 +95,7 @@ export function registerConsentRoute(app: FastifyInstance, deps: ConsentRouteDep
     }
 
     const written = sessionCookies({
-      realm: request.params.realm,
+      tenant: request.params.tenant,
       tls: deps.tls,
       ephemeral: outcome.ephemeralSessionIds,
       persistent: outcome.persistentSessionIds,

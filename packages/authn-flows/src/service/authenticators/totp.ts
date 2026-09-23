@@ -54,7 +54,7 @@ export function totpStep(input: TotpInput, verification: TotpVerification): Totp
 // What an authenticator app scans (the otpauth:// URI Google Authenticator
 // introduced and every app since has followed). The label is
 // "issuer:account" and the issuer is repeated as a parameter, which is what
-// stops two realms' entries for the same username colliding in the app.
+// stops two tenants' entries for the same username colliding in the app.
 export function totpEnrolmentUri(input: {
   issuer: string;
   account: string;
@@ -81,21 +81,21 @@ export function isTotpSecretShape(candidate: string): boolean {
 }
 
 // Whether a second factor is part of this subject's sign-in at all. An
-// enrolled credential is always used — a realm cannot silently stop
-// honouring a factor somebody set up — and a realm that requires one
+// enrolled credential is always used — a tenant cannot silently stop
+// honouring a factor somebody set up — and a tenant that requires one
 // applies to everybody, including the not-yet-enrolled, who reach it
 // through the configure-totp required action rather than by being asked
 // for a code they cannot produce.
 export function otpApplicable(
   subject: { hasTotp: boolean },
-  realm: { otpRequired: boolean },
+  tenant: { otpRequired: boolean },
   satisfied: ReadonlySet<string>,
 ): boolean {
   // Never after a passkey. Enrolment demands a discoverable credential with
   // user verification, so an assertion is possession of the key and the
   // authenticator's own check of whoever held it — two factors, which is
   // what FACTOR_COUNT (protocol-oidc's service/acr.ts) also counts it as.
-  // A realm's otp_required is a floor, not a tax.
+  // A tenant's otp_required is a floor, not a tax.
   if (satisfied.has(PASSKEY)) return false;
-  return subject.hasTotp || realm.otpRequired;
+  return subject.hasTotp || tenant.otpRequired;
 }

@@ -17,7 +17,7 @@ SUITE_DIR="${SUITE_DIR:-$(mktemp -d)/conformance-suite}"
 OUT_DIR="${OUT_DIR:-$(mktemp -d)}"
 mkdir -p "$OUT_DIR"
 NETWORK=odudu-conformance
-REALM=conformance
+TENANT=conformance
 
 cleanup() {
   docker compose -p odudu-conformance -f "$SCRIPT_DIR/compose.yaml" down -v --remove-orphans || true
@@ -50,14 +50,14 @@ for _ in $(seq 1 60); do
 done
 [ "$ready" -eq 1 ] || { echo "odudu did not become ready" >&2; exit 1; }
 
-# The Dynamic OP plan registers its own clients through the realm's
-# registration endpoint, so no client is seeded here — only a realm open to
+# The Dynamic OP plan registers its own clients through the tenant's
+# registration endpoint, so no client is seeded here — only a tenant open to
 # anonymous registration, and the one user the browser tasks log in as.
 docker compose -p odudu-conformance -f "$SCRIPT_DIR/compose.yaml" exec -T odudu \
-  node dist/main.js seed realm --name "$REALM" --set client_registration_policy=open
+  node dist/main.js seed tenant --name "$TENANT" --set client_registration_policy=open
 
 docker compose -p odudu-conformance -f "$SCRIPT_DIR/compose.yaml" exec -T odudu \
-  node dist/main.js seed user --realm "$REALM" \
+  node dist/main.js seed user --tenant "$TENANT" \
   --username conformance-user --password conformance-password
 
 SUITE_DIR="$SUITE_DIR" docker compose -p oidf-suite -f "$SCRIPT_DIR/suite-compose.yaml" up -d

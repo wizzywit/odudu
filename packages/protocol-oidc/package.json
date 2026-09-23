@@ -21,7 +21,7 @@
     "@odudu/db": "workspace:*",
     "@odudu/domain-authz": "workspace:*",
     "@odudu/domain-identity": "workspace:*",
-    "@odudu/domain-realm": "workspace:*",
+    "@odudu/domain-tenant": "workspace:*",
     "@odudu/kernel": "workspace:*",
     "drizzle-orm": "0.45.2",
     "fastify": "5.12.3",

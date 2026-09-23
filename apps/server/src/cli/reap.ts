@@ -1,10 +1,10 @@
 import {
   bypassesRowLevelSecurity,
   createDatabase,
-  realms,
-  withEachRealmExclusive,
+  tenants,
+  withEachTenantExclusive,
   type DatabaseHandle,
-  type RealmScopedDatabase,
+  type TenantScopedDatabase,
 } from '@odudu/db';
 import { loadConfig, OduduError, type Config } from '@odudu/kernel';
 import { BACKCHANNEL_LOGOUT_MAX_ATTEMPTS } from '@odudu/protocol-oidc';
@@ -29,7 +29,7 @@ export type TableName =
   | 'client_assertion_jti'
   | 'sessions';
 
-/** Rows deleted per table, summed over every realm the pass visited. */
+/** Rows deleted per table, summed over every tenant the pass visited. */
 export type ReapReport = Record<TableName, number>;
 
 /**
@@ -39,7 +39,7 @@ export type ReapReport = Record<TableName, number>;
  * conflates them reports success for work nobody did.
  */
 export type ReapSkipReason =
-  'another instance holds the retention lock' | 'no realm was enumerated';
+  'another instance holds the retention lock' | 'no tenant was enumerated';
 
 export type ReapOutcome =
   | { readonly ran: false; readonly reason: ReapSkipReason }
@@ -49,7 +49,7 @@ export type ReapOutcome =
  * One window per table that has one of its own, in seconds. `refresh_tokens`
  * is absent by decision (ADR 0021): a refresh token is retained for the life
  * of its grant family, never for a period of its own. `login_failures` is
- * absent because its window is the realm's `brute_force_failure_reset_seconds`
+ * absent because its window is the tenant's `brute_force_failure_reset_seconds`
  * — an operator who shortened retention there would be unlocking accounts.
  */
 export interface RetentionPolicy {
@@ -92,9 +92,9 @@ export function retentionPolicyFromConfig(config: Config): RetentionPolicy {
 
 /**
  * Arbitrary but fixed, and the same in every replica: one key means one
- * instance reaps every realm, which is what this pass wants. Advisory locks
- * are not realm-scoped and cannot be made so — per-realm reaping would need
- * a deliberate per-realm key, which nothing asks for.
+ * instance reaps every tenant, which is what this pass wants. Advisory locks
+ * are not tenant-scoped and cannot be made so — per-tenant reaping would need
+ * a deliberate per-tenant key, which nothing asks for.
  */
 export const REAP_LOCK_KEY = 20_260_915;
 
@@ -104,9 +104,9 @@ interface RetentionRule {
   readonly statement: (now: Date, policy: RetentionPolicy) => SQL;
 }
 
-// Written against the aliases `g` (token_grants) and `r` (realms): every
+// Written against the aliases `g` (token_grants) and `r` (tenants): every
 // statement that uses this binds both. A family is past retention once its
-// age exceeds the window — floored by the realm's own maximum session life,
+// age exceeds the window — floored by the tenant's own maximum session life,
 // so a window configured shorter than the grant it retains cannot be
 // expressed — and once no refresh token of it is still usable, which is
 // what stops a retention pass killing a token a client holds.
@@ -120,7 +120,7 @@ function grantPastRetention(now: Date, policy: RetentionPolicy): SQL {
       r.sso_session_max_seconds))
     AND NOT EXISTS (
       SELECT 1 FROM refresh_tokens live
-       WHERE live.realm_id = g.realm_id
+       WHERE live.tenant_id = g.tenant_id
          AND live.grant_id = g.id
          AND live.used_at IS NULL
          AND live.expires_at > ${now.toISOString()}::timestamptz)
@@ -136,10 +136,10 @@ const RETENTION_RULES: Record<TableName, RetentionRule> = {
     after: [],
     statement: (now, policy) => sql`
       DELETE FROM refresh_tokens t
-       USING token_grants g, realms r
-       WHERE g.realm_id = t.realm_id
+       USING token_grants g, tenants r
+       WHERE g.tenant_id = t.tenant_id
          AND g.id = t.grant_id
-         AND r.id = g.realm_id
+         AND r.id = g.tenant_id
          AND ${grantPastRetention(now, policy)}
     `,
   },
@@ -162,11 +162,11 @@ const RETENTION_RULES: Record<TableName, RetentionRule> = {
            c.grant_id IS NULL
            OR NOT EXISTS (
              SELECT 1 FROM token_grants gone
-              WHERE gone.realm_id = c.realm_id AND gone.id = c.grant_id)
+              WHERE gone.tenant_id = c.tenant_id AND gone.id = c.grant_id)
            OR EXISTS (
              SELECT 1 FROM token_grants g
-               JOIN realms r ON r.id = g.realm_id
-              WHERE g.realm_id = c.realm_id
+               JOIN tenants r ON r.id = g.tenant_id
+              WHERE g.tenant_id = c.tenant_id
                 AND g.id = c.grant_id
                 AND ${grantPastRetention(now, policy)})
          )
@@ -177,8 +177,8 @@ const RETENTION_RULES: Record<TableName, RetentionRule> = {
     after: ['refresh_tokens', 'authorization_codes'],
     statement: (now, policy) => sql`
       DELETE FROM token_grants g
-       USING realms r
-       WHERE r.id = g.realm_id
+       USING tenants r
+       WHERE r.id = g.tenant_id
          AND ${grantPastRetention(now, policy)}
     `,
   },
@@ -230,8 +230,8 @@ const RETENTION_RULES: Record<TableName, RetentionRule> = {
 
   // Two bounds, and the second does not follow from the first: nothing
   // relates brute_force_max_lockout_seconds to
-  // brute_force_failure_reset_seconds (realms_brute_force_bounds,
-  // packages/db/drizzle/0041_login_failures.sql), so a realm locking for a
+  // brute_force_failure_reset_seconds (tenants_brute_force_bounds,
+  // packages/db/drizzle/0041_login_failures.sql), so a tenant locking for a
   // day while forgetting failures after a minute is legal — and there the
   // quiet period alone would delete the row holding the lock, unlocking
   // accounts as a scheduled job. A row with no last failure is kept.
@@ -239,8 +239,8 @@ const RETENTION_RULES: Record<TableName, RetentionRule> = {
     after: [],
     statement: (now) => sql`
       DELETE FROM login_failures f
-       USING realms r
-       WHERE r.id = f.realm_id
+       USING tenants r
+       WHERE r.id = f.tenant_id
          AND f.last_failure_at IS NOT NULL
          AND f.last_failure_at <= ${now.toISOString()}::timestamptz
              - make_interval(secs => r.brute_force_failure_reset_seconds)
@@ -324,7 +324,7 @@ const RETENTION_RULES: Record<TableName, RetentionRule> = {
              - make_interval(secs => ${policy.sessionSeconds}::integer)
          AND NOT EXISTS (
            SELECT 1 FROM token_grants g
-            WHERE g.realm_id = s.realm_id AND g.session_id = s.id)
+            WHERE g.tenant_id = s.tenant_id AND g.session_id = s.id)
     `,
   },
 };
@@ -380,8 +380,8 @@ function emptyReport(): ReapReport {
   return report;
 }
 
-async function reapRealm(
-  tx: RealmScopedDatabase,
+async function reapTenant(
+  tx: TenantScopedDatabase,
   now: Date,
   policy: RetentionPolicy,
 ): Promise<ReapReport> {
@@ -397,40 +397,40 @@ export interface ReapDeps {
   /** The serving, row-level-security-constrained connection: every DELETE. */
   readonly database: DatabaseHandle;
   /**
-   * The owner connection, for one thing: listing the realms to visit.
-   * `realms_isolation` scopes that table to `app.realm_id`, and the realm
-   * ids are what a realm context would have to be built from, so the list
+   * The owner connection, for one thing: listing the tenants to visit.
+   * `tenants_isolation` scopes that table to `app.tenant_id`, and the tenant
+   * ids are what a tenant context would have to be built from, so the list
    * cannot be read from inside one (ADR 0009's amendment of 2026-09-13).
    */
   readonly ownerDatabase: DatabaseHandle;
 }
 
 // Both halves of ADR 0021's claim that the policy is the scoping, checked
-// rather than hoped for. `realms` carries FORCE ROW LEVEL SECURITY, which
+// rather than hoped for. `tenants` carries FORCE ROW LEVEL SECURITY, which
 // removes even the owner's implicit exemption, so a listing role without
-// the escape reads zero realms and the pass visits none of them; and a
+// the escape reads zero tenants and the pass visits none of them; and a
 // serving role *with* the escape runs every DELETE unscoped while
-// `app.realm_id` is bound, which is one unfiltered pass per realm and no
+// `app.tenant_id` is bound, which is one unfiltered pass per tenant and no
 // error to say so. Both fail closed.
 async function assertRolesAreRight(deps: ReapDeps): Promise<void> {
   if (!(await bypassesRowLevelSecurity(deps.ownerDatabase))) {
     throw new OduduError(
-      'reap_cannot_enumerate_realms',
-      'reap must list realms on a connection that bypasses row-level security; ' +
+      'reap_cannot_enumerate_tenants',
+      'reap must list tenants on a connection that bypasses row-level security; ' +
         'ODUDU_DATABASE_URL names a role that is neither SUPERUSER nor BYPASSRLS',
     );
   }
   if (await bypassesRowLevelSecurity(deps.database)) {
     throw new OduduError(
       'reap_serving_role_bypasses_rls',
-      'reap deletes under the realm policy, so its serving connection must be subject to it; ' +
+      'reap deletes under the tenant policy, so its serving connection must be subject to it; ' +
         'ODUDU_APP_DATABASE_URL names a SUPERUSER or BYPASSRLS role',
     );
   }
 }
 
 /**
- * Deletes what no decision can still read, in every realm, under one
+ * Deletes what no decision can still read, in every tenant, under one
  * advisory lock. Every window is measured against `now` rather than the
  * database's clock, so a test can place a pass wherever it needs one.
  */
@@ -443,27 +443,27 @@ export async function reap(
   await assertRolesAreRight(deps);
 
   const rows = await deps.ownerDatabase.db
-    .select({ id: realms.id })
-    .from(realms)
-    .orderBy(realms.id);
-  const realmIds = rows.map((row) => row.id);
+    .select({ id: tenants.id })
+    .from(tenants)
+    .orderBy(tenants.id);
+  const tenantIds = rows.map((row) => row.id);
   // Trustworthy, after the check above: an empty list means an empty
   // database and not a filtered read. Still said out loud, because a report
   // of zeros for a database nobody has seeded reads as a healthy pass.
-  if (realmIds.length === 0) {
-    return { ran: false, reason: 'no realm was enumerated' };
+  if (tenantIds.length === 0) {
+    return { ran: false, reason: 'no tenant was enumerated' };
   }
 
-  const pass = await withEachRealmExclusive(deps.database.db, REAP_LOCK_KEY, realmIds, (tx) =>
-    reapRealm(tx, now, policy),
+  const pass = await withEachTenantExclusive(deps.database.db, REAP_LOCK_KEY, tenantIds, (tx) =>
+    reapTenant(tx, now, policy),
   );
   if (!pass.acquired) {
     return { ran: false, reason: 'another instance holds the retention lock' };
   }
 
   const deleted = emptyReport();
-  for (const realmReport of pass.values) {
-    for (const table of REAP_ORDER) deleted[table] += realmReport[table];
+  for (const tenantReport of pass.values) {
+    for (const table of REAP_ORDER) deleted[table] += tenantReport[table];
   }
   return { ran: true, deleted };
 }
@@ -476,15 +476,15 @@ export async function reapCommand(): Promise<ReapOutcome> {
   const appUrl = config.ODUDU_APP_DATABASE_URL;
   // Demanded in every environment, not only production, and unlike the
   // boot guard this command never reaches: the owner has to bypass
-  // row-level security for the realm enumeration to work at all, so
+  // row-level security for the tenant enumeration to work at all, so
   // falling back to it would run every DELETE with the policy switched
-  // off — one unscoped pass per realm, and ADR 0021's claim that the
+  // off — one unscoped pass per tenant, and ADR 0021's claim that the
   // policy is the scoping made false. A job that refuses to start is the
   // better failure.
   if (appUrl === undefined) {
     throw new OduduError(
       'reap_requires_app_database_url',
-      'reap requires ODUDU_APP_DATABASE_URL: its deletes run under the realm policy, ' +
+      'reap requires ODUDU_APP_DATABASE_URL: its deletes run under the tenant policy, ' +
         'which the owner role the migrations use escapes',
     );
   }

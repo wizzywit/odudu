@@ -3,14 +3,14 @@ import { hashPassword, subjectRepository, userCredentials, users } from '@odudu/
 import {
   createDatabase,
   MIGRATIONS_DIR,
-  realms,
+  tenants,
   runMigrations,
-  withRealm,
+  withTenant,
   type DatabaseHandle,
-  type RealmScopedDatabase,
+  type TenantScopedDatabase,
 } from '@odudu/db';
-import { provisionRealm, sessions } from '@odudu/authn-flows';
-import { clients, provisionClientDefaults } from '@odudu/domain-realm';
+import { provisionTenant, sessions } from '@odudu/authn-flows';
+import { clients, provisionClientDefaults } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import formbody from '@fastify/formbody';
@@ -65,25 +65,25 @@ const RP_DISABLED: RpClientSpec = {
   enabled: false,
 };
 
-// One realm, one client for signing in, and a client per relying party
-// spec — mirrors frontchannel-logout.int.test.ts's setupRealm. A signing
+// One tenant, one client for signing in, and a client per relying party
+// spec — mirrors frontchannel-logout.int.test.ts's setupTenant. A signing
 // key is provisioned unless `withSigningKey` is false, which is how the
-// transactional-failure test forces the realm to have none.
-async function setupRealm(
+// transactional-failure test forces the tenant to have none.
+async function setupTenant(
   name: string,
   rpSpecs: readonly RpClientSpec[],
   { withSigningKey = true }: { withSigningKey?: boolean } = {},
-): Promise<{ realmId: string; subjectId: string; rpClientIds: Map<string, string> }> {
-  const realmId = newId();
+): Promise<{ tenantId: string; subjectId: string; rpClientIds: Map<string, string> }> {
+  const tenantId = newId();
   const loginClientDbId = newId();
   const rpClientIds = new Map<string, string>();
 
-  await withRealm(app.db, realmId, async (tx: RealmScopedDatabase) => {
-    await tx.insert(realms).values({ id: realmId, name });
-    await provisionRealm(tx, realmId);
+  await withTenant(app.db, tenantId, async (tx: TenantScopedDatabase) => {
+    await tx.insert(tenants).values({ id: tenantId, name });
+    await provisionTenant(tx, tenantId);
     await tx.insert(clients).values({
       id: loginClientDbId,
-      realmId,
+      tenantId,
       clientId: LOGIN_CLIENT_ID,
       name: 'Logout enqueue login client',
       type: 'confidential',
@@ -92,7 +92,7 @@ async function setupRealm(
     await provisionClientDefaults(tx, loginClientDbId);
     await clientOidcConfigRepository(tx).create({
       clientId: loginClientDbId,
-      realmId,
+      tenantId,
       redirectUris: [REDIRECT_URI],
       grantTypes: ['authorization_code'],
       tokenEndpointAuthMethod: 'client_secret_basic',
@@ -105,7 +105,7 @@ async function setupRealm(
       const rpClientDbId = newId();
       await tx.insert(clients).values({
         id: rpClientDbId,
-        realmId,
+        tenantId,
         clientId: spec.hostname,
         name: spec.hostname,
         type: 'confidential',
@@ -115,7 +115,7 @@ async function setupRealm(
       await provisionClientDefaults(tx, rpClientDbId);
       await clientOidcConfigRepository(tx).create({
         clientId: rpClientDbId,
-        realmId,
+        tenantId,
         redirectUris: [`https://${spec.hostname}/callback`],
         grantTypes: ['authorization_code'],
         tokenEndpointAuthMethod: 'client_secret_basic',
@@ -127,11 +127,11 @@ async function setupRealm(
       rpClientIds.set(spec.hostname, rpClientDbId);
     }
 
-    const subject = await subjectRepository(tx).create({ realmId, type: 'user' });
-    await tx.insert(users).values({ subjectId: subject.id, realmId, username: USERNAME });
+    const subject = await subjectRepository(tx).create({ tenantId, type: 'user' });
+    await tx.insert(users).values({ subjectId: subject.id, tenantId, username: USERNAME });
     await tx.insert(userCredentials).values({
       id: newId(),
-      realmId,
+      tenantId,
       subjectId: subject.id,
       type: 'password',
       secretData: { hash: await hashPassword(PASSWORD) },
@@ -141,7 +141,7 @@ async function setupRealm(
       const generated = await generateSigningKey('ES256', KEK);
       const key: SigningKeyRecord = {
         id: newId(),
-        realmId,
+        tenantId,
         kid: generated.kid,
         alg: generated.alg,
         status: 'active',
@@ -152,7 +152,7 @@ async function setupRealm(
       };
       await tx.insert(signingKeys).values({
         id: key.id,
-        realmId,
+        tenantId,
         kid: key.kid,
         alg: key.alg,
         status: 'active',
@@ -162,21 +162,21 @@ async function setupRealm(
     }
   });
 
-  const subjectId = await subjectIdOf(realmId, USERNAME);
-  return { realmId, subjectId, rpClientIds };
+  const subjectId = await subjectIdOf(tenantId, USERNAME);
+  return { tenantId, subjectId, rpClientIds };
 }
 
-async function subjectIdOf(realmId: string, username: string): Promise<string> {
+async function subjectIdOf(tenantId: string, username: string): Promise<string> {
   const rows = await owner.db
     .select({ subjectId: users.subjectId })
     .from(users)
-    .where(and(eq(users.realmId, realmId), eq(users.username, username)));
+    .where(and(eq(users.tenantId, tenantId), eq(users.username, username)));
   const row = rows[0];
-  if (row === undefined) throw new Error(`no user ${username} in realm ${realmId}`);
+  if (row === undefined) throw new Error(`no user ${username} in tenant ${tenantId}`);
   return row.subjectId;
 }
 
-function authorizeUrl(realmName: string): string {
+function authorizeUrl(tenantName: string): string {
   const query = new URLSearchParams({
     response_type: 'code',
     client_id: LOGIN_CLIENT_ID,
@@ -186,7 +186,7 @@ function authorizeUrl(realmName: string): string {
     code_challenge: 'E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM',
     code_challenge_method: 'S256',
   });
-  return `/realms/${realmName}/protocol/openid-connect/auth?${query.toString()}`;
+  return `/tenants/${tenantName}/protocol/openid-connect/auth?${query.toString()}`;
 }
 
 function setCookieValue(res: LightMyRequestResponse): string | undefined {
@@ -201,8 +201,8 @@ function sessionIdFromCookie(cookie: string): string {
   return id;
 }
 
-async function signIn(realmName: string): Promise<string> {
-  const res = await http.inject({ url: authorizeUrl(realmName) });
+async function signIn(tenantName: string): Promise<string> {
+  const res = await http.inject({ url: authorizeUrl(tenantName) });
   if (res.statusCode !== 200) {
     throw new Error(`expected /authorize to render the login form, got ${String(res.statusCode)}`);
   }
@@ -217,7 +217,7 @@ async function signIn(realmName: string): Promise<string> {
   });
   const submitted = await http.inject({
     method: 'POST',
-    url: `/realms/${realmName}/login-actions/authenticate`,
+    url: `/tenants/${tenantName}/login-actions/authenticate`,
     payload: form.toString(),
     headers: { 'content-type': 'application/x-www-form-urlencoded' },
   });
@@ -228,15 +228,15 @@ async function signIn(realmName: string): Promise<string> {
 }
 
 async function grantUnderSession(
-  realmId: string,
+  tenantId: string,
   clientDbId: string,
   subjectId: string,
   sessionId: string | null,
 ): Promise<void> {
-  await withRealm(app.db, realmId, (tx) =>
+  await withTenant(app.db, tenantId, (tx) =>
     tokenGrantRepository(tx).create({
       id: newId(),
-      realmId,
+      tenantId,
       clientId: clientDbId,
       subjectId,
       scope: 'openid',
@@ -248,23 +248,23 @@ async function grantUnderSession(
 
 // Ends the session over the confirmation form's POST, which needs no
 // `id_token_hint` (only the cookie and the hidden `session_id` field) — the
-// transactional-failure test's realm carries no signing key, so minting one
+// transactional-failure test's tenant carries no signing key, so minting one
 // is not an option.
-async function confirmLogout(realmName: string, cookie: string, sessionId: string) {
+async function confirmLogout(tenantName: string, cookie: string, sessionId: string) {
   return http.inject({
     method: 'POST',
-    url: `/realms/${realmName}/protocol/openid-connect/logout`,
+    url: `/tenants/${tenantName}/protocol/openid-connect/logout`,
     payload: new URLSearchParams({ session_id: sessionId }).toString(),
     headers: { 'content-type': 'application/x-www-form-urlencoded', cookie },
   });
 }
 
-async function pendingFor(realmId: string): Promise<{ clientId: string; endpoint: string }[]> {
+async function pendingFor(tenantId: string): Promise<{ clientId: string; endpoint: string }[]> {
   const rows = await owner.db
     .select({ clientId: clients.clientId, endpoint: backchannelLogoutDeliveries.endpoint })
     .from(backchannelLogoutDeliveries)
     .innerJoin(clients, eq(clients.id, backchannelLogoutDeliveries.clientId))
-    .where(eq(backchannelLogoutDeliveries.realmId, realmId));
+    .where(eq(backchannelLogoutDeliveries.tenantId, tenantId));
   return rows;
 }
 
@@ -314,13 +314,13 @@ afterAll(async () => {
 
 describe('ending a session enqueues its back-channel deliveries', () => {
   it('[OIDC-BACKCHANNEL-2.3-01] enqueues one delivery per client that registered a back-channel URI', async () => {
-    const realmName = `logout-enqueue-${newId()}`;
-    const { realmId, subjectId, rpClientIds } = await setupRealm(realmName, [
+    const tenantName = `logout-enqueue-${newId()}`;
+    const { tenantId, subjectId, rpClientIds } = await setupTenant(tenantName, [
       RP_ONE,
       RP_NO_BACKCHANNEL,
       RP_NEVER_USED,
     ]);
-    const cookie = await signIn(realmName);
+    const cookie = await signIn(tenantName);
     const sessionId = sessionIdFromCookie(cookie);
 
     const rpOneId = rpClientIds.get(RP_ONE.hostname);
@@ -330,93 +330,93 @@ describe('ending a session enqueues its back-channel deliveries', () => {
       throw new Error('expected every RP client to have been provisioned');
     }
 
-    await grantUnderSession(realmId, rpOneId, subjectId, sessionId);
-    await grantUnderSession(realmId, rpNoBackchannelId, subjectId, sessionId);
+    await grantUnderSession(tenantId, rpOneId, subjectId, sessionId);
+    await grantUnderSession(tenantId, rpNoBackchannelId, subjectId, sessionId);
     // Registered, but never granted under this session.
-    await grantUnderSession(realmId, rpNeverUsedId, subjectId, null);
+    await grantUnderSession(tenantId, rpNeverUsedId, subjectId, null);
 
-    const res = await confirmLogout(realmName, cookie, sessionId);
+    const res = await confirmLogout(tenantName, cookie, sessionId);
     expect(res.statusCode).toBe(200);
 
-    expect(await pendingFor(realmId)).toEqual([
+    expect(await pendingFor(tenantId)).toEqual([
       { clientId: RP_ONE.hostname, endpoint: RP_ONE.backchannelLogoutUri },
     ]);
   });
 
   it('enqueues nothing for a client that registered no back-channel URI', async () => {
-    const realmName = `logout-enqueue-none-${newId()}`;
-    const { realmId, subjectId, rpClientIds } = await setupRealm(realmName, [RP_NO_BACKCHANNEL]);
-    const cookie = await signIn(realmName);
+    const tenantName = `logout-enqueue-none-${newId()}`;
+    const { tenantId, subjectId, rpClientIds } = await setupTenant(tenantName, [RP_NO_BACKCHANNEL]);
+    const cookie = await signIn(tenantName);
     const sessionId = sessionIdFromCookie(cookie);
     const rpNoBackchannelId = rpClientIds.get(RP_NO_BACKCHANNEL.hostname);
     if (rpNoBackchannelId === undefined)
       throw new Error('expected the RP client to be provisioned');
 
-    await grantUnderSession(realmId, rpNoBackchannelId, subjectId, sessionId);
+    await grantUnderSession(tenantId, rpNoBackchannelId, subjectId, sessionId);
 
-    const res = await confirmLogout(realmName, cookie, sessionId);
+    const res = await confirmLogout(tenantName, cookie, sessionId);
     expect(res.statusCode).toBe(200);
 
-    expect((await pendingFor(realmId)).map((d) => d.clientId)).not.toContain(
+    expect((await pendingFor(tenantId)).map((d) => d.clientId)).not.toContain(
       RP_NO_BACKCHANNEL.hostname,
     );
   });
 
   it('enqueues nothing for a disabled client, even one that registered a back-channel URI', async () => {
-    const realmName = `logout-enqueue-disabled-${newId()}`;
-    const { realmId, subjectId, rpClientIds } = await setupRealm(realmName, [RP_DISABLED]);
-    const cookie = await signIn(realmName);
+    const tenantName = `logout-enqueue-disabled-${newId()}`;
+    const { tenantId, subjectId, rpClientIds } = await setupTenant(tenantName, [RP_DISABLED]);
+    const cookie = await signIn(tenantName);
     const sessionId = sessionIdFromCookie(cookie);
     const rpDisabledId = rpClientIds.get(RP_DISABLED.hostname);
     if (rpDisabledId === undefined) throw new Error('expected the disabled RP client to exist');
 
-    await grantUnderSession(realmId, rpDisabledId, subjectId, sessionId);
+    await grantUnderSession(tenantId, rpDisabledId, subjectId, sessionId);
 
-    const res = await confirmLogout(realmName, cookie, sessionId);
+    const res = await confirmLogout(tenantName, cookie, sessionId);
     expect(res.statusCode).toBe(200);
 
-    expect((await pendingFor(realmId)).map((d) => d.clientId)).not.toContain(RP_DISABLED.hostname);
+    expect((await pendingFor(tenantId)).map((d) => d.clientId)).not.toContain(RP_DISABLED.hostname);
   });
 
   it('enqueues in the same transaction that ends the session', async () => {
-    const realmName = `logout-enqueue-tx-${newId()}`;
-    const { realmId, subjectId, rpClientIds } = await setupRealm(realmName, [RP_ONE], {
+    const tenantName = `logout-enqueue-tx-${newId()}`;
+    const { tenantId, subjectId, rpClientIds } = await setupTenant(tenantName, [RP_ONE], {
       withSigningKey: false,
     });
-    const cookie = await signIn(realmName);
+    const cookie = await signIn(tenantName);
     const sessionId = sessionIdFromCookie(cookie);
     const rpOneId = rpClientIds.get(RP_ONE.hostname);
     if (rpOneId === undefined) throw new Error('expected rp-one to be provisioned');
 
-    await grantUnderSession(realmId, rpOneId, subjectId, sessionId);
+    await grantUnderSession(tenantId, rpOneId, subjectId, sessionId);
 
-    // No active signing key exists for this realm, so minting the logout
+    // No active signing key exists for this tenant, so minting the logout
     // token this delivery needs throws inside the same transaction that
     // would otherwise end the session.
-    const res = await confirmLogout(realmName, cookie, sessionId);
+    const res = await confirmLogout(tenantName, cookie, sessionId);
     expect(res.statusCode).toBe(500);
 
     expect(await sessionIsStillLive(sessionId)).toBe(true);
-    expect(await pendingFor(realmId)).toEqual([]);
+    expect(await pendingFor(tenantId)).toEqual([]);
   });
 
   it('enqueues nothing twice when logout is called twice', async () => {
-    const realmName = `logout-enqueue-twice-${newId()}`;
-    const { realmId, subjectId, rpClientIds } = await setupRealm(realmName, [RP_ONE]);
-    const cookie = await signIn(realmName);
+    const tenantName = `logout-enqueue-twice-${newId()}`;
+    const { tenantId, subjectId, rpClientIds } = await setupTenant(tenantName, [RP_ONE]);
+    const cookie = await signIn(tenantName);
     const sessionId = sessionIdFromCookie(cookie);
     const rpOneId = rpClientIds.get(RP_ONE.hostname);
     if (rpOneId === undefined) throw new Error('expected rp-one to be provisioned');
 
-    await grantUnderSession(realmId, rpOneId, subjectId, sessionId);
+    await grantUnderSession(tenantId, rpOneId, subjectId, sessionId);
 
-    const first = await confirmLogout(realmName, cookie, sessionId);
+    const first = await confirmLogout(tenantName, cookie, sessionId);
     expect(first.statusCode).toBe(200);
     // The session is already dead, so the confirmation form's own CSRF
     // check refuses the second POST rather than ending it again.
-    const second = await confirmLogout(realmName, cookie, sessionId);
+    const second = await confirmLogout(tenantName, cookie, sessionId);
     expect(second.statusCode).toBe(400);
 
-    expect(await pendingFor(realmId)).toHaveLength(1);
+    expect(await pendingFor(tenantId)).toHaveLength(1);
   });
 });

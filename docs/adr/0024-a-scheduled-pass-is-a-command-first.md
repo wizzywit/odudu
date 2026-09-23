@@ -2,6 +2,8 @@
 
 **Status:** Accepted · 2026-09-16
 
+**Renamed 2026-09-22:** written when a tenant was called a realm; the decision is unchanged.
+
 ## Context
 
 ADR 0021 settled what `odudu reap` deletes and why each window is what it
@@ -18,7 +20,7 @@ before any of it was written.
 
 ### Where the exclusion lock lives
 
-`reap` already holds one. `withEachRealmExclusive`
+`reap` already holds one. `withEachTenantExclusive`
 (`packages/db/src/tx.ts`) opens one transaction, takes
 `pg_try_advisory_xact_lock` as its first statement, and returns
 `{ acquired: false }` without retrying when another instance holds it. So
@@ -69,7 +71,7 @@ The three answers, in the same order as the questions:
 
 - **The lock is the pass's, and the loop does not know about it.** Two
   servers ticking together run one pass between them because
-  `withEachRealmExclusive` refuses the second, and the second reports
+  `withEachTenantExclusive` refuses the second, and the second reports
   `another instance holds the retention lock` rather than a sweep of
   zeros. Jitter — a tenth of the interval, added rather than centred, so
   no tick is ever earlier than the interval configured — keeps replicas
@@ -100,7 +102,7 @@ The three answers, in the same order as the questions:
   setting for a deployment that schedules the command externally.
 - **The first pass after an upgrade may be very large, and it is one
   transaction.** A deployment that never scheduled `reap` has a backlog,
-  and the pass holds a single transaction across every realm and every
+  and the pass holds a single transaction across every tenant and every
   table — which is what makes one lock and one report cover the lot, and
   what makes the backlog arrive as one long-running statement sequence
   rather than in batches. Compounding it: `closeWithGrace({ delay: 10_000 })`

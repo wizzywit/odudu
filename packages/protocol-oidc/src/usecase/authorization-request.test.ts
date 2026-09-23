@@ -16,7 +16,7 @@ async function makeKey(): Promise<SigningKeyRecord> {
   const generated = await generateSigningKey('RS256', KEK);
   return {
     id: 'id-1',
-    realmId: 'realm-1',
+    tenantId: 'tenant-1',
     kid: generated.kid,
     alg: generated.alg,
     status: 'active',
@@ -42,7 +42,7 @@ describe('subjectOfIdTokenHint refuses a signed UserInfo response', () => {
 
     const result = await subjectOfIdTokenHint(
       { listPublishableKeys: () => Promise.resolve([key]) },
-      'realm-1',
+      'tenant-1',
       ISS,
       userinfoResponse,
       AUDIENCE_UNCHECKED,
@@ -63,7 +63,7 @@ describe('subjectOfIdTokenHint refuses a signed UserInfo response', () => {
 
     const result = await subjectOfIdTokenHint(
       { listPublishableKeys: () => Promise.resolve([key]) },
-      'realm-1',
+      'tenant-1',
       ISS,
       noTypPayload,
       AUDIENCE_UNCHECKED,
@@ -86,7 +86,7 @@ describe('subjectOfIdTokenHint refuses a signed UserInfo response', () => {
 
     const result = await subjectOfIdTokenHint(
       { listPublishableKeys: () => Promise.resolve([key]) },
-      'realm-1',
+      'tenant-1',
       ISS,
       idToken,
       AUDIENCE_UNCHECKED,
@@ -104,7 +104,7 @@ describe('subjectOfIdTokenHint refuses a signed UserInfo response', () => {
 
     const result = await subjectOfIdTokenHint(
       { listPublishableKeys: () => Promise.resolve([key]) },
-      'realm-1',
+      'tenant-1',
       ISS,
       unsecured,
       AUDIENCE_UNCHECKED,

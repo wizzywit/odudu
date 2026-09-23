@@ -1,10 +1,10 @@
-import { type RealmScopedDatabase } from '@odudu/db';
+import { type TenantScopedDatabase } from '@odudu/db';
 import { newId } from '@odudu/kernel';
 import { and, eq, isNull, sql } from 'drizzle-orm';
 import { emailOutbox, type OutboxMessage } from '#/schema/outbox';
 
 export interface EnqueueMessage {
-  readonly realmId: string;
+  readonly tenantId: string;
   readonly to: string;
   readonly subject: string;
   readonly text: string;
@@ -26,7 +26,7 @@ export interface ClaimBatch {
 
 interface ClaimedRow extends Record<string, unknown> {
   id: string;
-  realm_id: string;
+  tenant_id: string;
   to_address: string;
   subject: string;
   body_text: string;
@@ -34,7 +34,7 @@ interface ClaimedRow extends Record<string, unknown> {
   attempts: number;
 }
 
-export function outboxRepository(tx: RealmScopedDatabase) {
+export function outboxRepository(tx: TenantScopedDatabase) {
   return {
     /**
      * Written in the transaction that produced the mail, so a token the
@@ -49,7 +49,7 @@ export function outboxRepository(tx: RealmScopedDatabase) {
       const id = newId();
       await tx.insert(emailOutbox).values({
         id,
-        realmId: message.realmId,
+        tenantId: message.tenantId,
         toAddress: message.to,
         subject: message.subject,
         bodyText: message.text,
@@ -80,12 +80,12 @@ export function outboxRepository(tx: RealmScopedDatabase) {
             ORDER BY next_attempt_at
             LIMIT ${input.limit}::integer
             FOR UPDATE SKIP LOCKED)
-        RETURNING id, realm_id, to_address, subject, body_text, body_html, attempts
+        RETURNING id, tenant_id, to_address, subject, body_text, body_html, attempts
       `);
 
       return rows.map((row) => ({
         id: row.id,
-        realmId: row.realm_id,
+        tenantId: row.tenant_id,
         to: row.to_address,
         subject: row.subject,
         text: row.body_text,

@@ -31,7 +31,7 @@
 - Integration tests run against real PostgreSQL via Testcontainers, never a mock.
 - Domain packages never import protocol packages. Protocol packages never import each other.
 - Layer imports follow ADR 0010: `view` → own model and `shared/view`; `usecase` → repository, service, view models; `repository` → adapter, service; `adapter` → transport, service; `service` → nothing.
-- `SET LOCAL`, never `SET`, for realm context.
+- `SET LOCAL`, never `SET`, for tenant context.
 - Every task ends with CI green, the branch merged, and `docs/NEXT.md` updated.
 
 ## Task budget
@@ -44,7 +44,7 @@
 | 4    | `kernel`: config, clock, IDs, errors                                | 3–5       |
 | 5    | `kernel`: module registry with lifecycle                            | 2–4       |
 | 6    | `db`: connection, migration runner, Testcontainers harness          | 4–6       |
-| 7    | Row-level security, `withRealm`, pooled-connection leak test        | 4–5       |
+| 7    | Row-level security, `withTenant`, pooled-connection leak test       | 4–5       |
 | 8    | `apps/server`: Fastify, health, logging, graceful shutdown          | 3–4       |
 | 9    | Dockerfile, compose, container boot proof                           | 3–4       |
 |      | **Total**                                                           | **27–40** |
@@ -85,10 +85,10 @@ odudu/
 │  │     ├─ index.ts
 │  │     ├─ client.ts                postgres.js + Drizzle
 │  │     ├─ migrate.ts               migration runner
-│  │     ├─ tx.ts                    withRealm, SET LOCAL binding
+│  │     ├─ tx.ts                    withTenant, SET LOCAL binding
 │  │     └─ schema/
 │  │        ├─ index.ts              aggregates every domain slice
-│  │        └─ realms.ts             the first slice
+│  │        └─ tenants.ts             the first slice
 │  └─ testkit/
 │     ├─ package.json, tsconfig.json
 │     └─ src/
@@ -784,7 +784,7 @@ export type ErrorCode =
   | 'module_unknown_dependency'
   | 'module_cycle'
   | 'module_stop_failed'
-  | 'realm_context_missing';
+  | 'tenant_context_missing';
 
 export class OduduError extends Error {
   readonly code: ErrorCode;
@@ -1359,7 +1359,7 @@ git push
 **Files:**
 
 - Create: `packages/db/package.json`, `packages/db/tsconfig.json`, `packages/db/drizzle.config.ts`
-- Create: `packages/db/src/index.ts`, `packages/db/src/client.ts`, `packages/db/src/migrate.ts`, `packages/db/src/schema/index.ts`, `packages/db/src/schema/realms.ts`
+- Create: `packages/db/src/index.ts`, `packages/db/src/client.ts`, `packages/db/src/migrate.ts`, `packages/db/src/schema/index.ts`, `packages/db/src/schema/tenants.ts`
 - Create: `packages/testkit/package.json`, `packages/testkit/tsconfig.json`, `packages/testkit/src/index.ts`, `packages/testkit/src/postgres.ts`
 - Test: `packages/db/src/migrate.int.test.ts`
 - Modify: `vitest.config.ts` — add the `integration` project
@@ -1375,7 +1375,7 @@ git push
   - `interface DatabaseHandle { readonly db: Database; readonly sql: Sql; close(): Promise<void> }`
   - `function createDatabase(url: string, options?: { max?: number }): DatabaseHandle`
   - `const MIGRATIONS_DIR: string`, `function runMigrations(db: Database, folder?: string): Promise<void>`
-  - `const realms` — the Drizzle table
+  - `const tenants` — the Drizzle table
   - From `@odudu/testkit`: `interface TestDatabase { adminUrl: string; stop(): Promise<void> }`, `function startTestDatabase(): Promise<TestDatabase>`
 
 Integration tests use a real PostgreSQL container. The bugs that matter in an identity provider live in transaction boundaries and constraints, which a mocked database hides (spec §10).
@@ -1444,12 +1444,12 @@ pnpm install
 
 - [ ] **Step 2: Write the schema slice**
 
-`packages/db/src/schema/realms.ts`:
+`packages/db/src/schema/tenants.ts`:
 
 ```ts
 import { boolean, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 
-export const realms = pgTable('realms', {
+export const tenants = pgTable('tenants', {
   id: uuid('id').primaryKey(),
   name: text('name').notNull().unique(),
   displayName: text('display_name'),
@@ -1461,7 +1461,7 @@ export const realms = pgTable('realms', {
 `packages/db/src/schema/index.ts`:
 
 ```ts
-export * from '#/schema/realms';
+export * from '#/schema/tenants';
 ```
 
 Each domain package will add its own slice here as it arrives. The `db` package aggregates them so there is exactly one ordered migration timeline (spec §3).
@@ -1607,7 +1607,7 @@ import { startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createDatabase, type DatabaseHandle } from '#/client';
 import { MIGRATIONS_DIR, runMigrations } from '#/migrate';
-import { realms } from '#/schema/index';
+import { tenants } from '#/schema/index';
 
 let container: TestDatabase;
 let handle: DatabaseHandle;
@@ -1624,11 +1624,11 @@ afterAll(async () => {
 });
 
 describe('migrations', () => {
-  it('creates the realms table with the expected columns', async () => {
+  it('creates the tenants table with the expected columns', async () => {
     const rows = await handle.sql<{ column_name: string }[]>`
       select column_name
       from information_schema.columns
-      where table_schema = 'public' and table_name = 'realms'
+      where table_schema = 'public' and table_name = 'tenants'
       order by column_name
     `;
 
@@ -1641,18 +1641,18 @@ describe('migrations', () => {
     ]);
   });
 
-  it('round-trips a realm', async () => {
-    await handle.db.insert(realms).values({ id: newId(), name: 'acme' });
+  it('round-trips a tenant', async () => {
+    await handle.db.insert(tenants).values({ id: newId(), name: 'acme' });
 
-    const found = await handle.db.select().from(realms);
+    const found = await handle.db.select().from(tenants);
 
     expect(found).toHaveLength(1);
     expect(found[0]?.name).toBe('acme');
     expect(found[0]?.enabled).toBe(true);
   });
 
-  it('rejects a duplicate realm name', async () => {
-    await expect(handle.db.insert(realms).values({ id: newId(), name: 'acme' })).rejects.toThrow();
+  it('rejects a duplicate tenant name', async () => {
+    await expect(handle.db.insert(tenants).values({ id: newId(), name: 'acme' })).rejects.toThrow();
   });
 
   it('is idempotent when run a second time', async () => {
@@ -1734,7 +1734,7 @@ git add -A
 git commit -m "P0.6: database package, first migration, Testcontainers harness
 
 Drizzle over postgres.js, one ordered migration timeline aggregated from
-per-domain schema slices, and a realms table to prove it. Integration tests
+per-domain schema slices, and a tenants table to prove it. Integration tests
 run against real PostgreSQL 17 in a container; pnpm verify now requires a
 running Docker daemon."
 git push
@@ -1742,7 +1742,7 @@ git push
 
 ---
 
-### Task 7: Row-level security and the realm transaction helper
+### Task 7: Row-level security and the tenant transaction helper
 
 **Files:**
 
@@ -1754,12 +1754,12 @@ git push
 
 **Interfaces:**
 
-- Consumes: `Database`, `DatabaseHandle`, `createDatabase`, `runMigrations`, `realms` from Task 6; `OduduError` from Task 4.
+- Consumes: `Database`, `DatabaseHandle`, `createDatabase`, `runMigrations`, `tenants` from Task 6; `OduduError` from Task 4.
 - Produces:
-  - `function withRealm<T>(db: Database, realmId: string, fn: (tx: Database) => Promise<T>): Promise<T>`
+  - `function withTenant<T>(db: Database, tenantId: string, fn: (tx: Database) => Promise<T>): Promise<T>`
   - From `@odudu/testkit`: `function createAppRole(adminUrl: string): Promise<string>` returning a connection URL for the restricted role
 
-This implements ADR 0009. The second test is the whole point of the task: it proves the realm setting does not leak between requests sharing a pooled connection.
+This implements ADR 0009. The second test is the whole point of the task: it proves the tenant setting does not leak between requests sharing a pooled connection.
 
 - [ ] **Step 1: Hand-write the RLS migration**
 
@@ -1773,18 +1773,18 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO odudu_app
 ALTER DEFAULT PRIVILEGES IN SCHEMA public
   GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO odudu_app;
 
-ALTER TABLE realms ENABLE ROW LEVEL SECURITY;
-ALTER TABLE realms FORCE ROW LEVEL SECURITY;
+ALTER TABLE tenants ENABLE ROW LEVEL SECURITY;
+ALTER TABLE tenants FORCE ROW LEVEL SECURITY;
 
-CREATE POLICY realms_isolation ON realms
-  USING (id = nullif(current_setting('app.realm_id', true), '')::uuid);
+CREATE POLICY tenants_isolation ON tenants
+  USING (id = nullif(current_setting('app.tenant_id', true), '')::uuid);
 ```
 
 Three details that matter:
 
 - `odudu_app` is `NOLOGIN`: it is a group role holding privileges. Deployment creates a login user and grants membership, so no password ever appears in a migration.
 - `FORCE ROW LEVEL SECURITY` subjects the table owner to the policy too. Superusers still bypass RLS entirely, which is why tests must connect as a non-superuser.
-- `current_setting('app.realm_id', true)` returns `NULL` only the first time a backend touches the GUC. Once `set_config` has run on a connection the value reverts to `''` — not `NULL` — at transaction end, for the rest of that connection's life, and casting `''` to `uuid` raises `22P02` instead of filtering. `nullif` collapses both cases to `NULL` before the cast. **Unset context then means zero rows — not all rows, and not an error** — so the policy fails closed.
+- `current_setting('app.tenant_id', true)` returns `NULL` only the first time a backend touches the GUC. Once `set_config` has run on a connection the value reverts to `''` — not `NULL` — at transaction end, for the rest of that connection's life, and casting `''` to `uuid` raises `22P02` instead of filtering. `nullif` collapses both cases to `NULL` before the cast. **Unset context then means zero rows — not all rows, and not an error** — so the policy fails closed.
 
 Register it with drizzle-kit's journal:
 
@@ -1830,11 +1830,11 @@ import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/test
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createDatabase, type DatabaseHandle } from '#/client';
 import { MIGRATIONS_DIR, runMigrations } from '#/migrate';
-import { realms } from '#/schema/index';
-import { withRealm } from '#/tx';
+import { tenants } from '#/schema/index';
+import { withTenant } from '#/tx';
 
-const REALM_A = newId();
-const REALM_B = newId();
+const TENANT_A = newId();
+const TENANT_B = newId();
 
 let container: TestDatabase;
 let owner: DatabaseHandle;
@@ -1845,9 +1845,9 @@ beforeAll(async () => {
   owner = createDatabase(container.adminUrl);
   await runMigrations(owner.db, MIGRATIONS_DIR);
 
-  await owner.db.insert(realms).values([
-    { id: REALM_A, name: 'alpha' },
-    { id: REALM_B, name: 'bravo' },
+  await owner.db.insert(tenants).values([
+    { id: TENANT_A, name: 'alpha' },
+    { id: TENANT_B, name: 'bravo' },
   ]);
 
   const appUrl = await createAppRole(container.adminUrl);
@@ -1860,34 +1860,34 @@ afterAll(async () => {
   await container.stop();
 });
 
-describe('withRealm', () => {
-  it('sees only the bound realm', async () => {
-    const rows = await withRealm(app.db, REALM_A, async (tx) => tx.select().from(realms));
+describe('withTenant', () => {
+  it('sees only the bound tenant', async () => {
+    const rows = await withTenant(app.db, TENANT_A, async (tx) => tx.select().from(tenants));
 
     expect(rows).toHaveLength(1);
     expect(rows[0]?.name).toBe('alpha');
   });
 
-  it('does not leak realm context to the next query on a pooled connection', async () => {
-    await withRealm(app.db, REALM_A, async (tx) => tx.select().from(realms));
+  it('does not leak tenant context to the next query on a pooled connection', async () => {
+    await withTenant(app.db, TENANT_A, async (tx) => tx.select().from(tenants));
 
-    const rows = await app.db.select().from(realms);
+    const rows = await app.db.select().from(tenants);
 
     expect(rows).toEqual([]);
   });
 
-  it('cannot update another realm', async () => {
-    await withRealm(app.db, REALM_A, async (tx) => {
-      await tx.update(realms).set({ displayName: 'hijacked' }).where(eq(realms.id, REALM_B));
+  it('cannot update another tenant', async () => {
+    await withTenant(app.db, TENANT_A, async (tx) => {
+      await tx.update(tenants).set({ displayName: 'hijacked' }).where(eq(tenants.id, TENANT_B));
     });
 
-    const [bravo] = await owner.db.select().from(realms).where(eq(realms.id, REALM_B));
+    const [bravo] = await owner.db.select().from(tenants).where(eq(tenants.id, TENANT_B));
 
     expect(bravo?.displayName).toBeNull();
   });
 
-  it('rejects an empty realm id', async () => {
-    await expect(withRealm(app.db, '', async () => undefined)).rejects.toThrow(OduduError);
+  it('rejects an empty tenant id', async () => {
+    await expect(withTenant(app.db, '', async () => undefined)).rejects.toThrow(OduduError);
   });
 });
 ```
@@ -1916,23 +1916,23 @@ import { OduduError } from '@odudu/kernel';
 import { sql } from 'drizzle-orm';
 import { type Database } from '#/client';
 
-export async function withRealm<T>(
+export async function withTenant<T>(
   db: Database,
-  realmId: string,
+  tenantId: string,
   fn: (tx: Database) => Promise<T>,
 ): Promise<T> {
-  if (realmId.length === 0) {
-    throw new OduduError('realm_context_missing', 'withRealm requires a realm id');
+  if (tenantId.length === 0) {
+    throw new OduduError('tenant_context_missing', 'withTenant requires a tenant id');
   }
 
   return db.transaction(async (tx) => {
-    await tx.execute(sql`select set_config('app.realm_id', ${realmId}, true)`);
+    await tx.execute(sql`select set_config('app.tenant_id', ${tenantId}, true)`);
     return fn(tx as unknown as Database);
   });
 }
 ```
 
-`set_config(..., true)` is `SET LOCAL` with a bindable parameter — `SET LOCAL` itself does not accept parameters, and string-interpolating a realm id into DDL would be an injection site.
+`set_config(..., true)` is `SET LOCAL` with a bindable parameter — `SET LOCAL` itself does not accept parameters, and string-interpolating a tenant id into DDL would be an injection site.
 
 - [ ] **Step 6: Run to verify it passes**
 
@@ -1950,7 +1950,7 @@ Temporarily change `true` to `false` in `set_config`:
 pnpm vitest run --project integration packages/db/src/tx.int.test.ts
 ```
 
-Expected: FAIL on "does not leak realm context". Revert to `true` and confirm green. A regression test nobody has watched fail is not known to work.
+Expected: FAIL on "does not leak tenant context". Revert to `true` and confirm green. A regression test nobody has watched fail is not known to work.
 
 - [ ] **Step 8: Add the runtime database URL to the config schema**
 
@@ -1975,7 +1975,7 @@ it('leaves the application database url unset by default', () => {
 Append to `packages/db/src/index.ts`:
 
 ```ts
-export { withRealm } from '#/tx';
+export { withTenant } from '#/tx';
 ```
 
 ```bash
@@ -1988,13 +1988,13 @@ Expected: exit 0.
 
 ```bash
 git add -A
-git commit -m "P0.7: row-level security and the realm transaction helper
+git commit -m "P0.7: row-level security and the tenant transaction helper
 
-Tenant tables force RLS against a non-superuser role; an unset realm
-context yields zero rows rather than every row. withRealm binds the realm
+Tenant tables force RLS against a non-superuser role; an unset tenant
+context yields zero rows rather than every row. withTenant binds the tenant
 with set_config(..., true), the bindable form of SET LOCAL.
 
-The load-bearing test uses a single pooled connection and asserts the realm
+The load-bearing test uses a single pooled connection and asserts the tenant
 setting does not survive the transaction. Flipping the local flag to false
 makes it fail, which was verified by hand."
 git push
@@ -2643,7 +2643,7 @@ Expected: `odudu became ready`, exit 0.
 ```bash
 cd infra/docker && docker compose up -d --build && cd -
 docker compose -f infra/docker/compose.yaml exec -T postgres \
-  psql -U odudu_svc -d odudu -c 'select count(*) from realms;'
+  psql -U odudu_svc -d odudu -c 'select count(*) from tenants;'
 docker compose -f infra/docker/compose.yaml down -v
 ```
 
@@ -2652,11 +2652,11 @@ Expected: `0`. The table is empty at this point either way, so also confirm the 
 ```bash
 cd infra/docker && docker compose up -d --build && cd -
 docker compose -f infra/docker/compose.yaml exec -T postgres \
-  psql -U odudu -d odudu -c "select policyname from pg_policies where tablename = 'realms';"
+  psql -U odudu -d odudu -c "select policyname from pg_policies where tablename = 'tenants';"
 docker compose -f infra/docker/compose.yaml down -v
 ```
 
-Expected: `realms_isolation`.
+Expected: `tenants_isolation`.
 
 - [ ] **Step 9: Add the container job to CI**
 
@@ -2718,9 +2718,9 @@ The requirement table is what makes "P1 is done" countable.
 
 **Known limitations carried into P1:**
 
-- Realm cookies are namespaced rather than host-isolated (spec section 6).
-- Only the `realms` table has an RLS policy. Every new tenant table needs
-  `ENABLE`/`FORCE ROW LEVEL SECURITY` plus a policy, and a foreign-realm
+- Tenant cookies are namespaced rather than host-isolated (spec section 6).
+- Only the `tenants` table has an RLS policy. Every new tenant table needs
+  `ENABLE`/`FORCE ROW LEVEL SECURITY` plus a policy, and a foreign-tenant
   probe in the adversarial suite.
 - The server bundle inlines all dependencies. P2 introduces
   `@node-rs/argon2`, a native module that must be marked external.
@@ -2740,6 +2740,6 @@ git push
 
 **Deliberate deferrals, recorded so they are not mistaken for gaps.** No OpenTelemetry — spec §3 lists it, but with no request handlers worth tracing it would be configuration with nothing to observe; it belongs in P1. No `contracts` package — nothing crosses an API boundary yet. No `.editorconfig`, no commit hooks: `pnpm verify` in CI is the enforcement point, and pre-commit hooks that duplicate CI mostly teach people to pass `--no-verify`.
 
-**Type consistency.** `DatabaseHandle` carries `db`, `sql`, and `close` and is used with those three members in Tasks 6, 7, 8, and 9. `Database` is the Drizzle type and is what `withRealm` and `runMigrations` accept. `ModuleContext` supplies `config`, `clock`, and `logger`; `databaseModule` reads `ctx.config.ODUDU_MIGRATIONS_DIR` and `ctx.logger`, `httpModule` reads `ctx.config.ODUDU_HTTP_HOST` and `ctx.config.ODUDU_HTTP_PORT` — all present. `OduduError` codes used across tasks (`config_invalid`, `module_duplicate`, `module_unknown_dependency`, `module_cycle`, `module_stop_failed`, `realm_context_missing`) are all declared in the Task 4 `ErrorCode` union. `createLogger` returns pino's `Logger`, which Task 8's third logger test asserts is assignable to kernel's `Logger`.
+**Type consistency.** `DatabaseHandle` carries `db`, `sql`, and `close` and is used with those three members in Tasks 6, 7, 8, and 9. `Database` is the Drizzle type and is what `withTenant` and `runMigrations` accept. `ModuleContext` supplies `config`, `clock`, and `logger`; `databaseModule` reads `ctx.config.ODUDU_MIGRATIONS_DIR` and `ctx.logger`, `httpModule` reads `ctx.config.ODUDU_HTTP_HOST` and `ctx.config.ODUDU_HTTP_PORT` — all present. `OduduError` codes used across tasks (`config_invalid`, `module_duplicate`, `module_unknown_dependency`, `module_cycle`, `module_stop_failed`, `tenant_context_missing`) are all declared in the Task 4 `ErrorCode` union. `createLogger` returns pino's `Logger`, which Task 8's third logger test asserts is assignable to kernel's `Logger`.
 
 **Known risk, flagged rather than hidden.** Task 9 step 2 bundles the server with tsup, and pino's transport machinery is historically awkward under bundlers. The step includes an explicit runtime check and a documented fallback to `pnpm deploy` with Node's native type stripping, which Task 8 step 12 already proves works. The failure is caught by a verification step rather than discovered in production.

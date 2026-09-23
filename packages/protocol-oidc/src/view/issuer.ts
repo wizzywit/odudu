@@ -1,5 +1,5 @@
 import { type FastifyRequest } from 'fastify';
-import { realmIssuer } from '#/service/issuer';
+import { tenantIssuer } from '#/service/issuer';
 
 const DEFAULT_PORT: Record<string, string> = { http: '80', https: '443' };
 
@@ -51,9 +51,9 @@ export function issuerBaseFor(request: Pick<FastifyRequest, 'protocol' | 'host'>
   return `${request.protocol}://${canonicalAuthority(request.protocol, request.host)}`;
 }
 
-export function realmIssuerFor(
+export function tenantIssuerFor(
   request: Pick<FastifyRequest, 'protocol' | 'host'>,
-  realm: string,
+  tenant: string,
 ): string {
-  return realmIssuer(issuerBaseFor(request), realm);
+  return tenantIssuer(issuerBaseFor(request), tenant);
 }

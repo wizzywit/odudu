@@ -80,6 +80,6 @@ the "at least 4×" bar, to cover the id format changing shape, the
 budget has to carry beyond this one cookie — none of which this spike's
 minimal demo server contends with.
 
-This is the value Task 3 writes into migration 0048 as the per-realm
+This is the value Task 3 writes into migration 0048 as the per-tenant
 default for the concurrent-session cap enforced when a new session is
 created for a `(user, browser)` pair.

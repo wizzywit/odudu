@@ -3,14 +3,14 @@ import { hashPassword, subjectRepository, users } from '@odudu/domain-identity';
 import {
   createDatabase,
   MIGRATIONS_DIR,
-  realms,
+  tenants,
   runMigrations,
-  withRealm,
+  withTenant,
   type DatabaseHandle,
-  type RealmScopedDatabase,
+  type TenantScopedDatabase,
 } from '@odudu/db';
-import { provisionRealm } from '@odudu/authn-flows';
-import { clients, provisionClientDefaults } from '@odudu/domain-realm';
+import { provisionTenant } from '@odudu/authn-flows';
+import { clients, provisionClientDefaults } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import formbody from '@fastify/formbody';
@@ -47,9 +47,9 @@ interface Client {
   secret: string;
 }
 
-interface RealmSetup {
-  realmName: string;
-  realmId: string;
+interface TenantSetup {
+  tenantName: string;
+  tenantId: string;
   issuer: string;
   client: Client;
   subjectId: string;
@@ -60,26 +60,26 @@ interface RealmSetup {
   audiences: string[];
 }
 
-let primary: RealmSetup;
-let other: RealmSetup;
-let foreignAudience: RealmSetup;
+let primary: TenantSetup;
+let other: TenantSetup;
+let foreignAudience: TenantSetup;
 
-function userinfoUrl(realm: string): string {
-  return `/realms/${realm}/protocol/openid-connect/userinfo`;
+function userinfoUrl(tenant: string): string {
+  return `/tenants/${tenant}/protocol/openid-connect/userinfo`;
 }
 
-async function setupRealm(label: string, audiences: string[] = []): Promise<RealmSetup> {
-  const realmName = `userinfo-${label}-${newId()}`;
-  const realmId = newId();
+async function setupTenant(label: string, audiences: string[] = []): Promise<TenantSetup> {
+  const tenantName = `userinfo-${label}-${newId()}`;
+  const tenantId = newId();
 
-  const clientId = await withRealm(app.db, realmId, async (tx: RealmScopedDatabase) => {
-    await tx.insert(realms).values({ id: realmId, name: realmName });
-    await provisionRealm(tx, realmId);
+  const clientId = await withTenant(app.db, tenantId, async (tx: TenantScopedDatabase) => {
+    await tx.insert(tenants).values({ id: tenantId, name: tenantName });
+    await provisionTenant(tx, tenantId);
 
-    const subject = await subjectRepository(tx).create({ realmId, type: 'user' });
+    const subject = await subjectRepository(tx).create({ tenantId, type: 'user' });
     await tx.insert(users).values({
       subjectId: subject.id,
-      realmId,
+      tenantId,
       username: `alice-${label}`,
       email: 'alice@example.com',
       emailVerified: true,
@@ -88,7 +88,7 @@ async function setupRealm(label: string, audiences: string[] = []): Promise<Real
     const webAppDbId = newId();
     await tx.insert(clients).values({
       id: webAppDbId,
-      realmId,
+      tenantId,
       clientId: 'web-app',
       name: 'Web app',
       type: 'confidential',
@@ -97,7 +97,7 @@ async function setupRealm(label: string, audiences: string[] = []): Promise<Real
     await provisionClientDefaults(tx, webAppDbId);
     await clientOidcConfigRepository(tx).create({
       clientId: webAppDbId,
-      realmId,
+      tenantId,
       redirectUris: [REDIRECT_URI],
       grantTypes: ['authorization_code'],
       tokenEndpointAuthMethod: 'client_secret_basic',
@@ -109,7 +109,7 @@ async function setupRealm(label: string, audiences: string[] = []): Promise<Real
     const key = await generateSigningKey('RS256', KEK);
     await tx.insert(signingKeys).values({
       id: newId(),
-      realmId,
+      tenantId,
       kid: key.kid,
       alg: key.alg,
       status: 'active',
@@ -121,12 +121,12 @@ async function setupRealm(label: string, audiences: string[] = []): Promise<Real
   });
 
   return {
-    realmName,
-    realmId,
+    tenantName,
+    tenantId,
     // light-my-request sends `Host: localhost:80`; the scheme's default
     // port is insignificant and never appears in an issuer
     // (packages/protocol-oidc/src/view/issuer.ts).
-    issuer: `http://localhost/realms/${realmName}`,
+    issuer: `http://localhost/tenants/${tenantName}`,
     client: { clientId: 'web-app', dbId: clientId.webAppDbId, secret: 'supersecret' },
     subjectId: clientId.subjectId,
     audiences,
@@ -142,18 +142,18 @@ function basicAuth(client: Client): string {
 // endpoint, returning whatever it issued — an id_token only arrives when
 // `scope` includes `openid`.
 async function issueTokens(
-  realm: RealmSetup,
+  tenant: TenantSetup,
   scope: string,
 ): Promise<{ accessToken: string; idToken: string | undefined }> {
   const code = generateAuthorizationCode();
   const codeHash = hashAuthorizationCode(code);
 
-  await withRealm(app.db, realm.realmId, async (tx) => {
+  await withTenant(app.db, tenant.tenantId, async (tx) => {
     await authorizationCodeRepository(tx).create({
       codeHash,
-      realmId: realm.realmId,
-      clientId: realm.client.dbId,
-      subjectId: realm.subjectId,
+      tenantId: tenant.tenantId,
+      clientId: tenant.client.dbId,
+      subjectId: tenant.subjectId,
       redirectUri: REDIRECT_URI,
       scope,
       nonce: null,
@@ -161,7 +161,7 @@ async function issueTokens(
       codeChallengeMethod: 'S256',
       authTime: new Date(),
       expiresAt: new Date(Date.now() + 60_000),
-      resource: realm.audiences,
+      resource: tenant.audiences,
       claims: { idToken: {}, userinfo: {} },
     });
   });
@@ -174,11 +174,11 @@ async function issueTokens(
 
   const res = await http.inject({
     method: 'POST',
-    url: `/realms/${realm.realmName}/protocol/openid-connect/token`,
+    url: `/tenants/${tenant.tenantName}/protocol/openid-connect/token`,
     payload: form.toString(),
     headers: {
       'content-type': 'application/x-www-form-urlencoded',
-      authorization: basicAuth(realm.client),
+      authorization: basicAuth(tenant.client),
     },
   });
   expect(res.statusCode).toBe(200);
@@ -187,7 +187,7 @@ async function issueTokens(
 }
 
 async function mintRawAccessToken(
-  realm: RealmSetup,
+  tenant: TenantSetup,
   overrides: {
     iss?: string;
     aud?: string[];
@@ -196,14 +196,14 @@ async function mintRawAccessToken(
     scope?: string;
   } = {},
 ): Promise<string> {
-  const key = await withRealm(app.db, realm.realmId, (tx) => signingKeyRepository(tx).active());
+  const key = await withTenant(app.db, tenant.tenantId, (tx) => signingKeyRepository(tx).active());
   const now = Math.floor(Date.now() / 1000);
   return signJwt(
     {
-      iss: overrides.iss ?? realm.issuer,
-      sub: realm.subjectId,
-      aud: overrides.aud ?? [realm.issuer],
-      client_id: realm.client.clientId,
+      iss: overrides.iss ?? tenant.issuer,
+      sub: tenant.subjectId,
+      aud: overrides.aud ?? [tenant.issuer],
+      client_id: tenant.client.clientId,
       scope: overrides.scope ?? 'openid',
       iat: now,
       exp: overrides.exp ?? now + 300,
@@ -341,10 +341,10 @@ const VALUE_RULES = new Map<string, (value: string) => boolean>([
 // are only as strong as this list is complete.
 async function everyErrorResponse(): Promise<LightMyRequestResponse[]> {
   const { accessToken } = await issueTokens(primary, 'openid');
-  const noCredentials = await userinfo(primary.realmName, null);
+  const noCredentials = await userinfo(primary.tenantName, null);
 
   const twoMethods = await postUserinfoRaw(
-    primary.realmName,
+    primary.tenantName,
     formBody({ access_token: accessToken }),
     {
       'content-type': 'application/x-www-form-urlencoded',
@@ -352,10 +352,10 @@ async function everyErrorResponse(): Promise<LightMyRequestResponse[]> {
     },
   );
 
-  const badToken = await userinfo(primary.realmName, tamper(accessToken));
+  const badToken = await userinfo(primary.tenantName, tamper(accessToken));
 
   const { accessToken: unscoped } = await issueTokens(primary, 'profile email');
-  const wrongScope = await userinfo(primary.realmName, unscoped);
+  const wrongScope = await userinfo(primary.tenantName, unscoped);
 
   const responses = [noCredentials, twoMethods, badToken, wrongScope];
   // Each of these is a request the endpoint must refuse; *which* refusal each
@@ -370,30 +370,30 @@ async function everyChallenge(): Promise<Challenge[]> {
   return (await everyErrorResponse()).map(challengeOf);
 }
 
-async function userinfo(realmName: string, token: string | null): Promise<LightMyRequestResponse> {
+async function userinfo(tenantName: string, token: string | null): Promise<LightMyRequestResponse> {
   return http.inject({
     method: 'GET',
-    url: userinfoUrl(realmName),
+    url: userinfoUrl(tenantName),
     headers: token === null ? {} : { authorization: `Bearer ${token}` },
   });
 }
 
 // OIDC Core §5.3 requires GET and POST alike. This posts what GET carries in
 // the Authorization header, in the header still, with no body at all.
-function postUserinfo(realmName: string, token: string | null): Promise<LightMyRequestResponse> {
+function postUserinfo(tenantName: string, token: string | null): Promise<LightMyRequestResponse> {
   return http.inject({
     method: 'POST',
-    url: userinfoUrl(realmName),
+    url: userinfoUrl(tenantName),
     headers: token === null ? {} : { authorization: `Bearer ${token}` },
   });
 }
 
 function postUserinfoRaw(
-  realmName: string,
+  tenantName: string,
   payload: string,
   headers: Record<string, string>,
 ): Promise<LightMyRequestResponse> {
-  return http.inject({ method: 'POST', url: userinfoUrl(realmName), headers, payload });
+  return http.inject({ method: 'POST', url: userinfoUrl(tenantName), headers, payload });
 }
 
 function formBody(fields: Record<string, string>): string {
@@ -428,9 +428,9 @@ beforeAll(async () => {
   await http.ready();
   httpApp = http;
 
-  primary = await setupRealm('primary');
-  other = await setupRealm('other');
-  foreignAudience = await setupRealm('foreign-aud', ['https://some-other-api.example']);
+  primary = await setupTenant('primary');
+  other = await setupTenant('other');
+  foreignAudience = await setupTenant('foreign-aud', ['https://some-other-api.example']);
 }, 120_000);
 
 afterAll(async () => {
@@ -442,13 +442,21 @@ afterAll(async () => {
 
 describe('[RFC6750-3-01] WWW-Authenticate on a request with no credentials', () => {
   it('returns 401 and WWW-Authenticate with no Authorization header, and omits an error code', async () => {
-    const res = await userinfo(primary.realmName, null);
+    const res = await userinfo(primary.tenantName, null);
     expect(res.statusCode).toBe(401);
     expect(res.headers['www-authenticate']).toMatch(/^Bearer/);
     // RFC 6750 §3.1: an error code is omitted entirely when the request
     // carried no authentication information at all — distinct from the
     // `error="invalid_token"` a rejected, present token gets below.
     expect(res.headers['www-authenticate']).not.toMatch(/error=/);
+  });
+
+  // The auth-param name is RFC 7235 §4.1's `realm`, required for the Bearer
+  // scheme by RFC 6750 §3. It names an HTTP protection space, not anything
+  // this project owns, so no renaming of ours may touch it.
+  it('[RFC6750-3-05] spells the challenge exactly, auth-param name included', async () => {
+    const res = await userinfo(primary.tenantName, null);
+    expect(res.headers['www-authenticate']).toBe('Bearer realm="userinfo"');
   });
 });
 
@@ -523,14 +531,14 @@ describe('[OIDC-CORE-5.3.3-01] the UserInfo Endpoint reports errors the way RFC 
 describe('[RFC6750-5.2-01] a modified token is refused', () => {
   it('rejects a token whose payload was rewritten under the issuer’s own signature', async () => {
     const { accessToken } = await issueTokens(primary, 'openid');
-    const pristine = await userinfo(primary.realmName, accessToken);
+    const pristine = await userinfo(primary.tenantName, accessToken);
     expect(pristine.statusCode).toBe(200);
     expect(pristine.json<Record<string, unknown>>().sub).toBe(primary.subjectId);
 
     const modified = tamperPayload(accessToken, { sub: other.subjectId });
     expect(decodePayload(modified).sub).toBe(other.subjectId);
 
-    const res = await userinfo(primary.realmName, modified);
+    const res = await userinfo(primary.tenantName, modified);
     expect(res.statusCode).toBe(401);
     expect(res.headers['www-authenticate']).toMatch(/error="invalid_token"/);
   });
@@ -539,30 +547,30 @@ describe('[RFC6750-5.2-01] a modified token is refused', () => {
 describe('[RFC6750-3.1-01] 401 invalid_token for a bad, expired or wrong-issuer token', () => {
   it('[RFC9068-4-04] returns 401 invalid_token for an expired token', async () => {
     const expired = await mintRawAccessToken(primary, { exp: Math.floor(Date.now() / 1000) - 60 });
-    const res = await userinfo(primary.realmName, expired);
+    const res = await userinfo(primary.tenantName, expired);
     expect(res.statusCode).toBe(401);
     expect(res.headers['www-authenticate']).toMatch(/error="invalid_token"/);
   });
 
   it('[RFC9068-4-02] returns 401 invalid_token for a token minted with the wrong issuer', async () => {
     const foreignIssuer = await mintRawAccessToken(primary, {
-      iss: 'https://not-this-realm.example',
+      iss: 'https://not-this-tenant.example',
     });
-    const res = await userinfo(primary.realmName, foreignIssuer);
+    const res = await userinfo(primary.tenantName, foreignIssuer);
     expect(res.statusCode).toBe(401);
     expect(res.headers['www-authenticate']).toMatch(/error="invalid_token"/);
   });
 
   it('[RFC9068-4-03] returns 401 invalid_token for a tampered signature', async () => {
     const raw = await mintRawAccessToken(primary);
-    const res = await userinfo(primary.realmName, tamper(raw));
+    const res = await userinfo(primary.tenantName, tamper(raw));
     expect(res.statusCode).toBe(401);
     expect(res.headers['www-authenticate']).toMatch(/error="invalid_token"/);
   });
 
-  it('refuses a token minted by another realm', async () => {
+  it('refuses a token minted by another tenant', async () => {
     const { accessToken } = await issueTokens(other, 'openid');
-    const res = await userinfo(primary.realmName, accessToken);
+    const res = await userinfo(primary.tenantName, accessToken);
     expect(res.statusCode).toBe(401);
     expect(res.headers['www-authenticate']).toMatch(/error="invalid_token"/);
   });
@@ -572,7 +580,7 @@ describe('[RFC9068-4-01] rejects a typ other than at+jwt', () => {
   it('refuses an ID token presented as a bearer token', async () => {
     const { idToken } = await issueTokens(primary, 'openid profile email');
     if (idToken === undefined) throw new Error('expected an id_token');
-    const res = await userinfo(primary.realmName, idToken);
+    const res = await userinfo(primary.tenantName, idToken);
     expect(res.statusCode).toBe(401);
     expect(res.headers['www-authenticate']).toMatch(/error="invalid_token"/);
   });
@@ -581,7 +589,7 @@ describe('[RFC9068-4-01] rejects a typ other than at+jwt', () => {
 describe('[RFC6750-2.1-01] accepts the Authorization header, and RFC6750-2.3 accepts no other method', () => {
   it('succeeds when the token is presented in the Authorization header', async () => {
     const { accessToken } = await issueTokens(primary, 'openid');
-    const res = await userinfo(primary.realmName, accessToken);
+    const res = await userinfo(primary.tenantName, accessToken);
     expect(res.statusCode).toBe(200);
   });
 
@@ -589,7 +597,7 @@ describe('[RFC6750-2.1-01] accepts the Authorization header, and RFC6750-2.3 acc
     const { accessToken } = await issueTokens(primary, 'openid');
     const res = await http.inject({
       method: 'GET',
-      url: `${userinfoUrl(primary.realmName)}?access_token=${accessToken}`,
+      url: `${userinfoUrl(primary.tenantName)}?access_token=${accessToken}`,
     });
     expect(res.statusCode).toBe(401);
   });
@@ -598,8 +606,8 @@ describe('[RFC6750-2.1-01] accepts the Authorization header, and RFC6750-2.3 acc
 describe('[OIDC-CORE-5.3-01] the UserInfo Endpoint answers POST exactly as it answers GET', () => {
   it('returns the same claims for a POST carrying the token in the Authorization header', async () => {
     const { accessToken } = await issueTokens(primary, 'openid profile email');
-    const getRes = await userinfo(primary.realmName, accessToken);
-    const postRes = await postUserinfo(primary.realmName, accessToken);
+    const getRes = await userinfo(primary.tenantName, accessToken);
+    const postRes = await postUserinfo(primary.tenantName, accessToken);
 
     expect(postRes.statusCode).toBe(getRes.statusCode);
     expect(postRes.statusCode).toBe(200);
@@ -608,18 +616,18 @@ describe('[OIDC-CORE-5.3-01] the UserInfo Endpoint answers POST exactly as it an
   });
 
   it('returns the same credential-less challenge for a POST as for a GET', async () => {
-    const getRes = await userinfo(primary.realmName, null);
-    const postRes = await postUserinfo(primary.realmName, null);
+    const getRes = await userinfo(primary.tenantName, null);
+    const postRes = await postUserinfo(primary.tenantName, null);
 
     expect(postRes.statusCode).toBe(getRes.statusCode);
     expect(postRes.statusCode).toBe(401);
     expect(postRes.headers['www-authenticate']).toBe(getRes.headers['www-authenticate']);
   });
 
-  it('refuses a foreign realm’s token over POST exactly as over GET', async () => {
+  it('refuses a foreign tenant’s token over POST exactly as over GET', async () => {
     const { accessToken } = await issueTokens(other, 'openid');
-    const getRes = await userinfo(primary.realmName, accessToken);
-    const postRes = await postUserinfo(primary.realmName, accessToken);
+    const getRes = await userinfo(primary.tenantName, accessToken);
+    const postRes = await postUserinfo(primary.tenantName, accessToken);
 
     expect(postRes.statusCode).toBe(getRes.statusCode);
     expect(postRes.statusCode).toBe(401);
@@ -630,9 +638,9 @@ describe('[OIDC-CORE-5.3-01] the UserInfo Endpoint answers POST exactly as it an
 describe('[RFC6750-2.2-01] a POST may carry the access token in a form-encoded body', () => {
   it('returns the same claims as the Authorization header does', async () => {
     const { accessToken } = await issueTokens(primary, 'openid profile email');
-    const headerRes = await userinfo(primary.realmName, accessToken);
+    const headerRes = await userinfo(primary.tenantName, accessToken);
     const bodyRes = await postUserinfoRaw(
-      primary.realmName,
+      primary.tenantName,
       formBody({ access_token: accessToken }),
       { 'content-type': 'application/x-www-form-urlencoded' },
     );
@@ -646,7 +654,7 @@ describe('[RFC6750-2.2-01] a POST may carry the access token in a form-encoded b
   it('rejects an invalid token from the body with the same challenge the header gets', async () => {
     const raw = await mintRawAccessToken(primary);
     const bodyRes = await postUserinfoRaw(
-      primary.realmName,
+      primary.tenantName,
       formBody({ access_token: tamper(raw) }),
       {
         'content-type': 'application/x-www-form-urlencoded',
@@ -660,7 +668,7 @@ describe('[RFC6750-2.2-01] a POST may carry the access token in a form-encoded b
   // RFC 6749 §3.1: a parameter sent without a value is an omitted one, so
   // this is a request with no credentials, not one with a bad token.
   it('treats an empty access_token as no credentials at all', async () => {
-    const res = await postUserinfoRaw(primary.realmName, formBody({ access_token: '' }), {
+    const res = await postUserinfoRaw(primary.tenantName, formBody({ access_token: '' }), {
       'content-type': 'application/x-www-form-urlencoded',
     });
 
@@ -672,7 +680,7 @@ describe('[RFC6750-2.2-01] a POST may carry the access token in a form-encoded b
 describe('[RFC6750-3.1-03] 400 invalid_request when one request presents the token twice', () => {
   it('refuses a token sent in the Authorization header and the body at once', async () => {
     const { accessToken } = await issueTokens(primary, 'openid');
-    const res = await postUserinfoRaw(primary.realmName, formBody({ access_token: accessToken }), {
+    const res = await postUserinfoRaw(primary.tenantName, formBody({ access_token: accessToken }), {
       'content-type': 'application/x-www-form-urlencoded',
       authorization: `Bearer ${accessToken}`,
     });
@@ -686,7 +694,7 @@ describe('[RFC6750-3.1-03] 400 invalid_request when one request presents the tok
     const body = new URLSearchParams();
     body.append('access_token', accessToken);
     body.append('access_token', accessToken);
-    const res = await postUserinfoRaw(primary.realmName, body.toString(), {
+    const res = await postUserinfoRaw(primary.tenantName, body.toString(), {
       'content-type': 'application/x-www-form-urlencoded',
     });
 
@@ -704,7 +712,7 @@ describe('[ODUDU-USERINFO-01] a POST body is read only in the form encoding', ()
   it.each(['application/json', 'text/plain'])('refuses a %s body with 415', async (contentType) => {
     const { accessToken } = await issueTokens(primary, 'openid');
     const res = await postUserinfoRaw(
-      primary.realmName,
+      primary.tenantName,
       JSON.stringify({ access_token: accessToken }),
       { 'content-type': contentType },
     );
@@ -714,7 +722,7 @@ describe('[ODUDU-USERINFO-01] a POST body is read only in the form encoding', ()
 
   it('accepts a form body that names its charset', async () => {
     const { accessToken } = await issueTokens(primary, 'openid');
-    const res = await postUserinfoRaw(primary.realmName, formBody({ access_token: accessToken }), {
+    const res = await postUserinfoRaw(primary.tenantName, formBody({ access_token: accessToken }), {
       'content-type': 'application/x-www-form-urlencoded; charset=utf-8',
     });
 
@@ -725,7 +733,7 @@ describe('[ODUDU-USERINFO-01] a POST body is read only in the form encoding', ()
   // simply a request whose only credential is the Authorization header.
   it('answers a POST with no content type from the Authorization header alone', async () => {
     const { accessToken } = await issueTokens(primary, 'openid');
-    const res = await postUserinfo(primary.realmName, accessToken);
+    const res = await postUserinfo(primary.tenantName, accessToken);
 
     expect(res.statusCode).toBe(200);
   });
@@ -734,7 +742,7 @@ describe('[ODUDU-USERINFO-01] a POST body is read only in the form encoding', ()
 describe('[RFC6750-3.1-02] 403 insufficient_scope without the openid scope', () => {
   it('returns 403 and an insufficient_scope challenge', async () => {
     const { accessToken } = await issueTokens(primary, 'profile email');
-    const res = await userinfo(primary.realmName, accessToken);
+    const res = await userinfo(primary.tenantName, accessToken);
     expect(res.statusCode).toBe(403);
     expect(res.headers['www-authenticate']).toMatch(/error="insufficient_scope"/);
   });
@@ -748,14 +756,14 @@ describe('[RFC6750-3.1-02] 403 insufficient_scope without the openid scope', () 
 describe('[RFC6749-7-01] the UserInfo Endpoint validates the token, its expiry and its scope', () => {
   it('admits a live token whose scope covers the resource', async () => {
     const { accessToken } = await issueTokens(primary, 'openid');
-    const res = await userinfo(primary.realmName, accessToken);
+    const res = await userinfo(primary.tenantName, accessToken);
     expect(res.statusCode).toBe(200);
     expect(res.json<Record<string, unknown>>().sub).toBe(primary.subjectId);
   });
 
   it('refuses a token that does not verify', async () => {
     const { accessToken } = await issueTokens(primary, 'openid');
-    const res = await userinfo(primary.realmName, tamper(accessToken));
+    const res = await userinfo(primary.tenantName, tamper(accessToken));
     expect(res.statusCode).toBe(401);
     expect(res.headers['www-authenticate']).toMatch(/error="invalid_token"/);
   });
@@ -764,14 +772,14 @@ describe('[RFC6749-7-01] the UserInfo Endpoint validates the token, its expiry a
     const expired = await mintRawAccessToken(primary, {
       exp: Math.floor(Date.now() / 1000) - 1,
     });
-    const res = await userinfo(primary.realmName, expired);
+    const res = await userinfo(primary.tenantName, expired);
     expect(res.statusCode).toBe(401);
     expect(res.headers['www-authenticate']).toMatch(/error="invalid_token"/);
   });
 
   it('refuses a live, verifying token whose scope does not cover this resource', async () => {
     const unscoped = await mintRawAccessToken(primary, { scope: 'profile email' });
-    const res = await userinfo(primary.realmName, unscoped);
+    const res = await userinfo(primary.tenantName, unscoped);
     expect(res.statusCode).toBe(403);
     expect(res.headers['www-authenticate']).toMatch(/error="insufficient_scope"/);
   });
@@ -780,14 +788,14 @@ describe('[RFC6749-7-01] the UserInfo Endpoint validates the token, its expiry a
 // RFC 6749 §10.3: an access token "cannot be generated, modified, or guessed
 // to produce a valid access token by an unauthorized party". All three
 // failures, against the one endpoint that spends an access token: a token
-// minted by a signer this realm never published, one whose claims were
+// minted by a signer this tenant never published, one whose claims were
 // rewritten under the issuer's own signature, and one invented outright.
 describe('[RFC6749-10.3-01] an access token cannot be generated, modified or guessed', () => {
-  it('refuses a token generated by a signer this realm does not publish', async () => {
+  it('refuses a token generated by a signer this tenant does not publish', async () => {
     const { accessToken } = await issueTokens(other, 'openid');
-    // Minted for the same subject this realm would name, so nothing but the
+    // Minted for the same subject this tenant would name, so nothing but the
     // signature and the issuer distinguishes it from an acceptable token.
-    const res = await userinfo(primary.realmName, accessToken);
+    const res = await userinfo(primary.tenantName, accessToken);
     expect(res.statusCode).toBe(401);
     expect(res.headers['www-authenticate']).toMatch(/error="invalid_token"/);
   });
@@ -795,7 +803,7 @@ describe('[RFC6749-10.3-01] an access token cannot be generated, modified or gue
   it('refuses a token whose claims were modified after issuance', async () => {
     const { accessToken } = await issueTokens(primary, 'openid');
     const res = await userinfo(
-      primary.realmName,
+      primary.tenantName,
       tamperPayload(accessToken, { sub: other.subjectId }),
     );
     expect(res.statusCode).toBe(401);
@@ -808,7 +816,7 @@ describe('[RFC6749-10.3-01] an access token cannot be generated, modified or gue
     'eyJhbGciOiJub25lIn0.eyJzdWIiOiJhbnlvbmUifQ.',
     Buffer.alloc(32, 9).toString('base64url'),
   ])('refuses the guessed token %o', async (guess) => {
-    const res = await userinfo(primary.realmName, guess);
+    const res = await userinfo(primary.tenantName, guess);
     expect(res.statusCode).toBe(401);
     expect(res.headers['www-authenticate']).toMatch(/error="invalid_token"/);
   });
@@ -817,7 +825,7 @@ describe('[RFC6749-10.3-01] an access token cannot be generated, modified or gue
 describe("[OIDC-CORE-5.3.2-01] sub is always present, and an ungranted scope's claims are left out entirely", () => {
   it('omits claims whose scope was not granted', async () => {
     const { accessToken } = await issueTokens(primary, 'openid');
-    const res = await userinfo(primary.realmName, accessToken);
+    const res = await userinfo(primary.tenantName, accessToken);
     expect(res.statusCode).toBe(200);
     const body = res.json<Record<string, unknown>>();
     expect(body).toHaveProperty('sub');
@@ -835,14 +843,14 @@ describe('aud must contain a resource indicator identifying this issuer', () => 
       expect.arrayContaining(['https://some-other-api.example', foreignAudience.issuer]),
     );
 
-    const res = await userinfo(foreignAudience.realmName, accessToken);
+    const res = await userinfo(foreignAudience.tenantName, accessToken);
     expect(res.statusCode).toBe(200);
     expect(res.json<Record<string, unknown>>()).toHaveProperty('email');
   });
 
   it('[RFC9068-4-05] rejects a token whose aud genuinely lacks the issuer, minted directly rather than through mintAccessToken', async () => {
     const raw = await mintRawAccessToken(primary, { aud: ['https://some-other-api.example'] });
-    const res = await userinfo(primary.realmName, raw);
+    const res = await userinfo(primary.tenantName, raw);
     expect(res.statusCode).toBe(401);
     expect(res.headers['www-authenticate']).toMatch(/error="invalid_token"/);
   });
@@ -856,7 +864,7 @@ describe('aud must contain a resource indicator identifying this issuer', () => 
 // one, on every write path there is rather than the one the repository owns.
 describe('[OIDC-CORE-5.1-01] the emitted email claim conforms to RFC 5322 addr-spec', () => {
   it('cannot be made to emit an address the column will not hold', async () => {
-    const stored = await withRealm(app.db, primary.realmId, async (tx) => {
+    const stored = await withTenant(app.db, primary.tenantId, async (tx) => {
       await tx
         .update(users)
         .set({ email: 'alice at example dot com' })
@@ -868,7 +876,7 @@ describe('[OIDC-CORE-5.1-01] the emitted email claim conforms to RFC 5322 addr-s
     expect(stored).toBe(false);
 
     const { accessToken } = await issueTokens(primary, 'openid email');
-    const res = await userinfo(primary.realmName, accessToken);
+    const res = await userinfo(primary.tenantName, accessToken);
     expect(res.statusCode).toBe(200);
     expect(res.json<Record<string, unknown>>().email).toBe('alice@example.com');
   });
@@ -877,7 +885,7 @@ describe('[OIDC-CORE-5.1-01] the emitted email claim conforms to RFC 5322 addr-s
 describe('[OIDC-CORE-5.4-01] claims requested by profile/email are returned from the UserInfo Endpoint', () => {
   it('returns every claim whose scope was granted, as a JSON object', async () => {
     const { accessToken } = await issueTokens(primary, 'openid profile email');
-    const res = await userinfo(primary.realmName, accessToken);
+    const res = await userinfo(primary.tenantName, accessToken);
     expect(res.statusCode).toBe(200);
     expect(res.headers['content-type']).toMatch(/^application\/json/);
     const body = res.json<Record<string, unknown>>();

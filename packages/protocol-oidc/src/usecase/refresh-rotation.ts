@@ -1,5 +1,5 @@
 import { sessionRepository, type SessionLifespans } from '@odudu/authn-flows';
-import { type RealmScopedDatabase } from '@odudu/db';
+import { type TenantScopedDatabase } from '@odudu/db';
 import { tokenGrantRepository, type TokenGrantRecord } from '#/repository/grants';
 import { refreshTokenRepository } from '#/repository/refresh';
 import { generateRefreshToken, hashRefreshToken } from '#/service/refresh';
@@ -18,7 +18,7 @@ export type RotationOutcome =
 // detecting it at all. Whether the requesting client owns this token is
 // decided by evaluateRefreshGrant, on both sides of this call — ADR 0019.
 export async function rotateRefreshToken(
-  tx: RealmScopedDatabase,
+  tx: TenantScopedDatabase,
   presentedHash: string,
   now: Date,
   refreshTokenTtlSeconds: number,
@@ -63,7 +63,7 @@ export async function rotateRefreshToken(
   const nextHash = hashRefreshToken(next);
   await refreshTokenRepository(tx).create({
     tokenHash: nextHash,
-    realmId: grant.realmId,
+    tenantId: grant.tenantId,
     grantId: grant.id,
     expiresAt: new Date(now.getTime() + refreshTokenTtlSeconds * 1000),
   });

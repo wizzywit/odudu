@@ -1,7 +1,7 @@
 import { type PageScript, type RenderedPage } from '@odudu/kernel';
 
 // Minimal, dependency-free HTML: every interpolated value on a rendered
-// page passes through this so neither a realm name nor an error string
+// page passes through this so neither a tenant name nor an error string
 // opens a reflected-XSS hole.
 export function escapeHtml(value: string): string {
   return value

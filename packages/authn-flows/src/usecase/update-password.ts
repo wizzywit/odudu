@@ -1,4 +1,4 @@
-import { type RealmScopedDatabase } from '@odudu/db';
+import { type TenantScopedDatabase } from '@odudu/db';
 import {
   credentialRepository,
   evaluatePassword,
@@ -9,12 +9,12 @@ import {
   verifyPassword,
 } from '@odudu/domain-identity';
 import { OduduError, systemClock, type Clock } from '@odudu/kernel';
-import { realmSettingsRepository } from '#/repository/realm-settings';
+import { tenantSettingsRepository } from '#/repository/tenant-settings';
 import { requiredActionRepository } from '#/repository/required-actions';
 
 export type UpdatePasswordOutcome =
   | { kind: 'updated' }
-  // Every message the realm's policy produced for this candidate, for the
+  // Every message the tenant's policy produced for this candidate, for the
   // page to list at once: a form that reports one rule at a time takes as
   // many attempts as there are rules.
   | { kind: 'rejected'; violations: readonly string[] }
@@ -25,20 +25,20 @@ export type UpdatePasswordOutcome =
   | { kind: 'superseded' };
 
 export interface UpdatePassword {
-  realmId: string;
+  tenantId: string;
   subjectId: string;
   password: string;
 }
 
 // A subject's password, and the candidates a reuse check has to refuse:
-// the one in force plus the retired hashes the realm still remembers.
+// the one in force plus the retired hashes the tenant still remembers.
 interface PasswordState {
   current: string;
   history: readonly string[];
 }
 
 async function passwordState(
-  tx: RealmScopedDatabase,
+  tx: TenantScopedDatabase,
   subjectId: string,
 ): Promise<PasswordState | null> {
   const current = await credentialRepository(tx).passwordFor(subjectId);
@@ -60,7 +60,7 @@ async function reusesAKnownPassword(candidate: string, state: PasswordState): Pr
   return false;
 }
 
-// The fourth writer of a password in a realm, bound by the same policy as
+// The fourth writer of a password in a tenant, bound by the same policy as
 // registration, reset redemption and the seed CLI — and the only one that
 // consults history, which is why it is the only one that keeps any.
 //
@@ -69,10 +69,10 @@ async function reusesAKnownPassword(candidate: string, state: PasswordState): Pr
 // subject comes from the authentication session, and the action has to be
 // one this subject actually owes.
 export async function completeUpdatePassword(
-  tx: RealmScopedDatabase,
+  tx: TenantScopedDatabase,
   input: UpdatePassword,
 ): Promise<UpdatePasswordOutcome> {
-  const policy = await realmSettingsRepository(tx).passwordPolicy(input.realmId);
+  const policy = await tenantSettingsRepository(tx).passwordPolicy(input.tenantId);
   const user = await userRepository(tx).bySubjectId(input.subjectId);
   if (user === null) {
     throw new OduduError('user_not_found', `no user for subject ${input.subjectId}`);
@@ -86,7 +86,7 @@ export async function completeUpdatePassword(
     return { kind: 'rejected', violations: violations.map((violation) => violation.message) };
   }
 
-  // Nothing in the realm holds a password for this subject, so there is
+  // Nothing in the tenant holds a password for this subject, so there is
   // nothing to rotate. Unreachable through the only thing that owes this
   // action today — expiry, which reads the credential it expires — so it is
   // a broken account rather than a refusal to render.
@@ -99,7 +99,7 @@ export async function completeUpdatePassword(
   }
 
   // Depth zero is the feature off, and the password in force is then
-  // re-settable. Above zero the realm remembers that many retired
+  // re-settable. Above zero the tenant remembers that many retired
   // passwords, and refuses the one in force as well — which needs no row.
   if (policy.historyDepth > 0 && (await reusesAKnownPassword(input.password, state))) {
     return { kind: 'rejected', violations: [REUSED_PASSWORD.message] };
@@ -118,15 +118,15 @@ export async function completeUpdatePassword(
   return rotated ? { kind: 'updated' } : { kind: 'superseded' };
 }
 
-// A realm that ages passwords out has to say so somewhere the login can act
+// A tenant that ages passwords out has to say so somewhere the login can act
 // on it, and that is the required action — refusing the password step
 // instead would lock out every account the policy is trying to move along,
 // since the gate that would rescue them sits downstream of a success.
 export async function recordPasswordExpiryIfOwed(
-  tx: RealmScopedDatabase,
-  realmId: string,
+  tx: TenantScopedDatabase,
+  tenantId: string,
   subjectId: string,
-  // Handed in from the realm read the flow's own applicability decisions
+  // Handed in from the tenant read the flow's own applicability decisions
   // already made (flowSettings), rather than read again here.
   maxAgeDays: number,
   clock: Clock = systemClock,
@@ -134,5 +134,5 @@ export async function recordPasswordExpiryIfOwed(
   if (maxAgeDays === 0) return;
   const [credential] = await credentialRepository(tx).listFor(subjectId, 'password');
   if (credential === undefined || !passwordExpired(credential, maxAgeDays, clock.now())) return;
-  await requiredActionRepository(tx).add(realmId, subjectId, 'update-password');
+  await requiredActionRepository(tx).add(tenantId, subjectId, 'update-password');
 }

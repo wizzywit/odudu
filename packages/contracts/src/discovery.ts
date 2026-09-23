@@ -3,7 +3,7 @@ import { TOKEN_ENDPOINT_AUTH_METHODS_SUPPORTED } from '#/token';
 // authenticateClient (packages/protocol-oidc/src/usecase/client-authentication.ts)
 // is what both /introspect and /revoke authenticate through, and it accepts
 // a Basic header, a body client_secret, or — verifyClientSecret,
-// packages/domain-realm/src/service/client.ts — no secret at all from a
+// packages/domain-tenant/src/service/client.ts — no secret at all from a
 // `none` public client. Only private_key_jwt and tls_client_auth are never
 // dispatched here, so unlike the token endpoint's list this one never
 // varies with ODUDU_TRUST_PROXY.
@@ -13,7 +13,7 @@ const INTROSPECTION_AND_REVOCATION_AUTH_METHODS_SUPPORTED = [
   'none',
 ] as const;
 
-// Every `_endpoint` member is served unconditionally once a realm is
+// Every `_endpoint` member is served unconditionally once a tenant is
 // provisioned, including the three their own specifications make OPTIONAL:
 // `introspection_endpoint`, `revocation_endpoint` and
 // `end_session_endpoint`. `registration_endpoint` is the one exception.
@@ -30,8 +30,8 @@ export interface DiscoveryDocument {
   readonly response_modes_supported: readonly string[];
   readonly subject_types_supported: readonly string[];
   readonly id_token_signing_alg_values_supported: readonly string[];
-  // OIDC Discovery §3. The signing list is this realm's own active key's
-  // algorithm plus `none`; the encryption lists are the same for every realm.
+  // OIDC Discovery §3. The signing list is this tenant's own active key's
+  // algorithm plus `none`; the encryption lists are the same for every tenant.
   readonly userinfo_signing_alg_values_supported: readonly string[];
   readonly userinfo_encryption_alg_values_supported: readonly string[];
   readonly userinfo_encryption_enc_values_supported: readonly string[];
@@ -42,7 +42,7 @@ export interface DiscoveryDocument {
   readonly revocation_endpoint_auth_methods_supported: readonly string[];
   readonly authorization_response_iss_parameter_supported: boolean;
   readonly claims_parameter_supported: boolean;
-  // Fixed true: a client opts into logout per client, not per realm, and
+  // Fixed true: a client opts into logout per client, not per tenant, and
   // `sid` always travels in the logout token and in the front-channel
   // redirect of a client that registered `..._session_required`.
   readonly backchannel_logout_supported: boolean;
@@ -53,21 +53,21 @@ export interface DiscoveryDocument {
   // Every other list here is a non-empty literal.
   readonly scopes_supported?: readonly string[];
   readonly claims_supported?: readonly string[];
-  // RFC 7591 §3.1: absent while the realm's client_registration_policy is
+  // RFC 7591 §3.1: absent while the tenant's client_registration_policy is
   // 'disabled', since advertising it then claims a capability that 404s.
   readonly registration_endpoint?: string;
 }
 
 export interface DiscoveryDocumentOptions {
   readonly issuer: string;
-  // Passed in rather than defaulted: both are realm data and this package is
+  // Passed in rather than defaulted: both are tenant data and this package is
   // a leaf that never reads a database. The caller hands the same lists to
   // /authorize and to the claim mapper registry, which is what stops drift.
   readonly claimsSupported: readonly string[];
   readonly scopesSupported: readonly string[];
-  // The realm's active key's algorithm plus `none`.
+  // The tenant's active key's algorithm plus `none`.
   readonly userinfoSigningAlgSupported: readonly string[];
-  // Fixed by the installed jose, not by any realm's own data.
+  // Fixed by the installed jose, not by any tenant's own data.
   readonly userinfoEncryptionAlgSupported: readonly string[];
   readonly userinfoEncryptionEncSupported: readonly string[];
   // The path is fixed here, so the caller states existence, never a URL.

@@ -1,6 +1,6 @@
 export { actionTokens, type ActionTokenRecord, type ActionTokenType } from '#/schema/action-tokens';
 export { actionTokenRepository, type IssueActionToken } from '#/repository/action-tokens';
-export { realmSettingsRepository, type RealmSettings } from '#/repository/realm-settings';
+export { tenantSettingsRepository, type TenantSettings } from '#/repository/tenant-settings';
 export {
   sendVerificationEmail,
   completeEmailVerification,
@@ -13,7 +13,7 @@ export {
 } from '#/usecase/verify-email';
 export {
   registerActionTokenRoute,
-  type ActionTokenRealmLookup,
+  type ActionTokenTenantLookup,
   type ActionTokenRouteDeps,
 } from '#/view/routes/action-token';
 export {
@@ -31,7 +31,7 @@ export {
 } from '#/usecase/reset-password';
 export {
   registerResetPasswordRoute,
-  type ResetPasswordRealmLookup,
+  type ResetPasswordTenantLookup,
   type ResetPasswordRouteDeps,
 } from '#/view/routes/reset-password';
 export {
@@ -57,7 +57,7 @@ export {
 } from '#/usecase/register';
 export {
   registerRegistrationRoute,
-  type RegistrationRealmLookup,
+  type RegistrationTenantLookup,
   type RegistrationRouteDeps,
 } from '#/view/routes/registration';
 export {

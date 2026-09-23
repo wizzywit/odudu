@@ -116,7 +116,7 @@ value is refused whether a hint accompanied it or not.
 
 ### The scheme in the advertised endpoint
 
-`end_session_endpoint` is built by the same `realmIssuerFor` the issuer
+`end_session_endpoint` is built by the same `tenantIssuerFor` the issuer
 identifier is (`packages/protocol-oidc/src/view/issuer.ts`), so its
 authority and path are this server's own, and §2.1's `https` demand is
 unmet in exactly one component: the scheme is whatever the request arrived

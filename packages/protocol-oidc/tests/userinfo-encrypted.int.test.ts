@@ -3,14 +3,14 @@ import { hashPassword, subjectRepository, users } from '@odudu/domain-identity';
 import {
   createDatabase,
   MIGRATIONS_DIR,
-  realms,
+  tenants,
   runMigrations,
-  withRealm,
+  withTenant,
   type DatabaseHandle,
-  type RealmScopedDatabase,
+  type TenantScopedDatabase,
 } from '@odudu/db';
-import { provisionRealm } from '@odudu/authn-flows';
-import { clients, provisionClientDefaults } from '@odudu/domain-realm';
+import { provisionTenant } from '@odudu/authn-flows';
+import { clients, provisionClientDefaults } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import formbody from '@fastify/formbody';
@@ -70,14 +70,14 @@ interface Client {
   secret: string;
 }
 
-interface RealmSetup {
-  realmName: string;
-  realmId: string;
+interface TenantSetup {
+  tenantName: string;
+  tenantId: string;
   issuer: string;
   subjectId: string;
 }
 
-let realm: RealmSetup;
+let tenant: TenantSetup;
 let decryptKey: CryptoKey;
 let encryptOnlyClient: Client;
 let signAndEncryptClient: Client;
@@ -88,8 +88,8 @@ let filteredClient: Client;
 let signAndEncryptNoCandidateClient: Client;
 let disablableClient: Client;
 
-function userinfoUrl(realmName: string): string {
-  return `/realms/${realmName}/protocol/openid-connect/userinfo`;
+function userinfoUrl(tenantName: string): string {
+  return `/tenants/${tenantName}/protocol/openid-connect/userinfo`;
 }
 
 interface EncryptionRegistration {
@@ -102,10 +102,10 @@ interface EncryptionRegistration {
 
 async function registerClient(clientId: string, opts: EncryptionRegistration): Promise<Client> {
   const dbId = newId();
-  await withRealm(app.db, realm.realmId, async (tx: RealmScopedDatabase) => {
+  await withTenant(app.db, tenant.tenantId, async (tx: TenantScopedDatabase) => {
     await tx.insert(clients).values({
       id: dbId,
-      realmId: realm.realmId,
+      tenantId: tenant.tenantId,
       clientId,
       name: clientId,
       type: 'confidential',
@@ -114,7 +114,7 @@ async function registerClient(clientId: string, opts: EncryptionRegistration): P
     await provisionClientDefaults(tx, dbId);
     await clientOidcConfigRepository(tx).create({
       clientId: dbId,
-      realmId: realm.realmId,
+      tenantId: tenant.tenantId,
       redirectUris: [REDIRECT_URI],
       grantTypes: ['authorization_code'],
       tokenEndpointAuthMethod: 'client_secret_basic',
@@ -139,12 +139,12 @@ async function issueAccessToken(client: Client): Promise<string> {
   const code = generateAuthorizationCode();
   const codeHash = hashAuthorizationCode(code);
 
-  await withRealm(app.db, realm.realmId, async (tx) => {
+  await withTenant(app.db, tenant.tenantId, async (tx) => {
     await authorizationCodeRepository(tx).create({
       codeHash,
-      realmId: realm.realmId,
+      tenantId: tenant.tenantId,
       clientId: client.dbId,
-      subjectId: realm.subjectId,
+      subjectId: tenant.subjectId,
       redirectUri: REDIRECT_URI,
       scope: 'openid email',
       nonce: null,
@@ -165,7 +165,7 @@ async function issueAccessToken(client: Client): Promise<string> {
 
   const res = await http.inject({
     method: 'POST',
-    url: `/realms/${realm.realmName}/protocol/openid-connect/token`,
+    url: `/tenants/${tenant.tenantName}/protocol/openid-connect/token`,
     payload: form.toString(),
     headers: {
       'content-type': 'application/x-www-form-urlencoded',
@@ -179,7 +179,7 @@ async function issueAccessToken(client: Client): Promise<string> {
 function userinfoWithToken(accessToken: string): Promise<LightMyRequestResponse> {
   return http.inject({
     method: 'GET',
-    url: userinfoUrl(realm.realmName),
+    url: userinfoUrl(tenant.tenantName),
     headers: { authorization: `Bearer ${accessToken}` },
   });
 }
@@ -193,7 +193,7 @@ async function userinfo(client: Client): Promise<LightMyRequestResponse> {
 // client stays enabled — disabling one is a live operator action against a
 // client that may already hold tokens with time left on them.
 async function disableClient(client: Client): Promise<void> {
-  await withRealm(app.db, realm.realmId, (tx) =>
+  await withTenant(app.db, tenant.tenantId, (tx) =>
     tx.update(clients).set({ enabled: false }).where(eq(clients.id, client.dbId)),
   );
 }
@@ -246,17 +246,17 @@ beforeAll(async () => {
   decryptKey = privateKey;
   const encPublicJwk: JWK = { ...(await exportJWK(publicKey)), use: 'enc' };
 
-  const realmName = `userinfo-encrypted-${newId()}`;
-  const realmId = newId();
+  const tenantName = `userinfo-encrypted-${newId()}`;
+  const tenantId = newId();
 
-  const subjectId = await withRealm(app.db, realmId, async (tx) => {
-    await tx.insert(realms).values({ id: realmId, name: realmName });
-    await provisionRealm(tx, realmId);
+  const subjectId = await withTenant(app.db, tenantId, async (tx) => {
+    await tx.insert(tenants).values({ id: tenantId, name: tenantName });
+    await provisionTenant(tx, tenantId);
 
-    const subject = await subjectRepository(tx).create({ realmId, type: 'user' });
+    const subject = await subjectRepository(tx).create({ tenantId, type: 'user' });
     await tx.insert(users).values({
       subjectId: subject.id,
-      realmId,
+      tenantId,
       username: 'alice',
       email: 'alice@example.com',
       emailVerified: true,
@@ -265,7 +265,7 @@ beforeAll(async () => {
     const key = await generateSigningKey('RS256', KEK);
     await tx.insert(signingKeys).values({
       id: newId(),
-      realmId,
+      tenantId,
       kid: key.kid,
       alg: key.alg,
       status: 'active',
@@ -276,13 +276,13 @@ beforeAll(async () => {
     return subject.id;
   });
 
-  realm = {
-    realmName,
-    realmId,
+  tenant = {
+    tenantName,
+    tenantId,
     // light-my-request sends `Host: localhost:80`; the scheme's default
     // port is insignificant and never appears in an issuer
     // (packages/protocol-oidc/src/view/issuer.ts).
-    issuer: `http://localhost/realms/${realmName}`,
+    issuer: `http://localhost/tenants/${tenantName}`,
     subjectId,
   };
 
@@ -356,7 +356,7 @@ describe('[OIDC-CORE-5.3.2-03] the UserInfo response is encrypted without also b
 
     const plaintext = await decrypt(response.body);
     const claims = JSON.parse(plaintext) as Record<string, unknown>;
-    expect(claims.sub).toBe(realm.subjectId);
+    expect(claims.sub).toBe(tenant.subjectId);
     // Not a JWT: no iss/aud were ever added, because nothing signed this.
     expect(claims.iss).toBeUndefined();
   });
@@ -376,25 +376,25 @@ describe('[OIDC-CORE-5.3.2-04] signing and encryption together produce a Nested 
 
     const inner = await decrypt(response.body);
     // Pins the order, not merely `cty`: the decrypted plaintext is itself
-    // parsed and its signature verified against the realm's own published
+    // parsed and its signature verified against the tenant's own published
     // JWKS. A JWE wrapping raw JSON with a `cty: "JWT"` header slapped on
     // by mistake would fail this — jose refuses a three-dot string that
     // does not verify — where checking `cty` alone would not catch it.
     const certsRes = await http.inject({
       method: 'GET',
-      url: `/realms/${realm.realmName}/protocol/openid-connect/certs`,
+      url: `/tenants/${tenant.tenantName}/protocol/openid-connect/certs`,
     });
     const jwks: unknown = certsRes.json();
     const verified = await verifyJwtAgainstJwkSet(inner, jwks, {
-      issuer: realm.issuer,
+      issuer: tenant.issuer,
       audience: signAndEncryptClient.clientId,
       now: new Date(),
     });
     expect(verified).toBe(true);
 
     const claims = decode(inner);
-    expect(claims.iss).toBe(realm.issuer);
-    expect(claims.sub).toBe(realm.subjectId);
+    expect(claims.iss).toBe(tenant.issuer);
+    expect(claims.sub).toBe(tenant.subjectId);
   });
 });
 

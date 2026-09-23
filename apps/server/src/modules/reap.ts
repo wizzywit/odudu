@@ -71,7 +71,7 @@ export function reapModule(deps: ReapModuleDeps, pass: ReapPass = reap): OduduMo
           ctx.logger.warn(
             {},
             'not reaping: ODUDU_APP_DATABASE_URL is unset, and the pass ' +
-              'deletes under the realm policy the owner role escapes — set it, or set ' +
+              'deletes under the tenant policy the owner role escapes — set it, or set ' +
               'ODUDU_REAP_ENABLED=false to say the schedule lives elsewhere',
           );
         }

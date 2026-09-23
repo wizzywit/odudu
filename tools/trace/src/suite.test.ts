@@ -89,6 +89,6 @@ describe('isSpecificationId', () => {
   });
 
   it('treats an ODUDU-prefixed id as a project id, not a specification id', () => {
-    expect(isSpecificationId('ODUDU-CROSS-REALM-LEAKAGE-01')).toBe(false);
+    expect(isSpecificationId('ODUDU-CROSS-TENANT-LEAKAGE-01')).toBe(false);
   });
 });

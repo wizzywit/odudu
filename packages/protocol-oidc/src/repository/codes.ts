@@ -1,4 +1,4 @@
-import { type RealmScopedDatabase } from '@odudu/db';
+import { type TenantScopedDatabase } from '@odudu/db';
 import { eq, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { authorizationCodes, type AuthorizationCodeRecord } from '#/schema/authorization-codes';
@@ -60,7 +60,7 @@ function deserializeClaims(raw: string): ClaimsRequest {
 // container (an unconverted value fails `.getTime()` downstream).
 interface RawAuthorizationCodeRow {
   code_hash: string;
-  realm_id: string;
+  tenant_id: string;
   client_id: string;
   subject_id: string;
   redirect_uri: string;
@@ -80,7 +80,7 @@ interface RawAuthorizationCodeRow {
 function toRecord(row: RawAuthorizationCodeRow): AuthorizationCodeRecord {
   return {
     codeHash: row.code_hash,
-    realmId: row.realm_id,
+    tenantId: row.tenant_id,
     clientId: row.client_id,
     subjectId: row.subject_id,
     redirectUri: row.redirect_uri,
@@ -101,7 +101,7 @@ function toRecord(row: RawAuthorizationCodeRow): AuthorizationCodeRecord {
 
 export interface NewAuthorizationCode {
   codeHash: string;
-  realmId: string;
+  tenantId: string;
   clientId: string;
   subjectId: string;
   redirectUri: string;
@@ -123,7 +123,7 @@ export interface NewAuthorizationCode {
   claims: ClaimsRequest;
 }
 
-export function authorizationCodeRepository(tx: RealmScopedDatabase) {
+export function authorizationCodeRepository(tx: TenantScopedDatabase) {
   return {
     async create(input: NewAuthorizationCode): Promise<void> {
       await tx.insert(authorizationCodes).values({
@@ -188,7 +188,7 @@ export function authorizationCodeRepository(tx: RealmScopedDatabase) {
 // the rest of the repository, e.g. the concurrency test that redeems
 // directly against a transaction.
 export async function consumeAuthorizationCode(
-  tx: RealmScopedDatabase,
+  tx: TenantScopedDatabase,
   codeHash: string,
 ): Promise<AuthorizationCodeRecord | null> {
   return authorizationCodeRepository(tx).consume(codeHash);

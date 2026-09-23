@@ -3,14 +3,14 @@ import { hashPassword, subjectRepository, userCredentials, users } from '@odudu/
 import {
   createDatabase,
   MIGRATIONS_DIR,
-  realms,
+  tenants,
   runMigrations,
-  withRealm,
+  withTenant,
   type DatabaseHandle,
-  type RealmScopedDatabase,
+  type TenantScopedDatabase,
 } from '@odudu/db';
-import { provisionRealm } from '@odudu/authn-flows';
-import { clients, provisionClientDefaults } from '@odudu/domain-realm';
+import { provisionTenant } from '@odudu/authn-flows';
+import { clients, provisionClientDefaults } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import formbody from '@fastify/formbody';
@@ -74,7 +74,7 @@ const RP_NEVER_USED: RpClientSpec = {
 };
 // Stored the way an operator's direct UPDATE could, bypassing the
 // isValidLogoutUri check dynamic registration and seed client both go
-// through — proves a row like this cannot take logout down for the realm.
+// through — proves a row like this cannot take logout down for the tenant.
 const RP_MALFORMED: RpClientSpec = {
   hostname: 'rp-malformed.example',
   frontchannelLogoutUri: 'not a url at all',
@@ -89,26 +89,26 @@ const RP_DISABLED: RpClientSpec = {
 
 const signingKeyOf = new Map<string, SigningKeyRecord>();
 
-// One realm, one client for signing in, and a client per relying party
+// One tenant, one client for signing in, and a client per relying party
 // spec — none of the RP clients need a redirect_uri of their own, since
 // this file grants them a session-bound token_grants row directly rather
 // than driving each one through a full authorization-code redemption; the
 // join under test (token_grants -> client_oidc_config) does not care how
 // the grant was minted.
-async function setupRealm(
+async function setupTenant(
   name: string,
   rpSpecs: readonly RpClientSpec[],
-): Promise<{ realmId: string; subjectId: string; rpClientIds: Map<string, string> }> {
-  const realmId = newId();
+): Promise<{ tenantId: string; subjectId: string; rpClientIds: Map<string, string> }> {
+  const tenantId = newId();
   const loginClientDbId = newId();
   const rpClientIds = new Map<string, string>();
 
-  await withRealm(app.db, realmId, async (tx: RealmScopedDatabase) => {
-    await tx.insert(realms).values({ id: realmId, name });
-    await provisionRealm(tx, realmId);
+  await withTenant(app.db, tenantId, async (tx: TenantScopedDatabase) => {
+    await tx.insert(tenants).values({ id: tenantId, name });
+    await provisionTenant(tx, tenantId);
     await tx.insert(clients).values({
       id: loginClientDbId,
-      realmId,
+      tenantId,
       clientId: LOGIN_CLIENT_ID,
       name: 'Front-channel logout login client',
       type: 'confidential',
@@ -117,7 +117,7 @@ async function setupRealm(
     await provisionClientDefaults(tx, loginClientDbId);
     await clientOidcConfigRepository(tx).create({
       clientId: loginClientDbId,
-      realmId,
+      tenantId,
       redirectUris: [REDIRECT_URI],
       grantTypes: ['authorization_code'],
       tokenEndpointAuthMethod: 'client_secret_basic',
@@ -130,7 +130,7 @@ async function setupRealm(
       const rpClientDbId = newId();
       await tx.insert(clients).values({
         id: rpClientDbId,
-        realmId,
+        tenantId,
         clientId: spec.hostname,
         name: spec.hostname,
         type: 'confidential',
@@ -140,7 +140,7 @@ async function setupRealm(
       await provisionClientDefaults(tx, rpClientDbId);
       await clientOidcConfigRepository(tx).create({
         clientId: rpClientDbId,
-        realmId,
+        tenantId,
         redirectUris: [`https://${spec.hostname}/callback`],
         grantTypes: ['authorization_code'],
         tokenEndpointAuthMethod: 'client_secret_basic',
@@ -153,11 +153,11 @@ async function setupRealm(
       rpClientIds.set(spec.hostname, rpClientDbId);
     }
 
-    const subject = await subjectRepository(tx).create({ realmId, type: 'user' });
-    await tx.insert(users).values({ subjectId: subject.id, realmId, username: USERNAME });
+    const subject = await subjectRepository(tx).create({ tenantId, type: 'user' });
+    await tx.insert(users).values({ subjectId: subject.id, tenantId, username: USERNAME });
     await tx.insert(userCredentials).values({
       id: newId(),
-      realmId,
+      tenantId,
       subjectId: subject.id,
       type: 'password',
       secretData: { hash: await hashPassword(PASSWORD) },
@@ -166,7 +166,7 @@ async function setupRealm(
     const generated = await generateSigningKey('ES256', KEK);
     const key: SigningKeyRecord = {
       id: newId(),
-      realmId,
+      tenantId,
       kid: generated.kid,
       alg: generated.alg,
       status: 'active',
@@ -178,7 +178,7 @@ async function setupRealm(
     signingKeyOf.set(name, key);
     await tx.insert(signingKeys).values({
       id: key.id,
-      realmId,
+      tenantId,
       kid: key.kid,
       alg: key.alg,
       status: 'active',
@@ -187,34 +187,34 @@ async function setupRealm(
     });
   });
 
-  const subjectId = await subjectIdOf(realmId, USERNAME);
-  return { realmId, subjectId, rpClientIds };
+  const subjectId = await subjectIdOf(tenantId, USERNAME);
+  return { tenantId, subjectId, rpClientIds };
 }
 
-async function subjectIdOf(realmId: string, username: string): Promise<string> {
+async function subjectIdOf(tenantId: string, username: string): Promise<string> {
   const rows = await owner.db
     .select({ subjectId: users.subjectId })
     .from(users)
-    .where(and(eq(users.realmId, realmId), eq(users.username, username)));
+    .where(and(eq(users.tenantId, tenantId), eq(users.username, username)));
   const row = rows[0];
-  if (row === undefined) throw new Error(`no user ${username} in realm ${realmId}`);
+  if (row === undefined) throw new Error(`no user ${username} in tenant ${tenantId}`);
   return row.subjectId;
 }
 
-async function issuerFor(realmName: string): Promise<string> {
+async function issuerFor(tenantName: string): Promise<string> {
   const res = await http.inject({
-    url: `/realms/${realmName}/.well-known/openid-configuration`,
+    url: `/tenants/${tenantName}/.well-known/openid-configuration`,
   });
   return res.json<{ issuer: string }>().issuer;
 }
 
-async function mintIdToken(realmName: string, sub: string, sid: string): Promise<string> {
-  const key = signingKeyOf.get(realmName);
-  if (key === undefined) throw new Error(`no signing key for ${realmName}`);
+async function mintIdToken(tenantName: string, sub: string, sid: string): Promise<string> {
+  const key = signingKeyOf.get(tenantName);
+  if (key === undefined) throw new Error(`no signing key for ${tenantName}`);
   const now = Math.floor(Date.now() / 1000);
   return signJwt(
     {
-      iss: await issuerFor(realmName),
+      iss: await issuerFor(tenantName),
       aud: LOGIN_CLIENT_ID,
       sub,
       iat: now,
@@ -225,7 +225,7 @@ async function mintIdToken(realmName: string, sub: string, sid: string): Promise
   );
 }
 
-function authorizeUrl(realmName: string): string {
+function authorizeUrl(tenantName: string): string {
   const query = new URLSearchParams({
     response_type: 'code',
     client_id: LOGIN_CLIENT_ID,
@@ -235,7 +235,7 @@ function authorizeUrl(realmName: string): string {
     code_challenge: 'E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM',
     code_challenge_method: 'S256',
   });
-  return `/realms/${realmName}/protocol/openid-connect/auth?${query.toString()}`;
+  return `/tenants/${tenantName}/protocol/openid-connect/auth?${query.toString()}`;
 }
 
 function setCookieValue(res: LightMyRequestResponse): string | undefined {
@@ -250,8 +250,8 @@ function sessionIdFromCookie(cookie: string): string {
   return id;
 }
 
-async function signIn(realmName: string): Promise<string> {
-  const res = await http.inject({ url: authorizeUrl(realmName) });
+async function signIn(tenantName: string): Promise<string> {
+  const res = await http.inject({ url: authorizeUrl(tenantName) });
   if (res.statusCode !== 200) {
     throw new Error(`expected /authorize to render the login form, got ${String(res.statusCode)}`);
   }
@@ -266,7 +266,7 @@ async function signIn(realmName: string): Promise<string> {
   });
   const submitted = await http.inject({
     method: 'POST',
-    url: `/realms/${realmName}/login-actions/authenticate`,
+    url: `/tenants/${tenantName}/login-actions/authenticate`,
     payload: form.toString(),
     headers: { 'content-type': 'application/x-www-form-urlencoded' },
   });
@@ -277,12 +277,12 @@ async function signIn(realmName: string): Promise<string> {
 }
 
 function logoutUrl(
-  realmName: string,
+  tenantName: string,
   idTokenHint: string,
   extra: Record<string, string> = {},
 ): string {
   const query = new URLSearchParams({ id_token_hint: idTokenHint, ...extra });
-  return `/realms/${realmName}/protocol/openid-connect/logout?${query.toString()}`;
+  return `/tenants/${tenantName}/protocol/openid-connect/logout?${query.toString()}`;
 }
 
 function frameUrl(body: string, hostname: string): URL {
@@ -294,15 +294,15 @@ function frameUrl(body: string, hostname: string): URL {
 }
 
 async function grantUnderSession(
-  realmId: string,
+  tenantId: string,
   clientDbId: string,
   subjectId: string,
   sessionId: string | null,
 ): Promise<void> {
-  await withRealm(app.db, realmId, (tx) =>
+  await withTenant(app.db, tenantId, (tx) =>
     tokenGrantRepository(tx).create({
       id: newId(),
-      realmId,
+      tenantId,
       clientId: clientDbId,
       subjectId,
       scope: 'openid',
@@ -348,14 +348,14 @@ afterAll(async () => {
 
 describe('the logout page frames each relying party that used the session', () => {
   it('[OIDC-FRONTCHANNEL-3-IFRAME-01] frames the front-channel logout URI of every client that used the session', async () => {
-    const realmName = `frontchannel-${newId()}`;
-    const { realmId, subjectId, rpClientIds } = await setupRealm(realmName, [
+    const tenantName = `frontchannel-${newId()}`;
+    const { tenantId, subjectId, rpClientIds } = await setupTenant(tenantName, [
       RP_ONE,
       RP_TWO,
       RP_NO_FRONTCHANNEL,
       RP_NEVER_USED,
     ]);
-    const cookie = await signIn(realmName);
+    const cookie = await signIn(tenantName);
     const sessionId = sessionIdFromCookie(cookie);
 
     const rpOneId = rpClientIds.get(RP_ONE.hostname);
@@ -371,15 +371,15 @@ describe('the logout page frames each relying party that used the session', () =
       throw new Error('expected every RP client to have been provisioned');
     }
 
-    await grantUnderSession(realmId, rpOneId, subjectId, sessionId);
-    await grantUnderSession(realmId, rpTwoId, subjectId, sessionId);
-    await grantUnderSession(realmId, rpNoFrontchannelId, subjectId, sessionId);
+    await grantUnderSession(tenantId, rpOneId, subjectId, sessionId);
+    await grantUnderSession(tenantId, rpTwoId, subjectId, sessionId);
+    await grantUnderSession(tenantId, rpNoFrontchannelId, subjectId, sessionId);
     // Registered, but never granted under this session — proves the page
-    // frames the session's own RPs, not every client the realm has.
-    await grantUnderSession(realmId, rpNeverUsedId, subjectId, null);
+    // frames the session's own RPs, not every client the tenant has.
+    await grantUnderSession(tenantId, rpNeverUsedId, subjectId, null);
 
-    const hint = await mintIdToken(realmName, subjectId, sessionId);
-    const res = await http.inject({ url: logoutUrl(realmName, hint), headers: { cookie } });
+    const hint = await mintIdToken(tenantName, subjectId, sessionId);
+    const res = await http.inject({ url: logoutUrl(tenantName, hint), headers: { cookie } });
 
     expect(res.statusCode).toBe(200);
     expect(res.body).toContain('<iframe src="https://rp-one.example/logout?');
@@ -390,11 +390,11 @@ describe('the logout page frames each relying party that used the session', () =
     expect(res.body).not.toContain('rp-never-used.example');
 
     const withSession = frameUrl(res.body, 'rp-one.example');
-    expect(withSession.searchParams.get('iss')).toBe(await issuerFor(realmName));
+    expect(withSession.searchParams.get('iss')).toBe(await issuerFor(tenantName));
     expect(withSession.searchParams.get('sid')).toBe(sessionId);
 
     const without = frameUrl(res.body, 'rp-two.example');
-    expect(without.searchParams.get('iss')).toBe(await issuerFor(realmName));
+    expect(without.searchParams.get('iss')).toBe(await issuerFor(tenantName));
     expect(without.searchParams.has('sid')).toBe(false);
 
     const policy = String(res.headers['content-security-policy']);
@@ -408,42 +408,42 @@ describe('the logout page frames each relying party that used the session', () =
   });
 
   it('[OIDC-FRONTCHANNEL-2-QUERY-01] keeps a query component the client registered, and adds to it', async () => {
-    const realmName = `frontchannel-query-${newId()}`;
-    const { realmId, subjectId, rpClientIds } = await setupRealm(realmName, [RP_THREE]);
-    const cookie = await signIn(realmName);
+    const tenantName = `frontchannel-query-${newId()}`;
+    const { tenantId, subjectId, rpClientIds } = await setupTenant(tenantName, [RP_THREE]);
+    const cookie = await signIn(tenantName);
     const sessionId = sessionIdFromCookie(cookie);
     const rpThreeId = rpClientIds.get(RP_THREE.hostname);
     if (rpThreeId === undefined) throw new Error('expected rp-three to have been provisioned');
 
-    await grantUnderSession(realmId, rpThreeId, subjectId, sessionId);
+    await grantUnderSession(tenantId, rpThreeId, subjectId, sessionId);
 
-    const hint = await mintIdToken(realmName, subjectId, sessionId);
-    const res = await http.inject({ url: logoutUrl(realmName, hint), headers: { cookie } });
+    const hint = await mintIdToken(tenantName, subjectId, sessionId);
+    const res = await http.inject({ url: logoutUrl(tenantName, hint), headers: { cookie } });
 
     expect(res.statusCode).toBe(200);
     const url = frameUrl(res.body, 'rp-three.example');
     expect(url.searchParams.get('tenant')).toBe('a');
-    expect(url.searchParams.get('iss')).toBe(await issuerFor(realmName));
+    expect(url.searchParams.get('iss')).toBe(await issuerFor(tenantName));
   });
 
   it('[OIDC-FRONTCHANNEL-3-TRACKING-01] frames nothing, and carries no frame-src, when the session had no grants', async () => {
-    const realmName = `frontchannel-nogrants-${newId()}`;
-    const { realmId, subjectId, rpClientIds } = await setupRealm(realmName, [RP_ONE]);
+    const tenantName = `frontchannel-nogrants-${newId()}`;
+    const { tenantId, subjectId, rpClientIds } = await setupTenant(tenantName, [RP_ONE]);
     const rpOneId = rpClientIds.get(RP_ONE.hostname);
     if (rpOneId === undefined) throw new Error('expected rp-one to have been provisioned');
 
     // A second, unrelated login for the same subject, holding its own
     // grant for rp-one — proves the read is scoped to the session being
-    // ended, not the realm's, since a realm-wide read of rp-one would
+    // ended, not the tenant's, since a tenant-wide read of rp-one would
     // frame it regardless of which of the subject's sessions logs out.
-    const otherCookie = await signIn(realmName);
-    await grantUnderSession(realmId, rpOneId, subjectId, sessionIdFromCookie(otherCookie));
+    const otherCookie = await signIn(tenantName);
+    await grantUnderSession(tenantId, rpOneId, subjectId, sessionIdFromCookie(otherCookie));
 
-    const cookie = await signIn(realmName);
+    const cookie = await signIn(tenantName);
     const sessionId = sessionIdFromCookie(cookie);
 
-    const hint = await mintIdToken(realmName, subjectId, sessionId);
-    const res = await http.inject({ url: logoutUrl(realmName, hint), headers: { cookie } });
+    const hint = await mintIdToken(tenantName, subjectId, sessionId);
+    const res = await http.inject({ url: logoutUrl(tenantName, hint), headers: { cookie } });
 
     expect(res.statusCode).toBe(200);
     expect(res.body).not.toContain('<iframe');
@@ -452,9 +452,12 @@ describe('the logout page frames each relying party that used the session', () =
   });
 
   it('skips a stored frontchannel_logout_uri it cannot parse, rather than failing the whole logout', async () => {
-    const realmName = `frontchannel-malformed-${newId()}`;
-    const { realmId, subjectId, rpClientIds } = await setupRealm(realmName, [RP_ONE, RP_MALFORMED]);
-    const cookie = await signIn(realmName);
+    const tenantName = `frontchannel-malformed-${newId()}`;
+    const { tenantId, subjectId, rpClientIds } = await setupTenant(tenantName, [
+      RP_ONE,
+      RP_MALFORMED,
+    ]);
+    const cookie = await signIn(tenantName);
     const sessionId = sessionIdFromCookie(cookie);
 
     const rpOneId = rpClientIds.get(RP_ONE.hostname);
@@ -462,11 +465,11 @@ describe('the logout page frames each relying party that used the session', () =
     if (rpOneId === undefined || rpMalformedId === undefined) {
       throw new Error('expected both RP clients to have been provisioned');
     }
-    await grantUnderSession(realmId, rpOneId, subjectId, sessionId);
-    await grantUnderSession(realmId, rpMalformedId, subjectId, sessionId);
+    await grantUnderSession(tenantId, rpOneId, subjectId, sessionId);
+    await grantUnderSession(tenantId, rpMalformedId, subjectId, sessionId);
 
-    const hint = await mintIdToken(realmName, subjectId, sessionId);
-    const res = await http.inject({ url: logoutUrl(realmName, hint), headers: { cookie } });
+    const hint = await mintIdToken(tenantName, subjectId, sessionId);
+    const res = await http.inject({ url: logoutUrl(tenantName, hint), headers: { cookie } });
 
     expect(res.statusCode).toBe(200);
     expect(res.body).toContain('<iframe src="https://rp-one.example/logout?');
@@ -474,9 +477,12 @@ describe('the logout page frames each relying party that used the session', () =
   });
 
   it('does not frame a disabled client, even one that registered a front-channel logout URI', async () => {
-    const realmName = `frontchannel-disabled-${newId()}`;
-    const { realmId, subjectId, rpClientIds } = await setupRealm(realmName, [RP_ONE, RP_DISABLED]);
-    const cookie = await signIn(realmName);
+    const tenantName = `frontchannel-disabled-${newId()}`;
+    const { tenantId, subjectId, rpClientIds } = await setupTenant(tenantName, [
+      RP_ONE,
+      RP_DISABLED,
+    ]);
+    const cookie = await signIn(tenantName);
     const sessionId = sessionIdFromCookie(cookie);
 
     const rpOneId = rpClientIds.get(RP_ONE.hostname);
@@ -484,11 +490,11 @@ describe('the logout page frames each relying party that used the session', () =
     if (rpOneId === undefined || rpDisabledId === undefined) {
       throw new Error('expected both RP clients to have been provisioned');
     }
-    await grantUnderSession(realmId, rpOneId, subjectId, sessionId);
-    await grantUnderSession(realmId, rpDisabledId, subjectId, sessionId);
+    await grantUnderSession(tenantId, rpOneId, subjectId, sessionId);
+    await grantUnderSession(tenantId, rpDisabledId, subjectId, sessionId);
 
-    const hint = await mintIdToken(realmName, subjectId, sessionId);
-    const res = await http.inject({ url: logoutUrl(realmName, hint), headers: { cookie } });
+    const hint = await mintIdToken(tenantName, subjectId, sessionId);
+    const res = await http.inject({ url: logoutUrl(tenantName, hint), headers: { cookie } });
 
     expect(res.statusCode).toBe(200);
     expect(res.body).toContain('<iframe src="https://rp-one.example/logout?');
@@ -497,21 +503,21 @@ describe('the logout page frames each relying party that used the session', () =
   });
 
   it('[ODUDU-LOGOUT-REDIRECT-REFUSED-FRAME-01] also frames the session’s RPs when the redirect is refused', async () => {
-    const realmName = `frontchannel-refused-${newId()}`;
-    const { realmId, subjectId, rpClientIds } = await setupRealm(realmName, [RP_ONE]);
-    const cookie = await signIn(realmName);
+    const tenantName = `frontchannel-refused-${newId()}`;
+    const { tenantId, subjectId, rpClientIds } = await setupTenant(tenantName, [RP_ONE]);
+    const cookie = await signIn(tenantName);
     const sessionId = sessionIdFromCookie(cookie);
     const rpOneId = rpClientIds.get(RP_ONE.hostname);
     if (rpOneId === undefined) throw new Error('expected rp-one to have been provisioned');
 
-    await grantUnderSession(realmId, rpOneId, subjectId, sessionId);
+    await grantUnderSession(tenantId, rpOneId, subjectId, sessionId);
 
-    const hint = await mintIdToken(realmName, subjectId, sessionId);
+    const hint = await mintIdToken(tenantName, subjectId, sessionId);
     // LOGIN_CLIENT_ID registered no post_logout_redirect_uris at all, so
     // any value here is refused — this drives the render branch, not the
     // no-redirect `end` branch the earlier tests in this file drive.
     const res = await http.inject({
-      url: logoutUrl(realmName, hint, {
+      url: logoutUrl(tenantName, hint, {
         client_id: LOGIN_CLIENT_ID,
         post_logout_redirect_uri: 'https://not-registered.example/after',
       }),

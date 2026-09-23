@@ -25,26 +25,26 @@ export interface RequiredActionRouteDeps extends RequiredActionSubmissionDeps {
   // A fresh secret and the otpauth:// URI for it, for the subject the
   // authentication session is bound to.
   beginTotpEnrolment(
-    realmName: string,
-    realmId: string,
+    tenantName: string,
+    tenantId: string,
     subjectId: string,
   ): Promise<TotpEnrolmentOffer>;
   // Fresh creation options, and a fresh challenge parked on the attempt, for
   // a retry after a refused ceremony. Absent on a deployment with no
   // relying party to name.
   beginPasskeyEnrolment?(
-    realmName: string,
-    realmId: string,
+    tenantName: string,
+    tenantId: string,
     subjectId: string,
     authSessionId: string,
   ): Promise<PasskeyEnrolmentOffer>;
   // Ten fresh codes, written as hashes and returned in plaintext for the
   // one render of them there will be. Called again on a re-render, which
   // is why the page it feeds says the codes on it replace any earlier set.
-  beginRecoveryCodes(realmId: string, subjectId: string): Promise<RecoveryCodesOffer>;
+  beginRecoveryCodes(tenantId: string, subjectId: string): Promise<RecoveryCodesOffer>;
   // What the parked login is waiting for now that the action is done —
   // the same call the login route makes to re-render after a rejection.
-  pendingChallenge(realmId: string, authSessionId: string): Promise<AuthenticatorResult>;
+  pendingChallenge(tenantId: string, authSessionId: string): Promise<AuthenticatorResult>;
 }
 
 const FALLBACK_FORM = 'password';
@@ -60,12 +60,12 @@ export function registerRequiredActionRoute(
   deps: RequiredActionRouteDeps,
 ): void {
   app.post<{
-    Params: { realm: string };
+    Params: { tenant: string };
     Querystring: { action?: string };
     Body: Record<string, string | string[] | undefined>;
-  }>('/realms/:realm/login-actions/required-action', async (request, reply) => {
+  }>('/tenants/:tenant/login-actions/required-action', async (request, reply) => {
     const body = request.body;
-    const realmName = request.params.realm;
+    const tenantName = request.params.tenant;
     const authSessionId = firstString(body.auth_session_id);
     const candidate = readPasswordField(body.password);
 
@@ -82,11 +82,11 @@ export function registerRequiredActionRoute(
       return sendHtml(
         reply,
         400,
-        renderUpdatePasswordPage(realmName, authSessionId, [PASSWORD_TOO_LONG.message]),
+        renderUpdatePasswordPage(tenantName, authSessionId, [PASSWORD_TOO_LONG.message]),
       );
     }
 
-    const outcome = await handleRequiredActionSubmission(deps, realmName, {
+    const outcome = await handleRequiredActionSubmission(deps, tenantName, {
       authSessionId,
       action: request.query.action,
       secret: firstString(body.secret),
@@ -133,13 +133,13 @@ export function registerRequiredActionRoute(
       return sendHtml(
         reply,
         400,
-        renderUpdatePasswordPage(realmName, outcome.authSessionId, outcome.violations),
+        renderUpdatePasswordPage(tenantName, outcome.authSessionId, outcome.violations),
       );
     }
 
-    const realm = await deps.findRealm(realmName);
-    if (realm === null) {
-      return sendHtml(reply, 400, renderAuthorizeErrorPage('invalid_request', 'Unknown realm.'));
+    const tenant = await deps.findTenant(tenantName);
+    if (tenant === null) {
+      return sendHtml(reply, 400, renderAuthorizeErrorPage('invalid_request', 'Unknown tenant.'));
     }
 
     // Back to the login form, not straight to a code: nothing was persisted
@@ -147,27 +147,27 @@ export function registerRequiredActionRoute(
     // again (see advance() in @odudu/authn-flows), and this time the second
     // factor the enrolment just created runs after it.
     if (outcome.kind === 'completed') {
-      const pending = await deps.pendingChallenge(realm.id, outcome.authSessionId);
+      const pending = await deps.pendingChallenge(tenant.id, outcome.authSessionId);
       const form = pending.kind === 'challenge' ? pending.form : FALLBACK_FORM;
       return sendHtml(
         reply,
         200,
         renderLoginForm(
-          realmName,
+          tenantName,
           outcome.authSessionId,
           form,
           deps.passkeyLogin ?? false,
-          realm.rememberMeAllowed,
+          tenant.rememberMeAllowed,
         ),
       );
     }
 
     if (outcome.action === 'generate-recovery-codes') {
-      const offer = await deps.beginRecoveryCodes(realm.id, outcome.subjectId);
+      const offer = await deps.beginRecoveryCodes(tenant.id, outcome.subjectId);
       return sendHtml(
         reply,
         200,
-        renderRecoveryCodesPage(realmName, outcome.authSessionId, offer, outcome.reason),
+        renderRecoveryCodesPage(tenantName, outcome.authSessionId, offer, outcome.reason),
       );
     }
 
@@ -177,19 +177,19 @@ export function registerRequiredActionRoute(
         return sendHtml(reply, 200, renderRequiredActionPage(outcome.action));
       }
       // A retry needs its own challenge: the refused one is already gone.
-      const passkey = await begin(realmName, realm.id, outcome.subjectId, outcome.authSessionId);
+      const passkey = await begin(tenantName, tenant.id, outcome.subjectId, outcome.authSessionId);
       return sendHtml(
         reply,
         200,
-        renderPasskeyEnrolmentPage(realmName, outcome.authSessionId, passkey, outcome.reason),
+        renderPasskeyEnrolmentPage(tenantName, outcome.authSessionId, passkey, outcome.reason),
       );
     }
 
-    const offer = await deps.beginTotpEnrolment(realmName, realm.id, outcome.subjectId);
+    const offer = await deps.beginTotpEnrolment(tenantName, tenant.id, outcome.subjectId);
     return sendHtml(
       reply,
       200,
-      renderTotpEnrolmentPage(realmName, outcome.authSessionId, offer, outcome.reason),
+      renderTotpEnrolmentPage(tenantName, outcome.authSessionId, offer, outcome.reason),
     );
   });
 }

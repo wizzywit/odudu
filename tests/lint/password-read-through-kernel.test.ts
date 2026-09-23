@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 
 // The maximum password length is enforced where a form is read, because the
 // sign-in route verifies a candidate rather than evaluating it against the
-// realm's policy (ADR 0023). A new route reading the field directly would
+// tenant's policy (ADR 0023). A new route reading the field directly would
 // bypass the cap and break no existing test, so "every reader goes through
 // readPasswordField" is checked here rather than asserted in a comment.
 

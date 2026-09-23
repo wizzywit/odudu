@@ -1,8 +1,8 @@
 import {
   bypassesRowLevelSecurity,
   createDatabase,
-  realms,
-  withRealm,
+  tenants,
+  withTenant,
   type DatabaseHandle,
 } from '@odudu/db';
 import { loadConfig, OduduError, type Config } from '@odudu/kernel';
@@ -15,7 +15,7 @@ import { assertProductionNoPrivateClientUrls } from '#/config-guard';
 import { createLogoutDeliveryTransport } from '#/logout-delivery-transport';
 
 export interface LogoutSenderOptions {
-  /** Deliveries claimed per realm per pass. */
+  /** Deliveries claimed per tenant per pass. */
   readonly batchSize: number;
   /** How long a claim holds a delivery invisible to other passes. */
   readonly leaseSeconds: number;
@@ -35,8 +35,8 @@ export interface LogoutSenderDeps {
   /** The serving, row-level-security-constrained connection: every claim and write. */
   readonly database: DatabaseHandle;
   /**
-   * The owner connection, for one thing: listing the realms to visit — the
-   * queue is scoped by `app.realm_id`, the same reason `reap` and the
+   * The owner connection, for one thing: listing the tenants to visit — the
+   * queue is scoped by `app.tenant_id`, the same reason `reap` and the
    * outbox sender each keep a connection of their own for it.
    */
   readonly ownerDatabase: DatabaseHandle;
@@ -45,42 +45,42 @@ export interface LogoutSenderDeps {
 
 /**
  * Why a pass did nothing, distinct from a report of zeros: "delivered
- * nothing" and "found no realm to look at" are different facts, the same
+ * nothing" and "found no tenant to look at" are different facts, the same
  * distinction `reap` and the outbox sender each draw for their own pass.
  */
 export type LogoutSenderReport =
-  | { readonly ran: false; readonly reason: 'no realm was enumerated' }
+  | { readonly ran: false; readonly reason: 'no tenant was enumerated' }
   | { readonly ran: true; readonly delivered: number; readonly failed: number };
 
 // Both halves of the claim's scoping, checked rather than hoped for — the
 // same two checks `sendPending` (`@odudu/email`) runs for its own queue,
-// copied here because `sendLogouts` itself stays single-realm and leaves
-// the cross-realm walk to its caller (Task 18's report).
+// copied here because `sendLogouts` itself stays single-tenant and leaves
+// the cross-tenant walk to its caller.
 async function assertRolesAreRight(deps: LogoutSenderDeps): Promise<void> {
   if (!(await bypassesRowLevelSecurity(deps.ownerDatabase))) {
     throw new OduduError(
-      'logout_sender_cannot_enumerate_realms',
-      'the logout sender must list realms on a connection that bypasses row-level security; ' +
+      'logout_sender_cannot_enumerate_tenants',
+      'the logout sender must list tenants on a connection that bypasses row-level security; ' +
         'ODUDU_DATABASE_URL names a role that is neither SUPERUSER nor BYPASSRLS',
     );
   }
   if (await bypassesRowLevelSecurity(deps.database)) {
     throw new OduduError(
       'logout_sender_serving_role_bypasses_rls',
-      'the logout sender claims under the realm policy, so its serving connection must be ' +
+      'the logout sender claims under the tenant policy, so its serving connection must be ' +
         'subject to it; ODUDU_APP_DATABASE_URL names a SUPERUSER or BYPASSRLS role',
     );
   }
 }
 
 /**
- * Visits every realm in turn and drains its due deliveries. No lock spans
+ * Visits every tenant in turn and drains its due deliveries. No lock spans
  * the walk — unlike `reap`'s advisory lock — because `claimDue`'s `FOR
- * UPDATE SKIP LOCKED` already makes two passes over the same realm take
+ * UPDATE SKIP LOCKED` already makes two passes over the same tenant take
  * different rows (`logoutDeliveryRepository.claimDue`), so overlapping
  * passes cost nothing but a little wasted work, never a duplicate send.
  */
-export async function sendLogoutsAcrossRealms(
+export async function sendLogoutsAcrossTenants(
   deps: LogoutSenderDeps,
   now: Date,
   options: LogoutSenderOptions,
@@ -88,18 +88,18 @@ export async function sendLogoutsAcrossRealms(
   await assertRolesAreRight(deps);
 
   const rows = await deps.ownerDatabase.db
-    .select({ id: realms.id })
-    .from(realms)
-    .orderBy(realms.id);
-  const realmIds = rows.map((row) => row.id);
-  if (realmIds.length === 0) {
-    return { ran: false, reason: 'no realm was enumerated' };
+    .select({ id: tenants.id })
+    .from(tenants)
+    .orderBy(tenants.id);
+  const tenantIds = rows.map((row) => row.id);
+  if (tenantIds.length === 0) {
+    return { ran: false, reason: 'no tenant was enumerated' };
   }
 
   let delivered = 0;
   let failed = 0;
-  for (const realmId of realmIds) {
-    const outcome = await withRealm(deps.database.db, realmId, (tx) => {
+  for (const tenantId of tenantIds) {
+    const outcome = await withTenant(deps.database.db, tenantId, (tx) => {
       const repository = logoutDeliveryRepository(tx);
       return sendLogouts(
         {
@@ -137,12 +137,12 @@ export async function sendLogoutsCommand(): Promise<LogoutSenderReport> {
   assertProductionNoPrivateClientUrls(config);
   const appUrl = config.ODUDU_APP_DATABASE_URL;
   // Demanded in every environment, not only production: the claim runs
-  // under the realm policy, which the owner role the migrations use
+  // under the tenant policy, which the owner role the migrations use
   // escapes — see `reapCommand`'s identical guard.
   if (appUrl === undefined) {
     throw new OduduError(
       'logout_sender_requires_app_database_url',
-      'odudu send-logouts requires ODUDU_APP_DATABASE_URL: it claims under the realm policy, ' +
+      'odudu send-logouts requires ODUDU_APP_DATABASE_URL: it claims under the tenant policy, ' +
         'which the owner role the migrations use escapes',
     );
   }
@@ -151,7 +151,7 @@ export async function sendLogoutsCommand(): Promise<LogoutSenderReport> {
   const runtime = createDatabase(appUrl);
 
   try {
-    return await sendLogoutsAcrossRealms(
+    return await sendLogoutsAcrossTenants(
       {
         database: runtime,
         ownerDatabase: owner,

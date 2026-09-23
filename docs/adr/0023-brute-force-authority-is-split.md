@@ -2,22 +2,24 @@
 
 **Status:** Accepted · 2026-09-16
 
+**Renamed 2026-09-22:** written when a tenant was called a realm; the decision is unchanged.
+
 ## Context
 
 RFC 6749 §2.3.1's "MUST protect any endpoint utilizing a password … against
 brute force attacks" is already half held. The per-account lockout
 (`login_failures`, `packages/domain-identity/src/service/lockout.ts`) counts
 consecutive failures per subject, refuses every attempt for a growing
-window once the realm's threshold is reached, and is on in every realm by
+window once the tenant's threshold is reached, and is on in every tenant by
 default. What it does not cover is anything not keyed to an account:
 
 - One password tried against a thousand accounts. Each account sees one
   failure, so no counter ever reaches its threshold, and the server pays an
   Argon2id verification per attempt.
-- `POST /realms/{realm}/login-actions/registration`, which is
+- `POST /tenants/{tenant}/login-actions/registration`, which is
   unauthenticated and runs an Argon2id **hash** — the expensive direction —
   per request, for an attacker who needs no account at all.
-- `POST /realms/{realm}/login-actions/reset-password`, which does a lookup
+- `POST /tenants/{tenant}/login-actions/reset-password`, which does a lookup
   and a mail send per request.
 
 These are not account-safety problems. They are cost problems: the resource
@@ -41,7 +43,7 @@ lives in the database, and the property that is local lives locally.**
 `slidingWindow` (`apps/server/src/throttle.ts`) keeps a per-key window in
 memory. An `onRequest` hook in `apps/server/src/app.ts` applies it, keyed on
 `request.ip`, to exactly three routes:
-`POST /realms/{realm}/login-actions/authenticate`, `…/registration` and
+`POST /tenants/{tenant}/login-actions/authenticate`, `…/registration` and
 `…/reset-password`. `ODUDU_THROTTLE_LIMIT` (default `10`) and
 `ODUDU_THROTTLE_WINDOW_SECONDS` (default `60`) are the budget. A refused
 request answers `429` with `Retry-After` and no body.
@@ -83,7 +85,7 @@ account.
 characters be permitted and allows denying more than 128; this is double
 the point at which denial becomes permissible, so no passphrase anybody
 would type is refused, and it bounds the attacker-controlled input to the
-key derivation at roughly a kilobyte of UTF-8. It is not a realm setting,
+key derivation at roughly a kilobyte of UTF-8. It is not a tenant setting,
 because it exists to bound work rather than to shape passwords.
 
 ## Consequences
@@ -146,7 +148,7 @@ RFC 6749 §2.3.1's clause has two endpoints, and the consequence above named
 the second without closing it: "what that clause asks for is a limit keyed
 by _client_. This throttle is not where that goes." P3a builds that limit.
 
-**A second `slidingWindow` instance, keyed by `realm_id:client_id`, counting
+**A second `slidingWindow` instance, keyed by `tenant_id:client_id`, counting
 only failed `client_secret_basic`/`client_secret_post` attempts at
 `/token`.** `authenticateClient`
 (`packages/protocol-oidc/src/usecase/token-issuance.ts`) consults it, on a
@@ -252,4 +254,4 @@ that file and the table this closes rather than corrects.
 - **A `429` carrying a rendered page.** These three routes serve HTML to
   browsers, so a page would be friendlier. An empty body is chosen because
   the refusal must be identical for every request that reaches it, and
-  rendering is where per-realm and per-request variation creeps in.
+  rendering is where per-tenant and per-request variation creeps in.

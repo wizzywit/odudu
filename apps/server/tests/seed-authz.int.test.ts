@@ -1,6 +1,6 @@
 import { createDatabase, MIGRATIONS_DIR, runMigrations, type DatabaseHandle } from '@odudu/db';
 import { users } from '@odudu/domain-identity';
-import { clientScopes } from '@odudu/domain-realm';
+import { clientScopes } from '@odudu/domain-tenant';
 import { loadConfig, newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import { and, eq } from 'drizzle-orm';
@@ -68,7 +68,7 @@ afterAll(async () => {
   await containerHandle?.stop();
 });
 
-async function extractAuthSessionId(realmName: string, clientId: string, scope: string) {
+async function extractAuthSessionId(tenantName: string, clientId: string, scope: string) {
   const query = new URLSearchParams({
     response_type: 'code',
     client_id: clientId,
@@ -80,7 +80,7 @@ async function extractAuthSessionId(realmName: string, clientId: string, scope: 
     code_challenge_method: 'S256',
   });
   const res = await http.inject({
-    url: `/realms/${realmName}/protocol/openid-connect/auth?${query.toString()}`,
+    url: `/tenants/${tenantName}/protocol/openid-connect/auth?${query.toString()}`,
   });
   const match = /name="auth_session_id" value="([^"]*)"/.exec(res.body);
   const value = match?.[1];
@@ -100,19 +100,19 @@ interface TokenSet {
 async function completeCodeFlow(input: {
   clientId: string;
   scope: string;
-  realmName?: string;
+  tenantName?: string;
   username?: string;
   password?: string;
 }): Promise<TokenSet> {
-  const realmName = input.realmName ?? 'demo';
+  const tenantName = input.tenantName ?? 'demo';
   const username = input.username ?? 'ada';
   const password = input.password ?? 'correct horse battery';
 
-  const authSessionId = await extractAuthSessionId(realmName, input.clientId, input.scope);
+  const authSessionId = await extractAuthSessionId(tenantName, input.clientId, input.scope);
   const loginForm = new URLSearchParams({ auth_session_id: authSessionId, username, password });
   const loginRes = await http.inject({
     method: 'POST',
-    url: `/realms/${realmName}/login-actions/authenticate`,
+    url: `/tenants/${tenantName}/login-actions/authenticate`,
     payload: loginForm.toString(),
     headers: { 'content-type': 'application/x-www-form-urlencoded' },
   });
@@ -129,7 +129,7 @@ async function completeCodeFlow(input: {
   });
   const tokenRes = await http.inject({
     method: 'POST',
-    url: `/realms/${realmName}/protocol/openid-connect/token`,
+    url: `/tenants/${tenantName}/protocol/openid-connect/token`,
     payload: tokenForm.toString(),
     headers: { 'content-type': 'application/x-www-form-urlencoded' },
   });
@@ -145,14 +145,14 @@ function decode(token: string): Record<string, unknown> {
 }
 
 describe('the seed CLI, provisioning the identity model it now has', () => {
-  it('provisions a realm whose user can obtain a token carrying a role', async () => {
-    const realmName = `demo-${newId()}`;
+  it('provisions a tenant whose user can obtain a token carrying a role', async () => {
+    const tenantName = `demo-${newId()}`;
 
-    await seed(['realm', '--name', realmName]);
+    await seed(['tenant', '--name', tenantName]);
     await seed([
       'client',
-      '--realm',
-      realmName,
+      '--tenant',
+      tenantName,
       '--client-id',
       'app',
       '--public',
@@ -163,8 +163,8 @@ describe('the seed CLI, provisioning the identity model it now has', () => {
     ]);
     await seed([
       'user',
-      '--realm',
-      realmName,
+      '--tenant',
+      tenantName,
       '--username',
       'ada',
       '--password',
@@ -172,22 +172,22 @@ describe('the seed CLI, provisioning the identity model it now has', () => {
       '--email',
       'ada@example.test',
     ]);
-    // `roles` itself is a realm-default scope: `seed client` already
+    // `roles` itself is a tenant-default scope: `seed client` already
     // assigned it to `app` via provisionClientDefaults, so mapping straight
     // to it would leave assign-scope doing nothing a removed step would
-    // reveal. Mapping to a scope of the realm's own instead — created here,
+    // reveal. Mapping to a scope of the tenant's own instead — created here,
     // never among the defaults — is what makes assign-scope load-bearing:
     // without it, `app-roles` never reaches `assigned`, resolveScope drops
     // it from the granted set even though it was requested, and the role
     // mapped only to it becomes unreachable.
-    await seed(['scope', '--realm', realmName, '--name', 'app-roles']);
-    await seed(['role', '--realm', realmName, '--name', 'admin']);
-    await seed(['grant-role', '--realm', realmName, '--username', 'ada', '--role', 'admin']);
-    await seed(['map-role', '--realm', realmName, '--scope', 'app-roles', '--role', 'admin']);
+    await seed(['scope', '--tenant', tenantName, '--name', 'app-roles']);
+    await seed(['role', '--tenant', tenantName, '--name', 'admin']);
+    await seed(['grant-role', '--tenant', tenantName, '--username', 'ada', '--role', 'admin']);
+    await seed(['map-role', '--tenant', tenantName, '--scope', 'app-roles', '--role', 'admin']);
     await seed([
       'assign-scope',
-      '--realm',
-      realmName,
+      '--tenant',
+      tenantName,
       '--client-id',
       'app',
       '--scope',
@@ -203,19 +203,19 @@ describe('the seed CLI, provisioning the identity model it now has', () => {
     const { access_token } = await completeCodeFlow({
       clientId: 'app',
       scope: 'openid roles app-roles',
-      realmName,
+      tenantName,
     });
     expect(decode(access_token).roles).toEqual(['admin']);
   });
 
   it('qualifies a client role with its owning client', async () => {
-    const realmName = `demo-${newId()}`;
+    const tenantName = `demo-${newId()}`;
 
-    await seed(['realm', '--name', realmName]);
+    await seed(['tenant', '--name', tenantName]);
     await seed([
       'client',
-      '--realm',
-      realmName,
+      '--tenant',
+      tenantName,
       '--client-id',
       'app',
       '--public',
@@ -224,8 +224,8 @@ describe('the seed CLI, provisioning the identity model it now has', () => {
     ]);
     await seed([
       'user',
-      '--realm',
-      realmName,
+      '--tenant',
+      tenantName,
       '--username',
       'ada',
       '--password',
@@ -235,12 +235,12 @@ describe('the seed CLI, provisioning the identity model it now has', () => {
     ]);
     // reports-api is a resource server of its own: a role qualified by it
     // can only exist once the client it qualifies does (roles_client_fk,
-    // packages/db/drizzle/0017_roles.sql), the same way a realm role never
+    // packages/db/drizzle/0017_roles.sql), the same way a tenant role never
     // needed a client seeded first.
     await seed([
       'client',
-      '--realm',
-      realmName,
+      '--tenant',
+      tenantName,
       '--client-id',
       'reports-api',
       '--client-secret',
@@ -248,24 +248,24 @@ describe('the seed CLI, provisioning the identity model it now has', () => {
       '--redirect-uri',
       'https://reports-api.example/cb',
     ]);
-    await seed(['role', '--realm', realmName, '--name', 'reader', '--client-id', 'reports-api']);
+    await seed(['role', '--tenant', tenantName, '--name', 'reader', '--client-id', 'reports-api']);
     await seed([
       'grant-role',
-      '--realm',
-      realmName,
+      '--tenant',
+      tenantName,
       '--username',
       'ada',
       '--role',
       'reports-api:reader',
     ]);
-    // A realm-default scope like `roles` is already assigned to `app` the
+    // A tenant-default scope like `roles` is already assigned to `app` the
     // moment `seed client` creates it, so mapping to one would never
-    // exercise assign-scope — a scope of the realm's own does.
-    await seed(['scope', '--realm', realmName, '--name', 'app-roles']);
+    // exercise assign-scope — a scope of the tenant's own does.
+    await seed(['scope', '--tenant', tenantName, '--name', 'app-roles']);
     await seed([
       'map-role',
-      '--realm',
-      realmName,
+      '--tenant',
+      tenantName,
       '--scope',
       'app-roles',
       '--role',
@@ -273,8 +273,8 @@ describe('the seed CLI, provisioning the identity model it now has', () => {
     ]);
     await seed([
       'assign-scope',
-      '--realm',
-      realmName,
+      '--tenant',
+      tenantName,
       '--client-id',
       'app',
       '--scope',
@@ -286,18 +286,18 @@ describe('the seed CLI, provisioning the identity model it now has', () => {
     const { access_token } = await completeCodeFlow({
       clientId: 'app',
       scope: 'openid roles app-roles',
-      realmName,
+      tenantName,
     });
     expect(decode(access_token).roles).toEqual(['reports-api:reader']);
   });
 
   it('refuses to grant a role that does not exist rather than creating one', async () => {
-    const realmName = `demo-${newId()}`;
-    await seed(['realm', '--name', realmName]);
+    const tenantName = `demo-${newId()}`;
+    await seed(['tenant', '--name', tenantName]);
     await seed([
       'user',
-      '--realm',
-      realmName,
+      '--tenant',
+      tenantName,
       '--username',
       'ada',
       '--password',
@@ -305,17 +305,17 @@ describe('the seed CLI, provisioning the identity model it now has', () => {
     ]);
 
     await expect(
-      seed(['grant-role', '--realm', realmName, '--username', 'ada', '--role', 'nope']),
+      seed(['grant-role', '--tenant', tenantName, '--username', 'ada', '--role', 'nope']),
     ).rejects.toThrow(/no role named/);
   });
 
   it('refuses an ambiguous qualified role name rather than guessing a split', async () => {
-    const realmName = `demo-${newId()}`;
-    await seed(['realm', '--name', realmName]);
+    const tenantName = `demo-${newId()}`;
+    await seed(['tenant', '--name', tenantName]);
     await seed([
       'user',
-      '--realm',
-      realmName,
+      '--tenant',
+      tenantName,
       '--username',
       'ada',
       '--password',
@@ -323,18 +323,18 @@ describe('the seed CLI, provisioning the identity model it now has', () => {
     ]);
 
     await expect(
-      seed(['grant-role', '--realm', realmName, '--username', 'ada', '--role', 'a:b:c']),
+      seed(['grant-role', '--tenant', tenantName, '--username', 'ada', '--role', 'a:b:c']),
     ).rejects.toThrow(/more than one ':'/);
   });
 
   it('carries a joined group’s path in a token, nested under its parent', async () => {
-    const realmName = `demo-${newId()}`;
+    const tenantName = `demo-${newId()}`;
 
-    await seed(['realm', '--name', realmName]);
+    await seed(['tenant', '--name', tenantName]);
     await seed([
       'client',
-      '--realm',
-      realmName,
+      '--tenant',
+      tenantName,
       '--client-id',
       'app',
       '--public',
@@ -343,19 +343,19 @@ describe('the seed CLI, provisioning the identity model it now has', () => {
     ]);
     await seed([
       'user',
-      '--realm',
-      realmName,
+      '--tenant',
+      tenantName,
       '--username',
       'ada',
       '--password',
       'correct horse battery',
     ]);
-    await seed(['group', '--realm', realmName, '--name', 'engineering']);
-    await seed(['group', '--realm', realmName, '--name', 'backend', '--parent', '/engineering']);
+    await seed(['group', '--tenant', tenantName, '--name', 'engineering']);
+    await seed(['group', '--tenant', tenantName, '--name', 'backend', '--parent', '/engineering']);
     await seed([
       'join-group',
-      '--realm',
-      realmName,
+      '--tenant',
+      tenantName,
       '--username',
       'ada',
       '--group',
@@ -365,7 +365,7 @@ describe('the seed CLI, provisioning the identity model it now has', () => {
     const { access_token } = await completeCodeFlow({
       clientId: 'app',
       scope: 'openid groups',
-      realmName,
+      tenantName,
     });
     expect(decode(access_token).groups).toEqual(['/engineering/backend']);
   });
@@ -379,13 +379,13 @@ describe('the seed CLI, provisioning the identity model it now has', () => {
   // for a user joined only to its *child* — the inheritance a headline
   // deliverable of this phase depends on.
   it('carries a role mapped to a parent group into a token for a user joined to its child', async () => {
-    const realmName = `demo-${newId()}`;
+    const tenantName = `demo-${newId()}`;
 
-    await seed(['realm', '--name', realmName]);
+    await seed(['tenant', '--name', tenantName]);
     await seed([
       'client',
-      '--realm',
-      realmName,
+      '--tenant',
+      tenantName,
       '--client-id',
       'app',
       '--public',
@@ -394,34 +394,34 @@ describe('the seed CLI, provisioning the identity model it now has', () => {
     ]);
     await seed([
       'user',
-      '--realm',
-      realmName,
+      '--tenant',
+      tenantName,
       '--username',
       'ada',
       '--password',
       'correct horse battery',
     ]);
-    await seed(['group', '--realm', realmName, '--name', 'engineering']);
-    await seed(['group', '--realm', realmName, '--name', 'backend', '--parent', '/engineering']);
+    await seed(['group', '--tenant', tenantName, '--name', 'engineering']);
+    await seed(['group', '--tenant', tenantName, '--name', 'backend', '--parent', '/engineering']);
     await seed([
       'join-group',
-      '--realm',
-      realmName,
+      '--tenant',
+      tenantName,
       '--username',
       'ada',
       '--group',
       '/engineering/backend',
     ]);
 
-    // A scope of the realm's own, not a default: mapping straight to
+    // A scope of the tenant's own, not a default: mapping straight to
     // `roles` would leave assign-scope doing nothing a removed step would
     // reveal, the same reasoning the direct-assignment test above uses.
-    await seed(['scope', '--realm', realmName, '--name', 'app-roles']);
-    await seed(['role', '--realm', realmName, '--name', 'engineering-lead']);
+    await seed(['scope', '--tenant', tenantName, '--name', 'app-roles']);
+    await seed(['role', '--tenant', tenantName, '--name', 'engineering-lead']);
     await seed([
       'map-group-role',
-      '--realm',
-      realmName,
+      '--tenant',
+      tenantName,
       '--group',
       '/engineering',
       '--role',
@@ -429,8 +429,8 @@ describe('the seed CLI, provisioning the identity model it now has', () => {
     ]);
     await seed([
       'map-role',
-      '--realm',
-      realmName,
+      '--tenant',
+      tenantName,
       '--scope',
       'app-roles',
       '--role',
@@ -438,8 +438,8 @@ describe('the seed CLI, provisioning the identity model it now has', () => {
     ]);
     await seed([
       'assign-scope',
-      '--realm',
-      realmName,
+      '--tenant',
+      tenantName,
       '--client-id',
       'app',
       '--scope',
@@ -451,21 +451,21 @@ describe('the seed CLI, provisioning the identity model it now has', () => {
     const { access_token } = await completeCodeFlow({
       clientId: 'app',
       scope: 'openid roles app-roles',
-      realmName,
+      tenantName,
     });
     expect(decode(access_token).roles).toEqual(['engineering-lead']);
   });
 
   it('refuses to map a role to a group that does not exist rather than creating one', async () => {
-    const realmName = `demo-${newId()}`;
-    await seed(['realm', '--name', realmName]);
-    await seed(['role', '--realm', realmName, '--name', 'admin']);
+    const tenantName = `demo-${newId()}`;
+    await seed(['tenant', '--name', tenantName]);
+    await seed(['role', '--tenant', tenantName, '--name', 'admin']);
 
     await expect(
       seed([
         'map-group-role',
-        '--realm',
-        realmName,
+        '--tenant',
+        tenantName,
         '--group',
         '/no-such-group',
         '--role',
@@ -475,13 +475,13 @@ describe('the seed CLI, provisioning the identity model it now has', () => {
   });
 
   it('creates a client scope with the flags given, through the seed CLI', async () => {
-    const realmName = `demo-${newId()}`;
-    await seed(['realm', '--name', realmName]);
+    const tenantName = `demo-${newId()}`;
+    await seed(['tenant', '--name', tenantName]);
 
     await seed([
       'scope',
-      '--realm',
-      realmName,
+      '--tenant',
+      tenantName,
       '--name',
       'reports:read',
       '--include-in-id-token',
@@ -497,24 +497,24 @@ describe('the seed CLI, provisioning the identity model it now has', () => {
   });
 
   it('updates a claim column through seed profile', async () => {
-    const realmName = `demo-${newId()}`;
-    const realm = await seed(['realm', '--name', realmName]);
+    const tenantName = `demo-${newId()}`;
+    const tenant = await seed(['tenant', '--name', tenantName]);
     await seed([
       'user',
-      '--realm',
-      realmName,
+      '--tenant',
+      tenantName,
       '--username',
       'ada',
       '--password',
       'correct horse battery',
     ]);
 
-    await seed(['profile', '--realm', realmName, '--username', 'ada', '--name', 'Ada Lovelace']);
+    await seed(['profile', '--tenant', tenantName, '--username', 'ada', '--name', 'Ada Lovelace']);
 
     const rows = await owner.db
       .select({ name: users.name })
       .from(users)
-      .where(and(eq(users.username, 'ada'), eq(users.realmId, realm.realmId)));
+      .where(and(eq(users.username, 'ada'), eq(users.tenantId, tenant.tenantId)));
     expect(rows[0]?.name).toBe('Ada Lovelace');
   });
 });

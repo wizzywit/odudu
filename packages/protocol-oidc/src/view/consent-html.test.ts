@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { renderConsentPage } from '#/view/consent-html';
 
 const BASE = {
-  realm: 'acme',
+  tenant: 'acme',
   authSessionId: 'session-id',
   clientName: 'Acme Dashboard',
   defaultScopes: ['openid', 'profile'],

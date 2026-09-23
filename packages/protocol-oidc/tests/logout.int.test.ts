@@ -3,19 +3,19 @@ import { hashPassword, subjectRepository, userCredentials, users } from '@odudu/
 import {
   createDatabase,
   MIGRATIONS_DIR,
-  realms,
+  tenants,
   runMigrations,
-  withRealm,
+  withTenant,
   type DatabaseHandle,
-  type RealmScopedDatabase,
+  type TenantScopedDatabase,
 } from '@odudu/db';
 import {
   sessionRepository,
   sessions,
-  provisionRealm,
+  provisionTenant,
   type SessionLifespans,
 } from '@odudu/authn-flows';
-import { clients, provisionClientDefaults } from '@odudu/domain-realm';
+import { clients, provisionClientDefaults } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import formbody from '@fastify/formbody';
@@ -61,15 +61,15 @@ const GENEROUS_LIFESPANS: SessionLifespans = {
 
 const signingKeyOf = new Map<string, SigningKeyRecord>();
 
-async function setupRealm(name: string): Promise<{ realmId: string; clientDbId: string }> {
-  const realmId = newId();
+async function setupTenant(name: string): Promise<{ tenantId: string; clientDbId: string }> {
+  const tenantId = newId();
   const clientDbId = newId();
-  await withRealm(app.db, realmId, async (tx: RealmScopedDatabase) => {
-    await tx.insert(realms).values({ id: realmId, name });
-    await provisionRealm(tx, realmId);
+  await withTenant(app.db, tenantId, async (tx: TenantScopedDatabase) => {
+    await tx.insert(tenants).values({ id: tenantId, name });
+    await provisionTenant(tx, tenantId);
     await tx.insert(clients).values({
       id: clientDbId,
-      realmId,
+      tenantId,
       clientId: CLIENT_ID,
       name: 'Logout test client',
       type: 'confidential',
@@ -78,7 +78,7 @@ async function setupRealm(name: string): Promise<{ realmId: string; clientDbId: 
     await provisionClientDefaults(tx, clientDbId);
     await clientOidcConfigRepository(tx).create({
       clientId: clientDbId,
-      realmId,
+      tenantId,
       redirectUris: [REDIRECT_URI],
       grantTypes: ['authorization_code', 'refresh_token'],
       tokenEndpointAuthMethod: 'client_secret_basic',
@@ -88,11 +88,11 @@ async function setupRealm(name: string): Promise<{ realmId: string; clientDbId: 
       postLogoutRedirectUris: [POST_LOGOUT_REDIRECT_URI],
     });
 
-    const subject = await subjectRepository(tx).create({ realmId, type: 'user' });
-    await tx.insert(users).values({ subjectId: subject.id, realmId, username: USERNAME });
+    const subject = await subjectRepository(tx).create({ tenantId, type: 'user' });
+    await tx.insert(users).values({ subjectId: subject.id, tenantId, username: USERNAME });
     await tx.insert(userCredentials).values({
       id: newId(),
-      realmId,
+      tenantId,
       subjectId: subject.id,
       type: 'password',
       secretData: { hash: await hashPassword(PASSWORD) },
@@ -101,7 +101,7 @@ async function setupRealm(name: string): Promise<{ realmId: string; clientDbId: 
     const generated = await generateSigningKey('ES256', KEK);
     const key: SigningKeyRecord = {
       id: newId(),
-      realmId,
+      tenantId,
       kid: generated.kid,
       alg: generated.alg,
       status: 'active',
@@ -113,7 +113,7 @@ async function setupRealm(name: string): Promise<{ realmId: string; clientDbId: 
     signingKeyOf.set(name, key);
     await tx.insert(signingKeys).values({
       id: key.id,
-      realmId,
+      tenantId,
       kid: key.kid,
       alg: key.alg,
       status: 'active',
@@ -121,40 +121,40 @@ async function setupRealm(name: string): Promise<{ realmId: string; clientDbId: 
       privateJwkEncrypted: key.privateJwkEncrypted,
     });
   });
-  return { realmId, clientDbId };
+  return { tenantId, clientDbId };
 }
 
-async function subjectIdOf(realmId: string, username: string): Promise<string> {
+async function subjectIdOf(tenantId: string, username: string): Promise<string> {
   const rows = await owner.db
     .select({ subjectId: users.subjectId })
     .from(users)
-    .where(and(eq(users.realmId, realmId), eq(users.username, username)));
+    .where(and(eq(users.tenantId, tenantId), eq(users.username, username)));
   const row = rows[0];
-  if (row === undefined) throw new Error(`no user ${username} in realm ${realmId}`);
+  if (row === undefined) throw new Error(`no user ${username} in tenant ${tenantId}`);
   return row.subjectId;
 }
 
-async function issuerFor(realmName: string): Promise<string> {
+async function issuerFor(tenantName: string): Promise<string> {
   const res = await http.inject({
-    url: `/realms/${realmName}/.well-known/openid-configuration`,
+    url: `/tenants/${tenantName}/.well-known/openid-configuration`,
   });
   return res.json<{ issuer: string }>().issuer;
 }
 
 async function mintIdToken(
-  realmName: string,
+  tenantName: string,
   sub: string,
   sid?: string,
   // The client the hint was issued to. Overridden only where the point of
   // the test is a `client_id` parameter that disagrees with it (§2).
   aud: string = CLIENT_ID,
 ): Promise<string> {
-  const key = signingKeyOf.get(realmName);
-  if (key === undefined) throw new Error(`no signing key for ${realmName}`);
+  const key = signingKeyOf.get(tenantName);
+  if (key === undefined) throw new Error(`no signing key for ${tenantName}`);
   const now = Math.floor(Date.now() / 1000);
   return signJwt(
     {
-      iss: await issuerFor(realmName),
+      iss: await issuerFor(tenantName),
       aud,
       sub,
       iat: now,
@@ -165,7 +165,7 @@ async function mintIdToken(
   );
 }
 
-function authorizeUrl(realmName: string): string {
+function authorizeUrl(tenantName: string): string {
   const query = new URLSearchParams({
     response_type: 'code',
     client_id: CLIENT_ID,
@@ -175,7 +175,7 @@ function authorizeUrl(realmName: string): string {
     code_challenge: CHALLENGE,
     code_challenge_method: 'S256',
   });
-  return `/realms/${realmName}/protocol/openid-connect/auth?${query.toString()}`;
+  return `/tenants/${tenantName}/protocol/openid-connect/auth?${query.toString()}`;
 }
 
 // Two cookies travel on a successful login now (session-cookie.ts, the one
@@ -194,8 +194,8 @@ function locationHeader(res: LightMyRequestResponse): string {
   return location;
 }
 
-async function signIn(realmName: string): Promise<string> {
-  const res = await http.inject({ url: authorizeUrl(realmName) });
+async function signIn(tenantName: string): Promise<string> {
+  const res = await http.inject({ url: authorizeUrl(tenantName) });
   if (res.statusCode !== 200) {
     throw new Error(`expected /authorize to render the login form, got ${String(res.statusCode)}`);
   }
@@ -210,7 +210,7 @@ async function signIn(realmName: string): Promise<string> {
   });
   const submitted = await http.inject({
     method: 'POST',
-    url: `/realms/${realmName}/login-actions/authenticate`,
+    url: `/tenants/${tenantName}/login-actions/authenticate`,
     payload: form.toString(),
     headers: { 'content-type': 'application/x-www-form-urlencoded' },
   });
@@ -220,7 +220,7 @@ async function signIn(realmName: string): Promise<string> {
   return cookie;
 }
 
-async function redeemCode(realmName: string, code: string): Promise<LightMyRequestResponse> {
+async function redeemCode(tenantName: string, code: string): Promise<LightMyRequestResponse> {
   const form = new URLSearchParams({
     grant_type: 'authorization_code',
     code,
@@ -229,7 +229,7 @@ async function redeemCode(realmName: string, code: string): Promise<LightMyReque
   });
   return http.inject({
     method: 'POST',
-    url: `/realms/${realmName}/protocol/openid-connect/token`,
+    url: `/tenants/${tenantName}/protocol/openid-connect/token`,
     payload: form.toString(),
     headers: {
       'content-type': 'application/x-www-form-urlencoded',
@@ -239,13 +239,13 @@ async function redeemCode(realmName: string, code: string): Promise<LightMyReque
 }
 
 async function refreshWith(
-  realmName: string,
+  tenantName: string,
   refreshToken: string,
 ): Promise<LightMyRequestResponse> {
   const form = new URLSearchParams({ grant_type: 'refresh_token', refresh_token: refreshToken });
   return http.inject({
     method: 'POST',
-    url: `/realms/${realmName}/protocol/openid-connect/token`,
+    url: `/tenants/${tenantName}/protocol/openid-connect/token`,
     payload: form.toString(),
     headers: {
       'content-type': 'application/x-www-form-urlencoded',
@@ -270,14 +270,14 @@ async function sessionRowFor(
   return rows[0];
 }
 
-function logoutUrl(realmName: string, overrides: Record<string, string | undefined> = {}): string {
+function logoutUrl(tenantName: string, overrides: Record<string, string | undefined> = {}): string {
   const params: Record<string, string | undefined> = { ...overrides };
   const query = new URLSearchParams();
   for (const [key, value] of Object.entries(params)) {
     if (value !== undefined) query.set(key, value);
   }
   const suffix = query.toString();
-  return `/realms/${realmName}/protocol/openid-connect/logout${suffix === '' ? '' : `?${suffix}`}`;
+  return `/tenants/${tenantName}/protocol/openid-connect/logout${suffix === '' ? '' : `?${suffix}`}`;
 }
 
 beforeAll(async () => {
@@ -316,30 +316,30 @@ afterAll(async () => {
 
 describe('GET the logout endpoint with a hint matching the session', () => {
   it('[OIDC-BACKCHANNEL-2.7-01] ends the session, revokes its grants, redirects, and leaves an offline grant alone', async () => {
-    const realmName = `logout-${newId()}`;
-    const { realmId, clientDbId } = await setupRealm(realmName);
-    const cookie = await signIn(realmName);
+    const tenantName = `logout-${newId()}`;
+    const { tenantId, clientDbId } = await setupTenant(tenantName);
+    const cookie = await signIn(tenantName);
     const sessionId = sessionIdFromCookie(cookie);
-    const subjectId = await subjectIdOf(realmId, USERNAME);
-    const hint = await mintIdToken(realmName, subjectId, sessionId);
+    const subjectId = await subjectIdOf(tenantId, USERNAME);
+    const hint = await mintIdToken(tenantName, subjectId, sessionId);
 
     // A real session-bound grant, from the same reused-session redirect the
     // second test in this file redeems — so "every grant of this session
     // carries revoked_at" has a grant to actually be about.
-    const authorized = await http.inject({ url: authorizeUrl(realmName), headers: { cookie } });
+    const authorized = await http.inject({ url: authorizeUrl(tenantName), headers: { cookie } });
     expect(authorized.statusCode).toBe(302);
     const code = new URL(locationHeader(authorized)).searchParams.get('code');
     if (code === null) throw new Error('expected a code from the reused-session redirect');
-    const redeemed = await redeemCode(realmName, code);
+    const redeemed = await redeemCode(tenantName, code);
     expect(redeemed.statusCode).toBe(200);
 
     // An offline grant for the same subject — no session — seeded directly,
     // the way the `offline_access` scope will, so this test does not wait
     // on it.
-    const offlineGrant = await withRealm(app.db, realmId, (tx) =>
+    const offlineGrant = await withTenant(app.db, tenantId, (tx) =>
       tokenGrantRepository(tx).create({
         id: newId(),
-        realmId,
+        tenantId,
         clientId: clientDbId,
         subjectId,
         scope: 'openid offline_access',
@@ -349,7 +349,7 @@ describe('GET the logout endpoint with a hint matching the session', () => {
     );
 
     const res = await http.inject({
-      url: logoutUrl(realmName, {
+      url: logoutUrl(tenantName, {
         id_token_hint: hint,
         client_id: CLIENT_ID,
         post_logout_redirect_uri: POST_LOGOUT_REDIRECT_URI,
@@ -367,43 +367,43 @@ describe('GET the logout endpoint with a hint matching the session', () => {
     // session — same names and attributes login sets them with, Max-Age=0
     // to delete each.
     const clearedCookie = String(res.headers['set-cookie']);
-    expect(clearedCookie).toContain(`${realmName}-session=`);
+    expect(clearedCookie).toContain(`${tenantName}-session=`);
     expect(clearedCookie).toContain('Max-Age=0');
 
     const row = await sessionRowFor(sessionId);
     expect(row).toBeDefined();
     expect(row?.expiresAt.getTime()).toBeLessThanOrEqual(Date.now());
 
-    const sessionGrants = await withRealm(app.db, realmId, (tx) =>
+    const sessionGrants = await withTenant(app.db, tenantId, (tx) =>
       tokenGrantRepository(tx).bySession(sessionId),
     );
     expect(sessionGrants.length).toBeGreaterThan(0);
     expect(sessionGrants.every((grant) => grant.revokedAt !== null)).toBe(true);
 
-    const untouchedOffline = await withRealm(app.db, realmId, (tx) =>
+    const untouchedOffline = await withTenant(app.db, tenantId, (tx) =>
       tokenGrantRepository(tx).byId(offlineGrant.id),
     );
     expect(untouchedOffline?.revokedAt).toBeNull();
   });
 
   it('refuses a redemption of a session-bound refresh token after logout, with invalid_grant', async () => {
-    const realmName = `logout-refresh-${newId()}`;
-    const { realmId } = await setupRealm(realmName);
-    const cookie = await signIn(realmName);
-    const subjectId = await subjectIdOf(realmId, USERNAME);
-    const hint = await mintIdToken(realmName, subjectId, sessionIdFromCookie(cookie));
+    const tenantName = `logout-refresh-${newId()}`;
+    const { tenantId } = await setupTenant(tenantName);
+    const cookie = await signIn(tenantName);
+    const subjectId = await subjectIdOf(tenantId, USERNAME);
+    const hint = await mintIdToken(tenantName, subjectId, sessionIdFromCookie(cookie));
 
-    const authorized = await http.inject({ url: authorizeUrl(realmName), headers: { cookie } });
+    const authorized = await http.inject({ url: authorizeUrl(tenantName), headers: { cookie } });
     expect(authorized.statusCode).toBe(302);
     const code = new URL(locationHeader(authorized)).searchParams.get('code');
     if (code === null) throw new Error('expected a code from the reused-session redirect');
 
-    const tokenRes = await redeemCode(realmName, code);
+    const tokenRes = await redeemCode(tenantName, code);
     expect(tokenRes.statusCode).toBe(200);
     const refreshToken = tokenRes.json<{ refresh_token: string }>().refresh_token;
 
     const logoutRes = await http.inject({
-      url: logoutUrl(realmName, { id_token_hint: hint }),
+      url: logoutUrl(tenantName, { id_token_hint: hint }),
       headers: { cookie },
     });
     // No post_logout_redirect_uri requested: ends the session with nothing
@@ -414,21 +414,21 @@ describe('GET the logout endpoint with a hint matching the session', () => {
     expect(logoutRes.body).toContain('<title>Signed out</title>');
     expect(logoutRes.body).toContain('You have been signed out.</p>');
 
-    const refreshed = await refreshWith(realmName, refreshToken);
+    const refreshed = await refreshWith(tenantName, refreshToken);
     expect(refreshed.statusCode).toBe(400);
     expect(refreshed.json<{ error: string }>().error).toBe('invalid_grant');
   });
 
   it('[OIDC-RPINITIATED-3-01] still ends the session but refuses a non-matching post_logout_redirect_uri', async () => {
-    const realmName = `logout-badredirect-${newId()}`;
-    const { realmId } = await setupRealm(realmName);
-    const cookie = await signIn(realmName);
+    const tenantName = `logout-badredirect-${newId()}`;
+    const { tenantId } = await setupTenant(tenantName);
+    const cookie = await signIn(tenantName);
     const sessionId = sessionIdFromCookie(cookie);
-    const subjectId = await subjectIdOf(realmId, USERNAME);
-    const hint = await mintIdToken(realmName, subjectId, sessionId);
+    const subjectId = await subjectIdOf(tenantId, USERNAME);
+    const hint = await mintIdToken(tenantName, subjectId, sessionId);
 
     const res = await http.inject({
-      url: logoutUrl(realmName, {
+      url: logoutUrl(tenantName, {
         id_token_hint: hint,
         client_id: CLIENT_ID,
         post_logout_redirect_uri: 'https://evil.example/after-logout',
@@ -450,23 +450,23 @@ describe('GET the logout endpoint with a hint matching the session', () => {
 
 describe('a hint naming an older session, in a browser holding a newer one too', () => {
   it('ends the session the hint names, not the most recently active one', async () => {
-    const realmName = `logout-two-live-${newId()}`;
-    const { realmId } = await setupRealm(realmName);
-    const olderCookie = await signIn(realmName);
+    const tenantName = `logout-two-live-${newId()}`;
+    const { tenantId } = await setupTenant(tenantName);
+    const olderCookie = await signIn(tenantName);
     const olderSessionId = sessionIdFromCookie(olderCookie);
     // A second, later login for the same subject — the newer of the two,
     // and the one mostRecentlyActive would pick if the hint were ignored.
-    const newerCookie = await signIn(realmName);
+    const newerCookie = await signIn(tenantName);
     const newerSessionId = sessionIdFromCookie(newerCookie);
-    const subjectId = await subjectIdOf(realmId, USERNAME);
-    const hint = await mintIdToken(realmName, subjectId, olderSessionId);
+    const subjectId = await subjectIdOf(tenantId, USERNAME);
+    const hint = await mintIdToken(tenantName, subjectId, olderSessionId);
 
     // One browser holding both: the two cookies' own ids, combined the way
     // sessionCookies itself joins a list (session-cookie.ts's SEPARATOR).
-    const bothCookie = `${realmName}-session=${olderSessionId}.${newerSessionId}`;
+    const bothCookie = `${tenantName}-session=${olderSessionId}.${newerSessionId}`;
 
     const res = await http.inject({
-      url: logoutUrl(realmName, { id_token_hint: hint }),
+      url: logoutUrl(tenantName, { id_token_hint: hint }),
       headers: { cookie: bothCookie },
     });
     expect(res.statusCode).toBe(200);
@@ -475,7 +475,7 @@ describe('a hint naming an older session, in a browser holding a newer one too',
     const olderRow = await sessionRowFor(olderSessionId);
     expect(olderRow?.expiresAt.getTime()).toBeLessThanOrEqual(Date.now());
 
-    const newerStillLive = await withRealm(app.db, realmId, (tx) =>
+    const newerStillLive = await withTenant(app.db, tenantId, (tx) =>
       sessionRepository(tx).liveById(newerSessionId, GENEROUS_LIFESPANS, new Date()),
     );
     expect(newerStillLive).not.toBeNull();
@@ -484,19 +484,19 @@ describe('a hint naming an older session, in a browser holding a newer one too',
 
 describe('[OIDC-RPINITIATED-2-01] the confirmation page is asked for on both triggers', () => {
   it('when there is no id_token_hint, and ends nothing until the form is posted', async () => {
-    const realmName = `logout-confirm-${newId()}`;
-    const { realmId } = await setupRealm(realmName);
-    const cookie = await signIn(realmName);
+    const tenantName = `logout-confirm-${newId()}`;
+    const { tenantId } = await setupTenant(tenantName);
+    const cookie = await signIn(tenantName);
     const sessionId = sessionIdFromCookie(cookie);
 
-    const res = await http.inject({ url: logoutUrl(realmName), headers: { cookie } });
+    const res = await http.inject({ url: logoutUrl(tenantName), headers: { cookie } });
     expect(res.statusCode).toBe(200);
     expect(res.body).toContain('<title>Sign out?</title>');
     expect(res.body).toContain('<form');
     expect(res.body).toContain(sessionId);
     expect(res.headers['cache-control']).toBe('no-store');
 
-    const stillLive = await withRealm(app.db, realmId, (tx) =>
+    const stillLive = await withTenant(app.db, tenantId, (tx) =>
       sessionRepository(tx).liveById(sessionId, GENEROUS_LIFESPANS, new Date()),
     );
     expect(stillLive).not.toBeNull();
@@ -509,7 +509,7 @@ describe('[OIDC-RPINITIATED-2-01] the confirmation page is asked for on both tri
     const form = new URLSearchParams({ session_id: confirmedSessionId });
     const confirmed = await http.inject({
       method: 'POST',
-      url: `/realms/${realmName}/protocol/openid-connect/logout`,
+      url: `/tenants/${tenantName}/protocol/openid-connect/logout`,
       payload: form.toString(),
       headers: { 'content-type': 'application/x-www-form-urlencoded', cookie },
     });
@@ -520,26 +520,26 @@ describe('[OIDC-RPINITIATED-2-01] the confirmation page is asked for on both tri
   });
 
   it('when the hint names somebody other than the current session', async () => {
-    const realmName = `logout-mismatch-${newId()}`;
-    const { realmId } = await setupRealm(realmName);
-    const cookie = await signIn(realmName);
+    const tenantName = `logout-mismatch-${newId()}`;
+    const { tenantId } = await setupTenant(tenantName);
+    const cookie = await signIn(tenantName);
     const sessionId = sessionIdFromCookie(cookie);
-    // A syntactically valid hint for this realm, naming a subject who is
+    // A syntactically valid hint for this tenant, naming a subject who is
     // not the one this cookie's session belongs to — subjectOfIdTokenHint
-    // only asks whether this realm issued it, never whether the subject
+    // only asks whether this tenant issued it, never whether the subject
     // exists, so a fabricated-but-signed subject exercises the mismatch
     // without a second user fixture.
-    const hint = await mintIdToken(realmName, newId());
+    const hint = await mintIdToken(tenantName, newId());
 
     const res = await http.inject({
-      url: logoutUrl(realmName, { id_token_hint: hint }),
+      url: logoutUrl(tenantName, { id_token_hint: hint }),
       headers: { cookie },
     });
     expect(res.statusCode).toBe(200);
     expect(res.body).toContain('<title>Sign out?</title>');
     expect(res.body).toContain('<form');
 
-    const stillLive = await withRealm(app.db, realmId, (tx) =>
+    const stillLive = await withTenant(app.db, tenantId, (tx) =>
       sessionRepository(tx).liveById(sessionId, GENEROUS_LIFESPANS, new Date()),
     );
     expect(stillLive).not.toBeNull();
@@ -549,29 +549,29 @@ describe('[OIDC-RPINITIATED-2-01] the confirmation page is asked for on both tri
     // The previous task put `sid` in every ID token; a hint from an
     // earlier session in the same browser, by the same subject, must not
     // skip confirmation just because the subject still matches.
-    const realmName = `logout-stale-sid-${newId()}`;
-    const { realmId } = await setupRealm(realmName);
-    const firstCookie = await signIn(realmName);
-    const subjectId = await subjectIdOf(realmId, USERNAME);
-    const staleHint = await mintIdToken(realmName, subjectId, sessionIdFromCookie(firstCookie));
+    const tenantName = `logout-stale-sid-${newId()}`;
+    const { tenantId } = await setupTenant(tenantName);
+    const firstCookie = await signIn(tenantName);
+    const subjectId = await subjectIdOf(tenantId, USERNAME);
+    const staleHint = await mintIdToken(tenantName, subjectId, sessionIdFromCookie(firstCookie));
 
     // End the first session, then sign in again — a second, distinct
     // session for the same subject, in the same browser.
-    await withRealm(app.db, realmId, (tx) =>
+    await withTenant(app.db, tenantId, (tx) =>
       sessionRepository(tx).end(sessionIdFromCookie(firstCookie), new Date()),
     );
-    const secondCookie = await signIn(realmName);
+    const secondCookie = await signIn(tenantName);
     const secondSessionId = sessionIdFromCookie(secondCookie);
 
     const res = await http.inject({
-      url: logoutUrl(realmName, { id_token_hint: staleHint }),
+      url: logoutUrl(tenantName, { id_token_hint: staleHint }),
       headers: { cookie: secondCookie },
     });
     expect(res.statusCode).toBe(200);
     expect(res.body).toContain('<title>Sign out?</title>');
     expect(res.body).toContain('<form');
 
-    const stillLive = await withRealm(app.db, realmId, (tx) =>
+    const stillLive = await withTenant(app.db, tenantId, (tx) =>
       sessionRepository(tx).liveById(secondSessionId, GENEROUS_LIFESPANS, new Date()),
     );
     expect(stillLive).not.toBeNull();
@@ -583,16 +583,16 @@ describe('[OIDC-RPINITIATED-2-01] the confirmation page is asked for on both tri
 // One helper, so every property below is asserted for both.
 async function requestLogout(
   method: 'GET' | 'POST',
-  realmName: string,
+  tenantName: string,
   params: Record<string, string>,
   cookie: string,
 ): Promise<LightMyRequestResponse> {
   if (method === 'GET') {
-    return http.inject({ url: logoutUrl(realmName, params), headers: { cookie } });
+    return http.inject({ url: logoutUrl(tenantName, params), headers: { cookie } });
   }
   return http.inject({
     method: 'POST',
-    url: `/realms/${realmName}/protocol/openid-connect/logout`,
+    url: `/tenants/${tenantName}/protocol/openid-connect/logout`,
     payload: new URLSearchParams(params).toString(),
     headers: { 'content-type': 'application/x-www-form-urlencoded', cookie },
   });
@@ -602,16 +602,16 @@ describe.each(['GET', 'POST'] as const)(
   '[OIDC-RPINITIATED-2-03] a logout request over %s',
   (method) => {
     it('ends the session and redirects, on a hint that matches it', async () => {
-      const realmName = `logout-${method.toLowerCase()}-ends-${newId()}`;
-      const { realmId } = await setupRealm(realmName);
-      const cookie = await signIn(realmName);
+      const tenantName = `logout-${method.toLowerCase()}-ends-${newId()}`;
+      const { tenantId } = await setupTenant(tenantName);
+      const cookie = await signIn(tenantName);
       const sessionId = sessionIdFromCookie(cookie);
-      const subjectId = await subjectIdOf(realmId, USERNAME);
-      const hint = await mintIdToken(realmName, subjectId, sessionId);
+      const subjectId = await subjectIdOf(tenantId, USERNAME);
+      const hint = await mintIdToken(tenantName, subjectId, sessionId);
 
       const res = await requestLogout(
         method,
-        realmName,
+        tenantName,
         {
           id_token_hint: hint,
           client_id: CLIENT_ID,
@@ -629,49 +629,49 @@ describe.each(['GET', 'POST'] as const)(
     });
 
     it('asks for confirmation with no hint at all, ending nothing', async () => {
-      const realmName = `logout-${method.toLowerCase()}-confirm-${newId()}`;
-      const { realmId } = await setupRealm(realmName);
-      const cookie = await signIn(realmName);
+      const tenantName = `logout-${method.toLowerCase()}-confirm-${newId()}`;
+      const { tenantId } = await setupTenant(tenantName);
+      const cookie = await signIn(tenantName);
       const sessionId = sessionIdFromCookie(cookie);
 
-      const res = await requestLogout(method, realmName, {}, cookie);
+      const res = await requestLogout(method, tenantName, {}, cookie);
 
       expect(res.statusCode).toBe(200);
       expect(res.body).toContain('<title>Sign out?</title>');
-      const stillLive = await withRealm(app.db, realmId, (tx) =>
+      const stillLive = await withTenant(app.db, tenantId, (tx) =>
         sessionRepository(tx).liveById(sessionId, GENEROUS_LIFESPANS, new Date()),
       );
       expect(stillLive).not.toBeNull();
     });
 
     it('asks for confirmation when the hint names another session', async () => {
-      const realmName = `logout-${method.toLowerCase()}-mismatch-${newId()}`;
-      const { realmId } = await setupRealm(realmName);
-      const cookie = await signIn(realmName);
+      const tenantName = `logout-${method.toLowerCase()}-mismatch-${newId()}`;
+      const { tenantId } = await setupTenant(tenantName);
+      const cookie = await signIn(tenantName);
       const sessionId = sessionIdFromCookie(cookie);
-      const hint = await mintIdToken(realmName, newId(), newId());
+      const hint = await mintIdToken(tenantName, newId(), newId());
 
-      const res = await requestLogout(method, realmName, { id_token_hint: hint }, cookie);
+      const res = await requestLogout(method, tenantName, { id_token_hint: hint }, cookie);
 
       expect(res.statusCode).toBe(200);
       expect(res.body).toContain('<title>Sign out?</title>');
-      const stillLive = await withRealm(app.db, realmId, (tx) =>
+      const stillLive = await withTenant(app.db, tenantId, (tx) =>
         sessionRepository(tx).liveById(sessionId, GENEROUS_LIFESPANS, new Date()),
       );
       expect(stillLive).not.toBeNull();
     });
 
     it('refuses a redirect that does not match exactly, having ended the session', async () => {
-      const realmName = `logout-${method.toLowerCase()}-badredirect-${newId()}`;
-      const { realmId } = await setupRealm(realmName);
-      const cookie = await signIn(realmName);
+      const tenantName = `logout-${method.toLowerCase()}-badredirect-${newId()}`;
+      const { tenantId } = await setupTenant(tenantName);
+      const cookie = await signIn(tenantName);
       const sessionId = sessionIdFromCookie(cookie);
-      const subjectId = await subjectIdOf(realmId, USERNAME);
-      const hint = await mintIdToken(realmName, subjectId, sessionId);
+      const subjectId = await subjectIdOf(tenantId, USERNAME);
+      const hint = await mintIdToken(tenantName, subjectId, sessionId);
 
       const res = await requestLogout(
         method,
-        realmName,
+        tenantName,
         {
           id_token_hint: hint,
           client_id: CLIENT_ID,
@@ -694,19 +694,19 @@ describe.each(['GET', 'POST'] as const)(
   '[OIDC-RPINITIATED-2-04] a client_id that disagrees with the hint, over %s',
   (method) => {
     it('is an error in the request: nothing is ended and no redirect is offered', async () => {
-      const realmName = `logout-audmismatch-${method.toLowerCase()}-${newId()}`;
-      const { realmId } = await setupRealm(realmName);
-      const cookie = await signIn(realmName);
+      const tenantName = `logout-audmismatch-${method.toLowerCase()}-${newId()}`;
+      const { tenantId } = await setupTenant(tenantName);
+      const cookie = await signIn(tenantName);
       const sessionId = sessionIdFromCookie(cookie);
-      const subjectId = await subjectIdOf(realmId, USERNAME);
+      const subjectId = await subjectIdOf(tenantId, USERNAME);
 
       // The same session, named by `sid`, in a hint issued to a different
       // client than the `client_id` beside it. Everything else about this
       // request is the one the parity tests above end a session on.
-      const foreignAud = await mintIdToken(realmName, subjectId, sessionId, 'another-client');
+      const foreignAud = await mintIdToken(tenantName, subjectId, sessionId, 'another-client');
       const refused = await requestLogout(
         method,
-        realmName,
+        tenantName,
         {
           id_token_hint: foreignAud,
           client_id: CLIENT_ID,
@@ -721,17 +721,17 @@ describe.each(['GET', 'POST'] as const)(
       // redirect the hint would have authorised is not carried into the
       // form the End-User is about to post back either.
       expect(refused.body).not.toContain(POST_LOGOUT_REDIRECT_URI);
-      const stillLive = await withRealm(app.db, realmId, (tx) =>
+      const stillLive = await withTenant(app.db, tenantId, (tx) =>
         sessionRepository(tx).liveById(sessionId, GENEROUS_LIFESPANS, new Date()),
       );
       expect(stillLive).not.toBeNull();
 
       // The contrast, on the same session: the identical request with a
       // hint issued to the `client_id` it names ends it and redirects.
-      const agreeing = await mintIdToken(realmName, subjectId, sessionId);
+      const agreeing = await mintIdToken(tenantName, subjectId, sessionId);
       const honoured = await requestLogout(
         method,
-        realmName,
+        tenantName,
         {
           id_token_hint: agreeing,
           client_id: CLIENT_ID,
@@ -750,17 +750,17 @@ describe.each(['GET', 'POST'] as const)(
     // reach different outcomes once posted back (302 versus 400), so a
     // single pinned case cannot stand in for both.
     it('drops the redirect whether or not it is registered', async () => {
-      const realmName = `logout-audmismatch-unregistered-${method.toLowerCase()}-${newId()}`;
-      const { realmId } = await setupRealm(realmName);
-      const cookie = await signIn(realmName);
+      const tenantName = `logout-audmismatch-unregistered-${method.toLowerCase()}-${newId()}`;
+      const { tenantId } = await setupTenant(tenantName);
+      const cookie = await signIn(tenantName);
       const sessionId = sessionIdFromCookie(cookie);
-      const subjectId = await subjectIdOf(realmId, USERNAME);
+      const subjectId = await subjectIdOf(tenantId, USERNAME);
       const unregistered = 'https://not-registered.example/after-logout';
 
-      const foreignAud = await mintIdToken(realmName, subjectId, sessionId, 'another-client');
+      const foreignAud = await mintIdToken(tenantName, subjectId, sessionId, 'another-client');
       const refused = await requestLogout(
         method,
-        realmName,
+        tenantName,
         { id_token_hint: foreignAud, client_id: CLIENT_ID, post_logout_redirect_uri: unregistered },
         cookie,
       );
@@ -768,7 +768,7 @@ describe.each(['GET', 'POST'] as const)(
       expect(refused.statusCode).toBe(200);
       expect(refused.body).toContain('<title>Sign out?</title>');
       expect(refused.body).not.toContain(unregistered);
-      const stillLive = await withRealm(app.db, realmId, (tx) =>
+      const stillLive = await withTenant(app.db, tenantId, (tx) =>
         sessionRepository(tx).liveById(sessionId, GENEROUS_LIFESPANS, new Date()),
       );
       expect(stillLive).not.toBeNull();
@@ -778,53 +778,53 @@ describe.each(['GET', 'POST'] as const)(
 
 describe('a hint another issuer signed is no hint at all', () => {
   it('[OIDC-RPINITIATED-2-02] asks for confirmation and ends nothing', async () => {
-    const issuingRealm = `logout-otheriss-a-${newId()}`;
-    await setupRealm(issuingRealm);
+    const issuingTenant = `logout-otheriss-a-${newId()}`;
+    await setupTenant(issuingTenant);
 
-    const realmName = `logout-otheriss-b-${newId()}`;
-    const { realmId } = await setupRealm(realmName);
-    const cookie = await signIn(realmName);
+    const tenantName = `logout-otheriss-b-${newId()}`;
+    const { tenantId } = await setupTenant(tenantName);
+    const cookie = await signIn(tenantName);
     const sessionId = sessionIdFromCookie(cookie);
-    const subjectId = await subjectIdOf(realmId, USERNAME);
+    const subjectId = await subjectIdOf(tenantId, USERNAME);
 
     // Right subject, right session id, right shape — and signed by another
-    // realm's key, carrying another realm's issuer. §2 asks the OP to
+    // tenant's key, carrying another tenant's issuer. §2 asks the OP to
     // validate that it issued the hint before reading anything out of it,
     // so this one has to fall through to the confirmation page rather than
     // ending the session its `sid` names.
-    const foreignHint = await mintIdToken(issuingRealm, subjectId, sessionId);
+    const foreignHint = await mintIdToken(issuingTenant, subjectId, sessionId);
 
     const res = await http.inject({
-      url: logoutUrl(realmName, { id_token_hint: foreignHint }),
+      url: logoutUrl(tenantName, { id_token_hint: foreignHint }),
       headers: { cookie },
     });
 
     expect(res.statusCode).toBe(200);
     expect(res.body).toContain('<title>Sign out?</title>');
 
-    const stillLive = await withRealm(app.db, realmId, (tx) =>
+    const stillLive = await withTenant(app.db, tenantId, (tx) =>
       sessionRepository(tx).liveById(sessionId, GENEROUS_LIFESPANS, new Date()),
     );
     expect(stillLive).not.toBeNull();
   });
 });
 
-describe('GET the logout endpoint with a foreign realm session id', () => {
+describe('GET the logout endpoint with a foreign tenant session id', () => {
   it('ends nothing', async () => {
-    const realmAName = `logout-foreign-a-${newId()}`;
-    await setupRealm(realmAName);
-    const cookieA = await signIn(realmAName);
+    const tenantAName = `logout-foreign-a-${newId()}`;
+    await setupTenant(tenantAName);
+    const cookieA = await signIn(tenantAName);
     const sessionIdA = sessionIdFromCookie(cookieA);
 
-    const realmBName = `logout-foreign-b-${newId()}`;
-    await setupRealm(realmBName);
+    const tenantBName = `logout-foreign-b-${newId()}`;
+    await setupTenant(tenantBName);
 
-    // Realm B's cookie name is distinct, but nothing stops a raw request
-    // from carrying realm A's session id under realm B's cookie name — the
+    // Tenant B's cookie name is distinct, but nothing stops a raw request
+    // from carrying tenant A's session id under tenant B's cookie name — the
     // scoping has to come from the lookup, not the header's own shape.
     const res = await http.inject({
-      url: logoutUrl(realmBName),
-      headers: { cookie: `${realmBName}-session=${sessionIdA}` },
+      url: logoutUrl(tenantBName),
+      headers: { cookie: `${tenantBName}-session=${sessionIdA}` },
     });
     expect(res.statusCode).toBe(200);
     expect(res.body).toContain('<title>Already signed out</title>');
@@ -836,9 +836,9 @@ describe('GET the logout endpoint with a foreign realm session id', () => {
 
 describe('the confirmation POST is a double-submit-cookie check', () => {
   it("refuses a session_id that is not the cookie's own session, and leaves it live", async () => {
-    const realmName = `logout-csrf-${newId()}`;
-    const { realmId } = await setupRealm(realmName);
-    const cookie = await signIn(realmName);
+    const tenantName = `logout-csrf-${newId()}`;
+    const { tenantId } = await setupTenant(tenantName);
+    const cookie = await signIn(tenantName);
     const sessionId = sessionIdFromCookie(cookie);
 
     // A syntactically plausible session id that is not the one the cookie
@@ -847,7 +847,7 @@ describe('the confirmation POST is a double-submit-cookie check', () => {
     const form = new URLSearchParams({ session_id: newId() });
     const res = await http.inject({
       method: 'POST',
-      url: `/realms/${realmName}/protocol/openid-connect/logout`,
+      url: `/tenants/${tenantName}/protocol/openid-connect/logout`,
       payload: form.toString(),
       headers: { 'content-type': 'application/x-www-form-urlencoded', cookie },
     });
@@ -856,7 +856,7 @@ describe('the confirmation POST is a double-submit-cookie check', () => {
     expect(res.body).toContain('<title>Can&#39;t sign out</title>');
     expect(res.headers['set-cookie']).toBeUndefined();
 
-    const stillLive = await withRealm(app.db, realmId, (tx) =>
+    const stillLive = await withTenant(app.db, tenantId, (tx) =>
       sessionRepository(tx).liveById(sessionId, GENEROUS_LIFESPANS, new Date()),
     );
     expect(stillLive).not.toBeNull();
@@ -869,14 +869,14 @@ describe('the confirmation POST is a double-submit-cookie check', () => {
   // and this is what pins it: a forged cross-site POST cannot carry the
   // field, so it cannot end anything without the End-User saying so here.
   it('reads a POST with no session_id as a logout request, ending nothing', async () => {
-    const realmName = `logout-csrf-missing-${newId()}`;
-    const { realmId } = await setupRealm(realmName);
-    const cookie = await signIn(realmName);
+    const tenantName = `logout-csrf-missing-${newId()}`;
+    const { tenantId } = await setupTenant(tenantName);
+    const cookie = await signIn(tenantName);
     const sessionId = sessionIdFromCookie(cookie);
 
     const res = await http.inject({
       method: 'POST',
-      url: `/realms/${realmName}/protocol/openid-connect/logout`,
+      url: `/tenants/${tenantName}/protocol/openid-connect/logout`,
       payload: '',
       headers: { 'content-type': 'application/x-www-form-urlencoded', cookie },
     });
@@ -884,7 +884,7 @@ describe('the confirmation POST is a double-submit-cookie check', () => {
     expect(res.statusCode).toBe(200);
     expect(res.body).toContain('<title>Sign out?</title>');
 
-    const stillLive = await withRealm(app.db, realmId, (tx) =>
+    const stillLive = await withTenant(app.db, tenantId, (tx) =>
       sessionRepository(tx).liveById(sessionId, GENEROUS_LIFESPANS, new Date()),
     );
     expect(stillLive).not.toBeNull();
@@ -893,11 +893,11 @@ describe('the confirmation POST is a double-submit-cookie check', () => {
 
 describe('[ODUDU-LOGOUT-NOSESSION-REDIRECT-01] a matched redirect is honoured even with no session to end', () => {
   it('redirects rather than showing the no-session page', async () => {
-    const realmName = `logout-nosession-${newId()}`;
-    await setupRealm(realmName);
+    const tenantName = `logout-nosession-${newId()}`;
+    await setupTenant(tenantName);
 
     const res = await http.inject({
-      url: logoutUrl(realmName, {
+      url: logoutUrl(tenantName, {
         client_id: CLIENT_ID,
         post_logout_redirect_uri: POST_LOGOUT_REDIRECT_URI,
         state: 'no-session-state',
@@ -911,11 +911,11 @@ describe('[ODUDU-LOGOUT-NOSESSION-REDIRECT-01] a matched redirect is honoured ev
   });
 
   it('still shows the no-session page when the requested uri is not registered', async () => {
-    const realmName = `logout-nosession-badredirect-${newId()}`;
-    await setupRealm(realmName);
+    const tenantName = `logout-nosession-badredirect-${newId()}`;
+    await setupTenant(tenantName);
 
     const res = await http.inject({
-      url: logoutUrl(realmName, {
+      url: logoutUrl(tenantName, {
         client_id: CLIENT_ID,
         post_logout_redirect_uri: 'https://evil.example/after-logout',
       }),
@@ -928,18 +928,18 @@ describe('[ODUDU-LOGOUT-NOSESSION-REDIRECT-01] a matched redirect is honoured ev
 
 describe('a disabled client is not a logout target', () => {
   it("does not honour a disabled client's registered post_logout_redirect_uri", async () => {
-    const realmName = `logout-disabled-redirect-${newId()}`;
-    const { realmId } = await setupRealm(realmName);
-    const cookie = await signIn(realmName);
+    const tenantName = `logout-disabled-redirect-${newId()}`;
+    const { tenantId } = await setupTenant(tenantName);
+    const cookie = await signIn(tenantName);
     const sessionId = sessionIdFromCookie(cookie);
 
     const disabledClientId = 'logout-disabled-client';
     const disabledRedirect = 'https://disabled.example/after-logout';
-    await withRealm(app.db, realmId, async (tx: RealmScopedDatabase) => {
+    await withTenant(app.db, tenantId, async (tx: TenantScopedDatabase) => {
       const dbId = newId();
       await tx.insert(clients).values({
         id: dbId,
-        realmId,
+        tenantId,
         clientId: disabledClientId,
         name: 'Disabled logout client',
         type: 'confidential',
@@ -949,7 +949,7 @@ describe('a disabled client is not a logout target', () => {
       await provisionClientDefaults(tx, dbId);
       await clientOidcConfigRepository(tx).create({
         clientId: dbId,
-        realmId,
+        tenantId,
         redirectUris: ['https://disabled.example/callback'],
         grantTypes: ['authorization_code'],
         tokenEndpointAuthMethod: 'client_secret_basic',
@@ -965,7 +965,7 @@ describe('a disabled client is not a logout target', () => {
     // that rule is exactly what reads the disabled client's own list.
     const res = await http.inject({
       method: 'POST',
-      url: `/realms/${realmName}/protocol/openid-connect/logout`,
+      url: `/tenants/${tenantName}/protocol/openid-connect/logout`,
       payload: new URLSearchParams({
         session_id: sessionId,
         client_id: disabledClientId,

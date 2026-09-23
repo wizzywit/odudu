@@ -1,13 +1,13 @@
 import {
   createDatabase,
   MIGRATIONS_DIR,
-  realms,
+  tenants,
   runMigrations,
-  withRealm,
+  withTenant,
   type DatabaseHandle,
-  type RealmScopedDatabase,
+  type TenantScopedDatabase,
 } from '@odudu/db';
-import { expectCrossRealmMethodProbe, expectRealmIsolation } from '@odudu/db/testing';
+import { expectCrossTenantMethodProbe, expectTenantIsolation } from '@odudu/db/testing';
 import { newId, OduduError } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -47,29 +47,29 @@ afterAll(async () => {
   await containerHandle?.stop();
 });
 
-async function seedRealm(tx: RealmScopedDatabase, realmId: string): Promise<void> {
-  await tx.insert(realms).values({ id: realmId, name: `realm-${realmId}` });
+async function seedTenant(tx: TenantScopedDatabase, tenantId: string): Promise<void> {
+  await tx.insert(tenants).values({ id: tenantId, name: `tenant-${tenantId}` });
 }
 
 async function insertSubject(
-  tx: RealmScopedDatabase,
-  realmId: string,
+  tx: TenantScopedDatabase,
+  tenantId: string,
   overrides: Partial<typeof subjects.$inferInsert> = {},
 ): Promise<string> {
   const id = overrides.id ?? newId();
-  await tx.insert(subjects).values({ id, realmId, type: 'user', ...overrides });
+  await tx.insert(subjects).values({ id, tenantId, type: 'user', ...overrides });
   return id;
 }
 
 async function insertUserRow(
-  tx: RealmScopedDatabase,
+  tx: TenantScopedDatabase,
   subjectId: string,
-  realmId: string,
+  tenantId: string,
   overrides: Partial<typeof users.$inferInsert> = {},
 ): Promise<void> {
   await tx.insert(users).values({
     subjectId,
-    realmId,
+    tenantId,
     username: `user-${newId()}`,
     ...overrides,
   });
@@ -77,28 +77,28 @@ async function insertUserRow(
 
 describe('subjectRepository', () => {
   it('creates a subject through the repository', async () => {
-    const realmId = newId();
+    const tenantId = newId();
 
-    const created = await withRealm(app.db, realmId, async (tx) => {
-      await seedRealm(tx, realmId);
-      return subjectRepository(tx).create({ realmId, type: 'service' });
+    const created = await withTenant(app.db, tenantId, async (tx) => {
+      await seedTenant(tx, tenantId);
+      return subjectRepository(tx).create({ tenantId, type: 'service' });
     });
 
-    expect(created.realmId).toBe(realmId);
+    expect(created.tenantId).toBe(tenantId);
     expect(created.type).toBe('service');
     expect(created.disabledAt).toBeNull();
 
-    const found = await withRealm(app.db, realmId, async (tx) =>
+    const found = await withTenant(app.db, tenantId, async (tx) =>
       subjectRepository(tx).byId(created.id),
     );
     expect(found?.id).toBe(created.id);
   });
 
-  it('cannot find a subject by id under a different realm context', async () => {
-    await expectCrossRealmMethodProbe(app.db, {
-      seed: async (tx, realmId) => {
-        await seedRealm(tx, realmId);
-        return subjectRepository(tx).create({ realmId, type: 'user' });
+  it('cannot find a subject by id under a different tenant context', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        await seedTenant(tx, tenantId);
+        return subjectRepository(tx).create({ tenantId, type: 'user' });
       },
       verifySeeded: async (tx, subject) => {
         const found = await subjectRepository(tx).byId(subject.id);
@@ -114,57 +114,59 @@ describe('subjectRepository', () => {
 
 describe('userRepository', () => {
   it('finds a user with its subject by username', async () => {
-    const realmId = newId();
+    const tenantId = newId();
     const username = `alice-${newId()}`;
 
-    await withRealm(app.db, realmId, async (tx) => {
-      await seedRealm(tx, realmId);
-      const subject = await subjectRepository(tx).create({ realmId, type: 'user' });
-      await insertUserRow(tx, subject.id, realmId, { username });
+    await withTenant(app.db, tenantId, async (tx) => {
+      await seedTenant(tx, tenantId);
+      const subject = await subjectRepository(tx).create({ tenantId, type: 'user' });
+      await insertUserRow(tx, subject.id, tenantId, { username });
     });
 
-    const found = await withRealm(app.db, realmId, async (tx) =>
+    const found = await withTenant(app.db, tenantId, async (tx) =>
       userRepository(tx).byUsername(username),
     );
 
     expect(found).not.toBeNull();
     expect(found?.user.username).toBe(username);
     expect(found?.subject.type).toBe('user');
-    expect(found?.subject.realmId).toBe(realmId);
+    expect(found?.subject.tenantId).toBe(tenantId);
   });
 
   it('finds a user by email', async () => {
-    const realmId = newId();
+    const tenantId = newId();
     const email = `ada-${newId()}@example.test`;
 
-    const subjectId = await withRealm(app.db, realmId, async (tx) => {
-      await seedRealm(tx, realmId);
-      const subject = await subjectRepository(tx).create({ realmId, type: 'user' });
-      await insertUserRow(tx, subject.id, realmId, { email });
+    const subjectId = await withTenant(app.db, tenantId, async (tx) => {
+      await seedTenant(tx, tenantId);
+      const subject = await subjectRepository(tx).create({ tenantId, type: 'user' });
+      await insertUserRow(tx, subject.id, tenantId, { email });
       return subject.id;
     });
 
-    const found = await withRealm(app.db, realmId, async (tx) => userRepository(tx).byEmail(email));
+    const found = await withTenant(app.db, tenantId, async (tx) =>
+      userRepository(tx).byEmail(email),
+    );
     expect(found?.subjectId).toBe(subjectId);
   });
 
   it('returns null when no user has that email', async () => {
-    const realmId = newId();
+    const tenantId = newId();
 
-    const found = await withRealm(app.db, realmId, async (tx) => {
-      await seedRealm(tx, realmId);
+    const found = await withTenant(app.db, tenantId, async (tx) => {
+      await seedTenant(tx, tenantId);
       return userRepository(tx).byEmail('nobody@example.test');
     });
     expect(found).toBeNull();
   });
 
-  it('cannot find a user by email under a different realm context', async () => {
-    await expectCrossRealmMethodProbe(app.db, {
-      seed: async (tx, realmId) => {
-        await seedRealm(tx, realmId);
-        const subject = await subjectRepository(tx).create({ realmId, type: 'user' });
+  it('cannot find a user by email under a different tenant context', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        await seedTenant(tx, tenantId);
+        const subject = await subjectRepository(tx).create({ tenantId, type: 'user' });
         const email = `ada-${newId()}@example.test`;
-        await insertUserRow(tx, subject.id, realmId, { email });
+        await insertUserRow(tx, subject.id, tenantId, { email });
         return email;
       },
       verifySeeded: async (tx, email) => {
@@ -183,15 +185,15 @@ describe('userRepository', () => {
   // same values earlier, so an operator gets a message naming the option
   // rather than a constraint-violation stack.
   it('refuses to store an address the email claim could not carry', async () => {
-    const realmId = newId();
+    const tenantId = newId();
 
     await expect(
-      withRealm(app.db, realmId, async (tx) => {
-        await seedRealm(tx, realmId);
-        const subject = await subjectRepository(tx).create({ realmId, type: 'user' });
+      withTenant(app.db, tenantId, async (tx) => {
+        await seedTenant(tx, tenantId);
+        const subject = await subjectRepository(tx).create({ tenantId, type: 'user' });
         return userRepository(tx).create({
           subjectId: subject.id,
-          realmId,
+          tenantId,
           username: `mallory-${newId()}`,
           email: 'not an address',
         });
@@ -203,16 +205,16 @@ describe('userRepository', () => {
   // does not reach a log line; an error message carrying the address would
   // walk straight past that the moment anything logs `{ err }`.
   it('keeps the rejected address out of the error it throws', async () => {
-    const realmId = newId();
+    const tenantId = newId();
 
     const rejected = 'mallory the unrouteable';
-    const error = await withRealm(app.db, realmId, async (tx) => {
-      await seedRealm(tx, realmId);
-      const subject = await subjectRepository(tx).create({ realmId, type: 'user' });
+    const error = await withTenant(app.db, tenantId, async (tx) => {
+      await seedTenant(tx, tenantId);
+      const subject = await subjectRepository(tx).create({ tenantId, type: 'user' });
       return userRepository(tx)
         .create({
           subjectId: subject.id,
-          realmId,
+          tenantId,
           username: `mallory-${newId()}`,
           email: rejected,
         })
@@ -227,22 +229,22 @@ describe('userRepository', () => {
   });
 
   it('stores a conforming address, and stores no address at all without complaint', async () => {
-    const realmId = newId();
+    const tenantId = newId();
 
-    const [withEmail, withoutEmail] = await withRealm(app.db, realmId, async (tx) => {
-      await seedRealm(tx, realmId);
-      const one = await subjectRepository(tx).create({ realmId, type: 'user' });
-      const two = await subjectRepository(tx).create({ realmId, type: 'user' });
+    const [withEmail, withoutEmail] = await withTenant(app.db, tenantId, async (tx) => {
+      await seedTenant(tx, tenantId);
+      const one = await subjectRepository(tx).create({ tenantId, type: 'user' });
+      const two = await subjectRepository(tx).create({ tenantId, type: 'user' });
       return [
         await userRepository(tx).create({
           subjectId: one.id,
-          realmId,
+          tenantId,
           username: `carol-${newId()}`,
           email: 'carol.o-brien+tag@mail.example.com',
         }),
         await userRepository(tx).create({
           subjectId: two.id,
-          realmId,
+          tenantId,
           username: `dave-${newId()}`,
         }),
       ];
@@ -253,13 +255,13 @@ describe('userRepository', () => {
   });
 
   it('returns null when no user matches', async () => {
-    const realmId = newId();
+    const tenantId = newId();
 
-    await withRealm(app.db, realmId, async (tx) => {
-      await seedRealm(tx, realmId);
+    await withTenant(app.db, tenantId, async (tx) => {
+      await seedTenant(tx, tenantId);
     });
 
-    const found = await withRealm(app.db, realmId, async (tx) =>
+    const found = await withTenant(app.db, tenantId, async (tx) =>
       userRepository(tx).byUsername('does-not-exist'),
     );
 
@@ -267,17 +269,17 @@ describe('userRepository', () => {
   });
 
   it('finds a user by subject id', async () => {
-    const realmId = newId();
+    const tenantId = newId();
     const username = `bob-${newId()}`;
 
-    const subjectId = await withRealm(app.db, realmId, async (tx) => {
-      await seedRealm(tx, realmId);
-      const subject = await subjectRepository(tx).create({ realmId, type: 'user' });
-      await insertUserRow(tx, subject.id, realmId, { username, email: 'bob@example.com' });
+    const subjectId = await withTenant(app.db, tenantId, async (tx) => {
+      await seedTenant(tx, tenantId);
+      const subject = await subjectRepository(tx).create({ tenantId, type: 'user' });
+      await insertUserRow(tx, subject.id, tenantId, { username, email: 'bob@example.com' });
       return subject.id;
     });
 
-    const found = await withRealm(app.db, realmId, async (tx) =>
+    const found = await withTenant(app.db, tenantId, async (tx) =>
       userRepository(tx).bySubjectId(subjectId),
     );
 
@@ -286,93 +288,93 @@ describe('userRepository', () => {
   });
 
   it('returns null from bySubjectId for a subject with no user row', async () => {
-    const realmId = newId();
+    const tenantId = newId();
 
-    const subjectId = await withRealm(app.db, realmId, async (tx) => {
-      await seedRealm(tx, realmId);
-      const subject = await subjectRepository(tx).create({ realmId, type: 'service' });
+    const subjectId = await withTenant(app.db, tenantId, async (tx) => {
+      await seedTenant(tx, tenantId);
+      const subject = await subjectRepository(tx).create({ tenantId, type: 'service' });
       return subject.id;
     });
 
-    const found = await withRealm(app.db, realmId, async (tx) =>
+    const found = await withTenant(app.db, tenantId, async (tx) =>
       userRepository(tx).bySubjectId(subjectId),
     );
 
     expect(found).toBeNull();
   });
 
-  it('cannot find a user by username under a different realm context', async () => {
-    const realmA = newId();
-    const realmB = newId();
+  it('cannot find a user by username under a different tenant context', async () => {
+    const tenantA = newId();
+    const tenantB = newId();
     const username = `carol-${newId()}`;
 
-    await withRealm(app.db, realmA, async (tx) => {
-      await seedRealm(tx, realmA);
-      const subject = await subjectRepository(tx).create({ realmId: realmA, type: 'user' });
-      await insertUserRow(tx, subject.id, realmA, { username });
+    await withTenant(app.db, tenantA, async (tx) => {
+      await seedTenant(tx, tenantA);
+      const subject = await subjectRepository(tx).create({ tenantId: tenantA, type: 'user' });
+      await insertUserRow(tx, subject.id, tenantA, { username });
     });
 
-    await withRealm(app.db, realmB, async (tx) => seedRealm(tx, realmB));
+    await withTenant(app.db, tenantB, async (tx) => seedTenant(tx, tenantB));
 
-    const foundFromB = await withRealm(app.db, realmB, async (tx) =>
+    const foundFromB = await withTenant(app.db, tenantB, async (tx) =>
       userRepository(tx).byUsername(username),
     );
     expect(foundFromB).toBeNull();
 
-    const foundFromA = await withRealm(app.db, realmA, async (tx) =>
+    const foundFromA = await withTenant(app.db, tenantA, async (tx) =>
       userRepository(tx).byUsername(username),
     );
     expect(foundFromA?.user.username).toBe(username);
   });
 
-  it('cannot find a user by subject id under a different realm context', async () => {
-    const realmA = newId();
-    const realmB = newId();
+  it('cannot find a user by subject id under a different tenant context', async () => {
+    const tenantA = newId();
+    const tenantB = newId();
 
-    const subjectId = await withRealm(app.db, realmA, async (tx) => {
-      await seedRealm(tx, realmA);
-      const subject = await subjectRepository(tx).create({ realmId: realmA, type: 'user' });
-      await insertUserRow(tx, subject.id, realmA, { email: 'carol@example.com' });
+    const subjectId = await withTenant(app.db, tenantA, async (tx) => {
+      await seedTenant(tx, tenantA);
+      const subject = await subjectRepository(tx).create({ tenantId: tenantA, type: 'user' });
+      await insertUserRow(tx, subject.id, tenantA, { email: 'carol@example.com' });
       return subject.id;
     });
 
-    await withRealm(app.db, realmB, async (tx) => seedRealm(tx, realmB));
+    await withTenant(app.db, tenantB, async (tx) => seedTenant(tx, tenantB));
 
-    const foundFromB = await withRealm(app.db, realmB, async (tx) =>
+    const foundFromB = await withTenant(app.db, tenantB, async (tx) =>
       userRepository(tx).bySubjectId(subjectId),
     );
     expect(foundFromB).toBeNull();
 
-    const foundFromA = await withRealm(app.db, realmA, async (tx) =>
+    const foundFromA = await withTenant(app.db, tenantA, async (tx) =>
       userRepository(tx).bySubjectId(subjectId),
     );
     expect(foundFromA?.email).toBe('carol@example.com');
   });
 
-  it('refuses a user whose realm differs from its subject', async () => {
-    const realmA = newId();
-    const realmB = newId();
+  it('refuses a user whose tenant differs from its subject', async () => {
+    const tenantA = newId();
+    const tenantB = newId();
 
     let error: unknown;
     try {
-      await withRealm(app.db, realmA, async (tx) => {
-        await seedRealm(tx, realmA);
+      await withTenant(app.db, tenantA, async (tx) => {
+        await seedTenant(tx, tenantA);
       });
-      await withRealm(app.db, realmB, async (tx) => {
-        await seedRealm(tx, realmB);
+      await withTenant(app.db, tenantB, async (tx) => {
+        await seedTenant(tx, tenantB);
       });
 
-      const subjectId = await withRealm(app.db, realmA, async (tx) => {
-        const subject = await subjectRepository(tx).create({ realmId: realmA, type: 'user' });
+      const subjectId = await withTenant(app.db, tenantA, async (tx) => {
+        const subject = await subjectRepository(tx).create({ tenantId: tenantA, type: 'user' });
         return subject.id;
       });
 
-      // The subject belongs to realmA; inserting the user row under realmB
+      // The subject belongs to tenantA; inserting the user row under tenantB
       // must be rejected by the composite foreign key, not silently allowed.
-      await withRealm(app.db, realmB, async (tx) => {
-        await insertUserRow(tx, subjectId, realmB);
+      await withTenant(app.db, tenantB, async (tx) => {
+        await insertUserRow(tx, subjectId, tenantB);
       });
-      expect.unreachable('expected the realm-mismatched user insert to be rejected');
+      expect.unreachable('expected the tenant-mismatched user insert to be rejected');
     } catch (caught) {
       error = caught;
     }
@@ -380,7 +382,7 @@ describe('userRepository', () => {
     expect(error).toBeInstanceOf(Error);
     const cause = (error as Error).cause;
     expect(cause).toBeInstanceOf(Error);
-    expect((cause as Error).message).toContain('users_subject_realm_fk');
+    expect((cause as Error).message).toContain('users_subject_tenant_fk');
   });
 });
 
@@ -388,13 +390,13 @@ describe('userRepository', () => {
 // writer there will ever be, which is what the OIDC Core §5.1 row claims.
 describe('users_email_addr_spec, the column constraint behind the email claim', () => {
   it('refuses a non-conforming address inserted straight into the table', async () => {
-    const realmId = newId();
+    const tenantId = newId();
 
     await expect(
-      withRealm(app.db, realmId, async (tx) => {
-        await seedRealm(tx, realmId);
-        const subjectId = await insertSubject(tx, realmId);
-        await insertUserRow(tx, subjectId, realmId, { email: 'not an address' });
+      withTenant(app.db, tenantId, async (tx) => {
+        await seedTenant(tx, tenantId);
+        const subjectId = await insertSubject(tx, tenantId);
+        await insertUserRow(tx, subjectId, tenantId, { email: 'not an address' });
       }),
       // Drizzle wraps the driver error; the SQLSTATE and the constraint name
       // are on .cause.
@@ -440,9 +442,9 @@ describe('users_email_addr_spec, the column constraint behind the email claim', 
       `${'a'.repeat(250)}@example.com`,
     ];
 
-    const realmId = newId();
-    await withRealm(app.db, realmId, async (tx) => {
-      await seedRealm(tx, realmId);
+    const tenantId = newId();
+    await withTenant(app.db, tenantId, async (tx) => {
+      await seedTenant(tx, tenantId);
     });
 
     // One transaction per case: a constraint violation aborts the
@@ -451,9 +453,9 @@ describe('users_email_addr_spec, the column constraint behind the email claim', 
     const accepted: boolean[] = [];
     for (const candidate of cases) {
       accepted.push(
-        await withRealm(app.db, realmId, async (tx) => {
-          const subjectId = await insertSubject(tx, realmId);
-          await insertUserRow(tx, subjectId, realmId, { email: candidate });
+        await withTenant(app.db, tenantId, async (tx) => {
+          const subjectId = await insertSubject(tx, tenantId);
+          await insertUserRow(tx, subjectId, tenantId, { email: candidate });
         }).then(
           () => true,
           () => false,
@@ -469,14 +471,14 @@ describe('users_email_addr_spec, the column constraint behind the email claim', 
 
 describe('credentialRepository', () => {
   it('finds a password credential by subject id', async () => {
-    const realmId = newId();
+    const tenantId = newId();
 
-    const subjectId = await withRealm(app.db, realmId, async (tx) => {
-      await seedRealm(tx, realmId);
-      const subject = await subjectRepository(tx).create({ realmId, type: 'user' });
+    const subjectId = await withTenant(app.db, tenantId, async (tx) => {
+      await seedTenant(tx, tenantId);
+      const subject = await subjectRepository(tx).create({ tenantId, type: 'user' });
       await tx.insert(userCredentials).values({
         id: newId(),
-        realmId,
+        tenantId,
         subjectId: subject.id,
         type: 'password',
         secretData: { hash: '$argon2id$fake-hash' },
@@ -484,7 +486,7 @@ describe('credentialRepository', () => {
       return subject.id;
     });
 
-    const password = await withRealm(app.db, realmId, async (tx) =>
+    const password = await withTenant(app.db, tenantId, async (tx) =>
       credentialRepository(tx).passwordFor(subjectId),
     );
 
@@ -492,29 +494,29 @@ describe('credentialRepository', () => {
   });
 
   it('returns null when no credential matches', async () => {
-    const realmId = newId();
+    const tenantId = newId();
 
-    const subjectId = await withRealm(app.db, realmId, async (tx) => {
-      await seedRealm(tx, realmId);
-      const subject = await subjectRepository(tx).create({ realmId, type: 'user' });
+    const subjectId = await withTenant(app.db, tenantId, async (tx) => {
+      await seedTenant(tx, tenantId);
+      const subject = await subjectRepository(tx).create({ tenantId, type: 'user' });
       return subject.id;
     });
 
-    const password = await withRealm(app.db, realmId, async (tx) =>
+    const password = await withTenant(app.db, tenantId, async (tx) =>
       credentialRepository(tx).passwordFor(subjectId),
     );
 
     expect(password).toBeNull();
   });
 
-  it('finds no password credential under a different realm context', async () => {
-    await expectCrossRealmMethodProbe(app.db, {
-      seed: async (tx, realmId) => {
-        await seedRealm(tx, realmId);
-        const subject = await subjectRepository(tx).create({ realmId, type: 'user' });
+  it('finds no password credential under a different tenant context', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        await seedTenant(tx, tenantId);
+        const subject = await subjectRepository(tx).create({ tenantId, type: 'user' });
         await tx.insert(userCredentials).values({
           id: newId(),
-          realmId,
+          tenantId,
           subjectId: subject.id,
           type: 'password',
           secretData: { hash: '$argon2id$fake-hash' },
@@ -533,13 +535,13 @@ describe('credentialRepository', () => {
   });
 
   it('replaces the stored password', async () => {
-    const realmId = newId();
+    const tenantId = newId();
 
-    const subjectId = await withRealm(app.db, realmId, async (tx) => {
-      await seedRealm(tx, realmId);
-      const subject = await subjectRepository(tx).create({ realmId, type: 'user' });
+    const subjectId = await withTenant(app.db, tenantId, async (tx) => {
+      await seedTenant(tx, tenantId);
+      const subject = await subjectRepository(tx).create({ tenantId, type: 'user' });
       await credentialRepository(tx).insert({
-        realmId,
+        tenantId,
         subjectId: subject.id,
         type: 'password',
         secret: { kind: 'password', hash: '$argon2id$old-hash' },
@@ -547,40 +549,40 @@ describe('credentialRepository', () => {
       return subject.id;
     });
 
-    await withRealm(app.db, realmId, (tx) =>
+    await withTenant(app.db, tenantId, (tx) =>
       credentialRepository(tx).setPassword(subjectId, '$argon2id$new-hash'),
     );
 
-    const password = await withRealm(app.db, realmId, (tx) =>
+    const password = await withTenant(app.db, tenantId, (tx) =>
       credentialRepository(tx).passwordFor(subjectId),
     );
     expect(password).toBe('$argon2id$new-hash');
   });
 
   it('refuses to set a password with no existing credential row', async () => {
-    const realmId = newId();
+    const tenantId = newId();
 
-    const subjectId = await withRealm(app.db, realmId, async (tx) => {
-      await seedRealm(tx, realmId);
-      const subject = await subjectRepository(tx).create({ realmId, type: 'user' });
+    const subjectId = await withTenant(app.db, tenantId, async (tx) => {
+      await seedTenant(tx, tenantId);
+      const subject = await subjectRepository(tx).create({ tenantId, type: 'user' });
       return subject.id;
     });
 
-    const failure = withRealm(app.db, realmId, (tx) =>
+    const failure = withTenant(app.db, tenantId, (tx) =>
       credentialRepository(tx).setPassword(subjectId, '$argon2id$new-hash'),
     );
     await expect(failure).rejects.toThrow(OduduError);
     await expect(failure).rejects.toMatchObject({ code: 'credential_not_found' });
   });
 
-  it('cannot replace a password credential under a different realm context', async () => {
-    await expectCrossRealmMethodProbe(app.db, {
-      seed: async (tx, realmId) => {
-        await seedRealm(tx, realmId);
-        const subject = await subjectRepository(tx).create({ realmId, type: 'user' });
+  it('cannot replace a password credential under a different tenant context', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        await seedTenant(tx, tenantId);
+        const subject = await subjectRepository(tx).create({ tenantId, type: 'user' });
         await tx.insert(userCredentials).values({
           id: newId(),
-          realmId,
+          tenantId,
           subjectId: subject.id,
           type: 'password',
           secretData: { hash: '$argon2id$fake-hash' },
@@ -602,7 +604,7 @@ describe('credentialRepository', () => {
       expectBlocked: (result) => {
         expect(result).toBe('blocked');
       },
-      verifyRealmAUnaffected: async (tx, subjectId) => {
+      verifyTenantAUnaffected: async (tx, subjectId) => {
         const password = await credentialRepository(tx).passwordFor(subjectId);
         expect(password).toBe('$argon2id$fake-hash');
       },
@@ -610,12 +612,12 @@ describe('credentialRepository', () => {
   });
 
   it('retires the displaced hash and keeps only the depth asked for', async () => {
-    const realmId = newId();
-    const subjectId = await withRealm(app.db, realmId, async (tx) => {
-      await seedRealm(tx, realmId);
-      const subject = await subjectRepository(tx).create({ realmId, type: 'user' });
+    const tenantId = newId();
+    const subjectId = await withTenant(app.db, tenantId, async (tx) => {
+      await seedTenant(tx, tenantId);
+      const subject = await subjectRepository(tx).create({ tenantId, type: 'user' });
       await credentialRepository(tx).insert({
-        realmId,
+        tenantId,
         subjectId: subject.id,
         type: 'password',
         secret: { kind: 'password', hash: '$argon2id$one' },
@@ -628,13 +630,13 @@ describe('credentialRepository', () => {
       ['$argon2id$two', '$argon2id$three'],
       ['$argon2id$three', '$argon2id$four'],
     ] as const) {
-      const rotated = await withRealm(app.db, realmId, (tx) =>
+      const rotated = await withTenant(app.db, tenantId, (tx) =>
         credentialRepository(tx).rotatePassword(subjectId, { from, to }, 2),
       );
       expect(rotated).toBe(true);
     }
 
-    const state = await withRealm(app.db, realmId, async (tx) => ({
+    const state = await withTenant(app.db, tenantId, async (tx) => ({
       current: await credentialRepository(tx).passwordFor(subjectId),
       history: await credentialRepository(tx).passwordHistory(subjectId),
     }));
@@ -645,12 +647,12 @@ describe('credentialRepository', () => {
   // The write is the decision, not a record of one: a rotation against a
   // hash that is no longer in force archives nothing and reports it.
   it('refuses a rotation whose outgoing hash has already been replaced', async () => {
-    const realmId = newId();
-    const subjectId = await withRealm(app.db, realmId, async (tx) => {
-      await seedRealm(tx, realmId);
-      const subject = await subjectRepository(tx).create({ realmId, type: 'user' });
+    const tenantId = newId();
+    const subjectId = await withTenant(app.db, tenantId, async (tx) => {
+      await seedTenant(tx, tenantId);
+      const subject = await subjectRepository(tx).create({ tenantId, type: 'user' });
       await credentialRepository(tx).insert({
-        realmId,
+        tenantId,
         subjectId: subject.id,
         type: 'password',
         secret: { kind: 'password', hash: '$argon2id$one' },
@@ -658,7 +660,7 @@ describe('credentialRepository', () => {
       return subject.id;
     });
 
-    const stale = await withRealm(app.db, realmId, (tx) =>
+    const stale = await withTenant(app.db, tenantId, (tx) =>
       credentialRepository(tx).rotatePassword(
         subjectId,
         { from: '$argon2id$never-was', to: '$argon2id$two' },
@@ -667,21 +669,21 @@ describe('credentialRepository', () => {
     );
 
     expect(stale).toBe(false);
-    const after = await withRealm(app.db, realmId, async (tx) => ({
+    const after = await withTenant(app.db, tenantId, async (tx) => ({
       current: await credentialRepository(tx).passwordFor(subjectId),
       history: await credentialRepository(tx).passwordHistory(subjectId),
     }));
     expect(after).toEqual({ current: '$argon2id$one', history: [] });
   });
 
-  it('reads no password history under a different realm context', async () => {
-    await expectCrossRealmMethodProbe(app.db, {
-      seed: async (tx, realmId) => {
-        await seedRealm(tx, realmId);
-        const subject = await subjectRepository(tx).create({ realmId, type: 'user' });
+  it('reads no password history under a different tenant context', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        await seedTenant(tx, tenantId);
+        const subject = await subjectRepository(tx).create({ tenantId, type: 'user' });
         await tx.insert(userCredentials).values({
           id: newId(),
-          realmId,
+          tenantId,
           subjectId: subject.id,
           type: 'password-history',
           secretData: { hash: '$argon2id$retired' },
@@ -700,14 +702,14 @@ describe('credentialRepository', () => {
     });
   });
 
-  it('cannot rotate a password under a different realm context', async () => {
-    await expectCrossRealmMethodProbe(app.db, {
-      seed: async (tx, realmId) => {
-        await seedRealm(tx, realmId);
-        const subject = await subjectRepository(tx).create({ realmId, type: 'user' });
+  it('cannot rotate a password under a different tenant context', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        await seedTenant(tx, tenantId);
+        const subject = await subjectRepository(tx).create({ tenantId, type: 'user' });
         await tx.insert(userCredentials).values({
           id: newId(),
-          realmId,
+          tenantId,
           subjectId: subject.id,
           type: 'password',
           secretData: { hash: '$argon2id$fake-hash' },
@@ -726,7 +728,7 @@ describe('credentialRepository', () => {
       expectBlocked: (result) => {
         expect(result).toBe(false);
       },
-      verifyRealmAUnaffected: async (tx, subjectId) => {
+      verifyTenantAUnaffected: async (tx, subjectId) => {
         expect(await credentialRepository(tx).passwordFor(subjectId)).toBe('$argon2id$fake-hash');
         expect(await credentialRepository(tx).passwordHistory(subjectId)).toEqual([]);
       },
@@ -745,9 +747,9 @@ describe('loginFailureRepository', () => {
 
   // Seeded through the repository's own write rather than an insert, so the
   // probe fails if `recordFailure` ever stops being able to create the row.
-  async function seedFailures(tx: RealmScopedDatabase, realmId: string): Promise<string> {
-    await seedRealm(tx, realmId);
-    const subject = await subjectRepository(tx).create({ realmId, type: 'user' });
+  async function seedFailures(tx: TenantScopedDatabase, tenantId: string): Promise<string> {
+    await seedTenant(tx, tenantId);
+    const subject = await subjectRepository(tx).create({ tenantId, type: 'user' });
     await loginFailureRepository(tx).recordFailure(subject.id, POLICY, AT);
     await loginFailureRepository(tx).recordFailure(subject.id, POLICY, AT);
     return subject.id;
@@ -758,16 +760,16 @@ describe('loginFailureRepository', () => {
   // six. A writer that gave up would be an attempt nobody counted, and the
   // count alone cannot tell that apart from a writer that won.
   it('records every concurrent failure rather than giving one of them up', async () => {
-    const realmId = newId();
-    const subjectId = await withRealm(app.db, realmId, async (tx) => {
-      await seedRealm(tx, realmId);
-      const subject = await subjectRepository(tx).create({ realmId, type: 'user' });
+    const tenantId = newId();
+    const subjectId = await withTenant(app.db, tenantId, async (tx) => {
+      await seedTenant(tx, tenantId);
+      const subject = await subjectRepository(tx).create({ tenantId, type: 'user' });
       return subject.id;
     });
 
     const outcomes = await Promise.all(
       Array.from({ length: 6 }, () =>
-        withRealm(app.db, realmId, (tx) =>
+        withTenant(app.db, tenantId, (tx) =>
           loginFailureRepository(tx).recordFailure(subjectId, { ...POLICY, maxFailures: 20 }, AT),
         ),
       ),
@@ -775,12 +777,12 @@ describe('loginFailureRepository', () => {
 
     expect(outcomes.map((outcome) => outcome.kind)).toEqual(Array(6).fill('recorded'));
     expect(
-      await withRealm(app.db, realmId, (tx) => loginFailureRepository(tx).forSubject(subjectId)),
+      await withTenant(app.db, tenantId, (tx) => loginFailureRepository(tx).forSubject(subjectId)),
     ).toMatchObject({ failureCount: 6 });
   });
 
-  it('reads no failure count under a different realm context', async () => {
-    await expectCrossRealmMethodProbe(app.db, {
+  it('reads no failure count under a different tenant context', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
       seed: seedFailures,
       // The blocked read answers the same zeros a subject who has never
       // failed does, so the seeded read has to prove a non-zero count —
@@ -797,8 +799,8 @@ describe('loginFailureRepository', () => {
     });
   });
 
-  it('cannot record a failure against another realm’s subject', async () => {
-    await expectCrossRealmMethodProbe(app.db, {
+  it('cannot record a failure against another tenant’s subject', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
       seed: seedFailures,
       verifySeeded: async (tx, subjectId) => {
         expect(await loginFailureRepository(tx).recordFailure(subjectId, POLICY, AT)).toMatchObject(
@@ -815,9 +817,9 @@ describe('loginFailureRepository', () => {
       expectBlocked: (result) => {
         expect(result).toEqual({ kind: 'no_subject' });
       },
-      // A cross-realm write that locked somebody out would be a denial of
-      // service on an account in a realm the caller cannot even read.
-      verifyRealmAUnaffected: async (tx, subjectId) => {
+      // A cross-tenant write that locked somebody out would be a denial of
+      // service on an account in a tenant the caller cannot even read.
+      verifyTenantAUnaffected: async (tx, subjectId) => {
         expect(await loginFailureRepository(tx).forSubject(subjectId)).toMatchObject({
           failureCount: 3,
         });
@@ -825,8 +827,8 @@ describe('loginFailureRepository', () => {
     });
   });
 
-  it('cannot clear another realm’s failure count', async () => {
-    await expectCrossRealmMethodProbe(app.db, {
+  it('cannot clear another tenant’s failure count', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
       seed: seedFailures,
       verifySeeded: async (tx, subjectId) => {
         expect(await loginFailureRepository(tx).forSubject(subjectId)).toMatchObject({
@@ -837,9 +839,9 @@ describe('loginFailureRepository', () => {
       expectBlocked: (result) => {
         expect(result).toBe(false);
       },
-      // The one that matters most: clearing across realms would let anybody
-      // with a realm of their own unlock an account in somebody else's.
-      verifyRealmAUnaffected: async (tx, subjectId) => {
+      // The one that matters most: clearing across tenants would let anybody
+      // with a tenant of their own unlock an account in somebody else's.
+      verifyTenantAUnaffected: async (tx, subjectId) => {
         expect(await loginFailureRepository(tx).forSubject(subjectId)).toMatchObject({
           failureCount: 2,
         });
@@ -848,21 +850,21 @@ describe('loginFailureRepository', () => {
   });
 });
 
-describe('realm isolation', () => {
+describe('tenant isolation', () => {
   it.each(['subjects', 'users', 'user_credentials', 'login_failures'])(
-    'isolates %s by realm',
+    'isolates %s by tenant',
     async (table) => {
-      await expectRealmIsolation(app.db, {
+      await expectTenantIsolation(app.db, {
         table,
-        seed: async (tx, realmId) => {
-          await seedRealm(tx, realmId);
-          const subjectId = await insertSubject(tx, realmId);
+        seed: async (tx, tenantId) => {
+          await seedTenant(tx, tenantId);
+          const subjectId = await insertSubject(tx, tenantId);
           if (table === 'users') {
-            await insertUserRow(tx, subjectId, realmId);
+            await insertUserRow(tx, subjectId, tenantId);
           } else if (table === 'user_credentials') {
             await tx.insert(userCredentials).values({
               id: newId(),
-              realmId,
+              tenantId,
               subjectId,
               type: 'password',
               secretData: { hash: '$argon2id$fake-hash' },

@@ -13,7 +13,7 @@ export function renderAuthorizeErrorPage(error: string, description: string): Re
 // No auth_session_id here, unlike renderLoginForm below: this page has no
 // form to resubmit, since the next step happens in the user's inbox, not on
 // this page. `hasEmail` false means there is no address on file at all — a
-// realm turning verify_email on locks these accounts out with nothing they
+// tenant turning verify_email on locks these accounts out with nothing they
 // can do about it, so the page says that rather than claiming a mail it
 // never sent.
 export function renderEmailUnverifiedPage(hasEmail: boolean): RenderedPage {
@@ -67,10 +67,10 @@ function renderFormFields(form: string): string {
 // browser offers every discoverable one it holds and the account is
 // whichever one answers. The challenge is issued per click rather than with
 // the page, so a form left open overnight still gets a live one.
-function renderPasskeyOption(realm: string, authSessionId: string, nonce: string): string {
-  const escaped = escapeHtml(realm);
+function renderPasskeyOption(tenant: string, authSessionId: string, nonce: string): string {
+  const escaped = escapeHtml(tenant);
   return `
-<form method="post" action="/realms/${escaped}/login-actions/authenticate" id="passkey-form">
+<form method="post" action="/tenants/${escaped}/login-actions/authenticate" id="passkey-form">
   <input type="hidden" name="auth_session_id" value="${escapeHtml(authSessionId)}">
   <input type="hidden" name="assertion" id="passkey-assertion">
   <button type="submit" id="passkey-submit">Sign in with a passkey</button>
@@ -88,7 +88,7 @@ form.addEventListener('submit', async (event) => {
   event.preventDefault();
   failure.hidden = true;
   try {
-    const offered = await fetch('/realms/${escaped}/login-actions/passkey-challenge', {
+    const offered = await fetch('/tenants/${escaped}/login-actions/passkey-challenge', {
       method: 'POST',
       headers: { 'content-type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({ auth_session_id: form.auth_session_id.value }),
@@ -112,20 +112,20 @@ form.addEventListener('submit', async (event) => {
 // The hidden field is the whole of this page's CSRF defence: authSessionId
 // is an unguessable id (newId()) that only a browser which actually loaded
 // this response — rendered same-origin, never carried in a URL an attacker
-// could read or replay — can submit back. POST /realms/{realm}/login-actions/authenticate
+// could read or replay — can submit back. POST /tenants/{tenant}/login-actions/authenticate
 // treats a submission whose auth_session_id does not name a live authentication
 // session as unauthenticated, exactly as it would treat a missing token. It is
 // on every form this function renders, not just the password one, since it is
 // what CSRF-protects the whole endpoint rather than any one authenticator.
 export function renderLoginForm(
-  realm: string,
+  tenant: string,
   authSessionId: string,
   form: string,
   // Whether this deployment can offer a passkey at all: the relying party
   // id comes from ODUDU_PUBLIC_BASE_URL and nowhere else, so without that
   // there is nothing behind the button.
   passkeyLogin = false,
-  // Whether the realm's `remember_me_allowed` setting is on. The checkbox
+  // Whether the tenant's `remember_me_allowed` setting is on. The checkbox
   // is offered on that authority alone; login-submission.ts applies the
   // same gate again when the form comes back, so nothing here needs to be
   // trusted for more than what to render.
@@ -134,18 +134,18 @@ export function renderLoginForm(
   // form can act on — see LoginSubmissionOutcome's `reject`.
   error?: string,
 ): RenderedPage {
-  const action = `/realms/${escapeHtml(realm)}/login-actions/authenticate`;
+  const action = `/tenants/${escapeHtml(tenant)}/login-actions/authenticate`;
   // Beside the password and nowhere else: a passkey is an alternative to
   // the first factor, not to a code asked for after one. The nonce is minted
   // here, where it is known whether a script is going to be rendered at
   // all, so the policy sent with this page never licenses one it does not
   // carry.
   const nonce = passkeyLogin && form === 'password' ? scriptNonce() : null;
-  const passkey = nonce === null ? '' : renderPasskeyOption(realm, authSessionId, nonce);
+  const passkey = nonce === null ? '' : renderPasskeyOption(tenant, authSessionId, nonce);
   const message = error === undefined ? '' : `<p><strong>${escapeHtml(error)}</strong></p>\n`;
-  // Never rendered at all when the realm has not turned the setting on —
+  // Never rendered at all when the tenant has not turned the setting on —
   // login-submission.ts's own gate is the one that matters, but a checkbox
-  // this realm could never honour is not offered in the first place.
+  // this tenant could never honour is not offered in the first place.
   const rememberMe = rememberMeAllowed
     ? '<label><input type="checkbox" name="remember_me" id="remember-me" value="true"> Remember me</label>\n  '
     : '';

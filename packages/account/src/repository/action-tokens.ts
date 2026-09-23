@@ -1,4 +1,4 @@
-import { type RealmScopedDatabase } from '@odudu/db';
+import { type TenantScopedDatabase } from '@odudu/db';
 import { newId } from '@odudu/kernel';
 import { and, eq, gt, isNull } from 'drizzle-orm';
 import { createHash, randomBytes } from 'node:crypto';
@@ -25,7 +25,7 @@ function sha256Hex(token: string): string {
 // rather than inheriting one invisibly. See VERIFY_EMAIL_TTL_SECONDS and
 // RESET_PASSWORD_TTL_SECONDS in #/usecase/verify-email.
 export interface IssueActionToken {
-  realmId: string;
+  tenantId: string;
   subjectId: string;
   type: ActionTokenType;
   email?: string;
@@ -35,7 +35,7 @@ export interface IssueActionToken {
 function toRecord(row: typeof actionTokens.$inferSelect): ActionTokenRecord {
   return {
     id: row.id,
-    realmId: row.realmId,
+    tenantId: row.tenantId,
     subjectId: row.subjectId,
     type: row.type as ActionTokenType,
     tokenHash: row.tokenHash,
@@ -46,13 +46,13 @@ function toRecord(row: typeof actionTokens.$inferSelect): ActionTokenRecord {
   };
 }
 
-export function actionTokenRepository(tx: RealmScopedDatabase) {
+export function actionTokenRepository(tx: TenantScopedDatabase) {
   return {
     async issue(input: IssueActionToken): Promise<{ token: string }> {
       const token = generateActionToken();
       await tx.insert(actionTokens).values({
         id: newId(),
-        realmId: input.realmId,
+        tenantId: input.tenantId,
         subjectId: input.subjectId,
         type: input.type,
         tokenHash: sha256Hex(token),

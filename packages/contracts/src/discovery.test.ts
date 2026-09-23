@@ -2,20 +2,20 @@ import { describe, expect, it } from 'vitest';
 import { discoveryDocument } from '#/discovery';
 
 const CLAIMS_SUPPORTED = ['sub', 'name', 'email', 'email_verified'];
-// Stands in for a realm's scope vocabulary, which is what the caller reads
+// Stands in for a tenant's scope vocabulary, which is what the caller reads
 // and hands over; this package has no list of its own to fall back to.
 const SCOPES_SUPPORTED = ['openid', 'profile', 'email'];
-// Stands in for one realm's active signing key's own algorithm plus
-// `none` — the caller's per-realm answer this package never derives itself.
+// Stands in for one tenant's active signing key's own algorithm plus
+// `none` — the caller's per-tenant answer this package never derives itself.
 const USERINFO_SIGNING_ALG_SUPPORTED = ['RS256', 'none'];
 // Stands in for @odudu/crypto's JWE_ALGS_PERMITTED and
 // service/client-metadata.ts's USERINFO_ENCRYPTION_ENCS_PERMITTED — fixed
-// by the installed jose, never realm data.
+// by the installed jose, never tenant data.
 const USERINFO_ENCRYPTION_ALG_SUPPORTED = ['RSA-OAEP-256', 'ECDH-ES'];
 const USERINFO_ENCRYPTION_ENC_SUPPORTED = ['A128CBC-HS256', 'A256GCM'];
 
 const doc = discoveryDocument({
-  issuer: 'https://idp.example/realms/acme',
+  issuer: 'https://idp.example/tenants/acme',
   claimsSupported: CLAIMS_SUPPORTED,
   scopesSupported: SCOPES_SUPPORTED,
   userinfoSigningAlgSupported: USERINFO_SIGNING_ALG_SUPPORTED,
@@ -66,7 +66,7 @@ describe('[OIDC-DISCOVERY-3-01] the discovery document', () => {
 
   it('adds tls_client_auth only when the caller says the deployment can honour it', () => {
     const withTls = discoveryDocument({
-      issuer: 'https://idp.example/realms/acme',
+      issuer: 'https://idp.example/tenants/acme',
       claimsSupported: CLAIMS_SUPPORTED,
       scopesSupported: SCOPES_SUPPORTED,
       userinfoSigningAlgSupported: USERINFO_SIGNING_ALG_SUPPORTED,
@@ -102,19 +102,19 @@ describe('[OIDC-DISCOVERY-3-01] the discovery document', () => {
   });
 
   it('names the issuer with no trailing slash', () => {
-    expect(doc.issuer).toBe('https://idp.example/realms/acme');
+    expect(doc.issuer).toBe('https://idp.example/tenants/acme');
   });
 
   it('strips a trailing slash from a supplied issuer', () => {
     const trimmed = discoveryDocument({
-      issuer: 'https://idp.example/realms/acme/',
+      issuer: 'https://idp.example/tenants/acme/',
       claimsSupported: CLAIMS_SUPPORTED,
       scopesSupported: SCOPES_SUPPORTED,
       userinfoSigningAlgSupported: USERINFO_SIGNING_ALG_SUPPORTED,
       userinfoEncryptionAlgSupported: USERINFO_ENCRYPTION_ALG_SUPPORTED,
       userinfoEncryptionEncSupported: USERINFO_ENCRYPTION_ENC_SUPPORTED,
     });
-    expect(trimmed.issuer).toBe('https://idp.example/realms/acme');
+    expect(trimmed.issuer).toBe('https://idp.example/tenants/acme');
   });
 
   it('carries no query or fragment and preserves the https scheme', () => {
@@ -164,7 +164,7 @@ describe('[OIDC-DISCOVERY-3-01] the discovery document', () => {
 
   it('advertises registration_endpoint under the issuer when clientRegistrationEnabled is true', () => {
     const withRegistration = discoveryDocument({
-      issuer: 'https://idp.example/realms/acme',
+      issuer: 'https://idp.example/tenants/acme',
       claimsSupported: CLAIMS_SUPPORTED,
       scopesSupported: SCOPES_SUPPORTED,
       userinfoSigningAlgSupported: USERINFO_SIGNING_ALG_SUPPORTED,
@@ -173,7 +173,7 @@ describe('[OIDC-DISCOVERY-3-01] the discovery document', () => {
       clientRegistrationEnabled: true,
     });
     expect(withRegistration.registration_endpoint).toBe(
-      'https://idp.example/realms/acme/clients-registrations/openid-connect',
+      'https://idp.example/tenants/acme/clients-registrations/openid-connect',
     );
   });
 });
@@ -193,7 +193,7 @@ describe('[OIDC-DISCOVERY-4.2-01] a metadata claim with zero elements', () => {
   // in, so their emptiness is the only kind reachable from outside.
   it('is omitted rather than published empty when the supplied list is empty', () => {
     const empty = discoveryDocument({
-      issuer: 'https://idp.example/realms/acme',
+      issuer: 'https://idp.example/tenants/acme',
       claimsSupported: [],
       scopesSupported: [],
       userinfoSigningAlgSupported: USERINFO_SIGNING_ALG_SUPPORTED,
@@ -206,18 +206,18 @@ describe('[OIDC-DISCOVERY-4.2-01] a metadata claim with zero elements', () => {
     }
   });
 
-  // A realm whose client_registration_policy is 'disabled' — what `doc`
+  // A tenant whose client_registration_policy is 'disabled' — what `doc`
   // above represents, since no clientRegistrationEnabled option was passed
   // — leaves the member out altogether rather than published as null or an
   // empty string. `[OIDC-DISCOVERY-3-01]` above covers the opposite case.
-  it('leaves registration_endpoint out of the document entirely for a realm that has not opened it', () => {
+  it('leaves registration_endpoint out of the document entirely for a tenant that has not opened it', () => {
     expect(Object.keys(doc)).not.toContain('registration_endpoint');
   });
 });
 
 describe('[RFC9207-2.3-01] the issuer identifier a client validates `iss` against', () => {
   it('is published in the metadata, so the `iss` parameter has a value to be compared to', () => {
-    expect(doc.issuer).toBe('https://idp.example/realms/acme');
+    expect(doc.issuer).toBe('https://idp.example/tenants/acme');
     expect(new URL(doc.issuer).protocol).toBe('https:');
   });
 });

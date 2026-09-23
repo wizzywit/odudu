@@ -21,7 +21,7 @@ describe('renderRecoveryCodesPage', () => {
 
     expect(page.html).toContain('name="auth_session_id" value="auth-session-1"');
     expect(page.html).toContain(
-      'action="/realms/acme/login-actions/required-action?action=generate-recovery-codes"',
+      'action="/tenants/acme/login-actions/required-action?action=generate-recovery-codes"',
     );
     expect(page.html).not.toContain('type="hidden" name="code');
   });
@@ -39,7 +39,7 @@ describe('renderRecoveryCodesPage', () => {
     expect(again.html).toContain('no longer work');
   });
 
-  it('escapes the realm, the session id, a code and an error message', () => {
+  it('escapes the tenant, the session id, a code and an error message', () => {
     const page = renderRecoveryCodesPage(
       'acme"><script>',
       'session"><script>',

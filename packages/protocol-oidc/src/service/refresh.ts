@@ -1,6 +1,6 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { type SubjectRecord } from '@odudu/domain-identity';
-import { type ClientRecord } from '@odudu/domain-realm';
+import { type ClientRecord } from '@odudu/domain-tenant';
 import { type TokenGrantRecord } from '#/schema/token-grants';
 
 // 32 random bytes, base64url-encoded: same shape and entropy budget as

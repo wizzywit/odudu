@@ -34,7 +34,7 @@ function registrationRefusals(): Set<string> {
 
 // Every violation message the password policy can actually produce, for
 // the policy shapes docs/request-paths.md's transcripts exercise: the
-// default realm policy (min-length, not-username, not-email) and that same
+// default tenant policy (min-length, not-username, not-email) and that same
 // policy with digit/uppercase also required. REUSED_PASSWORD joins them
 // because history is the one rule no candidate alone decides — it is
 // verified against stored hashes where a transaction is in hand. A reworded

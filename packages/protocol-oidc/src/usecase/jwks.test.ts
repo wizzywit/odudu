@@ -4,19 +4,19 @@ import { resolveJwks } from '#/usecase/jwks';
 const publicJwk = { kty: 'RSA', n: 'n-value', e: 'AQAB' };
 
 describe('resolveJwks', () => {
-  it('returns null for an unknown realm', async () => {
+  it('returns null for an unknown tenant', async () => {
     const jwks = await resolveJwks(
-      { findRealm: () => Promise.resolve(null), listPublishableKeys: () => Promise.resolve([]) },
-      'no-such-realm',
+      { findTenant: () => Promise.resolve(null), listPublishableKeys: () => Promise.resolve([]) },
+      'no-such-tenant',
     );
     expect(jwks).toBeNull();
   });
 
-  it('returns null for a disabled realm without reading keys', async () => {
+  it('returns null for a disabled tenant without reading keys', async () => {
     let calledListKeys = false;
     const jwks = await resolveJwks(
       {
-        findRealm: () =>
+        findTenant: () =>
           Promise.resolve({
             id: 'r1',
             enabled: false,
@@ -34,16 +34,16 @@ describe('resolveJwks', () => {
           return Promise.resolve([]);
         },
       },
-      'disabled-realm',
+      'disabled-tenant',
     );
     expect(jwks).toBeNull();
     expect(calledListKeys).toBe(false);
   });
 
-  it('assembles the published set for an enabled realm', async () => {
+  it('assembles the published set for an enabled tenant', async () => {
     const jwks = await resolveJwks(
       {
-        findRealm: () =>
+        findTenant: () =>
           Promise.resolve({
             id: 'r1',
             enabled: true,

@@ -1,4 +1,4 @@
-import { type RealmScopedDatabase } from '@odudu/db';
+import { type TenantScopedDatabase } from '@odudu/db';
 import { OduduError } from '@odudu/kernel';
 import { eq } from 'drizzle-orm';
 import { subjects, type SubjectRecord } from '#/schema/subjects';
@@ -10,7 +10,7 @@ export type { UserRecord } from '#/schema/users';
 function toSubject(row: typeof subjects.$inferSelect): SubjectRecord {
   return {
     id: row.id,
-    realmId: row.realmId,
+    tenantId: row.tenantId,
     type: row.type as SubjectRecord['type'],
     disabledAt: row.disabledAt,
   };
@@ -19,7 +19,7 @@ function toSubject(row: typeof subjects.$inferSelect): SubjectRecord {
 function toUser(row: typeof users.$inferSelect): UserRecord {
   return {
     subjectId: row.subjectId,
-    realmId: row.realmId,
+    tenantId: row.tenantId,
     username: row.username,
     email: row.email,
     emailVerified: row.emailVerified,
@@ -49,7 +49,7 @@ function toUser(row: typeof users.$inferSelect): UserRecord {
 }
 
 // Every field a caller may set through updateProfile: every OIDC Core §5.1
-// claim column except the identity columns (subjectId, realmId, username)
+// claim column except the identity columns (subjectId, tenantId, username)
 // and email, which create() and its own validation already own.
 export interface ProfileUpdate {
   name?: string | null;
@@ -82,12 +82,12 @@ export interface UserWithSubject {
 
 export interface NewUser {
   subjectId: string;
-  realmId: string;
+  tenantId: string;
   username: string;
   email?: string | null;
 }
 
-export function userRepository(tx: RealmScopedDatabase) {
+export function userRepository(tx: TenantScopedDatabase) {
   return {
     // Joins subjects because class-table inheritance splits identity
     // (subject) from profile (user); the covering users_lookup index keeps
@@ -111,8 +111,8 @@ export function userRepository(tx: RealmScopedDatabase) {
       return row === undefined ? null : toUser(row);
     },
 
-    // Password reset's lookup: users_email_unique (0023) is (realm_id,
-    // email), so this is at most one row per realm. A user with no email
+    // Password reset's lookup: users_email_unique (0023) is (tenant_id,
+    // email), so this is at most one row per tenant. A user with no email
     // on file simply never matches, the same way an unverified address
     // does not gate this — reset and verification are independent actions.
     async byEmail(email: string): Promise<UserRecord | null> {
@@ -144,7 +144,7 @@ export function userRepository(tx: RealmScopedDatabase) {
         .insert(users)
         .values({
           subjectId: input.subjectId,
-          realmId: input.realmId,
+          tenantId: input.tenantId,
           username: input.username,
           email,
         })
@@ -156,7 +156,7 @@ export function userRepository(tx: RealmScopedDatabase) {
       return toUser(row);
     },
 
-    // RLS, not a realm_id predicate, is what makes another realm's lookup
+    // RLS, not a tenant_id predicate, is what makes another tenant's lookup
     // or update match zero rows here; that becomes a not-found error rather
     // than a silent no-op. profile_updated_at is the OIDC `updated_at`
     // claim ("time the End-User's information was last updated"), so it is

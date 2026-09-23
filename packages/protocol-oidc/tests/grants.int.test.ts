@@ -2,15 +2,15 @@ import { subjectRepository } from '@odudu/domain-identity';
 import {
   createDatabase,
   MIGRATIONS_DIR,
-  realms,
+  tenants,
   runMigrations,
-  withRealm,
+  withTenant,
   type DatabaseHandle,
-  type RealmScopedDatabase,
+  type TenantScopedDatabase,
 } from '@odudu/db';
-import { expectCrossRealmMethodProbe } from '@odudu/db/testing';
-import { provisionRealm, type SessionLifespans } from '@odudu/authn-flows';
-import { clients, provisionClientDefaults } from '@odudu/domain-realm';
+import { expectCrossTenantMethodProbe } from '@odudu/db/testing';
+import { provisionTenant, type SessionLifespans } from '@odudu/authn-flows';
+import { clients, provisionClientDefaults } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -57,31 +57,31 @@ afterAll(async () => {
   await containerHandle?.stop();
 });
 
-async function seedRealmClientSubject(
-  tx: RealmScopedDatabase,
-  realmId: string,
+async function seedTenantClientSubject(
+  tx: TenantScopedDatabase,
+  tenantId: string,
 ): Promise<{ clientDbId: string; subjectId: string }> {
-  await tx.insert(realms).values({ id: realmId, name: `realm-${realmId}` });
-  await provisionRealm(tx, realmId);
+  await tx.insert(tenants).values({ id: tenantId, name: `tenant-${tenantId}` });
+  await provisionTenant(tx, tenantId);
   const clientDbId = newId();
   await tx.insert(clients).values({
     id: clientDbId,
-    realmId,
-    clientId: `client-${realmId}`,
+    tenantId,
+    clientId: `client-${tenantId}`,
     name: 'A client',
     type: 'confidential',
     secretHash: 'hashed:secret',
   });
   await provisionClientDefaults(tx, clientDbId);
-  const subject = await subjectRepository(tx).create({ realmId, type: 'user' });
+  const subject = await subjectRepository(tx).create({ tenantId, type: 'user' });
   return { clientDbId, subjectId: subject.id };
 }
 
-async function createGrant(tx: RealmScopedDatabase, realmId: string): Promise<TokenGrantRecord> {
-  const { clientDbId, subjectId } = await seedRealmClientSubject(tx, realmId);
+async function createGrant(tx: TenantScopedDatabase, tenantId: string): Promise<TokenGrantRecord> {
+  const { clientDbId, subjectId } = await seedTenantClientSubject(tx, tenantId);
   return tokenGrantRepository(tx).create({
     id: newId(),
-    realmId,
+    tenantId,
     clientId: clientDbId,
     subjectId,
     scope: 'openid',
@@ -90,14 +90,14 @@ async function createGrant(tx: RealmScopedDatabase, realmId: string): Promise<To
 }
 
 async function issueRefreshToken(
-  tx: RealmScopedDatabase,
-  realmId: string,
+  tx: TenantScopedDatabase,
+  tenantId: string,
 ): Promise<{ grant: TokenGrantRecord; token: string }> {
-  const grant = await createGrant(tx, realmId);
+  const grant = await createGrant(tx, tenantId);
   const token = generateRefreshToken();
   await refreshTokenRepository(tx).create({
     tokenHash: hashRefreshToken(token),
-    realmId,
+    tenantId,
     grantId: grant.id,
     expiresAt: new Date(Date.now() + 1_209_600_000),
   });
@@ -106,11 +106,11 @@ async function issueRefreshToken(
 
 describe('tokenGrantRepository', () => {
   it('creates and finds a grant by id', async () => {
-    const realmId = newId();
+    const tenantId = newId();
 
-    const created = await withRealm(app.db, realmId, (tx) => createGrant(tx, realmId));
+    const created = await withTenant(app.db, tenantId, (tx) => createGrant(tx, tenantId));
 
-    const found = await withRealm(app.db, realmId, (tx) =>
+    const found = await withTenant(app.db, tenantId, (tx) =>
       tokenGrantRepository(tx).byId(created.id),
     );
     expect(found?.id).toBe(created.id);
@@ -118,22 +118,22 @@ describe('tokenGrantRepository', () => {
   });
 
   it('revokes a grant', async () => {
-    const realmId = newId();
-    const created = await withRealm(app.db, realmId, (tx) => createGrant(tx, realmId));
+    const tenantId = newId();
+    const created = await withTenant(app.db, tenantId, (tx) => createGrant(tx, tenantId));
 
-    await withRealm(app.db, realmId, (tx) =>
+    await withTenant(app.db, tenantId, (tx) =>
       tokenGrantRepository(tx).revoke(created.id, new Date()),
     );
 
-    const found = await withRealm(app.db, realmId, (tx) =>
+    const found = await withTenant(app.db, tenantId, (tx) =>
       tokenGrantRepository(tx).byId(created.id),
     );
     expect(found?.revokedAt).not.toBeNull();
   });
 
-  it('cannot find a grant by id under a different realm context', async () => {
-    await expectCrossRealmMethodProbe(app.db, {
-      seed: async (tx, realmId) => createGrant(tx, realmId),
+  it('cannot find a grant by id under a different tenant context', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => createGrant(tx, tenantId),
       verifySeeded: async (tx, grant) => {
         const found = await tokenGrantRepository(tx).byId(grant.id);
         expect(found).not.toBeNull();
@@ -145,9 +145,9 @@ describe('tokenGrantRepository', () => {
     });
   });
 
-  it('leaves a grant unrevoked when revoke is called under a different realm context', async () => {
-    await expectCrossRealmMethodProbe(app.db, {
-      seed: async (tx, realmId) => createGrant(tx, realmId),
+  it('leaves a grant unrevoked when revoke is called under a different tenant context', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => createGrant(tx, tenantId),
       verifySeeded: async (tx, grant) => {
         const found = await tokenGrantRepository(tx).byId(grant.id);
         expect(found?.revokedAt).toBeNull();
@@ -156,7 +156,7 @@ describe('tokenGrantRepository', () => {
       expectBlocked: (result) => {
         expect(result).toBeUndefined();
       },
-      verifyRealmAUnaffected: async (tx, grant) => {
+      verifyTenantAUnaffected: async (tx, grant) => {
         const found = await tokenGrantRepository(tx).byId(grant.id);
         expect(found?.revokedAt).toBeNull();
       },
@@ -164,14 +164,16 @@ describe('tokenGrantRepository', () => {
   });
 
   it('refuses to rotate a refresh token whose grant has been revoked', async () => {
-    const realmId = newId();
-    const { grant, token } = await withRealm(app.db, realmId, (tx) =>
-      issueRefreshToken(tx, realmId),
+    const tenantId = newId();
+    const { grant, token } = await withTenant(app.db, tenantId, (tx) =>
+      issueRefreshToken(tx, tenantId),
     );
 
-    await withRealm(app.db, realmId, (tx) => tokenGrantRepository(tx).revoke(grant.id, new Date()));
+    await withTenant(app.db, tenantId, (tx) =>
+      tokenGrantRepository(tx).revoke(grant.id, new Date()),
+    );
 
-    const outcome = await withRealm(app.db, realmId, (tx) =>
+    const outcome = await withTenant(app.db, tenantId, (tx) =>
       rotateRefreshToken(tx, hashRefreshToken(token), new Date(), 600, LIFESPANS),
     );
     expect(outcome.kind).toBe('revoked');

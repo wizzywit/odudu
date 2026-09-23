@@ -1,7 +1,7 @@
 import { OduduError } from '#/errors';
 
 // Ctx is left generic here: kernel knows nothing about subjects, users or
-// realms. The concrete context (whatever a mapper needs to compute its
+// tenants. The concrete context (whatever a mapper needs to compute its
 // claims from) is defined by whichever protocol package instantiates this
 // registry.
 export interface ClaimMapper<Ctx> {

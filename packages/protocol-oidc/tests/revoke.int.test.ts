@@ -3,14 +3,14 @@ import { hashPassword, subjectRepository, userCredentials, users } from '@odudu/
 import {
   createDatabase,
   MIGRATIONS_DIR,
-  realms,
+  tenants,
   runMigrations,
-  withRealm,
+  withTenant,
   type DatabaseHandle,
-  type RealmScopedDatabase,
+  type TenantScopedDatabase,
 } from '@odudu/db';
-import { provisionRealm } from '@odudu/authn-flows';
-import { clients, provisionClientDefaults } from '@odudu/domain-realm';
+import { provisionTenant } from '@odudu/authn-flows';
+import { clients, provisionClientDefaults } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import formbody from '@fastify/formbody';
@@ -31,8 +31,8 @@ let owner: DatabaseHandle;
 let app: DatabaseHandle;
 let http: FastifyInstance;
 
-let REALM: string;
-let REALM_ID: string;
+let TENANT: string;
+let TENANT_ID: string;
 let ISSUER: string;
 
 const KEK = Buffer.alloc(32, 29);
@@ -60,14 +60,14 @@ const VERIFIER = 'dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk';
 const CHALLENGE = 'E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM';
 
 async function registerConfidentialClient(
-  tx: RealmScopedDatabase,
+  tx: TenantScopedDatabase,
   clientId: string,
   secret: string,
 ): Promise<void> {
   const dbId = newId();
   await tx.insert(clients).values({
     id: dbId,
-    realmId: REALM_ID,
+    tenantId: TENANT_ID,
     clientId,
     name: clientId,
     type: 'confidential',
@@ -76,7 +76,7 @@ async function registerConfidentialClient(
   await provisionClientDefaults(tx, dbId);
   await clientOidcConfigRepository(tx).create({
     clientId: dbId,
-    realmId: REALM_ID,
+    tenantId: TENANT_ID,
     redirectUris: [],
     // Never actually used to redeem a client_credentials grant — this
     // client exists only to authenticate at /revoke as somebody else's
@@ -90,19 +90,19 @@ async function registerConfidentialClient(
   });
 }
 
-async function setupRealm(): Promise<void> {
-  REALM = `revoke-${newId()}`;
-  REALM_ID = newId();
-  ISSUER = `http://localhost/realms/${REALM}`;
+async function setupTenant(): Promise<void> {
+  TENANT = `revoke-${newId()}`;
+  TENANT_ID = newId();
+  ISSUER = `http://localhost/tenants/${TENANT}`;
 
   const clientDbId = newId();
-  await withRealm(app.db, REALM_ID, async (tx: RealmScopedDatabase) => {
-    await tx.insert(realms).values({ id: REALM_ID, name: REALM });
-    await provisionRealm(tx, REALM_ID);
+  await withTenant(app.db, TENANT_ID, async (tx: TenantScopedDatabase) => {
+    await tx.insert(tenants).values({ id: TENANT_ID, name: TENANT });
+    await provisionTenant(tx, TENANT_ID);
 
     await tx.insert(clients).values({
       id: clientDbId,
-      realmId: REALM_ID,
+      tenantId: TENANT_ID,
       clientId: CLIENT_ID,
       name: 'revoke test client',
       type: 'confidential',
@@ -111,7 +111,7 @@ async function setupRealm(): Promise<void> {
     await provisionClientDefaults(tx, clientDbId);
     await clientOidcConfigRepository(tx).create({
       clientId: clientDbId,
-      realmId: REALM_ID,
+      tenantId: TENANT_ID,
       redirectUris: [REDIRECT_URI],
       grantTypes: ['authorization_code', 'refresh_token'],
       tokenEndpointAuthMethod: 'client_secret_basic',
@@ -120,11 +120,13 @@ async function setupRealm(): Promise<void> {
       refreshTokenTtlSeconds: 1_209_600,
     });
 
-    const subject = await subjectRepository(tx).create({ realmId: REALM_ID, type: 'user' });
-    await tx.insert(users).values({ subjectId: subject.id, realmId: REALM_ID, username: USERNAME });
+    const subject = await subjectRepository(tx).create({ tenantId: TENANT_ID, type: 'user' });
+    await tx
+      .insert(users)
+      .values({ subjectId: subject.id, tenantId: TENANT_ID, username: USERNAME });
     await tx.insert(userCredentials).values({
       id: newId(),
-      realmId: REALM_ID,
+      tenantId: TENANT_ID,
       subjectId: subject.id,
       type: 'password',
       secretData: { hash: await hashPassword(PASSWORD) },
@@ -135,7 +137,7 @@ async function setupRealm(): Promise<void> {
     const key = await generateSigningKey('ES256', KEK);
     await tx.insert(signingKeys).values({
       id: newId(),
-      realmId: REALM_ID,
+      tenantId: TENANT_ID,
       kid: key.kid,
       alg: key.alg,
       status: 'active',
@@ -155,7 +157,7 @@ function authorizeUrl(): string {
     code_challenge: CHALLENGE,
     code_challenge_method: 'S256',
   });
-  return `/realms/${REALM}/protocol/openid-connect/auth?${params.toString()}`;
+  return `/tenants/${TENANT}/protocol/openid-connect/auth?${params.toString()}`;
 }
 
 function setCookieValue(res: LightMyRequestResponse): string | undefined {
@@ -179,7 +181,7 @@ async function redeemCode(code: string): Promise<{ access_token: string; refresh
   });
   const res = await http.inject({
     method: 'POST',
-    url: `/realms/${REALM}/protocol/openid-connect/token`,
+    url: `/tenants/${TENANT}/protocol/openid-connect/token`,
     payload: form.toString(),
     headers: {
       'content-type': 'application/x-www-form-urlencoded',
@@ -213,7 +215,7 @@ async function completeAuthorizationCodeFlow(): Promise<{
   });
   const submitted = await http.inject({
     method: 'POST',
-    url: `/realms/${REALM}/login-actions/authenticate`,
+    url: `/tenants/${TENANT}/login-actions/authenticate`,
     payload: form.toString(),
     headers: { 'content-type': 'application/x-www-form-urlencoded' },
   });
@@ -248,7 +250,7 @@ async function revoke(opts: {
 
   return http.inject({
     method: 'POST',
-    url: `/realms/${REALM}/protocol/openid-connect/revoke`,
+    url: `/tenants/${TENANT}/protocol/openid-connect/revoke`,
     payload: form.toString(),
     headers,
   });
@@ -258,7 +260,7 @@ async function redeemRefresh(refreshToken: string): Promise<LightMyRequestRespon
   const form = new URLSearchParams({ grant_type: 'refresh_token', refresh_token: refreshToken });
   return http.inject({
     method: 'POST',
-    url: `/realms/${REALM}/protocol/openid-connect/token`,
+    url: `/tenants/${TENANT}/protocol/openid-connect/token`,
     payload: form.toString(),
     headers: {
       'content-type': 'application/x-www-form-urlencoded',
@@ -272,7 +274,7 @@ async function introspectActive(token: string): Promise<boolean> {
   form.set('token', token);
   const res = await http.inject({
     method: 'POST',
-    url: `/realms/${REALM}/protocol/openid-connect/token/introspect`,
+    url: `/tenants/${TENANT}/protocol/openid-connect/token/introspect`,
     payload: form.toString(),
     headers: {
       'content-type': 'application/x-www-form-urlencoded',
@@ -283,7 +285,7 @@ async function introspectActive(token: string): Promise<boolean> {
 }
 
 async function discovery(): Promise<{ revocation_endpoint: string }> {
-  const res = await http.inject({ url: `/realms/${REALM}/.well-known/openid-configuration` });
+  const res = await http.inject({ url: `/tenants/${TENANT}/.well-known/openid-configuration` });
   return res.json<{ revocation_endpoint: string }>();
 }
 
@@ -299,7 +301,7 @@ beforeAll(async () => {
   appHandle = createDatabase(appUrl, { max: 5 });
   app = appHandle;
 
-  await setupRealm();
+  await setupTenant();
 
   http = Fastify();
   await http.register(formbody);

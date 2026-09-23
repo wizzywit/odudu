@@ -1,14 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { evaluateAuthorizationCodeGrant } from '#/service/authorization-code-grant';
 import { type AuthorizationCodeRecord } from '#/schema/authorization-codes';
-import { type ClientRecord } from '@odudu/domain-realm';
+import { type ClientRecord } from '@odudu/domain-tenant';
 
 const VERIFIER = 'dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk';
 const CHALLENGE = 'E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM';
 
 const client: ClientRecord = {
   id: 'client-1',
-  realmId: 'realm-1',
+  tenantId: 'tenant-1',
   clientId: 'web-app',
   name: 'Web app',
   enabled: true,
@@ -22,7 +22,7 @@ const client: ClientRecord = {
 
 const record: AuthorizationCodeRecord = {
   codeHash: 'hash-1',
-  realmId: 'realm-1',
+  tenantId: 'tenant-1',
   clientId: client.id,
   subjectId: 'subject-1',
   redirectUri: 'https://app.example/callback',

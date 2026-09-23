@@ -37,7 +37,7 @@ const kekBytes = z
 // Origin only — no path, query or fragment — because it is the base a
 // mailed link is built from (packages/account/src/usecase/register.ts);
 // concatenating a path onto something that already carries one produces a
-// link nobody asked for. Unset by default: a realm with verify_email and
+// link nobody asked for. Unset by default: a tenant with verify_email and
 // registration_allowed both off never builds one, so nothing here forces a
 // value on every deployment. When a link does need building, the caller
 // fails closed on `undefined` rather than falling back to a request header
@@ -200,7 +200,7 @@ const schema = z.object({
   // mail is never sent.
   ODUDU_OUTBOX_ENABLED: enabledEnvVar,
   ODUDU_OUTBOX_INTERVAL_SECONDS: z.coerce.number().int().min(5).max(86_400).default(15),
-  // Per realm per pass, so one realm's backlog cannot starve another's.
+  // Per tenant per pass, so one tenant's backlog cannot starve another's.
   ODUDU_OUTBOX_BATCH_SIZE: z.coerce.number().int().min(1).max(1000).default(20),
   // Attempts a message gets before it is left alone for an operator to
   // read. Nothing deletes it then; `odudu reap` bounds it by
@@ -220,7 +220,7 @@ const schema = z.object({
   // relying parties are never told.
   ODUDU_LOGOUT_SENDER_ENABLED: enabledEnvVar,
   ODUDU_LOGOUT_SENDER_INTERVAL_SECONDS: z.coerce.number().int().min(5).max(86_400).default(15),
-  // Deliveries claimed per realm per pass, so one realm's backlog cannot
+  // Deliveries claimed per tenant per pass, so one tenant's backlog cannot
   // starve another's — the same reasoning as ODUDU_OUTBOX_BATCH_SIZE.
   ODUDU_LOGOUT_SENDER_BATCH_SIZE: z.coerce.number().int().min(1).max(1000).default(20),
   // How long a claimed delivery stays invisible to other passes; what a
@@ -241,8 +241,8 @@ const schema = z.object({
   ODUDU_KEK: kekBytes,
   // @odudu/email's factory reads these to choose an adapter: unset host
   // means no SMTP server exists to talk to, so it selects the capturing
-  // adapter rather than refusing to boot — a realm with verify_email off
-  // needs no mail at all. Per-realm SMTP is P4's (ADR 0015 puts these
+  // adapter rather than refusing to boot — a tenant with verify_email off
+  // needs no mail at all. Per-tenant SMTP is P4's (ADR 0015 puts these
   // credentials in the environment for now).
   ODUDU_SMTP_HOST: z.string().min(1).optional(),
   ODUDU_SMTP_PORT: z.coerce.number().int().min(1).max(65_535).default(587),

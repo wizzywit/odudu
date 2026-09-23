@@ -2,16 +2,30 @@
 
 ## Start here
 
-**P0, P1, P2a, P2b, P3a and P3b are complete. P4 — the admin API and
-consoles — is next**, and needs its own brainstorm and spec: nothing below
-is a P4 plan, only what it inherits and what is still open. Phases are
-section 11 of
+**P0, P1, P2a, P2b, P3a and P3b are complete, and the tenant rename is done.
+P4 — the admin API and consoles — is next**, and needs its own brainstorm and
+spec: nothing below is a P4 plan, only what it inherits and what is still
+open. Phases are section 11 of
 [the umbrella spec](superpowers/specs/2026-09-10-odudu-design.md).
+
+**The tenant rename changed the wire.** What was called a `realm` is a
+tenant everywhere: the path is `/tenants/{tenant}/…`, so the issuer — and
+with it `iss` in every ID token, access token and Logout Token, the RFC 9207
+authorization-response parameter, and the value `/userinfo` verifies against
+— moved with it. The table is `tenants`, its foreign keys are `tenant_id`,
+and the row-level-security GUC is `app.tenant_id`. The CLI flag is
+`--tenant` and the subcommand `seed tenant`. Migrations
+`0057_rename_realm_to_tenant.sql` and `0058_rename_realm_constraint_names.sql`
+carry the schema; the first drops and recreates all 31 policies, because a
+column rename does not rewrite the GUC literal inside them. Nothing has been
+deployed, so there is no transition to describe — a hard cutover is the only
+reason this was simple, and a deployed system would need two issuers per
+tenant for a published window instead.
 
 P3b shipped the session set — a browser's cookie holds a list of session
 ids rather than one, bounded per browser by `max_sessions_per_browser`
 (ADR 0033), with `prompt=select_account` rendering a chooser over it and a
-realm's "remember me" selecting a second pair of idle and maximum
+tenant's "remember me" selecting a second pair of idle and maximum
 lifespans. Ending a session now reaches the relying parties that hold it:
 front-channel through iframes the logout page declares (ADR 0034), and
 back-channel through a queue, a signed Logout Token per registered client
@@ -35,6 +49,8 @@ reason is false.
 The running records, split out of this file on 2026-09-17: P2b reached
 1,873 lines here, of which the part describing where the project stood was 58.
 
+- [Renaming the tenant concept](phases/tenant-rename.md) — not a phase; a
+  cross-cutting rename between P3b and P4, kept here for the same reason
 - [P3b — sessions, logout and the token surface](phases/p3b.md)
 - [P3a — clients, dynamic registration and consent](phases/p3a.md)
 - [P2b — credentials, MFA and the session lifecycle](phases/p2b.md)
@@ -73,30 +89,32 @@ algorithms, `tls_client_auth_subject_dn` — is settable at creation by one
 door and by `psql` otherwise. `docs/request-paths.md` says so at each site
 that reaches for SQL, and aggregates it under "Any admin API".
 
-**Realm settings already have a command, and its validation is reusable.**
-`odudu seed realm --name <realm> --set <name>=<value>` applies any of the
-realm settings by column name. The name-to-column map and the coercion live
-in `packages/domain-realm/src/service/realm-settings.ts` rather than in the
+**Tenant settings already have a command, and its validation is reusable.**
+`odudu seed tenant --name <tenant> --set <name>=<value>` applies any of the
+tenant settings by column name. The name-to-column map and the coercion live
+in `packages/domain-tenant/src/service/tenant-settings.ts` rather than in the
 CLI, so P4's admin API inherits them rather than growing a second copy.
 Ranges are deliberately not there — they are CHECK constraints, and a policy
 no writer may bypass belongs at the database.
 
 **An asymmetry worth deciding about rather than inheriting by accident.**
-`seed realm --set` changes an existing realm; `seed client` will not change
+`seed tenant --set` changes an existing tenant; `seed client` will not change
 an existing client, because a re-run that quietly widened a registered
 redirect list is how an allowlist grows by accident. An admin API that
-treats both the same way would be wrong in one of the two directions.
+treats both the same way would be wrong in one of the two directions. P4's criterion now poses that
+question rather than leaving it to be answered by whichever surface is
+written first.
 
 **Signing-key rotation now has a consistency obligation it did not have
-before.** A realm holds exactly one active signing key
+before.** A tenant holds exactly one active signing key
 (`signing_keys_one_active`), and P3b made two things depend on that:
 discovery advertises `userinfo_signing_alg_values_supported` as that
-realm's own `[key.alg, "none"]`, and registration refuses a
+tenant's own `[key.alg, "none"]`, and registration refuses a
 `userinfo_signed_response_alg` the active key cannot produce. Rotating a
-realm to a key with a different algorithm therefore strands every client
+tenant to a key with a different algorithm therefore strands every client
 registered against the old one — `/userinfo` answers 500 for them, with a
 log line naming client, registered algorithm and active key. P4 owns
-rotation and owes that case an answer.
+rotation, and its criterion now names that case.
 
 **Two recovery-code gaps that need the account console.** A subject cannot
 ask for a fresh set before running out, and nothing warns as the list gets
@@ -167,9 +185,9 @@ accepted limitation rather than a gap — no clause in either RFC requires a
 particular set of methods — at `docs/protocols/rfc7662.md`'s "Only the two
 password methods reach this endpoint".
 
-- Trigger: extend `token-issuance.ts`'s assertion and certificate dispatch
-  to both routes. It is a client-authentication change, so the natural
-  moment is whichever phase next reworks that — P13, for FAPI 2.0.
+- Trigger: **P13**, which reworks client authentication for FAPI 2.0 and
+  whose criterion now names both methods at both endpoints. Extend
+  `token-issuance.ts`'s assertion and certificate dispatch to the two routes.
 
 **`/token` enforces no `config.grantTypes` allowlist, on either
 authentication path.** A client registered for `authorization_code` only
@@ -177,11 +195,12 @@ can still obtain a `client_credentials` token: `token-issuance.ts`'s only
 read of `config.grantTypes` gates whether a refresh token is issued, not
 which grant a request may use.
 
-- Trigger: whichever task next touches grant selection in `issueTokens`.
-  Add `config.grantTypes.includes(request.grantType)` before dispatching.
+- Trigger: **P4**, which adds token exchange and so makes the next change to
+  grant selection in `issueTokens`; its criterion names the allowlist. Add
+  `config.grantTypes.includes(request.grantType)` before dispatching.
 
 **`/userinfo` and `/introspect` both honour a disabled client's live access
-token.** `resolveUserinfo` now checks the realm, the token's own grant
+token.** `resolveUserinfo` now checks the tenant, the token's own grant
 (`revoked_at`) and its session's liveness, and `introspect` checks the
 identical pair — neither reads `client.enabled`, so disabling a client
 after a token was issued to it revokes nothing: the grant stays live,
@@ -190,9 +209,9 @@ after a token was issued to it revokes nothing: the grant stays live,
 client that registered neither still gets an ordinary, correctly narrowed
 response from both endpoints.
 
-- Trigger: whichever phase next revisits token liveness or client
-  lifecycle. Decide there whether `/userinfo` and `/introspect` should
-  read `client.enabled` the way `resolveRoleReach` and
+- Trigger: **P4**, where disabling a client becomes an operation at all.
+  Its criterion now asks that phase to decide whether `/userinfo` and
+  `/introspect` read `client.enabled` the way `resolveRoleReach` and
   `resolveClientWebOrigins` do.
 
 **A signed UserInfo response's `typ` is a private value.** `userinfo+jwt`
@@ -224,7 +243,7 @@ between the pre-flight and the authoritative read — which no test drives.
 ### The session set
 
 **The cap is per browser, and admits `cap + (k - 1)` under `k` concurrent
-logins.** The candidate list is fixed before the realm-row lock and
+logins.** The candidate list is fixed before the tenant-row lock and
 identical across racers from one browser, so once the first evicts, the
 remaining `k - 1` insert unconditionally. Accepted: the cap is a size guard
 with 4.4x headroom, not a security boundary. The consequence that is not
@@ -237,19 +256,6 @@ row, giving admission, logout and P4's session list one predicate.
 - Trigger: the remedy is the reversal of the spec's decision 1 (the cookie
   holds a list; there is no browser row), so it waits until something else
   wants that row — most likely P4's session surface.
-
-**Front-channel logout on a redirecting session end.** `/logout` frames a
-relying party's `frontchannel_logout_uri` on either branch that renders a
-page — the logged-out page and the redirect-refused page — never on the
-302 a matched `post_logout_redirect_uri` takes instead, which is
-RP-initiated logout's common case. Rendering the frames first and
-navigating afterward was never weighed; ADR 0034's Consequences record the
-question as open, not answered.
-
-- Trigger: back-channel logout now gives a redirecting session end a
-  server-to-server path, but only to a relying party at a public address.
-  Revisit once a deployment's actual relying parties make the comparison
-  meaningful.
 
 ### Operational and infrastructural
 
@@ -264,7 +270,9 @@ the `AbortSignal` `sendLogouts` already started. The second is shared by
 responses landed, by `/userinfo` — now on a path between a resource
 server's request and its answer.
 
-- Trigger: fired. Bound the lookup itself, and decide whether the two
+- Trigger: **P11**, whose criterion documents a p99 for `/token` and
+  `/userinfo` and so cannot be met while either lookup is unbounded. Bound
+  the lookup itself, and decide whether the two
   transports share one answer or each wires its own — and whether
   `/userinfo` needs a tighter timeout than `/token`'s shared default, since
   it sits on a resource server's request rather than a client's own.
@@ -341,30 +349,89 @@ on the grounds that P13 is the next phase to rework client authentication.
   (`packages/protocol-oidc/tests/private-key-jwt.int.test.ts`) and
   `service/client-assertion.test.ts`.
 
+**`docs/protocols/rfc6750.md`'s row "`scope` appears at most once" is
+vacuous.** It is cited to a name-agnostic grammar test, and the server emits
+no `scope` auth-param anywhere, so the row is true and holds nothing.
+Choosing between rewording it and emitting a `scope` is a coverage
+judgement, not a fix.
+
+**Fifteen tests share one clause id, `[RFC8705-2.1-03]`, while pinning
+different requirements** — a disabled client, a public client, the
+one-method rule, the duplicate header, tenant isolation, several of them not
+§2.1 at all. The undifferentiated id is the real defect; the missing table
+that surfaced it was fixed.
+
+**`docs/protocols/rfc7662.md` points at a plan file** for when a class of
+rows was decided. A plan is archived scaffolding; the durable pointer is
+this file or the phase note.
+
 ## Deferred from the final review
 
-- `tests/lint/production-guard-order.test.ts` compares source offsets and
-  breaks on a rename or a helper extraction. A reasonable stopgap for the
-  still-positional server-boot path, but its narrowness should be visible to
-  whoever reads it next.
-- Fifteen tests share one clause id, `[RFC8705-2.1-03]`, while pinning
-  different requirements — a disabled client, a public client, the
-  one-method rule, the duplicate header, realm isolation, several of them
-  not §2.1 at all. The undifferentiated id is the real defect; the missing
-  table that surfaced it was fixed.
+### Work owed, and the phase each belongs to
+
+- `/logout` delivers no front-channel frames on either branch that redirects:
+  `packages/protocol-oidc/src/usecase/logout.ts` computes the list only where
+  `decision.redirectTo === null`, so a session ended with a matched
+  `post_logout_redirect_uri` — the ordinary case — leaves a relying party
+  that registered a `frontchannel_logout_uri` and no `backchannel_logout_uri`
+  signed in. Nothing records the gating as a choice: not ADR 0034, which
+  governs how a page declares its frames rather than when one is rendered.
+  It is the defect [docs/phases/p3b.md](phases/p3b.md) names as this
+  repository's recurring one — a rule applied at one door out of several.
+  **P4b**, whose criterion names it: the remedy is to render the frames and
+  navigate afterwards, which gives the redirecting branch the page it lacks,
+  and P4b is the phase that owes every page the server renders a theme.
+- The two `user_credentials` counts at `docs/request-paths.md:3052` and
+  `:3282` are unscoped, and correct only in document order — the
+  neighbouring query of the same kind is scoped. Re-scoping them needs a
+  re-run against a live stack. **P4**, which re-captures those transcripts
+  anyway: its criterion gives a subject a fresh set of recovery codes before
+  the old set is spent, which is what those two queries count.
 - `session-cookie.ts` hand-rolls a case-sensitive UUID regex while the test
   beside it uses `@odudu/kernel`'s case-insensitive `isUuid`. Inert today —
   `newId()` emits lowercase only — and ironic in the module whose purpose is
-  to be one authority. Worth collapsing onto `isUuid` when something else
-  touches that file.
+  to be one authority. **P4**, whose criterion lists a subject's sessions and
+  ends one: the first surface to read a session other than through that
+  cookie, and where ADR 0033's browser-identifier remedy would land in the
+  same file.
 - `pendingSession` duplicates `authenticatedSession`'s two liveness
   conditions inline rather than sharing a predicate. Four lines, and the two
   are not identical, so they must be kept in sync by hand if liveness
-  semantics change.
-- `logoutDeliveryRepository.enqueue` takes caller-supplied row ids where
-  `outbox.enqueue` generates its own. Arguably right — the session-ending
-  transaction needs the id up front — but an unremarked divergence from the
-  precedent it otherwise copies.
+  semantics change. **P4**, whose criterion makes a tenant's authentication
+  flow configurable — both helpers are in the executor that flow drives,
+  `packages/authn-flows/src/usecase/executor.ts`.
+- The boundary suite's negative control filters a fixture with no imports at
+  all, so it cannot demonstrate that `service-is-a-leaf` is not over-broad.
+  A service importing another service would. **P4**: its consoles are the
+  first packages outside the server to carry the five layers, so the rule set
+  and its fixtures are extended there.
+- `tests/lint/production-guard-order.test.ts` compares source offsets and
+  breaks on a rename or a helper extraction. A reasonable stopgap for the
+  still-positional server-boot path, but its narrowness should be visible to
+  whoever reads it next. **P12**, whose criterion sources secrets from
+  somewhere other than the process environment and so reworks the boot
+  sequence in `apps/server/src/main.ts` that the test pins by offset.
+- Six migration-filename citations under `docs/superpowers/plans/` name
+  files that do not exist. All six are dangling at `a039685` too, so none
+  arrived with the rename, and there are none in `packages`, `apps`,
+  `tools`, `tests`, `infra` or `README.md`. A plan is archived scaffolding,
+  which is the argument for leaving them; a citation that resolves nowhere
+  is the argument against. **No phase implies this** — no criterion in
+  section 11 reaches an archived plan — so it needs a phase assigning when
+  something else does, or doing as its own change.
+- The `res` serializer still emits all reply headers with only `set-cookie`
+  denylisted — the remaining instance of the pattern removed on the request
+  side. **No phase implies this**: no criterion names the request logger.
+  It needs a phase assigning when something else touches
+  `apps/server/src/logger.ts`.
+- `drizzle-kit` remains an unused devDependency of `packages/db` after
+  `db:generate` was retired. Removing it rewrites `pnpm-lock.yaml`, which is
+  worth doing on its own, away from other work. **No phase implies this** —
+  no criterion is addressed to that package's manifest — and its own reason
+  for standing alone is the argument against attaching it to one.
+
+### Recorded judgements, where the code stands and nothing is owed
+
 - A `client_id`/hint mismatch at `/logout` rejects through an invariant
   `throw`, so a future refactor's mistake is a 500 rather than a redirect.
   Fails closed, which is why it stands.
@@ -372,19 +439,10 @@ on the grounds that P13 is the next phase to rework client authentication.
   `JSON.parse` **by name**: a refactor to another parse mechanism would make
   it silently stop testing anything rather than fail. Acceptable for one
   small function with one obvious parse path; it would not scale.
-- `docs/protocols/rfc7662.md` points at a plan file for when a class of rows
-  was decided. A plan is archived scaffolding; the durable pointer is this
-  file or the phase note.
 - `ODUDU_TRUST_PROXY=` (a bare key) refuses boot rather than defaulting off
   — correct by strictness, but a new way for a previously-booting
   environment to fail.
-- The boundary suite's negative control filters a fixture with no imports at
-  all, so it cannot demonstrate that `service-is-a-leaf` is not over-broad.
-  A service importing another service would.
-- The `res` serializer still emits all reply headers with only `set-cookie`
-  denylisted — the remaining instance of the pattern removed on the request
-  side.
-- `drizzle-kit` remains an unused devDependency of `packages/db` after
-`db:generate` was retired. Removing it rewrites `pnpm-lock.yaml`, which is
-worth doing on its own, away from other work.
-</content>
+- `logoutDeliveryRepository.enqueue` takes caller-supplied row ids where
+  `outbox.enqueue` generates its own. Arguably right — the session-ending
+  transaction needs the id up front — but an unremarked divergence from the
+  precedent it otherwise copies.

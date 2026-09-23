@@ -1,4 +1,4 @@
-import { type RealmScopedDatabase } from '@odudu/db';
+import { type TenantScopedDatabase } from '@odudu/db';
 import { credentialRepository, userRepository } from '@odudu/domain-identity';
 import { authenticationSessionRepository } from '#/repository/authentication-sessions';
 import { requiredActionRepository } from '#/repository/required-actions';
@@ -11,7 +11,7 @@ import {
 import { type PasskeyEnrolmentOffer } from '#/view/passkey-enrolment-html';
 
 export interface BeginPasskeyEnrolment {
-  realmName: string;
+  tenantName: string;
   publicBaseUrl: string;
   authSessionId: string;
   subjectId: string;
@@ -22,14 +22,14 @@ export interface BeginPasskeyEnrolment {
 // response chose. Nothing else is written, so an abandoned enrolment leaves
 // no credential behind — only a challenge that the next offer overwrites.
 export async function beginPasskeyEnrolment(
-  tx: RealmScopedDatabase,
+  tx: TenantScopedDatabase,
   input: BeginPasskeyEnrolment,
 ): Promise<PasskeyEnrolmentOffer> {
   const user = await userRepository(tx).bySubjectId(input.subjectId);
   const existing = await credentialRepository(tx).listFor(input.subjectId, 'webauthn');
   const offer = await passkeyRegistrationOptions({
     publicBaseUrl: input.publicBaseUrl,
-    realmName: input.realmName,
+    tenantName: input.tenantName,
     username: user?.username ?? input.subjectId,
     userHandle: input.subjectId,
     existingCredentialIds: existing.flatMap((credential) =>
@@ -44,7 +44,7 @@ export async function beginPasskeyEnrolment(
 }
 
 export interface CompletePasskeyEnrolment {
-  realmId: string;
+  tenantId: string;
   subjectId: string;
   authSessionId: string;
   publicBaseUrl: string;
@@ -58,7 +58,7 @@ export type PasskeyEnrolmentOutcome =
   // no_challenge: none was outstanding for this attempt — either none was
   // ever offered, or a previous response already spent the one that was,
   // which is where a replay lands, before any signature is looked at.
-  // already_enrolled: this realm already holds that credential id.
+  // already_enrolled: this tenant already holds that credential id.
   | { kind: 'rejected'; reason: 'no_challenge' | 'invalid_response' | 'already_enrolled' };
 
 const DEFAULT_LABEL = 'Passkey';
@@ -75,7 +75,7 @@ function boundedLabel(label: string | undefined): string {
 }
 
 export async function completePasskeyEnrolment(
-  tx: RealmScopedDatabase,
+  tx: TenantScopedDatabase,
   input: CompletePasskeyEnrolment,
 ): Promise<PasskeyEnrolmentOutcome> {
   const challenge = await authenticationSessionRepository(tx).claimWebauthnChallenge(
@@ -93,7 +93,7 @@ export async function completePasskeyEnrolment(
   });
   if (verified.kind === 'rejected') return { kind: 'rejected', reason: 'invalid_response' };
 
-  // user_credentials_lookup_key (migration 0034) is unique per realm and
+  // user_credentials_lookup_key (migration 0034) is unique per tenant and
   // remains the actual guarantee. This read only turns the case
   // excludeCredentials is expected to prevent into a refusal rather than a
   // constraint violation surfacing as a server fault; two subjects racing
@@ -104,11 +104,11 @@ export async function completePasskeyEnrolment(
 
   // Nothing is stored until the library has verified the attestation: a
   // credential written ahead of that is one the subject may not hold, and
-  // once a realm requires a passkey it is what stands between them and
+  // once a tenant requires a passkey it is what stands between them and
   // their account. The counter is the authenticator's own use count at
   // registration, kept as the baseline an assertion must exceed.
   await credentialRepository(tx).insert({
-    realmId: input.realmId,
+    tenantId: input.tenantId,
     subjectId: input.subjectId,
     type: 'webauthn',
     lookupKey: verified.credentialId,
@@ -121,6 +121,6 @@ export async function completePasskeyEnrolment(
     },
   });
   await requiredActionRepository(tx).complete(input.subjectId, 'configure-passkey');
-  await oweRecoveryCodesIfNoneUnspent(tx, input.realmId, input.subjectId);
+  await oweRecoveryCodesIfNoneUnspent(tx, input.tenantId, input.subjectId);
   return { kind: 'enrolled', credentialId: verified.credentialId };
 }

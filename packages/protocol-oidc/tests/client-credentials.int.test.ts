@@ -3,14 +3,14 @@ import { hashPassword, subjectRepository } from '@odudu/domain-identity';
 import {
   createDatabase,
   MIGRATIONS_DIR,
-  realms,
+  tenants,
   runMigrations,
-  withRealm,
+  withTenant,
   type DatabaseHandle,
-  type RealmScopedDatabase,
+  type TenantScopedDatabase,
 } from '@odudu/db';
-import { provisionRealm } from '@odudu/authn-flows';
-import { clients, provisionClientDefaults } from '@odudu/domain-realm';
+import { provisionTenant } from '@odudu/authn-flows';
+import { clients, provisionClientDefaults } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import formbody from '@fastify/formbody';
@@ -31,24 +31,24 @@ let owner: DatabaseHandle;
 let app: DatabaseHandle;
 let http: FastifyInstance;
 
-let REALM: string;
-let REALM_ID: string;
+let TENANT: string;
+let TENANT_ID: string;
 
 const AUDIENCE = 'https://api.example';
 const KEK = Buffer.alloc(32, 11);
 
 let batchJobServiceSubjectId: string;
 
-async function setupRealm(): Promise<void> {
-  REALM = `client-credentials-${newId()}`;
-  REALM_ID = newId();
+async function setupTenant(): Promise<void> {
+  TENANT = `client-credentials-${newId()}`;
+  TENANT_ID = newId();
 
-  await withRealm(app.db, REALM_ID, async (tx: RealmScopedDatabase) => {
-    await tx.insert(realms).values({ id: REALM_ID, name: REALM });
-    await provisionRealm(tx, REALM_ID);
+  await withTenant(app.db, TENANT_ID, async (tx: TenantScopedDatabase) => {
+    await tx.insert(tenants).values({ id: TENANT_ID, name: TENANT });
+    await provisionTenant(tx, TENANT_ID);
 
     const serviceSubject = await subjectRepository(tx).create({
-      realmId: REALM_ID,
+      tenantId: TENANT_ID,
       type: 'service',
     });
     batchJobServiceSubjectId = serviceSubject.id;
@@ -56,7 +56,7 @@ async function setupRealm(): Promise<void> {
     const batchJobDbId = newId();
     await tx.insert(clients).values({
       id: batchJobDbId,
-      realmId: REALM_ID,
+      tenantId: TENANT_ID,
       clientId: 'batch-job',
       name: 'Batch job',
       type: 'confidential',
@@ -66,7 +66,7 @@ async function setupRealm(): Promise<void> {
     await provisionClientDefaults(tx, batchJobDbId);
     await clientOidcConfigRepository(tx).create({
       clientId: batchJobDbId,
-      realmId: REALM_ID,
+      tenantId: TENANT_ID,
       redirectUris: [],
       grantTypes: ['client_credentials'],
       tokenEndpointAuthMethod: 'client_secret_basic',
@@ -83,7 +83,7 @@ async function setupRealm(): Promise<void> {
     const unprovisionedDbId = newId();
     await tx.insert(clients).values({
       id: unprovisionedDbId,
-      realmId: REALM_ID,
+      tenantId: TENANT_ID,
       clientId: 'unprovisioned-job',
       name: 'Unprovisioned job',
       type: 'confidential',
@@ -92,7 +92,7 @@ async function setupRealm(): Promise<void> {
     await provisionClientDefaults(tx, unprovisionedDbId);
     await clientOidcConfigRepository(tx).create({
       clientId: unprovisionedDbId,
-      realmId: REALM_ID,
+      tenantId: TENANT_ID,
       redirectUris: [],
       grantTypes: ['client_credentials'],
       tokenEndpointAuthMethod: 'client_secret_basic',
@@ -109,7 +109,7 @@ async function setupRealm(): Promise<void> {
     const postingJobDbId = newId();
     await tx.insert(clients).values({
       id: postingJobDbId,
-      realmId: REALM_ID,
+      tenantId: TENANT_ID,
       clientId: 'posting-job',
       name: 'Posting job',
       type: 'confidential',
@@ -119,7 +119,7 @@ async function setupRealm(): Promise<void> {
     await provisionClientDefaults(tx, postingJobDbId);
     await clientOidcConfigRepository(tx).create({
       clientId: postingJobDbId,
-      realmId: REALM_ID,
+      tenantId: TENANT_ID,
       redirectUris: [],
       grantTypes: ['client_credentials'],
       tokenEndpointAuthMethod: 'client_secret_post',
@@ -132,7 +132,7 @@ async function setupRealm(): Promise<void> {
     const spaDbId = newId();
     await tx.insert(clients).values({
       id: spaDbId,
-      realmId: REALM_ID,
+      tenantId: TENANT_ID,
       clientId: 'spa',
       name: 'Public SPA',
       type: 'public',
@@ -141,7 +141,7 @@ async function setupRealm(): Promise<void> {
     await provisionClientDefaults(tx, spaDbId);
     await clientOidcConfigRepository(tx).create({
       clientId: spaDbId,
-      realmId: REALM_ID,
+      tenantId: TENANT_ID,
       redirectUris: ['https://app.example/callback'],
       grantTypes: ['client_credentials'],
       tokenEndpointAuthMethod: 'none',
@@ -154,7 +154,7 @@ async function setupRealm(): Promise<void> {
     const key = await generateSigningKey('RS256', KEK);
     await tx.insert(signingKeys).values({
       id: newId(),
-      realmId: REALM_ID,
+      tenantId: TENANT_ID,
       kid: key.kid,
       alg: key.alg,
       status: 'active',
@@ -176,7 +176,7 @@ beforeAll(async () => {
   appHandle = createDatabase(appUrl, { max: 5 });
   app = appHandle;
 
-  await setupRealm();
+  await setupTenant();
 
   http = Fastify();
   await http.register(formbody);
@@ -220,7 +220,7 @@ async function clientCredentials(
 
   return http.inject({
     method: 'POST',
-    url: `/realms/${REALM}/protocol/openid-connect/token`,
+    url: `/tenants/${TENANT}/protocol/openid-connect/token`,
     payload: form.toString(),
     headers,
   });
@@ -237,7 +237,7 @@ async function postToken(
     .join('&');
   return http.inject({
     method: 'POST',
-    url: `/realms/${REALM}/protocol/openid-connect/token`,
+    url: `/tenants/${TENANT}/protocol/openid-connect/token`,
     payload: body,
     headers: { 'content-type': 'application/x-www-form-urlencoded', ...headers },
   });
@@ -351,7 +351,7 @@ describe('[RFC6749-2.3.1-02] client credentials in the request URI authenticate 
       .join('&');
     return http.inject({
       method: 'POST',
-      url: `/realms/${REALM}/protocol/openid-connect/token?${new URLSearchParams(query).toString()}`,
+      url: `/tenants/${TENANT}/protocol/openid-connect/token?${new URLSearchParams(query).toString()}`,
       payload: body,
       headers: { 'content-type': 'application/x-www-form-urlencoded', ...headers },
     });

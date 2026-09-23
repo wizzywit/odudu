@@ -3,14 +3,14 @@ import { hashPassword, subjectRepository, userCredentials, users } from '@odudu/
 import {
   createDatabase,
   MIGRATIONS_DIR,
-  realms,
+  tenants,
   runMigrations,
-  withRealm,
+  withTenant,
   type DatabaseHandle,
-  type RealmScopedDatabase,
+  type TenantScopedDatabase,
 } from '@odudu/db';
-import { sessionRepository, provisionRealm, type SessionLifespans } from '@odudu/authn-flows';
-import { clients, provisionClientDefaults } from '@odudu/domain-realm';
+import { sessionRepository, provisionTenant, type SessionLifespans } from '@odudu/authn-flows';
+import { clients, provisionClientDefaults } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import formbody from '@fastify/formbody';
@@ -58,11 +58,11 @@ const CHALLENGE = 'E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM';
 
 const signingKeyOf = new Map<string, SigningKeyRecord>();
 
-async function makeSigningKey(realmId: string): Promise<SigningKeyRecord> {
+async function makeSigningKey(tenantId: string): Promise<SigningKeyRecord> {
   const generated = await generateSigningKey('ES256', KEK);
   return {
     id: newId(),
-    realmId,
+    tenantId,
     kid: generated.kid,
     alg: generated.alg,
     status: 'active',
@@ -73,20 +73,20 @@ async function makeSigningKey(realmId: string): Promise<SigningKeyRecord> {
   };
 }
 
-// A realm carrying both clients this suite plays against each other
+// A tenant carrying both clients this suite plays against each other
 // (client-a is always the one requesting; client-b exists only to be
 // named in the wrong place), plus one signing key and one seeded user.
-async function setupRealm(name: string): Promise<{ realmId: string }> {
-  const realmId = newId();
-  await withRealm(app.db, realmId, async (tx: RealmScopedDatabase) => {
-    await tx.insert(realms).values({ id: realmId, name });
-    await provisionRealm(tx, realmId);
+async function setupTenant(name: string): Promise<{ tenantId: string }> {
+  const tenantId = newId();
+  await withTenant(app.db, tenantId, async (tx: TenantScopedDatabase) => {
+    await tx.insert(tenants).values({ id: tenantId, name });
+    await provisionTenant(tx, tenantId);
 
     for (const clientId of [CLIENT_A_ID, CLIENT_B_ID]) {
       const dbId = newId();
       await tx.insert(clients).values({
         id: dbId,
-        realmId,
+        tenantId,
         clientId,
         name: `Test client ${clientId}`,
         type: 'confidential',
@@ -95,7 +95,7 @@ async function setupRealm(name: string): Promise<{ realmId: string }> {
       await provisionClientDefaults(tx, dbId);
       await clientOidcConfigRepository(tx).create({
         clientId: dbId,
-        realmId,
+        tenantId,
         redirectUris: [REDIRECT_URI],
         grantTypes: ['authorization_code'],
         tokenEndpointAuthMethod: 'client_secret_basic',
@@ -105,21 +105,21 @@ async function setupRealm(name: string): Promise<{ realmId: string }> {
       });
     }
 
-    const subject = await subjectRepository(tx).create({ realmId, type: 'user' });
-    await tx.insert(users).values({ subjectId: subject.id, realmId, username: USERNAME });
+    const subject = await subjectRepository(tx).create({ tenantId, type: 'user' });
+    await tx.insert(users).values({ subjectId: subject.id, tenantId, username: USERNAME });
     await tx.insert(userCredentials).values({
       id: newId(),
-      realmId,
+      tenantId,
       subjectId: subject.id,
       type: 'password',
       secretData: { hash: await hashPassword(PASSWORD) },
     });
 
-    const key = await makeSigningKey(realmId);
+    const key = await makeSigningKey(tenantId);
     signingKeyOf.set(name, key);
     await tx.insert(signingKeys).values({
       id: key.id,
-      realmId,
+      tenantId,
       kid: key.kid,
       alg: key.alg,
       status: 'active',
@@ -127,38 +127,38 @@ async function setupRealm(name: string): Promise<{ realmId: string }> {
       privateJwkEncrypted: key.privateJwkEncrypted,
     });
   });
-  return { realmId };
+  return { tenantId };
 }
 
-async function subjectIdOf(realmId: string, username: string): Promise<string> {
+async function subjectIdOf(tenantId: string, username: string): Promise<string> {
   const rows = await owner.db
     .select({ subjectId: users.subjectId })
     .from(users)
-    .where(and(eq(users.realmId, realmId), eq(users.username, username)));
+    .where(and(eq(users.tenantId, tenantId), eq(users.username, username)));
   const row = rows[0];
-  if (row === undefined) throw new Error(`no user ${username} in realm ${realmId}`);
+  if (row === undefined) throw new Error(`no user ${username} in tenant ${tenantId}`);
   return row.subjectId;
 }
 
-async function issuerFor(realmName: string): Promise<string> {
+async function issuerFor(tenantName: string): Promise<string> {
   const res = await http.inject({
-    url: `/realms/${realmName}/.well-known/openid-configuration`,
+    url: `/tenants/${tenantName}/.well-known/openid-configuration`,
   });
   return res.json<{ issuer: string }>().issuer;
 }
 
-async function mintHint(realmName: string, aud: string, sub: string): Promise<string> {
-  const key = signingKeyOf.get(realmName);
-  if (key === undefined) throw new Error(`no signing key for ${realmName}`);
+async function mintHint(tenantName: string, aud: string, sub: string): Promise<string> {
+  const key = signingKeyOf.get(tenantName);
+  if (key === undefined) throw new Error(`no signing key for ${tenantName}`);
   const now = Math.floor(Date.now() / 1000);
   return signJwt(
-    { iss: await issuerFor(realmName), aud, sub, iat: now, exp: now + 300 },
+    { iss: await issuerFor(tenantName), aud, sub, iat: now, exp: now + 300 },
     { key, kek: KEK },
   );
 }
 
 function authorizeUrl(
-  realmName: string,
+  tenantName: string,
   overrides: Record<string, string | undefined> = {},
 ): string {
   const params: Record<string, string | undefined> = {
@@ -175,7 +175,7 @@ function authorizeUrl(
   for (const [key, value] of Object.entries(params)) {
     if (value !== undefined) query.set(key, value);
   }
-  return `/realms/${realmName}/protocol/openid-connect/auth?${query.toString()}`;
+  return `/tenants/${tenantName}/protocol/openid-connect/auth?${query.toString()}`;
 }
 
 function setCookieValue(res: LightMyRequestResponse): string | undefined {
@@ -198,8 +198,8 @@ function sessionIdFromCookie(cookie: string): string {
 
 // Signs USERNAME/PASSWORD in against client-a's own parked request and
 // returns the SSO session cookie the login redirect set.
-async function signIn(realmName: string): Promise<string> {
-  const res = await http.inject({ url: authorizeUrl(realmName) });
+async function signIn(tenantName: string): Promise<string> {
+  const res = await http.inject({ url: authorizeUrl(tenantName) });
   if (res.statusCode !== 200) {
     throw new Error(`expected /authorize to render the login form, got ${String(res.statusCode)}`);
   }
@@ -213,7 +213,7 @@ async function signIn(realmName: string): Promise<string> {
   });
   const submitted = await http.inject({
     method: 'POST',
-    url: `/realms/${realmName}/login-actions/authenticate`,
+    url: `/tenants/${tenantName}/login-actions/authenticate`,
     payload: form.toString(),
     headers: { 'content-type': 'application/x-www-form-urlencoded' },
   });
@@ -223,12 +223,12 @@ async function signIn(realmName: string): Promise<string> {
   return cookie;
 }
 
-function logoutUrl(realmName: string, overrides: Record<string, string | undefined>): string {
+function logoutUrl(tenantName: string, overrides: Record<string, string | undefined>): string {
   const query = new URLSearchParams();
   for (const [key, value] of Object.entries(overrides)) {
     if (value !== undefined) query.set(key, value);
   }
-  return `/realms/${realmName}/protocol/openid-connect/logout?${query.toString()}`;
+  return `/tenants/${tenantName}/protocol/openid-connect/logout?${query.toString()}`;
 }
 
 beforeAll(async () => {
@@ -267,15 +267,15 @@ afterAll(async () => {
 
 describe('/authorize checks an id_token_hint against the requesting client', () => {
   it('accepts a hint minted for the requesting client', async () => {
-    const realmName = `hint-aud-accept-${newId()}`;
-    const { realmId } = await setupRealm(realmName);
-    const subjectId = await subjectIdOf(realmId, USERNAME);
-    const cookie = await signIn(realmName);
+    const tenantName = `hint-aud-accept-${newId()}`;
+    const { tenantId } = await setupTenant(tenantName);
+    const subjectId = await subjectIdOf(tenantId, USERNAME);
+    const cookie = await signIn(tenantName);
 
-    const hint = await mintHint(realmName, CLIENT_A_ID, subjectId);
+    const hint = await mintHint(tenantName, CLIENT_A_ID, subjectId);
 
     const res = await http.inject({
-      url: authorizeUrl(realmName, { id_token_hint: hint }),
+      url: authorizeUrl(tenantName, { id_token_hint: hint }),
       headers: { cookie },
     });
 
@@ -286,13 +286,13 @@ describe('/authorize checks an id_token_hint against the requesting client', () 
   });
 
   it('refuses a hint minted for another client', async () => {
-    const realmName = `hint-aud-wrong-client-${newId()}`;
-    const { realmId } = await setupRealm(realmName);
-    const subjectId = await subjectIdOf(realmId, USERNAME);
-    const hint = await mintHint(realmName, CLIENT_B_ID, subjectId);
+    const tenantName = `hint-aud-wrong-client-${newId()}`;
+    const { tenantId } = await setupTenant(tenantName);
+    const subjectId = await subjectIdOf(tenantId, USERNAME);
+    const hint = await mintHint(tenantName, CLIENT_B_ID, subjectId);
 
     const res = await http.inject({
-      url: authorizeUrl(realmName, { client_id: CLIENT_A_ID, id_token_hint: hint }),
+      url: authorizeUrl(tenantName, { client_id: CLIENT_A_ID, id_token_hint: hint }),
     });
 
     expect(res.statusCode).toBe(302);
@@ -311,14 +311,14 @@ describe('/logout leaves its own id_token_hint audience handling unchanged', () 
   // site would make this hint fail verification outright and this
   // assertion would fail.
   it('still ends a session on a hint whose aud names an unrelated client', async () => {
-    const realmName = `hint-aud-logout-unchanged-${newId()}`;
-    const { realmId } = await setupRealm(realmName);
-    const subjectId = await subjectIdOf(realmId, USERNAME);
-    const cookie = await signIn(realmName);
+    const tenantName = `hint-aud-logout-unchanged-${newId()}`;
+    const { tenantId } = await setupTenant(tenantName);
+    const subjectId = await subjectIdOf(tenantId, USERNAME);
+    const cookie = await signIn(tenantName);
     const sessionId = sessionIdFromCookie(cookie);
-    const iss = await issuerFor(realmName);
+    const iss = await issuerFor(tenantName);
 
-    const key = signingKeyOf.get(realmName);
+    const key = signingKeyOf.get(tenantName);
     if (key === undefined) throw new Error('no signing key');
     const now = Math.floor(Date.now() / 1000);
     const hint = await signJwt(
@@ -327,14 +327,14 @@ describe('/logout leaves its own id_token_hint audience handling unchanged', () 
     );
 
     const res = await http.inject({
-      url: logoutUrl(realmName, { id_token_hint: hint }),
+      url: logoutUrl(tenantName, { id_token_hint: hint }),
       headers: { cookie },
     });
 
     expect(res.statusCode).toBe(200);
     expect(res.body).not.toContain('<title>Sign out?</title>');
 
-    const stillLive = await withRealm(app.db, realmId, (tx) =>
+    const stillLive = await withTenant(app.db, tenantId, (tx) =>
       sessionRepository(tx).liveById(sessionId, GENEROUS_LIFESPANS, new Date()),
     );
     expect(stillLive).toBeNull();

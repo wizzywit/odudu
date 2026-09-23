@@ -13,7 +13,7 @@ export interface PasskeyInput {
 // runs — this stays a leaf: no `tx`, no repository, no cross-package call.
 // verifyAuthenticationResponse needs the stored credential as an input, so
 // resolution cannot wait for verification: `credential` is null when the id
-// the assertion carries names no credential in this realm. `id` is the
+// the assertion carries names no credential in this tenant. `id` is the
 // credential row's own id, which is what the counter is written against.
 export interface PasskeyVerification {
   credential: { id: string; subjectId: string; secret: WebauthnSecret } | null;

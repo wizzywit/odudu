@@ -4,7 +4,7 @@
 
 **Goal:** An authorization server that issues signed tokens through five endpoints and three grant types, where every MUST in the traced specifications is mapped to a passing test by a tool that fails CI when the map has a hole.
 
-**Architecture:** Six new packages under the dependency direction P0 established. `crypto` owns keys and signatures; `domain-realm` and `domain-identity` own tenant data and know nothing of OAuth; `authn-flows` owns a persisted login state machine; `protocol-oidc` owns the wire. Token issuance funnels every grant through one eight-stage pipeline in which only stage 3 is grant-specific. A `trace` tool parses clause tables in `docs/protocols/` and cross-references them against the test suite.
+**Architecture:** Six new packages under the dependency direction P0 established. `crypto` owns keys and signatures; `domain-tenant` and `domain-identity` own tenant data and know nothing of OAuth; `authn-flows` owns a persisted login state machine; `protocol-oidc` owns the wire. Token issuance funnels every grant through one eight-stage pipeline in which only stage 3 is grant-specific. A `trace` tool parses clause tables in `docs/protocols/` and cross-references them against the test suite.
 
 **Tech Stack:** Node 24, TypeScript 6.0.3, Fastify 5.12.3, PostgreSQL 17, Drizzle ORM 0.45.2, Zod 4.6.1, Vitest 5.0.0, Testcontainers 12.1.0, jose 6.2.12, @node-rs/argon2 2.2.1, @fastify/formbody 9.0.0, @fastify/cookie 11.1.2, Stryker 10.0.0.
 
@@ -27,8 +27,8 @@ Everything in P0's plan still binds. Repeated here because an implementer sees o
 - Integration tests run against real PostgreSQL via Testcontainers, never a mock. They live in a package's `tests/` directory and are named `*.int.test.ts`. Unit tests sit beside the code as `*.test.ts`.
 - Domain packages never import protocol packages. Protocol packages never import each other.
 - Layer imports follow ADR 0010: `view` → own model and `shared/view`; `usecase` → repository, service, view models; `repository` → adapter, service; `adapter` → transport, service; `service` → nothing.
-- **`SET LOCAL`, never `SET`, for realm context.** Use the existing `withRealm(db, realmId, fn)` from `@odudu/db`; it issues `select set_config('app.realm_id', $1, true)` and returns a `RealmScopedDatabase` that deliberately has no `.transaction()` so nesting fails to compile.
-- **Every new tenant table needs `ENABLE` + `FORCE ROW LEVEL SECURITY`, a policy, and a foreign-realm probe.** Task 5 makes this mechanical rather than remembered.
+- **`SET LOCAL`, never `SET`, for tenant context.** Use the existing `withTenant(db, tenantId, fn)` from `@odudu/db`; it issues `select set_config('app.tenant_id', $1, true)` and returns a `TenantScopedDatabase` that deliberately has no `.transaction()` so nesting fails to compile.
+- **Every new tenant table needs `ENABLE` + `FORCE ROW LEVEL SECURITY`, a policy, and a foreign-tenant probe.** Task 5 makes this mechanical rather than remembered.
 - Every task ends with CI green, the branch merged, and `docs/NEXT.md` updated.
 
 ### P1-specific constraints
@@ -38,12 +38,12 @@ Everything in P0's plan still binds. Repeated here because an implementer sees o
 - **Access tokens carry `typ: at+jwt`** (RFC 9068). ID tokens do not.
 - **The signing algorithm comes from the key record, never from the token header.**
 - **Authorization codes and refresh tokens are stored hashed**, never in plaintext.
-- **Realm-scoped endpoint paths follow Keycloak's layout**, so that existing OIDC client libraries and the conformance suite need no unusual configuration:
-  - `/realms/{realm}/.well-known/openid-configuration`
-  - `/realms/{realm}/protocol/openid-connect/auth`
-  - `/realms/{realm}/protocol/openid-connect/token`
-  - `/realms/{realm}/protocol/openid-connect/userinfo`
-  - `/realms/{realm}/protocol/openid-connect/certs`
+- **Tenant-scoped endpoint paths follow Keycloak's layout**, so that existing OIDC client libraries and the conformance suite need no unusual configuration:
+  - `/tenants/{tenant}/.well-known/openid-configuration`
+  - `/tenants/{tenant}/protocol/openid-connect/auth`
+  - `/tenants/{tenant}/protocol/openid-connect/token`
+  - `/tenants/{tenant}/protocol/openid-connect/userinfo`
+  - `/tenants/{tenant}/protocol/openid-connect/certs`
 
 ## Task budget
 
@@ -56,7 +56,7 @@ Everything in P0's plan still binds. Repeated here because an implementer sees o
 | 5    | The tenant-table guard: RLS made mechanical                     | 3–4        |
 | 6    | `crypto`: key storage, KEK encryption, JWKS assembly            | 5–6        |
 | 7    | `crypto`: signing, verification, algorithm-confusion defenses   | 4–6        |
-| 8    | `domain-realm`: clients                                         | 3–4        |
+| 8    | `domain-tenant`: clients                                        | 3–4        |
 | 9    | `domain-identity`: subjects, users, credentials, Argon2id       | 5–6        |
 | 10   | `authn-flows`: sessions and the persisted executor              | 5–6        |
 | 11   | `protocol-oidc`: `contracts`, discovery and JWKS endpoints      | 4–5        |
@@ -122,7 +122,7 @@ packages/crypto/src/
 ├─ repository/signing-keys.ts
 └─ tests/*.int.test.ts
 
-packages/domain-realm/src/
+packages/domain-tenant/src/
 ├─ index.ts
 ├─ schema/clients.ts
 ├─ service/client.ts              type rules, secret verification
@@ -156,7 +156,7 @@ packages/protocol-oidc/src/
 └─ repository/{codes,grants,refresh}.ts
 
 apps/server/src/
-└─ cli/seed.ts                    bootstrap realm, client, user
+└─ cli/seed.ts                    bootstrap tenant, client, user
 
 infra/conformance/
 ├─ README.md                      the documented procedure
@@ -817,12 +817,12 @@ P1 adds ten tables under row-level security. The design spec names this as a sta
 **Files:**
 
 - Create: `packages/db/tests/tenant-tables.int.test.ts`
-- Create: `packages/testkit/src/realm-probe.ts`
-- Modify: `packages/testkit/src/index.ts`, `packages/db/src/schema/realms.ts` (comment only)
+- Create: `packages/testkit/src/tenant-probe.ts`
+- Modify: `packages/testkit/src/index.ts`, `packages/db/src/schema/tenants.ts` (comment only)
 
 **Interfaces:**
 
-- Produces: `expectRealmIsolation(db: Database, opts: { table: string; seed: (tx: RealmScopedDatabase, realmId: string) => Promise<void> }): Promise<void>` — the reusable foreign-realm probe every later task calls once per table.
+- Produces: `expectTenantIsolation(db: Database, opts: { table: string; seed: (tx: TenantScopedDatabase, tenantId: string) => Promise<void> }): Promise<void>` — the reusable foreign-tenant probe every later task calls once per table.
 
 - [ ] **Step 1: Write the failing guard test**
 
@@ -885,43 +885,43 @@ it('every table in public is force-RLS with at least one policy', async () => {
 npx vitest run --project integration packages/db/tests/tenant-tables.int.test.ts
 ```
 
-Expected: PASS today — `realms` is the only table and it already satisfies this. The test's value is that it fails the moment Task 6 adds `signing_keys` without a policy. Prove that now.
+Expected: PASS today — `tenants` is the only table and it already satisfies this. The test's value is that it fails the moment Task 6 adds `signing_keys` without a policy. Prove that now.
 
 - [ ] **Step 3: Prove the guard actually guards**
 
 Temporarily add a migration `packages/db/drizzle/9999_probe.sql` containing `CREATE TABLE probe_me (id uuid primary key);`, re-run the test, and confirm it **fails** naming `probe_me`. Delete the migration and its snapshot entry, re-run, confirm green. Record this in the commit message — an unproven guard is the exact failure mode P0's smoke test had.
 
-- [ ] **Step 4: Write the reusable foreign-realm probe**
+- [ ] **Step 4: Write the reusable foreign-tenant probe**
 
-`packages/testkit/src/realm-probe.ts`:
+`packages/testkit/src/tenant-probe.ts`:
 
 ```ts
-import { type Database, type RealmScopedDatabase, withRealm } from '@odudu/db';
+import { type Database, type TenantScopedDatabase, withTenant } from '@odudu/db';
 import { sql } from 'drizzle-orm';
 import { expect } from 'vitest';
 
-export interface RealmProbe {
+export interface TenantProbe {
   table: string;
-  seed: (tx: RealmScopedDatabase, realmId: string) => Promise<void>;
+  seed: (tx: TenantScopedDatabase, tenantId: string) => Promise<void>;
 }
 
 /**
- * Seeds one row in realm A, then asserts realm B's context cannot see it and
- * that a missing realm context sees nothing at all. Every repository that
+ * Seeds one row in tenant A, then asserts tenant B's context cannot see it and
+ * that a missing tenant context sees nothing at all. Every repository that
  * touches a tenant table calls this once.
  */
-export async function expectRealmIsolation(db: Database, probe: RealmProbe): Promise<void> {
-  const realmA = crypto.randomUUID();
-  const realmB = crypto.randomUUID();
+export async function expectTenantIsolation(db: Database, probe: TenantProbe): Promise<void> {
+  const tenantA = crypto.randomUUID();
+  const tenantB = crypto.randomUUID();
 
-  await withRealm(db, realmA, async (tx) => probe.seed(tx, realmA));
+  await withTenant(db, tenantA, async (tx) => probe.seed(tx, tenantA));
 
-  const fromA = await withRealm(db, realmA, async (tx) =>
+  const fromA = await withTenant(db, tenantA, async (tx) =>
     tx.execute(sql`select count(*)::int as n from ${sql.identifier(probe.table)}`),
   );
   expect(Number((fromA as unknown as { n: number }[])[0].n)).toBeGreaterThan(0);
 
-  const fromB = await withRealm(db, realmB, async (tx) =>
+  const fromB = await withTenant(db, tenantB, async (tx) =>
     tx.execute(sql`select count(*)::int as n from ${sql.identifier(probe.table)}`),
   );
   expect(Number((fromB as unknown as { n: number }[])[0].n)).toBe(0);
@@ -931,17 +931,17 @@ export async function expectRealmIsolation(db: Database, probe: RealmProbe): Pro
 Export it from `packages/testkit/src/index.ts`:
 
 ```ts
-export { expectRealmIsolation, type RealmProbe } from '#/realm-probe';
+export { expectTenantIsolation, type TenantProbe } from '#/tenant-probe';
 ```
 
 - [ ] **Step 5: Record the policy convention in the schema**
 
-`packages/db/src/schema/realms.ts` — add above the table:
+`packages/db/src/schema/tenants.ts` — add above the table:
 
 ```ts
 // Policies are written as hand-authored SQL in drizzle/, never declared with
 // pgPolicy(). meta/0002_snapshot.json records policies: {} while
-// realms_isolation exists in every migrated database, so a declarative policy
+// tenants_isolation exists in every migrated database, so a declarative policy
 // would make drizzle-kit generate a CREATE POLICY that fails 42710 against any
 // database already carrying it. packages/db/tests/tenant-tables.int.test.ts is
 // what stops a new table shipping without one.
@@ -959,7 +959,7 @@ live database rather than left to review. Proved the guard by adding an
 unprotected table and watching it fail before deleting it.
 
 Policies stay hand-written SQL: the Drizzle snapshot records policies as
-empty while realms_isolation exists everywhere, so declaring one would
+empty while tenants_isolation exists everywhere, so declaring one would
 generate a CREATE POLICY that fails 42710 on an existing database. The
 schema now says so where someone would otherwise try."
 ```
@@ -981,8 +981,8 @@ schema now says so where someone would otherwise try."
 - Produces: `wrapPrivateJwk(jwk: unknown, kek: Uint8Array): string` and `unwrapPrivateJwk<T>(wrapped: string, kek: Uint8Array): T`
 - Produces: `toPublicJwk(jwk: Record<string, unknown>, kid: string, alg: string): Record<string, unknown>` — strips every private member
 - Produces: `assembleJwks(keys): { keys: Record<string, unknown>[] }`
-- Produces: `SigningKeyRecord = { id: string; realmId: string; kid: string; alg: 'RS256' | 'ES256'; status: 'active' | 'rotating' | 'retired'; publicJwk: Record<string, unknown>; privateJwkEncrypted: string; createdAt: Date; notAfter: Date | null }`
-- Produces: `signingKeyRepository(tx: RealmScopedDatabase)` with `listPublishable(): Promise<SigningKeyRecord[]>` (everything not `retired`) and `active(): Promise<SigningKeyRecord>`
+- Produces: `SigningKeyRecord = { id: string; tenantId: string; kid: string; alg: 'RS256' | 'ES256'; status: 'active' | 'rotating' | 'retired'; publicJwk: Record<string, unknown>; privateJwkEncrypted: string; createdAt: Date; notAfter: Date | null }`
+- Produces: `signingKeyRepository(tx: TenantScopedDatabase)` with `listPublishable(): Promise<SigningKeyRecord[]>` (everything not `retired`) and `active(): Promise<SigningKeyRecord>`
 
 - [ ] **Step 1: Scaffold the package**
 
@@ -1202,7 +1202,7 @@ Run the test again: PASS, 3 tests. Then mark the RFC 7517 section 4 row in `docs
 ```sql
 CREATE TABLE signing_keys (
   id                    uuid PRIMARY KEY,
-  realm_id              uuid NOT NULL REFERENCES realms(id) ON DELETE CASCADE,
+  tenant_id              uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
   kid                   text NOT NULL,
   alg                   text NOT NULL,
   status                text NOT NULL,
@@ -1210,7 +1210,7 @@ CREATE TABLE signing_keys (
   private_jwk_encrypted text NOT NULL,
   created_at            timestamptz NOT NULL DEFAULT now(),
   not_after             timestamptz,
-  CONSTRAINT signing_keys_kid_unique UNIQUE (realm_id, kid),
+  CONSTRAINT signing_keys_kid_unique UNIQUE (tenant_id, kid),
   CONSTRAINT signing_keys_status_check CHECK (status IN ('active', 'rotating', 'retired')),
   CONSTRAINT signing_keys_alg_check CHECK (alg IN ('RS256', 'ES256'))
 );
@@ -1219,36 +1219,36 @@ ALTER TABLE signing_keys ENABLE ROW LEVEL SECURITY;
 ALTER TABLE signing_keys FORCE ROW LEVEL SECURITY;
 
 CREATE POLICY signing_keys_isolation ON signing_keys
-  USING (realm_id = nullif(current_setting('app.realm_id', true), '')::uuid);
+  USING (tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid);
 
--- "At most one active key per realm" written where a race cannot violate it.
+-- "At most one active key per tenant" written where a race cannot violate it.
 CREATE UNIQUE INDEX signing_keys_one_active
-  ON signing_keys (realm_id) WHERE status = 'active';
+  ON signing_keys (tenant_id) WHERE status = 'active';
 ```
 
 Add the matching Drizzle schema in `packages/crypto/src/schema/signing-keys.ts` **without** `pgPolicy` — see Task 5's comment — and re-export it from `packages/db/src/schema/index.ts`.
 
 - [ ] **Step 9: Write the failing integration test**
 
-`packages/crypto/tests/signing-keys.int.test.ts` covers round-tripping a key through the repository, `listPublishable` excluding `retired`, the partial unique index, and the realm probe:
+`packages/crypto/tests/signing-keys.int.test.ts` covers round-tripping a key through the repository, `listPublishable` excluding `retired`, the partial unique index, and the tenant probe:
 
 ```ts
 it('excludes retired keys from the published set', async () => {
-  const published = await withRealm(handle.db, realmId, async (tx) =>
+  const published = await withTenant(handle.db, tenantId, async (tx) =>
     signingKeyRepository(tx).listPublishable(),
   );
   expect(published.map((k) => k.kid)).toEqual(['active-kid', 'rotating-kid']);
 });
 
-it('refuses a second active key in one realm', async () => {
-  await expect(insertActiveKey(realmId)).rejects.toThrow(/signing_keys_one_active/);
+it('refuses a second active key in one tenant', async () => {
+  await expect(insertActiveKey(tenantId)).rejects.toThrow(/signing_keys_one_active/);
 });
 
-it('isolates keys by realm', async () => {
-  await expectRealmIsolation(handle.db, {
+it('isolates keys by tenant', async () => {
+  await expectTenantIsolation(handle.db, {
     table: 'signing_keys',
-    seed: async (tx, realmId) => {
-      await seedRealmAndKey(tx, realmId);
+    seed: async (tx, tenantId) => {
+      await seedTenantAndKey(tx, tenantId);
     },
   });
 });
@@ -1280,7 +1280,7 @@ published JWK Set is built from an allowlist of public members rather than by
 deleting known private ones, so a key type added later cannot leak by
 default.
 
-One active key per realm is a partial unique index, not an application check.
+One active key per tenant is a partial unique index, not an application check.
 ```
 
 ---
@@ -1498,21 +1498,21 @@ as an HS256 secret, and a mismatched algorithms option are all rejected.
 
 ---
 
-### Task 8: `domain-realm` — clients
+### Task 8: `domain-tenant` — clients
 
 A client here is protocol-agnostic. Redirect URIs and grant types are OAuth vocabulary and belong to `protocol-oidc` (Task 11), because a domain package that knows what a redirect URI is cannot survive SAML at P8.
 
 **Files:**
 
-- Create: `packages/domain-realm/package.json`, `tsconfig.json`, `src/index.ts`
+- Create: `packages/domain-tenant/package.json`, `tsconfig.json`, `src/index.ts`
 - Create: `src/schema/clients.ts`, `src/service/client.ts`, `src/service/client.test.ts`, `src/repository/clients.ts`
-- Create: `packages/domain-realm/tests/clients.int.test.ts`
+- Create: `packages/domain-tenant/tests/clients.int.test.ts`
 - Create: `packages/db/drizzle/0004_clients.sql`
 
 **Interfaces:**
 
-- Produces: `ClientRecord = { id: string; realmId: string; clientId: string; name: string; enabled: boolean; type: 'public' | 'confidential'; secretHash: string | null; createdAt: Date }`
-- Produces: `clientRepository(tx: RealmScopedDatabase)` with `byClientId(clientId: string): Promise<ClientRecord | null>`
+- Produces: `ClientRecord = { id: string; tenantId: string; clientId: string; name: string; enabled: boolean; type: 'public' | 'confidential'; secretHash: string | null; createdAt: Date }`
+- Produces: `clientRepository(tx: TenantScopedDatabase)` with `byClientId(clientId: string): Promise<ClientRecord | null>`
 - Produces: `verifyClientSecret(client, presented, compare): Promise<boolean>`
 
 - [ ] **Step 1: Write the migration**
@@ -1522,15 +1522,15 @@ A client here is protocol-agnostic. Redirect URIs and grant types are OAuth voca
 ```sql
 CREATE TABLE clients (
   id          uuid PRIMARY KEY,
-  realm_id    uuid NOT NULL REFERENCES realms(id) ON DELETE CASCADE,
+  tenant_id    uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
   client_id   text NOT NULL,
   name        text NOT NULL,
   enabled     boolean NOT NULL DEFAULT true,
   type        text NOT NULL,
   secret_hash text,
   created_at  timestamptz NOT NULL DEFAULT now(),
-  CONSTRAINT clients_client_id_unique UNIQUE (realm_id, client_id),
-  CONSTRAINT clients_realm_id_unique UNIQUE (realm_id, id),
+  CONSTRAINT clients_client_id_unique UNIQUE (tenant_id, client_id),
+  CONSTRAINT clients_tenant_id_unique UNIQUE (tenant_id, id),
   CONSTRAINT clients_type_check CHECK (type IN ('public', 'confidential')),
   CONSTRAINT clients_secret_matches_type CHECK (
     (type = 'confidential' AND secret_hash IS NOT NULL) OR
@@ -1542,16 +1542,16 @@ ALTER TABLE clients ENABLE ROW LEVEL SECURITY;
 ALTER TABLE clients FORCE ROW LEVEL SECURITY;
 
 CREATE POLICY clients_isolation ON clients
-  USING (realm_id = nullif(current_setting('app.realm_id', true), '')::uuid);
+  USING (tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid);
 ```
 
 `clients_secret_matches_type` is the rule "a public client has no secret" written where it cannot be violated. Without it, a public client row carrying a secret is representable and every consumer has to defend against it.
 
-`clients_realm_id_unique` exists so that Task 11's `client_oidc_config` can carry a composite foreign key on `(realm_id, client_id)` — the same denormalization guard used on `users`.
+`clients_tenant_id_unique` exists so that Task 11's `client_oidc_config` can carry a composite foreign key on `(tenant_id, client_id)` — the same denormalization guard used on `users`.
 
 - [ ] **Step 2: Write the failing service test**
 
-`packages/domain-realm/src/service/client.test.ts`:
+`packages/domain-tenant/src/service/client.test.ts`:
 
 ```ts
 import { describe, expect, it } from 'vitest';
@@ -1561,7 +1561,7 @@ const compare = async (hash: string, secret: string) => hash === `hashed:${secre
 
 const confidential = {
   id: 'c',
-  realmId: 'r',
+  tenantId: 'r',
   clientId: 'web-app',
   name: 'Web',
   enabled: true,
@@ -1602,18 +1602,18 @@ describe('[RFC6749-2.3.1-01] client secret verification', () => {
 
 - [ ] **Step 3: Run it and watch it fail**
 
-Run: `npx vitest run packages/domain-realm/src/service/client.test.ts`
+Run: `npx vitest run packages/domain-tenant/src/service/client.test.ts`
 
 Expected: FAIL with `Cannot find module '#/service/client'`.
 
 - [ ] **Step 4: Implement**
 
-`packages/domain-realm/src/service/client.ts`:
+`packages/domain-tenant/src/service/client.ts`:
 
 ```ts
 import { type ClientRecord } from '#/schema/clients';
 
-// The comparison function is injected rather than imported: domain-realm must
+// The comparison function is injected rather than imported: domain-tenant must
 // not depend on domain-identity, and Task 9's Argon2id verifier is what the
 // server passes in.
 export async function verifyClientSecret(
@@ -1632,7 +1632,7 @@ Run the test again: PASS, 6 tests.
 
 - [ ] **Step 5: Write the integration test**
 
-`packages/domain-realm/tests/clients.int.test.ts` covers `byClientId` finding and not finding a client, the unique constraint on `(realm_id, client_id)`, the check constraint rejecting a public client with a secret, and the realm probe:
+`packages/domain-tenant/tests/clients.int.test.ts` covers `byClientId` finding and not finding a client, the unique constraint on `(tenant_id, client_id)`, the check constraint rejecting a public client with a secret, and the tenant probe:
 
 ```ts
 it('rejects a public client carrying a secret', async () => {
@@ -1641,17 +1641,17 @@ it('rejects a public client carrying a secret', async () => {
   );
 });
 
-it('isolates clients by realm', async () => {
-  await expectRealmIsolation(handle.db, {
+it('isolates clients by tenant', async () => {
+  await expectTenantIsolation(handle.db, {
     table: 'clients',
-    seed: async (tx, realmId) => {
-      await seedRealmAndClient(tx, realmId);
+    seed: async (tx, tenantId) => {
+      await seedTenantAndClient(tx, tenantId);
     },
   });
 });
 ```
 
-Run: `npx vitest run --project integration packages/domain-realm` — expect FAIL, implement the repository, expect PASS.
+Run: `npx vitest run --project integration packages/domain-tenant` — expect FAIL, implement the repository, expect PASS.
 
 - [ ] **Step 6: Verify and commit**
 
@@ -1660,7 +1660,7 @@ pnpm verify
 ```
 
 ```bash
-git add packages/domain-realm packages/db
+git add packages/domain-tenant packages/db
 git commit -m "Add protocol-agnostic client records"
 ```
 
@@ -1690,7 +1690,7 @@ not representable rather than merely unexpected.
 **Interfaces:**
 
 - Produces: `hashPassword(plain: string): Promise<string>` and `verifyPassword(stored: string, plain: string): Promise<boolean>`
-- Produces: `SubjectRecord = { id: string; realmId: string; type: 'user' | 'service' | 'agent_instance'; disabledAt: Date | null }`
+- Produces: `SubjectRecord = { id: string; tenantId: string; type: 'user' | 'service' | 'agent_instance'; disabledAt: Date | null }`
 - Produces: `userRepository(tx)` with `byUsername(username: string): Promise<{ subject: SubjectRecord; user: UserRecord } | null>`
 - Produces: `credentialRepository(tx)` with `passwordFor(subjectId: string): Promise<string | null>`
 
@@ -1799,75 +1799,75 @@ Run the test again: PASS, 5 tests.
 ```sql
 CREATE TABLE subjects (
   id          uuid PRIMARY KEY,
-  realm_id    uuid NOT NULL REFERENCES realms(id) ON DELETE CASCADE,
+  tenant_id    uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
   type        text NOT NULL,
   disabled_at timestamptz,
   created_at  timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT subjects_type_check CHECK (type IN ('user', 'service', 'agent_instance')),
-  CONSTRAINT subjects_realm_id_unique UNIQUE (realm_id, id)
+  CONSTRAINT subjects_tenant_id_unique UNIQUE (tenant_id, id)
 );
 
 CREATE TABLE users (
   subject_id     uuid PRIMARY KEY REFERENCES subjects(id) ON DELETE CASCADE,
-  realm_id       uuid NOT NULL,
+  tenant_id       uuid NOT NULL,
   username       text NOT NULL,
   email          text,
   email_verified boolean NOT NULL DEFAULT false,
-  CONSTRAINT users_username_unique UNIQUE (realm_id, username),
-  CONSTRAINT users_subject_realm_fk FOREIGN KEY (realm_id, subject_id)
-    REFERENCES subjects(realm_id, id) ON DELETE CASCADE
+  CONSTRAINT users_username_unique UNIQUE (tenant_id, username),
+  CONSTRAINT users_subject_tenant_fk FOREIGN KEY (tenant_id, subject_id)
+    REFERENCES subjects(tenant_id, id) ON DELETE CASCADE
 );
 
 CREATE TABLE user_credentials (
   id          uuid PRIMARY KEY,
-  realm_id    uuid NOT NULL,
+  tenant_id    uuid NOT NULL,
   subject_id  uuid NOT NULL,
   type        text NOT NULL,
   secret_data text NOT NULL,
   created_at  timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT user_credentials_type_check CHECK (type IN ('password')),
   CONSTRAINT user_credentials_one_password UNIQUE (subject_id, type),
-  CONSTRAINT user_credentials_subject_realm_fk FOREIGN KEY (realm_id, subject_id)
-    REFERENCES subjects(realm_id, id) ON DELETE CASCADE
+  CONSTRAINT user_credentials_subject_tenant_fk FOREIGN KEY (tenant_id, subject_id)
+    REFERENCES subjects(tenant_id, id) ON DELETE CASCADE
 );
 
 -- The covering index the umbrella spec section 5 calls for: class-table
 -- inheritance puts this join in the hot path of every token issuance.
-CREATE INDEX users_lookup ON users (realm_id, username) INCLUDE (subject_id, email, email_verified);
+CREATE INDEX users_lookup ON users (tenant_id, username) INCLUDE (subject_id, email, email_verified);
 
 ALTER TABLE subjects ENABLE ROW LEVEL SECURITY;
 ALTER TABLE subjects FORCE ROW LEVEL SECURITY;
 CREATE POLICY subjects_isolation ON subjects
-  USING (realm_id = nullif(current_setting('app.realm_id', true), '')::uuid);
+  USING (tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid);
 
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE users FORCE ROW LEVEL SECURITY;
 CREATE POLICY users_isolation ON users
-  USING (realm_id = nullif(current_setting('app.realm_id', true), '')::uuid);
+  USING (tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid);
 
 ALTER TABLE user_credentials ENABLE ROW LEVEL SECURITY;
 ALTER TABLE user_credentials FORCE ROW LEVEL SECURITY;
 CREATE POLICY user_credentials_isolation ON user_credentials
-  USING (realm_id = nullif(current_setting('app.realm_id', true), '')::uuid);
+  USING (tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid);
 ```
 
-`users.realm_id` and `user_credentials.realm_id` are denormalized so each policy predicate needs no join, and the composite foreign key back to `subjects(realm_id, id)` is what stops the two ever disagreeing. The same pattern repeats on every child table in this phase.
+`users.tenant_id` and `user_credentials.tenant_id` are denormalized so each policy predicate needs no join, and the composite foreign key back to `subjects(tenant_id, id)` is what stops the two ever disagreeing. The same pattern repeats on every child table in this phase.
 
 `user_credentials.type` is checked against a one-member list today; P2 widens it to include `totp` and `passkey`. That is an `ALTER ... DROP CONSTRAINT` / `ADD CONSTRAINT` pair in a P2 migration, not a change here.
 
 - [ ] **Step 6: Write the integration tests**
 
-`packages/domain-identity/tests/identity.int.test.ts` covers `byUsername`, the composite-key guard, and one realm probe per table:
+`packages/domain-identity/tests/identity.int.test.ts` covers `byUsername`, the composite-key guard, and one tenant probe per table:
 
 ```ts
-it('refuses a user whose realm differs from its subject', async () => {
-  await expect(insertUser({ subjectRealm: realmA, userRealm: realmB })).rejects.toThrow(
-    /users_subject_realm_fk/,
+it('refuses a user whose tenant differs from its subject', async () => {
+  await expect(insertUser({ subjectTenant: tenantA, userTenant: tenantB })).rejects.toThrow(
+    /users_subject_tenant_fk/,
   );
 });
 
-it.each(['subjects', 'users', 'user_credentials'])('isolates %s by realm', async (table) => {
-  await expectRealmIsolation(handle.db, { table, seed: seedFor(table) });
+it.each(['subjects', 'users', 'user_credentials'])('isolates %s by tenant', async (table) => {
+  await expectTenantIsolation(handle.db, { table, seed: seedFor(table) });
 });
 ```
 
@@ -1917,19 +1917,19 @@ inside the built container image rather than on the host.
 **Interfaces:**
 
 - Produces: `PendingRequest = { clientId: string; redirectUri: string; scope: string; state: string | null; nonce: string | null; codeChallenge: string; codeChallengeMethod: 'S256' }`
-- Produces: `startAuthentication(tx, realmId, request: PendingRequest): Promise<{ authSessionId: string }>`
+- Produces: `startAuthentication(tx, tenantId, request: PendingRequest): Promise<{ authSessionId: string }>`
 - Produces: `loadPendingRequest(tx, authSessionId): Promise<PendingRequest | null>`
 - Produces: `AuthenticatorResult = { kind: 'success'; subjectId: string } | { kind: 'challenge'; form: 'password' } | { kind: 'failure'; reason: string }`
 - Produces: `advance(tx, authSessionId, input: { username?: string; password?: string }): Promise<AuthenticatorResult>`
-- Produces: `establishSession(tx, realmId, subjectId): Promise<{ sessionId: string }>` — always a fresh id
-- Produces: `sessionCookieName(realm: string, tls: boolean): string`
+- Produces: `establishSession(tx, tenantId, subjectId): Promise<{ sessionId: string }>` — always a fresh id
+- Produces: `sessionCookieName(tenant: string, tls: boolean): string`
 
 - [ ] **Step 1: Decide the cookie name, and record why**
 
 `__Host-` requires `Secure`, therefore HTTPS. The compose stack serves plain HTTP today. Pick one and write the reasoning as a comment in `packages/authn-flows/src/index.ts`:
 
-- **(a)** Always `__Host-<realm>-session`, and serve HTTPS locally from this task onward.
-- **(b)** `__Host-<realm>-session` when TLS is on, otherwise `<realm>-session` with `Secure` off, plus a boot-time warning whenever the fallback is active.
+- **(a)** Always `__Host-<tenant>-session`, and serve HTTPS locally from this task onward.
+- **(b)** `__Host-<tenant>-session` when TLS is on, otherwise `<tenant>-session` with `Secure` off, plus a boot-time warning whenever the fallback is active.
 
 Recommended: **(b)**. It keeps the production shape correct, keeps local development frictionless, and makes the weaker mode noisy rather than silent. Whichever is chosen, Task 19 confirms it against the conformance suite.
 
@@ -1954,18 +1954,18 @@ describe('session cookie naming', () => {
 ```ts
 describe('[OIDC-CORE-3.1.2.1-02] the request is parked server-side, not carried by the browser', () => {
   it('returns an opaque id that does not contain the request', async () => {
-    const { authSessionId } = await startAuthentication(tx, realmId, request);
+    const { authSessionId } = await startAuthentication(tx, tenantId, request);
     expect(authSessionId).not.toContain(request.redirectUri);
     expect(authSessionId).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
   });
 
   it('reads the parked request back unchanged', async () => {
-    const { authSessionId } = await startAuthentication(tx, realmId, request);
+    const { authSessionId } = await startAuthentication(tx, tenantId, request);
     expect(await loadPendingRequest(tx, authSessionId)).toEqual(request);
   });
 
   it('refuses an expired authentication session', async () => {
-    const { authSessionId } = await startAuthentication(tx, realmId, request);
+    const { authSessionId } = await startAuthentication(tx, tenantId, request);
     clock.advance(31 * 60_000);
     await expect(
       advance(tx, authSessionId, { username: 'ada', password: 'x' }),
@@ -1975,14 +1975,14 @@ describe('[OIDC-CORE-3.1.2.1-02] the request is parked server-side, not carried 
 
 describe('[OIDC-CORE-3.1.2.1-03] session fixation', () => {
   it('issues a session id that differs from the pre-authentication one', async () => {
-    const { authSessionId } = await startAuthentication(tx, realmId, request);
-    const { sessionId } = await establishSession(tx, realmId, subjectId);
+    const { authSessionId } = await startAuthentication(tx, tenantId, request);
+    const { sessionId } = await establishSession(tx, tenantId, subjectId);
     expect(sessionId).not.toEqual(authSessionId);
   });
 
   it('issues a different session id on every establishment', async () => {
-    const first = await establishSession(tx, realmId, subjectId);
-    const second = await establishSession(tx, realmId, subjectId);
+    const first = await establishSession(tx, tenantId, subjectId);
+    const second = await establishSession(tx, tenantId, subjectId);
     expect(first.sessionId).not.toEqual(second.sessionId);
   });
 });
@@ -2019,11 +2019,11 @@ const DUMMY_HASH = await hashPassword('odudu-dummy-verification-target');
 
 - [ ] **Step 5: Write the migration**
 
-`packages/db/drizzle/0006_sessions.sql` creates `authentication_sessions` and `sessions`, both realm-scoped with `ENABLE`/`FORCE ROW LEVEL SECURITY` and an isolation policy each. `authentication_sessions.pending_request` is `jsonb`; both tables carry `expires_at`. `sessions.subject_id` uses the composite foreign key pattern from Task 9.
+`packages/db/drizzle/0006_sessions.sql` creates `authentication_sessions` and `sessions`, both tenant-scoped with `ENABLE`/`FORCE ROW LEVEL SECURITY` and an isolation policy each. `authentication_sessions.pending_request` is `jsonb`; both tables carry `expires_at`. `sessions.subject_id` uses the composite foreign key pattern from Task 9.
 
-- [ ] **Step 6: Integration tests and realm probes**
+- [ ] **Step 6: Integration tests and tenant probes**
 
-One `expectRealmIsolation` call per new table, plus a test that a session cannot be resumed from another realm's context. Re-run the Task 5 guard.
+One `expectTenantIsolation` call per new table, plus a test that a session cannot be resumed from another tenant's context. Re-run the Task 5 guard.
 
 - [ ] **Step 7: Verify and commit**
 
@@ -2068,7 +2068,7 @@ The first routes. The Config OP conformance plan is essentially this task.
 
 - Produces: `discoveryDocument(opts: { issuer: string }): DiscoveryDocument`
 - Produces: `oidcRoutes(deps): FastifyPluginAsync` — the plugin `apps/server` registers
-- Produces: `ClientOidcConfig = { clientId: string; realmId: string; redirectUris: string[]; grantTypes: string[]; tokenEndpointAuthMethod: 'client_secret_basic' | 'client_secret_post' | 'none'; audiences: string[]; accessTokenTtlSeconds: number; refreshTokenTtlSeconds: number }`
+- Produces: `ClientOidcConfig = { clientId: string; tenantId: string; redirectUris: string[]; grantTypes: string[]; tokenEndpointAuthMethod: 'client_secret_basic' | 'client_secret_post' | 'none'; audiences: string[]; accessTokenTtlSeconds: number; refreshTokenTtlSeconds: number }`
 
 - [ ] **Step 1: Write the failing discovery test**
 
@@ -2097,7 +2097,7 @@ describe('[OIDC-DISCOVERY-3-01] the discovery document', () => {
   });
 
   it('names the issuer with no trailing slash', () => {
-    expect(doc.issuer).toBe('https://idp.example/realms/acme');
+    expect(doc.issuer).toBe('https://idp.example/tenants/acme');
   });
 
   it('places every advertised endpoint under the issuer', () => {
@@ -2112,16 +2112,16 @@ describe('[OIDC-DISCOVERY-3-01] the discovery document', () => {
   });
 });
 
-describe('[OIDC-DISCOVERY-3-02] unknown and disabled realms are indistinguishable', () => {
-  it.each(['no-such-realm', 'disabled-realm'])('returns 404 for %s', async (realm) => {
-    const res = await app.inject({ url: `/realms/${realm}/.well-known/openid-configuration` });
+describe('[OIDC-DISCOVERY-3-02] unknown and disabled tenants are indistinguishable', () => {
+  it.each(['no-such-tenant', 'disabled-tenant'])('returns 404 for %s', async (tenant) => {
+    const res = await app.inject({ url: `/tenants/${tenant}/.well-known/openid-configuration` });
     expect(res.statusCode).toBe(404);
   });
 });
 
 describe('[RFC7517-4-02] the published key set carries no private material', () => {
   it('never emits a d member', async () => {
-    const res = await app.inject({ url: '/realms/acme/protocol/openid-connect/certs' });
+    const res = await app.inject({ url: '/tenants/acme/protocol/openid-connect/certs' });
     for (const key of res.json().keys) {
       for (const member of ['d', 'p', 'q', 'dp', 'dq', 'qi', 'k']) {
         expect(key).not.toHaveProperty(member);
@@ -2149,20 +2149,20 @@ Run the tests again: PASS.
 
 - [ ] **Step 5: Write the `client_oidc_config` migration**
 
-`packages/db/drizzle/0007_client_oidc_config.sql`, following the same realm-scoped pattern:
+`packages/db/drizzle/0007_client_oidc_config.sql`, following the same tenant-scoped pattern:
 
 ```sql
 CREATE TABLE client_oidc_config (
   client_id                  uuid PRIMARY KEY,
-  realm_id                   uuid NOT NULL,
+  tenant_id                   uuid NOT NULL,
   redirect_uris              text[] NOT NULL,
   grant_types                text[] NOT NULL,
   token_endpoint_auth_method text NOT NULL,
   audiences                  text[] NOT NULL DEFAULT '{}',
   access_token_ttl_seconds   integer NOT NULL DEFAULT 300,
   refresh_token_ttl_seconds  integer NOT NULL DEFAULT 1209600,
-  CONSTRAINT client_oidc_config_client_fk FOREIGN KEY (realm_id, client_id)
-    REFERENCES clients(realm_id, id) ON DELETE CASCADE,
+  CONSTRAINT client_oidc_config_client_fk FOREIGN KEY (tenant_id, client_id)
+    REFERENCES clients(tenant_id, id) ON DELETE CASCADE,
   CONSTRAINT client_oidc_config_auth_method_check
     CHECK (token_endpoint_auth_method IN ('client_secret_basic', 'client_secret_post', 'none')),
   CONSTRAINT client_oidc_config_grant_types_check
@@ -2174,7 +2174,7 @@ CREATE TABLE client_oidc_config (
 ALTER TABLE client_oidc_config ENABLE ROW LEVEL SECURITY;
 ALTER TABLE client_oidc_config FORCE ROW LEVEL SECURITY;
 CREATE POLICY client_oidc_config_isolation ON client_oidc_config
-  USING (realm_id = nullif(current_setting('app.realm_id', true), '')::uuid);
+  USING (tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid);
 ```
 
 The last constraint encodes "every client that can be redirected to has somewhere to be redirected to" — a `client_credentials`-only client legitimately has none.
@@ -2203,7 +2203,7 @@ The document advertises only what P1 implements: code alone, S256 alone, and
 the three grant types. A client that reads discovery and trusts it cannot ask
 this server for a weak flow.
 
-An unknown realm and a disabled one both return 404, so discovery is not a
+An unknown tenant and a disabled one both return 404, so discovery is not a
 tenant-enumeration oracle.
 ```
 
@@ -2402,7 +2402,7 @@ the 302 that carries it home. Without it nothing ever produces a `code`, and
 
 **The endpoint path**
 
-`POST /realms/{realm}/login-actions/authenticate`
+`POST /tenants/{tenant}/login-actions/authenticate`
 
 Deliberately **not** under `/protocol/openid-connect/`. That namespace is the
 OIDC wire protocol, and this is our own login UI, which no specification
@@ -2416,7 +2416,7 @@ this in a comment so nobody "tidies" it into the protocol namespace later.
 ```sql
 CREATE TABLE authorization_codes (
   code_hash             text PRIMARY KEY,
-  realm_id              uuid NOT NULL REFERENCES realms(id) ON DELETE CASCADE,
+  tenant_id              uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
   client_id             uuid NOT NULL,
   subject_id            uuid NOT NULL,
   redirect_uri          text NOT NULL,
@@ -2429,17 +2429,17 @@ CREATE TABLE authorization_codes (
   consumed_at           timestamptz,
   grant_id              uuid,
   CONSTRAINT authorization_codes_method_check CHECK (code_challenge_method = 'S256'),
-  CONSTRAINT authorization_codes_client_fk FOREIGN KEY (realm_id, client_id)
-    REFERENCES clients(realm_id, id) ON DELETE CASCADE,
-  CONSTRAINT authorization_codes_subject_fk FOREIGN KEY (realm_id, subject_id)
-    REFERENCES subjects(realm_id, id) ON DELETE CASCADE
+  CONSTRAINT authorization_codes_client_fk FOREIGN KEY (tenant_id, client_id)
+    REFERENCES clients(tenant_id, id) ON DELETE CASCADE,
+  CONSTRAINT authorization_codes_subject_fk FOREIGN KEY (tenant_id, subject_id)
+    REFERENCES subjects(tenant_id, id) ON DELETE CASCADE
 );
 
 ALTER TABLE authorization_codes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE authorization_codes FORCE ROW LEVEL SECURITY;
 
 CREATE POLICY authorization_codes_isolation ON authorization_codes
-  USING (realm_id = nullif(current_setting('app.realm_id', true), '')::uuid);
+  USING (tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid);
 ```
 
 The primary key is the **hash**. The raw code is never stored, so a backup, a
@@ -2502,7 +2502,9 @@ describe('[OIDC-CORE-3.1.2.5-01] a successful login produces a code and a redire
   });
 
   it('[RFC9207-2-01] the iss parameter equals the discovery issuer exactly', async () => {
-    const doc = (await app.inject({ url: `/realms/acme/.well-known/openid-configuration` })).json();
+    const doc = (
+      await app.inject({ url: `/tenants/acme/.well-known/openid-configuration` })
+    ).json();
     const location = new URL((await submitLogin(GOOD)).headers.location as string);
     expect(location.searchParams.get('iss')).toBe(doc.issuer);
   });
@@ -2591,9 +2593,9 @@ The handler, in order:
 top-level redirect from the client, and `Strict` would drop the session cookie
 on that navigation, breaking single sign-on.
 
-- [ ] **Step 6: Add the realm probe and mark the clause rows**
+- [ ] **Step 6: Add the tenant probe and mark the clause rows**
 
-Add one `expectRealmIsolation` call for `authorization_codes`, imported from
+Add one `expectTenantIsolation` call for `authorization_codes`, imported from
 `@odudu/db/testing`. Then mark the rows this task covers in
 `docs/protocols/rfc6749.md`, `oidc-core.md` and `rfc9207.md` with the test IDs
 your tests carry, and confirm `pnpm trace`'s covered count rises by exactly
@@ -2785,27 +2787,27 @@ All four terms are written now even though two are inert in P1. P5's attenuation
 ```sql
 CREATE TABLE token_grants (
   id         uuid PRIMARY KEY,
-  realm_id   uuid NOT NULL REFERENCES realms(id) ON DELETE CASCADE,
+  tenant_id   uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
   client_id  uuid NOT NULL,
   subject_id uuid NOT NULL,
   scope      text NOT NULL,
   audience   text[] NOT NULL DEFAULT '{}',
   created_at timestamptz NOT NULL DEFAULT now(),
   revoked_at timestamptz,
-  CONSTRAINT token_grants_realm_id_unique UNIQUE (realm_id, id),
-  CONSTRAINT token_grants_client_fk FOREIGN KEY (realm_id, client_id)
-    REFERENCES clients(realm_id, id) ON DELETE CASCADE,
-  CONSTRAINT token_grants_subject_fk FOREIGN KEY (realm_id, subject_id)
-    REFERENCES subjects(realm_id, id) ON DELETE CASCADE
+  CONSTRAINT token_grants_tenant_id_unique UNIQUE (tenant_id, id),
+  CONSTRAINT token_grants_client_fk FOREIGN KEY (tenant_id, client_id)
+    REFERENCES clients(tenant_id, id) ON DELETE CASCADE,
+  CONSTRAINT token_grants_subject_fk FOREIGN KEY (tenant_id, subject_id)
+    REFERENCES subjects(tenant_id, id) ON DELETE CASCADE
 );
 
 ALTER TABLE token_grants ENABLE ROW LEVEL SECURITY;
 ALTER TABLE token_grants FORCE ROW LEVEL SECURITY;
 CREATE POLICY token_grants_isolation ON token_grants
-  USING (realm_id = nullif(current_setting('app.realm_id', true), '')::uuid);
+  USING (tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid);
 ```
 
-`authorization_codes` is created by the preceding task, which issues the codes; this migration adds only the grant table they are redeemed into. `token_grants_realm_id_unique` exists so the refresh-token table can carry a composite foreign key on `(realm_id, grant_id)`.
+`authorization_codes` is created by the preceding task, which issues the codes; this migration adds only the grant table they are redeemed into. `token_grants_tenant_id_unique` exists so the refresh-token table can carry a composite foreign key on `(tenant_id, grant_id)`.
 
 - [ ] **Step 7: Write the failing atomic-consumption test**
 
@@ -2814,8 +2816,8 @@ This one needs the real database — it is the reason the project's non-negotiab
 ```ts
 it('[RFC6749-4.1.2-01] only one of two concurrent redemptions succeeds', async () => {
   const results = await Promise.allSettled([
-    withRealm(handle.db, realmId, async (tx) => consumeAuthorizationCode(tx, codeHash)),
-    withRealm(handle.db, realmId, async (tx) => consumeAuthorizationCode(tx, codeHash)),
+    withTenant(handle.db, tenantId, async (tx) => consumeAuthorizationCode(tx, codeHash)),
+    withTenant(handle.db, tenantId, async (tx) => consumeAuthorizationCode(tx, codeHash)),
   ]);
 
   const consumed = results.filter((r) => r.status === 'fulfilled' && r.value !== null);
@@ -2830,7 +2832,7 @@ it('[RFC6749-4.1.2-01] only one of two concurrent redemptions succeeds', async (
 // loser gets zero rows. Two statements here is a race that a mocked database
 // would never show.
 export async function consumeAuthorizationCode(
-  tx: RealmScopedDatabase,
+  tx: TenantScopedDatabase,
   codeHash: string,
 ): Promise<AuthorizationCodeRecord | null> {
   const rows = await tx.execute(sql`
@@ -3012,22 +3014,22 @@ own implementation.
 ```sql
 CREATE TABLE refresh_tokens (
   token_hash  text PRIMARY KEY,
-  realm_id    uuid NOT NULL REFERENCES realms(id) ON DELETE CASCADE,
+  tenant_id    uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
   grant_id    uuid NOT NULL,
   issued_at   timestamptz NOT NULL DEFAULT now(),
   expires_at  timestamptz NOT NULL,
   used_at     timestamptz,
   replaced_by text,
-  CONSTRAINT refresh_tokens_grant_fk FOREIGN KEY (realm_id, grant_id)
-    REFERENCES token_grants(realm_id, id) ON DELETE CASCADE
+  CONSTRAINT refresh_tokens_grant_fk FOREIGN KEY (tenant_id, grant_id)
+    REFERENCES token_grants(tenant_id, id) ON DELETE CASCADE
 );
 
-CREATE INDEX refresh_tokens_by_grant ON refresh_tokens (realm_id, grant_id);
+CREATE INDEX refresh_tokens_by_grant ON refresh_tokens (tenant_id, grant_id);
 
 ALTER TABLE refresh_tokens ENABLE ROW LEVEL SECURITY;
 ALTER TABLE refresh_tokens FORCE ROW LEVEL SECURITY;
 CREATE POLICY refresh_tokens_isolation ON refresh_tokens
-  USING (realm_id = nullif(current_setting('app.realm_id', true), '')::uuid);
+  USING (tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid);
 ```
 
 The family is the grant: `refresh_tokens_by_grant` is what makes revoking it one statement.
@@ -3122,9 +3124,9 @@ describe('[RFC6749-4.4-01] client credentials grant', () => {
 
 These are exit criterion 5 — the OIDF Basic OP plan does not exercise this grant, so this file is its only external proof.
 
-- [ ] **Step 5: Run, fail, implement, run; then the realm probe**
+- [ ] **Step 5: Run, fail, implement, run; then the tenant probe**
 
-Add `expectRealmIsolation` for `refresh_tokens` and `token_grants`, and re-run the Task 5 guard.
+Add `expectTenantIsolation` for `refresh_tokens` and `token_grants`, and re-run the Task 5 guard.
 
 - [ ] **Step 6: Trace, verify, commit**
 
@@ -3241,8 +3243,8 @@ describe('[RFC6750-3.1-01] bearer token validation', () => {
     expect(body).not.toHaveProperty('email');
   });
 
-  it('refuses a token minted by another realm', async () => {
-    expect((await userinfo(otherRealmToken)).statusCode).toBe(401);
+  it('refuses a token minted by another tenant', async () => {
+    expect((await userinfo(otherTenantToken)).statusCode).toBe(401);
   });
 });
 ```
@@ -3285,22 +3287,22 @@ strings end up in history, Referer headers and access logs.
 
 **Interfaces:**
 
-- Produces: `seed(opts: SeedOptions): Promise<SeedResult>` where `SeedOptions = { realm: string; clientId: string; clientSecret?: string; redirectUris: string[]; username?: string; password?: string }`
+- Produces: `seed(opts: SeedOptions): Promise<SeedResult>` where `SeedOptions = { tenant: string; clientId: string; clientSecret?: string; redirectUris: string[]; username?: string; password?: string }`
 
 - [ ] **Step 1: Write the failing test**
 
 ```ts
 describe('seed', () => {
-  it('creates a realm, a client, a user and a signing key', async () => {
+  it('creates a tenant, a client, a user and a signing key', async () => {
     const result = await seed({
-      realm: 'acme',
+      tenant: 'acme',
       clientId: 'web-app',
       clientSecret: 's3cret',
       redirectUris: ['https://app.example/callback'],
       username: 'ada',
       password: 'pw',
     });
-    expect(result).toMatchObject({ realm: 'acme', clientId: 'web-app' });
+    expect(result).toMatchObject({ tenant: 'acme', clientId: 'web-app' });
     expect(await countRows('signing_keys')).toBe(1);
   });
 
@@ -3342,7 +3344,7 @@ Full message body:
 
 ```
 Clients arrived in P1 but the admin API is P4, so something has to create the
-first realm, client and user. This runs through the repository layer rather
+first tenant, client and user. This runs through the repository layer rather
 than raw SQL, so it exercises the same code paths a real caller would.
 
 It is idempotent: smoke.sh and CI both run it more than once.
@@ -3354,10 +3356,10 @@ It is idempotent: smoke.sh and CI both run it more than once.
 
 **Files:**
 
-- Create: `packages/protocol-oidc/tests/cross-realm.adversarial.int.test.ts`
+- Create: `packages/protocol-oidc/tests/cross-tenant.adversarial.int.test.ts`
 - Modify: `infra/docker/smoke.sh`, `docs/protocols/*` (audience confusion rows)
 
-- [ ] **Step 1: Write the cross-realm and audience-confusion tests**
+- [ ] **Step 1: Write the cross-tenant and audience-confusion tests**
 
 The two corpus entries with no home in an earlier task:
 
@@ -3373,19 +3375,19 @@ describe('[RFC9068-3-01] audience confusion between clients', () => {
   });
 });
 
-describe('[OIDC-CORE-16.1-01] cross-realm leakage', () => {
-  it('cannot redeem realm A code at realm B token endpoint', async () => {
-    expect((await redeemAt('realm-b', realmACode)).statusCode).toBe(400);
+describe('[OIDC-CORE-16.1-01] cross-tenant leakage', () => {
+  it('cannot redeem tenant A code at tenant B token endpoint', async () => {
+    expect((await redeemAt('tenant-b', tenantACode)).statusCode).toBe(400);
   });
 
-  it('cannot use a realm A session to authorize in realm B', async () => {
-    const res = await authorizeWithCookie('realm-b', realmASessionCookie);
+  it('cannot use a tenant A session to authorize in tenant B', async () => {
+    const res = await authorizeWithCookie('tenant-b', tenantASessionCookie);
     expect(res.statusCode).toBe(200);
     expect(res.body).toContain('password'); // challenged, not signed in
   });
 
-  it('cannot refresh a realm A token at realm B', async () => {
-    expect((await refreshAt('realm-b', realmARefreshToken)).statusCode).toBe(400);
+  it('cannot refresh a tenant A token at tenant B', async () => {
+    expect((await refreshAt('tenant-b', tenantARefreshToken)).statusCode).toBe(400);
   });
 });
 ```
@@ -3402,7 +3404,7 @@ P0's lesson: a smoke test that only probes `/health/ready` cannot tell working f
 set -o pipefail
 
 docker compose -f "$COMPOSE_FILE" exec -T odudu node dist/main.js seed \
-  --realm smoke --client smoke-app --client-secret smoke-secret \
+  --tenant smoke --client smoke-app --client-secret smoke-secret \
   --redirect-uri http://localhost:3000/cb --user smoke --password smoke-password
 
 VERIFIER=$(openssl rand -hex 32)
@@ -3412,7 +3414,7 @@ CHALLENGE=$(printf %s "$VERIFIER" | openssl dgst -binary -sha256 | openssl base6
 # would have rendered, then read the code out of the Location header.
 CODE=$(curl -sS -f -c /tmp/smoke-jar -b /tmp/smoke-jar -o /dev/null -w '%{redirect_url}' \
   -d username=smoke -d password=smoke-password \
-  "http://localhost:3000/realms/smoke/protocol/openid-connect/auth?response_type=code&client_id=smoke-app&redirect_uri=http://localhost:3000/cb&scope=openid&state=s&code_challenge=$CHALLENGE&code_challenge_method=S256" \
+  "http://localhost:3000/tenants/smoke/protocol/openid-connect/auth?response_type=code&client_id=smoke-app&redirect_uri=http://localhost:3000/cb&scope=openid&state=s&code_challenge=$CHALLENGE&code_challenge_method=S256" \
   | sed -n 's/.*[?&]code=\([^&]*\).*/\1/p')
 
 test -n "$CODE" || { echo "smoke: no authorization code issued"; exit 1; }
@@ -3420,7 +3422,7 @@ test -n "$CODE" || { echo "smoke: no authorization code issued"; exit 1; }
 ACCESS=$(curl -sS -f -u smoke-app:smoke-secret \
   -d grant_type=authorization_code -d "code=$CODE" \
   -d redirect_uri=http://localhost:3000/cb -d "code_verifier=$VERIFIER" \
-  http://localhost:3000/realms/smoke/protocol/openid-connect/token \
+  http://localhost:3000/tenants/smoke/protocol/openid-connect/token \
   | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')
 
 test -n "$ACCESS" || { echo "smoke: no access token issued"; exit 1; }
@@ -3485,7 +3487,7 @@ Pin whatever release tag is current — record the exact tag used, as `verified:
 
 Then answer the two questions and record both answers in `infra/conformance/README.md`:
 
-1. Does a Config OP plan accept `issuer: http://localhost:3000/realms/smoke`, or does it demand HTTPS?
+1. Does a Config OP plan accept `issuer: http://localhost:3000/tenants/smoke`, or does it demand HTTPS?
 2. If HTTPS is demanded, what is the cheapest route — a self-signed certificate in the compose stack, or a reverse proxy in front of it?
 
 If TLS is required, implement it here and revisit Task 10's cookie decision so the `__Host-` prefix is used in the conformance run.
@@ -3496,7 +3498,7 @@ Find out whether a plan can be created and run through the suite's HTTP API with
 
 - [ ] **Step 3: Run Basic OP and commit the export**
 
-Seed a realm, run the plan, export the results JSON, and commit it under `infra/conformance/results/` with the date and the suite version in the filename. Any test the plan fails is a bug to fix before this task closes — not a note in the README.
+Seed a tenant, run the plan, export the results JSON, and commit it under `infra/conformance/results/` with the date and the suite version in the filename. Any test the plan fails is a bug to fix before this task closes — not a note in the README.
 
 - [ ] **Step 4: Wire Config OP into CI**
 
@@ -3548,7 +3550,7 @@ Cover at minimum: the five endpoints and the login submission path; the seed com
 
 - [ ] **Step B: Update the published request-path walkthrough**
 
-The artifact at https://claude.ai/code/artifact/029aaa24-d96b-4b6b-97a9-51d4d0ddfb45 was written before any of this existed and its commands are intended-shape, not verified output. Bring it to the current testable state: scopes are `openid`, `profile` and `email`; the login posts to `/realms/{realm}/login-actions/authenticate`; `client_secret_post` is supported; access tokens always carry the issuer in `aud`; and every command should be one that actually runs.
+The artifact at https://claude.ai/code/artifact/029aaa24-d96b-4b6b-97a9-51d4d0ddfb45 was written before any of this existed and its commands are intended-shape, not verified output. Bring it to the current testable state: scopes are `openid`, `profile` and `email`; the login posts to `/tenants/{tenant}/login-actions/authenticate`; `client_secret_post` is supported; access tokens always carry the issuer in `aud`; and every command should be one that actually runs.
 
 - [ ] **Step 7: Confirm every exit criterion, one at a time**
 
@@ -3597,11 +3599,11 @@ Run against the spec after the plan was written.
 
 **2. Gaps found and closed during review.**
 
-- The spec's §7 lists audience confusion and cross-realm leakage among the corpus entries, but neither had a natural home in an endpoint task. Task 18 was given both explicitly rather than leaving them to fall between tasks.
+- The spec's §7 lists audience confusion and cross-tenant leakage among the corpus entries, but neither had a natural home in an endpoint task. Task 18 was given both explicitly rather than leaving them to fall between tasks.
 - `client_oidc_config` was in the file structure but had no migration. Added to Task 11.
-- Nothing created the first signing key, so a seeded realm could not issue a token. Added to Task 17's first test.
+- Nothing created the first signing key, so a seeded tenant could not issue a token. Added to Task 17's first test.
 - The spec's §9 spike table says spike 5 (Zod→ajv on form bodies) hosts in Task 14, but Task 11 registers `@fastify/formbody` first. The spike stays in Task 14, where the first form-encoded _body schema_ is written; Task 11 only registers the plugin.
 
-**3. Type consistency.** `RealmScopedDatabase`, `withRealm` and `createAppRole` match the existing exports in `packages/db/src/index.ts` and `packages/testkit/src/index.ts` — verified by reading those files, not assumed. `SigningKeyRecord` is defined in Task 6 and consumed with the same member names in Tasks 7, 11 and 16. `ClientRecord` (Task 8) and `ClientOidcConfig` (Task 11) are separate types throughout, never conflated. `PendingRequest` is defined in Task 10 and produced by Task 12's `AuthorizeOutcome`. `AuthenticatorResult` uses `kind` as its discriminant, matching `AuthorizeOutcome` and `RotationOutcome`.
+**3. Type consistency.** `TenantScopedDatabase`, `withTenant` and `createAppRole` match the existing exports in `packages/db/src/index.ts` and `packages/testkit/src/index.ts` — verified by reading those files, not assumed. `SigningKeyRecord` is defined in Task 6 and consumed with the same member names in Tasks 7, 11 and 16. `ClientRecord` (Task 8) and `ClientOidcConfig` (Task 11) are separate types throughout, never conflated. `PendingRequest` is defined in Task 10 and produced by Task 12's `AuthorizeOutcome`. `AuthenticatorResult` uses `kind` as its discriminant, matching `AuthorizeOutcome` and `RotationOutcome`.
 
-**4. One deliberate inconsistency, flagged rather than fixed.** Task 8's `verifyClientSecret` takes its comparison function by injection because `domain-realm` must not import `domain-identity`. An implementer reading Task 8 alone may find the third parameter odd; the comment in the code says why, and Task 14 is where the real Argon2id comparator is passed in.
+**4. One deliberate inconsistency, flagged rather than fixed.** Task 8's `verifyClientSecret` takes its comparison function by injection because `domain-tenant` must not import `domain-identity`. An implementer reading Task 8 alone may find the third parameter odd; the comment in the code says why, and Task 14 is where the real Argon2id comparator is passed in.

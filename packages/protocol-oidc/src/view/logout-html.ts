@@ -19,14 +19,14 @@ export interface LogoutConfirmationFields {
 // by comparing this field against what the cookie itself still resolves
 // to, a double-submit-cookie defence rather than a single-use one. Ending
 // a session on a bare GET would let an `<img>` tag on any page log the
-// End-User out of every realm they hold one in — this form is what keeps
+// End-User out of every tenant they hold one in — this form is what keeps
 // that a POST, from this browser, with this browser's own cookie.
 export function renderLogoutConfirmationPage(
-  realm: string,
+  tenant: string,
   sessionId: string,
   fields: LogoutConfirmationFields,
 ): RenderedPage {
-  const action = `/realms/${escapeHtml(realm)}/protocol/openid-connect/logout`;
+  const action = `/tenants/${escapeHtml(tenant)}/protocol/openid-connect/logout`;
   return page(
     'Sign out?',
     `<h1>Sign out?</h1>
@@ -39,7 +39,7 @@ export function renderLogoutConfirmationPage(
 }
 
 // Reached when there is no live session to end at all — a missing or
-// expired cookie, or one scoped to a different realm. Nothing to confirm,
+// expired cookie, or one scoped to a different tenant. Nothing to confirm,
 // so no form: confirming would end nothing anyway.
 export function renderNoActiveSessionPage(): RenderedPage {
   return page(

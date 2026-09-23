@@ -1,4 +1,4 @@
-import { withRealm, type DatabaseHandle, type RealmScopedDatabase } from '@odudu/db';
+import { withTenant, type DatabaseHandle, type TenantScopedDatabase } from '@odudu/db';
 import { outboxRepository, renderVerifyEmail } from '@odudu/email';
 import { actionTokenRepository } from '#/repository/action-tokens';
 
@@ -14,9 +14,9 @@ export const RESET_PASSWORD_TTL_SECONDS = 60 * 5;
 
 export interface SendVerificationEmailDeps {
   readonly database: DatabaseHandle;
-  readonly realmId: string;
-  readonly realmName: string;
-  readonly realmDisplayName: string;
+  readonly tenantId: string;
+  readonly tenantName: string;
+  readonly tenantDisplayName: string;
   readonly issuerBase: string;
 }
 
@@ -36,46 +36,46 @@ export async function sendVerificationEmail(
   deps: SendVerificationEmailDeps,
   input: SendVerificationEmailInput,
 ): Promise<void> {
-  await withRealm(deps.database.db, deps.realmId, async (tx) => {
+  await withTenant(deps.database.db, deps.tenantId, async (tx) => {
     const { token } = await actionTokenRepository(tx).issue({
-      realmId: deps.realmId,
+      tenantId: deps.tenantId,
       subjectId: input.subjectId,
       type: 'verify_email',
       email: input.email,
       ttlSeconds: VERIFY_EMAIL_TTL_SECONDS,
     });
-    const link = `${deps.issuerBase}/realms/${deps.realmName}/login-actions/action-token?key=${encodeURIComponent(token)}`;
+    const link = `${deps.issuerBase}/tenants/${deps.tenantName}/login-actions/action-token?key=${encodeURIComponent(token)}`;
     await outboxRepository(tx).enqueue({
-      realmId: deps.realmId,
-      ...renderVerifyEmail({ to: input.email, link, realmDisplayName: deps.realmDisplayName }),
+      tenantId: deps.tenantId,
+      ...renderVerifyEmail({ to: input.email, link, tenantDisplayName: deps.tenantDisplayName }),
     });
   });
 }
 
 export interface CompleteEmailVerificationDeps {
   readonly database: DatabaseHandle;
-  readonly realmId: string;
+  readonly tenantId: string;
   // Injected rather than imported: @odudu/account does not depend on
   // @odudu/domain-identity, where the users table and its Argon2id
   // neighbours live. The composition root (apps/server/src/app.ts) wires
-  // these to userRepository, the same way domain-realm's verifyClientSecret
+  // these to userRepository, the same way domain-tenant's verifyClientSecret
   // takes its hash comparator injected for the same reason.
-  readonly getCurrentEmail: (tx: RealmScopedDatabase, subjectId: string) => Promise<string | null>;
-  readonly markVerified: (tx: RealmScopedDatabase, subjectId: string) => Promise<void>;
+  readonly getCurrentEmail: (tx: TenantScopedDatabase, subjectId: string) => Promise<string | null>;
+  readonly markVerified: (tx: TenantScopedDatabase, subjectId: string) => Promise<void>;
 }
 
 export type CompleteEmailVerificationResult = { kind: 'verified' } | { kind: 'invalid' };
 
 // One transaction: consuming the token, reading the address it was minted
 // for back against the user's current one, and flipping emailVerified all
-// commit or roll back together. `withRealm`'s RLS context is what refuses a
-// token minted in another realm — consume finds no row to update, the same
+// commit or roll back together. `withTenant`'s RLS context is what refuses a
+// token minted in another tenant — consume finds no row to update, the same
 // path a replayed or expired key takes.
 export async function completeEmailVerification(
   deps: CompleteEmailVerificationDeps,
   key: string,
 ): Promise<CompleteEmailVerificationResult> {
-  return withRealm(deps.database.db, deps.realmId, async (tx) => {
+  return withTenant(deps.database.db, deps.tenantId, async (tx) => {
     const record = await actionTokenRepository(tx).consume(key, 'verify_email');
     if (record === null) return { kind: 'invalid' };
 

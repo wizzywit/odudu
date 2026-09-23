@@ -25,7 +25,7 @@ export interface PasswordSubject {
 // The one rule evaluatePassword cannot decide: whether the candidate is a
 // password this subject has already had. That answer lives in stored
 // Argon2id hashes, so it is verified where a transaction is in hand and
-// reported with this — a rule of the realm's policy either way, named here
+// reported with this — a rule of the tenant's policy either way, named here
 // alongside the rest so a page renders one list.
 export const REUSED_PASSWORD: PolicyViolation = {
   rule: 'not-reused',
@@ -56,8 +56,8 @@ export function evaluatePassword(
     });
   }
 
-  // Not a realm setting: the maximum exists to bound work, not to shape
-  // passwords, so no realm configures it. Stated here as well as at every
+  // Not a tenant setting: the maximum exists to bound work, not to shape
+  // passwords, so no tenant configures it. Stated here as well as at every
   // form read (readPasswordField in @odudu/kernel) because the seed CLI is
   // a writer that reads no form, and a password it accepted but the login
   // form refused would be one nobody could sign in with.

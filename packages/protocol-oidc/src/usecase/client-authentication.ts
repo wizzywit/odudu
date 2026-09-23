@@ -1,5 +1,5 @@
-import { type RealmScopedDatabase } from '@odudu/db';
-import { clientRepository, verifyClientSecret, type ClientRecord } from '@odudu/domain-realm';
+import { type TenantScopedDatabase } from '@odudu/db';
+import { clientRepository, verifyClientSecret, type ClientRecord } from '@odudu/domain-tenant';
 import { clientOidcConfigRepository, type ClientOidcConfig } from '#/repository/client-oidc-config';
 import {
   clientSecretLimiterKey,
@@ -12,7 +12,7 @@ import { invalidClient, TokenError, TokenRateLimited } from '#/service/errors';
 // authenticates a registered OAuth client the same way, against the same
 // ADR 0023 budget, so this is the one place either endpoint needs.
 export interface ClientAuthenticationDeps {
-  realmId: string;
+  tenantId: string;
   verifyPassword: (hash: string, secret: string) => Promise<boolean>;
   // ADR 0023's client half: a per-`client_id` budget on failed
   // client_secret_basic/client_secret_post attempts, consulted by
@@ -27,6 +27,7 @@ export interface BasicCredentials {
   secret: string;
 }
 
+// `realm` is RFC 7235 §4.1's auth-param name, not this project's word.
 export const WWW_AUTHENTICATE = 'Basic realm="token"';
 
 // RFC 6749 §3.2: a parameter sent with an empty value is treated as if it
@@ -82,7 +83,7 @@ export function parseBasicAuth(header: string | undefined): BasicCredentials | u
 }
 
 async function verifyClientCredentials(
-  tx: RealmScopedDatabase,
+  tx: TenantScopedDatabase,
   deps: ClientAuthenticationDeps,
   oauthClientId: string,
   basic: BasicCredentials | undefined,
@@ -122,7 +123,7 @@ async function verifyClientCredentials(
 // amendment) is metered against the same per-`client_id` budget. Only the
 // `throw` path below ever calls `check`; a healthy client never reaches it.
 export async function authenticateClient(
-  tx: RealmScopedDatabase,
+  tx: TenantScopedDatabase,
   deps: ClientAuthenticationDeps,
   basic: BasicCredentials | undefined,
   bodyClientId: string | undefined,
@@ -154,7 +155,7 @@ export async function authenticateClient(
       isPasswordAuthMethod(attemptedMethod)
     ) {
       const decision = deps.clientSecretLimiter.check(
-        clientSecretLimiterKey(deps.realmId, oauthClientId),
+        clientSecretLimiterKey(deps.tenantId, oauthClientId),
       );
       if (!decision.allowed) throw new TokenRateLimited(decision.retryAfterSeconds);
     }

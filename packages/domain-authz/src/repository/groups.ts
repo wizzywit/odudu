@@ -1,4 +1,4 @@
-import { type RealmScopedDatabase } from '@odudu/db';
+import { type TenantScopedDatabase } from '@odudu/db';
 import { newId, OduduError } from '@odudu/kernel';
 import { eq, sql } from 'drizzle-orm';
 import { z } from 'zod';
@@ -9,7 +9,7 @@ export type { GroupRecord } from '#/schema/groups';
 function toRecord(row: typeof groups.$inferSelect): GroupRecord {
   return {
     id: row.id,
-    realmId: row.realmId,
+    tenantId: row.tenantId,
     parentId: row.parentId,
     name: row.name,
     path: row.path,
@@ -18,18 +18,18 @@ function toRecord(row: typeof groups.$inferSelect): GroupRecord {
 }
 
 export interface NewGroup {
-  realmId: string;
+  tenantId: string;
   name: string;
   parentId: string | null;
 }
 
-async function findById(tx: RealmScopedDatabase, groupId: string): Promise<GroupRecord | null> {
+async function findById(tx: TenantScopedDatabase, groupId: string): Promise<GroupRecord | null> {
   const rows = await tx.select().from(groups).where(eq(groups.id, groupId));
   const row = rows[0];
   return row === undefined ? null : toRecord(row);
 }
 
-async function requireById(tx: RealmScopedDatabase, groupId: string): Promise<GroupRecord> {
+async function requireById(tx: TenantScopedDatabase, groupId: string): Promise<GroupRecord> {
   const found = await findById(tx, groupId);
   if (found === null) {
     throw new OduduError('group_not_found', `no group with id ${groupId}`);
@@ -48,7 +48,7 @@ const pathRowsSchema = z.array(pathRowSchema);
 // effectiveRoles' group_closure, not here. Why that is the right claim
 // shape: docs/adr/0022-group-claims-carry-direct-memberships.md.
 export async function effectiveGroupPaths(
-  tx: RealmScopedDatabase,
+  tx: TenantScopedDatabase,
   subjectId: string,
 ): Promise<readonly string[]> {
   const result = await tx.execute(sql`
@@ -67,7 +67,7 @@ export async function effectiveGroupPaths(
 // only for groups.int.test.ts's cyclic-parent_id termination probe; the
 // package's public surface (src/index.ts) does not re-export it.
 export async function descendantsOf(
-  tx: RealmScopedDatabase,
+  tx: TenantScopedDatabase,
   startId: string,
 ): Promise<Set<string>> {
   const result = await tx.execute(sql`
@@ -82,7 +82,7 @@ export async function descendantsOf(
   return new Set(rows.map((row) => row.id));
 }
 
-export function groupRepository(tx: RealmScopedDatabase) {
+export function groupRepository(tx: TenantScopedDatabase) {
   return {
     // `path` is this repository's only writer: a root group's path is
     // `/${name}`, and a child's path is its parent's path with `/${name}`
@@ -97,7 +97,7 @@ export function groupRepository(tx: RealmScopedDatabase) {
         .insert(groups)
         .values({
           id: newId(),
-          realmId: input.realmId,
+          tenantId: input.tenantId,
           parentId: input.parentId,
           name: input.name,
           path,
@@ -118,7 +118,7 @@ export function groupRepository(tx: RealmScopedDatabase) {
 
     // Moving a subtree changes every descendant's path, not just the moved
     // group's: `path` is denormalized, so leaving a descendant's stale is
-    // an invariant violation `UNIQUE (realm_id, path)` cannot detect.
+    // an invariant violation `UNIQUE (tenant_id, path)` cannot detect.
     async reparent(groupId: string, newParentId: string | null): Promise<void> {
       const group = await requireById(tx, groupId);
 
@@ -147,17 +147,17 @@ export function groupRepository(tx: RealmScopedDatabase) {
       `);
     },
 
-    // realm_id is read back from the group being mapped or joined, the
-    // same realm RLS already scopes both it and the caller's other
+    // tenant_id is read back from the group being mapped or joined, the
+    // same tenant RLS already scopes both it and the caller's other
     // argument to.
     async mapRole(groupId: string, roleId: string): Promise<void> {
       const group = await requireById(tx, groupId);
-      await tx.insert(groupRoles).values({ realmId: group.realmId, groupId, roleId });
+      await tx.insert(groupRoles).values({ tenantId: group.tenantId, groupId, roleId });
     },
 
     async addToSubject(subjectId: string, groupId: string): Promise<void> {
       const group = await requireById(tx, groupId);
-      await tx.insert(subjectGroups).values({ realmId: group.realmId, subjectId, groupId });
+      await tx.insert(subjectGroups).values({ tenantId: group.tenantId, subjectId, groupId });
     },
   };
 }

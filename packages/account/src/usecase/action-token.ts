@@ -1,10 +1,10 @@
-import { withRealm, type DatabaseHandle } from '@odudu/db';
+import { withTenant, type DatabaseHandle } from '@odudu/db';
 import { actionTokenRepository } from '#/repository/action-tokens';
 import { type ActionTokenType } from '#/schema/action-tokens';
 
 export interface PeekActionTokenDeps {
   readonly database: DatabaseHandle;
-  readonly realmId: string;
+  readonly tenantId: string;
 }
 
 export type PeekActionTokenResult = { kind: 'usable'; type: ActionTokenType } | { kind: 'invalid' };
@@ -18,7 +18,7 @@ export async function peekActionToken(
   deps: PeekActionTokenDeps,
   key: string,
 ): Promise<PeekActionTokenResult> {
-  const peeked = await withRealm(deps.database.db, deps.realmId, (tx) =>
+  const peeked = await withTenant(deps.database.db, deps.tenantId, (tx) =>
     actionTokenRepository(tx).peek(key),
   );
   return peeked === null ? { kind: 'invalid' } : { kind: 'usable', type: peeked.type };

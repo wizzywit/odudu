@@ -1,14 +1,14 @@
-import { realms } from '@odudu/db';
+import { tenants } from '@odudu/db';
 import { integer, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 
 // Policies are written as hand-authored SQL in packages/db/drizzle/, never
-// declared with pgPolicy() — see realms.ts in @odudu/db for why a
+// declared with pgPolicy() — see tenants.ts in @odudu/db for why a
 // declarative policy would collide with a database that already carries it.
 export const emailOutbox = pgTable('email_outbox', {
   id: uuid('id').primaryKey(),
-  realmId: uuid('realm_id')
+  tenantId: uuid('tenant_id')
     .notNull()
-    .references(() => realms.id, { onDelete: 'cascade' }),
+    .references(() => tenants.id, { onDelete: 'cascade' }),
   toAddress: text('to_address').notNull(),
   subject: text('subject').notNull(),
   bodyText: text('body_text').notNull(),
@@ -22,7 +22,7 @@ export const emailOutbox = pgTable('email_outbox', {
 
 export interface OutboxMessage {
   readonly id: string;
-  readonly realmId: string;
+  readonly tenantId: string;
   readonly to: string;
   readonly subject: string;
   readonly text: string;

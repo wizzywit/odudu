@@ -15,7 +15,7 @@ export interface PasskeyEnrolmentOffer {
 
 // Minimal, dependency-free HTML, the same choice
 // #/view/totp-enrolment-html.ts makes: every interpolated value passes
-// through escapeHtml so neither the realm name nor the auth session id
+// through escapeHtml so neither the tenant name nor the auth session id
 // opens a reflected-XSS hole.
 function escapeHtml(value: string): string {
   return value
@@ -44,7 +44,7 @@ function jsonForScript(value: unknown): string {
 // on the authentication session, which is also what binds the submission to
 // the subject that attempt has already identified.
 export function renderPasskeyEnrolmentPage(
-  realm: string,
+  tenant: string,
   authSessionId: string,
   offer: PasskeyEnrolmentOffer,
   error?: string,
@@ -53,7 +53,7 @@ export function renderPasskeyEnrolmentPage(
   // policy served with this page cannot name a different value — a refused
   // script is invisible in a response, so nothing else would notice.
   const nonce = scriptNonce();
-  const target = `/realms/${escapeHtml(realm)}/login-actions/required-action?action=configure-passkey`;
+  const target = `/tenants/${escapeHtml(tenant)}/login-actions/required-action?action=configure-passkey`;
   const message = error === undefined ? '' : `<p><strong>${escapeHtml(error)}</strong></p>\n`;
   // The options are inline, so this script fetches nothing.
   const title = 'Add a passkey';

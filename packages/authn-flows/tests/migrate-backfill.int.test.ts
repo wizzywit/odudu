@@ -4,9 +4,9 @@ import path from 'node:path';
 import {
   createDatabase,
   MIGRATIONS_DIR,
-  realms,
+  tenants,
   runMigrations,
-  withRealm,
+  withTenant,
   type DatabaseHandle,
 } from '@odudu/db';
 import { newId } from '@odudu/kernel';
@@ -18,7 +18,7 @@ import { authenticationExecutions } from '#/schema/execution';
 // Every other suite migrates as the container's superuser, which is exempt
 // from row-level security whatever FORCE says. This one migrates as a bare
 // schema owner instead, because FORCE removes the owner's exemption — so a
-// migration that reads or writes across realms would see nothing, write
+// migration that reads or writes across tenants would see nothing, write
 // nothing and raise
 // nothing under the role a real deployment actually uses. This suite runs
 // the migrations under that role, in a database it owns, so a backfill that
@@ -92,33 +92,31 @@ afterAll(async () => {
 });
 
 describe('the recovery-code backfill, run by a schema owner that is not a superuser', () => {
-  it('gives a realm provisioned before the step existed its fourth execution', async () => {
-    const realmId = newId();
+  it('gives a tenant provisioned before the step existed its fourth execution', async () => {
+    const tenantId = newId();
 
     await runMigrations(owned.db, await migrationsThrough(BEFORE_THE_BACKFILL));
-    await withRealm(owned.db, realmId, async (tx) => {
-      // Raw, and named down to the two columns this schema is old enough to
-      // have: `realms`' typed view describes the head of the migration set,
-      // so `tx.insert(realms)` names every column a later migration adds
-      // and cannot write to the partially-migrated database this suite is
-      // about.
+    // This phase predates 0057_rename_realm_to_tenant.sql: the live policy
+    // still filters on app.realm_id and the columns are still realm_id, so
+    // it sets the historical GUC itself rather than through withTenant,
+    // which only knows today's app.tenant_id, and writes raw SQL rather
+    // than through the current, already-renamed typed schema.
+    await owned.db.transaction(async (tx) => {
+      await tx.execute(sql`select set_config('app.realm_id', ${tenantId}, true)`);
       await tx.execute(
-        sql`insert into realms (id, name) values (${realmId}, ${`realm-${realmId}`})`,
+        sql`insert into realms (id, name) values (${tenantId}, ${`tenant-${tenantId}`})`,
       );
       for (const [index, authenticator] of ['passkey', 'password', 'otp'].entries()) {
-        await tx.insert(authenticationExecutions).values({
-          id: newId(),
-          realmId,
-          index,
-          authenticator,
-          requirement: authenticator === 'otp' ? 'conditional' : 'alternative',
-        });
+        await tx.execute(
+          sql`insert into authentication_executions (id, realm_id, index, authenticator, requirement)
+              values (${newId()}, ${tenantId}, ${index}, ${authenticator}, ${authenticator === 'otp' ? 'conditional' : 'alternative'})`,
+        );
       }
     });
 
     await runMigrations(owned.db, MIGRATIONS_DIR);
 
-    const after = await withRealm(owned.db, realmId, (tx) =>
+    const after = await withTenant(owned.db, tenantId, (tx) =>
       tx.select().from(authenticationExecutions).orderBy(asc(authenticationExecutions.index)),
     );
     expect(after.map((row) => [row.index, row.authenticator, row.requirement])).toEqual([
@@ -131,7 +129,7 @@ describe('the recovery-code backfill, run by a schema owner that is not a superu
 
   // The exemption the backfill needs is lifted for one statement, not left
   // behind it: a table serving requests without FORCE would exempt whoever
-  // owns it from every realm boundary in the schema.
+  // owns it from every tenant boundary in the schema.
   it('leaves FORCE ROW LEVEL SECURITY on afterwards', async () => {
     const [table] = await owned.sql<{ relforcerowsecurity: boolean }[]>`
       select relforcerowsecurity from pg_class where relname = 'authentication_executions'
@@ -141,18 +139,18 @@ describe('the recovery-code backfill, run by a schema owner that is not a superu
 
   // Recorded here because this is the only suite holding a schema owner that
   // is not RLS-exempt, and the requirement is invisible everywhere else:
-  // realmLookupRepository.byName reads `realms` on the owner connection with
-  // no realm context, so the owner must be SUPERUSER or BYPASSRLS or no
-  // realm resolves and every request answers "unknown realm". README.md's
+  // tenantLookupRepository.byName reads `tenants` on the owner connection with
+  // no tenant context, so the owner must be SUPERUSER or BYPASSRLS or no
+  // tenant resolves and every request answers "unknown tenant". README.md's
   // bootstrap says so; this is the assertion behind it.
-  it('cannot resolve a realm by name at all, which is why the owner needs BYPASSRLS', async () => {
-    const realmId = newId();
-    const name = `realm-${realmId}`;
-    await withRealm(owned.db, realmId, (tx) => tx.insert(realms).values({ id: realmId, name }));
+  it('cannot resolve a tenant by name at all, which is why the owner needs BYPASSRLS', async () => {
+    const tenantId = newId();
+    const name = `tenant-${tenantId}`;
+    await withTenant(owned.db, tenantId, (tx) => tx.insert(tenants).values({ id: tenantId, name }));
 
-    const unscoped = await owned.db.select().from(realms).where(eq(realms.name, name));
-    const scoped = await withRealm(owned.db, realmId, (tx) =>
-      tx.select().from(realms).where(eq(realms.name, name)),
+    const unscoped = await owned.db.select().from(tenants).where(eq(tenants.name, name));
+    const scoped = await withTenant(owned.db, tenantId, (tx) =>
+      tx.select().from(tenants).where(eq(tenants.name, name)),
     );
 
     expect(unscoped).toEqual([]);

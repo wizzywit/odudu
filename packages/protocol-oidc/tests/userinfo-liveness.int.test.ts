@@ -3,14 +3,14 @@ import { hashPassword, subjectRepository, userCredentials, users } from '@odudu/
 import {
   createDatabase,
   MIGRATIONS_DIR,
-  realms,
+  tenants,
   runMigrations,
-  withRealm,
+  withTenant,
   type DatabaseHandle,
-  type RealmScopedDatabase,
+  type TenantScopedDatabase,
 } from '@odudu/db';
-import { provisionRealm, sessionRepository } from '@odudu/authn-flows';
-import { clients, provisionClientDefaults } from '@odudu/domain-realm';
+import { provisionTenant, sessionRepository } from '@odudu/authn-flows';
+import { clients, provisionClientDefaults } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import formbody from '@fastify/formbody';
@@ -45,23 +45,23 @@ const KEK = Buffer.alloc(32, 53);
 const VERIFIER = 'dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk';
 const CHALLENGE = 'E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM';
 
-interface Realm {
-  realmName: string;
-  realmId: string;
+interface Tenant {
+  tenantName: string;
+  tenantId: string;
   clientDbId: string;
   subjectId: string;
 }
 
-async function setupRealm(name: string): Promise<Realm> {
-  const realmId = newId();
+async function setupTenant(name: string): Promise<Tenant> {
+  const tenantId = newId();
   const clientDbId = newId();
 
-  const subjectId = await withRealm(app.db, realmId, async (tx: RealmScopedDatabase) => {
-    await tx.insert(realms).values({ id: realmId, name });
-    await provisionRealm(tx, realmId);
+  const subjectId = await withTenant(app.db, tenantId, async (tx: TenantScopedDatabase) => {
+    await tx.insert(tenants).values({ id: tenantId, name });
+    await provisionTenant(tx, tenantId);
     await tx.insert(clients).values({
       id: clientDbId,
-      realmId,
+      tenantId,
       clientId: CLIENT_ID,
       name: 'UserInfo liveness test client',
       type: 'confidential',
@@ -70,7 +70,7 @@ async function setupRealm(name: string): Promise<Realm> {
     await provisionClientDefaults(tx, clientDbId);
     await clientOidcConfigRepository(tx).create({
       clientId: clientDbId,
-      realmId,
+      tenantId,
       redirectUris: [REDIRECT_URI],
       grantTypes: ['authorization_code'],
       tokenEndpointAuthMethod: 'client_secret_basic',
@@ -79,11 +79,11 @@ async function setupRealm(name: string): Promise<Realm> {
       refreshTokenTtlSeconds: 1_209_600,
     });
 
-    const subject = await subjectRepository(tx).create({ realmId, type: 'user' });
-    await tx.insert(users).values({ subjectId: subject.id, realmId, username: USERNAME });
+    const subject = await subjectRepository(tx).create({ tenantId, type: 'user' });
+    await tx.insert(users).values({ subjectId: subject.id, tenantId, username: USERNAME });
     await tx.insert(userCredentials).values({
       id: newId(),
-      realmId,
+      tenantId,
       subjectId: subject.id,
       type: 'password',
       secretData: { hash: await hashPassword(PASSWORD) },
@@ -92,7 +92,7 @@ async function setupRealm(name: string): Promise<Realm> {
     const generated = await generateSigningKey('ES256', KEK);
     await tx.insert(signingKeys).values({
       id: newId(),
-      realmId,
+      tenantId,
       kid: generated.kid,
       alg: generated.alg,
       status: 'active',
@@ -103,10 +103,10 @@ async function setupRealm(name: string): Promise<Realm> {
     return subject.id;
   });
 
-  return { realmName: name, realmId, clientDbId, subjectId };
+  return { tenantName: name, tenantId, clientDbId, subjectId };
 }
 
-function authorizeUrl(realmName: string): string {
+function authorizeUrl(tenantName: string): string {
   const query = new URLSearchParams({
     response_type: 'code',
     client_id: CLIENT_ID,
@@ -116,7 +116,7 @@ function authorizeUrl(realmName: string): string {
     code_challenge: CHALLENGE,
     code_challenge_method: 'S256',
   });
-  return `/realms/${realmName}/protocol/openid-connect/auth?${query.toString()}`;
+  return `/tenants/${tenantName}/protocol/openid-connect/auth?${query.toString()}`;
 }
 
 function setCookieValue(res: LightMyRequestResponse): string | undefined {
@@ -137,7 +137,7 @@ function locationHeader(res: LightMyRequestResponse): string {
   return location;
 }
 
-async function redeemCode(realmName: string, code: string): Promise<string> {
+async function redeemCode(tenantName: string, code: string): Promise<string> {
   const form = new URLSearchParams({
     grant_type: 'authorization_code',
     code,
@@ -146,7 +146,7 @@ async function redeemCode(realmName: string, code: string): Promise<string> {
   });
   const res = await http.inject({
     method: 'POST',
-    url: `/realms/${realmName}/protocol/openid-connect/token`,
+    url: `/tenants/${tenantName}/protocol/openid-connect/token`,
     payload: form.toString(),
     headers: {
       'content-type': 'application/x-www-form-urlencoded',
@@ -161,8 +161,8 @@ async function redeemCode(realmName: string, code: string): Promise<string> {
 
 // Signs in through the real form and redeems the code, so the access token
 // carries a genuine `sid` naming a live session row.
-async function signInAndRedeem(realmName: string): Promise<{ sessionId: string; token: string }> {
-  const authorize = await http.inject({ url: authorizeUrl(realmName) });
+async function signInAndRedeem(tenantName: string): Promise<{ sessionId: string; token: string }> {
+  const authorize = await http.inject({ url: authorizeUrl(tenantName) });
   if (authorize.statusCode !== 200) {
     throw new Error(`expected the login form, got ${String(authorize.statusCode)}`);
   }
@@ -177,7 +177,7 @@ async function signInAndRedeem(realmName: string): Promise<{ sessionId: string; 
   });
   const submitted = await http.inject({
     method: 'POST',
-    url: `/realms/${realmName}/login-actions/authenticate`,
+    url: `/tenants/${tenantName}/login-actions/authenticate`,
     payload: form.toString(),
     headers: { 'content-type': 'application/x-www-form-urlencoded' },
   });
@@ -191,7 +191,7 @@ async function signInAndRedeem(realmName: string): Promise<{ sessionId: string; 
   const code = new URL(locationHeader(submitted)).searchParams.get('code');
   if (code === null) throw new Error('expected a code on the login redirect');
 
-  const token = await redeemCode(realmName, code);
+  const token = await redeemCode(tenantName, code);
   return { sessionId, token };
 }
 
@@ -200,14 +200,14 @@ async function signInAndRedeem(realmName: string): Promise<{ sessionId: string; 
 // directly, bypassing the login UI, with no `sessionId` at all. The token
 // this redeems to carries no `sid`, the same shape an `offline_access`
 // grant has once its session ends.
-async function mintOfflineToken(realm: Realm): Promise<string> {
+async function mintOfflineToken(tenant: Tenant): Promise<string> {
   const code = generateAuthorizationCode();
-  await withRealm(app.db, realm.realmId, async (tx) => {
+  await withTenant(app.db, tenant.tenantId, async (tx) => {
     await authorizationCodeRepository(tx).create({
       codeHash: hashAuthorizationCode(code),
-      realmId: realm.realmId,
-      clientId: realm.clientDbId,
-      subjectId: realm.subjectId,
+      tenantId: tenant.tenantId,
+      clientId: tenant.clientDbId,
+      subjectId: tenant.subjectId,
       redirectUri: REDIRECT_URI,
       scope: 'openid',
       nonce: null,
@@ -219,7 +219,7 @@ async function mintOfflineToken(realm: Realm): Promise<string> {
       claims: { idToken: {}, userinfo: {} },
     });
   });
-  return redeemCode(realm.realmName, code);
+  return redeemCode(tenant.tenantName, code);
 }
 
 function decodePayload(token: string): Record<string, unknown> {
@@ -227,26 +227,28 @@ function decodePayload(token: string): Record<string, unknown> {
   return JSON.parse(Buffer.from(segment, 'base64url').toString('utf8')) as Record<string, unknown>;
 }
 
-async function revokeGrantBehindToken(realm: Realm, token: string): Promise<void> {
+async function revokeGrantBehindToken(tenant: Tenant, token: string): Promise<void> {
   const grantId = decodePayload(token).grant_id;
   if (typeof grantId !== 'string') throw new Error('expected a grant_id claim on the token');
-  await withRealm(app.db, realm.realmId, (tx) =>
+  await withTenant(app.db, tenant.tenantId, (tx) =>
     tokenGrantRepository(tx).revoke(grantId, new Date()),
   );
 }
 
-async function endSession(realm: Realm, sessionId: string): Promise<void> {
-  await withRealm(app.db, realm.realmId, (tx) => sessionRepository(tx).end(sessionId, new Date()));
+async function endSession(tenant: Tenant, sessionId: string): Promise<void> {
+  await withTenant(app.db, tenant.tenantId, (tx) =>
+    sessionRepository(tx).end(sessionId, new Date()),
+  );
 }
 
-function userinfoUrl(realmName: string): string {
-  return `/realms/${realmName}/protocol/openid-connect/userinfo`;
+function userinfoUrl(tenantName: string): string {
+  return `/tenants/${tenantName}/protocol/openid-connect/userinfo`;
 }
 
-async function userinfo(realmName: string, token: string): Promise<LightMyRequestResponse> {
+async function userinfo(tenantName: string, token: string): Promise<LightMyRequestResponse> {
   return http.inject({
     method: 'GET',
-    url: userinfoUrl(realmName),
+    url: userinfoUrl(tenantName),
     headers: { authorization: `Bearer ${token}` },
   });
 }
@@ -287,42 +289,42 @@ afterAll(async () => {
 
 describe('[ODUDU-USERINFO-LIVENESS-01] /userinfo consults the grant and the session the way /introspect does', () => {
   it('answers 200 for a live grant bound to a live session', async () => {
-    const realm = await setupRealm(`userinfo-live-${newId()}`);
-    const { token } = await signInAndRedeem(realm.realmName);
+    const tenant = await setupTenant(`userinfo-live-${newId()}`);
+    const { token } = await signInAndRedeem(tenant.tenantName);
 
-    const res = await userinfo(realm.realmName, token);
+    const res = await userinfo(tenant.tenantName, token);
     expect(res.statusCode).toBe(200);
-    expect(res.json<{ sub: string }>().sub).toBe(realm.subjectId);
+    expect(res.json<{ sub: string }>().sub).toBe(tenant.subjectId);
   });
 
   it('refuses a token whose grant this server revoked, with invalid_token', async () => {
-    const realm = await setupRealm(`userinfo-revoked-${newId()}`);
-    const { token } = await signInAndRedeem(realm.realmName);
-    await revokeGrantBehindToken(realm, token);
+    const tenant = await setupTenant(`userinfo-revoked-${newId()}`);
+    const { token } = await signInAndRedeem(tenant.tenantName);
+    await revokeGrantBehindToken(tenant, token);
 
-    const res = await userinfo(realm.realmName, token);
+    const res = await userinfo(tenant.tenantName, token);
     expect(res.statusCode).toBe(401);
     expect(res.headers['www-authenticate']).toMatch(/error="invalid_token"/);
   });
 
   it('refuses a token whose session has ended, with invalid_token', async () => {
-    const realm = await setupRealm(`userinfo-ended-${newId()}`);
-    const { sessionId, token } = await signInAndRedeem(realm.realmName);
-    await endSession(realm, sessionId);
+    const tenant = await setupTenant(`userinfo-ended-${newId()}`);
+    const { sessionId, token } = await signInAndRedeem(tenant.tenantName);
+    await endSession(tenant, sessionId);
 
-    const res = await userinfo(realm.realmName, token);
+    const res = await userinfo(tenant.tenantName, token);
     expect(res.statusCode).toBe(401);
     expect(res.headers['www-authenticate']).toMatch(/error="invalid_token"/);
   });
 
   it('still answers 200 for an offline grant with no session to end at all', async () => {
-    const realm = await setupRealm(`userinfo-offline-${newId()}`);
-    const token = await mintOfflineToken(realm);
+    const tenant = await setupTenant(`userinfo-offline-${newId()}`);
+    const token = await mintOfflineToken(tenant);
     expect(decodePayload(token).sid).toBeUndefined();
 
-    const res = await userinfo(realm.realmName, token);
+    const res = await userinfo(tenant.tenantName, token);
     expect(res.statusCode).toBe(200);
-    expect(res.json<{ sub: string }>().sub).toBe(realm.subjectId);
+    expect(res.json<{ sub: string }>().sub).toBe(tenant.subjectId);
   });
 });
 
@@ -336,17 +338,17 @@ describe('[ODUDU-USERINFO-LIVENESS-02] client_credentials at /userinfo', () => {
   const CC_CLIENT_ID = 'userinfo-liveness-cc-client';
   const CC_CLIENT_SECRET = 'userinfo-liveness-cc-secret';
 
-  async function setupClientCredentialsRealm(name: string): Promise<{ realmName: string }> {
-    const realmId = newId();
-    await withRealm(app.db, realmId, async (tx: RealmScopedDatabase) => {
-      await tx.insert(realms).values({ id: realmId, name });
-      await provisionRealm(tx, realmId);
+  async function setupClientCredentialsTenant(name: string): Promise<{ tenantName: string }> {
+    const tenantId = newId();
+    await withTenant(app.db, tenantId, async (tx: TenantScopedDatabase) => {
+      await tx.insert(tenants).values({ id: tenantId, name });
+      await provisionTenant(tx, tenantId);
 
-      const serviceSubject = await subjectRepository(tx).create({ realmId, type: 'service' });
+      const serviceSubject = await subjectRepository(tx).create({ tenantId, type: 'service' });
       const clientDbId = newId();
       await tx.insert(clients).values({
         id: clientDbId,
-        realmId,
+        tenantId,
         clientId: CC_CLIENT_ID,
         name: 'client_credentials liveness test client',
         type: 'confidential',
@@ -356,14 +358,14 @@ describe('[ODUDU-USERINFO-LIVENESS-02] client_credentials at /userinfo', () => {
       await provisionClientDefaults(tx, clientDbId);
       await clientOidcConfigRepository(tx).create({
         clientId: clientDbId,
-        realmId,
+        tenantId,
         redirectUris: [],
         grantTypes: ['client_credentials'],
         tokenEndpointAuthMethod: 'client_secret_basic',
         audiences: [],
         accessTokenTtlSeconds: 300,
         refreshTokenTtlSeconds: 1_209_600,
-        // A realm's own choice to let this client request `openid` — RFC
+        // A tenant's own choice to let this client request `openid` — RFC
         // 6749 draws no line here, and this is what makes the request
         // below reach /userinfo's `openid`-scope gate at all.
         clientCredentialsScopes: ['openid'],
@@ -372,7 +374,7 @@ describe('[ODUDU-USERINFO-LIVENESS-02] client_credentials at /userinfo', () => {
       const generated = await generateSigningKey('ES256', KEK);
       await tx.insert(signingKeys).values({
         id: newId(),
-        realmId,
+        tenantId,
         kid: generated.kid,
         alg: generated.alg,
         status: 'active',
@@ -380,14 +382,14 @@ describe('[ODUDU-USERINFO-LIVENESS-02] client_credentials at /userinfo', () => {
         privateJwkEncrypted: generated.privateJwkEncrypted,
       });
     });
-    return { realmName: name };
+    return { tenantName: name };
   }
 
-  async function requestClientCredentialsToken(realmName: string): Promise<string> {
+  async function requestClientCredentialsToken(tenantName: string): Promise<string> {
     const form = new URLSearchParams({ grant_type: 'client_credentials', scope: 'openid' });
     const res = await http.inject({
       method: 'POST',
-      url: `/realms/${realmName}/protocol/openid-connect/token`,
+      url: `/tenants/${tenantName}/protocol/openid-connect/token`,
       payload: form.toString(),
       headers: {
         'content-type': 'application/x-www-form-urlencoded',
@@ -403,13 +405,13 @@ describe('[ODUDU-USERINFO-LIVENESS-02] client_credentials at /userinfo', () => {
   }
 
   it('answers 200: a real grant with no session, minted with no End-User at all', async () => {
-    const realm = await setupClientCredentialsRealm(`userinfo-cc-${newId()}`);
-    const token = await requestClientCredentialsToken(realm.realmName);
+    const tenant = await setupClientCredentialsTenant(`userinfo-cc-${newId()}`);
+    const token = await requestClientCredentialsToken(tenant.tenantName);
     const payload = decodePayload(token);
     expect(payload.sid).toBeUndefined();
     expect(typeof payload.grant_id).toBe('string');
 
-    const res = await userinfo(realm.realmName, token);
+    const res = await userinfo(tenant.tenantName, token);
     expect(res.statusCode).toBe(200);
     expect(res.json<{ sub: string }>().sub).toBe(payload.sub);
   });

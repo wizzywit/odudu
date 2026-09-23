@@ -16,9 +16,9 @@ import {
   renderNoActiveSessionPage,
 } from '#/view/logout-html';
 import { sendHtml } from '#/view/html-response';
-import { realmIssuerFor } from '#/view/issuer';
+import { tenantIssuerFor } from '#/view/issuer';
 
-const PATH = '/realms/:realm/protocol/openid-connect/logout';
+const PATH = '/tenants/:tenant/protocol/openid-connect/logout';
 
 export interface LogoutRouteDeps extends LogoutUsecaseDeps {
   tls: boolean;
@@ -44,7 +44,7 @@ function sendLogoutHtml(reply: FastifyReply, status: number, page: RenderedPage)
 
 async function respondToOutcome(
   outcome: LogoutOutcome,
-  realm: string,
+  tenant: string,
   tls: boolean,
   reply: FastifyReply,
 ): Promise<FastifyReply> {
@@ -63,7 +63,7 @@ async function respondToOutcome(
     return sendLogoutHtml(
       reply,
       200,
-      renderLogoutConfirmationPage(realm, outcome.sessionId, {
+      renderLogoutConfirmationPage(tenant, outcome.sessionId, {
         clientId: outcome.clientId,
         postLogoutRedirectUri: outcome.postLogoutRedirectUri,
         state: outcome.state,
@@ -78,7 +78,7 @@ async function respondToOutcome(
   // with no session to end at all).
   const sessionEnded = outcome.kind === 'render' || outcome.sessionEnded;
   if (sessionEnded) {
-    for (const cookie of clearedSessionCookies(realm, tls)) {
+    for (const cookie of clearedSessionCookies(tenant, tls)) {
       reply.header('set-cookie', cookie);
     }
   }
@@ -120,31 +120,31 @@ function logoutRequestParams(
 
 async function respondToLogoutRequest(
   deps: LogoutRouteDeps,
-  request: FastifyRequest<{ Params: { realm: string } }>,
+  request: FastifyRequest<{ Params: { tenant: string } }>,
   reply: FastifyReply,
   params: LogoutRequestParams,
 ): Promise<FastifyReply> {
-  const realm = request.params.realm;
+  const tenant = request.params.tenant;
   const outcome = await handleLogoutRequest(
     deps,
-    realm,
-    realmIssuerFor(request, realm),
+    tenant,
+    tenantIssuerFor(request, tenant),
     request.headers.cookie,
     params,
   );
-  return respondToOutcome(outcome, realm, deps.tls, reply);
+  return respondToOutcome(outcome, tenant, deps.tls, reply);
 }
 
 export function registerLogoutRoute(app: FastifyInstance, deps: LogoutRouteDeps): void {
   app.get<{
-    Params: { realm: string };
+    Params: { tenant: string };
     Querystring: Record<string, string | undefined>;
   }>(PATH, async (request, reply) =>
     respondToLogoutRequest(deps, request, reply, logoutRequestParams(request.query)),
   );
 
   app.post<{
-    Params: { realm: string };
+    Params: { tenant: string };
     Body: Record<string, string | string[] | undefined>;
   }>(PATH, async (request, reply) => {
     const body = request.body;
@@ -159,8 +159,8 @@ export function registerLogoutRoute(app: FastifyInstance, deps: LogoutRouteDeps)
 
     const outcome = await handleLogoutConfirmation(
       deps,
-      request.params.realm,
-      realmIssuerFor(request, request.params.realm),
+      request.params.tenant,
+      tenantIssuerFor(request, request.params.tenant),
       request.headers.cookie,
       {
         confirmedSessionId,
@@ -169,6 +169,6 @@ export function registerLogoutRoute(app: FastifyInstance, deps: LogoutRouteDeps)
         state: firstString(body.state) ?? null,
       },
     );
-    return respondToOutcome(outcome, request.params.realm, deps.tls, reply);
+    return respondToOutcome(outcome, request.params.tenant, deps.tls, reply);
   });
 }

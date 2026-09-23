@@ -76,7 +76,7 @@ describe('passkeyRegistrationOptions', () => {
   it('[WEBAUTHN2-7.1.1-01] names the derived relying party and carries a challenge', async () => {
     const offer = await passkeyRegistrationOptions({
       publicBaseUrl: 'https://id.example.com:8443',
-      realmName: 'demo',
+      tenantName: 'demo',
       username: 'ada',
       userHandle: '11111111-1111-1111-1111-111111111111',
       existingCredentialIds: [],
@@ -96,7 +96,7 @@ describe('passkeyRegistrationOptions', () => {
   it('requires user verification and a discoverable credential', async () => {
     const offer = await passkeyRegistrationOptions({
       publicBaseUrl: 'https://id.example.com',
-      realmName: 'demo',
+      tenantName: 'demo',
       username: 'ada',
       userHandle: '11111111-1111-1111-1111-111111111111',
       existingCredentialIds: [],
@@ -114,7 +114,7 @@ describe('passkeyRegistrationOptions', () => {
   it('excludes the credentials the subject already has', async () => {
     const offer = await passkeyRegistrationOptions({
       publicBaseUrl: 'https://id.example.com',
-      realmName: 'demo',
+      tenantName: 'demo',
       username: 'ada',
       userHandle: '11111111-1111-1111-1111-111111111111',
       existingCredentialIds: ['aaaa', 'bbbb'],
@@ -129,7 +129,7 @@ describe('passkeyRegistrationOptions', () => {
   it('issues a different challenge every time', async () => {
     const input = {
       publicBaseUrl: 'https://id.example.com',
-      realmName: 'demo',
+      tenantName: 'demo',
       username: 'ada',
       userHandle: '11111111-1111-1111-1111-111111111111',
       existingCredentialIds: [],

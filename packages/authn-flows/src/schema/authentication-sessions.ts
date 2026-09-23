@@ -1,13 +1,13 @@
 import { jsonb, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
-import { realms } from '@odudu/db';
+import { tenants } from '@odudu/db';
 
 // Policies are written as hand-authored SQL in packages/db/drizzle/, never
-// declared with pgPolicy() — see realms.ts in @odudu/db for why.
+// declared with pgPolicy() — see tenants.ts in @odudu/db for why.
 export const authenticationSessions = pgTable('authentication_sessions', {
   id: uuid('id').primaryKey(),
-  realmId: uuid('realm_id')
+  tenantId: uuid('tenant_id')
     .notNull()
-    .references(() => realms.id, { onDelete: 'cascade' }),
+    .references(() => tenants.id, { onDelete: 'cascade' }),
   pendingRequest: jsonb('pending_request').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
@@ -80,7 +80,7 @@ export interface PendingRequest {
   // is an ISO string, jsonb's only way to carry a Date.
   reuseSessionId?: string;
   reuseAuthTime?: string;
-  // The already realm-gated `remember_me` decision, parked here only when
+  // The already tenant-gated `remember_me` decision, parked here only when
   // a detour — today, consent — completes the login from a door that
   // never asks the field itself (login-submission.ts's `recordRememberMe`,
   // its only writer). Absent, the same as `false`, on every session this
@@ -115,7 +115,7 @@ export interface PendingClaimsRequest {
 
 export interface AuthenticationSessionRecord {
   id: string;
-  realmId: string;
+  tenantId: string;
   pendingRequest: PendingRequest;
   createdAt: Date;
   expiresAt: Date;

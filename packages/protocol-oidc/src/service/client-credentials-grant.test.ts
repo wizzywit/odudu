@@ -1,10 +1,10 @@
-import { type ClientRecord } from '@odudu/domain-realm';
+import { type ClientRecord } from '@odudu/domain-tenant';
 import { describe, expect, it } from 'vitest';
 import { evaluateClientCredentialsGrant } from '#/service/client-credentials-grant';
 
 const confidentialClient: ClientRecord = {
   id: 'client-1',
-  realmId: 'realm-1',
+  tenantId: 'tenant-1',
   clientId: 'batch-job',
   name: 'Batch job',
   enabled: true,

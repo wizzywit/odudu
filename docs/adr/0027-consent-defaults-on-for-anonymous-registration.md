@@ -2,6 +2,8 @@
 
 **Status:** Accepted · 2026-09-18
 
+**Renamed 2026-09-22:** written when a tenant was called a realm; the decision is unchanged.
+
 ## Context
 
 RFC 7591 §5 (Security Considerations) says of dynamic registration:

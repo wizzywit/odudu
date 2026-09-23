@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { qualifiedRoleName } from '#/service/role-name';
 
 describe('qualifiedRoleName', () => {
-  it('leaves a realm role bare', () => {
+  it('leaves a tenant role bare', () => {
     expect(qualifiedRoleName({ name: 'admin' }, null)).toBe('admin');
   });
 

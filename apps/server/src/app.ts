@@ -1,14 +1,14 @@
 import cookie from '@fastify/cookie';
 import formbody from '@fastify/formbody';
 import {
-  realmSettingsRepository,
+  tenantSettingsRepository,
   registerActionTokenRoute,
   registerRegistrationRoute,
   registerResetPasswordRoute,
   type CreateAccountResult,
   type NewAccountInput,
 } from '@odudu/account';
-import { type DatabaseHandle, type RealmScopedDatabase } from '@odudu/db';
+import { type DatabaseHandle, type TenantScopedDatabase } from '@odudu/db';
 import { roleRepository } from '@odudu/domain-authz';
 import { requiredActionRepository } from '@odudu/authn-flows';
 import {
@@ -33,16 +33,16 @@ export interface AppDeps {
   readonly database: DatabaseHandle;
   /**
    * The owner (RLS-bypassing) connection, used for one thing: resolving
-   * `{realm}` from a request path before any realm context exists to scope
+   * `{tenant}` from a request path before any tenant context exists to scope
    * that lookup by (ADR 0009's amendment of 2026-09-13). Required rather
    * than defaulted, because on the RLS-constrained connection the lookup
-   * returns zero rows unconditionally and 404s every realm forever, which
-   * is indistinguishable from "no realms configured". A caller that wants
+   * returns zero rows unconditionally and 404s every tenant forever, which
+   * is indistinguishable from "no tenants configured". A caller that wants
    * one connection for both passes `database` again here, as `main.ts` does.
    */
   readonly ownerDatabase: DatabaseHandle;
   /**
-   * Unwraps the private half of a realm's active signing key so `/token`
+   * Unwraps the private half of a tenant's active signing key so `/token`
    * can sign access and ID tokens — `@odudu/kernel`'s config schema already
    * decodes and length-checks `ODUDU_KEK` at the config boundary.
    */
@@ -54,7 +54,7 @@ export interface AppDeps {
    * `Host` is client-controlled (see
    * `packages/account/src/view/routes/registration.ts`). Undefined when
    * `ODUDU_PUBLIC_BASE_URL` is unset; registration then refuses to send
-   * for any realm with `verify_email` on rather than guessing one, and
+   * for any tenant with `verify_email` on rather than guessing one, and
    * passkey enrolment reports itself unsupported for the same reason.
    */
   readonly publicBaseUrl?: string;
@@ -115,7 +115,7 @@ export const DEFAULT_CLIENT_SECRET_THROTTLE: ThrottleSettings = { limit: 5, wind
 
 /**
  * The throttled routes, by the pattern Fastify matched rather than by the
- * path as it arrived, so a realm name cannot be spelled to miss the set.
+ * path as it arrived, so a tenant name cannot be spelled to miss the set.
  * Deliberately not `/token`: `/token` is client-authenticated, and this
  * throttle is keyed by origin, which for a server-side client is one
  * address for every request it will ever make (ADR 0023). `/token`'s own
@@ -123,9 +123,9 @@ export const DEFAULT_CLIENT_SECRET_THROTTLE: ThrottleSettings = { limit: 5, wind
  * inside `authenticateClient`, not here.
  */
 const THROTTLED_POSTS: ReadonlySet<string> = new Set([
-  '/realms/:realm/login-actions/authenticate',
-  '/realms/:realm/login-actions/registration',
-  '/realms/:realm/login-actions/reset-password',
+  '/tenants/:tenant/login-actions/authenticate',
+  '/tenants/:tenant/login-actions/registration',
+  '/tenants/:tenant/login-actions/reset-password',
 ]);
 
 // The composition-root half of self-registration: @odudu/account never
@@ -134,24 +134,24 @@ const THROTTLED_POSTS: ReadonlySet<string> = new Set([
 // the one transaction packages/account/src/usecase/register.ts already
 // opened around this call and the verify_email token issued alongside it.
 async function createAccount(
-  tx: RealmScopedDatabase,
-  realmId: string,
+  tx: TenantScopedDatabase,
+  tenantId: string,
   input: NewAccountInput,
 ): Promise<CreateAccountResult> {
-  const subject = await subjectRepository(tx).create({ realmId, type: 'user' });
+  const subject = await subjectRepository(tx).create({ tenantId, type: 'user' });
   await userRepository(tx).create({
     subjectId: subject.id,
-    realmId,
+    tenantId,
     username: input.username,
     email: input.email,
   });
   await credentialRepository(tx).insert({
-    realmId,
+    tenantId,
     subjectId: subject.id,
     type: 'password',
     secret: { kind: 'password', hash: await hashPassword(input.password) },
   });
-  const defaults = await roleRepository(tx).defaultsForRealm();
+  const defaults = await roleRepository(tx).defaultsForTenant();
   for (const role of defaults) {
     await roleRepository(tx).assignToSubject(subject.id, role.id);
   }
@@ -185,7 +185,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
 
   // private_key_jwt's own address-guarded fetcher (RFC 7523 §2.2, ADR
   // 0028) — the real `node:https`/`node:dns` pair `#/client-key-transport`
-  // wraps, shared by every realm's clients the way the cache in
+  // wraps, shared by every tenant's clients the way the cache in
   // `clientKeySet` itself already assumes (protocol-oidc's own comment on
   // `negativeCacheKey`).
   const privateKeyJwtKeySet = clientKeySet({
@@ -238,7 +238,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   // (packages/account/src/usecase/verify-email.ts explains why).
   registerActionTokenRoute(app, {
     database: deps.database,
-    findRealm: (name) => realmSettingsRepository(deps.ownerDatabase.db).byName(name),
+    findTenant: (name) => tenantSettingsRepository(deps.ownerDatabase.db).byName(name),
     getCurrentEmail: async (tx, subjectId) =>
       (await userRepository(tx).bySubjectId(subjectId))?.email ?? null,
     markVerified: async (tx, subjectId) => {
@@ -266,7 +266,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
 
   registerRegistrationRoute(app, {
     database: deps.database,
-    findRealm: (name) => realmSettingsRepository(deps.ownerDatabase.db).byName(name),
+    findTenant: (name) => tenantSettingsRepository(deps.ownerDatabase.db).byName(name),
     publicBaseUrl: deps.publicBaseUrl,
     createAccount,
     evaluatePassword,
@@ -274,7 +274,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
 
   registerResetPasswordRoute(app, {
     database: deps.database,
-    findRealm: (name) => realmSettingsRepository(deps.ownerDatabase.db).byName(name),
+    findTenant: (name) => tenantSettingsRepository(deps.ownerDatabase.db).byName(name),
     publicBaseUrl: deps.publicBaseUrl,
     findByEmail: async (tx, email) => {
       const user = await userRepository(tx).byEmail(email);

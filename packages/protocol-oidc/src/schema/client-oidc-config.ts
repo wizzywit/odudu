@@ -1,9 +1,9 @@
 import { boolean, integer, jsonb, pgTable, text, uuid } from 'drizzle-orm/pg-core';
 import { type TokenEndpointAuthMethod } from '@odudu/contracts';
-import { clients } from '@odudu/domain-realm';
+import { clients } from '@odudu/domain-tenant';
 
 // Policies are written as hand-authored SQL in packages/db/drizzle/, never
-// declared with pgPolicy() — see realms.ts in @odudu/db for why a
+// declared with pgPolicy() — see tenants.ts in @odudu/db for why a
 // declarative policy would collide with a database that already carries it.
 // `clientId` is the client's own internal id (clients.id), not the OAuth
 // client_id string — this table is a one-to-one extension of `clients`, so
@@ -12,7 +12,7 @@ export const clientOidcConfig = pgTable('client_oidc_config', {
   clientId: uuid('client_id')
     .primaryKey()
     .references(() => clients.id, { onDelete: 'cascade' }),
-  realmId: uuid('realm_id').notNull(),
+  tenantId: uuid('tenant_id').notNull(),
   redirectUris: text('redirect_uris').array().notNull(),
   grantTypes: text('grant_types').array().notNull(),
   tokenEndpointAuthMethod: text('token_endpoint_auth_method').notNull(),
@@ -20,7 +20,7 @@ export const clientOidcConfig = pgTable('client_oidc_config', {
   accessTokenTtlSeconds: integer('access_token_ttl_seconds').notNull().default(300),
   refreshTokenTtlSeconds: integer('refresh_token_ttl_seconds').notNull().default(1_209_600),
   // The ceiling on what client_credentials may request — resource-server
-  // scopes (e.g. `reports:read`), not the OIDC vocabulary the realm's
+  // scopes (e.g. `reports:read`), not the OIDC vocabulary the tenant's
   // client_scopes carry, since this grant has no consent screen and no
   // authorization request to intersect against.
   clientCredentialsScopes: text('client_credentials_scopes').array().notNull().default([]),
@@ -59,11 +59,11 @@ export const clientOidcConfig = pgTable('client_oidc_config', {
 }).enableRLS();
 
 // Redirect URIs and grant types are OAuth vocabulary; they live here rather
-// than on domain-realm's protocol-agnostic ClientRecord, so that a second
+// than on domain-tenant's protocol-agnostic ClientRecord, so that a second
 // protocol can add its own configuration table without touching the domain.
 export interface ClientOidcConfig {
   clientId: string;
-  realmId: string;
+  tenantId: string;
   redirectUris: string[];
   grantTypes: string[];
   tokenEndpointAuthMethod: TokenEndpointAuthMethod;

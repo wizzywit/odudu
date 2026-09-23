@@ -1,4 +1,4 @@
-import { type RealmScopedDatabase } from '@odudu/db';
+import { type TenantScopedDatabase } from '@odudu/db';
 import {
   credentialRepository,
   isLockedOut,
@@ -9,7 +9,7 @@ import {
 import { newId, systemClock, type Clock } from '@odudu/kernel';
 import { authenticationSessionRepository } from '#/repository/authentication-sessions';
 import { executionRepository } from '#/repository/executions';
-import { realmSettingsRepository } from '#/repository/realm-settings';
+import { tenantSettingsRepository } from '#/repository/tenant-settings';
 import { requiredActionRepository } from '#/repository/required-actions';
 import { sessionRepository } from '#/repository/sessions';
 import { oweRecoveryCodesIfNoneUnspent } from '#/usecase/recovery-codes';
@@ -55,7 +55,7 @@ interface PasswordAttempt {
 }
 
 async function passwordAttemptFor(
-  tx: RealmScopedDatabase,
+  tx: TenantScopedDatabase,
   username: string,
 ): Promise<PasswordAttempt> {
   const found = await userRepository(tx).byUsername(username);
@@ -77,7 +77,7 @@ async function passwordAttemptFor(
 // apart by how fast it answers; and the attempt still counts, so a locked
 // account costs the same statements as an unlocked one.
 async function runPasswordStep(
-  tx: RealmScopedDatabase,
+  tx: TenantScopedDatabase,
   input: AdvanceInput,
   context: StepContext,
 ): Promise<AuthenticatorResult> {
@@ -107,7 +107,7 @@ interface StoredTotp {
 }
 
 async function storedTotpFor(
-  tx: RealmScopedDatabase,
+  tx: TenantScopedDatabase,
   subjectId: string,
 ): Promise<StoredTotp | null> {
   const [record] = await credentialRepository(tx).listFor(subjectId, 'totp');
@@ -120,7 +120,7 @@ async function storedTotpFor(
 // signing in, so letting the form name the account is how a second factor
 // ends up answering for somebody who never passed the first one.
 async function runOtpStep(
-  tx: RealmScopedDatabase,
+  tx: TenantScopedDatabase,
   input: AdvanceInput,
   context: StepContext,
 ): Promise<AuthenticatorResult> {
@@ -148,7 +148,7 @@ async function runOtpStep(
 }
 
 async function storedRecoveryCodesFor(
-  tx: RealmScopedDatabase,
+  tx: TenantScopedDatabase,
   subjectId: string,
 ): Promise<StoredRecoveryCode[]> {
   const records = await credentialRepository(tx).listFor(subjectId, 'recovery-code');
@@ -161,7 +161,7 @@ async function storedRecoveryCodesFor(
 // OTP step's does: a code says which list it was printed from, not who is
 // signing in.
 async function runRecoveryStep(
-  tx: RealmScopedDatabase,
+  tx: TenantScopedDatabase,
   input: AdvanceInput,
   context: StepContext,
 ): Promise<AuthenticatorResult> {
@@ -188,7 +188,7 @@ async function runRecoveryStep(
       // the login that used it is where a fresh set is asked for — the gate
       // reads pending actions after this, so the page appears in this login
       // rather than the next one.
-      await oweRecoveryCodesIfNoneUnspent(tx, context.realmId, outcome.subjectId);
+      await oweRecoveryCodesIfNoneUnspent(tx, context.tenantId, outcome.subjectId);
       return true;
     },
   };
@@ -197,10 +197,10 @@ async function runRecoveryStep(
 // The assertion names its own credential, so resolution runs before any
 // signature is checked — verifyAuthenticationResponse takes the stored
 // credential as an input, and there is nothing else this early to look it
-// up by. byLookupKey is realm-scoped by RLS, so a credential id from
-// another realm resolves to nothing rather than to somebody else's subject.
+// up by. byLookupKey is tenant-scoped by RLS, so a credential id from
+// another tenant resolves to nothing rather than to somebody else's subject.
 async function passkeyCredentialFor(
-  tx: RealmScopedDatabase,
+  tx: TenantScopedDatabase,
   assertion: unknown,
 ): Promise<{ id: string; subjectId: string; secret: WebauthnSecret } | null> {
   const credentialId = assertedCredentialId(assertion);
@@ -211,7 +211,7 @@ async function passkeyCredentialFor(
 }
 
 async function runPasskeyStep(
-  tx: RealmScopedDatabase,
+  tx: TenantScopedDatabase,
   input: AdvanceInput,
   context: StepContext,
 ): Promise<AuthenticatorResult> {
@@ -259,26 +259,26 @@ async function runPasskeyStep(
 // state a passkey cannot be asserted from).
 interface StepContext {
   // Read only by the recovery step, which owes a fresh set when it spends
-  // the last code: a new required-action row needs a realm_id of its own
-  // (requiredActionRepository.add says why a RealmScopedDatabase cannot
+  // the last code: a new required-action row needs a tenant_id of its own
+  // (requiredActionRepository.add says why a TenantScopedDatabase cannot
   // supply one).
-  realmId: string;
+  tenantId: string;
   subjectId: string | null;
   authSessionId: string | null;
   now: Date;
   publicBaseUrl: string | null;
-  // The realm's own brute-force numbers, read alongside every other switch
-  // one `advance` needs (see realmSettingsRepository.flowSettings).
+  // The tenant's own brute-force numbers, read alongside every other switch
+  // one `advance` needs (see tenantSettingsRepository.flowSettings).
   lockout: LockoutPolicy;
 }
 
-type RealmAuthenticatorFn = (
-  tx: RealmScopedDatabase,
+type TenantAuthenticatorFn = (
+  tx: TenantScopedDatabase,
   input: AdvanceInput,
   context: StepContext,
 ) => Promise<AuthenticatorResult>;
 
-const AUTHENTICATORS: Record<string, RealmAuthenticatorFn> = {
+const AUTHENTICATORS: Record<string, TenantAuthenticatorFn> = {
   [PASSWORD]: runPasswordStep,
   [PASSKEY]: runPasskeyStep,
   [OTP]: runOtpStep,
@@ -295,13 +295,13 @@ export function isRegisteredAuthenticator(name: string): boolean {
 
 // What the flow's applicability decisions are made against: the subject the
 // attempt is bound to (nothing is known about anybody before the first
-// factor succeeds), the realm's own switches, what the attempt has already
+// factor succeeds), the tenant's own switches, what the attempt has already
 // satisfied, and whether this submission carries a passkey assertion.
 interface FlowFacts {
   hasTotp: boolean;
   hasRecoveryCodes: boolean;
   otpRequired: boolean;
-  // Zero where the realm does not age passwords out, which is the default.
+  // Zero where the tenant does not age passwords out, which is the default.
   passwordMaxAgeDays: number;
   lockout: LockoutPolicy;
   satisfied: ReadonlySet<string>;
@@ -317,11 +317,11 @@ interface FactsRequest {
 }
 
 async function flowFacts(
-  tx: RealmScopedDatabase,
-  realmId: string,
+  tx: TenantScopedDatabase,
+  tenantId: string,
   request: FactsRequest,
 ): Promise<FlowFacts> {
-  const settings = await realmSettingsRepository(tx).flowSettings(realmId);
+  const settings = await tenantSettingsRepository(tx).flowSettings(tenantId);
   const { subjectId } = request;
   const hasTotp = subjectId !== null && (await storedTotpFor(tx, subjectId)) !== null;
   // Only when this submission carries a code: the recovery step is
@@ -359,7 +359,7 @@ function isApplicable(
   authenticator: string,
   facts: FlowFacts,
   // Whether the recovery-code step will actually run for this submission:
-  // the realm's flow carries the step, and it applies to this subject. The
+  // the tenant's flow carries the step, and it applies to this subject. The
   // only thing the OTP step is allowed to stand down for — a factor may
   // stand down only for one that stands up in its place, because a
   // conditional group with no applicable member counts as satisfied
@@ -371,7 +371,7 @@ function isApplicable(
   // one form at a time, so an always-applicable usernameless passkey would
   // take the group and password would never be reachable. With nothing
   // submitted the group falls through to password, whose page is what
-  // offers the passkey button. The cost: a realm that disables password and
+  // offers the passkey button. The cost: a tenant that disables password and
   // keeps only passkey answers no_applicable_execution and cannot be signed
   // into, since nothing here can be satisfied without an assertion the
   // unrendered page would have produced (docs/NEXT.md has the fix).
@@ -396,11 +396,11 @@ function isApplicable(
   // from it.
   if (facts.satisfied.has(RECOVERY_CODE)) return false;
   // Decided here rather than in otpApplicable, so enrolmentOwed still sees a
-  // realm that requires a second factor.
+  // tenant that requires a second factor.
   return otpApplies(facts) && facts.hasTotp;
 }
 
-// A realm that requires a second factor from somebody who has not enrolled
+// A tenant that requires a second factor from somebody who has not enrolled
 // one cannot express that as a step: asking for a code nobody can produce
 // parks the login for good, and the required-action gate that would rescue
 // it sits downstream of a successful authentication. It is collected as
@@ -413,13 +413,13 @@ function enrolmentOwed(facts: FlowFacts): boolean {
 // for them again: deciding what a subject owes reads exactly what deciding
 // which step runs read, so it is the same two queries either way.
 async function loadSteps(
-  tx: RealmScopedDatabase,
-  realmId: string,
+  tx: TenantScopedDatabase,
+  tenantId: string,
   request: FactsRequest,
 ): Promise<{ steps: Step[]; facts: FlowFacts }> {
-  const executions = await executionRepository(tx).forRealm(realmId);
-  const facts = await flowFacts(tx, realmId, request);
-  // A realm whose flow never had the recovery-code row — one provisioned
+  const executions = await executionRepository(tx).forTenant(tenantId);
+  const facts = await flowFacts(tx, tenantId, request);
+  // A tenant whose flow never had the recovery-code row — one provisioned
   // before it existed, or one that disabled it — has no recovery step for
   // the OTP step to stand down for, however the submission is shaped. The
   // row is read here because this is the only place the flow's own
@@ -440,7 +440,7 @@ async function loadSteps(
 }
 
 function bindRegistry(
-  tx: RealmScopedDatabase,
+  tx: TenantScopedDatabase,
   context: StepContext,
 ): Record<string, AuthenticatorFn> {
   const bound: Record<string, AuthenticatorFn> = {};
@@ -486,15 +486,15 @@ export async function dispatchNext(
 const AUTH_SESSION_TTL_MS = 30 * 60_000;
 
 export async function startAuthentication(
-  tx: RealmScopedDatabase,
-  realmId: string,
+  tx: TenantScopedDatabase,
+  tenantId: string,
   request: PendingRequest,
   clock: Clock = systemClock,
 ): Promise<{ authSessionId: string }> {
   const id = newId();
   await authenticationSessionRepository(tx).create({
     id,
-    realmId,
+    tenantId,
     pendingRequest: request,
     expiresAt: new Date(clock.now().getTime() + AUTH_SESSION_TTL_MS),
   });
@@ -502,7 +502,7 @@ export async function startAuthentication(
 }
 
 export async function loadPendingRequest(
-  tx: RealmScopedDatabase,
+  tx: TenantScopedDatabase,
   authSessionId: string,
 ): Promise<PendingRequest | null> {
   const record = await authenticationSessionRepository(tx).byId(authSessionId);
@@ -536,7 +536,7 @@ interface FlowContext {
 }
 
 async function loadFlowContext(
-  tx: RealmScopedDatabase,
+  tx: TenantScopedDatabase,
   authSessionId: string,
   clock: Clock,
   input: AdvanceInput,
@@ -547,7 +547,7 @@ async function loadFlowContext(
     return null;
   }
   const satisfied = new Set(record.satisfied);
-  const loaded = await loadSteps(tx, record.realmId, {
+  const loaded = await loadSteps(tx, record.tenantId, {
     subjectId: record.subjectId,
     satisfied,
     assertionOffered: assertionOffered(input),
@@ -558,7 +558,7 @@ async function loadFlowContext(
     steps: loaded.steps,
     satisfied,
     registry: bindRegistry(tx, {
-      realmId: record.realmId,
+      tenantId: record.tenantId,
       subjectId: record.subjectId,
       authSessionId,
       now: clock.now(),
@@ -568,7 +568,7 @@ async function loadFlowContext(
   };
 }
 
-// A realm whose flow cannot authenticate anyone right now — no rows at
+// A tenant whose flow cannot authenticate anyone right now — no rows at
 // all, or every row inapplicable to every subject — reports the same
 // reason whether that is discovered before a session exists (initialChallenge)
 // or mid-session (advance): there is nothing a caller can submit that would
@@ -580,40 +580,40 @@ const NO_APPLICABLE_EXECUTION = 'no_applicable_execution';
 // the person at the form can resubmit that would make this attempt theirs.
 const SUBJECT_MISMATCH = 'subject_mismatch';
 
-// A realm that requires a second factor has to say so somewhere the login
+// A tenant that requires a second factor has to say so somewhere the login
 // can act on it, and that is the required action — the flow itself cannot
 // ask for a code from somebody who has no credential to produce one.
 async function recordOtpEnrolmentIfOwed(
-  tx: RealmScopedDatabase,
-  realmId: string,
+  tx: TenantScopedDatabase,
+  tenantId: string,
   subjectId: string,
   facts: FlowFacts,
 ): Promise<void> {
   if (!enrolmentOwed(facts)) return;
-  await requiredActionRepository(tx).add(realmId, subjectId, 'configure-totp');
+  await requiredActionRepository(tx).add(tenantId, subjectId, 'configure-totp');
 }
 
 // What /authorize renders before any authentication session exists: the
-// first thing this realm's flow would ask for, with nothing submitted yet.
+// first thing this tenant's flow would ask for, with nothing submitted yet.
 // A 'failure' here means the flow has no reachable execution at all — the
 // state OIDC Core §3.1.2.1 calls "reauthentication cannot be performed".
 export async function initialChallenge(
-  tx: RealmScopedDatabase,
-  realmId: string,
+  tx: TenantScopedDatabase,
+  tenantId: string,
   clock: Clock = systemClock,
 ): Promise<AuthenticatorResult> {
   // No subject yet, so no second factor can be applicable: which account a
   // code belongs to is not something /authorize could know before anybody
   // has said who they are. No assertion either — there is no attempt yet
   // for a challenge to have been offered against.
-  const { steps, facts } = await loadSteps(tx, realmId, {
+  const { steps, facts } = await loadSteps(tx, tenantId, {
     subjectId: null,
     satisfied: new Set(),
     assertionOffered: false,
     recoveryCodeOffered: false,
   });
   const registry = bindRegistry(tx, {
-    realmId,
+    tenantId,
     subjectId: null,
     authSessionId: null,
     now: clock.now(),
@@ -632,7 +632,7 @@ export async function initialChallenge(
 // attempt, without the caller (the login route) knowing anything about
 // requirements or the registry.
 export async function pendingChallenge(
-  tx: RealmScopedDatabase,
+  tx: TenantScopedDatabase,
   authSessionId: string,
   clock: Clock = systemClock,
 ): Promise<AuthenticatorResult> {
@@ -681,7 +681,7 @@ export type AdvanceOutcome =
   | { kind: 'failure'; reason: string };
 
 export async function advance(
-  tx: RealmScopedDatabase,
+  tx: TenantScopedDatabase,
   authSessionId: string,
   input: AdvanceInput,
   clock: Clock = systemClock,
@@ -731,18 +731,18 @@ export async function advance(
   // having seen it.
   const updatedSatisfied = new Set(satisfied);
   updatedSatisfied.add(authenticator);
-  const { steps: stepsForSubject, facts } = await loadSteps(tx, record.realmId, {
+  const { steps: stepsForSubject, facts } = await loadSteps(tx, record.tenantId, {
     subjectId,
     satisfied: updatedSatisfied,
     assertionOffered: assertionOffered(input),
     recoveryCodeOffered: recoveryCodeOffered(input),
   });
-  await recordOtpEnrolmentIfOwed(tx, record.realmId, subjectId, facts);
+  await recordOtpEnrolmentIfOwed(tx, record.tenantId, subjectId, facts);
   // Collected after the factor succeeded and before the required-action
   // gate reads what is owed, which is the whole of what keeps an aged-out
   // password from being a lockout: the login still authenticates, and only
   // its completion waits for the change.
-  await recordPasswordExpiryIfOwed(tx, record.realmId, subjectId, facts.passwordMaxAgeDays, clock);
+  await recordPasswordExpiryIfOwed(tx, record.tenantId, subjectId, facts.passwordMaxAgeDays, clock);
 
   // Whether this login is done, or a further factor remains, decided
   // before `satisfied` is written: two outcomes downstream of this function
@@ -753,7 +753,7 @@ export async function advance(
   // only for a factor that has more work left after it, never for the one
   // that finishes the login.
   const forSubject = bindRegistry(tx, {
-    realmId: record.realmId,
+    tenantId: record.tenantId,
     subjectId,
     authSessionId,
     now: clock.now(),
@@ -798,7 +798,7 @@ export async function advance(
 // null `subjectId`/`authenticatedAt` is expected here, unlike there, since
 // nobody has been identified yet.
 export async function pendingSession(
-  tx: RealmScopedDatabase,
+  tx: TenantScopedDatabase,
   authSessionId: string,
   clock: Clock = systemClock,
 ): Promise<PendingRequest | null> {
@@ -815,7 +815,7 @@ export async function pendingSession(
 // same `amr` forward. The binding alone is not enough: the first factor
 // writes it while later ones are still outstanding.
 export async function authenticatedSession(
-  tx: RealmScopedDatabase,
+  tx: TenantScopedDatabase,
   authSessionId: string,
   clock: Clock = systemClock,
 ): Promise<{ subjectId: string; authenticators: string[] } | null> {
@@ -830,7 +830,7 @@ export async function authenticatedSession(
 }
 
 export async function authenticatedSubject(
-  tx: RealmScopedDatabase,
+  tx: TenantScopedDatabase,
   authSessionId: string,
   clock: Clock = systemClock,
 ): Promise<string | null> {
@@ -845,7 +845,7 @@ export async function authenticatedSubject(
 // re-derived, so a grant recorded from here states what the original login
 // actually used rather than nothing at all.
 export async function markSessionAuthenticated(
-  tx: RealmScopedDatabase,
+  tx: TenantScopedDatabase,
   authSessionId: string,
   subjectId: string,
   authenticators: readonly string[],
@@ -866,7 +866,7 @@ export async function markSessionAuthenticated(
 // alive is about the bound subject themselves, whose retry is the same
 // person continuing, and keeps its progress.
 export async function resetAuthenticationProgress(
-  tx: RealmScopedDatabase,
+  tx: TenantScopedDatabase,
   authSessionId: string,
 ): Promise<void> {
   await authenticationSessionRepository(tx).resetProgress(authSessionId);
@@ -877,7 +877,7 @@ export async function resetAuthenticationProgress(
 // to a door — the consent POST — which completes it without asking the
 // field itself. See PendingRequest.rememberMe for the read side.
 export async function recordRememberMe(
-  tx: RealmScopedDatabase,
+  tx: TenantScopedDatabase,
   authSessionId: string,
   rememberMe: boolean,
 ): Promise<void> {
@@ -890,7 +890,7 @@ export async function recordRememberMe(
 // failure past this point rolls the consume back with it rather than
 // stranding a consumed session with nothing issued for it.
 export async function consumeAuthenticationSession(
-  tx: RealmScopedDatabase,
+  tx: TenantScopedDatabase,
   authSessionId: string,
   clock: Clock = systemClock,
 ): Promise<boolean> {
@@ -898,15 +898,15 @@ export async function consumeAuthenticationSession(
 }
 
 export async function establishSession(
-  tx: RealmScopedDatabase,
-  realmId: string,
+  tx: TenantScopedDatabase,
+  tenantId: string,
   subjectId: string,
   maxSeconds: number,
   // What `advance` reported ran, in order — copied onto the session once,
   // here, because a reused session's `amr`/`acr` must go on describing this
   // login rather than being re-derived at every future token issuance.
   authenticators: readonly string[],
-  // Whether this login was remembered — the realm-gated decision the
+  // Whether this login was remembered — the tenant-gated decision the
   // caller already made, never re-derived here. Selects which cookie the
   // session's id is later carried in and which lifespan pair `liveByIds`
   // measures it against.
@@ -918,7 +918,7 @@ export async function establishSession(
   const id = newId();
   await sessionRepository(tx).create({
     id,
-    realmId,
+    tenantId,
     subjectId,
     authenticators: [...authenticators],
     expiresAt: new Date(clock.now().getTime() + maxSeconds * 1000),

@@ -1,18 +1,18 @@
 import { pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
-import { realms } from '@odudu/db';
+import { tenants } from '@odudu/db';
 import { type ClaimsRequest } from '#/service/claims-request';
 
 // Policies are written as hand-authored SQL in packages/db/drizzle/, never
-// declared with pgPolicy() — see realms.ts in @odudu/db for why a
+// declared with pgPolicy() — see tenants.ts in @odudu/db for why a
 // declarative policy would collide with a database that already carries it.
 // The primary key is the hash, not the code itself: the raw code is never
 // stored, so a backup, a log, or a SQL injection elsewhere yields nothing
 // redeemable.
 export const authorizationCodes = pgTable('authorization_codes', {
   codeHash: text('code_hash').primaryKey(),
-  realmId: uuid('realm_id')
+  tenantId: uuid('tenant_id')
     .notNull()
-    .references(() => realms.id, { onDelete: 'cascade' }),
+    .references(() => tenants.id, { onDelete: 'cascade' }),
   clientId: uuid('client_id').notNull(),
   subjectId: uuid('subject_id').notNull(),
   redirectUri: text('redirect_uri').notNull(),
@@ -52,7 +52,7 @@ export const authorizationCodes = pgTable('authorization_codes', {
 // owns (expiresAt, consumedAt, grantId).
 export interface AuthorizationCodeRecord {
   codeHash: string;
-  realmId: string;
+  tenantId: string;
   clientId: string;
   subjectId: string;
   redirectUri: string;

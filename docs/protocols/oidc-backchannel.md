@@ -99,7 +99,7 @@ revokes every grant whose `session_id` names the session being ended
 (`tokenGrantRepository(tx).revokeForSession`) — the first sentence. It
 reaches no further, because a grant's `session_id` is `NULL` exactly when
 it was issued for the `offline_access` scope
-(`packages/domain-realm/src/usecase/provision-defaults.ts`,
+(`packages/domain-tenant/src/usecase/provision-defaults.ts`,
 `packages/protocol-oidc/src/usecase/token-issuance.ts`): SQL equality never
 matches `NULL`, so the same `UPDATE` that revokes every session-bound grant
 leaves an offline one untouched by construction, not by a second check
@@ -136,7 +136,7 @@ now cite. `OIDC-BACKCHANNEL-2.4-09` goes further and signs one, with
 `logout+jwt` came back on the protected header rather than the payload —
 which is what closes both the `typ` row and "a Logout Token is signed".
 Production code takes the identical path: `endSession`
-(`packages/protocol-oidc/src/index.ts`) calls the realm's active signing
+(`packages/protocol-oidc/src/index.ts`) calls the tenant's active signing
 key and this same `signJwt` for every back-channel target before writing
 the delivery queue's `logout_token` column
 (`packages/protocol-oidc/src/schema/logout-deliveries.ts`), so the column
@@ -155,7 +155,7 @@ carrying a `backchannel_logout_uri`, and enqueues one Logout Token each. A
 client that used the session but registered no back-channel URI is never
 contacted; one that registered a URI but never received a grant under the
 session is never contacted either — nothing in `clientsForSession` reads
-past its own realm or session. README.md's "Ending a session tells the
+past its own tenant or session. README.md's "Ending a session tells the
 relying parties that were part of it" paragraph states the same rule in
 one sentence for an operator who has not opened this file.
 

@@ -2,15 +2,15 @@ import { subjectRepository } from '@odudu/domain-identity';
 import {
   createDatabase,
   MIGRATIONS_DIR,
-  realms,
+  tenants,
   runMigrations,
-  withRealm,
+  withTenant,
   type DatabaseHandle,
-  type RealmScopedDatabase,
+  type TenantScopedDatabase,
 } from '@odudu/db';
-import { expectCrossRealmMethodProbe } from '@odudu/db/testing';
-import { provisionRealm } from '@odudu/authn-flows';
-import { clients, provisionClientDefaults } from '@odudu/domain-realm';
+import { expectCrossTenantMethodProbe } from '@odudu/db/testing';
+import { provisionTenant } from '@odudu/authn-flows';
+import { clients, provisionClientDefaults } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -48,32 +48,32 @@ afterAll(async () => {
   await containerHandle?.stop();
 });
 
-async function seedRealmClientSubject(
-  tx: RealmScopedDatabase,
-  realmId: string,
+async function seedTenantClientSubject(
+  tx: TenantScopedDatabase,
+  tenantId: string,
 ): Promise<{ clientDbId: string; subjectId: string }> {
-  await tx.insert(realms).values({ id: realmId, name: `realm-${realmId}` });
-  await provisionRealm(tx, realmId);
+  await tx.insert(tenants).values({ id: tenantId, name: `tenant-${tenantId}` });
+  await provisionTenant(tx, tenantId);
   const clientDbId = newId();
   await tx.insert(clients).values({
     id: clientDbId,
-    realmId,
-    clientId: `client-${realmId}`,
+    tenantId,
+    clientId: `client-${tenantId}`,
     name: 'A client',
     type: 'confidential',
     secretHash: 'hashed:secret',
   });
   await provisionClientDefaults(tx, clientDbId);
-  const subject = await subjectRepository(tx).create({ realmId, type: 'user' });
+  const subject = await subjectRepository(tx).create({ tenantId, type: 'user' });
   return { clientDbId, subjectId: subject.id };
 }
 
-async function issueCode(tx: RealmScopedDatabase, realmId: string): Promise<string> {
-  const { clientDbId, subjectId } = await seedRealmClientSubject(tx, realmId);
+async function issueCode(tx: TenantScopedDatabase, tenantId: string): Promise<string> {
+  const { clientDbId, subjectId } = await seedTenantClientSubject(tx, tenantId);
   const codeHash = hashAuthorizationCode(generateAuthorizationCode());
   await authorizationCodeRepository(tx).create({
     codeHash,
-    realmId,
+    tenantId,
     clientId: clientDbId,
     subjectId,
     redirectUri: REDIRECT_URI,
@@ -90,25 +90,25 @@ async function issueCode(tx: RealmScopedDatabase, realmId: string): Promise<stri
 }
 
 describe('authorizationCodeRepository', () => {
-  // Not expectCrossRealmMethodProbe: `create` is an INSERT the isolation
+  // Not expectCrossTenantMethodProbe: `create` is an INSERT the isolation
   // policy refuses by throwing (its USING doubles as WITH CHECK — see
   // 0008_authorization_codes.sql), not by returning nothing. postgres.js's
   // `sql.begin()` rejects the whole transaction on any query error, so
   // this asserts the rejection directly — the shape
   // `consents.int.test.ts`'s own `record` probe uses, same reason.
-  it('cannot create a code for another realm from a foreign realm context', async () => {
-    const realmA = newId();
-    const realmB = newId();
+  it('cannot create a code for another tenant from a foreign tenant context', async () => {
+    const tenantA = newId();
+    const tenantB = newId();
 
-    const seeded = await withRealm(app.db, realmA, (tx) => seedRealmClientSubject(tx, realmA));
-    await withRealm(app.db, realmB, (tx) => seedRealmClientSubject(tx, realmB));
+    const seeded = await withTenant(app.db, tenantA, (tx) => seedTenantClientSubject(tx, tenantA));
+    await withTenant(app.db, tenantB, (tx) => seedTenantClientSubject(tx, tenantB));
 
     const codeHash = hashAuthorizationCode(generateAuthorizationCode());
     await expect(
-      withRealm(app.db, realmB, (tx) =>
+      withTenant(app.db, tenantB, (tx) =>
         authorizationCodeRepository(tx).create({
           codeHash,
-          realmId: realmA,
+          tenantId: tenantA,
           clientId: seeded.clientDbId,
           subjectId: seeded.subjectId,
           redirectUri: REDIRECT_URI,
@@ -124,15 +124,15 @@ describe('authorizationCodeRepository', () => {
       ),
     ).rejects.toThrow();
 
-    const found = await withRealm(app.db, realmA, (tx) =>
+    const found = await withTenant(app.db, tenantA, (tx) =>
       authorizationCodeRepository(tx).byHash(codeHash),
     );
     expect(found).toBeNull();
   });
 
-  it('cannot find a code by hash under a different realm context', async () => {
-    await expectCrossRealmMethodProbe(app.db, {
-      seed: async (tx, realmId) => issueCode(tx, realmId),
+  it('cannot find a code by hash under a different tenant context', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => issueCode(tx, tenantId),
       verifySeeded: async (tx, codeHash) => {
         const found = await authorizationCodeRepository(tx).byHash(codeHash);
         expect(found).not.toBeNull();
@@ -144,9 +144,9 @@ describe('authorizationCodeRepository', () => {
     });
   });
 
-  it('cannot consume a code under a different realm context, and leaves it unconsumed', async () => {
-    await expectCrossRealmMethodProbe(app.db, {
-      seed: async (tx, realmId) => issueCode(tx, realmId),
+  it('cannot consume a code under a different tenant context, and leaves it unconsumed', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => issueCode(tx, tenantId),
       verifySeeded: async (tx, codeHash) => {
         const found = await authorizationCodeRepository(tx).byHash(codeHash);
         expect(found?.consumedAt).toBeNull();
@@ -155,16 +155,16 @@ describe('authorizationCodeRepository', () => {
       expectBlocked: (result) => {
         expect(result).toBeNull();
       },
-      verifyRealmAUnaffected: async (tx, codeHash) => {
+      verifyTenantAUnaffected: async (tx, codeHash) => {
         const found = await authorizationCodeRepository(tx).byHash(codeHash);
         expect(found?.consumedAt).toBeNull();
       },
     });
   });
 
-  it('does not attach a grant to a code under a different realm context', async () => {
-    await expectCrossRealmMethodProbe(app.db, {
-      seed: async (tx, realmId) => issueCode(tx, realmId),
+  it('does not attach a grant to a code under a different tenant context', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => issueCode(tx, tenantId),
       verifySeeded: async (tx, codeHash) => {
         const found = await authorizationCodeRepository(tx).byHash(codeHash);
         expect(found?.grantId).toBeNull();
@@ -174,7 +174,7 @@ describe('authorizationCodeRepository', () => {
       expectBlocked: (result) => {
         expect(result).toBeUndefined();
       },
-      verifyRealmAUnaffected: async (tx, codeHash) => {
+      verifyTenantAUnaffected: async (tx, codeHash) => {
         const found = await authorizationCodeRepository(tx).byHash(codeHash);
         expect(found?.grantId).toBeNull();
       },

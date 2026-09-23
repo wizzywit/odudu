@@ -1,13 +1,13 @@
 import {
   createDatabase,
   MIGRATIONS_DIR,
-  realms,
+  tenants,
   runMigrations,
-  withRealm,
+  withTenant,
   type DatabaseHandle,
-  type RealmScopedDatabase,
+  type TenantScopedDatabase,
 } from '@odudu/db';
-import { expectCrossRealmMethodProbe } from '@odudu/db/testing';
+import { expectCrossTenantMethodProbe } from '@odudu/db/testing';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import { sql } from 'drizzle-orm';
@@ -42,27 +42,27 @@ afterAll(async () => {
   await containerHandle?.stop();
 });
 
-async function seedRealm(tx: RealmScopedDatabase, realmId: string): Promise<void> {
-  await tx.insert(realms).values({ id: realmId, name: `realm-${realmId}` });
+async function seedTenant(tx: TenantScopedDatabase, tenantId: string): Promise<void> {
+  await tx.insert(tenants).values({ id: tenantId, name: `tenant-${tenantId}` });
 }
 
-async function insertSubject(tx: RealmScopedDatabase, realmId: string): Promise<string> {
+async function insertSubject(tx: TenantScopedDatabase, tenantId: string): Promise<string> {
   const id = newId();
   await tx.execute(sql`
-    insert into subjects (id, realm_id, type) values (${id}, ${realmId}, 'user')
+    insert into subjects (id, tenant_id, type) values (${id}, ${tenantId}, 'user')
   `);
   return id;
 }
 
 async function insertClient(
-  tx: RealmScopedDatabase,
-  realmId: string,
+  tx: TenantScopedDatabase,
+  tenantId: string,
   clientKey: string,
 ): Promise<string> {
   const id = newId();
   await tx.execute(sql`
-    insert into clients (id, realm_id, client_id, name, type, secret_hash)
-    values (${id}, ${realmId}, ${clientKey}, 'A client', 'public', null)
+    insert into clients (id, tenant_id, client_id, name, type, secret_hash)
+    values (${id}, ${tenantId}, ${clientKey}, 'A client', 'public', null)
   `);
   return id;
 }
@@ -72,19 +72,19 @@ async function insertClient(
 // might still produce despite that guard, to prove effectiveRoles survives
 // data it cannot itself prevent.
 async function rawInsertComposite(
-  tx: RealmScopedDatabase,
-  realmId: string,
+  tx: TenantScopedDatabase,
+  tenantId: string,
   parentRoleId: string,
   childRoleId: string,
 ): Promise<void> {
   await tx.execute(sql`
-    insert into role_composites (realm_id, parent_role_id, child_role_id)
-    values (${realmId}, ${parentRoleId}, ${childRoleId})
+    insert into role_composites (tenant_id, parent_role_id, child_role_id)
+    values (${tenantId}, ${parentRoleId}, ${childRoleId})
   `);
 }
 
 interface TestSubject {
-  realmId: string;
+  tenantId: string;
   subjectId: string;
   createRole: (name: string, clientId?: string | null) => Promise<RoleRecord>;
   addComposite: (parentRoleId: string, childRoleId: string) => Promise<void>;
@@ -95,36 +95,36 @@ interface TestSubject {
 }
 
 async function testSubject(): Promise<TestSubject> {
-  const realmId = newId();
-  await withRealm(app.db, realmId, (tx) => seedRealm(tx, realmId));
-  const subjectId = await withRealm(app.db, realmId, (tx) => insertSubject(tx, realmId));
+  const tenantId = newId();
+  await withTenant(app.db, tenantId, (tx) => seedTenant(tx, tenantId));
+  const subjectId = await withTenant(app.db, tenantId, (tx) => insertSubject(tx, tenantId));
 
   return {
-    realmId,
+    tenantId,
     subjectId,
     createRole: (name, clientId = null) =>
-      withRealm(app.db, realmId, (tx) => roleRepository(tx).create({ realmId, name, clientId })),
+      withTenant(app.db, tenantId, (tx) => roleRepository(tx).create({ tenantId, name, clientId })),
     addComposite: (parentRoleId, childRoleId) =>
-      withRealm(app.db, realmId, (tx) =>
+      withTenant(app.db, tenantId, (tx) =>
         roleRepository(tx).addComposite(parentRoleId, childRoleId),
       ),
     rawInsertComposite: (parentRoleId, childRoleId) =>
-      withRealm(app.db, realmId, (tx) =>
-        rawInsertComposite(tx, realmId, parentRoleId, childRoleId),
+      withTenant(app.db, tenantId, (tx) =>
+        rawInsertComposite(tx, tenantId, parentRoleId, childRoleId),
       ),
     assignToSubject: (roleId) =>
-      withRealm(app.db, realmId, (tx) => roleRepository(tx).assignToSubject(subjectId, roleId)),
+      withTenant(app.db, tenantId, (tx) => roleRepository(tx).assignToSubject(subjectId, roleId)),
     insertClient: (clientKey) =>
-      withRealm(app.db, realmId, (tx) => insertClient(tx, realmId, clientKey)),
+      withTenant(app.db, tenantId, (tx) => insertClient(tx, tenantId, clientKey)),
     names: async () => {
-      const found = await withRealm(app.db, realmId, (tx) => effectiveRoles(tx, subjectId));
+      const found = await withTenant(app.db, tenantId, (tx) => effectiveRoles(tx, subjectId));
       return found.map((role) => role.name);
     },
   };
 }
 
 describe('effectiveRoles', () => {
-  it('returns a directly assigned realm role', async () => {
+  it('returns a directly assigned tenant role', async () => {
     const subject = await testSubject();
     const admin = await subject.createRole('admin');
     await subject.assignToSubject(admin.id);
@@ -170,7 +170,7 @@ describe('effectiveRoles', () => {
     const reader = await subject.createRole('reader', clientId);
     await subject.assignToSubject(reader.id);
 
-    const found = await withRealm(app.db, subject.realmId, (tx) =>
+    const found = await withTenant(app.db, subject.tenantId, (tx) =>
       effectiveRoles(tx, subject.subjectId),
     );
     expect(found).toEqual([{ roleId: reader.id, name: 'reader', clientKey: 'reports-api' }]);
@@ -187,12 +187,12 @@ describe('effectiveRoles', () => {
     expect(await subject.names()).toEqual(['a', 'b']);
   }, 10_000);
 
-  it('returns nothing for a subject in another realm', async () => {
-    await expectCrossRealmMethodProbe(app.db, {
-      seed: async (tx, realmId) => {
-        await seedRealm(tx, realmId);
-        const subjectId = await insertSubject(tx, realmId);
-        const admin = await roleRepository(tx).create({ realmId, name: 'admin' });
+  it('returns nothing for a subject in another tenant', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        await seedTenant(tx, tenantId);
+        const subjectId = await insertSubject(tx, tenantId);
+        const admin = await roleRepository(tx).create({ tenantId, name: 'admin' });
         await roleRepository(tx).assignToSubject(subjectId, admin.id);
         return { subjectId };
       },

@@ -174,7 +174,7 @@ describe('logoutSenderModule', () => {
 
   it('reports a skipped pass as skipped rather than as a pass that delivered nothing', async () => {
     const log = recorder();
-    const skipped: LogoutSenderReport = { ran: false, reason: 'no realm was enumerated' };
+    const skipped: LogoutSenderReport = { ran: false, reason: 'no tenant was enumerated' };
     const module = logoutSenderModule(DEPS, recordingPass(skipped).pass);
 
     await module.start?.(context(APP_URL, log.logger));

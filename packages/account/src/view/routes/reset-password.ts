@@ -1,4 +1,4 @@
-import { type DatabaseHandle, type RealmScopedDatabase } from '@odudu/db';
+import { type DatabaseHandle, type TenantScopedDatabase } from '@odudu/db';
 import { type FastifyInstance } from 'fastify';
 import { requestPasswordReset } from '#/usecase/reset-password';
 import {
@@ -8,7 +8,7 @@ import {
   sendResetHtml,
 } from '#/view/reset-html';
 
-export interface ResetPasswordRealmLookup {
+export interface ResetPasswordTenantLookup {
   readonly id: string;
   readonly name: string;
   readonly displayName: string | null;
@@ -18,14 +18,14 @@ export interface ResetPasswordRealmLookup {
 
 export interface ResetPasswordRouteDeps {
   readonly database: DatabaseHandle;
-  readonly findRealm: (name: string) => Promise<ResetPasswordRealmLookup | null>;
+  readonly findTenant: (name: string) => Promise<ResetPasswordTenantLookup | null>;
   // Operator configuration (ODUDU_PUBLIC_BASE_URL), never anything read off
   // the request — see #/view/routes/registration.ts for why. Undefined
-  // when unset; requestPasswordReset then refuses to send for any realm
+  // when unset; requestPasswordReset then refuses to send for any tenant
   // rather than building a link some other way.
   readonly publicBaseUrl: string | undefined;
   readonly findByEmail: (
-    tx: RealmScopedDatabase,
+    tx: TenantScopedDatabase,
     email: string,
   ) => Promise<{ subjectId: string; email: string } | null>;
 }
@@ -38,38 +38,38 @@ function firstNonEmptyString(value: string | string[] | undefined): string | und
   return value;
 }
 
-function realmIsOpenForReset(
-  realm: ResetPasswordRealmLookup | null,
-): realm is ResetPasswordRealmLookup {
-  return realm !== null && realm.enabled && realm.resetPasswordAllowed;
+function tenantIsOpenForReset(
+  tenant: ResetPasswordTenantLookup | null,
+): tenant is ResetPasswordTenantLookup {
+  return tenant !== null && tenant.enabled && tenant.resetPasswordAllowed;
 }
 
 // Not under /protocol/openid-connect/: this is Odudu's own account UI, the
-// same namespace choice #/view/routes/registration.ts documents. A realm
+// same namespace choice #/view/routes/registration.ts documents. A tenant
 // with reset_password_allowed off (the default) serves nothing here at
 // all — 404 on the form and on the submission alike, the same way a
-// disabled realm refuses registration.
+// disabled tenant refuses registration.
 export function registerResetPasswordRoute(
   app: FastifyInstance,
   deps: ResetPasswordRouteDeps,
 ): void {
-  app.get<{ Params: { realm: string } }>(
-    '/realms/:realm/login-actions/reset-password',
+  app.get<{ Params: { tenant: string } }>(
+    '/tenants/:tenant/login-actions/reset-password',
     async (request, reply) => {
-      const realm = await deps.findRealm(request.params.realm);
-      if (!realmIsOpenForReset(realm)) {
+      const tenant = await deps.findTenant(request.params.tenant);
+      if (!tenantIsOpenForReset(tenant)) {
         return reply.code(404).send();
       }
-      return sendResetHtml(reply, 200, renderResetRequestForm(request.params.realm));
+      return sendResetHtml(reply, 200, renderResetRequestForm(request.params.tenant));
     },
   );
 
   app.post<{
-    Params: { realm: string };
+    Params: { tenant: string };
     Body: Record<string, string | string[] | undefined>;
-  }>('/realms/:realm/login-actions/reset-password', async (request, reply) => {
-    const realm = await deps.findRealm(request.params.realm);
-    if (!realmIsOpenForReset(realm)) {
+  }>('/tenants/:tenant/login-actions/reset-password', async (request, reply) => {
+    const tenant = await deps.findTenant(request.params.tenant);
+    if (!tenantIsOpenForReset(tenant)) {
       return reply.code(404).send();
     }
 
@@ -85,9 +85,9 @@ export function registerResetPasswordRoute(
     const outcome = await requestPasswordReset(
       {
         database: deps.database,
-        realmId: realm.id,
-        realmName: realm.name,
-        realmDisplayName: realm.displayName ?? realm.name,
+        tenantId: tenant.id,
+        tenantName: tenant.name,
+        tenantDisplayName: tenant.displayName ?? tenant.name,
         issuerBase: deps.publicBaseUrl,
         findByEmail: deps.findByEmail,
       },
@@ -96,7 +96,7 @@ export function registerResetPasswordRoute(
 
     if (outcome.kind === 'misconfigured') {
       request.log.error(
-        { realm: request.params.realm },
+        { tenant: request.params.tenant },
         'password reset refused: ODUDU_PUBLIC_BASE_URL is unset',
       );
       return sendResetHtml(

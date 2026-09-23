@@ -1,13 +1,13 @@
 import {
   createDatabase,
   MIGRATIONS_DIR,
-  realms,
+  tenants,
   runMigrations,
-  withRealm,
+  withTenant,
   type DatabaseHandle,
 } from '@odudu/db';
-import { expectCrossRealmMethodProbe, expectRealmIsolation } from '@odudu/db/testing';
-import { clients } from '@odudu/domain-realm';
+import { expectCrossTenantMethodProbe, expectTenantIsolation } from '@odudu/db/testing';
+import { clients } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import { eq } from 'drizzle-orm';
@@ -50,23 +50,23 @@ afterAll(async () => {
   await containerHandle?.stop();
 });
 
-let realmId: string;
+let tenantId: string;
 let clientId: string;
 
-async function seedRealm(): Promise<string> {
+async function seedTenant(): Promise<string> {
   const id = newId();
-  await owner.db.insert(realms).values({ id, name: `logout-deliveries-${id}` });
+  await owner.db.insert(tenants).values({ id, name: `logout-deliveries-${id}` });
   return id;
 }
 
-// A row for the FK (realm_id, client_id) -> clients(realm_id, id) to
+// A row for the FK (tenant_id, client_id) -> clients(tenant_id, id) to
 // point at. Inserted directly through the owner connection, the way this
-// file already seeds realms: RLS is not the thing under test here.
-async function seedClient(realmOf: string): Promise<string> {
+// file already seeds tenants: RLS is not the thing under test here.
+async function seedClient(tenantOf: string): Promise<string> {
   const id = newId();
   await owner.db.insert(clients).values({
     id,
-    realmId: realmOf,
+    tenantId: tenantOf,
     clientId: `rp-${id}`,
     name: 'Relying party',
     type: 'public',
@@ -77,7 +77,7 @@ async function seedClient(realmOf: string): Promise<string> {
 function delivery(overrides: Partial<EnqueueDelivery> = {}): EnqueueDelivery {
   return {
     id: newId(),
-    realmId,
+    tenantId,
     clientId,
     sessionId: newId(),
     endpoint: 'https://rp.example/backchannel-logout',
@@ -92,8 +92,8 @@ function claimAt(now: Date, limit = 10) {
 }
 
 beforeEach(async () => {
-  realmId = await seedRealm();
-  clientId = await seedClient(realmId);
+  tenantId = await seedTenant();
+  clientId = await seedClient(tenantId);
 });
 
 describe('the backchannel logout delivery queue', () => {
@@ -101,7 +101,7 @@ describe('the backchannel logout delivery queue', () => {
     const dueRow = delivery();
     const laterRow = delivery({ nextAttemptAt: new Date(NOW.getTime() + MINUTE) });
 
-    const claimed = await withRealm(app.db, realmId, async (tx) => {
+    const claimed = await withTenant(app.db, tenantId, async (tx) => {
       const repo = logoutDeliveryRepository(tx);
       await repo.enqueue([dueRow, laterRow]);
       return repo.claimDue(claimAt(NOW));
@@ -121,7 +121,7 @@ describe('the backchannel logout delivery queue', () => {
       logoutToken: 'second-signed-logout-token',
     });
 
-    const claimed = await withRealm(app.db, realmId, async (tx) => {
+    const claimed = await withTenant(app.db, tenantId, async (tx) => {
       const repo = logoutDeliveryRepository(tx);
       await repo.enqueue([first]);
       await repo.enqueue([second]);
@@ -135,7 +135,7 @@ describe('the backchannel logout delivery queue', () => {
   it('does not return a delivery already marked delivered', async () => {
     const dueRow = delivery();
 
-    const claimed = await withRealm(app.db, realmId, async (tx) => {
+    const claimed = await withTenant(app.db, tenantId, async (tx) => {
       const repo = logoutDeliveryRepository(tx);
       await repo.enqueue([dueRow]);
       await repo.markDelivered(dueRow.id, NOW);
@@ -148,7 +148,7 @@ describe('the backchannel logout delivery queue', () => {
   it('backs a failed delivery off rather than retrying it immediately', async () => {
     const dueRow = delivery();
 
-    const { immediately, afterBackoff } = await withRealm(app.db, realmId, async (tx) => {
+    const { immediately, afterBackoff } = await withTenant(app.db, tenantId, async (tx) => {
       const repo = logoutDeliveryRepository(tx);
       await repo.enqueue([dueRow]);
       await repo.markFailed(dueRow.id, NOW, 'connect ECONNREFUSED');
@@ -166,7 +166,7 @@ describe('the backchannel logout delivery queue', () => {
     const dueRow = delivery();
     const farFuture = new Date(NOW.getTime() + 365 * 24 * 60 * MINUTE);
 
-    const claimed = await withRealm(app.db, realmId, async (tx) => {
+    const claimed = await withTenant(app.db, tenantId, async (tx) => {
       const repo = logoutDeliveryRepository(tx);
       await repo.enqueue([dueRow]);
       for (let attempt = 0; attempt < BACKCHANNEL_LOGOUT_MAX_ATTEMPTS; attempt += 1) {
@@ -185,7 +185,7 @@ describe('the backchannel logout delivery queue', () => {
     const dueRow = delivery();
     const farFuture = new Date(NOW.getTime() + 365 * 24 * 60 * MINUTE);
 
-    const claimed = await withRealm(app.db, realmId, async (tx) => {
+    const claimed = await withTenant(app.db, tenantId, async (tx) => {
       const repo = logoutDeliveryRepository(tx);
       await repo.enqueue([dueRow]);
       await repo.markAbandoned(dueRow.id, NOW, 'logout delivery refused with status 400');
@@ -202,7 +202,7 @@ describe('the backchannel logout delivery queue', () => {
   it('does not return a delivery it just leased', async () => {
     const dueRow = delivery();
 
-    const { first, second } = await withRealm(app.db, realmId, async (tx) => {
+    const { first, second } = await withTenant(app.db, tenantId, async (tx) => {
       const repo = logoutDeliveryRepository(tx);
       await repo.enqueue([dueRow]);
       return {
@@ -218,7 +218,7 @@ describe('the backchannel logout delivery queue', () => {
   it('offers a leased delivery again once the lease has elapsed', async () => {
     const dueRow = delivery();
 
-    const { leased, tooSoon, afterLease } = await withRealm(app.db, realmId, async (tx) => {
+    const { leased, tooSoon, afterLease } = await withTenant(app.db, tenantId, async (tx) => {
       const repo = logoutDeliveryRepository(tx);
       await repo.enqueue([dueRow]);
       const claimed = await repo.claimDue(claimAt(NOW));
@@ -234,26 +234,26 @@ describe('the backchannel logout delivery queue', () => {
     expect(afterLease.map((d) => d.id)).toEqual([dueRow.id]);
   });
 
-  it("cannot see another realm's deliveries", async () => {
+  it("cannot see another tenant's deliveries", async () => {
     const dueRow = delivery();
-    await withRealm(app.db, realmId, (tx) => logoutDeliveryRepository(tx).enqueue([dueRow]));
+    await withTenant(app.db, tenantId, (tx) => logoutDeliveryRepository(tx).enqueue([dueRow]));
 
-    const otherRealmId = await seedRealm();
-    const claimed = await withRealm(app.db, otherRealmId, (tx) =>
+    const otherTenantId = await seedTenant();
+    const claimed = await withTenant(app.db, otherTenantId, (tx) =>
       logoutDeliveryRepository(tx).claimDue(claimAt(NOW)),
     );
 
     expect(claimed).toEqual([]);
   });
 
-  it('scopes its rows to the realm that queued them', async () => {
-    await expectRealmIsolation(app.db, {
+  it('scopes its rows to the tenant that queued them', async () => {
+    await expectTenantIsolation(app.db, {
       table: 'backchannel_logout_deliveries',
-      seed: async (tx, seededRealm) => {
-        await owner.db.insert(realms).values({ id: seededRealm, name: `probe-${seededRealm}` });
-        const seededClientId = await seedClient(seededRealm);
+      seed: async (tx, seededTenant) => {
+        await owner.db.insert(tenants).values({ id: seededTenant, name: `probe-${seededTenant}` });
+        const seededClientId = await seedClient(seededTenant);
         await logoutDeliveryRepository(tx).enqueue([
-          delivery({ id: newId(), realmId: seededRealm, clientId: seededClientId }),
+          delivery({ id: newId(), tenantId: seededTenant, clientId: seededClientId }),
         ]);
       },
     });
@@ -261,7 +261,7 @@ describe('the backchannel logout delivery queue', () => {
 
   it('refuses to queue a delivery for a client that does not exist', async () => {
     await expect(
-      withRealm(app.db, realmId, (tx) =>
+      withTenant(app.db, tenantId, (tx) =>
         logoutDeliveryRepository(tx).enqueue([delivery({ clientId: newId() })]),
       ),
     ).rejects.toThrow();
@@ -269,7 +269,7 @@ describe('the backchannel logout delivery queue', () => {
 
   it('is removed when the client it is for is deleted', async () => {
     const row = delivery();
-    await withRealm(app.db, realmId, (tx) => logoutDeliveryRepository(tx).enqueue([row]));
+    await withTenant(app.db, tenantId, (tx) => logoutDeliveryRepository(tx).enqueue([row]));
 
     await owner.db.delete(clients).where(eq(clients.id, clientId));
 
@@ -281,18 +281,18 @@ describe('the backchannel logout delivery queue', () => {
   });
 });
 
-describe('a foreign realm cannot reach a queued delivery', () => {
-  it('refuses to queue a delivery for another realm', async () => {
-    const foreignRealm = await seedRealm();
-    const foreignClientId = await seedClient(foreignRealm);
+describe('a foreign tenant cannot reach a queued delivery', () => {
+  it('refuses to queue a delivery for another tenant', async () => {
+    const foreignTenant = await seedTenant();
+    const foreignClientId = await seedClient(foreignTenant);
 
     // The policy declares no WITH CHECK, so its USING expression is what
     // refuses the insert: the row is not merely invisible afterwards, it
     // was never written.
     await expect(
-      withRealm(app.db, realmId, (tx) =>
+      withTenant(app.db, tenantId, (tx) =>
         logoutDeliveryRepository(tx).enqueue([
-          delivery({ id: newId(), realmId: foreignRealm, clientId: foreignClientId }),
+          delivery({ id: newId(), tenantId: foreignTenant, clientId: foreignClientId }),
         ]),
       ),
     ).rejects.toThrow();
@@ -300,16 +300,16 @@ describe('a foreign realm cannot reach a queued delivery', () => {
     const rows = await owner.db
       .select()
       .from(backchannelLogoutDeliveries)
-      .where(eq(backchannelLogoutDeliveries.realmId, foreignRealm));
+      .where(eq(backchannelLogoutDeliveries.tenantId, foreignTenant));
     expect(rows).toEqual([]);
   });
 
-  it('cannot mark another realm’s delivery delivered', async () => {
-    await expectCrossRealmMethodProbe(app.db, {
-      seed: async (tx, seededRealm) => {
-        await owner.db.insert(realms).values({ id: seededRealm, name: `probe-${seededRealm}` });
-        const seededClientId = await seedClient(seededRealm);
-        const row = delivery({ id: newId(), realmId: seededRealm, clientId: seededClientId });
+  it('cannot mark another tenant’s delivery delivered', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, seededTenant) => {
+        await owner.db.insert(tenants).values({ id: seededTenant, name: `probe-${seededTenant}` });
+        const seededClientId = await seedClient(seededTenant);
+        const row = delivery({ id: newId(), tenantId: seededTenant, clientId: seededClientId });
         await logoutDeliveryRepository(tx).enqueue([row]);
         return row.id;
       },
@@ -326,7 +326,7 @@ describe('a foreign realm cannot reach a queued delivery', () => {
       expectBlocked: (result) => {
         expect(result).toBe(false);
       },
-      verifyRealmAUnaffected: async (tx, id) => {
+      verifyTenantAUnaffected: async (tx, id) => {
         const rows = await tx
           .select()
           .from(backchannelLogoutDeliveries)
@@ -336,12 +336,12 @@ describe('a foreign realm cannot reach a queued delivery', () => {
     });
   });
 
-  it('cannot record a failure against another realm’s delivery', async () => {
-    await expectCrossRealmMethodProbe(app.db, {
-      seed: async (tx, seededRealm) => {
-        await owner.db.insert(realms).values({ id: seededRealm, name: `probe-${seededRealm}` });
-        const seededClientId = await seedClient(seededRealm);
-        const row = delivery({ id: newId(), realmId: seededRealm, clientId: seededClientId });
+  it('cannot record a failure against another tenant’s delivery', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, seededTenant) => {
+        await owner.db.insert(tenants).values({ id: seededTenant, name: `probe-${seededTenant}` });
+        const seededClientId = await seedClient(seededTenant);
+        const row = delivery({ id: newId(), tenantId: seededTenant, clientId: seededClientId });
         await logoutDeliveryRepository(tx).enqueue([row]);
         return row.id;
       },
@@ -353,9 +353,9 @@ describe('a foreign realm cannot reach a queued delivery', () => {
         expect(rows[0]?.lastError).toBeNull();
       },
       attempt: (tx, id) =>
-        logoutDeliveryRepository(tx).markFailed(id, NOW, 'written from the wrong realm'),
+        logoutDeliveryRepository(tx).markFailed(id, NOW, 'written from the wrong tenant'),
       expectBlocked: () => undefined,
-      verifyRealmAUnaffected: async (tx, id) => {
+      verifyTenantAUnaffected: async (tx, id) => {
         const rows = await tx
           .select()
           .from(backchannelLogoutDeliveries)
@@ -366,12 +366,12 @@ describe('a foreign realm cannot reach a queued delivery', () => {
     });
   });
 
-  it('cannot abandon another realm’s delivery', async () => {
-    await expectCrossRealmMethodProbe(app.db, {
-      seed: async (tx, seededRealm) => {
-        await owner.db.insert(realms).values({ id: seededRealm, name: `probe-${seededRealm}` });
-        const seededClientId = await seedClient(seededRealm);
-        const row = delivery({ id: newId(), realmId: seededRealm, clientId: seededClientId });
+  it('cannot abandon another tenant’s delivery', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, seededTenant) => {
+        await owner.db.insert(tenants).values({ id: seededTenant, name: `probe-${seededTenant}` });
+        const seededClientId = await seedClient(seededTenant);
+        const row = delivery({ id: newId(), tenantId: seededTenant, clientId: seededClientId });
         await logoutDeliveryRepository(tx).enqueue([row]);
         return row.id;
       },
@@ -383,9 +383,9 @@ describe('a foreign realm cannot reach a queued delivery', () => {
         expect(rows[0]?.attempts).toBe(0);
       },
       attempt: (tx, id) =>
-        logoutDeliveryRepository(tx).markAbandoned(id, NOW, 'written from the wrong realm'),
+        logoutDeliveryRepository(tx).markAbandoned(id, NOW, 'written from the wrong tenant'),
       expectBlocked: () => undefined,
-      verifyRealmAUnaffected: async (tx, id) => {
+      verifyTenantAUnaffected: async (tx, id) => {
         const rows = await tx
           .select()
           .from(backchannelLogoutDeliveries)
@@ -396,13 +396,13 @@ describe('a foreign realm cannot reach a queued delivery', () => {
     });
   });
 
-  it('claims nothing of another realm, and leaves its attempt count alone', async () => {
-    const foreignRealm = await seedRealm();
-    const foreignClientId = await seedClient(foreignRealm);
-    const row = delivery({ id: newId(), realmId: foreignRealm, clientId: foreignClientId });
-    await withRealm(app.db, foreignRealm, (tx) => logoutDeliveryRepository(tx).enqueue([row]));
+  it('claims nothing of another tenant, and leaves its attempt count alone', async () => {
+    const foreignTenant = await seedTenant();
+    const foreignClientId = await seedClient(foreignTenant);
+    const row = delivery({ id: newId(), tenantId: foreignTenant, clientId: foreignClientId });
+    await withTenant(app.db, foreignTenant, (tx) => logoutDeliveryRepository(tx).enqueue([row]));
 
-    const claimed = await withRealm(app.db, realmId, (tx) =>
+    const claimed = await withTenant(app.db, tenantId, (tx) =>
       logoutDeliveryRepository(tx).claimDue(claimAt(NOW)),
     );
 

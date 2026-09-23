@@ -1,8 +1,8 @@
-import { withRealm, type DatabaseHandle, type RealmScopedDatabase } from '@odudu/db';
+import { withTenant, type DatabaseHandle, type TenantScopedDatabase } from '@odudu/db';
 import { outboxRepository, renderVerifyEmail } from '@odudu/email';
 import { OduduError } from '@odudu/kernel';
 import { actionTokenRepository } from '#/repository/action-tokens';
-import { type PasswordPolicy, type PolicyViolation } from '#/repository/realm-settings';
+import { type PasswordPolicy, type PolicyViolation } from '#/repository/tenant-settings';
 import { VERIFY_EMAIL_TTL_SECONDS } from '#/usecase/verify-email';
 
 // Re-exported so the view layer can reach these without importing the
@@ -23,9 +23,9 @@ export interface CreateAccountResult {
 
 export interface RegisterDeps {
   readonly database: DatabaseHandle;
-  readonly realmId: string;
-  readonly realmName: string;
-  readonly realmDisplayName: string;
+  readonly tenantId: string;
+  readonly tenantName: string;
+  readonly tenantDisplayName: string;
   // The base a verification link is built from — operator configuration
   // (ODUDU_PUBLIC_BASE_URL), never derived from the request that reached
   // this usecase: see #/view/routes/registration.ts for why a request
@@ -41,11 +41,11 @@ export interface RegisterDeps {
   // writes and this usecase only owns the transaction boundary and the
   // action token issued inside it.
   readonly createAccount: (
-    tx: RealmScopedDatabase,
-    realmId: string,
+    tx: TenantScopedDatabase,
+    tenantId: string,
     input: NewAccountInput,
   ) => Promise<CreateAccountResult>;
-  // The realm's own configured policy, and the leaf function that checks a
+  // The tenant's own configured policy, and the leaf function that checks a
   // candidate against it (packages/domain-identity/src/service/password-policy.ts).
   // Injected for the same reason createAccount is: @odudu/account never
   // imports @odudu/domain-identity.
@@ -62,10 +62,10 @@ export type RegisterOutcome =
   | { kind: 'email_taken' }
   | { kind: 'username_taken' }
   | { kind: 'invalid_email' }
-  // The realm's password policy — read from the realm, never defaulted
+  // The tenant's password policy — read from the tenant, never defaulted
   // here — refused the candidate before any write was attempted.
   | { kind: 'invalid_password'; violations: PolicyViolation[] }
-  // verify_email is on for this realm but no ODUDU_PUBLIC_BASE_URL is
+  // verify_email is on for this tenant but no ODUDU_PUBLIC_BASE_URL is
   // configured to build a verification link from — refused before any
   // write, rather than falling back to something request-derived or
   // creating an account nothing can ever verify.
@@ -92,7 +92,7 @@ function classifyAccountCreationError(err: unknown): AccountCreationFailure | nu
 }
 
 // Creates the subject, the user row, the password credential and the
-// default roles in one transaction, and — only when the realm requires
+// default roles in one transaction, and — only when the tenant requires
 // verification — issues the verify_email token and queues the mail that
 // carries it inside that same transaction, exactly as sendVerificationEmail
 // (#/usecase/verify-email.ts) establishes: an account that rolls back
@@ -116,8 +116,8 @@ export async function register(
 
   let created: { subjectId: string };
   try {
-    created = await withRealm(deps.database.db, deps.realmId, async (tx) => {
-      const account = await deps.createAccount(tx, deps.realmId, input);
+    created = await withTenant(deps.database.db, deps.tenantId, async (tx) => {
+      const account = await deps.createAccount(tx, deps.tenantId, input);
       // The earlier misconfigured check already guarantees issuerBase is
       // defined whenever verification is on; re-checking it here (rather
       // than asserting past the type) is what lets that stay true by
@@ -126,16 +126,16 @@ export async function register(
         return { subjectId: account.subjectId };
       }
       const { token } = await actionTokenRepository(tx).issue({
-        realmId: deps.realmId,
+        tenantId: deps.tenantId,
         subjectId: account.subjectId,
         type: 'verify_email',
         email: input.email,
         ttlSeconds: VERIFY_EMAIL_TTL_SECONDS,
       });
-      const link = `${deps.issuerBase}/realms/${deps.realmName}/login-actions/action-token?key=${encodeURIComponent(token)}`;
+      const link = `${deps.issuerBase}/tenants/${deps.tenantName}/login-actions/action-token?key=${encodeURIComponent(token)}`;
       await outboxRepository(tx).enqueue({
-        realmId: deps.realmId,
-        ...renderVerifyEmail({ to: input.email, link, realmDisplayName: deps.realmDisplayName }),
+        tenantId: deps.tenantId,
+        ...renderVerifyEmail({ to: input.email, link, tenantDisplayName: deps.tenantDisplayName }),
       });
       return { subjectId: account.subjectId };
     });

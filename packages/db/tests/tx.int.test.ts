@@ -4,11 +4,11 @@ import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createDatabase, type DatabaseHandle } from '#/client';
 import { MIGRATIONS_DIR, runMigrations } from '#/migrate';
-import { realms } from '#/schema/index';
-import { type RealmScopedDatabase, withEachRealmExclusive, withRealm } from '#/tx';
+import { tenants } from '#/schema/index';
+import { type TenantScopedDatabase, withEachTenantExclusive, withTenant } from '#/tx';
 
-const REALM_A = newId();
-const REALM_B = newId();
+const TENANT_A = newId();
+const TENANT_B = newId();
 
 // Guarded (possibly-undefined) handles for cleanup: beforeAll can throw
 // before assignment (Docker down, image pull failure), and afterAll must
@@ -33,9 +33,9 @@ beforeAll(async () => {
   owner = ownerHandle;
   await runMigrations(owner.db, MIGRATIONS_DIR);
 
-  await owner.db.insert(realms).values([
-    { id: REALM_A, name: 'alpha' },
-    { id: REALM_B, name: 'bravo' },
+  await owner.db.insert(tenants).values([
+    { id: TENANT_A, name: 'alpha' },
+    { id: TENANT_B, name: 'bravo' },
   ]);
 
   appUrl = await createAppRole(container.adminUrl);
@@ -49,114 +49,114 @@ afterAll(async () => {
   await containerHandle?.stop();
 });
 
-describe('withRealm', () => {
-  it('sees only the bound realm', async () => {
-    const rows = await withRealm(app.db, REALM_A, async (tx) => tx.select().from(realms));
+describe('withTenant', () => {
+  it('sees only the bound tenant', async () => {
+    const rows = await withTenant(app.db, TENANT_A, async (tx) => tx.select().from(tenants));
 
     expect(rows).toHaveLength(1);
     expect(rows[0]?.name).toBe('alpha');
   });
 
-  it('does not leak realm context to the next query on a pooled connection', async () => {
-    await withRealm(app.db, REALM_A, async (tx) => tx.select().from(realms));
+  it('does not leak tenant context to the next query on a pooled connection', async () => {
+    await withTenant(app.db, TENANT_A, async (tx) => tx.select().from(tenants));
 
-    const rows = await app.db.select().from(realms);
+    const rows = await app.db.select().from(tenants);
 
     expect(rows).toEqual([]);
   });
 
-  it('sees only its own realm across two sequential calls on the same pooled connection', async () => {
+  it('sees only its own tenant across two sequential calls on the same pooled connection', async () => {
     // app.db is a max:1 pool: both calls run on the same physical backend
-    // connection, one after the other. Each must see exactly its own realm —
+    // connection, one after the other. Each must see exactly its own tenant —
     // proving set_config(..., true) rebinds cleanly call to call, not just
     // that it clears at the end (test above) or starts clear (test below).
-    const alphaRows = await withRealm(app.db, REALM_A, async (tx) => tx.select().from(realms));
-    const bravoRows = await withRealm(app.db, REALM_B, async (tx) => tx.select().from(realms));
+    const alphaRows = await withTenant(app.db, TENANT_A, async (tx) => tx.select().from(tenants));
+    const bravoRows = await withTenant(app.db, TENANT_B, async (tx) => tx.select().from(tenants));
 
     expect(alphaRows.map((row) => row.name)).toEqual(['alpha']);
     expect(bravoRows.map((row) => row.name)).toEqual(['bravo']);
   });
 
-  it('returns no rows on a connection that has never touched the realm GUC', async () => {
+  it('returns no rows on a connection that has never touched the tenant GUC', async () => {
     // A brand-new pool has never called set_config on its backend connection,
-    // so current_setting('app.realm_id', true) hits the missing_ok branch and
+    // so current_setting('app.tenant_id', true) hits the missing_ok branch and
     // returns NULL directly — distinct from the "touched, then reverted to
     // ''" branch that the leak test above exercises. Both branches must
     // filter to zero rows for the policy to fail closed in every GUC state.
     const fresh = createDatabase(appUrl, { max: 1 });
 
     try {
-      const rows = await fresh.db.select().from(realms);
+      const rows = await fresh.db.select().from(tenants);
       expect(rows).toEqual([]);
     } finally {
       await fresh.close();
     }
   });
 
-  it('cannot update another realm', async () => {
-    await withRealm(app.db, REALM_A, async (tx) => {
-      await tx.update(realms).set({ displayName: 'hijacked' }).where(eq(realms.id, REALM_B));
+  it('cannot update another tenant', async () => {
+    await withTenant(app.db, TENANT_A, async (tx) => {
+      await tx.update(tenants).set({ displayName: 'hijacked' }).where(eq(tenants.id, TENANT_B));
     });
 
-    const [bravo] = await owner.db.select().from(realms).where(eq(realms.id, REALM_B));
+    const [bravo] = await owner.db.select().from(tenants).where(eq(tenants.id, TENANT_B));
 
     expect(bravo?.displayName).toBeNull();
   });
 
-  it('rejects an empty realm id', async () => {
-    await expect(withRealm(app.db, '', () => Promise.resolve(undefined))).rejects.toThrow(
+  it('rejects an empty tenant id', async () => {
+    await expect(withTenant(app.db, '', () => Promise.resolve(undefined))).rejects.toThrow(
       OduduError,
     );
   });
 
-  it('rejects a non-UUID realm id before it ever reaches Postgres', async () => {
-    await expect(withRealm(app.db, 'not-a-uuid', () => Promise.resolve(undefined))).rejects.toThrow(
-      OduduError,
-    );
+  it('rejects a non-UUID tenant id before it ever reaches Postgres', async () => {
+    await expect(
+      withTenant(app.db, 'not-a-uuid', () => Promise.resolve(undefined)),
+    ).rejects.toThrow(OduduError);
 
-    // Confirms the rejection happens at the withRealm boundary, not as a
+    // Confirms the rejection happens at the withTenant boundary, not as a
     // driver-level 22P02 surfacing coincidentally as some other error: the
     // pool is left usable afterwards.
-    const rows = await app.db.select().from(realms);
+    const rows = await app.db.select().from(tenants);
     expect(rows).toEqual([]);
   });
 
-  it('cannot pass a realm-scoped handle back into withRealm (type-level guard)', () => {
+  it('cannot pass a tenant-scoped handle back into withTenant (type-level guard)', () => {
     // Never invoked — its only job is to fail `tsc` (packages/db/tsconfig.json
-    // includes this test file) if RealmScopedDatabase regresses back to a
-    // structural alias of Database. A nested withRealm call would open a
+    // includes this test file) if TenantScopedDatabase regresses back to a
+    // structural alias of Database. A nested withTenant call would open a
     // savepoint whose set_config(..., true) is released rather than rolled
-    // back on success, silently rebinding app.realm_id for the rest of the
+    // back on success, silently rebinding app.tenant_id for the rest of the
     // outer transaction.
-    async function nestedWithRealmMustNotCompile(tx: RealmScopedDatabase): Promise<void> {
-      // @ts-expect-error — RealmScopedDatabase omits `.transaction()`, which
-      // withRealm's `db` parameter requires, so this argument is not
+    async function nestedWithTenantMustNotCompile(tx: TenantScopedDatabase): Promise<void> {
+      // @ts-expect-error — TenantScopedDatabase omits `.transaction()`, which
+      // withTenant's `db` parameter requires, so this argument is not
       // assignable and nesting fails to compile.
-      await withRealm(tx, REALM_B, () => Promise.resolve(undefined));
+      await withTenant(tx, TENANT_B, () => Promise.resolve(undefined));
     }
 
-    expect(nestedWithRealmMustNotCompile).toBeTypeOf('function');
+    expect(nestedWithTenantMustNotCompile).toBeTypeOf('function');
   });
 });
 
-describe('withEachRealmExclusive', () => {
+describe('withEachTenantExclusive', () => {
   const LOCK_KEY = 917_231;
 
-  it('binds each realm in turn inside one transaction', async () => {
-    const pass = await withEachRealmExclusive(
+  it('binds each tenant in turn inside one transaction', async () => {
+    const pass = await withEachTenantExclusive(
       app.db,
       LOCK_KEY,
-      [REALM_A, REALM_B],
-      async (tx, realmId) => {
-        const rows = await tx.select().from(realms);
-        return { realmId, names: rows.map((row) => row.name) };
+      [TENANT_A, TENANT_B],
+      async (tx, tenantId) => {
+        const rows = await tx.select().from(tenants);
+        return { tenantId, names: rows.map((row) => row.name) };
       },
     );
 
     if (!pass.acquired) throw new Error('expected the lock to be free');
     expect(pass.values).toEqual([
-      { realmId: REALM_A, names: ['alpha'] },
-      { realmId: REALM_B, names: ['bravo'] },
+      { tenantId: TENANT_A, names: ['alpha'] },
+      { tenantId: TENANT_B, names: ['bravo'] },
     ]);
   });
 
@@ -173,7 +173,7 @@ describe('withEachRealmExclusive', () => {
       signalHeld = resolve;
     });
 
-    const holder = withEachRealmExclusive(app.db, LOCK_KEY, [REALM_A], async () => {
+    const holder = withEachTenantExclusive(app.db, LOCK_KEY, [TENANT_A], async () => {
       signalHeld();
       await held;
     });
@@ -184,7 +184,7 @@ describe('withEachRealmExclusive', () => {
     // the lock at all.
     const second = createDatabase(appUrl, { max: 1 });
     try {
-      const contender = await withEachRealmExclusive(second.db, LOCK_KEY, [REALM_A], () =>
+      const contender = await withEachTenantExclusive(second.db, LOCK_KEY, [TENANT_A], () =>
         Promise.resolve(undefined),
       );
       expect(contender.acquired).toBe(false);
@@ -195,7 +195,7 @@ describe('withEachRealmExclusive', () => {
     release();
     await holder;
 
-    const afterwards = await withEachRealmExclusive(app.db, LOCK_KEY, [REALM_A], () =>
+    const afterwards = await withEachTenantExclusive(app.db, LOCK_KEY, [TENANT_A], () =>
       Promise.resolve(undefined),
     );
     expect(afterwards.acquired).toBe(true);
@@ -203,20 +203,20 @@ describe('withEachRealmExclusive', () => {
 
   it('releases the key when the pass throws', async () => {
     await expect(
-      withEachRealmExclusive(app.db, LOCK_KEY, [REALM_A], () => {
+      withEachTenantExclusive(app.db, LOCK_KEY, [TENANT_A], () => {
         throw new Error('force rollback');
       }),
     ).rejects.toThrow('force rollback');
 
-    const afterwards = await withEachRealmExclusive(app.db, LOCK_KEY, [REALM_A], () =>
+    const afterwards = await withEachTenantExclusive(app.db, LOCK_KEY, [TENANT_A], () =>
       Promise.resolve(undefined),
     );
     expect(afterwards.acquired).toBe(true);
   });
 
-  it('rejects a non-UUID realm id before it opens a transaction', async () => {
+  it('rejects a non-UUID tenant id before it opens a transaction', async () => {
     await expect(
-      withEachRealmExclusive(app.db, LOCK_KEY, ['not-a-uuid'], () => Promise.resolve(undefined)),
+      withEachTenantExclusive(app.db, LOCK_KEY, ['not-a-uuid'], () => Promise.resolve(undefined)),
     ).rejects.toThrow(OduduError);
   });
 });

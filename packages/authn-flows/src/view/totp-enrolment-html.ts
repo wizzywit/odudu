@@ -27,12 +27,12 @@ function qrSvg(uri: string): string {
 // login form is, so what comes back can only enrol the subject that
 // authentication session is already bound to.
 export function renderTotpEnrolmentPage(
-  realm: string,
+  tenant: string,
   authSessionId: string,
   offer: TotpEnrolmentOffer,
   error?: string,
 ): RenderedPage {
-  const target = `/realms/${escapeHtml(realm)}/login-actions/required-action?action=configure-totp`;
+  const target = `/tenants/${escapeHtml(tenant)}/login-actions/required-action?action=configure-totp`;
   const message = error === undefined ? '' : `<p><strong>${escapeHtml(error)}</strong></p>\n`;
   return page(
     'Set up your authenticator',

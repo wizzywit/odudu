@@ -14,7 +14,7 @@ describe('preflight', () => {
     });
   });
 
-  it('returns null for an origin nothing in the realm allows', () => {
+  it('returns null for an origin nothing in the tenant allows', () => {
     expect(corsHeadersForPreflight('https://evil.example', allowed)).toBeNull();
   });
 

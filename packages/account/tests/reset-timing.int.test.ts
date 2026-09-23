@@ -1,11 +1,11 @@
 import {
   createDatabase,
   MIGRATIONS_DIR,
-  realms,
+  tenants,
   runMigrations,
-  withRealm,
+  withTenant,
   type DatabaseHandle,
-  type RealmScopedDatabase,
+  type TenantScopedDatabase,
 } from '@odudu/db';
 import {
   credentialRepository,
@@ -25,7 +25,7 @@ import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/test
 import formbody from '@fastify/formbody';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { realmSettingsRepository } from '#/repository/realm-settings';
+import { tenantSettingsRepository } from '#/repository/tenant-settings';
 import { registerResetPasswordRoute } from '#/view/routes/reset-password';
 
 let containerHandle: TestDatabase | undefined;
@@ -73,19 +73,19 @@ function slowSender(delayMs: number): EmailSender & { readonly sent: EmailMessag
 }
 
 async function createAccount(
-  tx: RealmScopedDatabase,
-  realmId: string,
+  tx: TenantScopedDatabase,
+  tenantId: string,
   input: { username: string; email: string; password: string },
 ): Promise<void> {
-  const subject = await subjectRepository(tx).create({ realmId, type: 'user' });
+  const subject = await subjectRepository(tx).create({ tenantId, type: 'user' });
   await userRepository(tx).create({
     subjectId: subject.id,
-    realmId,
+    tenantId,
     username: input.username,
     email: input.email,
   });
   await credentialRepository(tx).insert({
-    realmId,
+    tenantId,
     subjectId: subject.id,
     type: 'password',
     secret: { kind: 'password', hash: await hashPassword(input.password) },
@@ -94,17 +94,17 @@ async function createAccount(
 
 let sender: ReturnType<typeof slowSender>;
 let httpApp: FastifyInstance;
-let realmId: string;
-let realmName: string;
+let tenantId: string;
+let tenantName: string;
 
 beforeEach(async () => {
-  realmId = newId();
-  realmName = `timing-${newId()}`;
+  tenantId = newId();
+  tenantName = `timing-${newId()}`;
   await owner.db
-    .insert(realms)
-    .values({ id: realmId, name: realmName, resetPasswordAllowed: true });
-  await withRealm(app.db, realmId, (tx) =>
-    createAccount(tx, realmId, {
+    .insert(tenants)
+    .values({ id: tenantId, name: tenantName, resetPasswordAllowed: true });
+  await withTenant(app.db, tenantId, (tx) =>
+    createAccount(tx, tenantId, {
       username: 'ada',
       email: 'ada@example.test',
       password: 'correct horse battery',
@@ -116,7 +116,7 @@ beforeEach(async () => {
   await httpApp.register(formbody);
   registerResetPasswordRoute(httpApp, {
     database: app,
-    findRealm: (name) => realmSettingsRepository(owner.db).byName(name),
+    findTenant: (name) => tenantSettingsRepository(owner.db).byName(name),
     publicBaseUrl: 'https://idp.example.test',
     findByEmail: async (tx, email) => {
       const user = await userRepository(tx).byEmail(email);
@@ -144,7 +144,7 @@ async function drainOutbox(): Promise<void> {
 }
 
 async function outboxRows() {
-  return withRealm(app.db, realmId, (tx) => tx.select().from(emailOutbox));
+  return withTenant(app.db, tenantId, (tx) => tx.select().from(emailOutbox));
 }
 
 async function elapsed(fn: () => Promise<unknown>): Promise<number> {
@@ -157,7 +157,7 @@ async function timeRequest(email: string): Promise<number> {
   const started = performance.now();
   const res = await httpApp.inject({
     method: 'POST',
-    url: `/realms/${realmName}/login-actions/reset-password`,
+    url: `/tenants/${tenantName}/login-actions/reset-password`,
     payload: new URLSearchParams({ email }).toString(),
     headers: { 'content-type': 'application/x-www-form-urlencoded' },
   });
