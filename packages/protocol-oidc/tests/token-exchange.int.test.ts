@@ -892,6 +892,80 @@ describe('[ODUDU-TOKEN-EXCHANGE-ROTATION-01] a rotated exchanged refresh token k
   });
 });
 
+describe('[ODUDU-TOKEN-EXCHANGE-REFRESH-TTL-01] the exchanged refresh token never outlives the exchanging client', () => {
+  const SHORT_TTL_CLIENT_ID = 'token-exchange-short-ttl-client';
+  const SHORT_TTL_CLIENT_SECRET = 'token-exchange-short-ttl-secret';
+  const SHORT_REFRESH_TOKEN_TTL_SECONDS = 86_400;
+
+  // grantTypes carries only the exchange grant, the same shape ORACLE-01's
+  // own restricted client uses — nothing here ever redeems this client's
+  // own refresh_token grant, only the exchange's requested_token_type.
+  async function setUpShortTtlClient(): Promise<void> {
+    const clientDbId = newId();
+    await withTenant(app.db, TENANT_ID, async (tx) => {
+      await tx.insert(clients).values({
+        id: clientDbId,
+        tenantId: TENANT_ID,
+        clientId: SHORT_TTL_CLIENT_ID,
+        name: 'Short refresh ttl client',
+        type: 'confidential',
+        secretHash: await hashPassword(SHORT_TTL_CLIENT_SECRET),
+      });
+      await clientOidcConfigRepository(tx).create({
+        clientId: clientDbId,
+        tenantId: TENANT_ID,
+        redirectUris: [REDIRECT_URI],
+        grantTypes: [TOKEN_EXCHANGE_GRANT],
+        tokenEndpointAuthMethod: 'client_secret_basic',
+        audiences: [],
+        accessTokenTtlSeconds: 300,
+        refreshTokenTtlSeconds: SHORT_REFRESH_TOKEN_TTL_SECONDS,
+        tokenExchangeImpersonationAllowed: true,
+      });
+    });
+  }
+
+  it('bounds the issued refresh token by its own ttl, not the subject token longer remaining life', async () => {
+    await setUpShortTtlClient();
+    // subject.refreshToken carries CLIENT_ID's own 1,209,600s (14-day) ttl —
+    // far longer than SHORT_REFRESH_TOKEN_TTL_SECONDS below, so the ceiling
+    // this exchange derives from it is no tighter than the short-ttl
+    // client's own configured lifetime. A cap applied without a minimum
+    // would hand the short-ttl client 14 days instead of its own one.
+    const subject = await loginAndGetToken({ scope: 'openid offline_access' });
+
+    const form = new URLSearchParams({
+      grant_type: TOKEN_EXCHANGE_GRANT,
+      subject_token: subject.refreshToken,
+      subject_token_type: 'urn:ietf:params:oauth:token-type:refresh_token',
+      requested_token_type: 'urn:ietf:params:oauth:token-type:refresh_token',
+    });
+    const response = await http.inject({
+      method: 'POST',
+      url: `/tenants/${TENANT}/protocol/openid-connect/token`,
+      payload: form.toString(),
+      headers: {
+        'content-type': 'application/x-www-form-urlencoded',
+        authorization: basicAuth(SHORT_TTL_CLIENT_ID, SHORT_TTL_CLIENT_SECRET),
+      },
+    });
+    expect(response.statusCode).toBe(200);
+    const body = response.json<{ access_token: string }>();
+
+    // The issued refresh token is opaque, so the cap is checked in the
+    // database it was written to, not by decoding it.
+    const record = await withTenant(app.db, TENANT_ID, (tx) =>
+      refreshTokenRepository(tx).byHash(hashRefreshToken(body.access_token)),
+    );
+    if (record === null) throw new Error('expected the exchanged refresh token to be persisted');
+
+    const expectedExpiresAt = new Date(
+      fakeClock.now().getTime() + SHORT_REFRESH_TOKEN_TTL_SECONDS * 1000,
+    );
+    expect(record.expiresAt).toEqual(expectedExpiresAt);
+  });
+});
+
 describe('[ODUDU-TOKEN-EXCHANGE-ORACLE-01] impersonation is refused before the subject token is read', () => {
   it('refuses with unauthorized_client even for a garbage subject token', async () => {
     const restrictedClientId = 'token-exchange-no-impersonation-client';
