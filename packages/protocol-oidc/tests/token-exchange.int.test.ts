@@ -21,6 +21,7 @@ import { NO_CLIENT_KEY_FETCHER } from '#/repository/client-keys';
 import { UNLIMITED_CLIENT_SECRET_LIMITER } from '#/service/client-secret-throttle';
 import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
 import { tokenGrantRepository } from '#/repository/grants';
+import { TOKEN_EXCHANGE_GRANT } from '#/service/token-exchange';
 import { resolveExchangeToken, type ResolveDeps } from '#/usecase/token-exchange-subject';
 
 let containerHandle: TestDatabase | undefined;
@@ -388,6 +389,37 @@ describe('[ODUDU-TOKEN-EXCHANGE-SUBJECT-02] a refresh token as subject_token', (
   });
 });
 
+async function exchange(input: {
+  subjectToken: string;
+  actorToken: string;
+}): Promise<LightMyRequestResponse> {
+  const form = new URLSearchParams({
+    grant_type: TOKEN_EXCHANGE_GRANT,
+    subject_token: input.subjectToken,
+    subject_token_type: 'urn:ietf:params:oauth:token-type:access_token',
+    actor_token: input.actorToken,
+    actor_token_type: 'urn:ietf:params:oauth:token-type:access_token',
+  });
+  return http.inject({
+    method: 'POST',
+    url: `/tenants/${TENANT}/protocol/openid-connect/token`,
+    payload: form.toString(),
+    headers: {
+      'content-type': 'application/x-www-form-urlencoded',
+      authorization: basicAuth(CLIENT_ID, CLIENT_SECRET),
+    },
+  });
+}
+
+// Approximates an expired access token by revoking its grant: nothing here
+// controls the real clock jose's own exp check reads inside verifyJwt, so
+// waiting out a TTL is not practical in this suite. resolveAccessToken
+// refuses a dead grant exactly like an expired JWT — one bare `refused`,
+// nothing left to tell them apart — which is the boundary this test probes.
+async function expireAccessToken(grantId: string): Promise<void> {
+  await withTenant(app.db, TENANT_ID, (tx) => tokenGrantRepository(tx).revoke(grantId, new Date()));
+}
+
 describe('[ODUDU-TOKEN-EXCHANGE-SUBJECT-03] an id_token as subject_token', () => {
   it('resolves when its aud names the requesting client', async () => {
     const { idToken, subjectId } = await loginAndGetToken();
@@ -433,5 +465,37 @@ describe('[ODUDU-TOKEN-EXCHANGE-SUBJECT-03] an id_token as subject_token', () =>
       ),
     );
     expect(outcome).toEqual({ kind: 'refused' });
+  });
+});
+
+// /token has no token-exchange grant type wired up until increment 5; these
+// pin what the actor token's own validation must do once it does, and are
+// skipped rather than made to pass against a route that is not there yet.
+describe('[ODUDU-TOKEN-EXCHANGE-ACTOR-01] the actor token is checked too', () => {
+  it.skip('refuses an expired actor token beside a live subject token', async () => {
+    const subject = await loginAndGetToken();
+    const actor = await loginAndGetToken();
+    await expireAccessToken(actor.grantId);
+
+    const response = await exchange({
+      subjectToken: subject.accessToken,
+      actorToken: actor.accessToken,
+    });
+    expect(response.statusCode).toBe(400);
+    expect(response.json<{ error?: string }>()).toMatchObject({ error: 'invalid_request' });
+  });
+
+  it.skip('refuses an actor token whose grant was revoked', async () => {
+    const subject = await loginAndGetToken();
+    const actor = await loginAndGetToken();
+    await withTenant(app.db, TENANT_ID, (tx) =>
+      tokenGrantRepository(tx).revoke(actor.grantId, new Date()),
+    );
+
+    const response = await exchange({
+      subjectToken: subject.accessToken,
+      actorToken: actor.accessToken,
+    });
+    expect(response.statusCode).toBe(400);
   });
 });
