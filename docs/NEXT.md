@@ -411,11 +411,6 @@ this file or the phase note.
   whoever reads it next. **P12**, whose criterion sources secrets from
   somewhere other than the process environment and so reworks the boot
   sequence in `apps/server/src/main.ts` that the test pins by offset.
-- `drizzle-kit` remains an unused devDependency of `packages/db` after
-  `db:generate` was retired. Removing it rewrites `pnpm-lock.yaml`, which is
-  worth doing on its own, away from other work. **No phase implies this** —
-  no criterion is addressed to that package's manifest — and its own reason
-  for standing alone is the argument against attaching it to one.
 
 ### Recorded judgements, where the code stands and nothing is owed
 
