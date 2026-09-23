@@ -646,6 +646,10 @@ describe('[ODUDU-TOKEN-EXCHANGE-01] the grant end to end', () => {
   // from a subject-token-wide scope happening to be echoed back unnarrowed.
   it('narrows the response scope to what was requested, not the subject grant', async () => {
     const subject = await loginAndGetToken({ scope: 'openid profile' });
+    // Demonstrates the subset rather than assuming it: if this client ever
+    // lost the `profile` scope, the subject token would carry `openid`
+    // alone and the narrowing below would silently become a no-op.
+    expect(decode(subject.accessToken).scope).toBe('openid profile');
     await allowImpersonation(CLIENT_ID);
     const response = await exchange({
       subjectToken: subject.accessToken,
