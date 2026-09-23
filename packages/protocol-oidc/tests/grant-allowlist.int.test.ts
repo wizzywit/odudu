@@ -20,6 +20,12 @@ import { oidcRoutes } from '#/index';
 import { NO_CLIENT_KEY_FETCHER } from '#/repository/client-keys';
 import { UNLIMITED_CLIENT_SECRET_LIMITER } from '#/service/client-secret-throttle';
 import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
+import { CLIENT_ASSERTION_TYPE } from '#/service/client-assertion';
+import {
+  buildClientSigningKey,
+  jwksDocumentFor,
+  signClientAssertion,
+} from '#/testing/private-key-jwt-fixture';
 
 let containerHandle: TestDatabase | undefined;
 let ownerHandle: DatabaseHandle | undefined;
@@ -40,6 +46,14 @@ const CODE_ONLY_CLIENT = 'grant-allowlist-code-only';
 const CODE_ONLY_SECRET = 'grant-allowlist-code-only-secret';
 const BOTH_CLIENT = 'grant-allowlist-both';
 const BOTH_SECRET = 'grant-allowlist-both-secret';
+const PKJWT_CODE_ONLY_CLIENT = 'grant-allowlist-pkjwt-code-only';
+
+// The Host `http.inject` sends when a request names none — `view/issuer.ts`
+// derives an assertion's expected audience from exactly this.
+const TENANT_ISSUER_BASE = 'http://localhost';
+
+let PKJWT_AUDIENCE: string;
+let PKJWT_CLIENT_KEY: Awaited<ReturnType<typeof buildClientSigningKey>>;
 
 function basicAuth(clientId: string, secret: string): string {
   return `Basic ${Buffer.from(`${clientId}:${secret}`).toString('base64')}`;
@@ -104,6 +118,35 @@ async function setupTenant(): Promise<void> {
       accessTokenTtlSeconds: 300,
       refreshTokenTtlSeconds: 1_209_600,
       clientCredentialsScopes: [],
+    });
+
+    PKJWT_AUDIENCE = `${TENANT_ISSUER_BASE}/tenants/${TENANT}/protocol/openid-connect/token`;
+    PKJWT_CLIENT_KEY = await buildClientSigningKey(KEK, TENANT_ID);
+    const pkjwtServiceSubject = await subjectRepository(tx).create({
+      tenantId: TENANT_ID,
+      type: 'service',
+    });
+    const pkjwtClientDbId = newId();
+    await tx.insert(clients).values({
+      id: pkjwtClientDbId,
+      tenantId: TENANT_ID,
+      clientId: PKJWT_CODE_ONLY_CLIENT,
+      name: 'private_key_jwt client registered for authorization_code only',
+      type: 'confidential',
+      secretHash: await hashPassword('unused'),
+      serviceSubjectId: pkjwtServiceSubject.id,
+    });
+    await provisionClientDefaults(tx, pkjwtClientDbId);
+    await clientOidcConfigRepository(tx).create({
+      clientId: pkjwtClientDbId,
+      tenantId: TENANT_ID,
+      redirectUris: ['https://app.example/callback'],
+      grantTypes: ['authorization_code', 'refresh_token'],
+      tokenEndpointAuthMethod: 'private_key_jwt',
+      jwks: jwksDocumentFor(PKJWT_CLIENT_KEY),
+      audiences: [],
+      accessTokenTtlSeconds: 300,
+      refreshTokenTtlSeconds: 1_209_600,
     });
 
     const subject = await subjectRepository(tx).create({ tenantId: TENANT_ID, type: 'user' });
@@ -191,5 +234,30 @@ describe('[ODUDU-GRANT-ALLOWLIST-01] /token enforces the registered grant list',
 
     expect(response.statusCode).toBe(200);
     expect(response.json()).toHaveProperty('access_token');
+  });
+
+  // The check sits after authentication and before dispatch, so it must
+  // hold on every client-authentication path, not only client_secret_basic.
+  it('refuses an unregistered grant on the private_key_jwt path', async () => {
+    const assertion = await signClientAssertion({
+      clientId: PKJWT_CODE_ONLY_CLIENT,
+      audience: PKJWT_AUDIENCE,
+      key: PKJWT_CLIENT_KEY,
+      kek: KEK,
+    });
+
+    const response = await http.inject({
+      method: 'POST',
+      url: `/tenants/${TENANT}/protocol/openid-connect/token`,
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      payload: new URLSearchParams({
+        grant_type: 'client_credentials',
+        client_assertion_type: CLIENT_ASSERTION_TYPE,
+        client_assertion: assertion,
+      }).toString(),
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toMatchObject({ error: 'unauthorized_client' });
   });
 });

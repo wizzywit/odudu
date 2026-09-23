@@ -1,12 +1,6 @@
 import formbody from '@fastify/formbody';
 import { provisionTenant } from '@odudu/authn-flows';
-import {
-  generateSigningKey,
-  signJwt,
-  signingKeys,
-  toPublicJwk,
-  type SigningKeyRecord,
-} from '@odudu/crypto';
+import { generateSigningKey, signingKeys, type SigningKeyRecord } from '@odudu/crypto';
 import {
   createDatabase,
   MIGRATIONS_DIR,
@@ -32,6 +26,11 @@ import { clientKeySet, type ClientKeyRequest } from '#/repository/client-keys';
 import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
 import { CLIENT_ASSERTION_TYPE } from '#/service/client-assertion';
 import { UNLIMITED_CLIENT_SECRET_LIMITER } from '#/service/client-secret-throttle';
+import {
+  buildClientSigningKey,
+  jwksDocumentFor,
+  signClientAssertion,
+} from '#/testing/private-key-jwt-fixture';
 
 let containerHandle: TestDatabase | undefined;
 let ownerHandle: DatabaseHandle | undefined;
@@ -68,41 +67,27 @@ const REFUSAL = { error: 'invalid_client' };
 
 let logLines: unknown[] = [];
 
-async function buildClientKey(): Promise<SigningKeyRecord> {
-  const generated = await generateSigningKey('RS256', KEK);
-  return {
-    id: newId(),
-    tenantId: TENANT_ID,
-    kid: generated.kid,
-    alg: generated.alg,
-    status: 'active',
-    publicJwk: generated.publicJwk,
-    privateJwkEncrypted: generated.privateJwkEncrypted,
-    createdAt: new Date(),
-    notAfter: null,
-  };
+function buildClientKey(): Promise<SigningKeyRecord> {
+  return buildClientSigningKey(KEK, TENANT_ID);
 }
 
 function jwksFor(key: SigningKeyRecord): { keys: Record<string, unknown>[] } {
-  return { keys: [toPublicJwk(key.publicJwk, key.kid, key.alg)] };
+  return jwksDocumentFor(key);
 }
 
-async function signAssertion(
+function signAssertion(
   key: SigningKeyRecord,
   clientId: string,
   overrides: { jti?: string; aud?: string; exp?: number; iss?: string; sub?: string } = {},
 ): Promise<string> {
-  const nowSeconds = Math.floor(NOW.getTime() / 1000);
-  return signJwt(
-    {
-      iss: overrides.iss ?? clientId,
-      sub: overrides.sub ?? clientId,
-      aud: overrides.aud ?? AUDIENCE,
-      exp: overrides.exp ?? nowSeconds + 60,
-      jti: overrides.jti ?? newId(),
-    },
-    { key, kek: KEK },
-  );
+  return signClientAssertion({
+    key,
+    clientId,
+    audience: AUDIENCE,
+    kek: KEK,
+    now: NOW,
+    ...overrides,
+  });
 }
 
 let clientKey: SigningKeyRecord;
