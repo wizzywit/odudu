@@ -356,8 +356,9 @@ carries the issued token **whatever its type**, so a request for
 named `access_token`. That surprises readers, so `docs/request-paths.md`
 shows it as a transcript rather than asserting it in prose.
 
-A `refresh_token` member appears only when a refresh token was explicitly
-requested — never opportunistically.
+No `refresh_token` member is ever emitted opportunistically: a requested
+refresh token is delivered in `access_token`, per the note above, and this
+grant's response carries no `refresh_token` member at all.
 
 `grant_types_supported` in `packages/contracts/src/discovery.ts` gains the
 URN. It is a hardcoded array today.

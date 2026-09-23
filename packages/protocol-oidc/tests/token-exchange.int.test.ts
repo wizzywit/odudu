@@ -640,6 +640,21 @@ describe('[ODUDU-TOKEN-EXCHANGE-01] the grant end to end', () => {
     expect(response.json<{ error?: string }>()).toMatchObject({ error: 'invalid_scope' });
   });
 
+  // RFC 8693 §2.2.1: the response's scope member reflects the issued
+  // scope, not the subject token's whole grant, whenever a request narrows
+  // it — the MUST a bare "scope is always present" row cannot tell apart
+  // from a subject-token-wide scope happening to be echoed back unnarrowed.
+  it('narrows the response scope to what was requested, not the subject grant', async () => {
+    const subject = await loginAndGetToken({ scope: 'openid profile' });
+    await allowImpersonation(CLIENT_ID);
+    const response = await exchange({
+      subjectToken: subject.accessToken,
+      scope: 'openid',
+    });
+    expect(response.statusCode).toBe(200);
+    expect(response.json<{ scope?: string }>().scope).toBe('openid');
+  });
+
   it('refuses a refused token type with invalid_request', async () => {
     const subject = await loginAndGetToken();
     const response = await exchange({

@@ -68,12 +68,17 @@ the URL and never by a header or a parameter.
 protocol, and the login form is Odudu's own UI, which no specification
 describes and no client library calls.
 
-Three grant types reach `/token`: `authorization_code`, `refresh_token` and
-`client_credentials`. They share almost everything. Client authentication,
-scope resolution, access-token minting and the response envelope are one
-path for all three; only one stage — deciding whether this client may have
-this grant, and what subject it names — is grant-specific. That is why the
-error vocabulary is so uniform below: most refusals come from shared code.
+Four grant types reach `/token`: `authorization_code`, `refresh_token`,
+`client_credentials` and RFC 8693 token exchange
+(`urn:ietf:params:oauth:grant-type:token-exchange`, [Path
+D](#path-d-token-exchange)). They share almost everything. Client
+authentication, scope resolution, access-token minting and the response
+envelope are one path for all four; only one stage — deciding whether this
+client may have this grant, and what subject it names — is grant-specific.
+That is why the error vocabulary is so uniform below: most refusals come
+from shared code. `config.grantTypes` gates all four alike: a client not
+registered for the grant it sends is refused `unauthorized_client` before
+anything grant-specific runs.
 
 ## Bootstrap
 
@@ -6177,6 +6182,262 @@ www-authenticate: Bearer realm="userinfo", error="insufficient_scope"
 **What the client does next:** call the API the token is for, and mint
 another when it expires. There is nothing to store.
 
+## Path D: token exchange
+
+RFC 8693's grant runs against a tenant of its own, `exdoc`, so the clients
+this exercises — one registered for the grant, one registered for it but
+not permitted to impersonate, and one not registered for it at all — do not
+crowd `demo`'s. Three clients and two users:
+
+```bash
+odudu seed \
+  --tenant exdoc --client exdoc-spa \
+  --redirect-uri http://localhost:8080/callback \
+  --user ada --password correct-horse-battery --email ada@example.com
+odudu seed user --tenant exdoc --username bot --password correct-horse-battery-2
+
+odudu seed client \
+  --tenant exdoc --client-id exdoc-exchange --client-secret exdoc-exchange-secret \
+  --redirect-uri http://localhost:8080/callback \
+  --grant-type authorization_code --grant-type refresh_token \
+  --grant-type urn:ietf:params:oauth:grant-type:token-exchange
+odudu seed client \
+  --tenant exdoc --client-id exdoc-exchange-restricted --client-secret exdoc-exchange-restricted-secret \
+  --redirect-uri http://localhost:8080/callback \
+  --grant-type authorization_code --grant-type refresh_token \
+  --grant-type urn:ietf:params:oauth:grant-type:token-exchange
+odudu seed client \
+  --tenant exdoc --client-id exdoc-no-exchange --client-secret exdoc-no-exchange-secret \
+  --redirect-uri http://localhost:8080/callback \
+  --grant-type authorization_code --grant-type refresh_token
+```
+
+`seed client` has no `--audience` or impersonation flag (see [What is not
+implemented](#what-is-not-implemented)), so `exdoc-exchange` and
+`exdoc-exchange-restricted` both get an audience set directly, and only the
+first gets `token_exchange_impersonation_allowed` flipped on:
+
+`client_id` is unique only within a tenant, so both updates below are
+scoped to `exdoc` by name, not by `client_id` alone:
+
+```bash
+docker compose -f infra/docker/compose.yaml exec -T postgres \
+  psql -U odudu -d odudu -c "
+    UPDATE client_oidc_config
+    SET audiences = ARRAY['https://api.exdoc.example'], token_exchange_impersonation_allowed = true
+    FROM clients
+    WHERE clients.id = client_oidc_config.client_id AND clients.client_id = 'exdoc-exchange'
+      AND client_oidc_config.tenant_id = (SELECT id FROM tenants WHERE name = 'exdoc');
+
+    UPDATE client_oidc_config
+    SET audiences = ARRAY['https://api.exdoc.example']
+    FROM clients
+    WHERE clients.id = client_oidc_config.client_id AND clients.client_id = 'exdoc-exchange-restricted'
+      AND client_oidc_config.tenant_id = (SELECT id FROM tenants WHERE name = 'exdoc');
+  "
+```
+
+Signing in as `ada` and, separately, as `bot` — the same PKCE flow as
+[Path A](#path-a-authorization-code-with-pkce), against `exdoc-spa` in
+`exdoc` rather than `demo-spa` in `demo`, once per user — leaves
+`$SUBJECT_TOKEN` (ada's access token) and `$ACTOR_TOKEN` (bot's).
+
+### A delegation, with `act` naming the actor
+
+An `actor_token` alongside the `subject_token` delegates: the issued token
+keeps the subject's own identity and adds who is acting for them.
+
+```bash
+curl -sS -u exdoc-exchange:exdoc-exchange-secret \
+  --data-urlencode 'grant_type=urn:ietf:params:oauth:grant-type:token-exchange' \
+  --data-urlencode "subject_token=$SUBJECT_TOKEN" \
+  --data-urlencode 'subject_token_type=urn:ietf:params:oauth:token-type:access_token' \
+  --data-urlencode "actor_token=$ACTOR_TOKEN" \
+  --data-urlencode 'actor_token_type=urn:ietf:params:oauth:token-type:access_token' \
+  --data-urlencode 'resource=https://api.exdoc.example' \
+  'http://localhost:3000/tenants/exdoc/protocol/openid-connect/token'
+```
+
+```
+{
+  "access_token": "eyJhbGciOiJSUzI1NiIs…",
+  "token_type": "Bearer",
+  "expires_in": 292,
+  "scope": "openid",
+  "issued_token_type": "urn:ietf:params:oauth:token-type:access_token"
+}
+```
+
+Decoded, never verified (payload only):
+
+```
+{
+  "iss": "http://localhost:3000/tenants/exdoc",
+  "sub": "01a0cee5-c812-…",
+  "aud": ["https://api.exdoc.example", "http://localhost:3000/tenants/exdoc"],
+  "client_id": "exdoc-exchange",
+  "scope": "openid",
+  "iat": 1790177628,
+  "exp": 1790177920,
+  "jti": "01a0cee6-d09f-7cce-9e66-e7458d2c9110",
+  "sid": "01a0cee6-b3d6-…",
+  "grant_id": "01a0cee6-d09f-7cce-9e66-e7448248e095",
+  "act": { "sub": "01a0cee6-8ab8-…" }
+}
+```
+
+`sub` is still ada's own subject id — `SUBJECT_TOKEN`'s — and `act.sub` is
+bot's: the requesting client, `exdoc-exchange`, delegated to bot, and the
+issued token says so rather than becoming a token for bot outright. `aud`
+carries both the named resource and the tenant's own issuer, the same
+narrowing `resource` applies at every other grant (see [above](#4-token)'s
+own `resource` bullet). `jti` and `grant_id` are shown in full rather than
+truncated, the same coincidence [step 4](#4-token) already names.
+
+### Impersonation, gated by a column no flag sets
+
+Omitting `actor_token` asks to impersonate the subject outright — the
+issued token names no actor at all. That is the branch
+`token_exchange_impersonation_allowed` gates, and the column is the only
+thing distinguishing the client below that gets refused from the one that
+does not:
+
+```bash
+docker compose -f infra/docker/compose.yaml exec -T postgres \
+  psql -U odudu -d odudu -c "
+    SELECT clients.client_id, client_oidc_config.token_exchange_impersonation_allowed
+    FROM client_oidc_config JOIN clients ON clients.id = client_oidc_config.client_id
+    WHERE clients.client_id IN ('exdoc-exchange', 'exdoc-exchange-restricted')
+    ORDER BY clients.client_id;
+  "
+```
+
+```
+         client_id         | token_exchange_impersonation_allowed
+---------------------------+--------------------------------------
+ exdoc-exchange            | t
+ exdoc-exchange-restricted | f
+(2 rows)
+```
+
+`exdoc-exchange-restricted` is registered for the grant — the allowlist
+below is a separate check, already satisfied — but is refused before its
+`subject_token` is ever read, so a garbage `subject_token` refuses exactly
+the same way a live one would
+(`packages/protocol-oidc/tests/token-exchange.int.test.ts`'s
+`ODUDU-TOKEN-EXCHANGE-ORACLE-01`). `x-request-id`, `Date` and the
+keep-alive headers are omitted below, as elsewhere in this document:
+
+```bash
+curl -sS -D - -u exdoc-exchange-restricted:exdoc-exchange-restricted-secret \
+  --data-urlencode 'grant_type=urn:ietf:params:oauth:grant-type:token-exchange' \
+  --data-urlencode "subject_token=$SUBJECT_TOKEN" \
+  --data-urlencode 'subject_token_type=urn:ietf:params:oauth:token-type:access_token' \
+  'http://localhost:3000/tenants/exdoc/protocol/openid-connect/token'
+```
+
+```
+HTTP/1.1 400 Bad Request
+vary: Origin
+cache-control: no-store
+pragma: no-cache
+content-type: application/json; charset=utf-8
+
+{"error":"unauthorized_client"}
+```
+
+The identical request against `exdoc-exchange` — the client the column
+above shows permitted — succeeds, and the issued token carries no `act` at
+all:
+
+```bash
+curl -sS -D - -u exdoc-exchange:exdoc-exchange-secret \
+  --data-urlencode 'grant_type=urn:ietf:params:oauth:grant-type:token-exchange' \
+  --data-urlencode "subject_token=$SUBJECT_TOKEN" \
+  --data-urlencode 'subject_token_type=urn:ietf:params:oauth:token-type:access_token' \
+  'http://localhost:3000/tenants/exdoc/protocol/openid-connect/token'
+```
+
+```
+HTTP/1.1 200 OK
+vary: Origin
+cache-control: no-store
+pragma: no-cache
+content-type: application/json; charset=utf-8
+
+{"access_token":"eyJhbGciOiJSUzI1NiIs…","token_type":"Bearer","expires_in":291,"scope":"openid","issued_token_type":"urn:ietf:params:oauth:token-type:access_token"}
+```
+
+### Requesting a refresh token back
+
+`requested_token_type` picks the issued shape. Asking for a refresh token
+is the one that surprises a reader used to the other three grants: the
+opaque token still travels in the response's `access_token` member, per
+§2.2.1, with `token_type` reading `N_A` rather than `Bearer` because the
+issued credential is not one:
+
+```bash
+curl -sS -u exdoc-exchange:exdoc-exchange-secret \
+  --data-urlencode 'grant_type=urn:ietf:params:oauth:grant-type:token-exchange' \
+  --data-urlencode "subject_token=$SUBJECT_TOKEN" \
+  --data-urlencode 'subject_token_type=urn:ietf:params:oauth:token-type:access_token' \
+  --data-urlencode 'requested_token_type=urn:ietf:params:oauth:token-type:refresh_token' \
+  'http://localhost:3000/tenants/exdoc/protocol/openid-connect/token'
+```
+
+```
+{
+  "access_token": "XeEBhyNc7bBbT3mpNxgf9…",
+  "token_type": "N_A",
+  "expires_in": 268,
+  "scope": "openid",
+  "issued_token_type": "urn:ietf:params:oauth:token-type:refresh_token"
+}
+```
+
+### The allowlist refusing an unregistered grant
+
+`exdoc-no-exchange` never named the grant at seed time:
+
+```bash
+docker compose -f infra/docker/compose.yaml exec -T postgres \
+  psql -U odudu -d odudu -c "
+    SELECT clients.client_id, client_oidc_config.grant_types
+    FROM client_oidc_config JOIN clients ON clients.id = client_oidc_config.client_id
+    WHERE clients.client_id = 'exdoc-no-exchange';
+  "
+```
+
+```
+     client_id     |            grant_types
+-------------------+------------------------------------
+ exdoc-no-exchange | {authorization_code,refresh_token}
+(1 row)
+```
+
+```bash
+curl -sS -D - -u exdoc-no-exchange:exdoc-no-exchange-secret \
+  --data-urlencode 'grant_type=urn:ietf:params:oauth:grant-type:token-exchange' \
+  --data-urlencode "subject_token=$SUBJECT_TOKEN" \
+  --data-urlencode 'subject_token_type=urn:ietf:params:oauth:token-type:access_token' \
+  'http://localhost:3000/tenants/exdoc/protocol/openid-connect/token'
+```
+
+```
+HTTP/1.1 400 Bad Request
+vary: Origin
+cache-control: no-store
+pragma: no-cache
+content-type: application/json; charset=utf-8
+
+{"error":"unauthorized_client"}
+```
+
+Byte-identical to the impersonation refusal above — both are
+`unauthorized_client` with nothing else to tell them apart, which is why
+each transcript above shows the column its own refusal turns on rather
+than asserting which check fired.
+
 ## CORS: the preflight and the request differ
 
 A browser single-page client is the reader `## Path A` above walks through,
@@ -7742,26 +8003,12 @@ session lifecycle. A citation of either half here means that half.
 
 **`/token`**
 
-- **No token exchange (RFC 8693)**, and so none of the delegation the agent
-  identity layer is built on. **P4a**, whose criterion names the grant at
-  stage 3 of the token pipeline — `subject_token` and `actor_token`,
-  audience and scope narrowing, `act` and nested `act`, impersonation
-  distinguished from delegation by a per-client permission that is off by
-  default. That permission is client metadata, written by the dynamic
-  registration endpoint P3a shipped, which is why the grant needs no admin
-  API and goes first; the admin surface over it is **P4c**'s. **P5**
-  consumes the grant at stage 4, where the delegated intersection is the
-  attenuation check (ADR 0003).
-- **A client obtains a grant it is not registered for.** `config.grantTypes`
-  is read once, in `packages/protocol-oidc/src/usecase/token-issuance.ts`,
-  and gates whether a refresh token is issued rather than which grant a
-  request may use, so a client registered for `authorization_code` alone can
-  redeem `client_credentials`. What bounds it is the separate set of
-  conditions `issueClientCredentialsTokens` imposes — confidential, holding a
-  `service_subject_id`, inside `client_credentials_scopes` — so the reachable
-  case is a confidential code-flow client minting a scoped-or-empty service
-  token. **P4a**, whose criterion adds token exchange as a grant and so makes
-  the next change to grant selection, and names the allowlist with it.
+- **`token_exchange_impersonation_allowed` is settable only by `psql`.**
+  `seed client` has no flag for it — [Path D](#path-d-token-exchange) sets
+  it directly, the same way it sets `audiences` — and there is no
+  registration field either, so a tenant that wants a client to impersonate
+  rather than only delegate has no door but SQL. **P4c**, alongside every
+  other client column only `psql` reaches today.
 - **No CIBA.** **P5**, whose exit criterion is CIBA approvals end to end.
 - **No device authorization grant.** **P13**, whose criterion names a
   device-code client completing a login on a second device. It shares that

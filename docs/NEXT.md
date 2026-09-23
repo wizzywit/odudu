@@ -2,16 +2,31 @@
 
 ## Start here
 
-**P0, P1, P2a, P2b, P3a and P3b are complete, and the tenant rename is done.
-P4 has been split four ways and P4a is under way.** Phases are section 11 of
+**P0, P1, P2a, P2b, P3a, P3b and P4a are complete, and the tenant rename is
+done. P4 has been split four ways.** Phases are section 11 of
 [the umbrella spec](superpowers/specs/2026-09-10-odudu-design.md), whose
 "P4 became four phases" subsection has the reasoning.
 
 The order is **P4a → P4c → P4d → P4b**, and the letters deliberately do not
 read in execution order, because `P4b` was spent on theming before P4 split
-and an accepted ADR cites it. P4a is token exchange
+and an accepted ADR cites it. P4a was token exchange
 ([spec](superpowers/specs/2026-09-23-p4a-token-exchange-design.md)); P4c is
-the admin API; P4d is the consoles; P4b stays theming and stays last.
+the admin API, next; P4d is the consoles; P4b stays theming and stays last.
+
+P4a added `/token`'s fourth grant, RFC 8693 token exchange
+(`urn:ietf:params:oauth:grant-type:token-exchange`), and closed a standing
+gap beside it: `config.grantTypes` now gates every grant, not only whether
+a refresh token is issued, so a client registered for `authorization_code`
+alone can no longer redeem `client_credentials`. A delegation nests an
+`act` claim naming the actor; an impersonation, gated per client by
+`token_exchange_impersonation_allowed`, names none. Every issued shape —
+access token, ID token or refresh token — is capped at the subject token's
+own expiry, scope only ever narrows, and the target audience is
+single-valued, inheriting RFC 8707's decision. `docs/protocols/rfc8693.md`
+has the clause table.
+
+What turned out to be **wrong** while building it is in
+[docs/phases/p4a.md](phases/p4a.md), not here.
 
 **A bare `P4` below means P4c** unless it concerns token exchange, the grant
 allowlist, theming or client branding — the same disambiguation the P2 split
@@ -60,6 +75,7 @@ reason is false.
 The running records, split out of this file on 2026-09-17: P2b reached
 1,873 lines here, of which the part describing where the project stood was 58.
 
+- [P4a — token exchange](phases/p4a.md)
 - [Renaming the tenant concept](phases/tenant-rename.md) — not a phase; a
   cross-cutting rename between P3b and P4, kept here for the same reason
 - [P3b — sessions, logout and the token surface](phases/p3b.md)
@@ -98,7 +114,21 @@ refuses a client that already exists rather than amending one. So every
 per-client value P3b reads — `audiences`, the logout URIs, the UserInfo
 algorithms, `tls_client_auth_subject_dn` — is settable at creation by one
 door and by `psql` otherwise. `docs/request-paths.md` says so at each site
-that reaches for SQL, and aggregates it under "Any admin API".
+that reaches for SQL, and aggregates it under "Any admin API". P4a added a
+fifth such column, `token_exchange_impersonation_allowed`: no seed flag and
+no registration field, so a tenant that wants a client to impersonate
+rather than only delegate reaches for `psql` the same way.
+
+**Token exchange inherits ADR 0007's unresolved status and the
+`client.enabled` question, rather than closing either.** Both predate P4a
+and neither is this phase's to answer: `parseStructure` stayed the real
+authority for the token request shape instead of a Zod contract, the same
+choice every other grant already made, and `resolveExchangeToken` checks
+grant revocation and session liveness exactly the way `/userinfo` and
+`/introspect` do, including the same blind spot for a client disabled after
+a token was issued to it. Both triggers, recorded below under "The token
+surface", now name P4a's own files alongside the ones that already carried
+them.
 
 **Tenant settings already have a command, and its validation is reusable.**
 `odudu seed tenant --name <tenant> --set <name>=<value>` applies any of the
@@ -146,6 +176,36 @@ no backup or restore guidance — **P12**, whose position in the table is not
 a dependency: publishing an image waits on nothing and is the prerequisite
 for anybody deploying this at all. Multi-replica deployment is blocked on
 migration locking and a shared session cache, both P11.
+
+## What P5 inherits
+
+**A grant, not an agent, is what P4a's exchange mints.** `token_grants` grew
+`actorSubjectId` and `exchangedFromGrantId` (migration
+`0059_token_exchange.sql`) so a delegated or impersonated grant records who
+it came from, but nothing reads either column to decide anything yet — the
+agent identity layer's own instance, budget and `max_depth` (design spec
+§9) are still to build. Three things specifically wait on it:
+
+- **`may_act` minting.** `mayActPermits`
+  (`packages/protocol-oidc/src/service/token-exchange.ts`) enforces the
+  claim already, permitting an exchange whenever it is absent "since
+  nothing mints it yet" — its own comment. A subject pre-authorising a
+  specific actor needs something to write the claim onto a token in the
+  first place, which is P5's, alongside the instance that would be doing
+  the pre-authorising.
+- **The delegation cascade `exchangedFromGrantId` enables but does not
+  perform.** Revoking a grant today revokes that grant alone;
+  `exchangedFromGrantId` records the lineage a cascade would walk, but
+  `tokenGrantRepository.revoke` walks nothing. Whether revoking a subject's
+  original grant should transitively revoke every grant exchanged from it
+  is exactly "revoking any link transitively revokes everything below it"
+  (design spec §9), stated as an agent-layer invariant rather than
+  something this phase's plain delegation already gives it.
+- **A hardcoded chain depth.** `MAX_DELEGATION_DEPTH = 8`
+  (`packages/protocol-oidc/src/service/token-exchange.ts`) is a cap, not a
+  tenant setting, by its own comment — the configurable form belongs with
+  the agent layer's own `max_depth`, which also owns the chain's other
+  bounds (scope and TTL narrowing, budget).
 
 ## Decisions still open
 
@@ -200,17 +260,6 @@ password methods reach this endpoint".
   whose criterion now names both methods at both endpoints. Extend
   `token-issuance.ts`'s assertion and certificate dispatch to the two routes.
 
-**`/token` enforces no `config.grantTypes` allowlist, on either
-authentication path.** A client registered for `authorization_code` only
-can still obtain a `client_credentials` token: `token-issuance.ts`'s only
-read of `config.grantTypes` gates whether a refresh token is issued, not
-which grant a request may use.
-
-- Trigger: **P4a**, which adds token exchange and so makes the next change
-  to grant selection in `issueTokens`; its criterion names the allowlist. Add
-  `config.grantTypes.includes(request.grantType)` before dispatching. Note
-  this is a behaviour change for an existing client, not only a new check.
-
 **`/userinfo` and `/introspect` both honour a disabled client's live access
 token.** `resolveUserinfo` now checks the tenant, the token's own grant
 (`revoked_at`) and its session's liveness, and `introspect` checks the
@@ -219,7 +268,9 @@ after a token was issued to it revokes nothing: the grant stays live,
 `resolveRoleReach` refuses only the `fullScopeAllowed` bypass, and
 `userinfoEncryptionTarget` refuses only registered encryption. A disabled
 client that registered neither still gets an ordinary, correctly narrowed
-response from both endpoints.
+response from both endpoints. `resolveExchangeToken`
+(`packages/protocol-oidc/src/usecase/token-exchange-subject.ts`) checks the
+same pair a third way and inherits the identical blind spot.
 
 - Trigger: **P4**, where disabling a client becomes an operation at all.
   Its criterion now asks that phase to decide whether `/userinfo` and
@@ -375,18 +426,6 @@ the server's bytes: content intact, byte-level promise not.
   empty-language block — the parser beneath it already accepts one — then
   untag the responses. It touches every JSON transcript at once, which is
   why it does not ride along with anything else.
-
-**`pnpm trace` can overstate the census, and hides its own errors after the
-first.** `parseStatus` throws in `loadTables` before any id is resolved, so
-one malformed clause status masks every later problem in every later file —
-a single `trace` error is never safely the only one. And the summary counts
-a broken `covered` row as covered; it printed `410 covered` on a failing
-run. Only reachable in an already-red build, but the census is the one
-artefact claiming to be exhaustive.
-
-- Trigger: whichever change next touches `tools/trace`. Collect parse
-  errors rather than throwing on the first, and exclude a row that failed
-  validation from the summary.
 
 **RFC 7523 has no clause table, and its clauses are absent from the
 matrix.** `docs/protocols/rfc7523.md` is the one file in `docs/protocols/`
