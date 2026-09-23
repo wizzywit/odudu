@@ -357,50 +357,77 @@ on the grounds that P13 is the next phase to rework client authentication.
   (`packages/protocol-oidc/tests/private-key-jwt.int.test.ts`) and
   `service/client-assertion.test.ts`.
 
+**`docs/protocols/rfc6750.md`'s row "`scope` appears at most once" is
+vacuous.** It is cited to a name-agnostic grammar test, and the server emits
+no `scope` auth-param anywhere, so the row is true and holds nothing.
+Choosing between rewording it and emitting a `scope` is a coverage
+judgement, not a fix.
+
+**Fifteen tests share one clause id, `[RFC8705-2.1-03]`, while pinning
+different requirements** — a disabled client, a public client, the
+one-method rule, the duplicate header, tenant isolation, several of them not
+§2.1 at all. The undifferentiated id is the real defect; the missing table
+that surfaced it was fixed.
+
+**`docs/protocols/rfc7662.md` points at a plan file** for when a class of
+rows was decided. A plan is archived scaffolding; the durable pointer is
+this file or the phase note.
+
 ## Deferred from the final review
 
+### Work owed, and the phase each belongs to
+
+- The two `user_credentials` counts at `docs/request-paths.md:3052` and
+  `:3282` are unscoped, and correct only in document order — the
+  neighbouring query of the same kind is scoped. Re-scoping them needs a
+  re-run against a live stack. **P4**, which re-captures those transcripts
+  anyway: its criterion gives a subject a fresh set of recovery codes before
+  the old set is spent, which is what those two queries count.
+- `session-cookie.ts` hand-rolls a case-sensitive UUID regex while the test
+  beside it uses `@odudu/kernel`'s case-insensitive `isUuid`. Inert today —
+  `newId()` emits lowercase only — and ironic in the module whose purpose is
+  to be one authority. **P4**, whose criterion lists a subject's sessions and
+  ends one: the first surface to read a session other than through that
+  cookie, and where ADR 0033's browser-identifier remedy would land in the
+  same file.
+- `pendingSession` duplicates `authenticatedSession`'s two liveness
+  conditions inline rather than sharing a predicate. Four lines, and the two
+  are not identical, so they must be kept in sync by hand if liveness
+  semantics change. **P4**, whose criterion makes a tenant's authentication
+  flow configurable — both helpers are in the executor that flow drives,
+  `packages/authn-flows/src/usecase/executor.ts`.
+- The boundary suite's negative control filters a fixture with no imports at
+  all, so it cannot demonstrate that `service-is-a-leaf` is not over-broad.
+  A service importing another service would. **P4**: its consoles are the
+  first packages outside the server to carry the five layers, so the rule set
+  and its fixtures are extended there.
+- `tests/lint/production-guard-order.test.ts` compares source offsets and
+  breaks on a rename or a helper extraction. A reasonable stopgap for the
+  still-positional server-boot path, but its narrowness should be visible to
+  whoever reads it next. **P12**, whose criterion sources secrets from
+  somewhere other than the process environment and so reworks the boot
+  sequence in `apps/server/src/main.ts` that the test pins by offset.
 - Six migration-filename citations under `docs/superpowers/plans/` name
   files that do not exist. All six are dangling at `a039685` too, so none
   arrived with the rename, and there are none in `packages`, `apps`,
   `tools`, `tests`, `infra` or `README.md`. A plan is archived scaffolding,
   which is the argument for leaving them; a citation that resolves nowhere
-  is the argument against.
-- `docs/protocols/rfc6750.md`'s row "`scope` appears at most once" is
-  vacuous. It is cited to a name-agnostic grammar test, and the server emits
-  no `scope` auth-param anywhere, so the row is true and holds nothing.
-  Choosing between rewording it and emitting a `scope` is a coverage
-  judgement, not a fix.
-- The two `user_credentials` counts at `docs/request-paths.md:3052` and
-  `:3282` are unscoped, and correct only in document order — the
-  neighbouring query of the same kind is scoped. Re-scoping them needs a
-  re-run against a live stack, which is why they were not changed in place.
-- `docs/request-paths.md` places token exchange (RFC 8693) in **P5**, and
-  P5's exit criterion names property-based attenuation, atomic budgets and
-  CIBA — not RFC 8693. Attenuation arguably implies it; the criterion does
-  not say so, so the work can be skipped with nothing going red. Either the
-  criterion names the RFC or the item moves.
-- `tests/lint/production-guard-order.test.ts` compares source offsets and
-  breaks on a rename or a helper extraction. A reasonable stopgap for the
-  still-positional server-boot path, but its narrowness should be visible to
-  whoever reads it next.
-- Fifteen tests share one clause id, `[RFC8705-2.1-03]`, while pinning
-  different requirements — a disabled client, a public client, the
-  one-method rule, the duplicate header, tenant isolation, several of them
-  not §2.1 at all. The undifferentiated id is the real defect; the missing
-  table that surfaced it was fixed.
-- `session-cookie.ts` hand-rolls a case-sensitive UUID regex while the test
-  beside it uses `@odudu/kernel`'s case-insensitive `isUuid`. Inert today —
-  `newId()` emits lowercase only — and ironic in the module whose purpose is
-  to be one authority. Worth collapsing onto `isUuid` when something else
-  touches that file.
-- `pendingSession` duplicates `authenticatedSession`'s two liveness
-  conditions inline rather than sharing a predicate. Four lines, and the two
-  are not identical, so they must be kept in sync by hand if liveness
-  semantics change.
-- `logoutDeliveryRepository.enqueue` takes caller-supplied row ids where
-  `outbox.enqueue` generates its own. Arguably right — the session-ending
-  transaction needs the id up front — but an unremarked divergence from the
-  precedent it otherwise copies.
+  is the argument against. **No phase implies this** — no criterion in
+  section 11 reaches an archived plan — so it needs a phase assigning when
+  something else does, or doing as its own change.
+- The `res` serializer still emits all reply headers with only `set-cookie`
+  denylisted — the remaining instance of the pattern removed on the request
+  side. **No phase implies this**: no criterion names the request logger.
+  It needs a phase assigning when something else touches
+  `apps/server/src/logger.ts`.
+- `drizzle-kit` remains an unused devDependency of `packages/db` after
+  `db:generate` was retired. Removing it rewrites `pnpm-lock.yaml`, which is
+  worth doing on its own, away from other work. **No phase implies this** —
+  no criterion is addressed to that package's manifest — and its own reason
+  for standing alone is the argument against attaching it to one.
+
+### Recorded judgements, where the code stands and nothing is owed
+
 - A `client_id`/hint mismatch at `/logout` rejects through an invariant
   `throw`, so a future refactor's mistake is a 500 rather than a redirect.
   Fails closed, which is why it stands.
@@ -408,19 +435,10 @@ on the grounds that P13 is the next phase to rework client authentication.
   `JSON.parse` **by name**: a refactor to another parse mechanism would make
   it silently stop testing anything rather than fail. Acceptable for one
   small function with one obvious parse path; it would not scale.
-- `docs/protocols/rfc7662.md` points at a plan file for when a class of rows
-  was decided. A plan is archived scaffolding; the durable pointer is this
-  file or the phase note.
 - `ODUDU_TRUST_PROXY=` (a bare key) refuses boot rather than defaulting off
   — correct by strictness, but a new way for a previously-booting
   environment to fail.
-- The boundary suite's negative control filters a fixture with no imports at
-  all, so it cannot demonstrate that `service-is-a-leaf` is not over-broad.
-  A service importing another service would.
-- The `res` serializer still emits all reply headers with only `set-cookie`
-  denylisted — the remaining instance of the pattern removed on the request
-  side.
-- `drizzle-kit` remains an unused devDependency of `packages/db` after
-`db:generate` was retired. Removing it rewrites `pnpm-lock.yaml`, which is
-worth doing on its own, away from other work.
-</content>
+- `logoutDeliveryRepository.enqueue` takes caller-supplied row ids where
+  `outbox.enqueue` generates its own. Arguably right — the session-ending
+  transaction needs the id up front — but an unremarked divergence from the
+  precedent it otherwise copies.
