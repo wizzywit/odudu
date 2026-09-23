@@ -10,7 +10,13 @@ import {
   type TenantScopedDatabase,
 } from '@odudu/db';
 import { provisionTenant, sessionRepository, type SessionLifespans } from '@odudu/authn-flows';
-import { clientRepository, clients, provisionClientDefaults } from '@odudu/domain-tenant';
+import { roleRepository } from '@odudu/domain-authz';
+import {
+  clientRepository,
+  clients,
+  clientScopeRepository,
+  provisionClientDefaults,
+} from '@odudu/domain-tenant';
 import { FakeClock, newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import formbody from '@fastify/formbody';
@@ -22,7 +28,9 @@ import { NO_CLIENT_KEY_FETCHER } from '#/repository/client-keys';
 import { UNLIMITED_CLIENT_SECRET_LIMITER } from '#/service/client-secret-throttle';
 import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
 import { tokenGrantRepository } from '#/repository/grants';
+import { refreshTokenRepository } from '#/repository/refresh';
 import { clientOidcConfig } from '#/schema/client-oidc-config';
+import { hashRefreshToken } from '#/service/refresh';
 import { TOKEN_EXCHANGE_GRANT } from '#/service/token-exchange';
 import { resolveExchangeToken, type ResolveDeps } from '#/usecase/token-exchange-subject';
 
@@ -639,6 +647,34 @@ describe('[ODUDU-TOKEN-EXCHANGE-01] the grant end to end', () => {
     expect(decode(body.access_token).aud).toBe(CLIENT_ID);
   });
 
+  // client_scopes.include_in_id_token is off for `roles`/`groups`
+  // (provision-defaults.ts) precisely because the ID token reaches the
+  // browser and a client cannot opt out of what lands there —
+  // issueAuthorizationCodeTokens already withholds it; an exchange must
+  // withhold it identically.
+  it('withholds roles from an exchanged id_token, as authorization_code does', async () => {
+    const subject = await loginAndGetToken({ scope: 'openid roles' });
+    await allowImpersonation(CLIENT_ID);
+    await withTenant(app.db, TENANT_ID, async (tx) => {
+      const role = await roleRepository(tx).create({
+        tenantId: TENANT_ID,
+        name: `exchange-role-${newId()}`,
+      });
+      await roleRepository(tx).assignToSubject(subject.subjectId, role.id);
+      const scope = await clientScopeRepository(tx).byName('roles');
+      if (scope === null) throw new Error('tenant does not define a roles scope');
+      await roleRepository(tx).mapToClientScope(scope.id, role.id);
+    });
+
+    const response = await exchange({
+      subjectToken: subject.accessToken,
+      requestedTokenType: 'urn:ietf:params:oauth:token-type:id_token',
+    });
+    expect(response.statusCode).toBe(200);
+    const claims = decode(response.json<{ access_token: string }>().access_token);
+    expect(claims.roles).toBeUndefined();
+  });
+
   it('refuses a target named alongside a requested id_token', async () => {
     const subject = await loginAndGetToken({ scope: 'openid' });
     await allowImpersonation(CLIENT_ID);
@@ -666,6 +702,91 @@ describe('[ODUDU-TOKEN-EXCHANGE-01] the grant end to end', () => {
     expect(body.issued_token_type).toBe('urn:ietf:params:oauth:token-type:refresh_token');
     expect(body.token_type).toBe('N_A');
     expect(body.access_token).toEqual(expect.any(String));
+  });
+});
+
+async function rotate(refreshToken: string): Promise<LightMyRequestResponse> {
+  const form = new URLSearchParams({ grant_type: 'refresh_token', refresh_token: refreshToken });
+  return http.inject({
+    method: 'POST',
+    url: `/tenants/${TENANT}/protocol/openid-connect/token`,
+    payload: form.toString(),
+    headers: {
+      'content-type': 'application/x-www-form-urlencoded',
+      authorization: basicAuth(CLIENT_ID, CLIENT_SECRET),
+    },
+  });
+}
+
+describe('[ODUDU-TOKEN-EXCHANGE-ROTATION-01] a rotated exchanged refresh token keeps its limits', () => {
+  it('keeps a nested act chain and the subject exp ceiling through two rotations', async () => {
+    const subject = await loginAndGetToken();
+    const delegateHolder = await loginAndGetToken();
+    const innerActor = await loginAndGetToken();
+
+    // Builds an actor_token that already carries its own `act` — the
+    // second exchange below nests beneath it, so the resulting chain has
+    // two levels rather than one. buildActChain's own nesting is unit
+    // tested (ACT-01); this is the end-to-end proof that a nested chain
+    // survives persistence and rotation with its shape intact, not just a
+    // single-level one that would pass either way.
+    const delegatedActorResponse = await exchange({
+      subjectToken: delegateHolder.accessToken,
+      actorToken: innerActor.accessToken,
+    });
+    expect(delegatedActorResponse.statusCode).toBe(200);
+    const delegatedActorToken = delegatedActorResponse.json<{ access_token: string }>()
+      .access_token;
+
+    const subjectExp = decodeExp(subject.accessToken);
+    const expectedAct = { sub: delegateHolder.subjectId, act: { sub: innerActor.subjectId } };
+
+    const exchangeResponse = await exchange({
+      subjectToken: subject.accessToken,
+      actorToken: delegatedActorToken,
+      requestedTokenType: 'urn:ietf:params:oauth:token-type:refresh_token',
+    });
+    expect(exchangeResponse.statusCode).toBe(200);
+    const exchangedRefreshToken = exchangeResponse.json<{ access_token: string }>().access_token;
+
+    const firstRotation = await rotate(exchangedRefreshToken);
+    expect(firstRotation.statusCode).toBe(200);
+    const firstBody = firstRotation.json<{ access_token: string; refresh_token: string }>();
+    // The whole point of a delegated credential: `act` must survive
+    // rotation, nesting intact, not just the token minted at exchange time.
+    expect(decode(firstBody.access_token).act).toEqual(expectedAct);
+    expect(decodeExp(firstBody.access_token)).toBeLessThanOrEqual(subjectExp);
+
+    // And again — the ceiling and the full chain must survive a second
+    // hop, not just the first one after the exchange.
+    const secondRotation = await rotate(firstBody.refresh_token);
+    expect(secondRotation.statusCode).toBe(200);
+    const secondBody = secondRotation.json<{ access_token: string; refresh_token: string }>();
+    expect(decode(secondBody.access_token).act).toEqual(expectedAct);
+    expect(decodeExp(secondBody.access_token)).toBeLessThanOrEqual(subjectExp);
+  });
+
+  it('caps the rotated refresh token itself, not just the access token it mints', async () => {
+    const subject = await loginAndGetToken();
+    await allowImpersonation(CLIENT_ID);
+    const subjectExpDate = new Date(decodeExp(subject.accessToken) * 1000);
+
+    const exchangeResponse = await exchange({
+      subjectToken: subject.accessToken,
+      requestedTokenType: 'urn:ietf:params:oauth:token-type:refresh_token',
+    });
+    const exchangedRefreshToken = exchangeResponse.json<{ access_token: string }>().access_token;
+
+    const rotation = await rotate(exchangedRefreshToken);
+    expect(rotation.statusCode).toBe(200);
+    const body = rotation.json<{ refresh_token: string }>();
+
+    // The rotated refresh token is opaque, so the cap is checked in the
+    // database it was written to, not by decoding it.
+    const record = await withTenant(app.db, TENANT_ID, (tx) =>
+      refreshTokenRepository(tx).byHash(hashRefreshToken(body.refresh_token)),
+    );
+    expect(record?.expiresAt).toEqual(subjectExpDate);
   });
 });
 

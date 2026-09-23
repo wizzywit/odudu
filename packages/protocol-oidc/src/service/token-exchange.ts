@@ -6,11 +6,14 @@ export type ExchangeTokenType = 'access_token' | 'refresh_token' | 'id_token';
 
 export type TokenTypeOutcome = ExchangeTokenType | 'refused' | 'deferred' | 'unknown';
 
-const ACCEPTED: Record<string, ExchangeTokenType> = {
-  'urn:ietf:params:oauth:token-type:access_token': 'access_token',
-  'urn:ietf:params:oauth:token-type:refresh_token': 'refresh_token',
-  'urn:ietf:params:oauth:token-type:id_token': 'id_token',
-};
+// A Map, not an object literal: an object literal's bracket lookup walks
+// the prototype chain, so `raw` values like 'toString' or 'constructor'
+// would resolve to an inherited function rather than `undefined`.
+const ACCEPTED = new Map<string, ExchangeTokenType>([
+  ['urn:ietf:params:oauth:token-type:access_token', 'access_token'],
+  ['urn:ietf:params:oauth:token-type:refresh_token', 'refresh_token'],
+  ['urn:ietf:params:oauth:token-type:id_token', 'id_token'],
+]);
 
 const DEFERRED = new Set([
   'urn:ietf:params:oauth:token-type:saml1',
@@ -22,7 +25,7 @@ const DEFERRED = new Set([
 // type meaning "any JWT this issuer signed" would accept all four
 // interchangeably.
 export function parseTokenType(raw: string): TokenTypeOutcome {
-  const accepted = ACCEPTED[raw];
+  const accepted = ACCEPTED.get(raw);
   if (accepted !== undefined) return accepted;
   if (raw === 'urn:ietf:params:oauth:token-type:jwt') return 'refused';
   if (DEFERRED.has(raw)) return 'deferred';
@@ -78,8 +81,9 @@ export function attenuateScope(
   requested: string,
   granted: readonly string[],
 ): { kind: 'ok'; scope: readonly string[] } | { kind: 'widened' } {
+  if (requested === '') return { kind: 'ok', scope: granted };
   const asked = [...new Set(requested.split(' ').filter((entry) => entry !== ''))];
-  if (asked.length === 0) return { kind: 'ok', scope: granted };
+  if (asked.length === 0) return { kind: 'widened' };
   const held = new Set(granted);
   return asked.every((entry) => held.has(entry))
     ? { kind: 'ok', scope: asked }
@@ -118,6 +122,16 @@ export function buildActChain(
   if (inner === 'too_deep') return { kind: 'too_deep' };
   if (inner === 'malformed') return { kind: 'malformed' };
   return { kind: 'ok', act: { sub: actorSubject, act: inner } };
+}
+
+// The read side of a persisted `token_grants.act_chain` (jsonb, therefore
+// unknown): a grant's own value, exactly as `buildActChain` produced it, or
+// null for anything that does not parse as one — absent, malformed, or
+// deeper than a chain this issuer ever mints.
+export function narrowActClaim(value: unknown): ActClaim | null {
+  if (value === null || value === undefined) return null;
+  const inner = narrowAct(value, MAX_DELEGATION_DEPTH);
+  return inner === 'malformed' || inner === 'too_deep' ? null : inner;
 }
 
 // RFC 8693 §4.4 authorises a party "to become the actor", so the comparison

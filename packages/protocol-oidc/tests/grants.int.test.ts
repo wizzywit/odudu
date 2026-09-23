@@ -1,4 +1,4 @@
-import { subjectRepository } from '@odudu/domain-identity';
+import { subjectRepository, subjects } from '@odudu/domain-identity';
 import {
   createDatabase,
   MIGRATIONS_DIR,
@@ -13,11 +13,13 @@ import { provisionTenant, sessionRepository, type SessionLifespans } from '@odud
 import { clients, provisionClientDefaults } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
+import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { tokenGrantRepository, type TokenGrantRecord } from '#/repository/grants';
 import { refreshTokenRepository } from '#/repository/refresh';
 import { generateRefreshToken, hashRefreshToken } from '#/service/refresh';
 import { rotateRefreshToken } from '#/usecase/refresh-rotation';
+import { tokenGrants } from '#/schema/token-grants';
 
 let containerHandle: TestDatabase | undefined;
 let ownerHandle: DatabaseHandle | undefined;
@@ -271,5 +273,64 @@ describe('tokenGrantRepository', () => {
       rotateRefreshToken(tx, hashRefreshToken(token), new Date(), 600, LIFESPANS),
     );
     expect(outcome.kind).toBe('revoked');
+  });
+
+  // token_grants_actor_subject_fk (0059_token_exchange.sql). An unrestricted
+  // ON DELETE SET NULL would null tenant_id alongside actor_subject_id and
+  // the delete would fail its NOT NULL constraint instead of detaching the
+  // actor — the column-list form nulls only actor_subject_id.
+  it('detaches actor_subject_id when the actor subject is deleted, leaving tenant_id intact', async () => {
+    const tenantId = newId();
+
+    const grant = await withTenant(app.db, tenantId, async (tx) => {
+      const created = await createGrant(tx, tenantId);
+      const actor = await subjectRepository(tx).create({ tenantId, type: 'user' });
+      await tx
+        .update(tokenGrants)
+        .set({ actorSubjectId: actor.id })
+        .where(eq(tokenGrants.id, created.id));
+      await tx.delete(subjects).where(eq(subjects.id, actor.id));
+      return created;
+    });
+
+    const found = await withTenant(app.db, tenantId, (tx) =>
+      tokenGrantRepository(tx).byId(grant.id),
+    );
+    expect(found?.tenantId).toBe(tenantId);
+    expect(found?.actorSubjectId).toBeNull();
+  });
+
+  // token_grants_exchanged_from_grant_fk (0059_token_exchange.sql). Same
+  // column-list reasoning as the actor FK above, applied to the lineage
+  // pointer instead.
+  it('detaches exchanged_from_grant_id when the parent grant is deleted, leaving tenant_id intact', async () => {
+    const tenantId = newId();
+
+    const child = await withTenant(app.db, tenantId, async (tx) => {
+      const { clientDbId, subjectId } = await seedTenantClientSubject(tx, tenantId);
+      const grantFor = () =>
+        tokenGrantRepository(tx).create({
+          id: newId(),
+          tenantId,
+          clientId: clientDbId,
+          subjectId,
+          scope: 'openid',
+          audience: AUDIENCE,
+        });
+      const parent = await grantFor();
+      const created = await grantFor();
+      await tx
+        .update(tokenGrants)
+        .set({ exchangedFromGrantId: parent.id })
+        .where(eq(tokenGrants.id, created.id));
+      await tx.delete(tokenGrants).where(eq(tokenGrants.id, parent.id));
+      return created;
+    });
+
+    const found = await withTenant(app.db, tenantId, (tx) =>
+      tokenGrantRepository(tx).byId(child.id),
+    );
+    expect(found?.tenantId).toBe(tenantId);
+    expect(found?.exchangedFromGrantId).toBeNull();
   });
 });

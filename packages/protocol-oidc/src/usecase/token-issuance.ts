@@ -40,6 +40,7 @@ import {
   attenuateScope,
   buildActChain,
   mayActPermits,
+  narrowActClaim,
   parseTokenType,
   resolveExchangeAudience,
   TOKEN_EXCHANGE_GRANT,
@@ -684,7 +685,18 @@ async function issueRefreshTokens(
   // by the same rule as the authorization_code path, may never widen it.
   const resolvedAudience = resolveAudience(grant.audience, request.resource);
 
-  const { accessToken } = await mintAccessToken(
+  // RFC 8693 §4.4 / schema/token-grants.ts's own comment on the columns: a grant this
+  // table wrote for an ordinary authorization_code or client_credentials
+  // redemption carries neither, and every access token this branch has
+  // ever minted before token-exchange existed passed neither field either
+  // — so an ordinary refresh is completely unaffected by both columns
+  // existing. An exchanged grant's rotation is the one case where both are
+  // reapplied, rather than silently dropped: the delegation this credential
+  // was minted to record, and the ceiling it was minted never to outlive.
+  const act = narrowActClaim(grant.actChain) ?? undefined;
+  const expCeiling = grant.expCeiling ?? undefined;
+
+  const { accessToken, iat, exp } = await mintAccessToken(
     deps,
     {
       subjectId: grant.subjectId,
@@ -701,6 +713,8 @@ async function issueRefreshTokens(
       // `jti`, which is why revocation and introspection can still name
       // this grant after several rotations.
       grantId: grant.id,
+      ...(act === undefined ? {} : { act }),
+      ...(expCeiling === undefined ? {} : { expCeiling }),
     },
     key,
     now,
@@ -710,7 +724,7 @@ async function issueRefreshTokens(
     access_token: accessToken,
     refresh_token: outcome.next,
     token_type: 'Bearer',
-    expires_in: config.accessTokenTtlSeconds,
+    expires_in: exp - iat,
     scope: scope.join(' '),
   };
 }
@@ -1069,6 +1083,8 @@ async function issueExchangedTokens(
       sessionId: subject.token.sessionId,
       actorSubjectId,
       exchangedFromGrantId: subject.token.grantId,
+      actChain: act ?? null,
+      expCeiling: expCeiling ?? null,
     });
     const refreshToken = generateRefreshToken();
     const refreshExpiresAt =
@@ -1095,11 +1111,20 @@ async function issueExchangedTokens(
 
   if (issuedType === 'id_token') {
     const key = await signingKeyRepository(tx).active();
+    // A scope reaches this ID token only if its own definition says so
+    // (`client_scopes.include_in_id_token`) — `roles`/`groups` ship with
+    // that off, the same rule `issueAuthorizationCodeTokens` applies,
+    // because the ID token reaches the browser and a client cannot opt
+    // out of what lands there.
+    const assigned = await clientScopeRepository(tx).forClient(client.id);
+    const idTokenScope = assigned
+      .filter((clientScope) => scope.includes(clientScope.name) && clientScope.includeInIdToken)
+      .map((clientScope) => clientScope.name);
     const narrowedContext: ClaimContext = {
       ...claimContext,
       roles: narrowByScopeMappings(claimContext.roles, reachable, client.fullScopeAllowed),
     };
-    const mapped = await deps.claimMappers.assemble(scope, narrowedContext);
+    const mapped = await deps.claimMappers.assemble(idTokenScope, narrowedContext);
     const iat = Math.floor(now.getTime() / 1000);
     const ttlExp = iat + config.accessTokenTtlSeconds;
     const ceiling = expCeiling === undefined ? ttlExp : Math.floor(expCeiling.getTime() / 1000);
@@ -1160,6 +1185,8 @@ async function issueExchangedTokens(
     sessionId: subject.token.sessionId,
     actorSubjectId,
     exchangedFromGrantId: subject.token.grantId,
+    actChain: act ?? null,
+    expCeiling: expCeiling ?? null,
   });
 
   return {

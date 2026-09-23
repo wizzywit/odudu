@@ -421,6 +421,13 @@
       "when": 1789049381702,
       "tag": "0059_token_exchange",
       "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "7",
+      "when": 1789049381703,
+      "tag": "0060_token_grants_act_chain",
+      "breakpoints": true
     }
   ]
 }
