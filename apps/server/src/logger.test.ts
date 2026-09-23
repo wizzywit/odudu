@@ -118,6 +118,36 @@ describe('createLogger', () => {
     expect(lines()).toContain('https://client.example/cb');
   });
 
+  it('strips userinfo credentials from a logged location header', () => {
+    const { stream, lines } = capture();
+    const logger = createLogger(config, stream);
+
+    logger.info(
+      {
+        res: {
+          statusCode: 302,
+          getHeaders: () => ({
+            location: 'https://super-secret-user:super-secret-pass@client.example/cb?code=abc',
+          }),
+        },
+      },
+      'request completed',
+    );
+
+    expect(lines()).not.toContain('super-secret-user');
+    expect(lines()).not.toContain('super-secret-pass');
+    expect(lines()).toContain('https://client.example/cb');
+  });
+
+  it('leaves an origin-relative request url alone', () => {
+    const { stream, lines } = capture();
+    const logger = createLogger(config, stream);
+
+    logger.info({ req: { url: '/tenants/alpha/login-actions/authenticate' } }, 'incoming');
+
+    expect(lines()).toContain('/tenants/alpha/login-actions/authenticate');
+  });
+
   it('drops a response header that is not on the allowlist', () => {
     const { stream, lines } = capture();
     const logger = createLogger(config, stream);
@@ -151,6 +181,7 @@ describe('createLogger', () => {
             'content-type': 'application/json',
             'cache-control': 'no-store',
             'retry-after': '30',
+            'access-control-allow-origin': 'https://spa.example',
           }),
         },
       },
@@ -161,6 +192,7 @@ describe('createLogger', () => {
     expect(lines()).toContain('application/json');
     expect(lines()).toContain('no-store');
     expect(lines()).toContain('retry-after');
+    expect(lines()).toContain('https://spa.example');
   });
 
   it('satisfies the kernel Logger interface', () => {

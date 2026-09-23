@@ -35,6 +35,11 @@ const ALLOWED_RESPONSE_HEADERS = new Set([
   'accept-post',
   'vary',
   'x-request-id',
+  // The only member of its family: it carries an origin already matched
+  // against the client's registered list, and its absence is the sole trace
+  // of a refused CORS request — cors.ts sends `vary: Origin` on the allowed
+  // and the refused branch alike.
+  'access-control-allow-origin',
   'location',
 ]);
 
@@ -51,15 +56,22 @@ function allowlistedHeaders(
   return result;
 }
 
+// Anchored on a scheme, so a request URL — always origin-relative here —
+// cannot have a path segment mistaken for an authority.
+const USERINFO = /^([a-zA-Z][a-zA-Z\d+.-]*:\/\/)[^/]*@/;
+
 // Query strings carry the same class of secrets as headers (OAuth `code`,
 // `state`, `code_challenge`, ...) and a two-entry denylist has already once
 // missed something. Logging the path only is the allowlist equivalent for a
 // URL: nothing after `?` or `#` is ever emitted — response_mode=fragment
-// puts the authorization code after the `#`.
+// puts the authorization code after the `#` — and nothing between `//` and
+// `@`, which a registered redirect_uri may carry (isValidRedirectUri in
+// protocol-oidc checks the scheme and the fragment, not userinfo).
 function pathOnly(url: unknown): unknown {
   if (typeof url !== 'string') return url;
   const cut = url.search(/[?#]/);
-  return cut === -1 ? url : url.slice(0, cut);
+  const untilQuery = cut === -1 ? url : url.slice(0, cut);
+  return untilQuery.replace(USERINFO, '$1');
 }
 
 function responseHeaders(headers: unknown): Record<string, unknown> {
