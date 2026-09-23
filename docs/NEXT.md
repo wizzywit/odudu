@@ -345,18 +345,6 @@ the server's bytes: content intact, byte-level promise not.
   untag the responses. It touches every JSON transcript at once, which is
   why it does not ride along with anything else.
 
-**`pnpm trace` can overstate the census, and hides its own errors after the
-first.** `parseStatus` throws in `loadTables` before any id is resolved, so
-one malformed clause status masks every later problem in every later file —
-a single `trace` error is never safely the only one. And the summary counts
-a broken `covered` row as covered; it printed `410 covered` on a failing
-run. Only reachable in an already-red build, but the census is the one
-artefact claiming to be exhaustive.
-
-- Trigger: whichever change next touches `tools/trace`. Collect parse
-  errors rather than throwing on the first, and exclude a row that failed
-  validation from the summary.
-
 **RFC 7523 has no clause table, and its clauses are absent from the
 matrix.** `docs/protocols/rfc7523.md` is the one file in `docs/protocols/`
 without a clause table, so Odudu has implemented an RFC whose every clause

@@ -20,7 +20,7 @@ const TABLE = `
 
 describe('parseRows', () => {
   it('reads clause, level and test id', () => {
-    const rows = parseRows('rfc7636.md', TABLE);
+    const { rows } = parseRows('rfc7636.md', TABLE);
     expect(rows).toHaveLength(4);
     expect(rows[0]).toMatchObject({
       clause: '4.1',
@@ -31,12 +31,12 @@ describe('parseRows', () => {
   });
 
   it('reads a gap as having no test id', () => {
-    const rows = parseRows('rfc7636.md', TABLE);
+    const { rows } = parseRows('rfc7636.md', TABLE);
     expect(rows[1]).toMatchObject({ testId: null, status: { kind: 'gap' } });
   });
 
   it('captures the phase and reason from a deferred status', () => {
-    const rows = parseRows('rfc7636.md', TABLE);
+    const { rows } = parseRows('rfc7636.md', TABLE);
     expect(nth(rows, 2).status).toEqual({
       kind: 'deferred',
       phase: 'P3',
@@ -45,7 +45,7 @@ describe('parseRows', () => {
   });
 
   it('captures the reason from an n/a status', () => {
-    const rows = parseRows('rfc7636.md', TABLE);
+    const { rows } = parseRows('rfc7636.md', TABLE);
     expect(nth(rows, 3).status).toEqual({
       kind: 'na',
       reason: 'implicit removed in OAuth 2.1',
@@ -57,15 +57,17 @@ describe('parseRows', () => {
       '| 4.4.1 | MUST | plain is rejected | — | gap |',
       '| 4.4.1 | SHOULD | the server documents its defaults | — | documented: see "The default scope" above |',
     );
-    expect(nth(parseRows('rfc7636.md', table), 1).status).toEqual({
+    expect(nth(parseRows('rfc7636.md', table).rows, 1).status).toEqual({
       kind: 'documented',
       reference: 'see "The default scope" above',
     });
   });
 
-  it('rejects a documented status with nothing after the colon', () => {
+  it('reports a documented status with nothing after the colon, and reads no row for it', () => {
     const bad = TABLE.replace('| — | gap |', '| — | documented: |');
-    expect(() => parseRows('rfc7636.md', bad)).toThrow(/documented/);
+    const { rows, errors } = parseRows('rfc7636.md', bad);
+    expect(rows).toHaveLength(3);
+    expect(errors).toEqual([expect.stringMatching(/documented/)]);
   });
 
   it('captures the reference from an accepted status', () => {
@@ -73,44 +75,67 @@ describe('parseRows', () => {
       '| — | gap |',
       '| — | accepted: see "TLS: what a boot guard settles" — the proxy terminates TLS |',
     );
-    expect(nth(parseRows('rfc7636.md', table), 1).status).toEqual({
+    expect(nth(parseRows('rfc7636.md', table).rows, 1).status).toEqual({
       kind: 'accepted',
       reference: 'see "TLS: what a boot guard settles" — the proxy terminates TLS',
     });
   });
 
-  it('rejects an accepted status with nothing after the colon', () => {
+  it('reports an accepted status with nothing after the colon, and reads no row for it', () => {
     const bad = TABLE.replace('| — | gap |', '| — | accepted: |');
-    expect(() => parseRows('rfc7636.md', bad)).toThrow(/accepted/);
+    const { rows, errors } = parseRows('rfc7636.md', bad);
+    expect(rows).toHaveLength(3);
+    expect(errors).toEqual([expect.stringMatching(/accepted/)]);
   });
 
-  it('rejects a status it does not recognise rather than ignoring the row', () => {
+  it('reports a status it does not recognise rather than ignoring the row', () => {
     const bad = TABLE.replace('| covered |', '| probably fine |');
-    expect(() => parseRows('rfc7636.md', bad)).toThrow(/probably fine/);
+    const { rows, errors } = parseRows('rfc7636.md', bad);
+    expect(rows).toHaveLength(3);
+    expect(errors).toEqual([expect.stringMatching(/probably fine/)]);
   });
 
-  it('rejects a covered row with no test id', () => {
+  it('reports a covered row with no test id, and reads no row for it', () => {
     const bad = TABLE.replace('| `RFC7636-4.1-01` | covered |', '| — | covered |');
-    expect(() => parseRows('rfc7636.md', bad)).toThrow(/covered.*test id/i);
+    const { rows, errors } = parseRows('rfc7636.md', bad);
+    expect(rows).toHaveLength(3);
+    expect(errors).toEqual([expect.stringMatching(/covered.*test id/i)]);
   });
 
-  it('throws rather than silently dropping a clause row with an escaped pipe', () => {
+  it('reports rather than silently dropping a clause row with an escaped pipe', () => {
     const bad = TABLE.replace(
       '| 4.4.1 | MUST | plain is rejected | — | gap |',
       '| 4.4.1 | MUST | plain is rejected \\| escaped | — | gap |',
     );
-    expect(() => parseRows('rfc7636.md', bad)).toThrow(/rfc7636\.md:\d+.*6 cells/);
+    const { rows, errors } = parseRows('rfc7636.md', bad);
+    expect(rows).toHaveLength(3);
+    expect(errors).toEqual([expect.stringMatching(/rfc7636\.md:\d+.*6 cells/)]);
   });
 
-  it('throws on an unrecognised level inside the clause table', () => {
+  it('reports an unrecognised level inside the clause table', () => {
     const bad = TABLE.replace('| 4.2 | SHOULD |', '| 4.2 | SHOULDNT |');
-    expect(() => parseRows('rfc7636.md', bad)).toThrow(/rfc7636\.md:\d+.*SHOULDNT/);
+    const { rows, errors } = parseRows('rfc7636.md', bad);
+    expect(rows).toHaveLength(3);
+    expect(errors).toEqual([expect.stringMatching(/rfc7636\.md:\d+.*SHOULDNT/)]);
+  });
+
+  it('collects every malformed row in one pass rather than stopping at the first', () => {
+    const bad = TABLE.replace('| 4.2 | SHOULD |', '| 4.2 | SHOULDNT |').replace(
+      '| — | gap |',
+      '| — | bogus-status |',
+    );
+    const { rows, errors } = parseRows('rfc7636.md', bad);
+    expect(rows).toHaveLength(2);
+    expect(errors).toHaveLength(2);
+    expect(errors[0]).toMatch(/bogus-status/);
+    expect(errors[1]).toMatch(/SHOULDNT/);
   });
 
   it('skips a legitimate non-clause table elsewhere in the file without error', () => {
     const withNotesTable = `${TABLE}\n## Reading notes\n\n| Term | Meaning |\n| ---- | ------- |\n| PKCE | Proof Key for Code Exchange |\n`;
-    const rows = parseRows('rfc7636.md', withNotesTable);
+    const { rows, errors } = parseRows('rfc7636.md', withNotesTable);
     expect(rows).toHaveLength(4);
+    expect(errors).toEqual([]);
   });
 });
 

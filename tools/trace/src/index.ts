@@ -34,32 +34,51 @@ async function loadCensus(): Promise<Map<string, SilencedMusts>> {
   return census;
 }
 
-async function loadTables(): Promise<{ rows: Row[]; headings: Map<string, Set<string>> }> {
+async function loadTables(): Promise<{
+  rows: Row[];
+  headings: Map<string, Set<string>>;
+  errors: string[];
+}> {
   const files = (await readdir(PROTOCOLS)).filter((f) => f.endsWith('.md'));
   const rows: Row[] = [];
+  const errors: string[] = [];
   const headings = new Map<string, Set<string>>();
   for (const file of files) {
     const markdown = await readFile(join(PROTOCOLS, file), 'utf8');
-    rows.push(...parseRows(file, markdown));
+    const parsed = parseRows(file, markdown);
+    rows.push(...parsed.rows);
+    errors.push(...parsed.errors);
     headings.set(file, readingNoteHeadings(markdown));
   }
-  return { rows, headings };
+  return { rows, headings, errors };
 }
 
 const strict = process.env.ODUDU_TRACE_STRICT === '1';
-const { rows, headings } = await loadTables();
+const { rows, headings, errors: parseErrors } = await loadTables();
 const results = await readSuite(process.argv[2] ?? 'trace-report.json');
 const findings = reconcile(rows, results, { strict, headings, silenced: await loadCensus() });
 
+// A row a `fatal` finding names cannot be trusted to be what it declares —
+// the same reason a malformed row above never reaches `rows` at all. Counted
+// under its declared status anyway, the census overstates itself exactly
+// the way `docs/NEXT.md` once recorded: a red run reporting a clean-looking
+// number.
+const untrustworthy = new Set(
+  findings.filter((f) => f.fatal === true && f.row !== undefined).map((f) => f.row),
+);
+const countOf = (kind: Row['status']['kind']): number =>
+  rows.filter((r) => r.status.kind === kind && !untrustworthy.has(r)).length;
+
 const counts = {
-  covered: rows.filter((r) => r.status.kind === 'covered').length,
-  gap: rows.filter((r) => r.status.kind === 'gap').length,
-  deferred: rows.filter((r) => r.status.kind === 'deferred').length,
-  na: rows.filter((r) => r.status.kind === 'na').length,
-  documented: rows.filter((r) => r.status.kind === 'documented').length,
-  accepted: rows.filter((r) => r.status.kind === 'accepted').length,
+  covered: countOf('covered'),
+  gap: countOf('gap'),
+  deferred: countOf('deferred'),
+  na: countOf('na'),
+  documented: countOf('documented'),
+  accepted: countOf('accepted'),
 };
 
+for (const message of parseErrors) console.error(`error: ${message}`);
 for (const f of findings) console.error(`${f.severity}: ${f.message}`);
 console.log(
   `trace: ${String(counts.covered)} covered, ${String(counts.gap)} gap, ` +
@@ -69,4 +88,4 @@ console.log(
     (strict ? ' (strict)' : ''),
 );
 
-if (findings.some((f) => f.severity === 'error')) process.exit(1);
+if (parseErrors.length > 0 || findings.some((f) => f.severity === 'error')) process.exit(1);

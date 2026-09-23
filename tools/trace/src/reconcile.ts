@@ -5,6 +5,13 @@ export interface Finding {
   severity: 'error' | 'warn';
   row?: Row;
   message: string;
+  // True exactly when the row's own declared status cannot be trusted — a
+  // broken documented:/accepted: reference, or a covered: row whose test id
+  // resolves to nothing or to a failing test. A census that counts such a
+  // row under its declared status is the defect this field exists to avoid
+  // reproducing (see index.ts's summary). Never set on a MUST silenced or
+  // escalated by strict mode: that is a policy signal, not a broken row.
+  fatal?: boolean;
 }
 
 // A `documented:` or `accepted:` row's reference has to quote the heading it
@@ -57,6 +64,7 @@ function proseFinding(
   if (quoted.length === 0) {
     return {
       severity: 'error',
+      fatal: true,
       row,
       message: `${where}: ${kind.verb} prose but the reference quotes no heading (${reference})`,
     };
@@ -69,6 +77,7 @@ function proseFinding(
   if (missing.length > 0) {
     return {
       severity: 'error',
+      fatal: true,
       row,
       message: `${where}: ${kind.verb} ${missing.map((t) => JSON.stringify(t)).join(', ')}, which is not a heading in ${row.file}`,
     };
@@ -210,6 +219,7 @@ export function reconcile(
     if (carried === undefined || carried.length === 0) {
       findings.push({
         severity: 'error',
+        fatal: true,
         row,
         message: `${where}: covered by ${row.testId ?? '?'} but no test carries that id`,
       });
@@ -220,6 +230,7 @@ export function reconcile(
     if (failed.length > 0) {
       findings.push({
         severity: 'error',
+        fatal: true,
         row,
         message: failureMessage(where, row.testId ?? '?', failed),
       });
