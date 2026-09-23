@@ -7720,10 +7720,17 @@ session lifecycle. A citation of either half here means that half.
   already has a home in the key-encryption interface §5 puts the signing key
   behind.
 
-- **The sign-in, error and consent pages are hardcoded HTML**, dependency-free
-  with every interpolated value escaped. Theming and per-client branding are
-  **P4b**, split out of P10 on 2026-09-17 because P10's criterion tested
-  provider loading and would have passed with no theming at all. The
+- **Every page this server renders is hardcoded HTML**, dependency-free with
+  every interpolated value escaped: twelve `*-html.ts` renderers across the
+  `view` layers of `packages/protocol-oidc`, `packages/authn-flows` and
+  `packages/account`, from the sign-in form to the logged-out page. Theming
+  and per-client branding are **P4b**, split out of P10 on 2026-09-17 because
+  P10's criterion tested provider loading and would have passed with no
+  theming at all. Its criterion names every renderer rather than a list of
+  pages, and asks for a build check that fails when one exists that no theme
+  reaches — an enumeration was three pages long while the code had twelve,
+  which is how a themed sign-in page and an unthemed second-factor page could
+  have satisfied it. The
   variation it has to cover is visible in **P2a**'s registration and
   verification pages, **P2b**'s second-factor, recovery-code,
   change-password and logout pages, and **P3a**'s own consent page.
