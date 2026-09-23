@@ -9,9 +9,9 @@ import {
   type DatabaseHandle,
   type TenantScopedDatabase,
 } from '@odudu/db';
-import { provisionTenant, type SessionLifespans } from '@odudu/authn-flows';
+import { provisionTenant, sessionRepository, type SessionLifespans } from '@odudu/authn-flows';
 import { clientRepository, clients, provisionClientDefaults } from '@odudu/domain-tenant';
-import { newId } from '@odudu/kernel';
+import { FakeClock, newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import formbody from '@fastify/formbody';
 import { eq } from 'drizzle-orm';
@@ -64,6 +64,10 @@ const GENEROUS_LIFESPANS: SessionLifespans = {
 let TENANT: string;
 let TENANT_ID: string;
 let resolveDeps: ResolveDeps;
+// Shared by every route this file's `http` serves — advanced only by the
+// one test that needs to tell "no time passed" from "nothing touched the
+// session regardless of time", never reset.
+let fakeClock: FakeClock;
 
 async function setupTenant(name: string, tenantId: string): Promise<void> {
   const clientDbId = newId();
@@ -278,6 +282,7 @@ beforeAll(async () => {
   appHandle = createDatabase(appUrl, { max: 5 });
   app = appHandle;
 
+  fakeClock = new FakeClock(new Date());
   http = Fastify();
   await http.register(formbody);
   await http.register(
@@ -285,6 +290,7 @@ beforeAll(async () => {
       database: app,
       ownerDatabase: owner,
       kek: KEK,
+      clock: fakeClock,
       clientSecretLimiter: UNLIMITED_CLIENT_SECRET_LIMITER,
       clientKeySet: NO_CLIENT_KEY_FETCHER,
     }),
@@ -656,5 +662,102 @@ describe('[ODUDU-TOKEN-EXCHANGE-EXPIRY-01] the issued token is capped at the sub
     const response = await exchange({ subjectToken: subject.accessToken });
     const exp = decodeExp(response.json<{ access_token: string }>().access_token);
     expect(exp).toBeLessThanOrEqual(nowSeconds() + ACCESS_TOKEN_TTL_SECONDS);
+  });
+});
+
+async function introspect(token: string): Promise<LightMyRequestResponse> {
+  const form = new URLSearchParams({ token });
+  return http.inject({
+    method: 'POST',
+    url: `/tenants/${TENANT}/protocol/openid-connect/token/introspect`,
+    payload: form.toString(),
+    headers: {
+      'content-type': 'application/x-www-form-urlencoded',
+      authorization: basicAuth(CLIENT_ID, CLIENT_SECRET),
+    },
+  });
+}
+
+async function userinfo(token: string): Promise<LightMyRequestResponse> {
+  return http.inject({
+    method: 'GET',
+    url: `/tenants/${TENANT}/protocol/openid-connect/userinfo`,
+    headers: { authorization: `Bearer ${token}` },
+  });
+}
+
+// Ends the session against the same clock /token itself reads (`fakeClock`,
+// wired into `http` above) — ending it against the real wall clock would
+// leave it live by the frozen clock's own reckoning until `advanceClock`
+// next moves that clock forward.
+async function endSession(sessionId: string): Promise<void> {
+  await withTenant(app.db, TENANT_ID, (tx) =>
+    sessionRepository(tx).end(sessionId, fakeClock.now()),
+  );
+}
+
+async function sessionLastSeen(sessionId: string): Promise<Date | undefined> {
+  const record = await withTenant(app.db, TENANT_ID, (tx) => sessionRepository(tx).byId(sessionId));
+  return record?.lastActiveAt;
+}
+
+function advanceClock(ms: number): void {
+  fakeClock.advance(ms);
+}
+
+describe('[ODUDU-TOKEN-EXCHANGE-SESSION-01] an exchanged token dies with the session', () => {
+  it('is dead at /introspect and at /userinfo after logout', async () => {
+    const subject = await loginAndGetToken({ scope: 'openid profile' });
+    await allowImpersonation(CLIENT_ID);
+    const exchanged = (await exchange({ subjectToken: subject.accessToken })).json<{
+      access_token: string;
+    }>().access_token;
+
+    // Live before, so the assertion after is about the logout and not
+    // about the token having been useless all along.
+    expect((await introspect(exchanged)).json<{ active: boolean }>().active).toBe(true);
+    expect((await userinfo(exchanged)).statusCode).toBe(200);
+
+    await endSession(subject.sessionId);
+
+    expect((await introspect(exchanged)).json<{ active: boolean }>().active).toBe(false);
+    expect((await userinfo(exchanged)).statusCode).toBe(401);
+  });
+
+  it('refuses a further exchange once the session has ended', async () => {
+    const subject = await loginAndGetToken();
+    await allowImpersonation(CLIENT_ID);
+    await endSession(subject.sessionId);
+
+    const response = await exchange({ subjectToken: subject.accessToken });
+    expect(response.statusCode).toBe(400);
+  });
+
+  it('does not extend the session it rides on', async () => {
+    const subject = await loginAndGetToken();
+    await allowImpersonation(CLIENT_ID);
+    const before = await sessionLastSeen(subject.sessionId);
+
+    advanceClock(60_000);
+    await exchange({ subjectToken: subject.accessToken });
+
+    expect(await sessionLastSeen(subject.sessionId)).toEqual(before);
+  });
+
+  // An offline grant has no session, and an exchange from one must not
+  // invent a dependency the subject never had — this is as important as
+  // the first three cases: inheritance must be inheritance, not a blanket
+  // session requirement.
+  it('inherits no session from an offline grant, and survives a logout', async () => {
+    const subject = await loginAndGetToken({ scope: 'openid offline_access' });
+    await allowImpersonation(CLIENT_ID);
+    const offlineAccessToken = subject.offlineAccessToken;
+    if (offlineAccessToken === undefined) throw new Error('expected an offline access token');
+    const exchanged = (await exchange({ subjectToken: offlineAccessToken })).json<{
+      access_token: string;
+    }>().access_token;
+
+    await endSession(subject.sessionId);
+    expect((await introspect(exchanged)).json<{ active: boolean }>().active).toBe(true);
   });
 });
