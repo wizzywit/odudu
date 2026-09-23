@@ -83,3 +83,37 @@ export function attenuateScope(
     ? { kind: 'ok', scope: asked }
     : { kind: 'widened' };
 }
+
+export interface ActClaim {
+  sub: string;
+  act?: ActClaim;
+}
+
+// A cap rather than a tenant setting: the configurable form belongs with
+// the agent layer's max_depth, which also owns the chain's other bounds.
+export const MAX_DELEGATION_DEPTH = 8;
+
+// `unknown`, not a cast: a prior `act` arrives from a verified token's
+// payload, which jose types as JWTPayload's index signature.
+function narrowAct(value: unknown, budget: number): ActClaim | 'malformed' | 'too_deep' {
+  if (budget <= 0) return 'too_deep';
+  if (typeof value !== 'object' || value === null) return 'malformed';
+  const sub = (value as { sub?: unknown }).sub;
+  if (typeof sub !== 'string' || sub === '') return 'malformed';
+  const nested = (value as { act?: unknown }).act;
+  if (nested === undefined) return { sub };
+  const inner = narrowAct(nested, budget - 1);
+  if (inner === 'malformed' || inner === 'too_deep') return inner;
+  return { sub, act: inner };
+}
+
+export function buildActChain(
+  actorSubject: string,
+  priorAct: unknown,
+): { kind: 'ok'; act: ActClaim } | { kind: 'too_deep' } | { kind: 'malformed' } {
+  if (priorAct === undefined) return { kind: 'ok', act: { sub: actorSubject } };
+  const inner = narrowAct(priorAct, MAX_DELEGATION_DEPTH - 1);
+  if (inner === 'too_deep') return { kind: 'too_deep' };
+  if (inner === 'malformed') return { kind: 'malformed' };
+  return { kind: 'ok', act: { sub: actorSubject, act: inner } };
+}

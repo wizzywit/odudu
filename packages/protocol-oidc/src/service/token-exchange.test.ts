@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { attenuateScope, parseTokenType, resolveExchangeAudience } from '#/service/token-exchange';
+import {
+  attenuateScope,
+  buildActChain,
+  MAX_DELEGATION_DEPTH,
+  parseTokenType,
+  resolveExchangeAudience,
+} from '#/service/token-exchange';
 
 describe('[ODUDU-TOKEN-EXCHANGE-TYPES-01] RFC 8693 §3 token type identifiers', () => {
   it.each([
@@ -161,5 +167,38 @@ describe('[ODUDU-TOKEN-EXCHANGE-SCOPE-01] scope never widens', () => {
 
   it('refuses when one of several requested scopes is not held', () => {
     expect(attenuateScope('openid reports:write', GRANTED)).toEqual({ kind: 'widened' });
+  });
+});
+
+describe('[ODUDU-TOKEN-EXCHANGE-ACT-01] the delegation chain', () => {
+  it('names the actor when there is no prior chain', () => {
+    expect(buildActChain('actor-1', undefined)).toEqual({ kind: 'ok', act: { sub: 'actor-1' } });
+  });
+
+  // RFC 8693 §4.1: the outermost act is the current actor, and a consumer
+  // MUST consider only that one for access control.
+  it('nests a prior chain beneath the current actor', () => {
+    expect(buildActChain('actor-2', { sub: 'actor-1' })).toEqual({
+      kind: 'ok',
+      act: { sub: 'actor-2', act: { sub: 'actor-1' } },
+    });
+  });
+
+  it('refuses a chain deeper than the cap', () => {
+    let act: unknown = { sub: 'root' };
+    for (let i = 0; i < MAX_DELEGATION_DEPTH; i += 1) act = { sub: `a${String(i)}`, act };
+    expect(buildActChain('one-more', act)).toEqual({ kind: 'too_deep' });
+  });
+
+  it('refuses a prior act that is not shaped like one', () => {
+    expect(buildActChain('actor', { notSub: 1 })).toEqual({ kind: 'malformed' });
+    expect(buildActChain('actor', 'actor-1')).toEqual({ kind: 'malformed' });
+    expect(buildActChain('actor', { sub: 'a', act: { notSub: 1 } })).toEqual({ kind: 'malformed' });
+  });
+
+  it('refuses a self-referential chain rather than looping', () => {
+    const looped: Record<string, unknown> = { sub: 'a' };
+    looped.act = looped;
+    expect(buildActChain('actor', looped)).toEqual({ kind: 'too_deep' });
   });
 });
