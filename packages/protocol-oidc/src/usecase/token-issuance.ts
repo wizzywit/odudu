@@ -1087,8 +1087,13 @@ async function issueExchangedTokens(
       expCeiling: expCeiling ?? null,
     });
     const refreshToken = generateRefreshToken();
+    const rawExpiresAt = new Date(now.getTime() + config.refreshTokenTtlSeconds * 1000);
+    // The ceiling is a cap, never a grant of extra life: an exchanging
+    // client's own ttl still applies whenever it is the tighter of the two.
     const refreshExpiresAt =
-      expCeiling ?? new Date(now.getTime() + config.refreshTokenTtlSeconds * 1000);
+      expCeiling !== undefined && expCeiling.getTime() < rawExpiresAt.getTime()
+        ? expCeiling
+        : rawExpiresAt;
     await refreshTokenRepository(tx).create({
       tokenHash: hashRefreshToken(refreshToken),
       tenantId: deps.tenantId,
