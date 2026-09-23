@@ -114,15 +114,12 @@ async function resolveRefreshToken(
   };
 }
 
-// Reuses /authorize's own id_token_hint verification (subjectOfIdTokenHint)
-// rather than a second "is this our ID token" check — the confusion
-// `userinfo+jwt` exists to rule out is exactly two verifiers disagreeing
-// about what one token is. `requestingClientId` is passed as `audience`:
-// OIDC Core §3.1.2.2 gives an ID token to the client it names in `aud`, and
-// an exchange is stricter than RFC 8693 requires by refusing any other
-// holder. The tenant id argument is unused by this call's own
-// `listPublishableKeys` — `tx` is already scoped by the caller's
-// `withTenant`, so the wrapped `listPublishable` never reads it.
+// Reuses /authorize's own id_token_hint verification rather than a second
+// "is this our ID token" check — the confusion `userinfo+jwt` exists to
+// rule out. `requestingClientId` stands in for `audience`: OIDC Core
+// §3.1.2.2 gives an ID token to the client named in `aud`, and refusing any
+// other holder is stricter than RFC 8693 requires. The tenant id argument
+// goes unused — `tx` is already scoped by the caller's own `withTenant`.
 async function resolveIdToken(
   tx: TenantScopedDatabase,
   deps: ResolveDeps,
