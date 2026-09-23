@@ -57,6 +57,13 @@ one on a client that already exists means updating
 `client_oidc_config.web_origins` directly, because `seed client` refuses an
 existing client rather than widening a registered list on a re-run.
 
+`seed client --grant-type` names the grants a client is registered for,
+repeatable, and validates each one against the same list the
+`client_oidc_config_grant_types_check` CHECK constraint enforces. Omitted,
+a confidential client still gets `authorization_code`, `refresh_token` and
+`client_credentials`, and a public one still gets the first two — the
+flag's addition changes nothing for an invocation that does not use it.
+
 `email_verified` is now a claim about something that happened: a mailed
 `GET /tenants/{tenant}/login-actions/action-token?key=…` link, redeemed once,
 flips it. A tenant carries three settings for the account lifecycle this

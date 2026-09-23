@@ -71,6 +71,19 @@ module.exports = {
         path: '/src/(?:(?:view|usecase|repository|adapter)|.*/(?:view|usecase|repository|adapter))/',
       },
     },
+    {
+      name: 'no-layer-to-testing',
+      severity: 'error',
+      comment:
+        "`src/testing/` holds fixtures reused across a package's own test files, reachable " +
+        'only via `#/` because ESLint forbids relative test imports and `#/*` maps to ' +
+        '`./src/*.ts` (see packages/protocol-oidc/src/testing/). None of the five layers has a ' +
+        'legitimate reason to depend on test-only code.',
+      from: {
+        path: '/src/(?:(?:view|usecase|repository|adapter|service)|.*/(?:view|usecase|repository|adapter|service))/',
+      },
+      to: { path: '/src/(?:testing|.*/testing)/' },
+    },
   ],
   options: {
     doNotFollow: { path: 'node_modules' },

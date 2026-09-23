@@ -891,6 +891,13 @@ async function authenticateTlsClientAuth(
   return { client, config };
 }
 
+// Reached only if StructuredRequest gains a variant the dispatch below does
+// not answer, which is a typecheck failure rather than a runtime one. The
+// throw exists because a `never` parameter still needs a body.
+export function assertNeverGrant(request: never): never {
+  throw new Error(`unhandled grant type: ${JSON.stringify(request)}`);
+}
+
 export async function issueTokens(
   tx: TenantScopedDatabase,
   deps: TokenIssuanceDeps,
@@ -962,11 +969,21 @@ export async function issueTokens(
         ? await authenticateTlsClientAuth(tx, deps, certificateSubject, request.clientId)
         : await authenticateClient(tx, deps, basic, request.clientId, bodyClientSecret);
 
-  if (request.grantType === 'authorization_code') {
-    return issueAuthorizationCodeTokens(tx, deps, request, client, config);
+  // RFC 6749 §5.2. Until this landed, `config.grantTypes` gated only
+  // whether a refresh token was issued, so a client could use any grant
+  // this server implements regardless of what it registered for.
+  if (!config.grantTypes.includes(request.grantType)) {
+    throw unauthorizedClient();
   }
-  if (request.grantType === 'refresh_token') {
-    return issueRefreshTokens(tx, deps, request, client, config);
+
+  switch (request.grantType) {
+    case 'authorization_code':
+      return issueAuthorizationCodeTokens(tx, deps, request, client, config);
+    case 'refresh_token':
+      return issueRefreshTokens(tx, deps, request, client, config);
+    case 'client_credentials':
+      return issueClientCredentialsTokens(tx, deps, request, client, config);
+    default:
+      return assertNeverGrant(request);
   }
-  return issueClientCredentialsTokens(tx, deps, request, client, config);
 }

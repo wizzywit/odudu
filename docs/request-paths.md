@@ -7837,8 +7837,12 @@ session lifecycle. A citation of either half here means that half.
   signing key, the latter for a client a tenant has opened itself to — and
   neither can add a user to an existing client, disable anything, rotate a
   key, or delete anything. `seed client` takes `--redirect-uri`,
-  `--post-logout-redirect-uri`, `--web-origin`, `--client-secret` and
-  `--token-endpoint-auth-method`, and nothing for `audiences`,
+  `--post-logout-redirect-uri`, `--web-origin`, `--client-secret`,
+  `--token-endpoint-auth-method` and `--grant-type` (repeatable, validated
+  against the same list `client_oidc_config_grant_types_check` enforces;
+  omitted, a confidential client still gets `authorization_code`,
+  `refresh_token` and `client_credentials`, and a public one the first two
+  only), and nothing for `audiences`,
   `frontchannel_logout_uri`/`backchannel_logout_uri` or `consent_required`.
   `--token-endpoint-auth-method` itself only accepts `client_secret_basic`
   and `client_secret_post` (`apps/server/src/cli/seed-invocation.ts`) —

@@ -815,6 +815,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
 export { assertionJtiRepository } from '#/repository/assertion-jti';
 export { clientOidcConfigRepository } from '#/repository/client-oidc-config';
 export { type ClientOidcConfig } from '#/schema/client-oidc-config';
+export { GRANT_TYPES_PERMITTED } from '#/service/client-metadata';
 export {
   tenantLookupRepository,
   type NewTenant,

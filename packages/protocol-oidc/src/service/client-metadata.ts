@@ -32,7 +32,10 @@ function invalid(error: ClientMetadataError, description: string): ClientMetadat
 }
 
 // client_oidc_config_grant_types_check (migration 0007_client_oidc_config.sql).
-const GRANT_TYPES_PERMITTED = new Set([
+// Exported so `seed client --grant-type` (apps/server/src/cli/seed.ts)
+// validates against this, the CHECK constraint's mirror, rather than
+// keeping a second list free to disagree with it.
+export const GRANT_TYPES_PERMITTED = new Set([
   'authorization_code',
   'refresh_token',
   'client_credentials',
