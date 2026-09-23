@@ -101,7 +101,9 @@ no writer may bypass belongs at the database.
 `seed tenant --set` changes an existing tenant; `seed client` will not change
 an existing client, because a re-run that quietly widened a registered
 redirect list is how an allowlist grows by accident. An admin API that
-treats both the same way would be wrong in one of the two directions.
+treats both the same way would be wrong in one of the two directions. P4's criterion now poses that
+question rather than leaving it to be answered by whichever surface is
+written first.
 
 **Signing-key rotation now has a consistency obligation it did not have
 before.** A tenant holds exactly one active signing key
@@ -112,7 +114,7 @@ tenant's own `[key.alg, "none"]`, and registration refuses a
 tenant to a key with a different algorithm therefore strands every client
 registered against the old one — `/userinfo` answers 500 for them, with a
 log line naming client, registered algorithm and active key. P4 owns
-rotation and owes that case an answer.
+rotation, and its criterion now names that case.
 
 **Two recovery-code gaps that need the account console.** A subject cannot
 ask for a fresh set before running out, and nothing warns as the list gets
@@ -183,9 +185,9 @@ accepted limitation rather than a gap — no clause in either RFC requires a
 particular set of methods — at `docs/protocols/rfc7662.md`'s "Only the two
 password methods reach this endpoint".
 
-- Trigger: extend `token-issuance.ts`'s assertion and certificate dispatch
-  to both routes. It is a client-authentication change, so the natural
-  moment is whichever phase next reworks that — P13, for FAPI 2.0.
+- Trigger: **P13**, which reworks client authentication for FAPI 2.0 and
+  whose criterion now names both methods at both endpoints. Extend
+  `token-issuance.ts`'s assertion and certificate dispatch to the two routes.
 
 **`/token` enforces no `config.grantTypes` allowlist, on either
 authentication path.** A client registered for `authorization_code` only
@@ -193,8 +195,9 @@ can still obtain a `client_credentials` token: `token-issuance.ts`'s only
 read of `config.grantTypes` gates whether a refresh token is issued, not
 which grant a request may use.
 
-- Trigger: whichever task next touches grant selection in `issueTokens`.
-  Add `config.grantTypes.includes(request.grantType)` before dispatching.
+- Trigger: **P4**, which adds token exchange and so makes the next change to
+  grant selection in `issueTokens`; its criterion names the allowlist. Add
+  `config.grantTypes.includes(request.grantType)` before dispatching.
 
 **`/userinfo` and `/introspect` both honour a disabled client's live access
 token.** `resolveUserinfo` now checks the tenant, the token's own grant
@@ -206,9 +209,9 @@ after a token was issued to it revokes nothing: the grant stays live,
 client that registered neither still gets an ordinary, correctly narrowed
 response from both endpoints.
 
-- Trigger: whichever phase next revisits token liveness or client
-  lifecycle. Decide there whether `/userinfo` and `/introspect` should
-  read `client.enabled` the way `resolveRoleReach` and
+- Trigger: **P4**, where disabling a client becomes an operation at all.
+  Its criterion now asks that phase to decide whether `/userinfo` and
+  `/introspect` read `client.enabled` the way `resolveRoleReach` and
   `resolveClientWebOrigins` do.
 
 **A signed UserInfo response's `typ` is a private value.** `userinfo+jwt`
@@ -254,19 +257,6 @@ row, giving admission, logout and P4's session list one predicate.
   holds a list; there is no browser row), so it waits until something else
   wants that row — most likely P4's session surface.
 
-**Front-channel logout on a redirecting session end.** `/logout` frames a
-relying party's `frontchannel_logout_uri` on either branch that renders a
-page — the logged-out page and the redirect-refused page — never on the
-302 a matched `post_logout_redirect_uri` takes instead, which is
-RP-initiated logout's common case. Rendering the frames first and
-navigating afterward was never weighed; ADR 0034's Consequences record the
-question as open, not answered.
-
-- Trigger: back-channel logout now gives a redirecting session end a
-  server-to-server path, but only to a relying party at a public address.
-  Revisit once a deployment's actual relying parties make the comparison
-  meaningful.
-
 ### Operational and infrastructural
 
 **Neither of the server's two outbound DNS lookups carries a deadline, and
@@ -280,7 +270,9 @@ the `AbortSignal` `sendLogouts` already started. The second is shared by
 responses landed, by `/userinfo` — now on a path between a resource
 server's request and its answer.
 
-- Trigger: fired. Bound the lookup itself, and decide whether the two
+- Trigger: **P11**, whose criterion documents a p99 for `/token` and
+  `/userinfo` and so cannot be met while either lookup is unbounded. Bound
+  the lookup itself, and decide whether the two
   transports share one answer or each wires its own — and whether
   `/userinfo` needs a tighter timeout than `/token`'s shared default, since
   it sits on a resource server's request rather than a client's own.
@@ -377,6 +369,18 @@ this file or the phase note.
 
 ### Work owed, and the phase each belongs to
 
+- `/logout` delivers no front-channel frames on either branch that redirects:
+  `packages/protocol-oidc/src/usecase/logout.ts` computes the list only where
+  `decision.redirectTo === null`, so a session ended with a matched
+  `post_logout_redirect_uri` — the ordinary case — leaves a relying party
+  that registered a `frontchannel_logout_uri` and no `backchannel_logout_uri`
+  signed in. Nothing records the gating as a choice: not ADR 0034, which
+  governs how a page declares its frames rather than when one is rendered.
+  It is the defect [docs/phases/p3b.md](phases/p3b.md) names as this
+  repository's recurring one — a rule applied at one door out of several.
+  **P4b**, whose criterion names it: the remedy is to render the frames and
+  navigate afterwards, which gives the redirecting branch the page it lacks,
+  and P4b is the phase that owes every page the server renders a theme.
 - The two `user_credentials` counts at `docs/request-paths.md:3052` and
   `:3282` are unscoped, and correct only in document order — the
   neighbouring query of the same kind is scoped. Re-scoping them needs a

@@ -7730,10 +7730,10 @@ session lifecycle. A citation of either half here means that half.
   pages, and asks for a build check that fails when one exists that no theme
   reaches — an enumeration was three pages long while the code had twelve,
   which is how a themed sign-in page and an unthemed second-factor page could
-  have satisfied it. The
-  variation it has to cover is visible in **P2a**'s registration and
-  verification pages, **P2b**'s second-factor, recovery-code,
-  change-password and logout pages, and **P3a**'s own consent page.
+  have satisfied it. The variation it has to cover is visible in **P2a**'s
+  registration and verification pages, **P2b**'s second-factor,
+  recovery-code, change-password and logout pages, and **P3a**'s own consent
+  page.
 
 **`/token`**
 
@@ -7744,6 +7744,16 @@ session lifecycle. A citation of either half here means that half.
   against delegation — with its exchange permissions configurable through
   the admin API that phase builds. **P5** consumes it at stage 4, where the
   delegated intersection is the attenuation check (ADR 0003).
+- **A client obtains a grant it is not registered for.** `config.grantTypes`
+  is read once, in `packages/protocol-oidc/src/usecase/token-issuance.ts`,
+  and gates whether a refresh token is issued rather than which grant a
+  request may use, so a client registered for `authorization_code` alone can
+  redeem `client_credentials`. What bounds it is the separate set of
+  conditions `issueClientCredentialsTokens` imposes — confidential, holding a
+  `service_subject_id`, inside `client_credentials_scopes` — so the reachable
+  case is a confidential code-flow client minting a scoped-or-empty service
+  token. **P4**, whose criterion adds token exchange as a grant and so makes
+  the next change to grant selection, and names the allowlist with it.
 - **No CIBA.** **P5**, whose exit criterion is CIBA approvals end to end.
 - **No device authorization grant.** **P13**, whose criterion names a
   device-code client completing a login on a second device. It shares that
@@ -7767,8 +7777,10 @@ session lifecycle. A citation of either half here means that half.
   set of client-authentication methods, and closing it extends `/token`'s
   assertion and certificate dispatch to two more routes rather than
   changing introspection or revocation — `rfc7662.md`'s "Only the two
-  password methods reach this endpoint" carries the reasoning, and
-  `docs/NEXT.md` the trigger.
+  password methods reach this endpoint" carries the reasoning. **P13** closes
+  it, whose criterion now names both methods at both endpoints: it is a
+  client-authentication change, and P13 is the phase that reworks client
+  authentication for FAPI 2.0.
 
 **`/userinfo`**
 
@@ -7789,10 +7801,27 @@ session lifecycle. A citation of either half here means that half.
   token's `/userinfo` claims.** `resolveUserinfo` now refuses a token whose
   grant this server revoked or whose session has ended, but neither of
   those is stamped when an operator disables the client itself — the
-  grant is untouched. `docs/NEXT.md` records the open decision: whichever
-  phase next revisits client lifecycle decides whether `/userinfo` should
-  read `client.enabled` the way `resolveRoleReach` and
-  `resolveClientWebOrigins` do.
+  grant is untouched. **P4**, which is where disabling
+  a client becomes an operation at all, and whose criterion now asks it to
+  decide whether `/userinfo` and `/introspect` read `client.enabled` the way
+  `resolveRoleReach` and `resolveClientWebOrigins` do rather than inheriting
+  the answer.
+
+**`/logout`**
+
+- **A front-channel logout is delivered on neither branch that redirects.**
+  `packages/protocol-oidc/src/usecase/logout.ts` computes the frame list only
+  where `decision.redirectTo === null`, so a session ended with a matched
+  `post_logout_redirect_uri` — RP-initiated logout's ordinary case — frames
+  nothing, and a relying party registered with a `frontchannel_logout_uri`
+  and no `backchannel_logout_uri` keeps its local session while the user
+  believes they have logged out everywhere. Back-channel delivery is
+  unaffected: `endSession` runs before the branch splits. ADR 0034 governs
+  how a page declares its frames, not when one is rendered, so this is
+  behaviour nobody chose rather than a decision. **P4b**, whose criterion
+  names it: closing it means rendering the frames and navigating afterwards,
+  which gives that branch the page it does not have today, and P4b is the
+  phase whose criterion covers every page the server renders.
 
 **Endpoints that do not exist at all**
 
@@ -7843,7 +7872,18 @@ session lifecycle. A citation of either half here means that half.
   `__Host-` prefix and `Secure` attribute (ADR 0020) — correct for local
   development, unacceptable anywhere else.
 - **One instance only.** Migrations run on boot from every process with no
-  advisory lock, so replicas would race. **P11.**
+  advisory lock, so replicas would race, and the per-origin throttle is a
+  window in one process's memory, so replicas would each allow the full
+  budget. **P11**, whose criterion now names both.
+- **Neither outbound DNS lookup carries a deadline.**
+  `apps/server/src/logout-delivery-transport.ts` and
+  `apps/server/src/client-key-transport.ts` both call `node:dns/promises`'s
+  `lookup` with no timeout, the first also ignoring the `AbortSignal`
+  `sendLogouts` started; the second sits on `/token`'s `private_key_jwt`
+  authentication and, since encrypted UserInfo responses landed, on
+  `/userinfo` — between a resource server's request and its answer. **P11**,
+  whose criterion documents a p99 for those two paths and so cannot be met
+  while an unbounded lookup sits on either.
 - **No published image, no release process, no secret store beyond the
   process environment, and no backup or restore guidance.** **P12**,
   Operational readiness, appended on 2026-09-14 because none of it had a
@@ -7867,4 +7907,6 @@ session lifecycle. A citation of either half here means that half.
   on `expires_at` alone would silently disable reuse detection; and the pass
   discovers a misconfigured serving role once per tick rather than at boot,
   so a deployment that sets `ODUDU_APP_DATABASE_URL` to a role that escapes
-  row-level security learns about it from an hourly log line.
+  row-level security learns about it from an hourly log line — a decision
+  rather than an oversight, and ADR 0024 records it as the one precondition
+  bought at that price to keep the loop free of logic.
