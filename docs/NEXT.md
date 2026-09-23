@@ -28,6 +28,19 @@ has the clause table.
 What turned out to be **wrong** while building it is in
 [docs/phases/p4a.md](phases/p4a.md), not here.
 
+**P4a left ADR 0007's unresolved status and the `client.enabled` question
+exactly as it found them.** Both predate P4a and neither was this phase's
+to answer: `parseStructure` stayed the real authority for the token
+request shape instead of a Zod contract, the same choice every other grant
+already made, and `resolveExchangeToken`'s access-token and refresh-token
+branches check grant revocation and session liveness exactly the way
+`/userinfo` and `/introspect` do; its id_token branch names no grant
+(`resolveIdToken` returns `grantId: null`) and checks session liveness via
+`sid` alone. All three share the same blind spot for a client disabled
+after a token was issued to it. Both triggers, recorded below under "The
+token surface", now name P4a's own files alongside the ones that already
+carried them.
+
 **A bare `P4` below means P4c** unless it concerns token exchange, the grant
 allowlist, theming or client branding — the same disambiguation the P2 split
 used, and for the same reason: a citation renumbered wrongly is invisible for
@@ -93,12 +106,12 @@ Not what a finished phase discovered. If a section here is addressed to a
 phase that has closed, it is overdue for a decision or a move, not for
 another paragraph.
 
-## What P4 inherits
+## What P4c, P4d and P4b inherit
 
 **A session set to list and to end.** `sessionRepository.liveByIds`
 (`packages/authn-flows/src/repository/sessions.ts`) measures each session
 against its own lifespan pair, and the cookie is the only place a browser's
-membership is recorded. P4's "list a subject's sessions and end one" is the
+membership is recorded. P4c's "list a subject's sessions and end one" is the
 first surface that reads sessions by **subject** rather than by cookie —
 and it is also the operator's only reach for the orphan case ADR 0033
 records, where two genuinely concurrent logins in one browser can leave a
@@ -119,22 +132,11 @@ fifth such column, `token_exchange_impersonation_allowed`: no seed flag and
 no registration field, so a tenant that wants a client to impersonate
 rather than only delegate reaches for `psql` the same way.
 
-**Token exchange inherits ADR 0007's unresolved status and the
-`client.enabled` question, rather than closing either.** Both predate P4a
-and neither is this phase's to answer: `parseStructure` stayed the real
-authority for the token request shape instead of a Zod contract, the same
-choice every other grant already made, and `resolveExchangeToken` checks
-grant revocation and session liveness exactly the way `/userinfo` and
-`/introspect` do, including the same blind spot for a client disabled after
-a token was issued to it. Both triggers, recorded below under "The token
-surface", now name P4a's own files alongside the ones that already carried
-them.
-
 **Tenant settings already have a command, and its validation is reusable.**
 `odudu seed tenant --name <tenant> --set <name>=<value>` applies any of the
 tenant settings by column name. The name-to-column map and the coercion live
 in `packages/domain-tenant/src/service/tenant-settings.ts` rather than in the
-CLI, so P4's admin API inherits them rather than growing a second copy.
+CLI, so P4c's admin API inherits them rather than growing a second copy.
 Ranges are deliberately not there — they are CHECK constraints, and a policy
 no writer may bypass belongs at the database.
 
@@ -142,9 +144,9 @@ no writer may bypass belongs at the database.
 `seed tenant --set` changes an existing tenant; `seed client` will not change
 an existing client, because a re-run that quietly widened a registered
 redirect list is how an allowlist grows by accident. An admin API that
-treats both the same way would be wrong in one of the two directions. P4's criterion now poses that
-question rather than leaving it to be answered by whichever surface is
-written first.
+treats both the same way would be wrong in one of the two directions.
+P4c's criterion now poses that question rather than leaving it to be
+answered by whichever surface is written first.
 
 **Signing-key rotation now has a consistency obligation it did not have
 before.** A tenant holds exactly one active signing key
@@ -154,7 +156,7 @@ tenant's own `[key.alg, "none"]`, and registration refuses a
 `userinfo_signed_response_alg` the active key cannot produce. Rotating a
 tenant to a key with a different algorithm therefore strands every client
 registered against the old one — `/userinfo` answers 500 for them, with a
-log line naming client, registered algorithm and active key. P4 owns
+log line naming client, registered algorithm and active key. P4c owns
 rotation, and its criterion now names that case.
 
 **Two recovery-code gaps that need the account console.** A subject cannot
@@ -268,9 +270,12 @@ after a token was issued to it revokes nothing: the grant stays live,
 `resolveRoleReach` refuses only the `fullScopeAllowed` bypass, and
 `userinfoEncryptionTarget` refuses only registered encryption. A disabled
 client that registered neither still gets an ordinary, correctly narrowed
-response from both endpoints. `resolveExchangeToken`
-(`packages/protocol-oidc/src/usecase/token-exchange-subject.ts`) checks the
-same pair a third way and inherits the identical blind spot.
+response from both endpoints. `resolveExchangeToken`'s access-token and
+refresh-token branches
+(`packages/protocol-oidc/src/usecase/token-exchange-subject.ts`) check the
+same pair a third way; its id_token branch checks only session liveness,
+since an ID token names no grant. All three inherit the identical blind
+spot.
 
 - Trigger: **P4**, where disabling a client becomes an operation at all.
   Its criterion now asks that phase to decide whether `/userinfo` and

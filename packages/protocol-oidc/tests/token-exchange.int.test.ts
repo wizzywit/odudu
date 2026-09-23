@@ -53,6 +53,14 @@ const OTHER_CLIENT_ID = 'token-exchange-other-client';
 const REDIRECT_URI = 'https://app.example/callback';
 const USERNAME = 'ada';
 const PASSWORD = 'correct horse battery staple';
+// Distinct identities for the nested-delegation test below: with every role
+// signed in as USERNAME, an actor id and a subject id are the same value,
+// so the chain's own assertion could not tell a swapped level from a
+// correct one. `keeps a nested act chain...` is the only caller.
+const DELEGATE_USERNAME = 'kai';
+const DELEGATE_PASSWORD = 'the quick brown fox jumps';
+const INNER_ACTOR_USERNAME = 'zola';
+const INNER_ACTOR_PASSWORD = 'over the lazy dog again';
 const KEK = Buffer.alloc(32, 23);
 
 // RFC 7636 Appendix B's worked example.
@@ -101,15 +109,21 @@ async function setupTenant(name: string, tenantId: string): Promise<void> {
       accessTokenTtlSeconds: 300,
       refreshTokenTtlSeconds: 1_209_600,
     });
-    const subject = await subjectRepository(tx).create({ tenantId, type: 'user' });
-    await tx.insert(users).values({ subjectId: subject.id, tenantId, username: USERNAME });
-    await tx.insert(userCredentials).values({
-      id: newId(),
-      tenantId,
-      subjectId: subject.id,
-      type: 'password',
-      secretData: { hash: await hashPassword(PASSWORD) },
-    });
+    for (const [username, password] of [
+      [USERNAME, PASSWORD],
+      [DELEGATE_USERNAME, DELEGATE_PASSWORD],
+      [INNER_ACTOR_USERNAME, INNER_ACTOR_PASSWORD],
+    ] as const) {
+      const subject = await subjectRepository(tx).create({ tenantId, type: 'user' });
+      await tx.insert(users).values({ subjectId: subject.id, tenantId, username });
+      await tx.insert(userCredentials).values({
+        id: newId(),
+        tenantId,
+        subjectId: subject.id,
+        type: 'password',
+        secretData: { hash: await hashPassword(password) },
+      });
+    }
 
     const generated = await generateSigningKey('ES256', KEK);
     const key: SigningKeyRecord = {
@@ -221,10 +235,12 @@ interface LoggedInToken {
 // .test.ts and sid-claim.int.test.ts both use, extended to also read back
 // the subject and grant a resolution should recover.
 async function loginAndGetToken(
-  options: { tenantName?: string; scope?: string } = {},
+  options: { tenantName?: string; scope?: string; username?: string; password?: string } = {},
 ): Promise<LoggedInToken> {
   const tenantName = options.tenantName ?? TENANT;
   const scope = options.scope ?? 'openid';
+  const username = options.username ?? USERNAME;
+  const password = options.password ?? PASSWORD;
   const authorize = await http.inject({ url: authorizeUrl(tenantName, scope) });
   if (authorize.statusCode !== 200) {
     throw new Error(
@@ -237,8 +253,8 @@ async function loginAndGetToken(
 
   const form = new URLSearchParams({
     auth_session_id: authSessionId,
-    username: USERNAME,
-    password: PASSWORD,
+    username,
+    password,
   });
   const submitted = await http.inject({
     method: 'POST',
@@ -630,6 +646,10 @@ describe('[ODUDU-TOKEN-EXCHANGE-01] the grant end to end', () => {
   // from a subject-token-wide scope happening to be echoed back unnarrowed.
   it('narrows the response scope to what was requested, not the subject grant', async () => {
     const subject = await loginAndGetToken({ scope: 'openid profile' });
+    // Demonstrates the subset rather than assuming it: if this client ever
+    // lost the `profile` scope, the subject token would carry `openid`
+    // alone and the narrowing below would silently become a no-op.
+    expect(decode(subject.accessToken).scope).toBe('openid profile');
     await allowImpersonation(CLIENT_ID);
     const response = await exchange({
       subjectToken: subject.accessToken,
@@ -736,8 +756,19 @@ async function rotate(refreshToken: string): Promise<LightMyRequestResponse> {
 describe('[ODUDU-TOKEN-EXCHANGE-ROTATION-01] a rotated exchanged refresh token keeps its limits', () => {
   it('keeps a nested act chain and the subject exp ceiling through two rotations', async () => {
     const subject = await loginAndGetToken();
-    const delegateHolder = await loginAndGetToken();
-    const innerActor = await loginAndGetToken();
+    const delegateHolder = await loginAndGetToken({
+      username: DELEGATE_USERNAME,
+      password: DELEGATE_PASSWORD,
+    });
+    const innerActor = await loginAndGetToken({
+      username: INNER_ACTOR_USERNAME,
+      password: INNER_ACTOR_PASSWORD,
+    });
+    // Three distinct subjects, or a swapped actor level and a subject id
+    // substituted for an actor id would both read as correct below.
+    expect(new Set([subject.subjectId, delegateHolder.subjectId, innerActor.subjectId]).size).toBe(
+      3,
+    );
 
     // Builds an actor_token that already carries its own `act` — the
     // second exchange below nests beneath it, so the resulting chain has
@@ -764,13 +795,21 @@ describe('[ODUDU-TOKEN-EXCHANGE-ROTATION-01] a rotated exchanged refresh token k
     expect(exchangeResponse.statusCode).toBe(200);
     const exchangedRefreshToken = exchangeResponse.json<{ access_token: string }>().access_token;
 
+    // Moves past the subject token's own mint instant, so an uncapped
+    // rotation would land strictly later than subjectExp — the only way
+    // an exact-equality assertion below can tell a real ceiling from the
+    // two simply coinciding by construction.
+    advanceClock(60_000);
+    const uncappedExp = fakeNowSeconds() + ACCESS_TOKEN_TTL_SECONDS;
+
     const firstRotation = await rotate(exchangedRefreshToken);
     expect(firstRotation.statusCode).toBe(200);
     const firstBody = firstRotation.json<{ access_token: string; refresh_token: string }>();
     // The whole point of a delegated credential: `act` must survive
     // rotation, nesting intact, not just the token minted at exchange time.
     expect(decode(firstBody.access_token).act).toEqual(expectedAct);
-    expect(decodeExp(firstBody.access_token)).toBeLessThanOrEqual(subjectExp);
+    expect(decodeExp(firstBody.access_token)).toBe(subjectExp);
+    expect(decodeExp(firstBody.access_token)).toBeLessThan(uncappedExp);
 
     // And again — the ceiling and the full chain must survive a second
     // hop, not just the first one after the exchange.
@@ -778,7 +817,8 @@ describe('[ODUDU-TOKEN-EXCHANGE-ROTATION-01] a rotated exchanged refresh token k
     expect(secondRotation.statusCode).toBe(200);
     const secondBody = secondRotation.json<{ access_token: string; refresh_token: string }>();
     expect(decode(secondBody.access_token).act).toEqual(expectedAct);
-    expect(decodeExp(secondBody.access_token)).toBeLessThanOrEqual(subjectExp);
+    expect(decodeExp(secondBody.access_token)).toBe(subjectExp);
+    expect(decodeExp(secondBody.access_token)).toBeLessThan(uncappedExp);
   });
 
   it('caps the rotated refresh token itself, not just the access token it mints', async () => {
