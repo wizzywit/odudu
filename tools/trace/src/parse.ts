@@ -52,7 +52,7 @@ function group(match: RegExpExecArray, i: number): string {
   return value;
 }
 
-function parseStatus(raw: string, where: string): Status {
+function parseStatus(raw: string): Status | null {
   if (raw === 'covered') return { kind: 'covered' };
   if (raw === 'gap') return { kind: 'gap' };
 
@@ -68,11 +68,22 @@ function parseStatus(raw: string, where: string): Status {
   const accepted = /^accepted:\s*(\S.*)$/u.exec(raw);
   if (accepted) return { kind: 'accepted', reference: group(accepted, 1) };
 
-  throw new Error(`${where}: unrecognised status ${JSON.stringify(raw)}`);
+  return null;
 }
 
-export function parseRows(file: string, markdown: string): Row[] {
+export interface ParseOutcome {
+  rows: Row[];
+  errors: string[];
+}
+
+// Collects every malformed row rather than throwing on the first: `trace`
+// reads every file in `docs/protocols` in one run, and a thrown Error inside
+// this function used to abort that whole run at the first bad row, hiding
+// every later problem in every later file. A single trace error is never
+// safely the only one.
+export function parseRows(file: string, markdown: string): ParseOutcome {
   const rows: Row[] = [];
+  const errors: string[] = [];
   const lines = markdown.split('\n');
   let inClauseTable = false;
 
@@ -100,24 +111,32 @@ export function parseRows(file: string, markdown: string): Row[] {
 
     const lineWhere = `${file}:${String(i + 1)}`;
     if (cells.length !== 5) {
-      throw new Error(`${lineWhere}: clause row has ${String(cells.length)} cells, expected 5`);
-    }
-
-    const level = cell(cells, 1);
-    if (!LEVELS.has(level)) {
-      throw new Error(`${lineWhere}: unrecognised level ${JSON.stringify(level)}`);
+      errors.push(`${lineWhere}: clause row has ${String(cells.length)} cells, expected 5`);
+      continue;
     }
 
     const clause = cell(cells, 0);
+    const level = cell(cells, 1);
     const requirement = cell(cells, 2);
     const testCell = cell(cells, 3);
     const statusCell = cell(cells, 4);
     const where = `${file} clause ${clause}`;
+
+    if (!LEVELS.has(level)) {
+      errors.push(`${lineWhere}: unrecognised level ${JSON.stringify(level)}`);
+      continue;
+    }
+
     const testId = testCell === '—' ? null : testCell.replace(/`/g, '');
-    const status = parseStatus(statusCell, where);
+    const status = parseStatus(statusCell);
+    if (status === null) {
+      errors.push(`${where}: unrecognised status ${JSON.stringify(statusCell)}`);
+      continue;
+    }
 
     if (status.kind === 'covered' && testId === null) {
-      throw new Error(`${where}: status is covered but no test id is given`);
+      errors.push(`${where}: status is covered but no test id is given`);
+      continue;
     }
 
     rows.push({
@@ -130,7 +149,7 @@ export function parseRows(file: string, markdown: string): Row[] {
     });
   }
 
-  return rows;
+  return { rows, errors };
 }
 
 // Every ATX heading in a protocol document, which is what a `documented:`
