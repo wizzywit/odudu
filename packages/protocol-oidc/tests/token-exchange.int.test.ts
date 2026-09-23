@@ -719,14 +719,31 @@ async function rotate(refreshToken: string): Promise<LightMyRequestResponse> {
 }
 
 describe('[ODUDU-TOKEN-EXCHANGE-ROTATION-01] a rotated exchanged refresh token keeps its limits', () => {
-  it('keeps act and the subject exp ceiling through two rotations', async () => {
+  it('keeps a nested act chain and the subject exp ceiling through two rotations', async () => {
     const subject = await loginAndGetToken();
-    const actor = await loginAndGetToken();
+    const delegateHolder = await loginAndGetToken();
+    const innerActor = await loginAndGetToken();
+
+    // Builds an actor_token that already carries its own `act` — the
+    // second exchange below nests beneath it, so the resulting chain has
+    // two levels rather than one. buildActChain's own nesting is unit
+    // tested (ACT-01); this is the end-to-end proof that a nested chain
+    // survives persistence and rotation with its shape intact, not just a
+    // single-level one that would pass either way.
+    const delegatedActorResponse = await exchange({
+      subjectToken: delegateHolder.accessToken,
+      actorToken: innerActor.accessToken,
+    });
+    expect(delegatedActorResponse.statusCode).toBe(200);
+    const delegatedActorToken = delegatedActorResponse.json<{ access_token: string }>()
+      .access_token;
+
     const subjectExp = decodeExp(subject.accessToken);
+    const expectedAct = { sub: delegateHolder.subjectId, act: { sub: innerActor.subjectId } };
 
     const exchangeResponse = await exchange({
       subjectToken: subject.accessToken,
-      actorToken: actor.accessToken,
+      actorToken: delegatedActorToken,
       requestedTokenType: 'urn:ietf:params:oauth:token-type:refresh_token',
     });
     expect(exchangeResponse.statusCode).toBe(200);
@@ -736,16 +753,16 @@ describe('[ODUDU-TOKEN-EXCHANGE-ROTATION-01] a rotated exchanged refresh token k
     expect(firstRotation.statusCode).toBe(200);
     const firstBody = firstRotation.json<{ access_token: string; refresh_token: string }>();
     // The whole point of a delegated credential: `act` must survive
-    // rotation, not just the token minted at exchange time.
-    expect(decode(firstBody.access_token).act).toEqual({ sub: actor.subjectId });
+    // rotation, nesting intact, not just the token minted at exchange time.
+    expect(decode(firstBody.access_token).act).toEqual(expectedAct);
     expect(decodeExp(firstBody.access_token)).toBeLessThanOrEqual(subjectExp);
 
-    // And again — the ceiling and the delegation must survive a second
+    // And again — the ceiling and the full chain must survive a second
     // hop, not just the first one after the exchange.
     const secondRotation = await rotate(firstBody.refresh_token);
     expect(secondRotation.statusCode).toBe(200);
     const secondBody = secondRotation.json<{ access_token: string; refresh_token: string }>();
-    expect(decode(secondBody.access_token).act).toEqual({ sub: actor.subjectId });
+    expect(decode(secondBody.access_token).act).toEqual(expectedAct);
     expect(decodeExp(secondBody.access_token)).toBeLessThanOrEqual(subjectExp);
   });
 

@@ -61,11 +61,11 @@ export async function rotateRefreshToken(
 
   const next = generateRefreshToken();
   const nextHash = hashRefreshToken(next);
-  // An exchanged grant's own ceiling (grants.ts's own comment on the
-  // column) bounds every rotation, not just the one at exchange time —
-  // otherwise a delegated credential would outlive the subject token it
-  // was minted from, one rotation at a time. Every other grant's
-  // `expCeiling` is null, so `Math.min` never narrows their ttl.
+  // An exchanged grant's own ceiling (schema/token-grants.ts's own comment
+  // on the column) bounds every rotation, not just the one at exchange
+  // time — otherwise a delegated credential would outlive the subject
+  // token it was minted from, one rotation at a time. Every other grant's
+  // `expCeiling` is null, so this ternary always keeps `rawExpiresAt`.
   const rawExpiresAt = new Date(now.getTime() + refreshTokenTtlSeconds * 1000);
   const expiresAt =
     grant.expCeiling !== null && grant.expCeiling.getTime() < rawExpiresAt.getTime()

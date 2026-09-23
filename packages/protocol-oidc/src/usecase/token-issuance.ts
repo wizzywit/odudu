@@ -685,7 +685,7 @@ async function issueRefreshTokens(
   // by the same rule as the authorization_code path, may never widen it.
   const resolvedAudience = resolveAudience(grant.audience, request.resource);
 
-  // RFC 8693 §4.4 / grants.ts's own comment on the columns: a grant this
+  // RFC 8693 §4.4 / schema/token-grants.ts's own comment on the columns: a grant this
   // table wrote for an ordinary authorization_code or client_credentials
   // redemption carries neither, and every access token this branch has
   // ever minted before token-exchange existed passed neither field either
