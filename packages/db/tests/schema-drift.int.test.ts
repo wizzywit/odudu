@@ -42,7 +42,7 @@ const EXPECTED_CHECKS: Record<string, string> = {
   'client_oidc_config.client_oidc_config_auth_method_check':
     "CHECK ((token_endpoint_auth_method = ANY (ARRAY['client_secret_basic'::text, 'client_secret_post'::text, 'none'::text, 'private_key_jwt'::text, 'tls_client_auth'::text])))",
   'client_oidc_config.client_oidc_config_grant_types_check':
-    "CHECK ((grant_types <@ ARRAY['authorization_code'::text, 'refresh_token'::text, 'client_credentials'::text]))",
+    "CHECK ((grant_types <@ ARRAY['authorization_code'::text, 'refresh_token'::text, 'client_credentials'::text, 'urn:ietf:params:oauth:grant-type:token-exchange'::text]))",
   'client_oidc_config.client_oidc_config_one_key_source':
     'CHECK (((jwks IS NULL) OR (jwks_uri IS NULL)))',
   'client_oidc_config.client_oidc_config_redirect_uris_present':
