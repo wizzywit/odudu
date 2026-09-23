@@ -330,3 +330,56 @@ describe('[ODUDU-TOKEN-EXCHANGE-SUBJECT-01] an access token as subject_token', (
     expect(outcome).toEqual({ kind: 'refused' });
   });
 });
+
+async function rotateOnce(refreshToken: string): Promise<void> {
+  const form = new URLSearchParams({ grant_type: 'refresh_token', refresh_token: refreshToken });
+  const res = await http.inject({
+    method: 'POST',
+    url: `/tenants/${TENANT}/protocol/openid-connect/token`,
+    payload: form.toString(),
+    headers: {
+      'content-type': 'application/x-www-form-urlencoded',
+      authorization: basicAuth(CLIENT_ID, CLIENT_SECRET),
+    },
+  });
+  if (res.statusCode !== 200) {
+    throw new Error(`expected the rotation to succeed, got ${String(res.statusCode)}`);
+  }
+}
+
+describe('[ODUDU-TOKEN-EXCHANGE-SUBJECT-02] a refresh token as subject_token', () => {
+  it('resolves without consuming it, so it still refreshes afterwards', async () => {
+    const { refreshToken } = await loginAndGetToken();
+
+    const outcome = await withTenant(app.db, TENANT_ID, (tx) =>
+      resolveExchangeToken(tx, resolveDeps, 'refresh_token', refreshToken),
+    );
+    expect(outcome.kind).toBe('ok');
+
+    // RFC 8693 §2.1: "the act of performing a token exchange has no impact
+    // on the validity of the subject token".
+    const refreshed = await http.inject({
+      method: 'POST',
+      url: `/tenants/${TENANT}/protocol/openid-connect/token`,
+      headers: {
+        'content-type': 'application/x-www-form-urlencoded',
+        authorization: basicAuth(CLIENT_ID, CLIENT_SECRET),
+      },
+      payload: new URLSearchParams({
+        grant_type: 'refresh_token',
+        refresh_token: refreshToken,
+      }).toString(),
+    });
+    expect(refreshed.statusCode).toBe(200);
+  });
+
+  it('refuses one already consumed by a rotation', async () => {
+    const { refreshToken } = await loginAndGetToken();
+    await rotateOnce(refreshToken);
+
+    const outcome = await withTenant(app.db, TENANT_ID, (tx) =>
+      resolveExchangeToken(tx, resolveDeps, 'refresh_token', refreshToken),
+    );
+    expect(outcome).toEqual({ kind: 'refused' });
+  });
+});

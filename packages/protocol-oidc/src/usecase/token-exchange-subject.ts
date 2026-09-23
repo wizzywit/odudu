@@ -3,6 +3,8 @@ import { AUDIENCE_UNCHECKED, signingKeyRepository, verifyJwt } from '@odudu/cryp
 import { type TenantScopedDatabase } from '@odudu/db';
 import { type JWTPayload } from 'jose';
 import { tokenGrantRepository } from '#/repository/grants';
+import { refreshTokenRepository } from '#/repository/refresh';
+import { hashRefreshToken } from '#/service/refresh';
 import { type ExchangeTokenType } from '#/service/token-exchange';
 
 export interface ResolvedExchangeToken {
@@ -79,6 +81,38 @@ async function resolveAccessToken(
   };
 }
 
+async function resolveRefreshToken(
+  tx: TenantScopedDatabase,
+  deps: ResolveDeps,
+  token: string,
+): Promise<ResolveOutcome> {
+  // byHash, never consume: an exchange is not a refresh, and spending the
+  // caller's own credential to hand it a different one would be a surprise
+  // RFC 8693 §2.1 explicitly rules out.
+  const record = await refreshTokenRepository(tx).byHash(hashRefreshToken(token));
+  if (record?.usedAt !== null) return { kind: 'refused' };
+  if (record.expiresAt.getTime() <= deps.now.getTime()) return { kind: 'refused' };
+
+  const grant = await tokenGrantRepository(tx).byId(record.grantId);
+  if (grant?.revokedAt !== null) return { kind: 'refused' };
+  if (grant.sessionId !== null && !(await sessionIsLive(tx, deps, grant.sessionId))) {
+    return { kind: 'refused' };
+  }
+
+  return {
+    kind: 'ok',
+    token: {
+      subjectId: grant.subjectId,
+      scope: grant.scope.split(' ').filter((entry) => entry !== ''),
+      sessionId: grant.sessionId,
+      grantId: grant.id,
+      act: undefined,
+      mayAct: undefined,
+      expiresAt: record.expiresAt,
+    },
+  };
+}
+
 export async function resolveExchangeToken(
   tx: TenantScopedDatabase,
   deps: ResolveDeps,
@@ -89,6 +123,7 @@ export async function resolveExchangeToken(
     case 'access_token':
       return resolveAccessToken(tx, deps, token);
     case 'refresh_token':
+      return resolveRefreshToken(tx, deps, token);
     case 'id_token':
       throw new Error(`${type} exchange is not resolved yet`);
   }
