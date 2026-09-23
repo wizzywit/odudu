@@ -18,9 +18,9 @@ describe('[ODUDU-TOKEN-EXCHANGE-PARSE-01] stage 1', () => {
     expect(() => parseStructure({ grant_type: TOKEN_EXCHANGE_GRANT })).toThrow(
       expect.objectContaining({ error: 'invalid_request' }),
     );
-    expect(() =>
-      parseStructure({ grant_type: TOKEN_EXCHANGE_GRANT, subject_token: 'x' }),
-    ).toThrow(expect.objectContaining({ error: 'invalid_request' }));
+    expect(() => parseStructure({ grant_type: TOKEN_EXCHANGE_GRANT, subject_token: 'x' })).toThrow(
+      expect.objectContaining({ error: 'invalid_request' }),
+    );
   });
 
   it('requires actor_token_type when actor_token is present', () => {
