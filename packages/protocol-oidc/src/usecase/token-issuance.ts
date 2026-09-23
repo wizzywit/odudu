@@ -976,14 +976,14 @@ export async function issueTokens(
     throw unauthorizedClient();
   }
 
-  if (request.grantType === 'authorization_code') {
-    return issueAuthorizationCodeTokens(tx, deps, request, client, config);
+  switch (request.grantType) {
+    case 'authorization_code':
+      return issueAuthorizationCodeTokens(tx, deps, request, client, config);
+    case 'refresh_token':
+      return issueRefreshTokens(tx, deps, request, client, config);
+    case 'client_credentials':
+      return issueClientCredentialsTokens(tx, deps, request, client, config);
+    default:
+      return assertNeverGrant(request);
   }
-  if (request.grantType === 'refresh_token') {
-    return issueRefreshTokens(tx, deps, request, client, config);
-  }
-  if (request.grantType === 'client_credentials') {
-    return issueClientCredentialsTokens(tx, deps, request, client, config);
-  }
-  return assertNeverGrant(request);
 }
