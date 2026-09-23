@@ -88,4 +88,11 @@ console.log(
     (strict ? ' (strict)' : ''),
 );
 
-if (parseErrors.length > 0 || findings.some((f) => f.severity === 'error')) process.exit(1);
+// exitCode, not exit(1): stderr to a pipe is asynchronous, and exit() does
+// not wait for pending writes, so under CI a long list of collected parse
+// errors could be truncated — exactly what collecting them was for. This
+// is the last statement in the file, so letting the process end naturally
+// costs nothing.
+if (parseErrors.length > 0 || findings.some((f) => f.severity === 'error')) {
+  process.exitCode = 1;
+}
