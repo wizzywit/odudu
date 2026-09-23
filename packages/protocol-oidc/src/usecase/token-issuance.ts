@@ -35,6 +35,7 @@ import {
 import { evaluateRefreshGrant, generateRefreshToken, hashRefreshToken } from '#/service/refresh';
 import { parseResource } from '#/service/resource-indicator';
 import { resolveScope } from '#/service/scope';
+import { TOKEN_EXCHANGE_GRANT } from '#/service/token-exchange';
 import { narrowByScopeMappings } from '#/service/scope-mapping';
 import { withRegisteredClaimsWinning } from '#/service/token-claims';
 import { tlsClientAuthSubjectMatches, tlsClientSubject } from '#/service/tls-client-auth';
@@ -137,6 +138,18 @@ type StructuredRequest =
       clientId: string | undefined;
       scope: string;
       resource: string | string[] | undefined;
+    }
+  | {
+      grantType: typeof TOKEN_EXCHANGE_GRANT;
+      clientId: string | undefined;
+      subjectToken: string;
+      subjectTokenType: string;
+      actorToken: string | undefined;
+      actorTokenType: string | undefined;
+      requestedTokenType: string | undefined;
+      scope: string;
+      resource: string | string[] | undefined;
+      audience: string | string[] | undefined;
     };
 
 function readField(body: Record<string, string | string[] | undefined>, key: string): string {
@@ -144,23 +157,33 @@ function readField(body: Record<string, string | string[] | undefined>, key: str
   return typeof value === 'string' ? value : '';
 }
 
-// RFC 8707 §2's whole rule is "reject two values", so `resource` cannot be
-// folded down to one string the way `readField` folds every other
-// parameter — the same reason /authorize's own `resourceParam`
+// RFC 8707 §2's whole rule is "reject two values", so a multi-valued
+// parameter cannot be folded down to one string the way `readField` folds
+// every other parameter — the same reason /authorize's own `resourceParam`
 // (usecase/authorization-request.ts) reads it off the raw query instead of
 // the normalized params. `body` already carries this shape, so there is no
 // raw query to read here; only the empty-value and repeat-collapsing rules
-// need restating.
-function readResourceField(
+// need restating. Shared by `resource` (RFC 8707 §2) and, for token
+// exchange, `audience` (RFC 8693 §2.1), which collapses identically.
+function readMultiField(
   body: Record<string, string | string[] | undefined>,
+  key: string,
 ): string | string[] | undefined {
-  const raw = body.resource;
+  const raw = body[key];
   const sent = Array.isArray(raw) ? raw : raw === undefined ? [] : [raw];
   const present = sent.filter((entry) => entry !== '');
   return present.length > 1 ? present : present[0];
 }
 
-function parseStructure(body: Record<string, string | string[] | undefined>): StructuredRequest {
+function readResourceField(
+  body: Record<string, string | string[] | undefined>,
+): string | string[] | undefined {
+  return readMultiField(body, 'resource');
+}
+
+export function parseStructure(
+  body: Record<string, string | string[] | undefined>,
+): StructuredRequest {
   const grantType = readField(body, 'grant_type');
   if (grantType.length === 0) throw invalidRequest();
 
@@ -196,6 +219,29 @@ function parseStructure(body: Record<string, string | string[] | undefined>): St
       clientId: readOptionalField(body, 'client_id'),
       scope: readField(body, 'scope'),
       resource: readResourceField(body),
+    };
+  }
+
+  if (grantType === TOKEN_EXCHANGE_GRANT) {
+    const subjectToken = readField(body, 'subject_token');
+    const subjectTokenType = readField(body, 'subject_token_type');
+    if (subjectToken.length === 0 || subjectTokenType.length === 0) throw invalidRequest();
+    const actorToken = readOptionalField(body, 'actor_token');
+    const actorTokenType = readOptionalField(body, 'actor_token_type');
+    // RFC 8693 §2.1 makes actor_token_type REQUIRED whenever actor_token is
+    // present.
+    if (actorToken !== undefined && actorTokenType === undefined) throw invalidRequest();
+    return {
+      grantType,
+      clientId: readOptionalField(body, 'client_id'),
+      subjectToken,
+      subjectTokenType,
+      actorToken,
+      actorTokenType,
+      requestedTokenType: readOptionalField(body, 'requested_token_type'),
+      scope: readField(body, 'scope'),
+      resource: readResourceField(body),
+      audience: readMultiField(body, 'audience'),
     };
   }
 
@@ -898,6 +944,12 @@ export function assertNeverGrant(request: never): never {
   throw new Error(`unhandled grant type: ${JSON.stringify(request)}`);
 }
 
+// RFC 8693's grant, minting from a subject_token (and, optionally, an
+// actor_token) rather than a credential the client owns outright.
+function issueExchangedTokens(): Promise<TokenResponse> {
+  throw unsupportedGrantType();
+}
+
 export async function issueTokens(
   tx: TenantScopedDatabase,
   deps: TokenIssuanceDeps,
@@ -983,6 +1035,8 @@ export async function issueTokens(
       return issueRefreshTokens(tx, deps, request, client, config);
     case 'client_credentials':
       return issueClientCredentialsTokens(tx, deps, request, client, config);
+    case TOKEN_EXCHANGE_GRANT:
+      return issueExchangedTokens();
     default:
       return assertNeverGrant(request);
   }
