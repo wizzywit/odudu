@@ -51,6 +51,11 @@ export interface NewTokenGrant {
   scope: string;
   audience: string[];
   sessionId?: string | null;
+  // Both null for every grant this table has ever held before RFC 8693 —
+  // present together only on an exchanged grant, which records who acted
+  // (the token's own `act.sub`) and which grant it was exchanged from.
+  actorSubjectId?: string | null;
+  exchangedFromGrantId?: string | null;
 }
 
 export function tokenGrantRepository(tx: TenantScopedDatabase) {
@@ -66,6 +71,8 @@ export function tokenGrantRepository(tx: TenantScopedDatabase) {
           scope: input.scope,
           audience: input.audience,
           sessionId: input.sessionId ?? null,
+          actorSubjectId: input.actorSubjectId ?? null,
+          exchangedFromGrantId: input.exchangedFromGrantId ?? null,
         })
         .returning();
       const row = rows[0];

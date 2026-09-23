@@ -9,7 +9,7 @@ import {
   type TenantScopedDatabase,
 } from '@odudu/db';
 import { expectCrossTenantMethodProbe } from '@odudu/db/testing';
-import { provisionTenant, type SessionLifespans } from '@odudu/authn-flows';
+import { provisionTenant, sessionRepository, type SessionLifespans } from '@odudu/authn-flows';
 import { clients, provisionClientDefaults } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
@@ -159,6 +159,100 @@ describe('tokenGrantRepository', () => {
       verifyTenantAUnaffected: async (tx, grant) => {
         const found = await tokenGrantRepository(tx).byId(grant.id);
         expect(found?.revokedAt).toBeNull();
+      },
+    });
+  });
+
+  it('records the actor and the grant it came from, and inherits the session', async () => {
+    const tenantId = newId();
+    const sessionId = newId();
+    const { clientDbId, subjectId } = await withTenant(app.db, tenantId, (tx) =>
+      seedTenantClientSubject(tx, tenantId),
+    );
+    const actor = await withTenant(app.db, tenantId, (tx) =>
+      subjectRepository(tx).create({
+        tenantId,
+        type: 'user',
+      }),
+    );
+    await withTenant(app.db, tenantId, (tx) =>
+      sessionRepository(tx).create({
+        id: sessionId,
+        tenantId,
+        subjectId,
+        expiresAt: new Date(Date.now() + 3_600_000),
+        authenticators: [],
+      }),
+    );
+
+    const subjectGrant = await withTenant(app.db, tenantId, (tx) =>
+      tokenGrantRepository(tx).create({
+        id: newId(),
+        tenantId,
+        clientId: clientDbId,
+        subjectId,
+        scope: 'openid',
+        audience: AUDIENCE,
+        sessionId,
+      }),
+    );
+
+    const exchanged = await withTenant(app.db, tenantId, (tx) =>
+      tokenGrantRepository(tx).create({
+        id: newId(),
+        tenantId,
+        clientId: clientDbId,
+        subjectId,
+        scope: 'openid',
+        audience: AUDIENCE,
+        sessionId,
+        actorSubjectId: actor.id,
+        exchangedFromGrantId: subjectGrant.id,
+      }),
+    );
+
+    const row = await withTenant(app.db, tenantId, (tx) =>
+      tokenGrantRepository(tx).byId(exchanged.id),
+    );
+    expect(row).toMatchObject({
+      subjectId,
+      actorSubjectId: actor.id,
+      exchangedFromGrantId: subjectGrant.id,
+      sessionId,
+    });
+  });
+
+  it('cannot find an exchanged grant by id under a different tenant context', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        const { clientDbId, subjectId } = await seedTenantClientSubject(tx, tenantId);
+        const actor = await subjectRepository(tx).create({ tenantId, type: 'user' });
+        const subjectGrant = await tokenGrantRepository(tx).create({
+          id: newId(),
+          tenantId,
+          clientId: clientDbId,
+          subjectId,
+          scope: 'openid',
+          audience: AUDIENCE,
+        });
+        return tokenGrantRepository(tx).create({
+          id: newId(),
+          tenantId,
+          clientId: clientDbId,
+          subjectId,
+          scope: 'openid',
+          audience: AUDIENCE,
+          actorSubjectId: actor.id,
+          exchangedFromGrantId: subjectGrant.id,
+        });
+      },
+      verifySeeded: async (tx, grant) => {
+        const found = await tokenGrantRepository(tx).byId(grant.id);
+        expect(found?.actorSubjectId).not.toBeNull();
+      },
+      attempt: async (tx, grant) => tokenGrantRepository(tx).byId(grant.id),
+      expectBlocked: (result) => {
+        expect(result).toBeNull();
       },
     });
   });
