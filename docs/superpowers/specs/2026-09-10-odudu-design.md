@@ -446,9 +446,28 @@ Implementation follows test-driven development.
 
 Total: roughly 1285–1920 hours.
 
-After P4b, at roughly 665–955 hours, Odudu is usable behind real
-applications. Everything beyond is breadth, and each phase is independently
-valuable and independently abandonable.
+After P4b, at roughly 665–955 hours, an application can adopt Odudu: every
+page its users are shown can be branded, every session it opens can be
+ended, and every surface it needs for the account lifecycle exists. What
+remains before an **operator** can run that in production is P11's replica
+story — one instance today, so every restart is a login outage for every
+application at once — and P12's published image, its secret store and its
+proven restore. Neither is a dependency of any phase between here and there,
+and both should be pulled forward the moment a deployment is real. Everything
+else beyond is breadth, and each phase is independently valuable and
+independently abandonable.
+
+That sentence said "Odudu is usable behind real applications" until
+2026-09-23. It was wrong in both directions. It promised the application
+more than P4b did: the criterion above themed three pages while the `view`
+layers held twelve renderers, so a P4b could have passed with the
+second-factor, recovery-code, passkey-enrolment, change-password,
+verification, reset, account-chooser and logged-out pages still on default
+HTML — the same defect that moved this milestone the first time, reproduced
+inside the phase that move created. And it promised the operator something
+no phase before P11 and P12 delivers, because "usable" reads as
+"deployable". The criterion now names every renderer; the sentence now names
+which of the two audiences it speaks for.
 
 That milestone said "after P4" until 2026-09-17. It moved because the claim
 was not true as written: every one of those real applications puts its own
