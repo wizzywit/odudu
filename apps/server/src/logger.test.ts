@@ -139,6 +139,75 @@ describe('createLogger', () => {
     expect(lines()).toContain('https://client.example/cb');
   });
 
+  it('sanitizes every member of an array-valued location header', () => {
+    const { stream, lines } = capture();
+    const logger = createLogger(config, stream);
+
+    logger.info(
+      {
+        res: {
+          statusCode: 302,
+          getHeaders: () => ({
+            location: [
+              'https://client.example/cb?code=super-secret-code',
+              'https://other.example/cb?code=super-secret-other',
+            ],
+          }),
+        },
+      },
+      'request completed',
+    );
+
+    expect(lines()).not.toContain('super-secret-code');
+    expect(lines()).not.toContain('super-secret-other');
+    expect(lines()).toContain('https://client.example/cb');
+    expect(lines()).toContain('https://other.example/cb');
+  });
+
+  it('strips userinfo from a scheme-less network-path location header', () => {
+    const { stream, lines } = capture();
+    const logger = createLogger(config, stream);
+
+    logger.info(
+      {
+        res: {
+          statusCode: 302,
+          getHeaders: () => ({
+            location: '//super-secret-user:super-secret-pass@client.example/cb?code=abc',
+          }),
+        },
+      },
+      'request completed',
+    );
+
+    expect(lines()).not.toContain('super-secret-user');
+    expect(lines()).not.toContain('super-secret-pass');
+    expect(lines()).not.toContain('code=abc');
+    expect(lines()).toContain('//client.example/cb');
+  });
+
+  it('drops a location header that is neither a string nor an array', () => {
+    const { stream, lines } = capture();
+    const logger = createLogger(config, stream);
+
+    logger.info(
+      { res: { statusCode: 302, getHeaders: () => ({ location: { href: 'super-secret' } }) } },
+      'request completed',
+    );
+
+    expect(lines()).not.toContain('super-secret');
+    expect(lines()).not.toContain('location');
+  });
+
+  it('leaves an @ in a request url path alone', () => {
+    const { stream, lines } = capture();
+    const logger = createLogger(config, stream);
+
+    logger.info({ req: { url: '/files/user@example.com/x' } }, 'incoming');
+
+    expect(lines()).toContain('/files/user@example.com/x');
+  });
+
   it('leaves an origin-relative request url alone', () => {
     const { stream, lines } = capture();
     const logger = createLogger(config, stream);

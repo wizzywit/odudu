@@ -19,7 +19,7 @@ const ALLOWED_REQUEST_HEADERS = new Set([
 ]);
 
 // The response half of the same rule. `location` is allowed but never
-// emitted whole — it is a URL, so it gets pathOnly below. `set-cookie` is
+// emitted whole — it is a URL, so it is cut down below. `set-cookie` is
 // absent rather than censored: a name off this list cannot be logged at all.
 const ALLOWED_RESPONSE_HEADERS = new Set([
   'content-type',
@@ -50,9 +50,10 @@ function allowlistedHeaders(
   return result;
 }
 
-// Anchored on a scheme, so a request URL — always origin-relative here —
-// cannot have a path segment mistaken for an authority.
-const USERINFO = /^([a-zA-Z][a-zA-Z\d+.-]*:\/\/)[^/]*@/;
+// Two patterns because `//u:p@host/x` is an authority in a Location
+// (RFC 3986 §4.2) and a path in a request URL, which is origin-relative.
+const REQUEST_USERINFO = /^([a-zA-Z][a-zA-Z\d+.-]*:\/\/)[^/]*@/;
+const LOCATION_USERINFO = /^([a-zA-Z][a-zA-Z\d+.-]*:\/\/|\/\/)[^/]*@/;
 
 // Query strings carry the same class of secrets as headers (OAuth `code`,
 // `state`, `code_challenge`, ...) and a two-entry denylist has already once
@@ -60,11 +61,20 @@ const USERINFO = /^([a-zA-Z][a-zA-Z\d+.-]*:\/\/)[^/]*@/;
 // URL: nothing after `?` or `#`, and nothing between `//` and `@`. A
 // registered redirect_uri may carry userinfo, and `response_mode=fragment`
 // puts the code after the hash.
-function pathOnly(url: unknown): unknown {
-  if (typeof url !== 'string') return url;
+function pathOnly(url: string, userinfo: RegExp): string {
   const cut = url.search(/[?#]/);
-  const untilQuery = cut === -1 ? url : url.slice(0, cut);
-  return untilQuery.replace(USERINFO, '$1');
+  return (cut === -1 ? url : url.slice(0, cut)).replace(userinfo, '$1');
+}
+
+// A shape nothing here recognizes is dropped, never passed through: that is
+// the same rule the header allowlist follows, applied to a value.
+function loggedUrl(value: unknown, userinfo: RegExp): unknown {
+  if (typeof value === 'string') return pathOnly(value, userinfo);
+  if (!Array.isArray(value)) return undefined;
+  const members = value as readonly unknown[];
+  return members.flatMap((member) =>
+    typeof member === 'string' ? [pathOnly(member, userinfo)] : [],
+  );
 }
 
 function responseHeaders(headers: unknown): Record<string, unknown> {
@@ -72,10 +82,12 @@ function responseHeaders(headers: unknown): Record<string, unknown> {
     typeof headers === 'object' && headers !== null ? (headers as Record<string, unknown>) : {},
     ALLOWED_RESPONSE_HEADERS,
   );
+  const result: Record<string, unknown> = {};
   for (const [name, value] of Object.entries(allowlisted)) {
-    if (name.toLowerCase() === 'location') allowlisted[name] = pathOnly(value);
+    const logged = name.toLowerCase() === 'location' ? loggedUrl(value, LOCATION_USERINFO) : value;
+    if (logged !== undefined) result[name] = logged;
   }
-  return allowlisted;
+  return result;
 }
 
 export function createLogger(config: Config, destination?: DestinationStream): PinoLogger {
@@ -83,10 +95,10 @@ export function createLogger(config: Config, destination?: DestinationStream): P
     {
       level: config.ODUDU_LOG_LEVEL,
       serializers: {
-        req: (request: { method: string; url: string; headers: unknown; id: string }) => ({
+        req: (request: { method: string; url: unknown; headers: unknown; id: string }) => ({
           id: request.id,
           method: request.method,
-          url: pathOnly(request.url),
+          url: loggedUrl(request.url, REQUEST_USERINFO),
           headers: allowlistedHeaders(
             (request.headers ?? {}) as Record<string, unknown>,
             ALLOWED_REQUEST_HEADERS,
