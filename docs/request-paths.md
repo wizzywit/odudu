@@ -6217,18 +6217,23 @@ implemented](#what-is-not-implemented)), so `exdoc-exchange` and
 `exdoc-exchange-restricted` both get an audience set directly, and only the
 first gets `token_exchange_impersonation_allowed` flipped on:
 
+`client_id` is unique only within a tenant, so both updates below are
+scoped to `exdoc` by name, not by `client_id` alone:
+
 ```bash
 docker compose -f infra/docker/compose.yaml exec -T postgres \
   psql -U odudu -d odudu -c "
     UPDATE client_oidc_config
     SET audiences = ARRAY['https://api.exdoc.example'], token_exchange_impersonation_allowed = true
     FROM clients
-    WHERE clients.id = client_oidc_config.client_id AND clients.client_id = 'exdoc-exchange';
+    WHERE clients.id = client_oidc_config.client_id AND clients.client_id = 'exdoc-exchange'
+      AND client_oidc_config.tenant_id = (SELECT id FROM tenants WHERE name = 'exdoc');
 
     UPDATE client_oidc_config
     SET audiences = ARRAY['https://api.exdoc.example']
     FROM clients
-    WHERE clients.id = client_oidc_config.client_id AND clients.client_id = 'exdoc-exchange-restricted';
+    WHERE clients.id = client_oidc_config.client_id AND clients.client_id = 'exdoc-exchange-restricted'
+      AND client_oidc_config.tenant_id = (SELECT id FROM tenants WHERE name = 'exdoc');
   "
 ```
 
@@ -6320,10 +6325,11 @@ below is a separate check, already satisfied — but is refused before its
 `subject_token` is ever read, so a garbage `subject_token` refuses exactly
 the same way a live one would
 (`packages/protocol-oidc/tests/token-exchange.int.test.ts`'s
-`ODUDU-TOKEN-EXCHANGE-ORACLE-01`):
+`ODUDU-TOKEN-EXCHANGE-ORACLE-01`). `x-request-id`, `Date` and the
+keep-alive headers are omitted below, as elsewhere in this document:
 
 ```bash
-curl -sS -D - -o /dev/null -u exdoc-exchange-restricted:exdoc-exchange-restricted-secret \
+curl -sS -D - -u exdoc-exchange-restricted:exdoc-exchange-restricted-secret \
   --data-urlencode 'grant_type=urn:ietf:params:oauth:grant-type:token-exchange' \
   --data-urlencode "subject_token=$SUBJECT_TOKEN" \
   --data-urlencode 'subject_token_type=urn:ietf:params:oauth:token-type:access_token' \
@@ -6336,24 +6342,30 @@ vary: Origin
 cache-control: no-store
 pragma: no-cache
 content-type: application/json; charset=utf-8
-```
 
-```
-{ "error": "unauthorized_client" }
+{"error":"unauthorized_client"}
 ```
 
 The identical request against `exdoc-exchange` — the client the column
 above shows permitted — succeeds, and the issued token carries no `act` at
 all:
 
+```bash
+curl -sS -D - -u exdoc-exchange:exdoc-exchange-secret \
+  --data-urlencode 'grant_type=urn:ietf:params:oauth:grant-type:token-exchange' \
+  --data-urlencode "subject_token=$SUBJECT_TOKEN" \
+  --data-urlencode 'subject_token_type=urn:ietf:params:oauth:token-type:access_token' \
+  'http://localhost:3000/tenants/exdoc/protocol/openid-connect/token'
 ```
-{
-  "access_token": "eyJhbGciOiJSUzI1NiIs…",
-  "token_type": "Bearer",
-  "expires_in": 275,
-  "scope": "openid",
-  "issued_token_type": "urn:ietf:params:oauth:token-type:access_token"
-}
+
+```
+HTTP/1.1 200 OK
+vary: Origin
+cache-control: no-store
+pragma: no-cache
+content-type: application/json; charset=utf-8
+
+{"access_token":"eyJhbGciOiJSUzI1NiIs…","token_type":"Bearer","expires_in":291,"scope":"openid","issued_token_type":"urn:ietf:params:oauth:token-type:access_token"}
 ```
 
 ### Requesting a refresh token back
@@ -6404,7 +6416,7 @@ docker compose -f infra/docker/compose.yaml exec -T postgres \
 ```
 
 ```bash
-curl -sS -D - -o /dev/null -u exdoc-no-exchange:exdoc-no-exchange-secret \
+curl -sS -D - -u exdoc-no-exchange:exdoc-no-exchange-secret \
   --data-urlencode 'grant_type=urn:ietf:params:oauth:grant-type:token-exchange' \
   --data-urlencode "subject_token=$SUBJECT_TOKEN" \
   --data-urlencode 'subject_token_type=urn:ietf:params:oauth:token-type:access_token' \
@@ -6417,10 +6429,8 @@ vary: Origin
 cache-control: no-store
 pragma: no-cache
 content-type: application/json; charset=utf-8
-```
 
-```
-{ "error": "unauthorized_client" }
+{"error":"unauthorized_client"}
 ```
 
 Byte-identical to the impersonation refusal above — both are
