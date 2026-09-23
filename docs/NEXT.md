@@ -411,19 +411,6 @@ this file or the phase note.
   whoever reads it next. **P12**, whose criterion sources secrets from
   somewhere other than the process environment and so reworks the boot
   sequence in `apps/server/src/main.ts` that the test pins by offset.
-- Six migration-filename citations under `docs/superpowers/plans/` name
-  files that do not exist. All six are dangling at `a039685` too, so none
-  arrived with the rename, and there are none in `packages`, `apps`,
-  `tools`, `tests`, `infra` or `README.md`. A plan is archived scaffolding,
-  which is the argument for leaving them; a citation that resolves nowhere
-  is the argument against. **No phase implies this** — no criterion in
-  section 11 reaches an archived plan — so it needs a phase assigning when
-  something else does, or doing as its own change.
-- The `res` serializer still emits all reply headers with only `set-cookie`
-  denylisted — the remaining instance of the pattern removed on the request
-  side. **No phase implies this**: no criterion names the request logger.
-  It needs a phase assigning when something else touches
-  `apps/server/src/logger.ts`.
 - `drizzle-kit` remains an unused devDependency of `packages/db` after
   `db:generate` was retired. Removing it rewrites `pnpm-lock.yaml`, which is
   worth doing on its own, away from other work. **No phase implies this** —
@@ -432,6 +419,14 @@ this file or the phase note.
 
 ### Recorded judgements, where the code stands and nothing is owed
 
+- Six migration-filename citations under `docs/superpowers/plans/` are off
+  by one: each plan predicted a number, another migration landed first, and
+  everything shifted. `0009_token_grants.sql` is `0010_token_grants.sql` on
+  disk, and the other five the same way — the descriptive name is right in
+  every case. A plan records what was planned, so correcting a prediction
+  execution invalidated would falsify that record, as editing captured
+  output would. They stand. There are no dangling citations in `packages`,
+  `apps`, `tools`, `tests`, `infra` or `README.md`.
 - A `client_id`/hint mismatch at `/logout` rejects through an invariant
   `throw`, so a future refactor's mistake is a 500 rather than a redirect.
   Fails closed, which is why it stands.
