@@ -604,6 +604,111 @@ describe('seed client --post-logout-redirect-uri', () => {
   });
 });
 
+async function grantTypesOf(tenantName: string, oauthClientId: string): Promise<string[]> {
+  const tenantId = (await owner.db.select().from(tenants).where(eq(tenants.name, tenantName)))[0]
+    ?.id;
+  if (tenantId === undefined) throw new Error(`expected tenant ${tenantName}`);
+  return withTenant(owner.db, tenantId, async (tx) => {
+    const rows = await tx
+      .select()
+      .from(clients)
+      .where(and(eq(clients.tenantId, tenantId), eq(clients.clientId, oauthClientId)));
+    const client = rows[0];
+    if (client === undefined) throw new Error(`expected client ${oauthClientId}`);
+    const config = await clientOidcConfigRepository(tx).byClientId(client.id);
+    if (config === null) throw new Error(`no oidc config for client ${oauthClientId}`);
+    return config.grantTypes;
+  });
+}
+
+describe('seed client --grant-type', () => {
+  it('registers only the grants named by --grant-type', async () => {
+    const options = uniqueOptions();
+    await seed(options);
+
+    await seed([
+      'client',
+      '--tenant',
+      options.tenant,
+      '--client-id',
+      'narrow',
+      '--client-secret',
+      'secret',
+      '--redirect-uri',
+      'https://app.example/cb',
+      '--grant-type',
+      'authorization_code',
+    ]);
+
+    expect(await grantTypesOf(options.tenant, 'narrow')).toEqual(['authorization_code']);
+  });
+
+  it('refuses a grant type this server does not implement', async () => {
+    const options = uniqueOptions();
+    await seed(options);
+
+    await expect(
+      seed([
+        'client',
+        '--tenant',
+        options.tenant,
+        '--client-id',
+        'bogus',
+        '--client-secret',
+        'secret',
+        '--redirect-uri',
+        'https://app.example/cb',
+        '--grant-type',
+        'password',
+      ]),
+    ).rejects.toThrow(/grant-type/u);
+  });
+
+  it('still gives a public client two grants and no client_credentials', async () => {
+    const options = uniqueOptions();
+    await seed(options);
+
+    await seed([
+      'client',
+      '--tenant',
+      options.tenant,
+      '--client-id',
+      'pub',
+      '--public',
+      '--redirect-uri',
+      'https://app.example/cb',
+    ]);
+
+    expect(await grantTypesOf(options.tenant, 'pub')).toEqual([
+      'authorization_code',
+      'refresh_token',
+    ]);
+  });
+
+  it('still gives a confidential client all three grants when omitted', async () => {
+    const options = uniqueOptions();
+    await seed(options);
+
+    await seed([
+      'client',
+      '--tenant',
+      options.tenant,
+      '--client-id',
+      'wide',
+      '--client-secret',
+      'secret',
+      '--redirect-uri',
+      'https://app.example/cb',
+    ]);
+
+    expect(await grantTypesOf(options.tenant, 'wide')).toEqual([
+      'authorization_code',
+      'refresh_token',
+      'client_credentials',
+    ]);
+  });
+});
+
 describe('seed registration-token', () => {
   it('prints a token, and nothing but the token', async () => {
     const options = uniqueOptions();
