@@ -264,12 +264,12 @@ describe('createLogger', () => {
       kek: config.ODUDU_KEK,
       logger,
     });
-    app.get('/set-cookie-probe', (_request, reply) => {
+    app.get('/cookie-write-probe', (_request, reply) => {
       reply.header('set-cookie', '__Host-alpha-session=super-secret-cookie-value');
       return { ok: true };
     });
 
-    await app.inject({ method: 'GET', url: '/set-cookie-probe' });
+    await app.inject({ method: 'GET', url: '/cookie-write-probe' });
 
     expect(lines()).not.toContain('super-secret-cookie-value');
     expect(lines()).not.toContain('set-cookie');

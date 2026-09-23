@@ -18,10 +18,33 @@ const ALLOWED_REQUEST_HEADERS = new Set([
   'x-request-id',
 ]);
 
-function allowlistedHeaders(headers: Record<string, unknown>): Record<string, unknown> {
+// The response half of the same rule, derived from what this server
+// actually sends: `pageHeaders` in @odudu/kernel, the cache and challenge
+// headers of the token, introspection, revocation and userinfo endpoints,
+// and app.ts's request id. `location` is allowed but never emitted whole —
+// it is a URL, so it gets the URL treatment below. `set-cookie` is absent
+// rather than censored: a name not on this list cannot be logged at all,
+// which is what a redaction entry was standing in for.
+const ALLOWED_RESPONSE_HEADERS = new Set([
+  'content-type',
+  'content-length',
+  'cache-control',
+  'pragma',
+  'retry-after',
+  'www-authenticate',
+  'accept-post',
+  'vary',
+  'x-request-id',
+  'location',
+]);
+
+function allowlistedHeaders(
+  headers: Record<string, unknown>,
+  allowed: ReadonlySet<string>,
+): Record<string, unknown> {
   const result: Record<string, unknown> = {};
   for (const [name, value] of Object.entries(headers)) {
-    if (ALLOWED_REQUEST_HEADERS.has(name.toLowerCase())) {
+    if (allowed.has(name.toLowerCase())) {
       result[name] = value;
     }
   }
@@ -31,31 +54,42 @@ function allowlistedHeaders(headers: Record<string, unknown>): Record<string, un
 // Query strings carry the same class of secrets as headers (OAuth `code`,
 // `state`, `code_challenge`, ...) and a two-entry denylist has already once
 // missed something. Logging the path only is the allowlist equivalent for a
-// URL: nothing after `?` is ever emitted.
+// URL: nothing after `?` or `#` is ever emitted — response_mode=fragment
+// puts the authorization code after the `#`.
 function pathOnly(url: unknown): unknown {
   if (typeof url !== 'string') return url;
-  const queryIndex = url.indexOf('?');
-  return queryIndex === -1 ? url : url.slice(0, queryIndex);
+  const cut = url.search(/[?#]/);
+  return cut === -1 ? url : url.slice(0, cut);
+}
+
+function responseHeaders(headers: unknown): Record<string, unknown> {
+  const allowlisted = allowlistedHeaders(
+    typeof headers === 'object' && headers !== null ? (headers as Record<string, unknown>) : {},
+    ALLOWED_RESPONSE_HEADERS,
+  );
+  for (const [name, value] of Object.entries(allowlisted)) {
+    if (name.toLowerCase() === 'location') allowlisted[name] = pathOnly(value);
+  }
+  return allowlisted;
 }
 
 export function createLogger(config: Config, destination?: DestinationStream): PinoLogger {
   return pino(
     {
       level: config.ODUDU_LOG_LEVEL,
-      redact: {
-        paths: ['res.headers["set-cookie"]'],
-        censor: '[redacted]',
-      },
       serializers: {
         req: (request: { method: string; url: string; headers: unknown; id: string }) => ({
           id: request.id,
           method: request.method,
           url: pathOnly(request.url),
-          headers: allowlistedHeaders((request.headers ?? {}) as Record<string, unknown>),
+          headers: allowlistedHeaders(
+            (request.headers ?? {}) as Record<string, unknown>,
+            ALLOWED_REQUEST_HEADERS,
+          ),
         }),
         res: (reply: { statusCode: number; getHeaders: () => unknown }) => ({
           statusCode: reply.statusCode,
-          headers: reply.getHeaders(),
+          headers: responseHeaders(reply.getHeaders()),
         }),
       },
     },

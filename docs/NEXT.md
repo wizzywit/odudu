@@ -419,11 +419,6 @@ this file or the phase note.
   is the argument against. **No phase implies this** — no criterion in
   section 11 reaches an archived plan — so it needs a phase assigning when
   something else does, or doing as its own change.
-- The `res` serializer still emits all reply headers with only `set-cookie`
-  denylisted — the remaining instance of the pattern removed on the request
-  side. **No phase implies this**: no criterion names the request logger.
-  It needs a phase assigning when something else touches
-  `apps/server/src/logger.ts`.
 - `drizzle-kit` remains an unused devDependency of `packages/db` after
   `db:generate` was retired. Removing it rewrites `pnpm-lock.yaml`, which is
   worth doing on its own, away from other work. **No phase implies this** —
