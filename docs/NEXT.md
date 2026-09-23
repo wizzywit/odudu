@@ -32,11 +32,14 @@ What turned out to be **wrong** while building it is in
 exactly as it found them.** Both predate P4a and neither was this phase's
 to answer: `parseStructure` stayed the real authority for the token
 request shape instead of a Zod contract, the same choice every other grant
-already made, and `resolveExchangeToken` checks grant revocation and
-session liveness exactly the way `/userinfo` and `/introspect` do,
-including the same blind spot for a client disabled after a token was
-issued to it. Both triggers, recorded below under "The token surface", now
-name P4a's own files alongside the ones that already carried them.
+already made, and `resolveExchangeToken`'s access-token and refresh-token
+branches check grant revocation and session liveness exactly the way
+`/userinfo` and `/introspect` do; its id_token branch names no grant
+(`resolveIdToken` returns `grantId: null`) and checks session liveness via
+`sid` alone. All three share the same blind spot for a client disabled
+after a token was issued to it. Both triggers, recorded below under "The
+token surface", now name P4a's own files alongside the ones that already
+carried them.
 
 **A bare `P4` below means P4c** unless it concerns token exchange, the grant
 allowlist, theming or client branding — the same disambiguation the P2 split
