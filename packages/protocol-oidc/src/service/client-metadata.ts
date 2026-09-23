@@ -39,6 +39,7 @@ export const GRANT_TYPES_PERMITTED = new Set([
   'authorization_code',
   'refresh_token',
   'client_credentials',
+  'urn:ietf:params:oauth:grant-type:token-exchange',
 ]);
 
 // client_oidc_config_auth_method_check (migration 0045_client_registration_metadata.sql).
