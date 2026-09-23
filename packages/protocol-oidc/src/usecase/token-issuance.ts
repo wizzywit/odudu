@@ -36,7 +36,16 @@ import { evaluateRefreshGrant, generateRefreshToken, hashRefreshToken } from '#/
 import { parseResource } from '#/service/resource-indicator';
 import { resolveScope } from '#/service/scope';
 import { narrowByScopeMappings } from '#/service/scope-mapping';
-import { TOKEN_EXCHANGE_GRANT, type ActClaim } from '#/service/token-exchange';
+import {
+  attenuateScope,
+  buildActChain,
+  mayActPermits,
+  parseTokenType,
+  resolveExchangeAudience,
+  TOKEN_EXCHANGE_GRANT,
+  type ActClaim,
+  type ExchangeTokenType,
+} from '#/service/token-exchange';
 import { withRegisteredClaimsWinning } from '#/service/token-claims';
 import { tlsClientAuthSubjectMatches, tlsClientSubject } from '#/service/tls-client-auth';
 import {
@@ -46,6 +55,7 @@ import {
   WWW_AUTHENTICATE,
   type ClientAuthenticationDeps,
 } from '#/usecase/client-authentication';
+import { resolveExchangeToken, type ResolveDeps } from '#/usecase/token-exchange-subject';
 
 // Re-exported so the view layer can name it without reaching into
 // repository directly (dependency-cruiser's no-view-to-repository rule) —
@@ -108,6 +118,10 @@ export interface TokenResponse {
   token_type: 'Bearer';
   expires_in: number;
   scope: string;
+  // RFC 8693 §2.2.1: names what `access_token` actually holds on an
+  // exchange response — an access token is not the only thing that field
+  // can carry there. Absent from every other grant's response.
+  issued_token_type?: string;
 }
 
 // Stage 1: structural validation. What's genuinely malformed — no
@@ -958,8 +972,190 @@ export function assertNeverGrant(request: never): never {
 
 // RFC 8693's grant, minting from a subject_token (and, optionally, an
 // actor_token) rather than a credential the client owns outright.
-function issueExchangedTokens(): Promise<TokenResponse> {
-  throw unsupportedGrantType();
+async function issueExchangedTokens(
+  tx: TenantScopedDatabase,
+  deps: TokenIssuanceDeps,
+  request: Extract<StructuredRequest, { grantType: typeof TOKEN_EXCHANGE_GRANT }>,
+  client: ClientRecord,
+  config: ClientOidcConfig,
+): Promise<TokenResponse> {
+  // Every failure this parse can report is invalid_request (RFC 8693
+  // §2.2.2), for all three token-type parameters alike, so they are never
+  // told apart here.
+  const accepted = (raw: string): ExchangeTokenType => {
+    const outcome = parseTokenType(raw);
+    if (outcome === 'refused' || outcome === 'deferred' || outcome === 'unknown') {
+      throw invalidRequest();
+    }
+    return outcome;
+  };
+
+  const subjectType = accepted(request.subjectTokenType);
+  const issuedType =
+    request.requestedTokenType === undefined
+      ? 'access_token'
+      : accepted(request.requestedTokenType);
+
+  const now = deps.clock.now();
+  const resolveDeps: ResolveDeps = {
+    issuer: deps.issuer,
+    requestingClientId: client.clientId,
+    lifespans: deps.lifespans,
+    now,
+  };
+
+  const subject = await resolveExchangeToken(tx, resolveDeps, subjectType, request.subjectToken);
+  if (subject.kind !== 'ok') throw invalidRequest();
+
+  // `actorTokenType` is non-undefined whenever `actorToken` is — stage 1
+  // refuses the pair otherwise — but narrow it rather than asserting it.
+  const actorType = request.actorTokenType === undefined ? null : accepted(request.actorTokenType);
+  const actor =
+    request.actorToken === undefined || actorType === null
+      ? null
+      : await resolveExchangeToken(tx, resolveDeps, actorType, request.actorToken);
+  if (actor !== null && actor.kind !== 'ok') throw invalidRequest();
+
+  // Impersonation is the branch with no actor recorded, so it is the one
+  // the per-client permission gates (client-oidc-config.ts's own comment on
+  // the column).
+  if (actor === null && !config.tokenExchangeImpersonationAllowed) throw unauthorizedClient();
+
+  const actorSubject = actor === null ? client.clientId : actor.token.subjectId;
+  if (!mayActPermits(subject.token.mayAct, actorSubject)) throw invalidRequest();
+
+  const actChain = actor === null ? undefined : buildActChain(actorSubject, actor.token.act);
+  if (actChain !== undefined && actChain.kind !== 'ok') throw invalidRequest();
+  const act = actChain?.kind === 'ok' ? actChain.act : undefined;
+
+  const scopeOutcome = attenuateScope(request.scope, subject.token.scope);
+  if (scopeOutcome.kind === 'widened') throw invalidScope();
+  const scope = [...scopeOutcome.scope];
+
+  const audienceOutcome = resolveExchangeAudience({
+    resource: request.resource,
+    audience: request.audience,
+    ceiling: config.audiences,
+    issuedType,
+  });
+  if (audienceOutcome.kind === 'invalid_target') throw invalidTarget();
+
+  // An exchange may not lengthen the credential it was handed —
+  // mintAccessToken's own `expCeiling`, and (below) this same instant
+  // stands in for it when the issued shape is not an access token.
+  const expCeiling = subject.token.expiresAt ?? undefined;
+  // Recorded only for a delegated exchange (`act` present); an
+  // impersonation names no actor in the claim, so none is recorded here
+  // either (token-grants.ts's own comment on the column).
+  const actorSubjectId = act === undefined ? null : actorSubject;
+
+  if (issuedType === 'refresh_token') {
+    const grantId = newId();
+    await tokenGrantRepository(tx).create({
+      id: grantId,
+      tenantId: deps.tenantId,
+      clientId: client.id,
+      subjectId: subject.token.subjectId,
+      scope: scope.join(' '),
+      audience: [...audienceOutcome.audience],
+      sessionId: subject.token.sessionId,
+      actorSubjectId,
+      exchangedFromGrantId: subject.token.grantId,
+    });
+    const refreshToken = generateRefreshToken();
+    await refreshTokenRepository(tx).create({
+      tokenHash: hashRefreshToken(refreshToken),
+      tenantId: deps.tenantId,
+      grantId,
+      expiresAt: expCeiling ?? new Date(now.getTime() + config.refreshTokenTtlSeconds * 1000),
+    });
+
+    return {
+      access_token: refreshToken,
+      token_type: 'Bearer',
+      expires_in: config.refreshTokenTtlSeconds,
+      scope: scope.join(' '),
+      issued_token_type: 'urn:ietf:params:oauth:token-type:refresh_token',
+    };
+  }
+
+  const claimContext = await deps.loadClaimContext(deps.tenantId, subject.token.subjectId);
+  const reachable = await reachableRoleIds(tx, scope);
+
+  if (issuedType === 'id_token') {
+    const key = await signingKeyRepository(tx).active();
+    const narrowedContext: ClaimContext = {
+      ...claimContext,
+      roles: narrowByScopeMappings(claimContext.roles, reachable, client.fullScopeAllowed),
+    };
+    const mapped = await deps.claimMappers.assemble(scope, narrowedContext);
+    const iat = Math.floor(now.getTime() / 1000);
+    const ttlExp = iat + config.accessTokenTtlSeconds;
+    const ceiling = expCeiling === undefined ? ttlExp : Math.floor(expCeiling.getTime() / 1000);
+    const idTokenClaims = withRegisteredClaimsWinning(mapped, {
+      iss: deps.issuer,
+      sub: subject.token.subjectId,
+      aud: client.clientId,
+      iat,
+      exp: Math.min(ttlExp, ceiling),
+      ...(subject.token.sessionId !== null ? { sid: subject.token.sessionId } : {}),
+      ...(act === undefined ? {} : { act }),
+    });
+    const idToken = await signJwt(idTokenClaims, { key, kek: deps.kek });
+
+    return {
+      access_token: idToken,
+      token_type: 'Bearer',
+      expires_in: config.accessTokenTtlSeconds,
+      scope: scope.join(' '),
+      issued_token_type: 'urn:ietf:params:oauth:token-type:id_token',
+    };
+  }
+
+  const accessTokenScope = await accessTokenEligibleScope(tx, scope);
+  const key = await signingKeyRepository(tx).active();
+  const grantId = newId();
+
+  const { accessToken, audience } = await mintAccessToken(
+    deps,
+    {
+      subjectId: subject.token.subjectId,
+      clientId: client.clientId,
+      scope,
+      config,
+      audience: audienceOutcome.audience,
+      claimContext,
+      reachableRoleIds: reachable,
+      fullScopeAllowed: client.fullScopeAllowed,
+      accessTokenScope,
+      sessionId: subject.token.sessionId,
+      grantId,
+      ...(act === undefined ? {} : { act }),
+      ...(expCeiling === undefined ? {} : { expCeiling }),
+    },
+    key,
+    now,
+  );
+
+  await tokenGrantRepository(tx).create({
+    id: grantId,
+    tenantId: deps.tenantId,
+    clientId: client.id,
+    subjectId: subject.token.subjectId,
+    scope: scope.join(' '),
+    audience,
+    sessionId: subject.token.sessionId,
+    actorSubjectId,
+    exchangedFromGrantId: subject.token.grantId,
+  });
+
+  return {
+    access_token: accessToken,
+    token_type: 'Bearer',
+    expires_in: config.accessTokenTtlSeconds,
+    scope: scope.join(' '),
+    issued_token_type: 'urn:ietf:params:oauth:token-type:access_token',
+  };
 }
 
 export async function issueTokens(
@@ -1048,7 +1244,7 @@ export async function issueTokens(
     case 'client_credentials':
       return issueClientCredentialsTokens(tx, deps, request, client, config);
     case TOKEN_EXCHANGE_GRANT:
-      return issueExchangedTokens();
+      return issueExchangedTokens(tx, deps, request, client, config);
     default:
       return assertNeverGrant(request);
   }
