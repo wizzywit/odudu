@@ -20,7 +20,6 @@
   },
   "devDependencies": {
     "@odudu/testkit": "workspace:*",
-    "drizzle-kit": "0.31.10",
     "vitest": "5.0.0"
   }
 }
