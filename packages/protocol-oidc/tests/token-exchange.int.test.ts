@@ -1,4 +1,10 @@
-import { generateSigningKey, signingKeys, type SigningKeyRecord } from '@odudu/crypto';
+import {
+  generateSigningKey,
+  signingKeyRepository,
+  signingKeys,
+  signJwt,
+  type SigningKeyRecord,
+} from '@odudu/crypto';
 import { hashPassword, subjectRepository, userCredentials, users } from '@odudu/domain-identity';
 import {
   createDatabase,
@@ -590,6 +596,48 @@ describe('[ODUDU-TOKEN-EXCHANGE-ACTOR-01] the actor token is checked too', () =>
       actorToken: actor.accessToken,
     });
     expect(response.statusCode).toBe(400);
+  });
+});
+
+// Nothing mints `may_act` yet (docs/NEXT.md's own entry on this), so this
+// re-signs a real, grant-backed access token with the claim added — the
+// only way to exercise `mayActPermits`'s wiring end to end before P5 gives
+// it a mint path of its own.
+async function withMayAct(accessToken: string, sub: string): Promise<string> {
+  const claims = decode(accessToken);
+  const key = await withTenant(app.db, TENANT_ID, (tx) => signingKeyRepository(tx).active());
+  if (key === null) throw new Error('expected an active signing key');
+  return signJwt({ ...claims, may_act: { sub } }, { key, kek: KEK, typ: 'at+jwt' });
+}
+
+describe('[ODUDU-TOKEN-EXCHANGE-MAYACT-02] may_act is honoured and violated end to end', () => {
+  it('refuses an actor the subject token does not name in may_act', async () => {
+    const subject = await loginAndGetToken();
+    const namedActor = await loginAndGetToken({
+      username: DELEGATE_USERNAME,
+      password: DELEGATE_PASSWORD,
+    });
+    const otherActor = await loginAndGetToken();
+    const subjectToken = await withMayAct(subject.accessToken, namedActor.subjectId);
+
+    const response = await exchange({ subjectToken, actorToken: otherActor.accessToken });
+    expect(response.statusCode).toBe(400);
+    expect(response.json<{ error?: string }>()).toMatchObject({ error: 'invalid_request' });
+  });
+
+  it('permits the actor may_act names', async () => {
+    const subject = await loginAndGetToken();
+    const namedActor = await loginAndGetToken({
+      username: DELEGATE_USERNAME,
+      password: DELEGATE_PASSWORD,
+    });
+    const subjectToken = await withMayAct(subject.accessToken, namedActor.subjectId);
+
+    const response = await exchange({ subjectToken, actorToken: namedActor.accessToken });
+    expect(response.statusCode).toBe(200);
+    expect(decode(response.json<{ access_token: string }>().access_token).act).toEqual({
+      sub: namedActor.subjectId,
+    });
   });
 });
 
