@@ -6,11 +6,14 @@ export type ExchangeTokenType = 'access_token' | 'refresh_token' | 'id_token';
 
 export type TokenTypeOutcome = ExchangeTokenType | 'refused' | 'deferred' | 'unknown';
 
-const ACCEPTED: Record<string, ExchangeTokenType> = {
-  'urn:ietf:params:oauth:token-type:access_token': 'access_token',
-  'urn:ietf:params:oauth:token-type:refresh_token': 'refresh_token',
-  'urn:ietf:params:oauth:token-type:id_token': 'id_token',
-};
+// A Map, not an object literal: an object literal's bracket lookup walks
+// the prototype chain, so `raw` values like 'toString' or 'constructor'
+// would resolve to an inherited function rather than `undefined`.
+const ACCEPTED = new Map<string, ExchangeTokenType>([
+  ['urn:ietf:params:oauth:token-type:access_token', 'access_token'],
+  ['urn:ietf:params:oauth:token-type:refresh_token', 'refresh_token'],
+  ['urn:ietf:params:oauth:token-type:id_token', 'id_token'],
+]);
 
 const DEFERRED = new Set([
   'urn:ietf:params:oauth:token-type:saml1',
@@ -22,7 +25,7 @@ const DEFERRED = new Set([
 // type meaning "any JWT this issuer signed" would accept all four
 // interchangeably.
 export function parseTokenType(raw: string): TokenTypeOutcome {
-  const accepted = ACCEPTED[raw];
+  const accepted = ACCEPTED.get(raw);
   if (accepted !== undefined) return accepted;
   if (raw === 'urn:ietf:params:oauth:token-type:jwt') return 'refused';
   if (DEFERRED.has(raw)) return 'deferred';

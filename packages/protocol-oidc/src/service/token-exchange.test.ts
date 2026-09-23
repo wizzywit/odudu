@@ -39,6 +39,13 @@ describe('[ODUDU-TOKEN-EXCHANGE-TYPES-01] RFC 8693 §3 token type identifiers', 
   it('does not accept a type by suffix alone', () => {
     expect(parseTokenType('urn:evil:token-type:access_token')).toBe('unknown');
   });
+
+  it.each(['toString', 'constructor', '__proto__', 'valueOf'])(
+    'does not resolve %s from the prototype chain',
+    (name) => {
+      expect(parseTokenType(name)).toBe('unknown');
+    },
+  );
 });
 
 const CEILING = ['https://api.example', 'https://other.example'];
