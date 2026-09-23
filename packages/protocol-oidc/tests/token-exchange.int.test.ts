@@ -35,6 +35,10 @@ let http: FastifyInstance;
 
 const CLIENT_ID = 'token-exchange-client';
 const CLIENT_SECRET = 'token-exchange-client-secret';
+// Named but never registered as a real client row: an id_token exchange's
+// audience check is a string comparison against the requesting client_id,
+// with no other client fact behind it.
+const OTHER_CLIENT_ID = 'token-exchange-other-client';
 const REDIRECT_URI = 'https://app.example/callback';
 const USERNAME = 'ada';
 const PASSWORD = 'correct horse battery staple';
@@ -379,6 +383,54 @@ describe('[ODUDU-TOKEN-EXCHANGE-SUBJECT-02] a refresh token as subject_token', (
 
     const outcome = await withTenant(app.db, TENANT_ID, (tx) =>
       resolveExchangeToken(tx, resolveDeps, 'refresh_token', refreshToken),
+    );
+    expect(outcome).toEqual({ kind: 'refused' });
+  });
+});
+
+describe('[ODUDU-TOKEN-EXCHANGE-SUBJECT-03] an id_token as subject_token', () => {
+  it('resolves when its aud names the requesting client', async () => {
+    const { idToken, subjectId } = await loginAndGetToken();
+    const outcome = await withTenant(app.db, TENANT_ID, (tx) =>
+      resolveExchangeToken(
+        tx,
+        { ...resolveDeps, requestingClientId: CLIENT_ID },
+        'id_token',
+        idToken,
+      ),
+    );
+    expect(outcome).toMatchObject({ kind: 'ok', token: { subjectId } });
+  });
+
+  // An ID token is an authentication receipt for one client, not a bearer
+  // credential for APIs, so a holder that is not its audience may not
+  // exchange it. Stricter than RFC 8693 requires.
+  it('refuses when another client presents it', async () => {
+    const { idToken } = await loginAndGetToken();
+    const outcome = await withTenant(app.db, TENANT_ID, (tx) =>
+      resolveExchangeToken(
+        tx,
+        { ...resolveDeps, requestingClientId: OTHER_CLIENT_ID },
+        'id_token',
+        idToken,
+      ),
+    );
+    expect(outcome).toEqual({ kind: 'refused' });
+  });
+
+  it('refuses an id_token signed by another tenant', async () => {
+    const foreignTenant = `token-exchange-foreign-idtoken-${newId()}`;
+    const foreignTenantId = newId();
+    await setupTenant(foreignTenant, foreignTenantId);
+    const { idToken: foreignIdToken } = await loginAndGetToken(foreignTenant);
+
+    const outcome = await withTenant(app.db, TENANT_ID, (tx) =>
+      resolveExchangeToken(
+        tx,
+        { ...resolveDeps, requestingClientId: CLIENT_ID },
+        'id_token',
+        foreignIdToken,
+      ),
     );
     expect(outcome).toEqual({ kind: 'refused' });
   });

@@ -6,6 +6,7 @@ import { tokenGrantRepository } from '#/repository/grants';
 import { refreshTokenRepository } from '#/repository/refresh';
 import { hashRefreshToken } from '#/service/refresh';
 import { type ExchangeTokenType } from '#/service/token-exchange';
+import { subjectOfIdTokenHint } from '#/usecase/authorization-request';
 
 export interface ResolvedExchangeToken {
   subjectId: string;
@@ -113,6 +114,49 @@ async function resolveRefreshToken(
   };
 }
 
+// Reuses /authorize's own id_token_hint verification (subjectOfIdTokenHint)
+// rather than a second "is this our ID token" check — the confusion
+// `userinfo+jwt` exists to rule out is exactly two verifiers disagreeing
+// about what one token is. `requestingClientId` is passed as `audience`:
+// OIDC Core §3.1.2.2 gives an ID token to the client it names in `aud`, and
+// an exchange is stricter than RFC 8693 requires by refusing any other
+// holder. The tenant id argument is unused by this call's own
+// `listPublishableKeys` — `tx` is already scoped by the caller's
+// `withTenant`, so the wrapped `listPublishable` never reads it.
+async function resolveIdToken(
+  tx: TenantScopedDatabase,
+  deps: ResolveDeps,
+  token: string,
+): Promise<ResolveOutcome> {
+  const claims = await subjectOfIdTokenHint(
+    { listPublishableKeys: () => signingKeyRepository(tx).listPublishable() },
+    '',
+    deps.issuer,
+    token,
+    deps.requestingClientId,
+  );
+  if (claims === null) return { kind: 'refused' };
+  if (claims.sid !== null && !(await sessionIsLive(tx, deps, claims.sid))) {
+    return { kind: 'refused' };
+  }
+
+  // An ID token names no grant and carries no scope, so an exchange from
+  // one is bounded by the client's own registration rather than by a
+  // grant's recorded scope.
+  return {
+    kind: 'ok',
+    token: {
+      subjectId: claims.subject,
+      scope: [],
+      sessionId: claims.sid,
+      grantId: null,
+      act: undefined,
+      mayAct: claims.mayAct,
+      expiresAt: null,
+    },
+  };
+}
+
 export async function resolveExchangeToken(
   tx: TenantScopedDatabase,
   deps: ResolveDeps,
@@ -125,6 +169,6 @@ export async function resolveExchangeToken(
     case 'refresh_token':
       return resolveRefreshToken(tx, deps, token);
     case 'id_token':
-      throw new Error(`${type} exchange is not resolved yet`);
+      return resolveIdToken(tx, deps, token);
   }
 }
