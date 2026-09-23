@@ -44,12 +44,17 @@ describe('[OIDC-DISCOVERY-3-01] the discovery document', () => {
     expect(doc.response_modes_supported).toEqual(['query']);
   });
 
-  it('advertises exactly the three grant types P1 implements', () => {
+  it('advertises exactly the four grant types registration accepts', () => {
     expect([...doc.grant_types_supported].sort()).toEqual([
       'authorization_code',
       'client_credentials',
       'refresh_token',
+      'urn:ietf:params:oauth:grant-type:token-exchange',
     ]);
+  });
+
+  it('advertises the token-exchange grant', () => {
+    expect(doc.grant_types_supported).toContain('urn:ietf:params:oauth:grant-type:token-exchange');
   });
 
   // tls_client_auth is excluded by default: docs/superpowers/specs/2026-09-18-p3a-clients-registration-consent-design.md:596-598

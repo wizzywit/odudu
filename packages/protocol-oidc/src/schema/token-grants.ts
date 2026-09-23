@@ -24,6 +24,13 @@ export const tokenGrants = pgTable('token_grants', {
   // SET NULL live only in packages/db/drizzle/0026_token_grants_session.sql
   // — see this file's own note above on why FKs are hand-authored here.
   sessionId: uuid('session_id'),
+  // The party recorded in the issued token's `act` claim, so introspection
+  // can reproduce it without holding the token. Null for every grant that
+  // is not a delegated exchange.
+  actorSubjectId: uuid('actor_subject_id'),
+  // The grant whose token was presented as `subject_token`. Lineage only:
+  // nothing walks it yet, and revoking a parent does not revoke a child.
+  exchangedFromGrantId: uuid('exchanged_from_grant_id'),
 }).enableRLS();
 
 export interface TokenGrantRecord {
@@ -36,4 +43,6 @@ export interface TokenGrantRecord {
   createdAt: Date;
   revokedAt: Date | null;
   sessionId: string | null;
+  actorSubjectId: string | null;
+  exchangedFromGrantId: string | null;
 }

@@ -45,6 +45,13 @@ export const clientOidcConfig = pgTable('client_oidc_config', {
   // Whether this client's authorization requests skip the consent screen.
   // Defaults false so an existing seeded client's behaviour is unchanged.
   consentRequired: boolean('consent_required').notNull().default(false),
+  // Delegation rides the registered grant list; impersonation — an exchange
+  // with no actor_token, where the issued token names the subject and
+  // records no actor — needs this as well. Default false: a client that
+  // registered before this existed has not asked to impersonate anyone.
+  tokenExchangeImpersonationAllowed: boolean('token_exchange_impersonation_allowed')
+    .notNull()
+    .default(false),
   userinfoSignedResponseAlg: text('userinfo_signed_response_alg'),
   userinfoEncryptedResponseAlg: text('userinfo_encrypted_response_alg'),
   // Requires userinfoEncryptedResponseAlg
@@ -80,6 +87,7 @@ export interface ClientOidcConfig {
   backchannelLogoutSessionRequired: boolean;
   frontchannelLogoutSessionRequired: boolean;
   consentRequired: boolean;
+  tokenExchangeImpersonationAllowed: boolean;
   userinfoSignedResponseAlg: string | null;
   userinfoEncryptedResponseAlg: string | null;
   userinfoEncryptedResponseEnc: string | null;

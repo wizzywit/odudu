@@ -33,6 +33,8 @@ function toRecord(row: typeof tokenGrants.$inferSelect): TokenGrantRecord {
     createdAt: row.createdAt,
     revokedAt: row.revokedAt,
     sessionId: row.sessionId,
+    actorSubjectId: row.actorSubjectId,
+    exchangedFromGrantId: row.exchangedFromGrantId,
   };
 }
 

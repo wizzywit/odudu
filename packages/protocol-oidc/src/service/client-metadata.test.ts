@@ -105,6 +105,14 @@ it('refuses a grant type this server does not implement', () => {
   expect(outcome).toMatchObject({ kind: 'invalid', error: 'invalid_client_metadata' });
 });
 
+it('accepts the token-exchange grant at registration', () => {
+  const outcome = parseClientMetadata(
+    ok({ grant_types: ['urn:ietf:params:oauth:grant-type:token-exchange'] }),
+    { tlsClientAuthEnabled: false },
+  );
+  expect(outcome.kind).toBe('ok');
+});
+
 // `client_credentials` alone has no interactive flow, which is the one case
 // the existing CHECK on client_oidc_config permits with no redirect_uri.
 it('accepts client_credentials alone with no redirect_uris', () => {
