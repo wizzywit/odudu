@@ -891,6 +891,13 @@ async function authenticateTlsClientAuth(
   return { client, config };
 }
 
+// Reached only if StructuredRequest gains a variant the dispatch below does
+// not answer, which is a typecheck failure rather than a runtime one. The
+// throw exists because a `never` parameter still needs a body.
+export function assertNeverGrant(request: never): never {
+  throw new Error(`unhandled grant type: ${JSON.stringify(request)}`);
+}
+
 export async function issueTokens(
   tx: TenantScopedDatabase,
   deps: TokenIssuanceDeps,
@@ -968,5 +975,8 @@ export async function issueTokens(
   if (request.grantType === 'refresh_token') {
     return issueRefreshTokens(tx, deps, request, client, config);
   }
-  return issueClientCredentialsTokens(tx, deps, request, client, config);
+  if (request.grantType === 'client_credentials') {
+    return issueClientCredentialsTokens(tx, deps, request, client, config);
+  }
+  return assertNeverGrant(request);
 }
