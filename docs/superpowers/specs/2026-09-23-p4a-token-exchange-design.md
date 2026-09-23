@@ -130,7 +130,7 @@ exchange for free.
 | `may_act`                              | **enforced when present**; minting and its policy store `deferred: P5`      |
 | `saml1`, `saml2`                       | `deferred: P8`                                                              |
 | `urn:ietf:params:oauth:token-type:jwt` | **refused**                                                                 |
-| Errors                                 | `invalid_request`, `invalid_grant`, `invalid_target`, `unauthorized_client` |
+| Errors                                 | `invalid_request`, `invalid_target`, `invalid_scope`, `unauthorized_client` |
 
 **Why `:jwt` is refused.** This server mints four kinds of JWT: `at+jwt`,
 ID tokens with `typ` absent per OIDC, `logout+jwt`
@@ -141,6 +141,28 @@ exists _because_ a signed UserInfo response was once acceptable as an
 signed" reopens that class on purpose, at a grant whose output is a
 credential for a third party. The three named types each carry their own
 verification rule, and a caller that wants one names it.
+
+**`invalid_request`, not `invalid_grant`, for a bad subject token.** §2.2.2
+is unusually strong: "If the request itself is not valid or if either the
+`subject_token` or `actor_token` are invalid for any reason, or are
+unacceptable based on policy, the authorization server MUST construct an
+error response ... The value of the `error` parameter MUST be the
+`invalid_request` error code." That covers a revoked grant and a dead
+session too, where OAuth intuition reaches for `invalid_grant`. The RFC
+wins; the clause table records that it is a MUST and that the intuitive
+code is wrong here. `invalid_scope` and `unauthorized_client` ride §2.2.2's
+"Other error codes may also be used, as appropriate".
+
+**One target, not many — a divergence.** §2.1 says "Multiple `resource`
+parameters may be used to indicate that the issued token is intended to be
+used at the multiple resources listed", and says the same of `audience`.
+This server issues single-audience tokens: `parseResource` accepts exactly
+one value and refuses an array, a decision RFC 8707 already made and
+`docs/protocols/rfc8707.md` already records. P4a inherits it rather than
+reopening it, and refuses multiple targets with `invalid_target` — which is
+precisely what §2.2.2 provides for, "unwilling or unable to issue a token
+for any target service indicated by the `resource` or `audience`
+parameters". A divergence, recorded as one, not a gap.
 
 **Why `may_act` is enforced but not minted.** Section 9 of the umbrella
 assigns `may_act` — who may act for whom — to P5, along with the ownership
@@ -180,8 +202,22 @@ Three checks, one new column between them.
    present and the chain is recorded — needs only check 1. This is what
    makes "impersonation distinguished from delegation" a decision rather
    than a side effect of which parameters a caller happened to send.
-3. **`may_act`**, when the subject token carries it, must name the
-   requesting client.
+3. **`may_act`**, when the subject token carries it, must name **the party
+   that becomes the actor** — which is not always the requesting client.
+   §4.4 defines it as a statement "that one party is authorized to become
+   the actor and act on behalf of another party", and §4.1 requires a
+   consumer to consider "the party identified as the current actor by the
+   `act` claim". So the comparison must be made against whatever section 8
+   records in `act.sub`: **the actor token's subject under delegation**, and
+   the requesting client under impersonation, where no actor token exists
+   and the client is itself the actor.
+
+   Checking it against the requesting client in both cases — which this spec
+   said until the first review of this branch — would let a client with
+   exchange permission present a subject token authorizing _itself_ and
+   receive a token recording delegation to an actor that subject never
+   authorized. The check and the claim must read the same party, or the
+   claim is a record of an authorization that was never made.
 
 **The allowlist is a behaviour change.** A client registered for
 `authorization_code` alone can obtain a `client_credentials` token today;
@@ -191,10 +227,22 @@ and the same reason it was cheap there.
 
 ## 7. Narrowing
 
-**Scope attenuates.** The requested scope must be a subset of the subject
-grant's; absent, the subject's scope is carried verbatim. Never widens.
-This is the first of section 9's invariants to arrive, one phase before the
-layer that needs it.
+**Scope attenuates — and this is policy, not conformance.** The requested
+scope must be a subset of the subject grant's; absent, the subject's scope
+is carried verbatim. Never widens, refused with `invalid_scope`.
+
+RFC 8693 does **not** require this. §2.1 defines `scope` as letting the
+client "specify the desired scope of the requested security token", and
+§2.2.1 contemplates the issued scope differing from the requested one, but
+no clause anywhere bounds the issued token's rights by the subject token's.
+An implementation may legitimately issue a token that exceeds its input.
+This one does not, because section 9 of the umbrella commits the project to
+"child scopes ⊆ parent scopes; strictly attenuating, never widening" and
+P5's attenuation check is the consumer. The clause table records it as a
+deliberate strictness, in the row that would otherwise read as though the
+RFC demanded it — which is the failure mode `docs/phases/p3b.md` names as
+this repository's most frequent: a comment whose conclusion is right and
+whose stated reason is false.
 
 **Audience does not attenuate against the subject token, and must not.** The
 canonical exchange turns a token for API-A into a token for API-B; narrowing
@@ -206,7 +254,20 @@ existing contract holds unchanged.
 `resource` goes through `parseResource` (one absolute URI, no fragment,
 present in the ceiling). `audience` is an RFC 8693 logical name, so it is
 matched against the ceiling without URI parsing. Both present and naming
-different targets is `invalid_target`, not a silent preference.
+different targets is `invalid_target`, not a silent preference — as is more
+than one value of either, per section 4's divergence.
+
+**An issued ID token's audience is the requesting client, and is not
+selectable.** `resource` and `audience` choose where an _access_ token may
+be used. An ID token's `aud` is fixed by OpenID Connect Core to the client
+it is issued to, and a token whose `aud` named a resource server instead
+would be rejected by every conforming OIDC client that received it. So an
+ID token issued by exchange carries `aud` of the requesting client, and a
+`resource` or `audience` parameter sent with `requested_token_type=id_token`
+is refused with `invalid_target` rather than ignored: naming a target for a
+token whose target is not selectable is a mistake worth surfacing, and
+silently discarding the parameter would leave the caller believing it had
+been honoured.
 
 ## 8. `act`, and what the grant records
 
@@ -238,6 +299,46 @@ new code**. Without the inheritance, exchange would launder a session-bound
 token into one no logout can reach — the single most dangerous thing this
 grant could do, and one that would look like nothing at all in a test suite
 that only asserted exchange succeeds.
+
+**The RFC permits this and does not require it.** §2.1 is explicit that "the
+exchange is a one-time event and does not create a tight linkage between the
+input and output tokens", and that propagating revocation "is not a general
+property of the STS protocol and would be specific to a particular
+implementation, token type, or deployment" — while saying in the same breath
+that it "may still be appropriate or desirable". So inheritance is a choice,
+and the reasons it is the right one are local rather than protocol-derived:
+
+- **The codebase already made it, for the same reason.** `rotateRefreshToken`
+  refuses to rotate a session-bound family whose session has died, and says
+  why in its own comment: "A session-bound family lives exactly as long as
+  its session: an idle timeout that a refresh could out-live would not be an
+  idle timeout." An exchange that could out-live the session is the same
+  sentence with one word changed. Exchange inheriting `session_id` makes it
+  one rule at both doors, rather than a rule at one door out of several,
+  which `docs/phases/p3b.md` names as this repository's recurring defect.
+- **P5 requires it.** Section 9 of the umbrella fixes the agent layer's
+  invariant as "child TTL ≤ parent TTL, and never beyond the root user
+  session". An exchanged token that survived the session would make that
+  invariant unenforceable at the layer below the one that states it.
+
+**Exchange does not `touch` the session.** Rotation does
+(`refresh-rotation.ts`), because a refresh is a client acting for a user who
+is present. An exchange is a third party acting on a delegated token, and
+letting it extend the idle window would mean a busy backend keeps a departed
+user signed in indefinitely — an idle timeout that never fires while
+anything downstream is working. Liveness is checked; the clock is not reset.
+
+**The issued token's `exp` is capped at the subject token's `exp`.** RFC
+§2.1 permits it — "the expiration time of the output token may be influenced
+by that of the input token" — and requires nothing. The alternative is that
+a presented credential with thirty seconds left buys five minutes of reach,
+which is widening along the one dimension section 9's invariant names
+explicitly. A cap that leaves a uselessly short token is the caller's signal
+to present a fresher one. Note this is **stricter than every other grant
+here**: `mintAccessToken` otherwise sets `exp` from
+`config.accessTokenTtlSeconds` alone and lets use-time liveness do the rest.
+The divergence is deliberate, because the other grants mint from a credential
+the client owns, and this one mints from a credential it was handed.
 
 For an `id_token` subject token, the session is its `sid` claim. A subject
 token belonging to an offline grant has no session, and the exchanged grant
@@ -365,6 +466,25 @@ about your own codebase reads exactly like a true one.
 | `P4b` is cited 15× in the umbrella spec and 7× in ADR 0030                                                        | `grep -rno "P4[a-z]*" docs ... \| sort \| uniq -c`                                                                       |
 | No `rfc8693.md`, and no token-exchange code of any kind, exists                                                   | `grep -rni "rfc8693\|token.exchange" --include=*.ts --include=*.md --include=*.sql` — zero matches                       |
 
+## 16a. Index of RFC clauses this spec relies on
+
+Quoted from `https://www.rfc-editor.org/rfc/rfc8693.txt` on 2026-09-23,
+because four decisions in this spec turned on the exact wording and two of
+them were wrong before it was read.
+
+| Clause | What it settles                                                                                                         |
+| ------ | ----------------------------------------------------------------------------------------------------------------------- |
+| §1.1   | Impersonation makes A indistinguishable from B; delegation keeps A's own identity. Section 6's two permissions.         |
+| §2.1   | `resource`/`audience`/`scope` definitions; multiple values permitted, which this server refuses — section 4.            |
+| §2.1   | "no tight linkage" between input and output tokens; revocation propagation is implementation-specific — section 9.      |
+| §2.1   | An exchange has no effect on the subject token's validity — section 18's "does not consume".                            |
+| §2.2.1 | `issued_token_type` REQUIRED; `scope` REQUIRED when it differs from the request — section 10.                           |
+| §2.2.2 | `invalid_request` is a **MUST** for an invalid or policy-rejected subject or actor token — section 4.                   |
+| §2.2.2 | `invalid_target` for a target the server will not issue for — sections 4 and 7.                                         |
+| §4.1   | The outermost `act` is the current actor; consumers MUST consider only it — section 8.                                  |
+| §4.4   | `may_act` authorizes a party "to become the actor" — section 6's corrected check.                                       |
+| —      | **No clause bounds the issued token's scope by the subject token's.** Attenuation is this project's policy — section 7. |
+
 ## 17. Assumptions, and the spikes that settle them
 
 Per ADR-adjacent practice from P0: a claim about third-party behaviour is
@@ -398,6 +518,10 @@ spiked before the task that depends on it.
   presented as `subject_token` is read through `byHash` and neither
   consumed nor rotated; exchange is not a refresh, and treating it as one
   would make a single exchange invalidate the caller's own credential.
+- **Does an exchange extend the user's session?** No. It checks liveness and
+  does not `touch`, unlike rotation. Section 9.
+- **How long does the issued token live?** No longer than the token
+  presented for it. Section 9.
 - **May a client exchange a token it was not issued?** Yes, for
   `access_token` and `refresh_token` — that is the resource-server case the
   RFC is written for. **No, for `id_token`**: its `aud` must contain the
