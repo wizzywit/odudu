@@ -606,7 +606,6 @@ describe('[ODUDU-TOKEN-EXCHANGE-ACTOR-01] the actor token is checked too', () =>
 async function withMayAct(accessToken: string, sub: string): Promise<string> {
   const claims = decode(accessToken);
   const key = await withTenant(app.db, TENANT_ID, (tx) => signingKeyRepository(tx).active());
-  if (key === null) throw new Error('expected an active signing key');
   return signJwt({ ...claims, may_act: { sub } }, { key, kek: KEK, typ: 'at+jwt' });
 }
 
