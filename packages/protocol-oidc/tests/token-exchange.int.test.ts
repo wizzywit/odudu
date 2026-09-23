@@ -282,7 +282,11 @@ beforeAll(async () => {
   appHandle = createDatabase(appUrl, { max: 5 });
   app = appHandle;
 
-  fakeClock = new FakeClock(new Date());
+  // Rounded to a whole second: every claim this suite mints (`iat`, `exp`)
+  // is itself whole seconds, so a fractional start here would make an
+  // expires_in computed from a ms difference round differently from one
+  // computed by subtracting two already-floored second counts.
+  fakeClock = new FakeClock(new Date(Math.floor(Date.now() / 1000) * 1000));
   http = Fastify();
   await http.register(formbody);
   await http.register(
@@ -451,8 +455,11 @@ function decodeExp(token: string): number {
   return exp;
 }
 
-function nowSeconds(): number {
-  return Math.floor(Date.now() / 1000);
+// Reads the same clock `/token` itself reads (`fakeClock`, wired into
+// `http` above) — the real wall clock would make a ttl-ceiling assertion
+// flaky by the runtime's own timing, not by anything this file controls.
+function fakeNowSeconds(): number {
+  return Math.floor(fakeClock.now().getTime() / 1000);
 }
 
 // Matches the `accessTokenTtlSeconds` this file's own setupTenant configures
@@ -638,30 +645,136 @@ describe('[ODUDU-TOKEN-EXCHANGE-01] the grant end to end', () => {
       subjectToken: subject.accessToken,
       requestedTokenType: 'urn:ietf:params:oauth:token-type:refresh_token',
     });
-    const body = response.json<{ issued_token_type?: string; access_token: string }>();
+    const body = response.json<{
+      issued_token_type?: string;
+      token_type?: string;
+      access_token: string;
+    }>();
     expect(body.issued_token_type).toBe('urn:ietf:params:oauth:token-type:refresh_token');
+    expect(body.token_type).toBe('N_A');
     expect(body.access_token).toEqual(expect.any(String));
   });
 });
 
+describe('[ODUDU-TOKEN-EXCHANGE-ORACLE-01] impersonation is refused before the subject token is read', () => {
+  it('refuses with unauthorized_client even for a garbage subject token', async () => {
+    const restrictedClientId = 'token-exchange-no-impersonation-client';
+    const restrictedSecret = 'token-exchange-no-impersonation-secret';
+    const restrictedDbId = newId();
+    await withTenant(app.db, TENANT_ID, async (tx) => {
+      await tx.insert(clients).values({
+        id: restrictedDbId,
+        tenantId: TENANT_ID,
+        clientId: restrictedClientId,
+        name: 'No impersonation client',
+        type: 'confidential',
+        secretHash: await hashPassword(restrictedSecret),
+      });
+      // tokenExchangeImpersonationAllowed defaults to false — never set here.
+      await clientOidcConfigRepository(tx).create({
+        clientId: restrictedDbId,
+        tenantId: TENANT_ID,
+        // client_oidc_config_redirect_uris_present requires a non-empty
+        // list for any grant list other than exactly ['client_credentials'].
+        redirectUris: [REDIRECT_URI],
+        grantTypes: [TOKEN_EXCHANGE_GRANT],
+        tokenEndpointAuthMethod: 'client_secret_basic',
+        audiences: [],
+        accessTokenTtlSeconds: 300,
+        refreshTokenTtlSeconds: 1_209_600,
+      });
+    });
+
+    const form = new URLSearchParams({
+      grant_type: TOKEN_EXCHANGE_GRANT,
+      subject_token: 'not-a-real-token',
+      subject_token_type: 'urn:ietf:params:oauth:token-type:access_token',
+    });
+    const response = await http.inject({
+      method: 'POST',
+      url: `/tenants/${TENANT}/protocol/openid-connect/token`,
+      payload: form.toString(),
+      headers: {
+        'content-type': 'application/x-www-form-urlencoded',
+        authorization: basicAuth(restrictedClientId, restrictedSecret),
+      },
+    });
+
+    // invalid_request would mean the subject token was resolved (and
+    // refused) before the impersonation permission was ever checked —
+    // exactly the ordering that turns this response into an oracle for
+    // the subject token's own validity.
+    expect(response.statusCode).toBe(400);
+    expect(response.json<{ error?: string }>()).toMatchObject({ error: 'unauthorized_client' });
+  });
+});
+
 describe('[ODUDU-TOKEN-EXCHANGE-EXPIRY-01] the issued token is capped at the subject token', () => {
-  it('caps the issued token at the subject token exp', async () => {
+  it('caps the issued access token exp exactly at the subject token exp', async () => {
     const subject = await loginAndGetToken();
     await allowImpersonation(CLIENT_ID);
     const subjectExp = decodeExp(subject.accessToken);
 
+    // Moves past the subject token's own mint instant, so the exchange's
+    // own ttl-based exp (fakeNow + ttl) would land strictly later than the
+    // subject's — the only way this test can tell a real cap from the two
+    // simply coinciding by construction.
+    advanceClock(60_000);
     const response = await exchange({ subjectToken: subject.accessToken });
-    expect(decodeExp(response.json<{ access_token: string }>().access_token)).toBeLessThanOrEqual(
-      subjectExp,
-    );
+    const body = response.json<{ access_token: string; expires_in: number }>();
+    const claims = decode(body.access_token);
+    const exp = decodeExp(body.access_token);
+    const iat = claims.iat;
+    if (typeof iat !== 'number') throw new Error('expected a numeric iat claim');
+
+    expect(exp).toBe(subjectExp);
+    expect(exp).toBeLessThan(fakeNowSeconds() + ACCESS_TOKEN_TTL_SECONDS);
+    // The defect this pins: expires_in must report the capped lifetime,
+    // not the configured ttl regardless of the cap.
+    expect(body.expires_in).toBe(exp - iat);
+    expect(body.expires_in).toBeLessThan(ACCESS_TOKEN_TTL_SECONDS);
   });
 
-  it('never extends beyond the configured ttl either', async () => {
+  it('caps the issued id_token exp and its expires_in the same way', async () => {
+    const subject = await loginAndGetToken({ scope: 'openid' });
+    await allowImpersonation(CLIENT_ID);
+    const subjectExp = decodeExp(subject.accessToken);
+
+    advanceClock(60_000);
+    const response = await exchange({
+      subjectToken: subject.accessToken,
+      requestedTokenType: 'urn:ietf:params:oauth:token-type:id_token',
+    });
+    const body = response.json<{ access_token: string; expires_in: number; token_type?: string }>();
+    const claims = decode(body.access_token);
+    const exp = decodeExp(body.access_token);
+    const iat = claims.iat;
+    if (typeof iat !== 'number') throw new Error('expected a numeric iat claim');
+
+    expect(exp).toBe(subjectExp);
+    expect(body.expires_in).toBe(exp - iat);
+    // RFC 8693 §2.2.1: not an access token.
+    expect(body.token_type).toBe('N_A');
+  });
+
+  it('caps the issued refresh_token expires_in the same way', async () => {
     const subject = await loginAndGetToken();
     await allowImpersonation(CLIENT_ID);
-    const response = await exchange({ subjectToken: subject.accessToken });
-    const exp = decodeExp(response.json<{ access_token: string }>().access_token);
-    expect(exp).toBeLessThanOrEqual(nowSeconds() + ACCESS_TOKEN_TTL_SECONDS);
+    const subjectExp = decodeExp(subject.accessToken);
+
+    advanceClock(60_000);
+    const response = await exchange({
+      subjectToken: subject.accessToken,
+      requestedTokenType: 'urn:ietf:params:oauth:token-type:refresh_token',
+    });
+    const body = response.json<{ expires_in: number; token_type?: string }>();
+
+    // The refresh token itself is opaque, so the capped ceiling is checked
+    // against the same subject exp and clock every other case in this
+    // describe uses, not by decoding it.
+    expect(body.expires_in).toBe(subjectExp - fakeNowSeconds());
+    expect(body.expires_in).toBeLessThan(1_209_600);
+    expect(body.token_type).toBe('N_A');
   });
 });
 

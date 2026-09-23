@@ -115,7 +115,11 @@ export interface TokenResponse {
   access_token: string;
   id_token?: string;
   refresh_token?: string;
-  token_type: 'Bearer';
+  // RFC 8693 §2.2.1: 'N_A' when the issued token named in `access_token`
+  // above is not itself an access token — an id_token or a refresh_token
+  // exchange, neither of which is a bearer credential of the kind this
+  // names.
+  token_type: 'Bearer' | 'N_A';
   expires_in: number;
   scope: string;
   // RFC 8693 §2.2.1: names what `access_token` actually holds on an
@@ -996,6 +1000,15 @@ async function issueExchangedTokens(
       ? 'access_token'
       : accepted(request.requestedTokenType);
 
+  // Impersonation is the branch with no actor recorded, so it is the one
+  // the per-client permission gates (client-oidc-config.ts's own comment
+  // on the column) — checked before the subject token is ever resolved, so
+  // an unpermitted client cannot use this response to learn whether the
+  // subject token it sent would otherwise have been valid.
+  if (request.actorToken === undefined && !config.tokenExchangeImpersonationAllowed) {
+    throw unauthorizedClient();
+  }
+
   const now = deps.clock.now();
   const resolveDeps: ResolveDeps = {
     issuer: deps.issuer,
@@ -1015,11 +1028,6 @@ async function issueExchangedTokens(
       ? null
       : await resolveExchangeToken(tx, resolveDeps, actorType, request.actorToken);
   if (actor !== null && actor.kind !== 'ok') throw invalidRequest();
-
-  // Impersonation is the branch with no actor recorded, so it is the one
-  // the per-client permission gates (client-oidc-config.ts's own comment on
-  // the column).
-  if (actor === null && !config.tokenExchangeImpersonationAllowed) throw unauthorizedClient();
 
   const actorSubject = actor === null ? client.clientId : actor.token.subjectId;
   if (!mayActPermits(subject.token.mayAct, actorSubject)) throw invalidRequest();
@@ -1063,17 +1071,20 @@ async function issueExchangedTokens(
       exchangedFromGrantId: subject.token.grantId,
     });
     const refreshToken = generateRefreshToken();
+    const refreshExpiresAt =
+      expCeiling ?? new Date(now.getTime() + config.refreshTokenTtlSeconds * 1000);
     await refreshTokenRepository(tx).create({
       tokenHash: hashRefreshToken(refreshToken),
       tenantId: deps.tenantId,
       grantId,
-      expiresAt: expCeiling ?? new Date(now.getTime() + config.refreshTokenTtlSeconds * 1000),
+      expiresAt: refreshExpiresAt,
     });
 
     return {
       access_token: refreshToken,
-      token_type: 'Bearer',
-      expires_in: config.refreshTokenTtlSeconds,
+      // RFC 8693 §2.2.1: not an access token.
+      token_type: 'N_A',
+      expires_in: Math.floor((refreshExpiresAt.getTime() - now.getTime()) / 1000),
       scope: scope.join(' '),
       issued_token_type: 'urn:ietf:params:oauth:token-type:refresh_token',
     };
@@ -1092,12 +1103,13 @@ async function issueExchangedTokens(
     const iat = Math.floor(now.getTime() / 1000);
     const ttlExp = iat + config.accessTokenTtlSeconds;
     const ceiling = expCeiling === undefined ? ttlExp : Math.floor(expCeiling.getTime() / 1000);
+    const exp = Math.min(ttlExp, ceiling);
     const idTokenClaims = withRegisteredClaimsWinning(mapped, {
       iss: deps.issuer,
       sub: subject.token.subjectId,
       aud: client.clientId,
       iat,
-      exp: Math.min(ttlExp, ceiling),
+      exp,
       ...(subject.token.sessionId !== null ? { sid: subject.token.sessionId } : {}),
       ...(act === undefined ? {} : { act }),
     });
@@ -1105,8 +1117,9 @@ async function issueExchangedTokens(
 
     return {
       access_token: idToken,
-      token_type: 'Bearer',
-      expires_in: config.accessTokenTtlSeconds,
+      // RFC 8693 §2.2.1: not an access token.
+      token_type: 'N_A',
+      expires_in: exp - iat,
       scope: scope.join(' '),
       issued_token_type: 'urn:ietf:params:oauth:token-type:id_token',
     };
@@ -1116,7 +1129,7 @@ async function issueExchangedTokens(
   const key = await signingKeyRepository(tx).active();
   const grantId = newId();
 
-  const { accessToken, audience } = await mintAccessToken(
+  const { accessToken, audience, iat, exp } = await mintAccessToken(
     deps,
     {
       subjectId: subject.token.subjectId,
@@ -1152,7 +1165,7 @@ async function issueExchangedTokens(
   return {
     access_token: accessToken,
     token_type: 'Bearer',
-    expires_in: config.accessTokenTtlSeconds,
+    expires_in: exp - iat,
     scope: scope.join(' '),
     issued_token_type: 'urn:ietf:params:oauth:token-type:access_token',
   };
