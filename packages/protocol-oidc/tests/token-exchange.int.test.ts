@@ -855,6 +855,10 @@ describe('[ODUDU-TOKEN-EXCHANGE-ROTATION-01] a rotated exchanged refresh token k
     // The whole point of a delegated credential: `act` must survive
     // rotation, nesting intact, not just the token minted at exchange time.
     expect(decode(firstBody.access_token).act).toEqual(expectedAct);
+    // Three distinct subjects are in play here (delegateHolder, innerActor,
+    // and this subject) — sub must stay the original subject's, never the
+    // delegate holder's or the inner actor's, through a rotation.
+    expect(decode(firstBody.access_token).sub).toBe(subject.subjectId);
     expect(decodeExp(firstBody.access_token)).toBe(subjectExp);
     expect(decodeExp(firstBody.access_token)).toBeLessThan(uncappedExp);
 
@@ -864,6 +868,7 @@ describe('[ODUDU-TOKEN-EXCHANGE-ROTATION-01] a rotated exchanged refresh token k
     expect(secondRotation.statusCode).toBe(200);
     const secondBody = secondRotation.json<{ access_token: string; refresh_token: string }>();
     expect(decode(secondBody.access_token).act).toEqual(expectedAct);
+    expect(decode(secondBody.access_token).sub).toBe(subject.subjectId);
     expect(decodeExp(secondBody.access_token)).toBe(subjectExp);
     expect(decodeExp(secondBody.access_token)).toBeLessThan(uncappedExp);
   });
