@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseTokenType } from '#/service/token-exchange';
+import { parseTokenType, resolveExchangeAudience } from '#/service/token-exchange';
 
 describe('[ODUDU-TOKEN-EXCHANGE-TYPES-01] RFC 8693 §3 token type identifiers', () => {
   it.each([
@@ -31,5 +31,99 @@ describe('[ODUDU-TOKEN-EXCHANGE-TYPES-01] RFC 8693 §3 token type identifiers', 
 
   it('does not accept a type by suffix alone', () => {
     expect(parseTokenType('urn:evil:token-type:access_token')).toBe('unknown');
+  });
+});
+
+const CEILING = ['https://api.example', 'https://other.example'];
+
+describe('[ODUDU-TOKEN-EXCHANGE-AUD-01] the exchange audience', () => {
+  it('narrows to a named resource inside the ceiling', () => {
+    const out = resolveExchangeAudience({
+      resource: 'https://api.example',
+      audience: undefined,
+      ceiling: CEILING,
+      issuedType: 'access_token',
+    });
+    expect(out).toEqual({ kind: 'ok', audience: ['https://api.example'] });
+  });
+
+  it('accepts a logical audience without URI parsing', () => {
+    const out = resolveExchangeAudience({
+      resource: undefined,
+      audience: 'https://other.example',
+      ceiling: CEILING,
+      issuedType: 'access_token',
+    });
+    expect(out).toEqual({ kind: 'ok', audience: ['https://other.example'] });
+  });
+
+  it('refuses a target outside the ceiling', () => {
+    expect(
+      resolveExchangeAudience({
+        resource: 'https://elsewhere.example',
+        audience: undefined,
+        ceiling: CEILING,
+        issuedType: 'access_token',
+      }),
+    ).toEqual({ kind: 'invalid_target' });
+  });
+
+  // RFC 8693 §2.1 permits several; this server issues single-audience
+  // tokens, a decision RFC 8707 already made.
+  it('refuses more than one target', () => {
+    expect(
+      resolveExchangeAudience({
+        resource: ['https://api.example', 'https://other.example'],
+        audience: undefined,
+        ceiling: CEILING,
+        issuedType: 'access_token',
+      }),
+    ).toEqual({ kind: 'invalid_target' });
+  });
+
+  it('refuses resource and audience naming different targets', () => {
+    expect(
+      resolveExchangeAudience({
+        resource: 'https://api.example',
+        audience: 'https://other.example',
+        ceiling: CEILING,
+        issuedType: 'access_token',
+      }),
+    ).toEqual({ kind: 'invalid_target' });
+  });
+
+  it('accepts resource and audience naming the same target', () => {
+    expect(
+      resolveExchangeAudience({
+        resource: 'https://api.example',
+        audience: 'https://api.example',
+        ceiling: CEILING,
+        issuedType: 'access_token',
+      }),
+    ).toEqual({ kind: 'ok', audience: ['https://api.example'] });
+  });
+
+  // An ID token's aud is the requesting client, fixed by OIDC Core, so
+  // naming a target for one is refused rather than ignored.
+  it('refuses a target named for an id_token', () => {
+    expect(
+      resolveExchangeAudience({
+        resource: 'https://api.example',
+        audience: undefined,
+        ceiling: CEILING,
+        issuedType: 'id_token',
+      }),
+    ).toEqual({ kind: 'invalid_target' });
+  });
+
+  it('allows an id_token with no target named', () => {
+    expect(
+      resolveExchangeAudience({
+        resource: undefined,
+        audience: undefined,
+        ceiling: CEILING,
+        issuedType: 'id_token',
+      }),
+    ).toEqual({ kind: 'ok', audience: [] });
   });
 });
