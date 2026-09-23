@@ -263,6 +263,20 @@ stale union is worse than an absent one.
   0007 or amend it. `verified:` `z.toJSONSchema` exists in Zod 4.6.1 and
   emits draft 2020-12, the dialect OpenAPI 3.1 uses.
 
+**`token_grants_session_fk` (0026_token_grants_session.sql) has the same
+unrestricted-`ON DELETE SET NULL` defect P4a's review caught in 0059:
+deleting a session would null `tenant_id` alongside `session_id`, and the
+delete would fail its NOT NULL constraint rather than detach the grant —
+the comment beside it, claiming the delete "would otherwise silently
+promote a session-bound grant to an offline one", describes behaviour
+PostgreSQL does not have. Nothing has hit this: `REAP_ORDER`
+(`apps/server/src/cli/reap.ts`) deletes `token_grants` before `sessions`,
+so reap never deletes a session a live grant references. The fix is the
+same column-list form: `ON DELETE SET NULL (session_id)`.
+
+- Trigger: the next migration that touches `token_grants` for an unrelated
+  reason.
+
 ### The session set
 
 **The cap is per browser, and admits `cap + (k - 1)` under `k` concurrent
