@@ -67,3 +67,19 @@ export function resolveExchangeAudience(input: {
     ? { kind: 'ok', audience: [named] }
     : { kind: 'invalid_target' };
 }
+
+// RFC 8693 does not require the issued scope to be a subset of the subject
+// token's; this server requires it as policy, because the agent layer's
+// attenuation check is the consumer and a widening exchange would make that
+// check unenforceable. Case-sensitive, per RFC 6749 §3.3.
+export function attenuateScope(
+  requested: string,
+  granted: readonly string[],
+): { kind: 'ok'; scope: readonly string[] } | { kind: 'widened' } {
+  const asked = [...new Set(requested.split(' ').filter((entry) => entry !== ''))];
+  if (asked.length === 0) return { kind: 'ok', scope: granted };
+  const held = new Set(granted);
+  return asked.every((entry) => held.has(entry))
+    ? { kind: 'ok', scope: asked }
+    : { kind: 'widened' };
+}

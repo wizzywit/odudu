@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseTokenType, resolveExchangeAudience } from '#/service/token-exchange';
+import { attenuateScope, parseTokenType, resolveExchangeAudience } from '#/service/token-exchange';
 
 describe('[ODUDU-TOKEN-EXCHANGE-TYPES-01] RFC 8693 §3 token type identifiers', () => {
   it.each([
@@ -125,5 +125,41 @@ describe('[ODUDU-TOKEN-EXCHANGE-AUD-01] the exchange audience', () => {
         issuedType: 'id_token',
       }),
     ).toEqual({ kind: 'ok', audience: [] });
+  });
+});
+
+describe('[ODUDU-TOKEN-EXCHANGE-SCOPE-01] scope never widens', () => {
+  const GRANTED = ['openid', 'profile', 'reports:read'];
+
+  it('carries the granted scope when none is requested', () => {
+    expect(attenuateScope('', GRANTED)).toEqual({ kind: 'ok', scope: GRANTED });
+  });
+
+  it('narrows to a requested subset', () => {
+    expect(attenuateScope('openid reports:read', GRANTED)).toEqual({
+      kind: 'ok',
+      scope: ['openid', 'reports:read'],
+    });
+  });
+
+  it('refuses a scope the subject never held', () => {
+    expect(attenuateScope('reports:write', GRANTED)).toEqual({ kind: 'widened' });
+  });
+
+  // The failure modes a real caller produces, none of which may widen.
+  it('tolerates repeated and padded separators without widening', () => {
+    expect(attenuateScope('  openid   openid  ', GRANTED)).toEqual({
+      kind: 'ok',
+      scope: ['openid'],
+    });
+  });
+
+  it('refuses a near-miss rather than matching loosely', () => {
+    expect(attenuateScope('Reports:read', GRANTED)).toEqual({ kind: 'widened' });
+    expect(attenuateScope('reports:read2', GRANTED)).toEqual({ kind: 'widened' });
+  });
+
+  it('refuses when one of several requested scopes is not held', () => {
+    expect(attenuateScope('openid reports:write', GRANTED)).toEqual({ kind: 'widened' });
   });
 });
