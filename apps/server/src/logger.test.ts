@@ -76,6 +76,93 @@ describe('createLogger', () => {
     expect(lines()).toContain('/authorize');
   });
 
+  it('strips the query string from a logged location header', () => {
+    const { stream, lines } = capture();
+    const logger = createLogger(config, stream);
+
+    logger.info(
+      {
+        res: {
+          statusCode: 302,
+          getHeaders: () => ({
+            location: 'https://client.example/cb?code=super-secret-code&state=super-secret-state',
+          }),
+        },
+      },
+      'request completed',
+    );
+
+    expect(lines()).not.toContain('super-secret-code');
+    expect(lines()).not.toContain('super-secret-state');
+    expect(lines()).toContain('https://client.example/cb');
+  });
+
+  it('strips the fragment from a logged location header', () => {
+    const { stream, lines } = capture();
+    const logger = createLogger(config, stream);
+
+    logger.info(
+      {
+        res: {
+          statusCode: 302,
+          getHeaders: () => ({
+            location: 'https://client.example/cb#code=super-secret-code&state=super-secret-state',
+          }),
+        },
+      },
+      'request completed',
+    );
+
+    expect(lines()).not.toContain('super-secret-code');
+    expect(lines()).not.toContain('super-secret-state');
+    expect(lines()).toContain('https://client.example/cb');
+  });
+
+  it('drops a response header that is not on the allowlist', () => {
+    const { stream, lines } = capture();
+    const logger = createLogger(config, stream);
+
+    logger.info(
+      {
+        res: {
+          statusCode: 200,
+          getHeaders: () => ({
+            'content-security-policy': "script-src 'nonce-super-secret-nonce'",
+          }),
+        },
+      },
+      'request completed',
+    );
+
+    expect(lines()).not.toContain('super-secret-nonce');
+    expect(lines()).not.toContain('content-security-policy');
+  });
+
+  it('keeps the diagnostic response headers', () => {
+    const { stream, lines } = capture();
+    const logger = createLogger(config, stream);
+
+    logger.info(
+      {
+        res: {
+          statusCode: 401,
+          getHeaders: () => ({
+            'www-authenticate': 'Bearer realm="alpha", error="invalid_token"',
+            'content-type': 'application/json',
+            'cache-control': 'no-store',
+            'retry-after': '30',
+          }),
+        },
+      },
+      'request completed',
+    );
+
+    expect(lines()).toContain('invalid_token');
+    expect(lines()).toContain('application/json');
+    expect(lines()).toContain('no-store');
+    expect(lines()).toContain('retry-after');
+  });
+
   it('satisfies the kernel Logger interface', () => {
     const kernelLogger: Logger = createLogger(config);
     expect(typeof kernelLogger.child).toBe('function');
@@ -132,7 +219,38 @@ describe('createLogger', () => {
     expect(lines()).toContain('/authorize-probe');
   });
 
-  it('redacts a real set-cookie response header logged through the running app', async () => {
+  it('drops the authorization code from a real redirect logged through the running app', async () => {
+    const { stream, lines } = capture();
+    const logger = createLogger(config, stream);
+    const database: DatabaseHandle = {
+      db: {} as DatabaseHandle['db'],
+      sql: (() => Promise.resolve([{ ok: 1 }])) as unknown as DatabaseHandle['sql'],
+      close: () => Promise.resolve(),
+    };
+    const app = buildApp({
+      database,
+      ownerDatabase: database,
+      kek: config.ODUDU_KEK,
+      logger,
+    });
+    app.get('/authorize-redirect-probe', (_request, reply) =>
+      reply
+        .code(302)
+        .header(
+          'location',
+          'https://client.example/cb?code=super-secret-code&state=super-secret-state',
+        )
+        .send(),
+    );
+
+    await app.inject({ method: 'GET', url: '/authorize-redirect-probe' });
+
+    expect(lines()).not.toContain('super-secret-code');
+    expect(lines()).not.toContain('super-secret-state');
+    expect(lines()).toContain('https://client.example/cb');
+  });
+
+  it('drops a real set-cookie response header logged through the running app', async () => {
     const { stream, lines } = capture();
     const logger = createLogger(config, stream);
     const database: DatabaseHandle = {
@@ -154,6 +272,6 @@ describe('createLogger', () => {
     await app.inject({ method: 'GET', url: '/set-cookie-probe' });
 
     expect(lines()).not.toContain('super-secret-cookie-value');
-    expect(lines()).toContain('[redacted]');
+    expect(lines()).not.toContain('set-cookie');
   });
 });
