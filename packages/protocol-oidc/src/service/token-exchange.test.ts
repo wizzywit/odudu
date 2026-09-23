@@ -4,6 +4,7 @@ import {
   buildActChain,
   MAX_DELEGATION_DEPTH,
   mayActPermits,
+  narrowActClaim,
   parseTokenType,
   resolveExchangeAudience,
 } from '#/service/token-exchange';
@@ -221,6 +222,28 @@ describe('[ODUDU-TOKEN-EXCHANGE-ACT-01] the delegation chain', () => {
     const looped: Record<string, unknown> = { sub: 'a' };
     looped.act = looped;
     expect(buildActChain('actor', looped)).toEqual({ kind: 'too_deep' });
+  });
+});
+
+// The read side of a persisted token_grants.act_chain — reuses narrowAct,
+// so this is deliberately a thinner suite than ACT-01's, not a second copy
+// of it. A single-level chain passes whether or not nesting round-trips at
+// all, so the case that matters here is the one with a level beneath it.
+describe('[ODUDU-TOKEN-EXCHANGE-ACT-02] narrowing a persisted act chain', () => {
+  it('round-trips a nested chain, not just a single level', () => {
+    expect(narrowActClaim({ sub: 'a', act: { sub: 'b' } })).toEqual({
+      sub: 'a',
+      act: { sub: 'b' },
+    });
+  });
+
+  it('treats absent, malformed or too-deep alike as null', () => {
+    expect(narrowActClaim(null)).toBeNull();
+    expect(narrowActClaim(undefined)).toBeNull();
+    expect(narrowActClaim({ notSub: 1 })).toBeNull();
+    let act: unknown = { sub: 'root' };
+    for (let i = 0; i < MAX_DELEGATION_DEPTH + 1; i += 1) act = { sub: `a${String(i)}`, act };
+    expect(narrowActClaim(act)).toBeNull();
   });
 });
 

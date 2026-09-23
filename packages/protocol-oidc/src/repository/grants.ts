@@ -35,6 +35,8 @@ function toRecord(row: typeof tokenGrants.$inferSelect): TokenGrantRecord {
     sessionId: row.sessionId,
     actorSubjectId: row.actorSubjectId,
     exchangedFromGrantId: row.exchangedFromGrantId,
+    actChain: row.actChain,
+    expCeiling: row.expCeiling,
   };
 }
 
@@ -51,6 +53,18 @@ export interface NewTokenGrant {
   scope: string;
   audience: string[];
   sessionId?: string | null;
+  // Both null for every grant this table has ever held before RFC 8693 —
+  // present together only on an exchanged grant, which records who acted
+  // (the token's own `act.sub`) and which grant it was exchanged from.
+  actorSubjectId?: string | null;
+  exchangedFromGrantId?: string | null;
+  // The `act` claim issued on this grant's own access token, if any — see
+  // the column's own comment in schema/token-grants.ts for why the whole
+  // chain is kept rather than just `actorSubjectId`.
+  actChain?: unknown;
+  // The ceiling `mintAccessToken`'s own `expCeiling` applied when this
+  // grant was minted, so a refresh rotation can reapply it.
+  expCeiling?: Date | null;
 }
 
 export function tokenGrantRepository(tx: TenantScopedDatabase) {
@@ -66,6 +80,10 @@ export function tokenGrantRepository(tx: TenantScopedDatabase) {
           scope: input.scope,
           audience: input.audience,
           sessionId: input.sessionId ?? null,
+          actorSubjectId: input.actorSubjectId ?? null,
+          exchangedFromGrantId: input.exchangedFromGrantId ?? null,
+          actChain: input.actChain ?? null,
+          expCeiling: input.expCeiling ?? null,
         })
         .returning();
       const row = rows[0];

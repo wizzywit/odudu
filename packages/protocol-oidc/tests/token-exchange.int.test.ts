@@ -9,11 +9,18 @@ import {
   type DatabaseHandle,
   type TenantScopedDatabase,
 } from '@odudu/db';
-import { provisionTenant, type SessionLifespans } from '@odudu/authn-flows';
-import { clients, provisionClientDefaults } from '@odudu/domain-tenant';
-import { newId } from '@odudu/kernel';
+import { provisionTenant, sessionRepository, type SessionLifespans } from '@odudu/authn-flows';
+import { roleRepository } from '@odudu/domain-authz';
+import {
+  clientRepository,
+  clients,
+  clientScopeRepository,
+  provisionClientDefaults,
+} from '@odudu/domain-tenant';
+import { FakeClock, newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import formbody from '@fastify/formbody';
+import { eq } from 'drizzle-orm';
 import Fastify, { type FastifyInstance, type LightMyRequestResponse } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { oidcRoutes } from '#/index';
@@ -21,6 +28,9 @@ import { NO_CLIENT_KEY_FETCHER } from '#/repository/client-keys';
 import { UNLIMITED_CLIENT_SECRET_LIMITER } from '#/service/client-secret-throttle';
 import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
 import { tokenGrantRepository } from '#/repository/grants';
+import { refreshTokenRepository } from '#/repository/refresh';
+import { clientOidcConfig } from '#/schema/client-oidc-config';
+import { hashRefreshToken } from '#/service/refresh';
 import { TOKEN_EXCHANGE_GRANT } from '#/service/token-exchange';
 import { resolveExchangeToken, type ResolveDeps } from '#/usecase/token-exchange-subject';
 
@@ -62,6 +72,10 @@ const GENEROUS_LIFESPANS: SessionLifespans = {
 let TENANT: string;
 let TENANT_ID: string;
 let resolveDeps: ResolveDeps;
+// Shared by every route this file's `http` serves — advanced only by the
+// one test that needs to tell "no time passed" from "nothing touched the
+// session regardless of time", never reset.
+let fakeClock: FakeClock;
 
 async function setupTenant(name: string, tenantId: string): Promise<void> {
   const clientDbId = newId();
@@ -81,9 +95,9 @@ async function setupTenant(name: string, tenantId: string): Promise<void> {
       clientId: clientDbId,
       tenantId,
       redirectUris: [REDIRECT_URI],
-      grantTypes: ['authorization_code', 'refresh_token'],
+      grantTypes: ['authorization_code', 'refresh_token', TOKEN_EXCHANGE_GRANT],
       tokenEndpointAuthMethod: 'client_secret_basic',
-      audiences: [],
+      audiences: ['https://api.example'],
       accessTokenTtlSeconds: 300,
       refreshTokenTtlSeconds: 1_209_600,
     });
@@ -121,12 +135,12 @@ async function setupTenant(name: string, tenantId: string): Promise<void> {
   });
 }
 
-function authorizeUrl(tenantName: string): string {
+function authorizeUrl(tenantName: string, scope: string): string {
   const params = new URLSearchParams({
     response_type: 'code',
     client_id: CLIENT_ID,
     redirect_uri: REDIRECT_URI,
-    scope: 'openid',
+    scope,
     state: 'xyz',
     code_challenge: CHALLENGE,
     code_challenge_method: 'S256',
@@ -195,14 +209,23 @@ interface LoggedInToken {
   sessionId: string;
   subjectId: string;
   grantId: string;
+  // Set only when the requested scope carried `offline_access`: the same
+  // `accessToken` above, named for what distinguishes it in that case — its
+  // grant carries no session, unlike `sessionId`, still the browser's own
+  // login session and still endable.
+  offlineAccessToken?: string;
 }
 
 // Signs USERNAME/PASSWORD in against a fresh authorization request, all the
 // way through to a redeemed grant — the fixture shape resource-token.int
 // .test.ts and sid-claim.int.test.ts both use, extended to also read back
 // the subject and grant a resolution should recover.
-async function loginAndGetToken(tenantName = TENANT): Promise<LoggedInToken> {
-  const authorize = await http.inject({ url: authorizeUrl(tenantName) });
+async function loginAndGetToken(
+  options: { tenantName?: string; scope?: string } = {},
+): Promise<LoggedInToken> {
+  const tenantName = options.tenantName ?? TENANT;
+  const scope = options.scope ?? 'openid';
+  const authorize = await http.inject({ url: authorizeUrl(tenantName, scope) });
   if (authorize.statusCode !== 200) {
     throw new Error(
       `expected /authorize to render the login form, got ${String(authorize.statusCode)}`,
@@ -249,6 +272,9 @@ async function loginAndGetToken(tenantName = TENANT): Promise<LoggedInToken> {
     sessionId,
     subjectId,
     grantId,
+    ...(scope.split(' ').includes('offline_access')
+      ? { offlineAccessToken: redeemed.access_token }
+      : {}),
   };
 }
 
@@ -264,6 +290,11 @@ beforeAll(async () => {
   appHandle = createDatabase(appUrl, { max: 5 });
   app = appHandle;
 
+  // Rounded to a whole second: every claim this suite mints (`iat`, `exp`)
+  // is itself whole seconds, so a fractional start here would make an
+  // expires_in computed from a ms difference round differently from one
+  // computed by subtracting two already-floored second counts.
+  fakeClock = new FakeClock(new Date(Math.floor(Date.now() / 1000) * 1000));
   http = Fastify();
   await http.register(formbody);
   await http.register(
@@ -271,6 +302,7 @@ beforeAll(async () => {
       database: app,
       ownerDatabase: owner,
       kek: KEK,
+      clock: fakeClock,
       clientSecretLimiter: UNLIMITED_CLIENT_SECRET_LIMITER,
       clientKeySet: NO_CLIENT_KEY_FETCHER,
     }),
@@ -282,7 +314,7 @@ beforeAll(async () => {
   TENANT_ID = newId();
   await setupTenant(TENANT, TENANT_ID);
 
-  const seed = await loginAndGetToken(TENANT);
+  const seed = await loginAndGetToken();
   resolveDeps = {
     issuer: issuerOf(decode(seed.accessToken)),
     requestingClientId: CLIENT_ID,
@@ -327,7 +359,9 @@ describe('[ODUDU-TOKEN-EXCHANGE-SUBJECT-01] an access token as subject_token', (
     const foreignTenant = `token-exchange-foreign-${newId()}`;
     const foreignTenantId = newId();
     await setupTenant(foreignTenant, foreignTenantId);
-    const { accessToken: foreignAccessToken } = await loginAndGetToken(foreignTenant);
+    const { accessToken: foreignAccessToken } = await loginAndGetToken({
+      tenantName: foreignTenant,
+    });
 
     const outcome = await withTenant(app.db, TENANT_ID, (tx) =>
       resolveExchangeToken(tx, resolveDeps, 'access_token', foreignAccessToken),
@@ -391,15 +425,29 @@ describe('[ODUDU-TOKEN-EXCHANGE-SUBJECT-02] a refresh token as subject_token', (
 
 async function exchange(input: {
   subjectToken: string;
-  actorToken: string;
+  subjectTokenType?: string;
+  actorToken?: string;
+  actorTokenType?: string;
+  requestedTokenType?: string;
+  resource?: string;
+  scope?: string;
 }): Promise<LightMyRequestResponse> {
-  const form = new URLSearchParams({
+  const fields: Record<string, string> = {
     grant_type: TOKEN_EXCHANGE_GRANT,
     subject_token: input.subjectToken,
-    subject_token_type: 'urn:ietf:params:oauth:token-type:access_token',
-    actor_token: input.actorToken,
-    actor_token_type: 'urn:ietf:params:oauth:token-type:access_token',
-  });
+    subject_token_type: input.subjectTokenType ?? 'urn:ietf:params:oauth:token-type:access_token',
+  };
+  if (input.actorToken !== undefined) {
+    fields.actor_token = input.actorToken;
+    fields.actor_token_type =
+      input.actorTokenType ?? 'urn:ietf:params:oauth:token-type:access_token';
+  }
+  if (input.requestedTokenType !== undefined)
+    fields.requested_token_type = input.requestedTokenType;
+  if (input.resource !== undefined) fields.resource = input.resource;
+  if (input.scope !== undefined) fields.scope = input.scope;
+
+  const form = new URLSearchParams(fields);
   return http.inject({
     method: 'POST',
     url: `/tenants/${TENANT}/protocol/openid-connect/token`,
@@ -411,6 +459,23 @@ async function exchange(input: {
   });
 }
 
+function decodeExp(token: string): number {
+  const exp = decode(token).exp;
+  if (typeof exp !== 'number') throw new Error('expected a numeric exp claim');
+  return exp;
+}
+
+// Reads the same clock `/token` itself reads (`fakeClock`, wired into
+// `http` above) — the real wall clock would make a ttl-ceiling assertion
+// flaky by the runtime's own timing, not by anything this file controls.
+function fakeNowSeconds(): number {
+  return Math.floor(fakeClock.now().getTime() / 1000);
+}
+
+// Matches the `accessTokenTtlSeconds` this file's own setupTenant configures
+// for CLIENT_ID.
+const ACCESS_TOKEN_TTL_SECONDS = 300;
+
 // Approximates an expired access token by revoking its grant: nothing here
 // controls the real clock jose's own exp check reads inside verifyJwt, so
 // waiting out a TTL is not practical in this suite. resolveAccessToken
@@ -418,6 +483,21 @@ async function exchange(input: {
 // nothing left to tell them apart — which is the boundary this test probes.
 async function expireAccessToken(grantId: string): Promise<void> {
   await withTenant(app.db, TENANT_ID, (tx) => tokenGrantRepository(tx).revoke(grantId, new Date()));
+}
+
+// Impersonation — an exchange with no actor_token — defaults to refused
+// (client-oidc-config.ts), so any test exercising it must opt in first.
+// No repository method flips this one column, so the test reaches for the
+// schema directly rather than adding a single-purpose write method.
+async function allowImpersonation(oauthClientId: string): Promise<void> {
+  await withTenant(app.db, TENANT_ID, async (tx) => {
+    const client = await clientRepository(tx).byClientId(oauthClientId);
+    if (client === null) throw new Error(`unknown client ${oauthClientId}`);
+    await tx
+      .update(clientOidcConfig)
+      .set({ tokenExchangeImpersonationAllowed: true })
+      .where(eq(clientOidcConfig.clientId, client.id));
+  });
 }
 
 describe('[ODUDU-TOKEN-EXCHANGE-SUBJECT-03] an id_token as subject_token', () => {
@@ -454,7 +534,7 @@ describe('[ODUDU-TOKEN-EXCHANGE-SUBJECT-03] an id_token as subject_token', () =>
     const foreignTenant = `token-exchange-foreign-idtoken-${newId()}`;
     const foreignTenantId = newId();
     await setupTenant(foreignTenant, foreignTenantId);
-    const { idToken: foreignIdToken } = await loginAndGetToken(foreignTenant);
+    const { idToken: foreignIdToken } = await loginAndGetToken({ tenantName: foreignTenant });
 
     const outcome = await withTenant(app.db, TENANT_ID, (tx) =>
       resolveExchangeToken(
@@ -468,11 +548,8 @@ describe('[ODUDU-TOKEN-EXCHANGE-SUBJECT-03] an id_token as subject_token', () =>
   });
 });
 
-// /token has no token-exchange grant type wired up until increment 5; these
-// pin what the actor token's own validation must do once it does, and are
-// skipped rather than made to pass against a route that is not there yet.
 describe('[ODUDU-TOKEN-EXCHANGE-ACTOR-01] the actor token is checked too', () => {
-  it.skip('refuses an expired actor token beside a live subject token', async () => {
+  it('refuses an expired actor token beside a live subject token', async () => {
     const subject = await loginAndGetToken();
     const actor = await loginAndGetToken();
     await expireAccessToken(actor.grantId);
@@ -485,7 +562,7 @@ describe('[ODUDU-TOKEN-EXCHANGE-ACTOR-01] the actor token is checked too', () =>
     expect(response.json<{ error?: string }>()).toMatchObject({ error: 'invalid_request' });
   });
 
-  it.skip('refuses an actor token whose grant was revoked', async () => {
+  it('refuses an actor token whose grant was revoked', async () => {
     const subject = await loginAndGetToken();
     const actor = await loginAndGetToken();
     await withTenant(app.db, TENANT_ID, (tx) =>
@@ -497,5 +574,437 @@ describe('[ODUDU-TOKEN-EXCHANGE-ACTOR-01] the actor token is checked too', () =>
       actorToken: actor.accessToken,
     });
     expect(response.statusCode).toBe(400);
+  });
+});
+
+describe('[ODUDU-TOKEN-EXCHANGE-01] the grant end to end', () => {
+  it('delegates: sub is the subject, act names the actor', async () => {
+    const subject = await loginAndGetToken();
+    const actor = await loginAndGetToken();
+    const response = await exchange({
+      subjectToken: subject.accessToken,
+      actorToken: actor.accessToken,
+      resource: 'https://api.example',
+    });
+
+    expect(response.statusCode).toBe(200);
+    const body = response.json<{
+      issued_token_type?: string;
+      token_type?: string;
+      access_token: string;
+    }>();
+    expect(body.issued_token_type).toBe('urn:ietf:params:oauth:token-type:access_token');
+    expect(body.token_type).toBe('Bearer');
+    const claims = decode(body.access_token);
+    expect(claims.sub).toBe(subject.subjectId);
+    expect(claims.act).toEqual({ sub: actor.subjectId });
+    expect(claims.aud).toContain('https://api.example');
+  });
+
+  it('impersonates only when the client is permitted', async () => {
+    const subject = await loginAndGetToken();
+    const refused = await exchange({ subjectToken: subject.accessToken });
+    expect(refused.statusCode).toBe(400);
+    expect(refused.json<{ error?: string }>()).toMatchObject({ error: 'unauthorized_client' });
+
+    await allowImpersonation(CLIENT_ID);
+    const allowed = await exchange({ subjectToken: subject.accessToken });
+    expect(allowed.statusCode).toBe(200);
+    expect(decode(allowed.json<{ access_token: string }>().access_token).act).toBeUndefined();
+  });
+
+  it('refuses a scope wider than the subject token holds', async () => {
+    const subject = await loginAndGetToken();
+    await allowImpersonation(CLIENT_ID);
+    const response = await exchange({
+      subjectToken: subject.accessToken,
+      scope: 'openid roles',
+    });
+    expect(response.statusCode).toBe(400);
+    expect(response.json<{ error?: string }>()).toMatchObject({ error: 'invalid_scope' });
+  });
+
+  it('refuses a refused token type with invalid_request', async () => {
+    const subject = await loginAndGetToken();
+    const response = await exchange({
+      subjectToken: subject.accessToken,
+      subjectTokenType: 'urn:ietf:params:oauth:token-type:jwt',
+    });
+    expect(response.statusCode).toBe(400);
+    expect(response.json<{ error?: string }>()).toMatchObject({ error: 'invalid_request' });
+  });
+
+  it('issues an id_token addressed to the requesting client', async () => {
+    const subject = await loginAndGetToken({ scope: 'openid' });
+    await allowImpersonation(CLIENT_ID);
+    const response = await exchange({
+      subjectToken: subject.accessToken,
+      requestedTokenType: 'urn:ietf:params:oauth:token-type:id_token',
+    });
+
+    const body = response.json<{ issued_token_type?: string; access_token: string }>();
+    expect(body.issued_token_type).toBe('urn:ietf:params:oauth:token-type:id_token');
+    expect(decode(body.access_token).aud).toBe(CLIENT_ID);
+  });
+
+  // client_scopes.include_in_id_token is off for `roles`/`groups`
+  // (provision-defaults.ts) precisely because the ID token reaches the
+  // browser and a client cannot opt out of what lands there —
+  // issueAuthorizationCodeTokens already withholds it; an exchange must
+  // withhold it identically.
+  it('withholds roles from an exchanged id_token, as authorization_code does', async () => {
+    const subject = await loginAndGetToken({ scope: 'openid roles' });
+    await allowImpersonation(CLIENT_ID);
+    await withTenant(app.db, TENANT_ID, async (tx) => {
+      const role = await roleRepository(tx).create({
+        tenantId: TENANT_ID,
+        name: `exchange-role-${newId()}`,
+      });
+      await roleRepository(tx).assignToSubject(subject.subjectId, role.id);
+      const scope = await clientScopeRepository(tx).byName('roles');
+      if (scope === null) throw new Error('tenant does not define a roles scope');
+      await roleRepository(tx).mapToClientScope(scope.id, role.id);
+    });
+
+    const response = await exchange({
+      subjectToken: subject.accessToken,
+      requestedTokenType: 'urn:ietf:params:oauth:token-type:id_token',
+    });
+    expect(response.statusCode).toBe(200);
+    const claims = decode(response.json<{ access_token: string }>().access_token);
+    expect(claims.roles).toBeUndefined();
+  });
+
+  it('refuses a target named alongside a requested id_token', async () => {
+    const subject = await loginAndGetToken({ scope: 'openid' });
+    await allowImpersonation(CLIENT_ID);
+    const response = await exchange({
+      subjectToken: subject.accessToken,
+      requestedTokenType: 'urn:ietf:params:oauth:token-type:id_token',
+      resource: 'https://api.example',
+    });
+    expect(response.statusCode).toBe(400);
+    expect(response.json<{ error?: string }>()).toMatchObject({ error: 'invalid_target' });
+  });
+
+  it('returns a refresh token in access_token when one is requested', async () => {
+    const subject = await loginAndGetToken();
+    await allowImpersonation(CLIENT_ID);
+    const response = await exchange({
+      subjectToken: subject.accessToken,
+      requestedTokenType: 'urn:ietf:params:oauth:token-type:refresh_token',
+    });
+    const body = response.json<{
+      issued_token_type?: string;
+      token_type?: string;
+      access_token: string;
+    }>();
+    expect(body.issued_token_type).toBe('urn:ietf:params:oauth:token-type:refresh_token');
+    expect(body.token_type).toBe('N_A');
+    expect(body.access_token).toEqual(expect.any(String));
+  });
+});
+
+async function rotate(refreshToken: string): Promise<LightMyRequestResponse> {
+  const form = new URLSearchParams({ grant_type: 'refresh_token', refresh_token: refreshToken });
+  return http.inject({
+    method: 'POST',
+    url: `/tenants/${TENANT}/protocol/openid-connect/token`,
+    payload: form.toString(),
+    headers: {
+      'content-type': 'application/x-www-form-urlencoded',
+      authorization: basicAuth(CLIENT_ID, CLIENT_SECRET),
+    },
+  });
+}
+
+describe('[ODUDU-TOKEN-EXCHANGE-ROTATION-01] a rotated exchanged refresh token keeps its limits', () => {
+  it('keeps a nested act chain and the subject exp ceiling through two rotations', async () => {
+    const subject = await loginAndGetToken();
+    const delegateHolder = await loginAndGetToken();
+    const innerActor = await loginAndGetToken();
+
+    // Builds an actor_token that already carries its own `act` — the
+    // second exchange below nests beneath it, so the resulting chain has
+    // two levels rather than one. buildActChain's own nesting is unit
+    // tested (ACT-01); this is the end-to-end proof that a nested chain
+    // survives persistence and rotation with its shape intact, not just a
+    // single-level one that would pass either way.
+    const delegatedActorResponse = await exchange({
+      subjectToken: delegateHolder.accessToken,
+      actorToken: innerActor.accessToken,
+    });
+    expect(delegatedActorResponse.statusCode).toBe(200);
+    const delegatedActorToken = delegatedActorResponse.json<{ access_token: string }>()
+      .access_token;
+
+    const subjectExp = decodeExp(subject.accessToken);
+    const expectedAct = { sub: delegateHolder.subjectId, act: { sub: innerActor.subjectId } };
+
+    const exchangeResponse = await exchange({
+      subjectToken: subject.accessToken,
+      actorToken: delegatedActorToken,
+      requestedTokenType: 'urn:ietf:params:oauth:token-type:refresh_token',
+    });
+    expect(exchangeResponse.statusCode).toBe(200);
+    const exchangedRefreshToken = exchangeResponse.json<{ access_token: string }>().access_token;
+
+    const firstRotation = await rotate(exchangedRefreshToken);
+    expect(firstRotation.statusCode).toBe(200);
+    const firstBody = firstRotation.json<{ access_token: string; refresh_token: string }>();
+    // The whole point of a delegated credential: `act` must survive
+    // rotation, nesting intact, not just the token minted at exchange time.
+    expect(decode(firstBody.access_token).act).toEqual(expectedAct);
+    expect(decodeExp(firstBody.access_token)).toBeLessThanOrEqual(subjectExp);
+
+    // And again — the ceiling and the full chain must survive a second
+    // hop, not just the first one after the exchange.
+    const secondRotation = await rotate(firstBody.refresh_token);
+    expect(secondRotation.statusCode).toBe(200);
+    const secondBody = secondRotation.json<{ access_token: string; refresh_token: string }>();
+    expect(decode(secondBody.access_token).act).toEqual(expectedAct);
+    expect(decodeExp(secondBody.access_token)).toBeLessThanOrEqual(subjectExp);
+  });
+
+  it('caps the rotated refresh token itself, not just the access token it mints', async () => {
+    const subject = await loginAndGetToken();
+    await allowImpersonation(CLIENT_ID);
+    const subjectExpDate = new Date(decodeExp(subject.accessToken) * 1000);
+
+    const exchangeResponse = await exchange({
+      subjectToken: subject.accessToken,
+      requestedTokenType: 'urn:ietf:params:oauth:token-type:refresh_token',
+    });
+    const exchangedRefreshToken = exchangeResponse.json<{ access_token: string }>().access_token;
+
+    const rotation = await rotate(exchangedRefreshToken);
+    expect(rotation.statusCode).toBe(200);
+    const body = rotation.json<{ refresh_token: string }>();
+
+    // The rotated refresh token is opaque, so the cap is checked in the
+    // database it was written to, not by decoding it.
+    const record = await withTenant(app.db, TENANT_ID, (tx) =>
+      refreshTokenRepository(tx).byHash(hashRefreshToken(body.refresh_token)),
+    );
+    expect(record?.expiresAt).toEqual(subjectExpDate);
+  });
+});
+
+describe('[ODUDU-TOKEN-EXCHANGE-ORACLE-01] impersonation is refused before the subject token is read', () => {
+  it('refuses with unauthorized_client even for a garbage subject token', async () => {
+    const restrictedClientId = 'token-exchange-no-impersonation-client';
+    const restrictedSecret = 'token-exchange-no-impersonation-secret';
+    const restrictedDbId = newId();
+    await withTenant(app.db, TENANT_ID, async (tx) => {
+      await tx.insert(clients).values({
+        id: restrictedDbId,
+        tenantId: TENANT_ID,
+        clientId: restrictedClientId,
+        name: 'No impersonation client',
+        type: 'confidential',
+        secretHash: await hashPassword(restrictedSecret),
+      });
+      // tokenExchangeImpersonationAllowed defaults to false — never set here.
+      await clientOidcConfigRepository(tx).create({
+        clientId: restrictedDbId,
+        tenantId: TENANT_ID,
+        // client_oidc_config_redirect_uris_present requires a non-empty
+        // list for any grant list other than exactly ['client_credentials'].
+        redirectUris: [REDIRECT_URI],
+        grantTypes: [TOKEN_EXCHANGE_GRANT],
+        tokenEndpointAuthMethod: 'client_secret_basic',
+        audiences: [],
+        accessTokenTtlSeconds: 300,
+        refreshTokenTtlSeconds: 1_209_600,
+      });
+    });
+
+    const form = new URLSearchParams({
+      grant_type: TOKEN_EXCHANGE_GRANT,
+      subject_token: 'not-a-real-token',
+      subject_token_type: 'urn:ietf:params:oauth:token-type:access_token',
+    });
+    const response = await http.inject({
+      method: 'POST',
+      url: `/tenants/${TENANT}/protocol/openid-connect/token`,
+      payload: form.toString(),
+      headers: {
+        'content-type': 'application/x-www-form-urlencoded',
+        authorization: basicAuth(restrictedClientId, restrictedSecret),
+      },
+    });
+
+    // invalid_request would mean the subject token was resolved (and
+    // refused) before the impersonation permission was ever checked —
+    // exactly the ordering that turns this response into an oracle for
+    // the subject token's own validity.
+    expect(response.statusCode).toBe(400);
+    expect(response.json<{ error?: string }>()).toMatchObject({ error: 'unauthorized_client' });
+  });
+});
+
+describe('[ODUDU-TOKEN-EXCHANGE-EXPIRY-01] the issued token is capped at the subject token', () => {
+  it('caps the issued access token exp exactly at the subject token exp', async () => {
+    const subject = await loginAndGetToken();
+    await allowImpersonation(CLIENT_ID);
+    const subjectExp = decodeExp(subject.accessToken);
+
+    // Moves past the subject token's own mint instant, so the exchange's
+    // own ttl-based exp (fakeNow + ttl) would land strictly later than the
+    // subject's — the only way this test can tell a real cap from the two
+    // simply coinciding by construction.
+    advanceClock(60_000);
+    const response = await exchange({ subjectToken: subject.accessToken });
+    const body = response.json<{ access_token: string; expires_in: number }>();
+    const claims = decode(body.access_token);
+    const exp = decodeExp(body.access_token);
+    const iat = claims.iat;
+    if (typeof iat !== 'number') throw new Error('expected a numeric iat claim');
+
+    expect(exp).toBe(subjectExp);
+    expect(exp).toBeLessThan(fakeNowSeconds() + ACCESS_TOKEN_TTL_SECONDS);
+    // The defect this pins: expires_in must report the capped lifetime,
+    // not the configured ttl regardless of the cap.
+    expect(body.expires_in).toBe(exp - iat);
+    expect(body.expires_in).toBeLessThan(ACCESS_TOKEN_TTL_SECONDS);
+  });
+
+  it('caps the issued id_token exp and its expires_in the same way', async () => {
+    const subject = await loginAndGetToken({ scope: 'openid' });
+    await allowImpersonation(CLIENT_ID);
+    const subjectExp = decodeExp(subject.accessToken);
+
+    advanceClock(60_000);
+    const response = await exchange({
+      subjectToken: subject.accessToken,
+      requestedTokenType: 'urn:ietf:params:oauth:token-type:id_token',
+    });
+    const body = response.json<{ access_token: string; expires_in: number; token_type?: string }>();
+    const claims = decode(body.access_token);
+    const exp = decodeExp(body.access_token);
+    const iat = claims.iat;
+    if (typeof iat !== 'number') throw new Error('expected a numeric iat claim');
+
+    expect(exp).toBe(subjectExp);
+    expect(body.expires_in).toBe(exp - iat);
+    // RFC 8693 §2.2.1: not an access token.
+    expect(body.token_type).toBe('N_A');
+  });
+
+  it('caps the issued refresh_token expires_in the same way', async () => {
+    const subject = await loginAndGetToken();
+    await allowImpersonation(CLIENT_ID);
+    const subjectExp = decodeExp(subject.accessToken);
+
+    advanceClock(60_000);
+    const response = await exchange({
+      subjectToken: subject.accessToken,
+      requestedTokenType: 'urn:ietf:params:oauth:token-type:refresh_token',
+    });
+    const body = response.json<{ expires_in: number; token_type?: string }>();
+
+    // The refresh token itself is opaque, so the capped ceiling is checked
+    // against the same subject exp and clock every other case in this
+    // describe uses, not by decoding it.
+    expect(body.expires_in).toBe(subjectExp - fakeNowSeconds());
+    expect(body.expires_in).toBeLessThan(1_209_600);
+    expect(body.token_type).toBe('N_A');
+  });
+});
+
+async function introspect(token: string): Promise<LightMyRequestResponse> {
+  const form = new URLSearchParams({ token });
+  return http.inject({
+    method: 'POST',
+    url: `/tenants/${TENANT}/protocol/openid-connect/token/introspect`,
+    payload: form.toString(),
+    headers: {
+      'content-type': 'application/x-www-form-urlencoded',
+      authorization: basicAuth(CLIENT_ID, CLIENT_SECRET),
+    },
+  });
+}
+
+async function userinfo(token: string): Promise<LightMyRequestResponse> {
+  return http.inject({
+    method: 'GET',
+    url: `/tenants/${TENANT}/protocol/openid-connect/userinfo`,
+    headers: { authorization: `Bearer ${token}` },
+  });
+}
+
+// Ends the session against the same clock /token itself reads (`fakeClock`,
+// wired into `http` above) — ending it against the real wall clock would
+// leave it live by the frozen clock's own reckoning until `advanceClock`
+// next moves that clock forward.
+async function endSession(sessionId: string): Promise<void> {
+  await withTenant(app.db, TENANT_ID, (tx) =>
+    sessionRepository(tx).end(sessionId, fakeClock.now()),
+  );
+}
+
+async function sessionLastSeen(sessionId: string): Promise<Date | undefined> {
+  const record = await withTenant(app.db, TENANT_ID, (tx) => sessionRepository(tx).byId(sessionId));
+  return record?.lastActiveAt;
+}
+
+function advanceClock(ms: number): void {
+  fakeClock.advance(ms);
+}
+
+describe('[ODUDU-TOKEN-EXCHANGE-SESSION-01] an exchanged token dies with the session', () => {
+  it('is dead at /introspect and at /userinfo after logout', async () => {
+    const subject = await loginAndGetToken({ scope: 'openid profile' });
+    await allowImpersonation(CLIENT_ID);
+    const exchanged = (await exchange({ subjectToken: subject.accessToken })).json<{
+      access_token: string;
+    }>().access_token;
+
+    // Live before, so the assertion after is about the logout and not
+    // about the token having been useless all along.
+    expect((await introspect(exchanged)).json<{ active: boolean }>().active).toBe(true);
+    expect((await userinfo(exchanged)).statusCode).toBe(200);
+
+    await endSession(subject.sessionId);
+
+    expect((await introspect(exchanged)).json<{ active: boolean }>().active).toBe(false);
+    expect((await userinfo(exchanged)).statusCode).toBe(401);
+  });
+
+  it('refuses a further exchange once the session has ended', async () => {
+    const subject = await loginAndGetToken();
+    await allowImpersonation(CLIENT_ID);
+    await endSession(subject.sessionId);
+
+    const response = await exchange({ subjectToken: subject.accessToken });
+    expect(response.statusCode).toBe(400);
+  });
+
+  it('does not extend the session it rides on', async () => {
+    const subject = await loginAndGetToken();
+    await allowImpersonation(CLIENT_ID);
+    const before = await sessionLastSeen(subject.sessionId);
+
+    advanceClock(60_000);
+    await exchange({ subjectToken: subject.accessToken });
+
+    expect(await sessionLastSeen(subject.sessionId)).toEqual(before);
+  });
+
+  // An offline grant has no session, and an exchange from one must not
+  // invent a dependency the subject never had — this is as important as
+  // the first three cases: inheritance must be inheritance, not a blanket
+  // session requirement.
+  it('inherits no session from an offline grant, and survives a logout', async () => {
+    const subject = await loginAndGetToken({ scope: 'openid offline_access' });
+    await allowImpersonation(CLIENT_ID);
+    const offlineAccessToken = subject.offlineAccessToken;
+    if (offlineAccessToken === undefined) throw new Error('expected an offline access token');
+    const exchangeResponse = await exchange({ subjectToken: offlineAccessToken });
+    expect(exchangeResponse.statusCode).toBe(200);
+    const exchanged = exchangeResponse.json<{ access_token: string }>().access_token;
+
+    await endSession(subject.sessionId);
+    expect((await introspect(exchanged)).json<{ active: boolean }>().active).toBe(true);
   });
 });

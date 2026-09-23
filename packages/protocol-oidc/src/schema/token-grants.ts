@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { jsonb, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 import { tenants } from '@odudu/db';
 
 // Policies are written as hand-authored SQL in packages/db/drizzle/, never
@@ -31,6 +31,18 @@ export const tokenGrants = pgTable('token_grants', {
   // The grant whose token was presented as `subject_token`. Lineage only:
   // nothing walks it yet, and revoking a parent does not revoke a child.
   exchangedFromGrantId: uuid('exchanged_from_grant_id'),
+  // The `act` claim exactly as issued (RFC 8693 §4.4), so a refresh
+  // rotation can reapply it to the replacement access token. Stored as the
+  // full chain rather than rebuilt from `actorSubjectId` alone — a nested
+  // delegation cannot be recovered from just its outermost actor. Null for
+  // every grant that names no actor.
+  actChain: jsonb('act_chain'),
+  // The subject token's own `exp` at the moment of exchange, so a refresh
+  // rotation can cap the replacement the same way `mintAccessToken`'s
+  // `expCeiling` capped the token issued at exchange time. Null for a
+  // grant no exchange produced, and for one exchanged from a token that
+  // itself carried no expiry (an id_token subject).
+  expCeiling: timestamp('exp_ceiling', { withTimezone: true }),
 }).enableRLS();
 
 export interface TokenGrantRecord {
@@ -45,4 +57,9 @@ export interface TokenGrantRecord {
   sessionId: string | null;
   actorSubjectId: string | null;
   exchangedFromGrantId: string | null;
+  // jsonb: an untyped boundary, the same as ClientOidcConfig's `jwks` —
+  // narrowed with `narrowActClaim` (service/token-exchange.ts) at the
+  // point of use, not typed here.
+  actChain: unknown;
+  expCeiling: Date | null;
 }

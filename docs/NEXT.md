@@ -252,6 +252,23 @@ between the pre-flight and the authoritative read — which no test drives.
 - Trigger: whichever task next touches refresh rotation. A test that lands
   a revocation in that window is what pins it.
 
+**No test proves a refresh rotated past its `exp_ceiling` is actually
+refused.** `rotateRefreshToken` (P4a) caps a replacement refresh token's
+`expiresAt` at the exchanged grant's ceiling, and the refusal itself is
+real: `refreshTokenRepository.consume` gates on a literal SQL
+`expires_at > now()` (`repository/refresh.ts`), so a capped, expired row is
+refused exactly like any other expired refresh token. But that check reads
+PostgreSQL's own clock, never the app's injected `Clock` — an integration
+test can advance a `FakeClock` to move every other time-dependent decision
+in this file, and it will not move this one. Nothing short of a real wait
+can currently demonstrate the refusal.
+
+- Trigger: whichever change next gives the refresh path a clock it can
+  control end to end (folding the SQL-level expiry check into an
+  application-level comparison against `deps.clock.now()`), or the phase
+  that introduces time-travel fixtures capable of moving the database's
+  own clock rather than only the app's.
+
 **ADR 0007 has never been executed.** Schemas are to be authored in Zod in
 `packages/contracts` and compiled with `z.toJSONSchema()` for ajv validation
 and OpenAPI. `parseStructure` in `token-issuance.ts` is the real authority
