@@ -3,10 +3,21 @@
 ## Start here
 
 **P0, P1, P2a, P2b, P3a and P3b are complete, and the tenant rename is done.
-P4 — the admin API and consoles — is next**, and needs its own brainstorm and
-spec: nothing below is a P4 plan, only what it inherits and what is still
-open. Phases are section 11 of
-[the umbrella spec](superpowers/specs/2026-09-10-odudu-design.md).
+P4 has been split four ways and P4a is under way.** Phases are section 11 of
+[the umbrella spec](superpowers/specs/2026-09-10-odudu-design.md), whose
+"P4 became four phases" subsection has the reasoning.
+
+The order is **P4a → P4c → P4d → P4b**, and the letters deliberately do not
+read in execution order, because `P4b` was spent on theming before P4 split
+and an accepted ADR cites it. P4a is token exchange
+([spec](superpowers/specs/2026-09-23-p4a-token-exchange-design.md)); P4c is
+the admin API; P4d is the consoles; P4b stays theming and stays last.
+
+**A bare `P4` below means P4c** unless it concerns token exchange, the grant
+allowlist, theming or client branding — the same disambiguation the P2 split
+used, and for the same reason: a citation renumbered wrongly is invisible for
+good. Nothing below is a plan for any of the four, only what they inherit and
+what is still open.
 
 **The tenant rename changed the wire.** What was called a `realm` is a
 tenant everywhere: the path is `/tenants/{tenant}/…`, so the issuer — and
@@ -39,7 +50,7 @@ proxy-header mTLS client authentication.
 
 What turned out to be **wrong** while building it is in
 [docs/phases/p3b.md](phases/p3b.md), not here. Two things from it are worth
-reading before P4 is brainstormed: the recurring defect of a rule applied at
+reading before P4c is brainstormed: the recurring defect of a rule applied at
 one door out of several, and the finding that this repository's most
 frequent defect is a comment whose conclusion is right and whose stated
 reason is false.
@@ -118,7 +129,7 @@ rotation, and its criterion now names that case.
 
 **Two recovery-code gaps that need the account console.** A subject cannot
 ask for a fresh set before running out, and nothing warns as the list gets
-short. Both are named in P4's exit criterion; `beginRecoveryCodes` already
+short. Both are named in P4d's exit criterion; `beginRecoveryCodes` already
 replaces a set wholesale, so what is owed is a surface, not a mechanism.
 
 **Theming is P4b's, and the contract it needs already exists.** Every
@@ -195,9 +206,10 @@ can still obtain a `client_credentials` token: `token-issuance.ts`'s only
 read of `config.grantTypes` gates whether a refresh token is issued, not
 which grant a request may use.
 
-- Trigger: **P4**, which adds token exchange and so makes the next change to
-  grant selection in `issueTokens`; its criterion names the allowlist. Add
-  `config.grantTypes.includes(request.grantType)` before dispatching.
+- Trigger: **P4a**, which adds token exchange and so makes the next change
+  to grant selection in `issueTokens`; its criterion names the allowlist. Add
+  `config.grantTypes.includes(request.grantType)` before dispatching. Note
+  this is a behaviour change for an existing client, not only a new check.
 
 **`/userinfo` and `/introspect` both honour a disabled client's live access
 token.** `resolveUserinfo` now checks the tenant, the token's own grant
@@ -297,7 +309,7 @@ win without "we did not run those tests" semantics. Keep typecheck, lint,
 boundaries and unit tests always-full, and set `globalDependencies` at the
 same time.
 
-- Trigger for caching: CI exceeds roughly 5 minutes (likely P4, when
+- Trigger for caching: CI exceeds roughly 5 minutes (likely P4d, when
   Playwright arrives).
 - Trigger for filtering: slow suites dominate — P8 SAML interop, P9 policy
   evaluation, or the nightly conformance suite.
@@ -384,7 +396,7 @@ this file or the phase note.
 - The two `user_credentials` counts at `docs/request-paths.md:3052` and
   `:3282` are unscoped, and correct only in document order — the
   neighbouring query of the same kind is scoped. Re-scoping them needs a
-  re-run against a live stack. **P4**, which re-captures those transcripts
+  re-run against a live stack. **P4d**, which re-captures those transcripts
   anyway: its criterion gives a subject a fresh set of recovery codes before
   the old set is spent, which is what those two queries count.
 - `session-cookie.ts` hand-rolls a case-sensitive UUID regex while the test
@@ -402,7 +414,7 @@ this file or the phase note.
   `packages/authn-flows/src/usecase/executor.ts`.
 - The boundary suite's negative control filters a fixture with no imports at
   all, so it cannot demonstrate that `service-is-a-leaf` is not over-broad.
-  A service importing another service would. **P4**: its consoles are the
+  A service importing another service would. **P4d**: its consoles are the
   first packages outside the server to carry the five layers, so the rule set
   and its fixtures are extended there.
 - `tests/lint/production-guard-order.test.ts` compares source offsets and

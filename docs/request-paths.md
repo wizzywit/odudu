@@ -3388,7 +3388,7 @@ setup at the same moment, for the same reason.
 
 Two ways out that this does not provide, both needing a page this server does
 not have yet: asking for a fresh set _before_ running out, and a warning as
-the list gets short. Both are the account console, which is **P4**'s.
+the list gets short. Both are the account console, which is **P4d**'s.
 
 ### Where the step sits in the flow
 
@@ -4978,7 +4978,7 @@ re-run that quietly widened a registered redirect list is how an allowlist
 grows by accident. `demo-spa` was seeded back in
 [Bootstrap](#bootstrap), so this walkthrough sets the column directly;
 changing a registered client is client-management work, which is P3a's
-pending its RFC 7592 spike and P4's otherwise:
+pending its RFC 7592 spike and P4c's otherwise:
 
 ```bash
 docker compose -f infra/docker/compose.yaml exec -T postgres \
@@ -7680,8 +7680,8 @@ session lifecycle. A citation of either half here means that half.
   What is not there: any way to **change** a tenant's flow.
   `authentication_executions` has an insert and nothing else, so the rows
   `provisionBrowserFlow` writes are what a tenant has for good unless somebody
-  edits the table. A flow editor is **P4**, with the rest of the admin
-  surface.
+  edits the table. Giving the rows a write surface is **P4c**; the editor
+  that drives it is **P4d**.
 - **Recovery codes are issued once and shown once.** Ten per subject, each
   Argon2id-hashed in its own credential row, offered by the
   `generate-recovery-codes` required action that enrolling either second
@@ -7691,7 +7691,7 @@ session lifecycle. A citation of either half here means that half.
   so a list runs out into a fresh set rather than into a lockout.
   What is not there yet: no way for a subject to ask for a fresh set _before_
   they run out, and no warning as the list gets short — self-service
-  credential management is the account console, which is **P4**'s. And **no rate
+  credential management is the account console, which is **P4d**'s. And **no rate
   limit on re-issuing**: while the action is owed, each login submission
   with a valid password renders the page again, which costs ten Argon2id
   hashes and eleven row writes. Bounded by holding the password and by
@@ -7715,7 +7715,7 @@ session lifecycle. A citation of either half here means that half.
   ([Sending queued mail](#sending-queued-mail-odudu-send-mail)), which is
   what closed the reset endpoint's timing oracle. What is not there yet:
   per-tenant SMTP configuration — the transport is one set of
-  `ODUDU_SMTP_*` variables for the whole server. That is **P4**: it is tenant
+  `ODUDU_SMTP_*` variables for the whole server. That is **P4c**: it is tenant
   configuration carrying a credential, and the per-tenant secret it needs
   already has a home in the key-encryption interface §5 puts the signing key
   behind.
@@ -7738,12 +7738,15 @@ session lifecycle. A citation of either half here means that half.
 **`/token`**
 
 - **No token exchange (RFC 8693)**, and so none of the delegation the agent
-  identity layer is built on. **P4**, whose criterion names the grant at
+  identity layer is built on. **P4a**, whose criterion names the grant at
   stage 3 of the token pipeline — `subject_token` and `actor_token`,
   audience and scope narrowing, `act` and nested `act`, impersonation
-  against delegation — with its exchange permissions configurable through
-  the admin API that phase builds. **P5** consumes it at stage 4, where the
-  delegated intersection is the attenuation check (ADR 0003).
+  distinguished from delegation by a per-client permission that is off by
+  default. That permission is client metadata, written by the dynamic
+  registration endpoint P3a shipped, which is why the grant needs no admin
+  API and goes first; the admin surface over it is **P4c**'s. **P5**
+  consumes the grant at stage 4, where the delegated intersection is the
+  attenuation check (ADR 0003).
 - **A client obtains a grant it is not registered for.** `config.grantTypes`
   is read once, in `packages/protocol-oidc/src/usecase/token-issuance.ts`,
   and gates whether a refresh token is issued rather than which grant a
@@ -7752,7 +7755,7 @@ session lifecycle. A citation of either half here means that half.
   conditions `issueClientCredentialsTokens` imposes — confidential, holding a
   `service_subject_id`, inside `client_credentials_scopes` — so the reachable
   case is a confidential code-flow client minting a scoped-or-empty service
-  token. **P4**, whose criterion adds token exchange as a grant and so makes
+  token. **P4a**, whose criterion adds token exchange as a grant and so makes
   the next change to grant selection, and names the allowlist with it.
 - **No CIBA.** **P5**, whose exit criterion is CIBA approvals end to end.
 - **No device authorization grant.** **P13**, whose criterion names a
@@ -7792,7 +7795,7 @@ session lifecycle. A citation of either half here means that half.
   (`standardClaimMappers`, the 22 names in `claims_supported`) and the
   role/group claims alongside it are fixed by the server, not by anything a
   tenant operator can add or change. Reconfiguring what a scope maps to —
-  Keycloak's protocol mapper concept — is **P4**'s, alongside the rest of
+  Keycloak's protocol mapper concept — is **P4c**'s, alongside the rest of
   the admin surface. `entitlements`, in particular, is deliberately never
   advertised: there is no notion of one in this identity model yet, and
   `packages/protocol-oidc/tests/claims-supported.int.test.ts` fails the
@@ -7801,7 +7804,7 @@ session lifecycle. A citation of either half here means that half.
   token's `/userinfo` claims.** `resolveUserinfo` now refuses a token whose
   grant this server revoked or whose session has ended, but neither of
   those is stamped when an operator disables the client itself — the
-  grant is untouched. **P4**, which is where disabling
+  grant is untouched. **P4c**, which is where disabling
   a client becomes an operation at all, and whose criterion now asks it to
   decide whether `/userinfo` and `/introspect` read `client.enabled` the way
   `resolveRoleReach` and `resolveClientWebOrigins` do rather than inheriting
@@ -7826,9 +7829,9 @@ session lifecycle. A citation of either half here means that half.
 **Endpoints that do not exist at all**
 
 - **No administrative way to end somebody else's session.** Listing a
-  subject's sessions and ending one is **P4**, with the rest of the admin
+  subject's sessions and ending one is **P4c**, with the rest of the admin
   surface, because until there is an admin API there is nowhere to put it.
-- **Any admin API.** **P4.** The seed command and
+- **Any admin API.** **P4c.** The seed command and
   [dynamic client registration](#dynamic-client-registration) are the only
   administrative surfaces — the former for a tenant's first user, client and
   signing key, the latter for a client a tenant has opened itself to — and
@@ -7891,13 +7894,13 @@ session lifecycle. A citation of either half here means that half.
   waits on nothing, and `README.md` says what can be pulled forward.
 - **Key rotation is not implemented.** A tenant has one active signing key,
   created when it is seeded; the shape supports more than one, and the
-  operation that would create a second does not exist. **P4**, whose exit
+  operation that would create a second does not exist. **P4c**, whose exit
   criterion now names promoting a new key and retiring the one it replaces
   on the overlap window the design specification states. It landed there
   rather than in P3a or P3b because no relying party's request triggers a
   rotation:
   it is an operator action, and it needs the authenticated administrator,
-  the audit event and the surface to trigger it from that P4 is the phase
+  the audit event and the surface to trigger it from that P4c is the phase
   for.
 - **Expired state is deleted, on a window per table, by one pass** —
   `odudu reap`, on the server's own schedule or as a command
