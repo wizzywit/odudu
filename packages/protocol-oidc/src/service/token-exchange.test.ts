@@ -3,6 +3,7 @@ import {
   attenuateScope,
   buildActChain,
   MAX_DELEGATION_DEPTH,
+  mayActPermits,
   parseTokenType,
   resolveExchangeAudience,
 } from '#/service/token-exchange';
@@ -200,5 +201,25 @@ describe('[ODUDU-TOKEN-EXCHANGE-ACT-01] the delegation chain', () => {
     const looped: Record<string, unknown> = { sub: 'a' };
     looped.act = looped;
     expect(buildActChain('actor', looped)).toEqual({ kind: 'too_deep' });
+  });
+});
+
+describe('[ODUDU-TOKEN-EXCHANGE-MAYACT-01] may_act authorises the actor', () => {
+  it('permits when absent, since nothing mints it yet', () => {
+    expect(mayActPermits(undefined, 'actor-1')).toBe(true);
+  });
+
+  it('permits the named actor', () => {
+    expect(mayActPermits({ sub: 'actor-1' }, 'actor-1')).toBe(true);
+  });
+
+  it('refuses a different actor', () => {
+    expect(mayActPermits({ sub: 'actor-1' }, 'actor-2')).toBe(false);
+  });
+
+  it('refuses a malformed claim rather than ignoring it', () => {
+    expect(mayActPermits({ notSub: 'actor-1' }, 'actor-1')).toBe(false);
+    expect(mayActPermits('actor-1', 'actor-1')).toBe(false);
+    expect(mayActPermits(null, 'actor-1')).toBe(false);
   });
 });

@@ -29,9 +29,11 @@ export function parseTokenType(raw: string): TokenTypeOutcome {
   return 'unknown';
 }
 
-function single(raw: string | string[] | undefined): string | undefined | 'many' {
+const MANY = Symbol('many');
+
+function single(raw: string | string[] | undefined): string | undefined | typeof MANY {
   if (raw === undefined) return undefined;
-  if (Array.isArray(raw)) return raw.length > 1 ? 'many' : raw[0];
+  if (Array.isArray(raw)) return raw.length > 1 ? MANY : raw[0];
   return raw;
 }
 
@@ -43,7 +45,7 @@ export function resolveExchangeAudience(input: {
 }): { kind: 'ok'; audience: readonly string[] } | { kind: 'invalid_target' } {
   const resource = single(input.resource);
   const audience = single(input.audience);
-  if (resource === 'many' || audience === 'many') return { kind: 'invalid_target' };
+  if (resource === MANY || audience === MANY) return { kind: 'invalid_target' };
 
   // An ID token is addressed to the client that asked for it; there is no
   // target to choose, so naming one is a mistake rather than a preference.
@@ -116,4 +118,15 @@ export function buildActChain(
   if (inner === 'too_deep') return { kind: 'too_deep' };
   if (inner === 'malformed') return { kind: 'malformed' };
   return { kind: 'ok', act: { sub: actorSubject, act: inner } };
+}
+
+// RFC 8693 §4.4 authorises a party "to become the actor", so the comparison
+// is against whoever the issued token will name in `act` — the actor
+// token's subject under delegation, the requesting client under
+// impersonation. Nothing mints this claim yet; a later increment does.
+export function mayActPermits(mayAct: unknown, actorSubject: string): boolean {
+  if (mayAct === undefined) return true;
+  if (typeof mayAct !== 'object' || mayAct === null) return false;
+  const sub = (mayAct as { sub?: unknown }).sub;
+  return typeof sub === 'string' && sub === actorSubject;
 }
