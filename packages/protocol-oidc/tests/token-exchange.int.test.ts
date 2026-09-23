@@ -10,7 +10,13 @@ import {
   type TenantScopedDatabase,
 } from '@odudu/db';
 import { provisionTenant, sessionRepository, type SessionLifespans } from '@odudu/authn-flows';
-import { clientRepository, clients, provisionClientDefaults } from '@odudu/domain-tenant';
+import { roleRepository } from '@odudu/domain-authz';
+import {
+  clientRepository,
+  clients,
+  clientScopeRepository,
+  provisionClientDefaults,
+} from '@odudu/domain-tenant';
 import { FakeClock, newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import formbody from '@fastify/formbody';
@@ -637,6 +643,34 @@ describe('[ODUDU-TOKEN-EXCHANGE-01] the grant end to end', () => {
     const body = response.json<{ issued_token_type?: string; access_token: string }>();
     expect(body.issued_token_type).toBe('urn:ietf:params:oauth:token-type:id_token');
     expect(decode(body.access_token).aud).toBe(CLIENT_ID);
+  });
+
+  // client_scopes.include_in_id_token is off for `roles`/`groups`
+  // (provision-defaults.ts) precisely because the ID token reaches the
+  // browser and a client cannot opt out of what lands there —
+  // issueAuthorizationCodeTokens already withholds it; an exchange must
+  // withhold it identically.
+  it('withholds roles from an exchanged id_token, as authorization_code does', async () => {
+    const subject = await loginAndGetToken({ scope: 'openid roles' });
+    await allowImpersonation(CLIENT_ID);
+    await withTenant(app.db, TENANT_ID, async (tx) => {
+      const role = await roleRepository(tx).create({
+        tenantId: TENANT_ID,
+        name: `exchange-role-${newId()}`,
+      });
+      await roleRepository(tx).assignToSubject(subject.subjectId, role.id);
+      const scope = await clientScopeRepository(tx).byName('roles');
+      if (scope === null) throw new Error('tenant does not define a roles scope');
+      await roleRepository(tx).mapToClientScope(scope.id, role.id);
+    });
+
+    const response = await exchange({
+      subjectToken: subject.accessToken,
+      requestedTokenType: 'urn:ietf:params:oauth:token-type:id_token',
+    });
+    expect(response.statusCode).toBe(200);
+    const claims = decode(response.json<{ access_token: string }>().access_token);
+    expect(claims.roles).toBeUndefined();
   });
 
   it('refuses a target named alongside a requested id_token', async () => {

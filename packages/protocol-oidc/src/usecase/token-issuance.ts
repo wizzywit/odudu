@@ -1095,11 +1095,20 @@ async function issueExchangedTokens(
 
   if (issuedType === 'id_token') {
     const key = await signingKeyRepository(tx).active();
+    // A scope reaches this ID token only if its own definition says so
+    // (`client_scopes.include_in_id_token`) — `roles`/`groups` ship with
+    // that off, the same rule `issueAuthorizationCodeTokens` applies,
+    // because the ID token reaches the browser and a client cannot opt
+    // out of what lands there.
+    const assigned = await clientScopeRepository(tx).forClient(client.id);
+    const idTokenScope = assigned
+      .filter((clientScope) => scope.includes(clientScope.name) && clientScope.includeInIdToken)
+      .map((clientScope) => clientScope.name);
     const narrowedContext: ClaimContext = {
       ...claimContext,
       roles: narrowByScopeMappings(claimContext.roles, reachable, client.fullScopeAllowed),
     };
-    const mapped = await deps.claimMappers.assemble(scope, narrowedContext);
+    const mapped = await deps.claimMappers.assemble(idTokenScope, narrowedContext);
     const iat = Math.floor(now.getTime() / 1000);
     const ttlExp = iat + config.accessTokenTtlSeconds;
     const ceiling = expCeiling === undefined ? ttlExp : Math.floor(expCeiling.getTime() / 1000);
