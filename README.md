@@ -35,7 +35,9 @@ every merge to `main` — a branch push with no pull request open runs
 nothing, by design (`.github/workflows/verify.yml`).
 
 **P3a** adds clients, dynamic registration (RFC 7591) and a consent screen.
-There is still no admin API and no token exchange — both wait on P4. The
+**P4a** adds `/token`'s fourth grant, RFC 8693 token exchange, and the
+`config.grantTypes` allowlist that gates which grant a client may use at
+all. There is still no admin API — that is P4c. The
 roadmap's second and third phases are each two. **P2a** is the
 identity model — roles, groups, client scopes, per-client web origins,
 email — and **P2b** is credentials, MFA and the session lifecycle. **P3a**
@@ -56,6 +58,13 @@ one on a client that already exists means updating
 `client_oidc_config.web_origins` directly, because `seed client` refuses an
 existing client rather than widening a registered list on a re-run.
 
+`seed client --grant-type` names the grants a client is registered for,
+repeatable, and validates each one against the same list the
+`client_oidc_config_grant_types_check` CHECK constraint enforces. Omitted,
+a confidential client still gets `authorization_code`, `refresh_token` and
+`client_credentials`, and a public one still gets the first two — the
+flag's addition changes nothing for an invocation that does not use it.
+
 `email_verified` is now a claim about something that happened: a mailed
 `GET /tenants/{tenant}/login-actions/action-token?key=…` link, redeemed once,
 flips it. A tenant carries three settings for the account lifecycle this
@@ -64,7 +73,7 @@ begins — `registration_allowed`, `verify_email` and `reset_password_allowed`
 registration or mailed verification. `odudu seed tenant --set` changes them,
 and every other tenant setting, by the column name the schema uses:
 `odudu seed tenant --name demo --set registration_allowed=true`, repeatable.
-There is no admin **API** for them yet — that is P4 — and the ranges the
+There is no admin **API** for them yet — that is P4c — and the ranges the
 numeric ones accept are CHECK constraints, so the CLI has no way past a
 policy the database enforces. Outgoing mail goes through `ODUDU_SMTP_HOST`,
 `ODUDU_SMTP_PORT` (default `587`), `ODUDU_SMTP_FROM`, `ODUDU_SMTP_USERNAME`,
@@ -1081,9 +1090,9 @@ Every row says where it stands, and every row has a phase:
 |                                                                                                        | Where it stands |
 | ------------------------------------------------------------------------------------------------------ | --------------- |
 | A consent screen — `consent_required` is recorded per client, nothing reads it yet                     | P3a             |
-| An account console for self-service credential management, and an operator unlock for a locked account | P4              |
-| An admin API — seeding is the only administrative surface                                              | P4              |
-| Signing-key rotation — the shape exists, the operation does not                                        | P4              |
+| An account console for self-service credential management, and an operator unlock for a locked account | P4d             |
+| An admin API — seeding is the only administrative surface                                              | P4c             |
+| Signing-key rotation — the shape exists, the operation does not                                        | P4c             |
 | Published images and a release process                                                                 | P12             |
 | Secret management beyond environment variables                                                         | P12             |
 | Backup and restore guidance                                                                            | P12             |

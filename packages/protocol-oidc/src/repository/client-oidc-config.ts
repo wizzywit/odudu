@@ -27,6 +27,7 @@ function toRecord(row: typeof clientOidcConfig.$inferSelect): ClientOidcConfig {
     backchannelLogoutSessionRequired: row.backchannelLogoutSessionRequired,
     frontchannelLogoutSessionRequired: row.frontchannelLogoutSessionRequired,
     consentRequired: row.consentRequired,
+    tokenExchangeImpersonationAllowed: row.tokenExchangeImpersonationAllowed,
     userinfoSignedResponseAlg: row.userinfoSignedResponseAlg,
     userinfoEncryptedResponseAlg: row.userinfoEncryptedResponseAlg,
     userinfoEncryptedResponseEnc: row.userinfoEncryptedResponseEnc,
@@ -52,6 +53,7 @@ export type NewClientOidcConfig = Omit<
   | 'backchannelLogoutSessionRequired'
   | 'frontchannelLogoutSessionRequired'
   | 'consentRequired'
+  | 'tokenExchangeImpersonationAllowed'
   | 'userinfoSignedResponseAlg'
   | 'userinfoEncryptedResponseAlg'
   | 'userinfoEncryptedResponseEnc'
@@ -67,6 +69,7 @@ export type NewClientOidcConfig = Omit<
   backchannelLogoutSessionRequired?: boolean;
   frontchannelLogoutSessionRequired?: boolean;
   consentRequired?: boolean;
+  tokenExchangeImpersonationAllowed?: boolean;
   userinfoSignedResponseAlg?: string | null;
   userinfoEncryptedResponseAlg?: string | null;
   userinfoEncryptedResponseEnc?: string | null;
@@ -109,6 +112,7 @@ export function clientOidcConfigRepository(tx: TenantScopedDatabase) {
           backchannelLogoutSessionRequired: input.backchannelLogoutSessionRequired ?? false,
           frontchannelLogoutSessionRequired: input.frontchannelLogoutSessionRequired ?? false,
           consentRequired: input.consentRequired ?? false,
+          tokenExchangeImpersonationAllowed: input.tokenExchangeImpersonationAllowed ?? false,
           userinfoSignedResponseAlg: input.userinfoSignedResponseAlg ?? null,
           userinfoEncryptedResponseAlg: input.userinfoEncryptedResponseAlg ?? null,
           userinfoEncryptedResponseEnc: input.userinfoEncryptedResponseEnc ?? null,

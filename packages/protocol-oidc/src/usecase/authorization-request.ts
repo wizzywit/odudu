@@ -762,6 +762,18 @@ export interface IdTokenHintClaims {
   // principal — but the value RP-Initiated Logout §2 has the OP compare a
   // `client_id` parameter against.
   audiences: readonly string[];
+  // RFC 8693 §4.4's `may_act`, carried through unnarrowed for
+  // `#/usecase/token-exchange-subject.ts`'s own exchange to check against
+  // the actor it resolves — /authorize and /logout, this function's other
+  // two callers, both ignore it.
+  mayAct: unknown;
+  // The hint's own `exp`, read the same way for
+  // `#/usecase/token-exchange-subject.ts`'s exchange ceiling — /authorize
+  // and /logout, this function's other two callers, both ignore it. OIDC
+  // Core §2 requires every ID token to carry one, so this is never null in
+  // practice; the guard matches `resolveAccessToken`'s own defensive read
+  // of an untyped JWT payload rather than asserting the RFC's promise.
+  expiresAt: Date | null;
 }
 
 function audiencesOf(claim: unknown): readonly string[] {
@@ -802,6 +814,8 @@ export async function subjectOfIdTokenHint(
       subject: payload.sub,
       sid: typeof payload.sid === 'string' && payload.sid.length > 0 ? payload.sid : null,
       audiences: audiencesOf(payload.aud),
+      mayAct: payload.may_act,
+      expiresAt: typeof payload.exp === 'number' ? new Date(payload.exp * 1000) : null,
     };
   } catch {
     return null;

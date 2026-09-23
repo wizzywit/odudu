@@ -33,6 +33,7 @@ import {
 import { loadConfig, newId, OduduError } from '@odudu/kernel';
 import {
   clientOidcConfigRepository,
+  GRANT_TYPES_PERMITTED,
   tenantLookupRepository,
   type ClientOidcConfig,
 } from '@odudu/protocol-oidc';
@@ -817,6 +818,15 @@ function parseSettings(assignments: readonly string[]): ParsedSetting[] {
   });
 }
 
+// Omitted --grant-type means the grants a seeded client has always
+// received, chosen by type — unchanged so an existing invocation is
+// unaffected by this flag's addition.
+function defaultGrantsFor(type: 'confidential' | 'public'): string[] {
+  return type === 'confidential'
+    ? ['authorization_code', 'refresh_token', 'client_credentials']
+    : ['authorization_code', 'refresh_token'];
+}
+
 async function runClientCommand(
   ownerDb: Database,
   runtimeDb: Database,
@@ -833,6 +843,7 @@ async function runClientCommand(
       'redirect-uri': { type: 'string', multiple: true },
       'post-logout-redirect-uri': { type: 'string', multiple: true },
       'web-origin': { type: 'string', multiple: true },
+      'grant-type': { type: 'string', multiple: true },
     },
   });
 
@@ -876,6 +887,17 @@ async function runClientCommand(
   // redirect URI, so a relative one is as meaningless here as there.
   assertAbsoluteRedirectUris(postLogoutRedirectUris);
 
+  const type: ClientRecord['type'] = values.public === true ? 'public' : 'confidential';
+  const requestedGrantTypes = values['grant-type'];
+  const grantTypes = requestedGrantTypes ?? defaultGrantsFor(type);
+  const unknownGrantTypes = grantTypes.filter((name) => !GRANT_TYPES_PERMITTED.has(name));
+  if (unknownGrantTypes.length > 0) {
+    throw new OduduError(
+      'seed_unknown_grant_type',
+      `--grant-type names ${unknownGrantTypes.join(', ')}, which this server does not implement`,
+    );
+  }
+
   const tenantId = await requireTenantId(ownerDb, tenantName);
 
   return withTenant(runtimeDb, tenantId, async (tx) => {
@@ -886,8 +908,6 @@ async function runClientCommand(
         `client ${JSON.stringify(clientId)} already exists in tenant ${JSON.stringify(tenantName)}`,
       );
     }
-
-    const type: ClientRecord['type'] = values.public === true ? 'public' : 'confidential';
 
     let serviceSubjectId: string | null = null;
     if (type === 'confidential') {
@@ -914,10 +934,7 @@ async function runClientCommand(
       clientId: client.id,
       tenantId,
       redirectUris,
-      grantTypes:
-        type === 'confidential'
-          ? ['authorization_code', 'refresh_token', 'client_credentials']
-          : ['authorization_code', 'refresh_token'],
+      grantTypes,
       tokenEndpointAuthMethod:
         type === 'confidential' ? (authMethod ?? 'client_secret_basic') : 'none',
       audiences: [],

@@ -20,6 +20,7 @@ export type ErrorCode =
   | 'seed_not_found'
   | 'seed_unknown_command'
   | 'seed_unknown_setting'
+  | 'seed_unknown_grant_type'
   | 'insert_returned_no_row'
   | 'role_not_found'
   | 'role_composite_cycle'

@@ -2,11 +2,50 @@
 
 ## Start here
 
-**P0, P1, P2a, P2b, P3a and P3b are complete, and the tenant rename is done.
-P4 — the admin API and consoles — is next**, and needs its own brainstorm and
-spec: nothing below is a P4 plan, only what it inherits and what is still
-open. Phases are section 11 of
-[the umbrella spec](superpowers/specs/2026-09-10-odudu-design.md).
+**P0, P1, P2a, P2b, P3a, P3b and P4a are complete, and the tenant rename is
+done. P4 has been split four ways.** Phases are section 11 of
+[the umbrella spec](superpowers/specs/2026-09-10-odudu-design.md), whose
+"P4 became four phases" subsection has the reasoning.
+
+The order is **P4a → P4c → P4d → P4b**, and the letters deliberately do not
+read in execution order, because `P4b` was spent on theming before P4 split
+and an accepted ADR cites it. P4a was token exchange
+([spec](superpowers/specs/2026-09-23-p4a-token-exchange-design.md)); P4c is
+the admin API, next; P4d is the consoles; P4b stays theming and stays last.
+
+P4a added `/token`'s fourth grant, RFC 8693 token exchange
+(`urn:ietf:params:oauth:grant-type:token-exchange`), and closed a standing
+gap beside it: `config.grantTypes` now gates every grant, not only whether
+a refresh token is issued, so a client registered for `authorization_code`
+alone can no longer redeem `client_credentials`. A delegation nests an
+`act` claim naming the actor; an impersonation, gated per client by
+`token_exchange_impersonation_allowed`, names none. Every issued shape —
+access token, ID token or refresh token — is capped at the subject token's
+own expiry, scope only ever narrows, and the target audience is
+single-valued, inheriting RFC 8707's decision. `docs/protocols/rfc8693.md`
+has the clause table.
+
+What turned out to be **wrong** while building it is in
+[docs/phases/p4a.md](phases/p4a.md), not here.
+
+**P4a left ADR 0007's unresolved status and the `client.enabled` question
+exactly as it found them.** Both predate P4a and neither was this phase's
+to answer: `parseStructure` stayed the real authority for the token
+request shape instead of a Zod contract, the same choice every other grant
+already made, and `resolveExchangeToken`'s access-token and refresh-token
+branches check grant revocation and session liveness exactly the way
+`/userinfo` and `/introspect` do; its id_token branch names no grant
+(`resolveIdToken` returns `grantId: null`) and checks session liveness via
+`sid` alone. All three share the same blind spot for a client disabled
+after a token was issued to it. Both triggers, recorded below under "The
+token surface", now name P4a's own files alongside the ones that already
+carried them.
+
+**A bare `P4` below means P4c** unless it concerns token exchange, the grant
+allowlist, theming or client branding — the same disambiguation the P2 split
+used, and for the same reason: a citation renumbered wrongly is invisible for
+good. Nothing below is a plan for any of the four, only what they inherit and
+what is still open.
 
 **The tenant rename changed the wire.** What was called a `realm` is a
 tenant everywhere: the path is `/tenants/{tenant}/…`, so the issuer — and
@@ -39,7 +78,7 @@ proxy-header mTLS client authentication.
 
 What turned out to be **wrong** while building it is in
 [docs/phases/p3b.md](phases/p3b.md), not here. Two things from it are worth
-reading before P4 is brainstormed: the recurring defect of a rule applied at
+reading before P4c is brainstormed: the recurring defect of a rule applied at
 one door out of several, and the finding that this repository's most
 frequent defect is a comment whose conclusion is right and whose stated
 reason is false.
@@ -49,6 +88,7 @@ reason is false.
 The running records, split out of this file on 2026-09-17: P2b reached
 1,873 lines here, of which the part describing where the project stood was 58.
 
+- [P4a — token exchange](phases/p4a.md)
 - [Renaming the tenant concept](phases/tenant-rename.md) — not a phase; a
   cross-cutting rename between P3b and P4, kept here for the same reason
 - [P3b — sessions, logout and the token surface](phases/p3b.md)
@@ -66,12 +106,12 @@ Not what a finished phase discovered. If a section here is addressed to a
 phase that has closed, it is overdue for a decision or a move, not for
 another paragraph.
 
-## What P4 inherits
+## What P4c, P4d and P4b inherit
 
 **A session set to list and to end.** `sessionRepository.liveByIds`
 (`packages/authn-flows/src/repository/sessions.ts`) measures each session
 against its own lifespan pair, and the cookie is the only place a browser's
-membership is recorded. P4's "list a subject's sessions and end one" is the
+membership is recorded. P4c's "list a subject's sessions and end one" is the
 first surface that reads sessions by **subject** rather than by cookie —
 and it is also the operator's only reach for the orphan case ADR 0033
 records, where two genuinely concurrent logins in one browser can leave a
@@ -87,13 +127,16 @@ refuses a client that already exists rather than amending one. So every
 per-client value P3b reads — `audiences`, the logout URIs, the UserInfo
 algorithms, `tls_client_auth_subject_dn` — is settable at creation by one
 door and by `psql` otherwise. `docs/request-paths.md` says so at each site
-that reaches for SQL, and aggregates it under "Any admin API".
+that reaches for SQL, and aggregates it under "Any admin API". P4a added a
+fifth such column, `token_exchange_impersonation_allowed`: no seed flag and
+no registration field, so a tenant that wants a client to impersonate
+rather than only delegate reaches for `psql` the same way.
 
 **Tenant settings already have a command, and its validation is reusable.**
 `odudu seed tenant --name <tenant> --set <name>=<value>` applies any of the
 tenant settings by column name. The name-to-column map and the coercion live
 in `packages/domain-tenant/src/service/tenant-settings.ts` rather than in the
-CLI, so P4's admin API inherits them rather than growing a second copy.
+CLI, so P4c's admin API inherits them rather than growing a second copy.
 Ranges are deliberately not there — they are CHECK constraints, and a policy
 no writer may bypass belongs at the database.
 
@@ -101,9 +144,9 @@ no writer may bypass belongs at the database.
 `seed tenant --set` changes an existing tenant; `seed client` will not change
 an existing client, because a re-run that quietly widened a registered
 redirect list is how an allowlist grows by accident. An admin API that
-treats both the same way would be wrong in one of the two directions. P4's criterion now poses that
-question rather than leaving it to be answered by whichever surface is
-written first.
+treats both the same way would be wrong in one of the two directions.
+P4c's criterion now poses that question rather than leaving it to be
+answered by whichever surface is written first.
 
 **Signing-key rotation now has a consistency obligation it did not have
 before.** A tenant holds exactly one active signing key
@@ -113,12 +156,12 @@ tenant's own `[key.alg, "none"]`, and registration refuses a
 `userinfo_signed_response_alg` the active key cannot produce. Rotating a
 tenant to a key with a different algorithm therefore strands every client
 registered against the old one — `/userinfo` answers 500 for them, with a
-log line naming client, registered algorithm and active key. P4 owns
+log line naming client, registered algorithm and active key. P4c owns
 rotation, and its criterion now names that case.
 
 **Two recovery-code gaps that need the account console.** A subject cannot
 ask for a fresh set before running out, and nothing warns as the list gets
-short. Both are named in P4's exit criterion; `beginRecoveryCodes` already
+short. Both are named in P4d's exit criterion; `beginRecoveryCodes` already
 replaces a set wholesale, so what is owed is a surface, not a mechanism.
 
 **Theming is P4b's, and the contract it needs already exists.** Every
@@ -135,6 +178,47 @@ no backup or restore guidance — **P12**, whose position in the table is not
 a dependency: publishing an image waits on nothing and is the prerequisite
 for anybody deploying this at all. Multi-replica deployment is blocked on
 migration locking and a shared session cache, both P11.
+
+## What P5 inherits
+
+**A grant, not an agent, is what P4a's exchange mints.** `token_grants` grew
+`actorSubjectId` and `exchangedFromGrantId` (migration
+`0059_token_exchange.sql`) so a delegated or impersonated grant records who
+it came from, but nothing reads either column to decide anything yet — the
+agent identity layer's own instance, budget and `max_depth` (design spec
+§9) are still to build. Three things specifically wait on it:
+
+- **`may_act` minting.** `mayActPermits`
+  (`packages/protocol-oidc/src/service/token-exchange.ts`) enforces the
+  claim already, permitting an exchange whenever it is absent "since
+  nothing mints it yet" — its own comment. A subject pre-authorising a
+  specific actor needs something to write the claim onto a token in the
+  first place, which is P5's, alongside the instance that would be doing
+  the pre-authorising.
+- **`may_act` is unreachable when the subject is a refresh token.**
+  `resolveExchangeToken`'s refresh-token branch
+  (`packages/protocol-oidc/src/usecase/token-exchange-subject.ts`) sets
+  `mayAct: undefined` unconditionally: no grant column persists `may_act`,
+  and a refresh token carries no JWT claims of its own to read one from.
+  Not exploitable today, since nothing mints the claim yet, but once P5
+  does, a holder of a grant's refresh token escapes a restriction placed on
+  its access token by presenting the refresh token instead — and a
+  delegated client normally holds both. The minting phase must persist
+  `may_act` on the grant row (alongside `actChain`/`expCeiling`) or accept
+  this gap knowingly.
+- **The delegation cascade `exchangedFromGrantId` enables but does not
+  perform.** Revoking a grant today revokes that grant alone;
+  `exchangedFromGrantId` records the lineage a cascade would walk, but
+  `tokenGrantRepository.revoke` walks nothing. Whether revoking a subject's
+  original grant should transitively revoke every grant exchanged from it
+  is exactly "revoking any link transitively revokes everything below it"
+  (design spec §9), stated as an agent-layer invariant rather than
+  something this phase's plain delegation already gives it.
+- **A hardcoded chain depth.** `MAX_DELEGATION_DEPTH = 8`
+  (`packages/protocol-oidc/src/service/token-exchange.ts`) is a cap, not a
+  tenant setting, by its own comment — the configurable form belongs with
+  the agent layer's own `max_depth`, which also owns the chain's other
+  bounds (scope and TTL narrowing, budget).
 
 ## Decisions still open
 
@@ -189,16 +273,6 @@ password methods reach this endpoint".
   whose criterion now names both methods at both endpoints. Extend
   `token-issuance.ts`'s assertion and certificate dispatch to the two routes.
 
-**`/token` enforces no `config.grantTypes` allowlist, on either
-authentication path.** A client registered for `authorization_code` only
-can still obtain a `client_credentials` token: `token-issuance.ts`'s only
-read of `config.grantTypes` gates whether a refresh token is issued, not
-which grant a request may use.
-
-- Trigger: **P4**, which adds token exchange and so makes the next change to
-  grant selection in `issueTokens`; its criterion names the allowlist. Add
-  `config.grantTypes.includes(request.grantType)` before dispatching.
-
 **`/userinfo` and `/introspect` both honour a disabled client's live access
 token.** `resolveUserinfo` now checks the tenant, the token's own grant
 (`revoked_at`) and its session's liveness, and `introspect` checks the
@@ -207,7 +281,12 @@ after a token was issued to it revokes nothing: the grant stays live,
 `resolveRoleReach` refuses only the `fullScopeAllowed` bypass, and
 `userinfoEncryptionTarget` refuses only registered encryption. A disabled
 client that registered neither still gets an ordinary, correctly narrowed
-response from both endpoints.
+response from both endpoints. `resolveExchangeToken`'s access-token and
+refresh-token branches
+(`packages/protocol-oidc/src/usecase/token-exchange-subject.ts`) check the
+same pair a third way; its id_token branch checks only session liveness,
+since an ID token names no grant. All three inherit the identical blind
+spot.
 
 - Trigger: **P4**, where disabling a client becomes an operation at all.
   Its criterion now asks that phase to decide whether `/userinfo` and
@@ -239,6 +318,55 @@ between the pre-flight and the authoritative read — which no test drives.
 
 - Trigger: whichever task next touches refresh rotation. A test that lands
   a revocation in that window is what pins it.
+
+**No test proves a refresh rotated past its `exp_ceiling` is actually
+refused.** `rotateRefreshToken` (P4a) caps a replacement refresh token's
+`expiresAt` at the exchanged grant's ceiling, and the refusal itself is
+real: `refreshTokenRepository.consume` gates on a literal SQL
+`expires_at > now()` (`repository/refresh.ts`), so a capped, expired row is
+refused exactly like any other expired refresh token. But that check reads
+PostgreSQL's own clock, never the app's injected `Clock` — an integration
+test can advance a `FakeClock` to move every other time-dependent decision
+in this file, and it will not move this one. Nothing short of a real wait
+can currently demonstrate the refusal.
+
+- Trigger: whichever change next gives the refresh path a clock it can
+  control end to end (folding the SQL-level expiry check into an
+  application-level comparison against `deps.clock.now()`), or the phase
+  that introduces time-travel fixtures capable of moving the database's
+  own clock rather than only the app's.
+
+**ADR 0007 has never been executed.** Schemas are to be authored in Zod in
+`packages/contracts` and compiled with `z.toJSONSchema()` for ajv validation
+and OpenAPI. `parseStructure` in `token-issuance.ts` is the real authority
+for the token request instead, and the contracts schemas that described it
+were deleted in P4a rather than extended with a fourth grant, because a
+stale union is worse than an absent one.
+
+- Trigger: **P4c**, which publishes OpenAPI and so must either honour ADR
+  0007 or amend it. `verified:` `z.toJSONSchema` exists in Zod 4.6.1 and
+  emits draft 2020-12, the dialect OpenAPI 3.1 uses.
+
+**`token_grants_session_fk` (0026_token_grants_session.sql) has the same
+unrestricted-`ON DELETE SET NULL` defect P4a's review caught in 0059:
+deleting a session would null `tenant_id` alongside `session_id`, and the
+delete would fail its NOT NULL constraint rather than detach the grant —
+the comment beside it, claiming the delete "would otherwise silently
+promote a session-bound grant to an offline one", describes behaviour
+PostgreSQL does not have. Nothing has hit this: `REAP_ORDER`
+(`apps/server/src/cli/reap.ts`) deletes `token_grants` before `sessions`,
+so reap never deletes a session a live grant references. The fix is the
+same column-list form: `ON DELETE SET NULL (session_id)`.
+
+**`clients_service_subject_fk` (0005_subjects.sql, renamed by 0057) is a
+third instance of the same trap**: an unrestricted composite
+`ON DELETE SET NULL` on `(tenant_id, service_subject_id)` would null
+`tenant_id` on `clients` alongside it, and a service subject's delete would
+fail `clients`'s own `NOT NULL` rather than detach it. The fix is the same
+column-list form: `ON DELETE SET NULL (service_subject_id)`.
+
+- Trigger: the next migration that touches `token_grants` or `clients` for
+  an unrelated reason.
 
 ### The session set
 
@@ -297,7 +425,7 @@ win without "we did not run those tests" semantics. Keep typecheck, lint,
 boundaries and unit tests always-full, and set `globalDependencies` at the
 same time.
 
-- Trigger for caching: CI exceeds roughly 5 minutes (likely P4, when
+- Trigger for caching: CI exceeds roughly 5 minutes (likely P4d, when
   Playwright arrives).
 - Trigger for filtering: slow suites dominate — P8 SAML interop, P9 policy
   evaluation, or the nightly conformance suite.
@@ -321,18 +449,6 @@ the server's bytes: content intact, byte-level promise not.
   empty-language block — the parser beneath it already accepts one — then
   untag the responses. It touches every JSON transcript at once, which is
   why it does not ride along with anything else.
-
-**`pnpm trace` can overstate the census, and hides its own errors after the
-first.** `parseStatus` throws in `loadTables` before any id is resolved, so
-one malformed clause status masks every later problem in every later file —
-a single `trace` error is never safely the only one. And the summary counts
-a broken `covered` row as covered; it printed `410 covered` on a failing
-run. Only reachable in an already-red build, but the census is the one
-artefact claiming to be exhaustive.
-
-- Trigger: whichever change next touches `tools/trace`. Collect parse
-  errors rather than throwing on the first, and exclude a row that failed
-  validation from the summary.
 
 **RFC 7523 has no clause table, and its clauses are absent from the
 matrix.** `docs/protocols/rfc7523.md` is the one file in `docs/protocols/`
@@ -384,7 +500,7 @@ this file or the phase note.
 - The two `user_credentials` counts at `docs/request-paths.md:3052` and
   `:3282` are unscoped, and correct only in document order — the
   neighbouring query of the same kind is scoped. Re-scoping them needs a
-  re-run against a live stack. **P4**, which re-captures those transcripts
+  re-run against a live stack. **P4d**, which re-captures those transcripts
   anyway: its criterion gives a subject a fresh set of recovery codes before
   the old set is spent, which is what those two queries count.
 - `session-cookie.ts` hand-rolls a case-sensitive UUID regex while the test
@@ -402,7 +518,7 @@ this file or the phase note.
   `packages/authn-flows/src/usecase/executor.ts`.
 - The boundary suite's negative control filters a fixture with no imports at
   all, so it cannot demonstrate that `service-is-a-leaf` is not over-broad.
-  A service importing another service would. **P4**: its consoles are the
+  A service importing another service would. **P4d**: its consoles are the
   first packages outside the server to carry the five layers, so the rule set
   and its fixtures are extended there.
 - `tests/lint/production-guard-order.test.ts` compares source offsets and

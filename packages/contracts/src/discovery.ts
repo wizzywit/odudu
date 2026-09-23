@@ -104,7 +104,12 @@ export function discoveryDocument(opts: DiscoveryDocumentOptions): DiscoveryDocu
     userinfo_encryption_alg_values_supported: opts.userinfoEncryptionAlgSupported,
     userinfo_encryption_enc_values_supported: opts.userinfoEncryptionEncSupported,
     code_challenge_methods_supported: ['S256'],
-    grant_types_supported: ['authorization_code', 'refresh_token', 'client_credentials'],
+    grant_types_supported: [
+      'authorization_code',
+      'refresh_token',
+      'client_credentials',
+      'urn:ietf:params:oauth:grant-type:token-exchange',
+    ],
     // Built from the same constant `authenticateClient` validates against, so
     // discovery cannot advertise a method the token endpoint would reject.
     token_endpoint_auth_methods_supported:

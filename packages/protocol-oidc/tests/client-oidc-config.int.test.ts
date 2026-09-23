@@ -94,6 +94,31 @@ describe('clientOidcConfigRepository', () => {
     expect(found?.consentRequired).toBe(false);
   });
 
+  it('defaults token exchange impersonation to refused', async () => {
+    const tenantId = newId();
+    const clientId = newId();
+
+    await withTenant(app.db, tenantId, async (tx) => {
+      await seedTenantAndClient(tx, tenantId, clientId);
+      return clientOidcConfigRepository(tx).create({
+        clientId,
+        tenantId,
+        redirectUris: ['https://app.example/callback'],
+        grantTypes: ['authorization_code', 'refresh_token'],
+        tokenEndpointAuthMethod: 'client_secret_basic',
+        audiences: [],
+        accessTokenTtlSeconds: 300,
+        refreshTokenTtlSeconds: 1_209_600,
+      });
+    });
+
+    const config = await withTenant(app.db, tenantId, (tx) =>
+      clientOidcConfigRepository(tx).byClientId(clientId),
+    );
+
+    expect(config?.tokenExchangeImpersonationAllowed).toBe(false);
+  });
+
   it('returns null when no config matches', async () => {
     const tenantId = newId();
 
