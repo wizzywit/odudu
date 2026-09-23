@@ -92,6 +92,20 @@ describe('boundary rules', () => {
     expect(fromGoodService).toHaveLength(0);
   });
 
+  it('rejects a service importing src/testing/', async () => {
+    const found = await violations('no-layer-to-testing');
+    expect(
+      found.some((v) => v.from.includes('domain-example/src/service/bad-service-testing.ts')),
+    ).toBe(true);
+  });
+
+  it('does not flag a clean service for no-layer-to-testing', async () => {
+    const found = await violations('no-layer-to-testing');
+    expect(found.some((v) => v.from.endsWith('domain-example/src/service/some-service.ts'))).toBe(
+      false,
+    );
+  });
+
   it('permits a view importing service, with zero violations', async () => {
     const output = await cruiseFixtures();
     const fromGoodView = output.summary.violations.filter((v) =>
