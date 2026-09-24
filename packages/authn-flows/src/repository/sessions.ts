@@ -4,6 +4,14 @@ import { sessions, type SessionRecord } from '#/schema/sessions';
 import { isSessionLive } from '#/service/session-liveness';
 import { lifespanFor, type SessionLifespans } from '#/service/session-lifespan';
 
+// The liveness arithmetic every reader of more than one session shares:
+// each record measured against the idle window its own `remembered`
+// column picks, never a single window applied to the whole set.
+function stillLive(record: SessionRecord, tenant: SessionLifespans, now: Date): boolean {
+  const { idleSeconds } = lifespanFor(tenant, record.remembered);
+  return isSessionLive(record, idleSeconds, now);
+}
+
 function toRecord(row: typeof sessions.$inferSelect): SessionRecord {
   return {
     id: row.id,
@@ -54,8 +62,7 @@ export function sessionRepository(tx: TenantScopedDatabase) {
     async liveById(id: string, tenant: SessionLifespans, now: Date): Promise<SessionRecord | null> {
       const record = await this.byId(id);
       if (record === null) return null;
-      const { idleSeconds } = lifespanFor(tenant, record.remembered);
-      return isSessionLive(record, idleSeconds, now) ? record : null;
+      return stillLive(record, tenant, now) ? record : null;
     },
 
     async touch(id: string, now: Date): Promise<void> {
@@ -88,10 +95,20 @@ export function sessionRepository(tx: TenantScopedDatabase) {
         .select()
         .from(sessions)
         .where(inArray(sessions.id, [...ids]));
-      return rows.map(toRecord).filter((record) => {
-        const { idleSeconds } = lifespanFor(tenant, record.remembered);
-        return isSessionLive(record, idleSeconds, now);
-      });
+      return rows.map(toRecord).filter((record) => stillLive(record, tenant, now));
+    },
+
+    // The only read keyed on who a session belongs to rather than what a
+    // browser's cookie names — so it is the one place an operator can see
+    // a session a lost or overwritten cookie orphaned (ADR 0033), remembered
+    // ones included, for as long as its own idle window keeps it alive.
+    async liveBySubject(
+      subjectId: string,
+      tenant: SessionLifespans,
+      now: Date,
+    ): Promise<SessionRecord[]> {
+      const rows = await tx.select().from(sessions).where(eq(sessions.subjectId, subjectId));
+      return rows.map(toRecord).filter((record) => stillLive(record, tenant, now));
     },
 
     async endMany(ids: readonly string[], now: Date): Promise<void> {
