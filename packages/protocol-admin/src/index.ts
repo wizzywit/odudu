@@ -8,6 +8,7 @@ import { tenantLookupRepository, tokenGrantRepository } from '@odudu/protocol-oi
 import { type FastifyPluginAsync } from 'fastify';
 import { type AuthenticateAdminDeps } from '#/usecase/authenticate-admin';
 import { type AuthorizeAdminDeps } from '#/usecase/authorize-admin';
+import { installAdminValidator } from '#/adapter/validation';
 import { type AdminRouteHandlers, registerAdminRoutes } from '#/view/routes/router';
 import { listSubjectsHandler } from '#/view/routes/subjects';
 import { whoamiHandler } from '#/view/routes/whoami';
@@ -29,6 +30,8 @@ export interface AdminRoutesDeps {
 
 export function adminRoutes(deps: AdminRoutesDeps): FastifyPluginAsync {
   return (app) => {
+    installAdminValidator(app);
+
     const clock = deps.clock ?? systemClock;
 
     const authDeps: AuthenticateAdminDeps = {
