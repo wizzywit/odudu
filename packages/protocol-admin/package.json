@@ -20,19 +20,19 @@
     "@odudu/crypto": "workspace:*",
     "@odudu/db": "workspace:*",
     "@odudu/domain-authz": "workspace:*",
+    "@odudu/domain-identity": "workspace:*",
     "@odudu/domain-tenant": "workspace:*",
     "@odudu/kernel": "workspace:*",
     "@odudu/protocol-oidc": "workspace:*",
     "ajv": "8.20.0",
     "ajv-formats": "3.0.1",
+    "drizzle-orm": "0.45.2",
     "fastify": "5.12.3",
     "zod": "4.6.1"
   },
   "devDependencies": {
     "@fastify/formbody": "9.0.0",
-    "@odudu/domain-identity": "workspace:*",
     "@odudu/testkit": "workspace:*",
-    "drizzle-orm": "0.45.2",
     "vitest": "5.0.0"
   }
 }

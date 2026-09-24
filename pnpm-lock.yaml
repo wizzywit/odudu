@@ -452,6 +452,9 @@ importers:
       '@odudu/domain-authz':
         specifier: workspace:*
         version: link:../domain-authz
+      '@odudu/domain-identity':
+        specifier: workspace:*
+        version: link:../domain-identity
       '@odudu/domain-tenant':
         specifier: workspace:*
         version: link:../domain-tenant
@@ -467,6 +470,9 @@ importers:
       ajv-formats:
         specifier: 3.0.1
         version: 3.0.1(ajv@8.20.0)
+      drizzle-orm:
+        specifier: 0.45.2
+        version: 0.45.2(postgres@3.4.9)
       fastify:
         specifier: 5.12.3
         version: 5.12.3
@@ -477,15 +483,9 @@ importers:
       '@fastify/formbody':
         specifier: 9.0.0
         version: 9.0.0
-      '@odudu/domain-identity':
-        specifier: workspace:*
-        version: link:../domain-identity
       '@odudu/testkit':
         specifier: workspace:*
         version: link:../testkit
-      drizzle-orm:
-        specifier: 0.45.2
-        version: 0.45.2(postgres@3.4.9)
       vitest:
         specifier: 5.0.0
         version: 5.0.0(@types/node@24.13.4)(vite@8.2.2(@types/node@24.13.4)(esbuild@0.28.2)(tsx@4.23.13)(yaml@2.9.0))

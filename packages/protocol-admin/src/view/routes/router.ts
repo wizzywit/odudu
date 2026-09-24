@@ -12,9 +12,16 @@ import { authorizeAdmin, type AuthorizeAdminDeps } from '#/usecase/authorize-adm
 import { problem, sendProblem } from '#/view/problem';
 
 // Optional: `/admin/tenants` itself carries no `:tenant` segment (see
-// `targetTenantNameFor` below), so Fastify never populates this param for
-// it — the type says so rather than leaving a reader to notice at runtime.
-export type AdminRequest = FastifyRequest<{ Params: { tenant?: string } }>;
+// `targetTenantNameFor` below), and most routes carry no `:id` segment
+// either — Fastify never populates a param ADMIN_ROUTES' own pattern does
+// not declare, so the type says both are absent rather than leaving a
+// reader to notice at runtime.
+export interface AdminRouteParams {
+  readonly tenant?: string;
+  readonly id?: string;
+}
+
+export type AdminRequest = FastifyRequest<{ Params: AdminRouteParams }>;
 
 export type AdminRouteHandler = (
   request: AdminRequest,
@@ -44,7 +51,7 @@ function sendForbidden(request: FastifyRequest, reply: FastifyReply): FastifyRep
 // tenant, explicitly, rather than an absent path param read as one by
 // accident. `route.pattern` (the table entry), not `request.params`,
 // decides which case this is, so the two can never disagree.
-function targetTenantNameFor(route: AdminRoute, params: { tenant?: string }): string {
+function targetTenantNameFor(route: AdminRoute, params: AdminRouteParams): string {
   if (!route.pattern.includes(':tenant')) return SYSTEM_TENANT_NAME;
   const tenant = params.tenant;
   if (tenant === undefined) {
@@ -109,7 +116,7 @@ export function registerAdminRoutes(
     }
     unclaimed.delete(key);
 
-    app.route<{ Params: { tenant?: string } }>({
+    app.route<{ Params: AdminRouteParams }>({
       method: route.method,
       url: route.pattern,
       schema: {

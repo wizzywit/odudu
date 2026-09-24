@@ -1,7 +1,11 @@
 import {
   amendSettingsRequestSchema,
+  clientSchema,
+  createClientRequestSchema,
+  createClientResponseSchema,
   createTenantRequestSchema,
   cursorQuerySchema,
+  listClientsResponseSchema,
   listTenantsResponseSchema,
   settingsSchema,
   tenantSchema,
@@ -81,6 +85,29 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     capability: 'manage-tenant',
     responseSchema: settingsSchema,
     bodySchema: amendSettingsRequestSchema,
+  },
+  // No `view-clients`: client metadata is configuration rather than a
+  // population to browse, so every route below requires `manage-clients`.
+  {
+    method: 'GET',
+    pattern: '/admin/tenants/:tenant/clients',
+    capability: 'manage-clients',
+    responseSchema: listClientsResponseSchema,
+    querystringSchema: cursorQuerySchema,
+  },
+  {
+    method: 'POST',
+    pattern: '/admin/tenants/:tenant/clients',
+    capability: 'manage-clients',
+    responseSchema: createClientResponseSchema,
+    successStatus: 201,
+    bodySchema: createClientRequestSchema,
+  },
+  {
+    method: 'GET',
+    pattern: '/admin/tenants/:tenant/clients/:id',
+    capability: 'manage-clients',
+    responseSchema: clientSchema,
   },
 ];
 

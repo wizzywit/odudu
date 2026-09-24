@@ -23,3 +23,15 @@ export {
   settingsSchema,
   type Settings,
 } from '#/admin/settings';
+export {
+  clientTypeSchema,
+  registrationOriginSchema,
+  clientSchema,
+  type Client,
+  createClientResponseSchema,
+  type CreateClientResponse,
+  createClientRequestSchema,
+  type CreateClientRequest,
+  listClientsResponseSchema,
+  type ListClientsResponse,
+} from '#/admin/clients';

@@ -57,15 +57,18 @@ section 7 has the full authentication and authorization sequence; getting
 a token to test with is [README.md](../README.md)'s job, not this
 document's.
 
-| Method  | Path                               | What it is                |
-| ------- | ---------------------------------- | ------------------------- |
-| `GET`   | `/admin/tenants`                   | List tenants              |
-| `POST`  | `/admin/tenants`                   | Create a tenant           |
-| `GET`   | `/admin/tenants/{tenant}/whoami`   | Identity probe            |
-| `GET`   | `/admin/tenants/{tenant}/subjects` | List subjects             |
-| `GET`   | `/admin/tenants/{tenant}/settings` | Read a tenant's settings  |
-| `PATCH` | `/admin/tenants/{tenant}/settings` | Amend a tenant's settings |
-| `GET`   | `/admin/openapi.json`              | The OpenAPI reference     |
+| Method  | Path                                  | What it is                |
+| ------- | ------------------------------------- | ------------------------- |
+| `GET`   | `/admin/tenants`                      | List tenants              |
+| `POST`  | `/admin/tenants`                      | Create a tenant           |
+| `GET`   | `/admin/tenants/{tenant}/whoami`      | Identity probe            |
+| `GET`   | `/admin/tenants/{tenant}/subjects`    | List subjects             |
+| `GET`   | `/admin/tenants/{tenant}/settings`    | Read a tenant's settings  |
+| `PATCH` | `/admin/tenants/{tenant}/settings`    | Amend a tenant's settings |
+| `GET`   | `/admin/tenants/{tenant}/clients`     | List clients              |
+| `POST`  | `/admin/tenants/{tenant}/clients`     | Create a client           |
+| `GET`   | `/admin/tenants/{tenant}/clients/:id` | Read a client             |
+| `GET`   | `/admin/openapi.json`                 | The OpenAPI reference     |
 
 ## `GET /admin/tenants`
 
@@ -224,6 +227,85 @@ which value it refused. A setting's value may be sent as its JSON type
 (`true`, `14`) or as the equivalent string (`"true"`, `"14"`) — both reach
 the same `coerceTenantSetting` the CLI uses, which reads a string either
 way.
+
+## `GET /clients`, `POST /clients` and `GET /clients/{id}`
+
+Lists, reads and creates clients — the `clients` row and its OIDC
+configuration (`client_oidc_config`), joined into one resource keyed by the
+client's internal id (`{id}` above is that id, not the OAuth `client_id`
+string a token request names). Requires `manage-clients` throughout: there
+is no `view-clients`, because client metadata is configuration rather than
+a population to browse. A `GET` on a single client carries an `ETag`;
+amending one is a later increment, so there is nothing yet for `If-Match`
+to guard.
+
+A create body names `client_id` — chosen by the operator, unlike RFC 7591
+dynamic registration (`clients-registrations/openid-connect`,
+[docs/request-paths.md](request-paths.md#dynamic-client-registration))
+where the server assigns it — plus the same RFC 7591 client metadata dynamic
+registration accepts, narrowed by the identical validator
+(`parseClientMetadata`, `packages/protocol-oidc/src/service/client-metadata.ts`):
+a `redirect_uris` entry it rejects, or `jwks` and `jwks_uri` sent together,
+is refused here with the identical `400` detail. `odudu-admin` is refused
+as a `client_id` with `409` — reserved for the built-in admin client every
+tenant is provisioned with, and creation is a door dynamic registration
+never opens to it in the first place, since RFC 7591 §2 already assigns
+`client_id` there and refuses a caller that names one itself.
+
+A confidential client (`token_endpoint_auth_method` anything but `none`) is
+given a generated secret, returned **exactly once, in the creation
+response**. Nothing reads it back afterward — `clients.secret_hash` is the
+only thing stored.
+
+A request shape:
+
+```bash
+curl -sS -X POST \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"client_id": "demo-backend", "grant_types": ["client_credentials"], "token_endpoint_auth_method": "client_secret_basic"}' \
+  http://localhost:3000/admin/tenants/demo/clients
+```
+
+The response shape, not a captured run — `201`, the created client, and the
+one-time secret:
+
+```json
+{
+  "id": "<client id>",
+  "client_id": "demo-backend",
+  "name": "demo-backend",
+  "type": "confidential",
+  "enabled": true,
+  "full_scope_allowed": false,
+  "registration_origin": "seeded",
+  "created_at": "<timestamp>",
+  "redirect_uris": [],
+  "grant_types": ["client_credentials"],
+  "token_endpoint_auth_method": "client_secret_basic",
+  "client_secret": "<returned once, here only>",
+  "…every other client field…": "…"
+}
+```
+
+Listing pages the same way `GET /admin/tenants` does — `?limit=`, `?cursor=`,
+ordered by `id`, a `Link: rel="next"` header and a `next` body member once a
+further page exists, no total:
+
+```bash
+curl -sS \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  http://localhost:3000/admin/tenants/demo/clients?limit=50
+```
+
+Reading one client by its internal id carries an `ETag` and never the
+secret, whether or not one was ever generated:
+
+```bash
+curl -sS -D - \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  http://localhost:3000/admin/tenants/demo/clients/<client id>
+```
 
 ## `GET /whoami`
 

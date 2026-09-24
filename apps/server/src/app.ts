@@ -224,6 +224,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
       logger: deps.logger,
       cursorKey: deps.kek,
       kek: deps.kek,
+      trustProxy: deps.trustProxy ?? false,
     }),
   );
   app.register(

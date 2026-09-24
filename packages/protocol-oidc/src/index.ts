@@ -818,8 +818,13 @@ export { tenantIssuerFor } from '#/view/issuer';
 export { assertionJtiRepository } from '#/repository/assertion-jti';
 export { clientOidcConfigRepository } from '#/repository/client-oidc-config';
 export { provisionAdminClient, ADMIN_CLIENT_REDIRECT_URI } from '#/usecase/provision-admin-client';
-export { type ClientOidcConfig } from '#/schema/client-oidc-config';
-export { GRANT_TYPES_PERMITTED } from '#/service/client-metadata';
+export { clientOidcConfig, type ClientOidcConfig } from '#/schema/client-oidc-config';
+export {
+  parseClientMetadata,
+  GRANT_TYPES_PERMITTED,
+  type ClientMetadata,
+  type ClientMetadataOutcome,
+} from '#/service/client-metadata';
 export {
   tenantLookupRepository,
   type NewTenant,

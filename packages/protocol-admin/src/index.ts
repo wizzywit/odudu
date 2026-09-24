@@ -2,15 +2,23 @@ import { sessionRepository } from '@odudu/authn-flows';
 import { signingKeyRepository } from '@odudu/crypto';
 import { type DatabaseHandle, withTenant } from '@odudu/db';
 import { effectiveRoles } from '@odudu/domain-authz';
+import { hashPassword } from '@odudu/domain-identity';
 import { clientRepository } from '@odudu/domain-tenant';
 import { type Clock, type Logger, systemClock } from '@odudu/kernel';
 import { tenantLookupRepository, tokenGrantRepository } from '@odudu/protocol-oidc';
 import { type FastifyPluginAsync } from 'fastify';
 import { type AuthenticateAdminDeps } from '#/usecase/authenticate-admin';
 import { type AuthorizeAdminDeps } from '#/usecase/authorize-admin';
+import { type Audit as ClientAudit } from '#/usecase/clients';
 import { type Audit } from '#/usecase/tenants';
 import { installAdminValidator } from '#/adapter/validation';
 import { installProblemDetailsHandler } from '#/view/problem';
+import {
+  createClientHandler,
+  listClientsHandler,
+  readClientHandler,
+  type ClientsRouteDeps,
+} from '#/view/routes/clients';
 import { registerOpenApiRoute } from '#/view/routes/openapi';
 import { type AdminRouteHandlers, registerAdminRoutes } from '#/view/routes/router';
 import {
@@ -43,6 +51,11 @@ export interface AdminRoutesDeps {
   // (createTenant, #/usecase/tenants.ts) — the same KEK `seedAdmin` and
   // `seed tenant` use.
   kek: Uint8Array;
+  // Gates `tls_client_auth` client creation the same way `/token` and
+  // dynamic registration gate it (`OidcRoutesDeps.trustProxy`,
+  // @odudu/protocol-oidc) — off by default, since a `tls_client_auth`
+  // client is unauthenticatable with no proxy in front of this server.
+  trustProxy?: boolean;
 }
 
 export function adminRoutes(deps: AdminRoutesDeps): FastifyPluginAsync {
@@ -56,6 +69,7 @@ export function adminRoutes(deps: AdminRoutesDeps): FastifyPluginAsync {
     // mutation still calls `audit`, so nothing here needs rewriting when
     // it does.
     const noopAudit: Audit = () => Promise.resolve();
+    const noopClientAudit: ClientAudit = () => Promise.resolve();
     const tenantsDeps: TenantsRouteDeps = {
       database: deps.database.db,
       ownerDatabase: deps.ownerDatabase.db,
@@ -67,6 +81,13 @@ export function adminRoutes(deps: AdminRoutesDeps): FastifyPluginAsync {
       database: deps.database.db,
       audit: () => Promise.resolve(),
     };
+    const clientsDeps: ClientsRouteDeps = {
+      database: deps.database.db,
+      cursorKey: deps.cursorKey,
+      hashClientSecret: hashPassword,
+      tlsClientAuthEnabled: deps.trustProxy ?? false,
+      audit: noopClientAudit,
+    };
     const handlers: AdminRouteHandlers = {
       'GET /admin/tenants/:tenant/whoami': whoamiHandler,
       'GET /admin/tenants/:tenant/subjects': listSubjectsHandler,
@@ -74,6 +95,9 @@ export function adminRoutes(deps: AdminRoutesDeps): FastifyPluginAsync {
       'POST /admin/tenants': createTenantHandler(tenantsDeps),
       'GET /admin/tenants/:tenant/settings': getSettingsHandler(settingsDeps),
       'PATCH /admin/tenants/:tenant/settings': amendSettingsHandler(settingsDeps),
+      'GET /admin/tenants/:tenant/clients': listClientsHandler(clientsDeps),
+      'POST /admin/tenants/:tenant/clients': createClientHandler(clientsDeps),
+      'GET /admin/tenants/:tenant/clients/:id': readClientHandler(clientsDeps),
     };
 
     const authDeps: AuthenticateAdminDeps = {
