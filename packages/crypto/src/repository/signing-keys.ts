@@ -62,7 +62,8 @@ export function signingKeyRepository(tx: TenantScopedDatabase) {
       const rows = await tx
         .select()
         .from(signingKeys)
-        .where(and(ne(signingKeys.status, 'retired'), eq(signingKeys.alg, alg)));
+        .where(and(ne(signingKeys.status, 'retired'), eq(signingKeys.alg, alg)))
+        .orderBy(asc(signingKeys.createdAt));
       const records = rows.map(toRecord);
       return records.find((record) => record.status === 'active') ?? records[0] ?? null;
     },
@@ -76,11 +77,12 @@ export function signingKeyRepository(tx: TenantScopedDatabase) {
     },
 
     // Demotes whatever is currently active and promotes `id` in the same
-    // transaction, so no window has two actives or none. Locked before
-    // either write: two concurrent promotes must serialise on whichever row
-    // is active right now, or each can finish believing it alone holds it
-    // and collide on `signing_keys_one_active` instead. `null` for a
-    // missing or already-retired target.
+    // transaction, so no window has two actives or none. The lock on the
+    // active row only serialises the two queries; it does not stop a second
+    // concurrent promote from still writing a conflicting `active` row once
+    // unblocked. `signing_keys_one_active` is what turns that into a
+    // rejection instead of two active keys. `null` for a missing or
+    // already-retired target.
     async promote(id: string): Promise<SigningKeyRecord | null> {
       const targetRows = await tx
         .select()

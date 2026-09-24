@@ -4,11 +4,21 @@ import { TENANT_CAPABILITIES } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { startAdminFixture, type AdminFixture } from '#/testing/admin-fixture';
-import { promoteKey as promoteKeyUsecase } from '#/usecase/keys';
+import {
+  createKey,
+  promoteKey as promoteKeyUsecase,
+  retireKey as retireKeyUsecase,
+  type KeyAuditEvent,
+} from '#/usecase/keys';
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
+
+// Encrypts a key `createKey` generates directly in the audit tests below —
+// unrelated to whatever KEK the fixture's own HTTP routes use, since
+// nothing here decrypts it.
+const TEST_KEK = Buffer.alloc(32, 3);
 
 let fixtureHandle: AdminFixture | undefined;
 let fixture: AdminFixture;
@@ -277,15 +287,14 @@ describe('POST /admin/tenants/{t}/keys/{id}/retire', () => {
 });
 
 describe('the deadlock this design dissolves', () => {
-  it('cannot register the new algorithm before staging, can after, and can retire the old one once nothing needs it', async () => {
+  it('carries a client through stage, move, promote and retire with /userinfo succeeding at every stage', async () => {
     const t = await fixture.createTenant(`acme-${newId()}`);
     await openRegistration(t.name);
     const token = await fixture.adminToken(t.name, ['manage-keys']);
     const original = await activeKeyOf(t.id); // ES256
 
-    // Registration refuses an algorithm the active key cannot produce, so
-    // a client cannot move to RS256 before something can sign RS256 for
-    // it.
+    // Registration refuses an algorithm no non-retired key produces, so a
+    // client cannot move to RS256 before something can sign RS256 for it.
     const tooEarly = await fixture.registerClient(t.name, {
       grant_types: ['client_credentials'],
       token_endpoint_auth_method: 'client_secret_basic',
@@ -293,20 +302,40 @@ describe('the deadlock this design dissolves', () => {
     });
     expect(tooEarly.statusCode).toBe(400);
 
-    // Staging as rotating makes RS256 producible before it is default.
-    const staged = await stageKey(t.name, token, 'RS256');
+    // A client that predates the rotation, registered under the algorithm
+    // that is still active at this point.
+    const client = await fixture.registerClientWithUserinfoAlg(t.name, original.alg);
+    const userinfoAs = async () =>
+      fixture.callUserinfo(t.name, await fixture.mintUserinfoAccessToken(t.name, client, 'openid'));
+    expect((await userinfoAs()).statusCode).toBe(200);
 
-    const client = await fixture.registerClientWithUserinfoAlg(t.name, 'RS256');
-    expect(client.clientId).toBeTruthy();
+    // Staging as rotating makes RS256 producible before it is default —
+    // and changes nothing yet for a client still on the old algorithm.
+    const staged = await stageKey(t.name, token, 'RS256');
+    expect((await userinfoAs()).statusCode).toBe(200);
+
+    // The client moves to the staged algorithm ahead of promotion. Without
+    // `forAlg` wired into /userinfo's signing path, this is exactly where a
+    // client would strand: the tenant's active key is still ES256, and only
+    // a lookup that reaches the staged key rather than the active one can
+    // answer this.
+    const moved = await fixture.patchClient(t.name, client.id, {
+      userinfo_signed_response_alg: 'RS256',
+    });
+    expect(moved.statusCode).toBe(200);
+    expect((await userinfoAs()).statusCode).toBe(200);
 
     const promoted = await promoteKeyHttp(t.name, token, staged.id);
     expect(promoted.statusCode).toBe(200);
+    expect((await userinfoAs()).statusCode).toBe(200);
 
     // Nothing depends on ES256 any more, so the key that used to be
-    // active, now demoted to rotating, can finally retire.
+    // active, now demoted to rotating, can finally retire — and the client,
+    // long since moved to RS256, is unaffected by ES256 disappearing.
     const retired = await retireKey(t.name, token, original.id);
     expect(retired.statusCode).toBe(200);
     expect(retired.json<{ status: string }>().status).toBe('retired');
+    expect((await userinfoAs()).statusCode).toBe(200);
   });
 });
 
@@ -341,5 +370,109 @@ describe('is refused for every capability but manage-keys, on every route', () =
       const retire = await retireKey(t.name, token, staged.id);
       expect(retire.statusCode, `POST /keys/:id/retire as ${capability}`).toBe(403);
     }
+  });
+});
+
+// Every usecase in this file takes `audit` as a dependency rather than
+// calling a sink directly — the same seam scopes.int.test.ts's own `audit`
+// describe drives — pinned directly here so a mutation's exactly-once call
+// and a refusal's zero calls do not depend on going through HTTP.
+describe('audit', () => {
+  function collector(): {
+    events: KeyAuditEvent[];
+    audit: (e: KeyAuditEvent) => Promise<void>;
+  } {
+    const events: KeyAuditEvent[] = [];
+    return {
+      events,
+      audit: (event) => {
+        events.push(event);
+        return Promise.resolve();
+      },
+    };
+  }
+
+  it('calls audit exactly once when it stages a key', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const { events, audit } = collector();
+
+    await withTenant(fixture.app.db, t.id, (tx) =>
+      createKey(
+        tx,
+        { audit, kek: TEST_KEK },
+        { tenantId: t.id, alg: 'RS256', actorSubjectId: 'test' },
+      ),
+    );
+
+    expect(events).toHaveLength(1);
+    expect(events[0]?.action).toBe('key.create');
+  });
+
+  it('calls audit exactly once on a successful promote, and not on not_found', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const staged = await withTenant(fixture.app.db, t.id, (tx) =>
+      createKey(
+        tx,
+        { audit: () => Promise.resolve(), kek: TEST_KEK },
+        { tenantId: t.id, alg: 'RS256', actorSubjectId: 'test' },
+      ),
+    );
+
+    const ok = collector();
+    const promoted = await withTenant(fixture.app.db, t.id, (tx) =>
+      promoteKeyUsecase(tx, { audit: ok.audit }, { keyId: staged.id, actorSubjectId: 'test' }),
+    );
+    expect(promoted.kind).toBe('ok');
+    expect(ok.events).toHaveLength(1);
+    expect(ok.events[0]?.action).toBe('key.promote');
+
+    const refused = collector();
+    const outcome = await withTenant(fixture.app.db, t.id, (tx) =>
+      promoteKeyUsecase(tx, { audit: refused.audit }, { keyId: newId(), actorSubjectId: 'test' }),
+    );
+    expect(outcome.kind).toBe('not_found');
+    expect(refused.events).toHaveLength(0);
+  });
+
+  it('calls audit exactly once on a successful retire, and not on either refusal', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const active = await activeKeyOf(t.id);
+    const staged = await withTenant(fixture.app.db, t.id, (tx) =>
+      createKey(
+        tx,
+        { audit: () => Promise.resolve(), kek: TEST_KEK },
+        { tenantId: t.id, alg: 'RS256', actorSubjectId: 'test' },
+      ),
+    );
+
+    const refusedActive = collector();
+    const activeOutcome = await withTenant(fixture.app.db, t.id, (tx) =>
+      retireKeyUsecase(
+        tx,
+        { audit: refusedActive.audit },
+        { keyId: active.id, actorSubjectId: 'test' },
+      ),
+    );
+    expect(activeOutcome.kind).toBe('active');
+    expect(refusedActive.events).toHaveLength(0);
+
+    const refusedNotFound = collector();
+    const notFoundOutcome = await withTenant(fixture.app.db, t.id, (tx) =>
+      retireKeyUsecase(
+        tx,
+        { audit: refusedNotFound.audit },
+        { keyId: newId(), actorSubjectId: 'test' },
+      ),
+    );
+    expect(notFoundOutcome.kind).toBe('not_found');
+    expect(refusedNotFound.events).toHaveLength(0);
+
+    const ok = collector();
+    const retired = await withTenant(fixture.app.db, t.id, (tx) =>
+      retireKeyUsecase(tx, { audit: ok.audit }, { keyId: staged.id, actorSubjectId: 'test' }),
+    );
+    expect(retired.kind).toBe('ok');
+    expect(ok.events).toHaveLength(1);
+    expect(ok.events[0]?.action).toBe('key.retire');
   });
 });

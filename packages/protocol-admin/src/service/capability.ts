@@ -400,6 +400,7 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     capability: 'manage-keys',
     responseSchema: listKeysResponseSchema,
     querystringSchema: cursorQuerySchema,
+    description: 'Lists status, kid, alg, created_at and not_after — never the private half.',
   },
   {
     method: 'POST',

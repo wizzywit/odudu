@@ -56,9 +56,13 @@ export interface UserinfoDeps {
   // all, or has none by the time this runs (unknown or disabled client) —
   // both read as "answer in JSON," the response format's default.
   userinfoSignedResponseAlg(tenantId: string, oauthClientId: string): Promise<string | null>;
-  // The tenant's active signing key — the same one `/token` signs an access
-  // token or ID Token with, and the only one this server can sign with.
-  activeSigningKey(tenantId: string): Promise<SigningKeyRecord>;
+  // `forAlg` (@odudu/crypto), not the tenant's active key: a client may be
+  // registered against an algorithm a *staged* key produces, ahead of that
+  // key's own promotion.
+  signingKeyForAlg(tenantId: string, alg: 'RS256' | 'ES256'): Promise<SigningKeyRecord | null>;
+  // Diagnostic only, read on the mismatch path below to say what a tenant's
+  // keys could produce instead.
+  algorithmsAvailable(tenantId: string): Promise<readonly string[]>;
   // `'none'` and `'unavailable'` are deliberately not the same value: a
   // client that never registered `userinfo_encrypted_response_alg` reads
   // `'none'` — answer plainly, same as `userinfoSignedResponseAlg`'s
@@ -114,14 +118,14 @@ export type UserinfoOutcome =
   // token verifies — it names the client CORS checks the response's origin
   // against; every earlier outcome never got that far.
   | { kind: 'insufficient_scope'; clientId: string | undefined }
-  // A client registered `userinfo_signed_response_alg` for an algorithm
-  // this tenant's active key no longer carries — see `view/routes/userinfo.ts`
+  // A client registered `userinfo_signed_response_alg` for an algorithm no
+  // non-retired key of this tenant produces — see `view/routes/userinfo.ts`
   // for how this is answered and logged.
   | {
       kind: 'signing_unavailable';
       clientId: string | undefined;
       registeredAlg: string;
-      activeAlg: string;
+      availableAlgs: readonly string[];
     }
   // A client registered `userinfo_encrypted_response_alg` and this response
   // could not be encrypted for it — an unreachable jwks_uri, or a JWKS that
@@ -251,7 +255,7 @@ export async function resolveUserinfo(
       kind: 'signing_unavailable',
       clientId,
       registeredAlg: signed.registeredAlg,
-      activeAlg: signed.activeAlg,
+      availableAlgs: signed.availableAlgs,
     };
   }
 
@@ -264,7 +268,7 @@ export async function resolveUserinfo(
 
 type SignedBodyResult =
   | { kind: 'body'; body: UserinfoBody }
-  | { kind: 'mismatch'; registeredAlg: string; activeAlg: string };
+  | { kind: 'mismatch'; registeredAlg: string; availableAlgs: readonly string[] };
 
 // OIDC Core §5.3.2; see "A signed UserInfo response" in
 // docs/protocols/oidc-core.md before changing this.
@@ -285,8 +289,27 @@ async function signedBody(
     return { kind: 'body', body: { kind: 'jwt', token: encodeUnsecuredJwt(signedClaims) } };
   }
 
-  const key = await deps.activeSigningKey(tenantId);
-  if (key.alg !== alg) return { kind: 'mismatch', registeredAlg: alg, activeAlg: key.alg };
+  // `parseClientMetadata` (service/client-metadata.ts) never stores
+  // anything but 'RS256', 'ES256' or 'none' here, and 'none' is handled
+  // above — this is unreachable through the registration door, only
+  // through a row written directly (userinfo-signed.int.test.ts's own
+  // mismatch fixture).
+  if (alg !== 'RS256' && alg !== 'ES256') {
+    return {
+      kind: 'mismatch',
+      registeredAlg: alg,
+      availableAlgs: await deps.algorithmsAvailable(tenantId),
+    };
+  }
+
+  const key = await deps.signingKeyForAlg(tenantId, alg);
+  if (key === null) {
+    return {
+      kind: 'mismatch',
+      registeredAlg: alg,
+      availableAlgs: await deps.algorithmsAvailable(tenantId),
+    };
+  }
   const token = await signJwt(signedClaims, { key, kek: deps.kek, typ: USERINFO_JWT_TYP });
   return { kind: 'body', body: { kind: 'jwt', token } };
 }

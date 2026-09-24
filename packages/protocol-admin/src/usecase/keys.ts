@@ -4,7 +4,7 @@ import {
   signingKeys,
   type SigningKeyRecord,
 } from '@odudu/crypto';
-import { type SigningKey, type SigningKeyAlg, type SigningKeyStatus } from '@odudu/contracts/admin';
+import { type SigningKey, type SigningKeyAlg } from '@odudu/contracts/admin';
 import { type TenantScopedDatabase } from '@odudu/db';
 import { clients } from '@odudu/domain-tenant';
 import { clientOidcConfig } from '@odudu/protocol-oidc';
@@ -37,14 +37,20 @@ export function keyWireShape(key: SigningKeyRecord): SigningKey {
   };
 }
 
-function wireFromRow(row: typeof signingKeys.$inferSelect): SigningKey {
+// `status`/`alg` are `text` columns (packages/crypto/src/schema/signing-keys.ts),
+// narrowed here the same way @odudu/crypto's own `toRecord` narrows them —
+// the one cast site a raw row goes through before `keyWireShape` sees it.
+function toSigningKeyRecord(row: typeof signingKeys.$inferSelect): SigningKeyRecord {
   return {
     id: row.id,
-    status: row.status as SigningKeyStatus,
+    tenantId: row.tenantId,
     kid: row.kid,
-    alg: row.alg as SigningKeyAlg,
-    created_at: row.createdAt.toISOString(),
-    not_after: row.notAfter === null ? null : row.notAfter.toISOString(),
+    alg: row.alg as SigningKeyRecord['alg'],
+    status: row.status as SigningKeyRecord['status'],
+    publicJwk: row.publicJwk as Record<string, unknown>,
+    privateJwkEncrypted: row.privateJwkEncrypted,
+    createdAt: row.createdAt,
+    notAfter: row.notAfter,
   };
 }
 
@@ -77,7 +83,9 @@ export async function listKeys(
     .limit(input.limit + 1);
 
   const hasMore = rows.length > input.limit;
-  const items = (hasMore ? rows.slice(0, input.limit) : rows).map(wireFromRow);
+  const items = (hasMore ? rows.slice(0, input.limit) : rows).map((row) =>
+    keyWireShape(toSigningKeyRecord(row)),
+  );
   const last = items[items.length - 1];
   const next =
     hasMore && last !== undefined
@@ -205,7 +213,15 @@ export async function retireKey(
   if (locked === null) return { kind: 'not_found' };
   if (locked.status === 'active') return { kind: 'active' };
   if (locked.status === 'retired') {
-    return { kind: 'ok', key: wireFromRow(locked) };
+    // Idempotent: the caller asked for the key retired and it is, so this
+    // still audits as a retire even though nothing in the row changes.
+    await deps.audit({
+      action: 'key.retire',
+      resourceType: 'signing_key',
+      resourceId: locked.id,
+      actorSubjectId: input.actorSubjectId,
+    });
+    return { kind: 'ok', key: keyWireShape(toSigningKeyRecord(locked)) };
   }
 
   const survivors = await tx

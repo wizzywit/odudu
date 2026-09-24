@@ -10,6 +10,7 @@ import {
 import { expectCrossTenantMethodProbe, expectTenantIsolation } from '@odudu/db/testing';
 import { newId, OduduError } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
+import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { signingKeyRepository } from '#/repository/signing-keys';
 import { signingKeys } from '#/schema/signing-keys';
@@ -274,5 +275,146 @@ describe('selecting a signing key', () => {
       signingKeyRepository(tx).algorithmsAvailable(),
     );
     expect(algs).toEqual([]);
+  });
+
+  it('finds no key for an algorithm under a different tenant context', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        await seedTenant(tx, tenantId);
+        await insertKey(tx, tenantId, { alg: 'RS256', status: 'active' });
+      },
+      verifySeeded: async (tx) => {
+        const found = await signingKeyRepository(tx).forAlg('RS256');
+        expect(found?.alg).toBe('RS256');
+      },
+      attempt: async (tx) => signingKeyRepository(tx).forAlg('RS256'),
+      expectBlocked: (result) => {
+        expect(result).toBeNull();
+      },
+    });
+  });
+
+  it('reports no algorithms under a different tenant context', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        await seedTenant(tx, tenantId);
+        await insertKey(tx, tenantId, { alg: 'RS256', status: 'active' });
+      },
+      verifySeeded: async (tx) => {
+        const found = await signingKeyRepository(tx).algorithmsAvailable();
+        expect(found.length).toBeGreaterThan(0);
+      },
+      attempt: async (tx) => signingKeyRepository(tx).algorithmsAvailable(),
+      expectBlocked: (result) => {
+        expect(result).toEqual([]);
+      },
+    });
+  });
+});
+
+describe('promoting and retiring a signing key', () => {
+  it('promotes a rotating key to active, demoting whatever was active', async () => {
+    const tenantId = newId();
+    await withTenant(app.db, tenantId, (tx) => seedTenant(tx, tenantId));
+    const active = await withTenant(app.db, tenantId, (tx) =>
+      insertKey(tx, tenantId, { alg: 'ES256', status: 'active' }),
+    );
+    const rotating = await withTenant(app.db, tenantId, (tx) =>
+      insertKey(tx, tenantId, { alg: 'RS256', status: 'rotating' }),
+    );
+
+    const promoted = await withTenant(app.db, tenantId, (tx) =>
+      signingKeyRepository(tx).promote(rotating.id),
+    );
+    expect(promoted?.status).toBe('active');
+
+    await withTenant(app.db, tenantId, async (tx) => {
+      const rows = await tx.select().from(signingKeys);
+      const byId = new Map(rows.map((row) => [row.id, row.status]));
+      expect(byId.get(rotating.id)).toBe('active');
+      expect(byId.get(active.id)).toBe('rotating');
+    });
+  });
+
+  it('promotes nothing for a missing or already-retired key', async () => {
+    const tenantId = newId();
+    await withTenant(app.db, tenantId, (tx) => seedTenant(tx, tenantId));
+    const retired = await withTenant(app.db, tenantId, (tx) =>
+      insertKey(tx, tenantId, { alg: 'RS256', status: 'retired' }),
+    );
+
+    expect(
+      await withTenant(app.db, tenantId, (tx) => signingKeyRepository(tx).promote(newId())),
+    ).toBeNull();
+    expect(
+      await withTenant(app.db, tenantId, (tx) => signingKeyRepository(tx).promote(retired.id)),
+    ).toBeNull();
+  });
+
+  it('retires a key regardless of its current status', async () => {
+    const tenantId = newId();
+    await withTenant(app.db, tenantId, (tx) => seedTenant(tx, tenantId));
+    const rotating = await withTenant(app.db, tenantId, (tx) =>
+      insertKey(tx, tenantId, { alg: 'RS256', status: 'rotating' }),
+    );
+
+    const retired = await withTenant(app.db, tenantId, (tx) =>
+      signingKeyRepository(tx).retire(rotating.id),
+    );
+    expect(retired?.status).toBe('retired');
+  });
+
+  it('retires nothing for a missing key', async () => {
+    const tenantId = newId();
+    await withTenant(app.db, tenantId, (tx) => seedTenant(tx, tenantId));
+
+    expect(
+      await withTenant(app.db, tenantId, (tx) => signingKeyRepository(tx).retire(newId())),
+    ).toBeNull();
+  });
+
+  it('promotes nothing under a different tenant context', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        await seedTenant(tx, tenantId);
+        await insertKey(tx, tenantId, { alg: 'ES256', status: 'active' });
+        const rotating = await insertKey(tx, tenantId, { alg: 'RS256', status: 'rotating' });
+        return rotating.id;
+      },
+      verifySeeded: async (tx, keyId) => {
+        const rows = await tx.select().from(signingKeys).where(eq(signingKeys.id, keyId));
+        expect(rows).toHaveLength(1);
+      },
+      attempt: async (tx, keyId) => signingKeyRepository(tx).promote(keyId),
+      expectBlocked: (result) => {
+        expect(result).toBeNull();
+      },
+      verifyTenantAUnaffected: async (tx, keyId) => {
+        const [row] = await tx.select().from(signingKeys).where(eq(signingKeys.id, keyId));
+        expect(row?.status).toBe('rotating');
+      },
+    });
+  });
+
+  it('retires nothing under a different tenant context', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        await seedTenant(tx, tenantId);
+        const rotating = await insertKey(tx, tenantId, { alg: 'RS256', status: 'rotating' });
+        return rotating.id;
+      },
+      verifySeeded: async (tx, keyId) => {
+        const rows = await tx.select().from(signingKeys).where(eq(signingKeys.id, keyId));
+        expect(rows).toHaveLength(1);
+      },
+      attempt: async (tx, keyId) => signingKeyRepository(tx).retire(keyId),
+      expectBlocked: (result) => {
+        expect(result).toBeNull();
+      },
+      verifyTenantAUnaffected: async (tx, keyId) => {
+        const [row] = await tx.select().from(signingKeys).where(eq(signingKeys.id, keyId));
+        expect(row?.status).toBe('rotating');
+      },
+    });
   });
 });

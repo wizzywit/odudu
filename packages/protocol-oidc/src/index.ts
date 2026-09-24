@@ -220,11 +220,6 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
         } as const;
       });
 
-    // The same key /token signs an access token or ID Token with —
-    // `signingKeyRepository(tx).active()`, not a second selection rule.
-    const activeSigningKey = (tenantId: string) =>
-      withTenant(deps.database.db, tenantId, (tx) => signingKeyRepository(tx).active());
-
     // Empty rather than thrown: a tenant provisioned before its first
     // signing key still gets a discovery document.
     const algorithmsAvailable = (tenantId: string) =>
@@ -762,7 +757,9 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
         resolveRoleReach,
         resolveClientWebOrigins,
         userinfoSignedResponseAlg,
-        activeSigningKey,
+        signingKeyForAlg: (tenantId, alg) =>
+          withTenant(deps.database.db, tenantId, (tx) => signingKeyRepository(tx).forAlg(alg)),
+        algorithmsAvailable,
         userinfoEncryptionTarget,
         clientKeySet,
         kek: deps.kek,

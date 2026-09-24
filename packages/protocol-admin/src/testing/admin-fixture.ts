@@ -126,6 +126,13 @@ export interface AdminFixture {
     client: TestClient,
     body: Record<string, string>,
   ): Promise<LightMyRequestResponse>;
+  // So a test can prove an admin change to signing keys reaches /userinfo,
+  // not only /token and /certs.
+  callUserinfo(tenantName: string, token: string): Promise<LightMyRequestResponse>;
+  // A token for the given, already-registered client, carrying `scope` —
+  // minted directly, the same way `adminToken` is, so a test can reach
+  // `/userinfo` without driving a full authorization_code exchange.
+  mintUserinfoAccessToken(tenantName: string, client: TestClient, scope: string): Promise<string>;
 
   // State changes a test needs but no endpoint offers, written directly.
   revokeGrantsFor(tenantName: string): Promise<void>;
@@ -641,6 +648,39 @@ export async function startAdminFixture(): Promise<AdminFixture> {
     });
   }
 
+  async function callUserinfo(tenantName: string, token: string): Promise<LightMyRequestResponse> {
+    return http.inject({
+      method: 'GET',
+      url: `/tenants/${tenantName}/protocol/openid-connect/userinfo`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+  }
+
+  // `sessionId: null` reads the same way an `offline_access` grant does —
+  // no session for `/userinfo` to check liveness against — since this
+  // fixture drives no login flow for the client under test.
+  async function mintUserinfoAccessToken(
+    tenantName: string,
+    client: TestClient,
+    scope: string,
+  ): Promise<string> {
+    const ctx = requireTenant(tenantName);
+    return withTenant(app.db, ctx.id, async (tx) => {
+      const clientRecord = await clientRepository(tx).byClientId(client.clientId);
+      if (clientRecord === null) {
+        throw new Error(`fixture: unknown client ${client.clientId}`);
+      }
+      const subject = await subjectRepository(tx).create({ tenantId: ctx.id, type: 'user' });
+      return mintTokenInTx(tx, ctx, {
+        subjectId: subject.id,
+        client: clientRecord,
+        sessionId: null,
+        audience: [ctx.issuer],
+        scope,
+      });
+    });
+  }
+
   async function revokeGrantsFor(tenantName: string): Promise<void> {
     const ctx = requireTenant(tenantName);
     const ids = grantsByTenant.get(ctx.id) ?? [];
@@ -730,6 +770,8 @@ export async function startAdminFixture(): Promise<AdminFixture> {
     registerClientWithUserinfoAlg,
     patchClient,
     tokenRequest,
+    callUserinfo,
+    mintUserinfoAccessToken,
     revokeGrantsFor,
     revokeCapability,
     disableClientOf,
