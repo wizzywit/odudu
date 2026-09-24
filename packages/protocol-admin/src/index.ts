@@ -8,10 +8,16 @@ import { tenantLookupRepository, tokenGrantRepository } from '@odudu/protocol-oi
 import { type FastifyPluginAsync } from 'fastify';
 import { type AuthenticateAdminDeps } from '#/usecase/authenticate-admin';
 import { type AuthorizeAdminDeps } from '#/usecase/authorize-admin';
-import { registerListSubjectsRoute } from '#/view/routes/subjects';
-import { registerWhoamiRoute } from '#/view/routes/whoami';
+import { type AdminRouteHandlers, registerAdminRoutes } from '#/view/routes/router';
+import { listSubjectsHandler } from '#/view/routes/subjects';
+import { whoamiHandler } from '#/view/routes/whoami';
 
 export { ADMIN_ROUTES, type AdminRoute } from '#/service/capability';
+
+const ADMIN_ROUTE_HANDLERS: AdminRouteHandlers = {
+  'GET /admin/tenants/:tenant/whoami': whoamiHandler,
+  'GET /admin/tenants/:tenant/subjects': listSubjectsHandler,
+};
 
 export interface AdminRoutesDeps {
   database: DatabaseHandle;
@@ -48,10 +54,9 @@ export function adminRoutes(deps: AdminRoutesDeps): FastifyPluginAsync {
         withTenant(deps.database.db, tenantId, (tx) => effectiveRoles(tx, subjectId)),
     };
 
-    registerWhoamiRoute(app, authDeps, clock);
-    registerListSubjectsRoute(app, authDeps, authzDeps, clock);
+    registerAdminRoutes(app, ADMIN_ROUTE_HANDLERS, authDeps, authzDeps, clock);
 
-    deps.logger.debug({}, 'protocol-admin registered the whoami and subjects routes');
+    deps.logger.debug({}, 'protocol-admin registered its admin routes');
     return Promise.resolve();
   };
 }

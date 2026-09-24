@@ -177,4 +177,31 @@ describe('admin authorization', () => {
     });
     expect(res.statusCode).toBe(403);
   });
+
+  // whoami's capability is null, so a caller without any route capability
+  // still reaches it locally — but the cross-tenant requirement is not a
+  // route capability, and applies here exactly as it does to every other
+  // route. Without it, a system admin holding no permission at all could
+  // read any tenant's whoami by crossing tenants.
+  it("refuses a system admin without manage-tenants at another tenant's whoami", async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.systemAdminToken([]);
+    const res = await fixture.http.inject({
+      method: 'GET',
+      url: `/admin/tenants/${t.name}/whoami`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(res.statusCode).toBe(403);
+  });
+
+  it("allows a system admin holding manage-tenants at another tenant's whoami", async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.systemAdminToken(['manage-tenants']);
+    const res = await fixture.http.inject({
+      method: 'GET',
+      url: `/admin/tenants/${t.name}/whoami`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(res.statusCode).toBe(200);
+  });
 });
