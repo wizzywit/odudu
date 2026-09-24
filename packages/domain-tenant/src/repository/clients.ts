@@ -93,6 +93,43 @@ export function clientRepository(tx: TenantScopedDatabase) {
       return toRecord(row);
     },
 
+    // Every amendable `clients` column (client-patch.ts's
+    // `AMENDABLE_CLIENT_FIELDS`) in one statement — the caller has already
+    // refused anything else by name.
+    async update(
+      id: string,
+      patch: Partial<Pick<typeof clients.$inferInsert, 'name' | 'enabled' | 'fullScopeAllowed'>>,
+    ): Promise<ClientRecord> {
+      const rows = await tx.update(clients).set(patch).where(eq(clients.id, id)).returning();
+      const row = rows[0];
+      if (row === undefined) {
+        throw new Error(`client ${id} not found while amending it`);
+      }
+      return toRecord(row);
+    },
+
+    // Cascades to `client_oidc_config` (client_oidc_config.clientId
+    // references clients.id ON DELETE CASCADE) — nothing here deletes the
+    // config row a second time.
+    async delete(id: string): Promise<void> {
+      await tx.delete(clients).where(eq(clients.id, id));
+    },
+
+    // `secret_hash` is refused by the general amendment (client-patch.ts's
+    // `refusalFor`) and rotated only through here.
+    async rotateSecret(id: string, secretHash: string): Promise<ClientRecord> {
+      const rows = await tx
+        .update(clients)
+        .set({ secretHash })
+        .where(eq(clients.id, id))
+        .returning();
+      const row = rows[0];
+      if (row === undefined) {
+        throw new Error(`client ${id} not found while rotating its secret`);
+      }
+      return toRecord(row);
+    },
+
     // `SELECT ... FOR UPDATE` on the tenant row before the `COUNT`, in the
     // same transaction the caller inserts the new client in — a bare COUNT
     // then INSERT lets two concurrent registrations both see room under the

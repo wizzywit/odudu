@@ -14,9 +14,12 @@ import { type Audit } from '#/usecase/tenants';
 import { installAdminValidator } from '#/adapter/validation';
 import { installProblemDetailsHandler } from '#/view/problem';
 import {
+  amendClientHandler,
   createClientHandler,
+  deleteClientHandler,
   listClientsHandler,
   readClientHandler,
+  rotateClientSecretHandler,
   type ClientsRouteDeps,
 } from '#/view/routes/clients';
 import { registerOpenApiRoute } from '#/view/routes/openapi';
@@ -98,6 +101,9 @@ export function adminRoutes(deps: AdminRoutesDeps): FastifyPluginAsync {
       'GET /admin/tenants/:tenant/clients': listClientsHandler(clientsDeps),
       'POST /admin/tenants/:tenant/clients': createClientHandler(clientsDeps),
       'GET /admin/tenants/:tenant/clients/:id': readClientHandler(clientsDeps),
+      'PATCH /admin/tenants/:tenant/clients/:id': amendClientHandler(clientsDeps),
+      'DELETE /admin/tenants/:tenant/clients/:id': deleteClientHandler(clientsDeps),
+      'POST /admin/tenants/:tenant/clients/:id/secret': rotateClientSecretHandler(clientsDeps),
     };
 
     const authDeps: AuthenticateAdminDeps = {

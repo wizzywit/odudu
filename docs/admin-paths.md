@@ -57,18 +57,21 @@ section 7 has the full authentication and authorization sequence; getting
 a token to test with is [README.md](../README.md)'s job, not this
 document's.
 
-| Method  | Path                                  | What it is                |
-| ------- | ------------------------------------- | ------------------------- |
-| `GET`   | `/admin/tenants`                      | List tenants              |
-| `POST`  | `/admin/tenants`                      | Create a tenant           |
-| `GET`   | `/admin/tenants/{tenant}/whoami`      | Identity probe            |
-| `GET`   | `/admin/tenants/{tenant}/subjects`    | List subjects             |
-| `GET`   | `/admin/tenants/{tenant}/settings`    | Read a tenant's settings  |
-| `PATCH` | `/admin/tenants/{tenant}/settings`    | Amend a tenant's settings |
-| `GET`   | `/admin/tenants/{tenant}/clients`     | List clients              |
-| `POST`  | `/admin/tenants/{tenant}/clients`     | Create a client           |
-| `GET`   | `/admin/tenants/{tenant}/clients/:id` | Read a client             |
-| `GET`   | `/admin/openapi.json`                 | The OpenAPI reference     |
+| Method   | Path                                         | What it is                |
+| -------- | -------------------------------------------- | ------------------------- |
+| `GET`    | `/admin/tenants`                             | List tenants              |
+| `POST`   | `/admin/tenants`                             | Create a tenant           |
+| `GET`    | `/admin/tenants/{tenant}/whoami`             | Identity probe            |
+| `GET`    | `/admin/tenants/{tenant}/subjects`           | List subjects             |
+| `GET`    | `/admin/tenants/{tenant}/settings`           | Read a tenant's settings  |
+| `PATCH`  | `/admin/tenants/{tenant}/settings`           | Amend a tenant's settings |
+| `GET`    | `/admin/tenants/{tenant}/clients`            | List clients              |
+| `POST`   | `/admin/tenants/{tenant}/clients`            | Create a client           |
+| `GET`    | `/admin/tenants/{tenant}/clients/:id`        | Read a client             |
+| `PATCH`  | `/admin/tenants/{tenant}/clients/:id`        | Amend a client            |
+| `DELETE` | `/admin/tenants/{tenant}/clients/:id`        | Delete a client           |
+| `POST`   | `/admin/tenants/{tenant}/clients/:id/secret` | Rotate a client's secret  |
+| `GET`    | `/admin/openapi.json`                        | The OpenAPI reference     |
 
 ## `GET /admin/tenants`
 
@@ -235,9 +238,8 @@ configuration (`client_oidc_config`), joined into one resource keyed by the
 client's internal id (`{id}` above is that id, not the OAuth `client_id`
 string a token request names). Requires `manage-clients` throughout: there
 is no `view-clients`, because client metadata is configuration rather than
-a population to browse. A `GET` on a single client carries an `ETag`;
-amending one is a later increment, so there is nothing yet for `If-Match`
-to guard.
+a population to browse. A `GET` on a single client carries an `ETag`, which
+`PATCH /clients/{id}` below reads back through `If-Match`.
 
 A create body names `client_id` — chosen by the operator, unlike RFC 7591
 dynamic registration (`clients-registrations/openid-connect`,
@@ -305,6 +307,92 @@ secret, whether or not one was ever generated:
 curl -sS -D - \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   http://localhost:3000/admin/tenants/demo/clients/<client id>
+```
+
+## `PATCH /clients/{id}`
+
+Amends the fields a general-purpose amendment can safely touch — every
+column of `clients` and `client_oidc_config` except identity (`id`,
+`client_id`, `tenant_id`), history (`created_at`), provenance
+(`registration_origin`), the security-model switch (`type`), the secret
+(rotated only through `POST /secret` below) and `builtin_admin` itself. A
+field this excludes is refused with `400`, naming the field and the reason
+(`refusalFor`, `packages/protocol-admin/src/service/client-patch.ts`) —
+`client_id` answers "identity: changing it breaks every relying party and
+orphans the azp of every issued token", for instance, not merely "refused".
+
+A list field — `redirect_uris`, `post_logout_redirect_uris`, `web_origins`,
+`audiences`, `grant_types` — is replaced **wholesale**, never appended to:
+the body names the complete list the field should hold afterward. Because
+last-write-wins on one of these silently reinstates exactly what another
+admin just removed, `If-Match` is **required** when a request touches any
+of the five, answered with `428 Precondition Required` when it is missing;
+every other field amends with `If-Match` optional, the same concurrency
+control `PATCH /settings` uses. A stale `If-Match` is `412` either way, and
+nothing is changed.
+
+The RFC 7591 metadata fields among them — `redirect_uris`, `grant_types`,
+`token_endpoint_auth_method`, `jwks`, `jwks_uri`, the two logout URIs and
+their `_session_required` flags, the three `userinfo_*` response fields,
+and `tls_client_auth_subject_dn` — are revalidated through the same
+`parseClientMetadata` a create body runs through, against the amended
+value merged with what the client already holds: a `redirect_uris` entry
+registration would refuse is refused here with the identical `400` detail,
+and narrowing `grant_types` takes effect on the very next `/token` request,
+since nothing about a grant type is cached anywhere between the two.
+
+A request shape — amending only the fields that change:
+
+```bash
+curl -sS -X PATCH \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -H "If-Match: \"<etag from a GET>\"" \
+  -d '{"grant_types": ["client_credentials"]}' \
+  http://localhost:3000/admin/tenants/demo/clients/<client id>
+```
+
+The response shape, not a captured run — `200`, the amended client, and a
+fresh `ETag` for the next `If-Match`:
+
+```json
+{ "grant_types": ["client_credentials"], "…every other client field…": "…" }
+```
+
+## `DELETE /clients/{id}`
+
+Deletes the client and its OIDC configuration in one statement — the
+foreign key from `client_oidc_config` to `clients` cascades, so nothing
+here deletes the config row a second time. `204` with no body on success,
+`404` for an id that does not exist.
+
+```bash
+curl -sS -X DELETE \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  http://localhost:3000/admin/tenants/demo/clients/<client id>
+```
+
+## `POST /clients/{id}/secret`
+
+Rotates a confidential client's secret: generates a fresh one, stores only
+its hash, and returns the plaintext **exactly once, in this response** —
+the same guarantee `POST /clients` makes for a client's first secret.
+Nothing reads it back afterward, and the previous secret stops
+authenticating at `/token` immediately, since only the current hash is ever
+compared against. A public client (`token_endpoint_auth_method: "none"`)
+has no secret to rotate, refused with `409`.
+
+```bash
+curl -sS -X POST \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  http://localhost:3000/admin/tenants/demo/clients/<client id>/secret
+```
+
+The response shape, not a captured run — `200`, the client, and the new
+secret:
+
+```json
+{ "client_secret": "<returned once, here only>", "…every other client field…": "…" }
 ```
 
 ## `GET /whoami`

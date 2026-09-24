@@ -126,6 +126,28 @@ export function clientOidcConfigRepository(tx: TenantScopedDatabase) {
       return toRecord(row);
     },
 
+    // Every amendable `client_oidc_config` column
+    // (client-patch.ts's `AMENDABLE_CLIENT_FIELDS`) in one statement — a
+    // list field (`redirectUris`, `grantTypes`, `audiences`, `webOrigins`,
+    // `postLogoutRedirectUris`, `clientCredentialsScopes`) replaces the
+    // column wholesale, since `patch` carries exactly the arrays the
+    // caller wants to keep, never a delta to append.
+    async update(
+      clientId: string,
+      patch: Partial<Omit<typeof clientOidcConfig.$inferInsert, 'clientId' | 'tenantId'>>,
+    ): Promise<ClientOidcConfig> {
+      const rows = await tx
+        .update(clientOidcConfig)
+        .set(patch)
+        .where(eq(clientOidcConfig.clientId, clientId))
+        .returning();
+      const row = rows[0];
+      if (row === undefined) {
+        throw new Error(`client_oidc_config for client ${clientId} not found while amending it`);
+      }
+      return toRecord(row);
+    },
+
     // The exact-match list logout's confirmation and redirect decision reads
     // — a narrow read of one column rather than the whole config, since the
     // logout usecase (`#/usecase/logout.ts`) needs nothing else about the

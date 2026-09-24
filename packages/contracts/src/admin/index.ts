@@ -34,4 +34,8 @@ export {
   type CreateClientRequest,
   listClientsResponseSchema,
   type ListClientsResponse,
+  amendClientRequestSchema,
+  type AmendClientRequest,
+  rotateClientSecretResponseSchema,
+  type RotateClientSecretResponse,
 } from '#/admin/clients';

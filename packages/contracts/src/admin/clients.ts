@@ -59,3 +59,14 @@ export const listClientsResponseSchema = z.object({
   next: z.string().optional(),
 });
 export type ListClientsResponse = z.infer<typeof listClientsResponseSchema>;
+
+// A caller may name any field it believes is a client field, amendable or
+// not — the usecase, not this shape, is what tells the two apart and gives
+// the excluded one its reason (client-patch.ts's `refusalFor`).
+export const amendClientRequestSchema = z.record(z.string(), z.unknown());
+export type AmendClientRequest = z.infer<typeof amendClientRequestSchema>;
+
+export const rotateClientSecretResponseSchema = clientSchema.extend({
+  client_secret: z.string(),
+});
+export type RotateClientSecretResponse = z.infer<typeof rotateClientSecretResponseSchema>;

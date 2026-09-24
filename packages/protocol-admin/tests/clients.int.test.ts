@@ -1,9 +1,10 @@
 import { withTenant } from '@odudu/db';
 import { clientRepository } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
+import { clientOidcConfigRepository } from '@odudu/protocol-oidc';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { startAdminFixture, type AdminFixture } from '#/testing/admin-fixture';
-import { createClient } from '#/usecase/clients';
+import { amendClient, createClient } from '#/usecase/clients';
 
 let fixtureHandle: AdminFixture | undefined;
 let fixture: AdminFixture;
@@ -311,5 +312,220 @@ describe('createClient', () => {
     );
     expect(outcome.kind).toBe('invalid_metadata');
     expect(events).toHaveLength(0);
+  });
+});
+
+describe('PATCH /admin/tenants/{t}/clients/{id}', () => {
+  it('amends name with no If-Match and bumps the ETag', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-clients']);
+    const created = await fixture.createConfidentialClient(t.name, {});
+    const before = await fixture.http.inject({
+      method: 'GET',
+      url: `/admin/tenants/${t.name}/clients/${created.id}`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+
+    const patched = await fixture.http.inject({
+      method: 'PATCH',
+      url: `/admin/tenants/${t.name}/clients/${created.id}`,
+      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      payload: { name: 'Renamed client' },
+    });
+    expect(patched.statusCode).toBe(200);
+    expect(patched.json<{ name: string }>().name).toBe('Renamed client');
+    expect(patched.headers.etag).not.toBe(before.headers.etag);
+  });
+
+  it("400s naming client_id, quoting refusalFor's reason", async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-clients']);
+    const created = await fixture.createConfidentialClient(t.name, {});
+    const res = await fixture.http.inject({
+      method: 'PATCH',
+      url: `/admin/tenants/${t.name}/clients/${created.id}`,
+      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      payload: { client_id: 'renamed-client-id' },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json<{ detail: string }>().detail).toContain(
+      'orphans the azp of every issued token',
+    );
+  });
+
+  it('412s when If-Match no longer matches', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-clients']);
+    const created = await fixture.createConfidentialClient(t.name, {});
+    const res = await fixture.http.inject({
+      method: 'PATCH',
+      url: `/admin/tenants/${t.name}/clients/${created.id}`,
+      headers: {
+        authorization: `Bearer ${token}`,
+        'content-type': 'application/json',
+        'if-match': '"stale-etag"',
+      },
+      payload: { name: 'x' },
+    });
+    expect(res.statusCode).toBe(412);
+  });
+
+  it.each([
+    ['redirect_uris', ['https://app.example/other-cb']],
+    ['post_logout_redirect_uris', ['https://app.example/logout']],
+    ['web_origins', ['https://app.example']],
+    ['audiences', ['urn:example:audience']],
+    ['grant_types', ['client_credentials']],
+  ])('428s amending %s with no If-Match', async (field, value) => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-clients']);
+    const created = await fixture.createConfidentialClient(t.name, {});
+    const res = await fixture.http.inject({
+      method: 'PATCH',
+      url: `/admin/tenants/${t.name}/clients/${created.id}`,
+      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      payload: { [field]: value },
+    });
+    expect(res.statusCode, field).toBe(428);
+  });
+
+  it('calls audit exactly once on a successful amendment', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const created = await fixture.createConfidentialClient(t.name, {});
+    const events: unknown[] = [];
+    const outcome = await withTenant(fixture.app.db, t.id, (tx) =>
+      amendClient(
+        tx,
+        {
+          tlsClientAuthEnabled: false,
+          audit: (event) => {
+            events.push(event);
+            return Promise.resolve();
+          },
+        },
+        {
+          clientDbId: created.id,
+          values: { name: 'Audited rename' },
+          ifMatch: undefined,
+          actorSubjectId: 'test-subject',
+        },
+      ),
+    );
+    expect(outcome.kind).toBe('ok');
+    expect(events).toHaveLength(1);
+  });
+
+  it('does not call audit when a field is refused', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const created = await fixture.createConfidentialClient(t.name, {});
+    const events: unknown[] = [];
+    const outcome = await withTenant(fixture.app.db, t.id, (tx) =>
+      amendClient(
+        tx,
+        {
+          tlsClientAuthEnabled: false,
+          audit: (event) => {
+            events.push(event);
+            return Promise.resolve();
+          },
+        },
+        {
+          clientDbId: created.id,
+          values: { client_id: 'evasion-attempt' },
+          ifMatch: undefined,
+          actorSubjectId: 'test-subject',
+        },
+      ),
+    );
+    expect(outcome.kind).toBe('refused_field');
+    expect(events).toHaveLength(0);
+  });
+});
+
+describe('DELETE /admin/tenants/{t}/clients/{id}', () => {
+  it('removes the client and its config', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-clients']);
+    const created = await fixture.createConfidentialClient(t.name, {});
+
+    const res = await fixture.http.inject({
+      method: 'DELETE',
+      url: `/admin/tenants/${t.name}/clients/${created.id}`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(res.statusCode).toBe(204);
+
+    await withTenant(fixture.app.db, t.id, async (tx) => {
+      expect(await clientRepository(tx).byId(created.id)).toBeNull();
+      expect(await clientOidcConfigRepository(tx).byClientId(created.id)).toBeNull();
+    });
+  });
+
+  it('answers 404 for a client that does not exist', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-clients']);
+    const res = await fixture.http.inject({
+      method: 'DELETE',
+      url: `/admin/tenants/${t.name}/clients/${newId()}`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(res.statusCode).toBe(404);
+  });
+});
+
+describe('POST /admin/tenants/{t}/clients/{id}/secret', () => {
+  it('returns a new secret once, and the old one stops authenticating at /token', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const client = await fixture.createConfidentialClient(t.name, {
+      grantTypes: ['client_credentials'],
+    });
+    const before = await fixture.tokenRequest(t.name, client, { grant_type: 'client_credentials' });
+    expect(before.statusCode).toBe(200);
+
+    const token = await fixture.adminToken(t.name, ['manage-clients']);
+    const res = await fixture.http.inject({
+      method: 'POST',
+      url: `/admin/tenants/${t.name}/clients/${client.id}/secret`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json<{ client_secret: string }>();
+    expect(body.client_secret).not.toBe(client.secret);
+
+    const withOldSecret = await fixture.tokenRequest(t.name, client, {
+      grant_type: 'client_credentials',
+    });
+    expect(withOldSecret.statusCode).toBe(401);
+    expect(withOldSecret.json<{ error: string }>().error).toBe('invalid_client');
+
+    const withNewSecret = await fixture.tokenRequest(
+      t.name,
+      { ...client, secret: body.client_secret },
+      { grant_type: 'client_credentials' },
+    );
+    expect(withNewSecret.statusCode).toBe(200);
+  });
+
+  it("refuses to rotate a public client's secret", async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-clients']);
+    const created = await fixture.http.inject({
+      method: 'POST',
+      url: `/admin/tenants/${t.name}/clients`,
+      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      payload: {
+        client_id: `spa-${newId()}`,
+        redirect_uris: ['https://app.example/cb'],
+        token_endpoint_auth_method: 'none',
+      },
+    });
+    const { id } = created.json<{ id: string }>();
+
+    const res = await fixture.http.inject({
+      method: 'POST',
+      url: `/admin/tenants/${t.name}/clients/${id}/secret`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(res.statusCode).toBe(409);
   });
 });

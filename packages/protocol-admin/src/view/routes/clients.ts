@@ -1,21 +1,29 @@
 import {
+  amendClientRequestSchema,
   createClientRequestSchema,
   cursorQuerySchema,
   type Client,
   type CreateClientResponse,
+  type RotateClientSecretResponse,
 } from '@odudu/contracts/admin';
 import { withTenant, type Database } from '@odudu/db';
+import { type FastifyReply } from 'fastify';
 import { coerceLimit } from '#/service/cursor';
 import { etagOf } from '#/service/etag';
 import {
+  amendClient,
+  clientWireShape,
   createClient,
+  deleteClient,
   listClients,
   readClient,
+  rotateClientSecret,
+  type AmendClientOutcome,
   type Audit,
   type ClientView,
 } from '#/usecase/clients';
 import { problem, sendProblem } from '#/view/problem';
-import { type AdminRouteHandler } from '#/view/routes/router';
+import { type AdminRequest, type AdminRouteHandler } from '#/view/routes/router';
 
 export interface ClientsRouteDeps {
   readonly database: Database;
@@ -25,38 +33,16 @@ export interface ClientsRouteDeps {
   readonly audit: Audit;
 }
 
+// `clientWireShape` (usecase/clients.ts) is the one mapping, so the bytes
+// this serialises and the bytes `amendClient`'s own `If-Match` check hashes
+// can never drift apart.
 function toWireClient(view: ClientView): Client {
-  return {
-    id: view.id,
-    client_id: view.clientId,
-    name: view.name,
-    type: view.type,
-    enabled: view.enabled,
-    full_scope_allowed: view.fullScopeAllowed,
-    registration_origin: view.registrationOrigin,
-    created_at: view.createdAt.toISOString(),
-    redirect_uris: view.redirectUris,
-    grant_types: view.grantTypes,
-    token_endpoint_auth_method: view.tokenEndpointAuthMethod,
-    audiences: view.audiences,
-    access_token_ttl_seconds: view.accessTokenTtlSeconds,
-    refresh_token_ttl_seconds: view.refreshTokenTtlSeconds,
-    client_credentials_scopes: view.clientCredentialsScopes,
-    web_origins: view.webOrigins,
-    post_logout_redirect_uris: view.postLogoutRedirectUris,
-    jwks: view.jwks,
-    jwks_uri: view.jwksUri,
-    frontchannel_logout_uri: view.frontchannelLogoutUri,
-    backchannel_logout_uri: view.backchannelLogoutUri,
-    frontchannel_logout_session_required: view.frontchannelLogoutSessionRequired,
-    backchannel_logout_session_required: view.backchannelLogoutSessionRequired,
-    consent_required: view.consentRequired,
-    token_exchange_impersonation_allowed: view.tokenExchangeImpersonationAllowed,
-    userinfo_signed_response_alg: view.userinfoSignedResponseAlg,
-    userinfo_encrypted_response_alg: view.userinfoEncryptedResponseAlg,
-    userinfo_encrypted_response_enc: view.userinfoEncryptedResponseEnc,
-    tls_client_auth_subject_dn: view.tlsClientAuthSubjectDn,
-  };
+  return clientWireShape(view) as Client;
+}
+
+function ifMatchHeader(request: AdminRequest): string | undefined {
+  const value = request.headers['if-match'];
+  return typeof value === 'string' ? value : undefined;
 }
 
 export function listClientsHandler(deps: ClientsRouteDeps): AdminRouteHandler {
@@ -168,6 +154,140 @@ export function createClientHandler(deps: ClientsRouteDeps): AdminRouteHandler {
           ...(outcome.secret === null ? {} : { client_secret: outcome.secret }),
         };
         return reply.code(201).send(wire);
+      }
+    }
+  };
+}
+
+function amendmentProblem(
+  reply: FastifyReply,
+  request: AdminRequest,
+  outcome: Exclude<AmendClientOutcome, { kind: 'ok' }>,
+): FastifyReply {
+  switch (outcome.kind) {
+    case 'not_found':
+      return sendProblem(reply, request, problem(404, 'about:blank', 'Not Found'));
+    case 'refused_field':
+      return sendProblem(
+        reply,
+        request,
+        problem(400, 'about:blank', 'Bad Request', `${outcome.field}: ${outcome.reason}`),
+      );
+    case 'invalid_value':
+      return sendProblem(
+        reply,
+        request,
+        problem(400, 'about:blank', 'Bad Request', `${outcome.field}: ${outcome.description}`),
+      );
+    case 'invalid_metadata':
+      return sendProblem(
+        reply,
+        request,
+        problem(400, 'about:blank', 'Bad Request', outcome.description),
+      );
+    case 'precondition_required':
+      return sendProblem(
+        reply,
+        request,
+        problem(
+          428,
+          'about:blank',
+          'Precondition Required',
+          `If-Match is required to amend ${outcome.field}`,
+        ),
+      );
+    case 'precondition_failed':
+      return sendProblem(
+        reply,
+        request,
+        problem(412, 'about:blank', 'Precondition Failed', 'If-Match no longer matches'),
+      );
+  }
+}
+
+export function amendClientHandler(deps: ClientsRouteDeps): AdminRouteHandler {
+  return async (request, reply, principal, targetTenantId) => {
+    const id = request.params.id;
+    if (id === undefined) {
+      throw new Error('protocol-admin: PATCH client route received no :id');
+    }
+    const values = amendClientRequestSchema.parse(request.body);
+
+    const outcome = await withTenant(deps.database, targetTenantId, (tx) =>
+      amendClient(
+        tx,
+        { tlsClientAuthEnabled: deps.tlsClientAuthEnabled, audit: deps.audit },
+        {
+          clientDbId: id,
+          values,
+          ifMatch: ifMatchHeader(request),
+          actorSubjectId: principal.subjectId,
+        },
+      ),
+    );
+
+    if (outcome.kind !== 'ok') {
+      return amendmentProblem(reply, request, outcome);
+    }
+    reply.header('etag', outcome.etag);
+    return reply.code(200).send(toWireClient(outcome.client));
+  };
+}
+
+export function deleteClientHandler(deps: ClientsRouteDeps): AdminRouteHandler {
+  return async (request, reply, principal, targetTenantId) => {
+    const id = request.params.id;
+    if (id === undefined) {
+      throw new Error('protocol-admin: DELETE client route received no :id');
+    }
+
+    const outcome = await withTenant(deps.database, targetTenantId, (tx) =>
+      deleteClient(
+        tx,
+        { audit: deps.audit },
+        { clientDbId: id, actorSubjectId: principal.subjectId },
+      ),
+    );
+
+    switch (outcome.kind) {
+      case 'not_found':
+        return sendProblem(reply, request, problem(404, 'about:blank', 'Not Found'));
+      case 'deleted':
+        return reply.code(204).send();
+    }
+  };
+}
+
+export function rotateClientSecretHandler(deps: ClientsRouteDeps): AdminRouteHandler {
+  return async (request, reply, principal, targetTenantId) => {
+    const id = request.params.id;
+    if (id === undefined) {
+      throw new Error('protocol-admin: POST client secret route received no :id');
+    }
+
+    const outcome = await withTenant(deps.database, targetTenantId, (tx) =>
+      rotateClientSecret(
+        tx,
+        { hashClientSecret: deps.hashClientSecret, audit: deps.audit },
+        { clientDbId: id, actorSubjectId: principal.subjectId },
+      ),
+    );
+
+    switch (outcome.kind) {
+      case 'not_found':
+        return sendProblem(reply, request, problem(404, 'about:blank', 'Not Found'));
+      case 'not_confidential':
+        return sendProblem(
+          reply,
+          request,
+          problem(409, 'about:blank', 'Conflict', 'a public client has no secret to rotate'),
+        );
+      case 'ok': {
+        const wire: RotateClientSecretResponse = {
+          ...toWireClient(outcome.client),
+          client_secret: outcome.secret,
+        };
+        return reply.code(200).send(wire);
       }
     }
   };

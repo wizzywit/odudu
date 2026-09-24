@@ -243,4 +243,90 @@ describe('clientRepository', () => {
       },
     });
   });
+
+  it('cannot amend a client under a different tenant context', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        await seedTenant(tx, tenantId);
+        const clientId = `amend-probe-${newId()}`;
+        await insertClient(tx, tenantId, { clientId });
+        const found = await clientRepository(tx).byClientId(clientId);
+        if (found === null) throw new Error('fixture: inserted client not found');
+        return found.id;
+      },
+      verifySeeded: async (tx, clientDbId) => {
+        const updated = await clientRepository(tx).update(clientDbId, { name: 'Renamed' });
+        expect(updated.name).toBe('Renamed');
+      },
+      attempt: async (tx, clientDbId) => {
+        try {
+          return await clientRepository(tx).update(clientDbId, { name: 'Evaded' });
+        } catch (error) {
+          return { threw: true, message: error instanceof Error ? error.message : String(error) };
+        }
+      },
+      expectBlocked: (result) => {
+        expect(result).toMatchObject({ threw: true });
+      },
+    });
+  });
+
+  it('cannot rotate a client secret under a different tenant context', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        await seedTenant(tx, tenantId);
+        const clientId = `secret-probe-${newId()}`;
+        await insertClient(tx, tenantId, { clientId });
+        const found = await clientRepository(tx).byClientId(clientId);
+        if (found === null) throw new Error('fixture: inserted client not found');
+        return found.id;
+      },
+      verifySeeded: async (tx, clientDbId) => {
+        const rotated = await clientRepository(tx).rotateSecret(clientDbId, 'hashed:new');
+        expect(rotated.secretHash).toBe('hashed:new');
+      },
+      attempt: async (tx, clientDbId) => {
+        try {
+          return await clientRepository(tx).rotateSecret(clientDbId, 'hashed:evaded');
+        } catch (error) {
+          return { threw: true, message: error instanceof Error ? error.message : String(error) };
+        }
+      },
+      expectBlocked: (result) => {
+        expect(result).toMatchObject({ threw: true });
+      },
+    });
+  });
+
+  it('cannot delete a client under a different tenant context', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        await seedTenant(tx, tenantId);
+        const clientId = `delete-probe-${newId()}`;
+        await insertClient(tx, tenantId, { clientId });
+        const found = await clientRepository(tx).byClientId(clientId);
+        if (found === null) throw new Error('fixture: inserted client not found');
+        return found.id;
+      },
+      verifySeeded: async (tx, clientDbId) => {
+        const found = await clientRepository(tx).byId(clientDbId);
+        expect(found).not.toBeNull();
+      },
+      // `delete` is a no-op DELETE-with-no-match under a foreign tenant's
+      // RLS scope, not a throw — so the block is verified by the row
+      // surviving, in tenant A's own context, rather than by an exception.
+      attempt: async (tx, clientDbId) => {
+        await clientRepository(tx).delete(clientDbId);
+        return clientDbId;
+      },
+      // `delete` under a foreign tenant resolves without throwing (an
+      // unmatched DELETE is not an error) — `verifyTenantAUnaffected`
+      // below is what actually proves the row was not touched.
+      expectBlocked: () => undefined,
+      verifyTenantAUnaffected: async (tx, clientDbId) => {
+        const survived = await clientRepository(tx).byId(clientDbId);
+        expect(survived).not.toBeNull();
+      },
+    });
+  });
 });

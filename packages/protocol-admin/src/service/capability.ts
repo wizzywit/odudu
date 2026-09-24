@@ -1,4 +1,5 @@
 import {
+  amendClientRequestSchema,
   amendSettingsRequestSchema,
   clientSchema,
   createClientRequestSchema,
@@ -7,6 +8,7 @@ import {
   cursorQuerySchema,
   listClientsResponseSchema,
   listTenantsResponseSchema,
+  rotateClientSecretResponseSchema,
   settingsSchema,
   tenantSchema,
 } from '@odudu/contracts/admin';
@@ -108,6 +110,26 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     pattern: '/admin/tenants/:tenant/clients/:id',
     capability: 'manage-clients',
     responseSchema: clientSchema,
+  },
+  {
+    method: 'PATCH',
+    pattern: '/admin/tenants/:tenant/clients/:id',
+    capability: 'manage-clients',
+    responseSchema: clientSchema,
+    bodySchema: amendClientRequestSchema,
+  },
+  {
+    method: 'DELETE',
+    pattern: '/admin/tenants/:tenant/clients/:id',
+    capability: 'manage-clients',
+    responseSchema: z.void(),
+    successStatus: 204,
+  },
+  {
+    method: 'POST',
+    pattern: '/admin/tenants/:tenant/clients/:id/secret',
+    capability: 'manage-clients',
+    responseSchema: rotateClientSecretResponseSchema,
   },
 ];
 
