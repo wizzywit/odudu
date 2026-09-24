@@ -12,7 +12,7 @@ interface OpenApiParameterRef {
 
 interface OpenApiResponse {
   readonly description: string;
-  readonly content?: { readonly 'application/json': { readonly schema: JsonSchema } };
+  readonly content?: Readonly<Record<string, { readonly schema: JsonSchema }>>;
 }
 
 interface OpenApiOperation {
@@ -54,9 +54,12 @@ const BEARER_SECURITY_SCHEME = {
     'A token minted for another audience, including the protocol surface itself, is refused with 401.',
 };
 
+// sendProblem (#/view/problem) sends RFC 9457 bodies as
+// application/problem+json, never application/json — a client generated
+// from this document has to pick that decoder for 401 and 403.
 const PROBLEM_DETAILS_RESPONSE: OpenApiResponse = {
   description: 'RFC 9457 problem details',
-  content: { 'application/json': { schema: jsonSchemaFor(problemDetailsSchema) } },
+  content: { 'application/problem+json': { schema: jsonSchemaFor(problemDetailsSchema) } },
 };
 
 function operationFor(route: AdminRoute): OpenApiOperation {

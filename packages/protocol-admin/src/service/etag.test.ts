@@ -6,6 +6,17 @@ describe('etagOf', () => {
     expect(etagOf({ a: 1, b: 2 })).toBe(etagOf({ b: 2, a: 1 }));
     expect(etagOf({ a: 1 })).not.toBe(etagOf({ a: 2 }));
   });
+
+  it('accounts for a record holding a literal __proto__ key', () => {
+    // A literal `__proto__` key in an object assigns the prototype rather
+    // than an own property, so a naive `sorted[key] = ...` canonicalising
+    // this record silently drops the key — and a resource whose JSON body
+    // carries `__proto__` as real data would canonicalise identically
+    // with or without it, handing out a stale ETag.
+    const withKey = JSON.parse('{"__proto__": {"evil": true}, "a": 1}') as Record<string, unknown>;
+    const withoutKey = { a: 1 };
+    expect(etagOf(withKey)).not.toBe(etagOf(withoutKey));
+  });
 });
 
 describe('matches', () => {
