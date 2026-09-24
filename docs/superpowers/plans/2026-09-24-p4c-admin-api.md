@@ -293,6 +293,7 @@ describe('the system tenant', () => {
         clientId: 'odudu-admin',
         name: 'Admin',
         type: 'confidential',
+        secretHash: 'hashed:secret',
         builtinAdmin: true,
       });
     });
@@ -304,6 +305,7 @@ describe('the system tenant', () => {
           clientId: 'odudu-admin-2',
           name: 'Admin 2',
           type: 'confidential',
+          secretHash: 'hashed:secret',
           builtinAdmin: true,
         });
       }),
@@ -2437,6 +2439,7 @@ it('detaches a client when its service subject is deleted', async () => {
       clientId: 'svc',
       name: 'Service',
       type: 'confidential',
+      secretHash: 'hashed:secret',
       serviceSubjectId: subject.id,
     });
     await tx.delete(subjects).where(eq(subjects.id, subject.id));
