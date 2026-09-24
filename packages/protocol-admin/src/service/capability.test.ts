@@ -7,7 +7,9 @@ describe('requiredCapability', () => {
   });
 
   it('is authentication alone for whoami, and for no other route', () => {
-    const nullCapabilityRoutes = ADMIN_ROUTES.filter((route) => route.capability === null);
+    const nullCapabilityRoutes = ADMIN_ROUTES.filter((route) => route.capability === null).map(
+      ({ method, pattern, capability }) => ({ method, pattern, capability }),
+    );
     expect(nullCapabilityRoutes).toEqual([
       { method: 'GET', pattern: '/admin/tenants/:tenant/whoami', capability: null },
     ]);

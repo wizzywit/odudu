@@ -28,12 +28,16 @@ describe('the published OpenAPI document', () => {
   it('describes no route the router does not register', async () => {
     const res = await fixture.http.inject({ method: 'GET', url: '/admin/openapi.json' });
     const doc = res.json<{ paths: Record<string, Record<string, unknown>> }>();
-    const registered = new Set(
-      ADMIN_ROUTES.map((r) => `${r.method.toLowerCase()} ${r.pattern.replace(/:(\w+)/gu, '{$1}')}`),
-    );
+    // Checked against Fastify's own route table, not ADMIN_ROUTES: the
+    // document is built from that array, so comparing it to itself could
+    // never catch a documented route the router no longer serves.
     for (const [path, methods] of Object.entries(doc.paths)) {
+      const fastifyUrl = path.replace(/\{(\w+)\}/gu, ':$1');
       for (const method of Object.keys(methods)) {
-        expect(registered.has(`${method} ${path}`), `${method} ${path}`).toBe(true);
+        expect(
+          fixture.http.hasRoute({ method: method.toUpperCase(), url: fastifyUrl }),
+          `${method} ${path}`,
+        ).toBe(true);
       }
     }
   });

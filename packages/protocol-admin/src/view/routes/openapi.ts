@@ -37,17 +37,6 @@ function jsonSchemaFor(schema: z.ZodType): JsonSchema {
   return z.toJSONSchema(schema, { unrepresentable: 'any' });
 }
 
-// Every route in ADMIN_ROUTES documents its own response here; a route with
-// no entry fails the build at document-generation time rather than shipping
-// with a silently absent body description.
-const RESPONSE_SCHEMAS: Readonly<Record<string, z.ZodType>> = {
-  'GET /admin/tenants/:tenant/whoami': z.object({
-    subjectId: z.string(),
-    issuerTenantId: z.string(),
-  }),
-  'GET /admin/tenants/:tenant/subjects': z.array(z.unknown()),
-};
-
 const TENANT_PARAMETER = {
   name: 'tenant',
   in: 'path',
@@ -71,16 +60,10 @@ const PROBLEM_DETAILS_RESPONSE: OpenApiResponse = {
 };
 
 function operationFor(route: AdminRoute): OpenApiOperation {
-  const key = `${route.method} ${route.pattern}`;
-  const responseSchema = RESPONSE_SCHEMAS[key];
-  if (responseSchema === undefined) {
-    throw new Error(`openapi: no documented response for ${key}`);
-  }
-
   const responses: Record<string, OpenApiResponse> = {
     '200': {
       description: 'OK',
-      content: { 'application/json': { schema: jsonSchemaFor(responseSchema) } },
+      content: { 'application/json': { schema: jsonSchemaFor(route.responseSchema) } },
     },
     '401': PROBLEM_DETAILS_RESPONSE,
   };
