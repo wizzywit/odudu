@@ -16,6 +16,19 @@ describe('seed option validation', () => {
     ).rejects.toThrow(/absolute/);
   });
 
+  it('refuses the reserved system tenant name, the same as seed tenant', async () => {
+    // `resolveTenantId` would otherwise create `system` under a random id,
+    // and `seed admin` — which keys that tenant on a fixed id — then
+    // refuses to run at all.
+    await expect(
+      seed({
+        tenant: 'system',
+        clientId: 'web-app',
+        redirectUris: ['https://app.example/callback'],
+      }),
+    ).rejects.toThrow(/reserved/);
+  });
+
   it('refuses a username given without a password', async () => {
     await expect(
       seed({

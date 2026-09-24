@@ -467,6 +467,12 @@ async function performSeed(
 // own configuration and opens its own connections so that both the
 // container smoke test and CI can invoke it as a plain one-shot command.
 async function seedClientBootstrap(opts: SeedOptions): Promise<SeedResult> {
+  // This form resolves a tenant by name and creates one under a fresh id
+  // when it finds none, which for `system` would leave `seed admin` — which
+  // keys that tenant on a fixed id — refusing to run afterward. The `seed
+  // tenant` subcommand and the admin API's `createTenant` refuse the same
+  // name through this same predicate.
+  refuseSystemTenantName(opts.tenant);
   assertAbsoluteRedirectUris(opts.redirectUris);
   assertUserOptionsPaired(opts);
   assertEmailHasAUser(opts);
@@ -852,10 +858,11 @@ interface ResolvedRole {
   id: string;
 }
 
-// The admin API's `createTenant` refuses this same name with 409 rather
-// than the unique index's constraint violation, by the same predicate
-// (isSystemTenantName, @odudu/domain-tenant) — exported so a test can
-// prove this door gives the identical answer without opening a database.
+// Three doors refuse this name by the one predicate (isSystemTenantName,
+// @odudu/domain-tenant): `seed tenant`, the options form of `seed`, and the
+// admin API's `createTenant`, which answers 409 rather than the unique
+// index's constraint violation. Exported so a test can prove the answer is
+// identical without opening a database.
 export function refuseSystemTenantName(name: string): void {
   if (isSystemTenantName(name)) {
     throw new OduduError(
