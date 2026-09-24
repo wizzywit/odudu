@@ -271,14 +271,14 @@ export type AddRoleCompositeOutcome =
   | { kind: 'cycle' }
   | { kind: 'ok' };
 
-// Locks both endpoints of the edge about to be written, sorted so two
-// concurrent calls always request the same pair in the same order and
-// never deadlock. Without this, two concurrent `addComposite` calls that
-// together would close a cycle — A→B and, at the same time, B→A — can each
-// pass `closureFrom`'s check before either commits, and both succeed: the
-// cycle the domain check exists to make impossible. Existing rows only;
-// an id naming no role locks nothing; `not_found`/`unknown_child_role`
-// below still catch that.
+// Locks both endpoints of the edge about to be written, so two concurrent
+// `addComposite` calls that together would close a cycle (A→B and, at the
+// same time, B→A) cannot each pass `closureFrom`'s check before either
+// commits. Deadlock-freedom comes from both calls issuing the identical
+// `inArray(...).for('update')` — one unordered-set predicate, scanned in
+// the same plan order — not from the `.sort()` below, which buys nothing
+// today and is kept only against a future rewrite into separate per-id
+// statements, where a consistent order would start to matter.
 async function lockRolesForComposite(
   tx: TenantScopedDatabase,
   parentRoleId: string,

@@ -115,10 +115,11 @@ export function createRoleHandler(deps: RolesRouteDeps): AdminRouteHandler {
         ),
       );
     } catch (error) {
-      // `roles_realm_name`/`roles_client_name` (0017_roles.sql) are what
-      // actually refuse a duplicate; the transaction has already rolled
-      // back by the time this is caught, the same shape `createScope`
-      // leaves it in (#/view/routes/scopes.ts).
+      // `roles_tenant_name` (0017_roles.sql, renamed to its current name by
+      // migration 0058) and `roles_client_name` are what actually refuse a
+      // duplicate; the transaction has already rolled back by the time
+      // this is caught, the same shape `createScope` leaves it in
+      // (#/view/routes/scopes.ts).
       if (isUniqueViolation(error)) {
         return sendProblem(
           reply,
