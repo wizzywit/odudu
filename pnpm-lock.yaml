@@ -434,12 +434,24 @@ importers:
 
   packages/protocol-admin:
     dependencies:
+      '@odudu/authn-flows':
+        specifier: workspace:*
+        version: link:../authn-flows
+      '@odudu/crypto':
+        specifier: workspace:*
+        version: link:../crypto
       '@odudu/db':
         specifier: workspace:*
         version: link:../db
+      '@odudu/domain-tenant':
+        specifier: workspace:*
+        version: link:../domain-tenant
       '@odudu/kernel':
         specifier: workspace:*
         version: link:../kernel
+      '@odudu/protocol-oidc':
+        specifier: workspace:*
+        version: link:../protocol-oidc
       fastify:
         specifier: 5.12.3
         version: 5.12.3
@@ -447,24 +459,12 @@ importers:
       '@fastify/formbody':
         specifier: 9.0.0
         version: 9.0.0
-      '@odudu/authn-flows':
-        specifier: workspace:*
-        version: link:../authn-flows
-      '@odudu/crypto':
-        specifier: workspace:*
-        version: link:../crypto
       '@odudu/domain-authz':
         specifier: workspace:*
         version: link:../domain-authz
       '@odudu/domain-identity':
         specifier: workspace:*
         version: link:../domain-identity
-      '@odudu/domain-tenant':
-        specifier: workspace:*
-        version: link:../domain-tenant
-      '@odudu/protocol-oidc':
-        specifier: workspace:*
-        version: link:../protocol-oidc
       '@odudu/testkit':
         specifier: workspace:*
         version: link:../testkit

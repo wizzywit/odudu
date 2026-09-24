@@ -169,7 +169,20 @@ export async function startAdminFixture(): Promise<AdminFixture> {
       clientKeySet: NO_CLIENT_KEY_FETCHER,
     }),
   );
-  await http.register(adminRoutes({ database: app, ownerDatabase: owner, logger: NO_OP_LOGGER }));
+  await http.register(
+    adminRoutes({
+      database: app,
+      ownerDatabase: owner,
+      logger: NO_OP_LOGGER,
+      // The same authority `light-my-request` gives every `http.inject`
+      // call below that sends no explicit Host header — matching it here
+      // is what lets a minted token's `iss` (resolved through discovery,
+      // itself Host-derived) equal what authenticateAdmin computes from
+      // this fixed base.
+      issuerBase: 'http://localhost',
+      clock,
+    }),
+  );
   await http.ready();
 
   const tenantsByName = new Map<string, TenantContext>();
