@@ -42,4 +42,42 @@ describe('the admin validator wired into a real Fastify request', () => {
     expect(response.statusCode).toBe(200);
     expect(response.json<{ items: unknown[] }>().items).toHaveLength(10);
   });
+
+  it('refuses a mistyped JSON body rather than coercing it into shape', async () => {
+    const app = Fastify();
+    installAdminValidator(app);
+    app.post('/tenants', { schema: { body: z.object({ name: z.string() }) } }, (request, reply) =>
+      reply.send(request.body),
+    );
+
+    // JSON carries its own types, so coercion here is loss, not repair: a
+    // number becomes the string "123" and a tenant is created under a name
+    // its caller never sent.
+    const response = await app.inject({
+      method: 'POST',
+      url: '/tenants',
+      payload: { name: 123 },
+    });
+
+    expect(response.statusCode).toBe(400);
+  });
+
+  it('leaves the numbers 0 and 1 in a body as numbers', async () => {
+    const app = Fastify();
+    installAdminValidator(app);
+    const body = z.record(z.string(), z.union([z.boolean(), z.number(), z.string()]));
+    app.post('/settings', { schema: { body } }, (request, reply) => reply.send(request.body));
+
+    // Where a union puts `boolean` first, coercion answers `false` and
+    // `true` for these two — and an integer setting then refuses its own
+    // caller's perfectly good value.
+    const response = await app.inject({
+      method: 'POST',
+      url: '/settings',
+      payload: { password_history_depth: 0, max_sessions_per_browser: 1 },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({ password_history_depth: 0, max_sessions_per_browser: 1 });
+  });
 });

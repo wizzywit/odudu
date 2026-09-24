@@ -32,6 +32,22 @@ describe('PATCH /admin/tenants/{t}/settings', () => {
     });
   });
 
+  it('applies the numbers 0 and 1 as numbers, not as booleans', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-tenant']);
+    const res = await fixture.http.inject({
+      method: 'PATCH',
+      url: `/admin/tenants/${t.name}/settings`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: { password_history_depth: 0, max_sessions_per_browser: 1 },
+    });
+    expect(res.statusCode).toBe(200);
+    await withTenant(fixture.app.db, t.id, async (tx) => {
+      const row = await tenantSettingsRepository(tx).byId(t.id);
+      expect(row).toMatchObject({ password_history_depth: 0, max_sessions_per_browser: 1 });
+    });
+  });
+
   it('refuses an unknown setting, naming the known ones', async () => {
     const t = await fixture.createTenant(`acme-${newId()}`);
     const token = await fixture.adminToken(t.name, ['manage-tenant']);

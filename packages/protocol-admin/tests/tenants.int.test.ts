@@ -41,6 +41,17 @@ describe('POST /admin/tenants', () => {
     });
   });
 
+  it('refuses a numeric name rather than creating a tenant called "123"', async () => {
+    const token = await fixture.systemAdminToken(['manage-tenants']);
+    const res = await fixture.http.inject({
+      method: 'POST',
+      url: '/admin/tenants',
+      headers: { authorization: `Bearer ${token}` },
+      payload: { name: 123 },
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
   it('refuses the name system', async () => {
     const token = await fixture.systemAdminToken(['manage-tenants']);
     const res = await fixture.http.inject({
