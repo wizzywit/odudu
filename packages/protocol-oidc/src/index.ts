@@ -39,6 +39,7 @@ import { logoutDeliveryRepository } from '#/repository/logout-deliveries';
 import { tenantLookupRepository } from '#/repository/tenant-lookup';
 import { reachableRoleIds } from '#/repository/scope-role-reach';
 import { standardClaimMappers } from '#/service/claims';
+import { type LiveClientLookup } from '#/service/client-enabled';
 import { type ClientSecretLimiter } from '#/service/client-secret-throttle';
 import {
   USERINFO_ENCRYPTION_ENC_DEFAULT,
@@ -422,6 +423,16 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
         tenantId,
         async (tx) => (await sessionRepository(tx).liveById(sessionId, lifespans, now)) !== null,
       );
+    // Shared by /introspect, /userinfo and /token's exchange grant: whether
+    // the token's own `client_id` claim still names an enabled client — the
+    // one fact a self-contained access token cannot carry about itself.
+    const liveClientLookup: LiveClientLookup = {
+      findLiveClient: (tenantId, oauthClientId) =>
+        withTenant(deps.database.db, tenantId, async (tx) => {
+          const client = await clientRepository(tx).byClientId(oauthClientId);
+          return client === null ? null : { enabled: client.enabled };
+        }),
+    };
     // No CORS scope: unlike /userinfo, a resource server calls this with
     // its own client credentials, never a browser holding a bearer token,
     // so there is no Origin this endpoint owes a header to.
@@ -433,6 +444,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
       clientSecretLimiter,
       loadGrant: loadIntrospectionGrant,
       isSessionLive: isIntrospectionSessionLive,
+      liveClientLookup,
       clock,
     });
     // Same no-CORS reasoning as /introspect above: a client revokes its own
@@ -804,6 +816,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
         kek: deps.kek,
         loadGrant: loadIntrospectionGrant,
         isSessionLive: isIntrospectionSessionLive,
+        liveClientLookup,
         clock,
       });
     });
@@ -855,6 +868,13 @@ export {
   type SendLogoutsDeps,
   type SendLogoutsOutcome,
 } from '#/usecase/send-logouts';
+export {
+  resolveExchangeToken,
+  type ResolveDeps,
+  type ResolvedExchangeToken,
+  type ResolveOutcome,
+} from '#/usecase/token-exchange-subject';
+export { TOKEN_EXCHANGE_GRANT } from '#/service/token-exchange';
 export {
   assertFetchableUrl,
   assertPublicAddresses,

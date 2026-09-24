@@ -10,6 +10,7 @@ import {
 import { type ClaimMapperRegistry } from '@odudu/kernel';
 import { presentedBearerToken } from '#/service/bearer-token';
 import { type ClaimContext, narrowToRequestedClaims } from '#/service/claims';
+import { clientIsLive, type LiveClientLookup } from '#/service/client-enabled';
 import { narrowByScopeMappings } from '#/service/scope-mapping';
 import { type ClientKeySet } from '#/repository/client-keys';
 import { type TenantLookup } from '#/repository/tenant-lookup';
@@ -35,6 +36,10 @@ export interface UserinfoDeps {
     lifespans: SessionLifespans,
     now: Date,
   ): Promise<boolean>;
+  // The third read `/introspect` and token exchange both make: a disabled
+  // client's tokens read no differently than a dead grant or a dead
+  // session, past this check.
+  liveClientLookup: LiveClientLookup;
   // The role set a granted scope reaches, and whether the token's client
   // bypasses that intersection — the same gate token issuance applies, so
   // a role withheld from a token cannot resurface here.
@@ -193,6 +198,16 @@ export async function resolveUserinfo(
   const grant = await deps.loadGrant(tenant.id, grantId);
   if (grant?.revokedAt !== null) return { kind: 'invalid_token', clientId };
 
+  // A disabled client's tokens are read as un-owned, never partially
+  // valid — the same failure mode as a revoked grant, checked the same
+  // way `/introspect` and token exchange check it.
+  if (
+    clientId === undefined ||
+    !clientIsLive(await deps.liveClientLookup.findLiveClient(tenant.id, clientId))
+  ) {
+    return { kind: 'invalid_token', clientId };
+  }
+
   // Session liveness is what makes revocation real inside an access
   // token's hour (design spec §8.2) — the same check `/introspect` and
   // refresh rotation make. An `offline_access` grant carries no session
@@ -211,12 +226,13 @@ export async function resolveUserinfo(
   }
 
   const ctx = await deps.loadClaimContext(tenant.id, payload.sub);
-  // A token with no readable client_id reaches no role: the gate fails
-  // closed rather than falling back to the subject's full role set.
-  const { reachableRoleIds, fullScopeAllowed } =
-    clientId === undefined
-      ? { reachableRoleIds: new Set<string>(), fullScopeAllowed: false }
-      : await deps.resolveRoleReach(tenant.id, clientId, scope);
+  // `clientId` is defined from here on: the live-client check above
+  // already returned for a token with no readable client_id.
+  const { reachableRoleIds, fullScopeAllowed } = await deps.resolveRoleReach(
+    tenant.id,
+    clientId,
+    scope,
+  );
   const narrowedCtx: ClaimContext = {
     ...ctx,
     roles: narrowByScopeMappings(ctx.roles, reachableRoleIds, fullScopeAllowed),

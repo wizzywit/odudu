@@ -75,6 +75,7 @@ const caller = { clientId: 'resource-server-a', audiences: ['https://api.example
 
 function makeDeps(overrides: Partial<IntrospectionDeps> = {}): IntrospectionDeps {
   return {
+    tenantId: 'tenant-1',
     issuer: ISSUER,
     lifespans: {
       ssoSessionIdleSeconds: 300,
@@ -85,6 +86,7 @@ function makeDeps(overrides: Partial<IntrospectionDeps> = {}): IntrospectionDeps
     keys: [],
     loadGrant: () => Promise.resolve({ revokedAt: null }),
     isSessionLive: () => Promise.resolve(true),
+    liveClientLookup: { findLiveClient: () => Promise.resolve({ enabled: true }) },
     ...overrides,
   };
 }
@@ -148,6 +150,19 @@ describe('introspect', () => {
     const deps = makeDeps({
       keys: [key],
       loadGrant: () => Promise.resolve({ revokedAt: new Date('2026-09-20T00:00:00Z') }),
+    });
+
+    const response = await introspect(deps, { token, caller }, NOW);
+
+    expect(response).toEqual({ active: false });
+  });
+
+  it('answers inactive for a token whose client has been disabled', async () => {
+    const key = await makeSigningKey();
+    const token = await mintToken({ sid: 'session-1' }, key);
+    const deps = makeDeps({
+      keys: [key],
+      liveClientLookup: { findLiveClient: () => Promise.resolve({ enabled: false }) },
     });
 
     const response = await introspect(deps, { token, caller }, NOW);

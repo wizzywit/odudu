@@ -1,9 +1,11 @@
 import { sessionRepository, type SessionLifespans } from '@odudu/authn-flows';
 import { AUDIENCE_UNCHECKED, signingKeyRepository, verifyJwt } from '@odudu/crypto';
 import { type TenantScopedDatabase } from '@odudu/db';
+import { clientRepository } from '@odudu/domain-tenant';
 import { type JWTPayload } from 'jose';
 import { tokenGrantRepository } from '#/repository/grants';
 import { refreshTokenRepository } from '#/repository/refresh';
+import { clientIsLive } from '#/service/client-enabled';
 import { hashRefreshToken } from '#/service/refresh';
 import { type ExchangeTokenType } from '#/service/token-exchange';
 import { subjectOfIdTokenHint } from '#/usecase/authorization-request';
@@ -43,6 +45,13 @@ async function sessionIsLive(
   return (await sessionRepository(tx).liveById(sessionId, deps.lifespans, deps.now)) !== null;
 }
 
+// `grant.clientId` is the clients table's own surrogate id, not the OAuth
+// client_id string every token carries — see `ClientLogoutTarget`'s
+// comment (repository/grants.ts) for the same distinction.
+async function grantClientIsLive(tx: TenantScopedDatabase, clientDbId: string): Promise<boolean> {
+  return clientIsLive(await clientRepository(tx).byId(clientDbId));
+}
+
 async function resolveAccessToken(
   tx: TenantScopedDatabase,
   deps: ResolveDeps,
@@ -64,6 +73,7 @@ async function resolveAccessToken(
   if (grantId === null) return { kind: 'refused' };
   const grant = await tokenGrantRepository(tx).byId(grantId);
   if (grant?.revokedAt !== null) return { kind: 'refused' };
+  if (!(await grantClientIsLive(tx, grant.clientId))) return { kind: 'refused' };
   if (grant.sessionId !== null && !(await sessionIsLive(tx, deps, grant.sessionId))) {
     return { kind: 'refused' };
   }
@@ -96,6 +106,7 @@ async function resolveRefreshToken(
 
   const grant = await tokenGrantRepository(tx).byId(record.grantId);
   if (grant?.revokedAt !== null) return { kind: 'refused' };
+  if (!(await grantClientIsLive(tx, grant.clientId))) return { kind: 'refused' };
   if (grant.sessionId !== null && !(await sessionIsLive(tx, deps, grant.sessionId))) {
     return { kind: 'refused' };
   }
@@ -133,6 +144,11 @@ async function resolveIdToken(
     deps.requestingClientId,
   );
   if (claims === null) return { kind: 'refused' };
+  // The audience check above already pinned this id_token to
+  // `deps.requestingClientId` — the only client this branch could ever
+  // check, since an id_token names no grant to read one from.
+  const client = await clientRepository(tx).byClientId(deps.requestingClientId);
+  if (!clientIsLive(client)) return { kind: 'refused' };
   if (claims.sid !== null && !(await sessionIsLive(tx, deps, claims.sid))) {
     return { kind: 'refused' };
   }

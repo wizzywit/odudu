@@ -306,7 +306,11 @@ describe('roles in an issued token', () => {
     expect(await userinfo(tenant, accessToken)).not.toHaveProperty('roles');
   });
 
-  it('narrows a disabled full-scope client’s live token at userinfo', async () => {
+  // Before the client-enabled check landed (packages/protocol-oidc/src/
+  // service/client-enabled.ts), a disabled full-scope client's token still
+  // reached userinfo and only lost the `fullScopeAllowed` bypass; now the
+  // token is refused outright, the same as any other disabled client's.
+  it('refuses a disabled full-scope client’s live token at userinfo outright', async () => {
     const tenant = await seedTenant('userinfo-disabled-full-scope');
     await setFullScopeAllowed(tenant);
     await giveSubjectRole(tenant, 'admin'); // held, mapped to no scope, but full_scope_allowed
@@ -314,7 +318,12 @@ describe('roles in an issued token', () => {
     const { accessToken } = await completeCodeFlow(tenant, 'openid roles');
     await disableClient(tenant);
 
-    expect(await userinfo(tenant, accessToken)).not.toHaveProperty('roles');
+    const res = await http.inject({
+      method: 'GET',
+      url: `/tenants/${tenant.tenantName}/protocol/openid-connect/userinfo`,
+      headers: { authorization: `Bearer ${accessToken}` },
+    });
+    expect(res.statusCode).toBe(401);
   });
 
   it('lets a mapper claim overwrite no registered claim', async () => {

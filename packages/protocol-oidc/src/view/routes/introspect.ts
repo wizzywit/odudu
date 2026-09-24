@@ -3,6 +3,7 @@ import { type SigningKeyRecord } from '@odudu/crypto';
 import { withTenant, type DatabaseHandle } from '@odudu/db';
 import { type Clock, systemClock } from '@odudu/kernel';
 import { type FastifyInstance } from 'fastify';
+import { type LiveClientLookup } from '#/service/client-enabled';
 import { type IntrospectionGrant } from '#/usecase/introspection';
 import { type ClientSecretLimiter } from '#/service/client-secret-throttle';
 import { TokenError, TokenRateLimited } from '#/service/errors';
@@ -37,6 +38,7 @@ export interface IntrospectRouteDeps {
     lifespans: SessionLifespans,
     now: Date,
   ): Promise<boolean>;
+  liveClientLookup: LiveClientLookup;
   clock?: Clock;
 }
 
@@ -69,6 +71,7 @@ export function registerIntrospectRoute(app: FastifyInstance, deps: IntrospectRo
       loadGrant: (grantId) => deps.loadGrant(tenant.id, grantId),
       isSessionLive: (sessionId, lifespans, sessionNow) =>
         deps.isSessionLive(tenant.id, sessionId, lifespans, sessionNow),
+      liveClientLookup: deps.liveClientLookup,
     };
 
     try {

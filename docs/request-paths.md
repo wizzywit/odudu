@@ -6438,6 +6438,254 @@ Byte-identical to the impersonation refusal above — both are
 each transcript above shows the column its own refusal turns on rather
 than asserting which check fired.
 
+### A client disabled after a token was issued to it
+
+Disabling a client is an admin API operation
+([docs/admin-paths.md](admin-paths.md)), not something this document's
+`odudu seed` walks through, but its effect on a token that is already live
+is a fact about `/userinfo`, `/introspect` and this grant, so it belongs
+here rather than there. A tenant of its own, `disableddoc`, with a public
+client that can both sign a user in and be disabled, and a confidential
+`disableddoc-reader` registered for the exchange grant — the resource
+server that introspects and exchanges the public client's tokens, kept
+enabled throughout so a refusal below can only be the disabled client's own
+doing:
+
+```bash
+odudu seed \
+  --tenant disableddoc --client disableddoc-spa \
+  --redirect-uri http://localhost:8080/callback \
+  --user ada --password correct-horse-battery --email ada@example.com
+
+odudu seed client \
+  --tenant disableddoc --client-id disableddoc-reader --client-secret disableddoc-reader-secret \
+  --redirect-uri http://localhost:8080/callback \
+  --grant-type authorization_code --grant-type urn:ietf:params:oauth:grant-type:token-exchange
+```
+
+The top-level `odudu seed` has no `--grant-type`, `--audience` or
+impersonation flag at all (see [What is not implemented](#what-is-not-implemented)),
+so `disableddoc-spa` — created through it, not through `seed client` — gets
+the exchange grant and `https://api.disableddoc.example` named in its own
+`audiences` directly, the same way an id_token self-exchange needs
+`token_exchange_impersonation_allowed` on directly, too, since with no
+`actor_token` it is impersonating itself. `disableddoc-reader` gets the
+identical `audiences` entry, so it is entitled to introspect and exchange
+what `disableddoc-spa` mints, and impersonation on for the same reason, the
+way [the section above](#impersonation-gated-by-a-column-no-flag-sets) turns
+it on for `exdoc-exchange`:
+
+```bash
+docker compose -f infra/docker/compose.yaml exec -T postgres \
+  psql -U odudu -d odudu -c "
+    UPDATE client_oidc_config
+    SET audiences = ARRAY['https://api.disableddoc.example'],
+        grant_types = array_append(grant_types, 'urn:ietf:params:oauth:grant-type:token-exchange'),
+        token_exchange_impersonation_allowed = true
+    FROM clients
+    WHERE clients.id = client_oidc_config.client_id AND clients.client_id = 'disableddoc-spa'
+      AND client_oidc_config.tenant_id = (SELECT id FROM tenants WHERE name = 'disableddoc');
+
+    UPDATE client_oidc_config
+    SET audiences = ARRAY['https://api.disableddoc.example'],
+        token_exchange_impersonation_allowed = true
+    FROM clients
+    WHERE clients.id = client_oidc_config.client_id AND clients.client_id = 'disableddoc-reader'
+      AND client_oidc_config.tenant_id = (SELECT id FROM tenants WHERE name = 'disableddoc');
+  "
+```
+
+Signing in as `ada` — [Path A](#path-a-authorization-code-with-pkce)'s own
+flow, against `disableddoc-spa` in `disableddoc`, `scope=openid
+offline_access` and `resource=https://api.disableddoc.example` so the
+minted `aud` includes what `disableddoc-reader` is registered under — gives
+`$ACCESS_TOKEN`, `$REFRESH_TOKEN` and `$ID_TOKEN` from one grant and one
+session. While the client is still enabled, all four calls this section is
+about succeed. `/userinfo`:
+
+```bash
+curl -sS -D - -H "Authorization: Bearer $ACCESS_TOKEN" \
+  "http://localhost:3000/tenants/disableddoc/protocol/openid-connect/userinfo"
+```
+
+```
+HTTP/1.1 200 OK
+vary: Origin
+content-type: application/json; charset=utf-8
+
+{"sub":"01a0d44d-21bd-75f4-bdbe-9c0f254fefa7"}
+```
+
+`/introspect`, called by `disableddoc-reader` rather than by
+`disableddoc-spa` itself — a caller distinct from the client under test, the
+same way the access-token and refresh-token exchanges below need one:
+
+```bash
+curl -sS -u disableddoc-reader:disableddoc-reader-secret \
+  -X POST "http://localhost:3000/tenants/disableddoc/protocol/openid-connect/token/introspect" \
+  --data-urlencode "token=$ACCESS_TOKEN"
+```
+
+```
+{"active":true,"scope":"openid offline_access","client_id":"disableddoc-spa","sub":"01a0d44d-21bd-75f4-bdbe-9c0f254fefa7","aud":["https://api.disableddoc.example","http://localhost:3000/tenants/disableddoc"],"token_type":"Bearer","exp":1790268742,"iat":1790268442}
+```
+
+The access token exchanged by `disableddoc-reader`:
+
+```bash
+curl -sS -D - -u disableddoc-reader:disableddoc-reader-secret \
+  --data-urlencode 'grant_type=urn:ietf:params:oauth:grant-type:token-exchange' \
+  --data-urlencode "subject_token=$ACCESS_TOKEN" \
+  --data-urlencode 'subject_token_type=urn:ietf:params:oauth:token-type:access_token' \
+  --data-urlencode 'resource=https://api.disableddoc.example' \
+  'http://localhost:3000/tenants/disableddoc/protocol/openid-connect/token'
+```
+
+```
+HTTP/1.1 200 OK
+vary: Origin
+cache-control: no-store
+pragma: no-cache
+content-type: application/json; charset=utf-8
+
+{"access_token":"eyJhbGciOiJSUzI1NiIs…","token_type":"Bearer","expires_in":291,"scope":"openid offline_access","issued_token_type":"urn:ietf:params:oauth:token-type:access_token"}
+```
+
+And, since an `id_token`'s audience must name the requesting client (OIDC
+Core §3.1.2.2), a self-exchange of `$ID_TOKEN` — `disableddoc-spa` is
+public, so this reaches `/token` with no credential at all, naming only
+`client_id` in the body, the way [Path A](#path-a-authorization-code-with-pkce)
+redeems a code:
+
+```bash
+curl -sS -D - \
+  --data-urlencode 'grant_type=urn:ietf:params:oauth:grant-type:token-exchange' \
+  --data-urlencode 'client_id=disableddoc-spa' \
+  --data-urlencode "subject_token=$ID_TOKEN" \
+  --data-urlencode 'subject_token_type=urn:ietf:params:oauth:token-type:id_token' \
+  'http://localhost:3000/tenants/disableddoc/protocol/openid-connect/token'
+```
+
+```
+HTTP/1.1 200 OK
+vary: Origin
+cache-control: no-store
+pragma: no-cache
+content-type: application/json; charset=utf-8
+
+{"access_token":"eyJhbGciOiJSUzI1NiIs…","token_type":"Bearer","expires_in":291,"scope":"","issued_token_type":"urn:ietf:params:oauth:token-type:access_token"}
+```
+
+Disabling `disableddoc-spa` — the precondition every refusal below depends
+on, shown rather than asserted, since an unrelated refusal (a dead session,
+a revoked grant) would read no differently:
+
+```bash
+docker compose -f infra/docker/compose.yaml exec -T postgres \
+  psql -U odudu -d odudu -c "
+    UPDATE clients SET enabled = false WHERE client_id = 'disableddoc-spa'
+      AND tenant_id = (SELECT id FROM tenants WHERE name = 'disableddoc');
+    SELECT client_id, enabled FROM clients WHERE client_id = 'disableddoc-spa';
+  "
+```
+
+```
+    client_id    | enabled
+-----------------+---------
+ disableddoc-spa | f
+(1 row)
+```
+
+None of `$ACCESS_TOKEN`, `$REFRESH_TOKEN`, `$ID_TOKEN` or the session
+behind them changed — every grant is still live and the session is still
+live. The identical four requests, unchanged, now all refuse. `/userinfo`:
+
+```
+HTTP/1.1 401 Unauthorized
+vary: Origin
+www-authenticate: Bearer realm="userinfo", error="invalid_token"
+content-length: 0
+```
+
+`/introspect`:
+
+```
+{"active":false}
+```
+
+The access token exchange:
+
+```
+HTTP/1.1 400 Bad Request
+vary: Origin
+cache-control: no-store
+pragma: no-cache
+content-type: application/json; charset=utf-8
+
+{"error":"invalid_request"}
+```
+
+the refresh token exchange, identically:
+
+```bash
+curl -sS -D - -u disableddoc-reader:disableddoc-reader-secret \
+  --data-urlencode 'grant_type=urn:ietf:params:oauth:grant-type:token-exchange' \
+  --data-urlencode "subject_token=$REFRESH_TOKEN" \
+  --data-urlencode 'subject_token_type=urn:ietf:params:oauth:token-type:refresh_token' \
+  --data-urlencode 'resource=https://api.disableddoc.example' \
+  'http://localhost:3000/tenants/disableddoc/protocol/openid-connect/token'
+```
+
+```
+HTTP/1.1 400 Bad Request
+vary: Origin
+cache-control: no-store
+pragma: no-cache
+content-type: application/json; charset=utf-8
+
+{"error":"invalid_request"}
+```
+
+and the `id_token` self-exchange:
+
+```bash
+curl -sS -D - \
+  --data-urlencode 'grant_type=urn:ietf:params:oauth:grant-type:token-exchange' \
+  --data-urlencode 'client_id=disableddoc-spa' \
+  --data-urlencode "subject_token=$ID_TOKEN" \
+  --data-urlencode 'subject_token_type=urn:ietf:params:oauth:token-type:id_token' \
+  'http://localhost:3000/tenants/disableddoc/protocol/openid-connect/token'
+```
+
+```
+HTTP/1.1 401 Unauthorized
+vary: Origin
+www-authenticate: Basic realm="token"
+cache-control: no-store
+pragma: no-cache
+content-type: application/json; charset=utf-8
+
+{"error":"invalid_client"}
+```
+
+An `id_token` names no grant to revoke — `resolveIdToken`
+(`packages/protocol-oidc/src/usecase/token-exchange-subject.ts`) returns
+`grantId: null` — so exchanging one reads `clients.enabled` directly rather
+than through a grant, the one branch a revoked-grant check could never have
+reached. This transcript's last refusal cannot prove that read fired,
+though: an id_token's audience must name the requesting client, which makes
+this necessarily a self-exchange, and a disabled client can no longer
+authenticate at `/token` for **any** grant —
+`verifyClientSecret` (`packages/domain-tenant/src/service/client.ts`)
+already refuses a disabled client's own client_secret, private_key_jwt or
+tls_client_auth attempt, the same way [The branches](#the-branches) below
+documents for every other grant, and `invalid_client` above is that refusal,
+not `resolveIdToken`'s. `packages/protocol-admin/tests/disabled-client.int.test.ts`
+covers the id_token branch's own read directly, the way [the impersonation
+refusal above](#impersonation-gated-by-a-column-no-flag-sets) covers
+`unauthorized_client`'s own oracle: by calling `resolveExchangeToken`
+itself rather than through the client-authentication gate in front of it.
+
 ## CORS: the preflight and the request differ
 
 A browser single-page client is the reader `## Path A` above walks through,
@@ -8057,15 +8305,6 @@ session lifecycle. A citation of either half here means that half.
   advertised: there is no notion of one in this identity model yet, and
   `packages/protocol-oidc/tests/claims-supported.int.test.ts` fails the
   build if it appears in a live discovery response.
-- **A client disabled after a token was issued to it does not lose that
-  token's `/userinfo` claims.** `resolveUserinfo` now refuses a token whose
-  grant this server revoked or whose session has ended, but neither of
-  those is stamped when an operator disables the client itself — the
-  grant is untouched. **P4c**, which is where disabling
-  a client becomes an operation at all, and whose criterion now asks it to
-  decide whether `/userinfo` and `/introspect` read `client.enabled` the way
-  `resolveRoleReach` and `resolveClientWebOrigins` do rather than inheriting
-  the answer.
 
 **`/logout`**
 

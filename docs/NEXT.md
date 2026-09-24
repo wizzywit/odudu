@@ -273,26 +273,6 @@ password methods reach this endpoint".
   whose criterion now names both methods at both endpoints. Extend
   `token-issuance.ts`'s assertion and certificate dispatch to the two routes.
 
-**`/userinfo` and `/introspect` both honour a disabled client's live access
-token.** `resolveUserinfo` now checks the tenant, the token's own grant
-(`revoked_at`) and its session's liveness, and `introspect` checks the
-identical pair — neither reads `client.enabled`, so disabling a client
-after a token was issued to it revokes nothing: the grant stays live,
-`resolveRoleReach` refuses only the `fullScopeAllowed` bypass, and
-`userinfoEncryptionTarget` refuses only registered encryption. A disabled
-client that registered neither still gets an ordinary, correctly narrowed
-response from both endpoints. `resolveExchangeToken`'s access-token and
-refresh-token branches
-(`packages/protocol-oidc/src/usecase/token-exchange-subject.ts`) check the
-same pair a third way; its id_token branch checks only session liveness,
-since an ID token names no grant. All three inherit the identical blind
-spot.
-
-- Trigger: **P4**, where disabling a client becomes an operation at all.
-  Its criterion now asks that phase to decide whether `/userinfo` and
-  `/introspect` read `client.enabled` the way `resolveRoleReach` and
-  `resolveClientWebOrigins` do.
-
 **A signed UserInfo response's `typ` is a private value.** `userinfo+jwt`
 is not registered anywhere; it exists to stop a UserInfo response being
 accepted as an `id_token_hint`, which it was before. A registered value, if

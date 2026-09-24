@@ -1,5 +1,6 @@
 import { type SessionLifespans } from '@odudu/authn-flows';
 import { AUDIENCE_UNCHECKED, verifyJwt, type SigningKeyRecord } from '@odudu/crypto';
+import { clientIsLive, type LiveClientLookup } from '#/service/client-enabled';
 
 export interface IntrospectionGrant {
   readonly revokedAt: Date | null;
@@ -36,6 +37,7 @@ export type IntrospectionResponse =
     };
 
 export interface IntrospectionDeps {
+  tenantId: string;
   readonly issuer: string;
   readonly keys: readonly SigningKeyRecord[];
   readonly lifespans: SessionLifespans;
@@ -43,6 +45,7 @@ export interface IntrospectionDeps {
   // `mintAccessToken`'s comment on why nothing else identifies one row.
   loadGrant(grantId: string): Promise<IntrospectionGrant | null>;
   isSessionLive(sessionId: string, lifespans: SessionLifespans, now: Date): Promise<boolean>;
+  liveClientLookup: LiveClientLookup;
 }
 
 const INACTIVE: IntrospectionResponse = { active: false };
@@ -106,6 +109,13 @@ export async function introspect(
   const grant = await deps.loadGrant(grantId);
   if (grant === null) return INACTIVE;
   if (grant.revokedAt !== null) return INACTIVE;
+
+  // A disabled client's tokens describe nothing — the same failure mode
+  // as a revoked grant, checked the same way `/userinfo` and token
+  // exchange check it.
+  if (!clientIsLive(await deps.liveClientLookup.findLiveClient(deps.tenantId, clientId))) {
+    return INACTIVE;
+  }
 
   // Session liveness is what makes revocation real inside an access
   // token's hour (design spec §8.2): a self-contained `at+jwt` is accepted
