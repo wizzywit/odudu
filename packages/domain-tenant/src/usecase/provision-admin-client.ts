@@ -1,5 +1,6 @@
 import { type TenantScopedDatabase } from '@odudu/db';
 import { roleRepository } from '@odudu/domain-authz';
+import { OduduError } from '@odudu/kernel';
 import { clientRepository } from '#/repository/clients';
 import {
   ADMIN_CLIENT_ID,
@@ -29,6 +30,15 @@ export async function provisionAdminClient(
 ): Promise<ProvisionedAdminClient> {
   const clients = clientRepository(tx);
   const existing = await clients.byClientId(ADMIN_CLIENT_ID);
+  // Every capability role hangs off this client, and the disable, delete
+  // and field guards all read builtin_admin — adopting a client that only
+  // shares the client_id would leave all of them unprotected.
+  if (existing !== null && !existing.builtinAdmin) {
+    throw new OduduError(
+      'admin_client_not_builtin',
+      `client ${ADMIN_CLIENT_ID} already exists in this tenant and is not the built-in admin client`,
+    );
+  }
   const created =
     existing ??
     (await clients.create({

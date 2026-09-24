@@ -80,6 +80,26 @@ describe('provisionAdminClient', () => {
     });
   });
 
+  // Every capability role hangs off this client, and the disable, delete
+  // and field guards all key on builtin_admin — so a client that merely
+  // carries the same client_id must not be adopted.
+  it('refuses to adopt a client holding the admin client_id without builtin_admin', async () => {
+    const tenantId = await freshTenant();
+    await withTenant(app.db, tenantId, (tx) =>
+      clientRepository(tx).create({
+        tenantId,
+        clientId: ADMIN_CLIENT_ID,
+        name: 'Impostor',
+        type: 'public',
+        secretHash: null,
+      }),
+    );
+
+    await expect(
+      withTenant(app.db, tenantId, (tx) => provisionAdminClient(tx, tenantId)),
+    ).rejects.toMatchObject({ code: 'admin_client_not_builtin' });
+  });
+
   it('is invisible from another tenant', async () => {
     const mine = await freshTenant();
     const theirs = await freshTenant();
