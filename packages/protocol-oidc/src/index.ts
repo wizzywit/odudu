@@ -812,6 +812,9 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
   };
 }
 
+// The admin API verifies a bearer token's `iss` the same way /userinfo
+// does (packages/protocol-admin/src/usecase/authenticate-admin.ts).
+export { tenantIssuerFor } from '#/view/issuer';
 export { assertionJtiRepository } from '#/repository/assertion-jti';
 export { clientOidcConfigRepository } from '#/repository/client-oidc-config';
 export { type ClientOidcConfig } from '#/schema/client-oidc-config';

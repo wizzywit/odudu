@@ -77,4 +77,30 @@ describe('admin authentication', () => {
     });
     expect(res.statusCode).toBe(200);
   });
+
+  // The issuer this door checks against is resolved from the request the
+  // same way /userinfo resolves the one it checks (tenantIssuerFor), not
+  // from a fixed value — so a token minted for a non-default authority
+  // must still be accepted when presented under that same authority.
+  it('accepts a token minted and presented under the same non-default authority', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminTokenAt(t.name, ['manage-users'], 'idp.example');
+    const res = await fixture.http.inject({
+      method: 'GET',
+      url: `/admin/tenants/${t.name}/whoami`,
+      headers: { authorization: `Bearer ${token}`, host: 'idp.example' },
+    });
+    expect(res.statusCode).toBe(200);
+  });
+
+  it('refuses a token minted under a different authority than the one presenting it', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminTokenAt(t.name, ['manage-users'], 'idp.example');
+    const res = await fixture.http.inject({
+      method: 'GET',
+      url: `/admin/tenants/${t.name}/whoami`,
+      headers: { authorization: `Bearer ${token}`, host: 'other.example' },
+    });
+    expect(res.statusCode).toBe(401);
+  });
 });

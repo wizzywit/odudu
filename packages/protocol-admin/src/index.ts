@@ -13,10 +13,6 @@ export interface AdminRoutesDeps {
   // Owner (RLS-bypassing): see @odudu/protocol-oidc's repository/tenant-lookup.ts.
   ownerDatabase: DatabaseHandle;
   logger: Logger;
-  // Fixed for the whole deployment — never derived from a request's Host,
-  // unlike protocol-oidc's per-request issuer. See
-  // usecase/authenticate-admin.ts's own comment for why.
-  issuerBase: string;
   clock?: Clock;
 }
 
@@ -25,7 +21,6 @@ export function adminRoutes(deps: AdminRoutesDeps): FastifyPluginAsync {
     const clock = deps.clock ?? systemClock;
 
     const authDeps: AuthenticateAdminDeps = {
-      issuerBase: deps.issuerBase,
       findTenant: (name) => tenantLookupRepository(deps.ownerDatabase.db).byName(name),
       listPublishableKeys: (tenantId) =>
         withTenant(deps.database.db, tenantId, (tx) => signingKeyRepository(tx).listPublishable()),

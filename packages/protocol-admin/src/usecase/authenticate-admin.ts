@@ -2,7 +2,6 @@ import { type SessionLifespans } from '@odudu/authn-flows';
 import { verifyJwt, type SigningKeyRecord } from '@odudu/crypto';
 import { SYSTEM_TENANT_NAME } from '@odudu/domain-tenant';
 import { type TenantLookup, type TokenGrantRecord } from '@odudu/protocol-oidc';
-import { tenantIssuer } from '#/service/issuer';
 
 export interface AdminPrincipal {
   readonly subjectId: string;
@@ -17,8 +16,6 @@ export type AdminAuthOutcome =
   | { kind: 'unauthenticated'; reason: string };
 
 export interface AuthenticateAdminDeps {
-  // Fixed for the whole deployment. See #/service/issuer.ts.
-  issuerBase: string;
   findTenant(name: string): Promise<TenantLookup | null>;
   listPublishableKeys(tenantId: string): Promise<SigningKeyRecord[]>;
   loadGrant(tenantId: string, grantId: string): Promise<TokenGrantRecord | null>;
@@ -34,6 +31,12 @@ export interface AuthenticateAdminDeps {
 export interface AuthenticateAdminInput {
   authorizationHeader: string | undefined;
   targetTenantName: string;
+  // The two whole strings this door accepts as `iss`, resolved by the
+  // caller the same way /userinfo resolves the one it checks against
+  // (`tenantIssuerFor`, `@odudu/protocol-oidc`) — kept out of this usecase
+  // so it stays free of the Fastify request type that computes them.
+  targetTenantIssuer: string;
+  systemTenantIssuer: string;
   now: Date;
 }
 
@@ -49,8 +52,9 @@ function extractBearerToken(header: string | undefined): string | undefined {
 // to verify against (spec §7 step 1) — trusted for nothing else, and
 // re-read from the verified payload once the signature checks out.
 function unverifiedIssuer(token: string): string | undefined {
-  const segment = token.split('.')[1];
-  if (segment === undefined || segment.length === 0) return undefined;
+  const segments = token.split('.');
+  const segment = segments[1];
+  if (segments.length !== 3 || segment === undefined || segment.length === 0) return undefined;
   let parsed: unknown;
   try {
     parsed = JSON.parse(Buffer.from(segment, 'base64url').toString('utf8'));
@@ -87,14 +91,15 @@ function lifespansOf(tenant: TenantLookup): SessionLifespans {
 // not to the path tenant it was never minted for.
 async function matchIssuer(
   deps: AuthenticateAdminDeps,
-  targetTenantName: string,
+  input: AuthenticateAdminInput,
   iss: string,
 ): Promise<MatchedTenant | undefined> {
-  const targetIssuer = tenantIssuer(deps.issuerBase, targetTenantName);
-  const systemIssuer = tenantIssuer(deps.issuerBase, SYSTEM_TENANT_NAME);
-
   const name =
-    iss === targetIssuer ? targetTenantName : iss === systemIssuer ? SYSTEM_TENANT_NAME : undefined;
+    iss === input.targetTenantIssuer
+      ? input.targetTenantName
+      : iss === input.systemTenantIssuer
+        ? SYSTEM_TENANT_NAME
+        : undefined;
   if (name === undefined) return undefined;
 
   const tenant = await deps.findTenant(name);
@@ -112,7 +117,7 @@ export async function authenticateAdmin(
   const iss = unverifiedIssuer(token);
   if (iss === undefined) return unauthenticated('malformed_token');
 
-  const matched = await matchIssuer(deps, input.targetTenantName, iss);
+  const matched = await matchIssuer(deps, input, iss);
   if (matched === undefined) return unauthenticated('issuer_mismatch');
 
   const keys = await deps.listPublishableKeys(matched.id);

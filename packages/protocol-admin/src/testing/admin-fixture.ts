@@ -34,6 +34,7 @@ import {
   clientOidcConfigRepository,
   NO_CLIENT_KEY_FETCHER,
   oidcRoutes,
+  tenantIssuerFor,
   tokenGrantRepository,
   UNLIMITED_CLIENT_SECRET_LIMITER,
 } from '@odudu/protocol-oidc';
@@ -80,6 +81,11 @@ export interface AdminFixture {
   adminToken(tenantName: string, capabilities: readonly string[]): Promise<string>;
   systemAdminToken(capabilities: readonly string[]): Promise<string>;
   applicationToken(tenantName: string, options: { audience: string }): Promise<string>;
+  // Like `adminToken`, but `iss`/`aud` are computed for the given `Host`
+  // instead of this fixture's own default authority — what a caller
+  // presenting the resulting token needs to inject with the same `host`
+  // header to be accepted, and a different one to be refused.
+  adminTokenAt(tenantName: string, capabilities: readonly string[], host: string): Promise<string>;
 
   // Subjects and clients.
   createSubject(tenantName: string, username: string): Promise<{ id: string }>;
@@ -170,18 +176,7 @@ export async function startAdminFixture(): Promise<AdminFixture> {
     }),
   );
   await http.register(
-    adminRoutes({
-      database: app,
-      ownerDatabase: owner,
-      logger: NO_OP_LOGGER,
-      // The same authority `light-my-request` gives every `http.inject`
-      // call below that sends no explicit Host header — matching it here
-      // is what lets a minted token's `iss` (resolved through discovery,
-      // itself Host-derived) equal what authenticateAdmin computes from
-      // this fixed base.
-      issuerBase: 'http://localhost',
-      clock,
-    }),
+    adminRoutes({ database: app, ownerDatabase: owner, logger: NO_OP_LOGGER, clock }),
   );
   await http.ready();
 
@@ -416,6 +411,16 @@ export async function startAdminFixture(): Promise<AdminFixture> {
     return mintAdminLikeToken(ctx, capabilities, [`${ctx.issuer}/admin`]);
   }
 
+  async function adminTokenAt(
+    tenantName: string,
+    capabilities: readonly string[],
+    host: string,
+  ): Promise<string> {
+    const ctx = requireTenant(tenantName);
+    const issuer = tenantIssuerFor({ protocol: 'http', host }, tenantName);
+    return mintAdminLikeToken({ ...ctx, issuer }, capabilities, [`${issuer}/admin`]);
+  }
+
   async function systemAdminToken(capabilities: readonly string[]): Promise<string> {
     return mintAdminLikeToken(systemTenant, capabilities, [`${systemTenant.issuer}/admin`]);
   }
@@ -647,6 +652,7 @@ export async function startAdminFixture(): Promise<AdminFixture> {
     createTenant,
     stop,
     adminToken,
+    adminTokenAt,
     systemAdminToken,
     applicationToken,
     createSubject,

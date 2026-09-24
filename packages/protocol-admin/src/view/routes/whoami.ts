@@ -1,12 +1,13 @@
+import { SYSTEM_TENANT_NAME } from '@odudu/domain-tenant';
 import { type Clock } from '@odudu/kernel';
+import { tenantIssuerFor } from '@odudu/protocol-oidc';
 import { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
 import { authenticateAdmin, type AuthenticateAdminDeps } from '#/usecase/authenticate-admin';
 
 const PATH = '/admin/tenants/:tenant/whoami';
 
-// A later task centralises RFC 9457 problem responses for every admin
-// route (`view/problem.ts`); this is that shape, used early so the
-// authentication chain has a route to prove itself against.
+// The shape `view/problem.ts` will own for every admin route; used here
+// directly until that module exists.
 function sendUnauthorized(request: FastifyRequest, reply: FastifyReply): FastifyReply {
   return reply
     .code(401)
@@ -23,6 +24,8 @@ export function registerWhoamiRoute(
     const outcome = await authenticateAdmin(deps, {
       authorizationHeader: request.headers.authorization,
       targetTenantName: request.params.tenant,
+      targetTenantIssuer: tenantIssuerFor(request, request.params.tenant),
+      systemTenantIssuer: tenantIssuerFor(request, SYSTEM_TENANT_NAME),
       now: clock.now(),
     });
     if (outcome.kind === 'unauthenticated') return sendUnauthorized(request, reply);
