@@ -4,7 +4,7 @@
 
 **Goal:** Odudu is administered over HTTP — tenants, settings, SMTP, clients, subjects, sessions, roles, scopes, claim mappers, the authentication flow and signing keys — by a tenant's own admins and by a system-tenant admin acting across tenants, with every mutation audited and the whole surface published as OpenAPI.
 
-**Architecture:** A new `packages/protocol-admin` carrying the five layers, mounted beside `oidcRoutes`. A bearer access token establishes identity; capability is re-resolved from the database on every request through `resolveRoleReach`; the target tenant comes from the path and binds `app.tenant_id` for the transaction, so every existing repository is reused unchanged. Request and response shapes are authored in Zod under `packages/contracts/admin/` and compiled once for ajv boundary validation and once for the published OpenAPI document.
+**Architecture:** A new `packages/protocol-admin` carrying the five layers, mounted beside `oidcRoutes`. A bearer access token establishes identity; capability is re-resolved from the database on every request through `resolveRoleReach`; the target tenant comes from the path and binds `app.tenant_id` for the transaction, so every existing repository is reused unchanged. Request and response shapes are authored in Zod under `packages/contracts/src/admin/` and compiled once for ajv boundary validation and once for the published OpenAPI document.
 
 **Tech Stack:** TypeScript (no `any`), Fastify 5.12.3, Drizzle over PostgreSQL with row-level security, Zod 4.6.1 with `z.toJSONSchema()`, ajv 8, `jose`, Vitest with Testcontainers.
 
@@ -51,7 +51,7 @@ Every task's requirements implicitly include this section. Values are copied fro
 | `packages/protocol-admin/src/usecase/*`                        | One journey each: authenticate-and-authorize, and one per resource group.                                                | create |
 | `packages/protocol-admin/src/repository/*`                     | Reads and writes this package owns — `audit_events`, `tenant_smtp`, `client_scope_mappers`.                              | create |
 | `packages/protocol-admin/src/view/routes/*`                    | Fastify routes, one file per resource group.                                                                             | create |
-| `packages/contracts/admin/*`                                   | Zod request and response schemas, compiled for ajv and OpenAPI.                                                          | create |
+| `packages/contracts/src/admin/*`                               | Zod request and response schemas, compiled for ajv and OpenAPI.                                                          | create |
 | `packages/contracts/src/authorize.ts`                          | Deleted — `authorizeQuerySchema` and `AuthorizeQuery` have no consumer.                                                  | delete |
 | `packages/protocol-oidc/src/service/client-enabled.ts`         | The one `client.enabled` predicate the five doors share.                                                                 | create |
 | `packages/crypto/src/service/kek.ts`                           | Generalised to `wrapSecret`/`unwrapSecret`; the JWK pair becomes typed wrappers.                                         | modify |
@@ -71,7 +71,7 @@ Every task's requirements implicitly include this section. Values are copied fro
 
 Five things the spec implies and no happy path exercises, most likely to bite first. Each has its test placed in the task that owns the code.
 
-1. **A tenant-local admin of T presenting a valid, fully-capable token at `/admin/tenants/U/**`.** This is the whole cross-tenant boundary, and §7 admits RLS is scoped to U for a legitimate system admin — so the check is the defence. Expected: 403, no row of U's read or written, and an audit row recording the refusal. — Increment 2, Task 2.5.
+1. **A tenant-local admin of T presenting a valid, fully-capable token at `/admin/tenants/U/**`.** This is the whole cross-tenant boundary, and §7 admits RLS is scoped to U for a legitimate system admin — so the check is the defence. Expected: **401** — the issuer comparison fails at step 2, before any capability is read, so this must not collapse into the 403 a system admin without `manage-tenants` gets. No row of U read or written, and an audit row recording the refusal. — Increment 2, Task 2.5.
 2. **An ordinary application access token — correct tenant, correct signature, live grant — presented at `/admin`.** Without the `aud` check, every token in the tenant administers it. Expected: 401. — Increment 2, Task 2.3.
 3. **A cursor from one collection replayed against another, and a hand-written one.** Keyset pagination that trusts its cursor is an arbitrary-offset read. Expected: 400, never a page. — Increment 3, Task 3.4.
 4. **Disabling the built-in admin client, and disabling the client whose token is making the request.** The first locks out every admin in the tenant; the second is legitimate but surprising. Expected: 409 for the built-in one; allowed with the consequence audited for the other. — Increment 5, Task 5.6.
@@ -339,6 +339,8 @@ CREATE UNIQUE INDEX clients_one_builtin_admin
   ON clients (tenant_id) WHERE builtin_admin;
 ```
 
+`NewClient` gains the field too, or Task 1.3 cannot set it: the repository generates its own `id` and returns the record, so no caller supplies one. In `packages/domain-tenant/src/repository/clients.ts`, add `builtinAdmin?: boolean` to `NewClient` and `builtinAdmin: input.builtinAdmin ?? false` to the insert.
+
 In `packages/domain-tenant/src/schema/clients.ts`, add to the table and to `ClientRecord`:
 
 ```ts
@@ -513,17 +515,17 @@ export async function provisionAdminClient(
 ): Promise<ProvisionedAdminClient> {
   const clients = clientRepository(tx);
   const existing = await clients.byClientId(ADMIN_CLIENT_ID);
-  const clientDbId = existing?.id ?? newId();
-  if (existing === null) {
-    await clients.create({
-      id: clientDbId,
+  const created =
+    existing ??
+    (await clients.create({
       tenantId,
       clientId: ADMIN_CLIENT_ID,
       name: 'Odudu administration',
       type: 'confidential',
+      secretHash: null,
       builtinAdmin: true,
-    });
-  }
+    }));
+  const clientDbId = created.id;
 
   const roles = roleRepository(tx);
   const ensure = async (name: string): Promise<string> => {
@@ -557,7 +559,7 @@ export {
 } from '#/usecase/provision-admin-client';
 ```
 
-`roleRepository.addComposite` must tolerate a repeat for idempotence. If it does not, add `ON CONFLICT DO NOTHING` to its insert in `packages/domain-authz/src/repository/roles.ts:110` and a unit test beside it asserting a second call is a no-op.
+`roleRepository.addComposite` inserts with no `ON CONFLICT`, so a repeat throws on the primary key and this function is not idempotent as written. Add `.onConflictDoNothing()` to its insert in `packages/domain-authz/src/repository/roles.ts:116`, with a unit test beside it asserting a second call is a no-op. The cycle check above it stays exactly as it is.
 
 - [ ] **Step 4: Run test to verify it passes**
 
@@ -1038,7 +1040,7 @@ Expected: FAIL — every case 404, because no `/admin` route exists.
 3. Require `aud` to contain `${iss}/admin`. This is a resource identifier a client obtains through RFC 8707's `resource` parameter, so no new minting concept is introduced.
 4. Load the grant named by the token; require it unrevoked, its session live, and its client enabled.
 
-The `whoami` probe route returns `{ subjectId, issuerTenantId }` and exists so the pipeline is testable before any resource does. It is removed in Increment 4 once real routes exist, and the tests move with it.
+The `whoami` probe route returns `{ subjectId, issuerTenantId }` and exists so the pipeline is testable before any resource does. **It is kept**, not removed: it joins `ADMIN_ROUTES` in Task 2.4 with `capability: null`, meaning authentication alone, and is documented in OpenAPI like any other route. An identity probe is what an operator reaches for first when a token does not work, and removing it would leave this task's five tests with no route to exercise.
 
 - [ ] **Step 4: Run test to verify it passes**
 
@@ -1064,7 +1066,9 @@ git commit -m "Authenticate an admin request, refusing everything else"
 **Interfaces:**
 
 - Consumes: `effectiveRoles` (`@odudu/domain-authz`), `AdminPrincipal` (Task 2.3).
-- Produces: `requiredCapability(method: string, routePattern: string): TenantCapability | null` and `authorizeAdmin(deps, principal, target, required): Promise<'allowed' | 'forbidden'>`.
+- Produces, all from `service/capability.ts`: `ADMIN_ROUTES: readonly AdminRoute[]` where `AdminRoute = { method: string; pattern: string; capability: TenantCapability | null }`, `requiredCapability(method, routePattern): TenantCapability | null | undefined` (`undefined` means no such route), and `authorizeAdmin(deps, principal, target, required): Promise<'allowed' | 'forbidden'>`. `ADMIN_ROUTES` is re-exported from the package index, because three later tasks iterate it.
+
+A `capability: null` route requires authentication and nothing more. `whoami` is the only one (Task 2.3), and Task 14.2 asserts it is the only one rather than skipping the class silently.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -1275,8 +1279,8 @@ Run **Spike A** and **Spike B** before Task 3.1. Everything from Increment 4 onw
 
 **Files:**
 
-- Create: `packages/contracts/admin/index.ts`, `packages/contracts/admin/shared.ts`
-- Modify: `packages/contracts/package.json` (an `./admin` export subpath)
+- Create: `packages/contracts/src/admin/index.ts`, `packages/contracts/src/admin/shared.ts`
+- Modify: `packages/contracts/package.json` (add `"./admin": "./src/admin/index.ts"` to `exports`)
 - Create: `packages/protocol-admin/src/adapter/validation.ts`
 - Create: `packages/protocol-admin/src/adapter/validation.test.ts`
 
@@ -1342,7 +1346,7 @@ If it does not, compile twice from the one authored schema —
 `z.toJSONSchema(schema, { target: 'draft-7' })` for ajv and the 2020-12 form
 for the OpenAPI document — and say so in a comment naming both consumers.
 
-`packages/contracts/admin/shared.ts` holds what every resource reuses: the
+`packages/contracts/src/admin/shared.ts` holds what every resource reuses: the
 cursor query shape, the problem-details response shape, and the `id`,
 `created_at` and `ETag` primitives.
 
@@ -1354,7 +1358,7 @@ Expected: PASS, 3 tests.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add packages/contracts/admin packages/contracts/package.json \
+git add packages/contracts/src/admin packages/contracts/package.json \
         packages/protocol-admin/src/adapter
 git commit -m "Compile admin contracts from Zod for boundary validation"
 ```
@@ -1713,7 +1717,7 @@ Increments 4 to 8 each add resources, and they all have the same shape. It is wr
 
 | File                                                   | Holds                                                                                                                   |
 | ------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------- |
-| `packages/contracts/admin/<group>.ts`                  | The Zod request and response schemas.                                                                                   |
+| `packages/contracts/src/admin/<group>.ts`              | The Zod request and response schemas.                                                                                   |
 | `packages/protocol-admin/src/service/<group>-patch.ts` | The allowlist of amendable fields and the refusal reason for each excluded one. A leaf; unit-tested without a database. |
 | `packages/protocol-admin/src/usecase/<group>.ts`       | List, read, create, amend, delete — one exported function each, taking a `TenantScopedDatabase`.                        |
 | `packages/protocol-admin/src/view/routes/<group>.ts`   | Fastify registration from `ADMIN_ROUTES`, no logic.                                                                     |
@@ -1839,7 +1843,7 @@ Expected: PASS, 5 tests.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add packages/protocol-admin packages/contracts/admin/tenants.ts apps/server/src/cli/seed.ts
+git add packages/protocol-admin packages/contracts/src/admin/tenants.ts apps/server/src/cli/seed.ts
 git commit -m "Create and list tenants through the admin API"
 ```
 
@@ -1950,7 +1954,7 @@ Expected: PASS, 5 tests.
 This is where `docs/admin-paths.md` is created: the file header, the three-artifact note, the pointer to `docs/request-paths.md`, and an executed transcript of bootstrapping an admin, obtaining a token and amending a setting. Add the reciprocal pointer to `docs/request-paths.md`.
 
 ```bash
-git add packages/protocol-admin packages/contracts/admin/settings.ts \
+git add packages/protocol-admin packages/contracts/src/admin/settings.ts \
         docs/admin-paths.md docs/request-paths.md
 git commit -m "Amend a tenant's settings through the admin API"
 ```
@@ -1997,7 +2001,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add packages/protocol-admin packages/contracts/admin/clients.ts
+git add packages/protocol-admin packages/contracts/src/admin/clients.ts
 git commit -m "List, read and create clients through the admin API"
 ```
 
@@ -2229,7 +2233,7 @@ git commit -m "Pin the two client amendments that change authorization"
 - [ ] **Step 1: Write the failing test**
 
 ```ts
-// packages/protocol-oidc/tests/disabled-client.int.test.ts
+// packages/protocol-admin/tests/disabled-client.int.test.ts
 describe('a client disabled after a token was issued to it', () => {
   it('is refused at /userinfo', async () => {
     /* 200 before, 401 after */
@@ -2253,7 +2257,7 @@ Each case disables the client through `PATCH /admin/tenants/{t}/clients/{id}` ra
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `pnpm vitest run packages/protocol-oidc/tests/disabled-client.int.test.ts`
+Run: `pnpm vitest run packages/protocol-admin/tests/disabled-client.int.test.ts`
 Expected: FAIL — all five still succeed after disabling.
 
 - [ ] **Step 3: Write minimal implementation**
@@ -2466,7 +2470,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add packages/protocol-admin packages/contracts/admin/subjects.ts
+git add packages/protocol-admin packages/contracts/src/admin/subjects.ts
 git commit -m "List, read and create subjects through the admin API"
 ```
 
@@ -2599,7 +2603,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add packages/protocol-admin packages/contracts/admin/sessions.ts
+git add packages/protocol-admin packages/contracts/src/admin/sessions.ts
 git commit -m "List a subject's sessions and end one through the admin API"
 ```
 
@@ -2676,7 +2680,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add packages/protocol-admin packages/contracts/admin/roles.ts packages/contracts/admin/groups.ts
+git add packages/protocol-admin packages/contracts/src/admin/roles.ts packages/contracts/src/admin/groups.ts
 git commit -m "Manage roles and groups through the admin API"
 ```
 
@@ -2705,7 +2709,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add packages/protocol-admin packages/contracts/admin/scopes.ts
+git add packages/protocol-admin packages/contracts/src/admin/scopes.ts
 git commit -m "Manage client scopes through the admin API"
 ```
 
@@ -2876,7 +2880,7 @@ Expected: PASS, 5 tests.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add packages/protocol-admin packages/contracts/admin/keys.ts
+git add packages/protocol-admin packages/contracts/src/admin/keys.ts
 git commit -m "Stage, promote and retire a tenant's signing keys"
 ```
 
@@ -2894,7 +2898,7 @@ it('keeps publishing a rotating key past not_after until retirement is explicit'
   const key = await seedKey({ alg: 'RS256', status: 'rotating', notAfter: clock.now() });
   clock.advance(365 * 24 * 3600 * 1000);
   const published = await withTenant(app.db, tenantId, (tx) =>
-    signingKeyRepository(tx).publishable(),
+    signingKeyRepository(tx).listPublishable(),
   );
   expect(published.map((k) => k.id)).toContain(key.id);
 });
@@ -2903,7 +2907,7 @@ it('stops publishing it once retired', async () => {
   const key = await seedKey({ alg: 'RS256', status: 'rotating' });
   await withTenant(app.db, tenantId, (tx) => signingKeyRepository(tx).retire(key.id));
   const published = await withTenant(app.db, tenantId, (tx) =>
-    signingKeyRepository(tx).publishable(),
+    signingKeyRepository(tx).listPublishable(),
   );
   expect(published.map((k) => k.id)).not.toContain(key.id);
 });
@@ -3087,7 +3091,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add packages/protocol-admin packages/authn-flows packages/contracts/admin/flow.ts
+git add packages/protocol-admin packages/authn-flows packages/contracts/src/admin/flow.ts
 git commit -m "Configure a tenant's authentication flow through the admin API"
 ```
 
@@ -3200,7 +3204,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add packages/protocol-admin packages/contracts/admin/scope-mappers.ts
+git add packages/protocol-admin packages/contracts/src/admin/scope-mappers.ts
 git commit -m "Manage a scope's claim mappers through the admin API"
 ```
 
@@ -3347,7 +3351,7 @@ Expected: PASS, 5 tests.
 
 ```bash
 git add packages/db/drizzle/0065_tenant_smtp.sql packages/protocol-admin \
-        apps/server/src/email.ts packages/contracts/admin/smtp.ts
+        apps/server/src/email.ts packages/contracts/src/admin/smtp.ts
 git commit -m "Configure a tenant's own SMTP, with its credential encrypted"
 ```
 
