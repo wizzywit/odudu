@@ -7,8 +7,8 @@ Three artifacts describe this API and each has one job. The published
 OpenAPI document is the **reference** — generated, and the place every
 endpoint and every field is listed exhaustively. This document is the
 **narrative** — an operator's journey through a task, in the order they
-would actually hit it, with the shape of each request and, once a later
-increment brings up a stack to capture it against, the real response.
+would actually hit it, with the shape of each request and, once a live
+stack has been brought up to capture it against, the real response.
 [README.md](../README.md) is the **entry point** — how to get a token that
 can call any of this at all.
 
@@ -68,8 +68,8 @@ curl -sS \
   http://localhost:3000/admin/tenants/demo/whoami
 ```
 
-The response shape, not a captured run — a later increment brings up a
-stack and replaces this with the real bytes: the caller's own identity as
+The response shape, not a captured run. Running this against a live stack
+replaces it with the real bytes: the caller's own identity as
 the server resolved it, `subjectId` (the token's `sub`) and
 `issuerTenantId` (the tenant that issued the token, which for a system
 admin calling into another tenant is `system`, not the tenant named in the
