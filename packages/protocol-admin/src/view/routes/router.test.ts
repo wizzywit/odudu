@@ -18,10 +18,14 @@ function handlersFor(routes: readonly { method: string; pattern: string }[]): Ad
 }
 
 describe('registerAdminRoutes', () => {
-  it('registers exactly the routes ADMIN_ROUTES declares, and only those', async () => {
+  it('registers exactly the routes ADMIN_ROUTES declares, and only those', () => {
+    // No `app.ready()`: booting would compile the query/body schemas
+    // `ADMIN_ROUTES` attaches, which needs the ajv dialect
+    // `#/adapter/validation` installs — a `view` module this test lives
+    // beside is not allowed to import. `hasRoute` reads the route table
+    // `registerAdminRoutes` builds directly, without booting.
     const app = Fastify();
     registerAdminRoutes(app, handlersFor(ADMIN_ROUTES), authDeps, authzDeps, clock);
-    await app.ready();
 
     for (const route of ADMIN_ROUTES) {
       expect(

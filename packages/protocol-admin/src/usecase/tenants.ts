@@ -1,5 +1,6 @@
 import { provisionTenant } from '@odudu/authn-flows';
-import { tenants, withTenant, type Database } from '@odudu/db';
+import { generateSigningKey, signingKeyRepository } from '@odudu/crypto';
+import { tenants, withTenant, type Database, type TenantScopedDatabase } from '@odudu/db';
 import { isSystemTenantName } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
 import { provisionAdminClient } from '@odudu/protocol-oidc';
@@ -45,20 +46,46 @@ export interface CreateTenantInput {
 }
 
 export interface CreateTenantDeps {
-  readonly ownerDatabase: Database;
   readonly database: Database;
+  // Encrypts the signing key minted for the new tenant — the same KEK
+  // `seedAdmin` and `seed tenant` (apps/server/src/cli/seed.ts) pass to
+  // `generateSigningKey`.
+  readonly kek: Uint8Array;
   readonly audit: Audit;
 }
 
 export type CreateTenantOutcome =
   { kind: 'created'; tenant: TenantRecord } | { kind: 'name_refused' };
 
+// Mirrors `ensureSigningKey` (apps/server/src/cli/seed.ts): a freshly
+// inserted tenant has none yet, so there is nothing to check first — a
+// tenant with no client yet still needs one the instant it can issue
+// tokens.
+async function mintSigningKey(
+  tx: TenantScopedDatabase,
+  tenantId: string,
+  kek: Uint8Array,
+): Promise<void> {
+  const generated = await generateSigningKey('ES256', kek);
+  await signingKeyRepository(tx).create({
+    id: newId(),
+    tenantId,
+    kid: generated.kid,
+    alg: generated.alg,
+    status: 'active',
+    publicJwk: generated.publicJwk,
+    privateJwkEncrypted: generated.privateJwkEncrypted,
+  });
+}
+
 /**
- * The row is inserted through the owner connection — the same RLS bypass
- * `tenantLookupRepository.create` uses (@odudu/protocol-oidc) — because no
- * tenant context can exist before this tenant does. `provisionTenant` and
- * `provisionAdminClient` then run bound to the row just inserted, in the
- * same sense `withTenant` gives any other write.
+ * One transaction: the row, its browser flow, its built-in admin client and
+ * its signing key. `withTenant` binds `app.tenant_id` to the id about to be
+ * inserted before the row exists — the same RLS-satisfying order
+ * `insertSystemTenant` uses (apps/server/src/cli/seed.ts) — so nothing here
+ * needs the owner connection's bypass. A failure at any step rolls the
+ * whole thing back, rather than leaving a tenant row with no flow, no
+ * client or no key to sign a token with.
  */
 export async function createTenant(
   deps: CreateTenantDeps,
@@ -71,18 +98,21 @@ export async function createTenant(
   if (isSystemTenantName(input.name)) return { kind: 'name_refused' };
 
   const id = newId();
-  const rows = await deps.ownerDatabase
-    .insert(tenants)
-    .values({ id, name: input.name, displayName: input.displayName ?? null })
-    .returning(TENANT_COLUMNS);
-  const created = rows[0];
-  if (created === undefined) {
-    throw new Error('insert into tenants returned no row');
-  }
+  const tenant = await withTenant(deps.database, id, async (tx) => {
+    const rows = await tx
+      .insert(tenants)
+      .values({ id, name: input.name, displayName: input.displayName ?? null })
+      .returning(TENANT_COLUMNS);
+    const created = rows[0];
+    if (created === undefined) {
+      throw new Error('insert into tenants returned no row');
+    }
 
-  await withTenant(deps.database, id, async (tx) => {
     await provisionTenant(tx, id);
     await provisionAdminClient(tx, id);
+    await mintSigningKey(tx, id, deps.kek);
+
+    return created;
   });
 
   await deps.audit({
@@ -92,7 +122,7 @@ export async function createTenant(
     actorSubjectId: input.actorSubjectId,
   });
 
-  return { kind: 'created', tenant: created };
+  return { kind: 'created', tenant };
 }
 
 export interface ListTenantsInput {

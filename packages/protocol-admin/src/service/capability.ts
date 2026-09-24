@@ -1,4 +1,9 @@
-import { listTenantsResponseSchema, tenantSchema } from '@odudu/contracts/admin';
+import {
+  createTenantRequestSchema,
+  cursorQuerySchema,
+  listTenantsResponseSchema,
+  tenantSchema,
+} from '@odudu/contracts/admin';
 import { MANAGE_TENANTS, type TenantCapability } from '@odudu/domain-tenant';
 import { z } from 'zod';
 
@@ -19,6 +24,13 @@ export interface AdminRoute {
   // The status a successful response carries — omitted, it is 200. Only a
   // route whose success is something else (a create's 201) sets it.
   readonly successStatus?: number;
+  // Fastify's ajv compiler (installAdminValidator) validates and coerces
+  // against these when present, so a handler reads an already-shaped
+  // request rather than parsing the wire format itself — the one authority
+  // for what a querystring or body may contain, instead of a second one a
+  // handler could quietly disagree with.
+  readonly querystringSchema?: z.ZodType;
+  readonly bodySchema?: z.ZodType;
 }
 
 // The single list the router registers from (view/routes/router.ts): a
@@ -45,6 +57,7 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     pattern: '/admin/tenants',
     capability: MANAGE_TENANTS,
     responseSchema: listTenantsResponseSchema,
+    querystringSchema: cursorQuerySchema,
   },
   {
     method: 'POST',
@@ -52,6 +65,7 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     capability: MANAGE_TENANTS,
     responseSchema: tenantSchema,
     successStatus: 201,
+    bodySchema: createTenantRequestSchema,
   },
 ];
 

@@ -1,10 +1,16 @@
 import { executionRepository } from '@odudu/authn-flows';
+import { signingKeyRepository } from '@odudu/crypto';
 import { withTenant } from '@odudu/db';
 import { clientRepository, TENANT_CAPABILITIES } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { startAdminFixture, type AdminFixture } from '#/testing/admin-fixture';
 import { createTenant } from '#/usecase/tenants';
+
+// Matches the fixture's own KEK (packages/protocol-admin/src/testing/
+// admin-fixture.ts) — a fixed value is fine, since nothing outside this
+// file needs to read what it encrypts.
+const KEK = Buffer.alloc(32, 7);
 
 let fixtureHandle: AdminFixture | undefined;
 let fixture: AdminFixture;
@@ -60,6 +66,17 @@ describe('POST /admin/tenants', () => {
     // into the same 401 a forged system-tenant token would get, never the
     // 403 a system admin without manage-tenants would.
     expect(res.statusCode).toBe(401);
+  });
+
+  it('refuses a system admin holding a capability other than manage-tenants', async () => {
+    const token = await fixture.systemAdminToken(['view-users']);
+    const res = await fixture.http.inject({
+      method: 'POST',
+      url: '/admin/tenants',
+      headers: { authorization: `Bearer ${token}` },
+      payload: { name: `sneaky-${newId()}` },
+    });
+    expect(res.statusCode).toBe(403);
   });
 });
 
@@ -131,6 +148,16 @@ describe('GET /admin/tenants', () => {
     const body = res.json<{ items: { id: string }[] }>();
     expect(body.items.map((item) => item.id)).toContain(fixture.systemTenantId);
   });
+
+  it('refuses a system admin holding a capability other than manage-tenants', async () => {
+    const token = await fixture.systemAdminToken(['view-users']);
+    const res = await fixture.http.inject({
+      method: 'GET',
+      url: '/admin/tenants',
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(res.statusCode).toBe(403);
+  });
 });
 
 describe('createTenant', () => {
@@ -138,8 +165,8 @@ describe('createTenant', () => {
     const events: unknown[] = [];
     const outcome = await createTenant(
       {
-        ownerDatabase: fixture.owner.db,
         database: fixture.app.db,
+        kek: KEK,
         audit: (event) => {
           events.push(event);
           return Promise.resolve();
@@ -155,8 +182,8 @@ describe('createTenant', () => {
     const events: unknown[] = [];
     const outcome = await createTenant(
       {
-        ownerDatabase: fixture.owner.db,
         database: fixture.app.db,
+        kek: KEK,
         audit: (event) => {
           events.push(event);
           return Promise.resolve();
@@ -166,5 +193,16 @@ describe('createTenant', () => {
     );
     expect(outcome.kind).toBe('name_refused');
     expect(events).toHaveLength(0);
+  });
+
+  it('mints a signing key in the same transaction as the row', async () => {
+    const outcome = await createTenant(
+      { database: fixture.app.db, kek: KEK, audit: () => Promise.resolve() },
+      { name: `keyed-${newId()}`, actorSubjectId: 'test-subject' },
+    );
+    if (outcome.kind !== 'created') throw new Error('expected the tenant to be created');
+    await withTenant(fixture.app.db, outcome.tenant.id, async (tx) => {
+      expect(await signingKeyRepository(tx).listPublishable()).not.toHaveLength(0);
+    });
   });
 });

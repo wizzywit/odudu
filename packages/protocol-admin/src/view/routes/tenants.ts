@@ -1,14 +1,19 @@
-import { createTenantRequestSchema, type Tenant } from '@odudu/contracts/admin';
+import {
+  createTenantRequestSchema,
+  cursorQuerySchema,
+  DEFAULT_LIMIT,
+  type Tenant,
+} from '@odudu/contracts/admin';
 import { type Database } from '@odudu/db';
-import { coerceLimit } from '#/service/cursor';
 import { createTenant, listTenants, type Audit, type TenantRecord } from '#/usecase/tenants';
-import { problem, sendProblem, type Problem } from '#/view/problem';
+import { problem, sendProblem } from '#/view/problem';
 import { type AdminRouteHandler } from '#/view/routes/router';
 
 export interface TenantsRouteDeps {
   readonly database: Database;
   readonly ownerDatabase: Database;
   readonly cursorKey: Uint8Array;
+  readonly kek: Uint8Array;
   readonly audit: Audit;
 }
 
@@ -22,30 +27,18 @@ function toWireTenant(record: TenantRecord): Tenant {
   };
 }
 
-// No route in `ADMIN_ROUTES` attaches a Fastify querystring schema, so
-// `request.query`'s shape is read defensively rather than cast.
-function stringParam(query: unknown, name: string): string | undefined {
-  if (typeof query !== 'object' || query === null) return undefined;
-  const value = (query as Record<string, unknown>)[name];
-  return typeof value === 'string' ? value : undefined;
-}
-
-function badRequest(detail: string): Problem {
-  return problem(400, 'about:blank', 'Bad Request', detail);
-}
-
 export function createTenantHandler(deps: TenantsRouteDeps): AdminRouteHandler {
   return async (request, reply, principal) => {
-    const parsed = createTenantRequestSchema.safeParse(request.body);
-    if (!parsed.success) {
-      return sendProblem(reply, request, badRequest(parsed.error.message));
-    }
+    // Fastify's ajv compiler already validated `request.body` against this
+    // same schema (ADMIN_ROUTES' `bodySchema`); parsing again only narrows
+    // the type — it cannot fail.
+    const body = createTenantRequestSchema.parse(request.body);
 
     const outcome = await createTenant(
-      { ownerDatabase: deps.ownerDatabase, database: deps.database, audit: deps.audit },
+      { database: deps.database, kek: deps.kek, audit: deps.audit },
       {
-        name: parsed.data.name,
-        displayName: parsed.data.display_name,
+        name: body.name,
+        displayName: body.display_name,
         actorSubjectId: principal.subjectId,
       },
     );
@@ -58,7 +51,7 @@ export function createTenantHandler(deps: TenantsRouteDeps): AdminRouteHandler {
           409,
           'about:blank',
           'Conflict',
-          `the name ${JSON.stringify(parsed.data.name)} is reserved`,
+          `the name ${JSON.stringify(body.name)} is reserved`,
         ),
       );
     }
@@ -69,12 +62,12 @@ export function createTenantHandler(deps: TenantsRouteDeps): AdminRouteHandler {
 
 export function listTenantsHandler(deps: TenantsRouteDeps): AdminRouteHandler {
   return async (request, reply, _principal, targetTenantId) => {
-    let limit: number;
-    try {
-      limit = coerceLimit(stringParam(request.query, 'limit'));
-    } catch {
-      return sendProblem(reply, request, badRequest('limit must be a positive integer'));
-    }
+    // Same narrowing as above: ADMIN_ROUTES' `querystringSchema` already
+    // validated and coerced `limit`/`cursor` (coerceTypes turns "10" into
+    // 10, and MAX_LIMIT bounds it — @odudu/protocol-admin's coerceLimit is
+    // not a second authority on this route).
+    const query = cursorQuerySchema.parse(request.query);
+    const limit = query.limit ?? DEFAULT_LIMIT;
 
     // Listing the collection is inherently cross-tenant, so it reads
     // through the owner connection — the same bypass `createTenant` and
@@ -82,12 +75,16 @@ export function listTenantsHandler(deps: TenantsRouteDeps): AdminRouteHandler {
     // RLS-scoped one, which would see no `app.tenant_id` to filter by.
     const outcome = await listTenants(deps.ownerDatabase, {
       limit,
-      cursor: stringParam(request.query, 'cursor'),
+      cursor: query.cursor,
       cursorKey: deps.cursorKey,
       tenantId: targetTenantId,
     });
     if (outcome.kind === 'invalid_cursor') {
-      return sendProblem(reply, request, badRequest('cursor is invalid or expired'));
+      return sendProblem(
+        reply,
+        request,
+        problem(400, 'about:blank', 'Bad Request', 'cursor is invalid or expired'),
+      );
     }
 
     const items = outcome.items.map(toWireTenant);

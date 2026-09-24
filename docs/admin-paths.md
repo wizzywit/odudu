@@ -18,11 +18,15 @@ this document never starts a second one. An admin endpoint that does not do
 yet what its name suggests says so in its own section below, and points at
 that list rather than duplicating it.
 
-Same transcript discipline as `docs/request-paths.md`: a fenced block
-holding a response carries no language tag, a section whose output depends
-on the state of the stack it ran against says which state, and a
-precondition a refusal depends on is shown rather than asserted. Nothing
-here is reconstructed from what the code looks like it should do.
+This document holds two kinds of section. One is captured against a live
+stack and follows the same transcript discipline as
+[docs/request-paths.md](request-paths.md): a fenced block holding a
+response carries no language tag, a section whose output depends on the
+state of the stack it ran against says which state, and a precondition a
+refusal depends on is shown rather than asserted. The other is not yet
+captured, and says so plainly — "the response shape, not a captured run" —
+rather than presenting invented bytes as if they were real. Every section
+below names which one it is.
 
 ## The shape of it
 

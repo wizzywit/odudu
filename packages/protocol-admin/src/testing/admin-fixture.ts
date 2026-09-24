@@ -193,6 +193,7 @@ export async function startAdminFixture(): Promise<AdminFixture> {
       logger: NO_OP_LOGGER,
       clock,
       cursorKey: KEK,
+      kek: KEK,
     }),
   );
   await http.ready();

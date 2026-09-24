@@ -34,6 +34,10 @@ export interface AdminRoutesDeps {
   // KEK is safe: encodeCursor/decodeCursor derive their HMAC key from it
   // with their own domain separator, never the raw bytes.
   cursorKey: Uint8Array;
+  // Encrypts a signing key minted for a tenant created through this API
+  // (createTenant, #/usecase/tenants.ts) — the same KEK `seedAdmin` and
+  // `seed tenant` use.
+  kek: Uint8Array;
 }
 
 export function adminRoutes(deps: AdminRoutesDeps): FastifyPluginAsync {
@@ -51,6 +55,7 @@ export function adminRoutes(deps: AdminRoutesDeps): FastifyPluginAsync {
       database: deps.database.db,
       ownerDatabase: deps.ownerDatabase.db,
       cursorKey: deps.cursorKey,
+      kek: deps.kek,
       audit: noopAudit,
     };
     const handlers: AdminRouteHandlers = {

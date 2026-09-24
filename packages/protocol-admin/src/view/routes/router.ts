@@ -112,6 +112,10 @@ export function registerAdminRoutes(
     app.route<{ Params: { tenant?: string } }>({
       method: route.method,
       url: route.pattern,
+      schema: {
+        ...(route.querystringSchema !== undefined ? { querystring: route.querystringSchema } : {}),
+        ...(route.bodySchema !== undefined ? { body: route.bodySchema } : {}),
+      },
       handler: (request, reply) =>
         handleRoute(route, handler, authDeps, authzDeps, clock, request, reply),
     });
