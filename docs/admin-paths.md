@@ -66,23 +66,29 @@ section 7 has the full authentication and authorization sequence; getting
 a token to test with is [README.md](../README.md)'s job, not this
 document's.
 
-| Method   | Path                                         | What it is                |
-| -------- | -------------------------------------------- | ------------------------- |
-| `GET`    | `/admin/tenants`                             | List tenants              |
-| `POST`   | `/admin/tenants`                             | Create a tenant           |
-| `GET`    | `/admin/tenants/{tenant}/whoami`             | Identity probe            |
-| `GET`    | `/admin/tenants/{tenant}/subjects`           | List subjects             |
-| `POST`   | `/admin/tenants/{tenant}/subjects`           | Create a subject          |
-| `GET`    | `/admin/tenants/{tenant}/subjects/:id`       | Read a subject            |
-| `GET`    | `/admin/tenants/{tenant}/settings`           | Read a tenant's settings  |
-| `PATCH`  | `/admin/tenants/{tenant}/settings`           | Amend a tenant's settings |
-| `GET`    | `/admin/tenants/{tenant}/clients`            | List clients              |
-| `POST`   | `/admin/tenants/{tenant}/clients`            | Create a client           |
-| `GET`    | `/admin/tenants/{tenant}/clients/:id`        | Read a client             |
-| `PATCH`  | `/admin/tenants/{tenant}/clients/:id`        | Amend a client            |
-| `DELETE` | `/admin/tenants/{tenant}/clients/:id`        | Delete a client           |
-| `POST`   | `/admin/tenants/{tenant}/clients/:id/secret` | Rotate a client's secret  |
-| `GET`    | `/admin/openapi.json`                        | The OpenAPI reference     |
+| Method   | Path                                                             | What it is                       |
+| -------- | ---------------------------------------------------------------- | -------------------------------- |
+| `GET`    | `/admin/tenants`                                                 | List tenants                     |
+| `POST`   | `/admin/tenants`                                                 | Create a tenant                  |
+| `GET`    | `/admin/tenants/{tenant}/whoami`                                 | Identity probe                   |
+| `GET`    | `/admin/tenants/{tenant}/subjects`                               | List subjects                    |
+| `POST`   | `/admin/tenants/{tenant}/subjects`                               | Create a subject                 |
+| `GET`    | `/admin/tenants/{tenant}/subjects/:id`                           | Read a subject                   |
+| `PATCH`  | `/admin/tenants/{tenant}/subjects/:id`                           | Amend a subject                  |
+| `DELETE` | `/admin/tenants/{tenant}/subjects/:id`                           | Delete a subject                 |
+| `GET`    | `/admin/tenants/{tenant}/subjects/:id/credentials`               | List a subject's credentials     |
+| `DELETE` | `/admin/tenants/{tenant}/subjects/:id/credentials/:credentialId` | Remove a credential              |
+| `PUT`    | `/admin/tenants/{tenant}/subjects/:id/required-actions`          | Set a subject's required actions |
+| `PUT`    | `/admin/tenants/{tenant}/subjects/:id/roles`                     | Replace a subject's roles        |
+| `GET`    | `/admin/tenants/{tenant}/settings`                               | Read a tenant's settings         |
+| `PATCH`  | `/admin/tenants/{tenant}/settings`                               | Amend a tenant's settings        |
+| `GET`    | `/admin/tenants/{tenant}/clients`                                | List clients                     |
+| `POST`   | `/admin/tenants/{tenant}/clients`                                | Create a client                  |
+| `GET`    | `/admin/tenants/{tenant}/clients/:id`                            | Read a client                    |
+| `PATCH`  | `/admin/tenants/{tenant}/clients/:id`                            | Amend a client                   |
+| `DELETE` | `/admin/tenants/{tenant}/clients/:id`                            | Delete a client                  |
+| `POST`   | `/admin/tenants/{tenant}/clients/:id/secret`                     | Rotate a client's secret         |
+| `GET`    | `/admin/openapi.json`                                            | The OpenAPI reference            |
 
 ## `GET /admin/tenants`
 
@@ -570,6 +576,111 @@ single-resource read in this API follows; an unknown id answers `404`.
 curl -sS \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   http://localhost:3000/admin/tenants/demo/subjects/<subject id>
+```
+
+## `PATCH /subjects/:id`
+
+Requires `manage-users`. Amends `email` and `enabled` — the only two
+general fields a subject exposes; everything else about a subject
+(credentials, required actions, roles) has its own door below. Honours
+`If-Match`, answering `412` on a mismatch, the same convention every other
+amendment in this API follows — locked with `SELECT … FOR UPDATE` before
+the `ETag` is computed, so two concurrent amendments cannot both pass the
+precondition.
+
+```bash
+curl -sS -X PATCH \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"enabled": false}' \
+  http://localhost:3000/admin/tenants/demo/subjects/<subject id>
+```
+
+## `DELETE /subjects/:id`
+
+Requires `manage-users`. Removes the subject; every table that names one
+(`users`, `user_credentials`, `sessions`, `token_grants`,
+`subject_roles`, …) cascades, except a client whose service account named
+it — `clients_service_subject_fk` (`packages/db/drizzle/0063_service_subject_fk.sql`)
+detaches the client (`service_subject_id` goes `null`) rather than failing
+or deleting it. An unknown id answers `404`.
+
+## `GET /subjects/:id/credentials`
+
+Requires `view-users`. Metadata only — `type`, `created_at`, and, for a
+`password` credential, whether it is expired under the tenant's
+`password_max_age_days`. Never a hash, never `secret_data`: the response is
+built from an explicit field list, so a column added to `user_credentials`
+later is absent by default rather than exposed by default.
+`recovery-code` rows are collapsed into one entry carrying
+`recovery_code_count` — ADR 0021 keeps a spent code's row, so a per-row
+listing would answer "how many were ever issued" rather than "how many
+still work"; that entry carries no `id`, since it names no single row a
+caller could delete. `password-history` never appears: it is not a
+credential a caller reads or deletes.
+
+```bash
+curl -sS \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  http://localhost:3000/admin/tenants/demo/subjects/<subject id>/credentials
+```
+
+The response shape, not a captured run:
+
+```json
+{
+  "items": [
+    { "type": "password", "created_at": "<timestamp>", "expired": false },
+    { "type": "totp", "created_at": "<timestamp>" },
+    { "type": "recovery-code", "created_at": "<timestamp>", "recovery_code_count": 7 }
+  ]
+}
+```
+
+## `DELETE /subjects/:id/credentials/:credentialId`
+
+Requires `manage-users`. Removes one credential — a TOTP enrolment or a
+WebAuthn credential, most operationally — so the subject's next login no
+longer offers or requires it. Refuses a `password` or `password-history`
+row with `409`: a password has its own rotation surface, never a bare
+delete, and history is not a credential this door exposes at all. An
+unknown id, or one belonging to a different subject, answers `404`.
+
+## `PUT /subjects/:id/required-actions`
+
+Requires `manage-users`. Sets a subject's required actions wholesale — an
+action left out of the list is one the caller clears, not one left alone.
+
+```bash
+curl -sS -X PUT \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"actions": ["configure-totp"]}' \
+  http://localhost:3000/admin/tenants/demo/subjects/<subject id>/required-actions
+```
+
+## `PUT /subjects/:id/roles`
+
+Requires `manage-users`, and enforces a capability ceiling beyond it: a
+caller may never assign authority it does not itself hold. The requested
+role set and the caller's own are each expanded through `role_composites`
+to the admin-client capability names they actually grant — not merely the
+role names given — before the comparison, so a role that nests
+`tenant-admin` rather than naming it cannot smuggle the assignment past a
+name check. A caller whose expanded set is not a subset of its own is
+refused with `403`; this is what stops `manage-users` alone from assigning
+`tenant-admin` — or `manage-tenants` in the system tenant — to any subject,
+itself included (CWE-269). Replaces the subject's role assignments
+wholesale, the same convention `required-actions` follows: a role left out
+is one the caller clears, and stops appearing in the subject's
+`effectiveRoles` immediately.
+
+```bash
+curl -sS -X PUT \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"role_ids": ["<role id>"]}' \
+  http://localhost:3000/admin/tenants/demo/subjects/<subject id>/roles
 ```
 
 ## `GET /admin/openapi.json`

@@ -44,19 +44,19 @@ export const amendSubjectRequestSchema = z.object({
 });
 export type AmendSubjectRequest = z.infer<typeof amendSubjectRequestSchema>;
 
-export const credentialTypeSchema = z.enum([
-  'password',
-  'totp',
-  'webauthn',
-  'recovery-code',
-  'password-history',
-]);
+// `password-history` never appears here: a retired hash answers no
+// question this endpoint is for, and is never a credential a caller could
+// name to `DELETE .../credentials/{id}`.
+export const credentialTypeSchema = z.enum(['password', 'totp', 'webauthn', 'recovery-code']);
 
-// Metadata only — never a hash, never `secret_data`. `recovery_code_count`
-// is present only on the one row type it is meaningful for (there is at
-// most one such row per subject: countUnspentRecoveryCodes, not a listing).
+// Metadata only — never a hash, never `secret_data`. `recovery-code` rows
+// are collapsed into one entry carrying `recovery_code_count` rather than
+// listed individually — ADR 0021 keeps a spent code's row, so a per-row
+// listing would answer "how many were ever issued", not "how many still
+// work", which is the question this endpoint exists to answer. That entry
+// carries no `id`: it names no single row a caller could delete.
 export const credentialSchema = z.object({
-  id: idSchema,
+  id: idSchema.optional(),
   type: credentialTypeSchema,
   created_at: createdAtSchema,
   expired: z.boolean().optional(),

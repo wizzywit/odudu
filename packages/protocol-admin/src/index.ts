@@ -3,7 +3,7 @@ import { signingKeyRepository } from '@odudu/crypto';
 import { type DatabaseHandle, withTenant } from '@odudu/db';
 import { effectiveRoles } from '@odudu/domain-authz';
 import { hashPassword } from '@odudu/domain-identity';
-import { clientRepository } from '@odudu/domain-tenant';
+import { ADMIN_CLIENT_ID, clientRepository } from '@odudu/domain-tenant';
 import { type Clock, type Logger, systemClock } from '@odudu/kernel';
 import { tenantLookupRepository, tokenGrantRepository } from '@odudu/protocol-oidc';
 import { type FastifyPluginAsync } from 'fastify';
@@ -31,9 +31,15 @@ import {
   type SettingsRouteDeps,
 } from '#/view/routes/settings';
 import {
+  amendSubjectHandler,
   createSubjectHandler,
+  deleteCredentialHandler,
+  deleteSubjectHandler,
+  listCredentialsHandler,
   listSubjectsHandler,
   readSubjectHandler,
+  setRequiredActionsHandler,
+  setRolesHandler,
   type SubjectsRouteDeps,
 } from '#/view/routes/subjects';
 import {
@@ -85,6 +91,18 @@ export function adminRoutes(deps: AdminRoutesDeps): FastifyPluginAsync {
       database: deps.database.db,
       cursorKey: deps.cursorKey,
       audit: noopSubjectAudit,
+      now: () => clock.now(),
+      // Same call `authzDeps.effectiveRoles` makes below, scoped to
+      // whichever tenant the caller's own token was issued from — never the
+      // target tenant a cross-tenant system admin is reaching into.
+      callerCapabilities: async (issuerTenantId, subjectId) => {
+        const roles = await withTenant(deps.database.db, issuerTenantId, (tx) =>
+          effectiveRoles(tx, subjectId),
+        );
+        return new Set(
+          roles.filter((role) => role.clientKey === ADMIN_CLIENT_ID).map((role) => role.name),
+        );
+      },
     };
     const tenantsDeps: TenantsRouteDeps = {
       database: deps.database.db,
@@ -109,6 +127,14 @@ export function adminRoutes(deps: AdminRoutesDeps): FastifyPluginAsync {
       'GET /admin/tenants/:tenant/subjects': listSubjectsHandler(subjectsDeps),
       'POST /admin/tenants/:tenant/subjects': createSubjectHandler(subjectsDeps),
       'GET /admin/tenants/:tenant/subjects/:id': readSubjectHandler(subjectsDeps),
+      'PATCH /admin/tenants/:tenant/subjects/:id': amendSubjectHandler(subjectsDeps),
+      'DELETE /admin/tenants/:tenant/subjects/:id': deleteSubjectHandler(subjectsDeps),
+      'GET /admin/tenants/:tenant/subjects/:id/credentials': listCredentialsHandler(subjectsDeps),
+      'DELETE /admin/tenants/:tenant/subjects/:id/credentials/:credentialId':
+        deleteCredentialHandler(subjectsDeps),
+      'PUT /admin/tenants/:tenant/subjects/:id/required-actions':
+        setRequiredActionsHandler(subjectsDeps),
+      'PUT /admin/tenants/:tenant/subjects/:id/roles': setRolesHandler(subjectsDeps),
       'GET /admin/tenants': listTenantsHandler(tenantsDeps),
       'POST /admin/tenants': createTenantHandler(tenantsDeps),
       'GET /admin/tenants/:tenant/settings': getSettingsHandler(settingsDeps),

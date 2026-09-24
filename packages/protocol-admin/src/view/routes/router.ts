@@ -19,6 +19,7 @@ import { problem, sendProblem } from '#/view/problem';
 export interface AdminRouteParams {
   readonly tenant?: string;
   readonly id?: string;
+  readonly credentialId?: string;
 }
 
 export type AdminRequest = FastifyRequest<{ Params: AdminRouteParams }>;

@@ -68,3 +68,41 @@ export async function effectiveRoles(
     clientKey: row.client_key,
   }));
 }
+
+// The capability closure of an explicit set of role ids: each one plus
+// every role `role_composites` reaches from it (parent grants child) — the
+// same traversal `effectiveRoles` walks from a subject's own assignments,
+// seeded here from a given id list instead. What the admin API's capability
+// ceiling compares a requested role set, and a caller's own, against: a
+// composite that nests a capability rather than naming it directly must
+// still be caught, and a name-only comparison would miss it.
+export async function rolesReachableFrom(
+  tx: TenantScopedDatabase,
+  roleIds: readonly string[],
+): Promise<readonly EffectiveRole[]> {
+  if (roleIds.length === 0) return [];
+  const idList = sql.join(
+    roleIds.map((id) => sql`${id}`),
+    sql`, `,
+  );
+  const result = await tx.execute(sql`
+    WITH RECURSIVE closure(role_id) AS (
+      SELECT id AS role_id FROM roles WHERE id IN (${idList})
+      UNION
+      SELECT rc.child_role_id AS role_id
+      FROM role_composites rc
+      JOIN closure c ON rc.parent_role_id = c.role_id
+    )
+    SELECT r.id AS role_id, r.name AS name, cl.client_id AS client_key
+    FROM closure c
+    JOIN roles r ON r.id = c.role_id
+    LEFT JOIN clients cl ON cl.id = r.client_id
+  `);
+  const rows = effectiveRoleRowsSchema.parse(result);
+
+  return rows.map((row) => ({
+    roleId: row.role_id,
+    name: row.name,
+    clientKey: row.client_key,
+  }));
+}

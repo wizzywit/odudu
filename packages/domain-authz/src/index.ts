@@ -7,6 +7,10 @@ export {
   type RoleRecord,
 } from '#/schema/roles';
 export { roleRepository, type NewRole } from '#/repository/roles';
-export { effectiveRoles, type EffectiveRole } from '#/repository/effective-roles';
+export {
+  effectiveRoles,
+  rolesReachableFrom,
+  type EffectiveRole,
+} from '#/repository/effective-roles';
 export { groups, groupRoles, subjectGroups, type GroupRecord } from '#/schema/groups';
 export { groupRepository, effectiveGroupPaths, type NewGroup } from '#/repository/groups';

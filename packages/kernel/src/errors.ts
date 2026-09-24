@@ -30,6 +30,7 @@ export type ErrorCode =
   | 'group_not_found'
   | 'group_reparent_cycle'
   | 'user_not_found'
+  | 'subject_not_found'
   | 'credential_not_found'
   | 'tenant_not_found'
   | 'reap_cannot_enumerate_tenants'

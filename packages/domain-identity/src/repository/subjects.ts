@@ -1,5 +1,5 @@
 import { type TenantScopedDatabase } from '@odudu/db';
-import { newId } from '@odudu/kernel';
+import { newId, OduduError } from '@odudu/kernel';
 import { eq } from 'drizzle-orm';
 import { subjects, type SubjectRecord } from '#/schema/subjects';
 
@@ -37,6 +37,23 @@ export function subjectRepository(tx: TenantScopedDatabase) {
       const row = rows[0];
       if (row === undefined) {
         throw new Error('insert into subjects returned no row');
+      }
+      return toRecord(row);
+    },
+
+    // Enabling and disabling both go through `disabled_at`, never a second
+    // boolean column: a timestamp answers "since when" for free, which a
+    // caller reading `enabled: false` back from the admin API has no other
+    // way to learn.
+    async setEnabled(id: string, enabled: boolean): Promise<SubjectRecord> {
+      const rows = await tx
+        .update(subjects)
+        .set({ disabledAt: enabled ? null : new Date() })
+        .where(eq(subjects.id, id))
+        .returning();
+      const row = rows[0];
+      if (row === undefined) {
+        throw new OduduError('subject_not_found', `no subject with id ${id}`);
       }
       return toRecord(row);
     },

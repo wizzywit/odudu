@@ -1,6 +1,7 @@
 import {
   amendClientRequestSchema,
   amendSettingsRequestSchema,
+  amendSubjectRequestSchema,
   clientSchema,
   createClientRequestSchema,
   createClientResponseSchema,
@@ -8,10 +9,15 @@ import {
   createTenantRequestSchema,
   cursorQuerySchema,
   listClientsResponseSchema,
+  listCredentialsResponseSchema,
   listSubjectsQuerySchema,
   listSubjectsResponseSchema,
   listTenantsResponseSchema,
   rotateClientSecretResponseSchema,
+  setRequiredActionsRequestSchema,
+  setRequiredActionsResponseSchema,
+  setRolesRequestSchema,
+  setRolesResponseSchema,
   settingsSchema,
   subjectSchema,
   tenantSchema,
@@ -78,6 +84,52 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     pattern: '/admin/tenants/:tenant/subjects/:id',
     capability: 'view-users',
     responseSchema: subjectSchema,
+  },
+  {
+    method: 'PATCH',
+    pattern: '/admin/tenants/:tenant/subjects/:id',
+    capability: 'manage-users',
+    responseSchema: subjectSchema,
+    bodySchema: amendSubjectRequestSchema,
+  },
+  {
+    method: 'DELETE',
+    pattern: '/admin/tenants/:tenant/subjects/:id',
+    capability: 'manage-users',
+    responseSchema: z.void(),
+    successStatus: 204,
+  },
+  {
+    method: 'GET',
+    pattern: '/admin/tenants/:tenant/subjects/:id/credentials',
+    capability: 'view-users',
+    responseSchema: listCredentialsResponseSchema,
+  },
+  {
+    method: 'DELETE',
+    pattern: '/admin/tenants/:tenant/subjects/:id/credentials/:credentialId',
+    capability: 'manage-users',
+    responseSchema: z.void(),
+    successStatus: 204,
+  },
+  {
+    method: 'PUT',
+    pattern: '/admin/tenants/:tenant/subjects/:id/required-actions',
+    capability: 'manage-users',
+    responseSchema: setRequiredActionsResponseSchema,
+    bodySchema: setRequiredActionsRequestSchema,
+  },
+  // The capability ceiling this route enforces — a caller may never assign
+  // authority it does not itself hold — is checked in the usecase
+  // (`setRoles`, #/usecase/subjects.ts), not here: ADMIN_ROUTES only gates
+  // whether a caller may reach the route at all, never what it may do with
+  // a specific body.
+  {
+    method: 'PUT',
+    pattern: '/admin/tenants/:tenant/subjects/:id/roles',
+    capability: 'manage-users',
+    responseSchema: setRolesResponseSchema,
+    bodySchema: setRolesRequestSchema,
   },
   {
     method: 'GET',
