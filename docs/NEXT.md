@@ -481,12 +481,6 @@ this file or the phase note.
   re-run against a live stack. **P4d**, which re-captures those transcripts
   anyway: its criterion gives a subject a fresh set of recovery codes before
   the old set is spent, which is what those two queries count.
-- `pendingSession` duplicates `authenticatedSession`'s two liveness
-  conditions inline rather than sharing a predicate. Four lines, and the two
-  are not identical, so they must be kept in sync by hand if liveness
-  semantics change. **P4**, whose criterion makes a tenant's authentication
-  flow configurable — both helpers are in the executor that flow drives,
-  `packages/authn-flows/src/usecase/executor.ts`.
 - The boundary suite's negative control filters a fixture with no imports at
   all, so it cannot demonstrate that `service-is-a-leaf` is not over-broad.
   A service importing another service would. **P4d**: its consoles are the

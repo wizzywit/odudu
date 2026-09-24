@@ -6,7 +6,6 @@ import {
   runMigrations,
   withTenant,
   type DatabaseHandle,
-  type TenantScopedDatabase,
 } from '@odudu/db';
 import { hashPassword, subjectRepository, userCredentials, users } from '@odudu/domain-identity';
 import { FakeClock, newId } from '@odudu/kernel';
@@ -172,10 +171,7 @@ describe('a default tenant login, walked for several subject shapes before and a
       await requiredActionRepository(tx).add(tenantId, subject.id, 'configure-passkey');
       const { authSessionId } = await startAuthentication(tx, tenantId, request);
       await authenticationSessionRepository(tx).bindSubject(authSessionId, subject.id);
-      await authenticationSessionRepository(tx).setWebauthnChallenge(
-        authSessionId,
-        'ZW5yb2wtbWU',
-      );
+      await authenticationSessionRepository(tx).setWebauthnChallenge(authSessionId, 'ZW5yb2wtbWU');
       const outcome = await completePasskeyEnrolment(tx, {
         tenantId,
         subjectId: subject.id,

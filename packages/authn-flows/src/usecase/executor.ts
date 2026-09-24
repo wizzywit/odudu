@@ -792,19 +792,30 @@ export async function advance(
   return outcome;
 }
 
-// The same liveness authenticatedSession (below) enforces — unexpired,
-// unconsumed — for a session no factor has finished yet: the account
+// Shared by pendingSession and authenticatedSession below: unexpired and
+// unconsumed, the two conditions that make any authentication session
+// usable regardless of how far it has progressed. Both boundaries are
+// exclusive — a session whose ceiling is exactly `now` is dead — matching
+// isSessionLive's (service/session-liveness.ts) reading of the same shape
+// of check on a different table.
+export function sessionIsLive(
+  record: Pick<AuthenticationSessionRecord, 'expiresAt' | 'consumedAt'>,
+  now: Date,
+): boolean {
+  return record.expiresAt.getTime() > now.getTime() && record.consumedAt === null;
+}
+
+// Liveness alone, for a session no factor has finished yet: the account
 // chooser's own parked request, read back once a selection is posted. A
-// null `subjectId`/`authenticatedAt` is expected here, unlike there, since
-// nobody has been identified yet.
+// null `subjectId`/`authenticatedAt` is expected here, unlike in
+// authenticatedSession (below), since nobody has been identified yet.
 export async function pendingSession(
   tx: TenantScopedDatabase,
   authSessionId: string,
   clock: Clock = systemClock,
 ): Promise<PendingRequest | null> {
   const record = await authenticationSessionRepository(tx).byId(authSessionId);
-  if (record === null || record.expiresAt.getTime() <= clock.now().getTime()) return null;
-  if (record.consumedAt !== null) return null;
+  if (record === null || !sessionIsLive(record, clock.now())) return null;
   return record.pendingRequest;
 }
 
@@ -813,18 +824,19 @@ export async function pendingSession(
 // finished with — what a consent decision made after the login has already
 // completed (protocol-oidc's completeAuthorizedLogin) needs to carry the
 // same `amr` forward. The binding alone is not enough: the first factor
-// writes it while later ones are still outstanding.
+// writes it while later ones are still outstanding, which is why liveness
+// alone (sessionIsLive) is not enough here the way it is for pendingSession
+// — a session that has already driven a login to an authorization code is
+// spent, and an action arriving against it now is a form the browser still
+// had open.
 export async function authenticatedSession(
   tx: TenantScopedDatabase,
   authSessionId: string,
   clock: Clock = systemClock,
 ): Promise<{ subjectId: string; authenticators: string[] } | null> {
   const record = await authenticationSessionRepository(tx).byId(authSessionId);
-  if (record === null || record.expiresAt.getTime() <= clock.now().getTime()) return null;
-  // A session that has already driven a login to an authorization code is
-  // spent: anything it owed was owed before that, so an action arriving
-  // against it now is a form the browser still had open.
-  if (record.consumedAt !== null || record.authenticatedAt === null) return null;
+  if (record === null || !sessionIsLive(record, clock.now())) return null;
+  if (record.authenticatedAt === null) return null;
   if (record.subjectId === null) return null;
   return { subjectId: record.subjectId, authenticators: record.satisfied };
 }
