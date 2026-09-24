@@ -36,18 +36,16 @@ module.exports = {
       name: 'no-protocol-to-protocol',
       severity: 'error',
       comment:
-        'Protocols stay independently testable and independently deletable. protocol-admin is ' +
-        'exempt as a source: it administers the protocol surface rather than standing beside it, ' +
-        'so it is downstream by definition (ADR 0035). The reverse edge is forbidden below.',
+        'Protocols stay independently deletable. protocol-admin is exempt as a source — it is ' +
+        'downstream of the protocol surface by definition (ADR 0035); the reverse edge below ' +
+        'forbids it becoming a two-way door.',
       from: { path: '(^|/)packages/protocol-([^/]+)/', pathNot: '(^|/)packages/protocol-admin/' },
       to: { path: '(^|/)packages/protocol-(?!$2/)[^/]+/' },
     },
     {
       name: 'no-protocol-to-admin',
       severity: 'error',
-      comment:
-        'The admin API may import a protocol package; a protocol package may never import it. ' +
-        'Without this the exemption above would be a two-way door and the cycle would return.',
+      comment: 'The admin API may import a protocol package; the reverse is never allowed.',
       from: { path: '(^|/)packages/protocol-(?!admin/)[^/]+/' },
       to: { path: '(^|/)packages/protocol-admin/' },
     },
@@ -55,9 +53,8 @@ module.exports = {
       name: 'no-admin-to-other-protocol',
       severity: 'error',
       comment:
-        'The admin API is downstream of the OIDC surface (ADR 0035), which is one ' +
-        'edge, not a blanket exemption. Any other protocol package it reaches for ' +
-        'is a decision to make deliberately, not one to inherit from this rule.',
+        'The admin API is downstream of OIDC only (ADR 0035), not protocols generally — reaching ' +
+        'another one is a decision to make deliberately.',
       from: { path: '(^|/)packages/protocol-admin/' },
       to: { path: '(^|/)packages/protocol-(?!oidc/|admin/)[^/]+/' },
     },

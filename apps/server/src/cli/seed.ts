@@ -519,16 +519,14 @@ async function seedClientBootstrap(opts: SeedOptions): Promise<SeedResult> {
   }
 }
 
-// 24 random bytes, base64url — a printed, single-use value, so length is
-// chosen for pasting rather than for memorability. The update-password
-// action written beside it is what makes it single-use.
+// 24 random bytes, base64url: printed once and never stored, so length is
+// chosen for pasting rather than for memorability.
 function generatedPassword(): string {
   return randomBytes(24).toString('base64url');
 }
 
-// Mints an ES256 key only when the tenant has none, so a re-run of `seed
-// admin` against an already-bootstrapped system tenant leaves its signing
-// key alone.
+// Idempotent: a re-run against an already-bootstrapped system tenant leaves
+// its signing key alone.
 async function ensureSigningKey(
   tx: TenantScopedDatabase,
   tenantId: string,
@@ -558,13 +556,10 @@ export interface SeededAdmin {
   readonly password: string;
 }
 
-// The system tenant is not a migration's doing: tenants carries FORCE ROW
-// LEVEL SECURITY, so a migration running with no app.tenant_id bound has
-// nothing to satisfy the isolation policy's WITH CHECK. This command binds
-// that GUC to the tenant's own fixed id before it looks the row up or
-// creates it, which is what lets the insert pass under a non-exempt role.
-// Idempotent throughout: a second run with a different username reuses the
-// same tenant, client and roles, and only adds the new subject.
+// withTenant binds app.tenant_id to SYSTEM_TENANT_ID before the row exists,
+// which is what a FORCE-RLS insert needs (see SYSTEM_TENANT_ID). Idempotent
+// throughout: a re-run with a different username reuses the same tenant,
+// client and roles, and only adds the new subject.
 export async function seedAdmin(options: SeedAdminOptions): Promise<SeededAdmin> {
   const config = loadConfig();
   const owner = createDatabase(config.ODUDU_DATABASE_URL);
@@ -583,10 +578,9 @@ export async function seedAdmin(options: SeedAdminOptions): Promise<SeededAdmin>
         await tx
           .insert(tenants)
           .values({ id: SYSTEM_TENANT_ID, name: SYSTEM_TENANT_NAME, displayName: 'System' });
-        // Scope provisioning is an unconditional insert per tenant
-        // (provisionTenantDefaults), so it runs only the run that creates the
-        // tenant row — a re-run against an already-provisioned system tenant
-        // would otherwise collide with client_scopes_name_unique.
+        // Runs only on the creating pass: provisionTenantDefaults inserts
+        // unconditionally, so a re-run would collide with
+        // client_scopes_name_unique.
         await provisionTenant(tx, tenantId);
       }
       const { clientDbId } = await provisionAdminClient(tx, tenantId, { crossTenant: true });
@@ -1616,10 +1610,8 @@ async function runRegistrationTokenCommand(
   });
 }
 
-// Prints the generated password itself, directly, rather than handing it to
-// main.ts to fold into the JSON report: this is the one seed subcommand
-// whose result is a credential nobody can retrieve a second time, so it
-// never reaches the JSON blob every other subcommand's result becomes.
+// Printed directly rather than folded into main.ts's JSON report: this is
+// the one subcommand whose result is a credential nobody can retrieve again.
 async function runAdminCommand(argv: readonly string[]): Promise<AdminCommandResult> {
   const { values } = parseArgs({ args: [...argv], options: { username: { type: 'string' } } });
   if (values.username === undefined) {
@@ -1673,10 +1665,8 @@ async function runSeedCommand(argv: readonly string[]): Promise<SeedCommandResul
     );
   }
 
-  // seedAdmin manages its own connections (it is also called directly, with
-  // no argv at all, by apps/server/tests/seed.int.test.ts), so this
-  // subcommand is dispatched before the pair every other one shares is
-  // opened.
+  // seedAdmin manages its own connections, so it is dispatched before the
+  // owner/runtime pair every other subcommand shares is opened.
   if (command === 'admin') {
     return await runAdminCommand(rest);
   }
