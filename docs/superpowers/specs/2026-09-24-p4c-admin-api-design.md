@@ -155,8 +155,18 @@ password, matching `seed client`'s refusal and for the same reason.
 A bearer access token. Every step fails closed, in order:
 
 1. Verify the JWT against the issuing tenant's JWKS. `iss` must be the
-   target tenant's issuer or the system tenant's — those two, compared as
-   strings, never derived from the request.
+   target tenant's issuer or the system tenant's, both resolved through
+   `tenantIssuerFor` — the same helper `/token` mints `iss` with and
+   `/userinfo` verifies against, so there is one authority for the string
+   rather than two. Amended after review on 2026-09-24: this originally said
+   the issuers were "never derived from the request", and a configured base
+   was built to honour that. It refused every genuine token on any deployment
+   not served at the fixture's own authority, and the guard guarded nothing —
+   a forged `Host` yields an issuer matching neither candidate, and
+   verification runs against the named tenant's own keys regardless. One
+   configured issuer base for the whole deployment is the better long-term
+   answer and is deferred, since it would change how `iss` is minted on every
+   token, ID token, Logout Token, the RFC 9207 parameter and discovery.
 2. `aud` must name the admin API's resource identifier. Without this, any
    access token from the target tenant would authorize administration.
 3. The token's grant is live and its session alive — the pair `/userinfo`
