@@ -98,6 +98,15 @@ export interface AdminFixture {
     capabilities: readonly string[],
   ): Promise<TestClient>;
   builtinAdminClient(tenantName: string): Promise<TestClient>;
+  // A token whose subject holds a role of the given name that does not
+  // belong to the built-in admin client — either on an ordinary
+  // application client or on the tenant itself. A capability name is only
+  // a capability when it sits on the admin client.
+  tokenWithRoleOutsideAdminClient(
+    tenantName: string,
+    roleName: string,
+    placement: 'application-client' | 'tenant',
+  ): Promise<string>;
   registerClient(
     tenantName: string,
     metadata: Record<string, unknown>,
@@ -507,6 +516,54 @@ export async function startAdminFixture(): Promise<AdminFixture> {
     });
   }
 
+  async function tokenWithRoleOutsideAdminClient(
+    tenantName: string,
+    roleName: string,
+    placement: 'application-client' | 'tenant',
+  ): Promise<string> {
+    const ctx = requireTenant(tenantName);
+    return withTenant(app.db, ctx.id, async (tx) => {
+      const adminClient = await clientRepository(tx).byClientId(ADMIN_CLIENT_ID);
+      if (adminClient === null) {
+        throw new Error(`fixture: ${ctx.name} has no built-in admin client`);
+      }
+      let roleClientId: string | null = null;
+      if (placement === 'application-client') {
+        const other = await clientRepository(tx).create({
+          tenantId: ctx.id,
+          clientId: `app-${newId()}`,
+          name: 'Test application client',
+          type: 'public',
+          secretHash: null,
+        });
+        roleClientId = other.id;
+      }
+      const role = await roleRepository(tx).create({
+        tenantId: ctx.id,
+        clientId: roleClientId,
+        name: roleName,
+      });
+      const subject = await subjectRepository(tx).create({ tenantId: ctx.id, type: 'user' });
+      await roleRepository(tx).assignToSubject(subject.id, role.id);
+      const sessionId = newId();
+      await sessionRepository(tx).create({
+        id: sessionId,
+        tenantId: ctx.id,
+        subjectId: subject.id,
+        expiresAt: new Date(clock.now().getTime() + 24 * 3600 * 1000),
+        authenticators: ['pwd'],
+      });
+      // The grant is minted through the built-in admin client, so the only
+      // way this token differs from `adminToken`'s is where its role sits.
+      return mintTokenInTx(tx, ctx, {
+        subjectId: subject.id,
+        client: adminClient,
+        sessionId,
+        audience: [`${ctx.issuer}/admin`],
+      });
+    });
+  }
+
   async function registerClient(
     tenantName: string,
     metadata: Record<string, unknown>,
@@ -659,6 +716,7 @@ export async function startAdminFixture(): Promise<AdminFixture> {
     createConfidentialClient,
     createServiceAccountClient,
     builtinAdminClient,
+    tokenWithRoleOutsideAdminClient,
     registerClient,
     registerClientWithUserinfoAlg,
     patchClient,

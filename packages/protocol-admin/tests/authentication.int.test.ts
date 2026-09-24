@@ -1,3 +1,4 @@
+import { SYSTEM_TENANT_NAME } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { startAdminFixture, type AdminFixture } from '#/testing/admin-fixture';
@@ -141,6 +142,50 @@ describe('admin authorization', () => {
       headers: { authorization: `Bearer ${token}` },
     });
     expect(res.statusCode).toBe(200);
+  });
+
+  // A capability is a role on the built-in admin client. The same name on
+  // an application client is that application's own role, and on the tenant
+  // it is a tenant role — neither says anything about administering.
+  it('refuses a role of the right name held on an ordinary application client', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.tokenWithRoleOutsideAdminClient(
+      t.name,
+      'view-users',
+      'application-client',
+    );
+    const res = await fixture.http.inject({
+      method: 'GET',
+      url: `/admin/tenants/${t.name}/subjects`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(res.statusCode).toBe(403);
+  });
+
+  it('refuses a role of the right name held at tenant level', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.tokenWithRoleOutsideAdminClient(t.name, 'view-users', 'tenant');
+    const res = await fixture.http.inject({
+      method: 'GET',
+      url: `/admin/tenants/${t.name}/subjects`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(res.statusCode).toBe(403);
+  });
+
+  it('refuses a cross-tenant caller whose manage-tenants sits outside the admin client', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.tokenWithRoleOutsideAdminClient(
+      SYSTEM_TENANT_NAME,
+      'manage-tenants',
+      'application-client',
+    );
+    const res = await fixture.http.inject({
+      method: 'GET',
+      url: `/admin/tenants/${t.name}/whoami`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(res.statusCode).toBe(403);
   });
 
   it('stops honouring a capability the moment it is revoked', async () => {

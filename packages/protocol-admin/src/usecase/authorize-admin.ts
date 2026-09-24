@@ -1,5 +1,5 @@
 import { type EffectiveRole } from '@odudu/domain-authz';
-import { MANAGE_TENANTS, type TenantCapability } from '@odudu/domain-tenant';
+import { ADMIN_CLIENT_ID, MANAGE_TENANTS, type TenantCapability } from '@odudu/domain-tenant';
 import { type AdminPrincipal } from '#/usecase/authenticate-admin';
 
 export interface AuthorizeAdminDeps {
@@ -29,7 +29,12 @@ export async function authorizeAdmin(
   if (!crossTenant && required === null) return 'allowed';
 
   const roles = await deps.effectiveRoles(principal.issuerTenantId, principal.subjectId);
-  const names = new Set(roles.map((role) => role.name));
+  // A capability is a role on the built-in admin client and nowhere else.
+  // Matching on the name alone would let an application's own role, or a
+  // tenant role, named `manage-users` administer this tenant.
+  const names = new Set(
+    roles.filter((role) => role.clientKey === ADMIN_CLIENT_ID).map((role) => role.name),
+  );
 
   if (crossTenant && !names.has(MANAGE_TENANTS)) return 'forbidden';
   if (required !== null && !names.has(required)) return 'forbidden';
