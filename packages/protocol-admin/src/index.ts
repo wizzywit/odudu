@@ -10,6 +10,7 @@ import { type AuthenticateAdminDeps } from '#/usecase/authenticate-admin';
 import { type AuthorizeAdminDeps } from '#/usecase/authorize-admin';
 import { installAdminValidator } from '#/adapter/validation';
 import { installProblemDetailsHandler } from '#/view/problem';
+import { registerOpenApiRoute } from '#/view/routes/openapi';
 import { type AdminRouteHandlers, registerAdminRoutes } from '#/view/routes/router';
 import { listSubjectsHandler } from '#/view/routes/subjects';
 import { whoamiHandler } from '#/view/routes/whoami';
@@ -59,6 +60,7 @@ export function adminRoutes(deps: AdminRoutesDeps): FastifyPluginAsync {
         withTenant(deps.database.db, tenantId, (tx) => effectiveRoles(tx, subjectId)),
     };
 
+    registerOpenApiRoute(app);
     registerAdminRoutes(app, ADMIN_ROUTE_HANDLERS, authDeps, authzDeps, clock);
 
     deps.logger.debug({}, 'protocol-admin registered its admin routes');

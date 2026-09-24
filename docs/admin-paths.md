@@ -4,13 +4,13 @@ The admin API: the endpoints under `/admin/tenants/{tenant}/` that let an
 operator manage a tenant instead of reaching for `psql`.
 
 Three artifacts describe this API and each has one job. The published
-OpenAPI document is the **reference** — generated, and the place every
-endpoint and every field is listed exhaustively. This document is the
-**narrative** — an operator's journey through a task, in the order they
-would actually hit it, with the shape of each request and, once a live
-stack has been brought up to capture it against, the real response.
-[README.md](../README.md) is the **entry point** — how to get a token that
-can call any of this at all.
+OpenAPI document, served unauthenticated at `/admin/openapi.json`, is the
+**reference** — generated, and the place every endpoint and every field is
+listed exhaustively. This document is the **narrative** — an operator's
+journey through a task, in the order they would actually hit it, with the
+shape of each request and, once a live stack has been brought up to capture
+it against, the real response. [README.md](../README.md) is the **entry
+point** — how to get a token that can call any of this at all.
 
 There is one "What is not implemented" list for the whole server, and it
 stays in [docs/request-paths.md](request-paths.md#what-is-not-implemented);
@@ -48,10 +48,11 @@ section 7 has the full authentication and authorization sequence; getting
 a token to test with is [README.md](../README.md)'s job, not this
 document's.
 
-| Method | Path                               | What it is     |
-| ------ | ---------------------------------- | -------------- |
-| `GET`  | `/admin/tenants/{tenant}/whoami`   | Identity probe |
-| `GET`  | `/admin/tenants/{tenant}/subjects` | List subjects  |
+| Method | Path                               | What it is            |
+| ------ | ---------------------------------- | --------------------- |
+| `GET`  | `/admin/tenants/{tenant}/whoami`   | Identity probe        |
+| `GET`  | `/admin/tenants/{tenant}/subjects` | List subjects         |
+| `GET`  | `/admin/openapi.json`              | The OpenAPI reference |
 
 ## `GET /whoami`
 
@@ -103,6 +104,22 @@ The response, every time, no matter how many subjects the tenant has:
 That is a documented gap, not a claim about what the tenant contains — see
 [What is not implemented](request-paths.md#what-is-not-implemented) in
 `docs/request-paths.md` for where the real listing lands.
+
+## `GET /admin/openapi.json`
+
+The reference this document points at: an OpenAPI 3.1 description of every
+route above, generated from the same route table the router registers from,
+so the two cannot drift. It takes no `{tenant}` — it describes the API
+rather than reaching into one — and is served without authentication, since
+a client that cannot read it cannot generate against it:
+
+```bash
+curl -sS http://localhost:3000/admin/openapi.json
+```
+
+Every other endpoint in it requires a bearer token whose `aud` names
+`urn:odudu:params:admin-api`, declared as this document's `bearerAuth`
+security scheme.
 
 ## What to do next, from wherever you are
 

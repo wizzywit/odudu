@@ -1,0 +1,72 @@
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { ADMIN_ROUTES } from '#/service/capability';
+import { startAdminFixture, type AdminFixture } from '#/testing/admin-fixture';
+
+let fixtureHandle: AdminFixture | undefined;
+let fixture: AdminFixture;
+beforeAll(async () => {
+  fixtureHandle = await startAdminFixture();
+  fixture = fixtureHandle;
+}, 180_000);
+afterAll(async () => {
+  await fixtureHandle?.stop();
+});
+
+describe('the published OpenAPI document', () => {
+  it('describes every route the router registers', async () => {
+    const res = await fixture.http.inject({ method: 'GET', url: '/admin/openapi.json' });
+    const doc = res.json<{ paths: Record<string, Record<string, unknown>> }>();
+    for (const route of ADMIN_ROUTES) {
+      const path = route.pattern.replace(/:(\w+)/gu, '{$1}');
+      expect(
+        doc.paths[path]?.[route.method.toLowerCase()],
+        `${route.method} ${path}`,
+      ).toBeDefined();
+    }
+  });
+
+  it('describes no route the router does not register', async () => {
+    const res = await fixture.http.inject({ method: 'GET', url: '/admin/openapi.json' });
+    const doc = res.json<{ paths: Record<string, Record<string, unknown>> }>();
+    const registered = new Set(
+      ADMIN_ROUTES.map((r) => `${r.method.toLowerCase()} ${r.pattern.replace(/:(\w+)/gu, '{$1}')}`),
+    );
+    for (const [path, methods] of Object.entries(doc.paths)) {
+      for (const method of Object.keys(methods)) {
+        expect(registered.has(`${method} ${path}`), `${method} ${path}`).toBe(true);
+      }
+    }
+  });
+
+  it('is served without authentication, and describes the scheme it requires', async () => {
+    const res = await fixture.http.inject({ method: 'GET', url: '/admin/openapi.json' });
+    expect(res.statusCode).toBe(200);
+    const doc = res.json<{ openapi: string }>();
+    expect(doc.openapi).toMatch(/^3\.1\./u);
+  });
+
+  it('declares the bearer scheme and the fixed admin-API audience', async () => {
+    const res = await fixture.http.inject({ method: 'GET', url: '/admin/openapi.json' });
+    const doc = res.json<{
+      components: { securitySchemes: Record<string, { type: string; scheme: string }> };
+    }>();
+    expect(doc.components.securitySchemes.bearerAuth).toMatchObject({
+      type: 'http',
+      scheme: 'bearer',
+    });
+  });
+
+  it('describes the tenant path parameter once, as a shared component', async () => {
+    const res = await fixture.http.inject({ method: 'GET', url: '/admin/openapi.json' });
+    const doc = res.json<{
+      paths: Record<string, Record<string, { parameters?: unknown[] }>>;
+      components: { parameters: Record<string, { name: string; in: string }> };
+    }>();
+    expect(doc.components.parameters.tenant).toMatchObject({ name: 'tenant', in: 'path' });
+    for (const methods of Object.values(doc.paths)) {
+      for (const operation of Object.values(methods)) {
+        expect(operation.parameters).toEqual([{ $ref: '#/components/parameters/tenant' }]);
+      }
+    }
+  });
+});
