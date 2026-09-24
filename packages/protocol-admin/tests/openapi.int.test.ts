@@ -60,6 +60,15 @@ describe('the published OpenAPI document', () => {
     });
   });
 
+  it('carries the front-channel caveat on ending a session, for a client that never reads our docs', async () => {
+    const res = await fixture.http.inject({ method: 'GET', url: '/admin/openapi.json' });
+    const doc = res.json<{
+      paths: Record<string, Record<string, { description?: string }>>;
+    }>();
+    const operation = doc.paths['/admin/tenants/{tenant}/subjects/{id}/sessions/{sid}']?.delete;
+    expect(operation?.description).toContain('No Front-Channel Logout');
+  });
+
   it('describes the tenant path parameter once, as a shared component', async () => {
     const res = await fixture.http.inject({ method: 'GET', url: '/admin/openapi.json' });
     const doc = res.json<{

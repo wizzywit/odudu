@@ -17,6 +17,7 @@ interface OpenApiResponse {
 
 interface OpenApiOperation {
   readonly summary: string;
+  readonly description?: string;
   readonly parameters: readonly OpenApiParameterRef[];
   readonly responses: Readonly<Record<string, OpenApiResponse>>;
 }
@@ -80,6 +81,7 @@ function operationFor(route: AdminRoute): OpenApiOperation {
       route.capability === null
         ? 'Requires an authenticated admin caller.'
         : `Requires the "${route.capability}" capability.`,
+    ...(route.description === undefined ? {} : { description: route.description }),
     // A route with no `:tenant` segment administers the collection itself,
     // not one tenant's data, so it carries no tenant path parameter.
     parameters: route.pattern.includes(':tenant')

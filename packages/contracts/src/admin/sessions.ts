@@ -15,5 +15,6 @@ export type Session = z.infer<typeof sessionSchema>;
 
 export const listSessionsResponseSchema = z.object({
   items: z.array(sessionSchema),
+  next: z.string().optional(),
 });
 export type ListSessionsResponse = z.infer<typeof listSessionsResponseSchema>;

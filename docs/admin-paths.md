@@ -703,7 +703,12 @@ concurrent login can orphan one, and a remembered orphan idles for
 `remember_me_idle_seconds` before it stops appearing (ADR 0033's
 amendment). Each entry carries `id`, `created_at`, `last_active_at`,
 `remembered`, and `client_ids` — the OAuth `client_id` of every enabled
-client the session holds a grant for.
+client the session holds a grant for. Paginated the same way every other
+list in this API is: `?limit=` and `?cursor=`, a `Link: rel="next"` header
+and a body `next` while more remain, ordered by `id` — a subject's sessions
+are bounded per browser by `max_sessions_per_browser`, but unbounded across
+however many browsers hold one, so this listing pages exactly like the
+others rather than trusting that bound.
 
 `DELETE` ends one session through the same call the RP-Initiated Logout
 usecase makes (`endSession`, `packages/protocol-oidc/src/usecase/end-session.ts`) —

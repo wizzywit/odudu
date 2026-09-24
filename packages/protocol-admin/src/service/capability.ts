@@ -50,6 +50,10 @@ export interface AdminRoute {
   // handler could quietly disagree with.
   readonly querystringSchema?: z.ZodType;
   readonly bodySchema?: z.ZodType;
+  // Extra prose `/admin/openapi.json` carries beside the generated
+  // capability summary — for a caveat a generated client's user needs
+  // without reading this repository's own docs.
+  readonly description?: string;
 }
 
 // The single list the router registers from (view/routes/router.ts): a
@@ -139,6 +143,7 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     pattern: '/admin/tenants/:tenant/subjects/:id/sessions',
     capability: 'manage-sessions',
     responseSchema: listSessionsResponseSchema,
+    querystringSchema: cursorQuerySchema,
   },
   {
     method: 'DELETE',
@@ -146,6 +151,10 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     capability: 'manage-sessions',
     responseSchema: z.void(),
     successStatus: 204,
+    description:
+      'Ends the session and delivers a Back-Channel Logout Token to every registered ' +
+      'client that used it. No Front-Channel Logout is attempted: there is no browser ' +
+      'here to render its iframes in.',
   },
   {
     method: 'GET',

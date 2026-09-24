@@ -131,9 +131,11 @@ export function adminRoutes(deps: AdminRoutesDeps): FastifyPluginAsync {
     };
     const sessionsDeps: SessionsRouteDeps = {
       database: deps.database.db,
+      cursorKey: deps.cursorKey,
       kek: deps.kek,
       audit: noopSessionAudit,
       now: () => clock.now(),
+      findTenant: (name) => tenantLookupRepository(deps.ownerDatabase.db).byName(name),
     };
     const handlers: AdminRouteHandlers = {
       'GET /admin/tenants/:tenant/whoami': whoamiHandler,

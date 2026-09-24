@@ -1,4 +1,4 @@
-import { eq, inArray } from 'drizzle-orm';
+import { asc, eq, inArray } from 'drizzle-orm';
 import { type TenantScopedDatabase } from '@odudu/db';
 import { sessions, type SessionRecord } from '#/schema/sessions';
 import { isSessionLive } from '#/service/session-liveness';
@@ -107,7 +107,11 @@ export function sessionRepository(tx: TenantScopedDatabase) {
       tenant: SessionLifespans,
       now: Date,
     ): Promise<SessionRecord[]> {
-      const rows = await tx.select().from(sessions).where(eq(sessions.subjectId, subjectId));
+      const rows = await tx
+        .select()
+        .from(sessions)
+        .where(eq(sessions.subjectId, subjectId))
+        .orderBy(asc(sessions.id));
       return rows.map(toRecord).filter((record) => stillLive(record, tenant, now));
     },
 

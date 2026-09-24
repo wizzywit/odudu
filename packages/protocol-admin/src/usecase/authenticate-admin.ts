@@ -75,7 +75,10 @@ interface MatchedTenant {
   readonly lifespans: SessionLifespans;
 }
 
-function lifespansOf(tenant: TenantLookup): SessionLifespans {
+// Exported so every assembler of a liveness decision's inputs — this
+// module's own authentication check and `#/usecase/sessions.ts`'s
+// listing — builds `SessionLifespans` from `TenantLookup` the one way.
+export function lifespansOf(tenant: TenantLookup): SessionLifespans {
   return {
     ssoSessionMaxSeconds: tenant.ssoSessionMaxSeconds,
     ssoSessionIdleSeconds: tenant.ssoSessionIdleSeconds,
