@@ -52,6 +52,26 @@ describe('POST /admin/tenants', () => {
     expect(res.statusCode).toBe(400);
   });
 
+  it('answers 409 for a name another tenant already holds', async () => {
+    const token = await fixture.systemAdminToken(['manage-tenants']);
+    const name = `acme-${newId()}`;
+    const first = await fixture.http.inject({
+      method: 'POST',
+      url: '/admin/tenants',
+      headers: { authorization: `Bearer ${token}` },
+      payload: { name },
+    });
+    expect(first.statusCode).toBe(201);
+    const again = await fixture.http.inject({
+      method: 'POST',
+      url: '/admin/tenants',
+      headers: { authorization: `Bearer ${token}` },
+      payload: { name },
+    });
+    expect(again.statusCode).toBe(409);
+    expect(again.json<{ detail: string }>().detail).toContain(name);
+  });
+
   it('refuses the name system', async () => {
     const token = await fixture.systemAdminToken(['manage-tenants']);
     const res = await fixture.http.inject({

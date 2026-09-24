@@ -118,7 +118,12 @@ for. `manage-tenants` is required, the same as the listing above. The name
 `system` is refused with `409` — reserved for the tenant this API itself
 administers from — rather than left to surface as a unique-index conflict;
 `odudu seed tenant --name system` is refused for the identical reason
-(`refuseSystemTenantName`, `apps/server/src/cli/seed.ts`).
+(`refuseSystemTenantName`, `apps/server/src/cli/seed.ts`), as is
+`seed({ tenant: 'system', … })`, the options form of the same command. A
+name another tenant already holds is refused with `409` too — under
+row-level security a tenant carrying it is not visible to this call, so the
+unique index is what answers, mapped to the same shape rather than left to
+surface as a `500`.
 
 A request shape:
 

@@ -44,7 +44,7 @@ function toRecord(row: typeof tenants.$inferSelect): TenantSettingsRecord {
 }
 
 // Drizzle wraps the driver's error, so the SQLSTATE is a level down —
-// mirrors `isUniqueViolation` in apps/server/src/cli/seed.ts. Every CHECK on
+// mirrors `isUniqueViolation` in @odudu/db. Every CHECK on
 // `tenants` is hand-named (`tenants_password_min_length_bounds`,
 // `tenants_brute_force_bounds`, …) with no shared naming convention to
 // parse a column back out of, some naming more than one column, so the

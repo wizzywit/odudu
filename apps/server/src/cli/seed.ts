@@ -6,6 +6,7 @@ import { groupRepository, roleRepository } from '@odudu/domain-authz';
 import { generateSigningKey, signingKeyRepository } from '@odudu/crypto';
 import {
   createDatabase,
+  isUniqueViolation,
   tenants,
   withTenant,
   type Database,
@@ -555,16 +556,6 @@ export interface SeededAdmin {
   readonly tenantId: string;
   readonly subjectId: string;
   readonly password: string;
-}
-
-// Drizzle wraps the driver's error, so the SQLSTATE is a level down.
-function isUniqueViolation(error: unknown): boolean {
-  if (typeof error !== 'object' || error === null) return false;
-  if ('code' in error) {
-    const { code }: { code: unknown } = error;
-    if (code === '23505') return true;
-  }
-  return 'cause' in error && isUniqueViolation(error.cause);
 }
 
 // Keyed on the id throughout, because a lookup by name and an insert by id

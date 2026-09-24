@@ -52,6 +52,19 @@ export function createTenantHandler(deps: TenantsRouteDeps): AdminRouteHandler {
       );
     }
 
+    if (outcome.kind === 'name_taken') {
+      return sendProblem(
+        reply,
+        request,
+        problem(
+          409,
+          'about:blank',
+          'Conflict',
+          `the name ${JSON.stringify(body.name)} is already in use`,
+        ),
+      );
+    }
+
     return reply.code(201).send(toWireTenant(outcome.tenant));
   };
 }

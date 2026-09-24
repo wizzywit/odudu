@@ -1,4 +1,4 @@
-import { tenants, type TenantScopedDatabase } from '@odudu/db';
+import { isUniqueViolation, tenants, type TenantScopedDatabase } from '@odudu/db';
 import { newId } from '@odudu/kernel';
 import { count, eq } from 'drizzle-orm';
 import { clients, type ClientRecord } from '#/schema/clients';
@@ -11,14 +11,6 @@ export class ClientIdConflictError extends Error {
     super(`client_id ${JSON.stringify(clientId)} is already in use`);
     this.name = 'ClientIdConflictError';
   }
-}
-
-// Drizzle wraps the driver's error, so the SQLSTATE is a level down —
-// mirrors `isUniqueViolation` in apps/server/src/cli/seed.ts.
-function isUniqueViolation(error: unknown): boolean {
-  if (typeof error !== 'object' || error === null) return false;
-  if ('code' in error) return error.code === '23505';
-  return 'cause' in error && isUniqueViolation(error.cause);
 }
 
 function toRecord(row: typeof clients.$inferSelect): ClientRecord {

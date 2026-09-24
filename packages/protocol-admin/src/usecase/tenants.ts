@@ -1,6 +1,12 @@
 import { provisionTenant } from '@odudu/authn-flows';
 import { generateSigningKey, signingKeyRepository } from '@odudu/crypto';
-import { tenants, withTenant, type Database, type TenantScopedDatabase } from '@odudu/db';
+import {
+  isUniqueViolation,
+  tenants,
+  withTenant,
+  type Database,
+  type TenantScopedDatabase,
+} from '@odudu/db';
 import { isSystemTenantName } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
 import { provisionAdminClient } from '@odudu/protocol-oidc';
@@ -55,7 +61,7 @@ export interface CreateTenantDeps {
 }
 
 export type CreateTenantOutcome =
-  { kind: 'created'; tenant: TenantRecord } | { kind: 'name_refused' };
+  { kind: 'created'; tenant: TenantRecord } | { kind: 'name_refused' } | { kind: 'name_taken' };
 
 // Mirrors `ensureSigningKey` (apps/server/src/cli/seed.ts): a freshly
 // inserted tenant has none yet, so there is nothing to check first — a
@@ -98,22 +104,34 @@ export async function createTenant(
   if (isSystemTenantName(input.name)) return { kind: 'name_refused' };
 
   const id = newId();
-  const tenant = await withTenant(deps.database, id, async (tx) => {
-    const rows = await tx
-      .insert(tenants)
-      .values({ id, name: input.name, displayName: input.displayName ?? null })
-      .returning(TENANT_COLUMNS);
-    const created = rows[0];
-    if (created === undefined) {
-      throw new Error('insert into tenants returned no row');
-    }
+  let tenant: TenantRecord;
+  try {
+    tenant = await withTenant(deps.database, id, async (tx) => {
+      const rows = await tx
+        .insert(tenants)
+        .values({ id, name: input.name, displayName: input.displayName ?? null })
+        .returning(TENANT_COLUMNS);
+      const created = rows[0];
+      if (created === undefined) {
+        throw new Error('insert into tenants returned no row');
+      }
 
-    await provisionTenant(tx, id);
-    await provisionAdminClient(tx, id);
-    await mintSigningKey(tx, id, deps.kek);
+      await provisionTenant(tx, id);
+      await provisionAdminClient(tx, id);
+      await mintSigningKey(tx, id, deps.kek);
 
-    return created;
-  });
+      return created;
+    });
+  } catch (error) {
+    // Caught outside the transaction, which the violation has already
+    // aborted and `withTenant` has already rolled back — the same shape
+    // `createClient` leaves `ClientIdConflictError` in
+    // (#/usecase/clients.ts). Under row-level security a tenant holding
+    // this name is not even visible to a lookup here, so the unique index
+    // is the only thing that can answer.
+    if (isUniqueViolation(error)) return { kind: 'name_taken' };
+    throw error;
+  }
 
   await deps.audit({
     action: 'tenant.create',
