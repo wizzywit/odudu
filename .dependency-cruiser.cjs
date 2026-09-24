@@ -35,9 +35,21 @@ module.exports = {
     {
       name: 'no-protocol-to-protocol',
       severity: 'error',
-      comment: 'Protocols stay independently testable and independently deletable.',
-      from: { path: '(^|/)packages/protocol-([^/]+)/' },
+      comment:
+        'Protocols stay independently testable and independently deletable. protocol-admin is ' +
+        'exempt as a source: it administers the protocol surface rather than standing beside it, ' +
+        'so it is downstream by definition (ADR 0035). The reverse edge is forbidden below.',
+      from: { path: '(^|/)packages/protocol-([^/]+)/', pathNot: '(^|/)packages/protocol-admin/' },
       to: { path: '(^|/)packages/protocol-(?!$2/)[^/]+/' },
+    },
+    {
+      name: 'no-protocol-to-admin',
+      severity: 'error',
+      comment:
+        'The admin API may import a protocol package; a protocol package may never import it. ' +
+        'Without this the exemption above would be a two-way door and the cycle would return.',
+      from: { path: '(^|/)packages/protocol-(?!admin/)[^/]+/' },
+      to: { path: '(^|/)packages/protocol-admin/' },
     },
     // `/src/(.+/)?view/` fails dependency-cruiser's safe-regex check (star
     // height > 1: the optional group wraps a quantifier). The alternation

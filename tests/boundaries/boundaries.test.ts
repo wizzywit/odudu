@@ -55,6 +55,20 @@ describe('boundary rules', () => {
     ).toBe(false);
   });
 
+  it('permits the admin API to import a protocol package', async () => {
+    const found = await violations('no-protocol-to-protocol');
+    expect(
+      found.some((v) => v.from.includes('protocol-admin') && v.to.includes('protocol-oidc')),
+    ).toBe(false);
+  });
+
+  it('forbids a protocol package importing the admin API', async () => {
+    const found = await violations('no-protocol-to-admin');
+    expect(
+      found.some((v) => v.from.includes('protocol-oidc') && v.to.includes('protocol-admin')),
+    ).toBe(true);
+  });
+
   it('rejects a circular import', async () => {
     expect((await violations('no-circular')).length).toBeGreaterThan(0);
   });
