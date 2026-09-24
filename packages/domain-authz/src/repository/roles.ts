@@ -113,7 +113,10 @@ export function roleRepository(tx: TenantScopedDatabase) {
         throw new OduduError('role_composite_cycle', 'would create a cycle');
       }
       const tenantId = await tenantOfRole(tx, parentRoleId);
-      await tx.insert(roleComposites).values({ tenantId, parentRoleId, childRoleId });
+      await tx
+        .insert(roleComposites)
+        .values({ tenantId, parentRoleId, childRoleId })
+        .onConflictDoNothing();
     },
 
     // tenant_id is not a caller-supplied argument: it is read back from the

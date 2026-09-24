@@ -10,7 +10,7 @@ import {
 import { expectCrossTenantMethodProbe } from '@odudu/db/testing';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
-import { eq, sql } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { roleRepository, type RoleRecord } from '#/repository/roles';
 import { clientScopeRoles, roleComposites, subjectRoles } from '#/schema/roles';
@@ -302,6 +302,26 @@ describe('composites', () => {
     await expect(
       withTenant(app.db, tenantId, (tx) => roleRepository(tx).addComposite(a.id, b.id)),
     ).resolves.toBeUndefined();
+  });
+
+  it('repeating the same composite is a no-op', async () => {
+    const tenantId = newId();
+    await withTenant(app.db, tenantId, (tx) => seedTenant(tx, tenantId));
+    const a = await create({ name: 'a', tenantId });
+    const b = await create({ name: 'b', tenantId });
+
+    await withTenant(app.db, tenantId, (tx) => roleRepository(tx).addComposite(a.id, b.id));
+    await expect(
+      withTenant(app.db, tenantId, (tx) => roleRepository(tx).addComposite(a.id, b.id)),
+    ).resolves.toBeUndefined();
+
+    const composites = await withTenant(app.db, tenantId, (tx) =>
+      tx
+        .select()
+        .from(roleComposites)
+        .where(and(eq(roleComposites.parentRoleId, a.id), eq(roleComposites.childRoleId, b.id))),
+    );
+    expect(composites).toHaveLength(1);
   });
 
   it('cannot attach another tenant’s role as a composite, and leaves that tenant’s graph unchanged', async () => {

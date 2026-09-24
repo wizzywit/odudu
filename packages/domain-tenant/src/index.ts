@@ -44,3 +44,8 @@ export {
   clientRegistrationTokenRepository,
   type MintClientRegistrationToken,
 } from '#/repository/client-registration-tokens';
+export {
+  provisionAdminClient,
+  type ProvisionAdminClientOptions,
+  type ProvisionedAdminClient,
+} from '#/usecase/provision-admin-client';

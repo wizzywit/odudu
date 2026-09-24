@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@odudu/db": "workspace:*",
+    "@odudu/domain-authz": "workspace:*",
     "@odudu/kernel": "workspace:*",
     "drizzle-orm": "0.45.2"
   },
