@@ -5,6 +5,15 @@ export {
   type CoerceOutcome,
   type TenantSettingName,
 } from '#/service/tenant-settings';
+export {
+  ADMIN_CLIENT_ID,
+  MANAGE_TENANTS,
+  SYSTEM_TENANT_NAME,
+  TENANT_ADMIN,
+  TENANT_CAPABILITIES,
+  viewCounterpart,
+  type TenantCapability,
+} from '#/service/admin-capabilities';
 export { clients, type ClientRecord } from '#/schema/clients';
 export { clientRepository, type ClientCapacity, type NewClient } from '#/repository/clients';
 export {
