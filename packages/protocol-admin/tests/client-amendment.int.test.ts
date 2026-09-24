@@ -12,10 +12,6 @@ afterAll(async () => {
   await fixtureHandle?.stop();
 });
 
-// A GET's own `ETag`, for the tests below that amend one of the five
-// wholesale list fields — `amendClient` requires `If-Match` on those
-// (packages/protocol-admin/src/usecase/clients.ts), so a valid amendment to
-// one still has to carry the precondition the amendment design added.
 // The tenant a caller needs before dynamic registration answers anything
 // but `404` at all — closed by default (ADR 0026); mirrors
 // `openRegistration` in clients.int.test.ts.
@@ -32,6 +28,10 @@ async function openRegistration(tenantName: string): Promise<void> {
   }
 }
 
+// A GET's own `ETag`, for the tests below that amend one of the five
+// wholesale list fields — `amendClient` requires `If-Match` on those
+// (packages/protocol-admin/src/usecase/clients.ts), so a valid amendment to
+// one still has to carry the precondition the amendment design added.
 async function currentEtag(tenantName: string, clientDbId: string, token: string): Promise<string> {
   const res = await fixture.http.inject({
     method: 'GET',

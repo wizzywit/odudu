@@ -257,14 +257,12 @@ that collides with an existing client in the tenant is refused the same
 way, also `409`, rather than surfacing as the database's own unique-index
 violation.
 
-Unlike dynamic registration, this door has no `max_clients` gate
-(`lockCapacity`, `packages/domain-tenant/src/repository/clients.ts`, which
-`registerClient` calls and `createClient` here deliberately does not): the
-holder of `manage-clients` is the same authority that sets `max_clients` on
-this tenant's settings, so the cap is a limit an operator places on
-self-service registration, not on their own hand. An operator who wants a
-lower ceiling on operator-created clients too sets `max_clients` and stops
-short of it by habit; nothing here currently enforces that for them.
+A tenant at its `max_clients` cap (`GET`/`PATCH /settings` above) refuses
+creation here with `403`, the same cap `registerClient`'s own
+`lockCapacity` enforces for dynamic registration — `manage-clients` and
+`manage-tenant`, which sets the cap, are different capabilities, so this
+door locks and counts for itself rather than trusting the two to be held
+together.
 
 Every client created through this door is recorded as
 `registration_origin: "operator"` — distinct from the CLI's `"seeded"`, RFC

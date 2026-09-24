@@ -357,6 +357,22 @@ column-list form: `ON DELETE SET NULL (service_subject_id)`.
 - Trigger: the next migration that touches `token_grants` or `clients` for
   an unrelated reason.
 
+### The client endpoints
+
+**`deferred:`** `PATCH /admin/tenants/{tenant}/clients/{id}`'s two
+`update` calls (`clientRepository`, `clientOidcConfigRepository`) translate
+no CHECK-constraint violation into a caller-facing `400` the way
+`createClient` now does for the unique index (P4c's own fix) — an
+amendment JS-side validation lets through but `client_oidc_config`'s
+`web_origins_are_valid` CHECK still refuses would surface as a generic
+`500`. Not fixed in P4c: neither `update` touches a unique index, and
+everything else they write has already passed `parseClientMetadata` or the
+checked coercions beside it, so `web_origins_are_valid` is the one CHECK
+with no JS-side mirror standing behind it.
+
+- Trigger: `web_origins` getting its own shape validation ahead of the
+  write, or a report that the CHECK has actually fired.
+
 ### The session set
 
 **The cap is per browser, and admits `cap + (k - 1)` under `k` concurrent

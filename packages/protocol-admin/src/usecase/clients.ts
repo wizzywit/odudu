@@ -1,3 +1,4 @@
+import { type Client } from '@odudu/contracts/admin';
 import { type TenantScopedDatabase } from '@odudu/db';
 import { subjectRepository } from '@odudu/domain-identity';
 import {
@@ -199,6 +200,7 @@ export type CreateClientOutcome =
       error: 'invalid_redirect_uri' | 'invalid_client_metadata';
       description: string;
     }
+  | { kind: 'at_capacity' }
   | { kind: 'ok'; client: ClientView; secret: string | null };
 
 // RFC 7591 places no format requirement on a client secret; 32 random
@@ -272,6 +274,16 @@ export async function createClient(
   const metadata = parsed.metadata;
   const type = clientType(metadata.tokenEndpointAuthMethod);
 
+  // Locked and counted the same way `registerClient` gates dynamic
+  // registration (`packages/protocol-oidc/src/usecase/client-registration.ts`)
+  // — the holder of `manage-clients` is not the holder of `manage-tenant`,
+  // which is what sets `max_clients`, so this door needs its own check
+  // rather than trusting the two capabilities to be held together.
+  const capacity = await clientRepository(tx).lockCapacity(input.tenantId);
+  if (capacity.count >= capacity.maxClients) {
+    return { kind: 'at_capacity' };
+  }
+
   let serviceSubjectId: string | null = null;
   if (type === 'confidential') {
     const serviceSubject = await subjectRepository(tx).create({
@@ -343,7 +355,7 @@ export async function createClient(
 // the same mapping on a `GET` (view/routes/clients.ts's `toWireClient`
 // delegates here) and on the read `amendClient` does before writing, so an
 // `If-Match` taken from one always compares against the other.
-export function clientWireShape(view: ClientView): Record<string, unknown> {
+export function clientWireShape(view: ClientView): Client {
   return {
     id: view.id,
     client_id: view.clientId,

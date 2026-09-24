@@ -5,7 +5,7 @@ import { clientOidcConfigRepository } from '@odudu/protocol-oidc';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { etagOf } from '#/service/etag';
 import { startAdminFixture, type AdminFixture } from '#/testing/admin-fixture';
-import { amendClient, createClient } from '#/usecase/clients';
+import { amendClient, createClient, deleteClient, rotateClientSecret } from '#/usecase/clients';
 
 let fixtureHandle: AdminFixture | undefined;
 let fixture: AdminFixture;
@@ -153,6 +153,33 @@ describe('POST /admin/tenants/{t}/clients', () => {
     });
     expect(res.statusCode).toBe(201);
     expect(res.json<{ registration_origin: string }>().registration_origin).toBe('operator');
+  });
+
+  it('is refused past max_clients, the same way dynamic registration is', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    // The tenant already carries its own built-in admin client, so this
+    // caps the tenant at exactly what it already holds.
+    const settingsToken = await fixture.adminToken(t.name, ['manage-tenant']);
+    const settingsRes = await fixture.http.inject({
+      method: 'PATCH',
+      url: `/admin/tenants/${t.name}/settings`,
+      headers: { authorization: `Bearer ${settingsToken}`, 'content-type': 'application/json' },
+      payload: { max_clients: 1 },
+    });
+    expect(settingsRes.statusCode).toBe(200);
+
+    const token = await fixture.adminToken(t.name, ['manage-clients']);
+    const res = await fixture.http.inject({
+      method: 'POST',
+      url: `/admin/tenants/${t.name}/clients`,
+      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      payload: {
+        client_id: `over-cap-${newId()}`,
+        redirect_uris: ['https://app.example/cb'],
+        token_endpoint_auth_method: 'none',
+      },
+    });
+    expect(res.statusCode).toBe(403);
   });
 
   it('refuses jwks and jwks_uri together the same way dynamic registration does', async () => {
@@ -572,6 +599,58 @@ describe('PATCH /admin/tenants/{t}/clients/{id}', () => {
     expect(outcome.kind).toBe('refused_field');
     expect(events).toHaveLength(0);
   });
+
+  it('does not call audit when If-Match is required and missing', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const created = await fixture.createConfidentialClient(t.name, {});
+    const events: unknown[] = [];
+    const outcome = await withTenant(fixture.app.db, t.id, (tx) =>
+      amendClient(
+        tx,
+        {
+          tlsClientAuthEnabled: false,
+          audit: (event) => {
+            events.push(event);
+            return Promise.resolve();
+          },
+        },
+        {
+          clientDbId: created.id,
+          values: { grant_types: ['client_credentials'] },
+          ifMatch: undefined,
+          actorSubjectId: 'test-subject',
+        },
+      ),
+    );
+    expect(outcome.kind).toBe('precondition_required');
+    expect(events).toHaveLength(0);
+  });
+
+  it('does not call audit when the built-in admin guard refuses it', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const admin = await fixture.builtinAdminClient(t.name);
+    const events: unknown[] = [];
+    const outcome = await withTenant(fixture.app.db, t.id, (tx) =>
+      amendClient(
+        tx,
+        {
+          tlsClientAuthEnabled: false,
+          audit: (event) => {
+            events.push(event);
+            return Promise.resolve();
+          },
+        },
+        {
+          clientDbId: admin.id,
+          values: { enabled: false },
+          ifMatch: undefined,
+          actorSubjectId: 'test-subject',
+        },
+      ),
+    );
+    expect(outcome.kind).toBe('builtin_admin_guarded');
+    expect(events).toHaveLength(0);
+  });
 });
 
 describe('DELETE /admin/tenants/{t}/clients/{id}', () => {
@@ -602,6 +681,46 @@ describe('DELETE /admin/tenants/{t}/clients/{id}', () => {
       headers: { authorization: `Bearer ${token}` },
     });
     expect(res.statusCode).toBe(404);
+  });
+
+  it('calls audit exactly once on a successful deletion', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const created = await fixture.createConfidentialClient(t.name, {});
+    const events: unknown[] = [];
+    const outcome = await withTenant(fixture.app.db, t.id, (tx) =>
+      deleteClient(
+        tx,
+        {
+          audit: (event) => {
+            events.push(event);
+            return Promise.resolve();
+          },
+        },
+        { clientDbId: created.id, actorSubjectId: 'test-subject' },
+      ),
+    );
+    expect(outcome.kind).toBe('deleted');
+    expect(events).toHaveLength(1);
+  });
+
+  it('does not call audit when the built-in admin guard refuses it', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const admin = await fixture.builtinAdminClient(t.name);
+    const events: unknown[] = [];
+    const outcome = await withTenant(fixture.app.db, t.id, (tx) =>
+      deleteClient(
+        tx,
+        {
+          audit: (event) => {
+            events.push(event);
+            return Promise.resolve();
+          },
+        },
+        { clientDbId: admin.id, actorSubjectId: 'test-subject' },
+      ),
+    );
+    expect(outcome.kind).toBe('builtin_admin_guarded');
+    expect(events).toHaveLength(0);
   });
 });
 
@@ -659,6 +778,59 @@ describe('POST /admin/tenants/{t}/clients/{id}/secret', () => {
       headers: { authorization: `Bearer ${token}` },
     });
     expect(res.statusCode).toBe(409);
+  });
+
+  it('calls audit exactly once on a successful rotation', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const created = await fixture.createConfidentialClient(t.name, {});
+    const events: unknown[] = [];
+    const outcome = await withTenant(fixture.app.db, t.id, (tx) =>
+      rotateClientSecret(
+        tx,
+        {
+          hashClientSecret: (secret) => Promise.resolve(`hashed:${secret}`),
+          audit: (event) => {
+            events.push(event);
+            return Promise.resolve();
+          },
+        },
+        { clientDbId: created.id, actorSubjectId: 'test-subject' },
+      ),
+    );
+    expect(outcome.kind).toBe('ok');
+    expect(events).toHaveLength(1);
+  });
+
+  it('does not call audit when the client is public', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-clients']);
+    const created = await fixture.http.inject({
+      method: 'POST',
+      url: `/admin/tenants/${t.name}/clients`,
+      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      payload: {
+        client_id: `spa-${newId()}`,
+        redirect_uris: ['https://app.example/cb'],
+        token_endpoint_auth_method: 'none',
+      },
+    });
+    const { id } = created.json<{ id: string }>();
+    const events: unknown[] = [];
+    const outcome = await withTenant(fixture.app.db, t.id, (tx) =>
+      rotateClientSecret(
+        tx,
+        {
+          hashClientSecret: (secret) => Promise.resolve(`hashed:${secret}`),
+          audit: (event) => {
+            events.push(event);
+            return Promise.resolve();
+          },
+        },
+        { clientDbId: id, actorSubjectId: 'test-subject' },
+      ),
+    );
+    expect(outcome.kind).toBe('not_confidential');
+    expect(events).toHaveLength(0);
   });
 });
 

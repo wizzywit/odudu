@@ -34,7 +34,11 @@ export const clients = pgTable('clients', {
   // Marks the client a tenant's administration roles hang from. The guard
   // that refuses to disable or delete it reads this, not the client_id, so
   // a renamed client cannot slip past it. At most one true per tenant
-  // (clients_one_builtin_admin).
+  // (clients_one_builtin_admin). Renaming `client_id` itself, unreachable
+  // through the API (refused by client-patch.ts's `refusalFor`; only a
+  // direct write can do it), breaks every tenant-local admin's own
+  // authorization here too — `authorizeAdmin` matches a role's client
+  // against `ADMIN_CLIENT_ID` by that same string.
   builtinAdmin: boolean('builtin_admin').notNull().default(false),
 }).enableRLS();
 

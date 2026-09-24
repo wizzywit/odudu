@@ -39,7 +39,7 @@ export interface ClientsRouteDeps {
 // this serialises and the bytes `amendClient`'s own `If-Match` check hashes
 // can never drift apart.
 function toWireClient(view: ClientView): Client {
-  return clientWireShape(view) as Client;
+  return clientWireShape(view);
 }
 
 function ifMatchHeader(request: AdminRequest): string | undefined {
@@ -169,6 +169,17 @@ export function createClientHandler(deps: ClientsRouteDeps): AdminRouteHandler {
           reply,
           request,
           problem(400, 'about:blank', 'Bad Request', outcome.description),
+        );
+      case 'at_capacity':
+        return sendProblem(
+          reply,
+          request,
+          problem(
+            403,
+            'about:blank',
+            'Forbidden',
+            'this tenant has reached its client registration limit',
+          ),
         );
       case 'ok': {
         const wire: CreateClientResponse = {
