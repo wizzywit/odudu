@@ -123,7 +123,12 @@ export async function authenticateAdmin(
   const keys = await deps.listPublishableKeys(matched.id);
   let payload;
   try {
-    payload = await verifyJwt(token, { keys, issuer: iss, audience: `${iss}/admin`, typ: 'at+jwt' });
+    payload = await verifyJwt(token, {
+      keys,
+      issuer: iss,
+      audience: `${iss}/admin`,
+      typ: 'at+jwt',
+    });
   } catch {
     return unauthenticated('invalid_token');
   }
