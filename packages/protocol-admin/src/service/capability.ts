@@ -1,7 +1,9 @@
 import {
+  amendSettingsRequestSchema,
   createTenantRequestSchema,
   cursorQuerySchema,
   listTenantsResponseSchema,
+  settingsSchema,
   tenantSchema,
 } from '@odudu/contracts/admin';
 import { MANAGE_TENANTS, type TenantCapability } from '@odudu/domain-tenant';
@@ -66,6 +68,19 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     responseSchema: tenantSchema,
     successStatus: 201,
     bodySchema: createTenantRequestSchema,
+  },
+  {
+    method: 'GET',
+    pattern: '/admin/tenants/:tenant/settings',
+    capability: 'manage-tenant',
+    responseSchema: settingsSchema,
+  },
+  {
+    method: 'PATCH',
+    pattern: '/admin/tenants/:tenant/settings',
+    capability: 'manage-tenant',
+    responseSchema: settingsSchema,
+    bodySchema: amendSettingsRequestSchema,
   },
 ];
 

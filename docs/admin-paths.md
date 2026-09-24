@@ -57,13 +57,15 @@ section 7 has the full authentication and authorization sequence; getting
 a token to test with is [README.md](../README.md)'s job, not this
 document's.
 
-| Method | Path                               | What it is            |
-| ------ | ---------------------------------- | --------------------- |
-| `GET`  | `/admin/tenants`                   | List tenants          |
-| `POST` | `/admin/tenants`                   | Create a tenant       |
-| `GET`  | `/admin/tenants/{tenant}/whoami`   | Identity probe        |
-| `GET`  | `/admin/tenants/{tenant}/subjects` | List subjects         |
-| `GET`  | `/admin/openapi.json`              | The OpenAPI reference |
+| Method  | Path                               | What it is                |
+| ------- | ---------------------------------- | ------------------------- |
+| `GET`   | `/admin/tenants`                   | List tenants              |
+| `POST`  | `/admin/tenants`                   | Create a tenant           |
+| `GET`   | `/admin/tenants/{tenant}/whoami`   | Identity probe            |
+| `GET`   | `/admin/tenants/{tenant}/subjects` | List subjects             |
+| `GET`   | `/admin/tenants/{tenant}/settings` | Read a tenant's settings  |
+| `PATCH` | `/admin/tenants/{tenant}/settings` | Amend a tenant's settings |
+| `GET`   | `/admin/openapi.json`              | The OpenAPI reference     |
 
 ## `GET /admin/tenants`
 
@@ -133,6 +135,92 @@ The response shape, not a captured run — `201` with the created tenant:
   "created_at": "<timestamp>"
 }
 ```
+
+## `GET /settings` and `PATCH /settings`
+
+The 28 columns `tenants` carries beyond identity — everything
+`odudu seed tenant --set` can already change — read and amended through one
+map, `@odudu/domain-tenant`'s `SETTINGS`
+(`packages/domain-tenant/src/service/tenant-settings.ts`): a name a caller
+writes and a column a migration owns, never restated a second time. Ranges
+are not in that map — they are `CHECK` constraints on `tenants`, so a value
+outside one is refused by the database itself, not by a second copy of the
+rule here.
+
+Requires `manage-tenant` on the tenant named in the path — a tenant-local
+admin's own capability, so a system admin reaches it only by also holding
+that role there, `manage-tenants` alone is not enough. A `GET`
+carries an `ETag` over the settings as they stand. A `PATCH` may carry
+`If-Match`: absent, the write proceeds unconditionally; present and stale,
+the request is refused with `412` and nothing is changed — the concurrency
+control every amending endpoint in this API shares.
+
+A request shape:
+
+```bash
+curl -sS \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  http://localhost:3000/admin/tenants/demo/settings
+```
+
+The response shape, not a captured run — `200`, an `ETag` header, and every
+setting by name:
+
+```json
+{
+  "display_name": null,
+  "enabled": true,
+  "registration_allowed": false,
+  "verify_email": false,
+  "reset_password_allowed": false,
+  "sso_session_idle_seconds": 1800,
+  "sso_session_max_seconds": 36000,
+  "password_min_length": 8,
+  "password_require_digit": false,
+  "password_require_uppercase": false,
+  "password_require_lowercase": false,
+  "password_require_special": false,
+  "password_not_username": true,
+  "password_not_email": true,
+  "password_history_depth": 0,
+  "password_max_age_days": 0,
+  "otp_required": false,
+  "brute_force_max_failures": 5,
+  "brute_force_lockout_seconds": 60,
+  "brute_force_max_lockout_seconds": 900,
+  "brute_force_failure_reset_seconds": 43200,
+  "client_registration_policy": "disabled",
+  "max_clients": 200,
+  "max_sessions_per_browser": 25,
+  "remember_me_allowed": false,
+  "remember_me_idle_seconds": 604800,
+  "remember_me_max_seconds": 2592000
+}
+```
+
+Amending sends only the settings that change:
+
+```bash
+curl -sS -X PATCH \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"verify_email": true, "password_min_length": 14}' \
+  http://localhost:3000/admin/tenants/demo/settings
+```
+
+The response shape, not a captured run — `200` and the full settings object
+as it now reads, an `ETag` for the next `If-Match`:
+
+```json
+{ "verify_email": true, "password_min_length": 14, "…every other setting…": "…" }
+```
+
+A name this map does not know is refused with `400`, naming the settings it
+does. A value the map itself coerces but the database's `CHECK` still
+refuses — `password_min_length` outside `8..256`, for instance — is also
+`400`, naming the setting rather than the constraint that fired: the
+database stays the one authority for the range, and the caller still learns
+which value it refused.
 
 ## `GET /whoami`
 

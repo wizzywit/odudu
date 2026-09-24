@@ -2,9 +2,16 @@ export { verifyClientSecret } from '#/service/client';
 export {
   coerceTenantSetting,
   TENANT_SETTING_NAMES,
+  TENANT_SETTING_COLUMNS,
   type CoerceOutcome,
   type TenantSettingName,
+  type TenantSettingColumn,
 } from '#/service/tenant-settings';
+export {
+  tenantSettingsRepository,
+  TenantSettingCheckViolationError,
+  type TenantSettingsRecord,
+} from '#/repository/tenant-settings';
 export {
   ADMIN_API_AUDIENCE,
   ADMIN_CLIENT_ID,

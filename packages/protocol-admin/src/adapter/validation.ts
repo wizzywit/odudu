@@ -15,12 +15,15 @@ const addFormats = ajvFormatsModule.default as unknown as FormatsPlugin;
 
 // ajv 8's default export is draft-07; z.toJSONSchema emits 2020-12, and a
 // draft-07 validator silently ignores the keywords it does not know rather
-// than refusing them — so the dialect has to be chosen explicitly.
-//
-// Fastify hands query and path parameters to ajv as strings regardless of
-// the Zod type they were generated from, so a numeric schema has to coerce
-// rather than reject them outright.
-const ajv = addFormats(new Ajv2020({ allErrors: false, strict: true, coerceTypes: true }));
+// than refusing them — so the dialect has to be chosen explicitly. Fastify
+// hands query and path parameters to ajv as strings regardless of the Zod
+// type they were generated from, so a numeric schema has to coerce rather
+// than reject them outright, and a tenant setting's value schema is a
+// union (boolean, integer or text), which strict mode otherwise refuses to
+// compile at all.
+const ajv = addFormats(
+  new Ajv2020({ allErrors: false, strict: true, coerceTypes: true, allowUnionTypes: true }),
+);
 
 export function compileSchema(schema: z.ZodType): ValidateFunction {
   return ajv.compile(z.toJSONSchema(schema));

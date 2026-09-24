@@ -17,3 +17,9 @@ export {
   listTenantsResponseSchema,
   type ListTenantsResponse,
 } from '#/admin/tenants';
+export {
+  amendSettingsRequestSchema,
+  type AmendSettingsRequest,
+  settingsSchema,
+  type Settings,
+} from '#/admin/settings';

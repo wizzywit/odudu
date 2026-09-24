@@ -40,6 +40,19 @@ export type TenantSettingName = keyof typeof SETTINGS;
 
 export const TENANT_SETTING_NAMES: readonly string[] = Object.keys(SETTINGS);
 
+export interface TenantSettingColumn {
+  readonly name: TenantSettingName;
+  readonly column: string;
+}
+
+// A reader's view of the same map a writer coerces through
+// (`coerceTenantSetting`), so a repository listing every setting's current
+// value walks the identical name-to-column pairs a write would have used —
+// never a second list a future setting could be added to only one of.
+export const TENANT_SETTING_COLUMNS: readonly TenantSettingColumn[] = Object.entries(SETTINGS).map(
+  ([name, setting]) => ({ name: name as TenantSettingName, column: setting.column }),
+);
+
 export type CoerceOutcome =
   | { kind: 'coerced'; column: string; value: boolean | number | string }
   | { kind: 'unknown_setting'; known: readonly string[] }

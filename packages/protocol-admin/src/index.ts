@@ -13,6 +13,11 @@ import { installAdminValidator } from '#/adapter/validation';
 import { installProblemDetailsHandler } from '#/view/problem';
 import { registerOpenApiRoute } from '#/view/routes/openapi';
 import { type AdminRouteHandlers, registerAdminRoutes } from '#/view/routes/router';
+import {
+  amendSettingsHandler,
+  getSettingsHandler,
+  type SettingsRouteDeps,
+} from '#/view/routes/settings';
 import { listSubjectsHandler } from '#/view/routes/subjects';
 import {
   createTenantHandler,
@@ -58,11 +63,17 @@ export function adminRoutes(deps: AdminRoutesDeps): FastifyPluginAsync {
       kek: deps.kek,
       audit: noopAudit,
     };
+    const settingsDeps: SettingsRouteDeps = {
+      database: deps.database.db,
+      audit: () => Promise.resolve(),
+    };
     const handlers: AdminRouteHandlers = {
       'GET /admin/tenants/:tenant/whoami': whoamiHandler,
       'GET /admin/tenants/:tenant/subjects': listSubjectsHandler,
       'GET /admin/tenants': listTenantsHandler(tenantsDeps),
       'POST /admin/tenants': createTenantHandler(tenantsDeps),
+      'GET /admin/tenants/:tenant/settings': getSettingsHandler(settingsDeps),
+      'PATCH /admin/tenants/:tenant/settings': amendSettingsHandler(settingsDeps),
     };
 
     const authDeps: AuthenticateAdminDeps = {
