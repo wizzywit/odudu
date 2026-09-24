@@ -376,6 +376,15 @@ registration would refuse is refused here with the identical `400` detail,
 and narrowing `grant_types` takes effect on the very next `/token` request,
 since nothing about a grant type is cached anywhere between the two.
 
+Amending `token_endpoint_auth_method` to a value on the other side of the
+public/confidential boundary — `none` for a confidential client, or
+anything else for a public one — is refused with `409`, naming the
+client's current type and the type the new method implies: the same
+concern `type` itself being unamendable exists for, reached through a
+different field. `client_secret_basic`, `client_secret_post`,
+`private_key_jwt` and `tls_client_auth` are all confidential and freely
+amendable into one another; `none` is the only public method.
+
 The built-in admin client (`builtin_admin`) refuses three kinds of
 amendment with `409`, each naming the client and the reason: disabling it
 (`enabled: false`), and amending any of `grant_types`,

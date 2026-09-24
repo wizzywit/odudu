@@ -237,6 +237,8 @@ function amendmentProblem(
       );
     case 'builtin_admin_guarded':
       return sendProblem(reply, request, problem(409, 'about:blank', 'Conflict', outcome.reason));
+    case 'auth_method_changes_type':
+      return sendProblem(reply, request, problem(409, 'about:blank', 'Conflict', outcome.reason));
   }
 }
 

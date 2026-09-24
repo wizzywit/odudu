@@ -413,6 +413,7 @@ export type AmendClientOutcome =
   | { kind: 'precondition_required'; field: string }
   | { kind: 'precondition_failed' }
   | { kind: 'builtin_admin_guarded'; reason: string }
+  | { kind: 'auth_method_changes_type'; reason: string }
   | { kind: 'ok'; client: ClientView; etag: string };
 
 // Narrowing any of these on the built-in admin client can lock every
@@ -672,6 +673,23 @@ export async function amendClient(
     configPatch.userinfoEncryptedResponseAlg = parsed.metadata.userinfoEncryptedResponseAlg;
     configPatch.userinfoEncryptedResponseEnc = parsed.metadata.userinfoEncryptedResponseEnc;
     configPatch.tlsClientAuthSubjectDn = parsed.metadata.tlsClientAuthSubjectDn;
+
+    // `type` is unamendable (`refusalFor('type')`) for exactly this reason;
+    // reaching the same change through `token_endpoint_auth_method` instead
+    // would otherwise leave the client's row and its authentication method
+    // disagreeing about which side of the boundary it is on — a public
+    // client with a `client_secret_basic` config, or a confidential one
+    // `verifyClientSecret` (@odudu/domain-tenant) now rejects every secret
+    // for.
+    if ('token_endpoint_auth_method' in input.values) {
+      const impliedType = clientType(parsed.metadata.tokenEndpointAuthMethod);
+      if (impliedType !== clientRow.type) {
+        return {
+          kind: 'auth_method_changes_type',
+          reason: `${clientRow.clientId} is ${clientRow.type}; token_endpoint_auth_method ${parsed.metadata.tokenEndpointAuthMethod} implies ${impliedType} and would change its security model`,
+        };
+      }
+    }
   }
 
   const requiredIfMatchField = WHOLESALE_LIST_FIELDS.find((field) => field in input.values);

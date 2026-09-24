@@ -652,6 +652,120 @@ describe('PATCH /admin/tenants/{t}/clients/{id}', () => {
     expect(outcome.kind).toBe('builtin_admin_guarded');
     expect(events).toHaveLength(0);
   });
+
+  it('409s amending token_endpoint_auth_method across the public/confidential boundary', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-clients']);
+    const clientId = `spa-${newId()}`;
+    const created = await fixture.http.inject({
+      method: 'POST',
+      url: `/admin/tenants/${t.name}/clients`,
+      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      payload: {
+        client_id: clientId,
+        redirect_uris: ['https://app.example/callback'],
+        token_endpoint_auth_method: 'none',
+      },
+    });
+    const id = created.json<{ id: string }>().id;
+
+    const res = await fixture.http.inject({
+      method: 'PATCH',
+      url: `/admin/tenants/${t.name}/clients/${id}`,
+      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      payload: { token_endpoint_auth_method: 'client_secret_basic' },
+    });
+    expect(res.statusCode).toBe(409);
+    const detail = res.json<{ detail: string }>().detail;
+    expect(detail).toContain('public');
+    expect(detail).toContain('confidential');
+  });
+
+  it('refuses (no audit) a public client amended to a confidential auth method', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const createDeps = {
+      hashClientSecret: (secret: string) => Promise.resolve(`hashed:${secret}`),
+      tlsClientAuthEnabled: false,
+      audit: () => Promise.resolve(),
+    };
+    const created = await withTenant(fixture.app.db, t.id, (tx) =>
+      createClient(tx, createDeps, {
+        clientId: `spa-${newId()}`,
+        metadata: {
+          redirect_uris: ['https://app.example/callback'],
+          token_endpoint_auth_method: 'none',
+        },
+        tenantId: t.id,
+        actorSubjectId: 'test-subject',
+      }),
+    );
+    if (created.kind !== 'ok') throw new Error(`fixture setup failed: ${created.kind}`);
+
+    const events: unknown[] = [];
+    const outcome = await withTenant(fixture.app.db, t.id, (tx) =>
+      amendClient(
+        tx,
+        {
+          tlsClientAuthEnabled: false,
+          audit: (event) => {
+            events.push(event);
+            return Promise.resolve();
+          },
+        },
+        {
+          clientDbId: created.client.id,
+          values: { token_endpoint_auth_method: 'client_secret_basic' },
+          ifMatch: undefined,
+          actorSubjectId: 'test-subject',
+        },
+      ),
+    );
+    expect(outcome.kind).toBe('auth_method_changes_type');
+    expect(events).toHaveLength(0);
+  });
+
+  it('refuses (no audit) a confidential client amended to none', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const created = await fixture.createConfidentialClient(t.name, {});
+    const events: unknown[] = [];
+    const outcome = await withTenant(fixture.app.db, t.id, (tx) =>
+      amendClient(
+        tx,
+        {
+          tlsClientAuthEnabled: false,
+          audit: (event) => {
+            events.push(event);
+            return Promise.resolve();
+          },
+        },
+        {
+          clientDbId: created.id,
+          values: { token_endpoint_auth_method: 'none' },
+          ifMatch: undefined,
+          actorSubjectId: 'test-subject',
+        },
+      ),
+    );
+    expect(outcome.kind).toBe('auth_method_changes_type');
+    expect(events).toHaveLength(0);
+  });
+
+  it('allows amending token_endpoint_auth_method within the confidential type', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-clients']);
+    const created = await fixture.createConfidentialClient(t.name, {});
+
+    const res = await fixture.http.inject({
+      method: 'PATCH',
+      url: `/admin/tenants/${t.name}/clients/${created.id}`,
+      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      payload: { token_endpoint_auth_method: 'client_secret_post' },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json<{ token_endpoint_auth_method: string }>().token_endpoint_auth_method).toBe(
+      'client_secret_post',
+    );
+  });
 });
 
 describe('DELETE /admin/tenants/{t}/clients/{id}', () => {
