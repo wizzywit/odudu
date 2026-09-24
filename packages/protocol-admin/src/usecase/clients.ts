@@ -385,7 +385,13 @@ export type AmendClientOutcome =
     }
   | { kind: 'precondition_required'; field: string }
   | { kind: 'precondition_failed' }
+  | { kind: 'builtin_admin_guarded'; reason: string }
   | { kind: 'ok'; client: ClientView; etag: string };
+
+// Narrowing any of these on the built-in admin client can lock every
+// administrator out while the client stays enabled — the same lockout
+// `enabled: false` produces, through a second door.
+const BUILTIN_ADMIN_LOCKOUT_FIELDS = ['grant_types', 'token_endpoint_auth_method', 'redirect_uris'];
 
 // The five list fields the schema stores whole: last-write-wins on one
 // silently reinstates exactly what another admin just removed, so a `PATCH`
@@ -481,6 +487,25 @@ export async function amendClient(
         kind: 'refused_field',
         field,
         reason: refusalFor(field) ?? `${field} is not a client field`,
+      };
+    }
+  }
+
+  // Reads `builtinAdmin`, not `client_id` — a client renamed directly in
+  // the database still carries this column, so it cannot slip past the
+  // check that way.
+  if (clientRow.builtinAdmin) {
+    if (input.values.enabled === false) {
+      return {
+        kind: 'builtin_admin_guarded',
+        reason: `${clientRow.clientId} is this tenant's built-in admin client and cannot be disabled`,
+      };
+    }
+    const lockoutField = BUILTIN_ADMIN_LOCKOUT_FIELDS.find((field) => field in input.values);
+    if (lockoutField !== undefined) {
+      return {
+        kind: 'builtin_admin_guarded',
+        reason: `${lockoutField} on ${clientRow.clientId}, this tenant's built-in admin client, would lock administrators out`,
       };
     }
   }
@@ -699,7 +724,8 @@ export interface DeleteClientDeps {
   readonly audit: Audit;
 }
 
-export type DeleteClientOutcome = { kind: 'not_found' } | { kind: 'deleted' };
+export type DeleteClientOutcome =
+  { kind: 'not_found' } | { kind: 'builtin_admin_guarded'; reason: string } | { kind: 'deleted' };
 
 export async function deleteClient(
   tx: TenantScopedDatabase,
@@ -708,6 +734,12 @@ export async function deleteClient(
 ): Promise<DeleteClientOutcome> {
   const clientRow = await clientRepository(tx).byId(input.clientDbId);
   if (clientRow === null) return { kind: 'not_found' };
+  if (clientRow.builtinAdmin) {
+    return {
+      kind: 'builtin_admin_guarded',
+      reason: `${clientRow.clientId} is this tenant's built-in admin client and cannot be deleted`,
+    };
+  }
 
   await clientRepository(tx).delete(input.clientDbId);
 

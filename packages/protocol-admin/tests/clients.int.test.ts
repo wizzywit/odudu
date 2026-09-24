@@ -529,3 +529,104 @@ describe('POST /admin/tenants/{t}/clients/{id}/secret', () => {
     expect(res.statusCode).toBe(409);
   });
 });
+
+describe("the built-in admin client's guards", () => {
+  it('refuses to disable it', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-clients']);
+    const admin = await fixture.builtinAdminClient(t.name);
+    const res = await fixture.http.inject({
+      method: 'PATCH',
+      url: `/admin/tenants/${t.name}/clients/${admin.id}`,
+      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      payload: { enabled: false },
+    });
+    expect(res.statusCode).toBe(409);
+    expect(res.json<{ detail: string }>().detail).toMatch(/built-in/iu);
+  });
+
+  it('refuses to delete it', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-clients']);
+    const admin = await fixture.builtinAdminClient(t.name);
+    const res = await fixture.http.inject({
+      method: 'DELETE',
+      url: `/admin/tenants/${t.name}/clients/${admin.id}`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(res.statusCode).toBe(409);
+    expect(res.json<{ detail: string }>().detail).toMatch(/built-in/iu);
+  });
+
+  it('refuses to PATCH the fields that would lock administrators out', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-clients']);
+    const admin = await fixture.builtinAdminClient(t.name);
+    for (const body of [
+      { grant_types: ['refresh_token'] },
+      { token_endpoint_auth_method: 'none' },
+      { redirect_uris: [] },
+    ]) {
+      const res = await fixture.http.inject({
+        method: 'PATCH',
+        url: `/admin/tenants/${t.name}/clients/${admin.id}`,
+        headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+        payload: body,
+      });
+      expect(res.statusCode, JSON.stringify(body)).toBe(409);
+    }
+  });
+
+  it("still amends the built-in client's ordinary fields", async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-clients']);
+    const admin = await fixture.builtinAdminClient(t.name);
+    const res = await fixture.http.inject({
+      method: 'PATCH',
+      url: `/admin/tenants/${t.name}/clients/${admin.id}`,
+      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      payload: { name: 'Administration' },
+    });
+    expect(res.statusCode).toBe(200);
+  });
+
+  it('reads builtin_admin, not the client_id, so a rename does not evade it', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const admin = await fixture.builtinAdminClient(t.name);
+    await fixture.renameClientIdDirectly(t.id, admin.id, `something-else-${newId()}`);
+    // A system admin, not a tenant-local one: `authorizeAdmin`
+    // (#/usecase/authorize-admin.ts) itself resolves a capability by
+    // matching a role's client against `ADMIN_CLIENT_ID` on the
+    // *principal's own issuer tenant* — the system tenant here, untouched
+    // by the rename above — so this token's own authorization survives it,
+    // leaving the request free to prove what the guard alone does.
+    const token = await fixture.systemAdminToken(['manage-tenants', 'manage-clients']);
+    const res = await fixture.http.inject({
+      method: 'PATCH',
+      url: `/admin/tenants/${t.name}/clients/${admin.id}`,
+      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      payload: { enabled: false },
+    });
+    expect(res.statusCode).toBe(409);
+  });
+
+  it('allows disabling an ordinary admin-capable client, locking that caller out', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const provisioner = await fixture.createServiceAccountClient(t.name, ['manage-users']);
+    const token = await fixture.adminToken(t.name, ['manage-clients']);
+    const res = await fixture.http.inject({
+      method: 'PATCH',
+      url: `/admin/tenants/${t.name}/clients/${provisioner.id}`,
+      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      payload: { enabled: false },
+    });
+    expect(res.statusCode).toBe(200);
+
+    const after = await fixture.http.inject({
+      method: 'GET',
+      url: `/admin/tenants/${t.name}/subjects`,
+      headers: { authorization: `Bearer ${provisioner.token}` },
+    });
+    expect(after.statusCode).toBe(401);
+  });
+});

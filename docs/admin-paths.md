@@ -341,6 +341,18 @@ registration would refuse is refused here with the identical `400` detail,
 and narrowing `grant_types` takes effect on the very next `/token` request,
 since nothing about a grant type is cached anywhere between the two.
 
+The built-in admin client (`builtin_admin`) refuses three kinds of
+amendment with `409`, each naming the client and the reason: disabling it
+(`enabled: false`), and amending any of `grant_types`,
+`token_endpoint_auth_method` or `redirect_uris` — the fields that could
+lock every administrator out while the client stays enabled, the same
+lockout `enabled: false` produces through a second door. The guard reads
+the `builtin_admin` column, not `client_id`, so renaming the client does
+not evade it. Every other field on the built-in client amends normally. An
+**ordinary** admin-capable client carries no such guard and may be
+disabled even by the caller whose own token runs through it — the built-in
+client is the recovery path that makes that permissible.
+
 A request shape — amending only the fields that change:
 
 ```bash
@@ -364,7 +376,9 @@ fresh `ETag` for the next `If-Match`:
 Deletes the client and its OIDC configuration in one statement — the
 foreign key from `client_oidc_config` to `clients` cascades, so nothing
 here deletes the config row a second time. `204` with no body on success,
-`404` for an id that does not exist.
+`404` for an id that does not exist, and the same `409` built-in-admin
+guard `PATCH` uses: the built-in client cannot be deleted any more than it
+can be disabled.
 
 ```bash
 curl -sS -X DELETE \
