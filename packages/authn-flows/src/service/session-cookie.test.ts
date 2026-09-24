@@ -79,6 +79,15 @@ describe('readSessionIds', () => {
     const header = `__Host-other-session=${B}; __Host-demo-session=${A}`;
     expect(readSessionIds(header, 'demo', true)).toEqual({ ephemeral: [A], persistent: [] });
   });
+
+  it('accepts an uppercase UUID, the way @odudu/kernel’s isUuid does', () => {
+    // Inert today — newId() emits lowercase only — and ironic in the
+    // module whose purpose is to be one authority for what a session
+    // cookie holds.
+    const upper = A.toUpperCase();
+    const header = `__Host-demo-session=${upper}`;
+    expect(readSessionIds(header, 'demo', true)).toEqual({ ephemeral: [upper], persistent: [] });
+  });
 });
 
 describe('clearedSessionCookies', () => {

@@ -481,13 +481,6 @@ this file or the phase note.
   re-run against a live stack. **P4d**, which re-captures those transcripts
   anyway: its criterion gives a subject a fresh set of recovery codes before
   the old set is spent, which is what those two queries count.
-- `session-cookie.ts` hand-rolls a case-sensitive UUID regex while the test
-  beside it uses `@odudu/kernel`'s case-insensitive `isUuid`. Inert today —
-  `newId()` emits lowercase only — and ironic in the module whose purpose is
-  to be one authority. **P4**, whose criterion lists a subject's sessions and
-  ends one: the first surface to read a session other than through that
-  cookie, and where ADR 0033's browser-identifier remedy would land in the
-  same file.
 - `pendingSession` duplicates `authenticatedSession`'s two liveness
   conditions inline rather than sharing a predicate. Four lines, and the two
   are not identical, so they must be kept in sync by hand if liveness
