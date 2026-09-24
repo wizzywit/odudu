@@ -270,13 +270,14 @@ beforeAll(async () => {
   plainClient = tenant.client;
   signingClient = await registerClient('signing-client', 'RS256');
   noneClient = await registerClient('none-client', 'none');
-  // A permitted value (client-metadata.ts's own enum admits it) the
-  // tenant's one active key — generated RS256 above — cannot honour. Written
-  // straight to the repository: the registration endpoint's own narrowing
-  // is asserted separately in client-registration.int.test.ts, and a tenant
-  // can only ever hold one active key (`signing_keys_one_active`), so this
-  // is not a contrived shape — it is what a key rotation to a different
-  // algorithm leaves behind for a client that registered under the old one.
+  // A permitted value (client-metadata.ts's own enum admits it) no key of
+  // this tenant produces — only RS256, generated above, exists at all.
+  // Written straight to the repository: the registration endpoint's own
+  // narrowing is asserted separately in client-registration.int.test.ts, and
+  // the admin API's own `retireKey` (packages/protocol-admin/src/usecase/keys.ts)
+  // refuses to retire a key a client still needs, so this is not a shape
+  // rotation through that door leaves behind — it is what a row changed
+  // outside it (a migration, a script, `psql`) can still produce.
   mismatchClient = await registerClient('mismatch-client', 'ES256');
 }, 120_000);
 

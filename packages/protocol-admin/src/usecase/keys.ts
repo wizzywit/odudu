@@ -154,9 +154,10 @@ export interface PromoteKeyDeps {
 export type PromoteKeyOutcome = { kind: 'not_found' } | { kind: 'ok'; key: SigningKey };
 
 // The atomicity itself — no window with two actives or none — lives in
-// `signingKeyRepository(tx).promote` (@odudu/crypto): the row locking that
-// makes a concurrent promote fail on `signing_keys_one_active` rather than
-// leaving both candidates active. This is only the audit wrapper around it.
+// `signingKeyRepository(tx).promote` (@odudu/crypto): `signing_keys_one_active`
+// is what rejects the loser of a concurrent promote, not the row locking
+// there, which only serialises the two reads. This is only the audit
+// wrapper around it.
 export async function promoteKey(
   tx: TenantScopedDatabase,
   deps: PromoteKeyDeps,

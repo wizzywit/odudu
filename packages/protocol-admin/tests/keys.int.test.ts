@@ -286,8 +286,19 @@ describe('POST /admin/tenants/{t}/keys/{id}/retire', () => {
   });
 });
 
+// The JWT header's own `alg`, not just the response's status: a signature
+// under the wrong algorithm — the exact failure `forAlg` exists to prevent
+// — would still answer 200, so the walk below asserts this at every stage.
+function decodeJwtAlg(token: string): string {
+  const segment = token.split('.')[0] ?? '';
+  const header: unknown = JSON.parse(Buffer.from(segment, 'base64url').toString('utf8'));
+  const alg = (header as { alg?: unknown }).alg;
+  if (typeof alg !== 'string') throw new Error('fixture: JWT header carries no alg');
+  return alg;
+}
+
 describe('the deadlock this design dissolves', () => {
-  it('carries a client through stage, move, promote and retire with /userinfo succeeding at every stage', async () => {
+  it('signs /userinfo with the right algorithm through stage, move, promote and retire', async () => {
     const t = await fixture.createTenant(`acme-${newId()}`);
     await openRegistration(t.name);
     const token = await fixture.adminToken(t.name, ['manage-keys']);
@@ -305,29 +316,35 @@ describe('the deadlock this design dissolves', () => {
     // A client that predates the rotation, registered under the algorithm
     // that is still active at this point.
     const client = await fixture.registerClientWithUserinfoAlg(t.name, original.alg);
-    const userinfoAs = async () =>
-      fixture.callUserinfo(t.name, await fixture.mintUserinfoAccessToken(t.name, client, 'openid'));
-    expect((await userinfoAs()).statusCode).toBe(200);
+    const userinfoAlg = async () => {
+      const res = await fixture.callUserinfo(
+        t.name,
+        await fixture.mintUserinfoAccessToken(t.name, client, 'openid'),
+      );
+      expect(res.statusCode).toBe(200);
+      return decodeJwtAlg(res.body);
+    };
+    expect(await userinfoAlg()).toBe(original.alg);
 
     // Staging as rotating makes RS256 producible before it is default —
     // and changes nothing yet for a client still on the old algorithm.
     const staged = await stageKey(t.name, token, 'RS256');
-    expect((await userinfoAs()).statusCode).toBe(200);
+    expect(await userinfoAlg()).toBe(original.alg);
 
     // The client moves to the staged algorithm ahead of promotion. Without
     // `forAlg` wired into /userinfo's signing path, this is exactly where a
     // client would strand: the tenant's active key is still ES256, and only
     // a lookup that reaches the staged key rather than the active one can
-    // answer this.
+    // sign RS256 here.
     const moved = await fixture.patchClient(t.name, client.id, {
       userinfo_signed_response_alg: 'RS256',
     });
     expect(moved.statusCode).toBe(200);
-    expect((await userinfoAs()).statusCode).toBe(200);
+    expect(await userinfoAlg()).toBe('RS256');
 
     const promoted = await promoteKeyHttp(t.name, token, staged.id);
     expect(promoted.statusCode).toBe(200);
-    expect((await userinfoAs()).statusCode).toBe(200);
+    expect(await userinfoAlg()).toBe('RS256');
 
     // Nothing depends on ES256 any more, so the key that used to be
     // active, now demoted to rotating, can finally retire — and the client,
@@ -335,7 +352,7 @@ describe('the deadlock this design dissolves', () => {
     const retired = await retireKey(t.name, token, original.id);
     expect(retired.statusCode).toBe(200);
     expect(retired.json<{ status: string }>().status).toBe('retired');
-    expect((await userinfoAs()).statusCode).toBe(200);
+    expect(await userinfoAlg()).toBe('RS256');
   });
 });
 
