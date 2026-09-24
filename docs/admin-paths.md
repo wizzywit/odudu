@@ -72,6 +72,8 @@ document's.
 | `POST`   | `/admin/tenants`                             | Create a tenant           |
 | `GET`    | `/admin/tenants/{tenant}/whoami`             | Identity probe            |
 | `GET`    | `/admin/tenants/{tenant}/subjects`           | List subjects             |
+| `POST`   | `/admin/tenants/{tenant}/subjects`           | Create a subject          |
+| `GET`    | `/admin/tenants/{tenant}/subjects/:id`       | Read a subject            |
 | `GET`    | `/admin/tenants/{tenant}/settings`           | Read a tenant's settings  |
 | `PATCH`  | `/admin/tenants/{tenant}/settings`           | Amend a tenant's settings |
 | `GET`    | `/admin/tenants/{tenant}/clients`            | List clients              |
@@ -482,27 +484,93 @@ URL).
 
 ## `GET /subjects`
 
-Requires the `view-users` capability. **Subject listing is not implemented
-yet** — this endpoint exists so the authentication and authorization chain
-in front of it is exercisable, and unconditionally, for every authorized
-caller, it answers with an empty array — never the tenant's actual
-subjects:
+Requires `view-users`. `manage-users` also reaches it: `provisionAdminClient`
+(`packages/domain-tenant/src/usecase/provision-admin-client.ts`) composites
+every `manage-*` role to its `view-*` counterpart through `role_composites`,
+so a caller holding only `manage-users` already holds `view-users` by the
+time `authorizeAdmin` resolves its effective roles — nothing in the route
+special-cases it. Pages by an opaque cursor, `?limit=` and `?cursor=`,
+ordered by `id`, the same convention every other listing in this API
+follows. `?search=` filters by a username prefix; a subject with no `users`
+row (`type: "service"`, provisioned for a confidential client's service
+account) never matches one and is only ever reached by an unfiltered page.
+
+A request shape:
 
 ```bash
 curl -sS \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "http://localhost:3000/admin/tenants/demo/subjects?limit=50"
+```
+
+The response shape, not a captured run:
+
+```json
+{
+  "items": [
+    {
+      "id": "<subject id>",
+      "type": "user",
+      "username": "ada",
+      "email": "ada@example.com",
+      "enabled": true,
+      "created_at": "<timestamp>"
+    }
+  ]
+}
+```
+
+## `POST /subjects`
+
+Requires `manage-users`. Creates a `type: "user"` subject: the subject
+itself, its `users` row and the tenant's `default_for_new_subjects` roles —
+the same composition self-registration performs
+(`composeUserSubject`, `packages/protocol-admin/src/usecase/subjects.ts`,
+shared with `createAccount` in `apps/server/src/app.ts` so the two doors
+cannot drift on what "a new subject" means). **There is no `password`
+field**, and that is a rule, not an omission: creating a subject through
+this door writes an `update-password` required action instead, so no
+operator ever handles a user's password, and the created subject cannot
+complete a login until an out-of-band channel sets one. A body carrying
+`password` is refused with `400` before the usecase ever runs — Zod's
+generated schema already sets `additionalProperties: false`.
+
+A request shape:
+
+```bash
+curl -sS -X POST \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"username": "ada", "email": "ada@example.com"}' \
   http://localhost:3000/admin/tenants/demo/subjects
 ```
 
-The response, every time, no matter how many subjects the tenant has:
+The response shape, not a captured run — `201`, the created subject:
 
 ```json
-[]
+{
+  "id": "<subject id>",
+  "type": "user",
+  "username": "ada",
+  "email": "ada@example.com",
+  "enabled": true,
+  "created_at": "<timestamp>"
+}
 ```
 
-That is a documented gap, not a claim about what the tenant contains — see
-[What is not implemented](request-paths.md#what-is-not-implemented) in
-`docs/request-paths.md` for where the real listing lands.
+A username already in use answers `409`.
+
+## `GET /subjects/:id`
+
+Requires `view-users`, the same capability the listing does. Carries an
+`ETag` computed over the response body, the same convention every other
+single-resource read in this API follows; an unknown id answers `404`.
+
+```bash
+curl -sS \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  http://localhost:3000/admin/tenants/demo/subjects/<subject id>
+```
 
 ## `GET /admin/openapi.json`
 

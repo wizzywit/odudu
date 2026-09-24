@@ -10,6 +10,7 @@ import { type FastifyPluginAsync } from 'fastify';
 import { type AuthenticateAdminDeps } from '#/usecase/authenticate-admin';
 import { type AuthorizeAdminDeps } from '#/usecase/authorize-admin';
 import { type Audit as ClientAudit } from '#/usecase/clients';
+import { type Audit as SubjectAudit } from '#/usecase/subjects';
 import { type Audit } from '#/usecase/tenants';
 import { installAdminValidator } from '#/adapter/validation';
 import { installProblemDetailsHandler } from '#/view/problem';
@@ -29,7 +30,12 @@ import {
   getSettingsHandler,
   type SettingsRouteDeps,
 } from '#/view/routes/settings';
-import { listSubjectsHandler } from '#/view/routes/subjects';
+import {
+  createSubjectHandler,
+  listSubjectsHandler,
+  readSubjectHandler,
+  type SubjectsRouteDeps,
+} from '#/view/routes/subjects';
 import {
   createTenantHandler,
   listTenantsHandler,
@@ -38,6 +44,7 @@ import {
 import { whoamiHandler } from '#/view/routes/whoami';
 
 export { ADMIN_ROUTES, type AdminRoute } from '#/service/capability';
+export { composeUserSubject, type ComposeUserSubjectInput } from '#/usecase/subjects';
 
 export interface AdminRoutesDeps {
   database: DatabaseHandle;
@@ -73,6 +80,12 @@ export function adminRoutes(deps: AdminRoutesDeps): FastifyPluginAsync {
     // it does.
     const noopAudit: Audit = () => Promise.resolve();
     const noopClientAudit: ClientAudit = () => Promise.resolve();
+    const noopSubjectAudit: SubjectAudit = () => Promise.resolve();
+    const subjectsDeps: SubjectsRouteDeps = {
+      database: deps.database.db,
+      cursorKey: deps.cursorKey,
+      audit: noopSubjectAudit,
+    };
     const tenantsDeps: TenantsRouteDeps = {
       database: deps.database.db,
       ownerDatabase: deps.ownerDatabase.db,
@@ -93,7 +106,9 @@ export function adminRoutes(deps: AdminRoutesDeps): FastifyPluginAsync {
     };
     const handlers: AdminRouteHandlers = {
       'GET /admin/tenants/:tenant/whoami': whoamiHandler,
-      'GET /admin/tenants/:tenant/subjects': listSubjectsHandler,
+      'GET /admin/tenants/:tenant/subjects': listSubjectsHandler(subjectsDeps),
+      'POST /admin/tenants/:tenant/subjects': createSubjectHandler(subjectsDeps),
+      'GET /admin/tenants/:tenant/subjects/:id': readSubjectHandler(subjectsDeps),
       'GET /admin/tenants': listTenantsHandler(tenantsDeps),
       'POST /admin/tenants': createTenantHandler(tenantsDeps),
       'GET /admin/tenants/:tenant/settings': getSettingsHandler(settingsDeps),

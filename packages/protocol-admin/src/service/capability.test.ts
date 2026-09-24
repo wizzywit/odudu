@@ -23,6 +23,6 @@ describe('requiredCapability', () => {
   it('returns undefined for a method/pattern pair no route declares', () => {
     expect(requiredCapability('DELETE', '/admin/tenants/:tenant/whoami')).toBeUndefined();
     expect(requiredCapability('GET', '/admin/tenants/:tenant/nonexistent')).toBeUndefined();
-    expect(requiredCapability('POST', '/admin/tenants/:tenant/subjects')).toBeUndefined();
+    expect(requiredCapability('DELETE', '/admin/tenants/:tenant/subjects')).toBeUndefined();
   });
 });

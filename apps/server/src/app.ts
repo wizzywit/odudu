@@ -9,19 +9,17 @@ import {
   type NewAccountInput,
 } from '@odudu/account';
 import { type DatabaseHandle, type TenantScopedDatabase } from '@odudu/db';
-import { roleRepository } from '@odudu/domain-authz';
 import { requiredActionRepository } from '@odudu/authn-flows';
 import {
   credentialRepository,
   evaluatePassword,
   hashPassword,
   REUSED_PASSWORD,
-  subjectRepository,
   userRepository,
   verifyPassword,
 } from '@odudu/domain-identity';
 import { newId } from '@odudu/kernel';
-import { adminRoutes } from '@odudu/protocol-admin';
+import { adminRoutes, composeUserSubject } from '@odudu/protocol-admin';
 import { clientKeySet, oidcRoutes } from '@odudu/protocol-oidc';
 import Fastify, { type FastifyInstance, type RawServerDefault } from 'fastify';
 import { type IncomingMessage, type ServerResponse } from 'node:http';
@@ -134,29 +132,26 @@ const THROTTLED_POSTS: ReadonlySet<string> = new Set([
 // @odudu/domain-authz (roles), so the actual writes are wired here, inside
 // the one transaction packages/account/src/usecase/register.ts already
 // opened around this call and the verify_email token issued alongside it.
+// `composeUserSubject` (@odudu/protocol-admin) is the subject/user/default-roles
+// half shared with administrative subject creation — this adds only the
+// password credential self-registration owns and the admin door does not.
 async function createAccount(
   tx: TenantScopedDatabase,
   tenantId: string,
   input: NewAccountInput,
 ): Promise<CreateAccountResult> {
-  const subject = await subjectRepository(tx).create({ tenantId, type: 'user' });
-  await userRepository(tx).create({
-    subjectId: subject.id,
+  const { subjectId } = await composeUserSubject(tx, {
     tenantId,
     username: input.username,
     email: input.email,
   });
   await credentialRepository(tx).insert({
     tenantId,
-    subjectId: subject.id,
+    subjectId,
     type: 'password',
     secret: { kind: 'password', hash: await hashPassword(input.password) },
   });
-  const defaults = await roleRepository(tx).defaultsForTenant();
-  for (const role of defaults) {
-    await roleRepository(tx).assignToSubject(subject.id, role.id);
-  }
-  return { subjectId: subject.id };
+  return { subjectId };
 }
 
 export function buildApp(deps: AppDeps): FastifyInstance {
