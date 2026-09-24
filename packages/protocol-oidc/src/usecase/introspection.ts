@@ -37,7 +37,7 @@ export type IntrospectionResponse =
     };
 
 export interface IntrospectionDeps {
-  tenantId: string;
+  readonly tenantId: string;
   readonly issuer: string;
   readonly keys: readonly SigningKeyRecord[];
   readonly lifespans: SessionLifespans;
@@ -45,7 +45,7 @@ export interface IntrospectionDeps {
   // `mintAccessToken`'s comment on why nothing else identifies one row.
   loadGrant(grantId: string): Promise<IntrospectionGrant | null>;
   isSessionLive(sessionId: string, lifespans: SessionLifespans, now: Date): Promise<boolean>;
-  liveClientLookup: LiveClientLookup;
+  readonly liveClientLookup: LiveClientLookup;
 }
 
 const INACTIVE: IntrospectionResponse = { active: false };

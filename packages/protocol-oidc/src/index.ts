@@ -192,30 +192,30 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
       });
 
     // /userinfo's own answer to "should this response be a JWT": an unknown
-    // or disabled client, or one that never registered
-    // `userinfo_signed_response_alg`, all read as `null` — the response
-    // format's default, JSON — the same way an unrecognised `client_id`
-    // reads as no CORS origins above rather than an error.
+    // client, or one that never registered `userinfo_signed_response_alg`,
+    // both read as `null` — the response format's default, JSON — the same
+    // way an unrecognised `client_id` reads as no CORS origins above rather
+    // than an error. A disabled client never reaches here at all:
+    // `resolveUserinfo`'s own `liveClientLookup` check already refused it.
     const userinfoSignedResponseAlg = (tenantId: string, oauthClientId: string) =>
       withTenant(deps.database.db, tenantId, async (tx) => {
         const client = await clientRepository(tx).byClientId(oauthClientId);
-        if (!client?.enabled) return null;
+        if (client === null) return null;
         const config = await clientOidcConfigRepository(tx).byClientId(client.id);
         return config?.userinfoSignedResponseAlg ?? null;
       });
 
     // /userinfo's answer to "should this response be encrypted" — see
     // `UserinfoDeps.userinfoEncryptionTarget` (usecase/userinfo.ts) for
-    // what `'none'` versus `'unavailable'` means. Registration is checked
-    // before `enabled`, so a disabled client that did register reaches
-    // `'unavailable'` rather than `'none'`.
+    // what `'none'` versus `'unavailable'` means. A disabled client never
+    // reaches here, the same way it never reaches
+    // `userinfoSignedResponseAlg` above.
     const userinfoEncryptionTarget = (tenantId: string, oauthClientId: string) =>
       withTenant(deps.database.db, tenantId, async (tx) => {
         const client = await clientRepository(tx).byClientId(oauthClientId);
         if (client === null) return { kind: 'none' } as const;
         const config = await clientOidcConfigRepository(tx).byClientId(client.id);
         if (config?.userinfoEncryptedResponseAlg == null) return { kind: 'none' } as const;
-        if (!client.enabled) return { kind: 'unavailable' } as const;
         return {
           kind: 'target',
           target: {

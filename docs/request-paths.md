@@ -6500,7 +6500,7 @@ flow, against `disableddoc-spa` in `disableddoc`, `scope=openid
 offline_access` and `resource=https://api.disableddoc.example` so the
 minted `aud` includes what `disableddoc-reader` is registered under — gives
 `$ACCESS_TOKEN`, `$REFRESH_TOKEN` and `$ID_TOKEN` from one grant and one
-session. While the client is still enabled, all four calls this section is
+session. While the client is still enabled, all five calls this section is
 about succeed. `/userinfo`:
 
 ```bash
@@ -6513,7 +6513,7 @@ HTTP/1.1 200 OK
 vary: Origin
 content-type: application/json; charset=utf-8
 
-{"sub":"01a0d44d-21bd-75f4-bdbe-9c0f254fefa7"}
+{"sub":"01a0d45f-9986-77b6-835a-3913b7fc63b1"}
 ```
 
 `/introspect`, called by `disableddoc-reader` rather than by
@@ -6527,7 +6527,7 @@ curl -sS -u disableddoc-reader:disableddoc-reader-secret \
 ```
 
 ```
-{"active":true,"scope":"openid offline_access","client_id":"disableddoc-spa","sub":"01a0d44d-21bd-75f4-bdbe-9c0f254fefa7","aud":["https://api.disableddoc.example","http://localhost:3000/tenants/disableddoc"],"token_type":"Bearer","exp":1790268742,"iat":1790268442}
+{"active":true,"scope":"openid offline_access","client_id":"disableddoc-spa","sub":"01a0d45f-9986-77b6-835a-3913b7fc63b1","aud":["https://api.disableddoc.example","http://localhost:3000/tenants/disableddoc"],"token_type":"Bearer","exp":1790269746,"iat":1790269446}
 ```
 
 The access token exchanged by `disableddoc-reader`:
@@ -6548,7 +6548,28 @@ cache-control: no-store
 pragma: no-cache
 content-type: application/json; charset=utf-8
 
-{"access_token":"eyJhbGciOiJSUzI1NiIs…","token_type":"Bearer","expires_in":291,"scope":"openid offline_access","issued_token_type":"urn:ietf:params:oauth:token-type:access_token"}
+{"access_token":"eyJhbGciOiJSUzI1NiIs…","token_type":"Bearer","expires_in":290,"scope":"openid offline_access","issued_token_type":"urn:ietf:params:oauth:token-type:access_token"}
+```
+
+The refresh token exchanged the same way:
+
+```bash
+curl -sS -D - -u disableddoc-reader:disableddoc-reader-secret \
+  --data-urlencode 'grant_type=urn:ietf:params:oauth:grant-type:token-exchange' \
+  --data-urlencode "subject_token=$REFRESH_TOKEN" \
+  --data-urlencode 'subject_token_type=urn:ietf:params:oauth:token-type:refresh_token' \
+  --data-urlencode 'resource=https://api.disableddoc.example' \
+  'http://localhost:3000/tenants/disableddoc/protocol/openid-connect/token'
+```
+
+```
+HTTP/1.1 200 OK
+vary: Origin
+cache-control: no-store
+pragma: no-cache
+content-type: application/json; charset=utf-8
+
+{"access_token":"eyJhbGciOiJSUzI1NiIs…","token_type":"Bearer","expires_in":300,"scope":"openid offline_access","issued_token_type":"urn:ietf:params:oauth:token-type:access_token"}
 ```
 
 And, since an `id_token`'s audience must name the requesting client (OIDC
@@ -6573,7 +6594,7 @@ cache-control: no-store
 pragma: no-cache
 content-type: application/json; charset=utf-8
 
-{"access_token":"eyJhbGciOiJSUzI1NiIs…","token_type":"Bearer","expires_in":291,"scope":"","issued_token_type":"urn:ietf:params:oauth:token-type:access_token"}
+{"access_token":"eyJhbGciOiJSUzI1NiIs…","token_type":"Bearer","expires_in":290,"scope":"","issued_token_type":"urn:ietf:params:oauth:token-type:access_token"}
 ```
 
 Disabling `disableddoc-spa` — the precondition every refusal below depends
@@ -6598,7 +6619,7 @@ docker compose -f infra/docker/compose.yaml exec -T postgres \
 
 None of `$ACCESS_TOKEN`, `$REFRESH_TOKEN`, `$ID_TOKEN` or the session
 behind them changed — every grant is still live and the session is still
-live. The identical four requests, unchanged, now all refuse. `/userinfo`:
+live. The identical five requests, unchanged, now all refuse. `/userinfo`:
 
 ```
 HTTP/1.1 401 Unauthorized
