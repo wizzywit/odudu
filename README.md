@@ -846,6 +846,33 @@ twin already was — `https`, absolute, no fragment — because the logout page
 renders it into an iframe, and a `javascript:` or bare-`http:` value would
 reach that sink unchecked otherwise.
 
+**Bootstrap the first administrator.** `odudu seed admin` creates the
+`system` tenant the first time it runs — idempotently, so a second run with
+a different username reuses the same tenant, client and roles rather than
+duplicating them — provisions its `odudu-admin` client and signing key, and
+grants the subject it creates `manage-tenants`, which reaches every tenant
+rather than just this one. Like every other seed subcommand it talks to the
+database directly and needs no running server, only migrations already
+applied:
+
+```bash
+node --env-file=.env apps/server/src/main.ts seed admin --username ada
+```
+
+The generated password is printed once, on its own line, followed by a
+sentence saying so:
+
+```
+Kx3f…redacted…9Q
+This password is shown once and cannot be retrieved again.
+```
+
+There is nowhere it is stored in the clear and nothing that mails it, so a
+lost password means seeding a new administrator, not recovering the old
+one. The account's first login is forced through a password change —
+`update-password` is queued as a required action the moment the subject is
+created.
+
 **One pass deletes everything that expires.** Every login writes an
 `authentication_sessions` row, every redemption an `authorization_codes`
 row, and every refresh rotation a `refresh_tokens` row; no repository in the

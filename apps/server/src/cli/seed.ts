@@ -1,6 +1,7 @@
+import { randomBytes } from 'node:crypto';
 import { parseArgs } from 'node:util';
 import { tenantSettingsRepository, sendVerificationEmail } from '@odudu/account';
-import { provisionTenant } from '@odudu/authn-flows';
+import { provisionTenant, requiredActionRepository } from '@odudu/authn-flows';
 import { groupRepository, roleRepository } from '@odudu/domain-authz';
 import { generateSigningKey, signingKeyRepository } from '@odudu/crypto';
 import {
@@ -24,8 +25,12 @@ import {
   clientRegistrationTokenRepository,
   clientRepository,
   clientScopeRepository,
+  provisionAdminClient,
   provisionClientDefaults,
   verifyClientSecret,
+  SYSTEM_TENANT_ID,
+  SYSTEM_TENANT_NAME,
+  TENANT_ADMIN,
   type ClientRecord,
   type ClientScopeAssignment,
   coerceTenantSetting,
@@ -514,6 +519,115 @@ async function seedClientBootstrap(opts: SeedOptions): Promise<SeedResult> {
   }
 }
 
+// 24 random bytes, base64url — a printed, single-use value, so length is
+// chosen for pasting rather than for memorability. The update-password
+// action written beside it is what makes it single-use.
+function generatedPassword(): string {
+  return randomBytes(24).toString('base64url');
+}
+
+// Mints an ES256 key only when the tenant has none, so a re-run of `seed
+// admin` against an already-bootstrapped system tenant leaves its signing
+// key alone.
+async function ensureSigningKey(
+  tx: TenantScopedDatabase,
+  tenantId: string,
+  kek: Uint8Array,
+): Promise<void> {
+  const keys = signingKeyRepository(tx);
+  if ((await keys.listPublishable()).length > 0) return;
+  const generated = await generateSigningKey('ES256', kek);
+  await keys.create({
+    id: newId(),
+    tenantId,
+    kid: generated.kid,
+    alg: generated.alg,
+    status: 'active',
+    publicJwk: generated.publicJwk,
+    privateJwkEncrypted: generated.privateJwkEncrypted,
+  });
+}
+
+export interface SeedAdminOptions {
+  readonly username: string;
+}
+
+export interface SeededAdmin {
+  readonly tenantId: string;
+  readonly subjectId: string;
+  readonly password: string;
+}
+
+// The system tenant is not a migration's doing: tenants carries FORCE ROW
+// LEVEL SECURITY, so a migration running with no app.tenant_id bound has
+// nothing to satisfy the isolation policy's WITH CHECK. This command binds
+// that GUC to the tenant's own fixed id before it looks the row up or
+// creates it, which is what lets the insert pass under a non-exempt role.
+// Idempotent throughout: a second run with a different username reuses the
+// same tenant, client and roles, and only adds the new subject.
+export async function seedAdmin(options: SeedAdminOptions): Promise<SeededAdmin> {
+  const config = loadConfig();
+  const owner = createDatabase(config.ODUDU_DATABASE_URL);
+  const runtime = config.ODUDU_APP_DATABASE_URL
+    ? createDatabase(config.ODUDU_APP_DATABASE_URL)
+    : owner;
+
+  try {
+    return await withTenant(runtime.db, SYSTEM_TENANT_ID, async (tx) => {
+      const existing = await tx
+        .select({ id: tenants.id })
+        .from(tenants)
+        .where(eq(tenants.name, SYSTEM_TENANT_NAME));
+      const tenantId = SYSTEM_TENANT_ID;
+      if (existing[0] === undefined) {
+        await tx
+          .insert(tenants)
+          .values({ id: SYSTEM_TENANT_ID, name: SYSTEM_TENANT_NAME, displayName: 'System' });
+        // Scope provisioning is an unconditional insert per tenant
+        // (provisionTenantDefaults), so it runs only the run that creates the
+        // tenant row — a re-run against an already-provisioned system tenant
+        // would otherwise collide with client_scopes_name_unique.
+        await provisionTenant(tx, tenantId);
+      }
+      const { clientDbId } = await provisionAdminClient(tx, tenantId, { crossTenant: true });
+      await ensureSigningKey(tx, tenantId, config.ODUDU_KEK);
+
+      if ((await userRepository(tx).byUsername(options.username)) !== null) {
+        throw new OduduError(
+          'seed_admin_exists',
+          `a subject named ${JSON.stringify(options.username)} already exists in the system tenant`,
+        );
+      }
+
+      const password = generatedPassword();
+      const subject = await subjectRepository(tx).create({ tenantId, type: 'user' });
+      await userRepository(tx).create({
+        subjectId: subject.id,
+        tenantId,
+        username: options.username,
+      });
+      await credentialRepository(tx).insert({
+        tenantId,
+        subjectId: subject.id,
+        type: 'password',
+        secret: { kind: 'password', hash: await hashPassword(password) },
+      });
+
+      const admin = await roleRepository(tx).byName(TENANT_ADMIN, clientDbId);
+      if (admin === null) {
+        throw new OduduError('role_not_found', 'tenant-admin was not provisioned');
+      }
+      await roleRepository(tx).assignToSubject(subject.id, admin.id);
+      await requiredActionRepository(tx).add(tenantId, subject.id, 'update-password');
+
+      return { tenantId, subjectId: subject.id, password };
+    });
+  } finally {
+    if (runtime !== owner) await runtime.close();
+    await owner.close();
+  }
+}
+
 // The tenant, client, user and role model this phase built, exposed one
 // subcommand at a time rather than through seedClientBootstrap's single
 // combined call — an admin API is a later phase's; this is what makes the
@@ -628,6 +742,13 @@ export interface RegistrationTokenCommandResult {
   token: string;
 }
 
+export interface AdminCommandResult {
+  command: 'admin';
+  tenantId: string;
+  username: string;
+  subjectId: string;
+}
+
 export type SeedCommandResult =
   | TenantCommandResult
   | ClientCommandResult
@@ -641,7 +762,8 @@ export type SeedCommandResult =
   | MapGroupRoleCommandResult
   | JoinGroupCommandResult
   | ProfileCommandResult
-  | RegistrationTokenCommandResult;
+  | RegistrationTokenCommandResult
+  | AdminCommandResult;
 
 async function requireTenantId(ownerDb: Database, tenantName: string): Promise<string> {
   const found = await tenantLookupRepository(ownerDb).byName(tenantName);
@@ -1494,6 +1616,27 @@ async function runRegistrationTokenCommand(
   });
 }
 
+// Prints the generated password itself, directly, rather than handing it to
+// main.ts to fold into the JSON report: this is the one seed subcommand
+// whose result is a credential nobody can retrieve a second time, so it
+// never reaches the JSON blob every other subcommand's result becomes.
+async function runAdminCommand(argv: readonly string[]): Promise<AdminCommandResult> {
+  const { values } = parseArgs({ args: [...argv], options: { username: { type: 'string' } } });
+  if (values.username === undefined) {
+    throw new OduduError('seed_invalid_options', 'seed admin requires --username');
+  }
+
+  const admin = await seedAdmin({ username: values.username });
+  console.log(admin.password);
+  console.log('This password is shown once and cannot be retrieved again.');
+  return {
+    command: 'admin',
+    tenantId: admin.tenantId,
+    username: values.username,
+    subjectId: admin.subjectId,
+  };
+}
+
 // Exported so main.ts can tell, before parsing anything, whether an
 // invocation names one of these subcommands or is the older
 // seedClientBootstrap form (`seed --tenant ... --client ...`) — the two
@@ -1512,6 +1655,7 @@ export const SEED_COMMANDS = [
   'join-group',
   'profile',
   'registration-token',
+  'admin',
 ] as const;
 
 type SeedCommand = (typeof SEED_COMMANDS)[number];
@@ -1527,6 +1671,14 @@ async function runSeedCommand(argv: readonly string[]): Promise<SeedCommandResul
       'seed_unknown_command',
       `unknown seed subcommand ${JSON.stringify(command)}; expected one of ${SEED_COMMANDS.join(', ')}`,
     );
+  }
+
+  // seedAdmin manages its own connections (it is also called directly, with
+  // no argv at all, by apps/server/tests/seed.int.test.ts), so this
+  // subcommand is dispatched before the pair every other one shares is
+  // opened.
+  if (command === 'admin') {
+    return await runAdminCommand(rest);
   }
 
   const config = loadConfig();

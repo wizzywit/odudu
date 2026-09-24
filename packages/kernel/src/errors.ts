@@ -21,6 +21,7 @@ export type ErrorCode =
   | 'seed_unknown_command'
   | 'seed_unknown_setting'
   | 'seed_unknown_grant_type'
+  | 'seed_admin_exists'
   | 'insert_returned_no_row'
   | 'role_not_found'
   | 'role_composite_cycle'
