@@ -187,7 +187,13 @@ export async function startAdminFixture(): Promise<AdminFixture> {
     }),
   );
   await http.register(
-    adminRoutes({ database: app, ownerDatabase: owner, logger: NO_OP_LOGGER, clock }),
+    adminRoutes({
+      database: app,
+      ownerDatabase: owner,
+      logger: NO_OP_LOGGER,
+      clock,
+      cursorKey: KEK,
+    }),
   );
   await http.ready();
 

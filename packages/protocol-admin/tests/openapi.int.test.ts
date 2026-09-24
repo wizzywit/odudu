@@ -67,9 +67,15 @@ describe('the published OpenAPI document', () => {
       components: { parameters: Record<string, { name: string; in: string }> };
     }>();
     expect(doc.components.parameters.tenant).toMatchObject({ name: 'tenant', in: 'path' });
-    for (const methods of Object.values(doc.paths)) {
+    for (const [path, methods] of Object.entries(doc.paths)) {
+      // `/admin/tenants` administers the collection itself and carries no
+      // `{tenant}` segment, so it declares no tenant parameter either —
+      // only paths that actually template `{tenant}` reference it.
+      const expected = path.includes('{tenant}')
+        ? [{ $ref: '#/components/parameters/tenant' }]
+        : [];
       for (const operation of Object.values(methods)) {
-        expect(operation.parameters).toEqual([{ $ref: '#/components/parameters/tenant' }]);
+        expect(operation.parameters).toEqual(expected);
       }
     }
   });

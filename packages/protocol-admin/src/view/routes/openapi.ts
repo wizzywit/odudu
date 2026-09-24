@@ -60,9 +60,10 @@ const PROBLEM_DETAILS_RESPONSE: OpenApiResponse = {
 };
 
 function operationFor(route: AdminRoute): OpenApiOperation {
+  const status = String(route.successStatus ?? 200);
   const responses: Record<string, OpenApiResponse> = {
-    '200': {
-      description: 'OK',
+    [status]: {
+      description: status === '201' ? 'Created' : 'OK',
       content: { 'application/json': { schema: jsonSchemaFor(route.responseSchema) } },
     },
     '401': PROBLEM_DETAILS_RESPONSE,
@@ -76,7 +77,11 @@ function operationFor(route: AdminRoute): OpenApiOperation {
       route.capability === null
         ? 'Requires an authenticated admin caller.'
         : `Requires the "${route.capability}" capability.`,
-    parameters: [{ $ref: '#/components/parameters/tenant' }],
+    // A route with no `:tenant` segment administers the collection itself,
+    // not one tenant's data, so it carries no tenant path parameter.
+    parameters: route.pattern.includes(':tenant')
+      ? [{ $ref: '#/components/parameters/tenant' }]
+      : [],
     responses,
   };
 }

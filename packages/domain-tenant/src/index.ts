@@ -8,6 +8,7 @@ export {
 export {
   ADMIN_API_AUDIENCE,
   ADMIN_CLIENT_ID,
+  isSystemTenantName,
   MANAGE_TENANTS,
   SYSTEM_TENANT_ID,
   SYSTEM_TENANT_NAME,

@@ -31,6 +31,13 @@ export const TENANT_ADMIN = 'tenant-admin';
 
 export const MANAGE_TENANTS = 'manage-tenants';
 
+// The one predicate both doors that can create a tenant — the admin API's
+// `createTenant` and `seed tenant` — refuse a name through, so a caller
+// cannot get two different answers depending on which one it asked.
+export function isSystemTenantName(name: string): boolean {
+  return name === SYSTEM_TENANT_NAME;
+}
+
 const VIEW_COUNTERPARTS: Partial<Record<TenantCapability, TenantCapability>> = {
   'manage-users': 'view-users',
 };

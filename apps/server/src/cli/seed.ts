@@ -25,6 +25,7 @@ import {
   clientRegistrationTokenRepository,
   clientRepository,
   clientScopeRepository,
+  isSystemTenantName,
   provisionClientDefaults,
   verifyClientSecret,
   SYSTEM_TENANT_ID,
@@ -860,6 +861,19 @@ interface ResolvedRole {
   id: string;
 }
 
+// The admin API's `createTenant` refuses this same name with 409 rather
+// than the unique index's constraint violation, by the same predicate
+// (isSystemTenantName, @odudu/domain-tenant) — exported so a test can
+// prove this door gives the identical answer without opening a database.
+export function refuseSystemTenantName(name: string): void {
+  if (isSystemTenantName(name)) {
+    throw new OduduError(
+      'seed_system_tenant_conflict',
+      `${name} is the reserved name of the system tenant`,
+    );
+  }
+}
+
 async function requireRoleByQualifiedName(
   tx: TenantScopedDatabase,
   qualifiedName: string,
@@ -887,6 +901,7 @@ async function runTenantCommand(
     throw new OduduError('seed_invalid_options', 'seed tenant requires --name');
   }
   const tenantName = values.name;
+  refuseSystemTenantName(tenantName);
   // Parsed before the tenant is touched, so a typo in the third --set does
   // not leave the first two applied.
   const settings = parseSettings(values.set ?? []);

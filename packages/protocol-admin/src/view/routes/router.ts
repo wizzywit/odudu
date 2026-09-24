@@ -11,12 +11,16 @@ import {
 import { authorizeAdmin, type AuthorizeAdminDeps } from '#/usecase/authorize-admin';
 import { problem, sendProblem } from '#/view/problem';
 
-export type AdminRequest = FastifyRequest<{ Params: { tenant: string } }>;
+// Optional: `/admin/tenants` itself carries no `:tenant` segment (see
+// `targetTenantNameFor` below), so Fastify never populates this param for
+// it — the type says so rather than leaving a reader to notice at runtime.
+export type AdminRequest = FastifyRequest<{ Params: { tenant?: string } }>;
 
 export type AdminRouteHandler = (
   request: AdminRequest,
   reply: FastifyReply,
   principal: AdminPrincipal,
+  targetTenantId: string,
 ) => FastifyReply | Promise<FastifyReply>;
 
 /** Keyed by `"<method> <pattern>"`, exactly matching an `ADMIN_ROUTES` entry. */
@@ -34,6 +38,21 @@ function sendForbidden(request: FastifyRequest, reply: FastifyReply): FastifyRep
   return sendProblem(reply, request, problem(403, 'about:blank', 'Forbidden'));
 }
 
+// A route's target tenant comes from its own path when it has one. The
+// handful with no `:tenant` segment administer the tenant collection
+// itself, not any one tenant's data — so their target is the system
+// tenant, explicitly, rather than an absent path param read as one by
+// accident. `route.pattern` (the table entry), not `request.params`,
+// decides which case this is, so the two can never disagree.
+function targetTenantNameFor(route: AdminRoute, params: { tenant?: string }): string {
+  if (!route.pattern.includes(':tenant')) return SYSTEM_TENANT_NAME;
+  const tenant = params.tenant;
+  if (tenant === undefined) {
+    throw new Error(`protocol-admin: route ${route.pattern} declares :tenant but received none`);
+  }
+  return tenant;
+}
+
 async function handleRoute(
   route: AdminRoute,
   handler: AdminRouteHandler,
@@ -43,13 +62,14 @@ async function handleRoute(
   request: AdminRequest,
   reply: FastifyReply,
 ): Promise<FastifyReply> {
-  const targetTenant = await authDeps.findTenant(request.params.tenant);
+  const targetTenantName = targetTenantNameFor(route, request.params);
+  const targetTenant = await authDeps.findTenant(targetTenantName);
   if (targetTenant === null) return sendUnauthorized(request, reply);
 
   const outcome = await authenticateAdmin(authDeps, {
     authorizationHeader: request.headers.authorization,
-    targetTenantName: request.params.tenant,
-    targetTenantIssuer: tenantIssuerFor(request, request.params.tenant),
+    targetTenantName,
+    targetTenantIssuer: tenantIssuerFor(request, targetTenantName),
     systemTenantIssuer: tenantIssuerFor(request, SYSTEM_TENANT_NAME),
     now: clock.now(),
   });
@@ -63,7 +83,7 @@ async function handleRoute(
   );
   if (decision === 'forbidden') return sendForbidden(request, reply);
 
-  return handler(request, reply, outcome.principal);
+  return handler(request, reply, outcome.principal, targetTenant.id);
 }
 
 /**
@@ -89,7 +109,7 @@ export function registerAdminRoutes(
     }
     unclaimed.delete(key);
 
-    app.route<{ Params: { tenant: string } }>({
+    app.route<{ Params: { tenant?: string } }>({
       method: route.method,
       url: route.pattern,
       handler: (request, reply) =>

@@ -1,0 +1,145 @@
+import { provisionTenant } from '@odudu/authn-flows';
+import { tenants, withTenant, type Database } from '@odudu/db';
+import { isSystemTenantName } from '@odudu/domain-tenant';
+import { newId } from '@odudu/kernel';
+import { provisionAdminClient } from '@odudu/protocol-oidc';
+import { asc, gt } from 'drizzle-orm';
+import { decodeCursor, encodeCursor } from '#/service/cursor';
+
+const COLLECTION = 'tenants';
+
+const TENANT_COLUMNS = {
+  id: tenants.id,
+  name: tenants.name,
+  displayName: tenants.displayName,
+  enabled: tenants.enabled,
+  createdAt: tenants.createdAt,
+};
+
+export interface TenantRecord {
+  readonly id: string;
+  readonly name: string;
+  readonly displayName: string | null;
+  readonly enabled: boolean;
+  readonly createdAt: Date;
+}
+
+export interface TenantAuditEvent {
+  readonly action: 'tenant.create';
+  readonly resourceType: 'tenant';
+  readonly resourceId: string;
+  readonly actorSubjectId: string;
+}
+
+/**
+ * The write Increment 13 gives a real sink (`audit_events`): until then the
+ * composition root supplies a function that does nothing, and this is the
+ * only seam a test has to prove a mutation still calls it.
+ */
+export type Audit = (event: TenantAuditEvent) => Promise<void>;
+
+export interface CreateTenantInput {
+  readonly name: string;
+  readonly displayName?: string | undefined;
+  readonly actorSubjectId: string;
+}
+
+export interface CreateTenantDeps {
+  readonly ownerDatabase: Database;
+  readonly database: Database;
+  readonly audit: Audit;
+}
+
+export type CreateTenantOutcome =
+  { kind: 'created'; tenant: TenantRecord } | { kind: 'name_refused' };
+
+/**
+ * The row is inserted through the owner connection — the same RLS bypass
+ * `tenantLookupRepository.create` uses (@odudu/protocol-oidc) — because no
+ * tenant context can exist before this tenant does. `provisionTenant` and
+ * `provisionAdminClient` then run bound to the row just inserted, in the
+ * same sense `withTenant` gives any other write.
+ */
+export async function createTenant(
+  deps: CreateTenantDeps,
+  input: CreateTenantInput,
+): Promise<CreateTenantOutcome> {
+  // Left to the unique index, this would surface as a constraint violation
+  // with no reason attached. `apps/server/src/cli/seed.ts`'s
+  // `refuseSystemTenantName` refuses the identical name through the same
+  // predicate, so the two doors cannot disagree.
+  if (isSystemTenantName(input.name)) return { kind: 'name_refused' };
+
+  const id = newId();
+  const rows = await deps.ownerDatabase
+    .insert(tenants)
+    .values({ id, name: input.name, displayName: input.displayName ?? null })
+    .returning(TENANT_COLUMNS);
+  const created = rows[0];
+  if (created === undefined) {
+    throw new Error('insert into tenants returned no row');
+  }
+
+  await withTenant(deps.database, id, async (tx) => {
+    await provisionTenant(tx, id);
+    await provisionAdminClient(tx, id);
+  });
+
+  await deps.audit({
+    action: 'tenant.create',
+    resourceType: 'tenant',
+    resourceId: id,
+    actorSubjectId: input.actorSubjectId,
+  });
+
+  return { kind: 'created', tenant: created };
+}
+
+export interface ListTenantsInput {
+  readonly limit: number;
+  readonly cursor: string | undefined;
+  readonly cursorKey: Uint8Array;
+  // Cursors are bound to the tenant that scopes this listing — `system`,
+  // since only a system admin ever reaches this collection — so one minted
+  // here cannot be replayed against a list bound to another tenant's path.
+  readonly tenantId: string;
+}
+
+export type ListTenantsOutcome =
+  { kind: 'invalid_cursor' } | { kind: 'ok'; items: readonly TenantRecord[]; next: string | null };
+
+// The system tenant appears in this listing like any other — hiding it
+// would make the one tenant an operator most needs to inspect the one they
+// cannot.
+export async function listTenants(
+  database: Database,
+  input: ListTenantsInput,
+): Promise<ListTenantsOutcome> {
+  let after: string | undefined;
+  if (input.cursor !== undefined) {
+    const decoded = decodeCursor(input.cursorKey, COLLECTION, input.tenantId, input.cursor);
+    if (decoded.kind === 'invalid') return { kind: 'invalid_cursor' };
+    after = decoded.after;
+  }
+
+  const rows = await database
+    .select(TENANT_COLUMNS)
+    .from(tenants)
+    .where(after === undefined ? undefined : gt(tenants.id, after))
+    .orderBy(asc(tenants.id))
+    .limit(input.limit + 1);
+
+  const hasMore = rows.length > input.limit;
+  const items = hasMore ? rows.slice(0, input.limit) : rows;
+  const last = items[items.length - 1];
+  const next =
+    hasMore && last !== undefined
+      ? encodeCursor(input.cursorKey, {
+          after: last.id,
+          collection: COLLECTION,
+          tenantId: input.tenantId,
+        })
+      : null;
+
+  return { kind: 'ok', items, next };
+}

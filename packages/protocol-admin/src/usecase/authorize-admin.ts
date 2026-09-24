@@ -1,5 +1,6 @@
 import { type EffectiveRole } from '@odudu/domain-authz';
-import { ADMIN_CLIENT_ID, MANAGE_TENANTS, type TenantCapability } from '@odudu/domain-tenant';
+import { ADMIN_CLIENT_ID, MANAGE_TENANTS } from '@odudu/domain-tenant';
+import { type AdminCapability } from '#/service/capability';
 import { type AdminPrincipal } from '#/usecase/authenticate-admin';
 
 export interface AuthorizeAdminDeps {
@@ -23,7 +24,7 @@ export async function authorizeAdmin(
   deps: AuthorizeAdminDeps,
   principal: AdminPrincipal,
   target: AuthorizeAdminTarget,
-  required: TenantCapability | null,
+  required: AdminCapability | null,
 ): Promise<AuthorizeAdminOutcome> {
   const crossTenant = principal.issuerTenantId !== target.tenantId;
   if (!crossTenant && required === null) return 'allowed';

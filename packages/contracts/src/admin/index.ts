@@ -7,3 +7,11 @@ export {
   createdAtSchema,
   etagSchema,
 } from '#/admin/shared';
+export {
+  createTenantRequestSchema,
+  type CreateTenantRequest,
+  tenantSchema,
+  type Tenant,
+  listTenantsResponseSchema,
+  type ListTenantsResponse,
+} from '#/admin/tenants';

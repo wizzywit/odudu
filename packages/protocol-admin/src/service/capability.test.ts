@@ -6,6 +6,11 @@ describe('requiredCapability', () => {
     expect(requiredCapability('GET', '/admin/tenants/:tenant/subjects')).toBe('view-users');
   });
 
+  it('requires manage-tenants for the tenant collection, which carries no :tenant segment', () => {
+    expect(requiredCapability('GET', '/admin/tenants')).toBe('manage-tenants');
+    expect(requiredCapability('POST', '/admin/tenants')).toBe('manage-tenants');
+  });
+
   it('is authentication alone for whoami, and for no other route', () => {
     const nullCapabilityRoutes = ADMIN_ROUTES.filter((route) => route.capability === null).map(
       ({ method, pattern, capability }) => ({ method, pattern, capability }),

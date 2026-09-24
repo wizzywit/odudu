@@ -222,6 +222,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
       database: deps.database,
       ownerDatabase: deps.ownerDatabase,
       logger: deps.logger,
+      cursorKey: deps.kek,
     }),
   );
   app.register(

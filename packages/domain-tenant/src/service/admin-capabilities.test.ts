@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   ADMIN_CLIENT_ID,
+  isSystemTenantName,
   MANAGE_TENANTS,
   SYSTEM_TENANT_NAME,
   TENANT_ADMIN,
@@ -38,5 +39,11 @@ describe('admin capabilities', () => {
   it('fixes the built-in client id and the system tenant name', () => {
     expect(ADMIN_CLIENT_ID).toBe('odudu-admin');
     expect(SYSTEM_TENANT_NAME).toBe('system');
+  });
+
+  it('flags only the system tenant name as reserved', () => {
+    expect(isSystemTenantName('system')).toBe(true);
+    expect(isSystemTenantName('acme')).toBe(false);
+    expect(isSystemTenantName('System')).toBe(false);
   });
 });

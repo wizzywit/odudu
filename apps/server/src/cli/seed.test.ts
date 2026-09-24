@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { seed } from '#/cli/seed';
+import { refuseSystemTenantName, seed } from '#/cli/seed';
 
 // These assertions all happen before the seed command opens a database
 // connection, so they need no Postgres — packages/db's Testcontainers
@@ -60,5 +60,16 @@ describe('seed option validation', () => {
         sendVerificationEmail: true,
       }),
     ).rejects.toThrow(/sendVerificationEmail/);
+  });
+});
+
+describe('seed tenant', () => {
+  it('refuses the reserved system tenant name, the same as the admin API', () => {
+    expect(() => {
+      refuseSystemTenantName('system');
+    }).toThrow(/reserved/);
+    expect(() => {
+      refuseSystemTenantName('acme');
+    }).not.toThrow();
   });
 });
