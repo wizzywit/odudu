@@ -1129,7 +1129,6 @@ Every row says where it stands, and every row has a phase:
 | A consent screen — `consent_required` is recorded per client, nothing reads it yet                     | P3a             |
 | An account console for self-service credential management, and an operator unlock for a locked account | P4d             |
 | An admin API — seeding is the only administrative surface                                              | P4c             |
-| Signing-key rotation — the shape exists, the operation does not                                        | P4c             |
 | Published images and a release process                                                                 | P12             |
 | Secret management beyond environment variables                                                         | P12             |
 | Backup and restore guidance                                                                            | P12             |

@@ -36,7 +36,7 @@ async function serverDiscoveryDocument(): Promise<Record<string, unknown>> {
       // `seed bootstrap` generates a tenant's first signing key as RS256
       // (apps/server/src/cli/seed.ts) — the same key a freshly seeded
       // stack's `/userinfo` would sign with.
-      activeSigningKeyAlg: () => Promise.resolve('RS256'),
+      algorithmsAvailable: () => Promise.resolve(['RS256']),
       // Fixed by the installed jose, not by anything `seed` writes — the
       // same two call sites `usecase/discovery.ts`'s own reading note names.
       userinfoEncryptionAlgSupported: JWE_ALGS_PERMITTED,

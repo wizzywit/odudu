@@ -8410,16 +8410,6 @@ session lifecycle. A citation of either half here means that half.
   Operational readiness, appended on 2026-09-14 because none of it had a
   phase. Its position in the table is not a dependency: publishing an image
   waits on nothing, and `README.md` says what can be pulled forward.
-- **Key rotation is not implemented.** A tenant has one active signing key,
-  created when it is seeded; the shape supports more than one, and the
-  operation that would create a second does not exist. **P4c**, whose exit
-  criterion now names promoting a new key and retiring the one it replaces
-  on the overlap window the design specification states. It landed there
-  rather than in P3a or P3b because no relying party's request triggers a
-  rotation:
-  it is an operator action, and it needs the authenticated administrator,
-  the audit event and the surface to trigger it from that P4c is the phase
-  for.
 - **Expired state is deleted, on a window per table, by one pass** —
   `odudu reap`, on the server's own schedule or as a command
   ([Retention](#retention-what-odudu-reap-removes)). What is not there yet:

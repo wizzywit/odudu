@@ -77,13 +77,10 @@ export function signingKeyRepository(tx: TenantScopedDatabase) {
 
     // Demotes whatever is currently active and promotes `id` in the same
     // transaction, so no window has two actives or none. Locked before
-    // either write: two concurrent promotes of different keys must
-    // serialise on whichever row is active right now, or each can finish
-    // believing it alone holds it — the second then collides with the
-    // first's already-committed active row on `signing_keys_one_active`
-    // (packages/protocol-admin/tests/keys.int.test.ts's concurrent-promote
-    // case). `null` for a missing or already-retired target — nothing
-    // promotes a key that no longer exists to promote.
+    // either write: two concurrent promotes must serialise on whichever row
+    // is active right now, or each can finish believing it alone holds it
+    // and collide on `signing_keys_one_active` instead. `null` for a
+    // missing or already-retired target.
     async promote(id: string): Promise<SigningKeyRecord | null> {
       const targetRows = await tx
         .select()
@@ -100,7 +97,10 @@ export function signingKeyRepository(tx: TenantScopedDatabase) {
         .for('update');
       for (const row of activeRows) {
         if (row.id !== target.id) {
-          await tx.update(signingKeys).set({ status: 'rotating' }).where(eq(signingKeys.id, row.id));
+          await tx
+            .update(signingKeys)
+            .set({ status: 'rotating' })
+            .where(eq(signingKeys.id, row.id));
         }
       }
 

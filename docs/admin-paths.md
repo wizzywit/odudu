@@ -109,6 +109,10 @@ document's.
 | `DELETE` | `/admin/tenants/{tenant}/scopes/:id`                             | Delete a client scope            |
 | `PUT`    | `/admin/tenants/{tenant}/scopes/:id/roles`                       | Replace a scope's roles          |
 | `PUT`    | `/admin/tenants/{tenant}/scopes/:id/clients/:clientId`           | Assign a scope to a client       |
+| `GET`    | `/admin/tenants/{tenant}/keys`                                   | List signing keys                |
+| `POST`   | `/admin/tenants/{tenant}/keys`                                   | Stage a signing key              |
+| `POST`   | `/admin/tenants/{tenant}/keys/:id/promote`                       | Promote a signing key            |
+| `POST`   | `/admin/tenants/{tenant}/keys/:id/retire`                        | Retire a signing key             |
 | `GET`    | `/admin/openapi.json`                                            | The OpenAPI reference            |
 
 ## `GET /admin/tenants`
@@ -896,6 +900,58 @@ The response shape, not a captured run — `scopes` is the field
   "id": "<client id>",
   "client_id": "demo-backend",
   "scopes": [{ "id": "<scope id>", "name": "billing", "assignment": "default" }]
+}
+```
+
+## `GET /keys`, `POST /keys`, `POST /keys/:id/promote` and `POST /keys/:id/retire`
+
+All four require `manage-keys`, never `manage-tenant` — a tenant admin who
+may reconfigure clients need not also be trusted to rotate what signs their
+tokens. `GET /keys` lists `id`, `status`, `kid`, `alg`, `created_at` and
+`not_after`; it never carries `public_jwk` or `private_jwk_encrypted`, the
+signing key's own admin representation being metadata about it rather than
+the key itself.
+
+`POST /keys` generates a key of the given `alg` (`RS256` or `ES256`) and
+stores it as `rotating`, published in `/certs` (JWKS) immediately —
+`signing_keys_one_active` constrains `active` alone, so staging never
+collides with it. `POST /keys/:id/promote` demotes the tenant's current
+`active` key to `rotating` and promotes this one, in one transaction: no
+window has two active keys or none. `POST /keys/:id/retire` answers `409`
+in two cases, checked in that order: while the key's own status is
+`active` — promote another key first, however well its algorithm is
+otherwise covered — and, once that is ruled out, while a client is still
+registered with a `userinfo_signed_response_alg` no remaining non-retired
+key would produce, naming the offending client id(s) in the response
+`detail`.
+
+This ordering exists to dissolve a deadlock: registration itself refuses a
+`userinfo_signed_response_alg` no non-retired key produces
+(`client-registration.ts`'s own `algorithmsAvailable` check), so a client
+cannot move to a new algorithm before something can sign it, and retiring
+the old key first would leave nothing able to sign for a client still on
+it. Staging a key as `rotating` makes its algorithm producible before it is
+default, which is what lets a client migrate ahead of the promotion that
+makes the new key the tenant's own.
+
+```bash
+curl -sS -X POST \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"alg": "RS256"}' \
+  http://localhost:3000/admin/tenants/demo/keys
+```
+
+The response shape, not a captured run:
+
+```json
+{
+  "id": "<key id>",
+  "status": "rotating",
+  "kid": "<kid>",
+  "alg": "RS256",
+  "created_at": "2026-09-24T00:00:00.000Z",
+  "not_after": null
 }
 ```
 

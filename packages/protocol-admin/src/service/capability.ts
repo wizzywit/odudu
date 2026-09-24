@@ -16,10 +16,12 @@ import {
   createSubjectRequestSchema,
   createTenantRequestSchema,
   cursorQuerySchema,
+  createKeyRequestSchema,
   groupSchema,
   listClientsResponseSchema,
   listCredentialsResponseSchema,
   listGroupsResponseSchema,
+  listKeysResponseSchema,
   listRolesResponseSchema,
   listScopesResponseSchema,
   listSessionsResponseSchema,
@@ -38,6 +40,7 @@ import {
   setScopeRolesResponseSchema,
   settingsSchema,
   clientScopeSchema,
+  signingKeySchema,
   subjectSchema,
   tenantSchema,
 } from '@odudu/contracts/admin';
@@ -386,6 +389,42 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     bodySchema: assignScopeToClientRequestSchema,
     description:
       'Assigns the scope to the client as default or optional, replacing any existing assignment.',
+  },
+  // Signing keys: manage-keys, not manage-tenant — a tenant admin who may
+  // reconfigure clients need not also be trusted to rotate what signs
+  // their tokens. No amend: a key is created, promoted or retired, never
+  // patched.
+  {
+    method: 'GET',
+    pattern: '/admin/tenants/:tenant/keys',
+    capability: 'manage-keys',
+    responseSchema: listKeysResponseSchema,
+    querystringSchema: cursorQuerySchema,
+  },
+  {
+    method: 'POST',
+    pattern: '/admin/tenants/:tenant/keys',
+    capability: 'manage-keys',
+    responseSchema: signingKeySchema,
+    successStatus: 201,
+    bodySchema: createKeyRequestSchema,
+    description: 'Generates a key and stores it as rotating, published in JWKS immediately.',
+  },
+  {
+    method: 'POST',
+    pattern: '/admin/tenants/:tenant/keys/:id/promote',
+    capability: 'manage-keys',
+    responseSchema: signingKeySchema,
+    description: 'Demotes the current active key to rotating and promotes this one, atomically.',
+  },
+  {
+    method: 'POST',
+    pattern: '/admin/tenants/:tenant/keys/:id/retire',
+    capability: 'manage-keys',
+    responseSchema: signingKeySchema,
+    description:
+      'Refused with 409 while the key is active, or while a client is registered against ' +
+      'an algorithm no remaining key would produce.',
   },
 ];
 

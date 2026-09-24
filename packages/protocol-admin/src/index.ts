@@ -11,6 +11,7 @@ import { type AuthenticateAdminDeps } from '#/usecase/authenticate-admin';
 import { type AuthorizeAdminDeps } from '#/usecase/authorize-admin';
 import { type Audit as ClientAudit } from '#/usecase/clients';
 import { type Audit as GroupAudit } from '#/usecase/groups';
+import { type Audit as KeyAudit } from '#/usecase/keys';
 import { type Audit as RoleAudit } from '#/usecase/roles';
 import { type Audit as ScopeAudit } from '#/usecase/scopes';
 import { type Audit as SessionAudit } from '#/usecase/sessions';
@@ -36,6 +37,13 @@ import {
   setGroupRolesHandler,
   type GroupsRouteDeps,
 } from '#/view/routes/groups';
+import {
+  createKeyHandler,
+  listKeysHandler,
+  promoteKeyHandler,
+  retireKeyHandler,
+  type KeysRouteDeps,
+} from '#/view/routes/keys';
 import { registerOpenApiRoute } from '#/view/routes/openapi';
 import {
   addRoleCompositeHandler,
@@ -128,6 +136,7 @@ export function adminRoutes(deps: AdminRoutesDeps): FastifyPluginAsync {
     const noopRoleAudit: RoleAudit = () => Promise.resolve();
     const noopGroupAudit: GroupAudit = () => Promise.resolve();
     const noopScopeAudit: ScopeAudit = () => Promise.resolve();
+    const noopKeyAudit: KeyAudit = () => Promise.resolve();
     // Same call `authzDeps.effectiveRoles` makes below, scoped to whichever
     // tenant the caller's own token was issued from — never the target
     // tenant a cross-tenant system admin is reaching into. Shared by
@@ -168,6 +177,12 @@ export function adminRoutes(deps: AdminRoutesDeps): FastifyPluginAsync {
       cursorKey: deps.cursorKey,
       audit: noopScopeAudit,
       callerCapabilities,
+    };
+    const keysDeps: KeysRouteDeps = {
+      database: deps.database.db,
+      cursorKey: deps.cursorKey,
+      kek: deps.kek,
+      audit: noopKeyAudit,
     };
     const tenantsDeps: TenantsRouteDeps = {
       database: deps.database.db,
@@ -241,6 +256,10 @@ export function adminRoutes(deps: AdminRoutesDeps): FastifyPluginAsync {
       'PUT /admin/tenants/:tenant/scopes/:id/roles': setScopeRolesHandler(scopesDeps),
       'PUT /admin/tenants/:tenant/scopes/:id/clients/:clientId':
         assignScopeToClientHandler(scopesDeps),
+      'GET /admin/tenants/:tenant/keys': listKeysHandler(keysDeps),
+      'POST /admin/tenants/:tenant/keys': createKeyHandler(keysDeps),
+      'POST /admin/tenants/:tenant/keys/:id/promote': promoteKeyHandler(keysDeps),
+      'POST /admin/tenants/:tenant/keys/:id/retire': retireKeyHandler(keysDeps),
     };
 
     const authDeps: AuthenticateAdminDeps = {

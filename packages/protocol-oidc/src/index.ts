@@ -228,7 +228,9 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
     // Empty rather than thrown: a tenant provisioned before its first
     // signing key still gets a discovery document.
     const algorithmsAvailable = (tenantId: string) =>
-      withTenant(deps.database.db, tenantId, (tx) => signingKeyRepository(tx).algorithmsAvailable());
+      withTenant(deps.database.db, tenantId, (tx) =>
+        signingKeyRepository(tx).algorithmsAvailable(),
+      );
 
     // One definition, read by discovery for scopes_supported and by
     // /authorize for what it will accept, so the advertised list and the

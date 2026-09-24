@@ -123,3 +123,17 @@ export {
   assignScopeToClientRequestSchema,
   type AssignScopeToClientRequest,
 } from '#/admin/scopes';
+export {
+  signingKeyAlgSchema,
+  type SigningKeyAlg,
+  signingKeyStatusSchema,
+  type SigningKeyStatus,
+  signingKeySchema,
+  type SigningKey,
+  listKeysQuerySchema,
+  type ListKeysQuery,
+  listKeysResponseSchema,
+  type ListKeysResponse,
+  createKeyRequestSchema,
+  type CreateKeyRequest,
+} from '#/admin/keys';
