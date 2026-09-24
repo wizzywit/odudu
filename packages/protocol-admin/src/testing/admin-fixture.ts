@@ -23,7 +23,6 @@ import {
   ADMIN_CLIENT_ID,
   clientRepository,
   clients,
-  provisionAdminClient,
   provisionClientDefaults,
   SYSTEM_TENANT_ID,
   SYSTEM_TENANT_NAME,
@@ -35,7 +34,7 @@ import {
   clientOidcConfigRepository,
   NO_CLIENT_KEY_FETCHER,
   oidcRoutes,
-  provisionAdminClientOidc,
+  provisionAdminClient,
   tenantIssuerFor,
   tokenGrantRepository,
   UNLIMITED_CLIENT_SECRET_LIMITER,
@@ -227,8 +226,7 @@ export async function startAdminFixture(): Promise<AdminFixture> {
     await withTenant(app.db, id, async (tx) => {
       await tx.insert(tenants).values({ id, name });
       await provisionTenant(tx, id);
-      const { clientDbId } = await provisionAdminClient(tx, id, options);
-      await provisionAdminClientOidc(tx, id, clientDbId);
+      await provisionAdminClient(tx, id, options);
       const generated = await generateSigningKey('ES256', KEK);
       await signingKeyRepository(tx).create({
         id: newId(),

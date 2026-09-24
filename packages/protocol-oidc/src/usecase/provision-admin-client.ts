@@ -1,5 +1,10 @@
 import { type TenantScopedDatabase } from '@odudu/db';
-import { ADMIN_API_AUDIENCE } from '@odudu/domain-tenant';
+import {
+  ADMIN_API_AUDIENCE,
+  provisionAdminClient as provisionClientAndRoles,
+  type ProvisionAdminClientOptions,
+  type ProvisionedAdminClient,
+} from '@odudu/domain-tenant';
 import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
 
 /**
@@ -13,12 +18,22 @@ import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
 export const ADMIN_CLIENT_REDIRECT_URI = 'http://127.0.0.1:8080/callback';
 
 /**
- * The OIDC configuration of the built-in admin client, which
- * `provisionAdminClient` (@odudu/domain-tenant) cannot write itself
- * because the table belongs to this package. Idempotent: a client that
- * already has a configuration keeps it.
+ * The built-in admin client, whole: the client row and its capability
+ * roles, which @odudu/domain-tenant owns, plus the OIDC configuration
+ * without which /authorize refuses it, whose table belongs here. This is
+ * the one every caller wants. Idempotent in both halves.
  */
-export async function provisionAdminClientOidc(
+export async function provisionAdminClient(
+  tx: TenantScopedDatabase,
+  tenantId: string,
+  options: ProvisionAdminClientOptions = {},
+): Promise<ProvisionedAdminClient> {
+  const provisioned = await provisionClientAndRoles(tx, tenantId, options);
+  await provisionOidcConfig(tx, tenantId, provisioned.clientDbId);
+  return provisioned;
+}
+
+async function provisionOidcConfig(
   tx: TenantScopedDatabase,
   tenantId: string,
   clientDbId: string,

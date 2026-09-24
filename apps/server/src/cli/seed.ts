@@ -25,7 +25,6 @@ import {
   clientRegistrationTokenRepository,
   clientRepository,
   clientScopeRepository,
-  provisionAdminClient,
   provisionClientDefaults,
   verifyClientSecret,
   SYSTEM_TENANT_ID,
@@ -39,7 +38,7 @@ import { loadConfig, newId, OduduError } from '@odudu/kernel';
 import {
   clientOidcConfigRepository,
   GRANT_TYPES_PERMITTED,
-  provisionAdminClientOidc,
+  provisionAdminClient,
   tenantLookupRepository,
   type ClientOidcConfig,
 } from '@odudu/protocol-oidc';
@@ -623,7 +622,6 @@ export async function seedAdmin(options: SeedAdminOptions): Promise<SeededAdmin>
         await provisionTenant(tx, tenantId);
       }
       const { clientDbId } = await provisionAdminClient(tx, tenantId, { crossTenant: true });
-      await provisionAdminClientOidc(tx, tenantId, clientDbId);
       await ensureSigningKey(tx, tenantId, config.ODUDU_KEK);
 
       if ((await userRepository(tx).byUsername(options.username)) !== null) {
