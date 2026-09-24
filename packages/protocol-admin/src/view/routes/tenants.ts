@@ -1,10 +1,6 @@
-import {
-  createTenantRequestSchema,
-  cursorQuerySchema,
-  DEFAULT_LIMIT,
-  type Tenant,
-} from '@odudu/contracts/admin';
+import { createTenantRequestSchema, cursorQuerySchema, type Tenant } from '@odudu/contracts/admin';
 import { type Database } from '@odudu/db';
+import { coerceLimit } from '#/service/cursor';
 import { createTenant, listTenants, type Audit, type TenantRecord } from '#/usecase/tenants';
 import { problem, sendProblem } from '#/view/problem';
 import { type AdminRouteHandler } from '#/view/routes/router';
@@ -63,11 +59,13 @@ export function createTenantHandler(deps: TenantsRouteDeps): AdminRouteHandler {
 export function listTenantsHandler(deps: TenantsRouteDeps): AdminRouteHandler {
   return async (request, reply, _principal, targetTenantId) => {
     // Same narrowing as above: ADMIN_ROUTES' `querystringSchema` already
-    // validated and coerced `limit`/`cursor` (coerceTypes turns "10" into
-    // 10, and MAX_LIMIT bounds it — @odudu/protocol-admin's coerceLimit is
-    // not a second authority on this route).
+    // validated `limit`/`cursor`'s shape (coerceTypes turns "10" into 10),
+    // but refuses none above MAX_LIMIT — an over-large page size is coerced
+    // down, not rejected (design spec §9). coerceLimit is the one place
+    // that clamps, so the shape it already checked is re-stated as a
+    // string rather than duplicated as a second bound.
     const query = cursorQuerySchema.parse(request.query);
-    const limit = query.limit ?? DEFAULT_LIMIT;
+    const limit = coerceLimit(query.limit === undefined ? undefined : String(query.limit));
 
     // Listing the collection is inherently cross-tenant, so it reads
     // through the owner connection — the same bypass `createTenant` and

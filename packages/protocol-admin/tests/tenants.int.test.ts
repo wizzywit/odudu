@@ -1,4 +1,5 @@
 import { executionRepository } from '@odudu/authn-flows';
+import { MAX_LIMIT } from '@odudu/contracts/admin';
 import { signingKeyRepository } from '@odudu/crypto';
 import { withTenant } from '@odudu/db';
 import { clientRepository, TENANT_CAPABILITIES } from '@odudu/domain-tenant';
@@ -157,6 +158,17 @@ describe('GET /admin/tenants', () => {
       headers: { authorization: `Bearer ${token}` },
     });
     expect(res.statusCode).toBe(403);
+  });
+
+  it('clamps an over-large limit rather than refusing it', async () => {
+    const token = await fixture.systemAdminToken(['manage-tenants']);
+    const res = await fixture.http.inject({
+      method: 'GET',
+      url: '/admin/tenants?limit=1000',
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json<{ items: unknown[] }>().items.length).toBeLessThanOrEqual(MAX_LIMIT);
   });
 });
 
