@@ -327,15 +327,8 @@ PostgreSQL does not have. Nothing has hit this: `REAP_ORDER`
 so reap never deletes a session a live grant references. The fix is the
 same column-list form: `ON DELETE SET NULL (session_id)`.
 
-**`clients_service_subject_fk` (0005_subjects.sql, renamed by 0057) is a
-third instance of the same trap**: an unrestricted composite
-`ON DELETE SET NULL` on `(tenant_id, service_subject_id)` would null
-`tenant_id` on `clients` alongside it, and a service subject's delete would
-fail `clients`'s own `NOT NULL` rather than detach it. The fix is the same
-column-list form: `ON DELETE SET NULL (service_subject_id)`.
-
-- Trigger: the next migration that touches `token_grants` or `clients` for
-  an unrelated reason.
+- Trigger: the next migration that touches `token_grants` for an unrelated
+  reason.
 
 ### The client endpoints
 
