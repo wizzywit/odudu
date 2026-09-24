@@ -40,14 +40,17 @@ function groupSteps(steps: readonly Step[]): Group[] {
 
 // An alternative run — one member or several — is satisfied only by an
 // actual satisfied member; inapplicability never stands in for "someone
-// else covered it". A non-alternative group of one is satisfied by its
-// member's success or by that member simply not applying to this subject.
+// else covered it". A non-alternative group of one is `conditional` or
+// `required`, and only `conditional` treats inapplicability as satisfied:
+// `required` must still be satisfied, so a subject it does not apply to
+// falls through to the runnable search below and fails the flow.
 function isGroupSatisfied(group: Group, state: FlowState): boolean {
   const anySatisfied = group.members.some((m) => state.satisfied.has(m.authenticator));
   if (anySatisfied) return true;
   if (group.kind === 'single') {
     const [only] = group.members;
-    return only !== undefined && !only.applicable;
+    if (only === undefined || only.requirement === 'required') return false;
+    return !only.applicable;
   }
   return false;
 }

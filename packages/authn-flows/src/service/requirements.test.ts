@@ -96,3 +96,25 @@ describe('nextStep', () => {
     expect(nextStep(shape, state())).toEqual({ kind: 'fail' });
   });
 });
+
+describe('required versus conditional', () => {
+  it('passes a conditional step the subject cannot satisfy', () => {
+    const steps = [step('otp', 'conditional', false)];
+    expect(nextStep(steps, state())).toEqual({ kind: 'complete' });
+  });
+
+  it('fails a required step the subject cannot satisfy', () => {
+    const steps = [step('otp', 'required', false)];
+    expect(nextStep(steps, state())).toEqual({ kind: 'fail' });
+  });
+
+  it('runs a required step the subject can satisfy', () => {
+    const steps = [step('otp', 'required', true)];
+    expect(nextStep(steps, state())).toEqual({ kind: 'run', authenticator: 'otp' });
+  });
+
+  it('still treats a disabled step as absent', () => {
+    const steps = [step('passkey', 'disabled', false), step('password', 'required', true)];
+    expect(nextStep(steps, state())).toEqual({ kind: 'run', authenticator: 'password' });
+  });
+});
