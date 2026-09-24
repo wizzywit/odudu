@@ -5,7 +5,11 @@ import { type DatabaseHandle } from '../../packages/db/src/index.js';
 import { loadConfig } from '../../packages/kernel/src/index.js';
 import { backticked, loadDocument, tableWithHeadings } from './markdown.js';
 
-const DOCUMENT = 'docs/request-paths.md';
+// Two documents, one endpoint table shape: `docs/request-paths.md` is the
+// protocol surface, `docs/admin-paths.md` the admin API. An endpoint
+// documented in either satisfies this check — see `docs/admin-paths.md`'s
+// header for why they are separate documents.
+const DOCUMENTS = ['docs/request-paths.md', 'docs/admin-paths.md'] as const;
 
 // Nothing here reaches the database: the app is built only so Fastify's own
 // router can be asked what it serves.
@@ -93,8 +97,8 @@ function served(app: Awaited<ReturnType<typeof servingApp>>): Endpoint[] {
 }
 
 // `{tenant}` reads as a placeholder to a person; Fastify spells it `:tenant`.
-function documented(): Endpoint[] {
-  const table = tableWithHeadings(loadDocument(DOCUMENT), ['Method', 'Path', 'What it is']);
+function documentedIn(path: string): Endpoint[] {
+  const table = tableWithHeadings(loadDocument(path), ['Method', 'Path', 'What it is']);
   return table.rows.flatMap((row) => {
     const [methodCell = '', pathCell = ''] = row;
     const method = backticked(methodCell)[0];
@@ -103,29 +107,32 @@ function documented(): Endpoint[] {
   });
 }
 
-describe(`the endpoints ${DOCUMENT} lists are the endpoints the server serves`, () => {
-  it('serves every endpoint the document tells a reader to call', async () => {
+describe('the endpoints docs/request-paths.md and docs/admin-paths.md list are the endpoints the server serves', () => {
+  it('serves every endpoint each document tells a reader to call', async () => {
     const app = await servingApp();
-    const missing = documented().filter(
-      (endpoint) => !app.hasRoute({ method: endpoint.method, url: endpoint.url }),
-    );
 
-    expect(
-      missing.map(format),
-      `${DOCUMENT} documents endpoints this server does not serve`,
-    ).toEqual([]);
+    for (const document of DOCUMENTS) {
+      const missing = documentedIn(document).filter(
+        (endpoint) => !app.hasRoute({ method: endpoint.method, url: endpoint.url }),
+      );
+
+      expect(
+        missing.map(format),
+        `${document} documents endpoints this server does not serve`,
+      ).toEqual([]);
+    }
   });
 
-  it('documents every endpoint the server serves', async () => {
+  it('documents every endpoint the server serves, in one of the two', async () => {
     const app = await servingApp();
-    const claimed = new Set(documented().map(format));
+    const claimed = new Set(DOCUMENTS.flatMap((document) => documentedIn(document).map(format)));
     const undocumented = served(app)
       .map(format)
       .filter((endpoint) => endpoint !== CORS_PREFLIGHT_CATCHALL && !claimed.has(endpoint));
 
     expect(
       undocumented,
-      `these endpoints are served but absent from ${DOCUMENT}'s endpoint table`,
+      `these endpoints are served but absent from both ${DOCUMENTS.join(' and ')}`,
     ).toEqual([]);
   });
 });

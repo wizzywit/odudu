@@ -7838,6 +7838,11 @@ as a bearer token; `/userinfo` refuses it. Verify it, read `sub`, `name` and
 registered for. Presenting the right secret the wrong way is refused exactly
 like the wrong secret.
 
+**From here, to administer a tenant rather than act as a client of one.**
+[docs/admin-paths.md](admin-paths.md) documents the admin API — the
+endpoints under `/admin/tenants/{tenant}/` — separately from this document,
+because it serves an operator rather than an application integrator.
+
 ## What is not implemented
 
 Every item below is in one of two states, and says which: **planned**, with
