@@ -9,6 +9,11 @@ export const ADMIN_CLIENT_ID = 'odudu-admin';
 // and holds only the subjects granted that permission.
 export const SYSTEM_TENANT_NAME = 'system';
 
+// Fixed so the row is the same across deployments. The bootstrap command
+// creates it, not a migration: tenants is RLS-forced and a migration runs
+// with no app.tenant_id to bind the insert to.
+export const SYSTEM_TENANT_ID = '0199aa00-0000-7000-8000-000000000001';
+
 export const TENANT_CAPABILITIES = [
   'view-users',
   'manage-users',

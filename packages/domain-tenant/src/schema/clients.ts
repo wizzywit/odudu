@@ -31,6 +31,11 @@ export const clients = pgTable('clients', {
   // by RFC 7591 open registration. Defaults 'seeded' so an existing client
   // is unchanged.
   registrationOrigin: text('registration_origin').notNull().default('seeded'),
+  // Marks the client a tenant's administration roles hang from. The guard
+  // that refuses to disable or delete it reads this, not the client_id, so
+  // a renamed client cannot slip past it. At most one true per tenant
+  // (clients_one_builtin_admin).
+  builtinAdmin: boolean('builtin_admin').notNull().default(false),
 }).enableRLS();
 
 // Lives beside the table, not in the repository, so that `service` (which
@@ -50,4 +55,5 @@ export interface ClientRecord {
   serviceSubjectId: string | null;
   fullScopeAllowed: boolean;
   registrationOrigin: 'seeded' | 'anonymous' | 'token';
+  builtinAdmin: boolean;
 }

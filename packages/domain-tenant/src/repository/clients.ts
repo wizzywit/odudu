@@ -18,6 +18,7 @@ function toRecord(row: typeof clients.$inferSelect): ClientRecord {
     serviceSubjectId: row.serviceSubjectId,
     fullScopeAllowed: row.fullScopeAllowed,
     registrationOrigin: row.registrationOrigin as ClientRecord['registrationOrigin'],
+    builtinAdmin: row.builtinAdmin,
   };
 }
 
@@ -30,6 +31,7 @@ export interface NewClient {
   enabled?: boolean;
   serviceSubjectId?: string | null;
   fullScopeAllowed?: boolean;
+  builtinAdmin?: boolean;
   // Defaults to the column's own default ('seeded'): every caller that
   // predates dynamic registration creates a client that way, and only
   // the registration endpoint has reason to name 'anonymous' or 'token'.
@@ -78,6 +80,7 @@ export function clientRepository(tx: TenantScopedDatabase) {
           enabled: input.enabled ?? true,
           serviceSubjectId: input.serviceSubjectId ?? null,
           fullScopeAllowed: input.fullScopeAllowed ?? false,
+          builtinAdmin: input.builtinAdmin ?? false,
           ...(input.registrationOrigin === undefined
             ? {}
             : { registrationOrigin: input.registrationOrigin }),

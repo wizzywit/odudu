@@ -428,6 +428,13 @@
       "when": 1789049381703,
       "tag": "0060_token_grants_act_chain",
       "breakpoints": true
+    },
+    {
+      "idx": 61,
+      "version": "7",
+      "when": 1789049381704,
+      "tag": "0061_system_tenant",
+      "breakpoints": true
     }
   ]
 }
