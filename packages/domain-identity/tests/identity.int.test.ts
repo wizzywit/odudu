@@ -111,6 +111,20 @@ describe('subjectRepository', () => {
     });
   });
 
+  it('leaves disabled_at unchanged on a repeated disable', async () => {
+    const tenantId = newId();
+    await withTenant(app.db, tenantId, async (tx) => {
+      await seedTenant(tx, tenantId);
+      const subject = await subjectRepository(tx).create({ tenantId, type: 'user' });
+
+      const first = await subjectRepository(tx).setEnabled(subject.id, false);
+      expect(first.disabledAt).not.toBeNull();
+
+      const second = await subjectRepository(tx).setEnabled(subject.id, false);
+      expect(second.disabledAt?.getTime()).toBe(first.disabledAt?.getTime());
+    });
+  });
+
   it('cannot disable a subject under a different tenant context', async () => {
     await expectCrossTenantMethodProbe(app.db, {
       seed: async (tx, tenantId) => {
