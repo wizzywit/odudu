@@ -20,7 +20,8 @@ import { endSession, listSessions, type SessionAuditEvent } from '#/usecase/sess
 
 // The same shape `lifespansOf` (#/usecase/authenticate-admin.ts) builds
 // from a real `TenantLookup` — fixed values here since these tests probe
-// scoping, never liveness arithmetic itself (task 7.1 already covers that).
+// scoping, never liveness arithmetic itself, which
+// packages/authn-flows/tests/session-set.int.test.ts already covers.
 const TEST_LIFESPANS: SessionLifespans = {
   ssoSessionIdleSeconds: 1800,
   ssoSessionMaxSeconds: 36_000,
