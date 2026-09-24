@@ -15,7 +15,7 @@ export interface SettingsAuditEvent {
   readonly actorSubjectId: string;
 }
 
-/** See `Audit` in `#/usecase/tenants.ts` — the same no-op-until-Increment-13 seam. */
+/** See `Audit` in `#/usecase/tenants.ts` — the same no-op-until-a-real-sink seam. */
 export type Audit = (event: SettingsAuditEvent) => Promise<void>;
 
 export interface ReadSettingsResult {

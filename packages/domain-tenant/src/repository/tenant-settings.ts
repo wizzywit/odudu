@@ -2,6 +2,8 @@ import { tenants, type TenantScopedDatabase } from '@odudu/db';
 import { eq } from 'drizzle-orm';
 import { TENANT_SETTING_COLUMNS, type TenantSettingName } from '#/service/tenant-settings';
 
+type TenantColumn = keyof typeof tenants.$inferSelect;
+
 // `display_name` is the one text setting with no default (schema/tenants.ts),
 // so a tenant that never set one reads back `null` here, exactly as the
 // column holds it.
@@ -19,9 +21,9 @@ export class TenantSettingCheckViolationError extends Error {
 
 function primitiveColumn(
   row: typeof tenants.$inferSelect,
-  column: string,
+  column: TenantColumn,
 ): boolean | number | string | null {
-  const value = (row as unknown as Record<string, unknown>)[column];
+  const value = row[column];
   if (
     value === null ||
     typeof value === 'boolean' ||

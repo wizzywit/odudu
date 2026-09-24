@@ -3,6 +3,7 @@ import { tenantSettingsRepository } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { startAdminFixture, type AdminFixture } from '#/testing/admin-fixture';
+import { amendSettings } from '#/usecase/settings';
 
 let fixtureHandle: AdminFixture | undefined;
 let fixture: AdminFixture;
@@ -86,6 +87,78 @@ describe('PATCH /admin/tenants/{t}/settings', () => {
     });
     expect(res.statusCode).toBe(403);
   });
+
+  it('refuses a system admin holding manage-tenants but not manage-tenant', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.systemAdminToken(['manage-tenants']);
+    const res = await fixture.http.inject({
+      method: 'PATCH',
+      url: `/admin/tenants/${t.name}/settings`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: { verify_email: true },
+    });
+    expect(res.statusCode).toBe(403);
+  });
+
+  it('admits a system admin holding manage-tenants and manage-tenant', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.systemAdminToken(['manage-tenants', 'manage-tenant']);
+    const res = await fixture.http.inject({
+      method: 'PATCH',
+      url: `/admin/tenants/${t.name}/settings`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: { verify_email: true },
+    });
+    expect(res.statusCode).toBe(200);
+  });
+
+  it('calls audit exactly once when it amends a setting', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const events: unknown[] = [];
+    const outcome = await withTenant(fixture.app.db, t.id, (tx) =>
+      amendSettings(
+        tx,
+        {
+          audit: (event) => {
+            events.push(event);
+            return Promise.resolve();
+          },
+        },
+        {
+          tenantId: t.id,
+          values: { verify_email: true },
+          ifMatch: undefined,
+          actorSubjectId: 'test-subject',
+        },
+      ),
+    );
+    expect(outcome.kind).toBe('amended');
+    expect(events).toHaveLength(1);
+  });
+
+  it('does not call audit when a value is refused', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const events: unknown[] = [];
+    const outcome = await withTenant(fixture.app.db, t.id, (tx) =>
+      amendSettings(
+        tx,
+        {
+          audit: (event) => {
+            events.push(event);
+            return Promise.resolve();
+          },
+        },
+        {
+          tenantId: t.id,
+          values: { not_a_setting: true },
+          ifMatch: undefined,
+          actorSubjectId: 'test-subject',
+        },
+      ),
+    );
+    expect(outcome.kind).toBe('unknown_setting');
+    expect(events).toHaveLength(0);
+  });
 });
 
 describe('GET /admin/tenants/{t}/settings', () => {
@@ -109,5 +182,38 @@ describe('GET /admin/tenants/{t}/settings', () => {
       const row = await tenantSettingsRepository(tx).byId(t1.id);
       expect(row).toBeNull();
     });
+  });
+
+  it('refuses a caller holding only view-users', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['view-users']);
+    const res = await fixture.http.inject({
+      method: 'GET',
+      url: `/admin/tenants/${t.name}/settings`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(res.statusCode).toBe(403);
+  });
+
+  it('refuses a system admin holding manage-tenants but not manage-tenant', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.systemAdminToken(['manage-tenants']);
+    const res = await fixture.http.inject({
+      method: 'GET',
+      url: `/admin/tenants/${t.name}/settings`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(res.statusCode).toBe(403);
+  });
+
+  it('admits a system admin holding manage-tenants and manage-tenant', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.systemAdminToken(['manage-tenants', 'manage-tenant']);
+    const res = await fixture.http.inject({
+      method: 'GET',
+      url: `/admin/tenants/${t.name}/settings`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(res.statusCode).toBe(200);
   });
 });

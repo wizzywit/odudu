@@ -27,9 +27,9 @@ describe('matches', () => {
     expect(matches('"abc"', '"abc"')).toBe('match');
     expect(matches('"stale"', '"abc"')).toBe('mismatch');
   });
-  it('refuses a wildcard rather than treating it as a match', () => {
-    // `*` means "if the resource exists" in RFC 9110; honouring it here
-    // would make an unconditional write look conditional.
-    expect(matches('*', '"abc"')).toBe('mismatch');
+  it('treats a wildcard as a match, per RFC 9110 §13.1.1', () => {
+    // `*` means "if the resource exists" — already true by the time
+    // `current` is in hand, since it was read from the resource itself.
+    expect(matches('*', '"abc"')).toBe('match');
   });
 });

@@ -220,7 +220,10 @@ does. A value the map itself coerces but the database's `CHECK` still
 refuses — `password_min_length` outside `8..256`, for instance — is also
 `400`, naming the setting rather than the constraint that fired: the
 database stays the one authority for the range, and the caller still learns
-which value it refused.
+which value it refused. A setting's value may be sent as its JSON type
+(`true`, `14`) or as the equivalent string (`"true"`, `"14"`) — both reach
+the same `coerceTenantSetting` the CLI uses, which reads a string either
+way.
 
 ## `GET /whoami`
 

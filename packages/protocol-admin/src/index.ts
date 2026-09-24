@@ -52,9 +52,9 @@ export function adminRoutes(deps: AdminRoutesDeps): FastifyPluginAsync {
 
     const clock = deps.clock ?? systemClock;
 
-    // Wired for real in Increment 13 (audit_events); until then every
-    // mutation still calls `audit`, so nothing here needs rewriting once a
-    // real sink exists.
+    // Wired for real once an `audit_events` sink exists; until then every
+    // mutation still calls `audit`, so nothing here needs rewriting when
+    // it does.
     const noopAudit: Audit = () => Promise.resolve();
     const tenantsDeps: TenantsRouteDeps = {
       database: deps.database.db,

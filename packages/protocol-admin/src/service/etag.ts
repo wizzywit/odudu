@@ -30,5 +30,8 @@ export function matches(
   current: string,
 ): 'absent' | 'match' | 'mismatch' {
   if (ifMatch === undefined) return 'absent';
-  return ifMatch === current && ifMatch !== '*' ? 'match' : 'mismatch';
+  // RFC 9110 §13.1.1: `*` means "if the resource exists". `current` is
+  // only ever reached after loading the resource, so that precondition is
+  // already satisfied by the time this runs.
+  return ifMatch === current || ifMatch === '*' ? 'match' : 'mismatch';
 }

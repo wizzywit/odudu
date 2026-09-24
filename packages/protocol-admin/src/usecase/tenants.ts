@@ -33,9 +33,9 @@ export interface TenantAuditEvent {
 }
 
 /**
- * The write Increment 13 gives a real sink (`audit_events`): until then the
- * composition root supplies a function that does nothing, and this is the
- * only seam a test has to prove a mutation still calls it.
+ * The write an `audit_events` sink gives a real implementation of: until
+ * one exists, the composition root supplies a function that does nothing,
+ * and this is the only seam a test has to prove a mutation still calls it.
  */
 export type Audit = (event: TenantAuditEvent) => Promise<void>;
 
