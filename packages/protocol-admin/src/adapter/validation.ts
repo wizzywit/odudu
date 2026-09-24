@@ -4,16 +4,23 @@ import { type FormatsPlugin } from 'ajv-formats';
 import { type FastifyInstance, type FastifySchemaCompiler } from 'fastify';
 import { z } from 'zod';
 
-// ajv-formats ships an `export default` in a CommonJS package, which
-// TypeScript's nodenext resolution cannot unwrap to a callable type — the
-// default-import binding types as the module namespace instead. The
-// runtime value is a function; this is the accepted cast for that gap.
-const addFormats = ajvFormatsModule as unknown as FormatsPlugin;
+// ajv-formats is CommonJS with no "exports" map, so under nodenext
+// resolution TypeScript cannot type a default import, or the `default`
+// property of a namespace import, as anything but the module namespace
+// itself — which has no call signature. At runtime the namespace's
+// `default` property is the plugin function (`exports.default =
+// formatsPlugin` in the CJS source); this cast asserts that value's real
+// type where TypeScript's static analysis cannot derive it.
+const addFormats = ajvFormatsModule.default as unknown as FormatsPlugin;
 
 // ajv 8's default export is draft-07; z.toJSONSchema emits 2020-12, and a
 // draft-07 validator silently ignores the keywords it does not know rather
 // than refusing them — so the dialect has to be chosen explicitly.
-const ajv = addFormats(new Ajv2020({ allErrors: false, strict: true }));
+//
+// Fastify hands query and path parameters to ajv as strings regardless of
+// the Zod type they were generated from, so a numeric schema has to coerce
+// rather than reject them outright.
+const ajv = addFormats(new Ajv2020({ allErrors: false, strict: true, coerceTypes: true }));
 
 export function compileSchema(schema: z.ZodType): ValidateFunction {
   return ajv.compile(z.toJSONSchema(schema));
