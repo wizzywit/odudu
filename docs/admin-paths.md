@@ -90,6 +90,25 @@ document's.
 | `PATCH`  | `/admin/tenants/{tenant}/clients/:id`                            | Amend a client                   |
 | `DELETE` | `/admin/tenants/{tenant}/clients/:id`                            | Delete a client                  |
 | `POST`   | `/admin/tenants/{tenant}/clients/:id/secret`                     | Rotate a client's secret         |
+| `GET`    | `/admin/tenants/{tenant}/roles`                                  | List roles                       |
+| `POST`   | `/admin/tenants/{tenant}/roles`                                  | Create a role                    |
+| `GET`    | `/admin/tenants/{tenant}/roles/:id`                              | Read a role                      |
+| `PATCH`  | `/admin/tenants/{tenant}/roles/:id`                              | Amend a role                     |
+| `DELETE` | `/admin/tenants/{tenant}/roles/:id`                              | Delete a role                    |
+| `POST`   | `/admin/tenants/{tenant}/roles/:id/composites`                   | Add a role composite             |
+| `GET`    | `/admin/tenants/{tenant}/groups`                                 | List groups                      |
+| `POST`   | `/admin/tenants/{tenant}/groups`                                 | Create a group                   |
+| `GET`    | `/admin/tenants/{tenant}/groups/:id`                             | Read a group                     |
+| `PATCH`  | `/admin/tenants/{tenant}/groups/:id`                             | Amend a group (reparent)         |
+| `DELETE` | `/admin/tenants/{tenant}/groups/:id`                             | Delete a group                   |
+| `PUT`    | `/admin/tenants/{tenant}/groups/:id/roles`                       | Replace a group's roles          |
+| `GET`    | `/admin/tenants/{tenant}/scopes`                                 | List client scopes               |
+| `POST`   | `/admin/tenants/{tenant}/scopes`                                 | Create a client scope            |
+| `GET`    | `/admin/tenants/{tenant}/scopes/:id`                             | Read a client scope              |
+| `PATCH`  | `/admin/tenants/{tenant}/scopes/:id`                             | Amend a client scope             |
+| `DELETE` | `/admin/tenants/{tenant}/scopes/:id`                             | Delete a client scope            |
+| `PUT`    | `/admin/tenants/{tenant}/scopes/:id/roles`                       | Replace a scope's roles          |
+| `PUT`    | `/admin/tenants/{tenant}/scopes/:id/clients/:clientId`           | Assign a scope to a client       |
 | `GET`    | `/admin/openapi.json`                                            | The OpenAPI reference            |
 
 ## `GET /admin/tenants`
@@ -747,6 +766,136 @@ The list response shape, not a captured run:
       "client_ids": ["demo-backend"]
     }
   ]
+}
+```
+
+## `GET /roles`, `POST /roles`, `GET /roles/:id`, `PATCH /roles/:id` and `DELETE /roles/:id`
+
+All five require `manage-tenant`. A role is either a tenant role
+(`client_id` is `null`) or scoped to one client, in which case a token's
+`roles` claim carries it qualified by that client's own name rather than
+plain — `packages/domain-authz/src/service/role-name.ts` has the format.
+`PATCH` amends only `description`; every other field, `name`,
+`client_id` and `default_for_new_subjects` included, is refused with a
+reason, the same shape `PATCH /subjects/:id` refuses `id`, `type` and
+`username`. A duplicate name — per tenant for a tenant role, per client for
+a client-scoped one — answers `409`. `DELETE` cascades: every
+`role_composites` edge, `subject_roles` assignment and `client_scope_roles`
+mapping naming the role goes with it.
+
+```bash
+curl -sS -X POST \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "billing-viewer", "description": "read-only access to invoices"}' \
+  http://localhost:3000/admin/tenants/demo/roles
+```
+
+## `POST /roles/:id/composites`
+
+Requires `manage-tenant`, and enforces the same capability ceiling
+`PUT /subjects/:id/roles` does: nesting `child_role_id` under the role
+named by `:id` must never hand that role a capability the caller does not
+itself hold, checked by expanding `child_role_id` through
+`role_composites` (`rolesReachableFrom`,
+`packages/domain-authz/src/repository/effective-roles.ts`) rather than
+comparing names, so a composite that nests a capability instead of naming
+it cannot smuggle the escalation past a check on the request body. A cycle
+— nesting a role under one it already (transitively) contains — answers
+`409` rather than the generic `500` a raw constraint violation would leave
+this as; `role_composite_cycle` is raised and caught in the domain
+(`roleRepository.addComposite`, `packages/domain-authz/src/repository/roles.ts`),
+never re-derived here.
+
+```bash
+curl -sS -X POST \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"child_role_id": "<role id>"}' \
+  http://localhost:3000/admin/tenants/demo/roles/<parent role id>/composites
+```
+
+## `GET /groups`, `POST /groups`, `GET /groups/:id`, `PATCH /groups/:id` and `DELETE /groups/:id`
+
+All five require `manage-tenant`. `path` is derived, never accepted: a root
+group's is `/name`, a child's is its parent's with `/name` appended, and
+`groupRepository` (`packages/domain-authz/src/repository/groups.ts`) is the
+only writer of it. `PATCH` amends only `parent_id` — reparenting, which
+recomputes `path` for the group and every descendant — every other field
+is refused with a reason. Reparenting into the group's own subtree answers
+`409` (`group_reparent_cycle`), the same way a role composite's cycle does.
+`DELETE` cascades: a descendant's `parent_id` edge, every `group_roles`
+mapping and every `subject_groups` membership naming the group goes with
+it.
+
+```bash
+curl -sS -X PATCH \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"parent_id": "<new parent group id>"}' \
+  http://localhost:3000/admin/tenants/demo/groups/<group id>
+```
+
+## `PUT /groups/:id/roles`
+
+Requires `manage-tenant`. Replaces the group's role mapping wholesale — a
+role left out of the list is one the caller clears, not one left alone —
+the same replace-all shape `PUT /subjects/:id/roles` uses for a subject's
+own assignments. An unknown role id answers `400`.
+
+## `GET /scopes`, `POST /scopes`, `GET /scopes/:id`, `PATCH /scopes/:id` and `DELETE /scopes/:id`
+
+All five require `manage-tenant`. `include_in_id_token` and
+`include_in_access_token` (both default `true`) decide which token a
+scope's claims land in; `PATCH` amends either, plus `description` — `name`
+is refused, since it is the scope token a client requests and a token
+carries. A duplicate name answers `409`. `DELETE` cascades:
+`client_scope_assignments_scope_fk` and `client_scope_roles_scope_fk`
+(`packages/db/drizzle/0016_client_scopes.sql`, `0017_roles.sql`) both name
+`ON DELETE CASCADE`, not `RESTRICT`, so deleting an assigned, role-mapped
+scope removes it and both dependent rows together rather than refusing.
+
+```bash
+curl -sS -X POST \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "billing", "include_in_id_token": false}' \
+  http://localhost:3000/admin/tenants/demo/scopes
+```
+
+## `PUT /scopes/:id/roles`
+
+Requires `manage-tenant`. Replaces the scope's role mapping wholesale, the
+same replace-all shape `PUT /groups/:id/roles` uses. An unknown role id
+answers `400`.
+
+## `PUT /scopes/:id/clients/:clientId`
+
+Requires `manage-tenant`. Assigns the scope to the client as `default` or
+`optional`, narrowing or widening any existing assignment rather than
+colliding with it (`clientScopeRepository.assignOrUpdate`,
+`packages/domain-tenant/src/repository/client-scopes.ts`) — the same
+behaviour the seed CLI's own assign-scope command depends on. Answers with
+the client's own representation, `scopes` included, so the assignment is
+visible immediately without a second `GET /clients/:id`. An unknown scope
+or client id answers `404`.
+
+```bash
+curl -sS -X PUT \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"assignment": "default"}' \
+  http://localhost:3000/admin/tenants/demo/scopes/<scope id>/clients/<client id>
+```
+
+The response shape, not a captured run — `scopes` is the field
+`GET /clients/:id` also carries:
+
+```json
+{
+  "id": "<client id>",
+  "client_id": "demo-backend",
+  "scopes": [{ "id": "<scope id>", "name": "billing", "assignment": "default" }]
 }
 ```
 

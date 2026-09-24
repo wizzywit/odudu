@@ -10,6 +10,9 @@ import { type FastifyPluginAsync } from 'fastify';
 import { type AuthenticateAdminDeps } from '#/usecase/authenticate-admin';
 import { type AuthorizeAdminDeps } from '#/usecase/authorize-admin';
 import { type Audit as ClientAudit } from '#/usecase/clients';
+import { type Audit as GroupAudit } from '#/usecase/groups';
+import { type Audit as RoleAudit } from '#/usecase/roles';
+import { type Audit as ScopeAudit } from '#/usecase/scopes';
 import { type Audit as SessionAudit } from '#/usecase/sessions';
 import { type Audit as SubjectAudit } from '#/usecase/subjects';
 import { type Audit } from '#/usecase/tenants';
@@ -24,8 +27,36 @@ import {
   rotateClientSecretHandler,
   type ClientsRouteDeps,
 } from '#/view/routes/clients';
+import {
+  amendGroupHandler,
+  createGroupHandler,
+  deleteGroupHandler,
+  listGroupsHandler,
+  readGroupHandler,
+  setGroupRolesHandler,
+  type GroupsRouteDeps,
+} from '#/view/routes/groups';
 import { registerOpenApiRoute } from '#/view/routes/openapi';
+import {
+  addRoleCompositeHandler,
+  amendRoleHandler,
+  createRoleHandler,
+  deleteRoleHandler,
+  listRolesHandler,
+  readRoleHandler,
+  type RolesRouteDeps,
+} from '#/view/routes/roles';
 import { type AdminRouteHandlers, registerAdminRoutes } from '#/view/routes/router';
+import {
+  amendScopeHandler,
+  assignScopeToClientHandler,
+  createScopeHandler,
+  deleteScopeHandler,
+  listScopesHandler,
+  readScopeHandler,
+  setScopeRolesHandler,
+  type ScopesRouteDeps,
+} from '#/view/routes/scopes';
 import {
   deleteSessionHandler,
   listSessionsHandler,
@@ -94,22 +125,47 @@ export function adminRoutes(deps: AdminRoutesDeps): FastifyPluginAsync {
     const noopClientAudit: ClientAudit = () => Promise.resolve();
     const noopSubjectAudit: SubjectAudit = () => Promise.resolve();
     const noopSessionAudit: SessionAudit = () => Promise.resolve();
+    const noopRoleAudit: RoleAudit = () => Promise.resolve();
+    const noopGroupAudit: GroupAudit = () => Promise.resolve();
+    const noopScopeAudit: ScopeAudit = () => Promise.resolve();
+    // Same call `authzDeps.effectiveRoles` makes below, scoped to whichever
+    // tenant the caller's own token was issued from — never the target
+    // tenant a cross-tenant system admin is reaching into. Shared by
+    // subjects' setRoles and roles' addRoleComposite: the same capability
+    // ceiling, computed the same way.
+    const callerCapabilities = async (
+      issuerTenantId: string,
+      subjectId: string,
+    ): Promise<ReadonlySet<string>> => {
+      const roles = await withTenant(deps.database.db, issuerTenantId, (tx) =>
+        effectiveRoles(tx, subjectId),
+      );
+      return new Set(
+        roles.filter((role) => role.clientKey === ADMIN_CLIENT_ID).map((role) => role.name),
+      );
+    };
     const subjectsDeps: SubjectsRouteDeps = {
       database: deps.database.db,
       cursorKey: deps.cursorKey,
       audit: noopSubjectAudit,
       now: () => clock.now(),
-      // Same call `authzDeps.effectiveRoles` makes below, scoped to
-      // whichever tenant the caller's own token was issued from — never the
-      // target tenant a cross-tenant system admin is reaching into.
-      callerCapabilities: async (issuerTenantId, subjectId) => {
-        const roles = await withTenant(deps.database.db, issuerTenantId, (tx) =>
-          effectiveRoles(tx, subjectId),
-        );
-        return new Set(
-          roles.filter((role) => role.clientKey === ADMIN_CLIENT_ID).map((role) => role.name),
-        );
-      },
+      callerCapabilities,
+    };
+    const rolesDeps: RolesRouteDeps = {
+      database: deps.database.db,
+      cursorKey: deps.cursorKey,
+      audit: noopRoleAudit,
+      callerCapabilities,
+    };
+    const groupsDeps: GroupsRouteDeps = {
+      database: deps.database.db,
+      cursorKey: deps.cursorKey,
+      audit: noopGroupAudit,
+    };
+    const scopesDeps: ScopesRouteDeps = {
+      database: deps.database.db,
+      cursorKey: deps.cursorKey,
+      audit: noopScopeAudit,
     };
     const tenantsDeps: TenantsRouteDeps = {
       database: deps.database.db,
@@ -163,6 +219,26 @@ export function adminRoutes(deps: AdminRoutesDeps): FastifyPluginAsync {
       'PATCH /admin/tenants/:tenant/clients/:id': amendClientHandler(clientsDeps),
       'DELETE /admin/tenants/:tenant/clients/:id': deleteClientHandler(clientsDeps),
       'POST /admin/tenants/:tenant/clients/:id/secret': rotateClientSecretHandler(clientsDeps),
+      'GET /admin/tenants/:tenant/roles': listRolesHandler(rolesDeps),
+      'POST /admin/tenants/:tenant/roles': createRoleHandler(rolesDeps),
+      'GET /admin/tenants/:tenant/roles/:id': readRoleHandler(rolesDeps),
+      'PATCH /admin/tenants/:tenant/roles/:id': amendRoleHandler(rolesDeps),
+      'DELETE /admin/tenants/:tenant/roles/:id': deleteRoleHandler(rolesDeps),
+      'POST /admin/tenants/:tenant/roles/:id/composites': addRoleCompositeHandler(rolesDeps),
+      'GET /admin/tenants/:tenant/groups': listGroupsHandler(groupsDeps),
+      'POST /admin/tenants/:tenant/groups': createGroupHandler(groupsDeps),
+      'GET /admin/tenants/:tenant/groups/:id': readGroupHandler(groupsDeps),
+      'PATCH /admin/tenants/:tenant/groups/:id': amendGroupHandler(groupsDeps),
+      'DELETE /admin/tenants/:tenant/groups/:id': deleteGroupHandler(groupsDeps),
+      'PUT /admin/tenants/:tenant/groups/:id/roles': setGroupRolesHandler(groupsDeps),
+      'GET /admin/tenants/:tenant/scopes': listScopesHandler(scopesDeps),
+      'POST /admin/tenants/:tenant/scopes': createScopeHandler(scopesDeps),
+      'GET /admin/tenants/:tenant/scopes/:id': readScopeHandler(scopesDeps),
+      'PATCH /admin/tenants/:tenant/scopes/:id': amendScopeHandler(scopesDeps),
+      'DELETE /admin/tenants/:tenant/scopes/:id': deleteScopeHandler(scopesDeps),
+      'PUT /admin/tenants/:tenant/scopes/:id/roles': setScopeRolesHandler(scopesDeps),
+      'PUT /admin/tenants/:tenant/scopes/:id/clients/:clientId':
+        assignScopeToClientHandler(scopesDeps),
     };
 
     const authDeps: AuthenticateAdminDeps = {
