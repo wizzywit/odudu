@@ -851,3 +851,11 @@ export {
   assertPublicAddresses,
   RemoteAddressRefused,
 } from '#/service/remote-address';
+// The admin API's grant and session liveness checks read these directly
+// (packages/protocol-admin/src/testing/admin-fixture.ts and the
+// authentication chain it exists to test).
+export { tokenGrantRepository, type TokenGrantRecord } from '#/repository/grants';
+export {
+  UNLIMITED_CLIENT_SECRET_LIMITER,
+  type ClientSecretLimiter,
+} from '#/service/client-secret-throttle';

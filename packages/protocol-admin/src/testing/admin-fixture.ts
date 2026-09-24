@@ -1,0 +1,645 @@
+import { randomBytes } from 'node:crypto';
+import formbody from '@fastify/formbody';
+import {
+  generateSigningKey,
+  signingKeyRepository,
+  signJwt,
+  type SigningKeyRecord,
+} from '@odudu/crypto';
+import {
+  createDatabase,
+  MIGRATIONS_DIR,
+  runMigrations,
+  tenants,
+  withTenant,
+  type DatabaseHandle,
+  type TenantScopedDatabase,
+} from '@odudu/db';
+import { provisionTenant, sessionRepository } from '@odudu/authn-flows';
+import { roleRepository, subjectRoles } from '@odudu/domain-authz';
+import { hashPassword, subjectRepository, userRepository } from '@odudu/domain-identity';
+import {
+  ADMIN_CLIENT_ID,
+  clientRepository,
+  clients,
+  provisionAdminClient,
+  provisionClientDefaults,
+  SYSTEM_TENANT_ID,
+  SYSTEM_TENANT_NAME,
+  type ClientRecord,
+} from '@odudu/domain-tenant';
+import { FakeClock, newId } from '@odudu/kernel';
+import {
+  clientOidcConfigRepository,
+  NO_CLIENT_KEY_FETCHER,
+  oidcRoutes,
+  tokenGrantRepository,
+  UNLIMITED_CLIENT_SECRET_LIMITER,
+} from '@odudu/protocol-oidc';
+import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
+import { and, eq } from 'drizzle-orm';
+import Fastify, { type FastifyInstance, type LightMyRequestResponse } from 'fastify';
+import { adminRoutes } from '#/routes';
+
+// Encrypts every signing key this fixture generates, and decrypts every one
+// it signs with — a fixed value is fine because nothing outside this
+// process ever needs to read the ciphertext.
+const KEK = Buffer.alloc(32, 7);
+
+const NO_OP_LOGGER = {
+  debug: () => undefined,
+  info: () => undefined,
+  warn: () => undefined,
+  error: () => undefined,
+  child: () => NO_OP_LOGGER,
+};
+
+export interface TestClient {
+  readonly id: string;
+  readonly clientId: string;
+  readonly secret: string;
+  /** A bearer token for this client's own service account, when it has one. */
+  readonly token: string;
+}
+
+export interface AdminFixture {
+  readonly owner: DatabaseHandle;
+  readonly app: DatabaseHandle;
+  readonly http: FastifyInstance;
+  readonly clock: FakeClock;
+  readonly systemTenantId: string;
+
+  /** Creates a tenant, provisions its flow and its admin client, mints a key. */
+  createTenant(name: string): Promise<{ id: string; name: string }>;
+  stop(): Promise<void>;
+
+  // Tokens. `adminToken` and `systemAdminToken` carry `aud` = `${issuer}/admin`;
+  // `applicationToken` deliberately does not, which is what tells the admin
+  // audience check apart from an ordinary access token.
+  adminToken(tenantName: string, capabilities: readonly string[]): Promise<string>;
+  systemAdminToken(capabilities: readonly string[]): Promise<string>;
+  applicationToken(tenantName: string, options: { audience: string }): Promise<string>;
+
+  // Subjects and clients.
+  createSubject(tenantName: string, username: string): Promise<{ id: string }>;
+  createConfidentialClient(
+    tenantName: string,
+    overrides: Partial<{ grantTypes: string[]; redirectUris: string[] }>,
+  ): Promise<TestClient>;
+  createServiceAccountClient(
+    tenantName: string,
+    capabilities: readonly string[],
+  ): Promise<TestClient>;
+  builtinAdminClient(tenantName: string): Promise<TestClient>;
+  registerClient(
+    tenantName: string,
+    metadata: Record<string, unknown>,
+  ): Promise<LightMyRequestResponse>;
+  registerClientWithUserinfoAlg(tenantName: string, alg: string): Promise<TestClient>;
+  patchClient(
+    tenantName: string,
+    clientDbId: string,
+    body: Record<string, unknown>,
+  ): Promise<LightMyRequestResponse>;
+
+  // Protocol calls, so a test can prove an admin change reached /token.
+  tokenRequest(
+    tenantName: string,
+    client: TestClient,
+    body: Record<string, string>,
+  ): Promise<LightMyRequestResponse>;
+
+  // State changes a test needs but no endpoint offers, written directly.
+  revokeGrantsFor(tenantName: string): Promise<void>;
+  revokeCapability(tenantName: string, token: string, capability: string): Promise<void>;
+  disableClientOf(token: string): Promise<void>;
+  renameClientIdDirectly(tenantId: string, clientDbId: string, clientId: string): Promise<void>;
+  /** Forces the next mutation to throw after its audit row is written. */
+  failNextWriteAfterAudit(): Promise<void>;
+}
+
+interface TenantContext {
+  readonly id: string;
+  readonly name: string;
+  readonly issuer: string;
+}
+
+function decodeUnverified(token: string): Record<string, unknown> {
+  const segment = token.split('.')[1] ?? '';
+  return JSON.parse(Buffer.from(segment, 'base64url').toString('utf8')) as Record<string, unknown>;
+}
+
+// `iss` is always `<base>/tenants/<name>` (packages/protocol-oidc/src/
+// service/issuer.ts) — the name a caller who only has a token needs back.
+function tenantNameFromIssuer(iss: string): string {
+  const match = /\/tenants\/([^/]+)$/u.exec(iss);
+  const name = match?.[1];
+  if (name === undefined) {
+    throw new Error(`fixture: cannot read a tenant name from issuer ${JSON.stringify(iss)}`);
+  }
+  return name;
+}
+
+function basicAuth(clientId: string, secret: string): string {
+  return `Basic ${Buffer.from(`${clientId}:${secret}`).toString('base64')}`;
+}
+
+export async function startAdminFixture(): Promise<AdminFixture> {
+  const container: TestDatabase = await startTestDatabase();
+  const owner = createDatabase(container.adminUrl);
+  await runMigrations(owner.db, MIGRATIONS_DIR);
+  const appUrl = await createAppRole(container.adminUrl);
+  const app = createDatabase(appUrl, { max: 5 });
+
+  const clock = new FakeClock(new Date(Math.floor(Date.now() / 1000) * 1000));
+  const http = Fastify();
+  await http.register(formbody);
+  await http.register(
+    oidcRoutes({
+      database: app,
+      ownerDatabase: owner,
+      kek: KEK,
+      clock,
+      clientSecretLimiter: UNLIMITED_CLIENT_SECRET_LIMITER,
+      clientKeySet: NO_CLIENT_KEY_FETCHER,
+    }),
+  );
+  await http.register(adminRoutes({ database: app, ownerDatabase: owner, logger: NO_OP_LOGGER }));
+  await http.ready();
+
+  const tenantsByName = new Map<string, TenantContext>();
+  const grantsByTenant = new Map<string, string[]>();
+
+  function requireTenant(name: string): TenantContext {
+    const ctx = tenantsByName.get(name);
+    if (ctx === undefined) throw new Error(`fixture: unknown tenant ${JSON.stringify(name)}`);
+    return ctx;
+  }
+
+  function recordGrant(tenantId: string, grantId: string): void {
+    const existing = grantsByTenant.get(tenantId) ?? [];
+    existing.push(grantId);
+    grantsByTenant.set(tenantId, existing);
+  }
+
+  async function resolveIssuer(tenantName: string): Promise<string> {
+    const res = await http.inject({
+      url: `/tenants/${tenantName}/.well-known/openid-configuration`,
+    });
+    if (res.statusCode !== 200) {
+      throw new Error(
+        `fixture: discovery did not resolve an issuer for ${tenantName}, got ${String(res.statusCode)}`,
+      );
+    }
+    return res.json<{ issuer: string }>().issuer;
+  }
+
+  async function provisionTenantRow(
+    id: string,
+    name: string,
+    options: { crossTenant?: boolean } = {},
+  ): Promise<TenantContext> {
+    await withTenant(app.db, id, async (tx) => {
+      await tx.insert(tenants).values({ id, name });
+      await provisionTenant(tx, id);
+      await provisionAdminClient(tx, id, options);
+      const generated = await generateSigningKey('ES256', KEK);
+      await signingKeyRepository(tx).create({
+        id: newId(),
+        tenantId: id,
+        kid: generated.kid,
+        alg: generated.alg,
+        status: 'active',
+        publicJwk: generated.publicJwk,
+        privateJwkEncrypted: generated.privateJwkEncrypted,
+      });
+    });
+    const ctx: TenantContext = { id, name, issuer: await resolveIssuer(name) };
+    tenantsByName.set(name, ctx);
+    return ctx;
+  }
+
+  const systemTenant = await provisionTenantRow(SYSTEM_TENANT_ID, SYSTEM_TENANT_NAME, {
+    crossTenant: true,
+  });
+
+  // Signs an access token from claims a caller has already decided, and
+  // records its grant so `revokeGrantsFor` can find it again. Every minted
+  // token in this fixture goes through here — `adminToken`,
+  // `systemAdminToken`, `applicationToken` and the client-credentials paths
+  // alike — so the shape a real access token carries (`grant_id`, `sid`,
+  // `client_id`) is never approximated twice.
+  async function mintTokenInTx(
+    tx: TenantScopedDatabase,
+    ctx: TenantContext,
+    input: {
+      subjectId: string;
+      client: ClientRecord;
+      sessionId: string | null;
+      audience: string[];
+      scope?: string;
+    },
+  ): Promise<string> {
+    const key: SigningKeyRecord = await signingKeyRepository(tx).active();
+    const grantId = newId();
+    const iat = Math.floor(clock.now().getTime() / 1000);
+    const scope = input.scope ?? '';
+    await tokenGrantRepository(tx).create({
+      id: grantId,
+      tenantId: ctx.id,
+      clientId: input.client.id,
+      subjectId: input.subjectId,
+      scope,
+      audience: input.audience,
+      sessionId: input.sessionId,
+    });
+    recordGrant(ctx.id, grantId);
+    return signJwt(
+      {
+        iss: ctx.issuer,
+        sub: input.subjectId,
+        aud: input.audience,
+        client_id: input.client.clientId,
+        scope,
+        iat,
+        exp: iat + 3600,
+        jti: newId(),
+        grant_id: grantId,
+        ...(input.sessionId !== null ? { sid: input.sessionId } : {}),
+      },
+      { key, kek: KEK, typ: 'at+jwt' },
+    );
+  }
+
+  async function assignCapabilities(
+    tx: TenantScopedDatabase,
+    adminClientDbId: string,
+    subjectId: string,
+    capabilities: readonly string[],
+  ): Promise<void> {
+    const roles = roleRepository(tx);
+    for (const capability of capabilities) {
+      const role = await roles.byName(capability, adminClientDbId);
+      if (role === null) {
+        throw new Error(`fixture: no role named ${JSON.stringify(capability)} on the admin client`);
+      }
+      await roles.assignToSubject(subjectId, role.id);
+    }
+  }
+
+  // Shared by `adminToken`, `systemAdminToken` and `applicationToken`: a
+  // fresh subject carrying exactly the named capabilities, a live session,
+  // and a grant minted through the tenant's own built-in admin client. Only
+  // the audience differs between the three, which is the one thing the
+  // authentication chain (Task 2.3) is meant to key off.
+  async function mintAdminLikeToken(
+    ctx: TenantContext,
+    capabilities: readonly string[],
+    audience: string[],
+  ): Promise<string> {
+    return withTenant(app.db, ctx.id, async (tx) => {
+      const adminClient = await clientRepository(tx).byClientId(ADMIN_CLIENT_ID);
+      if (adminClient === null) {
+        throw new Error(`fixture: ${ctx.name} has no built-in admin client`);
+      }
+      const subject = await subjectRepository(tx).create({ tenantId: ctx.id, type: 'user' });
+      await assignCapabilities(tx, adminClient.id, subject.id, capabilities);
+      const sessionId = newId();
+      await sessionRepository(tx).create({
+        id: sessionId,
+        tenantId: ctx.id,
+        subjectId: subject.id,
+        expiresAt: new Date(clock.now().getTime() + 24 * 3600 * 1000),
+        authenticators: ['pwd'],
+      });
+      return mintTokenInTx(tx, ctx, {
+        subjectId: subject.id,
+        client: adminClient,
+        sessionId,
+        audience,
+      });
+    });
+  }
+
+  async function clientCredentialsToken(
+    ctx: TenantContext,
+    clientId: string,
+    secret: string,
+  ): Promise<string> {
+    const res = await http.inject({
+      method: 'POST',
+      url: `/tenants/${ctx.name}/protocol/openid-connect/token`,
+      payload: new URLSearchParams({ grant_type: 'client_credentials' }).toString(),
+      headers: {
+        'content-type': 'application/x-www-form-urlencoded',
+        authorization: basicAuth(clientId, secret),
+      },
+    });
+    if (res.statusCode !== 200) {
+      throw new Error(
+        `fixture: client_credentials request failed with ${String(res.statusCode)}: ${res.body}`,
+      );
+    }
+    return res.json<{ access_token: string }>().access_token;
+  }
+
+  async function createConfidentialClientRow(
+    ctx: TenantContext,
+    input: {
+      clientId: string;
+      name: string;
+      grantTypes: string[];
+      redirectUris: string[];
+      audiences: string[];
+    },
+  ): Promise<{ client: ClientRecord; secret: string }> {
+    const secret = randomBytes(32).toString('base64url');
+    const client = await withTenant(app.db, ctx.id, async (tx) => {
+      const serviceSubject = await subjectRepository(tx).create({
+        tenantId: ctx.id,
+        type: 'service',
+      });
+      const created = await clientRepository(tx).create({
+        tenantId: ctx.id,
+        clientId: input.clientId,
+        name: input.name,
+        type: 'confidential',
+        secretHash: await hashPassword(secret),
+        serviceSubjectId: serviceSubject.id,
+      });
+      await provisionClientDefaults(tx, created.id);
+      await clientOidcConfigRepository(tx).create({
+        clientId: created.id,
+        tenantId: ctx.id,
+        redirectUris: input.redirectUris,
+        grantTypes: input.grantTypes,
+        tokenEndpointAuthMethod: 'client_secret_basic',
+        audiences: input.audiences,
+        accessTokenTtlSeconds: 300,
+        refreshTokenTtlSeconds: 1_209_600,
+      });
+      return created;
+    });
+    return { client, secret };
+  }
+
+  async function createTenant(name: string): Promise<{ id: string; name: string }> {
+    const ctx = await provisionTenantRow(newId(), name);
+    return { id: ctx.id, name: ctx.name };
+  }
+
+  async function stop(): Promise<void> {
+    await http.close();
+    await app.close();
+    await owner.close();
+    await container.stop();
+  }
+
+  async function adminToken(tenantName: string, capabilities: readonly string[]): Promise<string> {
+    const ctx = requireTenant(tenantName);
+    return mintAdminLikeToken(ctx, capabilities, [`${ctx.issuer}/admin`]);
+  }
+
+  async function systemAdminToken(capabilities: readonly string[]): Promise<string> {
+    return mintAdminLikeToken(systemTenant, capabilities, [`${systemTenant.issuer}/admin`]);
+  }
+
+  async function applicationToken(
+    tenantName: string,
+    options: { audience: string },
+  ): Promise<string> {
+    const ctx = requireTenant(tenantName);
+    return mintAdminLikeToken(ctx, [], [options.audience]);
+  }
+
+  async function createSubject(tenantName: string, username: string): Promise<{ id: string }> {
+    const ctx = requireTenant(tenantName);
+    return withTenant(app.db, ctx.id, async (tx) => {
+      const subject = await subjectRepository(tx).create({ tenantId: ctx.id, type: 'user' });
+      await userRepository(tx).create({ subjectId: subject.id, tenantId: ctx.id, username });
+      return { id: subject.id };
+    });
+  }
+
+  async function createConfidentialClient(
+    tenantName: string,
+    overrides: Partial<{ grantTypes: string[]; redirectUris: string[] }>,
+  ): Promise<TestClient> {
+    const ctx = requireTenant(tenantName);
+    const grantTypes = overrides.grantTypes ?? ['client_credentials'];
+    const redirectUris = overrides.redirectUris ?? ['https://app.example/callback'];
+    const { client, secret } = await createConfidentialClientRow(ctx, {
+      clientId: `client-${newId()}`,
+      name: 'Test confidential client',
+      grantTypes,
+      redirectUris,
+      audiences: [],
+    });
+    const token = grantTypes.includes('client_credentials')
+      ? await clientCredentialsToken(ctx, client.clientId, secret)
+      : '';
+    return { id: client.id, clientId: client.clientId, secret, token };
+  }
+
+  async function createServiceAccountClient(
+    tenantName: string,
+    capabilities: readonly string[],
+  ): Promise<TestClient> {
+    const ctx = requireTenant(tenantName);
+    const { client, secret } = await createConfidentialClientRow(ctx, {
+      clientId: `service-${newId()}`,
+      name: 'Test service account client',
+      grantTypes: ['client_credentials'],
+      redirectUris: [],
+      // The admin audience, so this client's own client_credentials grant
+      // authenticates at /admin the same way `adminToken` does, and
+      // `disableClientOf` breaks it the same way it breaks any other.
+      audiences: [`${ctx.issuer}/admin`],
+    });
+    const serviceSubjectId = client.serviceSubjectId;
+    if (serviceSubjectId !== null) {
+      await withTenant(app.db, ctx.id, async (tx) => {
+        const adminClient = await clientRepository(tx).byClientId(ADMIN_CLIENT_ID);
+        if (adminClient === null) {
+          throw new Error(`fixture: ${ctx.name} has no built-in admin client`);
+        }
+        await assignCapabilities(tx, adminClient.id, serviceSubjectId, capabilities);
+      });
+    }
+    const token = await clientCredentialsToken(ctx, client.clientId, secret);
+    return { id: client.id, clientId: client.clientId, secret, token };
+  }
+
+  async function builtinAdminClient(tenantName: string): Promise<TestClient> {
+    const ctx = requireTenant(tenantName);
+    return withTenant(app.db, ctx.id, async (tx) => {
+      const client = await clientRepository(tx).byClientId(ADMIN_CLIENT_ID);
+      if (client === null) throw new Error(`fixture: ${ctx.name} has no built-in admin client`);
+      // Public and never authenticated with client_credentials — nothing
+      // to fill either field with.
+      return { id: client.id, clientId: client.clientId, secret: '', token: '' };
+    });
+  }
+
+  async function registerClient(
+    tenantName: string,
+    metadata: Record<string, unknown>,
+  ): Promise<LightMyRequestResponse> {
+    return http.inject({
+      method: 'POST',
+      url: `/tenants/${tenantName}/clients-registrations/openid-connect`,
+      payload: JSON.stringify(metadata),
+      headers: { 'content-type': 'application/json' },
+    });
+  }
+
+  async function registerClientWithUserinfoAlg(
+    tenantName: string,
+    alg: string,
+  ): Promise<TestClient> {
+    const ctx = requireTenant(tenantName);
+    const res = await registerClient(tenantName, {
+      grant_types: ['client_credentials'],
+      token_endpoint_auth_method: 'client_secret_basic',
+      userinfo_signed_response_alg: alg,
+    });
+    if (res.statusCode !== 201) {
+      throw new Error(
+        `fixture: client registration failed with ${String(res.statusCode)}: ${res.body}`,
+      );
+    }
+    const body = res.json<{ client_id: string; client_secret: string }>();
+    const token = await clientCredentialsToken(ctx, body.client_id, body.client_secret);
+    const clientDbId = await withTenant(app.db, ctx.id, async (tx) => {
+      const client = await clientRepository(tx).byClientId(body.client_id);
+      if (client === null) throw new Error('fixture: registered client not found');
+      return client.id;
+    });
+    return { id: clientDbId, clientId: body.client_id, secret: body.client_secret, token };
+  }
+
+  async function patchClient(
+    tenantName: string,
+    clientDbId: string,
+    body: Record<string, unknown>,
+  ): Promise<LightMyRequestResponse> {
+    const ctx = requireTenant(tenantName);
+    const token = await mintAdminLikeToken(ctx, ['manage-clients'], [`${ctx.issuer}/admin`]);
+    return http.inject({
+      method: 'PATCH',
+      url: `/admin/tenants/${tenantName}/clients/${clientDbId}`,
+      payload: JSON.stringify(body),
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+    });
+  }
+
+  async function tokenRequest(
+    tenantName: string,
+    client: TestClient,
+    body: Record<string, string>,
+  ): Promise<LightMyRequestResponse> {
+    return http.inject({
+      method: 'POST',
+      url: `/tenants/${tenantName}/protocol/openid-connect/token`,
+      payload: new URLSearchParams(body).toString(),
+      headers: {
+        'content-type': 'application/x-www-form-urlencoded',
+        authorization: basicAuth(client.clientId, client.secret),
+      },
+    });
+  }
+
+  async function revokeGrantsFor(tenantName: string): Promise<void> {
+    const ctx = requireTenant(tenantName);
+    const ids = grantsByTenant.get(ctx.id) ?? [];
+    if (ids.length === 0) return;
+    const now = clock.now();
+    await withTenant(app.db, ctx.id, async (tx) => {
+      for (const id of ids) {
+        await tokenGrantRepository(tx).revoke(id, now);
+      }
+    });
+  }
+
+  async function revokeCapability(
+    tenantName: string,
+    token: string,
+    capability: string,
+  ): Promise<void> {
+    const ctx = requireTenant(tenantName);
+    const subjectId = decodeUnverified(token).sub;
+    if (typeof subjectId !== 'string') throw new Error('fixture: token carries no sub claim');
+    await withTenant(app.db, ctx.id, async (tx) => {
+      const adminClient = await clientRepository(tx).byClientId(ADMIN_CLIENT_ID);
+      if (adminClient === null)
+        throw new Error(`fixture: ${ctx.name} has no built-in admin client`);
+      const role = await roleRepository(tx).byName(capability, adminClient.id);
+      if (role === null) throw new Error(`fixture: no role named ${JSON.stringify(capability)}`);
+      await tx
+        .delete(subjectRoles)
+        .where(and(eq(subjectRoles.subjectId, subjectId), eq(subjectRoles.roleId, role.id)));
+    });
+  }
+
+  async function disableClientOf(token: string): Promise<void> {
+    const claims = decodeUnverified(token);
+    const iss = claims.iss;
+    const clientIdString = claims.client_id;
+    if (typeof iss !== 'string' || typeof clientIdString !== 'string') {
+      throw new Error('fixture: token carries no iss/client_id claim');
+    }
+    const ctx = requireTenant(tenantNameFromIssuer(iss));
+    await withTenant(app.db, ctx.id, async (tx) => {
+      const client = await clientRepository(tx).byClientId(clientIdString);
+      if (client === null) throw new Error(`fixture: unknown client ${clientIdString}`);
+      await tx.update(clients).set({ enabled: false }).where(eq(clients.id, client.id));
+    });
+  }
+
+  async function renameClientIdDirectly(
+    tenantId: string,
+    clientDbId: string,
+    clientId: string,
+  ): Promise<void> {
+    await withTenant(app.db, tenantId, async (tx) => {
+      await tx.update(clients).set({ clientId }).where(eq(clients.id, clientDbId));
+    });
+  }
+
+  // No consumer until audit logging gives this a real write path to
+  // intercept. Throwing here rather than doing nothing keeps a caller from
+  // mistaking silence for the flag having taken effect.
+  function failNextWriteAfterAudit(): Promise<void> {
+    return Promise.reject(
+      new Error(
+        'fixture: failNextWriteAfterAudit has no wiring yet — wire it when audit logging lands',
+      ),
+    );
+  }
+
+  return {
+    owner,
+    app,
+    http,
+    clock,
+    systemTenantId: systemTenant.id,
+    createTenant,
+    stop,
+    adminToken,
+    systemAdminToken,
+    applicationToken,
+    createSubject,
+    createConfidentialClient,
+    createServiceAccountClient,
+    builtinAdminClient,
+    registerClient,
+    registerClientWithUserinfoAlg,
+    patchClient,
+    tokenRequest,
+    revokeGrantsFor,
+    revokeCapability,
+    disableClientOf,
+    renameClientIdDirectly,
+    failNextWriteAfterAudit,
+  };
+}

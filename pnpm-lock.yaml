@@ -434,16 +434,40 @@ importers:
 
   packages/protocol-admin:
     dependencies:
+      '@odudu/authn-flows':
+        specifier: workspace:*
+        version: link:../authn-flows
+      '@odudu/crypto':
+        specifier: workspace:*
+        version: link:../crypto
       '@odudu/db':
         specifier: workspace:*
         version: link:../db
+      '@odudu/domain-authz':
+        specifier: workspace:*
+        version: link:../domain-authz
+      '@odudu/domain-identity':
+        specifier: workspace:*
+        version: link:../domain-identity
+      '@odudu/domain-tenant':
+        specifier: workspace:*
+        version: link:../domain-tenant
       '@odudu/kernel':
         specifier: workspace:*
         version: link:../kernel
+      '@odudu/protocol-oidc':
+        specifier: workspace:*
+        version: link:../protocol-oidc
+      drizzle-orm:
+        specifier: 0.45.2
+        version: 0.45.2(postgres@3.4.9)
       fastify:
         specifier: 5.12.3
         version: 5.12.3
     devDependencies:
+      '@fastify/formbody':
+        specifier: 9.0.0
+        version: 9.0.0
       '@odudu/testkit':
         specifier: workspace:*
         version: link:../testkit
