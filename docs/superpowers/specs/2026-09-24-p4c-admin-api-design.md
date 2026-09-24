@@ -163,18 +163,20 @@ A bearer access token. Every step fails closed, in order:
    was built to honour that. It refused every genuine token on any deployment
    not served at the fixture's own authority, and the guard guarded nothing —
    a forged `Host` yields an issuer matching neither candidate, and
-   verification runs against the named tenant's own keys regardless. One
+   verification runs against the matched issuer tenant's keys regardless. One
    configured issuer base for the whole deployment is the better long-term
    answer and is deferred, since it would change how `iss` is minted on every
    token, ID token, Logout Token, the RFC 9207 parameter and discovery.
 2. `aud` must name the admin API's resource identifier,
-   `urn:odudu:params:admin-api`. Without this, any access token from the
-   target tenant would authorize administration. Amended after review on
-   2026-09-24: this originally said `${iss}/admin`, which cannot be
-   registered in the built-in admin client's audiences when that client is
-   provisioned, because issuers are resolved from the request. A fixed URN
-   is registrable, and replay across tenants is still closed by `iss` and
-   by verification against the named tenant's own keys.
+   `urn:odudu:params:admin-api`. Without this check, a token minted for any
+   other audience would still face steps 3 through 6 — the grant, the
+   client, and the route's capability — but the audience check is what
+   stops it from ever reaching them. Amended after review on 2026-09-24:
+   this originally said `${iss}/admin`, which cannot be registered in the
+   built-in admin client's audiences when that client is provisioned,
+   because issuers are resolved from the request. A fixed URN is
+   registrable, and replay across tenants is still closed by `iss` and by
+   verification against the matched issuer tenant's keys.
 3. The token's grant is live and its session alive — the pair `/userinfo`
    and `/introspect` already check.
 4. The token's client is enabled (§10's rule, applied here too, which is what
