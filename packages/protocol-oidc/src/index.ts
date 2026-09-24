@@ -25,17 +25,16 @@ import {
   startAuthentication,
   type SessionLifespans,
 } from '@odudu/authn-flows';
-import { JWE_ALGS_PERMITTED, signingKeyRepository, signJwt } from '@odudu/crypto';
+import { JWE_ALGS_PERMITTED, signingKeyRepository } from '@odudu/crypto';
 import { effectiveGroupPaths, effectiveRoles } from '@odudu/domain-authz';
 import { withTenant, type DatabaseHandle } from '@odudu/db';
 import { hashPassword, userRepository, verifyPassword } from '@odudu/domain-identity';
 import { clientRepository, clientScopeRepository, consentRepository } from '@odudu/domain-tenant';
-import { newId, systemClock, type Clock } from '@odudu/kernel';
+import { systemClock, type Clock } from '@odudu/kernel';
 import { type FastifyPluginAsync } from 'fastify';
 import { type ClientKeySet } from '#/repository/client-keys';
 import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
-import { tokenGrantRepository, type ClientLogoutTarget } from '#/repository/grants';
-import { logoutDeliveryRepository } from '#/repository/logout-deliveries';
+import { tokenGrantRepository } from '#/repository/grants';
 import { tenantLookupRepository } from '#/repository/tenant-lookup';
 import { reachableRoleIds } from '#/repository/scope-role-reach';
 import { standardClaimMappers } from '#/service/claims';
@@ -45,7 +44,6 @@ import {
   USERINFO_ENCRYPTION_ENC_DEFAULT,
   USERINFO_ENCRYPTION_ENCS_PERMITTED,
 } from '#/service/client-metadata';
-import { logoutTokenClaims, LOGOUT_TOKEN_TYP } from '#/service/logout-token';
 import { DEFAULT_TLS_CLIENT_SUBJECT_HEADER } from '#/service/tls-client-auth';
 import { expandWebOrigins } from '#/service/web-origin';
 import {
@@ -54,6 +52,7 @@ import {
   type CompleteLoginOutcome,
 } from '#/usecase/login-submission';
 import { type ResolvedClient } from '#/usecase/authorization-request';
+import { endSession } from '#/usecase/end-session';
 import { registerAuthorizeRoute } from '#/view/routes/authorize';
 import { registerClientRegistrationRoute } from '#/view/routes/client-registration';
 import { registerConsentRoute } from '#/view/routes/consent';
@@ -119,12 +118,6 @@ export interface OidcRoutesDeps {
   // name, so this is never a constant. Defaults to the same value the
   // kernel config schema does.
   tlsClientCertHeader?: string;
-}
-
-function hasBackchannelLogoutUri(
-  target: ClientLogoutTarget,
-): target is ClientLogoutTarget & { backchannelLogoutUri: string } {
-  return target.backchannelLogoutUri !== null;
 }
 
 // The plugin apps/server registers. Discovery and JWKS both read the
@@ -719,50 +712,13 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
           return clientOidcConfigRepository(tx).postLogoutRedirectUris(client.id);
         }),
       resolveSessions,
-      // One transaction, per Back-Channel Logout §2.7: end the session,
-      // revoke every grant whose session_id is that session, then mint and
-      // enqueue one delivery per client that used the session and
-      // registered a back-channel URI. A failure anywhere rolls all of it
-      // back — see the JSDoc on LogoutUsecaseDeps.endSession for why. Two
-      // concurrent logouts on the same session both reach here and both
-      // attempt to enqueue; logoutDeliveryRepository.enqueue's own comment
-      // is why that yields one delivery, not two.
+      // Two concurrent logouts on the same session both reach this and both
+      // attempt to enqueue a delivery; logoutDeliveryRepository.enqueue's
+      // own comment is why that yields one delivery, not two.
       endSession: (tenantId, sessionId, subjectId, now, issuer) =>
-        withTenant(deps.database.db, tenantId, async (tx) => {
-          await sessionRepository(tx).end(sessionId, now);
-          await tokenGrantRepository(tx).revokeForSession(sessionId, now);
-
-          const targets = await tokenGrantRepository(tx).clientsForSession(sessionId);
-          const backchannelTargets = targets.filter(hasBackchannelLogoutUri);
-          if (backchannelTargets.length === 0) return;
-
-          const key = await signingKeyRepository(tx).active();
-          const deliveries = await Promise.all(
-            backchannelTargets.map(async (target) => {
-              const claims = logoutTokenClaims({
-                issuer,
-                audience: target.oauthClientId,
-                subject: subjectId,
-                sessionId,
-                now,
-              });
-              const logoutToken = await signJwt(
-                { ...claims },
-                { key, kek: deps.kek, typ: LOGOUT_TOKEN_TYP },
-              );
-              return {
-                id: newId(),
-                tenantId,
-                clientId: target.clientId,
-                sessionId,
-                endpoint: target.backchannelLogoutUri,
-                logoutToken,
-                nextAttemptAt: now,
-              };
-            }),
-          );
-          await logoutDeliveryRepository(tx).enqueue(deliveries);
-        }),
+        withTenant(deps.database.db, tenantId, (tx) =>
+          endSession(tx, { kek: deps.kek }, { tenantId, sessionId, subjectId, now, issuer }),
+        ),
       // Front-Channel Logout 1.0 §3's "set of logged-in RPs" — read after
       // endSession above has already revoked the session's grants, since
       // revoking one only stamps revoked_at rather than removing it.
@@ -884,6 +840,7 @@ export {
 // (packages/protocol-admin/src/testing/admin-fixture.ts and the
 // authentication chain it exists to test).
 export { tokenGrantRepository, type TokenGrantRecord } from '#/repository/grants';
+export { endSession, type EndSessionDeps, type EndSessionInput } from '#/usecase/end-session';
 export {
   UNLIMITED_CLIENT_SECRET_LIMITER,
   type ClientSecretLimiter,

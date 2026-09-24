@@ -10,6 +10,7 @@ import {
   cursorQuerySchema,
   listClientsResponseSchema,
   listCredentialsResponseSchema,
+  listSessionsResponseSchema,
   listSubjectsQuerySchema,
   listSubjectsResponseSchema,
   listTenantsResponseSchema,
@@ -130,6 +131,21 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     capability: 'manage-users',
     responseSchema: setRolesResponseSchema,
     bodySchema: setRolesRequestSchema,
+  },
+  // No `view-sessions`: reached only by an operator who can also end one,
+  // the same reasoning that leaves clients with no `view-clients`.
+  {
+    method: 'GET',
+    pattern: '/admin/tenants/:tenant/subjects/:id/sessions',
+    capability: 'manage-sessions',
+    responseSchema: listSessionsResponseSchema,
+  },
+  {
+    method: 'DELETE',
+    pattern: '/admin/tenants/:tenant/subjects/:id/sessions/:sid',
+    capability: 'manage-sessions',
+    responseSchema: z.void(),
+    successStatus: 204,
   },
   {
     method: 'GET',

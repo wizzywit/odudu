@@ -80,6 +80,8 @@ document's.
 | `DELETE` | `/admin/tenants/{tenant}/subjects/:id/credentials/:credentialId` | Remove a credential              |
 | `PUT`    | `/admin/tenants/{tenant}/subjects/:id/required-actions`          | Set a subject's required actions |
 | `PUT`    | `/admin/tenants/{tenant}/subjects/:id/roles`                     | Replace a subject's roles        |
+| `GET`    | `/admin/tenants/{tenant}/subjects/:id/sessions`                  | List a subject's live sessions   |
+| `DELETE` | `/admin/tenants/{tenant}/subjects/:id/sessions/:sid`             | End one session                  |
 | `GET`    | `/admin/tenants/{tenant}/settings`                               | Read a tenant's settings         |
 | `PATCH`  | `/admin/tenants/{tenant}/settings`                               | Amend a tenant's settings        |
 | `GET`    | `/admin/tenants/{tenant}/clients`                                | List clients                     |
@@ -684,6 +686,63 @@ curl -sS -X PUT \
   -H "Content-Type: application/json" \
   -d '{"role_ids": ["<role id>"]}' \
   http://localhost:3000/admin/tenants/demo/subjects/<subject id>/roles
+```
+
+## `GET /subjects/:id/sessions` and `DELETE /subjects/:id/sessions/:sid`
+
+Both require `manage-sessions`; there is no `view-sessions`, the same
+reasoning that leaves clients with no `view-clients` — a session is reached
+only by an operator who can also end one.
+
+`GET` lists the subject's **live** sessions — the same liveness arithmetic
+every other session consumer applies, each session measured against the
+idle window its own `remembered` column picks. This is the one read keyed
+on the subject rather than on a browser's cookie, so it is also the one
+place an operator can see a session the cookie no longer names — a second
+concurrent login can orphan one, and a remembered orphan idles for
+`remember_me_idle_seconds` before it stops appearing (ADR 0033's
+amendment). Each entry carries `id`, `created_at`, `last_active_at`,
+`remembered`, and `client_ids` — the OAuth `client_id` of every enabled
+client the session holds a grant for.
+
+`DELETE` ends one session through the same call the RP-Initiated Logout
+usecase makes (`endSession`, `packages/protocol-oidc/src/usecase/end-session.ts`) —
+there is one path that ends a session, not two. It revokes every grant the
+session holds and enqueues a Back-Channel Logout Token for each registered
+client that used it and has a `backchannel_logout_uri` configured (§2.5 of
+the spec). **Front-Channel Logout does not apply here**: §3 renders an
+iframe per relying party in the End-User's own browser, and an
+admin-initiated end has no browser to render one in, so only the
+back-channel delivery is attempted. A second `DELETE` of the same session
+is idempotent and answers `204`: ending an already-ended session only
+moves `expires_at` earlier, and a repeat delivery for the same client is
+deduped by `backchannel_logout_deliveries_dedupe`. An unknown session id,
+or one belonging to a different subject, answers `404`.
+
+```bash
+curl -sS \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  http://localhost:3000/admin/tenants/demo/subjects/<subject id>/sessions
+
+curl -sS -X DELETE \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  http://localhost:3000/admin/tenants/demo/subjects/<subject id>/sessions/<session id>
+```
+
+The list response shape, not a captured run:
+
+```json
+{
+  "items": [
+    {
+      "id": "<session id>",
+      "created_at": "<timestamp>",
+      "last_active_at": "<timestamp>",
+      "remembered": false,
+      "client_ids": ["demo-backend"]
+    }
+  ]
+}
 ```
 
 ## `GET /admin/openapi.json`

@@ -20,6 +20,7 @@ export interface AdminRouteParams {
   readonly tenant?: string;
   readonly id?: string;
   readonly credentialId?: string;
+  readonly sid?: string;
 }
 
 export type AdminRequest = FastifyRequest<{ Params: AdminRouteParams }>;

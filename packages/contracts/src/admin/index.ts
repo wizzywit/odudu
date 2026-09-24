@@ -67,3 +67,9 @@ export {
   setRolesResponseSchema,
   type SetRolesResponse,
 } from '#/admin/subjects';
+export {
+  sessionSchema,
+  type Session,
+  listSessionsResponseSchema,
+  type ListSessionsResponse,
+} from '#/admin/sessions';

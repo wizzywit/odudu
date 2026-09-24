@@ -8345,9 +8345,6 @@ session lifecycle. A citation of either half here means that half.
 
 **Endpoints that do not exist at all**
 
-- **No administrative way to end somebody else's session.** Listing a
-  subject's sessions and ending one is **P4c**, with the rest of the admin
-  surface, because until there is an admin API there is nowhere to put it.
 - **Any admin API.** **P4c.** The seed command and
   [dynamic client registration](#dynamic-client-registration) are the only
   administrative surfaces — the former for a tenant's first user, client and

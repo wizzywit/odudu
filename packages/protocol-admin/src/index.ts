@@ -10,6 +10,7 @@ import { type FastifyPluginAsync } from 'fastify';
 import { type AuthenticateAdminDeps } from '#/usecase/authenticate-admin';
 import { type AuthorizeAdminDeps } from '#/usecase/authorize-admin';
 import { type Audit as ClientAudit } from '#/usecase/clients';
+import { type Audit as SessionAudit } from '#/usecase/sessions';
 import { type Audit as SubjectAudit } from '#/usecase/subjects';
 import { type Audit } from '#/usecase/tenants';
 import { installAdminValidator } from '#/adapter/validation';
@@ -25,6 +26,11 @@ import {
 } from '#/view/routes/clients';
 import { registerOpenApiRoute } from '#/view/routes/openapi';
 import { type AdminRouteHandlers, registerAdminRoutes } from '#/view/routes/router';
+import {
+  deleteSessionHandler,
+  listSessionsHandler,
+  type SessionsRouteDeps,
+} from '#/view/routes/sessions';
 import {
   amendSettingsHandler,
   getSettingsHandler,
@@ -87,6 +93,7 @@ export function adminRoutes(deps: AdminRoutesDeps): FastifyPluginAsync {
     const noopAudit: Audit = () => Promise.resolve();
     const noopClientAudit: ClientAudit = () => Promise.resolve();
     const noopSubjectAudit: SubjectAudit = () => Promise.resolve();
+    const noopSessionAudit: SessionAudit = () => Promise.resolve();
     const subjectsDeps: SubjectsRouteDeps = {
       database: deps.database.db,
       cursorKey: deps.cursorKey,
@@ -122,6 +129,12 @@ export function adminRoutes(deps: AdminRoutesDeps): FastifyPluginAsync {
       tlsClientAuthEnabled: deps.trustProxy ?? false,
       audit: noopClientAudit,
     };
+    const sessionsDeps: SessionsRouteDeps = {
+      database: deps.database.db,
+      kek: deps.kek,
+      audit: noopSessionAudit,
+      now: () => clock.now(),
+    };
     const handlers: AdminRouteHandlers = {
       'GET /admin/tenants/:tenant/whoami': whoamiHandler,
       'GET /admin/tenants/:tenant/subjects': listSubjectsHandler(subjectsDeps),
@@ -135,6 +148,9 @@ export function adminRoutes(deps: AdminRoutesDeps): FastifyPluginAsync {
       'PUT /admin/tenants/:tenant/subjects/:id/required-actions':
         setRequiredActionsHandler(subjectsDeps),
       'PUT /admin/tenants/:tenant/subjects/:id/roles': setRolesHandler(subjectsDeps),
+      'GET /admin/tenants/:tenant/subjects/:id/sessions': listSessionsHandler(sessionsDeps),
+      'DELETE /admin/tenants/:tenant/subjects/:id/sessions/:sid':
+        deleteSessionHandler(sessionsDeps),
       'GET /admin/tenants': listTenantsHandler(tenantsDeps),
       'POST /admin/tenants': createTenantHandler(tenantsDeps),
       'GET /admin/tenants/:tenant/settings': getSettingsHandler(settingsDeps),
