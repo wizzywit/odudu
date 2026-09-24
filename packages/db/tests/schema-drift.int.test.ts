@@ -64,7 +64,7 @@ const EXPECTED_CHECKS: Record<string, string> = {
   'groups.groups_name_has_no_slash': "CHECK (((name !~ '/'::text) AND (name <> ''::text)))",
   'groups.groups_path_is_absolute': "CHECK ((path ~~ '/%'::text))",
   'clients.clients_registration_origin_check':
-    "CHECK ((registration_origin = ANY (ARRAY['seeded'::text, 'anonymous'::text, 'token'::text])))",
+    "CHECK ((registration_origin = ANY (ARRAY['seeded'::text, 'anonymous'::text, 'token'::text, 'operator'::text])))",
   'clients.clients_secret_matches_type':
     "CHECK ((((type = 'confidential'::text) AND (secret_hash IS NOT NULL)) OR ((type = 'public'::text) AND (secret_hash IS NULL))))",
   'clients.clients_type_check':

@@ -252,7 +252,25 @@ is refused here with the identical `400` detail. `odudu-admin` is refused
 as a `client_id` with `409` — reserved for the built-in admin client every
 tenant is provisioned with, and creation is a door dynamic registration
 never opens to it in the first place, since RFC 7591 §2 already assigns
-`client_id` there and refuses a caller that names one itself.
+`client_id` there and refuses a caller that names one itself. A `client_id`
+that collides with an existing client in the tenant is refused the same
+way, also `409`, rather than surfacing as the database's own unique-index
+violation.
+
+Unlike dynamic registration, this door has no `max_clients` gate
+(`lockCapacity`, `packages/domain-tenant/src/repository/clients.ts`, which
+`registerClient` calls and `createClient` here deliberately does not): the
+holder of `manage-clients` is the same authority that sets `max_clients` on
+this tenant's settings, so the cap is a limit an operator places on
+self-service registration, not on their own hand. An operator who wants a
+lower ceiling on operator-created clients too sets `max_clients` and stops
+short of it by habit; nothing here currently enforces that for them.
+
+Every client created through this door is recorded as
+`registration_origin: "operator"` — distinct from the CLI's `"seeded"`, RFC
+7591 open registration's `"anonymous"` and a registration token's
+`"token"` — so the four ways a client came to exist stay told apart in the
+one column that records it.
 
 A confidential client (`token_endpoint_auth_method` anything but `none`) is
 given a generated secret, returned **exactly once, in the creation
@@ -280,7 +298,7 @@ one-time secret:
   "type": "confidential",
   "enabled": true,
   "full_scope_allowed": false,
-  "registration_origin": "seeded",
+  "registration_origin": "operator",
   "created_at": "<timestamp>",
   "redirect_uris": [],
   "grant_types": ["client_credentials"],

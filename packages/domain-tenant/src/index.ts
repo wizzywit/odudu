@@ -25,7 +25,12 @@ export {
   type TenantCapability,
 } from '#/service/admin-capabilities';
 export { clients, type ClientRecord } from '#/schema/clients';
-export { clientRepository, type ClientCapacity, type NewClient } from '#/repository/clients';
+export {
+  clientRepository,
+  ClientIdConflictError,
+  type ClientCapacity,
+  type NewClient,
+} from '#/repository/clients';
 export {
   clientScopes,
   clientScopeAssignments,

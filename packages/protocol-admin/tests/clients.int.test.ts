@@ -1,8 +1,9 @@
 import { withTenant } from '@odudu/db';
-import { clientRepository } from '@odudu/domain-tenant';
+import { ClientIdConflictError, clientRepository } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
 import { clientOidcConfigRepository } from '@odudu/protocol-oidc';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { etagOf } from '#/service/etag';
 import { startAdminFixture, type AdminFixture } from '#/testing/admin-fixture';
 import { amendClient, createClient } from '#/usecase/clients';
 
@@ -89,7 +90,10 @@ describe('POST /admin/tenants/{t}/clients', () => {
     // carries the value `client_secret_basic`.
     expect(read.body).not.toContain('"client_secret"');
     expect(read.body).not.toContain(created.client_secret);
-    expect(read.headers.etag).toBeDefined();
+    // Pinned to the body it was computed from, not merely present — an
+    // ETag that stopped tracking the response (stale, or hashing a
+    // different shape) would still satisfy `toBeDefined()`.
+    expect(read.headers.etag).toBe(etagOf(read.json()));
   });
 
   it('refuses the reserved client_id odudu-admin', async () => {
@@ -106,6 +110,49 @@ describe('POST /admin/tenants/{t}/clients', () => {
       },
     });
     expect(res.statusCode).toBe(409);
+  });
+
+  it('refuses a duplicate client_id with 409, not the generic 500 the driver would raise', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-clients']);
+    const clientId = `dup-${newId()}`;
+    const payload = {
+      client_id: clientId,
+      redirect_uris: ['https://app.example/cb'],
+      token_endpoint_auth_method: 'none',
+    };
+    const first = await fixture.http.inject({
+      method: 'POST',
+      url: `/admin/tenants/${t.name}/clients`,
+      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      payload,
+    });
+    expect(first.statusCode).toBe(201);
+
+    const second = await fixture.http.inject({
+      method: 'POST',
+      url: `/admin/tenants/${t.name}/clients`,
+      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      payload,
+    });
+    expect(second.statusCode).toBe(409);
+  });
+
+  it('records registration_origin as operator, distinct from a seeded client', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-clients']);
+    const res = await fixture.http.inject({
+      method: 'POST',
+      url: `/admin/tenants/${t.name}/clients`,
+      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      payload: {
+        client_id: `op-${newId()}`,
+        redirect_uris: ['https://app.example/cb'],
+        token_endpoint_auth_method: 'none',
+      },
+    });
+    expect(res.statusCode).toBe(201);
+    expect(res.json<{ registration_origin: string }>().registration_origin).toBe('operator');
   });
 
   it('refuses jwks and jwks_uri together the same way dynamic registration does', async () => {
@@ -225,6 +272,49 @@ describe('GET /admin/tenants/{t}/clients and /clients/{id}', () => {
     });
     expect(res.statusCode).toBe(403);
   });
+
+  it('advances the cursor to rows the first page did not contain', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-clients']);
+    const clientIds: string[] = [];
+    for (let i = 0; i < 3; i += 1) {
+      const clientId = `page-${newId()}`;
+      const res = await fixture.http.inject({
+        method: 'POST',
+        url: `/admin/tenants/${t.name}/clients`,
+        headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+        payload: {
+          client_id: clientId,
+          redirect_uris: ['https://app.example/cb'],
+          token_endpoint_auth_method: 'none',
+        },
+      });
+      expect(res.statusCode).toBe(201);
+      clientIds.push(clientId);
+    }
+    // The tenant's own built-in admin client already occupies one row, so
+    // a page of 1 still leaves more than one further page to walk.
+    const first = await fixture.http.inject({
+      method: 'GET',
+      url: `/admin/tenants/${t.name}/clients?limit=1`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(first.statusCode).toBe(200);
+    const firstBody = first.json<{ items: { client_id: string }[]; next?: string }>();
+    expect(firstBody.next).toBeDefined();
+    expect(first.headers.link).toContain('rel="next"');
+
+    const second = await fixture.http.inject({
+      method: 'GET',
+      url: `/admin/tenants/${t.name}/clients?limit=1&cursor=${encodeURIComponent(firstBody.next ?? '')}`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(second.statusCode).toBe(200);
+    const secondBody = second.json<{ items: { client_id: string }[] }>();
+    expect(secondBody.items).toHaveLength(1);
+    // The cursor moved: the second page's row is not the first page's row.
+    expect(secondBody.items[0]?.client_id).not.toBe(firstBody.items[0]?.client_id);
+  });
 });
 
 describe('createClient', () => {
@@ -311,6 +401,48 @@ describe('createClient', () => {
       ),
     );
     expect(outcome.kind).toBe('invalid_metadata');
+    expect(events).toHaveLength(0);
+  });
+
+  it('does not call audit when the client_id collides with an existing client', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const clientId = `dup-usecase-${newId()}`;
+    const events: unknown[] = [];
+    const deps = {
+      hashClientSecret: (secret: string) => Promise.resolve(`hashed:${secret}`),
+      tlsClientAuthEnabled: false,
+      audit: (event: unknown) => {
+        events.push(event);
+        return Promise.resolve();
+      },
+    };
+    const metadata = {
+      redirect_uris: ['https://app.example/cb'],
+      token_endpoint_auth_method: 'none',
+    };
+    await withTenant(fixture.app.db, t.id, (tx) =>
+      createClient(tx, deps, {
+        clientId,
+        metadata,
+        tenantId: t.id,
+        actorSubjectId: 'test-subject',
+      }),
+    );
+    events.length = 0;
+
+    // `ClientIdConflictError` propagates out of `createClient` rather than
+    // being returned as an outcome (see the comment on its `create` call) —
+    // so the second attempt is asserted by its rejection, not its result.
+    await expect(
+      withTenant(fixture.app.db, t.id, (tx) =>
+        createClient(tx, deps, {
+          clientId,
+          metadata,
+          tenantId: t.id,
+          actorSubjectId: 'test-subject',
+        }),
+      ),
+    ).rejects.toThrow(ClientIdConflictError);
     expect(events).toHaveLength(0);
   });
 });

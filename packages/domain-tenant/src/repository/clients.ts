@@ -5,6 +5,22 @@ import { clients, type ClientRecord } from '#/schema/clients';
 
 export type { ClientRecord } from '#/schema/clients';
 
+/** Thrown by `create` when `client_id` collides with an existing client in the tenant. */
+export class ClientIdConflictError extends Error {
+  constructor(clientId: string) {
+    super(`client_id ${JSON.stringify(clientId)} is already in use`);
+    this.name = 'ClientIdConflictError';
+  }
+}
+
+// Drizzle wraps the driver's error, so the SQLSTATE is a level down —
+// mirrors `isUniqueViolation` in apps/server/src/cli/seed.ts.
+function isUniqueViolation(error: unknown): boolean {
+  if (typeof error !== 'object' || error === null) return false;
+  if ('code' in error) return error.code === '23505';
+  return 'cause' in error && isUniqueViolation(error.cause);
+}
+
 function toRecord(row: typeof clients.$inferSelect): ClientRecord {
   return {
     id: row.id,
@@ -68,24 +84,30 @@ export function clientRepository(tx: TenantScopedDatabase) {
     // client resolution reads them back alongside their OIDC config, so an
     // insert path belongs here rather than only in a migration.
     async create(input: NewClient): Promise<ClientRecord> {
-      const rows = await tx
-        .insert(clients)
-        .values({
-          id: newId(),
-          tenantId: input.tenantId,
-          clientId: input.clientId,
-          name: input.name,
-          type: input.type,
-          secretHash: input.secretHash,
-          enabled: input.enabled ?? true,
-          serviceSubjectId: input.serviceSubjectId ?? null,
-          fullScopeAllowed: input.fullScopeAllowed ?? false,
-          builtinAdmin: input.builtinAdmin ?? false,
-          ...(input.registrationOrigin === undefined
-            ? {}
-            : { registrationOrigin: input.registrationOrigin }),
-        })
-        .returning();
+      let rows: (typeof clients.$inferSelect)[];
+      try {
+        rows = await tx
+          .insert(clients)
+          .values({
+            id: newId(),
+            tenantId: input.tenantId,
+            clientId: input.clientId,
+            name: input.name,
+            type: input.type,
+            secretHash: input.secretHash,
+            enabled: input.enabled ?? true,
+            serviceSubjectId: input.serviceSubjectId ?? null,
+            fullScopeAllowed: input.fullScopeAllowed ?? false,
+            builtinAdmin: input.builtinAdmin ?? false,
+            ...(input.registrationOrigin === undefined
+              ? {}
+              : { registrationOrigin: input.registrationOrigin }),
+          })
+          .returning();
+      } catch (error) {
+        if (isUniqueViolation(error)) throw new ClientIdConflictError(input.clientId);
+        throw error;
+      }
       const row = rows[0];
       if (row === undefined) {
         throw new Error('insert into clients returned no row');

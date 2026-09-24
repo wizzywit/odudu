@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { createdAtSchema, idSchema } from '#/admin/shared';
 
 export const clientTypeSchema = z.enum(['public', 'confidential']);
-export const registrationOriginSchema = z.enum(['seeded', 'anonymous', 'token']);
+export const registrationOriginSchema = z.enum(['seeded', 'anonymous', 'token', 'operator']);
 
 export const clientSchema = z.object({
   id: idSchema,

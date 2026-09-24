@@ -435,6 +435,13 @@
       "when": 1789049381704,
       "tag": "0061_system_tenant",
       "breakpoints": true
+    },
+    {
+      "idx": 62,
+      "version": "7",
+      "when": 1789049381705,
+      "tag": "0062_client_registration_origin_operator",
+      "breakpoints": true
     }
   ]
 }

@@ -188,6 +188,10 @@ export interface CreateClientDeps {
   readonly audit: Audit;
 }
 
+// `ClientIdConflictError` (@odudu/domain-tenant) propagates out of
+// `createClient` instead of appearing in this union — see the comment
+// beside its `create` call for why it cannot be caught and returned from
+// inside the transaction.
 export type CreateClientOutcome =
   | { kind: 'reserved_client_id' }
   | {
@@ -280,6 +284,13 @@ export async function createClient(
   const secret = type === 'confidential' ? generateClientSecret() : null;
   const secretHash = secret === null ? null : await deps.hashClientSecret(secret);
 
+  // `ClientIdConflictError` is left to propagate out of this function,
+  // never caught and turned into a returned outcome: by the time the
+  // unique-index violation fires, the INSERT has already left this
+  // transaction aborted, and postgres.js discards whatever this function
+  // resolves with and throws the raw driver error regardless — the same
+  // reason `AmendSettingsRefusedError` (#/usecase/settings.ts) is thrown
+  // rather than returned. The route catches it outside `withTenant`.
   const client = await clientRepository(tx).create({
     tenantId: input.tenantId,
     clientId: input.clientId,
@@ -287,7 +298,11 @@ export async function createClient(
     type,
     secretHash,
     serviceSubjectId,
-    registrationOrigin: 'seeded',
+    // Distinct from the CLI's 'seeded' and dynamic registration's
+    // 'anonymous'/'token': an operator naming a client_id through this
+    // door is a provenance this record can state honestly, rather than
+    // folding it into 'seeded' and making the two indistinguishable.
+    registrationOrigin: 'operator',
   });
 
   await provisionClientDefaults(tx, client.id);

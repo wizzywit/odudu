@@ -7,6 +7,7 @@ import {
   type RotateClientSecretResponse,
 } from '@odudu/contracts/admin';
 import { withTenant, type Database } from '@odudu/db';
+import { ClientIdConflictError } from '@odudu/domain-tenant';
 import { type FastifyReply } from 'fastify';
 import { coerceLimit } from '#/service/cursor';
 import { etagOf } from '#/service/etag';
@@ -21,6 +22,7 @@ import {
   type AmendClientOutcome,
   type Audit,
   type ClientView,
+  type CreateClientOutcome,
 } from '#/usecase/clients';
 import { problem, sendProblem } from '#/view/problem';
 import { type AdminRequest, type AdminRouteHandler } from '#/view/routes/router';
@@ -113,22 +115,42 @@ export function createClientHandler(deps: ClientsRouteDeps): AdminRouteHandler {
     const body = createClientRequestSchema.parse(request.body);
     const { client_id: clientId, ...metadata } = body;
 
-    const outcome = await withTenant(deps.database, targetTenantId, (tx) =>
-      createClient(
-        tx,
-        {
-          hashClientSecret: deps.hashClientSecret,
-          tlsClientAuthEnabled: deps.tlsClientAuthEnabled,
-          audit: deps.audit,
-        },
-        {
-          clientId,
-          metadata,
-          tenantId: targetTenantId,
-          actorSubjectId: principal.subjectId,
-        },
-      ),
-    );
+    let outcome: CreateClientOutcome;
+    try {
+      outcome = await withTenant(deps.database, targetTenantId, (tx) =>
+        createClient(
+          tx,
+          {
+            hashClientSecret: deps.hashClientSecret,
+            tlsClientAuthEnabled: deps.tlsClientAuthEnabled,
+            audit: deps.audit,
+          },
+          {
+            clientId,
+            metadata,
+            tenantId: targetTenantId,
+            actorSubjectId: principal.subjectId,
+          },
+        ),
+      );
+    } catch (error) {
+      // The transaction has already rolled back by the time this is
+      // caught (createClient's own comment on its `create` call) — nothing
+      // here reads or writes through `tx` again.
+      if (error instanceof ClientIdConflictError) {
+        return sendProblem(
+          reply,
+          request,
+          problem(
+            409,
+            'about:blank',
+            'Conflict',
+            `the client_id ${JSON.stringify(clientId)} is already in use`,
+          ),
+        );
+      }
+      throw error;
+    }
 
     switch (outcome.kind) {
       case 'reserved_client_id':
