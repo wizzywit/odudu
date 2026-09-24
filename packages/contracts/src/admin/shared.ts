@@ -1,8 +1,11 @@
 import { z } from 'zod';
 
+export const DEFAULT_LIMIT = 50;
+export const MAX_LIMIT = 200;
+
 export const cursorQuerySchema = z.object({
   cursor: z.string().optional(),
-  limit: z.coerce.number().int().min(1).max(100).optional(),
+  limit: z.coerce.number().int().min(1).max(MAX_LIMIT).optional(),
 });
 export type CursorQuery = z.infer<typeof cursorQuerySchema>;
 

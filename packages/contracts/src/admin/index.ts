@@ -1,4 +1,6 @@
 export {
+  DEFAULT_LIMIT,
+  MAX_LIMIT,
   cursorQuerySchema,
   type CursorQuery,
   problemDetailsSchema,

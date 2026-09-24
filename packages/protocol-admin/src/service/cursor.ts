@@ -1,7 +1,7 @@
+import { DEFAULT_LIMIT, MAX_LIMIT } from '@odudu/contracts/admin';
 import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
 
-export const DEFAULT_LIMIT = 50;
-export const MAX_LIMIT = 200;
+export { DEFAULT_LIMIT, MAX_LIMIT };
 
 const LIMIT_PATTERN = /^[1-9][0-9]*$/;
 
