@@ -355,3 +355,135 @@ describe('a cyclic parent_id written behind the repository', () => {
     expect(reachable).toEqual(new Set([a.id, b.id]));
   }, 10_000);
 });
+
+describe('byId', () => {
+  it('finds a group created in the same tenant', async () => {
+    const tenant = await tenantFixture();
+    const group = await tenant.createGroup('engineering', null);
+    const found = await withTenant(app.db, tenant.tenantId, (tx) =>
+      groupRepository(tx).byId(group.id),
+    );
+    expect(found?.id).toBe(group.id);
+  });
+
+  it('does not find another tenant’s group', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        await seedTenant(tx, tenantId);
+        return groupRepository(tx).create({ tenantId, name: 'engineering', parentId: null });
+      },
+      verifySeeded: async (tx, group) => {
+        expect(await groupRepository(tx).byId(group.id)).not.toBeNull();
+      },
+      attempt: async (tx, group) => groupRepository(tx).byId(group.id),
+      expectBlocked: (result) => {
+        expect(result).toBeNull();
+      },
+    });
+  });
+});
+
+describe('delete', () => {
+  it('removes the group and its child’s parent_id edge', async () => {
+    const tenant = await tenantFixture();
+    const parent = await tenant.createGroup('engineering', null);
+    const child = await tenant.createGroup('platform', parent.id);
+
+    const deleted = await withTenant(app.db, tenant.tenantId, (tx) =>
+      groupRepository(tx).delete(parent.id),
+    );
+    expect(deleted).toBe(true);
+
+    const survivingChild = await withTenant(app.db, tenant.tenantId, (tx) =>
+      groupRepository(tx).byId(child.id),
+    );
+    expect(survivingChild).toBeNull();
+  });
+
+  it('reports false for an id no group holds', async () => {
+    const tenant = await tenantFixture();
+    const deleted = await withTenant(app.db, tenant.tenantId, (tx) =>
+      groupRepository(tx).delete(newId()),
+    );
+    expect(deleted).toBe(false);
+  });
+
+  it('cannot delete another tenant’s group', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        await seedTenant(tx, tenantId);
+        return groupRepository(tx).create({ tenantId, name: 'engineering', parentId: null });
+      },
+      verifySeeded: async (tx, group) => {
+        expect(await groupRepository(tx).byId(group.id)).not.toBeNull();
+      },
+      attempt: async (tx, group) => groupRepository(tx).delete(group.id),
+      expectBlocked: (result) => {
+        expect(result).toBe(false);
+      },
+      verifyTenantAUnaffected: async (tx, group) => {
+        expect(await groupRepository(tx).byId(group.id)).not.toBeNull();
+      },
+    });
+  });
+});
+
+describe('setRoles', () => {
+  it('replaces the role set a group maps to', async () => {
+    const tenant = await tenantFixture();
+    const group = await tenant.createGroup('engineering', null);
+    const roleA = await tenant.createRole('a');
+    const roleB = await tenant.createRole('b');
+
+    await withTenant(app.db, tenant.tenantId, (tx) =>
+      groupRepository(tx).setRoles(group.id, [roleA.id]),
+    );
+    const subject = await tenant.insertSubject();
+    await tenant.addToSubject(subject, group.id);
+    expect(await tenant.names(subject)).toEqual(['a']);
+
+    await withTenant(app.db, tenant.tenantId, (tx) =>
+      groupRepository(tx).setRoles(group.id, [roleB.id]),
+    );
+    expect(await tenant.names(subject)).toEqual(['b']);
+  });
+
+  it('throws group_not_found for another tenant’s group, and leaves its mapping untouched', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        await seedTenant(tx, tenantId);
+        const group = await groupRepository(tx).create({
+          tenantId,
+          name: 'engineering',
+          parentId: null,
+        });
+        const role = await roleRepository(tx).create({ tenantId, name: 'admin' });
+        await groupRepository(tx).setRoles(group.id, [role.id]);
+        return { groupId: group.id, roleId: role.id };
+      },
+      verifySeeded: async (tx, seeded) => {
+        const rows = await tx.execute(
+          sql`select role_id from group_roles where group_id = ${seeded.groupId}`,
+        );
+        expect(rows).toEqual([{ role_id: seeded.roleId }]);
+      },
+      attempt: async (tx, seeded) => {
+        try {
+          await groupRepository(tx).setRoles(seeded.groupId, []);
+          return 'succeeded';
+        } catch {
+          return 'blocked';
+        }
+      },
+      expectBlocked: (result) => {
+        expect(result).toBe('blocked');
+      },
+      verifyTenantAUnaffected: async (tx, seeded) => {
+        const rows = await tx.execute(
+          sql`select role_id from group_roles where group_id = ${seeded.groupId}`,
+        );
+        expect(rows).toEqual([{ role_id: seeded.roleId }]);
+      },
+    });
+  });
+});

@@ -6,7 +6,7 @@ export {
   clientScopeRoles,
   type RoleRecord,
 } from '#/schema/roles';
-export { roleRepository, type NewRole } from '#/repository/roles';
+export { roleRepository, type NewRole, type RolePatch } from '#/repository/roles';
 export {
   effectiveRoles,
   rolesReachableFrom,

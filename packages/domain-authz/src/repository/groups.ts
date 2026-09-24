@@ -84,6 +84,32 @@ export async function descendantsOf(
 
 export function groupRepository(tx: TenantScopedDatabase) {
   return {
+    async byId(groupId: string): Promise<GroupRecord | null> {
+      return findById(tx, groupId);
+    },
+
+    // `groups_parent_fk`/`group_roles_group_fk`/`subject_groups_group_fk`
+    // (0018_groups.sql) all cascade: deleting a group removes its
+    // descendants' `parent_id` edge along with every role mapping and
+    // subject membership naming it directly.
+    async delete(groupId: string): Promise<boolean> {
+      const rows = await tx.delete(groups).where(eq(groups.id, groupId)).returning({
+        id: groups.id,
+      });
+      return rows.length > 0;
+    },
+
+    // The group-side counterpart of `roleRepository`'s
+    // `setClientScopeRoles`: delete-then-insert under the caller's own row
+    // lock, never a diff.
+    async setRoles(groupId: string, roleIds: readonly string[]): Promise<void> {
+      const group = await requireById(tx, groupId);
+      await tx.delete(groupRoles).where(eq(groupRoles.groupId, groupId));
+      for (const roleId of roleIds) {
+        await tx.insert(groupRoles).values({ tenantId: group.tenantId, groupId, roleId });
+      }
+    },
+
     // `path` is this repository's only writer: a root group's path is
     // `/${name}`, and a child's path is its parent's path with `/${name}`
     // appended, computed here rather than trusted from the caller.

@@ -451,3 +451,174 @@ describe('idsForClientScopes', () => {
     });
   });
 });
+
+describe('byId', () => {
+  it('finds a role created in the same tenant', async () => {
+    const role = await create({ name: 'member' });
+    const found = await withTenant(app.db, role.tenantId, (tx) => roleRepository(tx).byId(role.id));
+    expect(found?.id).toBe(role.id);
+  });
+
+  it('does not find another tenant’s role', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        await seedTenant(tx, tenantId);
+        return roleRepository(tx).create({ tenantId, name: 'admin' });
+      },
+      verifySeeded: async (tx, role) => {
+        const found = await roleRepository(tx).byId(role.id);
+        expect(found?.id).toBe(role.id);
+      },
+      attempt: async (tx, role) => roleRepository(tx).byId(role.id),
+      expectBlocked: (result) => {
+        expect(result).toBeNull();
+      },
+    });
+  });
+});
+
+describe('amend', () => {
+  it('replaces the description', async () => {
+    const role = await create({ name: 'member' });
+    const amended = await withTenant(app.db, role.tenantId, (tx) =>
+      roleRepository(tx).amend(role.id, { description: 'members of the org' }),
+    );
+    expect(amended.description).toBe('members of the org');
+  });
+
+  it('throws role_not_found for another tenant’s role, and leaves it unamended', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        await seedTenant(tx, tenantId);
+        return roleRepository(tx).create({ tenantId, name: 'admin', description: 'original' });
+      },
+      verifySeeded: async (tx, role) => {
+        const found = await roleRepository(tx).byId(role.id);
+        expect(found?.description).toBe('original');
+      },
+      attempt: async (tx, role) => {
+        try {
+          await roleRepository(tx).amend(role.id, { description: 'hijacked' });
+          return 'succeeded';
+        } catch {
+          return 'blocked';
+        }
+      },
+      expectBlocked: (result) => {
+        expect(result).toBe('blocked');
+      },
+      verifyTenantAUnaffected: async (tx, role) => {
+        const found = await roleRepository(tx).byId(role.id);
+        expect(found?.description).toBe('original');
+      },
+    });
+  });
+});
+
+describe('delete', () => {
+  it('removes the role and its composite edges', async () => {
+    const parent = await create({ name: 'parent' });
+    const child = await create({ tenantId: parent.tenantId, name: 'child' });
+    await withTenant(app.db, parent.tenantId, (tx) =>
+      roleRepository(tx).addComposite(parent.id, child.id),
+    );
+
+    const deleted = await withTenant(app.db, parent.tenantId, (tx) =>
+      roleRepository(tx).delete(parent.id),
+    );
+    expect(deleted).toBe(true);
+
+    const edges = await withTenant(app.db, parent.tenantId, (tx) =>
+      tx.select().from(roleComposites).where(eq(roleComposites.parentRoleId, parent.id)),
+    );
+    expect(edges).toEqual([]);
+  });
+
+  it('reports false for an id no role holds', async () => {
+    const tenantId = newId();
+    await withTenant(app.db, tenantId, (tx) => seedTenant(tx, tenantId));
+    const deleted = await withTenant(app.db, tenantId, (tx) => roleRepository(tx).delete(newId()));
+    expect(deleted).toBe(false);
+  });
+
+  it('cannot delete another tenant’s role', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        await seedTenant(tx, tenantId);
+        return roleRepository(tx).create({ tenantId, name: 'admin' });
+      },
+      verifySeeded: async (tx, role) => {
+        const found = await roleRepository(tx).byId(role.id);
+        expect(found).not.toBeNull();
+      },
+      attempt: async (tx, role) => roleRepository(tx).delete(role.id),
+      expectBlocked: (result) => {
+        expect(result).toBe(false);
+      },
+      verifyTenantAUnaffected: async (tx, role) => {
+        const found = await roleRepository(tx).byId(role.id);
+        expect(found).not.toBeNull();
+      },
+    });
+  });
+});
+
+describe('setClientScopeRoles', () => {
+  it('replaces the role set a client scope maps to', async () => {
+    const roleA = await create({ name: 'a' });
+    const roleB = await create({ tenantId: roleA.tenantId, name: 'b' });
+    const clientScopeId = await withTenant(app.db, roleA.tenantId, (tx) =>
+      insertClientScope(tx, roleA.tenantId),
+    );
+
+    await withTenant(app.db, roleA.tenantId, (tx) =>
+      roleRepository(tx).setClientScopeRoles(clientScopeId, [roleA.id]),
+    );
+    const first = await withTenant(app.db, roleA.tenantId, (tx) =>
+      roleRepository(tx).idsForClientScopes([clientScopeId]),
+    );
+    expect(first).toEqual(new Set([roleA.id]));
+
+    await withTenant(app.db, roleA.tenantId, (tx) =>
+      roleRepository(tx).setClientScopeRoles(clientScopeId, [roleB.id]),
+    );
+    const second = await withTenant(app.db, roleA.tenantId, (tx) =>
+      roleRepository(tx).idsForClientScopes([clientScopeId]),
+    );
+    expect(second).toEqual(new Set([roleB.id]));
+  });
+
+  it('cannot replace another tenant’s mapping', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        await seedTenant(tx, tenantId);
+        const role = await roleRepository(tx).create({ tenantId, name: 'admin' });
+        const clientScopeId = await insertClientScope(tx, tenantId);
+        await roleRepository(tx).setClientScopeRoles(clientScopeId, [role.id]);
+        return { roleId: role.id, clientScopeId };
+      },
+      verifySeeded: async (tx, seeded) => {
+        const found = await roleRepository(tx).idsForClientScopes([seeded.clientScopeId]);
+        expect(found).toEqual(new Set([seeded.roleId]));
+      },
+      attempt: async (tx, seeded) => {
+        try {
+          await roleRepository(tx).setClientScopeRoles(seeded.clientScopeId, []);
+          return 'succeeded';
+        } catch {
+          return 'blocked';
+        }
+      },
+      // RLS scopes the DELETE to nothing under the foreign tenant context,
+      // so the call itself does not throw — it just cannot see the row to
+      // touch, the same way idsForClientScopes reads nothing above.
+      expectBlocked: (result) => {
+        expect(result).toBe('succeeded');
+      },
+      verifyTenantAUnaffected: async (tx, seeded) => {
+        const found = await roleRepository(tx).idsForClientScopes([seeded.clientScopeId]);
+        expect(found).toEqual(new Set([seeded.roleId]));
+      },
+    });
+  });
+});

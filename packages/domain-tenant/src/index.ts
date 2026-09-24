@@ -37,7 +37,11 @@ export {
   type ClientScopeAssignment,
   type ClientScopeRecord,
 } from '#/schema/client-scopes';
-export { clientScopeRepository, type NewClientScope } from '#/repository/client-scopes';
+export {
+  clientScopeRepository,
+  type NewClientScope,
+  type ClientScopePatch,
+} from '#/repository/client-scopes';
 export {
   provisionClientDefaults,
   provisionTenantDefaults,

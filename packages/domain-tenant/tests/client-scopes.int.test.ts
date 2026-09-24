@@ -320,3 +320,128 @@ describe('assignOrUpdate', () => {
     expect(scopesAfter).toEqual([]);
   });
 });
+
+describe('byId', () => {
+  it('finds a scope created in the same tenant', async () => {
+    const scope = await create({ name: 'profile' });
+    const found = await withTenant(app.db, scope.tenantId, (tx) =>
+      clientScopeRepository(tx).byId(scope.id),
+    );
+    expect(found?.id).toBe(scope.id);
+  });
+
+  it('does not find another tenant’s scope', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        await seedTenant(tx, tenantId);
+        return clientScopeRepository(tx).create({ tenantId, name: 'profile' });
+      },
+      verifySeeded: async (tx, scope) => {
+        expect(await clientScopeRepository(tx).byId(scope.id)).not.toBeNull();
+      },
+      attempt: async (tx, scope) => clientScopeRepository(tx).byId(scope.id),
+      expectBlocked: (result) => {
+        expect(result).toBeNull();
+      },
+    });
+  });
+});
+
+describe('amend', () => {
+  it('replaces description and the include flags', async () => {
+    const scope = await create({ name: 'profile' });
+    const amended = await withTenant(app.db, scope.tenantId, (tx) =>
+      clientScopeRepository(tx).amend(scope.id, {
+        description: 'profile claims',
+        includeInIdToken: false,
+        includeInAccessToken: true,
+      }),
+    );
+    expect(amended.description).toBe('profile claims');
+    expect(amended.includeInIdToken).toBe(false);
+    expect(amended.includeInAccessToken).toBe(true);
+  });
+
+  it('throws client_scope_not_found for another tenant’s scope, and leaves it unamended', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        await seedTenant(tx, tenantId);
+        return clientScopeRepository(tx).create({
+          tenantId,
+          name: 'profile',
+          description: 'original',
+        });
+      },
+      verifySeeded: async (tx, scope) => {
+        expect((await clientScopeRepository(tx).byId(scope.id))?.description).toBe('original');
+      },
+      attempt: async (tx, scope) => {
+        try {
+          await clientScopeRepository(tx).amend(scope.id, { description: 'hijacked' });
+          return 'succeeded';
+        } catch {
+          return 'blocked';
+        }
+      },
+      expectBlocked: (result) => {
+        expect(result).toBe('blocked');
+      },
+      verifyTenantAUnaffected: async (tx, scope) => {
+        expect((await clientScopeRepository(tx).byId(scope.id))?.description).toBe('original');
+      },
+    });
+  });
+});
+
+// client_scope_assignments_scope_fk (0016_client_scopes.sql) cascades: the
+// migration names ON DELETE CASCADE, not RESTRICT, so an assigned scope's
+// row disappears along with the assignment rather than refusing the delete.
+describe('delete', () => {
+  it('cascades: removes an assigned scope and its client assignment together', async () => {
+    const scope = await create({ name: 'profile' });
+    const clientId = await withTenant(app.db, scope.tenantId, (tx) =>
+      insertClient(tx, scope.tenantId),
+    );
+    await withTenant(app.db, scope.tenantId, (tx) =>
+      clientScopeRepository(tx).assign(clientId, scope.id, 'default'),
+    );
+
+    const deleted = await withTenant(app.db, scope.tenantId, (tx) =>
+      clientScopeRepository(tx).delete(scope.id),
+    );
+    expect(deleted).toBe(true);
+
+    const assignments = await withTenant(app.db, scope.tenantId, (tx) =>
+      clientScopeRepository(tx).forClient(clientId),
+    );
+    expect(assignments).toEqual([]);
+  });
+
+  it('reports false for an id no scope holds', async () => {
+    const tenantId = newId();
+    await withTenant(app.db, tenantId, (tx) => seedTenant(tx, tenantId));
+    const deleted = await withTenant(app.db, tenantId, (tx) =>
+      clientScopeRepository(tx).delete(newId()),
+    );
+    expect(deleted).toBe(false);
+  });
+
+  it('cannot delete another tenant’s scope', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        await seedTenant(tx, tenantId);
+        return clientScopeRepository(tx).create({ tenantId, name: 'profile' });
+      },
+      verifySeeded: async (tx, scope) => {
+        expect(await clientScopeRepository(tx).byId(scope.id)).not.toBeNull();
+      },
+      attempt: async (tx, scope) => clientScopeRepository(tx).delete(scope.id),
+      expectBlocked: (result) => {
+        expect(result).toBe(false);
+      },
+      verifyTenantAUnaffected: async (tx, scope) => {
+        expect(await clientScopeRepository(tx).byId(scope.id)).not.toBeNull();
+      },
+    });
+  });
+});

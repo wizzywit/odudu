@@ -29,6 +29,7 @@ export type ErrorCode =
   | 'role_composite_cycle'
   | 'group_not_found'
   | 'group_reparent_cycle'
+  | 'client_scope_not_found'
   | 'user_not_found'
   | 'subject_not_found'
   | 'credential_not_found'
