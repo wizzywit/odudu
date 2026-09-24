@@ -9,6 +9,7 @@ import {
   TENANT_CAPABILITIES,
   viewCounterpart,
 } from '#/service/admin-capabilities';
+import { provisionClientDefaults } from '#/usecase/provision-defaults';
 
 export interface ProvisionAdminClientOptions {
   /** Adds `manage-tenants`. Only the system tenant asks for it. */
@@ -39,9 +40,9 @@ export async function provisionAdminClient(
       `client ${ADMIN_CLIENT_ID} already exists in this tenant and is not the built-in admin client`,
     );
   }
-  const created =
-    existing ??
-    (await clients.create({
+  let client = existing;
+  if (client === null) {
+    client = await clients.create({
       tenantId,
       clientId: ADMIN_CLIENT_ID,
       name: 'Odudu administration',
@@ -52,8 +53,14 @@ export async function provisionAdminClient(
       type: 'public',
       secretHash: null,
       builtinAdmin: true,
-    }));
-  const clientDbId = created.id;
+    });
+    // Without the tenant's standard vocabulary /authorize refuses `openid`,
+    // which it defaults the requested scope to, on this client's very first
+    // request. Only on the creating pass: the assignments are inserted
+    // unconditionally, so a re-run would collide.
+    await provisionClientDefaults(tx, client.id);
+  }
+  const clientDbId = client.id;
 
   const roles = roleRepository(tx);
   const ensure = async (name: string): Promise<string> => {

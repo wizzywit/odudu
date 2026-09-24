@@ -817,6 +817,10 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
 export { tenantIssuerFor } from '#/view/issuer';
 export { assertionJtiRepository } from '#/repository/assertion-jti';
 export { clientOidcConfigRepository } from '#/repository/client-oidc-config';
+export {
+  provisionAdminClientOidc,
+  ADMIN_CLIENT_REDIRECT_URI,
+} from '#/usecase/provision-admin-client-oidc';
 export { type ClientOidcConfig } from '#/schema/client-oidc-config';
 export { GRANT_TYPES_PERMITTED } from '#/service/client-metadata';
 export {

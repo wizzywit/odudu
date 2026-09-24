@@ -873,6 +873,15 @@ one. The account's first login is forced through a password change —
 `update-password` is queued as a required action the moment the subject is
 created.
 
+The `odudu-admin` client is provisioned as a public client authorised with
+`authorization_code` and `refresh_token`, carrying the tenant's default
+scopes and one redirect URI, `http://127.0.0.1:8080/callback`. There is no
+administration console yet, so that loopback address (RFC 8252 §7.3) is
+the only place a code can be delivered: an administrator obtains a token by
+running a listener on that exact port and completing the flow with PKCE.
+Redirect matching is exact, and no command or endpoint can add a second
+URI to this client yet, so a console will need one before it can log in.
+
 **One pass deletes everything that expires.** Every login writes an
 `authentication_sessions` row, every redemption an `authorization_codes`
 row, and every refresh rotation a `refresh_tokens` row; no repository in the
