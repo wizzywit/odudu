@@ -13,6 +13,7 @@ import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/test
 import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
+  ancestorsOf,
   descendantsOf,
   effectiveGroupPaths,
   groupRepository,
@@ -483,6 +484,44 @@ describe('setRoles', () => {
           sql`select role_id from group_roles where group_id = ${seeded.groupId}`,
         );
         expect(rows).toEqual([{ role_id: seeded.roleId }]);
+      },
+    });
+  });
+});
+
+describe('ancestorsOf', () => {
+  it('includes the starting group and everything above it, not its descendants', async () => {
+    const tenant = await tenantFixture();
+    const root = await tenant.createGroup('root', null);
+    const mid = await tenant.createGroup('mid', root.id);
+    const leaf = await tenant.createGroup('leaf', mid.id);
+    const sibling = await tenant.createGroup('sibling', root.id);
+
+    const ancestors = await withTenant(app.db, tenant.tenantId, (tx) => ancestorsOf(tx, mid.id));
+    expect(ancestors).toEqual(new Set([mid.id, root.id]));
+    expect(ancestors.has(leaf.id)).toBe(false);
+    expect(ancestors.has(sibling.id)).toBe(false);
+  });
+
+  it('does not see another tenant’s ancestor chain', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        await seedTenant(tx, tenantId);
+        const root = await groupRepository(tx).create({ tenantId, name: 'root', parentId: null });
+        const child = await groupRepository(tx).create({
+          tenantId,
+          name: 'child',
+          parentId: root.id,
+        });
+        return { rootId: root.id, childId: child.id };
+      },
+      verifySeeded: async (tx, seeded) => {
+        const ancestors = await ancestorsOf(tx, seeded.childId);
+        expect(ancestors).toEqual(new Set([seeded.childId, seeded.rootId]));
+      },
+      attempt: async (tx, seeded) => ancestorsOf(tx, seeded.childId),
+      expectBlocked: (result) => {
+        expect(result).toEqual(new Set());
       },
     });
   });

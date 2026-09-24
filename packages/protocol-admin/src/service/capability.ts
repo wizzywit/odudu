@@ -245,9 +245,9 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     capability: 'manage-clients',
     responseSchema: rotateClientSecretResponseSchema,
   },
-  // Roles, groups and client scopes: manage-tenant for all three, the
-  // resource pattern documented in
-  // .superpowers/sdd/2026-09-24-p4c-admin-api/resource-pattern.md.
+  // Roles, groups and client scopes: manage-tenant for all three, the same
+  // shape (cursor pagination, ETag/If-Match, one audit call per mutation)
+  // as every other resource group above.
   {
     method: 'GET',
     pattern: '/admin/tenants/:tenant/roles',

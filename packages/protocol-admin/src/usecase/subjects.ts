@@ -1,7 +1,7 @@
 import { requiredActionRepository, type RequiredAction } from '@odudu/authn-flows';
 import { type Credential, type Subject } from '@odudu/contracts/admin';
 import { type TenantScopedDatabase } from '@odudu/db';
-import { roleRepository, roles, rolesReachableFrom, subjectRoles } from '@odudu/domain-authz';
+import { roleRepository, roles, subjectRoles } from '@odudu/domain-authz';
 import {
   credentialRepository,
   isEmailAddress,
@@ -14,8 +14,9 @@ import {
   type CredentialType,
   type SubjectRecord,
 } from '@odudu/domain-identity';
-import { ADMIN_CLIENT_ID, tenantSettingsRepository } from '@odudu/domain-tenant';
+import { tenantSettingsRepository } from '@odudu/domain-tenant';
 import { and, asc, eq, gt, inArray, like, ne } from 'drizzle-orm';
+import { capabilitiesReachableFrom, overreach } from '#/service/capability-ceiling';
 import { decodeCursor, encodeCursor } from '#/service/cursor';
 import { etagOf, matches } from '#/service/etag';
 import { AMENDABLE_SUBJECT_FIELDS, refusalFor } from '#/service/subjects-patch';
@@ -247,6 +248,15 @@ export type AmendSubjectOutcome =
   | { kind: 'precondition_failed' }
   | { kind: 'ok'; subject: SubjectView; etag: string };
 
+// Wrapped in `{ value }` rather than the bare type, so a present-but-null
+// `email` and an untouched field both type-check as distinct from each
+// other — `patch.email !== undefined` alone tells them apart, with no
+// second `'email' in patch` check needed at the write site.
+interface SubjectPatch {
+  enabled?: { value: boolean };
+  email?: { value: string | null };
+}
+
 // Locks `subjects` and, when it exists, `users` for the rest of the
 // transaction — separately, never through the left join `readSubject`
 // uses: PostgreSQL refuses `FOR UPDATE` on the nullable side of an outer
@@ -313,14 +323,20 @@ export async function amendSubject(
     return { kind: 'precondition_failed' };
   }
 
-  // Every field is validated before any of them is written — a refusal
-  // below must leave every column, `disabled_at` included, exactly as it
-  // was. `email`'s shape is checked here rather than left to
+  // Every field is validated before any of them is written into `patch` —
+  // a refusal below must leave every column, `disabled_at` included,
+  // exactly as it was. `email`'s shape is checked here rather than left to
   // `userRepository.updateEmail`'s own throw, which a malformed address
   // would otherwise reach only after `enabled` had already been written.
-  let email: string | null | undefined;
-  if ('enabled' in input.values && typeof input.values.enabled !== 'boolean') {
-    return { kind: 'invalid_value', field: 'enabled', description: 'enabled must be a boolean' };
+  // Phase two writes only from `patch`, never re-reading `input.values` —
+  // that is what keeps a field added later from being written inline
+  // without going through this validation first.
+  const patch: SubjectPatch = {};
+  if ('enabled' in input.values) {
+    if (typeof input.values.enabled !== 'boolean') {
+      return { kind: 'invalid_value', field: 'enabled', description: 'enabled must be a boolean' };
+    }
+    patch.enabled = { value: input.values.enabled };
   }
   if ('email' in input.values) {
     const value = input.values.email;
@@ -345,14 +361,14 @@ export async function amendSubject(
         description: `${JSON.stringify(value)} is not an address the email claim may carry`,
       };
     }
-    email = value;
+    patch.email = { value };
   }
 
-  if ('enabled' in input.values && typeof input.values.enabled === 'boolean') {
-    await subjectRepository(tx).setEnabled(input.subjectId, input.values.enabled);
+  if (patch.enabled !== undefined) {
+    await subjectRepository(tx).setEnabled(input.subjectId, patch.enabled.value);
   }
-  if (email !== undefined) {
-    await userRepository(tx).updateEmail(input.subjectId, email);
+  if (patch.email !== undefined) {
+    await userRepository(tx).updateEmail(input.subjectId, patch.email.value);
   }
 
   await deps.audit({
@@ -658,15 +674,10 @@ export async function setRoles(
     return { kind: 'unknown_role', roleIds: missing };
   }
 
-  const reachable = await rolesReachableFrom(tx, uniqueRoleIds);
-  const requestedCapabilities = new Set(
-    reachable.filter((role) => role.clientKey === ADMIN_CLIENT_ID).map((role) => role.name),
-  );
-  const overreach = [...requestedCapabilities].filter(
-    (capability) => !input.callerCapabilities.has(capability),
-  );
-  if (overreach.length > 0) {
-    return { kind: 'capability_ceiling', requested: overreach };
+  const requestedCapabilities = await capabilitiesReachableFrom(tx, uniqueRoleIds);
+  const denied = overreach(requestedCapabilities, input.callerCapabilities);
+  if (denied.length > 0) {
+    return { kind: 'capability_ceiling', requested: denied };
   }
 
   await tx.delete(subjectRoles).where(eq(subjectRoles.subjectId, input.subjectId));

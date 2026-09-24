@@ -161,11 +161,13 @@ export function adminRoutes(deps: AdminRoutesDeps): FastifyPluginAsync {
       database: deps.database.db,
       cursorKey: deps.cursorKey,
       audit: noopGroupAudit,
+      callerCapabilities,
     };
     const scopesDeps: ScopesRouteDeps = {
       database: deps.database.db,
       cursorKey: deps.cursorKey,
       audit: noopScopeAudit,
+      callerCapabilities,
     };
     const tenantsDeps: TenantsRouteDeps = {
       database: deps.database.db,

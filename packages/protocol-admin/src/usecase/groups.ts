@@ -1,12 +1,34 @@
 import { type Group } from '@odudu/contracts/admin';
 import { type TenantScopedDatabase } from '@odudu/db';
-import { groupRepository, groups, roles } from '@odudu/domain-authz';
+import { ancestorsOf, groupRepository, groupRoles, groups, roles } from '@odudu/domain-authz';
 import { OduduError } from '@odudu/kernel';
 import { asc, eq, gt, inArray } from 'drizzle-orm';
+import { capabilitiesReachableFrom, overreach } from '#/service/capability-ceiling';
 import { decodeCursor, encodeCursor } from '#/service/cursor';
 import { etagOf, matches } from '#/service/etag';
 import { AMENDABLE_GROUP_FIELDS, refusalFor } from '#/service/group-patch';
 import { type RoleAssignment } from '#/usecase/subjects';
+
+// The admin-client capability names a group would hand a subject placed
+// under it — everything mapped to `groupId` or any of its ancestors,
+// `group_closure` (`effectiveRoles`, @odudu/domain-authz) is what actually
+// grants inherited roles, so the ceiling has to reach as far up as that
+// does, not just the group named directly.
+async function capabilitiesOfGroupAndAncestors(
+  tx: TenantScopedDatabase,
+  groupId: string,
+): Promise<ReadonlySet<string>> {
+  const chain = await ancestorsOf(tx, groupId);
+  if (chain.size === 0) return new Set();
+  const mapped = await tx
+    .select({ roleId: groupRoles.roleId })
+    .from(groupRoles)
+    .where(inArray(groupRoles.groupId, [...chain]));
+  return capabilitiesReachableFrom(
+    tx,
+    mapped.map((row) => row.roleId),
+  );
+}
 
 const COLLECTION = 'groups';
 
@@ -130,6 +152,14 @@ export interface AmendGroupInput {
   readonly groupId: string;
   readonly values: Readonly<Record<string, unknown>>;
   readonly ifMatch: string | undefined;
+  /**
+   * The caller's own admin-client capability names — the same ceiling
+   * `setRoles` (#/usecase/subjects.ts) enforces, applied here to
+   * reparenting: moving a group under a new parent must never hand it (and
+   * every subject placed in it) a capability the caller does not itself
+   * hold, via the new parent's own roles or any of its ancestors'.
+   */
+  readonly callerCapabilities: ReadonlySet<string>;
   readonly actorSubjectId: string;
 }
 
@@ -142,6 +172,7 @@ export type AmendGroupOutcome =
   | { kind: 'refused_field'; field: string; reason: string }
   | { kind: 'invalid_value'; field: string; description: string }
   | { kind: 'precondition_failed' }
+  | { kind: 'capability_ceiling'; requested: readonly string[] }
   | { kind: 'cycle' }
   | { kind: 'ok'; group: Group; etag: string };
 
@@ -188,6 +219,14 @@ export async function amendGroup(
       };
     }
     parentId = value;
+  }
+
+  if (typeof parentId === 'string') {
+    const requestedCapabilities = await capabilitiesOfGroupAndAncestors(tx, parentId);
+    const denied = overreach(requestedCapabilities, input.callerCapabilities);
+    if (denied.length > 0) {
+      return { kind: 'capability_ceiling', requested: denied };
+    }
   }
 
   if (parentId !== undefined) {
@@ -246,6 +285,8 @@ export async function deleteGroup(
 export interface SetGroupRolesInput {
   readonly groupId: string;
   readonly roleIds: readonly string[];
+  /** The caller's own admin-client capability names — see `AmendGroupInput`'s for the same ceiling. */
+  readonly callerCapabilities: ReadonlySet<string>;
   readonly actorSubjectId: string;
 }
 
@@ -256,7 +297,20 @@ export interface SetGroupRolesDeps {
 export type SetGroupRolesOutcome =
   | { kind: 'not_found' }
   | { kind: 'unknown_role'; roleIds: readonly string[] }
+  | { kind: 'capability_ceiling'; requested: readonly string[] }
   | { kind: 'ok'; roles: readonly RoleAssignment[] };
+
+// Locked for the same reason `setRoles` (#/usecase/subjects.ts) locks its
+// subject: a mutex around the delete-then-insert `groupRepository.setRoles`
+// performs, so two concurrent replacements serialise instead of each
+// committing a partial view of the other's write.
+async function lockGroupForRoles(
+  tx: TenantScopedDatabase,
+  groupId: string,
+): Promise<typeof groups.$inferSelect | null> {
+  const rows = await tx.select().from(groups).where(eq(groups.id, groupId)).for('update');
+  return rows[0] ?? null;
+}
 
 /** Replaces the role set a group maps to wholesale — a role left out is one the caller clears. */
 export async function setGroupRoles(
@@ -264,7 +318,7 @@ export async function setGroupRoles(
   deps: SetGroupRolesDeps,
   input: SetGroupRolesInput,
 ): Promise<SetGroupRolesOutcome> {
-  const group = await groupRepository(tx).byId(input.groupId);
+  const group = await lockGroupForRoles(tx, input.groupId);
   if (group === null) return { kind: 'not_found' };
 
   const uniqueRoleIds = [...new Set(input.roleIds)];
@@ -279,6 +333,15 @@ export async function setGroupRoles(
   const missing = uniqueRoleIds.filter((id) => !foundIds.has(id));
   if (missing.length > 0) {
     return { kind: 'unknown_role', roleIds: missing };
+  }
+
+  // The same ceiling `setRoles` (#/usecase/subjects.ts) enforces: mapping a
+  // role onto a group the caller belongs to must never hand it, and every
+  // subject in it, a capability the caller does not itself hold.
+  const requestedCapabilities = await capabilitiesReachableFrom(tx, uniqueRoleIds);
+  const denied = overreach(requestedCapabilities, input.callerCapabilities);
+  if (denied.length > 0) {
+    return { kind: 'capability_ceiling', requested: denied };
   }
 
   await groupRepository(tx).setRoles(input.groupId, uniqueRoleIds);

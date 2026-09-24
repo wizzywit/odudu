@@ -28,6 +28,11 @@ export interface GroupsRouteDeps {
   readonly database: Database;
   readonly cursorKey: Uint8Array;
   readonly audit: Audit;
+  /** See `SubjectsRouteDeps.callerCapabilities` (#/view/routes/subjects.ts) — the same ceiling. */
+  readonly callerCapabilities: (
+    issuerTenantId: string,
+    subjectId: string,
+  ) => Promise<ReadonlySet<string>>;
 }
 
 function ifMatchHeader(request: AdminRequest): string | undefined {
@@ -179,6 +184,17 @@ function amendmentProblem(
         request,
         problem(409, 'about:blank', 'Conflict', 'would create a group reparent cycle'),
       );
+    case 'capability_ceiling':
+      return sendProblem(
+        reply,
+        request,
+        problem(
+          403,
+          'about:blank',
+          'Forbidden',
+          `the caller does not hold: ${outcome.requested.join(', ')}`,
+        ),
+      );
   }
 }
 
@@ -189,6 +205,10 @@ export function amendGroupHandler(deps: GroupsRouteDeps): AdminRouteHandler {
       throw new Error('protocol-admin: PATCH group route received no :id');
     }
     const values = amendGroupRequestSchema.parse(request.body);
+    const callerCapabilities = await deps.callerCapabilities(
+      principal.issuerTenantId,
+      principal.subjectId,
+    );
 
     const outcome = await withTenant(deps.database, targetTenantId, (tx) =>
       amendGroup(
@@ -198,6 +218,7 @@ export function amendGroupHandler(deps: GroupsRouteDeps): AdminRouteHandler {
           groupId: id,
           values,
           ifMatch: ifMatchHeader(request),
+          callerCapabilities,
           actorSubjectId: principal.subjectId,
         },
       ),
@@ -238,12 +259,21 @@ export function setGroupRolesHandler(deps: GroupsRouteDeps): AdminRouteHandler {
       throw new Error('protocol-admin: PUT group roles route received no :id');
     }
     const body = setGroupRolesRequestSchema.parse(request.body);
+    const callerCapabilities = await deps.callerCapabilities(
+      principal.issuerTenantId,
+      principal.subjectId,
+    );
 
     const outcome = await withTenant(deps.database, targetTenantId, (tx) =>
       setGroupRoles(
         tx,
         { audit: deps.audit },
-        { groupId: id, roleIds: body.role_ids, actorSubjectId: principal.subjectId },
+        {
+          groupId: id,
+          roleIds: body.role_ids,
+          callerCapabilities,
+          actorSubjectId: principal.subjectId,
+        },
       ),
     );
 
@@ -259,6 +289,17 @@ export function setGroupRolesHandler(deps: GroupsRouteDeps): AdminRouteHandler {
             'about:blank',
             'Bad Request',
             `unknown role id(s): ${outcome.roleIds.join(', ')}`,
+          ),
+        );
+      case 'capability_ceiling':
+        return sendProblem(
+          reply,
+          request,
+          problem(
+            403,
+            'about:blank',
+            'Forbidden',
+            `the caller does not hold: ${outcome.requested.join(', ')}`,
           ),
         );
       case 'ok': {

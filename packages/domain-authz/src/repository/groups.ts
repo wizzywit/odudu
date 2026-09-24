@@ -82,6 +82,26 @@ export async function descendantsOf(
   return new Set(rows.map((row) => row.id));
 }
 
+// `startId` and everything above it up to the root, by following
+// `parent_id` edges upward — the same walk `effectiveRoles`' own
+// `group_closure` (#/repository/effective-roles.ts) does from a subject's
+// direct memberships, seeded here from one group instead. What a reparent's
+// own capability ceiling needs: a group moved under `startId` inherits
+// every role mapped to `startId` or any of its ancestors, via that same
+// closure, so the ceiling has to reach as far as this does.
+export async function ancestorsOf(tx: TenantScopedDatabase, startId: string): Promise<Set<string>> {
+  const result = await tx.execute(sql`
+    WITH RECURSIVE ancestors(id, parent_id) AS (
+      SELECT id, parent_id FROM groups WHERE id = ${startId}
+      UNION
+      SELECT g.id, g.parent_id FROM groups g JOIN ancestors a ON g.id = a.parent_id
+    )
+    SELECT id FROM ancestors
+  `);
+  const rows = idRowsSchema.parse(result);
+  return new Set(rows.map((row) => row.id));
+}
+
 export function groupRepository(tx: TenantScopedDatabase) {
   return {
     async byId(groupId: string): Promise<GroupRecord | null> {

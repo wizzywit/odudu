@@ -1,9 +1,9 @@
 import { type Role } from '@odudu/contracts/admin';
 import { type TenantScopedDatabase } from '@odudu/db';
-import { roleRepository, roles, rolesReachableFrom } from '@odudu/domain-authz';
-import { ADMIN_CLIENT_ID } from '@odudu/domain-tenant';
+import { roleRepository, roles } from '@odudu/domain-authz';
 import { OduduError } from '@odudu/kernel';
-import { asc, eq, gt } from 'drizzle-orm';
+import { asc, eq, gt, inArray } from 'drizzle-orm';
+import { capabilitiesReachableFrom, overreach } from '#/service/capability-ceiling';
 import { decodeCursor, encodeCursor } from '#/service/cursor';
 import { etagOf, matches } from '#/service/etag';
 import { AMENDABLE_ROLE_FIELDS, refusalFor } from '#/service/role-patch';
@@ -142,6 +142,13 @@ export type AmendRoleOutcome =
   | { kind: 'precondition_failed' }
   | { kind: 'ok'; role: Role; etag: string };
 
+// Wrapped in `{ value }` rather than the bare type — see `SubjectPatch`
+// (#/usecase/subjects.ts) for why: it tells "cleared to null" apart from
+// "untouched" with no second `in` check needed at the write site.
+interface RolePatchInput {
+  description?: { value: string | null };
+}
+
 // Locks the role for the rest of the transaction, the same reasoning
 // `lockSubjectForAmend` (#/usecase/subjects.ts) locks its subject for: the
 // `If-Match` comparison and the write that follows it must be the only
@@ -177,10 +184,11 @@ export async function amendRole(
     return { kind: 'precondition_failed' };
   }
 
-  // Every field is validated before any of them is written — see
-  // `amendSubject` (#/usecase/subjects.ts) for why a refusal must never
-  // leave a partial write behind.
-  let description: string | null | undefined;
+  // Every field is validated before any of them is written into `patch` —
+  // see `amendSubject` (#/usecase/subjects.ts) for why a refusal must
+  // never leave a partial write behind, and why phase two reads only
+  // `patch`, never `input.values` again.
+  const patch: RolePatchInput = {};
   if ('description' in input.values) {
     const value = input.values.description;
     if (value !== null && typeof value !== 'string') {
@@ -190,11 +198,11 @@ export async function amendRole(
         description: 'description must be a string or null',
       };
     }
-    description = value;
+    patch.description = { value };
   }
 
-  if (description !== undefined) {
-    await roleRepository(tx).amend(input.roleId, { description });
+  if (patch.description !== undefined) {
+    await roleRepository(tx).amend(input.roleId, { description: patch.description.value });
   }
 
   await deps.audit({
@@ -263,6 +271,23 @@ export type AddRoleCompositeOutcome =
   | { kind: 'cycle' }
   | { kind: 'ok' };
 
+// Locks both endpoints of the edge about to be written, sorted so two
+// concurrent calls always request the same pair in the same order and
+// never deadlock. Without this, two concurrent `addComposite` calls that
+// together would close a cycle — A→B and, at the same time, B→A — can each
+// pass `closureFrom`'s check before either commits, and both succeed: the
+// cycle the domain check exists to make impossible. Existing rows only;
+// an id naming no role locks nothing; `not_found`/`unknown_child_role`
+// below still catch that.
+async function lockRolesForComposite(
+  tx: TenantScopedDatabase,
+  parentRoleId: string,
+  childRoleId: string,
+): Promise<void> {
+  const ids = [...new Set([parentRoleId, childRoleId])].sort();
+  await tx.select({ id: roles.id }).from(roles).where(inArray(roles.id, ids)).for('update');
+}
+
 // The capability ceiling (CWE-269), applied to a composite edge instead of
 // a subject's role set: everything `child_role_id` reaches — itself
 // included — must already be within the caller's own capabilities, or the
@@ -273,20 +298,17 @@ export async function addRoleComposite(
   deps: AddRoleCompositeDeps,
   input: AddRoleCompositeInput,
 ): Promise<AddRoleCompositeOutcome> {
+  await lockRolesForComposite(tx, input.parentRoleId, input.childRoleId);
+
   const parent = await roleRepository(tx).byId(input.parentRoleId);
   if (parent === null) return { kind: 'not_found' };
   const child = await roleRepository(tx).byId(input.childRoleId);
   if (child === null) return { kind: 'unknown_child_role' };
 
-  const reachable = await rolesReachableFrom(tx, [input.childRoleId]);
-  const requestedCapabilities = new Set(
-    reachable.filter((role) => role.clientKey === ADMIN_CLIENT_ID).map((role) => role.name),
-  );
-  const overreach = [...requestedCapabilities].filter(
-    (capability) => !input.callerCapabilities.has(capability),
-  );
-  if (overreach.length > 0) {
-    return { kind: 'capability_ceiling', requested: overreach };
+  const requestedCapabilities = await capabilitiesReachableFrom(tx, [input.childRoleId]);
+  const denied = overreach(requestedCapabilities, input.callerCapabilities);
+  if (denied.length > 0) {
+    return { kind: 'capability_ceiling', requested: denied };
   }
 
   try {

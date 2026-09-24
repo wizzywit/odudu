@@ -8,6 +8,7 @@ import {
   type ClientScopeAssignment,
 } from '@odudu/domain-tenant';
 import { asc, eq, gt, inArray } from 'drizzle-orm';
+import { capabilitiesReachableFrom, overreach } from '#/service/capability-ceiling';
 import { decodeCursor, encodeCursor } from '#/service/cursor';
 import { etagOf, matches } from '#/service/etag';
 import { AMENDABLE_SCOPE_FIELDS, refusalFor } from '#/service/scope-patch';
@@ -171,6 +172,31 @@ export type AmendScopeOutcome =
   | { kind: 'precondition_failed' }
   | { kind: 'ok'; scope: ClientScope; etag: string };
 
+// Wrapped in `{ value }` rather than the bare type — see `SubjectPatch`
+// (#/usecase/subjects.ts) for why: it tells "cleared to null" apart from
+// "untouched" with no second `in` check needed at the write site.
+interface ScopePatchInput {
+  description?: { value: string | null };
+  includeInIdToken?: { value: boolean };
+  includeInAccessToken?: { value: boolean };
+}
+
+// Locks the scope for the rest of the transaction, the same reasoning
+// `lockRoleForAmend`/`lockGroupForAmend` (#/usecase/roles.ts,
+// #/usecase/groups.ts) lock theirs for: the `If-Match` comparison and the
+// write that follows it must be the only ones running against this scope.
+async function lockScopeForAmend(
+  tx: TenantScopedDatabase,
+  scopeId: string,
+): Promise<typeof clientScopes.$inferSelect | null> {
+  const rows = await tx
+    .select()
+    .from(clientScopes)
+    .where(eq(clientScopes.id, scopeId))
+    .for('update');
+  return rows[0] ?? null;
+}
+
 export async function amendScope(
   tx: TenantScopedDatabase,
   deps: AmendScopeDeps,
@@ -186,22 +212,19 @@ export async function amendScope(
     }
   }
 
-  const before = await readScope(tx, input.scopeId);
-  if (before.kind !== 'ok') return { kind: 'not_found' };
+  const locked = await lockScopeForAmend(tx, input.scopeId);
+  if (locked === null) return { kind: 'not_found' };
 
-  const currentEtag = etagOf(before.scope);
+  const currentEtag = etagOf(scopeWireShape(locked));
   if (matches(input.ifMatch, currentEtag) === 'mismatch') {
     return { kind: 'precondition_failed' };
   }
 
-  // Every field is validated before any of them is written — see
-  // `amendSubject` (#/usecase/subjects.ts) for why a refusal must never
-  // leave a partial write behind.
-  const patch: {
-    description?: string | null;
-    includeInIdToken?: boolean;
-    includeInAccessToken?: boolean;
-  } = {};
+  // Every field is validated before any of them is written into `patch` —
+  // see `amendSubject` (#/usecase/subjects.ts) for why a refusal must
+  // never leave a partial write behind, and why phase two reads only
+  // `patch`, never `input.values` again.
+  const patch: ScopePatchInput = {};
   if ('description' in input.values) {
     const value = input.values.description;
     if (value !== null && typeof value !== 'string') {
@@ -211,7 +234,7 @@ export async function amendScope(
         description: 'description must be a string or null',
       };
     }
-    patch.description = value;
+    patch.description = { value };
   }
   if ('include_in_id_token' in input.values) {
     const value = input.values.include_in_id_token;
@@ -222,7 +245,7 @@ export async function amendScope(
         description: 'include_in_id_token must be a boolean',
       };
     }
-    patch.includeInIdToken = value;
+    patch.includeInIdToken = { value };
   }
   if ('include_in_access_token' in input.values) {
     const value = input.values.include_in_access_token;
@@ -233,11 +256,23 @@ export async function amendScope(
         description: 'include_in_access_token must be a boolean',
       };
     }
-    patch.includeInAccessToken = value;
+    patch.includeInAccessToken = { value };
   }
 
-  if (Object.keys(patch).length > 0) {
-    await clientScopeRepository(tx).amend(input.scopeId, patch);
+  if (
+    patch.description !== undefined ||
+    patch.includeInIdToken !== undefined ||
+    patch.includeInAccessToken !== undefined
+  ) {
+    await clientScopeRepository(tx).amend(input.scopeId, {
+      ...(patch.description !== undefined ? { description: patch.description.value } : {}),
+      ...(patch.includeInIdToken !== undefined
+        ? { includeInIdToken: patch.includeInIdToken.value }
+        : {}),
+      ...(patch.includeInAccessToken !== undefined
+        ? { includeInAccessToken: patch.includeInAccessToken.value }
+        : {}),
+    });
   }
 
   await deps.audit({
@@ -289,6 +324,15 @@ export async function deleteScope(
 export interface SetScopeRolesInput {
   readonly scopeId: string;
   readonly roleIds: readonly string[];
+  /**
+   * The caller's own admin-client capability names — the same ceiling
+   * `setRoles` (#/usecase/subjects.ts) enforces. `reachableRoleIds`
+   * (read fresh per token issuance, @odudu/protocol-oidc) is what turns a
+   * scope's role mapping into claims on a token, so mapping a role here
+   * must never surface a capability the caller does not itself hold into a
+   * client that previously could not reach it.
+   */
+  readonly callerCapabilities: ReadonlySet<string>;
   readonly actorSubjectId: string;
 }
 
@@ -299,7 +343,25 @@ export interface SetScopeRolesDeps {
 export type SetScopeRolesOutcome =
   | { kind: 'not_found' }
   | { kind: 'unknown_role'; roleIds: readonly string[] }
+  | { kind: 'capability_ceiling'; requested: readonly string[] }
   | { kind: 'ok'; roles: readonly RoleAssignment[] };
+
+// Locked for the same reason `setRoles` (#/usecase/subjects.ts) locks its
+// subject: a mutex around the delete-then-insert
+// `roleRepository.setClientScopeRoles` performs, so two concurrent
+// replacements serialise instead of each committing a partial view of the
+// other's write.
+async function lockScopeForRoles(
+  tx: TenantScopedDatabase,
+  scopeId: string,
+): Promise<typeof clientScopes.$inferSelect | null> {
+  const rows = await tx
+    .select()
+    .from(clientScopes)
+    .where(eq(clientScopes.id, scopeId))
+    .for('update');
+  return rows[0] ?? null;
+}
 
 /** Replaces the role set a scope maps to wholesale — a role left out is one the caller clears. */
 export async function setScopeRoles(
@@ -307,7 +369,7 @@ export async function setScopeRoles(
   deps: SetScopeRolesDeps,
   input: SetScopeRolesInput,
 ): Promise<SetScopeRolesOutcome> {
-  const scope = await clientScopeRepository(tx).byId(input.scopeId);
+  const scope = await lockScopeForRoles(tx, input.scopeId);
   if (scope === null) return { kind: 'not_found' };
 
   const uniqueRoleIds = [...new Set(input.roleIds)];
@@ -322,6 +384,12 @@ export async function setScopeRoles(
   const missing = uniqueRoleIds.filter((id) => !foundIds.has(id));
   if (missing.length > 0) {
     return { kind: 'unknown_role', roleIds: missing };
+  }
+
+  const requestedCapabilities = await capabilitiesReachableFrom(tx, uniqueRoleIds);
+  const denied = overreach(requestedCapabilities, input.callerCapabilities);
+  if (denied.length > 0) {
+    return { kind: 'capability_ceiling', requested: denied };
   }
 
   await roleRepository(tx).setClientScopeRoles(input.scopeId, uniqueRoleIds);

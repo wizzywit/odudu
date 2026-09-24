@@ -1,10 +1,23 @@
 import { withTenant } from '@odudu/db';
-import { roleRepository } from '@odudu/domain-authz';
-import { ADMIN_CLIENT_ID, clientRepository, TENANT_ADMIN } from '@odudu/domain-tenant';
+import { roleComposites, roleRepository } from '@odudu/domain-authz';
+import {
+  ADMIN_CLIENT_ID,
+  clientRepository,
+  TENANT_ADMIN,
+  TENANT_CAPABILITIES,
+} from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
+import { and, eq, or } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { etagOf } from '#/service/etag';
 import { startAdminFixture, type AdminFixture } from '#/testing/admin-fixture';
+import {
+  addRoleComposite,
+  amendRole,
+  createRole,
+  deleteRole,
+  type RoleAuditEvent,
+} from '#/usecase/roles';
 
 let fixtureHandle: AdminFixture | undefined;
 let fixture: AdminFixture;
@@ -307,5 +320,232 @@ describe('POST /admin/tenants/{t}/roles/{id}/composites', () => {
       payload: { child_role_id: childId },
     });
     expect(res.statusCode).toBe(404);
+  });
+});
+
+describe('POST /admin/tenants/{t}/roles/{id}/composites — concurrent cycle race', () => {
+  // Without a lock on both endpoints of the edge, two concurrent calls that
+  // together close a cycle (A -> B while B -> A) can each pass
+  // closureFrom's check before either commits, and both succeed — the
+  // cycle the domain check exists to make impossible. Locking serialises
+  // them: the second call's check runs against the first call's already-
+  // committed edge.
+  it('lets at most one of two concurrent calls that would close a cycle succeed', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, [TENANT_ADMIN]);
+    const a = await plainRole(t.id);
+    const b = await plainRole(t.id);
+
+    const [first, second] = await Promise.all([
+      fixture.http.inject({
+        method: 'POST',
+        url: `/admin/tenants/${t.name}/roles/${a}/composites`,
+        headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+        payload: { child_role_id: b },
+      }),
+      fixture.http.inject({
+        method: 'POST',
+        url: `/admin/tenants/${t.name}/roles/${b}/composites`,
+        headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+        payload: { child_role_id: a },
+      }),
+    ]);
+
+    const statuses = [first.statusCode, second.statusCode].sort();
+    expect(statuses).toEqual([204, 409]);
+
+    const edges = await withTenant(fixture.app.db, t.id, (tx) =>
+      tx
+        .select()
+        .from(roleComposites)
+        .where(
+          or(
+            and(eq(roleComposites.parentRoleId, a), eq(roleComposites.childRoleId, b)),
+            and(eq(roleComposites.parentRoleId, b), eq(roleComposites.childRoleId, a)),
+          ),
+        ),
+    );
+    expect(edges).toHaveLength(1);
+  });
+});
+
+describe('is refused for every capability but manage-tenant, on every route', () => {
+  it('GET /roles, GET /roles/:id, PATCH /roles/:id, DELETE /roles/:id, POST /roles/:id/composites', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const id = await plainRole(t.id);
+    const child = await plainRole(t.id);
+    for (const capability of TENANT_CAPABILITIES) {
+      if (capability === 'manage-tenant') continue;
+      const token = await fixture.adminToken(t.name, [capability]);
+      const headers = { authorization: `Bearer ${token}`, 'content-type': 'application/json' };
+
+      const list = await fixture.http.inject({
+        method: 'GET',
+        url: `/admin/tenants/${t.name}/roles`,
+        headers,
+      });
+      expect(list.statusCode, `GET /roles as ${capability}`).toBe(403);
+
+      const read = await fixture.http.inject({
+        method: 'GET',
+        url: `/admin/tenants/${t.name}/roles/${id}`,
+        headers,
+      });
+      expect(read.statusCode, `GET /roles/:id as ${capability}`).toBe(403);
+
+      const amend = await fixture.http.inject({
+        method: 'PATCH',
+        url: `/admin/tenants/${t.name}/roles/${id}`,
+        headers,
+        payload: { description: 'x' },
+      });
+      expect(amend.statusCode, `PATCH /roles/:id as ${capability}`).toBe(403);
+
+      const del = await fixture.http.inject({
+        method: 'DELETE',
+        url: `/admin/tenants/${t.name}/roles/${id}`,
+        headers: { authorization: `Bearer ${token}` },
+      });
+      expect(del.statusCode, `DELETE /roles/:id as ${capability}`).toBe(403);
+
+      const composite = await fixture.http.inject({
+        method: 'POST',
+        url: `/admin/tenants/${t.name}/roles/${id}/composites`,
+        headers,
+        payload: { child_role_id: child },
+      });
+      expect(composite.statusCode, `POST /roles/:id/composites as ${capability}`).toBe(403);
+    }
+  });
+});
+
+// Every usecase in this file takes `audit` as a dependency rather than
+// calling a sink directly — the same seam #/usecase/subjects.ts uses —
+// driven directly here so a mutation's exactly-once call and a refusal's
+// zero calls are pinned without going through HTTP.
+describe('audit', () => {
+  function collector(): {
+    events: RoleAuditEvent[];
+    audit: (e: RoleAuditEvent) => Promise<void>;
+  } {
+    const events: RoleAuditEvent[] = [];
+    return {
+      events,
+      audit: (event) => {
+        events.push(event);
+        return Promise.resolve();
+      },
+    };
+  }
+
+  it('calls audit exactly once when it creates a role', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const { events, audit } = collector();
+    await withTenant(fixture.app.db, t.id, (tx) =>
+      createRole(
+        tx,
+        { audit },
+        {
+          tenantId: t.id,
+          name: `audited-${newId()}`,
+          description: null,
+          clientId: null,
+          defaultForNewSubjects: false,
+          actorSubjectId: 'test',
+        },
+      ),
+    );
+    expect(events).toHaveLength(1);
+    expect(events[0]?.action).toBe('role.create');
+  });
+
+  it('calls audit exactly once on a successful amendment, and not on a refusal', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const id = await plainRole(t.id);
+
+    const ok = collector();
+    const amended = await withTenant(fixture.app.db, t.id, (tx) =>
+      amendRole(
+        tx,
+        { audit: ok.audit },
+        { roleId: id, values: { description: 'x' }, ifMatch: undefined, actorSubjectId: 'test' },
+      ),
+    );
+    expect(amended.kind).toBe('ok');
+    expect(ok.events).toHaveLength(1);
+
+    const refused = collector();
+    const outcome = await withTenant(fixture.app.db, t.id, (tx) =>
+      amendRole(
+        tx,
+        { audit: refused.audit },
+        { roleId: id, values: { name: 'renamed' }, ifMatch: undefined, actorSubjectId: 'test' },
+      ),
+    );
+    expect(outcome.kind).toBe('refused_field');
+    expect(refused.events).toHaveLength(0);
+  });
+
+  it('calls audit exactly once on a successful delete, and not on not_found', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const id = await plainRole(t.id);
+
+    const ok = collector();
+    const deleted = await withTenant(fixture.app.db, t.id, (tx) =>
+      deleteRole(tx, { audit: ok.audit }, { roleId: id, actorSubjectId: 'test' }),
+    );
+    expect(deleted.kind).toBe('deleted');
+    expect(ok.events).toHaveLength(1);
+
+    const refused = collector();
+    const outcome = await withTenant(fixture.app.db, t.id, (tx) =>
+      deleteRole(tx, { audit: refused.audit }, { roleId: newId(), actorSubjectId: 'test' }),
+    );
+    expect(outcome.kind).toBe('not_found');
+    expect(refused.events).toHaveLength(0);
+  });
+
+  it('calls audit exactly once adding a composite, and not on a capability-ceiling refusal', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const parentId = await plainRole(t.id);
+    const manageUsersId = await capabilityRoleId(t.id, 'manage-users');
+    const tenantAdminId = await capabilityRoleId(t.id, TENANT_ADMIN);
+
+    const ok = collector();
+    const added = await withTenant(fixture.app.db, t.id, (tx) =>
+      addRoleComposite(
+        tx,
+        { audit: ok.audit },
+        {
+          parentRoleId: parentId,
+          childRoleId: manageUsersId,
+          // manage-users itself composites view-users (provisionAdminClient's
+          // viewCounterpart wiring), so a real holder's expanded
+          // capabilities carry both — the same reason
+          // groups.int.test.ts's ceiling setup hands a fully expanded set.
+          callerCapabilities: new Set(['manage-users', 'view-users']),
+          actorSubjectId: 'test',
+        },
+      ),
+    );
+    expect(added.kind).toBe('ok');
+    expect(ok.events).toHaveLength(1);
+
+    const otherParentId = await plainRole(t.id);
+    const refused = collector();
+    const outcome = await withTenant(fixture.app.db, t.id, (tx) =>
+      addRoleComposite(
+        tx,
+        { audit: refused.audit },
+        {
+          parentRoleId: otherParentId,
+          childRoleId: tenantAdminId,
+          callerCapabilities: new Set(['manage-users']),
+          actorSubjectId: 'test',
+        },
+      ),
+    );
+    expect(outcome.kind).toBe('capability_ceiling');
+    expect(refused.events).toHaveLength(0);
   });
 });

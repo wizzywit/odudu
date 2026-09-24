@@ -13,4 +13,9 @@ export {
   type EffectiveRole,
 } from '#/repository/effective-roles';
 export { groups, groupRoles, subjectGroups, type GroupRecord } from '#/schema/groups';
-export { groupRepository, effectiveGroupPaths, type NewGroup } from '#/repository/groups';
+export {
+  groupRepository,
+  effectiveGroupPaths,
+  ancestorsOf,
+  type NewGroup,
+} from '#/repository/groups';

@@ -29,6 +29,11 @@ export interface ScopesRouteDeps {
   readonly database: Database;
   readonly cursorKey: Uint8Array;
   readonly audit: Audit;
+  /** See `SubjectsRouteDeps.callerCapabilities` (#/view/routes/subjects.ts) — the same ceiling. */
+  readonly callerCapabilities: (
+    issuerTenantId: string,
+    subjectId: string,
+  ) => Promise<ReadonlySet<string>>;
 }
 
 function ifMatchHeader(request: AdminRequest): string | undefined {
@@ -223,12 +228,21 @@ export function setScopeRolesHandler(deps: ScopesRouteDeps): AdminRouteHandler {
       throw new Error('protocol-admin: PUT scope roles route received no :id');
     }
     const body = setScopeRolesRequestSchema.parse(request.body);
+    const callerCapabilities = await deps.callerCapabilities(
+      principal.issuerTenantId,
+      principal.subjectId,
+    );
 
     const outcome = await withTenant(deps.database, targetTenantId, (tx) =>
       setScopeRoles(
         tx,
         { audit: deps.audit },
-        { scopeId: id, roleIds: body.role_ids, actorSubjectId: principal.subjectId },
+        {
+          scopeId: id,
+          roleIds: body.role_ids,
+          callerCapabilities,
+          actorSubjectId: principal.subjectId,
+        },
       ),
     );
 
@@ -244,6 +258,17 @@ export function setScopeRolesHandler(deps: ScopesRouteDeps): AdminRouteHandler {
             'about:blank',
             'Bad Request',
             `unknown role id(s): ${outcome.roleIds.join(', ')}`,
+          ),
+        );
+      case 'capability_ceiling':
+        return sendProblem(
+          reply,
+          request,
+          problem(
+            403,
+            'about:blank',
+            'Forbidden',
+            `the caller does not hold: ${outcome.requested.join(', ')}`,
           ),
         );
       case 'ok': {
