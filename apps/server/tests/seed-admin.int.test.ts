@@ -1,7 +1,14 @@
-import { createDatabase, MIGRATIONS_DIR, runMigrations, type DatabaseHandle } from '@odudu/db';
+import {
+  createDatabase,
+  MIGRATIONS_DIR,
+  runMigrations,
+  tenants,
+  type DatabaseHandle,
+} from '@odudu/db';
 import { ADMIN_CLIENT_ID, SYSTEM_TENANT_NAME } from '@odudu/domain-tenant';
 import { loadConfig, newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
+import { eq } from 'drizzle-orm';
 import { type FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { buildApp } from '#/app';
@@ -71,6 +78,23 @@ async function authorize(
   });
   return { statusCode: res.statusCode, body: res.body };
 }
+
+// Runs before anything here has bootstrapped the system tenant, since
+// once SYSTEM_TENANT_ID holds the name no foreign id can take it.
+describe('seed admin against a system tenant under a foreign id', () => {
+  it('refuses rather than colliding on the unique name', async () => {
+    const foreignId = newId();
+    await owner.db.insert(tenants).values({ id: foreignId, name: SYSTEM_TENANT_NAME });
+
+    try {
+      await expect(seedAdmin({ username: `ada-${newId()}` })).rejects.toMatchObject({
+        code: 'seed_system_tenant_conflict',
+      });
+    } finally {
+      await owner.db.delete(tenants).where(eq(tenants.id, foreignId));
+    }
+  });
+});
 
 describe('the client seed admin bootstraps', () => {
   it('can carry an administrator as far as the login form', async () => {

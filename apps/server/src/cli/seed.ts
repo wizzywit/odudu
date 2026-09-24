@@ -557,6 +557,51 @@ export interface SeededAdmin {
   readonly password: string;
 }
 
+// Drizzle wraps the driver's error, so the SQLSTATE is a level down.
+function isUniqueViolation(error: unknown): boolean {
+  if (typeof error !== 'object' || error === null) return false;
+  if ('code' in error) {
+    const { code }: { code: unknown } = error;
+    if (code === '23505') return true;
+  }
+  return 'cause' in error && isUniqueViolation(error.cause);
+}
+
+// Keyed on the id throughout, because a lookup by name and an insert by id
+// can disagree: under RLS a `system` tenant holding a foreign id is not
+// even visible here, and two concurrent runs would both find nothing.
+// Returns whether this call created the row.
+async function insertSystemTenant(tx: TenantScopedDatabase): Promise<boolean> {
+  let inserted: { id: string }[];
+  try {
+    inserted = await tx
+      .insert(tenants)
+      .values({ id: SYSTEM_TENANT_ID, name: SYSTEM_TENANT_NAME, displayName: 'System' })
+      .onConflictDoNothing({ target: tenants.id })
+      .returning({ id: tenants.id });
+  } catch (error) {
+    if (!isUniqueViolation(error)) throw error;
+    throw new OduduError(
+      'seed_system_tenant_conflict',
+      `a tenant named ${SYSTEM_TENANT_NAME} already exists under an id other than ${SYSTEM_TENANT_ID}`,
+      { cause: error },
+    );
+  }
+  if (inserted.length > 0) return true;
+
+  const rows = await tx
+    .select({ name: tenants.name })
+    .from(tenants)
+    .where(eq(tenants.id, SYSTEM_TENANT_ID));
+  if (rows[0]?.name !== SYSTEM_TENANT_NAME) {
+    throw new OduduError(
+      'seed_system_tenant_conflict',
+      `the tenant with id ${SYSTEM_TENANT_ID} is not named ${SYSTEM_TENANT_NAME}`,
+    );
+  }
+  return false;
+}
+
 // withTenant binds app.tenant_id to SYSTEM_TENANT_ID before the row exists,
 // which is what a FORCE-RLS insert needs (see SYSTEM_TENANT_ID). Idempotent
 // throughout: a re-run with a different username reuses the same tenant,
@@ -570,15 +615,8 @@ export async function seedAdmin(options: SeedAdminOptions): Promise<SeededAdmin>
 
   try {
     return await withTenant(runtime.db, SYSTEM_TENANT_ID, async (tx) => {
-      const existing = await tx
-        .select({ id: tenants.id })
-        .from(tenants)
-        .where(eq(tenants.name, SYSTEM_TENANT_NAME));
       const tenantId = SYSTEM_TENANT_ID;
-      if (existing[0] === undefined) {
-        await tx
-          .insert(tenants)
-          .values({ id: SYSTEM_TENANT_ID, name: SYSTEM_TENANT_NAME, displayName: 'System' });
+      if (await insertSystemTenant(tx)) {
         // Runs only on the creating pass: provisionTenantDefaults inserts
         // unconditionally, so a re-run would collide with
         // client_scopes_name_unique.

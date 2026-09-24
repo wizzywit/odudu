@@ -22,6 +22,7 @@ export type ErrorCode =
   | 'seed_unknown_setting'
   | 'seed_unknown_grant_type'
   | 'seed_admin_exists'
+  | 'seed_system_tenant_conflict'
   | 'admin_client_not_builtin'
   | 'insert_returned_no_row'
   | 'role_not_found'
