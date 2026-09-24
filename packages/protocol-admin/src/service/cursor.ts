@@ -13,6 +13,21 @@ export function coerceLimit(raw: string | undefined): number {
   return Math.min(Number(raw), MAX_LIMIT);
 }
 
+// Built from the request's own validated query rather than the two fields
+// every list happened to have when this was first written — a filter added
+// to one listing (`search`, on subjects) carries into its own `next` link
+// for free instead of needing this rewritten at the same time.
+export function nextPageUrl(
+  path: string,
+  query: Readonly<Record<string, string | number | undefined>>,
+): string {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(query)) {
+    if (value !== undefined) params.set(key, String(value));
+  }
+  return `${path}?${params.toString()}`;
+}
+
 export interface CursorPayload {
   readonly after: string;
   readonly collection: string;

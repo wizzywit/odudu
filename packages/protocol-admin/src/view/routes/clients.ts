@@ -9,7 +9,7 @@ import {
 import { withTenant, type Database } from '@odudu/db';
 import { ClientIdConflictError } from '@odudu/domain-tenant';
 import { type FastifyReply } from 'fastify';
-import { coerceLimit } from '#/service/cursor';
+import { coerceLimit, nextPageUrl } from '#/service/cursor';
 import { etagOf } from '#/service/etag';
 import {
   amendClient,
@@ -79,7 +79,11 @@ export function listClientsHandler(deps: ClientsRouteDeps): AdminRouteHandler {
       return reply.code(200).send({ items });
     }
 
-    const nextUrl = `/admin/tenants/${tenantName}/clients?limit=${String(limit)}&cursor=${encodeURIComponent(outcome.next)}`;
+    const nextUrl = nextPageUrl(`/admin/tenants/${tenantName}/clients`, {
+      ...query,
+      limit,
+      cursor: outcome.next,
+    });
     reply.header('link', `<${nextUrl}>; rel="next"`);
     return reply.code(200).send({ items, next: outcome.next });
   };

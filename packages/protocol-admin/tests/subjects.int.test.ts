@@ -1,3 +1,4 @@
+import { requiredActionRepository } from '@odudu/authn-flows';
 import { generateTotpSecret, totpCode, totpCounter } from '@odudu/crypto';
 import { withTenant } from '@odudu/db';
 import { roleRepository } from '@odudu/domain-authz';
@@ -62,6 +63,28 @@ describe('POST /admin/tenants/{t}/subjects', () => {
     });
     const listed = list.json<{ items: { username: string | null }[] }>().items;
     expect(listed.map((s) => s.username)).toContain(username);
+  });
+
+  // The other half of "no password field": a created subject owes
+  // update-password rather than simply having none, which is what makes
+  // the refusal below safe rather than merely strict — without this, an
+  // operator-created account would authenticate with no factor at all.
+  it('writes an update-password required action for the created subject', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-users']);
+    const res = await fixture.http.inject({
+      method: 'POST',
+      url: `/admin/tenants/${t.name}/subjects`,
+      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      payload: { username: `owed-${newId()}` },
+    });
+    expect(res.statusCode).toBe(201);
+    const { id } = res.json<{ id: string }>();
+
+    const pending = await withTenant(fixture.app.db, t.id, (tx) =>
+      requiredActionRepository(tx).pendingFor(id),
+    );
+    expect(pending).toEqual(['update-password']);
   });
 
   // No password field exists on this door: creating a subject writes an
@@ -151,6 +174,37 @@ describe('GET /admin/tenants/{t}/subjects', () => {
     });
     expect(res.statusCode).toBe(200);
     const items = res.json<{ items: { username: string | null }[] }>().items;
+    expect(items.length).toBeGreaterThan(0);
+    expect(items.every((s) => s.username?.startsWith(prefix) === true)).toBe(true);
+  });
+
+  it('carries ?search= into the next page link, so following it stays filtered', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const prefix = `carry-${newId()}`;
+    await fixture.createSubject(t.name, `${prefix}-a`);
+    await fixture.createSubject(t.name, `${prefix}-b`);
+    await fixture.createSubject(t.name, `other-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['view-users']);
+
+    const first = await fixture.http.inject({
+      method: 'GET',
+      url: `/admin/tenants/${t.name}/subjects?search=${prefix}&limit=1`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(first.statusCode).toBe(200);
+    const link = first.headers.link;
+    if (typeof link !== 'string') throw new Error('expected a Link header on a filtered page');
+    const nextPath = /<([^>]+)>/.exec(link)?.[1];
+    if (nextPath === undefined) throw new Error('expected a URL inside the Link header');
+    expect(nextPath).toContain(`search=${prefix}`);
+
+    const second = await fixture.http.inject({
+      method: 'GET',
+      url: nextPath,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(second.statusCode).toBe(200);
+    const items = second.json<{ items: { username: string | null }[] }>().items;
     expect(items.length).toBeGreaterThan(0);
     expect(items.every((s) => s.username?.startsWith(prefix) === true)).toBe(true);
   });
@@ -315,6 +369,16 @@ describe('PUT /admin/tenants/{t}/subjects/{id}/roles', () => {
     const items = second.json<{ items: { id: string; name: string }[] }>().items;
     expect(items.map((r) => r.id)).toEqual([manageUsersId]);
   });
+
+  it('refuses a caller holding only view-users', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const { id: targetId } = await fixture.createSubject(t.name, `target-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['view-users']);
+    const viewUsersId = await capabilityRoleId(t.id, 'view-users');
+
+    const res = await putRoles(t.name, targetId, token, [viewUsersId]);
+    expect(res.statusCode).toBe(403);
+  });
 });
 
 describe('PATCH /admin/tenants/{t}/subjects/{id}', () => {
@@ -351,6 +415,20 @@ describe('PATCH /admin/tenants/{t}/subjects/{id}', () => {
       payload: { enabled: false },
     });
     expect(res.statusCode).toBe(412);
+  });
+
+  it('refuses a caller holding only view-users', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const { id } = await fixture.createSubject(t.name, `pat-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['view-users']);
+
+    const res = await fixture.http.inject({
+      method: 'PATCH',
+      url: `/admin/tenants/${t.name}/subjects/${id}`,
+      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      payload: { enabled: false },
+    });
+    expect(res.statusCode).toBe(403);
   });
 });
 
@@ -391,6 +469,19 @@ describe('DELETE /admin/tenants/{t}/subjects/{id}', () => {
     });
     expect(res.statusCode).toBe(404);
   });
+
+  it('refuses a caller holding only view-users', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const { id } = await fixture.createSubject(t.name, `del-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['view-users']);
+
+    const res = await fixture.http.inject({
+      method: 'DELETE',
+      url: `/admin/tenants/${t.name}/subjects/${id}`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(res.statusCode).toBe(403);
+  });
 });
 
 describe('PUT /admin/tenants/{t}/subjects/{id}/required-actions', () => {
@@ -419,6 +510,20 @@ describe('PUT /admin/tenants/{t}/subjects/{id}/required-actions', () => {
     });
     expect(replaced.statusCode).toBe(200);
     expect(replaced.json<{ actions: string[] }>().actions).toEqual(['configure-totp']);
+  });
+
+  it('refuses a caller holding only view-users', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const { id } = await fixture.createSubject(t.name, `req-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['view-users']);
+
+    const res = await fixture.http.inject({
+      method: 'PUT',
+      url: `/admin/tenants/${t.name}/subjects/${id}/required-actions`,
+      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      payload: { actions: ['configure-totp'] },
+    });
+    expect(res.statusCode).toBe(403);
   });
 });
 
@@ -468,6 +573,19 @@ describe('GET /admin/tenants/{t}/subjects/{id}/credentials', () => {
     const recovery = items.find((c) => c.type === 'recovery-code');
     expect(recovery?.recovery_code_count).toBe(1);
     expect(recovery?.id).toBeUndefined();
+  });
+
+  it('refuses a caller holding neither view-users nor manage-users', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const { id } = await fixture.createSubject(t.name, `cred-${newId()}`);
+    const token = await fixture.adminToken(t.name, []);
+
+    const res = await fixture.http.inject({
+      method: 'GET',
+      url: `/admin/tenants/${t.name}/subjects/${id}/credentials`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(res.statusCode).toBe(403);
   });
 });
 
@@ -613,6 +731,30 @@ describe('DELETE /admin/tenants/{t}/subjects/{id}/credentials/{credentialId}', (
 
     const redeemed = await redeemCode(t.name, client.clientId, client.secret, code);
     expect(redeemed.statusCode).toBe(200);
+  });
+
+  it('refuses a caller holding only view-users', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const { id } = await fixture.createSubject(t.name, `cred-${newId()}`);
+    const credentialId = await withTenant(fixture.app.db, t.id, async (tx) => {
+      await credentialRepository(tx).insert({
+        tenantId: t.id,
+        subjectId: id,
+        type: 'totp',
+        secret: { kind: 'totp', secret: generateTotpSecret(), digits: 6, lastStep: 0 },
+      });
+      const [row] = await credentialRepository(tx).listFor(id, 'totp');
+      if (row === undefined) throw new Error('fixture: no totp credential after insert');
+      return row.id;
+    });
+    const token = await fixture.adminToken(t.name, ['view-users']);
+
+    const res = await fixture.http.inject({
+      method: 'DELETE',
+      url: `/admin/tenants/${t.name}/subjects/${id}/credentials/${credentialId}`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(res.statusCode).toBe(403);
   });
 });
 

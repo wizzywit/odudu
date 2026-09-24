@@ -1,6 +1,6 @@
 import { createTenantRequestSchema, cursorQuerySchema, type Tenant } from '@odudu/contracts/admin';
 import { type Database } from '@odudu/db';
-import { coerceLimit } from '#/service/cursor';
+import { coerceLimit, nextPageUrl } from '#/service/cursor';
 import { createTenant, listTenants, type Audit, type TenantRecord } from '#/usecase/tenants';
 import { problem, sendProblem } from '#/view/problem';
 import { type AdminRouteHandler } from '#/view/routes/router';
@@ -103,7 +103,7 @@ export function listTenantsHandler(deps: TenantsRouteDeps): AdminRouteHandler {
       return reply.code(200).send({ items });
     }
 
-    const nextUrl = `/admin/tenants?limit=${String(limit)}&cursor=${encodeURIComponent(outcome.next)}`;
+    const nextUrl = nextPageUrl('/admin/tenants', { ...query, limit, cursor: outcome.next });
     reply.header('link', `<${nextUrl}>; rel="next"`);
     return reply.code(200).send({ items, next: outcome.next });
   };

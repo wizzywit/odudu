@@ -254,6 +254,46 @@ describe('requiredActionRepository', () => {
     });
   });
 
+  // Not expectCrossTenantMethodProbe: replaceAll's insert half raises a real
+  // RLS violation at the Postgres level (the same reason the `add` test
+  // above catches around the whole `withTenant`, not inside it) — catching
+  // that in JS leaves the transaction aborted, and the implicit COMMIT
+  // `withTenant` issues on a normal return then fails with an unrelated
+  // "current transaction is aborted" error instead of the one under test.
+  it('cannot replace a foreign tenant’s required actions through replaceAll', async () => {
+    const tenantA = newId();
+    const tenantB = newId();
+
+    const subjectA = await withTenant(app.db, tenantA, async (tx) => {
+      const subjectId = await seedTenantAndUser(tx, tenantA);
+      await requiredActionRepository(tx).add(tenantA, subjectId, 'configure-totp');
+      return subjectId;
+    });
+    await withTenant(app.db, tenantB, async (tx) => {
+      await tx.insert(tenants).values({ id: tenantB, name: `tenant-${tenantB}` });
+    });
+
+    let error: unknown;
+    try {
+      await withTenant(app.db, tenantB, async (tx) =>
+        requiredActionRepository(tx).replaceAll(tenantA, subjectA, ['update-password']),
+      );
+      expect.unreachable('expected the cross-tenant replaceAll to be rejected');
+    } catch (caught) {
+      error = caught;
+    }
+
+    expect(error).toBeInstanceOf(Error);
+    const cause = (error as Error).cause;
+    expect(cause).toBeInstanceOf(Error);
+    expect((cause as Error).message).toContain('row-level security policy');
+
+    const pendingUnderA = await withTenant(app.db, tenantA, async (tx) =>
+      requiredActionRepository(tx).pendingFor(subjectA),
+    );
+    expect(pendingUnderA).toEqual(['configure-totp']);
+  });
+
   it('adding the same action twice does not duplicate it', async () => {
     const tenantId = newId();
     await withTenant(app.db, tenantId, async (tx) => {

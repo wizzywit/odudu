@@ -12,7 +12,7 @@ import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { effectiveRoles } from '#/repository/effective-roles';
+import { effectiveRoles, rolesReachableFrom } from '#/repository/effective-roles';
 import { roleRepository, type RoleRecord } from '#/repository/roles';
 
 let containerHandle: TestDatabase | undefined;
@@ -201,6 +201,26 @@ describe('effectiveRoles', () => {
         expect(found.map((role) => role.name)).toContain('admin');
       },
       attempt: async (tx, seeded) => effectiveRoles(tx, seeded.subjectId),
+      expectBlocked: (result) => {
+        expect(result).toEqual([]);
+      },
+    });
+  });
+});
+
+describe('rolesReachableFrom', () => {
+  it('returns nothing for a role id seeded in another tenant', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        await seedTenant(tx, tenantId);
+        const admin = await roleRepository(tx).create({ tenantId, name: 'admin' });
+        return { roleId: admin.id };
+      },
+      verifySeeded: async (tx, seeded) => {
+        const found = await rolesReachableFrom(tx, [seeded.roleId]);
+        expect(found.map((role) => role.name)).toContain('admin');
+      },
+      attempt: async (tx, seeded) => rolesReachableFrom(tx, [seeded.roleId]),
       expectBlocked: (result) => {
         expect(result).toEqual([]);
       },

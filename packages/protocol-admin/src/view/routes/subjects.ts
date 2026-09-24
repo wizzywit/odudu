@@ -4,14 +4,13 @@ import {
   listSubjectsQuerySchema,
   setRequiredActionsRequestSchema,
   setRolesRequestSchema,
-  type Credential,
   type SetRequiredActionsResponse,
   type SetRolesResponse,
   type Subject,
 } from '@odudu/contracts/admin';
 import { withTenant, type Database } from '@odudu/db';
 import { type FastifyReply } from 'fastify';
-import { coerceLimit } from '#/service/cursor';
+import { coerceLimit, nextPageUrl } from '#/service/cursor';
 import { etagOf } from '#/service/etag';
 import {
   amendSubject,
@@ -27,7 +26,6 @@ import {
   subjectWireShape,
   type AmendSubjectOutcome,
   type Audit,
-  type CredentialView,
   type SubjectView,
 } from '#/usecase/subjects';
 import { problem, sendProblem } from '#/view/problem';
@@ -49,14 +47,6 @@ export interface SubjectsRouteDeps {
     issuerTenantId: string,
     subjectId: string,
   ) => Promise<ReadonlySet<string>>;
-}
-
-function toWireSubject(view: SubjectView): Subject {
-  return subjectWireShape(view);
-}
-
-function toWireCredential(view: CredentialView): Credential {
-  return credentialWireShape(view);
 }
 
 function ifMatchHeader(request: AdminRequest): string | undefined {
@@ -102,12 +92,16 @@ export function listSubjectsHandler(deps: SubjectsRouteDeps): AdminRouteHandler 
       );
     }
 
-    const items = outcome.items.map(toWireSubject);
+    const items = outcome.items.map(subjectWireShape);
     if (outcome.next === null) {
       return reply.code(200).send({ items });
     }
 
-    const nextUrl = `/admin/tenants/${tenantName}/subjects?limit=${String(limit)}&cursor=${encodeURIComponent(outcome.next)}`;
+    const nextUrl = nextPageUrl(`/admin/tenants/${tenantName}/subjects`, {
+      ...query,
+      limit,
+      cursor: outcome.next,
+    });
     reply.header('link', `<${nextUrl}>; rel="next"`);
     return reply.code(200).send({ items, next: outcome.next });
   };
@@ -129,7 +123,7 @@ export function readSubjectHandler(deps: SubjectsRouteDeps): AdminRouteHandler {
       );
     }
 
-    const wire = toWireSubject(outcome.subject);
+    const wire = subjectWireShape(outcome.subject);
     reply.header('etag', etagOf(wire));
     return reply.code(200).send(wire);
   };
@@ -172,7 +166,7 @@ export function createSubjectHandler(deps: SubjectsRouteDeps): AdminRouteHandler
       throw error;
     }
 
-    const wire: Subject = toWireSubject(view);
+    const wire: Subject = subjectWireShape(view);
     return reply.code(201).send(wire);
   };
 }
@@ -189,7 +183,7 @@ function amendmentProblem(
       return sendProblem(
         reply,
         request,
-        problem(400, 'about:blank', 'Bad Request', `${outcome.field} is not an amendable field`),
+        problem(400, 'about:blank', 'Bad Request', `${outcome.field}: ${outcome.reason}`),
       );
     case 'invalid_value':
       return sendProblem(
@@ -231,7 +225,7 @@ export function amendSubjectHandler(deps: SubjectsRouteDeps): AdminRouteHandler 
       return amendmentProblem(reply, request, outcome);
     }
     reply.header('etag', outcome.etag);
-    return reply.code(200).send(toWireSubject(outcome.subject));
+    return reply.code(200).send(subjectWireShape(outcome.subject));
   };
 }
 
@@ -277,7 +271,7 @@ export function listCredentialsHandler(deps: SubjectsRouteDeps): AdminRouteHandl
       );
     }
 
-    return reply.code(200).send({ items: outcome.items.map(toWireCredential) });
+    return reply.code(200).send({ items: outcome.items.map(credentialWireShape) });
   };
 }
 

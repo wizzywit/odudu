@@ -17,6 +17,7 @@ import { ADMIN_CLIENT_ID, tenantSettingsRepository } from '@odudu/domain-tenant'
 import { and, asc, eq, gt, inArray, like, ne } from 'drizzle-orm';
 import { decodeCursor, encodeCursor } from '#/service/cursor';
 import { etagOf, matches } from '#/service/etag';
+import { AMENDABLE_SUBJECT_FIELDS, refusalFor } from '#/service/subjects-patch';
 
 const COLLECTION = 'subjects';
 
@@ -238,11 +239,9 @@ export interface AmendSubjectDeps {
   readonly audit: Audit;
 }
 
-const AMENDABLE_SUBJECT_FIELDS = ['email', 'enabled'];
-
 export type AmendSubjectOutcome =
   | { kind: 'not_found' }
-  | { kind: 'refused_field'; field: string }
+  | { kind: 'refused_field'; field: string; reason: string }
   | { kind: 'invalid_value'; field: string; description: string }
   | { kind: 'precondition_failed' }
   | { kind: 'ok'; subject: SubjectView; etag: string };
@@ -297,7 +296,11 @@ export async function amendSubject(
 ): Promise<AmendSubjectOutcome> {
   for (const field of Object.keys(input.values)) {
     if (!AMENDABLE_SUBJECT_FIELDS.includes(field)) {
-      return { kind: 'refused_field', field };
+      return {
+        kind: 'refused_field',
+        field,
+        reason: refusalFor(field) ?? `${field} is not a subject field`,
+      };
     }
   }
 
@@ -549,10 +552,15 @@ export async function setRequiredActions(
   deps: SetRequiredActionsDeps,
   input: SetRequiredActionsInput,
 ): Promise<SetRequiredActionsOutcome> {
+  // Locked as a mutex for the delete-then-insert below: under READ
+  // COMMITTED, two concurrent replacements with no lock each delete a
+  // snapshot the other's inserts are invisible to, and both commit —
+  // leaving the union of the two requests rather than either one alone.
   const subjectRows = await tx
     .select({ id: subjects.id })
     .from(subjects)
-    .where(eq(subjects.id, input.subjectId));
+    .where(eq(subjects.id, input.subjectId))
+    .for('update');
   if (subjectRows.length === 0) return { kind: 'not_found' };
 
   await requiredActionRepository(tx).replaceAll(input.tenantId, input.subjectId, input.actions);
@@ -576,13 +584,12 @@ export interface SetRolesInput {
   readonly subjectId: string;
   readonly roleIds: readonly string[];
   /**
-   * The caller's own admin-client capability names, already expanded
-   * through `role_composites` and already resolved against the caller's
-   * own issuer tenant — never the target tenant, which may differ from it
-   * on a cross-tenant system-admin call. Computed by the route (`#/index.ts`
-   * wires it the same way `AuthorizeAdminDeps.effectiveRoles` is), because
-   * this transaction is scoped to the target tenant and cannot resolve a
-   * different one.
+   * The caller's own admin-client capability names, expanded through
+   * `role_composites` and resolved against the caller's own issuer tenant,
+   * never the target tenant a cross-tenant system admin may differ from.
+   * Computed by the route (`#/index.ts`, the same way
+   * `AuthorizeAdminDeps.effectiveRoles` is) — this transaction is scoped to
+   * the target tenant and cannot resolve a different one.
    */
   readonly callerCapabilities: ReadonlySet<string>;
   readonly actorSubjectId: string;
@@ -609,10 +616,15 @@ export async function setRoles(
   deps: SetRolesDeps,
   input: SetRolesInput,
 ): Promise<SetRolesOutcome> {
+  // Locked for the same reason setRequiredActions locks its subject row:
+  // a mutex around the delete-then-insert below, so two concurrent
+  // replacements serialise instead of each committing a partial view of
+  // the other's write.
   const subjectRows = await tx
     .select({ id: subjects.id })
     .from(subjects)
-    .where(eq(subjects.id, input.subjectId));
+    .where(eq(subjects.id, input.subjectId))
+    .for('update');
   if (subjectRows.length === 0) return { kind: 'not_found' };
 
   const uniqueRoleIds = [...new Set(input.roleIds)];
