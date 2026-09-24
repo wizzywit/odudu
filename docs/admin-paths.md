@@ -356,11 +356,12 @@ field this excludes is refused with `400`, naming the field and the reason
 orphans the azp of every issued token", for instance, not merely "refused".
 
 A list field — `redirect_uris`, `post_logout_redirect_uris`, `web_origins`,
-`audiences`, `grant_types` — is replaced **wholesale**, never appended to:
-the body names the complete list the field should hold afterward. Because
-last-write-wins on one of these silently reinstates exactly what another
-admin just removed, `If-Match` is **required** when a request touches any
-of the five, answered with `428 Precondition Required` when it is missing;
+`audiences`, `grant_types`, `client_credentials_scopes` — is replaced
+**wholesale**, never appended to: the body names the complete list the
+field should hold afterward. Because last-write-wins on one of these
+silently reinstates exactly what another admin just removed, `If-Match` is
+**required** when a request touches any of the six, answered with
+`428 Precondition Required` when it is missing;
 every other field amends with `If-Match` optional, the same concurrency
 control `PATCH /settings` uses, row lock included. A stale `If-Match` is
 `412` either way, and nothing is changed.

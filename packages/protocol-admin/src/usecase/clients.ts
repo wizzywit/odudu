@@ -420,16 +420,18 @@ export type AmendClientOutcome =
 // `enabled: false` produces, through a second door.
 const BUILTIN_ADMIN_LOCKOUT_FIELDS = ['grant_types', 'token_endpoint_auth_method', 'redirect_uris'];
 
-// The five list fields the schema stores whole: last-write-wins on one
-// silently reinstates exactly what another admin just removed, so a `PATCH`
-// naming any of them must carry `If-Match` — checked by name below, never
-// through one representative.
+// The six list fields the schema stores whole (the same six
+// `clientOidcConfigRepository.update`'s own comment names): last-write-wins
+// on one silently reinstates exactly what another admin just removed, so a
+// `PATCH` naming any of them must carry `If-Match` — checked by name below,
+// never through one representative.
 const WHOLESALE_LIST_FIELDS = [
   'redirect_uris',
   'post_logout_redirect_uris',
   'web_origins',
   'audiences',
   'grant_types',
+  'client_credentials_scopes',
 ] as const;
 
 // RFC 7591 client metadata this amendment reruns through

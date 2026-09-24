@@ -535,6 +535,7 @@ describe('PATCH /admin/tenants/{t}/clients/{id}', () => {
     ['web_origins', ['https://app.example']],
     ['audiences', ['urn:example:audience']],
     ['grant_types', ['client_credentials']],
+    ['client_credentials_scopes', ['read:orders']],
   ])('428s amending %s with no If-Match', async (field, value) => {
     const t = await fixture.createTenant(`acme-${newId()}`);
     const token = await fixture.adminToken(t.name, ['manage-clients']);
