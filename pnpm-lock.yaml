@@ -175,6 +175,9 @@ importers:
       '@odudu/kernel':
         specifier: workspace:*
         version: link:../../packages/kernel
+      '@odudu/protocol-admin':
+        specifier: workspace:*
+        version: link:../../packages/protocol-admin
       '@odudu/protocol-oidc':
         specifier: workspace:*
         version: link:../../packages/protocol-oidc

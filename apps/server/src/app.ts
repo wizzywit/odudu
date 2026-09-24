@@ -21,6 +21,7 @@ import {
   verifyPassword,
 } from '@odudu/domain-identity';
 import { newId } from '@odudu/kernel';
+import { adminRoutes } from '@odudu/protocol-admin';
 import { clientKeySet, oidcRoutes } from '@odudu/protocol-oidc';
 import Fastify, { type FastifyInstance, type RawServerDefault } from 'fastify';
 import { type IncomingMessage, type ServerResponse } from 'node:http';
@@ -216,6 +217,13 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   app.register(cookie);
 
   registerHealth(app, deps);
+  app.register(
+    adminRoutes({
+      database: deps.database,
+      ownerDatabase: deps.ownerDatabase,
+      logger: deps.logger,
+    }),
+  );
   app.register(
     oidcRoutes({
       database: deps.database,
