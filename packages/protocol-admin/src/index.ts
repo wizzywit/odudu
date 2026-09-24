@@ -9,6 +9,7 @@ import { type FastifyPluginAsync } from 'fastify';
 import { type AuthenticateAdminDeps } from '#/usecase/authenticate-admin';
 import { type AuthorizeAdminDeps } from '#/usecase/authorize-admin';
 import { installAdminValidator } from '#/adapter/validation';
+import { installProblemDetailsHandler } from '#/view/problem';
 import { type AdminRouteHandlers, registerAdminRoutes } from '#/view/routes/router';
 import { listSubjectsHandler } from '#/view/routes/subjects';
 import { whoamiHandler } from '#/view/routes/whoami';
@@ -31,6 +32,7 @@ export interface AdminRoutesDeps {
 export function adminRoutes(deps: AdminRoutesDeps): FastifyPluginAsync {
   return (app) => {
     installAdminValidator(app);
+    installProblemDetailsHandler(app);
 
     const clock = deps.clock ?? systemClock;
 

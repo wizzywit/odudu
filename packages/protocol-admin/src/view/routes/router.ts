@@ -9,6 +9,7 @@ import {
   type AuthenticateAdminDeps,
 } from '#/usecase/authenticate-admin';
 import { authorizeAdmin, type AuthorizeAdminDeps } from '#/usecase/authorize-admin';
+import { problem, sendProblem } from '#/view/problem';
 
 export type AdminRequest = FastifyRequest<{ Params: { tenant: string } }>;
 
@@ -25,20 +26,12 @@ function routeKey(method: string, pattern: string): string {
   return `${method} ${pattern}`;
 }
 
-// The shape `view/problem.ts` will own for every admin route (deferred to
-// the increment that adds it).
 function sendUnauthorized(request: FastifyRequest, reply: FastifyReply): FastifyReply {
-  return reply
-    .code(401)
-    .header('content-type', 'application/problem+json')
-    .send({ type: 'about:blank', title: 'Unauthorized', status: 401, instance: request.id });
+  return sendProblem(reply, request, problem(401, 'about:blank', 'Unauthorized'));
 }
 
 function sendForbidden(request: FastifyRequest, reply: FastifyReply): FastifyReply {
-  return reply
-    .code(403)
-    .header('content-type', 'application/problem+json')
-    .send({ type: 'about:blank', title: 'Forbidden', status: 403, instance: request.id });
+  return sendProblem(reply, request, problem(403, 'about:blank', 'Forbidden'));
 }
 
 async function handleRoute(
