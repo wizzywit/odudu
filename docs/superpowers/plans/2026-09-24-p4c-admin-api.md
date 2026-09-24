@@ -265,10 +265,9 @@ let app: ReturnType<typeof createDatabase>;
 
 beforeAll(async () => {
   container = await startTestDatabase();
-  owner = createDatabase(container.ownerUrl);
+  owner = createDatabase(container.adminUrl);
   await runMigrations(owner.db, MIGRATIONS_DIR);
-  await createAppRole(container);
-  app = createDatabase(container.appUrl);
+  app = createDatabase(await createAppRole(container.adminUrl), { max: 5 });
 }, 120_000);
 
 afterAll(async () => {
@@ -406,10 +405,9 @@ let app: ReturnType<typeof createDatabase>;
 
 beforeAll(async () => {
   container = await startTestDatabase();
-  owner = createDatabase(container.ownerUrl);
+  owner = createDatabase(container.adminUrl);
   await runMigrations(owner.db, MIGRATIONS_DIR);
-  await createAppRole(container);
-  app = createDatabase(container.appUrl);
+  app = createDatabase(await createAppRole(container.adminUrl), { max: 5 });
 }, 120_000);
 
 afterAll(async () => {
@@ -522,7 +520,12 @@ export async function provisionAdminClient(
       tenantId,
       clientId: ADMIN_CLIENT_ID,
       name: 'Odudu administration',
-      type: 'confidential',
+      // Public, not confidential: `clients_secret_matches_type`
+      // (0004_clients.sql) requires a confidential client to carry a secret,
+      // and nothing would ever retrieve one for this client. Administrators
+      // authenticate as subjects through the login flow; a provisioning
+      // application registers its own confidential client.
+      type: 'public',
       secretHash: null,
       builtinAdmin: true,
     }));
